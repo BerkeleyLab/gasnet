@@ -987,7 +987,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 
 			GASNETI_TRACE_PRINTF(C,
 			    ("Firehose Pending FLUSH bd=%p (%p,%d), req=%p",
-			     bd, (void *) FH_BADDR(bd), (int) FH_NODE(bd), req));
+			     (void *) bd, (void *) FH_BADDR(bd), (int) FH_NODE(bd), (void *) req));
 
 			/* Assume no other buckets are pending */
 			req->flags &= ~FH_FLAG_PENDING;
@@ -1021,7 +1021,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 				GASNETI_TRACE_PRINTF(C,
 				    ("Firehose Pending Request (%p,%d) "
 				     "enqueued  %p for callback", 
-				     (void *) req->addr, (int) req->len, req));
+				     (void *) req->addr, (int) req->len, (void *) req));
 				callspend++;
 			}
 
@@ -1138,10 +1138,10 @@ fhi_TryAcquireRemoteRegion(firehose_request_t *req,
 
 					GASNETI_TRACE_PRINTF(C,
 			    		    ("Firehose Pending ADD bd=%p "
-					     "(%p,%d), req=%p", bd, 
+					     "(%p,%d), req=%p", (void *) bd, 
 					     (void *) FH_BADDR(bd),
 					     (int) FH_NODE(bd), 
-					     req));
+					     (void *) req));
 				}
 				FH_BUCKET_REFC(bd)->refc_r++;
 				gasneti_assert(FH_BUCKET_REFC(bd)->refc_r > 0);

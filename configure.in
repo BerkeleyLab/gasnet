@@ -1,13 +1,14 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/04/20 00:24:13 $
-# $Revision: 1.83.2.5 $
+#     $Date: 2004/06/27 18:30:28 $
+# $Revision: 1.83.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.83.2.5 $)
+AC_DEFUN([cv_prefix],[gasnet_cv_])
+AC_REVISION($Revision: 1.83.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -85,35 +86,11 @@ case "$target_os" in
      GASNET_ENV_DEFAULT(CC, c++ -Xa) ;; # may also/alternately want -Kc99
 esac
 
-AC_PROG_CC
-AC_PROG_CPP
+GASNET_PROG_CPP
+GASNET_PROG_CC
 AC_PROG_LN_S
 AC_C_BIGENDIAN
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
-
-dnl GASNET_GCC296CHECK(type)  type=CC or CXX
-AC_DEFUN([GASNET_GCC296CHECK],[
-AC_MSG_CHECKING(known buggy compilers)
-AC_TRY_COMPILE([
-#if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
-# error
-#endif
-],[ ], [ AC_MSG_RESULT(ok) ],[
-AC_MSG_RESULT([$1] is gcc 2.96)
-gcc296msg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
-It is not an official GNU release and has many serious known bugs, especially \
-in the optimizer, which may lead to bad code and incorrect runtime behavior. \
-Consider using \$[$1] to select a different compiler."
-GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [ 
-  AC_MSG_WARN([$gcc296msg])  
-  ],[ 
-  AC_MSG_ERROR([$gcc296msg \
-  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])  
-])
-])
-])
-
-AC_SUBST(CC)
 
 ## DOB: this is more trouble than it's worth because so many OS's define
 ## LITTLE_ENDIAN or BIG_ENDIAN in random and sultry header files
@@ -148,7 +125,7 @@ dnl AC_SUBST(ENDIANNESS)
 GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 
 if test "$gasnet_cv_cc_family" = MIPS; then
-  # The MIPSPro C compiler has a broken C preprocessor exit code, so we hardwire some choices
+  # The MIPSPro C compiler apparently has no identifying markings
   AC_DEFINE(MIPSPRO_COMPILER)
 fi
 
@@ -190,8 +167,8 @@ case "$gasnet_cv_cc_family" in
   Sun)  CCOPTFLAGS="-xO5" ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
   MIPS) CCOPTFLAGS="-O3" ;;
-  XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=16384" ;; # -O5 == -O3 w/ intra-procedural analysis
-        CCOPTFLAGS="-O3 -qsmp=noauto -qmaxmem=16384" ;; # -O5 causes linker to hang on Titanium
+  XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
+        CCOPTFLAGS="-O3 -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
   Intel) CCOPTFLAGS="-O3" ;;
   PGI) CCOPTFLAGS="-O2" ;;
@@ -246,9 +223,9 @@ case "$gasnet_cv_cc_family" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
       *)        MISC_CFLAGS="-hnomessage=236 $LIBCM" ;; # X1
     esac ;;
-  MIPS) MISC_CFLAGS="-common -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
+  MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;; # 1035 ensures "#error" is fatal
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
-  Intel) MISC_CFLAGS="-wd279" ;;
+  Intel) MISC_CFLAGS="-wd177 -wd279" ;;
   NEC) MISC_CFLAGS="-woff=68:111:174:177:236:301:550:940" ;; 
   PGI) MISC_CFLAGS="-Masmkeyword" ;;
   Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
@@ -267,7 +244,17 @@ case "$gasnet_cv_cc_family" in
 esac
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
-  [ CFLAGS="$CCDEBUGFLAGS"
+  [ echo "-----------------------------------------------------------------------"
+    echo " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING"
+    echo ""
+    echo " Configuring the system for global, forced debugging mode. "
+    echo " This usually has a SERIOUS impact on performance, so you should NOT"
+    echo " trust any performance numbers obtained from programs built"
+    echo " using this GASNet installation!!!"
+    echo ""
+    echo " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING"
+    echo "-----------------------------------------------------------------------" 
+    CFLAGS="$CCDEBUGFLAGS"
     BUILDCONFIG_DEFINES="-DGASNET_DEBUG"
     BUILDCONFIG="debug"
     enabled_debug=yes],
@@ -291,7 +278,7 @@ GASNET_IF_ENABLED_WITH_AUTO(stats, Build GASNet with statistical collection enab
     BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_STATS"
   fi
 
-AC_SUBST(CFLAGS)	      # opt/debug flags
+#AC_SUBST(CFLAGS)	      # opt/debug flags
 AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
 AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
 AC_SUBST(BUILDCONFIG_DEFINES) # defines that setup build configuration
@@ -362,27 +349,27 @@ AC_CHECK_HEADERS(inttypes.h)
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR(PAGESIZE, PAGESIZE,
-  [ #include <limits.h> ], [ (PAGESIZE>0?PAGESIZE:(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <limits.h> ], [ val = PAGESIZE; if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR(PAGE_SIZE, PAGE_SIZE,
-  [ #include <limits.h> ], [ (PAGE_SIZE>0?PAGE_SIZE:(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <limits.h> ], [ val = PAGE_SIZE; if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR([sysconf(_SC_PAGESIZE)], _SC_PAGESIZE,
-  [ #include <unistd.h> ], [ (sysconf(_SC_PAGESIZE)>0?sysconf(_SC_PAGESIZE):(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <unistd.h> ], [ val = sysconf(_SC_PAGESIZE); if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR([sysconf(_SC_PAGE_SIZE)], _SC_PAGE_SIZE,
-  [ #include <unistd.h> ], [ (sysconf(_SC_PAGE_SIZE)>0?sysconf(_SC_PAGE_SIZE):(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <unistd.h> ], [ val = sysconf(_SC_PAGE_SIZE); if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR([getpagesize()], getpagesize,
-  [ #include <unistd.h> ], [ (getpagesize()>0?getpagesize():(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <unistd.h> ], [ val = getpagesize(); if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" != ""; then
@@ -574,6 +561,17 @@ AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
 
 AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 
+AC_MSG_CHECKING(for x86 pause instruction)
+AC_TRY_COMPILE([], [
+  #if defined(__i386__) || defined(__x86_64__) || defined(__ia64__)
+    __asm__ __volatile__ ("pause" : : : "memory");
+  #else
+    #error wrong CPU architecture
+  #endif
+], [AC_DEFINE(HAVE_X86_PAUSE_INSTRUCTION)
+    AC_MSG_RESULT(yes)
+], [AC_MSG_RESULT(no)])
+
 #---------------------------------------------------------------------------------------------------------------
 # Check for overrides of compile-time checks for SMPs
 GASNET_IF_ENABLED_WITH_AUTO(smp-safe, Enable build of SMP-safe libraries (default is to probe at configure time),
@@ -613,6 +611,9 @@ if test "$uni_build" = yes; then
   AC_DEFINE(GASNETI_UNI_BUILD)
 fi
 
+GASNET_IF_ENABLED(loopback-put-memsync, Force a memory barrier after a GASNet local (loopback) put,
+  [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACKPUT)])
+
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS
 #---------------------------------------------------------------------------------------------------------------
@@ -641,8 +642,9 @@ if test $enabled_udp = yes; then
   # Do C++ configuration
   AC_LANG_SAVE
 
-  AC_PROG_CXX
-  AC_PROG_CXXCPP
+  GASNET_PROG_CXXCPP
+  GASNET_PROG_CXX
+  have_cxx=1
 
   AC_LANG_CPLUSPLUS
   GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
@@ -659,8 +661,9 @@ if test $enabled_udp = yes; then
     ;;
     PGI)   MISC_CXXFLAGS="-w -Masmkeyword" ;; # apparently has no way to indep control warnings
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
-    MIPS)  MISC_CXXFLAGS="-diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
+    MIPS)  MISC_CXXFLAGS="-diag_error 1035 -diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279" ;;
+    XLC)   MISC_CXXFLAGS="-qeh -qweaksymbol" ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
 	   GASNET_UDP_LIBS="-Kexceptions" 
@@ -677,8 +680,6 @@ if test $enabled_udp = yes; then
   else
     CXXFLAGS="$CXXDEBUGFLAGS"
   fi
-  AC_SUBST(CXX)
-  AC_SUBST(CXXFLAGS)
   AC_SUBST(MISC_CXXFLAGS)
 
   AC_LANG_RESTORE
@@ -718,6 +719,7 @@ if test $enabled_udp = yes; then
     LIBS="$OLDLIBS"
   fi
 fi
+AM_CONDITIONAL(HAVE_CXX, test "$have_cxx" = 1)
 AC_SUBST(GASNET_UDP_LIBS)
 AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
 if test "$enabled_udp$have_udp" = yesyes ; then
@@ -798,7 +800,7 @@ if test $enabled_mpi = yes; then
         # user may need to do a "module load mpt" to make this work
     	GASNET_ENV_DEFAULT(MPI_CC, cc -n32)
         # cannot use MISC_CFLAGS here because C compiler may not be MIPSPro
-	BASIC_MPI_CFLAGS="-diag_suppress1171,1174,1209,1552"
+	BASIC_MPI_CFLAGS="-diag_error 1035 -diag_suppress1171,1174,1209,1552"
 	if test "$BUILDCONFIG" = "optimize" ; then
       	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O2 $BASIC_MPI_CFLAGS)
 	else
@@ -865,6 +867,7 @@ if test $enabled_mpi = yes; then
       fi 
       ;;
   esac
+  GASNET_GETFULLPATH(MPI_CC)
 
   MPI_CFLAGS="$BUILDCONFIG_DEFINES $MPI_CFLAGS"
 
@@ -1179,11 +1182,33 @@ popdef([CONDUIT_DESC])
 # VAPI configuration
 
 pushdef([CONDUIT_DESC],[Mellanox InfiniBand/VAPI network conduit (vapi)])
-GASNET_IF_ENABLED(vapi, Enable the CONDUIT_DESC, 
-  have_vapi=yes,
-  have_vapi=no)
+GASNET_IF_ENABLED_WITH_AUTO(vapi, Enable/disable the CONDUIT_DESC (auto-detected),
+  [enabled_vapi=yes;force_vapi=yes],
+  enabled_vapi=no,
+  enabled_vapi=yes)
+if test "$enabled_vapi" = yes; then
+  # Sort out the MPI dependence
+  AC_MSG_CHECKING([for MPI (required to start VAPI programs)])
+  if test "$have_mpi" = yes; then
+    AC_MSG_RESULT(ok)
+  else
+    if test "$enabled_mpi" = no; then
+      reason="disabled"
+    else
+      reason="not found"
+    fi
+    AC_MSG_RESULT([$reason - VAPI auto-detection skipped.]);
+    if test "$force_vapi" = yes; then
+      AC_MSG_ERROR([User requested --enable-vapi but required MPI support was $reason.]);
+    fi
+    enabled_vapi=no
+  fi
+fi
+if test "$enabled_vapi" = yes; then
+  # Start by assuming we do have VAPI
+  have_vapi=yes
 
-if test $have_vapi = yes; then
+  # Start with some sensable defaults
   GASNET_ENV_DEFAULT(MTHOME, /usr/mellanox)
   GASNET_ENV_DEFAULT(VAPI_INCLUDE, $MTHOME/include)
   GASNET_ENV_DEFAULT(VAPI_LIBDIR, $MTHOME/lib)
@@ -1191,8 +1216,10 @@ if test $have_vapi = yes; then
 
   # Assemble any extra flags needed at library build time
   VAPI_LIBCFLAGS=''
-  if test "$gasnet_cv_cc_family" != "GNU"; then
-    AC_MSG_CHECKING(if $CC supports GNU variadic preprocessor macros)
+  AC_MSG_CHECKING(if $CC supports GNU variadic preprocessor macros)
+  if test "$gasnet_cv_cc_family" = "GNU"; then
+    AC_MSG_RESULT([yes (gcc)])
+  else
     AC_TRY_COMPILE([
 	extern void bar1(int a);
 	extern void bar3(int a, int b, int c);
@@ -1208,15 +1235,15 @@ if test $have_vapi = yes; then
     ])
   fi
 
-  AC_MSG_CHECKING(for working VAPI configuration)
-  if test "$mpi_test_worked" != yes; then
-    if test "$enabled_mpi" = yes; then
-      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but MPI was not sucessfuly configured.]);
-    else
-      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but you have disabled it.]);
-    fi
+  if test "$gasnet_cv_cc_family" = "GNU" -a "$segconfig" != fast; then
+    # If using firehose we need to disable certain gcc optimizations.
+    # See bug #350 for an example of why firehose needs this.
+    # See bug #596 for evidence that VAPi is affected by this.
+    VAPI_LIBCFLAGS="$VAPI_LIBCFLAGS -fno-strict-aliasing"
   fi
 
+  # Try to compile and link a basic VAPI program
+  AC_MSG_CHECKING(for working VAPI configuration)
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
   CFLAGS="-I$VAPI_INCLUDE $VAPI_LIBCFLAGS"
@@ -1233,26 +1260,34 @@ if test $have_vapi = yes; then
     }], [ vapi_test_worked=yes ], [ vapi_test_worked=no ] )
   CFLAGS="$OLDCFLAGS"
   LIBS="$OLDLIBS"
-
   if test "$vapi_test_worked" = yes; then
     AC_MSG_RESULT(yes)
   else
     AC_MSG_RESULT(no)
-    AC_MSG_ERROR(build test failed: I don't know how to build VAPI programs on your system)
     have_vapi=no
   fi
 
-  GASNET_IF_ENABLED_WITH_AUTO(vapi-inline-puts, [See vapi-conduit/README (enabled by default)], 
-    enabled_vapi_inline_puts=yes, enabled_vapi_inline_puts=no, enabled_vapi_inline_puts=yes)
-    if test "$enabled_vapi_inline_puts" = yes; then
-      AC_DEFINE(GASNETC_VAPI_ENABLE_INLINE_PUTS)
-    fi
 
-  GASNET_IF_ENABLED_WITH_AUTO(vapi-force-poll-lock, [See vapi-conduit/README (disabled by default)], 
-    enabled_vapi_force_poll_lock=yes, enabled_vapi_force_poll_lock=no, enabled_vapi_force_poll_lock=no)
-    if test "$enabled_vapi_force_poll_lock" = yes; then
-      AC_DEFINE(GASNETC_VAPI_FORCE_POLL_LOCK)
-    fi
+  # Check for conflict
+  if test "$force_vapi$have_vapi" = yesno; then
+    AC_MSG_ERROR([User requested --enable-vapi but I don't know how to build VAPI programs for your system.])
+  fi
+
+
+  if test "$have_vapi" = yes; then
+    # Collect some VAPI-specifc configure options
+    GASNET_IF_ENABLED_WITH_AUTO(vapi-inline-puts, [See vapi-conduit/README (enabled by default)], 
+      enabled_vapi_inline_puts=yes, enabled_vapi_inline_puts=no, enabled_vapi_inline_puts=yes)
+      if test "$enabled_vapi_inline_puts" = yes; then
+        AC_DEFINE(GASNETC_VAPI_ENABLE_INLINE_PUTS)
+      fi
+
+    GASNET_IF_ENABLED_WITH_AUTO(vapi-force-poll-lock, [See vapi-conduit/README (disabled by default)], 
+      enabled_vapi_force_poll_lock=yes, enabled_vapi_force_poll_lock=no, enabled_vapi_force_poll_lock=no)
+      if test "$enabled_vapi_force_poll_lock" = yes; then
+        AC_DEFINE(GASNETC_VAPI_FORCE_POLL_LOCK)
+      fi
+  fi
 fi
 
 AC_SUBST(VAPI_INCLUDE)
@@ -1340,33 +1375,7 @@ case "$target_os" in
 esac
 
 # Check for alloca in C code
-AC_MSG_CHECKING(for alloca in C code)
-ALLOCA_IN_C=""
-AC_TRY_LINK([
-/* AIX requires this to be the first thing in the file.  */
-#ifndef __GNUC__
-# if HAVE_ALLOCA_H
-#  include <alloca.h>
-# else
-#  ifdef _AIX
- #pragma alloca
-#  else
-#   ifndef alloca /* predefined by HP cc +Olibcalls */
-char *alloca ();
-#   endif
-#  endif
-# endif
-#endif
-], [
-char *p = (char *) alloca(10);
-], [ alloca_in_c=yes ], [ alloca_in_c=no ])
-if test "$alloca_in_c" = yes; then
-  AC_MSG_RESULT(yes)
-  ALLOCA_IN_C="1"
-else
-  AC_MSG_RESULT(no)
-fi
-AC_SUBST(ALLOCA_IN_C)
+GASNET_FUNC_ALLOCA
 
 # -lm should only live in LIBM, and only if we have it (not in LIBS)
 OLDLIBS="$LIBS"

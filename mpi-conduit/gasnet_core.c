@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2004/04/20 00:24:23 $
- * $Revision: 1.36.2.3 $
+ *     $Date: 2004/06/27 18:30:42 $
+ * $Revision: 1.36.2.4 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -57,6 +57,8 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   gasneti_assert(GASNET_MAXNODES <= AMMPI_MAX_SPMDPROCS);
   gasneti_assert(AMMPI_MAX_NUMHANDLERS >= 256);
   gasneti_assert(AMMPI_MAX_SEGLENGTH == (uintptr_t)-1);
@@ -130,7 +132,7 @@ static int gasnetc_init(int *argc, char ***argv) {
                                    gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
 
     /* enable tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
 
     #if GASNET_DEBUG_VERBOSE
@@ -167,7 +169,7 @@ extern int gasnet_init(int *argc, char ***argv) {
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnet_init to allow init tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
   #endif
   return GASNET_OK;
 }

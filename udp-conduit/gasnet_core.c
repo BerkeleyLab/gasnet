@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2004/04/20 00:24:37 $
- * $Revision: 1.7.6.2 $
+ *     $Date: 2004/06/27 18:31:02 $
+ * $Revision: 1.7.6.3 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,6 +55,8 @@ GASNETI_IDENT(AMUDP_DEFAULT_SPAWNFN_IDENT_STRING, "$GASNetDefaultSpawnFunction: 
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   gasneti_assert(GASNET_MAXNODES <= AMUDP_MAX_SPMDPROCS);
   gasneti_assert(AMUDP_MAX_NUMHANDLERS >= 256);
   gasneti_assert(AMUDP_MAX_SEGLENGTH == (uintptr_t)-1);
@@ -201,7 +203,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_nodes = AMUDP_SPMDNumProcs();
 
     /* enable tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
     GASNETI_AM_SAFE(AMUDP_SPMDSetExitCallback(gasnetc_traceoutput));
 
     /* for local spawn, assume we want to wait-block */
@@ -244,7 +246,7 @@ extern int gasnet_init(int *argc, char ***argv) {
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnet_init to allow init tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
   #endif
   return GASNET_OK;
 }

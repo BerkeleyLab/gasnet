@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_timer.h                                   $
- *     $Date: 2004/03/29 17:46:16 $
- * $Revision: 1.11.2.2 $
+ *     $Date: 2004/06/27 18:30:28 $
+ * $Revision: 1.11.2.4 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,7 +188,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       assert(Tick != 0.0);
       firstTime = 0;
     }
-    return st * Tick;
+    return (uint64_t)(st * Tick);
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
@@ -234,7 +234,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       freq = 1 / freq;
       firsttime = 0;
     }
-    return st * freq;
+    return (uint64_t)(st * freq);
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
@@ -279,7 +279,7 @@ double gasneti_stattime_metric(unsigned int idx) {
       }
       last = x;
     }
-    _gasneti_stattime_metric = malloc(2*sizeof(double));
+    _gasneti_stattime_metric = (double *)malloc(2*sizeof(double));
     assert(_gasneti_stattime_metric != NULL);
     /* granularity */
     _gasneti_stattime_metric[0] = ((double)GASNETI_STATTIME_TO_US(min*1000))/1000.0;

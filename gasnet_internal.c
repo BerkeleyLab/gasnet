@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/03/29 17:46:16 $
- * $Revision: 1.40.2.2 $
+ *     $Date: 2004/06/27 18:30:28 $
+ * $Revision: 1.40.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
 
@@ -18,6 +19,13 @@
 #ifdef IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
+
+/* get MAXHOSTNAMELEN */
+#ifdef SOLARIS
+#include <netdb.h>
+#else
+#include <sys/param.h>
+#endif 
 
 #include <gasnet.h>
 #include <gasnet_tools.h>
@@ -59,6 +67,70 @@ extern void gasneti_checkattach() {
 
 int gasneti_wait_mode = GASNET_WAIT_SPIN;
 
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREADMODEL) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG) = 1;
+
+/* ------------------------------------------------------------------------------------ */
+/* conduit-independent sanity checks */
+extern void gasneti_check_config_preinit() {
+  gasneti_assert_always(sizeof(int8_t) == 1);
+  gasneti_assert_always(sizeof(uint8_t) == 1);
+  #if !defined(CRAYT3E)
+    gasneti_assert_always(sizeof(int16_t) == 2);
+    gasneti_assert_always(sizeof(uint16_t) == 2);
+  #endif
+  gasneti_assert_always(sizeof(int32_t) == 4);
+  gasneti_assert_always(sizeof(uint32_t) == 4);
+  gasneti_assert_always(sizeof(int64_t) == 8);
+  gasneti_assert_always(sizeof(uint64_t) == 8);
+
+  gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
+
+  /* check GASNET_PAGESIZE is a power of 2 and > 0 */
+  gasneti_assert_always(GASNET_PAGESIZE > 0 && 
+         (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
+
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
+
+  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
+    gasneti_assert_always(sizeof(void*) == 4);
+  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
+    gasneti_assert_always(sizeof(void*) == 8);
+  #else
+    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
+  #endif
+
+  #if defined(GASNETI_UNI_BUILD)
+    if (gasneti_cpu_count() > 1) 
+      gasneti_fatalerror("GASNet was built in uniprocessor (non-SMP-safe) configuration, "
+        "but executed on an SMP. Please re-run GASNet configure with --enable-smp-safe and rebuild");
+  #endif
+}
+
+extern void gasneti_check_config_postattach() {
+  gasneti_check_config_preinit();
+
+  /*  verify sanity of the core interface */
+  gasneti_assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert_always(gasnet_AMMaxMedium() >= 512);
+  gasneti_assert_always(gasnet_AMMaxLongRequest() >= 512);
+  gasneti_assert_always(gasnet_AMMaxLongReply() >= 512);  
+
+  gasneti_assert_always(gasnet_nodes() >= 1);
+  gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
+
+  GASNETI_TRACE_PRINTF(I,("GASNET_CONFIG_STRING: %s", GASNET_CONFIG_STRING));
+  GASNETI_TRACE_PRINTF(I,("gasnet_mynode(): %i", (int)gasnet_mynode()));
+  GASNETI_TRACE_PRINTF(I,("gasnet_nodes(): %i", (int)gasnet_nodes()));
+}
+
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
@@ -83,6 +155,45 @@ extern void gasneti_killmyprocess(int exitcode) {
   #endif
   _exit(exitcode); /* use _exit to bypass atexit handlers */
   abort();
+}
+/* ------------------------------------------------------------------------------------ */
+#if defined(__sgi) || defined(__crayx1)
+#define _SC_NPROCESSORS_ONLN _SC_NPROC_ONLN
+#elif defined(_CRAYT3E)
+#define _SC_NPROCESSORS_ONLN _SC_CRAY_MAXPES
+#elif defined(__APPLE__)
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#endif
+/* return the physical count of CPU's on this node, 
+   or zero if that cannot be determined */
+extern int gasneti_cpu_count() {
+  static int hwprocs = -1;
+  if (hwprocs >= 0) return hwprocs;
+
+  #if defined(__APPLE__)
+      {
+        int mib[2];
+        size_t len;
+
+        mib[0] = CTL_HW;
+        mib[1] = HW_NCPU;
+        len = sizeof(hwprocs);
+        if (sysctl(mib, 2, &hwprocs, &len, NULL, 0)) {
+           perror("sysctl");
+           abort();
+        }
+        if (hwprocs < 1) hwprocs = 0;
+      }
+  #elif defined(HPUX) || defined(SUPERUX)
+      hwprocs = 0; /* appears to be no way to query CPU count on HPUX or SuperUX */
+  #else
+      hwprocs = sysconf(_SC_NPROCESSORS_ONLN);
+      if (hwprocs < 1) hwprocs = 0; /* catch failures on Solaris/Cygwin */
+  #endif
+
+  gasneti_assert_always(hwprocs >= 0);
+  return hwprocs;
 }
 /* ------------------------------------------------------------------------------------ */
 /* build a code-location string (used by gasnete_current_loc) */
@@ -856,7 +967,7 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
   return fp;
 }
 
-extern void gasneti_trace_init() {
+extern void gasneti_trace_init(int argc, char **argv) {
 
   #if GASNETI_STATS_OR_TRACE
   const char *tracetypes = NULL;
@@ -914,11 +1025,27 @@ extern void gasneti_trace_init() {
   #endif
 
   { time_t ltime;
-    char temp[255];
+    int i;
+    char hostname[MAXHOSTNAMELEN];
+    char temp[1024];
+    char *p;
     time(&ltime); 
     strcpy(temp, ctime(&ltime));
     if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
-    gasneti_tracestats_printf("Program starting at: %s", temp);
+    gethostname(hostname, MAXHOSTNAMELEN);
+    gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
+      argv[0], (int)getpid(), hostname, temp);
+    p = temp;
+    for (i=0; i < argc; i++) { 
+      char *q = argv[i];
+      int hasspace = 0;
+      for (;*q;q++) if (isspace(*q)) hasspace = 1;
+      if (hasspace) sprintf(p, "'%s'", argv[i]);
+      else sprintf(p, "%s", argv[i]);
+      if (i < argc-1) strcat(p, " ");
+      p += strlen(p);
+    }
+    gasneti_tracestats_printf("Command-line: %s", temp);
     #if GASNET_STATS
       gasneti_stats_printf("GASNET_STATSMASK: %s", statstypes);
     #endif
@@ -965,6 +1092,8 @@ extern void gasneti_trace_init() {
 AGGR(G);
 AGGR(P);
 AGGR(S);
+AGGR(W);
+AGGR(X);
 AGGR(B);
 AGGR(L);
 AGGR(A);
@@ -1068,6 +1197,18 @@ extern void gasneti_trace_finish() {
             (int)p->maxval,
             (int)p->sumval);
       }
+      if (GASNETI_STATS_ENABLED(W)) {
+        gasneti_stat_intval_t *w = &AGGRNAME(intval,W);
+        if (!w->count)
+          gasneti_stats_printf("%-25s  %6i","Total collectives:",0);
+        else
+          gasneti_stats_printf("%-25s  %6i  avg/min/max/total sz = %i/%i/%i/%i", "Total collectives:",
+            (int)w->count,
+            (int)CALC_AVG(w->sumval, w->count),
+            (int)w->minval,
+            (int)w->maxval,
+            (int)w->sumval);
+      }
       if (GASNETI_STATS_ENABLED(S)) {
         gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,S);
         gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,S);
@@ -1082,6 +1223,25 @@ extern void gasneti_trace_finish() {
         else
           gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %i/%i/%i/%i", 
             "Total wait sync. calls:", ((int)wait_time->count),
+            (int)GASNETI_STATTIME_TO_US(CALC_AVG(wait_time->sumval, wait_time->count)),
+            (int)GASNETI_STATTIME_TO_US(wait_time->minval),
+            (int)GASNETI_STATTIME_TO_US(wait_time->maxval),
+            (int)GASNETI_STATTIME_TO_US(wait_time->sumval));
+      }
+      if (GASNETI_STATS_ENABLED(X)) {
+        gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,X);
+        gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,X);
+        if (!try_succ->count)
+          gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
+        else
+          gasneti_stats_printf("%-25s  %6i  collective try success rate = %f%%  \n",
+            "Total coll. try syncs:",  ((int)try_succ->count),
+            (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
+        if (!wait_time->count)
+          gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
+        else
+          gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %i/%i/%i/%i", 
+            "Total coll. wait syncs:", ((int)wait_time->count),
             (int)GASNETI_STATTIME_TO_US(CALC_AVG(wait_time->sumval, wait_time->count)),
             (int)GASNETI_STATTIME_TO_US(wait_time->minval),
             (int)GASNETI_STATTIME_TO_US(wait_time->maxval),
@@ -1270,11 +1430,14 @@ extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gas
     return ret;
   }
 #endif
-/* extern versions of gasneti_malloc/gasnet_free for use in public headers */
+/* extern versions of gasneti_{malloc,free,strdup} for use in public headers */
 extern void *gasneti_extern_malloc(size_t sz) {
   return gasneti_malloc(sz);
 }
 extern void gasneti_extern_free(void *p) {
   gasneti_free(p);
+}
+extern char *gasneti_extern_strdup(const char *s) {
+  return gasneti_strdup(s);
 }
 /* don't put anything here - malloc stuff must come last */

@@ -1,4 +1,4 @@
-
+# @configure_input@
 # perlstart usage info: 
 # create a script.in file with the following contents (minus leading #'s)
 #      #!@BOURNE_SHELL@

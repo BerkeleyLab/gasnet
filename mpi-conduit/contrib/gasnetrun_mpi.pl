@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.5.4.2 2004/04/20 00:24:24 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.5.4.3 2004/06/27 18:30:44 bonachea Exp $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -9,6 +9,15 @@ use strict;
 # NOTE: The value of $ENV{'MPIRUN_CMD'} may be set in the shell wrapper
 my $spawncmd = $ENV{'MPIRUN_CMD'} || 'mpirun -np %N %P %A';
 $spawncmd =~ s/%C/%P %A/;	# deal with common alias
+
+# Validate the spawncmd
+unless (exists($ENV{'MPIRUN_CMD_OK'}) ||
+        (($spawncmd =~ m/%P/) && ($spawncmd =~ m/%A/) && ($spawncmd =~ m/%N/))) {
+	die("The environment variable MPIRUN_CMD must contain the strings '%P' and '%A'\n"
+	  . "(or '%C' as an alias for '%P %A') for expansion into the program and its arguments;\n"
+	  . "and '%N' for expansion into the number of nodes.\n"
+	  . "To disable this check, set MPIRUN_CMD_OK in your environment.\n");
+}
 
 # Globals
 my $envlist = '';
@@ -244,6 +253,8 @@ EOF
                               (@envargs, $exename);
                           } elsif (m/^%A$/) {
 			      (@ARGV);
+                          } elsif (m/^%V$/) {
+			      $verbose?("-v"):();
 			  } else {
                               $_;
                           }

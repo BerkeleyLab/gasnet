@@ -1,6 +1,6 @@
 /*   $Archive::                                                            $ */
-/*      $Date: 2004/04/20 00:24:26 $ */
-/*  $Revision: 1.1.2.1 $ */
+/*      $Date: 2004/06/27 18:30:46 $ */
+/*  $Revision: 1.1.2.2 $ */
 /*  Description: portable_inttypes.h  */
 /*  Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> */
 
@@ -63,24 +63,27 @@
     typedef          long    intptr_t; 
     typedef unsigned long   uintptr_t; 
   #elif defined(__CYGWIN__)
-    /* inttypes.h is incomplete or missing on some versions of cygwin */
+    /* what a mess - 
+       inttypes.h and stdint.h are incomplete or missing on 
+       various versions of cygwin, with no easy way to check */
     #include <sys/types.h>
-    #ifndef __uint8_t_defined
-      typedef u_int8_t     uint8_t;
+    #ifdef HAVE_INTTYPES_H
+      #include <inttypes.h>
+      #ifndef _USING_INTTYPES_H
+      #define _USING_INTTYPES_H
+      #endif
     #endif
-    #ifndef __uint16_t_defined
-      typedef u_int16_t   uint16_t; 
+    #ifdef HAVE_STDINT_H
+      #include <stdint.h>
     #endif
     #ifndef __uint32_t_defined
+      typedef u_int8_t     uint8_t;
+      typedef u_int16_t   uint16_t; 
       typedef u_int32_t   uint32_t;
-    #endif
-    #ifndef __uint64_t_defined
       typedef u_int64_t   uint64_t;
     #endif
     #ifndef __intptr_t_defined
       typedef          int     intptr_t; 
-    #endif
-    #ifndef __uintptr_t_defined
       typedef unsigned int    uintptr_t; 
     #endif
   #elif defined(HAVE_INTTYPES_H)
@@ -93,6 +96,7 @@
         defined(SIZEOF_SHORT) && \
         defined(SIZEOF_INT) && \
         defined(SIZEOF_LONG) && \
+        defined(SIZEOF_LONG_LONG) && \
         defined(SIZEOF_VOID_P)
       /* configure-detected integer sizes are available, so use those to automatically detect the sizes */
       #if SIZEOF_CHAR == 1

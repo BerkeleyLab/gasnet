@@ -51,7 +51,7 @@
   #define GETPARTNER(token)
 #endif
 
-#define ABASE 0xBABE7000
+#define ABASE ((handlerarg_t)0xBABE7000)
 
 #define A1  (ABASE + 1)
 #define A2  (ABASE + 2)

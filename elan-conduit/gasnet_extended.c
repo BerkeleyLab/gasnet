@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_extended.c                  $
- *     $Date: 2004/04/20 00:24:16 $
- * $Revision: 1.26.2.3 $
+ *     $Date: 2004/06/27 18:30:32 $
+ * $Revision: 1.26.2.4 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -137,7 +137,7 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
   
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_ELAN_BARRIER
-  static void gasnete_barrier_init();
+  extern void gasnete_barrier_init();
 #endif
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
@@ -224,42 +224,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 */
 /* called at startup to check configuration sanity */
 static void gasnete_check_config() {
-  gasneti_assert(sizeof(int8_t) == 1);
-  gasneti_assert(sizeof(uint8_t) == 1);
-  #if !defined(CRAYT3E)
-    gasneti_assert(sizeof(int16_t) == 2);
-    gasneti_assert(sizeof(uint16_t) == 2);
-  #endif
-  gasneti_assert(sizeof(int32_t) == 4);
-  gasneti_assert(sizeof(uint32_t) == 4);
-  gasneti_assert(sizeof(int64_t) == 8);
-  gasneti_assert(sizeof(uint64_t) == 8);
+  gasneti_check_config_postattach();
 
-  gasneti_assert(sizeof(uintptr_t) >= sizeof(void *));
-
-  /* check GASNET_PAGESIZE is a power of 2 and > 0 */
-  gasneti_assert(GASNET_PAGESIZE > 0 && 
-         (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
-
-  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
-  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
-  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
-
-  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
-    gasneti_assert(sizeof(void*) == 4);
-  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
-    gasneti_assert(sizeof(void*) == 8);
-  #else
-    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
-  #endif
-
-  gasneti_assert(gasnete_eopaddr_isnil(EOPADDR_NIL));
-
-  /*  verify sanity of the core interface */
-  gasneti_assert(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  gasneti_assert(gasnet_AMMaxMedium() >= 512);
-  gasneti_assert(gasnet_AMMaxLongRequest() >= 512);
-  gasneti_assert(gasnet_AMMaxLongReply() >= 512);
+  gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
+  gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
 }
 
 extern void gasnete_init() {
@@ -302,9 +270,7 @@ extern void gasnete_init() {
     gasnete_op_markdone((gasnete_op_t *)eop, 0);
     gasnete_op_free((gasnete_op_t *)eop);
   }
-  #if GASNETE_USE_ELAN_BARRIER
-    gasnete_barrier_init();
-  #endif
+  gasnete_barrier_init();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1484,7 +1450,7 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
   return 0; /* return 0 => don't delay the elan blocking */
 }
 
-static void gasnete_barrier_init() {
+extern void gasnete_barrier_init() {
   #ifdef ELAN_VER_1_2
     barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, sizeof(gasnete_barrier_state_t));
   #else
@@ -1603,6 +1569,17 @@ extern int gasnete_barrier_try(int id, int flags) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -1612,6 +1589,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_help.h             $
- *     $Date: 2004/04/20 00:24:22 $
- * $Revision: 1.10.2.3 $
+ *     $Date: 2004/06/27 18:30:40 $
+ * $Revision: 1.10.2.4 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,18 @@ BEGIN_EXTERNC
 #include <lapi.h>
 #include <sys/atomic_op.h>
 #include <gasnet_atomicops.h>
+
+/* Determine which "version" of LAPI we are using.
+ * LAPI does not define this anywhere, so we will use a
+ * hack that will distinguish between the "origional" lapi
+ * and the "new" version, upon which MPI is based.
+ */
+#ifdef LAPI_DGSM_COPY_SIZE
+/* This only appears in the new version of the LAPI header files */
+#define GASNETC_LAPI_VERSION 2
+#else
+#define GASNETC_LAPI_VERSION 1
+#endif
 
 /* NOTE: this should be dependent on whether we compile in
  * 32 or 64 bit mode
@@ -57,7 +69,7 @@ extern gasnet_node_t gasnetc_nodes;
 #endif
 
 #if GASNETC_USE_SPINLOCKS
-typedef volatile int gasnetc_spinlock_t;
+typedef atomic_p gasnetc_spinlock_t;
 #define GASNETC_SPINLOCK_INITIALIZER 0
 /* NOTE: Make these inline functions that always return 0 to
  * match the use of the corresponding pthread_mutex functions.
@@ -75,13 +87,17 @@ GASNET_INLINE_MODIFIER(gasnetc_spinlock_lock)
 int gasnetc_spinlock_lock(gasnetc_spinlock_t *lock) {
       int avail = 0;
       int locked = 1;
-      while (! compare_and_swap( (atomic_p)lock, &avail, locked ) ) {
+      while (1) {
+	  if (compare_and_swap( (atomic_p)lock, &avail, locked ) ) {
+	      gasneti_local_membar();
+	      break;
+	  }
 	  gasneti_assert(avail == 1);
-          avail = 0;
+	  avail = 0;
       }
       return 0;
 }
-#if 1
+
 GASNET_INLINE_MODIFIER(gasnetc_spinlock_unlock)
 int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
     int avail = 0;
@@ -91,21 +107,17 @@ int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
         gasneti_fatalerror("this should not happen");
     return 0;
 }
-#else
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_unlock)
-int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
-    gasneti_assert( *lock == 1 );
-    *lock = 0;
-    gasneti_local_membar();
-    return 0;
-}
-#endif
+
 /* return 0 on success to match pthreads */
 GASNET_INLINE_MODIFIER(gasnetc_spinlock_trylock)
 int gasnetc_spinlock_trylock(gasnetc_spinlock_t *lock) {
       int avail = 0;
       int locked = 1;
-      return !compare_and_swap( (atomic_p)lock, &avail, locked );
+      if (compare_and_swap( (atomic_p)lock, &avail, locked )) {
+	  gasneti_local_membar();
+	  return 0;
+      }
+      return 1;
 }
 
 #else  /* Use pthread mutex for spinlock */

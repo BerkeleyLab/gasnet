@@ -26,12 +26,14 @@ $delay_rexec = 0;
 $np = 1;
 $use_shmem = 1;
 @extraopts = undef;
-$ssh_exec = "/usr/bin/ssh";
+@envlist_cmdline = undef;
+$ssh_exec = $ENV{"GASNET_SSH"} || "/usr/bin/ssh";
 $extraopts{"ssh"} = "";
-$rsh_exec = "/usr/bin/rsh";
+$rsh_exec = $ENV{"GASNET_RSH"} || "/usr/bin/rsh";
 $extraopts{"rsh"} = "";
 $rexec = "$ssh_exec";
 $rexec_type = "ssh";  
+$saw_type_option = 0;
 $rexec_reaper = 1;
 # May have to change the arch
 $arch = "LINUX";
@@ -286,12 +288,15 @@ while (@ARGV > 0) {
     usage ("No machine file specified (-machinefile) !") unless @ARGV >= 1;
     $machine_file = $ARGV[0];
   } elsif ($_ eq '--gexec') {
+    $saw_type_option = 1;
     $rexec_type = "gexec";
     $rexec = $gexec;
   } elsif ($_ eq '--ssh') {
+    $saw_type_option = 1;
     $rexec_type = "ssh";
     $rexec = $ssh_exec;
   } elsif ($_ eq '--rsh') {
+    $saw_type_option = 1;
     $rexec_type = "rsh";
     $rexec = $rsh_exec;
   } elsif ($_ eq '--gexec-options') {
@@ -357,6 +362,12 @@ while (@ARGV > 0) {
       usage ("-np and -pg are exclusive !");
     }
     $np = $ARGV[0];
+  } elsif ($_ eq '-E') {
+    shift;
+    usage ("-E option given without an argument\n") unless @ARGV >= 1;
+    foreach (split(',', $ARGV[0])) {
+      $envlist_cmdline{$_} = 1;
+    }
   } elsif (($_ eq '-help') || ($_ eq '--help') || ($_ eq '-h')) {
     usage ('');
   } elsif ($_ eq '-mvback' ) {
@@ -375,7 +386,7 @@ while (@ARGV > 0) {
 
 # Before going on, check if we should force using GEXEC, if 
 # GASNET_GEXEC_CMD is set.
-if (defined $ENV{"GASNET_GEXEC_CMD"}) {
+if (defined $ENV{"GASNET_GEXEC_CMD"} && !$saw_type_option) {
     printf "Using gexec command $ENV{GASNET_GEXEC_CMD}\n" if $verbose;
     $rexec = $gexec;
     $rexec_type = "gexec";
@@ -644,6 +655,7 @@ if ($rexec_type eq "gexec") {
           (my $foo, my $gmID, my $MAC, my $gmName, my $Route) = split /\s+/, $_; 
           print "No GM routes found\n" and exit if($gmID eq "***");
           next if( $gmName =~/$black_listed_hosts/ );
+          $gm_hosts{$gmName} = $gmID;
           $gm_hosts{$gmName.$domainname} = $gmID;
           $gm_hosts_found++;
         }
@@ -895,7 +907,7 @@ for ($i=0; $i<$np; $i++) {
     @envlist = undef;
     $envv = '';
     foreach $e (keys %ENV) {
-	if ($e =~ m/(TI_)|(UPC_)|(GASNET_)/) {
+	if (($e =~ m/(TI_)|(UPC_)|(GASNET_)/) || defined $envlist_cmdline{$e} ) {
 		@sp = split(/\s+/, $ENV{$e});
 		if ($#sp > 0 && $ENV{$e} !~ m/^\".*\"$/ && 
 		                $ENV{$e} !~ m/^'.*'$/) {

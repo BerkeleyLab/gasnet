@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testcoll.c                                 $
- *     $Date: 2004/06/25 20:04:24 $
- * $Revision: 1.2 $
+ *     $Date: 2004/06/27 18:31:00 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,5 +1,5 @@
-/* $Id: gasnet_core_conf.c,v 1.7.2.1 2004/03/29 17:46:24 bonachea Exp $
- * $Date: 2004/03/29 17:46:24 $
+/* $Id: gasnet_core_conf.c,v 1.7.2.3 2004/06/27 18:30:36 bonachea Exp $
+ * $Date: 2004/06/27 18:30:36 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -151,17 +151,17 @@ gasnetc_getconf_mpiexec()
 		    "Bootstrap doesn't support spawning from MPICH 1.2.4..8");
 	}
 
-	if (sscanf (magic, "%d", &magic_number) != 1)
+	if (sscanf (magic, "%ud", &magic_number) != 1)
 		gasneti_fatalerror("Bootstrap: Bad magic number %s", magic);
 	_gmc.job_magic = magic_number;
 		
-	if (sscanf (port, "%d", &master_port) != 1) 
+	if (sscanf (port, "%ud", &master_port) != 1) 
 		gasneti_fatalerror(
 		    "Bootstrap: Bad master port 1 (%s out of %d processes", 
 		    id, gasnetc_nodes);
 	_gmc.master_port = master_port;
 
-	if (sscanf (board, "%d", &board_id) != 1)
+	if (sscanf (board, "%ud", &board_id) != 1)
 		gasneti_fatalerror("Bootstrap: Bad magic number: %s", magic);
 	_gmc.my_board = board_id;
 

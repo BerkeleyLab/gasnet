@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.h                               $
- *     $Date: 2004/04/20 00:24:13 $
- * $Revision: 1.42.2.3 $
+ *     $Date: 2004/06/27 18:30:28 $
+ * $Revision: 1.42.2.4 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,6 +27,9 @@ BEGIN_EXTERNC
 extern int gasneti_init_done; /*  true after init */
 extern int gasneti_attach_done; /*  true after attach */
 
+/* conduit-independent sanity checks */
+extern void gasneti_check_config_preinit();
+extern void gasneti_check_config_postattach();
 
 /*  safe memory allocation/deallocation */
 #if GASNET_DEBUG

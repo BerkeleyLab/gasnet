@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/04/20 00:24:13 $
- * $Revision: 1.16.2.3 $
+ *     $Date: 2004/06/27 18:30:28 $
+ * $Revision: 1.16.2.4 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,9 +32,10 @@ extern char *gasneti_getenv(const char *keyname);
 extern void gasneti_setenv(const char *key, const char *value);
 extern void gasneti_unsetenv(const char *key);
 
-/* extern versions of gasneti_malloc/gasnet_free for use in public headers */
+/* extern versions of gasneti_{malloc,free,strdup} for use in public headers */
 extern void *gasneti_extern_malloc(size_t sz);
 extern void gasneti_extern_free(void *p);
+extern char *gasneti_extern_strdup(const char *s);
 
 #if defined(__GNUC__) || defined(__FUNCTION__)
   #define GASNETI_CURRENT_FUNCTION __FUNCTION__
@@ -69,11 +70,19 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
     } while(0)
 #endif
 
+/* gasneti_assert_always():
+ * an assertion that never compiles away - for sanity checks in non-critical paths 
+ */
+#define gasneti_assert_always(expr) \
+    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+
+/* gasneti_assert():
+ * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
+ */
 #if GASNET_NDEBUG
   #define gasneti_assert(expr) ((void)0)
 #else
-  #define gasneti_assert(expr) \
-    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+  #define gasneti_assert(expr) gasneti_assert_always(expr)
 #endif
 
 #if GASNET_DEBUG
@@ -88,8 +97,10 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
 
 /* Blocking functions */
 extern int gasneti_wait_mode; /* current waitmode hint */
-#define GASNETI_WAITHOOK() \
-  if (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield()
+#define GASNETI_WAITHOOK() do {                                       \
+    if (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield(); \
+    gasneti_spinloop_hint();                                          \
+  } while (0)
 
 /* busy-waits, with no implicit polling (cnd should include an embedded poll)
    differs from GASNET_BLOCKUNTIL because it may be waiting for an event
@@ -147,6 +158,37 @@ extern int gasneti_wait_mode; /* current waitmode hint */
         CNT(C, GETS_REF_VECTOR, cnt)         \
         CNT(C, PUTS_REF_INDEXED, cnt)        \
         CNT(C, GETS_REF_INDEXED, cnt)
+#endif
+
+/* stats needed by the COLL reference implementation */
+#ifndef GASNETI_REFCOLL_STATS
+  #define GASNETI_REFCOLL_STATS(CNT,VAL,TIME) \
+        VAL(X, COLL_TRY_SYNC, success)        \
+        VAL(X, COLL_TRY_SYNC_ALL, success)    \
+        VAL(X, COLL_TRY_SYNC_SOME, success)   \
+        TIME(X, COLL_WAIT_SYNC, waittime)     \
+        TIME(X, COLL_WAIT_SYNC_ALL, waittime) \
+        TIME(X, COLL_WAIT_SYNC_SOME, waittime)\
+        VAL(W, COLL_BROADCAST, sz)            \
+        VAL(W, COLL_BROADCAST_NB, sz)         \
+        VAL(W, COLL_BROADCAST_M, sz)          \
+        VAL(W, COLL_BROADCAST_M_NB, sz)       \
+        VAL(W, COLL_SCATTER, sz)              \
+        VAL(W, COLL_SCATTER_NB, sz)           \
+        VAL(W, COLL_SCATTER_M, sz)            \
+        VAL(W, COLL_SCATTER_M_NB, sz)         \
+        VAL(W, COLL_GATHER, sz)               \
+        VAL(W, COLL_GATHER_NB, sz)            \
+        VAL(W, COLL_GATHER_M, sz)             \
+        VAL(W, COLL_GATHER_M_NB, sz)          \
+        VAL(W, COLL_GATHER_ALL, sz)           \
+        VAL(W, COLL_GATHER_ALL_NB, sz)        \
+        VAL(W, COLL_GATHER_ALL_M, sz)         \
+        VAL(W, COLL_GATHER_ALL_M_NB, sz)      \
+        VAL(W, COLL_EXCHANGE, sz)             \
+        VAL(W, COLL_EXCHANGE_NB, sz)          \
+        VAL(W, COLL_EXCHANGE_M, sz)           \
+        VAL(W, COLL_EXCHANGE_M_NB, sz)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

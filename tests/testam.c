@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testmisc.c                             $
- *     $Date: 2004/03/29 17:46:42 $
- * $Revision: 1.7.2.1 $
+ *     $Date: 2004/06/27 18:31:00 $
+ * $Revision: 1.7.2.3 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,6 +128,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
                             TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  TEST_DEBUGPERFORMANCE_WARNING();
   TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
   MSG("running...");
@@ -145,6 +146,7 @@ int main(int argc, char **argv) {
 
   if (mynode == 0) {
       printf("Running AM performance test with %i iterations...\n",iters);
+      printf("GASNET_CONFIG:%s\n",GASNET_CONFIG_STRING);
       printf("%-50s    Total time    Avg. time\n"
              "%-50s    ----------    ---------\n", "", "");
       fflush(stdout);

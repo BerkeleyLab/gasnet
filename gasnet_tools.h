@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_tools.h                                   $
- *     $Date: 2004/03/29 17:46:16 $
- * $Revision: 1.8.2.1 $
+ *     $Date: 2004/06/27 18:30:28 $
+ * $Revision: 1.8.2.3 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,6 +54,9 @@
 
 #define gasnett_local_membar()       gasneti_local_membar()
 
+/* tight spin loop CPU hint */
+#define gasnett_spinloop_hint()      gasneti_spinloop_hint() 
+
 /* ------------------------------------------------------------------------------------ */
 
 /* misc */
@@ -82,8 +85,9 @@
 #else
   #define GASNETT_TRACE_SETSOURCELINE 
   #define GASNETT_TRACE_PRINTF  _gasnett_trace_printf
-  GASNET_INLINE_MODIFIER(_gasnett_trace_printf)
-  void _gasnett_trace_printf(const char *format, ...) { return; }
+  /*GASNET_INLINE_MODIFIER(_gasnett_trace_printf) 
+   * causes many warnings because vararg fns cannot be inlined */
+  static void _gasnett_trace_printf(const char *format, ...) { return; }
 #endif
 
 #if defined(_INCLUDED_GASNET_H) && defined(GASNET_STATS)
@@ -95,6 +99,13 @@
     (gasnett_stats_callback = (callbackfn), GASNETI_STATS_ENABLED(H))
 #else
   #define GASNETT_STATS_INIT(callbackfn) 0
+#endif
+
+#if defined(_INCLUDED_GASNET_H) 
+  extern int gasneti_cpu_count();
+  #define gasnett_cpu_count() gasneti_cpu_count()
+#else
+  #define gasnett_cpu_count() abort()
 #endif
 
 #undef _IN_GASNET_TOOLS_H
