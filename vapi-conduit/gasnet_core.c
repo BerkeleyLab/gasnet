@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/14 20:25:23 $
- * $Revision: 1.2.2.27 $
+ *     $Date: 2003/04/14 21:22:58 $
+ * $Revision: 1.2.2.28 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -844,7 +844,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 				  numargs, &rdma_counter, argptr);
 
   /* block for completion of RDMA transfer */
-  gasnetc_snd_wait(&rdma_counter);
+  gasnetc_rdma_wait(&rdma_counter);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -940,7 +940,7 @@ extern int gasnetc_AMReplyLongM(
 				numargs, &rdma_counter, argptr);
 
   /* block for completion of RDMA transfer */
-  gasnetc_snd_wait(&rdma_counter);
+  gasnetc_rdma_wait(&rdma_counter);
 
   va_end(argptr);
   GASNETI_RETURN(retval);

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/14 20:25:23 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2003/04/14 21:22:58 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -238,9 +238,9 @@ extern void gasnetc_snd_fini(void) {
 }
 
 /*
- * Block until a given send handle is marked as done
+ * Block until a given counter is marked as done
  */
-extern void gasnetc_snd_wait(gasneti_atomic_t *counter) {
+extern void gasnetc_rdma_wait(gasneti_atomic_t *counter) {
   if (gasneti_atomic_read(counter) != 0) {
     gasnetc_snd_poll();
     while (gasneti_atomic_read(counter) != 0) {
