@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.5.6.3 2003/10/29 00:47:57 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.5.6.4 2003/12/18 23:36:20 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -51,6 +51,8 @@ othersourcefiles =                             \
 
 EXTRA_DIST = $(filelist) $(fh_filelist) README license.txt
 
+SUBDIRS = contrib
+
 libgasnet_sources =                    \
       $(srcdir)/gasnet_core.c          \
       $(srcdir)/gasnet_core_sndrcv.c   \
@@ -60,6 +62,7 @@ libgasnet_sources =                    \
       $(fh_srcs)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
+                         $(top_srcdir)/extended-ref/gasnet_extended_refbarrier.c \
                          $(top_srcdir)/extended-ref/*.h   \
                          $(fh_deps)
 libgasnet_objects = gasnet_core.o gasnet_core_sndrcv.o gasnet_bootstrap_mpi.o \
@@ -126,8 +129,8 @@ install-data-local: $(headers)
 	@list='$(makefile_fragments)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/vapi-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/vapi-conduit/$$filename; \
+	    echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/vapi-conduit/$$filename"; \
+	    @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/vapi-conduit/$$filename; \
 	  else :; fi; \
 	done
 

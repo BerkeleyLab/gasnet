@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/06 02:19:03 $
- * $Revision: 1.19.6.5 $
+ *     $Date: 2003/12/18 23:36:20 $
+ * $Revision: 1.19.6.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,10 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define GASNETC_VAPI_CHECK(vstat,msg) \
   if_pf ((vstat) != VAPI_OK) \
     { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(vstat),(msg)); }
+
+/* check for exit in progress */
+extern gasneti_atomic_t gasnetc_exit_running;
+#define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running)
 
 /* ------------------------------------------------------------------------------------ */
 /* make a GASNet call - if it fails, print error message and return */
@@ -226,8 +230,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Scatter-gather segments.  Only 1 makes sense right now */
-#define GASNETC_SND_SG  1               /* maximum number of segments to gather on send */
+/* Scatter-gather segments.
+ * Only 1 makes sense right now for normal use.
+ * Additional SG space in the SND WQ is used for inline puts
+ */
+#define GASNETC_SND_SG  14               /* maximum number of segments to gather on send */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
 /* Define non-zero to enable a progress thread for receiving AMs . */
@@ -238,7 +245,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 #if GASNETC_VAPI_ENABLE_INLINE_PUTS
   /* AM req/rep <= this size will be done w/ VAPI-level copy, 0 disables */
-  #define GASNETC_AM_INLINE_LIMIT	72
+  #define GASNETC_AM_INLINE_LIMIT	370
 #else
   #define GASNETC_AM_INLINE_LIMIT	0
 #endif
@@ -575,15 +582,16 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
 extern void gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
 extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep);
+extern void gasnetc_sndrcv_fini_cep(gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_poll(void);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasneti_atomic_t *mem_oust, va_list argptr);
+				  int numargs, gasnetc_counter_t *mem_oust, va_list argptr);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnet_token_t token, gasnet_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs, gasneti_atomic_t *mem_oust, va_list argptr);
+				int numargs, gasnetc_counter_t *mem_oust, va_list argptr);
 
 /* General routines in gasnet_core.c */
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end);

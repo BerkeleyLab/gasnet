@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/11/06 02:19:03 $
- * $Revision: 1.21.2.10 $
+ *     $Date: 2003/12/18 23:36:20 $
+ * $Revision: 1.21.2.11 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,9 @@
 #include <signal.h>
 #include <sched.h>
 
+#include <sys/time.h>
+#include <sys/resource.h>
+ 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
@@ -220,10 +223,22 @@ extern void gasnetc_free_pinned(gasnetc_memreg_t *reg) {
   gasneti_munmap(reg->req_addr, reg->req_size);
 }
 
-#ifdef LINUX
+#if defined(_SC_PHYS_PAGES)
+static unsigned long gasnetc_get_physpages()
+{
+  long pages;
+
+  pages = sysconf(_SC_PHYS_PAGES);
+  if (pages == -1) {
+    gasneti_fatalerror("sysconf(_SC_PHYS_PAGES) failed");
+  }
+
+  return pages;
+}
+#elif defined(LINUX)
 #define _BUFSZ	120
 /* XXX how does this fair on systems w/ >4GB */
-static uintptr_t gasnetc_get_physmem()
+static unsigned long gasnetc_get_physpages()
 {
   FILE            *fp;
   char            line[_BUFSZ+1];
@@ -240,55 +255,82 @@ static uintptr_t gasnetc_get_physmem()
   }
   fclose(fp);
 
-  return (uintptr_t) mem;
+  return (unsigned long)mem / GASNET_PAGESIZE;
 }
 #else
 #error "Don't know how to get physical memory size on your O/S"
 #endif
 
+/* Some stuff not exported from gasnet_mmap.c: */
+#define GASNETI_MMAP_MAX_SIZE   ((((size_t)2)<<30) - GASNET_PAGESIZE)  /* ~2 GB */
+#define GASNETI_MMAP_GRANULARITY  (((size_t)2)<<21)  /* 4 MB */
+extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
+
 /* Search for largest region we can allocate and pin */
 static uintptr_t gasnetc_get_max_pinnable(void) {
+  gasnet_seginfo_t si;
   uintptr_t lo, hi;
-  uintptr_t mmap_size, pin_size;
+  uintptr_t size;
+  unsigned long pages;
   void *addr;
 
-  /* binary search for largest mmap() region */
-  lo = GASNET_PAGESIZE;
-  hi = MIN(2 * (gasnetc_get_physmem() / 3), (uintptr_t)gasnetc_hca_cap.max_mr_size);
-  mmap_size = GASNETI_PAGE_ALIGNDOWN(hi);
-  do {
-    addr = gasneti_mmap(mmap_size);
-    if (addr == (void *)-1) {
-      hi = mmap_size;
-    } else {
-      gasneti_munmap(addr, mmap_size);
-      lo = mmap_size;
+  /* search for largest mmap() region
+   * We bound our search by the smallest of:
+   *   2/3 of physical memory
+   *   HCA's capability
+   *   User's current (soft) mlock limit
+   *   GASNETI_MMAP_MAX_SIZE
+   */
+  pages = 2 * (gasnetc_get_physpages() / 3);
+  pages = MIN(pages, gasnetc_hca_cap.max_mr_size / GASNET_PAGESIZE);
+#ifdef RLIMIT_MEMLOCK
+  {
+    struct rlimit r;
+    if ((getrlimit(RLIMIT_MEMLOCK, &r) == 0) && (r.rlim_cur != RLIM_INFINITY)) {
+      pages = MIN(pages, r.rlim_cur / GASNET_PAGESIZE);
     }
+  }
+#endif
+  si = gasneti_mmap_segment_search(MIN(pages*GASNET_PAGESIZE, GASNETI_MMAP_MAX_SIZE));
 
-    mmap_size = GASNETI_PAGE_ALIGNDOWN(lo + (hi - lo) / 2);
-  } while (mmap_size > lo);
-  addr = gasneti_mmap(mmap_size);
+  if (si.addr == NULL) return 0;
 
   /* Now search for largest pinnable region */
-  lo = GASNET_PAGESIZE;
-  pin_size = hi = mmap_size;
+  addr = si.addr;
+  lo = 0;
+  hi = GASNETI_ALIGNDOWN(si.size, GASNETI_MMAP_GRANULARITY);
+
+#if 0 /* Binary search */
+  size = hi;
   do {
     gasnetc_memreg_t reg;
     VAPI_ret_t vstat;
 
-    vstat = gasnetc_pin(addr, pin_size, 0, &reg);
+    vstat = gasnetc_pin(addr, size, 0, &reg);
     if (vstat != VAPI_OK) {
-      hi = pin_size;
+      hi = size;
     } else {
       gasnetc_unpin(&reg);
-      lo = pin_size;
+      lo = size;
     }
 
-    pin_size = GASNETI_PAGE_ALIGNDOWN(lo + (hi - lo) / 2);
-  } while (pin_size > lo);
-  gasneti_munmap(addr, mmap_size);
+    size = GASNETI_PAGE_ALIGNDOWN(lo + (hi - lo) / 2);
+  } while (size > lo);
+#else /* Linear-descending search */
+  for (size = hi; size >= lo; size -= GASNETI_MMAP_GRANULARITY) {
+    gasnetc_memreg_t reg;
+    VAPI_ret_t vstat;
 
-  return pin_size;
+    vstat = gasnetc_pin(addr, size, 0, &reg);
+    if (vstat == VAPI_OK) {
+      gasnetc_unpin(&reg);
+      break;
+    }
+  }
+#endif
+  gasneti_munmap(si.addr, si.size);
+
+  return size;
 }
 
 /* Process defaults and the environment to get configuration settings */
@@ -496,6 +538,19 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(gasnetc_hca_cap.max_num_mr >= 3);			/* rcv bufs, snd bufs, segment */
   #else
     gasneti_assert(gasnetc_hca_cap.max_num_mr >= (2+gasnetc_nodes));	/* rcv bufs, snd bufs, n*fh */
+  #endif
+  gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
+
+  /* For some firmware there is a performance bug with EVAPI_post_inline_sr(). */
+  #if GASNETC_VAPI_ENABLE_INLINE_PUTS
+    if ((hca_vendor.fw_ver >= (uint64_t)(0x100180000LL)) &&
+        (hca_vendor.fw_ver <  (uint64_t)(0x300000000LL))) {
+	/* (1.18 <= fw_ver < 3.0) is known bad */
+	fprintf(stderr,
+		"WARNING: Your HCA firmware is suspected to include a performance defect\n"
+		"when using EVAPI_post_inline_sr().  You may wish to either upgrade your\n"
+		"firmware, or configure GASNet with '--disable-vapi-inline-puts'.\n");
+    }
   #endif
   gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
 
@@ -954,10 +1009,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   Exit handling code
 */
 
+gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
+
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
 static gasneti_atomic_t gasnetc_exit_reqs = gasneti_atomic_init(0);	/* count of remote exit requests */
 static gasneti_atomic_t gasnetc_exit_reps = gasneti_atomic_init(0);	/* count of remote exit replies */
 static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
+static gasnetc_counter_t gasnetc_exit_repl_oust = GASNETC_COUNTER_INITIALIZER; /* track send of our AM reply */
 
 #define GASNETC_ROOT_NODE 0
 
@@ -968,6 +1026,22 @@ enum {
 };
 
 static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROLE_UNKNOWN);
+
+/*
+ * Code to disable user's AM handlers when exiting.  We need this because we must call
+ * AMPoll to run system-level handlers, including ACKs for flow control.
+ *
+ * We do it this way because it adds absolutely nothing the normal execution path.
+ * Thanks to Dan for the suggestion.
+ */
+static void gasnetc_noop(void) { return; }
+static void gasnetc_disable_AMs(void) {
+  int i;
+
+  for (i = 0; i < GASNETC_MAX_NUMHANDLERS; ++i) {
+    gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasnetc_noop;
+  }
+}
 
 /*
  * gasnetc_exit_role_reqh()
@@ -994,7 +1068,7 @@ static void gasnetc_exit_role_reqh(gasnet_token_t token, gasnet_handlerarg_t *ar
                 ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
 
   /* Inform the requester of the outcome. */
-  rc = gasnetc_ReplySystem(token, 1, gasneti_handleridx(gasnetc_SYS_exit_role_rep),
+  rc = gasnetc_ReplySystem(token, 1, NULL, gasneti_handleridx(gasnetc_SYS_exit_role_rep),
 			   1, (gasnet_handlerarg_t)result);
   gasneti_assert(rc == GASNET_OK);
 }
@@ -1054,7 +1128,8 @@ static int gasnetc_get_exit_role()
     int rc;
 
     /* Don't know our role yet.  So, send a system-category AM Request to determine our role */
-    rc = gasnetc_RequestSystem(GASNETC_ROOT_NODE, 1, gasneti_handleridx(gasnetc_SYS_exit_role_req), 0);
+    rc = gasnetc_RequestSystem(GASNETC_ROOT_NODE, 1, NULL,
+		    	       gasneti_handleridx(gasnetc_SYS_exit_role_req), 0);
     gasneti_assert(rc == GASNET_OK);
 
     /* Now spin until somebody tells us what our role is */
@@ -1081,6 +1156,8 @@ static int gasnetc_get_exit_role()
 static int gasnetc_exit_head(int exitcode) {
   static gasneti_atomic_t once = gasneti_atomic_init(1);
   int retval;
+
+  gasneti_atomic_set(&gasnetc_exit_running, 1);
 
   retval = gasneti_atomic_decrement_and_test(&once);
 
@@ -1144,12 +1221,24 @@ static void gasnetc_exit_tail(void) {
  * DOES NOT RETURN
  */
 static void gasnetc_exit_sighandler(int sig) {
-  #if GASNET_DEBUG_VERBOSE
+  #if GASNET_DEBUG
   /* note - can't call trace macros here, or even sprintf */
   {
-    static const char msg[] = "gasnet_exit(): signal received during exit... goodbye\n";
-    write(STDERR_FILENO, msg, sizeof(msg));
-    /* fflush(stderr);   NOT REENTRANT */
+    static const char msg1[] = "gasnet_exit(): signal ";
+    static const char msg2[] = " received during exit... goodbye\n";
+    char digit;
+
+    write(STDERR_FILENO, msg1, sizeof(msg1));
+
+    /* assume sig < 1000 */
+    if (sig > 9) {
+      digit = '0' + ((sig / 10) % 10);
+      write(STDERR_FILENO, &digit, 1);
+    }
+    digit = '0' + (sig % 10);
+    write(STDERR_FILENO, &digit, 1);
+    
+    write(STDERR_FILENO, msg2, sizeof(msg2));
   }
   #endif
 
@@ -1186,7 +1275,9 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
 
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    rc = gasnetc_RequestSystem(i, 1, gasneti_handleridx(gasnetc_SYS_exit_req), 1, (gasnet_handlerarg_t)exitcode);
+    rc = gasnetc_RequestSystem(i, 1, NULL,
+		    	       gasneti_handleridx(gasnetc_SYS_exit_req),
+			       1, (gasnet_handlerarg_t)exitcode);
     if (rc != GASNET_OK) return -1;
   }
 
@@ -1215,11 +1306,15 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
 
   start_time = gasneti_getMicrosecondTimeStamp();
 
+  /* wait until the exit request is received from the master */
   while (gasneti_atomic_read(&gasnetc_exit_reqs) == 0) {
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
     gasnetc_sndrcv_poll(); /* works even before _attach */
   }
+
+  /* wait until out reply has been placed on the wire */
+  gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1);
 
   return 0;
 }
@@ -1280,6 +1375,9 @@ static void gasnetc_exit_body(void) {
   gasneti_reghandler(SIGFPE,  gasnetc_exit_sighandler);
   gasneti_reghandler(SIGBUS,  gasnetc_exit_sighandler);
 
+  /* Disable processing of AMs, except system-level ones */
+  gasnetc_disable_AMs();
+
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   /* Try to flush out all the output, allowing upto 30s */
@@ -1308,7 +1406,7 @@ static void gasnetc_exit_body(void) {
     break;
 
   case GASNETC_EXIT_ROLE_SLAVE:
-    /* wait until the exit request is received from the master before proceeding */
+    /* wait for the exit request and reply before proceeding */
     graceful = (gasnetc_exit_slave(timeout_us) == 0);
     /* XXX:
      * How do we know our reply has actually been sent on the wire before we trash the end point?
@@ -1326,9 +1424,7 @@ static void gasnetc_exit_body(void) {
   alarm(30);
   {
     for (i = 0; i < gasnetc_nodes; ++i) {
-      if (i == gasnetc_mynode) continue;
-
-      VAPI_destroy_qp(gasnetc_hca, gasnetc_cep[i].qp_handle);
+      gasnetc_sndrcv_fini_cep(&gasnetc_cep[i]);
     }
     gasnetc_sndrcv_fini();
     if (gasneti_attach_done) {
@@ -1405,7 +1501,8 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   (void)gasneti_atomic_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE);
 
   /* Send a reply so the master knows we are reachable */
-  rc = gasnetc_ReplySystem(token, 1, gasneti_handleridx(gasnetc_SYS_exit_rep), /* no args */ 0);
+  rc = gasnetc_ReplySystem(token, 1, &gasnetc_exit_repl_oust,
+		  	   gasneti_handleridx(gasnetc_SYS_exit_rep), /* no args */ 0);
   gasneti_assert(rc == GASNET_OK);
 
   /* XXX: save the identity of the master here so we can later drain the send queue of the reply? */
@@ -1450,7 +1547,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
     } else {
       /* No need to restore the handler, since _exit_body will set it to SIG_IGN anyway. */
     }
-    
+
     gasnetc_exit_body();
     gasnetc_exit_tail();
     /* NOT REACHED */
@@ -1573,7 +1670,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;
   va_list argptr;
   GASNETI_CHECKATTACH();
@@ -1676,7 +1773,7 @@ extern int gasnetc_AMReplyLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;
   gasnet_node_t dest;
   va_list argptr;
