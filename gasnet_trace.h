@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2004/05/21 00:36:12 $
- * $Revision: 1.20.2.3 $
+ *     $Date: 2004/06/02 00:47:50 $
+ * $Revision: 1.20.2.4 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -426,6 +426,107 @@ BEGIN_EXTERNC
   #define GASNETI_TRACE_PUTS(name,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)
   #define GASNETI_TRACE_GETS(name,node,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)
 #endif
+/* ------------------------------------------------------------------------------------ */
+/* Collectives tracing */
+#if GASNETI_STATS_OR_TRACE
+  #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags) do {                           \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      if (flags & GASNET_COLL_SINGLE) {                                                                    \
+        GASNETI_TRACE_PRINTF(D,(#name ": (%i bytes per block) team handle=0x%08x flags=0x%x\n"             \
+			        "dst: "GASNETI_LADDRFMT" (all nodes)\n"                                    \
+			        "src: "GASNETI_RADDRFMT"\n",                                               \
+      			        (int)nbytes, (unsigned int)team, flags,                                    \
+			        GASNETI_LADDRSTR(dst), GASNETI_RADDRSTR(root,src)));                       \
+      } else if (root == gasnet_mynode()) {                                                                \
+        GASNETI_TRACE_PRINTF(D,(#name ": (%i bytes per block) team handle=0x%08x flags=0x%x\n"             \
+			        "dst: "GASNETI_LADDRFMT" (local node)\n"                                   \
+			        "src: "GASNETI_LADDRFMT" (local node)\n",                                  \
+      			        (int)nbytes, (unsigned int)team, flags,                                    \
+			        GASNETI_LADDRSTR(dst), GASNETI_LADDRSTR(src)));                            \
+      } else {                                                                                             \
+        GASNETI_TRACE_PRINTF(D,(#name ": (%i bytes per block) team handle=0x%08x flags=0x%x\n"             \
+			        "dst: "GASNETI_LADDRFMT" (local node)\n"                                   \
+			        "src: unknown address on node %i\n",                                       \
+      			        (int)nbytes, (unsigned int)team, flags,                                    \
+			        GASNETI_LADDRSTR(dst), (int)(root)));                                      \
+      }                                                                                                    \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_BROADCAST_M(name,team,dstlist,root,src,nbytes,flags) do {                     \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_SCATTER(name,team,dst,root,src,nbytes,flags) do {                             \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_SCATTER_M(name,team,dstlist,root,src,nbytes,flags) do {                       \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_GATHER(name,team,root,dst,src,nbytes,flags) do {                              \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_GATHER_M(name,team,root,dst,srclist,nbytes,flags) do {                        \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags) do {                               \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_GATHER_ALL_M(name,team,dstlist,srclist,nbytes,flags) do {                     \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags) do {                                 \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_EXCHANGE_M(name,team,dstlist,srclist,nbytes,flags) do {                       \
+    GASNETI_TRACE_EVENT_VAL(W,name,nbytes);                                                                \
+    if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
+      /* XXX: FILL IN DETAILS */                                                                           \
+    }                                                                                                      \
+  } while (0)
+  #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
+	        gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(X)
+#else
+  #define GASNETI_TRACE_COLL_BROADCAST(name,team,dst,root,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_BROADCAST_M(name,team,dstlist,root,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_SCATTER(name,team,dst,root,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_SCATTER_M(name,team,dstlist,root,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_GATHER(name,team,root,dst,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_GATHER_M(name,team,root,dst,srclist,nbytes,flags)
+  #define GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_GATHER_ALL_M(name,team,dstlist,srclist,nbytes,flags)
+  #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags)
+  #define GASNETI_TRACE_COLL_EXCHANGE_M(name,team,dstlist,srclist,nbytes,flags)
+  #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
+		static char _dummy = (char)sizeof(_dummy)
+#endif
+#define GASNETI_TRACE_COLL_TRYSYNC(name,success) \
+	GASNETI_TRACE_EVENT_VAL(X,name,((success) == GASNET_OK?1:0))
+#define GASNETI_TRACE_COLL_WAITSYNC_END(name) \
+	GASNETI_TRACE_EVENT_TIME(X,name,GASNETI_STATTIME_NOW_IFENABLED(X) - _waitstart)
 /* ------------------------------------------------------------------------------------ */
 /* Internal implementation of statistical/tracing output */
 
