@@ -28,20 +28,15 @@ static gasnet_handlerentry_t fh_am_handlers[];
 #define fh_handleridx(reqh)     (fh_am_handlers[ _fh_hidx_ ## reqh ].index)
 
 /* Disqualify remote pending buckets */
-#define FH_IS_READY(is_local, bucket) \
-	((is_local) || !FH_IS_REMOTE_PENDING(bucket))
+#define FH_IS_READY(is_local, priv) \
+	((is_local) || !FH_IS_REMOTE_PENDING(priv))
 
 /* Assumes node is already correct */
 #define CP_PRIV_TO_REGION(reg, priv) 	do {			\
 		(reg)->addr = FH_BADDR(priv);			\
 		(reg)->len = (priv)->len;			\
-		memcpy(&((reg)->client), &((priv)->client),	\
-			sizeof(firehose_client_t));		\
+		(reg)->client = (priv)->client;			\
 	} while(0)
-
-/* Assumes node is already correct */
-#define CP_BUCKET_TO_REGION(reg, bucket)	\
-		CP_PRIV_TO_REGION((reg), (bucket)->priv)
 
 /* ##################################################################### */
 /* VARIOUS HELPER FUNCTIONS                                              */
@@ -137,7 +132,7 @@ fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
     bd = fh_bucket_lookup(node, region->addr);
 
     if_pf (bd &&
-	   FH_IS_READY(node == fh_mynode, bd) &&
+	   FH_IS_READY(node == fh_mynode, bd->priv) &&
 	   (fh_region_end(region) <= fh_bucket_end(bd))) {
 	retval = 1;
     }
@@ -159,8 +154,8 @@ fh_region_partial(gasnet_node_t node, firehose_region_t *region)
     FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) {
         fh_bucket_t *bd = fh_bucket_lookup(node, bucket_addr);
 
-	if_pf (bd && FH_IS_READY(is_local, bd)) {
-	    CP_BUCKET_TO_REGION(region, bd);
+	if_pf (bd && FH_IS_READY(is_local, bd->priv)) {
+	    CP_PRIV_TO_REGION(region, bd->priv);
 	    retval = 1;
 	    break;
 	}
@@ -289,13 +284,13 @@ fhi_bucket_remove(fh_bucket_t *bucket)
                 other = fh_hash_next(fh_BucketTable2, other);
 	    }
 
-	    fh_hash_remove(fh_BucketTable2, best);
+	    fh_hash_replace(fh_BucketTable2, best, NULL);
 	    fh_hash_replace(fh_BucketTable1, bucket, best);
 	} else {
-	    fh_hash_remove(fh_BucketTable1, bucket);
+	    fh_hash_replace(fh_BucketTable1, bucket, NULL);
 	}
     } else {
-	fh_hash_remove(fh_BucketTable2, bucket);
+	fh_hash_replace(fh_BucketTable2, bucket, NULL);
     }
     
     return;

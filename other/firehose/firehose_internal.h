@@ -106,9 +106,6 @@ typedef struct _firehose_private_t	fh_bucket_t;
 
 struct _firehose_private_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
-	#define FH_KEYMAKE(addr,node)	(addr | node)
-	#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
-	#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
@@ -125,6 +122,55 @@ struct _firehose_private_t {
 						   prev pointer otherwise    */
 };
 
+#elif defined(FIREHOSE_REGION)
+
+/* Under firehose-region, the private type requires a client type to be inlined
+ * if FIREHOSE_CLIENT_T is defined and the region's length to be specified (the
+ * region's base address and destination node may be extracted from the pointer
+ * to the first bucket of the region).
+ *
+ * Although all buckets covering pinned regions are hashed just as in
+ * firehose-page, firehose-region additionally hashes the firehose_private_t
+ * type.  
+ */
+
+typedef
+struct _fh_bucket_t {
+        fh_int_t         fh_key;                 /* cached key for hash table */
+
+        void            *fh_next;		 /* linked list in hash table */
+						 /* _must_ be in this order */
+
+	/* pointer to the containing region.  holds ref counts, etc */
+	firehose_private_t	*priv;
+	/* pointer to next bucket in same region */
+	struct _fh_bucket_t	*next;
+}
+fh_bucket_t;
+
+struct _firehose_private_t {
+	fh_int_t	fh_key;			/* cached key for hash table */
+	void		*fh_next;		/* linked list in hash table */
+						/* _must_ be in this order */
+
+	size_t		len;
+	fh_bucket_t	*bucket;		/* pointer to first bucket */
+
+	firehose_private_t *fh_tqe_next;	/* -1 when not in FIFO, 
+						   NULL when end of list,
+						   else next pointer in FIFO */
+	firehose_private_t **fh_tqe_prev;	/* refcount when not in FIFO,
+						   prev pointer otherwise    */
+
+	#ifdef FIREHOSE_CLIENT_T
+	firehose_client_t	client;
+	#endif
+};
+#endif
+
+#define FH_KEYMAKE(addr,node)	(addr | node)
+#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
+#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 #define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
 
 /* Local and Remote buckets can be in various states.
@@ -156,50 +202,6 @@ struct _firehose_private_t {
 		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
 #define FH_UNSET_REMOTE_PENDING(priv)					\
 		(FH_BUCKET_REFC(priv)->refc_l = 0)
-
-#elif defined(FIREHOSE_REGION)
-
-/* Under firehose-region, the private type requires a client type to be inlined
- * if FIREHOSE_CLIENT_T is defined and the region's length to be specified (the
- * region's base address and destination node may be extracted from the pointer
- * to the first bucket of the region).
- *
- * Although all buckets covering pinned regions are hashed just as in
- * firehose-page, firehose-region additionally hashes the firehose_private_t
- * type.  
- */
-
-typedef
-struct _fh_bucket_t {
-        fh_int_t         fh_key;                 /* cached key for hash table */
-	#define FH_KEYMAKE(addr,node)	(addr | node)
-	#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
-	#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
-
-        void            *fh_next;		 /* linked list in hash table */
-						 /* _must_ be in this order */
-	firehose_private_t *priv;		/* holds ref counts, etc */
-}
-fh_bucket_t;
-
-struct _firehose_private_t {
-	fh_int_t	fh_key;			/* cached key for hash table */
-	void		*fh_next;		/* linked list in hash table */
-						/* _must_ be in this order */
-
-	size_t		len;
-	fh_bucket_t	*bucket;		/* pointer to first bucket */
-
-	firehose_private_t *fh_tqe_next;	/* NULL when not in FIFO */
-	firehose_private_t **fh_tqe_prev;
-
-	#ifdef FIREHOSE_CLIENT_T
-	firehose_client_t	client;
-	#endif
-};
-#define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
-
-#endif
 
 /*
  * Both -page and -region implement these functions.
