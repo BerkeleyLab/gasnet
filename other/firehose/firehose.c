@@ -94,7 +94,7 @@ firehose_fini()
 	}
 
 	/* Deallocate the arrays of bucket buffers used, if applicable */
-	for (i = 0; i < 4096; i++) {
+	for (i = 0; i < FH_BUCKETS_BUFS; i++) {
 		if (fh_buckets_bufs[i] == NULL)
 			break;
 		gasneti_free(fh_buckets_bufs[i]);
@@ -446,7 +446,7 @@ fh_request_free(firehose_request_t *req)
 
 static fh_bucket_t	*fh_buckets_freehead = NULL;
 static int		 fh_buckets_bufidx = 0;
-static fh_bucket_t	*fh_buckets_bufs[4096] = { 0 };
+static fh_bucket_t	*fh_buckets_bufs[FH_BUCKETS_BUFS] = { 0 };
 static int		 fh_buckets_per_alloc = 0;
 
 void
@@ -455,7 +455,10 @@ fh_bucket_init_freelist(int max_buckets_pinned)
 	FH_TABLE_ASSERT_LOCKED;
 
 	/* XXX this should probably be further aligned. . */
-	fh_buckets_per_alloc = (int) (max_buckets_pinned + (4096-1)) / 4096;
+	fh_buckets_per_alloc = (int) MAX( 
+	    ((max_buckets_pinned + (FH_BUCKETS_BUFS-1)) / FH_BUCKETS_BUFS),
+	    (1024));
+
 	fh_buckets_freehead = NULL; 
 
 	return;
@@ -497,10 +500,10 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 		fh_bucket_t	*buf;
 		int		 i;
 
-		if (fh_buckets_bufidx == 4096)
+		if (fh_buckets_bufidx == FH_BUCKETS_BUFS)
 			gasneti_fatalerror("Firehose: Ran out of "
 				"hash entries (limit=%d)",
-				4096*fh_buckets_per_alloc);
+				FH_BUCKETS_BUFS*fh_buckets_per_alloc);
 
 		buf = (fh_bucket_t *) 
 			gasneti_malloc(fh_buckets_per_alloc*
@@ -578,6 +581,9 @@ fh_getenv(const char *var, unsigned long multiplier)
                                 multiplier = 1U<<30;
                         else if (c == 'K' || c == 'k')
                                 multiplier = 1U<<10;
+			/* XXX this is only here for testing purposes */
+			else if (c == 'b')
+				multiplier = 1;
                         break;
                 }
         }

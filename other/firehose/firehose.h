@@ -283,13 +283,16 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  * is done as part of the last step before gasnet_attach's final
  * bootstrap barrier.  Additionally, the client must have registered
  * firehose AM handlers by querying firehose_gethandlers() prior to
- * calling firehose_init().   If a list of prepinned regions is
- * passed, firehose guarentees that these regions will never be
- * unpinned (addresses and sizes in the region_t's must be aligned
- * to pagesize).  It is up to the client to pass 'max_pinnable_memory'
- * and 'max_regions' values that take into account the client's
- * prepinned regions -- these regions are not taken into account when
- * establishing the firehose M and MAXVICTIM parameters.
+ * calling firehose_init().   
+ *
+ * If a list of prepinned page-aligned regions is passed, firehose
+ * initializes the reference count for these regions to 1 (which
+ * guarentees that these regions remain pinned).  It is up to the
+ * client to make sure that these regions are pinned prior to calling
+ * firehose_init.  These regions may lie anywhere in the address space
+ * -- in or out of the GASNet segment, in stack-adressable memory,
+ * etc.  The client is free to issue additional firehose_local_* and
+ * firehose_remote_* calls on these regions.
  *
  * Firehose separates pinning resources using two parameters:
  *   1. The 'maximum_pinnable_memory' is the upper bound for the
@@ -483,6 +486,11 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
  *
  * It is invalid to request a remote pin with the local node number as
  * a destination node.
+ *
+ * Remote memory regions must fall within the GASNet segment and/or
+ * the set of pages that are pinned locally on the target node
+ * (including both pre-pinned pages and pages pinned via one of the
+ * firehose local pin functions).
  *
  *******************
  * Remote Pin flags

@@ -404,6 +404,10 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 /* values for firehose_private_t * */
 #define FH_REGION_UNPINNED	((firehose_private_t *) -1)
 
+/* How many buffers (of buffers) to allocate to use as bucket descriptors in
+ * hash table */
+#define FH_BUCKETS_BUFS	1024
+
 /*
  * Macros to implement do/while and foreach over the region.  When a reference
  * to 'end' is made, it refers to 'start + len - 1'.
