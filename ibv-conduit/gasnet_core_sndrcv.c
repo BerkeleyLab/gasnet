@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2004/10/26 01:35:04 $
- * $Revision: 1.57.2.2 $
+ *     $Date: 2004/10/26 19:42:22 $
+ * $Revision: 1.57.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -703,13 +703,13 @@ int gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t sr_desc[],
   int i;
 
   /* loop until space is available on the CQ */
-  tmp = gasnetc_sema_trydown_n(&gasnetc_op_sema, GASNETC_ANY_PAR, count);
+  tmp = gasnetc_sema_trydown_n(&gasnetc_op_sema, count, GASNETC_ANY_PAR);
   if_pf (!tmp) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
       gasnetc_poll_snd();
-      tmp = gasnetc_sema_trydown_n(&gasnetc_op_sema, GASNETC_ANY_PAR, count);
+      tmp = gasnetc_sema_trydown_n(&gasnetc_op_sema, count, GASNETC_ANY_PAR);
     } while (!tmp);
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
   }
@@ -717,13 +717,13 @@ int gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t sr_desc[],
 
   /* loop until space is available on the SQ for at least 1 new entry */
   op_sema = &sreq->cep->op_sema;
-  tmp = gasnetc_sema_trydown_n(op_sema, GASNETC_ANY_PAR, count);
+  tmp = gasnetc_sema_trydown_n(op_sema, count, GASNETC_ANY_PAR);
   if_pf (!tmp) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
       gasnetc_poll_snd();
-      tmp = gasnetc_sema_trydown_n(op_sema, GASNETC_ANY_PAR, count);
+      tmp = gasnetc_sema_trydown_n(op_sema, count, GASNETC_ANY_PAR);
     } while (!tmp);
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
   }
@@ -1616,6 +1616,14 @@ extern int gasnetc_rdma_get_X(size_t count, int node, void *src_ptr, void *dst_p
   size_t remain = count;
 
   gasneti_assert(count != 0);
+  #if GASNET_DEBUG
+  {
+    size_t one = 1;
+    if_pf (!gasnetc_in_segment(dst, &one)) {
+        gasneti_fatalerror("get_X implementation currently limited to in-segment destinations");
+    }
+  }
+  #endif
 
   do {
     size_t chunk = MIN(GET_X_CHUNK, remain);
@@ -1625,13 +1633,15 @@ extern int gasnetc_rdma_get_X(size_t count, int node, void *src_ptr, void *dst_p
       size_t nbytes = nbytes_ptr[i];
       gasnetc_sreq_t *sreq = sreq_array[i] = gasnetc_get_sreq(0);
       VAPI_sr_desc_t *sr_desc = sr_desc_array + i;
+      gasnetc_counter_t *req_oust = &(((gasnete_eop_t *)handle_ptr[i])->req_oust);
+
       sr_desc->sg_lst_p = sr_sg_array + i;
       sr_desc->id = (uintptr_t)sreq;
-      gasnetc_counter_t *req_oust = &(((gasnete_eop_t *)handle_ptr[i])->req_oust);
 
       gasneti_assert(nbytes != 0);
 
       sreq->cep = cep;
+      sreq->count = 1;
       if (req_oust) {
         gasnetc_counter_inc(req_oust);
         sreq->req_oust = req_oust;
