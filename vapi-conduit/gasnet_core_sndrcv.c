@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/02/05 18:43:59 $
- * $Revision: 1.23.6.14 $
+ *     $Date: 2004/02/05 23:51:37 $
+ * $Revision: 1.23.6.15 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1606,11 +1606,13 @@ int gasnetc_fh_helper(int is_put, gasnet_node_t node, gasnetc_sreq_t *sreq,
       len = MIN(len, req->addr + req->len - rem_addr);	/* trim to pinned region */
       len = gasnetc_fh_hit(node, sreq, loc_addr, len);
     } else {
-      /* Some initial part or all of the region is unpinned */
-      if_pt (req) {
-        len = MIN(len, req->addr - rem_addr);	/* trim to unpinned portion */
+      /* Some initial part (or all) of the region is unpinned */
+      if (req) {
+        /* XXX: should we try to initiate RDMA here rather then releasing?
+	 * If we can't easily split into two simple ranges, then the bookkeeping
+	 * is probably too much to justify it.
+	 */
         firehose_release(&req, 1);	/* avoid deadlock */
-        /* XXX: could/should try to initiate RDMA here rather then releasing */
       }
       len = gasnetc_fh_miss(node, sreq, loc_addr, rem_addr, len);
     }
