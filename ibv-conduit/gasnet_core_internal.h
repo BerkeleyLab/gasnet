@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/20 22:41:29 $
- * $Revision: 1.1.2.34 $
+ *     $Date: 2003/06/24 18:46:02 $
+ * $Revision: 1.1.2.35 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -272,7 +272,7 @@ typedef struct {
 /* Bootstrap helper routines in gasnet_bootstrap_*.c */
 extern void gasnetc_bootstrapInit(int *argc, char ***argv);
 extern void gasnetc_bootstrapFini(void);
-extern void gasnetc_bootstrapAbort(int exitcode);
+extern void gasnetc_bootstrapAbort(int exitcode) GASNET_NORETURN;
 extern void gasnetc_bootstrapConf(void);
 extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
