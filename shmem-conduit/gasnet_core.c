@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2003/11/23 12:58:49 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2003/12/01 01:03:40 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,12 +47,9 @@ int  gasnetc_amq_mask;
 
 gasnetc_am_packet_t  gasnetc_amq_reqs[GASNETC_AMQUEUE_MAX_DEPTH];
 
-#if GASNETC_AMQUEUE_RELEASE_MSWAP
-volatile long	gasnetc_amq_reqfields[GASNETC_AMQUEUE_MAX_FIELDS];
-long	gasnetc_amq_numfields;
-#endif
-
 #ifdef CRAY_SHMEM
+  volatile long	gasnetc_amq_reqfields[GASNETC_AMQUEUE_MAX_FIELDS];
+  long		gasnetc_amq_numfields;
   extern uintptr_t gasnete_pe_bits_shift;
   extern uintptr_t gasnete_addr_bits_mask;
 #endif
@@ -95,8 +92,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
   gasnetc_amq_mask = (gasnetc_amq_depth-1);
-  #if GASNETC_AMQUEUE_RELEASE_MSWAP
-    gasnetc_amq_numfields = gasnetc_amq_depth/64;
+
+  #if CRAY_SHMEM
+    gasnetc_amq_numfields = (gasnetc_amq_depth+63)/64;
   #endif
 
   #if GASNET_DEBUG_VERBOSE
@@ -106,7 +104,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
     start_pes(0);
-  #elif defined(ELAN_SHMEM)
+  #elif defined(QUADRICS_SHMEM)
     shmem_init();
   #endif
 
@@ -140,7 +138,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 	    /* We keep the allocation live until gasnet_attach(), in which
 	     * case we can simply use realloc to reduce its size */
 
-	#elif defined(ELAN_SHMEM)
+	#elif defined(QUADRICS_SHMEM)
 		#error Not implemented yet.  Should merge with code from elan-conduit
 	#endif
 

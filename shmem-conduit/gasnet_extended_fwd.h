@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2003/11/23 12:58:50 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/12/01 01:03:40 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,6 +31,11 @@ typedef int *gasnet_handle_t;
 
 #define _GASNET_VALGET_HANDLE_T
 typedef uintptr_t gasnet_valget_handle_t;
+
+#define _GASNET_REGISTER_VALUE_T
+#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_p
+typedef uintptr_t gasnet_register_value_t;
+
 
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
@@ -83,9 +88,11 @@ typedef uintptr_t gasnet_valget_handle_t;
  */
 #define GASNETE_GET_BCOPY_THRESH_uint64_t   80
 #define GASNETE_GET_BCOPY_THRESH_uint8_t    16
+#define GASNETE_GET_BCOPY_THRESH_void	    0
 
 #define GASNETE_PUT_BCOPY_THRESH_uint64_t   80
 #define GASNETE_PUT_BCOPY_THRESH_uint8_t    16
+#define GASNETE_PUT_BCOPY_THRESH_void	    0
 
 #define gasnete_inline_ldst_generic(PG,TYPE,TRG,SRC,LEN,PE)	    \
 	do {							    \
@@ -113,28 +120,25 @@ typedef uintptr_t gasnet_valget_handle_t;
  * Blocking operations map directly to shmem functions
  *
  */
-#define GASNETI_INLINE_GET 1
 #ifdef GASNETE_SHMALLOC_LD_ST
-#define gasnete_inline_get(dest,pe,src,nbytes)			      \
+#define gasnete_get(dest,pe,src,nbytes)			      \
 	    gasnete_inline_ldst_get(uint8_t,dest,src,nbytes,pe)
 #else
-#define gasnete_inline_get(dest,pe,src,nbytes) shmem_getmem(dest,src,nbytes,pe)
+#define gasnete_get(dest,pe,src,nbytes) shmem_getmem(dest,src,nbytes,pe)
 #endif
 
-#define GASNETI_INLINE_GET_BULK 1
-#define gasnete_inline_get_bulk	    gasnete_inline_get
+#define gasnete_get_bulk	    gasnete_get
 
-#define GASNETI_INLINE_PUT 1
 #ifdef GASNETE_SHMALLOC_LD_ST
-#define gasnete_inline_put(pe,dest,src,nbytes)				    \
+#define gasnete_put(pe,dest,src,nbytes)				    \
 	    do { gasnete_inline_ldst_put(uint8_t,dest,src,nbytes,pe); shmem_quiet(); } while (0)
 #else
-#define gasnete_inline_put(pe,dest,src,nbytes)				    \
+#define gasnete_put(pe,dest,src,nbytes)				    \
 	    do { shmem_putmem(dest,src,nbytes,pe); shmem_quiet(); } while (0)
 #endif
+#define gasnete_putTI gasnete_put
 
-#define GASNETI_INLINE_PUT_BULK 1
-#define gasnete_inline_put_bulk gasnete_inline_put
+#define gasnete_put_bulk gasnete_put
 
 /*
  * Implicit ops also map directly to shmem functions.
@@ -143,18 +147,18 @@ typedef uintptr_t gasnet_valget_handle_t;
  * memset.
  */
 extern int	    gasnete_nbi_sync;
+extern int	    gasnete_handles[];
+extern int	    gasnete_handleno_cur;
+extern int	    gasnete_handleno_phase;
 
-#define GASNETI_INLINE_PUT_NBI	1
-#define gasnete_inline_put_nbi(pe,dest,src,nbytes)		 \
-	    do { shmem_putmem(dest,src,nbytes,node);		 \
-		 gasnete_nbi_sync = 1;				 \
+#define gasnete_put_nbi(pe,dest,src,nbytes)		 \
+	    do { shmem_putmem(dest,src,nbytes,node);	 \
+		 gasnete_nbi_sync = 1;			 \
 	    } while (0)
 
-#define GASNETI_INLINE_PUT_NBI_BULK 1
-#define gasnete_inline_put_nbi_bulk gasnete_inline_put_nbi
+#define gasnete_put_nbi_bulk gasnete_put_nbi
 
-#define GASNETI_INLINE_GET_NBI_BULK 1
-#define gasnete_inline_get_nbi_bulk(dest,pe,src,nbytes)		\
+#define gasnete_get_nbi_bulk(dest,pe,src,nbytes)	\
 	    shmem_getmem(dest,src,nbytes,node)
 
 /* get_nbi is already defined as get_nbi_bulk */
@@ -162,16 +166,13 @@ extern int	    gasnete_nbi_sync;
 /*
  * Non-bulk are the same as bulk
  */
-#define GASNETI_INLINE_GET_NB 1
-#define gasnete_inline_get_nb	gasnete_get_nb_bulk
-#define GASNETI_INLINE_PUT_NB 1
-#define gasnete_inline_put_nb	gasnete_put_nb_bulk
+#define gasnete_get_nb	gasnete_get_nb_bulk
+#define gasnete_put_nb	gasnete_put_nb_bulk
 
 /* 
  * Some sync ops are the same
  */
-#define GASNETI_INLINE_TRY_SYNCNB_ALL 1
-#define gasnete_inline_try_syncnb_all gasnete_try_syncnb_some
+#define gasnete_try_syncnb_all gasnete_try_syncnb_some
 
 /* 
  * Value gets and puts are more tricky
@@ -180,11 +181,185 @@ extern int	    gasnete_nbi_sync;
  * general to map to the type-specific elemental shmem_g and shmem_p variants.
  *
  */
-#define GASNETI_INLINE_GET_VAL 1
-#define gasnete_inline_get_val	(gasnet_register_value_t) gasnete_get_nb_val
 #define GASNETI_DIRECT_PUT_VAL     1
 #define GASNETI_DIRECT_PUT_NB_VAL  1
 #define GASNETI_DIRECT_PUT_NBI_VAL 1
+
+/*
+  Non-Blocking Value Get (explicit-handle)
+  ========================================
+*/
+
+#if SIZEOF_LONG == 8
+#define GASNET_SHMEM_GET_8  shmem_long_g
+#define GASNET_SHMEM_PUT_8  shmem_long_p
+#elif SIZEOF_DOUBLE == 8
+#define GASNET_SHMEM_GET_8  shmem_double_g
+#define GASNET_SHMEM_PUT_8  shmem_double_p
+#endif
+
+#if SIZEOF_LONG == 4
+#define GASNET_SHMEM_GET_4  shmem_long_g
+#define GASNET_SHMEM_PUT_4  shmem_long_p
+#elif SIZEOF_INT == 4
+#define GASNET_SHMEM_GET_4  shmem_int_g
+#define GASNET_SHMEM_PUT_4  shmem_int_p
+#elif SIZEOF_SHORT == 4
+#define GASNET_SHMEM_GET_4  shmem_short_g
+#define GASNET_SHMEM_PUT_4  shmem_short_p
+#elif SIZEOF_FLOAT == 4
+#define GASNET_SHMEM_GET_4  shmem_float_g
+#define GASNET_SHMEM_PUT_4  shmem_float_p
+#endif
+
+#if SIZEOF_SHORT == 2
+#define GASNET_SHMEM_GET_2  shmem_short_g
+#define GASNET_SHMEM_PUT_2  shmem_short_p
+#endif
+
+GASNET_INLINE_MODIFIER(gasnete_get_nb_val)
+gasnet_valget_handle_t 
+gasnete_get_nb_val(gasnet_node_t node, void *src, 
+		   size_t nbytes) 
+{
+    switch (nbytes) {
+	case 8:	
+	    #ifdef GASNET_SHMEM_GET_8
+		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_8(src, node);
+	    #else
+	    {
+		static uint64_t	temp64;
+		shmem_getmem((void *) &temp64,src,8,node);
+		return (gasnet_valget_handle_t) temp64;
+	    }
+	    #endif
+
+	case 4: 
+	    #ifdef GASNET_SHMEM_GET_4
+		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_4(src, node);
+	    #else
+	    {
+		static uint32_t	temp32;
+		shmem_getmem((void *) &temp32,src,4,node);
+		return (gasnet_valget_handle_t) temp32;
+	    }
+	    #endif
+
+	case 2: 
+	    #ifdef GASNET_SHMEM_GET_2
+		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_2(src, node);
+	    #else
+	    {
+		static uint16_t temp16;
+		shmem_getmem((void *) &temp16,src,2,node);
+		return (gasnet_valget_handle_t) temp16;
+	    }
+	    #endif
+	case 1:
+	    {
+		uint8_t	val;
+		val = *((uint8_t *) shmem_ptr(src,node));
+		return (gasnet_valget_handle_t) val;
+	    }
+#if 0
+		shmem_getmem((void *) &temp8,src,1,node);
+		return (gasnet_valget_handle_t) temp8;
+#endif
+
+	case 0: return 0;
+	default:
+	    {
+		static uint64_t	tempA;
+		#if GASNET_DEBUG
+		if (nbytes > sizeof(gasnet_register_value_t))
+		      gasneti_fatalerror(
+			"VIOLATION: Unsupported size %d in valget", nbytes);
+		#endif
+		shmem_getmem((void *) &tempA, src, nbytes, node);
+		return (gasnet_valget_handle_t) tempA;
+	    }
+    }
+}
+
+/* 
+ * Since shmem only has blocking valgets, we use the value as the handle and
+ * the resulting value.
+ */
+GASNET_INLINE_MODIFIER(gasnete_wait_syncnb_valget)
+gasnet_register_value_t 
+gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) 
+{
+    return (gasnet_register_value_t) handle;
+}
+
+#define gasnete_get_val	(gasnet_register_value_t) gasnete_get_nb_val
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Non-Blocking and Blocking Value Put 
+  ====================================
+*/
+GASNET_INLINE_MODIFIER(gasnet_put_val_inner)
+void 
+gasnete_put_val_inner(gasnet_node_t node, void *dest, 
+		      gasnet_register_value_t value, 
+		      size_t nbytes)
+{
+    static char	val_put[8];
+
+    switch (nbytes) {
+    #ifdef GASNET_SHMEM_PUT_8
+	case 8:	GASNET_SHMEM_PUT_8(dest, value, node); return;
+    #endif
+    #ifdef GASNET_SHMEM_PUT_4
+	case 4: GASNET_SHMEM_PUT_4(dest, value, node); return;
+    #endif
+    #ifdef GASNET_SHMEM_PUT_2
+	case 2: GASNET_SHMEM_PUT_2(dest, value, node); return;
+    #endif
+	case 0: return;
+	default:
+	    #if GASNET_DEBUG
+	      if (nbytes > sizeof(gasnet_register_value_t))
+		      gasneti_fatalerror(
+			"VIOLATION: Unsupported size %d in valput", nbytes);
+	    #endif
+	    memcpy(val_put, &value, nbytes);
+	    shmem_putmem(dest, val_put, nbytes, node);
+	    return;
+    }
+}
+
+GASNET_INLINE_MODIFIER(gasnete_put_val)
+void 
+gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, 
+		size_t nbytes)
+{
+    gasnete_put_val_inner(node, dest, value, nbytes);
+    shmem_quiet();
+}
+
+GASNET_INLINE_MODIFIER(gasnete_put_nb_val)
+gasnet_handle_t 
+gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, 
+		    size_t nbytes)
+{
+    gasnete_put_val_inner(node, dest, value, nbytes);
+    gasnete_handles[gasnete_handleno_phase] = GASNETE_HANDLE_NB_QUIET;
+    return &gasnete_handles[gasnete_handleno_phase];
+}
+
+GASNET_INLINE_MODIFIER(gasnete_put_nb_val)
+void 
+gasnete_put_nbi_val(gasnet_node_t node, void *dest, 
+		    gasnet_register_value_t value, 
+		    size_t nbytes)
+{
+    gasnete_put_val_inner(node, dest, value, nbytes);
+    gasnete_nbi_sync = 1;
+    return;
+}
+
 
 #endif
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/23 12:58:49 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2003/12/01 01:03:40 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #include <gasnet_internal.h>
 #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
 #include <mpp/shmem.h>
-#elif defined(ELAN_SHMEM)
+#elif defined(QUADRICS_SHMEM)
 #include <shmem.h>
 #endif
 
@@ -49,11 +49,6 @@ extern intptr_t		*gasnetc_segment_shptr_off;
  * contention.
  */
 #ifdef QUADRICS_SHMEM
-#define GASNETC_AMQUEUE_REQUEST_FINC	0
-#define GASNETC_AMQUEUE_REQUEST_RANDOM	1
-
-#define GASNETC_AMQUEUE_RELEASE_MSWAP	0
-#define GASNETC_AMQUEUE_RELEASE_PUT	1
 #define GASNETC_VECTORIZE
 
 /*
@@ -61,11 +56,6 @@ extern intptr_t		*gasnetc_segment_shptr_off;
  * reduce the unsuccessful AMPoll case to a single word read (if queue <= 64).
  */
 #elif defined(CRAY_SHMEM) 
-#define GASNETC_AMQUEUE_REQUEST_FINC	1
-#define GASNETC_AMQUEUE_REQUEST_RANDOM	0
-
-#define GASNETC_AMQUEUE_RELEASE_MSWAP	1
-#define GASNETC_AMQUEUE_RELEASE_PUT	0
 #define GASNETC_VECTORIZE		_Pragma("_CRI ivdep")
 #define GASNETE_CRAYX1_BARRIER
 
@@ -74,11 +64,6 @@ extern intptr_t		*gasnetc_segment_shptr_off;
  * file!).  We use the put-based mechanism instead.
  */
 #elif defined(SGI_SHMEM)
-#define GASNETC_AMQUEUE_REQUEST_FINC	1
-#define GASNETC_AMQUEUE_REQUEST_RANDOM	0
-
-#define GASNETC_AMQUEUE_RELEASE_MSWAP	0
-#define GASNETC_AMQUEUE_RELEASE_PUT	1
 #define GASNETC_VECTORIZE
 #endif
 
@@ -226,12 +211,10 @@ int gasnetc_AMQueueRequest(gasnet_node_t pe)
 {
     int	idx;
 
-    #if GASNETC_AMQUEUE_REQUEST_FINC
-        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe) & gasnetc_amq_mask;
-    #elif GASNETC_AMQUEUE_REQUEST_RANDOM
+    #ifdef QUADRICS_SHMEM
         idx = random() & gasnetc_amq_mask;
     #else
-        #error No GASNETC_AMQUEUE_REQUEST mechansims defined
+        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe) & gasnetc_amq_mask;
     #endif
 
     /* Once we have the ID, cswap until the selected slot is free  */

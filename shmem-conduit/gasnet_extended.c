@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2003/11/23 12:58:50 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/12/01 01:03:40 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,9 +31,9 @@ static void gasnete_barrier_init();
  *              flavours).
  */
 
-static int	    gasnete_handles[GASNETE_MAX_HANDLES];
-static int	    gasnete_handleno_cur   = 1;
-static int	    gasnete_handleno_phase = 0;
+int	    gasnete_handles[GASNETE_MAX_HANDLES];
+int	    gasnete_handleno_cur   = 1;
+int	    gasnete_handleno_phase = 0;
 
 /* 
  * NBIs use a single handle, and has a single phase.  However, it uses two
@@ -125,7 +125,7 @@ gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src,
 		    size_t nbytes GASNETE_THREAD_FARG)
 {
     int	*handle = &gasnete_handles[gasnete_handleno_cur];
-    gasnete_inline_get(dest,node,src,nbytes);
+    gasnete_get(dest,node,src,nbytes);
 
     *handle = GASNETE_HANDLE_DONE;
     GASNETE_HANDLE_INC_PHASE();
@@ -144,7 +144,9 @@ gasnete_memset_nb(gasnet_node_t node, void *dest, int val,
     void *ptr = GASNETE_SHMPTR(dest, node);
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
 
+    #if 0
     printf("memset to %d,%p should send to %p shmptr = %p\n", node, dest, GASNETE_SHMPTR(dest,node), shmem_ptr(dest,node));
+    #endif
     memset(ptr, val, nbytes);
     gasneti_memsync();	/* XXX _gsync on Cray? */
 
@@ -276,7 +278,9 @@ gasnete_memset_nbi(gasnet_node_t node, void *dest, int val,
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
     void *ptr = GASNETE_SHMPTR(dest,node);
+    #if 0
     printf("memset to %d,%p should send to %p\n", node, dest, GASNETE_SHMPTR(dest,node));
+    #endif
     memset(ptr, val, nbytes);
     shmem_quiet();
     gasneti_memsync();
@@ -378,169 +382,6 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 
     gasnete_nbi_region_phase = 0;
     return &gasnete_nbi_handle;
-}
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Non-Blocking Value Get (explicit-handle)
-  ========================================
-*/
-
-#if SIZEOF_LONG == 8
-#define GASNET_SHMEM_GET_8  shmem_long_g
-#define GASNET_SHMEM_PUT_8  shmem_long_p
-#elif SIZEOF_DOUBLE == 8
-#define GASNET_SHMEM_GET_8  shmem_double_g
-#define GASNET_SHMEM_PUT_8  shmem_double_p
-#endif
-
-#if SIZEOF_LONG == 4
-#define GASNET_SHMEM_GET_4  shmem_long_g
-#define GASNET_SHMEM_PUT_4  shmem_long_p
-#elif SIZEOF_INT == 4
-#define GASNET_SHMEM_GET_4  shmem_int_g
-#define GASNET_SHMEM_PUT_4  shmem_int_p
-#elif SIZEOF_SHORT == 4
-#define GASNET_SHMEM_GET_4  shmem_short_g
-#define GASNET_SHMEM_PUT_4  shmem_short_p
-#elif SIZEOF_FLOAT == 4
-#define GASNET_SHMEM_GET_4  shmem_float_g
-#define GASNET_SHMEM_PUT_4  shmem_float_p
-#endif
-
-#if SIZEOF_SHORT == 2
-#define GASNET_SHMEM_GET_2  shmem_short_g
-#define GASNET_SHMEM_PUT_2  shmem_short_p
-#endif
-
-static uint64_t		_gasnete_getval_temp64;
-static uint32_t		_gasnete_getval_temp32;
-static uint16_t		_gasnete_getval_temp16;
-static uint8_t		_gasnete_getval_temp8;
-static gasnet_register_value_t _gasnete_getval_tempA;
-
-extern gasnet_valget_handle_t 
-gasnete_get_nb_val(gasnet_node_t node, void *src, 
-		   size_t nbytes GASNETE_THREAD_FARG) 
-{
-    switch (nbytes) {
-	case 8:	
-	    #ifdef GASNET_SHMEM_GET_8
-		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_8(src, node);
-	    #else
-		shmem_getmem((void *) &_gasnete_getval_temp64,src,8,node);
-		return (gasnet_valget_handle_t) _gasnete_getval_temp64;
-	    #endif
-
-	case 4: 
-	    #ifdef GASNET_SHMEM_GET_4
-		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_4(src, node);
-	    #else
-		shmem_getmem((void *) &_gasnete_getval_temp32,src,4,node);
-		return (gasnet_valget_handle_t) _gasnete_getval_temp32;
-	    #endif
-
-	case 2: 
-	    #ifdef GASNET_SHMEM_GET_2
-		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_2(src, node);
-	    #else
-		shmem_getmem((void *) &_gasnete_getval_temp16,src,2,node);
-		return (gasnet_valget_handle_t) _gasnete_getval_temp16;
-	    #endif
-	case 1:
-		{
-			uint8_t	val;
-			printf("%d> ptr is %p shmem_ptr says %p, i say %p\n", gasnete_mynode, src, shmem_ptr(src,node), GASNETE_SHMPTR(src,node));
-			val = *((uint8_t *) shmem_ptr(src,node));
-			return (gasnet_valget_handle_t) val;
-		}
-#if 0
-		shmem_getmem((void *) &_gasnete_getval_temp8,src,1,node);
-		return (gasnet_valget_handle_t) _gasnete_getval_temp8;
-#endif
-
-	case 0: return 0;
-	default:
-	    #if GASNET_DEBUG
-	      if (nbytes > sizeof(gasnet_register_value_t))
-		      gasneti_fatalerror(
-			"VIOLATION: Unsupported size %d in valget", nbytes);
-	    #endif
-	    shmem_getmem((void *) &_gasnete_getval_tempA, src, nbytes, node);
-	    return (gasnet_valget_handle_t) _gasnete_getval_tempA;
-    }
-}
-
-/* 
- * Since shmem only has blocking valgets, we use the value as the handle and
- * the resulting value.
- */
-extern gasnet_register_value_t 
-gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) 
-{
-    return (gasnet_register_value_t) handle;
-}
-
-/*
-  Non-Blocking and Blocking Value Put 
-  ====================================
-*/
-GASNET_INLINE_MODIFIER(gasnet_put_val_inner)
-void 
-gasnete_put_val_inner(gasnet_node_t node, void *dest, 
-		      gasnet_register_value_t value, 
-		      size_t nbytes GASNETE_THREAD_FARG)
-{
-    static char	val_put[8];
-
-    switch (nbytes) {
-    #ifdef GASNET_SHMEM_PUT_8
-	case 8:	GASNET_SHMEM_PUT_8(dest, value, node); return;
-    #endif
-    #ifdef GASNET_SHMEM_PUT_4
-	case 4: GASNET_SHMEM_PUT_4(dest, value, node); return;
-    #endif
-    #ifdef GASNET_SHMEM_PUT_2
-	case 2: GASNET_SHMEM_PUT_2(dest, value, node); return;
-    #endif
-	case 0: return;
-	default:
-	    #if GASNET_DEBUG
-	      if (nbytes > sizeof(gasnet_register_value_t))
-		      gasneti_fatalerror(
-			"VIOLATION: Unsupported size %d in valput", nbytes);
-	    #endif
-	    memcpy(val_put, &value, nbytes);
-	    shmem_putmem(dest, val_put, nbytes, node);
-	    return;
-    }
-}
-
-extern void 
-gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, 
-		size_t nbytes GASNETE_THREAD_FARG)
-{
-    gasnete_put_val_inner(node, dest, value, nbytes GASNETE_THREAD_PASS);
-    shmem_quiet();
-}
-
-extern gasnet_handle_t 
-gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, 
-		    size_t nbytes GASNETE_THREAD_FARG)
-{
-    gasnete_put_val_inner(node, dest, value, nbytes GASNETE_THREAD_PASS);
-    gasnete_handles[gasnete_handleno_phase] = GASNETE_HANDLE_NB_QUIET;
-    return &gasnete_handles[gasnete_handleno_phase];
-}
-
-extern void 
-gasnete_put_nbi_val(gasnet_node_t node, void *dest, 
-		    gasnet_register_value_t value, 
-		    size_t nbytes GASNETE_THREAD_FARG)
-{
-    gasnete_put_val_inner(node, dest, value, nbytes GASNETE_THREAD_PASS);
-    gasnete_nbi_sync = 1;
-    return;
 }
 
 /* ------------------------------------------------------------------------------------ */
