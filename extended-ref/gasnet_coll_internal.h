@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2005/02/02 20:20:52 $
- * $Revision: 1.16 $
+ *     $Date: 2005/02/02 22:12:58 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -209,6 +209,19 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 	/* Volatile arrays of data and state for the point-to-point synchronization */
 	uint8_t			*data;
 	volatile uint32_t	*state;
+
+	#if GASNETE_COLL_TREES
+	  uint32_t pipe_seg_size; 
+	  uint32_t copied_bytes; 
+	  uint32_t sent_bytes; 
+	  int *child_lst; 
+	  int num_child; 
+	  int parent;
+	#endif
+
+	#ifdef GASNETE_COLL_P2P_EXTRA_FIELDS
+	  GASNETE_COLL_P2P_EXTRA_FIELDS
+	#endif
     };
 #endif
 
