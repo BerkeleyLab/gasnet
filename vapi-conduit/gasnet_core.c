@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/28 18:45:40 $
- * $Revision: 1.21.2.7 $
+ *     $Date: 2003/10/31 21:43:50 $
+ * $Revision: 1.21.2.8 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 #define GASNETC_QP_STATIC_RATE		0
 #define GASNETC_QP_MIN_RNR_TIMER	IB_RNR_NAK_TIMER_0_08
 #define GASNETC_QP_RNR_RETRY		7	/* retry forever, but almost never happens */
-#define GASNETC_QP_TIMEOUT		0x20
+#define GASNETC_QP_TIMEOUT		18	/* about 1s */
 #define GASNETC_QP_RETRY_COUNT		2
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.h                  $
- *     $Date: 2003/10/24 21:27:41 $
- * $Revision: 1.6.6.2 $
+ *     $Date: 2003/10/31 21:43:50 $
+ * $Revision: 1.6.6.3 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -181,7 +181,7 @@ extern int gasnetc_AMPoll();
 #define gasnet_AMPoll          gasnetc_AMPoll
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
-#define GASNET_BLOCKUNTIL(cond) while (!(cond)) gasnet_AMPoll()
+#define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 
 /* ------------------------------------------------------------------------------------ */
 /*
