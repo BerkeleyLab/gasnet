@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2004/10/25 19:32:52 $
- * $Revision: 1.28.6.4 $
+ *     $Date: 2004/10/25 23:35:34 $
+ * $Revision: 1.28.6.5 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -833,6 +833,7 @@ extern int gasnete_barrier_try(int id, int flags);
   void _gasnet_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
 		  	     size_t count, const size_t nbytes_array[],
 			     gasnet_handle_t handle_array[] GASNETE_THREAD_FARG) {
+
     if_pf (count == 0) {
       GASNETI_TRACE_GET(NB_BULK_LOCAL,dest,node,src,0);
     } else if (gasnete_islocal(node)) {
@@ -866,6 +867,9 @@ extern int gasnete_barrier_try(int id, int flags);
 		     		   nbytes_array, handle_array GASNETE_THREAD_PASS);
     }
 }
+  /* Note that we are skipping a layer and couting on the loop to do error checking and logging */
+  #define gasnet_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array) \
+	_gasnet_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array GASNETE_THREAD_GET)
 #else
   GASNET_INLINE_MODIFIER(gasnete_get_nb_bulk_X)
   void gasnete_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
@@ -883,10 +887,10 @@ extern int gasnete_barrier_try(int id, int flags);
       dst_addr += nbytes;
     }
   }
-#endif
-/* Note that we are skipping a layer and couting on the loop to do error checking and logging */
-#define gasnet_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array) \
+  /* Note that we are skipping a layer and couting on the loop to do error checking and logging */
+  #define gasnet_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array) \
 	gasnete_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array GASNETE_THREAD_GET)
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 
