@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/07/03 22:21:04 $
- * $Revision: 1.4 $
+ *     $Date: 2003/08/04 11:06:55 $
+ * $Revision: 1.4.2.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -509,11 +509,10 @@ extern int gasnetc_ReplySystem(
   RDMA ops
   =====================
  */
-extern void gasnetc_sndrcv_poll(void);
-extern void gasnetc_snd_poll(void);
 extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, uintptr_t nbytes, gasneti_atomic_t *mem_oust, gasneti_atomic_t *req_oust);
 extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *req_oust);
 extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, gasneti_atomic_t *req_oust);
+extern void gasnetc_counter_wait_aux(gasneti_atomic_t *counter, int handler_context);
 
 /* Check if a given counter is marked as done.
  * Note that the AMPoll belongs outside this call.
@@ -524,19 +523,13 @@ int gasnetc_counter_test(gasneti_atomic_t *counter) {
 } 
 
 /* Wait until given counter is marked as done.
- * Note that at least one poll will be done.
+ * Note that no AMPoll is done in the best case.
  */
 GASNET_INLINE_MODIFIER(gasnetc_counter_wait)
 void gasnetc_counter_wait(gasneti_atomic_t *counter, int handler_context) { 
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_counter_wait: on entry counter %p has value %d", counter, (int)gasneti_atomic_read(counter)));
-  do {
-    if (handler_context) {
-      gasnetc_snd_poll(); /* must not poll recv queue in handler context */
-    } else {
-      gasnetc_sndrcv_poll();
-    }
-  } while (gasneti_atomic_read(counter) != 0);
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_counter_wait: counter %p is done", counter));
+  if_pf (gasneti_atomic_read(counter) != 0) {
+    gasnetc_counter_wait_aux(counter, handler_context);
+  }
 } 
 
 /* ------------------------------------------------------------------------------------ */
