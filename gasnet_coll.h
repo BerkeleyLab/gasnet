@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/25 00:24:13 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2004/05/26 00:31:40 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -303,7 +303,7 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
                           gasnet_node_t srcnode, void *src,
                           size_t nbytes, int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
-  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST,team,dst,srcnode,src,nbytes,flags);
+  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST_NB,team,dst,srcnode,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcnode,src,nbytes,flags);
   handle = gasnete_coll_broadcast_nb(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
   gasnete_coll_poll();
@@ -328,7 +328,7 @@ void _gasnet_coll_broadcast(gasnet_team_handle_t team,
                             void *dst,
                             gasnet_node_t srcnode, void *src,
                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
-  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST_NB,team,dst,srcnode,src,nbytes,flags);
+  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST,team,dst,srcnode,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcnode,src,nbytes,flags);
   gasnete_coll_broadcast(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
 }
@@ -349,7 +349,7 @@ _gasnet_coll_broadcastM_nb(gasnet_team_handle_t team,
                            gasnet_node_t srcnode, void *src,
                            size_t nbytes, int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
-  GASNETE_COLL_TRACE_BROADCAST_M(COLL_BROADCASTM,team,dstlist,srcnode,src,nbytes,flags);
+  GASNETE_COLL_TRACE_BROADCAST_M(COLL_BROADCASTM_NB,team,dstlist,srcnode,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST_M(team,dstlist,srcnode,src,nbytes,flags);
   handle = gasnete_coll_broadcastM_nb(team, dstlist, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
   gasnete_coll_poll();
@@ -374,8 +374,8 @@ void _gasnet_coll_broadcastM(gasnet_team_handle_t team,
                              void *dstlist[],
                              gasnet_node_t srcnode, void *src,
                              size_t nbytes, int flags GASNETE_THREAD_FARG) {
-  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCASTM_NB,team,dstlist,srcnode,src,nbytes,flags);
-  GASNETE_COLL_VALIDATE_BROADCAST(team,dstlist,srcnode,src,nbytes,flags);
+  GASNETE_COLL_TRACE_BROADCAST_M(COLL_BROADCASTM,team,dstlist,srcnode,src,nbytes,flags);
+  GASNETE_COLL_VALIDATE_BROADCAST_M(team,dstlist,srcnode,src,nbytes,flags);
   gasnete_coll_broadcastM(team, dstlist, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
 }
 #define gasnet_coll_broadcastM(team,dstlist,srcnode,src,nbytes,flags) \
