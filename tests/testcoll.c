@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testcoll.c                                 $
- *     $Date: 2004/05/24 20:42:22 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2004/05/26 23:08:13 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -305,7 +305,7 @@ int main(int argc, char **argv)
     if (myproc == 0) {
 	printf("Running coll test(s) with %d iterations.\n", iters);
     }
-    gasnet_coll_init(NULL, 0);
+    gasnet_coll_init(NULL, NULL, 0, 0);
 
     segment = (int *) TEST_MYSEG();
     src = segment + 16;
