@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/03 19:42:12 $
- * $Revision: 1.1.2.36 $
+ *     $Date: 2004/06/03 21:17:20 $
+ * $Revision: 1.1.2.37 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -785,9 +785,6 @@ extern gasnete_coll_generic_data_t *gasnete_coll_generic_alloc(GASNETE_THREAD_FA
     }
 
     memset(result, 0, sizeof(*result));
-    #if GASNET_DEBUG
-      result->thread = GASNETE_MYTHREAD;
-    #endif
 
     return result;
 }
@@ -796,7 +793,6 @@ extern void gasnete_coll_generic_free(gasnete_coll_generic_data_t *data GASNETE_
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
 
     gasneti_assert(data != NULL);
-    gasneti_assert(data->thread == GASNETE_MYTHREAD);
 
     if (data->options & GASNETE_COLL_GENERIC_OPT_P2P) {
       gasnete_coll_p2p_free(data->p2p);

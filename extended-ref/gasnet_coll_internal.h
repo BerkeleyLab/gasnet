@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/03 19:42:12 $
- * $Revision: 1.1.2.30 $
+ *     $Date: 2004/06/03 21:17:20 $
+ * $Revision: 1.1.2.31 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1002,7 +1002,6 @@ struct gasnete_coll_generic_data_t_ {
 	#endif
       }					tag;
 
-      gasnete_threaddata_t		*thread;
     #else
       #define GASNETE_COLL_GENERIC_SET_TAG(D,T)
     #endif
@@ -1045,7 +1044,6 @@ struct gasnete_coll_generic_data_t_ {
  */
 #define GASNETE_COLL_GENERIC_ARGS(D,T) \
 		(gasneti_assert((D) != NULL),                               \
-		 gasneti_assert((D)->thread == GASNETE_MYTHREAD),           \
 		 gasneti_assert((D)->tag == GASNETE_COLL_GENERIC_TAG(T)),   \
 		 &((D)->args.T))
 
