@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/05/11 23:34:49 $
- * $Revision: 1.52.2.1 $
+ *     $Date: 2004/05/17 19:04:20 $
+ * $Revision: 1.52.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,6 +59,13 @@ extern void gasneti_checkattach() {
 }
 
 int gasneti_wait_mode = GASNET_WAIT_SPIN;
+
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREADMODEL) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG) = 1;
 
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
