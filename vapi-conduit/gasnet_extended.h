@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/25 00:03:08 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2003/04/25 18:04:20 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -396,10 +396,10 @@ void gasnet_wait_syncnbi_all(void) {
   Implicit access region synchronization
   ======================================
 */
-extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG);
+extern void            gasnete_begin_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
 extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
 
-#define gasnet_begin_nbi_accessregion() gasnete_begin_nbi_accessregion(0 GASNETE_THREAD_GET)
+#define gasnet_begin_nbi_accessregion() gasnete_begin_nbi_accessregion(GASNETE_THREAD_GET_ALONE)
 #define gasnet_end_nbi_accessregion()   gasnete_end_nbi_accessregion(GASNETE_THREAD_GET_ALONE)
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/25 00:03:08 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2003/04/25 18:04:20 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,7 +69,8 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   threaddata->eop_free = EOPADDR_NIL;
 
   gasnete_threadtable[idx] = threaddata;
-  threaddata->current_iop = gasnete_iop_new(threaddata);
+  threaddata->default_iop = gasnete_iop_new(threaddata);
+  threaddata->current_iop = threaddata->default_iop;
 
   return threaddata;
 }
@@ -526,7 +527,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   assert(iop->threadidx == mythread->threadidx);
   assert(iop->type == gasnete_opImplicit);
   #ifdef DEBUG
-    if (iop->next != NULL)
+    if (iop != mythread->default_iop)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
   #endif
 
@@ -537,10 +538,9 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   assert(iop->threadidx == mythread->threadidx);
-  assert(iop->next == NULL);
   assert(iop->type == gasnete_opImplicit);
   #ifdef DEBUG
-    if (iop->next != NULL)
+    if (iop != mythread->default_iop)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
   #endif
 
@@ -551,11 +551,10 @@ extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   assert(iop->threadidx == mythread->threadidx);
-  assert(iop->next == NULL);
   assert(iop->type == gasnete_opImplicit);
   #ifdef DEBUG
-    if (iop->next != NULL)
-      gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
+    if (iop != mythread->default_iop)
+      gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_gets() inside an NBI access region");
   #endif
 
   gasnetc_rdma_wait(&iop->get_req_oust);
@@ -565,11 +564,10 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   assert(iop->threadidx == mythread->threadidx);
-  assert(iop->next == NULL);
   assert(iop->type == gasnete_opImplicit);
   #ifdef DEBUG
-    if (iop->next != NULL)
-      gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
+    if (iop != mythread->default_iop)
+      gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_puts() inside an NBI access region");
   #endif
 
   gasnetc_rdma_wait(&iop->put_req_oust);
@@ -580,30 +578,26 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   Implicit access region synchronization
   ======================================
 */
-/*  This implementation allows recursive access regions, although the spec does not require that */
-/*  operations are associated with the most immediately enclosing access region */
-extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG) {
+extern void            gasnete_begin_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop  */
+  gasnete_iop_t *iop = gasnete_iop_new(mythread);
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
   #ifdef DEBUG
-    if (!allowrecursion && mythread->current_iop->next != NULL)
+    if (mythread->current_iop != mythread->default_iop)
       gasneti_fatalerror("VIOLATION: tried to initiate a recursive NBI access region");
   #endif
-  iop->next = mythread->current_iop;
   mythread->current_iop = iop;
 }
 
 extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
+  gasnete_iop_t *iop = mythread->current_iop;
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,gasneti_atomic_read(&iop->get_req_oust) + gasneti_atomic_read(&iop->put_req_oust));
   #ifdef DEBUG
-    if (iop->next == NULL)
+    if (iop == mythread->default_iop)
       gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion() outside access region");
   #endif
-  mythread->current_iop = iop->next;
-  iop->next = NULL;
+  mythread->current_iop = mythread->default_iop;
   return (gasnet_handle_t)iop;
 }
 
