@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/12/23 23:28:54 $
- * $Revision: 1.36.2.2 $
+ *     $Date: 2003/12/23 23:40:04 $
+ * $Revision: 1.36.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -338,14 +338,11 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
 }
 
 /* try to allocate a send buffer pair */
-/* Should unify w/ get_sbuf to the extent possible */
-GASNET_INLINE_MODIFIER(gasnetc_try_get_sbuf)
-gasnetc_sbuf_t *gasnetc_try_get_sbuf(void) {
+GASNET_INLINE_MODIFIER(gasnetc_get_sbuf_inner)
+gasnetc_sbuf_t *gasnetc_get_sbuf_inner(void) {
   gasnetc_sbuf_t *sbuf;
   gasnetc_sbuf_t *tail;
   int count;
-
-  GASNETC_STAT_EVENT(TRY_GET_SBUF);
 
   /* try to get an unused sbuf by reaping the send CQ */
   count = gasnetc_snd_reap(1, &sbuf, &tail);
@@ -369,18 +366,25 @@ gasnetc_sbuf_t *gasnetc_try_get_sbuf(void) {
   return sbuf;
 }
 
-/* allocate a send buffer pair */
+/* try only once to allocate a send buffer pair */
+GASNET_INLINE_MODIFIER(gasnetc_try_get_sbuf)
+gasnetc_sbuf_t *gasnetc_try_get_sbuf(void) {
+  GASNETC_STAT_EVENT(TRY_GET_SBUF);
+  return gasnetc_get_sbuf_inner();
+}
+
+/* spin to allocate a send buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   gasnetc_sbuf_t *sbuf;
 
   GASNETC_STAT_EVENT(GET_SBUF);
 
-  sbuf = gasnetc_try_get_sbuf();
+  sbuf = gasnetc_get_sbuf_inner();
 
   if_pf (sbuf == NULL) {
     GASNETC_TRACE_WAIT_BEGIN();
-    gasneti_waituntil((sbuf = gasnetc_try_get_sbuf()) != NULL);
+    gasneti_waituntil((sbuf = gasnetc_get_sbuf_inner()) != NULL);
     GASNETC_TRACE_WAIT_END(GET_SBUF_STALL);
   }
 
