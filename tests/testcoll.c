@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testcoll.c                                 $
- *     $Date: 2004/05/11 23:31:45 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2004/05/24 20:42:22 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -190,10 +190,10 @@ void NO_NO_test(int iters, int nbytes)
 					GASNET_COLL_SRC_IN_SEGMENT |
 					GASNET_COLL_DST_IN_SEGMENT);
 	}
+	BARRIER();
 	end = TIME();
  	update_stat(&st, (end - begin), iters);
 	
-	BARRIER();
 	
 	if (iamsender) {
 		print_stat(myproc, &st, "broadcast(NO,NO) latency", PRINT_LATENCY);
@@ -222,10 +222,10 @@ void NO_NO_test(int iters, int nbytes)
 		gasnet_coll_wait_sync(handles[i]);
 	}
 #endif
+	BARRIER();
 	end = TIME();
  	update_stat(&st, (end - begin), iters);
 	
-	BARRIER();
 	
 	if (iamsender) {
 		print_stat(myproc, &st, "broadcast_nb(NO,NO) throughput", PRINT_THROUGHPUT);
@@ -261,6 +261,24 @@ void NO_NO_test(int iters, int nbytes)
 	if (iamsender) {
 		print_stat(myproc, &st, "put_nbi-bcast throughput", PRINT_THROUGHPUT);
 	}	
+
+	/* initialize statistics */
+	init_stat(&st, nbytes);
+
+	BARRIER();
+	
+	begin = TIME();
+	for (i = 0; i < iters; i++) {
+		gasnet_get_nbi_bulk(segment, 0, segment, nbytes);
+	}
+	gasnet_wait_syncnbi_gets();
+	BARRIER();
+	end = TIME();
+ 	update_stat(&st, (end - begin), iters);
+	
+	if (iamsender) {
+		print_stat(myproc, &st, "get_nbi-bcast throughput", PRINT_THROUGHPUT);
+	}	
 }
 
 int main(int argc, char **argv)
@@ -268,6 +286,7 @@ int main(int argc, char **argv)
     int arg;
     int iters = 0;
     int i, j;
+    int *src;
    
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
@@ -289,34 +308,36 @@ int main(int argc, char **argv)
     gasnet_coll_init(NULL, 0);
 
     segment = (int *) TEST_MYSEG();
+    src = segment + 16;
 
     MSG("running.");
     BARRIER();
 
     for (j = 0; j < iters; ++j) {
+      
       *segment = -1;
       for (i = 0; i < numprocs; ++i) {
-	int src = j ^ myproc;
 	int want = j ^ i;
-	int want2 = (i < (numprocs - 1)) ? (j ^ (i+1)) : (j+1);	/* exactly 1 step ahead */
 	int tmp;
 	gasnet_coll_handle_t h;
 
-        h = gasnet_coll_broadcast_nb(GASNET_TEAM_ALL, segment+2, i, &src, sizeof(int),
+	*src = j ^ myproc;
+
+        h = gasnet_coll_broadcast_nb(GASNET_TEAM_ALL, segment+2, i, src, sizeof(int),
 				     GASNET_COLL_SINGLE |
 				     GASNET_COLL_IN_ALLSYNC |
 				     GASNET_COLL_OUT_ALLSYNC |
 				     GASNET_COLL_SRC_IN_SEGMENT |
 				     GASNET_COLL_DST_IN_SEGMENT);
 
-        (void)gasnet_coll_broadcast_nb(GASNET_TEAM_ALL, segment, i, &src, sizeof(int),
+        (void)gasnet_coll_broadcast_nb(GASNET_TEAM_ALL, segment, i, src, sizeof(int),
 				      GASNET_COLL_SINGLE |
 				      GASNET_COLL_IN_MYSYNC |
 				      GASNET_COLL_OUT_NOSYNC |
 				      GASNET_COLL_SRC_IN_SEGMENT |
 				      GASNET_COLL_DST_IN_SEGMENT |
 				      GASNET_COLL_AGGREGATE);
-        gasnet_coll_broadcast(GASNET_TEAM_ALL, segment+1, i, &src, sizeof(int),
+        gasnet_coll_broadcast(GASNET_TEAM_ALL, segment+1, i, src, sizeof(int),
 				      GASNET_COLL_SINGLE |
 				      GASNET_COLL_IN_NOSYNC |
 				      GASNET_COLL_OUT_MYSYNC |
@@ -326,11 +347,6 @@ int main(int argc, char **argv)
 	if (tmp != want) {
           MSG("Expected segment[0]=%d got %d", want, tmp);
 	}
-	/* Carefully verify segment[1], it could legally be 1 iteration ahead (but no more) */
-	tmp = segment[1];
-	if ((tmp != want) && (tmp != want2)) {
-          MSG("Expected segment[1]=%d or %d got %d", want, want2, tmp);
-	}
 	gasnet_coll_wait_sync(h);
 	tmp = segment[2];
 	if (tmp != want) {
@@ -339,10 +355,15 @@ int main(int argc, char **argv)
       }
     }
 
+#if 0
     for (i = 1; i <= 4096; i *= 2) {
       ALL_ALL_test(iters, i);
       NO_NO_test(iters, i);
     }
+#else
+      ALL_ALL_test(iters, 8);
+      NO_NO_test(iters, 8);
+#endif
 
     BARRIER();
 
