@@ -106,9 +106,6 @@ struct _firehose_info_t {
 	/* Local and remote maximum number of active regions */
 	size_t	max_RegionsLocal;
 	size_t	max_RegionsRemote;
-
-	/* Local maximum number of buckets that can be pinned */
-	size_t  max_FifoBuckets;
 }
 firehose_info_t;
 
@@ -133,11 +130,12 @@ firehose_info_t;
  * When enabled for a move request, the callback is never run within
  * an AM handler context unless the client defines
  * FIREHOSE_REMOTE_CALLBACK_IN_HANDLER in which case the remote
- * callback will be executed as soon as the firehose request handler
- * runs.  In either case, the callback must be thread-safe.
+ * callback will be executed within the firehose request handler after
+ * the move is complete and before the firehose reply.  In either
+ * case, the callback must be thread-safe.
  *
  * A client enables the remote callback for a move operation by
- * setting the FIREHOSE_FLAG_ENABLE_INHANDLER_CALLBACK bit in the
+ * setting the FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK bit in the
  * remote pin flags parameter.  See firehose_remote_pin() and
  * firehose_try_remote_pin() functions.
  *
@@ -155,13 +153,11 @@ firehose_remote_callback(gasnet_node_t node,
  * FIREHOSE MOVE CALLBACK
  *************************
  * This callback is invoked when the firehose library has determined
- * the need to pin and/or unpin one or many regions.  If there are
- * regions to be unpinned, the unpin call should be executed prior to
- * the pin call.  For some networks, it may be possible to use a repin
- * operation, allowing pinning resources to be used more effectively.
- *
- * This is a synchronous (blocking) operation and may or may not be
- * called from within an AM handler.
+ * the need to pin and/or unpin one or many regions and is a
+ * synchronous (blocking) operation.  If there are regions to be
+ * unpinned, the unpin call should be executed prior to the pin call.
+ * For some networks, it may be possible to use a repin operation,
+ * allowing pinning resources to be used more effectively.
  *
  * If the client has defined FIREHOSE_CLIENT_T, the function should
  * fill-in any neccesary data in the 'client' field of the 'pin_list'
@@ -192,7 +188,7 @@ firehose_move_callback(gasnet_node_t node,
  * (possibly by way of a firehose_client_t) that any metadata required
  * to bind to a remote region is part of the region type.
  *
- * AM-handler context: Runs only within AMReply handler
+ * AM-handler context: May run in AM handler context
  */
 extern int 
 firehose_bind_callback(gasnet_node_t node,
@@ -210,7 +206,7 @@ firehose_bind_callback(gasnet_node_t node,
  * to unbind a local node to a remote region is part of the region
  * type.
  *
- * AM-handler context: Runs only within AMRequest handler
+ * AM-handler context: May run in AM handler context
  */
 extern int 
 firehose_unbind_callback(gasnet_node_t node,
@@ -228,7 +224,7 @@ firehose_unbind_callback(gasnet_node_t node,
  * required to export a region to a remote node is part of the region
  * type.
  *
- * AM-handler context: Runs only within AMRequest handler
+ * AM-handler context: May run in AM handler context
  */
 extern int 
 firehose_export_callback(gasnet_node_t node,
@@ -246,7 +242,7 @@ firehose_export_callback(gasnet_node_t node,
  * required to export a region to a remote node is part of the region
  * type.
  *
- * AM-handler context: Runs only within AMRequest handler
+ * AM-handler context: May run in AM handler context
  */
 extern int 
 firehose_unexport_callback(gasnet_node_t node,
@@ -385,8 +381,13 @@ firehose_fini(void);
  *
  * AM-handler context: Cannot be run in a handler. 
  */
+#if defined(FIREHOSE_REMOTE_CALLBACK_IN_HANDLER) && \
+    defined(FIREHOSE_COMPLETION_IN_HANDLER)
+#define	firehose_poll()
+#else
 extern void
 firehose_poll(void);
+#endif
 
 /********************************************************************/
 /* FIREHOSE LOCAL PINNING FUNCTIONS                                 */
@@ -612,7 +613,7 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
  *
  * The supplied regions can be local or remote.
  *
- * AM-handler context: Can be called from within an AM handler.
+ * AM-handler context: May run in AM handler context
  */
 extern void
 firehose_release(firehose_request_t const **reqs, int numreqs);

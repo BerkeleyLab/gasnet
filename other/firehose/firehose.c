@@ -98,6 +98,8 @@ firehose_fini()
 		gasneti_free(fh_buckets_bufs[i]);
 	}
 
+	fh_hash_destroy(fh_BucketTable);
+
 	fh_fini_plugin();
 	return;
 }
@@ -110,13 +112,7 @@ firehose_fini()
  * XXX should make fh_callback_t allocated from freelists.
  */
 
-#ifdef FH_POLL_NOOP
-void
-firehose_poll()
-{
-	return;
-}
-#else
+#ifndef FH_POLL_NOOP
 void
 firehose_poll()
 {
@@ -172,6 +168,8 @@ fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 {
 	firehose_region_t	region;
 
+	FH_TABLE_ASSERT_LOCKED;
+
 	FH_FILL_REGION(&region, addr, nbytes);
 
 	if (req == NULL) {
@@ -194,6 +192,9 @@ fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 extern const firehose_request_t *
 firehose_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 {
+	addr = FH_ADDR_ALIGN(addr);
+	nbytes  = FH_SIZE_ALIGN(addr,nbytes);
+
 	FH_TABLE_LOCK;
 	req = fh_local_pin(addr, nbytes, req);
 	FH_TABLE_UNLOCK;
@@ -206,10 +207,10 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
 
-	FH_TABLE_LOCK;
-
 	addr = FH_ADDR_ALIGN(addr);
 	len  = FH_SIZE_ALIGN(addr,len);
+
+	FH_TABLE_LOCK;
 
 	if (fh_region_ispinned(gasnet_mynode(), addr, len))
 		req = fh_local_pin(addr, len, ureq);
@@ -228,6 +229,10 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	firehose_private_t	*priv;
 	firehose_region_t	region;
 	firehose_request_t	*req = NULL;
+
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_ALIGN(addr,len);
+	FH_FILL_REGION(&region, addr, len);
 
 	FH_TABLE_LOCK;
 	priv = fh_acquire_remote_region(node, &region, callback, context,
@@ -270,6 +275,9 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 {
 	firehose_request_t	*req = NULL;
 
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_ALIGN(addr,len);
+
 	FH_TABLE_LOCK;
 
 	if (fh_region_ispinned(node, addr, len)) {
@@ -286,15 +294,11 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		}
 
 		req->node = node;
-		req->addr = FH_ADDR_ALIGN(addr);
-		req->len  = FH_SIZE_ALIGN(addr, addr+len);
-		end_addr  = req->addr + (uintptr_t) req->len - 1;
+		req->addr = addr;
+		req->len  = len;
 
-		/* XXX this should be moved to private */
- 		FH_FOREACH_BUCKET(req->addr, end_addr, bucket_addr) {
-			bd = fh_bucket_lookup(node, bucket_addr);
-			fh_bucket_acquire(node, bd);
-		}
+		fh_commit_try_remote_region(node, addr, len);
+
 	}
 	FH_TABLE_UNLOCK;
 
@@ -309,7 +313,7 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 }
 
 extern void
-firehose_release(const firehose_request_t **reqs, int numreqs)
+firehose_release(firehose_request_t const **reqs, int numreqs)
 {
 	int			i;
 
@@ -323,6 +327,7 @@ firehose_release(const firehose_request_t **reqs, int numreqs)
 			fh_release_remote_region(
 				(firehose_request_t *) reqs[i]);
 
+		/* Free the request only if it was allocated by firehose */
 		if (reqs[i]->flags & FH_FLAG_FHREQ)
 			fh_request_free((firehose_request_t *) reqs[i]);
 	}
@@ -358,7 +363,7 @@ fh_request_new()
 		fh_request_freehead = (firehose_request_t *) req->internal;
 	}
 	else {
-		firehose_request_t	*alloc;
+		firehose_request_t	*buf;
 		int			 i;
 
 		if (fh_request_bufidx == 256)
@@ -366,22 +371,22 @@ fh_request_new()
 			    "of request handles (limit=%d)",
 			    FH_REQUEST_ALLOC_PERIDX*256);
 
-		alloc = (firehose_request_t *)
+		buf = (firehose_request_t *)
 			gasneti_malloc(FH_REQUEST_ALLOC_PERIDX*
 				       sizeof(firehose_request_t));
 
-		fh_request_bufs[fh_request_bufidx] = alloc;
+		fh_request_bufs[fh_request_bufidx] = buf;
 		fh_request_bufidx++;
 
-		memset(alloc, 0, FH_REQUEST_ALLOC_PERIDX*
+		memset(buf, 0, FH_REQUEST_ALLOC_PERIDX*
 		       sizeof(firehose_request_t));
 
 		for (i = 1; i < FH_REQUEST_ALLOC_PERIDX-1; i++)
-			alloc[i].internal = (firehose_private_t *) &alloc[i+1];
+			buf[i].internal = (firehose_private_t *) &buf[i+1];
 
-		alloc[i].internal = NULL;
-		req = &alloc[0];
-		fh_request_freehead = &alloc[1];
+		buf[i].internal = NULL;
+		req = &buf[0];
+		fh_request_freehead = &buf[1];
 	}
 
 	req->internal = NULL;
@@ -413,12 +418,12 @@ fh_request_free(firehose_request_t *req)
  *             completed and that bucket had been selected as a replacement
  *             bucket.
  *
- * Local Victim Fifo list of fh_bucket_t (oldest at tail, newest at head)
+ * Local Victim Fifo list of fh_bucket_t (oldest at head, newest at tail)
  *   Popping: fh_bucket_t are usually removed so as to create one contiguous
  *            region_t.
  *   Pushing: fh_bucket_t are usually pushed in reverse order from a region_t.
- *            This allows a subsequent popping operation to construct a
- *            contiguous region_t.
+ *            This allows a subsequent popping operation to optimistically
+ *            construct contiguous region_t's.
  *
  * Per-node firehose victim FIFO
  *   Popping: A firehose fh_bucket_t is removed when a node decides that it has
@@ -450,6 +455,8 @@ static int		 fh_buckets_per_alloc = 0;
 void
 fh_bucket_init_freelist(int max_buckets_pinned)
 {
+	FH_TABLE_ASSERT_LOCKED;
+
 	/* XXX this should probably be further aligned. . */
 	fh_buckets_per_alloc = (int) (max_buckets_pinned + (4096-1)) / 4096;
 	fh_buckets_freehead = NULL; 
@@ -467,7 +474,7 @@ fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
 
 	entry = (fh_bucket_t *)
-		fh_hash_find(fh_BucketTable, fh_keymake(bucket_addr, node));
+		fh_hash_find(fh_BucketTable, FH_KEYMAKE(bucket_addr, node));
 
 	return entry;
 }
@@ -513,7 +520,7 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 		fh_buckets_freehead = &alloc[1];
 	}
 
-	entry->fh_key = fh_keymake(bucket_addr, node);
+	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
 
 	return entry;
@@ -526,6 +533,7 @@ fh_bucket_remove(fh_bucket_t *entry)
 
 	FH_TABLE_ASSERT_LOCKED;
 	bucket = fh_hash_insert(fh_BucketTable, entry->fh_key, NULL);
+	memset(bucket, 0, sizeof(fh_bucket_t));
 	bucket->fh_next = fh_buckets_freehead;
 	fh_buckets_freehead = bucket;
 }

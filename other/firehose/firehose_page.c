@@ -173,29 +173,29 @@ fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 		FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
 
 		if (gasnet_mynode() == node) {
-			fh_lrefcRst(fh_refcount(entry));
-			fh_lrefcInc(fh_refcount(entry));
+			fh_lrefcRst(FH_REFCOUNT(entry));
+			fh_lrefcInc(FH_REFCOUNT(entry));
 
 			fhc_LocalOnlyBucketsPinned++;
 		}
 		else {
-			fh_rrefcRst(fh_refcount(entry));
-			fh_rrefcInc(fh_refcount(entry));
+			fh_rrefcRst(FH_REFCOUNT(entry));
+			fh_rrefcInc(FH_REFCOUNT(entry));
 		}
 	}
 	else {
 		if (gasnet_mynode() == node)
-			fh_lrefcInc(fh_refcount(entry));
+			fh_lrefcInc(FH_REFCOUNT(entry));
 		else {
 			/* If incrementing the remote refcount from 0 to 1, we
 			 * conclude that the bucket was previously a local-only
 			 * pin. */
 			fhc_LocalOnlyBucketsPinned--;
-			fh_rrefcInc(fh_refcount(entry));
+			fh_rrefcInc(FH_REFCOUNT(entry));
 		}
 	}
 
-	return fh_refcount(entry);
+	return FH_REFCOUNT(entry);
 }
 
 fh_refc_t
@@ -206,24 +206,24 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 	 * the release is local or remote */
 	/* XXX perhaps expose this error to client with fatalerror() ? */
 	assert(node == gasnet_mynode() 
-		? fh_lrefc(fh_refcount(entry)) > 0
-		: fh_rrefc(fh_refcount(entry)) > 0);
+		? fh_lrefc(FH_REFCOUNT(entry)) > 0
+		: fh_rrefc(FH_REFCOUNT(entry)) > 0);
 
 	if (gasnet_mynode() == node) {
-		fh_lrefcDec(fh_refcount(entry));
+		fh_lrefcDec(FH_REFCOUNT(entry));
 
 		/* If the local refcount is 0, it isn't a local-only bucket (if
 		 * remoteref is also zero, it will be caught later on */
-		if (fh_lrefc(fh_refcount(entry)) == 0)
+		if (fh_lrefc(FH_REFCOUNT(entry)) == 0)
 			fhc_LocalOnlyBucketsPinned--;
 	}
 	else
-		fh_rrefcDec(fh_refcount(entry));
+		fh_rrefcDec(FH_REFCOUNT(entry));
 
-	if (fh_refc_is_victim(fh_refcount(entry)))
+	if (FH_REFC_IS_VICTIM(FH_REFCOUNT(entry)))
 		FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
 
-	return fh_refcount(entry);
+	return FH_REFCOUNT(entry);
 }
 
 
@@ -743,10 +743,23 @@ fhi_InitRegionsList(gasnet_node_t node, firehose_region_t *region, int numreg)
 
 		FH_FOREACH_BUCKET(region[i].addr, end_addr, bucket_addr) {
 			bd = fh_bucket_add(gasnet_mynode(), bucket_addr);
-			fh_refcRst(fh_refcount(bd));
-			fh_refcSet(fh_refcount(bd), loc, rem);
+			FH_REFCRST(FH_REFCOUNT(bd));
+			FH_REFCSET(FH_REFCOUNT(bd), loc, rem);
 		}
 	}
+}
+
+void
+fh_commit_try_remote_region(gasnet_node_t node, uintptr_t addr, size_t nbytes)
+{
+	uintptr_t	bucket_addr, end_addr  = addr + nbytes - 1;
+	fh_bucket_t	*bd;
+
+ 	FH_FOREACH_BUCKET(addr, end_addr, bucket_addr) {
+		bd = fh_bucket_lookup(node, bucket_addr);
+		fh_bucket_acquire(node, bd);
+	}
+	return;
 }
 
 /* fh_release_local_region(request)

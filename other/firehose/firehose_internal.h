@@ -36,7 +36,11 @@ extern gasneti_mutex_t		fh_pollq_lock;
 #endif
 
 #ifndef FH_BUCKET_SHIFT
-#define FH_BUCKET_SHIFT 12
+  #ifdef GASNETT_PAGESHIFT
+  #define FH_BUCKET_SHIFT GASNETT_PAGESHIFT
+  #else
+  #define FH_BUCKET_SHIFT 12
+  #endif
 #endif
 
 /* Utility Macros */
@@ -44,8 +48,7 @@ extern gasneti_mutex_t		fh_pollq_lock;
 #define FH_ADDR_ALIGN(addr)	(GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE))
 #define FH_SIZE_ALIGN(addr,len)	(GASNETI_ALIGNUP(addr+len, FH_BUCKET_SIZE)-\
 				 GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE))
-#define FH_NUM_BUCKETS(addr,len)					\
-		((FH_SIZE_ALIGN(addr,len)-FH_ADDR_ALIGN(addr))>>FH_BUCKET_SHIFT)
+#define FH_NUM_BUCKETS(addr,len)(FH_SIZE_ALIGN(addr,len)>>FH_BUCKET_SHIFT)
 #define FH_ASSERT_BUCKET_ADDR(bucket) (bucket % FH_BUCKET_SIZE == 0)
 
 /* fh_bucket_t
@@ -69,25 +72,23 @@ extern gasneti_mutex_t		fh_pollq_lock;
 typedef uint32_t		fh_refc_t;
 
 #define FH_REFC_ZERO		0
-#define fh_lrefc(refc_t)	((refc_t) & 0x000000ff)
-#define fh_rrefc(refc_t)	(((refc_t) & 0xffffff00)>>8)
+#define FH_LREFC(refc_t)	((refc_t) & 0x000000ff)
+#define FH_RREFC(refc_t)	(((refc_t) & 0xffffff00)>>8)
 
-#define fh_lrefcInc(refc_t)	(assert(fh_lrefc(refc_t) < 0xff), (refc_t)++)
-#define fh_rrefcInc(refc_t)	(assert(fh_rrefc(refc_t) < 0xffffff),	\
+#define FH_LREFCINC(refc_t)	(assert(FH_LREFC(refc_t) < 0xff), (refc_t)++)
+#define FH_RREFCINC(refc_t)	(assert(FH_RREFC(refc_t) < 0xffffff),	\
 					(refc_t) += 0x00000100)
 		
-#define fh_refcSet(refc_t,l,r)	((refc_t) = (r & 0xffffff00) | (l & 0x000000ff))
-#define fh_refcRst(refc_t)	((refc_t) = 0)
-#define fh_lrefcRst(refc_t)	((refc_t) & 0xffffff00)
-#define fh_rrefcRst(refc_t)	((refc_t) & 0x000000ff)
-#define fh_lrefcDec(refc_t)	(assert(fh_lrefc(refc_t) > 0), (refc_t)--)
-#define fh_rrefcDec(refc_t)	(assert(fh_rrefc(refc_t) > 0),		\
+#define FH_REFCSET(refc_t,l,r)	((refc_t) = (r & 0xffffff00) | (l & 0x000000ff))
+#define FH_REFCRST(refc_t)	((refc_t) = 0)
+#define FH_LREFCRST(refc_t)	((refc_t) & 0xffffff00)
+#define FH_RREFCRST(refc_t)	((refc_t) & 0x000000ff)
+#define FH_LREFCDEC(refc_t)	(assert(FH_LREFC(refc_t) > 0), (refc_t)--)
+#define FH_RREFCDEC(refc_t)	(assert(FH_RREFC(refc_t) > 0),		\
 					(refc_t) -= 0x00000100)
 
-#define fh_refc_is_hashonly(refc_t)	((refc_t) >= 0x00000100)
-#define fh_refc_is_victim(refc_t)	((refc_t) == 0)
-#define fh_refc_infifo(refc_t)		((refc_t) == 0)
-#define fh_refc_is_localonly(refc_t)	((refc_t) > 0 && (refc_t) <= 0xff)
+#define FH_REFC_IS_VICTIM(refc_t)	((refc_t) == 0)
+#define FH_REFC_INFIFO(refc_t)		((refc_t) == 0)
 
 /*
  * Bucket and private types
@@ -98,9 +99,9 @@ typedef struct _firehose_private_t	fh_bucket_t;
 
 struct _firehose_private_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
-#define fh_keymake(addr,node)	(addr | node)
-#define fh_node(priv)    ((priv)->fh_key & FH_PAGE_MASK)  /* bucket's node */
-#define fh_baddr(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
+#define FH_KEYMAKE(addr,node)	(addr | node)
+#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)  /* bucket's node */
+#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
 
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
@@ -111,8 +112,8 @@ struct _firehose_private_t {
 						   else next pointer in FIFO */
 	fh_bucket_t	**fh_tqe_prev;		/* refcount when not in FIFO,
 						   prev pointer otherwise    */
-#define fh_refcount(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
-#define fh_in_fifo(priv)  ((priv)->fh_tqe_next != (fh_bucket_t *)-1)
+#define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
+#define FH_IN_FIFO(priv)  ((priv)->fh_tqe_next != (fh_bucket_t *)-1)
 };
 
 #elif defined(FIREHOSE_REGION)
@@ -130,9 +131,9 @@ struct _firehose_private_t {
 typedef
 struct _fh_bucket_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
-#define fh_keymake(addr,node)	(addr | node)
-#define fh_node(priv)    ((priv)->fh_key & FH_PAGE_MASK)  /* bucket's node */
-#define fh_baddr(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
+#define FH_KEYMAKE(addr,node)	(addr | node)
+#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)  /* bucket's node */
+#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
 	fh_refc_t	refcounts;
@@ -155,9 +156,8 @@ struct _firehose_private_t {
 	#endif
 };
 
-#define fh_refcount(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
-#define fh_in_fifo(priv)  ((priv)->fh_tqe_next != (firehose_private_t *)-1)
-
+#define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
+#define FH_IN_FIFO(priv)  ((priv)->fh_tqe_next != (fh_bucket_t *)-1)
 #endif
 
 /*
@@ -222,7 +222,7 @@ fh_refc_t	fh_bucket_release(gasnet_node_t node, fh_bucket_t *);
 fh_refc_t	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
 
 /* ##################################################################### */
-/* Region querying (SPECIFIC)                                            */
+/* Misc functions (specific to page and region)                          */
 /* ##################################################################### */
 		/* Return a matching private if the region is pinned     */
 int	fh_region_ispinned(gasnet_node_t node, uintptr_t addr, size_t len);
@@ -254,6 +254,10 @@ static fh_fifoq_t	fh_LocalFifo;
 static fh_pollq_t	fh_CallbackFifo;
 #endif
 
+/* This type is used to abstract the use of different callback types in the
+ * same fifo.  The 'flags' parameter is used as a tag to differentiate both
+ * types.
+ */
 typedef
 struct _fh_callback_t {
 	uint8_t		 	flags;
@@ -298,6 +302,8 @@ struct _fh_completion_callback_t {
 }
 fh_completion_callback_t;
 
+/* QUEUE functions (based on the BSD TAILQ and STAILQ macros of
+ * /usr/include/sys/queue.h) */
 #define FH_TAILQ_FIRST(head)	((head)->fh_tqh_first)
 #define FH_TAILQ_LAST(head)	((head)->fh_tqh_last)
 #define FH_TAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
@@ -367,6 +373,8 @@ firehose_private_t *	fh_acquire_remote_region(gasnet_node_t node,
 				void *context, uint32_t flags,
 		        	firehose_remotecallback_args_t *remote_args);
 void			fh_release_remote_region(firehose_request_t *);
+void			fh_commit_try_remote_region(gasnet_node_t node, 
+						uintptr_t addr, size_t len);
 void			fh_send_firehose_reply(fh_remote_callback_t *);
 
 /* values for firehose_private_t * */
