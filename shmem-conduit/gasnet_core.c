@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2004/08/31 00:19:10 $
- * $Revision: 1.2.2.6 $
+ *     $Date: 2004/09/02 09:27:06 $
+ * $Revision: 1.2.2.7 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -453,15 +453,60 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       */
     }
   #else
-    /* GASNET_SEGMENT_EVERYTHING */
+    /* GASNET_SEGMENT_EVERYTHING.  */
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
-    { int i;
-      for (i=0;i<gasnetc_nodes;i++) {
-        gasnetc_seginfo[i].addr = (void *)0;
-        gasnetc_seginfo[i].size = (uintptr_t)-1;
-      }
+    {
+	int i;
+
+	for (i=0;i<gasnetc_nodes;i++) {
+	    gasnetc_seginfo[i].addr = (void *)0;
+	    gasnetc_seginfo[i].size = (uintptr_t)-1;
+
+	}
     }
+    #ifdef CRAYX1
+    {
+	/* Although there is no GASNet segment, we must still recover the
+	 * mask/shift bits to translate X1 pointers */
+	static long	pSync[_SHMEM_COLLECT_SYNC_SIZE];
+	intptr_t	*ptrs, ptr;
+	int		i;
+
+	for (i=0; i < _SHMEM_COLLECT_SYNC_SIZE; i++)
+	    pSync[i] = _SHMEM_SYNC_VALUE;
+
+	ptrs = (intptr_t *) shmalloc(sizeof(intptr_t) * gasnetc_nodes);
+	shmem_barrier_all();
+	if_pf(ptrs == NULL)
+		gasneti_fatalerror("malloc failed at initialization");
+	/*
+	 * Use gasnetc_MaxLocalSegmentSize since it is in the static segment as
+	 * an indicator of where our static data resides on each node
+	 */
+	ptr = (intptr_t) &gasnetc_MaxLocalSegmentSize;
+	shmem_fcollect64
+	    ((void *)ptrs,&ptr,1,0,0,gasnetc_nodes,pSync);
+
+	if (gasnetc_nodes == 1) {
+	    gasnete_pe_bits_shift = 0;
+	    gasnete_addr_bits_mask = (uintptr_t) -1;
+	}   
+	else {
+	    gasnete_pe_bits_shift = 63-_leadz((long)ptrs[1]);
+	    gasnete_addr_bits_mask = 
+		    (uintptr_t) (1UL<<gasnete_pe_bits_shift)-1;
+	}
+	#if 0
+	printf("%2d> addr=%p mask=%p shift=%d other=%p ptr_other=%p\n", gasnetc_mynode, 
+			(void *) &gasnetc_MaxLocalSegmentSize,
+		(void *)gasnete_addr_bits_mask, gasnete_pe_bits_shift, 
+		GASNETE_TRANSLATE_X1(&gasnetc_MaxLocalSegmentSize, gasnetc_mynode ^ 1),
+		ptrs[1]);
+	#endif
+	shfree(ptrs);
+    }
+    #endif /* CRAY X1 */
   #endif
 
   /* ------------------------------------------------------------------------------------ */
@@ -892,9 +937,12 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueRequest(dest);
 
-#if defined(GASNETC_GLOBAL_ADDRESS) && !defined(GASNET_SEGMENT_EVERYTHING)
+#if defined(GASNETC_GLOBAL_ADDRESS) 
+  //&& !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else
+  //printf("putmem(%p, %p, %d, %d)\n", dest_addr, source_addr, nbytes, dest);
+  //fflush(stdout); fflush(stdout); fflush(stdout); fflush(stdout);
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
 #endif
   shmem_quiet();
@@ -1051,7 +1099,8 @@ extern int gasnetc_AMReplyLongM(
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueReply(dest);
 
-#if defined(GASNETC_GLOBAL_ADDRESS) && !defined(GASNET_SEGMENT_EVERYTHING)
+#if defined(GASNETC_GLOBAL_ADDRESS) 
+  //&& !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else
   shmem_putmem(dest_addr, source_addr, nbytes, dest);

@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/08/31 05:45:09 $
- * $Revision: 1.2.2.7 $
+ *     $Date: 2004/09/02 09:27:06 $
+ * $Revision: 1.2.2.8 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,15 +69,17 @@ gasnete_threaddata_t	gasnete_threaddata;
 #define gasnete_mythread() (&gasnete_threaddata)
 
 /* make a GASNet call - if it fails, print error message and abort */
+#if 0
 #define GASNETE_SAFE(fncall) do {                                           \
    int retcode = (fncall);                                                  \
    if_pf (retcode != GASNET_OK) {                                           \
      gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
         "  while calling: %s\n"                                             \
         "  at %s",                                                          \
-        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
+        gasnet_ErrorName(retcode),(int)retcode, #fncall, gasneti_current_loc);  \
    }                                                                        \
  } while (0)
+#endif
 
 #define GASNETE_HANDLE_INC() do {					      \
     gasnete_handleno_cur = (gasnete_handleno_cur + 1) & GASNETE_HANDLES_MASK; \
@@ -527,7 +529,7 @@ gasnete_barrier_wait(int id, int flags)
     barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_sync_writes();
 
-    if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
+    if (gasnete_nodes > 1 && (flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
 	    long volatile *ctr = &barrier_notify_ctr[barrier_phase];
 
 	    if (gasnete_mynode == 0) {
