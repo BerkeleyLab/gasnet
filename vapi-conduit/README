@@ -362,6 +362,26 @@ collective and non-collective returns from main.
 
   Of course I can't get a program to allocate from HCA memory!
 
++ Eliminate IB-level flow control.
+  To eliminate the window of time between a reply and the post of a
+  replacement recv (which can lead to a RNR ACK and trigger IB's
+  flawed flow control) we need to post a replacement buffer BEFORE
+  we process a received REQUEST.  This is actually easier than it
+  initially seemed to me, since we only need one "spare" per running
+  request handler.  Since there is at most one request handler running
+  in each thread, we really only need one per thread.
+
+  This leaves the choice between a thread-local "spare" or a shared
+  pool.  The thread-local spare requires no locking, but adds the cost
+  of a thread lookup to each AMPoll which services one or more REQUESTS.
+  It also has the more difficult issue of how one manages to pin these
+  spare buffers when the number of threads are not known in advance.
+  The answer would seem to be to use the existing 256-thread limit in
+  the extended API to preallocate the spares and don't fret about the
+  254 of them (1MB) we are likely to waste most of the time.  The shared
+  pool idea becomes more appealing if we implement a more dynamic method
+  of flow control (see below) where we will need a shared pool anyway.
+
 + Adaptive flow-control for AMs.
   In this mode we'd prepost just M recv buffer to each QP if we want to
   have up to M AM's outstanding per peer, rather than 2*M as we do now.
@@ -372,7 +392,3 @@ collective and non-collective returns from main.
   We need to maintain a shared pool of these unposted buffers and be
   prepared to poll for them to become available along with polling
   for available credits.
-
-  Once we have the pool of unposted buffers we might be able to eliminate
-  the window of time between a reply and the post of a replacement recv
-  buffer by posting BEFORE running the handler rather than after.
