@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/30 17:31:43 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2003/06/30 19:50:17 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -70,8 +70,8 @@ typedef struct {
 static gasnetc_sbuf_t			*gasnetc_sbuf_alloc, *gasnetc_sbuf_free;
 static GASNETC_MUTEX_T			gasnetc_sbuf_lock = GASNETC_MUTEX_INITIALIZER;
 static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
-#if GASNETC_AM_FLOWCTRL && !GASNET_SEQ	/* rcv never contends for this lock */
-  static GASNETC_NONSEQ_T		gasnetc_rbuf_lock = GASNETC_NONSEQ_INITIALIZER;
+#if GASNETC_AM_FLOWCTRL && GASNET_PAR	/* only application threads contend for this lock */
+  static GASNETC_PARLOCK_T		gasnetc_rbuf_lock = GASNETC_PARLOCK_INITIALIZER;
 #endif
 #if GASNETC_RCV_THREAD
   static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
@@ -106,11 +106,11 @@ GASNET_INLINE_MODIFIER(gasnetc_get_rbuf)
 gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
   gasnetc_rbuf_t *rbuf;
 
-  GASNETC_NONSEQ_LOCK(&gasnetc_rbuf_lock);
+  GASNETC_PARLOCK_LOCK(&gasnetc_rbuf_lock);
   assert(gasnetc_rbuf_free != NULL);
   rbuf = gasnetc_rbuf_free;
   gasnetc_rbuf_free = rbuf->next;
-  GASNETC_NONSEQ_UNLOCK(&gasnetc_rbuf_lock);
+  GASNETC_PARLOCK_UNLOCK(&gasnetc_rbuf_lock);
 
   return rbuf;
 }
@@ -118,10 +118,10 @@ gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
 GASNET_INLINE_MODIFIER(gasnetc_put_rbuf)
 void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
   if (rbuf) {
-    GASNETC_NONSEQ_LOCK(&gasnetc_rbuf_lock);
+    GASNETC_PARLOCK_LOCK(&gasnetc_rbuf_lock);
     rbuf->next = gasnetc_rbuf_free;
     gasnetc_rbuf_free = rbuf;
-    GASNETC_NONSEQ_UNLOCK(&gasnetc_rbuf_lock);
+    GASNETC_PARLOCK_UNLOCK(&gasnetc_rbuf_lock);
   }
 }
 #else
@@ -268,8 +268,6 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
   gasnetc_sbuf_t *head, *tail;
   int count;
   
-  GASNETI_TRACE_EVENT(C,SND_REAP);
-
   head = tail = NULL;
   for (count = 0; count < GASNETC_SND_REAP_LIMIT; ++count) {
     VAPI_ret_t vstat;
@@ -334,7 +332,7 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
   }
 
   if (count)
-    GASNETI_TRACE_EVENT_VAL(C,SND_REAP_CNT,count);
+    GASNETI_TRACE_EVENT_VAL(C,SND_REAP,count);
 
   *tail_p = tail;
   return head;
@@ -464,22 +462,25 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     gasnetc_cep_t *cep = &gasnetc_cep[dest];
 
 #if GASNETC_AM_FLOWCTRL
-    if (isReq) {
+    if (isReq && (dest != gasnetc_mynode)) {
       /* Requests require credit for flow control
-       * Since the AM recv thread will never send Request, it can't run here
+       * Since the AM recv thread will never send a Request, it can't run here
+       *
+       * XXX: Note we should probably get the credit BEFORE we get the sbuf,
+       * to avoid blocking the RDMA traffic (which also requires sbuf's).
        */
       int first_try = 1;
       GASNETI_TRACE_WAIT_BEGIN();
       GASNETI_TRACE_EVENT(C,GET_AMREQ_CREDIT);
 
       do {
-        GASNETC_NONSEQ_LOCK(&cep->lock);
+        GASNETC_PARLOCK_LOCK(&cep->lock);
         if_pt(gasneti_atomic_read(&cep->req_credits)) {
           gasneti_atomic_decrement(&cep->req_credits);
-          GASNETC_NONSEQ_UNLOCK(&cep->lock);
+          GASNETC_PARLOCK_UNLOCK(&cep->lock);
           break;
         }
-        GASNETC_NONSEQ_UNLOCK(&cep->lock);
+        GASNETC_PARLOCK_UNLOCK(&cep->lock);
         gasnetc_sndrcv_poll();
   	first_try = 0;
       } while (1);
@@ -540,8 +541,6 @@ void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
   VAPI_ret_t vstat;
   int count;
 
-  GASNETI_TRACE_EVENT(C,RCV_REAP);
-
   for (count = 0; count < limit; ++count) {
     VAPI_wc_desc_t comp;
 
@@ -576,7 +575,7 @@ void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
   }
 
   if (count)
-    GASNETI_TRACE_EVENT_VAL(C,RCV_REAP_CNT,count);
+    GASNETI_TRACE_EVENT_VAL(C,RCV_REAP,count);
 }
 
 #if GASNETC_RCV_THREAD
@@ -685,7 +684,7 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
   }
 
   #if GASNETC_AM_FLOWCTRL
-    GASNETC_NONSEQ_INIT(&cep->lock);
+    GASNETC_PARLOCK_INIT(&cep->lock);
     gasneti_atomic_set(&cep->req_credits, GASNETC_RCV_WQE / 2);
   #endif
 }
