@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/07 18:25:07 $
- * $Revision: 1.1.2.32 $
+ *     $Date: 2004/06/09 20:59:24 $
+ * $Revision: 1.1.2.33 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -208,9 +208,15 @@ extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
 extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
                                             void *src, size_t nbytes, uint32_t pos, uint32_t state);
 extern void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
-                                       void *src, size_t nbytes, uint32_t pos, uint32_t state);
+                                       void *src, uint32_t size,
+                                       uint32_t pos, uint32_t state);
+extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                        void *src, uint32_t count, uint32_t size,
+                                        uint32_t pos, uint32_t state);
 extern void gasnete_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dstnode,
-                                       void *addr, uint32_t pos, uint32_t state);
+                                        void *addr, uint32_t pos, uint32_t state);
+extern void gasnete_coll_p2p_rendezvousM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                         void **addrs, uint32_t count, uint32_t pos, uint32_t state);
 
 /*---------------------------------------------------------------------------------*/
 
@@ -1225,6 +1231,18 @@ gasnete_coll_scat_Put(gasnet_team_handle_t team,
 		      gasnet_node_t srcnode, void *src,
 		      size_t nbytes, int flags GASNETE_THREAD_FARG);
 
+extern gasnet_coll_handle_t
+gasnete_coll_scat_Eager(gasnet_team_handle_t team,
+		        void *dst,
+		        gasnet_node_t srcnode, void *src,
+		        size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scat_RVGet(gasnet_team_handle_t team,
+		        void *dst,
+		        gasnet_node_t srcnode, void *src,
+		        size_t nbytes, int flags GASNETE_THREAD_FARG);
+
 /*---------------------------------------------------------------------------------*/
 
 extern gasnet_coll_handle_t
@@ -1238,6 +1256,18 @@ gasnete_coll_scatM_Put(gasnet_team_handle_t team,
 		       void * const dstlist[],
 		       gasnet_node_t srcnode, void *src,
 		       size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scatM_Eager(gasnet_team_handle_t team,
+		         void * const dstlist[],
+		         gasnet_node_t srcnode, void *src,
+		         size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scatM_RVGet(gasnet_team_handle_t team,
+		         void * const dstlist[],
+		         gasnet_node_t srcnode, void *src,
+		         size_t nbytes, int flags GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 
@@ -1253,6 +1283,18 @@ gasnete_coll_gath_Put(gasnet_team_handle_t team,
 		      void *src,
 		      size_t nbytes, int flags GASNETE_THREAD_FARG);
 
+extern gasnet_coll_handle_t
+gasnete_coll_gath_Eager(gasnet_team_handle_t team,
+		        gasnet_node_t dstnode, void *dst,
+		        void *src,
+		        size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_gath_RVPut(gasnet_team_handle_t team,
+		        gasnet_node_t dstnode, void *dst,
+		        void *src,
+		        size_t nbytes, int flags GASNETE_THREAD_FARG);
+
 /*---------------------------------------------------------------------------------*/
 
 extern gasnet_coll_handle_t
@@ -1266,6 +1308,18 @@ gasnete_coll_gathM_Put(gasnet_team_handle_t team,
 		       gasnet_node_t dstnode, void *dst,
 		       void * const srclist[],
 		       size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_gathM_Eager(gasnet_team_handle_t team,
+		         gasnet_node_t dstnode, void *dst,
+		         void * const srclist[],
+		         size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_gathM_RVPut(gasnet_team_handle_t team,
+		         gasnet_node_t dstnode, void *dst,
+		         void * const srclist[],
+		         size_t nbytes, int flags GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 
