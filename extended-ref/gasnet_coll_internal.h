@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/14 17:37:44 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2004/05/17 19:15:50 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -299,7 +299,7 @@ void _gasnet_coll_broadcast(gasnet_team_handle_t team,
                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
   GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST_NB,team,dst,srcnode,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcnode,src,nbytes,flags);
-  return gasnete_coll_broadcast(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
+  gasnete_coll_broadcast(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
 }
 #define gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags) \
        _gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags GASNETE_THREAD_GET)
