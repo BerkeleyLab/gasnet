@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2004/08/30 06:57:42 $
- * $Revision: 1.15.2.2 $
+ *     $Date: 2004/08/31 01:55:06 $
+ * $Revision: 1.15.2.3 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,7 +147,8 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gethrtime())
 #endif
-#elif defined(LINUX) && defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#elif defined(LINUX) && defined(__GNUC__) && \
+     (defined(__i386__) || defined(__x86_64__) || defined(__ia64__))
   #include <stdio.h>
   #include <stdlib.h>
   #include <string.h>
@@ -157,11 +158,15 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)-1)
   GASNET_INLINE_MODIFIER(gasneti_stattime_now)
   uint64_t gasneti_stattime_now (void) {
-    unsigned long long ret;
+    uint64_t ret;
     #if defined(__i386__)
       __asm__ __volatile__("rdtsc"
                            : "=A" (ret)
                            : /* no inputs */); 
+    #elif defined(__ia64__)
+      __asm__ __volatile__("mov %0=ar.itc" 
+                           : "=r"(ret) 
+                           : /* no inputs */);
     #elif defined(__x86_64__)
       uint32_t lo, hi;
       __asm__ __volatile__("rdtsc"
