@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_help.h             $
- *     $Date: 2003/03/08 00:07:09 $
- * $Revision: 1.1 $
+ *     $Date: 2003/04/14 21:22:58 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet vapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,7 @@
 BEGIN_EXTERNC
 
 #include <gasnet_help.h>
+#include <gasnet_atomicops.h>
 
 extern gasnet_node_t gasnetc_mynode;
 extern gasnet_node_t gasnetc_nodes;

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/14 20:25:23 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2003/04/14 21:22:58 $
+ * $Revision: 1.1.2.21 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -245,8 +245,6 @@ extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags);
 /* Send routines in gasnet_core_snd.c */
 extern void gasnetc_snd_init(void);
 extern void gasnetc_snd_fini(void);
-extern int gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, gasneti_atomic_t *local_counter, gasneti_atomic_t *remote_counter);
-extern void gasnetc_snd_wait(gasneti_atomic_t *counter);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
