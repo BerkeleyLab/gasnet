@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2004/08/26 04:53:28 $
- * $Revision: 1.52 $
+ *     $Date: 2004/09/23 23:14:19 $
+ * $Revision: 1.52.6.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -245,6 +245,7 @@
                                           atomic_dec_and_test(p)
     #endif
   #elif defined(FREEBSD)
+    #include <sys/types.h>
     #include <machine/atomic.h>
     typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
     #define gasneti_atomic_increment(p) atomic_add_int(&((p)->ctr),1)
