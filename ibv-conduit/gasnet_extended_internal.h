@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/04/14 21:44:57 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/04/15 21:08:04 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,22 +40,21 @@ typedef struct _gasnete_eop_t {
   uint8_t flags;                  /*  state flags */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
+  gasneti_atomic_t counter;
 } gasnete_eop_t;
 
 typedef struct _gasnete_iop_t {
   uint8_t flags;                  /*  state flags */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   uint16_t _unused;
-  int initiated_get_cnt;     /*  count of get ops initiated */
-  int initiated_put_cnt;     /*  count of put ops initiated */
 
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the counters live on different cache lines for SMP's */
-  uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)]; 
+  uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)]; /* XXX check this */
 
-  gasneti_atomic_t completed_get_cnt;     /*  count of get ops completed */
-  gasneti_atomic_t completed_put_cnt;     /*  count of put ops completed */
+  gasneti_atomic_t get_counter;     /*  count of get ops outstanding */
+  gasneti_atomic_t put_counter;     /*  count of put ops outstanding */
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -86,24 +85,11 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
   op->flags = (op->flags & 0x7F) | (type & 0x80);
 }
 
-/*  state - only valid for explicit ops */
-#define OPSTATE_FREE      0   /*  gasnete_eop_new() relies on this value */
-#define OPSTATE_INFLIGHT  1
-#define OPSTATE_COMPLETE  2
-#define OPSTATE(op) ((op)->flags & 0x03) 
-GASNET_INLINE_MODIFIER(SET_OPSTATE)
-void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
-  op->flags = (op->flags & 0xFC) | (state & 0x03);
-  assert(OPSTATE(op) == state);
-}
-
-/*  get a new op and mark it in flight */
+/*  get a new op */
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t *thread);
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
 /*  query an eop for completeness */
 int gasnete_op_isdone(gasnete_op_t *op);
-/*  mark an op done - isget ignored for explicit ops */
-void gasnete_op_markdone(gasnete_op_t *op, int isget);
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)            \
@@ -135,10 +121,8 @@ void gasnete_op_free(gasnete_op_t *op);
 #define _hidx_gasnete_get_reph              (GASNETE_HANDLER_BASE+3)
 #define _hidx_gasnete_getlong_reqh          (GASNETE_HANDLER_BASE+4)
 #define _hidx_gasnete_getlong_reph          (GASNETE_HANDLER_BASE+5)
-#define _hidx_gasnete_put_reqh              (GASNETE_HANDLER_BASE+6)
-#define _hidx_gasnete_putlong_reqh          (GASNETE_HANDLER_BASE+7)
-#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+8)
-#define _hidx_gasnete_markdone_reph         (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+6)
+#define _hidx_gasnete_memset_reph           (GASNETE_HANDLER_BASE+7)
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif
