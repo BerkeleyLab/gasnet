@@ -113,20 +113,6 @@ extern int	*fhc_RemoteVictimFifoBuckets;
         + fhc_RemoteVictimFifoBuckets[node] /* FIFO */                       \
     )
 
-/* 
- * Firehose SMP specific macros
- */
-
-#if FIREHOSE_SMP
-  #define FH_UPYL do {			    \
-	    FH_TABLE_ASSERT_UNLOCKED;	    \
-	    FH_TABLE_UNLOCK;		    \
-	    gasnet_AMPoll();		    \
-	    gasneti_yield();		    \
-	    FH_TABLE_LOCK;		    \
-	} while (0)
-#endif
-
 #ifndef FH_BUCKET_SIZE
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
 #endif
@@ -239,6 +225,7 @@ struct _firehose_private_t {
  *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
 #define FH_USED_TAG		((firehose_private_t *) -1)
+#define FH_LOCAL_PENDING_TAG	((fh_refc_uint_t) -1)
 #define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
 #define FH_REMOTE_PENDING_COMMITTED_TAG	((fh_refc_uint_t) -2)
 
@@ -249,10 +236,18 @@ struct _firehose_private_t {
 
 /* Remote buckets can be in a 'pending' state, either not committed or
  * committed. */
+#define FH_IS_LOCAL_PENDING(priv)					\
+		(FH_BUCKET_REFC(priv)->refc_l == FH_LOCAL_PENDING_TAG)
 #define FH_IS_REMOTE_PENDING(priv)					\
 		(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_TAG)
 #define FH_IS_REMOTE_PENDING_COMMITTED(priv)				\
 	(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_COMMITTED_TAG)
+
+#define FH_SET_LOCAL_PENDING(priv)      do {				\
+		FH_BUCKET_REFC(priv)->refc_l = FH_LOCAL_PENDING_TAG;	\
+		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
+#define FH_UNSET_LOCAL_PENDING(priv)					\
+		(FH_BUCKET_REFC(priv)->refc_l = 0)
 
 #define FH_SET_REMOTE_PENDING(priv)	do { 				\
 		FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_TAG;	\
@@ -601,6 +596,13 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 #define FH_WHILE_BUCKET(end,bucket_addr)				\
 		} while ((bucket_addr) <= (end) && 			\
 			(bucket_addr) += FH_BUCKET_SIZE)
+
+#define FH_FOREACH_BUCKET_IN_POOL(i,pool,bucket_addr,bucket_end)	\
+	for (i=0; i < pool->regions_num; i++)				\
+	    for (bucket_addr = pool->regions[i].addr,			\
+		 bucket_end = pool->regions[i].addr +			\
+		              pool->regions[i].len - 1;			\
+		 bucket_addr < bucket_end; bucket_addr += FH_BUCKET_SIZE)
 
 /*
  * Macros to copy client_t to and from region/request

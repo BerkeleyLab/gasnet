@@ -1083,6 +1083,8 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
 {
 	FH_TABLE_ASSERT_LOCKED;
 
+	gasneti_assert(rpool != NULL);
+
 	if_pf (rpool->len > 
 	   FH_REGIONPOOL_DEFAULT_COUNT*sizeof(firehose_region_t)) {
 		gasneti_free(rpool->regions);

@@ -153,7 +153,10 @@ gasnetc_AMReplyMediumM(
     int	    retval = 1;
     va_list argptr;
     void    *buf;
-    uint8_t  *hdrptr, *payptr;
+    uint8_t *hdrptr, *payptr;
+    int	    fd;
+
+    gasnet_node_t   node;
 
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
 
@@ -179,9 +182,11 @@ gasnetc_AMReplyMediumM(
 	    pArg[i] = (int32_t) va_arg(argptr, int);
     }
 
+    gasnetc_AMGetMsgSource(token, &node);
+    fd = gasnetc_IdMapFd[node].fd;
+
     /* Copy payload */
     memcpy(payptr, source_addr, nbytes);
-    fd = gasnetc_IdMapFd[dest].fd;
     gasnetc_writesocket(fd, buf, nbytes+AM_PAYOFF);
     /* On write completion, free the buffer */
     gasneti_free(buf);
@@ -195,9 +200,11 @@ int	 gasnetc_AMBufsIdx  = 0;
 int	 gasnetc_AMBufsFree = 0;
 uint8_t	*gasnetc_AMBufs[MAX_BUFS];
 
+#if 0
 void *
 gasnetc_getRecvBuf()
 {
+#endif
 
 extern int 
 gasnetc_AMPoll()
@@ -230,10 +237,9 @@ gasnetc_AMPoll()
 	if (gasnetc_pollfds[i].revents & (POLLERR|POLLHUP|POLLNVAL)) 
 	    fprintf(stderr, "error polling fd %d\n", i);
 	else if (gasnetc_pollfds[i].revents & POLLIN) {
-
-	
-
-      gasnetc_pollfds[j].fd = gasnetc_sockfds[i];
+	    gasnetc_pollfds[i].fd = gasnetc_sockfds[i];
+	}
+    }
 
 
     /*

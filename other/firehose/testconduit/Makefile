@@ -2,7 +2,7 @@ fh_dir = ..
 gasnet_dir = ../../..
 
 CC     = gcc
-CFLAGS = -I. -I$(fh_dir) -I$(gasnet_dir) -I$(gasnet_dir)/extended-ref -DGASNET_SEQ -DGASNET_NDEBUG
+CFLAGS = -I. -I$(fh_dir) -I$(gasnet_dir) -I$(gasnet_dir)/extended-ref -DGASNET_PAR -DGASNET_NDEBUG
 
 .PHONY: clean
 
