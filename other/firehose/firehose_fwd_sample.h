@@ -3,8 +3,8 @@
 
 /* firehose_fwd.h: Firehose forward declarations */
 /* At least one of the next two firehose impementations must be defined */
-#undef  FIREHOSE_REGION
-#define FIREHOSE_PAGE
+#undef FIREHOSE_REGION
+#undef FIREHOSE_PAGE
 
 #ifdef FIREHOSE_REGION
 /* Define the next preprocessor directive to allow firehose clients to
