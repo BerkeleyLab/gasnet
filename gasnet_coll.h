@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/02 18:36:51 $
- * $Revision: 1.1.2.25 $
+ *     $Date: 2004/06/02 21:15:14 $
+ * $Revision: 1.1.2.26 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,11 +144,10 @@ struct gasnete_coll_op_t_ {
     /* Read-only fields: */
     gasnete_coll_team_t		team;
     uint32_t			sequence;
-    unsigned int		flags;
+    int				flags;
     gasnet_coll_handle_t	handle;
 
-    /* Per-instance fields and associated HSL: */
-    gasnet_hsl_t		lock;
+    /* Per-instance fields: */
     void			*data;
     gasnete_coll_poll_fn	poll_fn;
 
@@ -543,6 +542,8 @@ void _gasnet_coll_broadcastM(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 
+extern int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
+extern int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern gasnet_coll_handle_t
 gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 void *dst,
@@ -599,6 +600,8 @@ void _gasnet_coll_scatter(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 
+extern int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
+extern int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern gasnet_coll_handle_t
 gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
                                  void * const dstlist[],
