@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/18 00:18:15 $
- * $Revision: 1.2.2.45 $
+ *     $Date: 2003/06/20 00:15:04 $
+ * $Revision: 1.2.2.46 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -713,54 +713,179 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+/*
+  Exit handling code
+*/
+gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);
+gasneti_atomic_t gasnetc_exit_rcvd = gasneti_atomic_init(0);
+gasneti_atomic_t gasnetc_exit_once = gasneti_atomic_init(1);
+
+static void gasnetc_exit_sighandler(int sig) {
+  /* This is a last-ditch exit */
+
+  #if DEBUG_VERBOSE
+    /* note - can't call trace macros here, too late */
+    static const char msg[] = "gasnetc_exit(): signal received durring exit... goodbye\n";
+    write(STDERR_FILENO, msg, sizeof(msg));
+    /* fflush(stderr);  NOT REENTRANT */
+  #endif
+
+  _exit(gasneti_atomic_read(&gasnetc_exit_code));
+
+  gasneti_reghandler(SIGABRT, SIG_DFL);
+  abort();
+}
+
+/* Say a polite goodbye to our peers and then listen for them to say goodby, too.
+ * This forms a barrier for graceful shutdown.
+ *
+ * Takes the exitcode and a timeout in us as arguments
+ *
+ * Returns 0 on success.
+ */
+static int gasnetc_exit_barrier(int exitcode, int64_t timeout_us) {
+  int i, rc;
+  int64_t start_time;
+
+  assert(timeout_us > 0); 
+
+  start_time = gasneti_getMicrosecondTimeStamp();
+
+  /* Notify phase */
+  for (i = 0; i < gasnetc_nodes; ++i) {
+    if (i == gasnetc_mynode) continue;
+
+    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+
+    rc = gasnet_AMRequestShort1(i, gasneti_handleridx(gasnetc_exit_reqh), (gasnet_handlerarg_t)exitcode);
+
+    if (rc != GASNET_OK) return -1;
+  }
+
+  /* Wait phase */
+  while (gasneti_atomic_read(&gasnetc_exit_rcvd) < (gasnetc_nodes - 1)) {
+    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+
+    gasnetc_AMPoll();
+  }
+
+  return 0;
+}
+
+static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t exitcode) {
+  /* Indicate reception of an exit request */
+  gasneti_atomic_increment(&gasnetc_exit_rcvd);
+
+  /* Initiate an exit IFF this is the first we've heard of it */
+  if (gasneti_atomic_decrement_and_test(&gasnetc_exit_once)) {
+    /* Store the exit code for later use */
+    gasneti_atomic_set(&gasnetc_exit_code, exitcode);
+
+    /* Start the exit path */
+    raise(SIGQUIT);
+  }
+}
 extern void gasnetc_exit(int exitcode) {
   VAPI_ret_t vstat;
-  int i;
+  int i, rc, graceful;
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
   {  /* ensure only one thread ever continues past this point */
+    /* XXX mutex functions are not safe in signal context */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&exit_lock);
   }
 
+  /* Ensure we use the first exitcode to be generated
+   * There is a tiny race in definining "first", but it is not worth worrying about
+   */
+  if (gasneti_atomic_decrement_and_test(&gasnetc_exit_once)) {
+    /* store exit code for use by last-ditch signal handler */
+    gasneti_atomic_set(&gasnetc_exit_code, exitcode);
+  } else {
+    /* read exit code, presumably stored by gasnetc_exit_reqh() */
+    exitcode = gasneti_atomic_read(&gasnetc_exit_code);
+  }
+
+  /* Establish a last-ditch signal handler in case of failure. */
+  alarm(0);
+  gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGABRT, gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGILL,  gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGSEGV, gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGFPE,  gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGBUS,  gasnetc_exit_sighandler);
+
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
+  /* Try to flush out all the output */
   gasneti_trace_finish();
   if (fflush(stdout)) 
     gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
   if (fflush(stderr)) 
     gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
   gasneti_sched_yield();
-  sleep(1); /* pause to ensure everyone has written trace if this is a collective exit */
 
-  /* (###) add code here to terminate the job across _all_ nodes 
-           with _exit(exitcode) (not regular exit()), preferably
-           after raising a SIGQUIT to inform the client of the exit
-  */
+  /* Attempt a coordinated shutdown */
+  graceful = 0;	/* assume failure */
+  if (!gasnetc_attach_done) {
+    /* we probably don't have AMs working, so can't do this neatly
+     * So, we hope the bootstrap code can take care of the orphans
+     */
+    /* XXX should fix this by using non-AM communication here */
+  } else {
+    /* We need to be prepared for the messaging system to be totally hosed.
+     * Therefore we want a timeout, scaled with the number of nodes.
+     *
+     * 2s + 0.25s per node, just a dumb guestimate
+     */
+    int64_t timeout_us = 2000000 + gasnetc_nodes*250000;
 
-  for (i = 0; i < gasnetc_nodes; ++i) {
-    if (i == gasnetc_mynode) continue;
-
-    /* destroy the QP */
-    vstat = VAPI_destroy_qp(gasnetc_hca, gasnetc_cep[i].qp_handle);
-    assert(vstat == VAPI_OK);
+    alarm(timeout_us/1000000 + 2);
+    if (gasnetc_exit_barrier(exitcode, timeout_us) == 0) {
+      graceful = 1;
+    }
+    alarm(0);
   }
 
-  gasnetc_sndrcv_fini();
-  
-  gasnetc_unpin(&gasnetc_seg_reg);
+  /* Clean up transport resources, allowing upto 30s */
+  alarm(30);
+  {
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      if (i == gasnetc_mynode) continue;
 
-  vstat = VAPI_dealloc_pd(gasnetc_hca, gasnetc_pd);
-  assert(vstat == VAPI_OK);
+      VAPI_destroy_qp(gasnetc_hca, gasnetc_cep[i].qp_handle);
+    }
+    gasnetc_sndrcv_fini();
+    if (gasnetc_attach_done) {
+      gasnetc_unpin(&gasnetc_seg_reg);
+    }
+    (void)VAPI_dealloc_pd(gasnetc_hca, gasnetc_pd);
+    (void)EVAPI_release_hca_hndl(gasnetc_hca);
+  }
+  alarm(0);
 
-  vstat = EVAPI_release_hca_hndl(gasnetc_hca);
-  assert(vstat == VAPI_OK);
+  /* Try again to flush out any recent output, allowing upto 5s */
+  alarm(5);
+  if (fflush(stdout)) 
+    gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
+  if (fflush(stderr)) 
+    gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+  alarm(0);
 
-  gasnetc_bootstrapFini();
+  /* XXX potential problems here if exiting from the "Wrong" thread, or from a signal handler */
+  alarm(10);
+  if (graceful) {
+    gasnetc_bootstrapFini();
+  } else {
+    gasnetc_bootstrapAbort(exitcode);
+  }
+  alarm(0);
 
   _exit(exitcode);
+  abort();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -927,7 +1052,7 @@ extern int gasnetc_AMReplyLongM(
   gasnet_node_t dest;
   va_list argptr;
   
-  retval = gasnet_AMGetMsgSource(token, &dest);
+  retval = gasnetc_AMGetMsgSource(token, &dest);
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   gasnetc_boundscheck(dest, dest_addr, nbytes);
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
@@ -1017,6 +1142,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
 */
 static gasnet_handlerentry_t const gasnetc_handlers[] = {
   /* ptr-width independent handlers */
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh),
 
   /* ptr-width dependent handlers */
 

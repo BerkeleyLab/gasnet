@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/18 00:18:15 $
- * $Revision: 1.1.2.31 $
+ *     $Date: 2003/06/20 00:15:04 $
+ * $Revision: 1.1.2.32 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,7 +40,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_                              (GASNETC_HANDLER_BASE+)
+#define _hidx_gasnetc_exit_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
@@ -221,6 +221,7 @@ typedef struct {
 /* Bootstrap helper routines in gasnet_bootstrap_*.c */
 extern void gasnetc_bootstrapInit(int *argc, char ***argv);
 extern void gasnetc_bootstrapFini(void);
+extern void gasnetc_bootstrapAbort(int exitcode);
 extern void gasnetc_bootstrapConf(void);
 extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
