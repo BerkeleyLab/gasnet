@@ -892,10 +892,10 @@ fhi_hang_callback(firehose_private_t *priv, firehose_request_t *req,
     FH_TRACE_BUCKET(priv, PENDADD);
                                                                                                               
     GASNETI_TRACE_PRINTF(C, ("Firehose Pending ADD priv=%p "
-                             "(%p,%d), req=%p", priv,
+                             "(%p,%d), req=%p", (void *) priv,
                              (void *) FH_BADDR(priv),
 			     (int) FH_NODE(priv->bucket),
-                             req));
+                             (void *) req));
 
     req->flags |= FH_FLAG_PENDING;
 }
@@ -1094,7 +1094,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		GASNETI_TRACE_PRINTF(C,
 			    ("Firehose Pending Request (%p,%d) "
 			     "enqueued %p for callback", 
-			     (void *) req->addr, (int) req->len, req));
+			     (void *) req->addr, (int) req->len, (void *) req));
 		callspend++;
 
 		ccb = next;
@@ -1399,7 +1399,7 @@ fh_fini_plugin(void)
 /* ACTIVE MESSAGES                                                       */
 /* ##################################################################### */
 
-void
+int
 fh_move_request(gasnet_node_t node,
 		firehose_region_t *new_reg, size_t r_new,
 		firehose_region_t *old_reg, size_t r_old,
@@ -1446,7 +1446,7 @@ fh_move_request(gasnet_node_t node,
 
 	FH_TABLE_UNLOCK;
 
-	return;
+	return 1;
 }
 
 #endif

@@ -297,7 +297,7 @@ void	fh_fini_plugin();
 /* Flags */
 #define FH_FLAG_FHREQ	0x01	/* firehose supplied the request_t */
 #define FH_FLAG_PINNED	0x02
-#define FH_FLAG_PENDING 0x04
+#define FH_FLAG_PENDING 0x04	/* Used in -PAGE only */
 
 /* ##################################################################### */
 /* Firehose Hash Table Utility (COMMON, firehose_hash.c)                 */
@@ -483,6 +483,18 @@ typedef struct _fh_pollq_t	fh_pollq_t;
 extern fh_pollq_t	fh_CallbackFifo;
 #endif
 
+/* 
+ * There is a queue under FIREHOSE_SMP for local buckets seen as pending while
+ * in an AM handler
+ */
+#if defined(FIREHOSE_PAGE) && FIREHOSE_SMP
+FH_TAILQ_HEAD(_fh_locpendq_t, _fh_remote_callback_t);
+typedef struct _fh_locpendq_t	fh_locpendq_t;
+
+extern fh_locpendq_t	fhsmp_LocalPendingList;
+extern void		fhsmp_ServiceLocalPendingList();
+#endif
+
 /* Each node has a FirehoseFifo */
 extern fh_fifoq_t	*fh_RemoteNodeFifo;
 extern fh_fifoq_t	fh_LocalFifo;
@@ -500,8 +512,7 @@ fh_callback_t;
 
 #define FH_CALLBACK_TYPE_REMOTE		0x01
 #define FH_CALLBACK_TYPE_COMPLETION	0x02
-
-#define FH_CALLBACK_PENDING		0x04
+#define FH_CALLBACK_TYPE_PENDING	0x04
 
 /* The remote callback type is pretty page-specific right now, waiting for
  * firehose-region to catch up before making a "standard" remote_callback_t */
@@ -509,6 +520,7 @@ typedef
 struct _fh_remote_callback_t {
 	uint32_t		flags;
 	struct _fh_remote_callback_t	*fh_tqe_next;
+	struct _fh_remote_callback_t	**fh_tqe_prev; /* used in locpendq */
 
 	gasnet_node_t			node;
 	firehose_remotecallback_args_t	args;
@@ -550,7 +562,7 @@ void	fh_acquire_remote_region(firehose_request_t *req,
 		        	firehose_remotecallback_args_t *remote_args);
 void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
-void	fh_move_request(gasnet_node_t node,
+int	fh_move_request(gasnet_node_t node,
 			firehose_region_t *new_reg, size_t r_new,
 			firehose_region_t *old_reg, size_t r_old,
 			void *context);

@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 
     ALLAM_REQ(partner);
 
-    while (NUMREP() < NUMHANDLERS_PER_TYPE*3*(i+1)) {
+    while (!ALLAM_DONE(i+1)) {
       if (polling) {
         AM_Safe(AM_Poll(eb));
         } 

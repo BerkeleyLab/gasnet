@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/smp-conduit/gasnet_core.c                  $
- *     $Date: 2004/05/12 10:21:34 $
- * $Revision: 1.16.4.1 $
+ *     $Date: 2004/07/08 16:59:16 $
+ * $Revision: 1.16.4.2 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -89,7 +89,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_nodes = 1;
 
   /* enable tracing */
-  gasneti_trace_init();
+  gasneti_trace_init(*argc, *argv);
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -138,7 +138,7 @@ extern int gasnet_init(int *argc, char ***argv) {
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnet_init to allow init tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
   #endif
   return GASNET_OK;
 }

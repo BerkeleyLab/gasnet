@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2004/05/12 10:21:22 $
- * $Revision: 1.41.4.1 $
+ *     $Date: 2004/07/08 16:58:58 $
+ * $Revision: 1.41.4.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -132,7 +132,7 @@ static int gasnetc_init(int *argc, char ***argv) {
                                    gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
 
     /* enable tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
 
     #if GASNET_DEBUG_VERBOSE
@@ -169,7 +169,7 @@ extern int gasnet_init(int *argc, char ***argv) {
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnet_init to allow init tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
   #endif
   return GASNET_OK;
 }
@@ -630,8 +630,7 @@ extern int gasnetc_AMReplyLongM(
         static gasneti_mutex_t errcheck_setup = GASNETI_MUTEX_INITIALIZER;
         gasneti_mutex_lock(&errcheck_setup);
         if (gasnetc_hsl_errcheckinfo_firsttime) { 
-          int retval = pthread_key_create(&gasnetc_hsl_errcheckinfo, NULL);
-          if (retval) gasneti_fatalerror("Failure in pthread_key_create()=%s",strerror(retval));
+          gasneti_assert_zeroret(pthread_key_create(&gasnetc_hsl_errcheckinfo, NULL));
           gasneti_local_membar();
           gasnetc_hsl_errcheckinfo_firsttime = 0;
         }
@@ -655,8 +654,7 @@ extern int gasnetc_AMReplyLongM(
           hsl_errcheck_cnt++;
         gasneti_mutex_unlock(&hsl_errcheck_tablelock);
         memcpy(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
-        retval = pthread_setspecific(gasnetc_hsl_errcheckinfo, info);
-        if (retval) gasneti_fatalerror("Failure in pthread_setspecific()=%s",strerror(retval));
+        gasneti_assert_zeroret(pthread_setspecific(gasnetc_hsl_errcheckinfo, info));
         return info;
       }
     }

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2004/05/12 10:21:38 $
- * $Revision: 1.26.2.1 $
+ *     $Date: 2004/07/08 16:59:20 $
+ * $Revision: 1.26.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,10 +88,36 @@ static void _MSG(const char *format, ...) {
 
 #define MSG GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _MSG
 
-#define BARRIER() do {                                                \
+#define NODE_BARRIER() do {					     \
   gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            \
   GASNET_Safe(gasnete_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS)); \
 } while (0)
+
+#ifdef GASNET_PAR
+  static pthread_mutex_t  _barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
+  static pthread_cond_t	  _barrier_cond = PTHREAD_COND_INITIALIZER;
+  static int              _barrier_count;
+  static int	          _barrier_threads;
+  
+  
+  static void
+  _thread_barrier() 
+  {
+  	pthread_mutex_lock(&_barrier_mutex);
+  	_barrier_count++;
+  	if (_barrier_count < _barrier_threads)
+  		pthread_cond_wait(&_barrier_cond, &_barrier_mutex);
+  	else { /* single thread does the barrier */
+  		NODE_BARRIER();
+  		_barrier_count = 0;
+  		pthread_cond_broadcast(&_barrier_cond);
+  	}
+  	pthread_mutex_unlock(&_barrier_mutex);
+  }
+  #define BARRIER() _thread_barrier()
+#else
+  #define BARRIER() NODE_BARRIER()
+#endif
 
 static void *_test_malloc(size_t sz, const char *curloc) {
   void *ptr;
@@ -157,8 +183,8 @@ static void test_free(void *ptr) {
   static void *_test_getseg(gasnet_node_t node) {
     static gasnet_seginfo_t *si = NULL;
     if (si == NULL) {
-      int i;
-      gasnet_seginfo_t *s = test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
+      gasnet_node_t i;
+      gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
       GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
       for (i=0; i < gasnet_nodes(); i++) {
         assert(s[i].size >= TEST_SEGSZ);
@@ -255,5 +281,41 @@ int64_t test_calibrate_delay(int iters, int64_t *time_p)
 	return loops;
 }
 #endif
+
+static void TEST_DEBUGPERFORMANCE_WARNING() {
+  const char *debug = NULL;
+  const char *trace = NULL;
+  const char *stats = NULL;
+  BARRIER();
+  if (gasnet_mynode() == 0) {
+#ifdef GASNET_DEBUG
+  const char *debug = "debugging ";
+#endif
+#ifdef GASNET_TRACE
+  const char *trace = "tracing ";
+#endif
+#ifdef GASNET_STATS
+  const char *stats = "statistical collection ";
+#endif
+  if (debug != NULL || trace != NULL || stats != NULL) {
+    if (debug == NULL) debug = "";
+    if (trace == NULL) trace = "";
+    if (stats == NULL) stats = "";
+    printf("-----------------------------------------------------------------------\n");
+    printf(" WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n");
+    printf("\n");
+    printf(" GASNet was configured and built with these optional features enabled:\n");
+    printf("        %s%s%senabled\n",debug,trace,stats);
+    printf(" This usually has a SERIOUS impact on performance, so you should NOT\n");
+    printf(" trust any performance numbers reported in this run!!!\n");
+    printf(" You should configure and build from scratch without the configure\n");
+    printf(" flags that enable the optional additional checking/reporting.\n");
+    printf("\n");
+    printf(" WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n");
+    printf("-----------------------------------------------------------------------\n");
+  }
+  }
+  BARRIER();
+}
 
 #endif

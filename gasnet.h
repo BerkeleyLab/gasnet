@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet.h                                        $
- *     $Date: 2004/03/03 13:47:01 $
- * $Revision: 1.23 $
+ *     $Date: 2004/07/08 16:58:44 $
+ * $Revision: 1.23.4.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,15 +20,6 @@
    see the GASNet specification for details on how to use the GASNet interface
    clients should #define GASNET_NDEBUG when compiling this implementation for production use
      or #define GASNET_DEBUG for extra debugging safety checks
-*/
-
-/* Conventions:
-* All entry points required by GASNet spec are lower-case identifiers with the prefix gasnet_ 
-* All constants required by GASNet spec are upper-case and preceded with the prefix GASNET_
-* All private symbols in the reference extended API implementation are prefixed with gasnete_ (or GASNETE_ for macros)
-* All private symbols in a core API implementation are prefixed with gasnetc_ (or GASNETC_ for macros)
-* All private symbols shared throughout GASNet are prefixed with gasneti_ (or GASNETI_ for macros)
-* All GASNET_ or GASNETI_ configuration selection macros are either #defined to 1 or #undef'd
 */
 
 /* ------------------------------------------------------------------------------------ */
@@ -64,25 +55,25 @@
 #ifdef GASNET_DEBUG
   #undef GASNET_DEBUG
   #define GASNET_DEBUG 1
-  #define GASNETI_DEBUG_CONFIG "debug"
+  #define GASNETI_DEBUG_CONFIG debug
 #else
-  #define GASNETI_DEBUG_CONFIG "nodebug"
+  #define GASNETI_DEBUG_CONFIG nodebug
 #endif
 
 #ifdef GASNET_TRACE
   #undef GASNET_TRACE
   #define GASNET_TRACE 1
-  #define GASNETI_TRACE_CONFIG "trace"
+  #define GASNETI_TRACE_CONFIG trace
 #else
-  #define GASNETI_TRACE_CONFIG "notrace"
+  #define GASNETI_TRACE_CONFIG notrace
 #endif
 
 #ifdef GASNET_STATS
   #undef GASNET_STATS
   #define GASNET_STATS 1
-  #define GASNETI_STATS_CONFIG "stats"
+  #define GASNETI_STATS_CONFIG stats
 #else
-  #define GASNETI_STATS_CONFIG "nostats"
+  #define GASNETI_STATS_CONFIG nostats
 #endif
 
 #if defined(GASNET_STATS) || defined(GASNET_TRACE)
@@ -116,8 +107,8 @@
   #error Segment configuration must be exactly one of (GASNET_SEGMENT_FAST, GASNET_SEGMENT_LARGE, GASNET_SEGMENT_EVERYTHING) 
 #endif
 
-/* ensure that client links the correct library */
-#define gasnet_init _CONCAT(_CONCAT(gasnet_init_GASNET_,GASNETI_THREADMODEL),GASNETI_SEGMENT_CONFIG)
+/* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
+#define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(gasnet_init_GASNET_,GASNETI_THREADMODEL),GASNETI_SEGMENT_CONFIG),GASNETI_DEBUG_CONFIG),GASNETI_TRACE_CONFIG),GASNETI_STATS_CONFIG)
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet forward definitions, which may override some of the defaults below */
@@ -161,9 +152,9 @@
 #endif
 
 #if GASNET_ALIGNED_SEGMENTS
-  #define GASNETI_ALIGN_CONFIG "align"
+  #define GASNETI_ALIGN_CONFIG align
 #else 
-  #define GASNETI_ALIGN_CONFIG "noalign"
+  #define GASNETI_ALIGN_CONFIG noalign
 #endif
 
 #ifndef GASNET_BARRIERFLAG_ANONYMOUS
@@ -377,13 +368,50 @@ const char *gasnet_ErrorDesc(int errval) {
              GASNET_EXTENDED_NAME_STR "-" GASNET_EXTENDED_VERSION_STR "," \
              "THREADMODEL=" _STRINGIFY(GASNETI_THREADMODEL) ","           \
              "SEGMENT=" _STRINGIFY(GASNETI_SEGMENT_CONFIG) ","            \
-             GASNETI_ALIGN_CONFIG ","                                     \
-             GASNETI_DEBUG_CONFIG ","                                     \
-             GASNETI_TRACE_CONFIG ","                                     \
-             GASNETI_STATS_CONFIG                                         \
+             "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) ","                    \
+             _STRINGIFY(GASNETI_ALIGN_CONFIG) ","                         \
+             _STRINGIFY(GASNETI_DEBUG_CONFIG) ","                         \
+             _STRINGIFY(GASNETI_TRACE_CONFIG) ","                         \
+             _STRINGIFY(GASNETI_STATS_CONFIG)                             \
              GASNETC_EXTRA_CONFIG_INFO                                    \
              GASNETE_EXTRA_CONFIG_INFO                                    
 #endif
+
+/* ensure that the client links the correct library configuration
+ * all objects in a given executable (client and library) must agree on all
+ * of the following configuration settings, otherwise MANY things break,
+ * often in very subtle and confusing ways (eg GASNet mutexes, threadinfo, etc.)
+ */
+#define GASNETI_LINKCONFIG_IDIOTCHECK(name) _CONCAT(gasneti_linkconfig_idiotcheck_,name)
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREADMODEL);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
+
+static int *gasneti_linkconfig_idiotcheck();
+static int *(*_gasneti_linkconfig_idiotcheck)() = &gasneti_linkconfig_idiotcheck;
+static int *gasneti_linkconfig_idiotcheck() {
+  static int val;
+  val += (int)(uintptr_t)_gasneti_linkconfig_idiotcheck
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREADMODEL)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
+  return &val;
+}
+
+#if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
+  #ifndef GASNET_ALLOW_OPTIMIZED_DEBUG
+    #error Tried to compile GASNet client code with optimization enabled but also GASNET_DEBUG (which seriously hurts performance). Reconfigure/rebuild GASNet without --enable-debug
+  #endif
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 #undef _IN_GASNET_H

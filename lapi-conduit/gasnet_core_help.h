@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_help.h             $
- *     $Date: 2004/05/12 10:21:20 $
- * $Revision: 1.11.8.1 $
+ *     $Date: 2004/07/08 16:58:56 $
+ * $Revision: 1.11.8.2 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,18 @@ BEGIN_EXTERNC
 #include <lapi.h>
 #include <sys/atomic_op.h>
 #include <gasnet_atomicops.h>
+
+/* Determine which "version" of LAPI we are using.
+ * LAPI does not define this anywhere, so we will use a
+ * hack that will distinguish between the "origional" lapi
+ * and the "new" version, upon which MPI is based.
+ */
+#ifdef LAPI_DGSM_COPY_SIZE
+/* This only appears in the new version of the LAPI header files */
+#define GASNETC_LAPI_VERSION 2
+#else
+#define GASNETC_LAPI_VERSION 1
+#endif
 
 /* NOTE: this should be dependent on whether we compile in
  * 32 or 64 bit mode

@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.24 2004/03/16 00:04:58 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.24.2.1 2004/07/08 16:59:24 csbell Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -83,6 +83,9 @@ CONDUIT_SPECIAL_OBJS = $(mpi_objs)
 #   %N = requested node count
 #   %A = program arguments
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/vapi-conduit/contrib/gasnetrun_vapi -np %N %P %A
+
+# conduit-specific tests in ../tests directory
+CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 

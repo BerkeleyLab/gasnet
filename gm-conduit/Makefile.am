@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v 1.42 2004/03/13 03:54:30 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v 1.42.2.1 2004/07/08 16:58:52 csbell Exp $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -69,6 +69,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %N = requested node count
 #   %A = program arguments
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/gm-conduit/contrib/gasnetrun_gm -np %N %P %A
+
+# conduit-specific tests in ../tests directory
+CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 

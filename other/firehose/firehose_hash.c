@@ -129,7 +129,7 @@ fh_hash_create(size_t entries)
 	hash->fh_entries = entries;
 	#ifdef FH_HASH_STATS
 		hash->fh_col_table = (int *) gasneti_malloc(entries * sizeof(int));
-		//printf("hash create: entries=%d, mask=%x\n", entries, entries-1);
+		/*printf("hash create: entries=%d, mask=%x\n", entries, entries-1);*/
 		hash->fh_used = 0;
 		hash->fh_collisions = 0;
 	#endif
@@ -148,8 +148,9 @@ fh_hash_destroy(fh_hash_t *hash)
 		int i, hits;
 		for (i = 0; i < hash->fh_entries; i++) {
 			hits = hash->fh_col_table[i];
-			if (hits)
-				//printf("%d\t%d\n", i, hits);
+			if (hits) {
+				/*printf("%d\t%d\n", i, hits);*/
+			}
 		}
 	}
 	gasneti_free(hash->fh_col_table);

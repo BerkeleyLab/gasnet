@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/05/12 10:21:08 $
-# $Revision: 1.25.2.1 $
+#     $Date: 2004/07/08 16:58:44 $
+# $Revision: 1.25.2.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,6 +15,7 @@ SUBDIRS =            \
         gm-conduit   \
         lapi-conduit \
 	mpi-conduit  \
+	sci-conduit  \
 	smp-conduit  \
 	udp-conduit  \
 	vapi-conduit
@@ -24,6 +25,7 @@ config_DATA = $(CONFIG_HEADER)
 
 headers =                  \
         gasnet.h           \
+	gasnet_ammacros.h  \
 	gasnet_atomicops.h \
         gasnet_basic.h     \
         gasnet_handler.h   \

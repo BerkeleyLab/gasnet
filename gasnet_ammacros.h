@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/<conduitname>-conduit/gasnet_core.h                  $
- *     $Date: 2004/06/30 09:16:14 $
- * $Revision: 1.2 $
+ *     $Date: 2004/07/08 16:58:44 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet ammacros header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

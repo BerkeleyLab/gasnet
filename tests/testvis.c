@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testvis.c                              $
- *     $Date: 2004/05/12 10:21:38 $
- * $Revision: 1.3.4.1 $
+ *     $Date: 2004/07/08 16:59:20 $
+ * $Revision: 1.3.4.2 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -231,7 +231,7 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
             "  expected val="VEC_FMT"\n"
             "    actual val="VEC_FMT"\n"
             "  at %s:%s:%i\n",
-          i, j, VEC_STR(srcval), VEC_STR(resval),
+          (int)i, (int)j, VEC_STR(srcval), VEC_STR(resval),
           context, file, line);
         abort();
       }
@@ -391,7 +391,7 @@ void _verify_addr_list_data_both(test_addr_list *src, void *result,
             "  expected val="VEC_FMT"\n"
             "    actual val="VEC_FMT"\n"
             "  at %s:%s:%i\n",
-          i, j, VEC_STR(srcval), VEC_STR(resval),
+          (int)i, (int)j, VEC_STR(srcval), VEC_STR(resval),
           context, file, line);
         abort();
       }
@@ -649,11 +649,11 @@ void checkmem() {
   size_t i;
   for (i = 0; i < areasz; i++) {
     if (my_seg_read_area[i] != SEG_VALUE(mynode, i)) { 
-      MSG("detected corruption in my_seg_read_area[%i]\n", i);
+      MSG("detected corruption in my_seg_read_area[%i]\n", (int)i);
       abort();
     }
     if (my_heap_read_area[i] != HEAP_VALUE(mynode, i)) {
-      MSG("detected corruption in my_heap_read_area[%i]\n", i);
+      MSG("detected corruption in my_heap_read_area[%i]\n", (int)i);
       abort();
     }
   }

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testsmall.c                                 $
- *     $Date: 2004/03/13 13:34:10 $
- * $Revision: 1.17 $
+ *     $Date: 2004/07/08 16:59:20 $
+ * $Revision: 1.17.2.1 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -367,6 +367,7 @@ int main(int argc, char **argv)
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    TEST_DEBUGPERFORMANCE_WARNING();
     TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
     /* parse arguments */

@@ -1,5 +1,6 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25 2004/03/20 02:12:43 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25.2.1 2004/07/08 16:59:20 csbell Exp $
 # Description: Makefile for GASNet tests
+# @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
@@ -27,6 +28,7 @@ testprograms_seq =      \
         testgasnet      \
         testsmall       \
         testlarge       \
+	testfh		\
         testam          \
         testcore1       \
         testbarrier     \
@@ -39,7 +41,10 @@ testprograms_seq =      \
         testhsl         \
         testbarrierconf \
         testbarrierlate \
-	testtools   
+        testtools       \
+        testcoll        \
+        $(CONDUIT_TESTS)
+  
 
 # tests that should only be built in PARSYNC and PAR modes
 testprograms_parsync =  \
@@ -132,7 +137,10 @@ run-tests: force
                           eval @AWK@ \'$$awk_threadscan\'` ;                            \
 	      echo "*** Running $(CONDUIT_NAME)-conduit $$file"                         \
 		   "in $$threadmode/$(GASNET_SEGMENT_STR) mode ***" ;                   \
-	      awk_cmdbuild='{ gsub("%P","./'$$file'");                                  \
+	      awk_cmdbuild='{ gsub("%C","%P %A");                                       \
+                              gsub("%P","./'$$file'");                                  \
+			      gsub("%E","DUMMY");                                       \
+			      gsub("%V ","");                                           \
 			      gsub("%N","'$$nodes'");                                   \
 			      gsub("%A","'"$$args"'"); print $0 }' ;                    \
 	      cmd="`echo \"$$TEST_RUNCMD\" | eval @AWK@ \'$$awk_cmdbuild\'`" ;          \
@@ -165,6 +173,13 @@ testmpi: force
 	@MPI_CC@ -I$(srcdir) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) @MPI_CFLAGS@ -c -o $@.o $(srcdir)/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
 	rm -f $@.o	
+
+# testcxx tests support for compiling a C++-based GASNet client 
+# this is unlikely to work on conduits requiring a special linker (eg mpi-conduit)
+testcxx: force
+	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ -I$(srcdir) $(GASNET_CPPFLAGS) -c -o $@.o $(srcdir)/$@.cc
+	@CXX@ @CXXFLAGS@ $(GASNET_LDFLAGS) -o $@ $@.o $($@_extraobjs) $(GASNET_LIBS)
+	rm -f $@.o
 
 # This is a model for how GASNet clients should be built:
 test% : force

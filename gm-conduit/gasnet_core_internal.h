@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.54.2.1 2004/05/12 10:21:16 csbell Exp $
- * $Date: 2004/05/12 10:21:16 $
- * $Revision: 1.54.2.1 $
+/* $Id: gasnet_core_internal.h,v 1.54.2.2 2004/07/08 16:58:52 csbell Exp $
+ * $Date: 2004/07/08 16:58:52 $
+ * $Revision: 1.54.2.2 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -45,7 +45,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define gasnetc_alloca(nbytes) alloca(nbytes)
 
 /*  whether or not to use spin-locking for HSL's */
-#define GASNETC_HSL_SPINLOCK 1
+#define GASNETC_HSL_SPINLOCK 0
 
 /* -------------------------------------------------------------------------- */
 /* make a GASNet call - if it fails, print error message and return */

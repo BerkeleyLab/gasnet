@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_ref.c,v 1.12.4.1 2004/05/12 10:21:16 csbell Exp $
- * $Date: 2004/05/12 10:21:16 $
+/* $Id: gasnet_extended_ref.c,v 1.12.4.2 2004/07/08 16:58:52 csbell Exp $
+ * $Date: 2004/07/08 16:58:52 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -407,6 +407,17 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -416,6 +427,9 @@ static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */

@@ -26,12 +26,14 @@ $delay_rexec = 0;
 $np = 1;
 $use_shmem = 1;
 @extraopts = undef;
-$ssh_exec = "/usr/bin/ssh";
+@envlist_cmdline = undef;
+$ssh_exec = $ENV{"GASNET_SSH"} || "/usr/bin/ssh";
 $extraopts{"ssh"} = "";
-$rsh_exec = "/usr/bin/rsh";
+$rsh_exec = $ENV{"GASNET_RSH"} || "/usr/bin/rsh";
 $extraopts{"rsh"} = "";
 $rexec = "$ssh_exec";
 $rexec_type = "ssh";  
+$saw_type_option = 0;
 $rexec_reaper = 1;
 # May have to change the arch
 $arch = "LINUX";
@@ -39,6 +41,7 @@ $varenv = '';
 $dry_run = 0;
 $kill_time = 0;
 $recv_mode = 'polling';
+$exit_code = 0;
 
 # GEXEC configuration, preconfigured for millennium.
 $gm_board_info = "/usr/mill/pkg/gm/bin/gm_board_info";
@@ -59,7 +62,7 @@ $close_stdin = 0;
 $cleanup_shmem = 0;
 $pid_socket = 1;
 $pid_rexec = 1;
-$default_machinefile = "$ENV{'PBS_NODEFILE'}";
+$default_machinefile = "$ENV{'GASNET_MACHINEFILE'}" || "$ENV{'PBS_NODEFILE'}";
 $magic = int (rand (9999999));
 $local_host = hostname;
 $local_port = '8000';
@@ -185,7 +188,7 @@ sub cleanup_ALARM {
 }
 
 sub cleanup_TIMEOUT {
-  print ("Timeout: still waiting for data from remote MPI processes !\n");
+  print ("Timeout: still waiting for data from remote GASNet processes !\n");
   print ("Timeout: cleaning up...\n");
   clean_up
   exit (1);
@@ -286,12 +289,15 @@ while (@ARGV > 0) {
     usage ("No machine file specified (-machinefile) !") unless @ARGV >= 1;
     $machine_file = $ARGV[0];
   } elsif ($_ eq '--gexec') {
+    $saw_type_option = 1;
     $rexec_type = "gexec";
     $rexec = $gexec;
   } elsif ($_ eq '--ssh') {
+    $saw_type_option = 1;
     $rexec_type = "ssh";
     $rexec = $ssh_exec;
   } elsif ($_ eq '--rsh') {
+    $saw_type_option = 1;
     $rexec_type = "rsh";
     $rexec = $rsh_exec;
   } elsif ($_ eq '--gexec-options') {
@@ -357,6 +363,12 @@ while (@ARGV > 0) {
       usage ("-np and -pg are exclusive !");
     }
     $np = $ARGV[0];
+  } elsif ($_ eq '-E') {
+    shift;
+    usage ("-E option given without an argument\n") unless @ARGV >= 1;
+    foreach (split(',', $ARGV[0])) {
+      $envlist_cmdline{$_} = 1;
+    }
   } elsif (($_ eq '-help') || ($_ eq '--help') || ($_ eq '-h')) {
     usage ('');
   } elsif ($_ eq '-mvback' ) {
@@ -375,7 +387,7 @@ while (@ARGV > 0) {
 
 # Before going on, check if we should force using GEXEC, if 
 # GASNET_GEXEC_CMD is set.
-if (defined $ENV{"GASNET_GEXEC_CMD"}) {
+if (defined $ENV{"GASNET_GEXEC_CMD"} && !$saw_type_option) {
     printf "Using gexec command $ENV{GASNET_GEXEC_CMD}\n" if $verbose;
     $rexec = $gexec;
     $rexec_type = "gexec";
@@ -644,6 +656,7 @@ if ($rexec_type eq "gexec") {
           (my $foo, my $gmID, my $MAC, my $gmName, my $Route) = split /\s+/, $_; 
           print "No GM routes found\n" and exit if($gmID eq "***");
           next if( $gmName =~/$black_listed_hosts/ );
+          $gm_hosts{$gmName} = $gmID;
           $gm_hosts{$gmName.$domainname} = $gmID;
           $gm_hosts_found++;
         }
@@ -895,7 +908,7 @@ for ($i=0; $i<$np; $i++) {
     @envlist = undef;
     $envv = '';
     foreach $e (keys %ENV) {
-	if ($e =~ m/(TI_)|(UPC_)|(GASNET_)/) {
+	if (($e =~ m/(TI_)|(UPC_)|(GASNET_)/) || defined $envlist_cmdline{$e} ) {
 		@sp = split(/\s+/, $ENV{$e});
 		if ($#sp > 0 && $ENV{$e} !~ m/^\".*\"$/ && 
 		                $ENV{$e} !~ m/^'.*'$/) {
@@ -991,18 +1004,20 @@ if ($kill_time) {
   $index--;
   if ($first_pid == -1) {
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
 
   if ($first_pid == $pid_socket) {
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
+
+  $exit_code = ($? << 8);
 
   if ($verbose) {
     for ($i=0; $i<$np; $i++) {
       if ($first_pid == $pids[$i]) {
-	print ("MPI Process $i has exited, wait $kill_time seconds and kill all remaining processes...\n") if $verbose;
+	print ("GASNet Process $i has exited, wait $kill_time seconds and kill all remaining processes...\n") if $verbose;
 	last;
       }
     }
@@ -1017,21 +1032,23 @@ while (1) {
   if ($next_pid == -1) {
     print ("All processes have exited.\n") if $verbose;
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
 
   if ($next_pid != $pid_socket) {
+    print ("Remote GASNet exited with status " . ($? >> 8) . ".\n") if $verbose;
+    $exit_code = ($? >> 8) unless ($exit_code != 0);	# Save first non-zero exit
     $index--;
     if ($index == 0) {
-      print ("All remote MPI processes have exited.\n") if $verbose;
+      print ("All remote GASNet processes have exited.\n") if $verbose;
       clean_up;
-      exit 0;
+      exit $exit_code;
     }
   } else {
     # the process waiting for an Abort has exited, so let's aborting
     print ("Abort in progress...\n") if $verbose;
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
 }
-exit 0;
+exit $exit_code;

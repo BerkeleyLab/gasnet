@@ -146,6 +146,8 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  */
 static firehose_request_t	*fh_request_bufs[256] = { 0 };
 
+extern int fh_dacount;
+
 void
 firehose_fini()
 {
@@ -172,6 +174,8 @@ firehose_fini()
 			break;
 		gasneti_free(fh_request_bufs[i]);
 	}
+
+	//printf("Deadlock declared %d times.\n", fh_dacount);
 
 	return;
 }
@@ -1111,6 +1115,17 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 {
 	firehose_region_t	*new_reg, *old_reg;
 	gasnet_node_t		node;
+	int			ret = 1;
+	int			hit_pending = 0;
+
+	#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+	  int remote_inhandler = 1;
+	#else
+	  int remote_inhandler = 0;
+	#endif
+
+
+	fh_remote_callback_t	*rc = NULL;
 
 	gasnet_AMGetMsgSource(token, &node);
 
@@ -1122,64 +1137,81 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 		firehose_unexport_callback(node, old_reg, r_old);
 	#endif
 
-	fh_move_request(node, new_reg, r_new, old_reg, r_old, context);
+	ret = fh_move_request(node, new_reg, r_new, old_reg, r_old, context);
 
-	#ifdef FIREHOSE_EXPORT_CALLBACK
-	if (r_new > 0)
-		firehose_export_callback(node, new_reg, r_new);
-	#endif
+	/* If ret == -1, we hit a local bucket marked as pending (another
+	 * thread has marked it to be pinned but has not updated the table
+	 * saying the bucket is now pinned.  We handle this by enqueueing the
+	 * request in a special "pending queue"
+	 */
+	gasneti_assert(ret == -1 ? FIREHOSE_SMP : (1));
+
+	hit_pending = (ret == -1);
 
 	/* If the user requires to run a remote callback, and the
 	 * callback is not to be run in place, run it */ 
-	if (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK) {
-		firehose_remotecallback_args_t	*args =
+
+	#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+	/* Handle this case separately */
+	if (!hit_pending && (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK)) {
+
+	    firehose_remote_callback(node, 
+		(const firehose_region_t *) new_reg, r_new, args);
+
+	    MEDIUM_REP(2,3,
+		(token,
+		fh_handleridx(fh_am_move_reph),
+		new_reg,
+		sizeof(firehose_region_t) * r_new,
+		r_new,
+		PACK(context)));
+
+	    return;
+	}
+	#endif
+
+	if (hit_pending || (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK)) {
+
+	    fh_remote_callback_t *rc = (fh_remote_callback_t *) 
+		gasneti_malloc(sizeof(fh_remote_callback_t));
+
+	    rc->flags = 0;
+	    rc->node  = node;
+	    rc->pin_list_num = r_new;
+
+	    rc->reply_len = sizeof(firehose_region_t) * r_new;
+	    rc->context   = context;
+	    rc->pin_list  = (firehose_region_t *)
+			    gasneti_malloc(sizeof(firehose_region_t)*r_new);
+	    memcpy(rc->pin_list, new_reg, rc->reply_len);
+
+	    if (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK) {
+		firehose_remotecallback_args_t	*args = 
 		    (firehose_remotecallback_args_t *)(old_reg + r_old);
+		memcpy(&(rc->args), args, sizeof(firehose_remotecallback_args_t));
+		rc->flags |= FH_CALLBACK_TYPE_REMOTE;
+	    }
 
-		/* Client may be able to support callbacks for DMA
-		 * operations within the AM handler */
-
-		#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
-			firehose_remote_callback(node, 
-			    (const firehose_region_t *) new_reg, r_new, args);
-
-			MEDIUM_REP(2,3,
-				   (token,
-				    fh_handleridx(fh_am_move_reph),
-				    new_reg,
-				    sizeof(firehose_region_t) * r_new,
-				    r_new,
-				    PACK(context)));
-	
-		#else
-			/* TODO. . solve MALLOC ? */
-			fh_remote_callback_t *rc = 
-			    (fh_remote_callback_t *)
-			    gasneti_malloc(sizeof(fh_remote_callback_t));
-			if_pf (rc == NULL)
-				gasneti_fatalerror("malloc");
-
-			rc->flags = FH_CALLBACK_TYPE_REMOTE;
-			rc->node = node;
-			rc->pin_list_num = r_new;
-			rc->reply_len = sizeof(firehose_region_t) * r_new;
-			rc->context = context;
-
-			rc->pin_list = (firehose_region_t *)
-				gasneti_malloc(sizeof(firehose_region_t)*r_new);
-			if_pf (rc->pin_list == NULL)
-				gasneti_fatalerror("malloc");
-
-			memcpy(rc->pin_list, new_reg, rc->reply_len);
-			memcpy(&(rc->args), args,
-			    sizeof(firehose_remotecallback_args_t));
-	
-			FH_POLLQ_LOCK;
-			FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, 
-				      (fh_callback_t *) rc);
-			FH_POLLQ_UNLOCK;
+	    if (hit_pending) {
+		#if FIREHOSE_SMP
+		  rc->flags |= FH_CALLBACK_TYPE_PENDING;
+		  FH_POLLQ_LOCK;
+		  FH_TAILQ_INSERT_TAIL(&fhsmp_LocalPendingList, rc);
+		  FH_POLLQ_UNLOCK;
 		#endif
+	    }
+	    else {
+		FH_POLLQ_LOCK;
+		FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, (fh_callback_t *) rc);
+		FH_POLLQ_UNLOCK;
+	    }
 	}
 	else {
+		#ifdef FIREHOSE_EXPORT_CALLBACK
+		if (r_new > 0)
+		    firehose_export_callback(node, new_reg, r_new);
+		#endif
+
 		MEDIUM_REP(2,3,
 			   (token,
 			    fh_handleridx(fh_am_move_reph),
@@ -1260,6 +1292,7 @@ MEDIUM_HANDLER(fh_am_move_reph,2,3,
 void
 fh_send_firehose_reply(fh_remote_callback_t *rc)
 {
+	FH_TABLE_ASSERT_UNLOCKED;
 	/* Run the "reply" handler as a request */
 	MEDIUM_REQ(2,3,
 	    (rc->node, fh_handleridx(fh_am_move_reph),

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_extended.c                  $
- *     $Date: 2004/05/12 10:21:20 $
- * $Revision: 1.17.4.1 $
+ *     $Date: 2004/07/08 16:58:56 $
+ * $Revision: 1.17.4.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,14 +82,10 @@ extern gasnete_threaddata_t *gasnete_mythread() {
       return threaddata;
     }
 
-    /*  first time we've seen this thread - need to set it up */
-    { int retval;
-    gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
-
-    retval = pthread_setspecific(gasnete_threaddata, threaddata);
-    gasneti_assert(!retval);
+    /* first time we've seen this thread - need to set it up */
+    threaddata = gasnete_new_threaddata();
+    gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
     return threaddata;
-    }
 }
 #else
 #define gasnete_mythread() (gasnete_threadtable[0])
@@ -112,12 +108,10 @@ extern void gasnete_init() {
 
     gasnete_check_config(); /*  check for sanity */
 
-#if GASNETI_CLIENT_THREADS
-    {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
-	int retval = pthread_key_create(&gasnete_threaddata, NULL);
-	if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-    }
-#endif
+    #if GASNETI_CLIENT_THREADS
+      /*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+      gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
+    #endif
 
     gasnete_mynode = gasnet_mynode();
     gasnete_nodes = gasnet_nodes();
@@ -1155,6 +1149,17 @@ extern int gasnete_barrier_try(int id, int flags) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -1164,6 +1169,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
     /* ptr-width independent handlers */
 

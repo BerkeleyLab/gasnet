@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_help.h                 $
- *     $Date: 2004/05/12 10:21:14 $
- * $Revision: 1.16.8.1 $
+ *     $Date: 2004/07/08 16:58:50 $
+ * $Revision: 1.16.8.2 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,6 +50,13 @@ extern gasnet_seginfo_t *gasnete_seginfo;
   #define gasnete_islocal(nodeid) (nodeid == gasnete_mynode)
 #endif
 #define gasnete_boundscheck(node,ptr,nbytes) gasneti_boundscheck(node,ptr,nbytes,e)
+
+#ifdef GASNETI_MEMSYNC_ON_LOOPBACKPUT
+  #define gasnete_loopbackput_memsync() gasneti_memsync()
+#else
+  #define gasnete_loopbackput_memsync() 
+#endif
+
 
 /* ------------------------------------------------------------------------------------ */
 #if defined(_CRAYC) || (SIZEOF_SHORT > 2)  /* deal with Cray's crappy lack of 16-bit types */
@@ -159,6 +166,12 @@ extern gasnet_seginfo_t *gasnete_seginfo;
   #else
     #define gasneti_memsync() 
   #endif
+#endif
+
+#ifdef GASNETI_MEMSYNC_ON_LOOPBACKPUT
+  #define gasnete_loopbackput_memsync() gasneti_memsync()
+#else
+  #define gasnete_loopbackput_memsync() 
 #endif
 
 /* ------------------------------------------------------------------------------------ */

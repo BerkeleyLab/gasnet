@@ -22,6 +22,8 @@ rm -f Makefile.in              \
       mpi-conduit/contrib/Makefile.in   \
       smp-conduit/Makefile.in  \
       udp-conduit/Makefile.in  \
+      sci-conduit/Makefile.in \
+      sci-conduit/contrib/Makefile.in   \
       vapi-conduit/Makefile.in \
       vapi-conduit/contrib/Makefile.in   \
       other/Makefile.in        \

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/05/12 10:21:08 $
-# $Revision: 1.126.2.1 $
+#     $Date: 2004/07/08 16:58:44 $
+# $Revision: 1.126.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.126.2.1 $)
+AC_REVISION($Revision: 1.126.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -86,35 +86,11 @@ case "$target_os" in
      GASNET_ENV_DEFAULT(CC, c++ -Xa) ;; # may also/alternately want -Kc99
 esac
 
-AC_PROG_CC
-AC_PROG_CPP
+GASNET_PROG_CPP
+GASNET_PROG_CC
 AC_PROG_LN_S
 AC_C_BIGENDIAN
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
-
-dnl GASNET_GCC296CHECK(type)  type=CC or CXX
-AC_DEFUN([GASNET_GCC296CHECK],[
-AC_MSG_CHECKING(known buggy compilers)
-AC_TRY_COMPILE([
-#if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
-# error
-#endif
-],[ ], [ AC_MSG_RESULT(ok) ],[
-AC_MSG_RESULT([$1] is gcc 2.96)
-gcc296msg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
-It is not an official GNU release and has many serious known bugs, especially \
-in the optimizer, which may lead to bad code and incorrect runtime behavior. \
-Consider using \$[$1] to select a different compiler."
-GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [ 
-  AC_MSG_WARN([$gcc296msg])  
-  ],[ 
-  AC_MSG_ERROR([$gcc296msg \
-  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])  
-])
-])
-])
-
-AC_SUBST(CC)
 
 ## DOB: this is more trouble than it's worth because so many OS's define
 ## LITTLE_ENDIAN or BIG_ENDIAN in random and sultry header files
@@ -149,7 +125,7 @@ dnl AC_SUBST(ENDIANNESS)
 GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 
 if test "$gasnet_cv_cc_family" = MIPS; then
-  # The MIPSPro C compiler has a broken C preprocessor exit code, so we hardwire some choices
+  # The MIPSPro C compiler apparently has no identifying markings
   AC_DEFINE(MIPSPRO_COMPILER)
 fi
 
@@ -191,8 +167,8 @@ case "$gasnet_cv_cc_family" in
   Sun)  CCOPTFLAGS="-xO5" ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
   MIPS) CCOPTFLAGS="-O3" ;;
-  XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=16384" ;; # -O5 == -O3 w/ intra-procedural analysis
-        CCOPTFLAGS="-O3 -qsmp=noauto -qmaxmem=16384" ;; # -O5 causes linker to hang on Titanium
+  XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
+        CCOPTFLAGS="-O3 -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
   Intel) CCOPTFLAGS="-O3" ;;
   PGI) CCOPTFLAGS="-O2" ;;
@@ -247,9 +223,9 @@ case "$gasnet_cv_cc_family" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
       *)        MISC_CFLAGS="-hnomessage=236 $LIBCM" ;; # X1
     esac ;;
-  MIPS) MISC_CFLAGS="-common -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
+  MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;; # 1035 ensures "#error" is fatal
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
-  Intel) MISC_CFLAGS="-wd279" ;;
+  Intel) MISC_CFLAGS="-wd177 -wd279" ;;
   NEC) MISC_CFLAGS="-woff=68:111:174:177:236:301:550:940" ;; 
   PGI) MISC_CFLAGS="-Masmkeyword" ;;
   Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
@@ -268,7 +244,17 @@ case "$gasnet_cv_cc_family" in
 esac
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
-  [ CFLAGS="$CCDEBUGFLAGS"
+  [ echo "-----------------------------------------------------------------------"
+    echo " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING"
+    echo ""
+    echo " Configuring the system for global, forced debugging mode. "
+    echo " This usually has a SERIOUS impact on performance, so you should NOT"
+    echo " trust any performance numbers obtained from programs built"
+    echo " using this GASNet installation!!!"
+    echo ""
+    echo " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING"
+    echo "-----------------------------------------------------------------------" 
+    CFLAGS="$CCDEBUGFLAGS"
     BUILDCONFIG_DEFINES="-DGASNET_DEBUG"
     BUILDCONFIG="debug"
     enabled_debug=yes],
@@ -292,7 +278,7 @@ GASNET_IF_ENABLED_WITH_AUTO(stats, Build GASNet with statistical collection enab
     BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_STATS"
   fi
 
-AC_SUBST(CFLAGS)	      # opt/debug flags
+#AC_SUBST(CFLAGS)	      # opt/debug flags
 AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
 AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
 AC_SUBST(BUILDCONFIG_DEFINES) # defines that setup build configuration
@@ -625,6 +611,9 @@ if test "$uni_build" = yes; then
   AC_DEFINE(GASNETI_UNI_BUILD)
 fi
 
+GASNET_IF_ENABLED(loopback-put-memsync, Force a memory barrier after a GASNet local (loopback) put,
+  [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACKPUT)])
+
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS
 #---------------------------------------------------------------------------------------------------------------
@@ -653,8 +642,9 @@ if test $enabled_udp = yes; then
   # Do C++ configuration
   AC_LANG_SAVE
 
-  AC_PROG_CXX
-  AC_PROG_CXXCPP
+  GASNET_PROG_CXXCPP
+  GASNET_PROG_CXX
+  have_cxx=1
 
   AC_LANG_CPLUSPLUS
   GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
@@ -671,8 +661,9 @@ if test $enabled_udp = yes; then
     ;;
     PGI)   MISC_CXXFLAGS="-w -Masmkeyword" ;; # apparently has no way to indep control warnings
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
-    MIPS)  MISC_CXXFLAGS="-diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
+    MIPS)  MISC_CXXFLAGS="-diag_error 1035 -diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279" ;;
+    XLC)   MISC_CXXFLAGS="-qeh -qweaksymbol" ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
 	   GASNET_UDP_LIBS="-Kexceptions" 
@@ -689,8 +680,6 @@ if test $enabled_udp = yes; then
   else
     CXXFLAGS="$CXXDEBUGFLAGS"
   fi
-  AC_SUBST(CXX)
-  AC_SUBST(CXXFLAGS)
   AC_SUBST(MISC_CXXFLAGS)
 
   AC_LANG_RESTORE
@@ -730,6 +719,7 @@ if test $enabled_udp = yes; then
     LIBS="$OLDLIBS"
   fi
 fi
+AM_CONDITIONAL(HAVE_CXX, test "$have_cxx" = 1)
 AC_SUBST(GASNET_UDP_LIBS)
 AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
 if test "$enabled_udp$have_udp" = yesyes ; then
@@ -810,7 +800,7 @@ if test $enabled_mpi = yes; then
         # user may need to do a "module load mpt" to make this work
     	GASNET_ENV_DEFAULT(MPI_CC, cc -n32)
         # cannot use MISC_CFLAGS here because C compiler may not be MIPSPro
-	BASIC_MPI_CFLAGS="-diag_suppress1171,1174,1209,1552"
+	BASIC_MPI_CFLAGS="-diag_error 1035 -diag_suppress1171,1174,1209,1552"
 	if test "$BUILDCONFIG" = "optimize" ; then
       	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O2 $BASIC_MPI_CFLAGS)
 	else
@@ -877,6 +867,7 @@ if test $enabled_mpi = yes; then
       fi 
       ;;
   esac
+  GASNET_GETFULLPATH(MPI_CC)
 
   MPI_CFLAGS="$BUILDCONFIG_DEFINES $MPI_CFLAGS"
 
@@ -1313,6 +1304,57 @@ fi
 popdef([CONDUIT_DESC])
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$mpi_test_worked" = yes)
 
+#--------------------------------------------------------------------------------------------------------
+# SCI configuration
+
+pushdef([CONDUIT_DESC],[Dolphin SISCI network conduit (sci)])
+GASNET_IF_ENABLED(sci, Enable the CONDUIT_DESC,
+  have_sci=yes,
+  have_sci=no)
+
+if test $have_sci = yes; then
+  GASNET_ENV_DEFAULT(SCIHOME, /opt/DIS)
+  GASNET_ENV_DEFAULT(SCI_INCLUDES, [-I$SCIHOME/include -I$SCIHOME/lib/api])
+  GASNET_ENV_DEFAULT(SCI_LIBS, [-L$SCIHOME/lib/api -lsisci])
+
+  AC_MSG_CHECKING(for working SCI configuration)
+
+  OLDCFLAGS="$CFLAGS"
+  OLDLIBS="$LIBS"
+  CFLAGS="$CFLAGS $SCI_INCLUDES"
+  LIBS="$LIBS $SCI_LIBS"
+  # try to compile and link a simple SCI program
+  AC_TRY_LINK( [
+     #include <sisci_types.h>
+     #include <sisci_api.h>
+     #include <sisci_error.h>
+  ], [{
+     sci_desc_t sd;
+     sci_error_t err;
+     SCIOpen(&sd, 0, &err);
+    }], [ sci_test_worked=yes ], [ sci_test_worked=no ] )
+  CFLAGS="$OLDCFLAGS"
+  LIBS="$OLDLIBS"
+
+  if test "$sci_test_worked" = yes; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    AC_ERROR(build test failed: I don't know how to build SCI programs on your system)
+    have_sci=no
+  fi
+fi
+AC_SUBST(SCI_INCLUDES)
+AC_SUBST(SCI_LIBS)
+AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
+if test "$have_sci" = yes ; then
+  CONDUITS="$CONDUITS sci"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
+fi
+popdef([CONDUIT_DESC])
+
 ########################################################################
 
 # Check for broken asm/atomic.h on Linux
@@ -1628,6 +1670,7 @@ GASNET_SAVE_AUTOCONF_ENV()
 
 GASNET_FIX_EXEC(gm-conduit/contrib/gasnetrun_gm)
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
+GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
 
 # Files added here should also be added to ./unBootstrap
@@ -1651,6 +1694,11 @@ gm-conduit/contrib/gasnetrun_gm
 
 lapi-conduit/Makefile
 lapi-conduit/conduit.mak
+
+sci-conduit/Makefile
+sci-conduit/conduit.mak
+sci-conduit/contrib/Makefile
+sci-conduit/contrib/gasnetrun_sci
 
 smp-conduit/Makefile
 smp-conduit/conduit.mak

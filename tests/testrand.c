@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testrand.c                                 $
- *     $Date: 2004/02/09 19:40:47 $
- * $Revision: 1.1 $
+ *     $Date: 2004/07/08 16:59:20 $
+ * $Revision: 1.1.4.1 $
  * Description: GASNet get/put performance test
  *   measures measures the total time to write to each page of the
  *   remote test segment, using blocking puts in a random order.
@@ -84,6 +84,7 @@ int main(int argc, char **argv)
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    TEST_DEBUGPERFORMANCE_WARNING();
     TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
     /* parse arguments (we could do better) */

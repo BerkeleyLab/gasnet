@@ -35,6 +35,9 @@ Development practices that GASNet developers are expected to follow:
   before rolling back any non-trivial change, and whenever distributing a
   snapshot of the archive to any user or external party.
 
+* All GASNet developers are required to follow the GASNet coding standards outlined 
+  in the top-level README.
+
 GASNet Release Procedure
 ------------------------
 

@@ -11,6 +11,40 @@ Recognized environment variables:
 
 * GASNET_NETWORKDEPTH - depth of network buffers to allocate
 
+Configuration-time variables:
+---------------------------------
+
+In order to compile mpi-conduit, and subsequently use it, GASNet must
+know how to invoke your mpicc and mpirun (or equivalents).  GASNet's
+configure script use some sensible defaults, but these may not work
+on all platforms.  In particular, if you have set CC to a non-default
+C compiler, you will likely need to set mpicc as well.  Here are
+the relevant variables:
+
+MPI_CC		the program to use as the compiler and linker
+MPI_CFLAGS	options passed to MPI_CC when used as a compiler
+MPI_LIBS	options passed to MPI_CC when used as a linker
+MPIRUN_CMD	template for invoking mpirun, or equivalent
+
+GASNet's configure script will test the MPI_CC, MPI_CFLAGS and
+MPI_LIBS variable by trying approximately the following:
+
+	$MPI_CC $MPI_CFLAGS -c foo.c
+	$MPI_CC $MPI_LIBS -o foo foo.o
+
+GASNet's configure script does not attempt to run MPIRUN_CMD.
+MPIRUN_CMD is a template which tells the gasnetrun_mpi
+script how to invoke your mpirun.  The template should include
+the following strings for variable substitution at run time:
+
+"%N"	The number of nodes requested
+"%P"	The GASNet program to run
+"%A"	The arguments to the GASNet program
+"%C"	Alias for "%P %A"
+
+The default is "mpirun -np %N %C".  You may need a full path to
+mpirun if the correct version is not in your PATH.
+
 Optional compile-time settings:
 ------------------------------
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2004/05/12 10:21:08 $
- * $Revision: 1.33.2.1 $
+ *     $Date: 2004/07/08 16:58:44 $
+ * $Revision: 1.33.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -463,14 +463,22 @@
 /* ------------------------------------------------------------------------------------ */
 /* portable memory barrier support */
 
-/* a local memory barrier - ensure all previous loads/stores to local mem
+/* gasneti_local_membar:
+   a local memory barrier - ensure all previous loads/stores to local mem
    from this proc are globally completed across this SMP before issuing
    any subsequent loads or stores
    (i.e. all loads issued from any CPU subsequent to this call
       returning will see the new value for any previously issued
       stores from this proc)
-   This is sometimes referred to as a full memory "fence" 
+   This is sometimes referred to as a full memory "fence", and generally 
+   includes both an architectural fence instruction and some compiler 
+   directives to prevent reordering of loads and stores across this point.
    More Info: http://gee.cs.oswego.edu/dl/jmm/cookbook.html
+
+   gasneti_local_membar_force: 
+   Same as gasneti_local_membar, but force the architectural memory barrier, 
+   even if it the system appears to be a uniprocessor - 
+   used to force a write flush when performing memory-mapped I/O
  */
 #ifdef __GNUC__
   #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
@@ -512,31 +520,24 @@
 #endif
 
 #if defined(__sparc__) || defined(__sparc) || defined(sparc)
- GASNET_INLINE_MODIFIER(gasneti_local_membar)
- void gasneti_local_membar(void) {
+ GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+ void gasneti_local_membar_force(void) {
    GASNETI_ASM("stbar"); /* SPARC store barrier */
  }
 #elif defined(__mips__) || defined(__mips) || defined(mips) || defined(_MIPS_ISA)
- GASNET_INLINE_MODIFIER(gasneti_local_membar)
- void gasneti_local_membar(void) {
+ GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+ void gasneti_local_membar_force(void) {
    GASNETI_ASM("sync");  /* MIPS II+ memory barrier */ 
  }
 #elif defined(_PA_RISC1_1) /* HP PA-RISC */
- GASNET_INLINE_MODIFIER(gasneti_local_membar)
- void gasneti_local_membar(void) {
+ GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+ void gasneti_local_membar_force(void) {
    GASNETI_ASM("SYNC");  /* PA RISC load/store ordering */ 
  }
 #elif defined(__i386__) || defined(__i386) || defined(i386) || \
       defined(__i486__) || defined(__i486) || defined(i486) || \
       defined(__i586__) || defined(__i586) || defined(i586) || \
       defined(__i686__) || defined(__i686) || defined(i686)
- #if defined(GASNETI_UNI_BUILD)
-   /* Prevent compiler from reordering across this point. */
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
-     GASNETI_ASM("");
-   }
- #else
    /* Prevent both compiler and the CPU from reordering across this point.
     *
     * Note that MMX, SSE and SSE2 instructions which move memory are *NOT* ordered by
@@ -544,8 +545,8 @@
     * Authors of MMX-based memcpy and similar code must therefore take care not to
     * rely on gasneti_local_membar() in conjunction with these instruction sets.
     */
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      /* The instruction here can be any locked read-modify-write operation.
       * This one is chosen because it does not change any registers and is
       * available on all the Intel and clone CPUs.
@@ -556,95 +557,78 @@
        GASNETI_ASM("lock; addl $0,0(%%esp)");
      #endif
    }
- #endif
 #elif defined(__x86_64__) /* Athlon/Opteron */
- #if defined(GASNETI_UNI_BUILD)
-   /* Prevent compiler from reordering across this point. */
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
-     GASNETI_ASM("");
-   }
- #else
    /* Prevent both compiler and the CPU from reordering across this point.  */
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      GASNETI_ASM("mfence");
    }
- #endif
 #elif defined(__ia64__) /* Itanium */
- #if defined(GASNETI_UNI_BUILD)
-   /* Prevent compiler from reordering across this point. */
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
-     GASNETI_ASM("");
-   }
- #else
    #ifdef __INTEL_COMPILER
       /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
       #include <ia64intrin.h>
-      #define gasneti_local_membar() do {                       \
+      #define gasneti_local_membar_force() do {                 \
         __memory_barrier(); /* compiler optimization barrier */ \
         __mf();  /* memory fence instruction */                 \
       } while (0)
    #else
       /* mf may cause an illegal instruction trap on uniprocessor kernel */
-      GASNET_INLINE_MODIFIER(gasneti_local_membar)
-      void gasneti_local_membar(void) {
+      GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+      void gasneti_local_membar_force(void) {
         GASNETI_ASM("mf");
       }
    #endif
- #endif
 #elif defined(_POWER) /* IBM SP POWER2, POWER3 */
  #ifdef __xlC__
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      _gasneti_do_sync(); 
    }
  #else
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      GASNETI_ASM("dcs");
    }
  #endif
 #elif defined(__APPLE__) && defined(__MACH__) && defined(__ppc__) /* Darwin, OS/X */
  #ifdef __xlC__
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      _gasneti_do_sync(); 
    }
  #else
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      GASNETI_ASM("sync");
    }
  #endif
 #elif defined(__alpha) && defined(__osf__)
  #if 1
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      GASNETI_ASM("mb");
    }
  #else 
    #include <machine/builtins.h>
-   #define gasneti_local_membar() __MB() /* only available as compaq C built-in */
+   #define gasneti_local_membar_force() __MB() /* only available as compaq C built-in */
  #endif
 #elif defined(_CRAYT3E) /* Takes care of e-regs also */
   #include <intrinsics.h>
-  GASNET_INLINE_MODIFIER(gasneti_local_membar)
-  void gasneti_local_membar(void) {
+  GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+  void gasneti_local_membar_force(void) {
     _memory_barrier();
   }
 #elif defined(__crayx1)
    /* Many memory barrier intrinsics on the X1, but none seem to match what we
     * need in a local (scalar-scalar) membar */
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      static int volatile x;
      x = 1;
    }
 #elif defined(_SX)
-   GASNET_INLINE_MODIFIER(gasneti_local_membar)
-   void gasneti_local_membar(void) {
+   GASNET_INLINE_MODIFIER(gasneti_local_membar_force)
+   void gasneti_local_membar_force(void) {
      /* TODO: probably need more here */
      static int volatile x;
      x = 1;
@@ -652,6 +636,17 @@
    }
 #else
  #error unknown CPU - dont know how to do a local memory barrier for your CPU/OS
+#endif
+
+#if defined(GASNETI_UNI_BUILD)
+ /* Prevent compiler from reordering across this point. */
+ GASNET_INLINE_MODIFIER(gasneti_local_membar)
+ void gasneti_local_membar(void) {
+   GASNETI_ASM("");
+ }
+#else
+  /* SMP-safe: both membars have the same implementation */
+  #define gasneti_local_membar() gasneti_local_membar_force()
 #endif
 
 #ifndef gasneti_spinloop_hint

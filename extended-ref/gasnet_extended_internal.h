@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2004/01/05 05:01:13 $
- * $Revision: 1.11 $
+ *     $Date: 2004/07/08 16:58:50 $
+ * $Revision: 1.11.4.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,6 +66,7 @@ typedef struct _gasnete_iop_t {
 /* ------------------------------------------------------------------------------------ */
 typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* pointer reserved for use by the core */
+  void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
 
   gasnete_threadidx_t threadidx;
 

@@ -2,11 +2,34 @@ dnl Terms of use are as specified in license.txt
 
 dnl determine the autoconf version used to build configure script 
 AC_DEFUN([GASNET_GET_AUTOCONF_VERSION],[
+AC_REQUIRE([AC_PROG_AWK])
 AC_MSG_CHECKING(autoconf version)
 dnl AUTOCONF_VERSION=`cat ${srcdir}/configure | perl -e '{ while (<STDIN>) { if (m/enerated.*utoconf.*([[0-9]]+)\.([[0-9]]+).*/) { print "[$]1.[$]2\n"; exit 0 } } }'`
 AUTOCONF_VERSION_STR=`cat ${srcdir}/configure | $AWK '/.*enerated.*utoconf.*([[0-9]]+).([[0-9]]+).*/ { [match]([$]0,"[[0-9]]+.[[0-9]]+"); print [substr]([$]0,RSTART,RLENGTH); exit 0 } '`
 AUTOCONF_VERSION=`echo $AUTOCONF_VERSION_STR | $AWK -F. '{ printf("%i%i",[$]1,[$]2); }'`
 AC_MSG_RESULT($AUTOCONF_VERSION_STR)
+])
+
+dnl GASNET_GCC296CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_GCC296CHECK],[
+AC_MSG_CHECKING(known buggy compilers)
+AC_TRY_COMPILE([
+#if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
+# error
+#endif
+],[ ], [ AC_MSG_RESULT(ok) ],[
+AC_MSG_RESULT([$1] is gcc 2.96)
+gcc296msg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
+It is not an official GNU release and has many serious known bugs, especially \
+in the optimizer, which may lead to bad code and incorrect runtime behavior. \
+Consider using \$[$1] to select a different compiler."
+GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [
+  AC_MSG_WARN([$gcc296msg])
+  ],[
+  AC_MSG_ERROR([$gcc296msg \
+  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])
+])
+])
 ])
 
 AC_DEFUN([GASNET_FIX_SHELL],[
@@ -23,6 +46,7 @@ fi])
 
 dnl find full pathname for a given header file, if it exists and AC_SUBST it
 AC_DEFUN([GASNET_FIND_HEADER],[
+AC_REQUIRE([AC_PROG_AWK])
 AC_CHECK_HEADERS($1)
 pushdef([lowername],patsubst(patsubst(patsubst([$1], [/], [_]), [\.], [_]), [-], [_]))
 pushdef([uppername],translit(lowername,'a-z','A-Z'))
@@ -280,6 +304,32 @@ case "$$1" in
       ;;
 esac])
 
+dnl GASNET_GETFULLPATH(var)
+dnl var contains a program name, optionally followed by arguments
+dnl expand the program name to a fully qualified pathname if not already done
+AC_DEFUN([GASNET_GETFULLPATH_CHECK],[
+GASNET_IF_DISABLED(full-path-expansion, [Disable expansion of program names to full pathnames], 
+                   [cv_prefix[]_gfp_disable=1])
+])
+AC_DEFUN([GASNET_GETFULLPATH],[
+AC_REQUIRE([AC_PROG_AWK])
+AC_REQUIRE([GASNET_GETFULLPATH_CHECK])
+if test "$cv_prefix[]_gfp_disable" = ""; then
+  gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' '{ print [$]1 }'`
+  gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) print $i; }'`
+  gasnet_gfp_progname0=`echo "$gasnet_gfp_progname" | $AWK '{ print sub[]str([$]0,1,1) }'`
+  if test "$gasnet_gfp_progname0" != "/" ; then
+    cv_prefix[]_gfp_fullprogname_$1=
+    AC_PATH_PROG(cv_prefix[]_gfp_fullprogname_$1, $gasnet_gfp_progname,[])
+    AC_MSG_CHECKING(for full path expansion of $1)
+    if test "$cv_prefix[]_gfp_fullprogname_$1" != "" ; then
+      $1="$cv_prefix[]_gfp_fullprogname_$1 $gasnet_gfp_progargs"
+    fi
+    AC_MSG_RESULT($$1)
+  fi
+fi
+])
+
 dnl GASNET_CHECK_LIB(library, function, action-if-found, action-if-not-found, other-flags, other-libraries)
 AC_DEFUN([GASNET_CHECK_LIB],[
 GASNET_check_lib_old_ldflags="$LDFLAGS"
@@ -450,6 +500,99 @@ if test "$cv_prefix[]$2" != no; then
   $5=$cv_prefix[]$2
 fi])
 
+AC_DEFUN([GASNET_PROG_CPP], [
+  AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CC])
+  AC_REQUIRE([AC_PROG_CPP])
+  GASNET_GETFULLPATH(CPP)
+  AC_SUBST(CPP)
+  AC_SUBST(CPPFLAGS)
+  AC_MSG_CHECKING(for working C preprocessor)
+  AC_LANG_SAVE
+  AC_LANG_C
+  gasnet_progcpp_extrainfo=
+  dnl deal with preprocessors who foolishly return success exit code even when they saw #error
+  if test -n "`$CPP -version 2>&1 | grep MIPSpro`" ; then
+    dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
+    dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
+    gasnet_progcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
+    CFLAGS="$CFLAGS -diag_error 1035"
+    CPPFLAGS="$CPPFLAGS -diag_error 1035"    
+  fi
+  dnl final check
+  AC_TRY_CPP([
+    # error
+  ], [AC_MSG_ERROR(Your C preprocessor is broken - reported success when it should have failed)], [])
+  AC_TRY_CPP([], [], [AC_MSG_ERROR(Your C preprocessor is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes$gasnet_progcpp_extrainfo)
+  AC_LANG_RESTORE
+])
+
+AC_DEFUN([GASNET_PROG_CXXCPP], [
+  AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CXX])
+  AC_REQUIRE([AC_PROG_CXXCPP])
+  GASNET_GETFULLPATH(CXXCPP)
+  AC_SUBST(CXXCPP)
+  AC_SUBST(CXXCPPFLAGS)
+  AC_MSG_CHECKING(for working C++ preprocessor)
+  AC_LANG_SAVE
+  AC_LANG_CPLUSPLUS
+  gasnet_progcxxcpp_extrainfo=
+  dnl deal with preprocessors who foolishly return success exit code even when they saw #error
+  if test -n "`$CXXCPP -version 2>&1 | grep MIPSpro`" ; then
+    dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
+    dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
+    gasnet_progcxxcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
+    CXXFLAGS="$CXXFLAGS -diag_error 1035"
+    CXXCPPFLAGS="$CXXCPPFLAGS -diag_error 1035"    
+  fi
+  dnl final check
+  AC_TRY_CPP([
+    # error
+  ], [AC_MSG_ERROR(Your C++ preprocessor is broken - reported success when it should have failed)], [])
+  AC_TRY_CPP([], [], [AC_MSG_ERROR(Your C++ preprocessor is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes$gasnet_progcxxcpp_extrainfo)
+  AC_LANG_RESTORE
+])
+
+AC_DEFUN([GASNET_PROG_CC], [
+  AC_REQUIRE([GASNET_PROG_CPP])
+  GASNET_GETFULLPATH(CC)
+  AC_SUBST(CC)
+  AC_SUBST(CFLAGS)
+  AC_MSG_CHECKING(for working C compiler)
+  AC_LANG_SAVE
+  AC_LANG_C
+  AC_TRY_COMPILE([], [
+    fail for me
+  ], [AC_MSG_ERROR(Your C compiler is broken - reported success when it should have failed)], [])
+  AC_TRY_COMPILE([], [], [], [AC_MSG_ERROR(Your C compiler is broken - reported failure when it should have succeeded)])
+  AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
+              [AC_MSG_ERROR(Your C linker is broken - reported success when it should have failed)], [])
+  AC_TRY_LINK([], [], [], [AC_MSG_ERROR(Your C link is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes)
+  AC_LANG_RESTORE
+])
+
+AC_DEFUN([GASNET_PROG_CXX], [
+  AC_REQUIRE([GASNET_PROG_CXXCPP])
+  GASNET_GETFULLPATH(CXX)
+  AC_SUBST(CXX)
+  AC_SUBST(CXXFLAGS)
+  AC_MSG_CHECKING(for working C++ compiler)
+  AC_LANG_SAVE
+  AC_LANG_CPLUSPLUS
+  AC_TRY_COMPILE([], [
+    fail for me
+  ], [AC_MSG_ERROR(Your C++ compiler is broken - reported success when it should have failed)], [])
+  AC_TRY_COMPILE([], [], [], [AC_MSG_ERROR(Your C++ compiler is broken - reported failure when it should have succeeded)])
+  AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
+              [AC_MSG_ERROR(Your C++ linker is broken - reported success when it should have failed)], [])
+  AC_TRY_LINK([], [], [], [AC_MSG_ERROR(Your C++ link is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes)
+  AC_LANG_RESTORE
+])
 
 AC_DEFUN([GASNET_IFDEF],[
 AC_TRY_CPP([
@@ -476,6 +619,18 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(_SX, $3=NEC)
   fi
 ])
+if test "$$3" != "GNU" ; then
+  dnl Some compilers (eg Intel 8.0) define __GNUC__ even though they are definitely not GNU C
+  dnl Don't believe their filthy lies
+  case $2 in 
+    CC) ac_cv_c_compiler_gnu=no
+        GCC=""
+    ;;
+    CXX) ac_cv_cxx_compiler_gnu=no
+        GXX=""
+    ;;
+  esac
+fi
 $2_FAMILY=$$3
 $2_UNWRAPPED=$$2
 case $$3 in
