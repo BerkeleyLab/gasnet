@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/05/14 21:30:45 $
- * $Revision: 1.6.6.1 $
+ *     $Date: 2004/05/17 19:04:22 $
+ * $Revision: 1.6.6.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #define GASNET_EXTENDED_VERSION      1.3
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
-#define GASNET_EXTENDED_NAME         REFERENCE
+#define GASNET_EXTENDED_NAME         VAPI
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 
