@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/12/23 01:09:13 $
- * $Revision: 1.36 $
+ *     $Date: 2003/12/23 18:27:30 $
+ * $Revision: 1.36.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -250,7 +250,8 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
   gasnetc_sbuf_t *tail = &dummy;
   int count;
   
-  for (count = 0; count < limit; ++count) {
+  count = 0;
+  do {
     CQ_LOCK;
     vstat = gasnetc_poll_cq(gasnetc_snd_cq, &comp);
     CQ_UNLOCK;
@@ -261,32 +262,44 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
     } else if_pt (vstat == VAPI_OK) {
       if_pt (comp.status == VAPI_SUCCESS) {
         gasnetc_sbuf_t *sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
+	int is_read = (comp.opcode == VAPI_CQE_SQ_RDMA_READ);
+
         if_pt (sbuf) {
-	  /* resource accounting */
-	  gasnetc_sema_up(sbuf->op_sema);
-          GASNETC_SEMA_CHECK(sbuf->op_sema, gasnetc_op_oust_pp);
+	  gasnetc_counter_t * mem_oust = sbuf->mem_oust;
+	  gasnetc_counter_t * req_oust = sbuf->req_oust;
 
-	  /* complete bounced RMDA read, if any */
-	  if (sbuf->addr) {
-	    gasneti_assert(comp.opcode == VAPI_CQE_SQ_RDMA_READ);
-
-	    memcpy(sbuf->addr, sbuf->buffer, sbuf->len);
-            gasneti_memsync();
-	  }
-	  
-	  /* decrement any outstanding counters */
-          if (sbuf->mem_oust) {
-	    gasneti_assert(!gasnetc_counter_done(sbuf->mem_oust));
-	    gasnetc_counter_dec(sbuf->mem_oust);
-	  }
-          if (sbuf->req_oust){
-	    gasneti_assert(!gasnetc_counter_done(sbuf->req_oust));
-            gasnetc_counter_dec(sbuf->req_oust);
-	  }
-	  
 	  /* keep a list of reaped sbufs */
 	  gasneti_freelist_link(tail, sbuf);
-	  tail = sbuf;
+
+	  do {
+	    /* keep a list of reaped sbufs */
+	    tail = sbuf;
+	    ++count;
+
+	    /* resource accounting */
+	    gasnetc_sema_up(sbuf->op_sema);
+            GASNETC_SEMA_CHECK(sbuf->op_sema, gasnetc_op_oust_pp);
+
+	    /* complete bounced RMDA read, if any */
+	    if (is_read) {
+	      memcpy(sbuf->addr, sbuf->buffer, sbuf->len);
+	    }
+	  
+	    sbuf = gasneti_freelist_next(sbuf);
+	  } while (sbuf != NULL);
+
+	  /* decrement any outstanding counters from final sbuf */
+	  if (is_read) {
+            gasneti_memsync();	/* before counter */
+	  }
+	  if (mem_oust) {
+	    gasneti_assert(!gasnetc_counter_done(mem_oust));
+	    gasnetc_counter_dec(mem_oust);
+	  }
+          if (req_oust){
+	    gasneti_assert(!gasnetc_counter_done(req_oust));
+            gasnetc_counter_dec(req_oust);
+	  }
         } else {
           gasneti_fatalerror("snd_reap reaped NULL sbuf");
           break;
@@ -310,7 +323,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
     } else {
       GASNETC_VAPI_CHECK(vstat, "while reaping the send queue");
     }
-  }
+  } while (count < limit);
 
   if (count)
     GASNETC_STAT_EVENT_VAL(SND_REAP,count);
@@ -338,7 +351,9 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     gasnetc_sbuf_t *tail;
     int count = gasnetc_snd_reap(1, &sbuf, &tail);
     if_pt (count > 0) {
-      gasneti_assert(count == 1);
+      if_pf (count > 1) {
+	gasneti_freelist_put_many(&gasnetc_sbuf_freelist, gasneti_freelist_next(sbuf), tail);
+      }
       break;	/* Have an sbuf - leave the loop */
     }
 
@@ -360,6 +375,7 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
 
   gasneti_assert(sbuf != NULL);
 
+  gasneti_freelist_link(sbuf, NULL);
   sbuf->mem_oust = NULL;
   sbuf->req_oust = NULL;
   sbuf->addr = NULL;
@@ -517,7 +533,6 @@ void gasnetc_pre_snd(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sb
 
   /* setup some invariant fields */
   req->sr_desc.id        = (uintptr_t)sbuf;
-  req->sr_desc.comp_type = VAPI_SIGNALED;		/* XXX: is this correct? */
   req->sr_desc.sg_lst_p  = req->sr_sg;
   req->sr_desc.set_se    = FALSE;			/* XXX: is this correct? */
   sbuf->op_sema = &(cep->op_sema);
@@ -708,6 +723,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     gasnetc_sreq_t req;
 
     req.sr_desc.opcode     = VAPI_SEND_WITH_IMM;
+    req.sr_desc.comp_type  = VAPI_SIGNALED;
     req.sr_desc.sg_lst_len = 1;
     req.sr_desc.imm_data   = flags;
     req.sr_desc.fence      = TRUE;
@@ -748,6 +764,7 @@ static void gasnetc_do_put_inline(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   sbuf = gasnetc_get_sbuf();
 
   req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+  req.sr_desc.comp_type   = VAPI_SIGNALED;
   req.sr_desc.sg_lst_len  = 1;
   req.sr_desc.fence       = TRUE;
   req.sr_desc.remote_addr = dst;
@@ -767,6 +784,7 @@ static void gasnetc_do_put_inline(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
                                   uintptr_t src, uintptr_t dst, size_t nbytes,
                                   gasnetc_counter_t *req_oust) {
+  gasnetc_sbuf_t *next = NULL;
   gasnetc_sbuf_t *sbuf;
   gasnetc_sreq_t req;
 
@@ -777,8 +795,11 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   /* Use full bounce buffers until just one buffer worth of data remains */
   while (nbytes > GASNETC_BUFSZ) {
     sbuf = gasnetc_get_sbuf();
+    gasneti_freelist_link(sbuf, next);
+    next = sbuf;
 
     req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+    req.sr_desc.comp_type   = VAPI_UNSIGNALED;
     req.sr_desc.sg_lst_len  = 1;
     req.sr_desc.fence       = TRUE;
     req.sr_desc.remote_addr = dst;
@@ -800,8 +821,10 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   gasneti_assert(nbytes <= GASNETC_BUFSZ);
 
   sbuf = gasnetc_get_sbuf();
+  gasneti_freelist_link(sbuf, next);
 
   req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+  req.sr_desc.comp_type   = VAPI_SIGNALED;
   req.sr_desc.sg_lst_len  = 1;
   req.sr_desc.fence       = TRUE;
   req.sr_desc.remote_addr = dst;
@@ -824,6 +847,7 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rkey_t rkey,
                                   uintptr_t src, uintptr_t dst, size_t nbytes,
                                   gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust) {
+  gasnetc_sbuf_t *next = NULL;
   gasnetc_sbuf_t *sbuf;
   gasnetc_sreq_t req;
   size_t max_sz = gasnetc_hca_port.max_msg_sz;
@@ -836,8 +860,11 @@ static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
   if_pf (nbytes > max_sz) {
     do {
       sbuf = gasnetc_get_sbuf();
+      gasneti_freelist_link(sbuf, next);
+      next = sbuf;
 
       req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+      req.sr_desc.comp_type   = VAPI_UNSIGNALED;
       req.sr_desc.sg_lst_len  = 1;
       req.sr_desc.fence       = TRUE;
       req.sr_desc.remote_addr = dst;
@@ -859,8 +886,10 @@ static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
   gasneti_assert(nbytes <= max_sz);
 
   sbuf = gasnetc_get_sbuf();
+  gasneti_freelist_link(sbuf, next);
 
   req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+  req.sr_desc.comp_type   = VAPI_SIGNALED;
   req.sr_desc.sg_lst_len  = 1;
   req.sr_desc.fence       = TRUE;
   req.sr_desc.remote_addr = dst;
@@ -898,6 +927,7 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
     sbuf = gasnetc_get_sbuf();
 
     req.sr_desc.opcode      = VAPI_RDMA_READ;
+    req.sr_desc.comp_type   = VAPI_SIGNALED;
     req.sr_desc.sg_lst_len  = 1;
     req.sr_desc.fence       = FALSE;
     req.sr_desc.remote_addr = src;
@@ -922,6 +952,7 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   sbuf = gasnetc_get_sbuf();
 
   req.sr_desc.opcode      = VAPI_RDMA_READ;
+  req.sr_desc.comp_type   = VAPI_SIGNALED;
   req.sr_desc.sg_lst_len  = 1;
   req.sr_desc.fence       = FALSE;
   req.sr_desc.remote_addr = src;
@@ -959,6 +990,7 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
       sbuf = gasnetc_get_sbuf();
 
       req.sr_desc.opcode      = VAPI_RDMA_READ;
+      req.sr_desc.comp_type   = VAPI_SIGNALED;
       req.sr_desc.sg_lst_len  = 1;
       req.sr_desc.fence       = FALSE;
       req.sr_desc.remote_addr = src;
@@ -982,6 +1014,7 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
   sbuf = gasnetc_get_sbuf();
 
   req.sr_desc.opcode      = VAPI_RDMA_READ;
+  req.sr_desc.comp_type   = VAPI_SIGNALED;
   req.sr_desc.sg_lst_len  = 1;
   req.sr_desc.fence       = FALSE;
   req.sr_desc.remote_addr = src;
@@ -1046,7 +1079,7 @@ extern void gasnetc_sndrcv_init(void) {
     for (i = 0; i < count; ++i) {
       rbuf->rr_desc.id         = (uintptr_t)rbuf;	/* CQE will point back to this request */
       rbuf->rr_desc.opcode     = VAPI_RECEIVE;
-      rbuf->rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
+      rbuf->rr_desc.comp_type  = VAPI_SIGNALED;
       rbuf->rr_desc.sg_lst_len = 1;
       rbuf->rr_desc.sg_lst_p   = &rbuf->rr_sg;
       rbuf->rr_sg.len          = GASNETC_BUFSZ;
@@ -1287,6 +1320,7 @@ extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, 
     memset(sbuf->buffer, val, count);
 
     req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+    req.sr_desc.comp_type   = VAPI_SIGNALED;
     req.sr_desc.sg_lst_len  = 1;
     req.sr_desc.fence       = TRUE;
     req.sr_desc.remote_addr = dst;
