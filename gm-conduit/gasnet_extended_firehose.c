@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2004/08/26 04:53:36 $
- * $Revision: 1.41 $
+ * $Date: 2004/10/02 10:59:47 $
+ * $Revision: 1.41.6.1 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -408,7 +408,7 @@ extern int firehose_remote_callback(gasnet_node_t node,
 	return 0;
 }
 
-#if GASNETC_RDMA_GETS
+#if GASNETC_GM_HAVE_RDMA_GETS
 /* In GM 2.0, we can use directed receives (gm_get) once the remote region is
  * known to be pinned */
 
@@ -489,17 +489,8 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req,
 	return;
 }
 
-#else	/* GM 1.x or broken get support */
-  #if GASNETC_GM_RDMA_GETS_BROKEN
-    /* Die unless the user explicitly wants a broken build */
-    #ifndef GASNETC_GM_ENABLE_BROKEN_VERSIONS
-      #error GASNet/GM RDMA gets are broken on this GM 2.x version (see gm-conduit README)
-    #else
-      /* GNUism: #warning GASNet/GM RDMA gets disabled for broken 2.x version by user request */
-    #endif
-  #else
-    /* GNUism: #warning GASNet/GM RDMA gets not available in GM 1.x series */
-  #endif
+#else /* GM 1.x or gets disabled */
+
 /*
  * AM Handler: Reply to get into a pinned memory location
  */
@@ -650,7 +641,7 @@ gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src,
 /* ##################################################################### */
 /* Handlers                                                              */
 /* ##################################################################### */
-#if GASNETC_RDMA_GETS
+#if GASNETC_GM_HAVE_RDMA_GETS
 static gasnet_handlerentry_t const gasnete_handlers[] = {
 	{ 0, NULL }
 };

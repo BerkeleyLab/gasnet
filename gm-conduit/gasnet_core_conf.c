@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_conf.c,v $
- * $Date: 2004/09/27 09:12:43 $
- * $Revision: 1.16.2.1 $
+ * $Date: 2004/10/02 10:59:47 $
+ * $Revision: 1.16.2.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -45,15 +45,27 @@ uint32_t
 gasnetc_parse_addr(char *hostaddr)
 {
     struct hostent  *he;
-    uint32_t	     ip;
+    uint32_t	     ip, a2, a3, a4;
 
-    he = gethostbyname(hostaddr);
+    /*
+     * Use gethostbyname IFF we can't find an ip in the input address
+     * 'hostaddr'
+     */
+    if (sscanf(hostaddr, "%d.%d.%d.%d",&ip,&a2,&a3,&a4) != 4) {
+    	he = gethostbyname(hostaddr);
 
-    if (he == NULL || he->h_length != 4)
-	return 0;
+    	if (he == NULL || he->h_length != 4)
+		return 0;
+    	else {
+		memcpy(&ip, he->h_addr, he->h_length);
+		return ip;
+    	}
+    }
     else {
-	memcpy(&ip, he->h_addr, he->h_length);
-	return (uint32_t) ip;
+	if (inet_pton(AF_INET, hostaddr, &ip) < 1)
+	    return 0;
+	else
+	    return ip;
     }
 }
 #else
@@ -72,6 +84,7 @@ gasnetc_parse_addr(char *hostaddr)
  *
  * In order, the command first tries to parse using perl, then /usr/bin/host.
  */
+#include <ctype.h> /* isdigit */
 uint32_t
 gasnetc_parse_addr(char *hostaddr)
 {
@@ -90,7 +103,6 @@ gasnetc_parse_addr(char *hostaddr)
 	snprintf(cmd, 256, "perl -e 'print join(\".\", unpack(\"C*\", "
 			   "(gethostbyname(\"%s\"))[4])), \"\\n\"'", hostaddr);
 
-	printf("cmd is %s\n", cmd);
 	fd = popen(cmd, "r");
 	if (fd != NULL && (p = fgets(line,128,fd)) != NULL &&
 	   sscanf(p, "%d.%d.%d.%d", &ip,&a2,&a3,&a4) == 4) {
@@ -132,6 +144,12 @@ gasnetc_parse_addr(char *hostaddr)
 	/* is EOF, or error, or no match at all */
 	pclose(fd);
 	return 0;
+    }
+    else {
+	if (inet_pton(AF_INET, p, &ip) < 1)
+	    return 0;
+	else
+	    return ip;
     }
 }
 #endif

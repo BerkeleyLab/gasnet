@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_help.h,v $
- * $Date: 2004/08/26 04:53:36 $
- * $Revision: 1.32 $
+ * $Date: 2004/10/02 10:59:47 $
+ * $Revision: 1.32.6.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -38,7 +38,9 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 /* Amount of physical memory that is pinnable. . reported to be 
  * 70% by Myricom.  We use 60% to be safe. */
-#define GASNETC_PHYSMEM_PINNABLE_RATIO       0.6
+#ifndef GASNETC_PHYSMEM_PINNABLE_RATIO
+  #define GASNETC_PHYSMEM_PINNABLE_RATIO       0.6
+#endif
 
 #ifdef GASNET_SEGMENT_FAST
 #define GASNETC_SEGMENT_PINNED	1
@@ -66,20 +68,36 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
  *
  * Appeared with GM API version 2.x but there are serious problems for versions
  * prior to 2.0.12 in 2.0 series and prior to 2.1.2 in 2.1 series
+ *
+ * Users can predefine GASNETC_GM_HAVE_RDMA_GETS to whatever they want in order
+ * to bypass the detection/disable mechanism.
+ *
  */
 
-#if GM_API_VERSION_2_0 &&                                 \
-   ((GM_API_VERSION_2_1_0 && GM_API_VERSION < 0x20102) || \
-     GM_API_VERSION < 0x2000c)
-    #define GASNETC_GM_RDMA_GETS_BROKEN 1
+#ifdef GASNETC_GM_2 /* GM 2.x -- some versions have problems */
+  #ifndef GASNETC_GM_HAVE_RDMA_GETS /* gets not explicitly enabled/disabled */
+     #if !defined(GASNETC_GM_ENABLE_BROKEN_VERSIONS) && 	\
+        ((GM_API_VERSION_2_1_0 && GM_API_VERSION < 0x20102) || 	\
+	GM_API_VERSION < 0x2000c) 
+       #error GASNet/GM RDMA gets are broken on this GM 2.x version (see gm-conduit README)
+     #else
+       #define GASNETC_GM_HAVE_RDMA_GETS 1
+     #endif
+  #endif /* GASNETC_GM_HAVE_RDMA_GETS already defined */
+
+#else /* GM 1.x -- no gets, disable even if user set to 1 */
+  #undef  GASNETC_GM_HAVE_RDMA_GETS
+  #define GASNETC_GM_HAVE_RDMA_GETS 0
 #endif
-/* Enable GM gets only if we have GM 2 API and a version that's not broken */
-#if !defined(GASNETC_GM_2) || GASNETC_GM_RDMA_GETS_BROKEN
-  #define GASNETC_RDMA_GETS		0
-  #define GASNETE_GET_NON_DMA_CUTOFF	8192
+
+#ifndef GASNETC_GM_HAVE_RDMA_GETS
+  #error Internal define error
 #else
-  #define GASNETC_RDMA_GETS		1
-  #define GASNETE_GET_NON_DMA_CUTOFF	0
+  #if GASNETC_GM_HAVE_RDMA_GETS
+    #define GASNETE_GET_NON_DMA_CUTOFF	0
+  #else
+    #define GASNETE_GET_NON_DMA_CUTOFF	8192
+  #endif
 #endif
 
 #define GASNETC_SEGMENT_ALIGN	GASNETI_PAGESIZE

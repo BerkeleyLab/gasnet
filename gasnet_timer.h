@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2004/09/18 04:45:35 $
- * $Revision: 1.23 $
+ *     $Date: 2004/10/02 10:59:45 $
+ * $Revision: 1.23.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -161,6 +161,9 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #include <stdlib.h>
   #include <string.h>
   #include <math.h>
+  #if defined(__ia64__) && defined(__INTEL_COMPILER)
+    #include <ia64intrin.h>
+  #endif
   typedef uint64_t gasneti_stattime_t;
   #define GASNETI_STATTIME_MIN        ((gasneti_stattime_t)0)
   #define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)-1)
@@ -171,7 +174,9 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       __asm__ __volatile__("rdtsc"
                            : "=A" (ret)
                            : /* no inputs */); 
-    #elif defined(__ia64__)
+    #elif defined(__ia64__) && defined(__INTEL_COMPILER)
+      ret = (uint64_t)__getReg(_IA64_REG_AR_ITC);
+    #elif defined(__ia64__) 
       __asm__ __volatile__("mov %0=ar.itc" 
                            : "=r"(ret) 
                            : /* no inputs */);
