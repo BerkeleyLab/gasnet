@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.h                               $
- *     $Date: 2004/08/06 23:35:00 $
- * $Revision: 1.54 $
+ *     $Date: 2004/08/12 17:12:55 $
+ * $Revision: 1.54.2.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,6 +8,7 @@
 
 #ifndef _GASNET_INTERNAL_H
 #define _GASNET_INTERNAL_H
+#define _IN_GASNET_INTERNAL_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,7 @@
 
 #include <gasnet.h>
 #include <gasnet_tools.h>
+#include <gasnet_atomicops_internal.h>
 
 BEGIN_EXTERNC
 
@@ -302,4 +304,5 @@ extern int gasneti_VerboseErrors;
 
 END_EXTERNC
 
+#undef _IN_GASNET_INTERNAL_H
 #endif

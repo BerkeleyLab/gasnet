@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/08/03 12:29:57 $
- * $Revision: 1.67 $
+ *     $Date: 2004/08/12 17:12:55 $
+ * $Revision: 1.67.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,9 @@ int gasneti_VerboseErrors = 1;
   gasnet_hsl_t gasneti_atomicop_lock = GASNET_HSL_INITIALIZER;
   void *gasneti_patomicop_lock = (void*)&gasneti_atomicop_lock;
   GASNETI_GENERIC_DEC_AND_TEST_DEF
+  #ifdef GASNETI_HAVE_ATOMIC_CAS
+    GASNETI_GENERIC_CAS_DEF
+  #endif
 #endif
 
 #if GASNETI_THROTTLE_POLLERS

@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.60 2004/08/03 23:49:24 phargrov Exp $
- * $Date: 2004/08/03 23:49:24 $
- * $Revision: 1.60 $
+/* $Id: gasnet_core_internal.h,v 1.60.2.1 2004/08/12 17:12:59 phargrov Exp $
+ * $Date: 2004/08/12 17:12:59 $
+ * $Revision: 1.60.2.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -770,105 +770,6 @@ gasnetc_write_AMBufferSystem(	void *buf,
 	gasneti_assert(argslen+nbytes <= GASNETC_AM_PACKET);
 	return argslen+nbytes;
 }
-/* ------------------------------------------------------------------------------------ */
-
-/* gasneti_atomic_swap(p, oldval, newval)
- * Atomic equivalent of:
- *   If (*p == oldval) {
- *      *p = newval;
- *      return NONZERO;
- *   } else {
- *      return 0;
- *   }
- */
-#ifdef GASNETI_USE_GENERIC_ATOMICOPS
-  GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-  int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-    int retval;
-
-    gasnet_hsl_lock(&gasneti_atomicop_lock);
-    retval = (p->ctr == oldval);
-    if_pt (retval) {
-      p->ctr = newval;
-    }
-    gasnet_hsl_unlock(&gasneti_atomicop_lock);
-
-    return retval;
-  }
-  #define GASNETI_HAVE_ATOMIC_SWAP 1
-#elif defined(LINUX)
-  #if defined(__i386__) || defined(__x86_64__)
-    #ifndef GASNETI_LOCK
-        #ifdef GASNETI_UNI_BUILD
-          #define GASNETI_LOCK ""
-        #else
-          #define GASNETI_LOCK "lock ; "
-        #endif
-    #endif
-    GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-    int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-      register unsigned char retval;
-      register uint32_t readval;
-
-      __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1; sete %0"
-				: "=q" (retval), "=m" (p->counter), "=a" (readval)
-				: "r" (newval), "m" (p->counter), "a" (oldval)
-				: "memory");
-      return retval;
-    }
-    #define GASNETI_HAVE_ATOMIC_SWAP 1
-  #elif defined(__ia64__)
-    #ifdef __INTEL_COMPILER
-      GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-      int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-	return (_InterlockedCompareExchange(
-		(volatile int *) &(p->ctr),(int)newval,(int)oldval) == (int)oldval);
-      }
-    #else
-      GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-      int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t _oldval, uint32_t newval) {
-	int64_t oldval, readval;
-	oldval = (int64_t) _oldval;
-        __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(oldval));
-        __asm__ __volatile__ ("mf; cmpxchg4.acq %0=[%1],%2,ar.ccv"
-                                  : "=r"(readval) : "r"(&(p->ctr)), "r"(newval) 
-				  : "memory");
-	return (oldval == readval);
-      }
-    #endif
-    #define GASNETI_HAVE_ATOMIC_SWAP 1
-  #else
-    #define GASNETI_HAVE_ATOMIC_SWAP 0
-  #endif
-#elif (defined (_POWERPC) || defined(__POWERPC__)) && defined(__GNUC__)
-  GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-  int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-    register uint32_t result;
-    register uint32_t temp;
-
-    __asm__ __volatile__ ( 
-	"lwarx    %1,0,%2 \n\t" 	/* load to temp */
-	"cmpw     cr0,%1,%3 \n\t"	/* compare temp to oldval */
-	"bne-     1f \n\t"		/* branch on mismatch */
-	#ifdef __PPC405__ 
-	  "sync \n\t" 
-	#endif 
-	"stwcx.   %4,0,%2 \n"	 	/* store newval */
-	"1:\t"
-	/* convert condition code to int w/ additional branch: */
-	"mfcr     %1 \n\t"		/* move CR to temp */
-	"rlwinm   %0,%1,3,31,31"	/* extract the CR0[EQ] bit from temp */
-	: "=&r"(result), "=&r"(temp)
-	: "r" (p), "r"(oldval), "r"(newval)
-	: "cr0", "memory"); 
-
-      return result; 
-  } 
-  #define GASNETI_HAVE_ATOMIC_SWAP 1
-#else
-  #define GASNETI_HAVE_ATOMIC_SWAP 0
-#endif
-
 
 /* -------------------------------------------------------------------------- */
 /* Private access to ReplyLongAsync */

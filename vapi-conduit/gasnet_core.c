@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.c                  $
- *     $Date: 2004/08/03 23:49:26 $
- * $Revision: 1.54 $
+ *     $Date: 2004/08/12 17:12:57 $
+ * $Revision: 1.54.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1162,7 +1162,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   Exit handling code
 */
 
-#if !GASNETI_HAVE_ATOMIC_SWAP
+#if !GASNETI_HAVE_ATOMIC_CAS
   #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
 #endif
 
@@ -1221,7 +1221,7 @@ static void gasnetc_exit_role_reqh(gasnet_token_t token, gasnet_handlerarg_t *ar
   local_role = (src == GASNETC_ROOT_NODE) ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
 
   /* Try atomically to assume the proper role.  Result determines role of requester */
-  result = gasneti_atomic_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, local_role)
+  result = gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, local_role)
                 ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
 
   /* Inform the requester of the outcome. */
@@ -1259,7 +1259,7 @@ static void gasnetc_exit_role_reph(gasnet_token_t token, gasnet_handlerarg_t *ar
   /* Set the role if not yet set.  Then assert that the assigned role has been assumed.
    * This way the assertion is checking that if the role was obtained by other means
    * (namely by receiving an exit request) it must match the election result. */
-  gasneti_atomic_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, role);
+  gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, role);
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role) == role);
 }
 
@@ -1688,7 +1688,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   gasneti_atomic_increment(&gasnetc_exit_reqs);
 
   /* If we didn't already know, we are now certain our role is "slave" */
-  (void)gasneti_atomic_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE);
+  (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE);
 
   /* Send a reply so the master knows we are reachable */
   rc = gasnetc_ReplySystem(token, &gasnetc_exit_repl_oust,
