@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/12/18 23:36:20 $
- * $Revision: 1.5.6.3 $
+ *     $Date: 2004/01/06 23:24:15 $
+ * $Revision: 1.5.6.4 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,7 @@ typedef uint8_t gasnet_handler_t;
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
         VAL(C, RDMA_PUT_ZEROCP, bytes)            \
+        VAL(C, RDMA_PUT_FH, bytes)                \
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
         CNT(C, SYSTEM_REQUEST, cnt)               \
