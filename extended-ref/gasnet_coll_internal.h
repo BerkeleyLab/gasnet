@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/03 00:30:58 $
- * $Revision: 1.1.2.28 $
+ *     $Date: 2004/06/03 16:31:00 $
+ * $Revision: 1.1.2.29 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -879,6 +879,7 @@ void _gasnet_coll_gather_allM(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 
+extern int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern gasnet_coll_handle_t
 gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  void *dst, void *src,
@@ -930,6 +931,7 @@ void _gasnet_coll_exchange(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 
+extern int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern gasnet_coll_handle_t
 gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
                                   void * const dstlist[], void * const srclist[],
