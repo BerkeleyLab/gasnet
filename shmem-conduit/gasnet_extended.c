@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/08/31 00:19:10 $
- * $Revision: 1.2.2.6 $
+ *     $Date: 2004/08/31 05:45:09 $
+ * $Revision: 1.2.2.7 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,6 +34,7 @@ static void gasnete_barrier_init();
  */
 
 int	    gasnete_handles[GASNETE_MAX_HANDLES];
+int	    gasnete_nbi_sync       = 0;
 int	    gasnete_handleno_cur   = 1;
 int	    gasnete_handleno_phase = 0;
 
@@ -47,7 +48,6 @@ int	    gasnete_handleno_phase = 0;
  */
 static int	    gasnete_nbi_region_phase = 0;
 static volatile int gasnete_nbi_am_ctr       = 0;
-int		    gasnete_nbi_sync	     = 0;
 static int	    gasnete_nbi_handle       = GASNETE_HANDLE_DONE;
 
 gasnet_node_t	    gasnete_mynode = (gasnet_node_t)-1;
@@ -164,8 +164,6 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
 
-    printf("Memset at %p, shmemptr=%p\n", dest, ptr);
-
     *handle = GASNETE_HANDLE_NB_POLL;
 
     GASNETE_SAFE(
@@ -197,7 +195,7 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 		return GASNET_OK;
 	    else
 		return GASNET_ERR_NOT_READY;
-	break;
+	    break;
 
 	case GASNETE_HANDLE_NB_QUIET:
 	    gasneti_assert(handle == 
@@ -206,9 +204,11 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	    *handle = GASNETE_HANDLE_DONE;
 	    GASNETE_HANDLE_INC_PHASE();
 	    return GASNET_OK;
+	    break;
 
 	case GASNETE_HANDLE_NBI:
-	    gasneti_assert(handle = &gasnete_nbi_handle);
+	    gasneti_assert(handle == &gasnete_nbi_handle);
+	    /* Quiet iff at least one put */
 	    if (gasnete_nbi_sync) {
 		shmem_quiet();
 		gasnete_nbi_sync = 0;
@@ -218,10 +218,10 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 		return GASNET_OK;
 	    }
 	    *handle = GASNETE_HANDLE_NBI_POLL;
-	    /* Fallthrough, poll and poll next time */
+	    /* Fallthrough, poll and poll only next time */
 	
 	case GASNETE_HANDLE_NBI_POLL:
-	    gasneti_assert(handle = &gasnete_nbi_handle);
+	    gasneti_assert(handle == &gasnete_nbi_handle);
 	    GASNETE_SAFE(gasnet_AMPoll());
 	    if (gasnete_nbi_am_ctr == 0) {
 		*handle = GASNETE_HANDLE_DONE;
@@ -229,13 +229,15 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	    }
 	    else
 		return GASNET_ERR_NOT_READY;
-	break;
+	    break;
 
 	default:
 	    gasneti_fatalerror("Invalid handle %p", (void*)handle);
 	    break;
     }
 
+    /* XXX can't reach */
+    abort();
     return GASNET_OK;
 }
 
@@ -276,6 +278,8 @@ extern void
 gasnete_global_memset_nbi(gasnet_node_t node, void *dest, int val, 
   		    size_t nbytes) 
 {
+      /* By doing a synchronous write and flushing the write buffer, there's no
+       * need to poll for completion */
       memset(dest, val, nbytes);
       gasneti_sync_writes();
       return;
@@ -287,14 +291,14 @@ gasnete_am_memset_nbi(gasnet_node_t node, void *dest, int val,
 {
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
 
-    printf("Memset at %p, shmemptr=%p\n", dest, ptr);
-
+    gasnete_nbi_handle = GASNETE_HANDLE_NBI;
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
 		      PACK(ptr), PACK(&gasnete_nbi_handle))));
 
     gasnete_nbi_am_ctr++;
+
     return;
 }
 
@@ -314,7 +318,11 @@ gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
 	    "inside an NBI access region");
     #endif
 
-    /* All gets are blocking ! */
+    /* All gets are blocking. Unless there are puts or ams in flight, the nbi
+     * handle can be set as done. */
+    if (gasnete_nbi_am_ctr == 0 && gasnete_nbi_sync == 0)
+	gasnete_nbi_handle = GASNETE_HANDLE_DONE;
+
     return GASNET_OK;
 }
 
@@ -328,18 +336,7 @@ gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
 	    "inside an NBI access region");
 
     #endif
-    gasnete_try_syncnb_inner(&gasnete_nbi_handle);
-    return GASNET_OK;
-
-    shmem_quiet();
-
-    /* Some AMs may still be outstanding, we don't wait for those yet */
-    if (gasnete_nbi_am_ctr > 0)
-	    gasnete_nbi_handle = GASNETE_HANDLE_NBI_POLL;
-    else
-	    gasnete_nbi_handle = GASNETE_HANDLE_DONE;
-
-    return GASNET_OK;
+    return gasnete_try_syncnb_inner(&gasnete_nbi_handle);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -360,7 +357,6 @@ gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG)
     #endif
     if (!allowrecursion || gasnete_nbi_handle == GASNETE_HANDLE_DONE) {
 	gasnete_nbi_handle = GASNETE_HANDLE_NBI;
-
 	gasnete_nbi_sync = 0;
 	gasnete_nbi_am_ctr = 0;
 	gasnete_nbi_region_phase = 1;
@@ -658,6 +654,10 @@ gasnete_handlers[] = {
 
     #ifdef GASNETE_REFVIS_HANDLERS
       GASNETE_REFVIS_HANDLERS(),
+    #endif
+
+    #ifdef GASNETE_REFCOLL_HANDLERS
+      GASNETE_REFCOLL_HANDLERS(),
     #endif
 
     /* ptr-width independent handlers */
