@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/09 20:59:24 $
- * $Revision: 1.1.2.39 $
+ *     $Date: 2004/06/14 20:54:42 $
+ * $Revision: 1.1.2.40 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,8 +13,13 @@
 /*---------------------------------------------------------------------------------*/
 /* Forward decls and macros */
 
-#define GASNETE_COLL_UNIMPLEMENTED() \
-    (gasneti_fatalerror("%s unimplemented", GASNETI_CURRENT_FUNCTION), GASNET_COLL_INVALID_HANDLE)
+#if GASNETI_USE_TRUE_MUTEXES || GASNET_DEBUG
+  #define GASNETE_COLL_SET_OWNER(data)		(data)->owner = GASNETE_MYTHREAD
+  #define GASNETE_COLL_CHECK_OWNER(data)	((data)->owner == GASNETE_MYTHREAD)
+#else
+  #define GASNETE_COLL_SET_OWNER(data)
+  #define GASNETE_COLL_CHECK_OWNER(data)	1
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* XXX: sequence and other stuff that will need to be per-team scoped: */
@@ -233,20 +238,22 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
  * Ops in the active table will be polled to make progress.
  *
  * Operations of the active list
- *   void gasnete_coll_active_init_td(td)
- *   void gasnete_coll_active_fini_td(td)
- *   gasnete_coll_op_t *gasnete_coll_active_first(th)
+ *   void gasnete_coll_active_init()
+ *   void gasnete_coll_active_fini()
+ *   gasnete_coll_op_t *gasnete_coll_active_first()
  *	Return the first coll op in the active list.
  *   gasnete_coll_op_t *gasnete_coll_active_next(op)
  *	Iterate over the coll ops in the active list.
  *   void gasnete_coll_active_new(op)
  *	Init active list fields of a coll op.
- *   void gasnete_coll_active_ins(op, th)
+ *   void gasnete_coll_active_ins(op)
  *	Add a coll op to the active list.
- *   void gasnete_coll_active_del(op, th)
+ *   void gasnete_coll_active_del(op)
  *	Delete a coll op from the active list.
  *
  */
+
+gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
 
 #ifndef GASNETE_COLL_LIST_OVERRIDE
     /* Default implementation of coll_ops active list:
@@ -256,47 +263,52 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
      *
      * XXX: use list macros?
      */
+    static gasnete_coll_op_t	*gasnete_coll_active_head;
+    static gasnete_coll_op_t	**gasnete_coll_active_tail_p;
 
-    gasnete_coll_op_t *gasnete_coll_active_first(GASNETE_THREAD_FARG_ALONE) {
-      gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-      return td->active_head;
+    /* Caller must obtain lock */
+    gasnete_coll_op_t *gasnete_coll_active_first(void) {
+      return gasnete_coll_active_head;
     }
 
+    /* Caller must obtain lock */
     gasnete_coll_op_t *gasnete_coll_active_next(gasnete_coll_op_t *op) {
       return op->active_next;
     }
 
+    /* No lock needed */
     void gasnete_coll_active_new(gasnete_coll_op_t *op) {
       op->active_next = NULL;
       op->active_prev_p = &(op->active_next);
     }
 
-    void gasnete_coll_active_ins(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
-      gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
-      *(td->active_tail_p) = op;
-      op->active_prev_p = td->active_tail_p;
-      td->active_tail_p = &(op->active_next);
+    /* Caller must obtain lock */
+    void gasnete_coll_active_ins(gasnete_coll_op_t *op) {
+      *(gasnete_coll_active_tail_p) = op;
+      op->active_prev_p = gasnete_coll_active_tail_p;
+      gasnete_coll_active_tail_p = &(op->active_next);
     }
 
-    void gasnete_coll_active_del(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+    /* Caller must obtain lock */
+    void gasnete_coll_active_del(gasnete_coll_op_t *op) {
       gasnete_coll_op_t *next = op->active_next;
       *(op->active_prev_p) = next;
       if (next) {
 	next->active_prev_p = op->active_prev_p;
       } else {
-	GASNETE_COLL_MYTHREAD_NOALLOC->active_tail_p = op->active_prev_p;
+	gasnete_coll_active_tail_p = op->active_prev_p;
       }
     }
 
     void
-    gasnete_coll_active_init_td(gasnete_coll_threaddata_t *td) {
-      td->active_head = NULL;
-      td->active_tail_p = &(td->active_head);
+    gasnete_coll_active_init(void) {
+      gasnete_coll_active_head = NULL;
+      gasnete_coll_active_tail_p = &(gasnete_coll_active_head);
     }
 
     void
-    gasnete_coll_active_fini_td(gasnete_coll_threaddata_t *td) {
-      gasneti_assert(td->active_head == NULL);
+    gasnete_coll_active_fini(void) {
+      gasneti_assert(gasnete_coll_active_head == NULL);
     }
 #endif
 
@@ -304,7 +316,6 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
 extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
     gasnete_coll_threaddata_t *result = gasneti_calloc(1,sizeof(*result));
-    gasnete_coll_active_init_td(result);
     return result;
 }
 
@@ -387,13 +398,14 @@ extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
       }
 
       /* All ops go onto the active list */
-      gasnete_coll_active_ins(op GASNETE_THREAD_PASS);
+      gasneti_mutex_lock(&gasnete_coll_active_lock);
+      gasnete_coll_active_ins(op);
+      gasneti_mutex_unlock(&gasnete_coll_active_lock);
 
       return handle;
     }
 
     void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THREAD_FARG) {
-
       if (poll_result & GASNETE_COLL_OP_COMPLETE) {
 	if_pt (op->handle != GASNET_COLL_INVALID_HANDLE) {
 	    /* Normal case, just signal the handle */
@@ -417,7 +429,7 @@ extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
 
       if (poll_result & GASNETE_COLL_OP_INACTIVE) {
 	/* delete from the active list and destoy */
-	gasnete_coll_active_del(op GASNETE_THREAD_PASS);
+	gasnete_coll_active_del(op);
 	gasnete_coll_op_destroy(op GASNETE_THREAD_PASS);
       }
     }
@@ -458,23 +470,36 @@ gasnete_coll_op_destroy(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
 }
 
 void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
-  gasnete_coll_op_t *op;
+  static gasneti_mutex_t poll_lock = GASNETI_MUTEX_INITIALIZER;
 
-  op = gasnete_coll_active_first(GASNETE_THREAD_PASS_ALONE);
+  if (gasneti_mutex_trylock(&poll_lock) == 0) {
+    gasnete_coll_op_t *op;
 
-  while (op != NULL) {
-    gasnete_coll_op_t *next = gasnete_coll_active_next(op);
-    int poll_result = 0;
+    gasneti_mutex_lock(&gasnete_coll_active_lock);
+    op = gasnete_coll_active_first();
+    gasneti_mutex_unlock(&gasnete_coll_active_lock);
 
-    /* Poll/kick the op */
-    gasneti_assert(op->poll_fn != (gasnete_coll_poll_fn)NULL);
-    poll_result = (*op->poll_fn)(op GASNETE_THREAD_PASS);
-    if (poll_result != 0) {
-      gasnete_coll_op_complete(op, poll_result GASNETE_THREAD_PASS);
+    while (op != NULL) {
+      gasnete_coll_op_t *next;
+      int poll_result = 0;
+
+      /* Poll/kick the op */
+      gasneti_assert(op->poll_fn != (gasnete_coll_poll_fn)NULL);
+      poll_result = (*op->poll_fn)(op GASNETE_THREAD_PASS);
+
+      /* Advance down the list, possibly deleting this current element */
+      gasneti_mutex_lock(&gasnete_coll_active_lock);
+      next = gasnete_coll_active_next(op);
+      if (poll_result != 0) {
+        gasnete_coll_op_complete(op, poll_result GASNETE_THREAD_PASS);
+      }
+      gasneti_mutex_unlock(&gasnete_coll_active_lock);
+
+      /* Next... */
+      op = next;
     }
 
-    /* Next... */
-    op = next;
+    gasneti_mutex_unlock(&poll_lock);
   }
 }
 
@@ -496,6 +521,7 @@ extern void gasnete_coll_init(const size_t images[],
     }
   #endif
 
+  gasnete_coll_active_init();
   gasnete_coll_p2p_init();
 
   gasnete_coll_all_images = gasneti_malloc(image_size);
@@ -894,6 +920,9 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, int flags,
       gasneti_assert(team == GASNET_TEAM_ALL);
       gasneti_assert(data != NULL);
 
+      /* Set owner */
+      GASNETE_COLL_SET_OWNER(data);
+
       /* Unconditionally allocate a sequence number */
       sequence = gasnete_coll_sequence++;	/* XXX: need team scope */
 
@@ -925,6 +954,19 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, int flags,
       return gasnete_coll_op_submit(op, handle GASNETE_THREAD_PASS);
 }
 
+extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data GASNETE_THREAD_FARG) {
+  gasnet_handle_t handle = data->handle;
+  int result = 1;
+
+  /* Note the order of the checks is such that GASNET_INVALID_HANDLE
+   * will produce a SUCCESS result regardless of the calling thread.
+   */
+  if_pt (handle != GASNET_INVALID_HANDLE)
+    result = GASNETE_COLL_CHECK_OWNER(data) && (gasnete_try_syncnb(handle) == GASNET_OK);
+
+  return result;
+}
+
 extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count GASNETE_THREAD_FARG) {
   int result = 1;
   int i;
@@ -942,6 +984,19 @@ extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count 
   return result;
 }
 
+/* Helper to perform in-memory broadcast */
+GASNET_INLINE_MODIFIER(_gasnete_coll_membcast)
+void _gasnete_coll_membcast(size_t dstcount, void * const dstlist[], const void *src, size_t nbytes)
+{
+    void * const *p = dstlist;
+    int i;
+
+    /* XXX: this could/should be segemented to cache reuse */
+    for (i = 0; i < dstcount; ++i, ++p) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes);
+    }
+}
+
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcast_nb() */
 
@@ -953,26 +1008,30 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
-
-      if (gasnete_mynode == args->srcnode) {
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
-      } else {
-	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, args->src,
-					   args->nbytes GASNETE_THREAD_PASS);
-      }
       data->state = 1;
 
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode == args->srcnode) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
+	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, args->src,
+					   args->nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1006,12 +1065,16 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
-      if (gasnete_mynode == args->srcnode) {
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode != args->srcnode) {
+	/* Nothing to do */
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	void   *src   = args->src;
 	void   *dst   = args->dst;
 	size_t nbytes = args->nbytes;
@@ -1034,16 +1097,18 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
 
 	/* Do local copy LAST, perhaps overlapping with communication */
 	GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
-      }
-      data->state = 1;
-
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1078,11 +1143,13 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
 	void   *src   = args->src;
 	size_t nbytes = args->nbytes;
@@ -1097,25 +1164,15 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  gasnete_coll_p2p_eager_put(op, i, src, nbytes, 0, 1);
 	}
 
-	/* Do local copy, perhaps overlapping with communication */
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, nbytes);
-      }
-      data->state = 1;
-
-    case 1:
-      if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-	gasneti_assert(p2p != NULL);
-
-	if (!p2p->state[0]) {
-	  break;
-	}
-
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, p2p->entry[0].data, args->nbytes);
+      } else if (data->p2p->state[0]) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->entry[0].data, args->nbytes);
+      } else {
+	break;	/* Stalled until data arrives */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1151,11 +1208,13 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier and rendezvous */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
 	void *src = args->src;
 	int i;
@@ -1169,33 +1228,22 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  gasnete_coll_p2p_rendezvous(op, i, src, 0, 1);
 	}
 
-	/* Do local copy, perhaps overlapping with communication */
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, args->nbytes);
-      }
-      data->state = 1;
-
-    case 1:
-      if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	}
-
-	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, p2p->entry[0].addr,
+      } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
+	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, data->p2p->entry[0].addr,
 					   args->nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread receives the address */
       }
       data->state = 2;
 
-    case 2:
-      if (!gasnete_coll_generic_syncnb(data)) {
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	break;
       }
       data->state = 3;
 
-    case 3:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1277,42 +1325,36 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
-
-      /* Get only the 1st local image */
-      if (gasnete_mynode == args->srcnode) {
-	GASNETE_FAST_UNALIGNED_MEMCPY(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0),
-				      args->src, args->nbytes);
-      } else {
-	data->handle = gasnete_get_nb_bulk(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0),
-					   args->srcnode, args->src, args->nbytes GASNETE_THREAD_PASS);
-      }
       data->state = 1;
 
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode == args->srcnode) {
+	_gasnete_coll_membcast(gasnete_coll_my_images,
+			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0),
+			       args->src, args->nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
+        /* Get only the 1st local image */
+	data->handle = gasnete_get_nb_bulk(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0),
+					   args->srcnode, args->src, args->nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
-
-      /* Copy our 1st image to any additional images */
-      if (gasnete_coll_my_images > 1) {
-	size_t nbytes = args->nbytes;
-	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
-	void *p0 = *(p++);
-	int i;
-
-	/* XXX: for large sizes we should segment this in-memory broadcast */
-	for (i = 1; i < gasnete_coll_my_images; ++i, ++p) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, p0, nbytes);
-	}
-      }
-
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement and perform local copies */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      } else if (gasnete_mynode != args->srcnode) {
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
+	_gasnete_coll_membcast(gasnete_coll_my_images - 1, p + 1, p, args->nbytes);
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1348,12 +1390,16 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
-      if (gasnete_mynode == args->srcnode) {
+    case 1: 	/* Initiate data movement */
+      if (gasnete_mynode != args->srcnode) {
+	/* Nothing to do */
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	void   *src   = args->src;
 	size_t nbytes = args->nbytes;
 	int i, j, limit;
@@ -1389,21 +1435,21 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
 
 	/* Do local copy LAST, perhaps overlapping with communication */
-	/* XXX: for large sizes we should segment this in-memory broadcast */
-	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
-	for (j = 0; j < gasnete_coll_my_images; ++j, ++p) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes);
-	}
-      }
-      data->state = 1;
-
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+	_gasnete_coll_membcast(gasnete_coll_my_images,
+			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0),
+			       src, nbytes);
+      } else {
+         break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1438,14 +1484,15 @@ static int gasnete_coll_pf_bcastM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
 	void   *src   = args->src;
-	void * const *p;
 	size_t nbytes = args->nbytes;
 	int i, j, limit;
 
@@ -1459,35 +1506,19 @@ static int gasnete_coll_pf_bcastM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	}
 
 	/* Do local copy LAST, perhaps overlapping with communication */
-	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	for (j = 0; j < gasnete_coll_my_images; ++j, ++p) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes);
-	}
-      }
-      data->state = 1;
-
-    case 1:
-      if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-	size_t nbytes;
-	void * const *p;
-	int j;
-
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	}
-
-	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	nbytes = args->nbytes;
-	for (j = 0; j < gasnete_coll_my_images; ++j, ++p) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, p2p->entry[0].data, nbytes);
-	}
+	_gasnete_coll_membcast(gasnete_coll_my_images,
+			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+			       src, nbytes);
+      } else if (data->p2p->state[0]) {
+	_gasnete_coll_membcast(gasnete_coll_my_images,
+			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+			       data->p2p->entry[0].data, args->nbytes);
+      } else {
+        break;  /* Stalled until data arrives */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1523,11 +1554,13 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
 	void *src = args->src;
 	int i;
@@ -1540,55 +1573,31 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	for (i = 0; i < gasnete_mynode; ++i) {
 	  gasnete_coll_p2p_rendezvous(op, i, src, 0, 1);
 	}
-      }
-      data->state = 1;
 
-    case 1:
-      if (gasnete_mynode == args->srcnode) {
-	/* Do local copy, perhaps overlapping with communication */
-	/* XXX: for large sizes we should segment this in-memory broadcast */
-	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	size_t nbytes = args->nbytes;
-	void *src = args->src;
-	int i;
-
-	for (i = 0; i < gasnete_coll_my_images; ++i, ++p) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes);
-	}
-      } else {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	}
-
+	/* Do local copy LAST, perhaps overlapping with communication */
+	_gasnete_coll_membcast(gasnete_coll_my_images,
+			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+			       src, args->nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	/* Get 1st image only */
 	data->handle = gasnete_get_nb_bulk(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
-					   args->srcnode, p2p->entry[0].addr,
+					   args->srcnode, data->p2p->entry[0].addr,
 					   args->nbytes GASNETE_THREAD_PASS);
+      } else {
+        break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
-      if (gasnete_mynode != args->srcnode) {
-	if (!gasnete_coll_generic_syncnb(data)) {
+    case 2:	/* Complete data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	  break;
-	} else {
-	  void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	  void *p0 = *(p++);
-	  size_t nbytes = args->nbytes;
-	  int j;
-
-	  /* XXX: for large sizes we should segment this in-memory broadcast */
-	  for (j = 1; j < gasnete_coll_my_images; ++j, ++p) {
-	    GASNETE_FAST_UNALIGNED_MEMCPY(*p, p0, nbytes);
-	  }
-	}
+      } else if (gasnete_mynode != args->srcnode) {
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
+	_gasnete_coll_membcast(gasnete_coll_my_images - 1, p + 1, p, args->nbytes);
       }
       data->state = 3;
 
-    case 3:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1670,28 +1679,32 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
-	void *src = (void *)((uintptr_t)(args->src) + args->nbytes * gasnete_mynode);
-
-        if (gasnete_mynode == args->srcnode) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, args->nbytes);
-        } else {
-	  data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, src,
-					     args->nbytes GASNETE_THREAD_PASS);
-        }
       }
       data->state = 1;
 
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode == args->srcnode) {
+	void *src = (void *)((uintptr_t)(args->src) + args->nbytes * gasnete_mynode);
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, args->nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
+	void *src = (void *)((uintptr_t)(args->src) + args->nbytes * gasnete_mynode);
+	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, src,
+					   args->nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1727,12 +1740,16 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
-      if (gasnete_mynode == args->srcnode) {
+    case 1:
+      if (gasnete_mynode != args->srcnode) {
+	/* Nothing to do */
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	void   *src   = args->src;
 	void   *dst   = args->dst;
 	size_t nbytes = args->nbytes;
@@ -1759,16 +1776,18 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
 	/* Do local copy LAST, perhaps overlapping with communication */
 	p = (uintptr_t)src + nbytes * gasnete_mynode;
 	GASNETE_FAST_UNALIGNED_MEMCPY(dst, (void *)p, nbytes);
-      }
-      data->state = 1;
-
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+      } else {
+         break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1803,11 +1822,13 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
 	void   *src   = args->src;
 	size_t nbytes = args->nbytes;
@@ -1828,23 +1849,14 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	/* Do local copy, perhaps overlapping with communication */
 	p = (uintptr_t)src + nbytes * gasnete_mynode;
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, (void *)p, nbytes);
-      }
-      data->state = 1;
-
-    case 1:
-      if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-	gasneti_assert(p2p != NULL);
-
-	if (!p2p->state[0]) {
-	  break;
-	}
-
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, p2p->entry[0].data, args->nbytes);
+      } else if (data->p2p->state[0]) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->entry[0].data, args->nbytes);
+      } else {
+	break;	/* Stalled until data arrives */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -1880,11 +1892,13 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
 	void *src = args->src;
 	int i;
@@ -1898,36 +1912,25 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	  gasnete_coll_p2p_rendezvous(op, i, src, 0, 1);
 	}
 
-	/* Do local copy, perhaps overlapping with communication */
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, args->nbytes);
-      }
-      data->state = 1;
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
+	size_t nbytes = args->nbytes;
+	uintptr_t src_addr = (uintptr_t)(data->p2p->entry[0].addr) + nbytes * gasnete_mynode;
 
-    case 1:
-      if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	} else {
-	  size_t nbytes = args->nbytes;
-	  uintptr_t p = (uintptr_t)(p2p->entry[0].addr) + nbytes * gasnete_mynode;
-
-	  data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, (void *)p,
-					     nbytes GASNETE_THREAD_PASS);
-        }
+	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, (void *)src_addr,
+					   nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread receives address */
       }
       data->state = 2;
 
-    case 2:
-      if (!gasnete_coll_generic_syncnb(data)) {
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	break;
       }
       data->state = 3;
 
-    case 3:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2008,40 +2011,45 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
+      }
+      data->state = 1;
+
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode == args->srcnode) {
+	size_t nbytes = args->nbytes;
+	uintptr_t src_addr = (uintptr_t)(args->src) + nbytes * gasnete_coll_my_offset;
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
+	int i;
+
+	for (i = 0; i < gasnete_coll_my_images; ++i) {
+	   GASNETE_FAST_UNALIGNED_MEMCPY(*p, (void *)src_addr, nbytes);
+	   ++p;
+	   src_addr += nbytes;
+	}
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	size_t nbytes = args->nbytes;
 	uintptr_t src_addr = (uintptr_t)(args->src) + nbytes * gasnete_coll_my_offset;
 	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
 
-        if (gasnete_mynode == args->srcnode) {
-	  int i;
-
-	  for (i = 0; i < gasnete_coll_my_images; ++i) {
-	    GASNETE_FAST_UNALIGNED_MEMCPY(*p, (void *)src_addr, nbytes);
-	    ++p;
-	    src_addr += nbytes;
-	  }
-        } else {
-	  data->private = (void *)src_addr; 	/* free 1-element arrary :-) */
-	  data->handle = gasnete_geti(gasnete_synctype_nb, gasnete_coll_my_images, p, nbytes,
-			  	      args->srcnode, 1, &(data->private),
-				      gasnete_coll_my_images * nbytes GASNETE_THREAD_PASS);
-        }
+	data->private = (void *)src_addr; 	/* free 1-element arrary :-) */
+	data->handle = gasnete_geti(gasnete_synctype_nb, gasnete_coll_my_images, p, nbytes,
+			  	    args->srcnode, 1, &(data->private),
+				    gasnete_coll_my_images * nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
-
-      data->state = 1;
-
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
-      }
-
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2077,12 +2085,16 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
-      if (gasnete_mynode == args->srcnode) {
+    case 1:
+      if (gasnete_mynode != args->srcnode) {
+	/* Nothing to do */
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	size_t nbytes = args->nbytes;
 	uintptr_t src_addr;
 	int i;
@@ -2136,19 +2148,21 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
 	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, (void *)src_addr, nbytes);
 	  src_addr += nbytes;
 	}
+      } else {
+         break;	/* Stalled until owner thread initiates RDMA */
       }
-      data->state = 1;
+      data->state = 2;
 
-    case 1:
+    case 2:	/* Sync data movement */
       if (gasnete_mynode == args->srcnode) {
-        if (!gasnete_coll_generic_syncnb(data)) {
+        if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	  break;
         }
         gasneti_free(data->private);	/* the temporary srclist */
       }
-      data->state = 2;
+      data->state = 3;
 
-    case 2:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2183,20 +2197,24 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
 	void   *src   = args->src;
 	size_t nbytes = args->nbytes;
+	uintptr_t src_addr;
 	int i;
 	uint8_t *tmp = gasneti_malloc(nbytes * gasnete_coll_max_images);
+	void * const *p;
 
 	/* Send to nodes to the "right" of ourself */
 	if (gasnete_mynode < gasnete_nodes - 1) {
-	  uintptr_t src_addr = (uintptr_t)src + nbytes * gasnete_coll_all_offset[gasnete_mynode + 1];
+	  src_addr = (uintptr_t)src + nbytes * gasnete_coll_all_offset[gasnete_mynode + 1];
 	  for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
 	    uintptr_t dst_addr = (uintptr_t)tmp;
 	    int j, count = gasnete_coll_all_images[i];
@@ -2209,7 +2227,7 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	}
 	/* Send to nodes to the "left" of ourself */
 	if (gasnete_mynode > 0) {
-	  uintptr_t src_addr = (uintptr_t)src;
+	  src_addr = (uintptr_t)src;
 	  for (i = 0; i < gasnete_mynode; ++i) {
 	    uintptr_t dst_addr = (uintptr_t)tmp;
 	    int j, count = gasnete_coll_all_images[i];
@@ -2221,16 +2239,8 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  }
 	}
 	gasneti_free(tmp);
-      }
-      data->state = 1;
 
-    case 1:
-      if (gasnete_mynode == args->srcnode) {
-	void * const *p;
-	size_t nbytes = args->nbytes;
-	uintptr_t src_addr;
-	int i;
-	      
+	/* Local data movement */
 	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
 	src_addr = (uintptr_t)args->src + nbytes * gasnete_coll_my_offset;
 	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, src_addr += nbytes) {
@@ -2269,7 +2279,7 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2305,14 +2315,18 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
 
+    case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
 	void *src = args->src;
 	int i;
+	size_t nbytes = args->nbytes;
+	void * const *p;
+	uintptr_t src_addr;
 
 	/* Send to nodes to the "right" of ourself */
 	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
@@ -2322,46 +2336,32 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	for (i = 0; i < gasnete_mynode; ++i) {
 	  gasnete_coll_p2p_rendezvous(op, i, src, 0, 1);
 	}
-      }
-      data->state = 1;
 
-    case 1:
-      if (gasnete_mynode == args->srcnode) {
-        /* Do local copy, perhaps overlapping with communication */
-	size_t nbytes = args->nbytes;
-	int j;
-	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	uintptr_t src_addr = (uintptr_t)(args->src) + nbytes * gasnete_coll_my_offset;
-
-	for (j = 0; j < gasnete_coll_my_images; ++j, ++p, src_addr += nbytes) {
+	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
+	src_addr = (uintptr_t)(args->src) + nbytes * gasnete_coll_my_offset;
+	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, src_addr += nbytes) {
 	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, (void *)src_addr, nbytes);
 	}
+      } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
+	size_t nbytes = args->nbytes;
+
+	data->private = (void *)((uintptr_t)data->p2p->entry[0].addr + gasnete_coll_my_offset * nbytes);
+	data->handle = gasnete_geti(gasnete_synctype_nb, gasnete_coll_my_images, p, nbytes,
+				    args->srcnode, 1, &(data->private),
+				    nbytes * gasnete_coll_my_images GASNETE_THREAD_PASS);
       } else {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	} else {
-	  void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	  size_t nbytes = args->nbytes;
-
-	  data->private = (void *)((uintptr_t)p2p->entry[0].addr + gasnete_coll_my_offset * nbytes);
-
-	  data->handle = gasnete_geti(gasnete_synctype_nb, gasnete_coll_my_images, p, nbytes,
-				      args->srcnode, 1, &(data->private),
-				      nbytes * gasnete_coll_my_images GASNETE_THREAD_PASS);
-        }
+	break;	/* Stalled until owner thread receives address */
       }
       data->state = 2;
 
     case 2:
-      if (!gasnete_coll_generic_syncnb(data)) {
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	break;
       }
       data->state = 3;
 
-    case 3:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2443,12 +2443,16 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
-      if (gasnete_mynode == args->dstnode) {
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode != args->dstnode) {
+	/* Nothing to do */
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	void   *src   = args->src;
 	void   *dst   = args->dst;
 	size_t nbytes = args->nbytes;
@@ -2475,16 +2479,18 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
 	/* Do local copy LAST, perhaps overlapping with communication */
 	p = (uintptr_t)dst + nbytes * gasnete_mynode;
 	GASNETE_FAST_UNALIGNED_MEMCPY((void *)p, src, nbytes);
-      }
-      data->state = 1;
-
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2520,28 +2526,32 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
-	void *dst = (void *)((uintptr_t)(args->dst) + args->nbytes * gasnete_mynode);
-
-        if (gasnete_mynode == args->dstnode) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(dst, args->src, args->nbytes);
-        } else {
-	  data->handle = gasnete_put_nb_bulk(args->dstnode, dst, args->src,
-					     args->nbytes GASNETE_THREAD_PASS);
-        }
       }
       data->state = 1;
 
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
-	break;
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode == args->dstnode) {
+	void *dst = (void *)((uintptr_t)(args->dst) + args->nbytes * gasnete_mynode);
+	GASNETE_FAST_UNALIGNED_MEMCPY(dst, args->src, args->nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
+	void *dst = (void *)((uintptr_t)(args->dst) + args->nbytes * gasnete_mynode);
+	data->handle = gasnete_put_nb_bulk(args->dstnode, dst, args->src,
+					   args->nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2576,29 +2586,22 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
-
-      {
-	size_t nbytes = args->nbytes;
-        uintptr_t dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_mynode;
-	void *src = args->src;
-	gasnet_node_t dstnode = args->dstnode;
-
-        if (gasnete_mynode == dstnode) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, src, nbytes);
-	  gasneti_assert(data->p2p != NULL);
-	  gasneti_assert(data->p2p->state != NULL);
-	  data->p2p->state[dstnode] = 2;
-        } else {
-          gasnete_coll_p2p_eager_put(op, dstnode, src, nbytes, gasnete_mynode, 1);
-        }
-      }
       data->state = 1;
 
-    case 1:
+      /* Initiate data movement */
+      if (gasnete_mynode != args->dstnode) {
+	gasnete_coll_p2p_eager_put(op, args->dstnode, args->src, args->nbytes, gasnete_mynode, 1);
+      } else {
+	GASNETE_FAST_UNALIGNED_MEMCPY((void *)((uintptr_t)(args->dst) + args->nbytes * gasnete_mynode),
+				      args->src, args->nbytes);
+	data->p2p->state[gasnete_mynode] = 1;
+      }
+
+    case 1:	/* Complete data movement */
       if (gasnete_mynode == args->dstnode) {
 	gasnete_coll_p2p_t *p2p = data->p2p;
 	gasnete_coll_p2p_entry_t *entry;
@@ -2631,7 +2634,7 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2667,12 +2670,15 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->dstnode) {
+	size_t nbytes = args->nbytes;
 	void *dst = args->dst;
 	int i;
 
@@ -2684,39 +2690,27 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	for (i = 0; i < gasnete_mynode; ++i) {
 	  gasnete_coll_p2p_rendezvous(op, i, dst, 0, 1);
 	}
-      }
-      data->state = 1;
 
-    case 1:
-      if (gasnete_mynode == args->dstnode) {
-	/* Do local copy, perhaps overlapping with communication */
+	GASNETE_FAST_UNALIGNED_MEMCPY((void *)((uintptr_t)dst + gasnete_mynode * nbytes),
+				      args->src, nbytes);
+      } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	size_t nbytes = args->nbytes;
-        uintptr_t dst_addr = (uintptr_t)args->dst + gasnete_mynode * nbytes;
-	GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, args->src, nbytes);
+        uintptr_t dst_addr = (uintptr_t)data->p2p->entry[0].addr + gasnete_mynode * nbytes;
+
+	data->handle = gasnete_put_nb_bulk(args->dstnode, (void *)dst_addr, args->src,
+					   nbytes GASNETE_THREAD_PASS);
       } else {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	} else {
-	  size_t nbytes = args->nbytes;
-          uintptr_t dst_addr = (uintptr_t)p2p->entry[0].addr + gasnete_mynode * nbytes;
-
-	  data->handle = gasnete_put_nb_bulk(args->dstnode, (void *)dst_addr, args->src,
-					     nbytes GASNETE_THREAD_PASS);
-	}
+	  break;	/* Stalled until owner thread receives address */
       }
       data->state = 2;
 
-    case 2:
-      if (!gasnete_coll_generic_syncnb(data)) {
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	break;
       }
       data->state = 3;
 
-    case 3:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2797,12 +2791,16 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
-      if (gasnete_mynode == args->dstnode) {
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode != args->dstnode) {
+	/* Nothing to do */
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
 	size_t nbytes = args->nbytes;
 	uintptr_t dst_addr;
 	int i;
@@ -2855,19 +2853,21 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
 	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
 	  dst_addr += nbytes;
 	}
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
-      data->state = 1;
+      data->state = 2;
 
-    case 1:
+    case 2:	/* Sync data movement */
       if (gasnete_mynode == args->dstnode) {
-        if (!gasnete_coll_generic_syncnb(data)) {
+        if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	  break;
         }
         gasneti_free(data->private);	/* the temporary dstlist */
       }
-      data->state = 2;
+      data->state = 3;
 
-    case 2:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2903,40 +2903,43 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   gasneti_assert(op->flags & GASNET_COLL_SINGLE);
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
+      }
+      data->state = 1;
+
+    case 1:	/* Initiate data movement */
+      if (gasnete_mynode == args->dstnode) {
 	size_t nbytes = args->nbytes;
 	uintptr_t dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
 	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, 0);
+	int i;
 
-        if (gasnete_mynode == args->dstnode) {
-	  int i;
+	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, dst_addr += nbytes) {
+	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
+	}
+      } else if (GASNETE_COLL_CHECK_OWNER(data)) {
+	size_t nbytes = args->nbytes;
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, 0);
 
-	  for (i = 0; i < gasnete_coll_my_images; ++i) {
-	    GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
-	    ++p;
-	    dst_addr += nbytes;
-	  }
-        } else {
-	  data->private = (void *)dst_addr; 	/* free 1-element arrary :-) */
-	  data->handle = gasnete_puti(gasnete_synctype_nb,
-			  	      args->dstnode, 1, &(data->private), gasnete_coll_my_images * nbytes,
-				      gasnete_coll_my_images, p, nbytes GASNETE_THREAD_PASS);
-        }
+	data->private = (void *)((uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset);
+	data->handle = gasnete_puti(gasnete_synctype_nb,
+			  	    args->dstnode, 1, &(data->private), gasnete_coll_my_images * nbytes,
+				     gasnete_coll_my_images, p, nbytes GASNETE_THREAD_PASS);
+      } else {
+	break;	/* Stalled until owner thread initiates RDMA */
       }
+      data->state = 2;
 
-      data->state = 1;
-
-    case 1:
-      if (!gasnete_coll_generic_syncnb(data)) {
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	break;
       }
 
-      data->state = 2;
+      data->state = 3;
 
-    case 2:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -2971,43 +2974,47 @@ static int gasnete_coll_pf_gathM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
-
-      {
-	size_t nbytes = args->nbytes;
-	gasnet_node_t dstnode = args->dstnode;
-	int j;
-	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
-	uintptr_t dst_addr;
-
-        if (gasnete_mynode == dstnode) {
-	  volatile uint32_t *s = &(data->p2p->state[gasnete_coll_my_offset]);
-
-          dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
-	  for (j = 0; j < gasnete_coll_my_images; ++j, ++p, ++s, dst_addr += nbytes) {
-	    GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
-	    *s = 2;
-	  }
-        } else {
-	  /* Pack an array of values for the dstnode to unpack */
-	  void * tmp = gasneti_malloc(gasnete_coll_my_images * nbytes);
-	  
-	  dst_addr = (uintptr_t)tmp;
-	  for (j = 0; j < gasnete_coll_my_images; ++j, ++p, dst_addr += nbytes) {
-	    GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
-	  }
-
-          gasnete_coll_p2p_eager_putM(op, dstnode, tmp, gasnete_coll_my_images,
-				      nbytes, gasnete_coll_my_offset, 1);
-	  gasneti_free(tmp);
-        }
-      }
       data->state = 1;
 
-    case 1:
+      /* Initiate data movement */
+      if (gasnete_mynode != args->dstnode) {
+	size_t nbytes = args->nbytes;
+	void * const *p;
+	void * tmp;
+	uintptr_t dst_addr;
+	int i;
+
+	/* Pack an array of values for the dstnode to unpack */
+	tmp = gasneti_malloc(gasnete_coll_my_images * nbytes);
+	dst_addr = (uintptr_t)tmp;
+	p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
+	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, dst_addr += nbytes) {
+	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
+	}
+        gasnete_coll_p2p_eager_putM(op, args->dstnode, tmp, gasnete_coll_my_images,
+				    nbytes, gasnete_coll_my_offset, 1);
+	gasneti_free(tmp);
+      } else {
+	size_t nbytes = args->nbytes;
+	uintptr_t dst_addr;
+	void * const *p;
+	volatile uint32_t *s;
+	int i;
+
+        dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
+	s = &(data->p2p->state[gasnete_coll_my_offset]);
+	p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
+	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, ++s, dst_addr += nbytes) {
+	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
+	  *s = 2;
+        }
+      }
+
+    case 1:	/* Complete data movement */
       if (gasnete_mynode == args->dstnode) {
 	gasnete_coll_p2p_t *p2p = data->p2p;
 	gasnete_coll_p2p_entry_t *entry;
@@ -3040,7 +3047,7 @@ static int gasnete_coll_pf_gathM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       }
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3076,14 +3083,19 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
       }
+      data->state = 1;
 
+    case 1:
       if (gasnete_mynode == args->dstnode) {
 	void *dst = args->dst;
+	size_t nbytes = args->nbytes;
 	int i;
+	void * const *p;
+	uintptr_t dst_addr;
 
 	/* Send to nodes to the "right" of ourself */
 	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
@@ -3093,47 +3105,32 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	for (i = 0; i < gasnete_mynode; ++i) {
 	  gasnete_coll_p2p_rendezvous(op, i, dst, 0, 1);
 	}
-      }
-      data->state = 1;
 
-    case 1:
-      if (gasnete_mynode == args->dstnode) {
-	/* Do local copy, perhaps overlapping with communication */
-	size_t nbytes = args->nbytes;
-	int j;
-	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
-	uintptr_t dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
-
-	for (j = 0; j < gasnete_coll_my_images; ++j, ++p, dst_addr += nbytes) {
+	p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
+	dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
+	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, dst_addr += nbytes) {
 	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
 	}
+      } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
+	size_t nbytes = args->nbytes;
+
+	data->private = (void *)((uintptr_t)data->p2p->entry[0].addr + gasnete_coll_my_offset * nbytes);
+	data->handle = gasnete_puti(gasnete_synctype_nb,
+				    args->dstnode, 1, &(data->private), nbytes * gasnete_coll_my_images,
+				    gasnete_coll_my_images, p, nbytes GASNETE_THREAD_PASS);
       } else {
-	gasnete_coll_p2p_t *p2p = data->p2p;
-
-	gasneti_assert(p2p);
-
-	if (!p2p->state[0]) {
-	  break;
-	} else {
-	  void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
-	  size_t nbytes = args->nbytes;
-
-	  data->private = (void *)((uintptr_t)p2p->entry[0].addr + gasnete_coll_my_offset * nbytes);
-
-	  data->handle = gasnete_puti(gasnete_synctype_nb,
-				      args->dstnode, 1, &(data->private), nbytes * gasnete_coll_my_images,
-				      gasnete_coll_my_images, p, nbytes GASNETE_THREAD_PASS);
-	}
+	break;	/* Stalled until owner thread initiates receives address */
       }
       data->state = 2;
 
     case 2:
-      if (!gasnete_coll_generic_syncnb(data)) {
+      if (!gasnete_coll_generic_syncnb(data GASNETE_THREAD_PASS)) {
 	break;
       }
       data->state = 3;
 
-    case 3:
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3213,10 +3210,14 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
+      }
+      data->state = 1;
+
+      /* Initiate data movement */
+      {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3238,16 +3239,13 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         }
       }
 
-      data->state = 1;
-
-    case 1:
+    case 1:	/* Sync data movement */
       if (!gasnete_coll_generic_coll_sync(data->private, gasnete_nodes GASNETE_THREAD_PASS)) {
 	break;
       }
-
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3310,10 +3308,14 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
+      }
+      data->state = 1;
+
+      /* Initiate data movement */
+      {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3338,16 +3340,13 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         }
       }
 
-      data->state = 1;
-
-    case 1:
+    case 1:	/* Sync data movement */
       if (!gasnete_coll_generic_coll_sync(data->private, gasnete_coll_total_images GASNETE_THREAD_PASS)) {
 	break;
       }
-
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3410,10 +3409,14 @@ static int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
+      }
+      data->state = 1;
+
+      /* Initiate data movement */
+      {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3435,16 +3438,13 @@ static int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         }
       }
 
-      data->state = 1;
-
-    case 1:
+    case 1:	/* Sync data movement */
       if (!gasnete_coll_generic_coll_sync(data->private, gasnete_nodes GASNETE_THREAD_PASS)) {
 	break;
       }
-
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3507,10 +3507,14 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   int result = 0;
 
   switch (data->state) {
-    case 0:
+    case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_insync(data)) {
 	break;
-      } else {
+      }
+      data->state = 1;
+
+      /* Initiate data movement */
+      {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3549,16 +3553,13 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         }
       }
 
-      data->state = 1;
-
-    case 1:
+    case 1:	/* Sync data movement */
       if (!gasnete_coll_generic_coll_sync(data->private, gasnete_coll_total_images GASNETE_THREAD_PASS)) {
 	break;
       }
-
       data->state = 2;
 
-    case 2:
+    case 2:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
