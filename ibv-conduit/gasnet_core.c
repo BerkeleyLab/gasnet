@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/08 16:11:29 $
- * $Revision: 1.21.2.1 $
+ *     $Date: 2003/10/08 18:25:18 $
+ * $Revision: 1.21.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -122,18 +122,18 @@ static void gasnetc_check_config() {
 
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end) {
   #if defined(GASNET_SEGMENT_FAST)
-    if ((start >= gasnetc_seg_reg.start) && (end <= gasnetc_seg_reg.end)) {
+    if ((start >= gasnetc_seg_reg.addr) && (end <= gasnetc_seg_reg.end)) {
       return &gasnetc_seg_reg;
     }
   #else
     /* (###) implement firehose */
   #endif
 
-  if ((start >= gasnetc_rcv_reg.start) && (end <= gasnetc_rcv_reg.end)) {
+  if ((start >= gasnetc_rcv_reg.addr) && (end <= gasnetc_rcv_reg.end)) {
     return &gasnetc_rcv_reg;
   }
 
-  if ((start >= gasnetc_snd_reg.start) && (end <= gasnetc_snd_reg.end)) {
+  if ((start >= gasnetc_snd_reg.addr) && (end <= gasnetc_snd_reg.end)) {
     return &gasnetc_snd_reg;
   }
 
@@ -183,11 +183,11 @@ static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasne
 
   vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &reg->handle, &mr_out);
 
-  reg->lkey	= mr_out.l_key;
-  reg->rkey	= mr_out.r_key;
-  reg->start	= mr_out.start;
-  reg->end	= mr_out.start + (mr_out.size - 1); /* subtract first to avoid overflow */
-  reg->size	= mr_out.size;
+  reg->lkey     = mr_out.l_key;
+  reg->rkey     = mr_out.r_key;
+  reg->addr     = mr_out.start;
+  reg->len      = mr_out.size;
+  reg->end      = mr_out.start + (mr_out.size - 1);
   reg->req_addr = addr;
   reg->req_size = size;
 
@@ -491,10 +491,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   assert(gasnetc_hca_cap.max_num_cq >= 2);
   assert(gasnetc_hca_cap.max_num_ent_cq >= gasnetc_op_oust_limit);
   assert(gasnetc_hca_cap.max_num_ent_cq >= gasnetc_am_oust_limit * 2); /* request + reply == 2 */
-  #if defined(GASNET_SEGMENT_LARGE) || defined(GASNET_SEGMENT_EVERYTHING)
-    assert(gasnetc_hca_cap.max_num_mr >= (3+gasnetc_nodes));	/* rcv bufs, snd bufs, segment, n*fh */
-  #else
+  #if defined(GASNET_SEGMENT_FAST)
     assert(gasnetc_hca_cap.max_num_mr >= 3);			/* rcv bufs, snd bufs, segment */
+  #else
+    assert(gasnetc_hca_cap.max_num_mr >= (2+gasnetc_nodes));	/* rcv bufs, snd bufs, n*fh */
   #endif
   assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
 
@@ -860,13 +860,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* (###) add any code here needed to setup firehose support */
   #if !defined(GASNET_SEGMENT_FAST)
   {
-    /* Get global min-of-max physical memory */
     struct gasnetc_fh_info {
       uintptr_t	memsize;
       size_t    regions;
-    };
+    } my_info, *all_info;
     int i;
-    struct gasnetc_fh_info my_info, *all_info;
+    firehose_region_t prereg[2];
+
+    /* Get global min-of-max physical memory */
     all_info = gasneti_malloc(gasnetc_nodes * sizeof(*all_info));
     my_info.memsize = gasnetc_max_pinnable();
     my_info.regions = gasnetc_hca_cap.max_num_mr;
@@ -877,10 +878,22 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
     gasneti_free(all_info);
 
-    /* ### Setup prepinned regions list */
+    /* Setup prepinned regions list */
+    prereg[0].addr          = gasnetc_snd_reg.addr;
+    prereg[0].len           = gasnetc_snd_reg.len;
+    prereg[0].client.handle = gasnetc_snd_reg.handle;
+    prereg[0].client.lkey   = gasnetc_snd_reg.lkey;
+    prereg[0].client.rkey   = gasnetc_snd_reg.rkey;
+    prereg[1].addr          = gasnetc_rcv_reg.addr;
+    prereg[1].len           = gasnetc_rcv_reg.len;
+    prereg[1].client.handle = gasnetc_rcv_reg.handle;
+    prereg[1].client.lkey   = gasnetc_rcv_reg.lkey;
+    prereg[1].client.rkey   = gasnetc_rcv_reg.rkey;
 
     /* Now initialize firehose */
-    firehose_init(my_info.memsize, my_info.regions, NULL, 0, &gasnetc_firehose_info);
+    firehose_init(my_info.memsize, my_info.regions,
+		  prereg, sizeof(prereg)/sizeof(prereg[0]),
+		  &gasnetc_firehose_info);
   }
   #endif
 
