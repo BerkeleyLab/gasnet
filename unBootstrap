@@ -24,6 +24,7 @@ rm -f Makefile.in              \
       udp-conduit/Makefile.in  \
       vapi-conduit/Makefile.in \
       vapi-conduit/contrib/Makefile.in   \
+      shmem-conduit/Makefile.in \
       other/Makefile.in        \
       other/ammpi/Makefile.in  \
       other/amudp/Makefile.in  \

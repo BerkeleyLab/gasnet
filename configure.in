@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/11 08:46:07 $
-# $Revision: 1.116 $
+#     $Date: 2004/03/11 11:19:11 $
+# $Revision: 1.116.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.116 $)
+AC_REVISION($Revision: 1.116.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -414,6 +414,13 @@ case "$target_os" in
   linux*) 
 	AC_DEFINE(LINUX)
 	GASNET_MACHINE_DEFINES="-DLINUX"
+	# Check for SGI Altix, using a device heuristic.  SGI has assured us
+	# that /dev/hw is specific (and standard) on their system
+	GASNET_MACHINE_DEFINES="-DLINUX"
+	if test -d "/dev/hw/cpunum"; then
+	  AC_DEFINE(ALTIX)
+	  GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DALTIX"
+	fi
         # Defining _GNU_SOURCE gives us accesss to the "adaptive"
         # implementation of pthread_mutex_t, which is faster then
         # the default implementation for our purposes.
@@ -772,7 +779,11 @@ if test $enabled_mpi = yes; then
     	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
 	fi
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
+	if test x"$gasnet_cv_cc_is_t3e" = x"yes"; then
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
+	else
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -n %N %C)
+	fi
         ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
@@ -1111,6 +1122,102 @@ AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$mpi_test_worked" = yes)
+#--------------------------------------------------------------------------------------------------------
+# SHMEM configuration
+
+GASNET_IF_ENABLED(shmem, Enable the SHMEM network conduit, 
+  have_shmem=yes,
+  have_shmem=no)
+
+if test $have_shmem = yes; then
+  SHMEM_FLAVOUR="unknown"
+
+  AC_MSG_CHECKING(for SHMEM network type)
+
+  case "$target_os" in
+    unicos*)
+      AC_MSG_RESULT(Cray)
+      GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /opt/ctl/mpt/mpt/include)
+      GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /opt/ctl/mpt/mpt/lib)
+      GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lsma")
+      SHMEM_FLAVOUR="CRAY_SHMEM"
+      ;;
+    irix*)
+      AC_MSG_ERROR(Currently no access to shmem on IRIX)
+      have_shmem=no
+      ;;
+    # Linux shmem may mean Quadrics shmem, or SGI shmem.  A first try is to
+    # look for _ELAN_SHMEM_H in /usr/include/shmem.h.
+    linux*)
+      # This first case should catch Elan shmem 
+      if test -e ${SHMEM_INCLUDE}/shmem.h; then
+	is_quadrics=`grep ELAN_SHMEM ${SHMEM_INCLUDE}/shmem.h`
+	if test -n "$is_quadrics"; then
+	  SHMEM_FLAVOUR="ELAN_SHMEM"
+	  AC_MSG_RESULT(Quadrics/Elan)
+	  GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+	  GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
+	  GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lshmem")
+	fi
+      fi
+
+      # If we still havn't found what shmem we are on, guess at SGI shmem,
+      # which doesn't set any meaningful symbols and follows the cray mpp/
+      # include convention
+      if test x"${SHMEM_FLAVOUR}" = x"unknown"; then
+	SHMEM_FLAVOUR="SGI_SHMEM"
+	AC_MSG_RESULT(SGI)
+	AC_MSG_WARN(Guessing at SGI shmem platform)
+	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
+        GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lsma")
+      fi
+      ;;
+    *)
+      AC_MSG_RESULT(Unknown)
+      ;;
+  esac
+
+  if test x"${SHMEM_FLAVOUR}" = x"unknown"; then
+    AC_MSG_WARN(shmem conduit disabled: I don't know of the current shmem platform)
+    have_shmem=no
+  else
+    OLDCFLAGS="$CFLAGS"
+    OLDLIBS="$LIBS"
+    CFLAGS="-I${SHMEM_INCLUDE}/mpp -I${SHMEM_INCLUDE}"
+    LIBS="-L${SHMEM_LIBDIR} ${SHMEM_LIBS}"
+    SHMEM_FLAGS="-D${SHMEM_FLAVOUR}"
+
+    AC_MSG_CHECKING(for working SHMEM configuration)
+    # only include shmem.h even if some prescribe <mpp/shmem.h> and rely on the
+    # include search directories to be correct.  This approach is more general
+    AC_TRY_LINK( [
+      #include <shmem.h>
+    ], [{
+      int mype, numpes;
+  
+      mype = shmem_my_pe();
+      numpes = shmem_n_pes();
+      }], [ shmem_test_worked=yes ], [ shmem_test_worked=no ] )
+    CFLAGS="$OLDCFLAGS"
+    LIBS="$OLDLIBS"
+  
+    if test "$shmem_test_worked" = yes; then
+      AC_MSG_RESULT(yes)
+      SHMEM_FLAGS="-D${SHMEM_FLAVOUR} "
+    else
+      AC_MSG_RESULT(no)
+      AC_MSG_ERROR(build test failed: I don't know how to build SHMEM programs on your system)
+      have_shmem=no
+    fi
+  fi
+fi
+
+AC_SUBST(SHMEM_INCLUDE)
+AC_SUBST(SHMEM_LIBDIR)
+AC_SUBST(SHMEM_LIBS)
+AC_SUBST(SHMEM_FLAGS)
+AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$have_shmem" = yes)
 
 ########################################################################
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2004/03/05 15:02:49 $
- * $Revision: 1.24 $
+ *     $Date: 2004/03/11 11:19:11 $
+ * $Revision: 1.24.2.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* include files that may conflict with macros defined later */
-#if defined(IRIX) || defined(HPUX) || defined(UNICOS)
+#if defined(IRIX) || defined(HPUX) || defined(CRAYX1)
   #include <sys/param.h>
 #endif
 
