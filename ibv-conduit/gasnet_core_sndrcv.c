@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/02/05 00:52:20 $
- * $Revision: 1.23.6.13 $
+ *     $Date: 2004/02/05 18:43:59 $
+ * $Revision: 1.23.6.14 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1501,19 +1501,14 @@ extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, 
  * #######################################
  */
 
-GASNET_INLINE_MODIFIER(gasnetc_fh_post_inline)
-void gasnetc_fh_post_inline(gasnetc_sreq_t *sreq) {
-  sreq->has_fh_rem = 1;
-  sreq->sr_desc.r_key = sreq->fh_rem.client.rkey;
-  gasnetc_snd_post_inline(sreq);
-}
-
 static void gasnetc_fh_put_inline(void *context, const firehose_request_t *req, int allLocalHit) {
   gasnetc_sreq_t *sreq = context;
 
   gasneti_assert(req == &(sreq->fh_rem));
 
-  gasnetc_fh_post_inline(sreq);
+  sreq->has_fh_rem = 1;
+  sreq->sr_desc.r_key = sreq->fh_rem.client.rkey;
+  gasnetc_snd_post_inline(sreq);
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_fh_post)
@@ -1539,24 +1534,20 @@ static void gasnetc_fh_getput(void *context, const firehose_request_t *req, int 
  * We initiate exactly one RDMA, returning the number of bytes it contains.
  */
 GASNET_INLINE_MODIFIER(gasnetc_fh_hit)
-size_t gasnetc_fh_hit(int is_put, gasnet_node_t node, gasnetc_sreq_t *sreq,
+size_t gasnetc_fh_hit(gasnet_node_t node, gasnetc_sreq_t *sreq,
 		      uintptr_t loc_addr, size_t len) {
   const firehose_request_t *req;
+  size_t limit;
 
-  if_pt (is_put && (GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) {
-    sreq->sr_sg[0].len = len;
-    gasnetc_fh_post_inline(sreq);
-  } else {
-    /* Local (mis)alignment could limit how much we can pin */
-    size_t limit = gasnetc_fh_maxsz - (loc_addr & (FH_BUCKET_SIZE - 1));
-    len = MIN(len, limit);
-    sreq->sr_sg[0].len = len;
+  /* Local (mis)alignment could limit how much we can pin */
+  limit = gasnetc_fh_maxsz - (loc_addr & (FH_BUCKET_SIZE - 1));
+  len = MIN(len, limit);
+  sreq->sr_sg[0].len = len;
 
-    req = firehose_local_pin(loc_addr, len, &sreq->fh_loc);
-    gasneti_assert(req == &(sreq->fh_loc));
+  req = firehose_local_pin(loc_addr, len, &sreq->fh_loc);
+  gasneti_assert(req == &(sreq->fh_loc));
 
-    gasnetc_fh_post(sreq);
-  }
+  gasnetc_fh_post(sreq);
 
   return len;
 }
@@ -1565,33 +1556,27 @@ size_t gasnetc_fh_hit(int is_put, gasnet_node_t node, gasnetc_sreq_t *sreq,
  * We initiate exactly one RDMA, returning the number of bytes it contains.
  */
 GASNET_INLINE_MODIFIER(gasnetc_fh_miss)
-size_t gasnetc_fh_miss(int is_put, gasnet_node_t node, gasnetc_sreq_t *sreq,
+size_t gasnetc_fh_miss(gasnet_node_t node, gasnetc_sreq_t *sreq,
 		       uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
   const firehose_request_t *req;
+  size_t limit;
 
-  if (is_put && (GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) {
-    sreq->sr_sg[0].len = len;
-    req = firehose_remote_pin(node, rem_addr, len, 0, &sreq->fh_rem,
-			      NULL, &gasnetc_fh_put_inline, sreq);
-    gasneti_assert(req == NULL);
-  } else {
-    /* Both local and remote (mis)alignment could limit how much we can pin */
-    size_t limit = gasnetc_fh_maxsz - MAX(loc_addr & (FH_BUCKET_SIZE - 1),
-					  rem_addr & (FH_BUCKET_SIZE - 1));
-    len = MIN(len, limit);
-    sreq->sr_sg[0].len = len;
+  /* Both local and remote (mis)alignment could limit how much we can pin */
+  limit = gasnetc_fh_maxsz - MAX(loc_addr & (FH_BUCKET_SIZE - 1),
+				 rem_addr & (FH_BUCKET_SIZE - 1));
+  len = MIN(len, limit);
+  sreq->sr_sg[0].len = len;
 
-    gasneti_atomic_set(&sreq->fh_oust, 2);
-    req = firehose_remote_pin(node, rem_addr, len, 0, &sreq->fh_rem,
-			      NULL, &gasnetc_fh_getput, sreq);
-    gasneti_assert(req == NULL);
+  gasneti_atomic_set(&sreq->fh_oust, 2);
+  req = firehose_remote_pin(node, rem_addr, len, 0, &sreq->fh_rem,
+			    NULL, &gasnetc_fh_getput, sreq);
+  gasneti_assert(req == NULL);
 
-    req = firehose_local_pin(loc_addr, len, &sreq->fh_loc);
-    gasneti_assert(req == &(sreq->fh_loc));
+  req = firehose_local_pin(loc_addr, len, &sreq->fh_loc);
+  gasneti_assert(req == &(sreq->fh_loc));
   
-    if (gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
-      gasnetc_fh_post(sreq);
-    }
+  if (gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
+    gasnetc_fh_post(sreq);
   }
 
   return len;
@@ -1605,23 +1590,30 @@ int gasnetc_fh_helper(int is_put, gasnet_node_t node, gasnetc_sreq_t *sreq,
   sreq->sr_desc.remote_addr = rem_addr;
   sreq->sr_sg[0].addr       = loc_addr;
 
-  /* See how much (if any) is already pinned.
-   * Note that it is safe to ask about 'len' without checking ant limits first.  */
-  req = firehose_partial_remote_pin(node, rem_addr, len, 0, &sreq->fh_rem);
-  gasneti_assert((req == NULL) || (req == &sreq->fh_rem));
-
-  if_pt (req && (req->addr <= rem_addr)) {
-    /* HIT in remote firehose table - some initial part of the region is pinned */
-    len = MIN(len, req->addr + req->len - rem_addr);	/* trim to pinned region */
-    len = gasnetc_fh_hit(is_put, node, sreq, loc_addr, len);
+  if (is_put && (GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) {
+    sreq->sr_sg[0].len = len;
+    req = firehose_remote_pin(node, rem_addr, len, 0, &sreq->fh_rem,
+			      NULL, &gasnetc_fh_put_inline, sreq);
+    gasneti_assert(req == NULL);
   } else {
-    /* Some initial part or all of the region is unpinned */
-    if_pt (req) {
-      len = MIN(len, req->addr - rem_addr);	/* trim to unpinned portion */
-      firehose_release(&req, 1);	/* avoid deadlock */
-      /* XXX: could/should try to initiate RDMA here rather then releasing */
+    /* See how much (if any) is already pinned.
+     * Note that it is safe to ask about 'len' without checking any limits first.  */
+    req = firehose_partial_remote_pin(node, rem_addr, len, 0, &sreq->fh_rem);
+    gasneti_assert((req == NULL) || (req == &sreq->fh_rem));
+
+    if_pt (req && (req->addr <= rem_addr)) {
+      /* HIT in remote firehose table - some initial part of the region is pinned */
+      len = MIN(len, req->addr + req->len - rem_addr);	/* trim to pinned region */
+      len = gasnetc_fh_hit(node, sreq, loc_addr, len);
+    } else {
+      /* Some initial part or all of the region is unpinned */
+      if_pt (req) {
+        len = MIN(len, req->addr - rem_addr);	/* trim to unpinned portion */
+        firehose_release(&req, 1);	/* avoid deadlock */
+        /* XXX: could/should try to initiate RDMA here rather then releasing */
+      }
+      len = gasnetc_fh_miss(node, sreq, loc_addr, rem_addr, len);
     }
-    len = gasnetc_fh_miss(is_put, node, sreq, loc_addr, rem_addr, len);
   }
 
   return len;
