@@ -36,6 +36,11 @@ int fhc_MaxRemoteBuckets;
 int *fhc_RemoteBucketsUsed;
 int *fhc_RemoteVictimFifoBuckets;
 
+/* Freelist of fhi_RegionPool_t */ 
+static FH_STAILQ_HEAD(_fhi_regpool_list_t, _fhi_RegionPool_t) fhi_regpool_list;
+static int fhi_regpool_num = 0;
+static int fhi_regpool_numbig = 0;
+
 /* ##################################################################### */
 /* PUBLIC FIREHOSE INTERFACE                                             */
 /* ##################################################################### */
@@ -123,6 +128,9 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 		fhc_RemoteVictimFifoBuckets[i] = 0;
 	}
 
+        /* Init the region pool freelist */
+        FH_STAILQ_INIT(&fhi_regpool_list);
+
 	/* Initialize -page OR -region specific data. _MUST_ be the last thing
 	 * called before return */
 	fh_init_plugin(max_pinnable_memory, max_regions, prepinned_regions, 
@@ -150,6 +158,14 @@ firehose_fini()
 	gasneti_free(fh_RemoteNodeFifo);
         gasneti_free(fhc_RemoteBucketsUsed);
         gasneti_free(fhc_RemoteVictimFifoBuckets);
+
+	/* Free the region pool freelist */
+	while (!FH_STAILQ_EMPTY(&fhi_regpool_list)) {
+		fhi_RegionPool_t *rpool;
+		rpool = FH_STAILQ_FIRST(&fhi_regpool_list);
+		FH_STAILQ_REMOVE_HEAD(&fhi_regpool_list);
+		gasneti_free(rpool);
+	}
 
 	/* Deallocate the arrays of request_t buffers used, if applicable */
 	for (i = 0; i < 256; i++) {
@@ -833,4 +849,288 @@ fh_priv_release(gasnet_node_t node, firehose_private_t *entry)
 			return rp;
 		}
 	}
+}
+
+/*
+ * Victim FIFO handling (remote and local)
+ *
+ * The local FIFO can be freed in order to replace existing pinned (but unused)
+ * entries for new ones.  The FIFO can be freed either by a local pin request
+ * that frees unused entries to pin new ones or by a local release which
+ * happens to overcommit the FIFO.  In the latter case, enough LRU elements in
+ * the FIFO are freed to remain within the established firehose limits.
+ *
+ */
+
+/* fhi_FreeVictimLocal(count, reg)
+ *
+ * FreeVictim for the local bucket fifo.
+ */
+GASNET_INLINE_MODIFIER(fhi_FreeVictimLocal)
+int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
+{
+	assert(count <= fhc_LocalVictimFifoBuckets);
+	return fh_FreeVictim(count, reg, &fh_LocalFifo);
+}
+
+/* fhi_FreeVictimRemote(node, count, reg)
+ *
+ * FreeVictim for the local bucket fifo.
+ */
+GASNET_INLINE_MODIFIER(fhi_FreeVictimRemote)
+int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
+{
+	assert(count <= fhc_RemoteVictimFifoBuckets[node]);
+	return fh_FreeVictim(count, reg, &fh_RemoteNodeFifo[node]);
+}
+
+/*
+ * Waiting/Polling for local and remote firehoses
+ *
+ * The WaitLocalBucketsInFlight() function stalls a local pin operation in
+ * order to respect the upper bound on the total number of buckets in flight
+ * (represented by the fhc_LocalOnlyBucketsInFlight counter).
+ *
+ * The WaitLocalFirehoses() and WaitRemoteFirehoses() functions stall on the
+ * appropriate FIFO waiting on the total number of firehoses available for
+ * replacement.  The replacement firehoses are placed in the supplied array
+ * or regions, which must be large enough to hold 'count' regions (worst
+ * case is one region per firehose).  These functions return the number of
+ * regions in the array, which may be less than the number of requested
+ * firehoses if coalescing was possible.
+ *
+ * TODO:  Firehose should implement a deadlock-free and starvation-free polling
+ *        mechanism for threaded clients.
+ */
+
+void
+fh_WaitLocalFirehosesInFlight(int count)
+{
+	int	b_remain, b_avail;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	if_pt (fhc_LocalOnlyBucketsInFlight + count <= fhc_MaxVictimBuckets) {
+		fhc_LocalOnlyBucketsInFlight += count;
+		return;
+	}
+
+	GASNETI_TRACE_PRINTF(C, ("Firehose Outstanding number of "
+	    "buckets in flight reached threshold %d", fhc_MaxVictimBuckets));
+
+	b_remain = count;
+
+	while (b_remain > 0) {
+		b_avail = MIN(b_remain, 
+		        fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsInFlight);
+
+		if (b_avail > 0) {
+			fhc_LocalOnlyBucketsInFlight += b_avail;
+			b_remain -= b_avail;
+		}
+		else {
+			FH_TABLE_UNLOCK;
+			gasnet_AMPoll();
+			FH_TABLE_LOCK;
+		}
+	}
+
+	return;
+}
+
+int
+fh_WaitLocalFirehoses(int count, firehose_region_t *region)
+{
+	int			b_remain, b_avail, r_freed;
+	firehose_region_t	*reg = region;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	assert(fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned >= 0);
+	b_avail = MIN(count, fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned);
+	fhc_LocalOnlyBucketsPinned += b_avail;
+
+	b_remain = count - b_avail;
+
+	if (b_remain == 0)
+		return 0;
+
+	GASNETI_TRACE_PRINTF(C, ("Firehose Polls Local pinned needs to recover"
+	    " %d buckets from FIFO (currently %d buckets)", b_remain,
+	    fhc_LocalVictimFifoBuckets));
+
+	while (b_remain > 0) {
+		b_avail = MIN(b_remain, fhc_LocalVictimFifoBuckets);
+
+		if (b_avail > 0) {
+			/* Adjusts LocalVictimFifoBuckets count */
+			r_freed = fhi_FreeVictimLocal(b_avail, reg);
+			fhc_LocalVictimFifoBuckets -= b_avail;
+			b_remain -= b_avail;
+			reg += r_freed;
+		}
+		else {
+			FH_TABLE_UNLOCK;
+			gasnet_AMPoll();
+			FH_TABLE_LOCK;
+		}
+	}
+
+	assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
+	assert(reg - region >= 0);
+
+	return (int) (reg - region);
+}
+
+int
+fh_WaitRemoteFirehoses(gasnet_node_t node, int count, 
+			firehose_region_t *region)
+{
+	int			b_remain, b_avail, r_freed;
+	firehose_region_t	*reg = region;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	b_remain = count;
+
+	GASNETI_TRACE_PRINTF(C, 
+	   ("Firehose Polls Remote firehoses requires %d buckets (FIFO=%d)",
+	   count, fhc_RemoteVictimFifoBuckets[node]));
+
+	while (b_remain > 0) {
+		b_avail = MIN(b_remain, fhc_RemoteVictimFifoBuckets[node]);
+
+		if (b_avail > 0) {
+			r_freed = fhi_FreeVictimRemote(node, b_avail, reg);
+			fhc_RemoteVictimFifoBuckets[node] -= b_avail;
+			b_remain -= b_avail;
+			reg += r_freed;
+		}
+		else {
+			FH_TABLE_UNLOCK;
+			gasnet_AMPoll();
+			FH_TABLE_LOCK;
+		}
+	}
+
+	assert(fhc_RemoteVictimFifoBuckets[node] >= 0);
+	assert(reg - region > 0);
+
+	return (int) (reg - region);
+}
+
+/* fh_AdjustLocalFifoAndPin(): Given a vector of regions to pin, this
+ *    function makes the call to firehose_move_callback() by also including
+ *    a list of regions to unpin if the victim FIFO was overcommitted.
+ *      * called when releasing locally (w/ reg_pin == NULL)
+ *	* called from the move AM handler
+ */
+void
+fh_AdjustLocalFifoAndPin(gasnet_node_t node, firehose_region_t *reg_pin,
+			size_t pin_num)
+{
+	int			b_unpin;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	/* Check if the local FIFO is overcommitted.  If so, we build a list of
+	 * regions to unpin from the head of the FIFO (oldest victim).*/
+	b_unpin = fhc_LocalOnlyBucketsPinned - fhc_MaxVictimBuckets;
+
+	if (b_unpin > 0) {
+                fhi_RegionPool_t *rpool;
+		GASNETI_TRACE_PRINTF(C, 
+		    ("Firehose Overcommitted FIFO by %d buckets", b_unpin));
+
+		rpool = fhi_AllocRegionPool(b_unpin);
+		rpool->buckets_num = b_unpin;
+		rpool->regions_num =
+			fhi_FreeVictimLocal(b_unpin, rpool->regions);
+
+		fhc_LocalVictimFifoBuckets -= b_unpin;
+		fhc_LocalOnlyBucketsPinned -= b_unpin;
+		assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
+
+		FH_TABLE_UNLOCK;
+		firehose_move_callback(node, rpool->regions, 
+				rpool->regions_num, reg_pin, pin_num);
+		FH_TABLE_LOCK;
+
+		fhi_FreeRegionPool(rpool);
+	}
+	else if (pin_num > 0) {
+		FH_TABLE_UNLOCK;
+		firehose_move_callback(node, NULL, 0, reg_pin, pin_num);
+		FH_TABLE_LOCK;
+	}
+
+	return;
+}
+
+/*********************************
+ * Freelist of fhi_RegionPool_t
+ *********************************/
+
+fhi_RegionPool_t *
+fhi_AllocRegionPool(int count)
+{
+	fhi_RegionPool_t *rpool;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	rpool = FH_STAILQ_FIRST(&fhi_regpool_list);
+
+	if_pf (count > FH_REGIONPOOL_DEFAULT_COUNT || rpool == NULL) {
+
+		rpool = (fhi_RegionPool_t *) 
+			gasneti_malloc(sizeof(fhi_RegionPool_t));
+		rpool->regions_num = 0;
+		rpool->buckets_num = 0;
+
+		if (count > FH_REGIONPOOL_DEFAULT_COUNT) {
+			rpool->len     = sizeof(firehose_region_t) * count;
+			rpool->regions = (firehose_region_t *) 
+					    gasneti_malloc(rpool->len);
+			if_pf (rpool->regions == NULL)
+				gasneti_fatalerror("malloc in RegionPool");
+			fhi_regpool_numbig++;
+			return rpool;
+		}
+		else {
+			count          = FH_REGIONPOOL_DEFAULT_COUNT;
+			rpool->len     = FH_REGIONPOOL_DEFAULT_COUNT * 
+						sizeof(firehose_region_t);
+			rpool->regions = (firehose_region_t *) 
+					    gasneti_malloc(rpool->len);
+			if_pf (rpool->regions == NULL)
+				gasneti_fatalerror("malloc in RegionPool");
+
+			fhi_regpool_num++;
+			return rpool;
+		}
+	}
+	else {
+		FH_STAILQ_REMOVE_HEAD(&fhi_regpool_list);
+		return rpool;
+	}
+}
+
+void
+fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
+{
+	FH_TABLE_ASSERT_LOCKED;
+
+	if_pf (rpool->len > 
+	   FH_REGIONPOOL_DEFAULT_COUNT*sizeof(firehose_region_t)) {
+		gasneti_free(rpool->regions);
+		gasneti_free(rpool);
+	}
+	else {
+		rpool->regions_num = 0;
+		rpool->buckets_num = 0;
+		FH_STAILQ_INSERT_TAIL(&fhi_regpool_list, rpool);
+		assert(!FH_STAILQ_EMPTY(&fhi_regpool_list));
+	}
+
+	return;
 }

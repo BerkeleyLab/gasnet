@@ -268,11 +268,61 @@ void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 /* ##################################################################### */
 /* FIFO (local and remote) management operations (COMMON, firehose.c)    */
 /* ##################################################################### */
-		/* Returns a descriptor given an existing bucket address */
+		/* Returns a descriptor given an existing private_t */
 fh_refc_t *	fh_priv_release(gasnet_node_t node, firehose_private_t *);
 		/* Acquires the private_t (increments the refcount). _ONLY_ 
 		 * valid if the private_t already exists in the table    */
 fh_refc_t *	fh_priv_acquire(gasnet_node_t node, firehose_private_t *);
+		/* Stall to respect the limit on local firehoses in flight */
+void		fh_WaitLocalFirehosesInFlight(int count);
+		/* Wait for local firehoses to release/reuse */
+int		fh_WaitLocalFirehoses(int count, firehose_region_t *region);
+		/* Wait for remote firehoses to release/reuse */
+int		fh_WaitRemoteFirehoses(gasnet_node_t node, int count, 
+					firehose_region_t *region);
+		/* Adjust for possible overcommit and then pin */
+void		fh_AdjustLocalFifoAndPin(gasnet_node_t node,
+					firehose_region_t *reg_pin,
+					size_t pin_num);
+
+
+/* ##################################################################### */
+/* fhi_RegionPool_t (COMMON, firehose.c)                                 */
+/* ##################################################################### */
+typedef
+struct _fhi_RegionPool_t {
+	/* 
+	 * Used internally 
+	 */ 
+	size_t		 		len;
+	struct _fhi_RegionPool_t	*fh_tqe_next;
+
+	/* 
+	 * User modifiable fields 
+	 */
+	firehose_region_t	*regions;
+	size_t			 regions_num;
+	size_t			 buckets_num;
+
+	/*
+	 * Pad the struct to inhibit false sharing
+	 */
+	uint8_t			 _pad[FH_CACHE_LINE_BYTES-
+				      3*sizeof(size_t)-2*sizeof(void*)];
+}
+fhi_RegionPool_t;
+
+/* Default size, in regions, of region pool entries */
+#if defined(FIREHOSE_PAGE)
+  /* Used to gather up to one region per page */
+  #define FH_REGIONPOOL_DEFAULT_COUNT	32768
+#elif defined(FIREHOSE_REGION)
+  /* Until page accounting is done, always use 1 region */
+  #define FH_REGIONPOOL_DEFAULT_COUNT	1
+#endif
+
+extern fhi_RegionPool_t * fhi_AllocRegionPool(int count);
+extern void fhi_FreeRegionPool(fhi_RegionPool_t *rpool);
 
 /* ##################################################################### */
 /* Misc functions (specific to page and region)                          */
@@ -451,6 +501,12 @@ void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
 
 void	fh_send_firehose_reply(fh_remote_callback_t *);
+
+/* ##################################################################### */
+/* FIFO (local and remote) management operations (page/region specific)  */
+/* ##################################################################### */
+int	fh_FreeVictim(int count, firehose_region_t *reg,
+			fh_fifoq_t *fifo_head);
 
 /* How many buffers (of buffers) to allocate to use as bucket descriptors in
  * hash table */
