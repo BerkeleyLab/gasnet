@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_coll.h,v $
- *     $Date: 2005/02/07 00:30:07 $
- * $Revision: 1.16.2.3 $
+ *     $Date: 2005/02/09 00:40:41 $
+ * $Revision: 1.16.2.4 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -62,6 +62,9 @@ typedef union gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
 
 struct gasnete_coll_generic_data_t_;
 typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
+
+struct gasnete_coll_tree_data_t_;
+typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
 
 /*---------------------------------------------------------------------------------*/
 
@@ -386,6 +389,7 @@ typedef struct {
     gasnet_image_t			my_image;
     gasnete_coll_op_t			*op_freelist;
     gasnete_coll_generic_data_t 	*generic_data_freelist;
+    gasnete_coll_tree_data_t	 	*tree_data_freelist;
 
     /* Linkage used by the thread-specific handle freelist . */
     #ifndef GASNETE_COLL_HANDLE_OVERRIDE
@@ -1524,21 +1528,6 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
  * Start of generic framework for tree-based reference implementations
  *---------------------------------------------------------------------------------*/
 
-/* Local view of the layout of a tree */
-typedef struct {
-    gasnet_node_t	parent;
-    int			child_id;       /* I am which element of parent's child_list? */
-    int			child_count;
-    gasnet_node_t	*child_list;
-} gasnete_coll_tree_geom_t;
-                                                                                                              
-/* Data for a given tree-based operation */
-typedef struct {
-    uint32_t			pipe_seg_size;
-    uint32_t			sent_bytes;
-    gasnete_coll_tree_geom_t	*geom;
-} gasnete_coll_tree_data_t;
-                                                                                                              
 typedef enum {
     GASNETE_COLL_TREE_KIND_CHAIN,
     GASNETE_COLL_TREE_KIND_BINARY,
@@ -1548,12 +1537,35 @@ typedef enum {
     GASNETE_COLL_TREE_KIND_CHAIN_SMP,
     GASNETE_COLL_TREE_KIND_BINARY_SMP,
     GASNETE_COLL_TREE_KIND_BINOMIAL_SMP,
-    GASNETE_COLL_TREE_KIND_SEQUENTIAL_SMP
+    GASNETE_COLL_TREE_KIND_SEQUENTIAL_SMP,
 #endif
+#ifdef GASNETE_COLL_TREE_KIND_ENUM_EXTRA
+    GASNETE_COLL_TREE_KIND_ENUM_EXTRA
+#endif
+    GASNETE_COLL_TREE_KIND_INVALID
 } gasnete_coll_tree_kind_t;
                                                                                                               
-extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t rootnode);
-extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree);
+/* Local view of the layout of a tree */
+typedef struct {
+    gasnet_node_t	parent;
+    int			child_id;       /* I am which element of parent's child_list? */
+    int			child_count;
+    gasnet_node_t	*child_list;
+    /* used only as keys when caching: */
+    gasnete_coll_tree_kind_t	kind;
+    gasnet_node_t		root;
+    gasneti_atomic_t		ref_count;
+} gasnete_coll_tree_geom_t;
+                                                                                                              
+/* Data for a given tree-based operation */
+struct gasnete_coll_tree_data_t_ {
+    uint32_t			pipe_seg_size;
+    uint32_t			sent_bytes;
+    gasnete_coll_tree_geom_t	*geom;
+};
+                                                                                                              
+extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t rootnode GASNETE_THREAD_FARG);
+extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*
  * Start of protypes for reference implementations
