@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2004/02/03 00:06:43 $
- * $Revision: 1.5.6.5 $
+ *     $Date: 2004/02/04 00:17:50 $
+ * $Revision: 1.5.6.6 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,6 +41,7 @@ typedef uint8_t gasnet_handler_t;
         VAL(C, RDMA_PUT_FH, bytes)                \
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
+        VAL(C, RDMA_GET_FH, bytes)                \
         CNT(C, SYSTEM_REQUEST, cnt)               \
         CNT(C, SYSTEM_REPLY, cnt)                 \
         CNT(C, SYSTEM_REQHANDLER, cnt)            \
@@ -56,7 +57,9 @@ typedef uint8_t gasnet_handler_t;
 	TIME(C, POST_SR_STALL_CQ, stalled time)   \
 	TIME(C, POST_SR_STALL_SQ, stalled time)   \
 	VAL(C, SND_REAP, reaped)                  \
-	VAL(C, RCV_REAP, reaped)
+	VAL(C, RCV_REAP, reaped)                  \
+	VAL(C, DYNAMIC_PIN, pages)                \
+	VAL(C, DYNAMIC_UNPIN, pages)
 
 /*
  * The VAPI conduit has a network progress thread, even for GASNET_SEQ
