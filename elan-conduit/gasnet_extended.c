@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/11/02 07:28:10 $
- * $Revision: 1.50.2.2 $
+ *     $Date: 2004/11/04 14:08:44 $
+ * $Revision: 1.50.2.3 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -814,12 +814,18 @@ int gasnete_try_syncnb_inner(gasnet_handle_t handle) {
 }
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-#if GASNETC_ELAN4
+#if 0 && GASNETC_ELAN4
   /* HACK: AMPoll on elan4 is currently far more expensive than it should be
            so avoid it when not strictly necessary  */
+ #if 0
   int val = gasnete_try_syncnb_inner(handle);
   if_pf (val == GASNET_ERR_NOT_READY) GASNETE_SAFE(gasneti_AMPoll());
   return val;
+ #else
+  if (gasnete_try_syncnb_inner(handle) == GASNET_OK) return GASNET_OK;
+  GASNETE_SAFE(gasneti_AMPoll());
+  return GASNET_ERR_NOT_READY;
+ #endif
 #else
   GASNETE_SAFE(gasneti_AMPoll());
   return gasnete_try_syncnb_inner(handle);
