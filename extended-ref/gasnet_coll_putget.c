@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/18 20:18:23 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2004/05/20 22:59:10 $
+ * $Revision: 1.1.2.17 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -529,10 +529,18 @@ extern void gasnete_coll_init(const size_t images[], int init_flags) {
 
       if (gasnete_coll_consensus_id & 1) {
 	/* At a wait stage, so try the barrier */
-	if (gasnet_barrier_try(gasnete_coll_consensus_id, barrier_flags) == GASNET_OK) {
+	int rc = gasnet_barrier_try(gasnete_coll_consensus_id, barrier_flags);
+	if (rc == GASNET_OK) {
 	  /* A barrier is complete, advance */
 	  ++gasnete_coll_consensus_id;
 	}
+#if GASNET_DEBUG
+	else if (rc == GASNET_ERR_BARRIER_MISMATCH) {
+	  gasneti_fatalerror("Named barrier mismatch detected in collectives");
+	} else {
+	  gasneti_assert(rc == GASNET_ERR_NOT_READY);
+	}
+#endif
       }
 
       /* Note that we need to be careful of wrapping, thus the (int32_t)(a-b) construct
