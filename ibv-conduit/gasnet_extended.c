@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/10/14 16:34:00 $
- * $Revision: 1.7.6.1 $
+ *     $Date: 2003/10/22 20:29:40 $
+ * $Revision: 1.7.6.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -847,7 +847,9 @@ static void gasnete_barrier_notify_reqh(gasnet_token_t token,
                (flags == 0 && barrier_consensus_value[phase] != (int)value)) {
       barrier_consensus_mismatch[phase] = 1;
     }
-    barrier_count[phase] = count+1;
+    count++;
+    if (count == gasnete_nodes) gasneti_memsync(); /* about to signal, ensure we flush state */
+    barrier_count[phase] = count;
   }
   gasnet_hsl_unlock(&barrier_lock);
 }
@@ -857,6 +859,7 @@ static void gasnete_barrier_done_reqh(gasnet_token_t token,
   assert(phase == barrier_phase);
 
   barrier_response_mismatch[phase] = mismatch;
+  gasneti_memsync();
   barrier_response_done[phase] = 1;
 }
 
@@ -914,6 +917,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
   /*  update state */
   barrier_splitstate = INSIDE_BARRIER;
+  gasneti_memsync(); /* ensure all state changes committed before return */
 }
 
 
@@ -937,6 +941,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
   barrier_response_done[phase] = 0;
+  gasneti_memsync(); /* ensure all state changes committed before return */
   if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
         flags != barrier_flags || 
         barrier_response_mismatch[phase]) {
