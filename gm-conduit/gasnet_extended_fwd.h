@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2002/10/28 06:06:24 $
- * $Revision: 1.7 $
+ *     $Date: 2003/01/18 22:07:47 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -92,11 +92,20 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #ifdef GASNETC_FIREHOSE	
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) 		\
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)		\
-	CNT(C, PUT_FH_TOTAL, cnt)			\
-	CNT(C, PUT_FH_ONESIDED, cnt)			\
+	VAL(C, FIREHOSE_MOVES, firehoses moved for puts)\
+	VAL(C, FIREHOSE_TOUCHED, 			\
+		firehoses touched for puts)		\
+	VAL(C, BUCKET_LOCAL_PINS,			\
+		local buckets pinned for puts/gets)	\
+	VAL(C, BUCKET_LOCAL_TOUCHED, 			\
+		local buckets touched for puts/gets)	\
+	VAL(C, FIREHOSE_PUT_CALLS, firehoses put calls) \
 	TIME(C, FIREHOSE_PUT_ONE, puts one fh move)	\
 	TIME(C, FIREHOSE_PUT_MANY, puts many fh moves)	\
-	TIME(C, FIREHOSE_PUT_ONESIDED, puts one-sided)
+	TIME(C, FIREHOSE_PUT_ONESIDED, puts one-sided)  \
+	TIME(C, FIREHOSE_GET_ONE, gets one fh move)	\
+	TIME(C, FIREHOSE_GET_MANY, gets many fh moves)	\
+	TIME(C, FIREHOSE_GET_ONESIDED, gets one-sided)
 #else
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) 		\
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)           

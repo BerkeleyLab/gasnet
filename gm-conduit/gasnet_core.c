@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.26 2002/10/03 18:06:56 csbell Exp $
- * $Date: 2002/10/03 18:06:56 $
+/* $Id: gasnet_core.c,v 1.26.2.1 2003/01/18 22:07:47 csbell Exp $
+ * $Date: 2003/01/18 22:07:47 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -271,7 +271,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 		GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
 
 	#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
-	pagesize = gasneti_getSystemPageSize();
+	pagesize = GASNET_PAGESIZE;
 	if ((segsize % pagesize) != 0) 
 		GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
 	if (segsize > gasnetc_getMaxLocalSegmentSize()) 

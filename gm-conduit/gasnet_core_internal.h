@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.34 2002/10/28 06:06:24 csbell Exp $
- * $Date: 2002/10/28 06:06:24 $
- * $Revision: 1.34 $
+/* $Id: gasnet_core_internal.h,v 1.34.2.1 2003/01/18 22:07:47 csbell Exp $
+ * $Date: 2003/01/18 22:07:47 $
+ * $Revision: 1.34.2.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -101,6 +101,7 @@ extern gasneti_mutex_t	gasnetc_lock_amreq;
 #ifdef GASNETC_FIREHOSE
 #define _hidx_gasnetc_firehose_move_reqh	(GASNETC_HANDLER_BASE+1) 
 #define _hidx_gasnetc_firehose_move_reph	(GASNETC_HANDLER_BASE+2) 
+#define _hidx_gasnetc_rendezvous_unpin_reqh	(GASNETC_HANDLER_BASE+3) 
 #endif
 #define _hidx_					(GASNETC_HANDLER_BASE+)
 
@@ -127,6 +128,7 @@ typedef struct gasnetc_bufdesc gasnetc_bufdesc_t;
 typedef void (*gasnetc_handler_fn_t)();
 
 gasnetc_bufdesc_t * 	gasnetc_AMRequestPool_block();
+gasnetc_bufdesc_t * 	gasnetc_AMRequestPool_nb();
 gasnetc_sysmsg_t	gasnetc_SysPoll(void *context);
 
 void	gasnetc_tokensend_AMRequest(void *, uint32_t, uint32_t, uint32_t, 

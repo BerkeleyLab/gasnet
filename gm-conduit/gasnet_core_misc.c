@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_misc.c,v 1.26 2002/10/27 00:57:06 csbell Exp $
- * $Date: 2002/10/27 00:57:06 $
- * $Revision: 1.26 $
+/* $Id: gasnet_core_misc.c,v 1.26.2.1 2003/01/18 22:07:47 csbell Exp $
+ * $Date: 2003/01/18 22:07:47 $
+ * $Revision: 1.26.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -308,6 +308,28 @@ gasnetc_AMRequestPool_block()
 	return &_gmc.bd_ptr[bufd_idx];
 }
 
+gasnetc_bufdesc_t *
+gasnetc_AMRequestPool_nb() 
+{
+	int			 bufd_idx = -1;
+	gasnetc_bufdesc_t	*bufd;
+
+	gasneti_mutex_lock(&gasnetc_lock_reqpool);
+	if (_gmc.reqs_pool_cur >= 0) {
+		bufd_idx = _gmc.reqs_pool[_gmc.reqs_pool_cur];
+		assert(bufd_idx < _gmc.bd_list_num);
+		assert(_gmc.bd_ptr[bufd_idx].sendbuf != NULL);
+		assert(_gmc.bd_ptr[bufd_idx].id == bufd_idx);
+		_gmc.reqs_pool_cur--;
+		gasneti_mutex_unlock(&gasnetc_lock_reqpool);
+		return &_gmc.bd_ptr[bufd_idx];
+	}
+	else {
+		gasneti_mutex_unlock(&gasnetc_lock_reqpool);
+		return NULL;
+	}
+}
+
 /* This function is not thread safe as it is guarenteed to be called
  * from only one thread, during initialization */
 void
@@ -545,7 +567,7 @@ gasnetc_segment_sbrk(uintptr_t sbrk_local_aligned)
 
 	gasneti_mutex_lock(&gasnetc_lock_gm);
 	scratchPtr = (uintptr_t *) _gmc.scratchBuf;
-	pagesize = gasneti_getSystemPageSize();
+	pagesize = GASNET_PAGESIZE;
 
 	assert(sbrk_local_aligned % pagesize == 0);
 	assert(_gmc.gm_nodes[0].id > 0);
