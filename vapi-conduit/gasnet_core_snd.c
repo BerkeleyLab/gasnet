@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/05/20 21:22:33 $
- * $Revision: 1.1.2.33 $
+ *     $Date: 2003/05/28 18:59:25 $
+ * $Revision: 1.1.2.34 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -163,7 +163,7 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     pthread_mutex_unlock(&gasnetc_sbuf_lock);
 
     /* be kind */
-    sched_yield();
+    gasneti_sched_yield();
   }
 
   assert(sbuf != NULL);
