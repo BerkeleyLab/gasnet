@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/26 23:29:02 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2004/05/27 20:11:52 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,6 +42,12 @@
 /* Forward type decls and typedefs: */
 struct gasnete_coll_op_t_;
 typedef struct gasnete_coll_op_t_ gasnete_coll_op_t;
+
+struct gasnete_coll_p2p_t_;
+typedef struct gasnete_coll_p2p_t_ gasnete_coll_p2p_t;
+
+struct gasnete_coll_p2p_entry_t_;
+typedef struct gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
 
 /*---------------------------------------------------------------------------------*/
 
@@ -162,6 +168,46 @@ struct gasnete_coll_op_t_ {
     void			*data;
     gasnete_coll_poll_fn	poll_fn;
 };
+
+/*---------------------------------------------------------------------------------*/
+
+/* Type for point-to-point synchronization */
+
+#ifndef GASNETE_COLL_P2P_EAGER_LIMIT
+    /* Define carefully to ensure "good" alignment of data */
+    #define GASNETE_COLL_P2P_EAGER_LIMIT	12
+#endif
+
+struct gasnete_coll_p2p_entry_t_ {
+    uint8_t		data[GASNETE_COLL_P2P_EAGER_LIMIT];
+    volatile uint32_t 	state;
+};
+
+#ifndef GASNETE_COLL_P2P_OVERRIDE
+    struct gasnete_coll_p2p_t_ {
+	/* Linkage and bookkeeping */
+	gasnete_coll_p2p_t	*p2p_next;
+	gasnete_coll_p2p_t	*p2p_prev;
+	#if GASNET_DEBUG
+	int			size;
+	#endif
+
+	/* Unique (team_id, sequence) tuple for the associated op */
+	/* XXX: could play games w/ a single 64-bit field to speed comparisions */
+	uint32_t	team_id;
+	uint32_t	sequence;
+	
+	/* Array of states for the point-to-point synchronization */
+	gasnete_coll_p2p_entry_t	*entry;
+    };
+#endif
+
+extern void gasnete_coll_p2p_init(void);
+extern void gasnete_coll_p2p_fini(void);
+extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence, uint32_t size);
+extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
+extern void gasnet_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t num_pos, uint32_t pos, void *src, size_t nbytes, uint32_t state);
+extern void gasnet_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t num_pos, uint32_t pos, void *addr, uint32_t state);
 
 /*---------------------------------------------------------------------------------*/
 

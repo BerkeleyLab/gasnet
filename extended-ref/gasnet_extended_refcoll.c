@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/26 23:55:45 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2004/05/27 20:11:52 $
+ * $Revision: 1.1.2.25 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,10 +45,15 @@ gasnete_coll_threaddata_t *gasnete_coll_get_threaddata(gasnete_threaddata_t *thr
 
 int gasnete_coll_init_done = 0;
 size_t *gasnete_coll_all_images;
-size_t *gasnete_coll_all_1st_image;
+size_t *gasnete_coll_all_offset;
 size_t gasnete_coll_total_images;
-size_t gasnete_coll_my_images;		/* local number of images */
-size_t gasnete_coll_my_1st_image;	/* count of images before my first image */
+size_t gasnete_coll_my_images;	/* count of local images */
+size_t gasnete_coll_my_offset;	/* count of images before my first image */
+
+#define GASNETE_COLL_1ST_IMAGE(LIST,NODE) \
+	(((void * const *)(LIST))[gasnete_coll_all_offset[(NODE)]])
+#define GASNETE_COLL_MY_1ST_IMAGE(LIST) \
+	(((void * const *)(LIST))[gasnete_coll_my_offset])
 
 void gasnete_coll_validate(gasnet_team_handle_t team,
 			   gasnet_node_t dstnode, const void *dst, size_t dstlen, int dstisv,
@@ -545,8 +550,10 @@ extern void gasnete_coll_init(const size_t images[],
     }
   #endif
 
+  gasnete_coll_p2p_init();
+
   gasnete_coll_all_images = gasneti_malloc(image_size);
-  gasnete_coll_all_1st_image = gasneti_malloc(image_size);
+  gasnete_coll_all_offset = gasneti_malloc(image_size);
   if (images != NULL) {
     memcpy(gasnete_coll_all_images, images, image_size);
   } else  {
@@ -556,11 +563,11 @@ extern void gasnete_coll_init(const size_t images[],
   }
   gasnete_coll_total_images = 0;
   for (i = 0; i < gasnete_nodes; ++i) {
-    gasnete_coll_all_1st_image[i] = gasnete_coll_total_images;
+    gasnete_coll_all_offset[i] = gasnete_coll_total_images;
     gasnete_coll_total_images += gasnete_coll_all_images[i];
   }
   gasnete_coll_my_images = gasnete_coll_all_images[gasnete_mynode];
-  gasnete_coll_my_1st_image = gasnete_coll_all_1st_image[gasnete_mynode];
+  gasnete_coll_my_offset = gasnete_coll_all_offset[gasnete_mynode];
 
   if (fn_count != 0) {
     /* XXX: */
@@ -621,6 +628,168 @@ extern void gasnete_coll_init(const size_t images[],
        */
       return ((int32_t)(gasnete_coll_consensus_id - tmp) > 1) ? GASNET_OK
                                                               : GASNET_ERR_NOT_READY;
+    }
+#endif
+
+#ifndef GASNETE_COLL_P2P_OVERRIDE
+    #ifndef GASNETE_COLL_P2P_TABLE_SIZE
+      #define GASNETE_COLL_P2P_TABLE_SIZE 16
+    #endif
+    #if 0
+      /* This is one possible implementation when we have teams */
+      #define GASNETE_COLL_P2P_TABLE_SLOT(T,S) \
+         (((uint32_t)(uintptr_t)(T) ^ (uint32_t)(S)) % GASNETE_COLL_P2P_TABLE_SIZE)
+    #else
+      /* Use this mapping until teams are implemented */
+      #define GASNETE_COLL_P2P_TABLE_SLOT(T,S) \
+         (gasneti_assert(gasnete_coll_team_lookup(T)==NULL), ((uint32_t)(S) % GASNETE_COLL_P2P_TABLE_SIZE))
+    #endif
+                                                                                                              
+    static gasnete_coll_p2p_t gasnete_coll_p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
+    static gasnet_hsl_t gasnete_coll_p2p_table_lock = GASNET_HSL_INITIALIZER;
+                                                                                                              
+    void gasnete_coll_p2p_init() {
+      int i;
+
+      for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
+	gasnete_coll_p2p_t *tmp = &(gasnete_coll_p2p_table[i]);
+	tmp->p2p_next = tmp->p2p_prev = tmp;
+      }
+    }
+
+    void gasnete_coll_p2p_fini() {
+      int i;
+
+      for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
+	gasnete_coll_p2p_t *tmp = &(gasnete_coll_p2p_table[i]);
+	/* Check that table is actually empty */
+	gasneti_assert(tmp->p2p_next == tmp);
+	gasneti_assert(tmp->p2p_prev == tmp);
+      }
+    }
+
+    gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence, uint32_t size) {
+      unsigned int slot_nr = GASNETE_COLL_P2P_TABLE_SLOT(team_id, sequence);
+      gasnete_coll_p2p_t *head = &(gasnete_coll_p2p_table[slot_nr]);
+      gasnete_coll_p2p_t *p2p;
+
+      gasneti_assert(gasnete_coll_team_lookup(team_id) == GASNET_TEAM_ALL);
+                                                                                                              
+      gasnet_hsl_lock(&gasnete_coll_p2p_table_lock);
+
+      /* Search table */
+      p2p = head->p2p_next;
+      while ((p2p != head) && ((p2p->team_id != team_id) || (p2p->sequence != sequence))) {
+        p2p = p2p->p2p_next;
+      }
+                                                                                                              
+      /* If not found, create it with all zeros */
+      if_pf (p2p == head) {
+	size_t alloc_size;
+	char *buf;
+
+        /* XXX: use some sort of (per-team?) free list(s) since only small number of sizes are used */
+
+	/* Round to 8-byte alignment of state array */
+	alloc_size = ((sizeof(gasnete_coll_p2p_t) + 7) & ~7) + size * sizeof(gasnete_coll_p2p_entry_t);
+	buf = gasneti_calloc(1, alloc_size);
+	p2p = (gasnete_coll_p2p_t *)buf;
+	p2p->entry = (gasnete_coll_p2p_entry_t *)(buf + ((sizeof(gasnete_coll_p2p_t) + 7) & ~7));
+
+	#if GASNET_DEBUG
+	  p2p->size = size;
+	#endif
+
+	p2p->p2p_prev = head;
+	p2p->p2p_next = head->p2p_next;
+	head->p2p_next->p2p_prev = p2p;
+	head->p2p_next = p2p;
+      }
+
+      gasnet_hsl_unlock(&gasnete_coll_p2p_table_lock);
+
+      gasneti_assert(p2p != NULL);
+      gasneti_assert(p2p->size == size);
+      gasneti_assert(p2p->entry != NULL);
+
+      return p2p;
+    }
+
+    void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p) {
+      /* XXX: use (per-team ?) free list(s) */
+      gasneti_free(p2p);
+    }
+
+    static void gasnete_coll_p2p_put_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+					  gasnet_handlerarg_t team_id,
+					  gasnet_handlerarg_t sequence,
+					  gasnet_handlerarg_t num_pos,
+					  gasnet_handlerarg_t pos,
+					  gasnet_handlerarg_t state) {
+      gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence, num_pos);
+      gasnete_coll_p2p_entry_t *entry = &(p2p->entry[pos]);
+
+      gasneti_assert(pos <= num_pos);
+
+      if (nbytes) {
+	gasneti_assert(nbytes <= GASNETE_COLL_P2P_EAGER_LIMIT);
+	GASNETE_FAST_UNALIGNED_MEMCPY(entry->data, buf, nbytes);
+      }
+
+      gasneti_memsync();
+      entry->state = state;
+    }
+ 
+    GASNET_INLINE_MODIFIER(gasnete_coll_p2p_addr_reqh_inner)
+    void gasnete_coll_p2p_addr_reqh_inner(gasnet_token_t token,
+					  gasnet_handlerarg_t team_id,
+					  gasnet_handlerarg_t sequence,
+					  gasnet_handlerarg_t num_pos,
+					  gasnet_handlerarg_t pos,
+					  gasnet_handlerarg_t state,
+					  void *addr) {
+      gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence, num_pos);
+      gasnete_coll_p2p_entry_t *entry = &(p2p->entry[pos]);
+
+      gasneti_assert(pos <= num_pos);
+
+      *((void **)(entry->data)) = addr;
+      gasneti_memsync();
+      entry->state = state;
+    }
+    SHORT_HANDLER(gasnete_coll_p2p_addr_reqh,6,7,
+		  (token, a0, a1, a2, a3, a4, UNPACK(a5)     ),
+		  (token, a0, a1, a2, a3, a4, UNPACK2(a5, a6)));
+                                                                                                              
+    #define _hidx_gasnete_coll_p2p_put_reqh	126	/* XXX: kludge!!! */
+    #define _hidx_gasnete_coll_p2p_addr_reqh	127	/* XXX: kludge!!! */
+    #define GASNETE_COLL_P2P_HANDLERS              \
+	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_reqh), \
+	gasneti_handler_tableentry_with_bits(gasnete_coll_p2p_addr_reqh)
+
+    /* Send up to GASNETE_COLL_P2P_EAGER_LIMIT bytes to be buffered at the recipient */
+    void gasnet_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dst,
+				   uint32_t num_pos, uint32_t pos,
+				   void *src, size_t nbytes, uint32_t state) {
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+
+      gasneti_assert(nbytes <= GASNETE_COLL_P2P_EAGER_LIMIT);
+
+      GASNETE_SAFE(
+	MEDIUM_REQ(5,5,(dst, gasneti_handleridx(gasnete_coll_p2p_put_reqh),
+			src, nbytes,
+			team_id, op->sequence, num_pos, pos, state)));
+    }
+
+    /* Send a single address to be buffered at the recipient */
+    void gasnet_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dst,
+				    uint32_t num_pos, uint32_t pos,
+				    void *addr, uint32_t state) {
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+
+      GASNETE_SAFE(
+	SHORT_REQ(6,7,(dst, gasneti_handleridx(gasnete_coll_p2p_addr_reqh),
+		       team_id, op->sequence, num_pos, pos, state, PACK(addr))));
     }
 #endif
 
@@ -1069,7 +1238,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	  }
 
           /* Get only the 1st local image */
-          data->handle = gasnet_get_nb_bulk(args->dstlist[gasnete_coll_my_1st_image],
+          data->handle = gasnet_get_nb_bulk(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist),
                                             args->srcnode, args->src, args->nbytes);
           data->state = 1;
 
@@ -1081,8 +1250,8 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
           /* Copy our 1st image to any additional images */
           if (gasnete_coll_my_images > 1) {
             size_t nbytes = args->nbytes;
-            void *p0 = args->dstlist[gasnete_coll_my_1st_image];
-            void * const *p = args->dstlist + gasnete_coll_my_1st_image + 1;
+            void *p0 = GASNETE_COLL_MY_1ST_IMAGE(args->dstlist);
+            void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist) + 1;
             int i;
 
             /* XXX: for large sizes we should segment this in-memory broadcast */
@@ -1124,13 +1293,13 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	    void * const *p;
 
 	    /* Queue PUTS in an NBI access region */
+	    /* We don't use VIS here, since that would send the same data multiple times */
 	    gasnet_begin_nbi_accessregion();
 	    {
 	      /* Put to nodes to the "right" of ourself */
 	      if (gasnete_mynode < gasnete_nodes - 1) {
-	        p = args->dstlist + gasnete_coll_all_1st_image[gasnete_mynode + 1];
+	        p = &GASNETE_COLL_1ST_IMAGE(args->dstlist, gasnete_mynode + 1);
 	        for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-		  /* XXX: use VIS extensions here */
 		  limit = gasnete_coll_all_images[i];
 		  for (j = 0; j < limit; ++j) {
 	            gasnet_put_nbi_bulk(i, *p, src, nbytes);
@@ -1140,7 +1309,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	      }
 	      /* Put to nodes to the "left" of ourself */
 	      if (gasnete_mynode != 0) {
-	        p = args->dstlist + 0;
+	        p = &GASNETE_COLL_1ST_IMAGE(args->dstlist, 0);
 	        for (i = 0; i < gasnete_mynode; ++i) {
 		  /* XXX: use VIS extensions here */
 		  limit = gasnete_coll_all_images[i];
@@ -1154,7 +1323,8 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	    data->handle = gasnet_end_nbi_accessregion();
 
 	    /* Do local copy LAST, perhaps overlapping with communication */
-	    p = args->dstlist + gasnete_coll_my_1st_image;
+            /* XXX: for large sizes we should segment this in-memory broadcast */
+	    p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist);
 	    limit = gasnete_coll_my_images;
 	    for (j = 0; j < limit; ++j) {
 	      GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes);
@@ -1199,7 +1369,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = &gasnete_coll_pf_bcastM_Get;
+      poll_fn = &gasnete_coll_pf_bcastM_Put;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td);
     }
@@ -1400,3 +1570,11 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
     }
 #endif
+
+/*---------------------------------------------------------------------------------*/
+
+#ifndef GASNETE_COLL_P2P_HANDLERS
+  #define GASNETE_COLL_P2P_HANDLERS
+#endif
+#define GASNETE_REFCOLL_HANDLERS()                                 \
+  GASNETE_COLL_P2P_HANDLERS
