@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/26 22:22:03 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2003/06/27 00:23:51 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -29,14 +29,17 @@ VAPI_cq_hndl_t				gasnetc_snd_cq;
  * ------------------------------------------------------------------------------------ */
 
 /* Description of a receive buffer */
-typedef struct {
-  VAPI_rr_desc_t        rr_desc;        /* recv request descriptor */
-  VAPI_sg_lst_entry_t   rr_sg;          /* single-entry scatter list */
+typedef struct _gasnetc_rbuf_t {
+  VAPI_rr_desc_t        	rr_desc;        /* recv request descriptor */
+  VAPI_sg_lst_entry_t   	rr_sg;          /* single-entry scatter list */
 
   /* Intialized at recv time: */
-  int                   needReply;
-  int                   handlerRunning;
-  uint32_t              flags;
+  int                   	replySent;
+  int                   	handlerRunning;
+  uint32_t              	flags;
+
+  /* Linkage for the free list */
+  struct _gasnetc_rbuf_t	*next;
 } gasnetc_rbuf_t;
 
 /* Description of a send buffer */
@@ -66,6 +69,7 @@ typedef struct {
 static gasnetc_sbuf_t			*gasnetc_sbuf_alloc, *gasnetc_sbuf_free;
 static pthread_mutex_t			gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
 static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
+static pthread_mutex_t			gasnetc_rbuf_lock = PTHREAD_MUTEX_INITIALIZER;
 #if GASNETC_RCV_THREAD
   static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
 #endif
@@ -73,6 +77,12 @@ static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions and macros                                                    *
  * ------------------------------------------------------------------------------------ */
+
+#if GASNETC_AM_FLOWCTRL
+  #define GASNETC_RCV_POOL_SIZE	256	/* one per possible thread */
+#else
+  #define GASNETC_RCV_POOL_SIZE	0
+#endif
 
 #define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx)   \
   (uint32_t)(  (((srcidx) & 0xffff) << 16)      \
@@ -88,6 +98,28 @@ static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
 #define GASNETC_MSG_HANDLERID(flags)    ((gasnet_handler_t)((flags) >> 8))
 #define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16))
 
+
+GASNET_INLINE_MODIFIER(gasnetc_get_rbuf)
+gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
+  gasnetc_rbuf_t *rbuf;
+
+  pthread_mutex_lock(&gasnetc_rbuf_lock);
+  assert(gasnetc_rbuf_free != NULL);
+  rbuf = gasnetc_rbuf_free;
+  gasnetc_rbuf_free = rbuf->next;
+  pthread_mutex_unlock(&gasnetc_rbuf_lock);
+
+  return rbuf;
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_put_rbuf)
+void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
+  pthread_mutex_lock(&gasnetc_rbuf_lock);
+  assert(rbuf != NULL);
+  rbuf->next = gasnetc_rbuf_free;
+  gasnetc_rbuf_free = rbuf;
+  pthread_mutex_unlock(&gasnetc_rbuf_lock);
+}
 
 /* Post a work request to the send queue of the given endpoint */
 GASNET_INLINE_MODIFIER(gasnetc_snd_post)
@@ -136,7 +168,7 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
   size_t nbytes;
   void *data;
 
-  rbuf->needReply = GASNETC_MSG_ISREQUEST(flags);
+  rbuf->replySent = 0;
   rbuf->handlerRunning = 1;
   rbuf->flags = flags;
 
@@ -471,16 +503,22 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
 GASNET_INLINE_MODIFIER(gasnetc_rcv_reap)
 void gasnetc_rcv_reap(int limit) {
-  static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
   VAPI_ret_t vstat;
 
   while (--limit) {
     VAPI_wc_desc_t comp;
 
-    /* It seems that VAPI_poll_cq() is not thread-safe */
-    pthread_mutex_lock(&poll_lock);
-    vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-    pthread_mutex_unlock(&poll_lock);
+    #if 1
+    {
+      /* It seems that VAPI_poll_cq() is not thread-safe */
+      static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
+      pthread_mutex_lock(&poll_lock);
+      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
+      pthread_mutex_unlock(&poll_lock);
+    }
+    #else
+      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
+    #endif
 
     if (vstat == VAPI_OK) {
       if (comp.status == VAPI_SUCCESS) {
@@ -488,34 +526,23 @@ void gasnetc_rcv_reap(int limit) {
 	uint32_t flags = comp.imm_data;
 	gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
 
-        #if GASNETC_AM_FLOWCTRL
-          if (GASNETC_MSG_ISREPLY(flags)) {
-            gasneti_atomic_increment(&cep->req_credits);
-          }
-	#endif
-
-        gasnetc_processPacket(rbuf, flags);
-
-        #if GASNETC_AM_FLOWCTRL
-	  /* Sending our reply before we post the buffer leaves a small window of time
-	   * where the credit count and the posted buffer count could get out of sync.
-	   * However, that window also exists when the request handler generates the
-	   * reply.  It does seem worth trying to close that window by delaying the
-	   * actual reply.  So we go ahead and send our "implicit" replys ASAP.  In
-	   * the normal case this decision will reduce the latency of receiving the
-	   * credit at the other end but is highly unlikely to trigger a RNR NAK.
-	   *
-	   * XXX: The real solution to closing the small RNR NAK window will be to post
-	   * a "spare" rbuf BEFORE calling ProcessPacket().  See README for details.
-	   */
-          if (rbuf->needReply) {
-	      int retval;
-              retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
-	      assert(retval == GASNET_OK);
+        if (!GASNETC_AM_FLOWCTRL) {
+          gasnetc_processPacket(rbuf, flags);
+          gasnetc_rcv_post(cep, rbuf);
+	} else if (GASNETC_MSG_ISREPLY(flags)) {
+          gasneti_atomic_increment(&cep->req_credits);
+          gasnetc_processPacket(rbuf, flags);
+          gasnetc_rcv_post(cep, rbuf);
+        } else {
+          gasnetc_rcv_post(cep, gasnetc_get_rbuf());
+          gasnetc_processPacket(rbuf, flags);
+          if (!rbuf->replySent) {
+	    int retval;
+            retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
+	    assert(retval == GASNET_OK);
 	  }
-	#endif
-
-        gasnetc_rcv_post(cep, rbuf);
+          gasnetc_put_rbuf(rbuf);
+	}
       } else {
 #if 1
         fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
@@ -565,7 +592,8 @@ extern void gasnetc_sndrcv_init(void) {
   }
 
   /* setup rcv resources */
-  count = GASNETC_RCV_WQE * (gasnetc_nodes - 1);
+  count = GASNETC_RCV_WQE * (gasnetc_nodes - 1) + GASNETC_RCV_POOL_SIZE;
+  assert(count <= GASNETC_CQ_SIZE);
   buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
 			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
   assert(buf != NULL);
@@ -582,7 +610,9 @@ extern void gasnetc_sndrcv_init(void) {
     rbuf[i].rr_sg.len          = GASNETC_BUFSZ;
     rbuf[i].rr_sg.addr         = (uintptr_t)&buf[i];
     rbuf[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
+    rbuf[i].next               = &rbuf[i + 1];
   }
+  rbuf[count - 1].next = NULL;
   gasnetc_rbuf_alloc = gasnetc_rbuf_free = rbuf;
 
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
@@ -622,11 +652,14 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
   int i;
   
   for (i = 0; i < GASNETC_RCV_WQE; ++i) {
-    gasnetc_rbuf_t *rbuf = gasnetc_rbuf_free++;
+    gasnetc_rbuf_t *rbuf;
+
+    assert(gasnetc_rbuf_free != NULL);
+
+    rbuf = gasnetc_rbuf_free;
+    gasnetc_rbuf_free = rbuf->next;
 
     gasnetc_rcv_post(cep, rbuf);
-
-    assert((gasnetc_rbuf_free - gasnetc_rbuf_alloc) <= (GASNETC_RCV_WQE * (gasnetc_nodes - 1)));
   }
 
   #if GASNETC_AM_FLOWCTRL
@@ -913,13 +946,13 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   assert(rbuf);
   assert(rbuf->handlerRunning);
   assert(GASNETC_MSG_ISREQUEST(rbuf->flags));
-  assert(rbuf->needReply);
+  assert(!rbuf->replySent);
 
   retval = gasnetc_ReqRepGeneric(category, 0, GASNETC_MSG_SRCIDX(rbuf->flags), handler,
 				 src_addr, nbytes, dst_addr,
 				 numargs, mem_oust, argptr);
 
-  rbuf->needReply = 0;
+  rbuf->replySent = 1;
   return retval;
 }
 

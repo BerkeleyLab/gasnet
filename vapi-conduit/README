@@ -52,18 +52,16 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   "system category" handler, gasnetc_SYS_ack, which doesn't even run
   an handler.
 
-  All told, this simple credit system is currently managing to avoid RNR
-  conditions MOST of the time.  There is actually a race between the
-  reply and posting of the recv buffer which leaves a window for RNRs.
-  The problem is that we cannot post the recv buffer for a given
-  REQUEST back to the endpoint until the request handler returns.
-  Since we don't yet try to manage a pool of "spares" there is a window
-  of time between when we send a reply (thus conveying a credit) and
-  when we actually repost the recv buffer.  If an endpoint is already
-  at zero credits and that window is long enough for a network roundtrip
-  (reply followed by an unrelated request consuming the "new" credit)
-  then a send could arrive with no matching recv buffer preposted,
-  resulting in a RNR NAK
+  To avoid a window of time between when we send a reply (credit) and
+  when we post the recv buffer, we must post the replacement recv
+  buffer BEFORE running the AM REQUEST handler.  To do this we keep a
+  pool of unposted recv buffers.  So, when we recv a REQUEST, we grab
+  a free recv buffer from the pool and post it to the endpoint, run
+  the handler, send an implicit reply if the handler didn't send any
+  and finally we take the recv buffer containing the REQUEST and we
+  return it to the unposted pool.  When get recv a REPLY we don't
+  bother with as much complication, and just repost the recv holding
+  the REQUEST, after running the handler.
 
 
 @ Section: Extended API @
@@ -361,26 +359,6 @@ collective and non-collective returns from main.
       CPU copies HCA_mem->host_mem
 
   Of course I can't get a program to allocate from HCA memory!
-
-+ Eliminate IB-level flow control.
-  To eliminate the window of time between a reply and the post of a
-  replacement recv (which can lead to a RNR ACK and trigger IB's
-  flawed flow control) we need to post a replacement buffer BEFORE
-  we process a received REQUEST.  This is actually easier than it
-  initially seemed to me, since we only need one "spare" per running
-  request handler.  Since there is at most one request handler running
-  in each thread, we really only need one per thread.
-
-  This leaves the choice between a thread-local "spare" or a shared
-  pool.  The thread-local spare requires no locking, but adds the cost
-  of a thread lookup to each AMPoll which services one or more REQUESTS.
-  It also has the more difficult issue of how one manages to pin these
-  spare buffers when the number of threads are not known in advance.
-  The answer would seem to be to use the existing 256-thread limit in
-  the extended API to preallocate the spares and don't fret about the
-  254 of them (1MB) we are likely to waste most of the time.  The shared
-  pool idea becomes more appealing if we implement a more dynamic method
-  of flow control (see below) where we will need a shared pool anyway.
 
 + Adaptive flow-control for AMs.
   In this mode we'd prepost just M recv buffer to each QP if we want to

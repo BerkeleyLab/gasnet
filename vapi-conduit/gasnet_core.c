@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/26 22:22:03 $
- * $Revision: 1.2.2.51 $
+ *     $Date: 2003/06/27 00:23:51 $
+ * $Revision: 1.2.2.52 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,11 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 #define GASNETC_QP_PATH_MTU		MTU1024
 #define GASNETC_QP_STATIC_RATE		2
 #define GASNETC_QP_MIN_RNR_TIMER	IB_RNR_NAK_TIMER_0_08
-#define GASNETC_QP_RNR_RETRY		7	/* infinite */
+#if GASNETC_AM_FLOWCTRL
+  #define GASNETC_QP_RNR_RETRY		0	/* never */
+#else
+  #define GASNETC_QP_RNR_RETRY		7	/* infinite */
+#endif
 #define GASNETC_QP_TIMEOUT		0x20
 #define GASNETC_QP_RETRY_COUNT		2
 
