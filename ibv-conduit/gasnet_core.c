@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/31 21:43:50 $
- * $Revision: 1.21.2.8 $
+ *     $Date: 2003/11/01 07:17:25 $
+ * $Revision: 1.21.2.9 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -169,7 +169,7 @@ static void gasnetc_unpin(gasnetc_memreg_t *reg) {
   VAPI_ret_t vstat;
 
   vstat = VAPI_deregister_mr(gasnetc_hca, reg->handle);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr()");
 }
 
 static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg) {
@@ -416,7 +416,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       }
       hca_ids = gasneti_calloc(num_hcas, sizeof(VAPI_hca_id_t));
       vstat = EVAPI_list_hcas(num_hcas, &num_hcas, hca_ids);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "while enumerating HCAs");
 
       for (i = 0; i <= num_hcas; ++i) {
         vstat = VAPI_open_hca(hca_ids[i], &gasnetc_hca);
@@ -446,7 +446,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 
     vstat = VAPI_query_hca_cap(gasnetc_hca, &hca_vendor, &gasnetc_hca_cap);
-    gasneti_assert(vstat == VAPI_OK && "Unable to query HCA capabilities");
+    GASNETC_VAPI_CHECK(vstat, "from VAPI_query_hca_cap()");
 
     if (gasnetc_port_num == 0) {
       /* Zero means probe for the first active port */
@@ -503,7 +503,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* get a pd for the QPs and memory registration */
   vstat =  VAPI_alloc_pd(gasnetc_hca, &gasnetc_pd);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_alloc_pd()");
 
   /* allocate/initialize transport resources */
   gasnetc_sndrcv_init();
@@ -530,7 +530,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
       /* create the QP */
       vstat = VAPI_create_qp(gasnetc_hca, &qp_init_attr, &gasnetc_cep[i].qp_handle, &qp_prop);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
 
@@ -562,7 +562,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       if (i == gasnetc_mynode) continue;
       
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(INIT)");
     }
 
     /* post recv buffers and other local initialization */
@@ -594,7 +594,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       qp_attr.av.dlid        = remote_addr[i].lid;
       qp_attr.dest_qp_num    = remote_addr[i].qp_num;
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTR)");
     }
 
     /* QPs must reach RTR before their peer can advance to RTS */
@@ -618,7 +618,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       if (i == gasnetc_mynode) continue;
 
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTS)");
       gasneti_assert(qp_cap.max_inline_data_sq >= GASNETC_PUT_INLINE_LIMIT);
     }
   }
@@ -832,7 +832,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       vstat = gasnetc_pin(segbase, segsize,
 			  VAPI_EN_LOCAL_WRITE | VAPI_EN_REMOTE_WRITE | VAPI_EN_REMOTE_READ,
 			  &gasnetc_seg_reg);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr(segment)");
 
       rkeys = gasneti_calloc(gasnetc_nodes,sizeof(VAPI_rkey_t));
       gasneti_assert(rkeys != NULL);
