@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/16 08:56:48 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2003/04/16 18:58:43 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -143,6 +143,8 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
 
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
   assert(vstat == VAPI_OK);
+
+  gasnetc_rcv_reap(0);
 }
 
 /* ------------------------------------------------------------------------------------ *
