@@ -980,6 +980,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		gasneti_assert(req && (req->flags & FH_FLAG_PENDING));
 		req->flags &= ~FH_FLAG_PENDING;
 		req->internal = priv;
+    		CP_PRIV_TO_REQ(req, priv);
 
 		FH_STAILQ_INSERT_TAIL(PendQ, (fh_callback_t *) ccb);
 		GASNETI_TRACE_PRINTF(C,
