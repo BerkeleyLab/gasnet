@@ -1374,29 +1374,12 @@ fh_release_remote_region(firehose_request_t *request)
 /* ACTIVE MESSAGES                                                       */ 
 /* ##################################################################### */
 void
-fh_am_move_reqh(gasnet_token_t token, void *addr,
-		size_t nbytes,
-		gasnet_handlerarg_t flags,
-		gasnet_handlerarg_t r_new,
-		gasnet_handlerarg_t r_old)
+fh_move_request(gasnet_node_t node,
+		firehose_region_t *new_reg, size_t r_new,
+		firehose_region_t *old_reg, size_t r_old)
 {
-	firehose_region_t	*new_reg, *old_reg;
 	fhi_RegionPool_t	*rpool;
 	int			i, r_alloc;
-
-	gasneti_stattime_t      movetime = GASNETI_STATTIME_NOW_IFENABLED(C);
-	gasneti_stattime_t      unpintime;
-	gasnet_node_t		node;
-
-	gasnet_AMGetMsgSource(token, &node);
-
-	new_reg = (firehose_region_t *) addr;
-	old_reg = (firehose_region_t *) addr + r_new;
-
-	#ifdef FIREHOSE_UNEXPORT_CALLBACK
-	if (r_old > 0)
-		firehose_unexport_callback(node, old_reg, r_old);
-	#endif
 
 	FH_TABLE_LOCK;
 
@@ -1426,68 +1409,8 @@ fh_am_move_reqh(gasnet_token_t token, void *addr,
 	fhi_FreeRegionPool(rpool);
 	FH_TABLE_UNLOCK;
 
-	#ifdef FIREHOSE_EXPORT_CALLBACK
-	if (r_new > 0)
-		firehose_export_callback(node, new_reg, r_new);
-	#endif
-
-	/* If the user requires to run a remote callback, and the
-	 * callback is not to be run in place, run it */ 
-	if (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK) {
-		firehose_remotecallback_args_t	*args =
-		    (firehose_remotecallback_args_t *)
-		    ((firehose_region_t *) addr + r_new + r_old);
-
-		/* Client may be able to support callbacks for DMA
-		 * operations within the AM handler */
-
-		#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
-			firehose_remote_callback(node, 
-			    (const firehose_region_t *) new_reg, r_new);
-
-			gasnet_AMReplyMedium1(token,
-			    fh_handleridx(fh_am_move_reph),
-			    new_reg, sizeof(firehose_region_t) * r_new,
-			    r_new);
-	
-		#else
-			/* TODO. . solve MALLOC ? */
-			fh_remote_callback_t *rc = 
-			    (fh_remote_callback_t *)
-			    gasneti_malloc(sizeof(fh_remote_callback_t));
-			if_pf (rc == NULL)
-				gasneti_fatalerror("malloc");
-
-			rc->flags = FH_CALLBACK_TYPE_REMOTE;
-			rc->node = node;
-			rc->pin_list_num = r_new;
-			rc->reply_len = sizeof(firehose_region_t) * r_new;
-
-			rc->pin_list = (firehose_region_t *)
-				gasneti_malloc(sizeof(firehose_region_t)*r_new);
-			if_pf (rc->pin_list == NULL)
-				gasneti_fatalerror("malloc");
-
-			memcpy(rc->pin_list, new_reg, rc->reply_len);
-			memcpy(&(rc->args), args,
-			    sizeof(firehose_remotecallback_args_t));
-	
-			FH_POLLQ_LOCK;
-			FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, 
-				      (fh_callback_t *) rc);
-			FH_POLLQ_UNLOCK;
-		#endif
-	}
-	else {
-		gasnet_AMReplyMedium1(token,
-		    fh_handleridx(fh_am_move_reph),
-		    new_reg, sizeof(firehose_region_t) * r_new, r_new);
-	}
-
 	return;
 }
-
-/* Firehose AM Reply is in firehose.c */
 
 void
 fh_dump_counters()
@@ -1515,18 +1438,4 @@ fh_dump_counters()
 			fhc_RemoteVictimFifoBuckets[i], fhc_RemoteBucketsM);
 	}
 }
-
-/* indexes for firehose AM handlers */
-gasnet_handlerentry_t fh_am_handlers[] = {
-	/* ptr-width independent handlers */
-	gasneti_handler_tableentry_no_bits(fh_am_move_reqh),
-	gasneti_handler_tableentry_no_bits(fh_am_move_reph),
-	{ 0, NULL }
-};
-
-extern gasnet_handlerentry_t * 
-firehose_get_handlertable() {
-	return fh_am_handlers;
-}
-
 #endif

@@ -1110,6 +1110,91 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
 /*********************************
  * AM-related functions
  *********************************/
+
+/*
+ * Firehose AM Request Handler
+ */
+void
+fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
+		gasnet_handlerarg_t flags,
+		gasnet_handlerarg_t r_new,
+		gasnet_handlerarg_t r_old)
+{
+	firehose_region_t	*new_reg, *old_reg;
+	gasnet_node_t		node;
+
+	gasnet_AMGetMsgSource(token, &node);
+
+	new_reg = (firehose_region_t *) addr;
+	old_reg = new_reg + r_new;
+
+	#ifdef FIREHOSE_UNEXPORT_CALLBACK
+	if (r_old > 0)
+		firehose_unexport_callback(node, old_reg, r_old);
+	#endif
+
+	fh_move_request(node, new_reg, r_new, old_reg, r_old);
+
+	#ifdef FIREHOSE_EXPORT_CALLBACK
+	if (r_new > 0)
+		firehose_export_callback(node, new_reg, r_new);
+	#endif
+
+	/* If the user requires to run a remote callback, and the
+	 * callback is not to be run in place, run it */ 
+	if (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK) {
+		firehose_remotecallback_args_t	*args =
+		    (firehose_remotecallback_args_t *)(old_reg + r_old);
+
+		/* Client may be able to support callbacks for DMA
+		 * operations within the AM handler */
+
+		#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+			firehose_remote_callback(node, 
+			    (const firehose_region_t *) new_reg, r_new, args);
+
+			gasnet_AMReplyMedium1(token,
+			    fh_handleridx(fh_am_move_reph),
+			    new_reg, sizeof(firehose_region_t) * r_new,
+			    r_new);
+	
+		#else
+			/* TODO. . solve MALLOC ? */
+			fh_remote_callback_t *rc = 
+			    (fh_remote_callback_t *)
+			    gasneti_malloc(sizeof(fh_remote_callback_t));
+			if_pf (rc == NULL)
+				gasneti_fatalerror("malloc");
+
+			rc->flags = FH_CALLBACK_TYPE_REMOTE;
+			rc->node = node;
+			rc->pin_list_num = r_new;
+			rc->reply_len = sizeof(firehose_region_t) * r_new;
+
+			rc->pin_list = (firehose_region_t *)
+				gasneti_malloc(sizeof(firehose_region_t)*r_new);
+			if_pf (rc->pin_list == NULL)
+				gasneti_fatalerror("malloc");
+
+			memcpy(rc->pin_list, new_reg, rc->reply_len);
+			memcpy(&(rc->args), args,
+			    sizeof(firehose_remotecallback_args_t));
+	
+			FH_POLLQ_LOCK;
+			FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, 
+				      (fh_callback_t *) rc);
+			FH_POLLQ_UNLOCK;
+		#endif
+	}
+	else {
+		gasnet_AMReplyMedium1(token,
+		    fh_handleridx(fh_am_move_reph),
+		    new_reg, sizeof(firehose_region_t) * r_new, r_new);
+	}
+
+	return;
+}
+
 /*
  * Firehose AM Reply Handler
  * Process (run or queue) pending completion callbacks which are satisfied
@@ -1168,4 +1253,16 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 	gasnet_AMRequestMedium1(
 	    rc->node, fh_handleridx(fh_am_move_reph),
 	    rc->pin_list, rc->reply_len, rc->pin_list_num);
+}
+
+gasnet_handlerentry_t fh_am_handlers[] = {
+        /* ptr-width independent handlers */
+        gasneti_handler_tableentry_no_bits(fh_am_move_reqh),
+        gasneti_handler_tableentry_no_bits(fh_am_move_reph),
+        { 0, NULL }
+};
+
+gasnet_handlerentry_t *
+firehose_get_handlertable() {
+        return fh_am_handlers;
 }

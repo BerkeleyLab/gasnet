@@ -488,14 +488,15 @@ void	fh_acquire_remote_region(firehose_request_t *req,
 		        	firehose_remotecallback_args_t *remote_args);
 void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
+void	fh_move_request(gasnet_node_t node,
+			firehose_region_t *new_reg, size_t r_new,
+			firehose_region_t *old_reg, size_t r_old);
 int	fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 				 int nreg, fh_pollq_t *PendQ);
 
 /* ##################################################################### */
 /* Firehose AM-related things (page/region independent)                  */
 /* ##################################################################### */
-void fh_am_move_reph(gasnet_token_t token, void *addr,
-                     size_t nbytes, gasnet_handlerarg_t r_new);
 void fh_send_firehose_reply(fh_remote_callback_t *);
 extern gasnet_handlerentry_t fh_am_handlers[];
 /* Initial value of index for gasnet registration */
