@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2004/10/19 04:41:49 $
- * $Revision: 1.55 $
+ *     $Date: 2005/01/03 15:15:31 $
+ * $Revision: 1.55.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -430,38 +430,38 @@
        */
       static void gasneti_atomic_inc_32(int32_t volatile *v);
       #pragma mc_func gasneti_atomic_inc_32 {\
-	/* ARGS: r3 = v  LOCAL: r2 = tmp */ \
-	"7c401828"	/* 0: lwarx	r2,0,r3		*/ \
-	"38420001"	/*    addi	r2,r2,0x1	*/ \
-	"7c40192d"	/*    stwcx.	r2,0,r3		*/ \
+	/* ARGS: r3 = v  LOCAL: r4 = tmp */ \
+	"7c801828"	/* 0: lwarx	r4,0,r3		*/ \
+	"38840001"	/*    addi	r4,r4,0x1	*/ \
+	"7c80192d"	/*    stwcx.	r4,0,r3		*/ \
 	"40a2fff4"	/*    bne-	0b		*/ \
 	"4c00012c"	/*    isync			*/ \
       }
-      #pragma reg_killed_by gasneti_atomic_inc_32
+      #pragma reg_killed_by gasneti_atomic_inc_32 cr0, gr4
 
       static void gasneti_atomic_dec_32(int32_t volatile *v);
       #pragma mc_func gasneti_atomic_dec_32 {\
-	/* ARGS: r3 = v  LOCAL: r2 = tmp */ \
-	"7c401828"	/* 0: lwarx	r2,0,r3		*/ \
-	"3842ffff"	/*    subi	r2,r2,0x1	*/ \
-	"7c40192d"	/*    stwcx.	r2,0,r3		*/ \
+	/* ARGS: r3 = v  LOCAL: r4 = tmp */ \
+	"7c801828"	/* 0: lwarx	r4,0,r3		*/ \
+	"3884ffff"	/*    subi	r4,r4,0x1	*/ \
+	"7c80192d"	/*    stwcx.	r4,0,r3		*/ \
 	"40a2fff4"	/*    bne-	0b		*/ \
 	"4c00012c"	/*    isync			*/ \
       }
-      #pragma reg_killed_by gasneti_atomic_dec_32
+      #pragma reg_killed_by gasneti_atomic_dec_32 cr0, gr4
 
       static int32_t gasneti_atomic_decandfetch_32(int32_t volatile *v);
       #pragma mc_func gasneti_atomic_decandfetch_32 {\
-	/* ARGS: r3 = v  LOCAL: r2 = tmp */ \
-	"7c401828"	/* 0: lwarx	r2,0,r3		*/ \
-	"3842ffff"	/*    subi	r2,r2,0x1	*/ \
-	"7c40192d"	/*    stwcx.	r2,0,r3		*/ \
+	/* ARGS: r3 = v  LOCAL: r4 = tmp */ \
+	"7c801828"	/* 0: lwarx	r4,0,r3		*/ \
+	"3884ffff"	/*    subi	r4,r4,0x1	*/ \
+	"7c80192d"	/*    stwcx.	r4,0,r3		*/ \
 	"40a2fff4"	/*    bne-	0b		*/ \
 	"4c00012c"	/*    isync			*/ \
-	"7c431378"	/*    mr	r3,r2		*/ \
+	"7c832378"	/*    mr	r3,r4		*/ \
 	/* RETURN in r3 = result after dec */ \
       }
-      #pragma reg_killed_by gasneti_atomic_decandfetch_32
+      #pragma reg_killed_by gasneti_atomic_decandfetch_32 cr0, gr4
 
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
       #define gasneti_atomic_increment(p) (gasneti_atomic_inc_32(&((p)->ctr)))
