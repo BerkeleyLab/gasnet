@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2004/02/09 20:59:23 $
- * $Revision: 1.7 $
+ *     $Date: 2004/05/12 10:21:40 $
+ * $Revision: 1.7.4.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sched.h>
 #include <ctype.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
@@ -56,6 +55,8 @@ GASNETI_IDENT(AMUDP_DEFAULT_SPAWNFN_IDENT_STRING, "$GASNetDefaultSpawnFunction: 
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   gasneti_assert(GASNET_MAXNODES <= AMUDP_MAX_SPMDPROCS);
   gasneti_assert(AMUDP_MAX_NUMHANDLERS >= 256);
   gasneti_assert(AMUDP_MAX_SEGLENGTH == (uintptr_t)-1);
@@ -800,6 +801,30 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
+}
+
+extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+  GASNETI_CHECKATTACH();
+
+  {
+    int locked = (gasneti_mutex_trylock(&(hsl->lock)) == 0);
+
+    GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
+    if (locked) {
+      #if GASNETI_STATS_OR_TRACE
+        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      #endif
+      #if GASNETC_USE_INTERRUPTS
+        /* conduits with interrupt-based handler dispatch need to add code here to 
+           disable handler interrupts on _this_ thread, (if this is the outermost
+           HSL lock acquire and we're not inside an enclosing no-interrupt section)
+         */
+        #error interrupts not implemented
+      #endif
+    }
+
+    return locked ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
 }
 #endif
 /* ------------------------------------------------------------------------------------ */

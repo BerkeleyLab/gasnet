@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.55 2004/03/21 21:11:03 csbell Exp $
- * $Date: 2004/03/21 21:11:03 $
+/* $Id: gasnet_core.c,v 1.55.2.1 2004/05/12 10:21:16 csbell Exp $
+ * $Date: 2004/05/12 10:21:16 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -14,7 +14,6 @@
 
 #include <errno.h>
 #include <unistd.h>
-#include <sched.h>
 #include <signal.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, 
@@ -46,6 +45,8 @@ extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable();
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   gasneti_assert(gm_min_size_for_length(GASNETC_AM_MEDIUM_MAX) <= GASNETC_AM_SIZE);
   gasneti_assert(gm_min_size_for_length(GASNETC_AM_LONG_REPLY_MAX) <= GASNETC_AM_SIZE);
   gasneti_assert(gm_max_length_for_size(GASNETC_AM_SIZE) <= GASNETC_AM_PACKET);
@@ -2435,12 +2436,14 @@ gasnetc_SysBroadcastAlloc_reph(gasnet_token_t token, gasnet_handlerarg_t phase)
     gasnetc_bootstrapGather_allocdone[phase]++;
 
     #ifdef GASNET_TRACE
+      {
 	gasnet_node_t   node;
 	gasnet_AMGetMsgSource(token, &node);
 
 	GASNETC_BOOTTRACE_PRINTF(C, 
 	    ("AMSystem BroadcastAlloc Received (node=%d,phase=%d,cnt=%d)\n", 
 	    node, phase, gasnetc_bootstrapGather_allocdone[phase]));
+      }
     #endif
 }
 void
@@ -2921,6 +2924,30 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
+}
+
+extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+  GASNETI_CHECKATTACH();
+
+  {
+    int locked = (gasneti_mutex_trylock(&(hsl->lock)) == 0);
+
+    GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
+    if (locked) {
+      #if GASNETI_STATS_OR_TRACE
+        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      #endif
+      #if GASNETC_USE_INTERRUPTS
+        /* conduits with interrupt-based handler dispatch need to add code here to 
+           disable handler interrupts on _this_ thread, (if this is the outermost
+           HSL lock acquire and we're not inside an enclosing no-interrupt section)
+         */
+        #error interrupts not implemented
+      #endif
+    }
+
+    return locked ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
 }
 #endif
 /* ------------------------------------------------------------------------------------ */

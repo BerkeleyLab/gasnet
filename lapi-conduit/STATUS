@@ -1,3 +1,18 @@
+* * * 05/11/2004
+* This implementation does not yet take advantage of the new
+  features provided in the (PE 4.1) implementation of LAPI.
+
+* It appears there is a bug in the new LAPI, at least on power 4
+  systems with the Federation switch.  On such systems, LAPI_Qenv
+  claims a max uhdr size of 1956 bytes but using an active message
+  uhdr size larger than 932 bytes seems to cause a segmentation
+  violation.  To get around this, you must compile with:
+
+  make CONDUIT_EXTRALIBCFLAGS="-DGASNET_LAPI_UHDR_WORKAROUND"
+
+  This will force a reset of the max lapi uhdr size to 932 bytes.
+   
+
 * * * 12/06/2002
 
 Complete:

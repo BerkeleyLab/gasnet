@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/udp-conduit/gasnet_core.h                  $
- *     $Date: 2004/02/02 12:39:06 $
- * $Revision: 1.2 $
+ *     $Date: 2004/05/12 10:21:40 $
+ * $Revision: 1.2.4.1 $
  * Description: GASNet header for UDP conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -149,16 +149,19 @@ typedef struct _gasnet_hsl_t {
   #define gasnet_hsl_destroy(hsl)
   #define gasnet_hsl_lock(hsl)
   #define gasnet_hsl_unlock(hsl)
+  #define gasnet_hsl_trylock(hsl)	GASNET_OK
 #else
   extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
+  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl);
 
   #define gasnet_hsl_init    gasnetc_hsl_init
   #define gasnet_hsl_destroy gasnetc_hsl_destroy
   #define gasnet_hsl_lock    gasnetc_hsl_lock
   #define gasnet_hsl_unlock  gasnetc_hsl_unlock
+  #define gasnet_hsl_trylock gasnetc_hsl_trylock
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -158,9 +158,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2004/02/19 09:09:07 $
+@subtitle $Date: 2004/05/12 10:21:10 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.32 $ 
+@subtitle $Revision: 1.32.4.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -198,8 +198,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2004/02/19 09:09:07 $
-@*$Revision: 1.32 $ 
+@*$Date: 2004/05/12 10:21:10 $
+@*$Revision: 1.32.4.1 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -1400,7 +1400,7 @@ calls are ignored within a handler context.
 
 @item Code in a No-Interrupt Section must not call any GASNet functions that may 
 send requests or synchronously run handlers - specifically, the only GASNet 
-functions which may legally by called within the No-Interrupt Section are:
+functions which may legally be called within the No-Interrupt Section are:
 @example
 @code{gasnet_mynode()}, @code{gasnet_nodes()}, @code{gasnet_hsl_*()}, @code{gasnet_exit()}, @code{gasnet_AMReply*()}
 @end example
@@ -1410,7 +1410,9 @@ is only legal in a request handler).
 
 @item Code in a No-Interrupt Section must never block or spin-wait for an 
 unbounded amount of time, especially when awaiting a result produced by a 
-handler
+handler. The @emph{only} exception to this rule is that a thread may call 
+@code{gasnet_hsl_lock} within a No-Interrupt Section (subject to the rules
+in section @pxref{Restrictions on Handler-Safe Locks}).
 
 @item No-Interrupt Sections should only be held "briefly" to avoid starving the 
 network (could cause performance degradation, but should not affect 
@@ -1434,7 +1436,7 @@ ambiguity on what the signal meant. Since messages are queued, the single
 during a single No-Interrupt Section - GASNet messages will be removed and 
 processed until the queue is empty). 
 @item Implementation needs to hold a No-Interrupt Section over a thread while 
-running handlers
+running handlers or holding HSL's
 @item Strictly polling-based implementations which never interrupt a thread can 
 implement these as a no-op.
 }
@@ -1482,21 +1484,40 @@ detected in HSL initialization/destruction are fatal.
 @FNI gasnet_hsl_lock
 @FNI gasnet_hsl_unlock
 @deftypefn {} {void} gasnet_hsl_lock   (gasnet_hsl_t *@var{hsl})
+@deftypefnx {} {int} gasnet_hsl_trylock (gasnet_hsl_t *@var{hsl})
 @deftypefnx {} {void} gasnet_hsl_unlock (gasnet_hsl_t *@var{hsl})
 
-Lock and unlock HSL's. @code{gasnet_hsl_lock()} will block until the @var{hsl} lock can be 
+Lock and unlock HSL's. 
+
+@code{gasnet_hsl_lock(hsl)} will block until the @var{hsl} lock can be 
 acquired by the current thread. @code{gasnet_hsl_lock()} may be called from within 
 main-line client code or from within handlers - this is the @strong{only} blocking 
 call which is permitted to execute within a GASNet handler context (e.g. it 
 is erroneous to call POSIX mutex locking functions). 
-@code{gasnet_hsl_unlock()} releases the @var{hsl} lock previously acquired using 
-@code{gasnet_hsl_lock()}.
-It is erroneous to call these functions on HSL's which have not been 
-properly initialized.
+
+@code{gasnet_hsl_trylock(hsl)} attempts to acquire @code{hsl} for the current
+thread, returning immediately (without blocking).  If the lock was successfully
+acquired, this function returns @code{GASNET_OK}.  If the lock could not be
+acquired (e.g it was found to be held by another thread) then this function
+returns GASNET_ERR_NOT_READY and the lock is not acquired.  It is @emph{not}
+legal for an AM handler to spin-poll a lock without bound using
+@code{gasnet_hsl_trylock()} waiting for success - AM handlers must always use
+@code{gasnet_hsl_lock()} when they wish to block to acquire an HSL.
+
+@code{gasnet_hsl_unlock(hsl)} releases the @var{hsl} lock previously acquired
+using @code{gasnet_hsl_lock(hsl)} or a successful
+@code{gasnet_hsl_trylock(hsl)}, and not yet released.  
+It is erroneous to call any of these functions on HSL's which have not been
+properly initialized. 
+
 Note that under the @code{GASNET_SEQ} configuration, HSL locking functions may only 
 be called from handlers and the designated GASNet client thread (@emph{not} from 
 other client threads that may happen to exist - those threads are not 
 permitted to make @emph{any} GASNet calls, which includes HSL locking calls).
+
+All HSL locking/unlocking calls must follow the usage rules documented in the
+next section.
+
 @end deftypefn
 
 @c ------------------------------------------------------------------------------------
@@ -1514,13 +1535,15 @@ crashes, fatal errors or network deadlocks.
 @itemize @bullet
 @item Code executing on a thread holding an HSL is implicitly within a 
 No-Interrupt Section, and must follow all the restrictions on code within a 
-No-Interrupt Section (@pxref{Restrictions on No-Interrupt Sections}). @code{gasnet_hold_interrupts()} and 
-@code{gasnet_resume_interrupts()} must not be explicitly called while holding an HSL
+No-Interrupt Section (@pxref{Restrictions on No-Interrupt Sections}). 
+Calls to @code{gasnet_hold_interrupts()} and @code{gasnet_resume_interrupts()}
+are ignored while holding an HSL.
 
 @item Any handler which locks one or more HSL's @strong{must} unlock them all before 
-exiting or calling @code{gasnet_AMReply*()}
+returning or calling @code{gasnet_AMReply*()}
 
-@item HSL's may @strong{not} be locked recursively (i.e. calling @code{gasnet_hsl_lock()} on a 
+@item HSL's may @strong{not} be locked recursively (i.e. calling @code{gasnet_hsl_lock()} 
+or @code{gasnet_hsl_trylock(hsl)} on a 
 lock already held by the current thread) and attempting to do so will lead 
 to undefined behavior. It @strong{is} permitted for a thread to acquire more than 
 one HSL, although the traditional cautions about the possibility of deadlock 
@@ -1716,8 +1739,8 @@ handle this correctly without deadlock or livelock.
 
 The explicit-handle non-blocking data transfer functions return a 
 @code{gasnet_handle_t} value to represent the non-blocking operation in flight. 
-@code{gasnet_handle_t} is an opaque type whose contents are implementation-defined, 
-with one exception - every implementation must provide a value corresponding 
+@code{gasnet_handle_t} is an opaque scalar type whose contents are implementation-defined, 
+with one exception - every implementation must provide a scalar value corresponding 
 to an "invalid" handle (@code{GASNET_INVALID_HANDLE}) and furthermore this value 
 must be the result of setting all the bytes in the @code{gasnet_handle_t} datatype 
 to zero. Implementators are free to define the @code{gasnet_handle_t} type to be 

@@ -1,13 +1,14 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/17 01:16:34 $
-# $Revision: 1.126 $
+#     $Date: 2004/05/12 10:21:08 $
+# $Revision: 1.126.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.126 $)
+AC_DEFUN([cv_prefix],[gasnet_cv_])
+AC_REVISION($Revision: 1.126.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -74,12 +75,16 @@ else
 fi
 AC_SUBST(GMAKE)
 
-
-
 ########################################################################
 ##
 ##  C/C++ Compilers
 ##
+
+# Some OS's need help to find the right C compiler
+case "$target_os" in
+  superux*) # "cc" is completely broken on SuperUX, never use it
+     GASNET_ENV_DEFAULT(CC, c++ -Xa) ;; # may also/alternately want -Kc99
+esac
 
 AC_PROG_CC
 AC_PROG_CPP
@@ -87,22 +92,25 @@ AC_PROG_LN_S
 AC_C_BIGENDIAN
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
 
-AC_MSG_CHECKING(known buggy C compilers)
-AC_TRY_CPP([
+dnl GASNET_GCC296CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_GCC296CHECK],[
+AC_MSG_CHECKING(known buggy compilers)
+AC_TRY_COMPILE([
 #if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
 # error
 #endif
-],[ AC_MSG_RESULT(ok) ],[
-AC_MSG_RESULT(gcc 2.96)
-gcc296msg="Use of gcc 2.96 for compiling this software is strongly discouraged. \
+],[ ], [ AC_MSG_RESULT(ok) ],[
+AC_MSG_RESULT([$1] is gcc 2.96)
+gcc296msg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
 It is not an official GNU release and has many serious known bugs, especially \
 in the optimizer, which may lead to bad code and incorrect runtime behavior. \
-Consider using \$CC to select a different compiler."
-GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc 2.96 compiler, [ 
+Consider using \$[$1] to select a different compiler."
+GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [ 
   AC_MSG_WARN([$gcc296msg])  
   ],[ 
   AC_MSG_ERROR([$gcc296msg \
   You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])  
+])
 ])
 ])
 
@@ -151,7 +159,8 @@ fi
 #
 
 case "$gasnet_cv_cc_family" in
-  GNU)  oldCFLAGS="$CFLAGS"
+  GNU)  GASNET_GCC296CHECK(CC)
+        oldCFLAGS="$CFLAGS"
         CFLAGS="-O3"
         # -finline-limit not available on gcc 2.95
         GASNET_TRY_CFLAG([-finline-limit=10000],
@@ -227,6 +236,7 @@ case "$gasnet_cv_cc_family" in
         CCDEBUGFLAGS="$CFLAGS"
         CFLAGS="$oldCFLAGS"
   ;;
+  NEC)   CCDEBUGFLAGS="-g -Cnoopt -Cdebug" ;; 
   HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
   *)    CCDEBUGFLAGS="-g" ;;
 esac
@@ -240,6 +250,7 @@ case "$gasnet_cv_cc_family" in
   MIPS) MISC_CFLAGS="-common -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
   Intel) MISC_CFLAGS="-wd279" ;;
+  NEC) MISC_CFLAGS="-woff=68:111:174:177:236:301:550:940" ;; 
   PGI) MISC_CFLAGS="-Masmkeyword" ;;
   Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
   XLC) MISC_CFLAGS="-qsuppress=1500-010" ;; # 1500-010 = infinite loop (such as in our tests)
@@ -309,6 +320,23 @@ AM_CONDITIONAL(GASNET_SEGMENT_FAST, test "$segconfig" = fast)
 AM_CONDITIONAL(GASNET_SEGMENT_LARGE, test "$segconfig" = large)
 AM_CONDITIONAL(GASNET_SEGMENT_EVERYTHING, test "$segconfig" = everything)
 
+GASNET_WITH(segment-mmap-max,
+   [Upper bound for mmap-based GASNet segments (ex: "2GB", "1045MB")],
+   [case "$withval" in
+      [[1-9]]*G*) 
+        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
+            [((uint64_t)(`expr "${withval}" : "\([[0-9]]\+\)"`ull << 30))]) 
+        ;;
+      [[1-9]]*M*) 
+        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
+            [((uint64_t)(`expr "${withval}" : "\([[0-9]]\+\)"`ull << 20))]) 
+        ;;
+      [[1-9]][[0-9]]*) 
+        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
+            [((uint64_t)${withval}ull)]) 
+        ;;
+      *) AC_MSG_ERROR(Illegal value for --with-segment-mmap-max=$withval) ;;
+    esac])
 
 GASNET_LIBGCC
 
@@ -335,41 +363,48 @@ AC_CHECK_HEADERS(inttypes.h)
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR(PAGESIZE, PAGESIZE,
-  [ #include <limits.h> ], [ (PAGESIZE>0?PAGESIZE:(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <limits.h> ], [ val = PAGESIZE; if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR(PAGE_SIZE, PAGE_SIZE,
-  [ #include <limits.h> ], [ (PAGE_SIZE>0?PAGE_SIZE:(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <limits.h> ], [ val = PAGE_SIZE; if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR([sysconf(_SC_PAGESIZE)], _SC_PAGESIZE,
-  [ #include <unistd.h> ], [ (sysconf(_SC_PAGESIZE)>0?sysconf(_SC_PAGESIZE):(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <unistd.h> ], [ val = sysconf(_SC_PAGESIZE); if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR([sysconf(_SC_PAGE_SIZE)], _SC_PAGE_SIZE,
-  [ #include <unistd.h> ], [ (sysconf(_SC_PAGE_SIZE)>0?sysconf(_SC_PAGE_SIZE):(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <unistd.h> ], [ val = sysconf(_SC_PAGE_SIZE); if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" = ""; then
 GASNET_TRY_CACHE_RUN_EXPR([getpagesize()], getpagesize,
-  [ #include <unistd.h> ], [ (getpagesize()>0?getpagesize():(exit(1),0)) ], GASNETI_PAGESIZE)
+  [ #include <unistd.h> ], [ val = getpagesize(); if (val<=0) exit(1); ], GASNETI_PAGESIZE)
 fi
 
 if test "$GASNETI_PAGESIZE" != ""; then
   AC_DEFINE_UNQUOTED(GASNETI_PAGESIZE,$GASNETI_PAGESIZE)
 
   case "$GASNETI_PAGESIZE" in
-    1024)   GASNETI_PAGESHIFT=10 ;;
-    2048)   GASNETI_PAGESHIFT=11 ;;
-    4096)   GASNETI_PAGESHIFT=12 ;;
-    8192)   GASNETI_PAGESHIFT=13 ;;
-    16384)  GASNETI_PAGESHIFT=14 ;;
-    32768)  GASNETI_PAGESHIFT=15 ;;
-    65536)  GASNETI_PAGESHIFT=16 ;;
-    131072) GASNETI_PAGESHIFT=17 ;;
+    1024)     GASNETI_PAGESHIFT=10 ;;
+    2048)     GASNETI_PAGESHIFT=11 ;;
+    4096)     GASNETI_PAGESHIFT=12 ;;
+    8192)     GASNETI_PAGESHIFT=13 ;;
+    16384)    GASNETI_PAGESHIFT=14 ;;
+    32768)    GASNETI_PAGESHIFT=15 ;;
+    65536)    GASNETI_PAGESHIFT=16 ;;
+    131072)   GASNETI_PAGESHIFT=17 ;;
+    262144)   GASNETI_PAGESHIFT=18 ;;
+    524288)   GASNETI_PAGESHIFT=19 ;;
+    1048576)  GASNETI_PAGESHIFT=20 ;;
+    2097152)  GASNETI_PAGESHIFT=21 ;;
+    4194304)  GASNETI_PAGESHIFT=22 ;;
+    8388608)  GASNETI_PAGESHIFT=23 ;;
+    16777216) GASNETI_PAGESHIFT=24 ;;
     *) AC_MSG_ERROR(unknown GASNETI_PAGESIZE=$GASNETI_PAGESIZE) ;;
   esac
   AC_DEFINE_UNQUOTED(GASNETI_PAGESHIFT,$GASNETI_PAGESHIFT)
@@ -465,6 +500,12 @@ case "$target_os" in
         GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
+  superux*)
+	AC_DEFINE(SUPERUX)
+	GASNET_MACHINE_DEFINES="-DSUPERUX"
+        GASNET_THREAD_DEFINES="-D_REENTRANT"
+        GASNET_THREAD_LIBS="-lpthread"
+	;;
   unicos*)
 	AC_DEFINE(UNICOS)
         GASNET_MACHINE_DEFINES="-DUNICOS"
@@ -534,6 +575,17 @@ AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
 
 AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 
+AC_MSG_CHECKING(for x86 pause instruction)
+AC_TRY_COMPILE([], [
+  #if defined(__i386__) || defined(__x86_64__) || defined(__ia64__)
+    __asm__ __volatile__ ("pause" : : : "memory");
+  #else
+    #error wrong CPU architecture
+  #endif
+], [AC_DEFINE(HAVE_X86_PAUSE_INSTRUCTION)
+    AC_MSG_RESULT(yes)
+], [AC_MSG_RESULT(no)])
+
 #---------------------------------------------------------------------------------------------------------------
 # Check for overrides of compile-time checks for SMPs
 GASNET_IF_ENABLED_WITH_AUTO(smp-safe, Enable build of SMP-safe libraries (default is to probe at configure time),
@@ -578,13 +630,21 @@ fi
 #---------------------------------------------------------------------------------------------------------------
 CONDUITS=
 AC_SUBST(CONDUITS)
+# reporting file output at completion
+CONDUIT_LIST=conduits.tmp
+echo > $CONDUIT_LIST
+AC_DEFUN([CONDUIT_REPORT],[echo "  CONDUIT_DESC m4_substr([                                                  ],len(CONDUIT_DESC))$1" >> $CONDUIT_LIST])
+echo " Portable conduits:" >> $CONDUIT_LIST
+echo " -----------------" >> $CONDUIT_LIST
 
 #---------------------------------------------------------------------------------------------------------------
 # UDP/AMUDP Configuration
 # Hack-around to prevent a bogus autoconf 2.58 bug when AC_PROG_CXX is called conditionally below
 am__fastdepCXX_TRUE='#'
 am__fastdepCXX_FALSE=
-GASNET_IF_ENABLED_WITH_AUTO(udp, Enable the portable UDP network conduit (on by default),
+
+pushdef([CONDUIT_DESC],[portable UDP network conduit (udp)])
+GASNET_IF_ENABLED_WITH_AUTO(udp, Enable/disable the CONDUIT_DESC (auto-detected),
   [enabled_udp=yes;force_udp=yes],
   enabled_udp=no,
   enabled_udp=yes)
@@ -600,8 +660,10 @@ if test $enabled_udp = yes; then
   GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
+  GASNET_UDP_LIBS=""
   case "$gasnet_cv_cxx_family" in
     GNU) 
+       GASNET_GCC296CHECK(CXX)
        oldCXXFLAGS="$CXXFLAGS"  
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        MISC_CXXFLAGS="$CXXFLAGS" 
@@ -611,6 +673,10 @@ if test $enabled_udp = yes; then
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
     MIPS)  MISC_CXXFLAGS="-diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279" ;;
+    NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
+           CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
+	   GASNET_UDP_LIBS="-Kexceptions" 
+      ;; 
     Cray)
      case "$target_cpu" in
        # Cray CC v3.3.0.2 fails to accept "-htaskprivate", but accepts "-htask private"
@@ -640,7 +706,7 @@ if test $enabled_udp = yes; then
       LIBS=""
       AC_SEARCH_LIBS(socket, socket, have_udp=yes, have_udp=no)
       AC_SEARCH_LIBS(gethostbyname, nsl, , have_udp=no)
-      GASNET_UDP_LIBS="$LIBS"
+      GASNET_UDP_LIBS="$GASNET_UDP_LIBS $LIBS"
 
       if test "$have_udp" = yes ; then
 	AC_MSG_CHECKING(for working UDP configuration)
@@ -668,7 +734,11 @@ AC_SUBST(GASNET_UDP_LIBS)
 AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
 if test "$enabled_udp$have_udp" = yesyes ; then
   CONDUITS="$CONDUITS udp"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
 
 GASNET_ENV_DEFAULT(GASNET_CSPAWN_CMD, "$TI_CSPAWN_CMD")
 if test "$GASNET_CSPAWN_CMD" != "" ; then
@@ -678,7 +748,8 @@ fi
 #---------------------------------------------------------------------------------------------------------------
 # MPI/AMMPI Configuration
 # (In the future it would be nice to try and discover MPI setup automatically)
-GASNET_IF_ENABLED_WITH_AUTO(mpi, Enable the portable MPI network conduit (on by default), 
+pushdef([CONDUIT_DESC],[portable MPI-1.1 network conduit (mpi)])
+GASNET_IF_ENABLED_WITH_AUTO(mpi, Enable/disable the CONDUIT_DESC (auto-detected),
   [enabled_mpi=yes;force_mpi=yes],
   enabled_mpi=no,
   enabled_mpi=yes)
@@ -786,6 +857,12 @@ if test $enabled_mpi = yes; then
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
         ;;
+    superux*)
+      GASNET_ENV_DEFAULT(MPI_CC, mpic++ -Xa)
+      GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
+      GASNET_ENV_DEFAULT(MPI_LIBS, )
+      GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+      ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
       GASNET_ENV_DEFAULT(MPI_CC, mpicc)
@@ -855,24 +932,38 @@ AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 if test "$enabled_mpi$have_mpi" = yesyes ; then
   CONDUITS="$CONDUITS mpi"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
 
 #-----------------------------------------------------------------------------------------------
 # SMP configuration
 
-GASNET_IF_ENABLED_WITH_AUTO(smp, Enable the SMP (loopback) network conduit (on by default),
+pushdef([CONDUIT_DESC],[portable SMP-loopback network conduit (smp)])
+GASNET_IF_ENABLED_WITH_AUTO(smp, Enable/disable the CONDUIT_DESC (auto-detected),
   have_smp=yes,
   have_smp=no,
   have_smp=yes)
 AM_CONDITIONAL(USE_SMP_CONDUIT, test "$have_smp" = yes)
 if test "$have_smp" = yes ; then
   CONDUITS="$CONDUITS smp"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
+
+echo " " >> $CONDUIT_LIST
+echo " Native, high-performance conduits:" >> $CONDUIT_LIST
+echo " ---------------------------------" >> $CONDUIT_LIST
 
 #--------------------------------------------------------------------------------------------------------
 # GM configuration
 
-GASNET_IF_ENABLED(gm, Enable the Myricom/GM network conduit, 
+pushdef([CONDUIT_DESC],[Myricom/GM network conduit (gm)])
+GASNET_IF_ENABLED(gm, Enable the CONDUIT_DESC, 
   have_gm=yes,
   have_gm=no)
 if test $have_gm = yes; then
@@ -946,12 +1037,17 @@ AC_SUBST(GM_NO_ALIAS)
 AM_CONDITIONAL(USE_GM_CONDUIT, test "$have_gm" = yes)
 if test "$have_gm" = yes ; then
   CONDUITS="$CONDUITS gm"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
 
 #--------------------------------------------------------------------------------------------------------
 # LAPI configuration
 
-GASNET_IF_ENABLED(lapi, Enable the LAPI (IBM SP) network conduit, 
+pushdef([CONDUIT_DESC],[LAPI (IBM SP) network conduit (lapi)])
+GASNET_IF_ENABLED(lapi, Enable the CONDUIT_DESC, 
   have_lapi=yes,
   have_lapi=no)
 
@@ -991,12 +1087,17 @@ fi
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
 if test "$have_lapi" = yes ; then
   CONDUITS="$CONDUITS lapi"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
 
 #--------------------------------------------------------------------------------------------------------
 # ELAN configuration
 
-GASNET_IF_ENABLED(elan, Enable the elan (Quadrics) network conduit, 
+pushdef([CONDUIT_DESC],[Quadrics/Elan network conduit (elan)])
+GASNET_IF_ENABLED(elan, Enable the CONDUIT_DESC, 
   have_elan=yes,
   have_elan=no)
 
@@ -1080,16 +1181,43 @@ AC_SUBST(ELAN_FLAGS)
 AM_CONDITIONAL(USE_ELAN_CONDUIT, test "$have_elan" = yes)
 if test "$have_elan" = yes ; then
   CONDUITS="$CONDUITS elan"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
 
 #--------------------------------------------------------------------------------------------------------
 # VAPI configuration
 
-GASNET_IF_ENABLED(vapi, Enable the VAPI (Mellanox InfiniBand) network conduit, 
-  have_vapi=yes,
-  have_vapi=no)
+pushdef([CONDUIT_DESC],[Mellanox InfiniBand/VAPI network conduit (vapi)])
+GASNET_IF_ENABLED_WITH_AUTO(vapi, Enable/disable the CONDUIT_DESC (auto-detected),
+  [enabled_vapi=yes;force_vapi=yes],
+  enabled_vapi=no,
+  enabled_vapi=yes)
+if test "$enabled_vapi" = yes; then
+  # Sort out the MPI dependence
+  AC_MSG_CHECKING([for MPI (required to start VAPI programs)])
+  if test "$have_mpi" = yes; then
+    AC_MSG_RESULT(ok)
+  else
+    if test "$enabled_mpi" = no; then
+      reason="disabled"
+    else
+      reason="not found"
+    fi
+    AC_MSG_RESULT([$reason - VAPI auto-detection skipped.]);
+    if test "$force_vapi" = yes; then
+      AC_MSG_ERROR([User requested --enable-vapi but required MPI support was $reason.]);
+    fi
+    enabled_vapi=no
+  fi
+fi
+if test "$enabled_vapi" = yes; then
+  # Start by assuming we do have VAPI
+  have_vapi=yes
 
-if test $have_vapi = yes; then
+  # Start with some sensable defaults
   GASNET_ENV_DEFAULT(MTHOME, /usr/mellanox)
   GASNET_ENV_DEFAULT(VAPI_INCLUDE, $MTHOME/include)
   GASNET_ENV_DEFAULT(VAPI_LIBDIR, $MTHOME/lib)
@@ -1097,8 +1225,10 @@ if test $have_vapi = yes; then
 
   # Assemble any extra flags needed at library build time
   VAPI_LIBCFLAGS=''
-  if test "$gasnet_cv_cc_family" != "GNU"; then
-    AC_MSG_CHECKING(if $CC supports GNU variadic preprocessor macros)
+  AC_MSG_CHECKING(if $CC supports GNU variadic preprocessor macros)
+  if test "$gasnet_cv_cc_family" = "GNU"; then
+    AC_MSG_RESULT([yes (gcc)])
+  else
     AC_TRY_COMPILE([
 	extern void bar1(int a);
 	extern void bar3(int a, int b, int c);
@@ -1114,15 +1244,15 @@ if test $have_vapi = yes; then
     ])
   fi
 
-  AC_MSG_CHECKING(for working VAPI configuration)
-  if test "$mpi_test_worked" != yes; then
-    if test "$enabled_mpi" = yes; then
-      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but MPI was not sucessfuly configured.]);
-    else
-      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but you have disabled it.]);
-    fi
+  if test "$gasnet_cv_cc_family" = "GNU" -a "$segconfig" != fast; then
+    # If using firehose we need to disable certain gcc optimizations.
+    # See bug #350 for an example of why firehose needs this.
+    # See bug #596 for evidence that VAPi is affected by this.
+    VAPI_LIBCFLAGS="$VAPI_LIBCFLAGS -fno-strict-aliasing"
   fi
 
+  # Try to compile and link a basic VAPI program
+  AC_MSG_CHECKING(for working VAPI configuration)
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
   CFLAGS="-I$VAPI_INCLUDE $VAPI_LIBCFLAGS"
@@ -1139,26 +1269,34 @@ if test $have_vapi = yes; then
     }], [ vapi_test_worked=yes ], [ vapi_test_worked=no ] )
   CFLAGS="$OLDCFLAGS"
   LIBS="$OLDLIBS"
-
   if test "$vapi_test_worked" = yes; then
     AC_MSG_RESULT(yes)
   else
     AC_MSG_RESULT(no)
-    AC_MSG_ERROR(build test failed: I don't know how to build VAPI programs on your system)
     have_vapi=no
   fi
 
-  GASNET_IF_ENABLED_WITH_AUTO(vapi-inline-puts, [See vapi-conduit/README (enabled by default)], 
-    enabled_vapi_inline_puts=yes, enabled_vapi_inline_puts=no, enabled_vapi_inline_puts=yes)
-    if test "$enabled_vapi_inline_puts" = yes; then
-      AC_DEFINE(GASNETC_VAPI_ENABLE_INLINE_PUTS)
-    fi
 
-  GASNET_IF_ENABLED_WITH_AUTO(vapi-force-poll-lock, [See vapi-conduit/README (disabled by default)], 
-    enabled_vapi_force_poll_lock=yes, enabled_vapi_force_poll_lock=no, enabled_vapi_force_poll_lock=no)
-    if test "$enabled_vapi_force_poll_lock" = yes; then
-      AC_DEFINE(GASNETC_VAPI_FORCE_POLL_LOCK)
-    fi
+  # Check for conflict
+  if test "$force_vapi$have_vapi" = yesno; then
+    AC_MSG_ERROR([User requested --enable-vapi but I don't know how to build VAPI programs for your system.])
+  fi
+
+
+  if test "$have_vapi" = yes; then
+    # Collect some VAPI-specifc configure options
+    GASNET_IF_ENABLED_WITH_AUTO(vapi-inline-puts, [See vapi-conduit/README (enabled by default)], 
+      enabled_vapi_inline_puts=yes, enabled_vapi_inline_puts=no, enabled_vapi_inline_puts=yes)
+      if test "$enabled_vapi_inline_puts" = yes; then
+        AC_DEFINE(GASNETC_VAPI_ENABLE_INLINE_PUTS)
+      fi
+
+    GASNET_IF_ENABLED_WITH_AUTO(vapi-force-poll-lock, [See vapi-conduit/README (disabled by default)], 
+      enabled_vapi_force_poll_lock=yes, enabled_vapi_force_poll_lock=no, enabled_vapi_force_poll_lock=no)
+      if test "$enabled_vapi_force_poll_lock" = yes; then
+        AC_DEFINE(GASNETC_VAPI_FORCE_POLL_LOCK)
+      fi
+  fi
 fi
 
 AC_SUBST(VAPI_INCLUDE)
@@ -1168,7 +1306,11 @@ AC_SUBST(VAPI_LIBCFLAGS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
 if test "$have_vapi" = yes ; then
   CONDUITS="$CONDUITS vapi"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
 fi
+popdef([CONDUIT_DESC])
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$mpi_test_worked" = yes)
 
 ########################################################################
@@ -1191,33 +1333,7 @@ case "$target_os" in
 esac
 
 # Check for alloca in C code
-AC_MSG_CHECKING(for alloca in C code)
-ALLOCA_IN_C=""
-AC_TRY_LINK([
-/* AIX requires this to be the first thing in the file.  */
-#ifndef __GNUC__
-# if HAVE_ALLOCA_H
-#  include <alloca.h>
-# else
-#  ifdef _AIX
- #pragma alloca
-#  else
-#   ifndef alloca /* predefined by HP cc +Olibcalls */
-char *alloca ();
-#   endif
-#  endif
-# endif
-#endif
-], [
-char *p = (char *) alloca(10);
-], [ alloca_in_c=yes ], [ alloca_in_c=no ])
-if test "$alloca_in_c" = yes; then
-  AC_MSG_RESULT(yes)
-  ALLOCA_IN_C="1"
-else
-  AC_MSG_RESULT(no)
-fi
-AC_SUBST(ALLOCA_IN_C)
+GASNET_FUNC_ALLOCA
 
 # -lm should only live in LIBM, and only if we have it (not in LIBS)
 OLDLIBS="$LIBS"
@@ -1498,6 +1614,16 @@ GASNET_SET_INSTALL_CMD
 ##  Final Output
 ##
 
+echo "----------------------------------------------------------------------"
+echo "GASNet conduit configuration: $CONDUITS"
+cat $CONDUIT_LIST
+echo " "
+echo " Some conduits require --enable-XXX configure flags and/or additional"
+echo " variables providing the install location of vendor drivers."
+echo " See the GASNet documentation for details."
+echo "----------------------------------------------------------------------"
+rm -f $CONDUIT_LIST
+
 GASNET_SAVE_AUTOCONF_ENV()
 
 GASNET_FIX_EXEC(gm-conduit/contrib/gasnetrun_gm)
@@ -1511,48 +1637,36 @@ Makefile
 other/perlstart dnl must precede files that use it
 
 mpi-conduit/Makefile
-mpi-conduit/mpi-seq.mak
-mpi-conduit/mpi-parsync.mak
-mpi-conduit/mpi-par.mak
+mpi-conduit/conduit.mak
 mpi-conduit/contrib/Makefile
 mpi-conduit/contrib/gasnetrun_mpi
 
 udp-conduit/Makefile
-udp-conduit/udp-seq.mak
-udp-conduit/udp-parsync.mak
-udp-conduit/udp-par.mak
+udp-conduit/conduit.mak
 
 gm-conduit/Makefile
-gm-conduit/gm-seq.mak
-gm-conduit/gm-parsync.mak
-gm-conduit/gm-par.mak
+gm-conduit/conduit.mak
 gm-conduit/contrib/Makefile
 gm-conduit/contrib/gasnetrun_gm
 
 lapi-conduit/Makefile
-lapi-conduit/lapi-seq.mak
-lapi-conduit/lapi-parsync.mak
-lapi-conduit/lapi-par.mak
+lapi-conduit/conduit.mak
 
 smp-conduit/Makefile
-smp-conduit/smp-seq.mak
-smp-conduit/smp-parsync.mak
-smp-conduit/smp-par.mak
+smp-conduit/conduit.mak
 
 elan-conduit/Makefile
-elan-conduit/elan-seq.mak
-elan-conduit/elan-parsync.mak
-elan-conduit/elan-par.mak
+elan-conduit/conduit.mak
 
 vapi-conduit/Makefile
-vapi-conduit/vapi-seq.mak
-vapi-conduit/vapi-parsync.mak
-vapi-conduit/vapi-par.mak
+vapi-conduit/conduit.mak
 vapi-conduit/contrib/Makefile
 vapi-conduit/contrib/gasnetrun_vapi
 
 other/Makefile
 other/Makefile-conduit.mak
+other/fragment-head.mak
+other/fragment-body.mak
 other/ammpi/Makefile
 other/amudp/Makefile
 tests/Makefile

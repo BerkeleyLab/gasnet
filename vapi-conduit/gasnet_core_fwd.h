@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2004/02/09 23:03:32 $
- * $Revision: 1.11 $
+ *     $Date: 2004/05/12 10:21:42 $
+ * $Revision: 1.11.4.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,15 @@
 
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
+
+/* At least one VAPI MPI does '#define VAPI 1'.
+ * This will clobber our GASNET_CORE_NAME.
+ * Grumble, grumble.
+ */
+#ifdef VAPI
+  #undef VAPI
+#endif
+
 
 #define GASNET_CORE_VERSION      1.3
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)

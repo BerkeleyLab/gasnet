@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2004/03/05 15:02:49 $
- * $Revision: 1.24 $
+ *     $Date: 2004/05/12 10:21:08 $
+ * $Revision: 1.24.4.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,130 +19,7 @@
   #include <sys/param.h>
 #endif
 
-/* ------------------------------------------------------------------------------------ */
-/* define unambiguous integer types */
-#ifndef _INTTYPES_DEFINED
-#define _INTTYPES_DEFINED
-#if defined(HAVE_INTTYPES_H)
-  #include <inttypes.h>
-#elif defined(WIN32) && defined(_MSC_VER)
-  typedef signed __int8      int8_t;
-  typedef unsigned __int8   uint8_t;
-  typedef __int16           int16_t;
-  typedef unsigned __int16 uint16_t;
-  typedef __int32           int32_t;
-  typedef unsigned __int32 uint32_t;
-  typedef __int64           int64_t;
-  typedef unsigned __int64 uint64_t;
-
-  typedef          int     intptr_t; /* signed/unsigned types big enough to hold any pointer offset */
-  typedef unsigned int    uintptr_t; 
-#elif defined(CRAYT3E)
-  typedef signed char        int8_t;
-  typedef unsigned char     uint8_t;
-  typedef short             int16_t; /* This is 32-bits, should be 16 !!! */
-  typedef unsigned short   uint16_t; /* This is 32-bits, should be 16 !!! */
-  typedef short             int32_t;
-  typedef unsigned short   uint32_t;
-  typedef int               int64_t;
-  typedef unsigned int     uint64_t;
-
-  typedef          int     intptr_t; /* signed/unsigned types big enough to hold any pointer offset */
-  typedef unsigned int    uintptr_t; 
-#elif defined(CYGWIN)
-  #include <sys/types.h>
-  #ifndef __int8_t_defined
-  #ifndef __uint8_t_defined
-    typedef u_int8_t     uint8_t;
-  #endif
-  #ifndef __uint16_t_defined
-    typedef u_int16_t   uint16_t; 
-  #endif
-  #ifndef __uint32_t_defined
-    typedef u_int32_t   uint32_t;
-  #endif
-  #ifndef __uint64_t_defined
-    typedef u_int64_t   uint64_t;
-  #endif
-
-  #ifndef __intptr_t_defined
-    typedef          int     intptr_t; /* signed/unsigned types big enough to hold any pointer offset */
-  #endif
-  #ifndef __uintptr_t_defined
-    typedef unsigned int    uintptr_t; 
-  #endif
-  #endif
-#else
-  /* try to determine them automatically */
-  #if SIZEOF_CHAR == 1
-    typedef signed   char  int8_t;
-    typedef unsigned char uint8_t;
-  #else
-    #error Cannot find an 8-bit type for your platform
-  #endif
-
-  #if SIZEOF_CHAR == 2
-    typedef signed   char  int16_t;
-    typedef unsigned char uint16_t;
-  #elif SIZEOF_SHORT == 2
-    typedef          short  int16_t;
-    typedef unsigned short uint16_t;
-  #elif SIZEOF_INT == 2
-    typedef          int  int16_t;
-    typedef unsigned int uint16_t;
-  #else
-    #error Cannot find a 16-bit type for your platform
-  #endif
-
-  #if SIZEOF_SHORT == 4
-    typedef          short  int32_t;
-    typedef unsigned short uint32_t;
-  #elif SIZEOF_INT == 4
-    typedef          int  int32_t;
-    typedef unsigned int uint32_t;
-  #elif SIZEOF_LONG == 4
-    typedef          long  int32_t;
-    typedef unsigned long uint32_t;
-  #else
-    #error Cannot find a 32-bit type for your platform
-  #endif
-
-  #if SIZEOF_INT == 8
-    typedef          int  int64_t;
-    typedef unsigned int uint64_t;
-  #elif SIZEOF_LONG == 8
-    typedef          long  int64_t;
-    typedef unsigned long uint64_t;
-  #elif SIZEOF_LONG_LONG == 8
-    typedef          long long  int64_t;
-    typedef unsigned long long uint64_t;
-  #else
-    #error Cannot find a 64-bit type for your platform
-  #endif
-
-  #if SIZEOF_VOID_P == SIZEOF_SHORT
-    typedef          short  intptr_t;
-    typedef unsigned short uintptr_t;
-  #elif SIZEOF_VOID_P == SIZEOF_INT
-    typedef          int  intptr_t;
-    typedef unsigned int uintptr_t;
-  #elif SIZEOF_VOID_P == SIZEOF_LONG
-    typedef          long  intptr_t;
-    typedef unsigned long uintptr_t;
-  #elif SIZEOF_VOID_P == SIZEOF_LONG_LONG
-    typedef          long long  intptr_t;
-    typedef unsigned long long uintptr_t;
-  #else
-    #error Cannot find a integral pointer-sized type for your platform
-  #endif  
-#endif
-#if defined(HPUX) && defined(__STDC_32_MODE__)
-  /* HPUX inttypes.h stupidly omits these in some cases */
-  typedef          long long  int64_t;
-  typedef unsigned long long uint64_t;
-#endif
-#endif
-/* ------------------------------------------------------------------------------------ */
+#include "portable_inttypes.h"
 
 #if SIZEOF_VOID_P == 4
   #define GASNETI_PTR32

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2004/03/17 22:03:09 $
- * $Revision: 1.33 $
+ *     $Date: 2004/05/12 10:21:08 $
+ * $Revision: 1.33.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,6 +34,7 @@
 
 #if defined(SOLARIS) || /* SPARC seems to have no atomic ops */ \
     defined(CRAYT3E) || /* TODO: no atomic ops on T3e? */       \
+    defined(_SX) || /* NEC SX-6 atomics not available to user code? */ \
     defined(HPUX)    || /* HPUX seems to have no atomic ops */  \
     defined(__crayx1) || /* X1 atomics currently broken */ \
     (defined(__PGI) && defined(BROKEN_LINUX_ASM_ATOMIC_H)) || /* haven't implemented atomics for PGI */ \
@@ -356,6 +357,27 @@
        gasneti_atomic_postsync();
        return retval;
     }
+  #elif defined(_SX)
+    /* these are disabled for now because they don't link */
+    typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
+   #if 0
+    #include <sys/mplock.h>
+    #define gasneti_atomic_increment(p) (atomic_add4(((p)->ctr),1))
+    #define gasneti_atomic_decrement(p) (atomic_add4(((p)->ctr),-1))
+    #define gasneti_atomic_read(p)      (atomic_read4((p)->ctr))
+    #define gasneti_atomic_set(p,v)     (atomic_set4((p)->ctr,(v)))
+    #define gasneti_atomic_init(v)      { (v) }
+    #define gasneti_atomic_decrement_and_test(p) \
+                                        (atomic_add4(((p)->ctr),-1) == 0)
+   #else
+    #define gasneti_atomic_increment(p) (muadd(&((p)->ctr),1))
+    #define gasneti_atomic_decrement(p) (muadd(&((p)->ctr),-1))
+    #define gasneti_atomic_read(p)      (muget(&((p)->ctr)))
+    #define gasneti_atomic_set(p,v)     (muset(&((p)->ctr),(v)))
+    #define gasneti_atomic_init(v)      { (v) }
+    #define gasneti_atomic_decrement_and_test(p) \
+                                        (muadd(&((p)->ctr),-1) == 0)
+   #endif
   #elif 0 && defined(SOLARIS)
     /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
        to the user... after all, what application would be interested in performance? */
@@ -463,6 +485,8 @@
   #define GASNETI_ASM(mnemonic)  /* TODO: broken - doesn't have inline assembly */
 #elif defined(__SUNPRO_C)
   #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
+#elif defined(_SX)  
+  #define GASNETI_ASM(mnemonic)  asm(mnemonic)
 #elif defined(HPUX) && !defined(__GNUC__) /* HP C */
   #define GASNETI_ASM(mnemonic)  _asm(mnemonic)
 #elif defined(__xlC__)  
@@ -618,8 +642,29 @@
      static int volatile x;
      x = 1;
    }
+#elif defined(_SX)
+   GASNET_INLINE_MODIFIER(gasneti_local_membar)
+   void gasneti_local_membar(void) {
+     /* TODO: probably need more here */
+     static int volatile x;
+     x = 1;
+     /* GASNETI_ASM("nop"); - leads to "FATAL COMPILER ERROR, Unknown statement. c++: Internal Error: Please report." */
+   }
 #else
  #error unknown CPU - dont know how to do a local memory barrier for your CPU/OS
+#endif
+
+#ifndef gasneti_spinloop_hint
+ #ifdef HAVE_X86_PAUSE_INSTRUCTION
+   /* Pentium 4 processors get measurably better performance when a "pause" instruction
+      is inserted in spin-loops - this instruction is documented as a "spin-loop hint"
+      which avoids a memory hazard stall on spin loop exit and reduces power consumption
+      Other Intel CPU's treat this instruction as a no-op
+   */
+   #define gasneti_spinloop_hint() GASNETI_ASM("pause")
+ #else
+   #define gasneti_spinloop_hint() ((void)0)
+ #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */

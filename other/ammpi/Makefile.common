@@ -1,12 +1,13 @@
 #  $Archive:: /Ti/AMMPI/Makefile.common                                  $
-#     $Date: 2004/03/18 12:07:32 $
-# $Revision: 1.5 $
+#     $Date: 2004/05/12 10:21:28 $
+# $Revision: 1.5.2.1 $
 # Description: Platform-independent variable init, overridden by pre-baked makefiles
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
 # variables added here should also go in Makefile.titanium.in, and vice-versa
 
 srcdir = .
+altincdir = $(srcdir)
 testdir = $(srcdir)
 
 # compiler

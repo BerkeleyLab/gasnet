@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_amambarrier.c                  $
- *     $Date: 2004/03/12 18:32:06 $
- * $Revision: 1.10 $
+ *     $Date: 2004/05/12 10:21:14 $
+ * $Revision: 1.10.2.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,7 @@
 #ifdef GASNETE_USE_AMDISSEMINATION_REFBARRIER
 /* ------------------------------------------------------------------------------------ */
 /* use the AM-based Dissemination implementation of barrier */
+#define gasnete_ambarrier_init        gasnete_refbarrier_init
 #define gasnete_ambarrier_notify      gasnete_refbarrier_notify
 #define gasnete_ambarrier_wait        gasnete_refbarrier_wait
 #define gasnete_ambarrier_try         gasnete_refbarrier_try
@@ -60,7 +61,7 @@ static int volatile ambarrier_recv_value_present[2] = { 0, 0 }; /*  consensus am
   static gasneti_stattime_t ambarrier_notifytime; /* for statistical purposes */ 
 #endif
 
-static void gasnete_ambarrier_init(void)
+void gasnete_ambarrier_init(void)
 {
   int i, j;
 
@@ -70,20 +71,18 @@ static void gasnete_ambarrier_init(void)
   for (i=0, j=1; j < gasnete_nodes; ++i, j*=2) ;
 
   ambarrier_size = i;
+  gasneti_assert (ambarrier_size <= GASNETE_AMBARRIER_MAXSTEP);
 }
 
 static void gasnete_ambarrier_notify_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase, gasnet_handlerarg_t step, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
 
   gasnet_hsl_lock(&ambarrier_lock);
-  if_pf (ambarrier_size < 0) {
-    gasnete_ambarrier_init();
-  }
   { 
     /* Note we might not receive the steps in the numbered order.
      * We record the value received on the first one to actually arrive.
      * In subsequent steps we check for mismatch of received values.
-     * The local value is compared at the start of step == 1.
+     * The local value is compared in the kick function.
      */
     if (flags == 0 && !ambarrier_recv_value_present[phase]) {
       ambarrier_recv_value_present[phase] = 1;
@@ -107,25 +106,22 @@ static void gasnete_ambarrier_kick() {
   GASNETE_SAFE(gasnet_AMPoll());
 
   if_pt (step != ambarrier_size) {
-    gasnet_hsl_lock(&ambarrier_lock);
     if (ambarrier_step_done[phase][step]) {
-      /* If step==0 this is the first time we are certain we have both a local and remote id */
-      if_pf ((step == 0) &&
-	     (ambarrier_flags == 0) && 
-	     (ambarrier_recv_value[phase] != ambarrier_value)) {
+      if_pf (ambarrier_mismatch[phase] ||
+	     ((ambarrier_flags == 0) && 
+	      ambarrier_recv_value_present[phase] &&
+	      (ambarrier_recv_value[phase] != ambarrier_value))) {
         ambarrier_flags = GASNET_BARRIERFLAG_MISMATCH;
       }
 
       ++step;
       if (step == ambarrier_size) {
 	/* We have the last recv.  There is nothing more to send. */
-        gasnet_hsl_unlock(&ambarrier_lock);
 	gasneti_memsync();
       } else {
         gasnet_node_t peer;
-        gasnet_handlerarg_t flags = ambarrier_mismatch[phase] ? GASNET_BARRIERFLAG_MISMATCH
-							      : ambarrier_flags;
-        gasnet_hsl_unlock(&ambarrier_lock);
+	gasnet_handlerarg_t value = ambarrier_value;
+	gasnet_handlerarg_t flags = ambarrier_flags;
 
 	/* No need for a full mod because worst case is < 2*gasnete_nodes.
 	 * However, we must take care for overflow if we try to do the
@@ -150,13 +146,21 @@ static void gasnete_ambarrier_kick() {
 	  gasneti_assert(peer < gasnete_nodes);
 	}
 
+	if ((ambarrier_flags == GASNET_BARRIERFLAG_ANONYMOUS) &&
+	    ambarrier_recv_value_present[phase]) {
+	  /* If we are on an node with an anonymous barrier invocation we
+	   * may have received a barrier name from another node.  If so we
+	   * must forward it to allow for matching tests.
+	   */
+	  flags = 0;
+	  value = ambarrier_recv_value[phase];
+	}
+
         GASNETE_SAFE(
           gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
-                                 phase, step, ambarrier_value, flags));
+                                 phase, step, value, flags));
       }
       ambarrier_step = step;
-    } else {
-      gasnet_hsl_unlock(&ambarrier_lock);
     }
   }
 }
@@ -170,11 +174,6 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
   #if GASNETI_STATS_OR_TRACE
     ambarrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
-
-  if_pf (ambarrier_size < 0) {
-    gasnete_ambarrier_init();
-    gasneti_assert (ambarrier_size <= GASNETE_AMBARRIER_MAXSTEP);
-  }
 
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
    * bits locally as we do when passing over the network.
@@ -202,7 +201,6 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
 
   /*  update state */
   ambarrier_splitstate = INSIDE_AMBARRIER;
-  gasneti_memsync(); /* ensure all state changes committed before return */
 }
 
 
@@ -268,6 +266,7 @@ extern int gasnete_ambarrier_try(int id, int flags) {
 #else	/* default */
 /* ------------------------------------------------------------------------------------ */
 /* use the AM-based reference implementation of barrier */
+#define gasnete_ambarrier_init        gasnete_refbarrier_init
 #define gasnete_ambarrier_notify      gasnete_refbarrier_notify
 #define gasnete_ambarrier_wait        gasnete_refbarrier_wait
 #define gasnete_ambarrier_try         gasnete_refbarrier_try
@@ -306,6 +305,10 @@ static int volatile ambarrier_consensus_value[2]; /*  consensus ambarrier value 
 static int volatile ambarrier_consensus_value_present[2] = { 0, 0 }; /*  consensus ambarrier value found */
 static int volatile ambarrier_consensus_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
 static int volatile ambarrier_count[2] = { 0, 0 }; /*  count of how many remotes have notified (on P0) */
+
+void gasnete_ambarrier_init(void) {
+  /* Nothing to do */
+}
 
 static void gasnete_ambarrier_notify_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {

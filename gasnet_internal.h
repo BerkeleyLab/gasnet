@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.h                               $
- *     $Date: 2004/01/24 15:14:42 $
- * $Revision: 1.50 $
+ *     $Date: 2004/05/12 10:21:08 $
+ * $Revision: 1.50.4.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,6 +27,9 @@ BEGIN_EXTERNC
 extern int gasneti_init_done; /*  true after init */
 extern int gasneti_attach_done; /*  true after attach */
 
+/* conduit-independent sanity checks */
+extern void gasneti_check_config_preinit();
+extern void gasneti_check_config_postattach();
 
 /*  safe memory allocation/deallocation */
 #if GASNET_DEBUG
@@ -99,8 +102,17 @@ extern int gasneti_attach_done; /*  true after attach */
    compatible with malloc/calloc/free
    (freeing memory allocated from one using the other is likely to crash)
  */
+#ifdef malloc
+#undef malloc
+#endif
 #define malloc !!! ERROR: GASNet conduit code must use gasneti_malloc !!!
+#ifdef calloc
+#undef calloc
+#endif
 #define calloc !!! ERROR: GASNet conduit code must use gasneti_calloc !!!
+#ifdef free
+#undef free
+#endif
 #define free   !!! ERROR: GASNet conduit code must use gasneti_free   !!!
 
 #include <assert.h>
@@ -156,8 +168,8 @@ char *gasneti_strndup(const char *s, size_t n) {
 
 /* ------------------------------------------------------------------------------------ */
 /* page alignment macros */
-#define GASNETI_ALIGNDOWN(p,P)    ((uintptr_t)(p)&~((uintptr_t)(P)-1))
-#define GASNETI_ALIGNUP(p,P)     (GASNETI_ALIGNDOWN((uintptr_t)(p)+((P)-1),P))
+#define GASNETI_ALIGNDOWN(p,P)    (((uintptr_t)(p))&~((uintptr_t)((P)-1)))
+#define GASNETI_ALIGNUP(p,P)     (GASNETI_ALIGNDOWN((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
 
 #define GASNETI_PAGE_ALIGNDOWN(p) (GASNETI_ALIGNDOWN(p,GASNET_PAGESIZE))
 #define GASNETI_PAGE_ALIGNUP(p)   (GASNETI_ALIGNUP(p,GASNET_PAGESIZE))
@@ -183,11 +195,24 @@ gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t
 
 #ifdef HAVE_MMAP
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
-  extern void gasneti_mmap_fixed(void *segbase, size_t segsize);
-  extern void *gasneti_mmap(size_t segsize);
-  extern void gasneti_munmap(void *segbase, size_t segsize);
+  extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize);
+  extern void *gasneti_mmap(uintptr_t segsize);
+  extern void gasneti_munmap(void *segbase, uintptr_t segsize);
 #endif
 
+#ifndef GASNETI_MMAP_MAX_SIZE
+  /* GASNETI_MMAP_MAX_SIZE controls the maz size segment attempted by the mmap binary search
+     can't use a full 2 GB due to sign bit problems 
+     on the int argument to mmap() for some 32-bit systems
+   */
+  #define GASNETI_MMAP_MAX_SIZE	  ((((uint64_t)1)<<31) - GASNET_PAGESIZE)  /* 2 GB */
+#endif
+#define GASNETI_MMAP_LIMIT ((uintptr_t)GASNETI_PAGE_ALIGNDOWN((uint64_t)(GASNETI_MMAP_MAX_SIZE)))
+
+#ifndef GASNETI_MMAP_GRANULARITY
+  /* GASNETI_MMAP_GRANULARITY is the minimum increment used by the mmap binary search */
+  #define GASNETI_MMAP_GRANULARITY  (((size_t)2)<<21)  /* 4 MB */
+#endif
 #ifndef GASNETI_MAX_MALLOCSEGMENT_SZ
 #define GASNETI_MAX_MALLOCSEGMENT_SZ (100*1048576) /* Max segment sz to use when mmap not avail */
 #endif

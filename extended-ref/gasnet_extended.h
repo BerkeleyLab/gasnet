@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2004/03/03 13:47:04 $
- * $Revision: 1.22 $
+ *     $Date: 2004/05/12 10:21:14 $
+ * $Revision: 1.22.4.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -751,6 +751,7 @@ gasnet_register_value_t gasnet_wait_syncnb_valget (gasnet_valget_handle_t handle
   =========
 */
 
+extern void gasnete_barrier_init(void);
 extern void gasnete_barrier_notify(int id, int flags);
 extern int gasnete_barrier_wait(int id, int flags);
 extern int gasnete_barrier_try(int id, int flags);

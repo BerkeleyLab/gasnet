@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testvis.c                              $
- *     $Date: 2004/03/05 14:29:43 $
- * $Revision: 1.3 $
+ *     $Date: 2004/05/12 10:21:38 $
+ * $Revision: 1.3.4.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,14 +66,14 @@
 #endif
 
 /* shuffle the ordering in a list */
-#define SHUFFLE_ARRAY(T, list, cnt) do { \
-    int _i;                              \
-    for (_i=0;_i<(cnt);_i++) {           \
-      int _a = TEST_RAND(_i, (cnt)-1);   \
-      T _tmp = (list)[_a];               \
-      (list)[_a] = (list)[_i];           \
-      (list)[_i] = _tmp;                 \
-    }                                    \
+#define SHUFFLE_ARRAY(T, list, cnt) do {  \
+    size_t _i;                            \
+    for (_i=0;_i<(cnt);_i++) {            \
+      size_t _a = TEST_RAND(_i, (cnt)-1); \
+      T _tmp = (list)[_a];                \
+      (list)[_a] = (list)[_i];            \
+      (list)[_i] = _tmp;                  \
+    }                                     \
   } while(0)
 
 #define SHUFFLE_LIST(T, v) SHUFFLE_ARRAY(T, (v)->list, (v)->count)
@@ -82,12 +82,12 @@
 typedef struct {
   uint64_t checksum;
   size_t count; /* in segments */
-  size_t totalsz; /* in bytes */
+  uintptr_t totalsz; /* in bytes */
   gasnet_memvec_t *list;
 } test_memvec_list;
 
 void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
-  int i, sum;
+  size_t i, sum;
   if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t))) {
     MSG("Checksum mismatch in verify_memvec_list at %s:%i", file, line);
     abort();
@@ -106,7 +106,7 @@ void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
 /* build a memvec over the area [addr...addr+len*VEC_SZ]
    note elemlen is a VEC_T element count
  */
-test_memvec_list *rand_memvec_list(void *addr, int elemlen, int allowoverlap) {
+test_memvec_list *rand_memvec_list(void *addr, size_t elemlen, int allowoverlap) {
   test_memvec_list *mv;
   size_t count = TEST_RAND_PICK(TEST_RAND(1, MIN(MAX_VECLEN,elemlen)),
                  TEST_RAND(1, TEST_RAND(1, TEST_RAND(1, MIN(MAX_VECLEN,elemlen)))));
@@ -119,7 +119,7 @@ test_memvec_list *rand_memvec_list(void *addr, int elemlen, int allowoverlap) {
   mv->totalsz = 0;
 
   if (allowoverlap) {
-    int i;
+    size_t i;
     for (i = 0; i < count; i++) {
       size_t offset = TEST_RAND(0, elemlen-1);
       size_t len = TEST_RAND(0, MIN(per,elemlen-offset));
@@ -135,7 +135,7 @@ test_memvec_list *rand_memvec_list(void *addr, int elemlen, int allowoverlap) {
   } else {
     /* build non-overlapping, monotonically increasing vectors */
     if (TEST_RAND_PICK(0,1)) {
-      int i;
+      size_t i;
       size_t lim = 0;
       for (i = 0; i < count; i++) {
         if (TEST_RAND_ONEIN(20)) {
@@ -152,7 +152,7 @@ test_memvec_list *rand_memvec_list(void *addr, int elemlen, int allowoverlap) {
         }
       }
     } else {
-      int i;
+      size_t i;
       size_t lim = 0;
       for (i = 0; i < count; i++) {
         if (TEST_RAND_ONEIN(20)) {
@@ -178,11 +178,11 @@ test_memvec_list *rand_memvec_list(void *addr, int elemlen, int allowoverlap) {
 }
 
 
-test_memvec_list *buildcontig_memvec_list(void *addr, int elemlen, int areasz) {
+test_memvec_list *buildcontig_memvec_list(void *addr, size_t elemlen, size_t areasz) {
   test_memvec_list *mv = test_malloc(sizeof(test_memvec_list)+sizeof(gasnet_memvec_t));
   mv->count = 1;
   mv->list = (gasnet_memvec_t*)(mv+1);
-  mv->totalsz = elemlen*VEC_SZ;
+  mv->totalsz = ((uintptr_t)elemlen)*VEC_SZ;
   mv->list[0].addr = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
   mv->list[0].len = elemlen*VEC_SZ;
   mv->checksum = test_checksum(mv->list, sizeof(gasnet_memvec_t));
@@ -192,12 +192,12 @@ test_memvec_list *buildcontig_memvec_list(void *addr, int elemlen, int areasz) {
 /* make same size */
 void trim_memvec_list(test_memvec_list *one, test_memvec_list *two) {
   test_memvec_list *p;
-  size_t totalsz = MIN(one->totalsz, two->totalsz);
+  uintptr_t totalsz = MIN(one->totalsz, two->totalsz);
   if (one->totalsz > totalsz) p = one;
   else p = two;
 
   while (p->totalsz > totalsz) {
-    size_t diff = p->totalsz - totalsz;
+    uintptr_t diff = p->totalsz - totalsz;
     if (diff < p->list[p->count-1].len) {
       p->list[p->count-1].len -= diff;
       p->totalsz -= diff;
@@ -215,7 +215,7 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
                               gasnet_node_t nodeid, VEC_T *areaptr,
                               const char *context, const char *file, int line) {
   VEC_T *p = result;
-  int i,j;
+  size_t i,j;
   for (i = 0; i < src->count; i++) {
     for (j = 0; j < src->list[i].len/VEC_SZ; j ++) {
       VEC_T srcval;
@@ -248,14 +248,13 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
 /* ------------------------------------------------------------------------------------ */
 typedef struct {
   uint64_t checksum;
-  size_t totalsz; /* in bytes */
+  uintptr_t totalsz; /* in bytes */
   size_t count; /* in segments */
   size_t chunklen; /* in bytes */
   void * *list;
 } test_addr_list;
 
 void _verify_addr_list(test_addr_list *al, const char *file, int line) {
-  int i, sum;
   if (al->totalsz != al->count*al->chunklen) {
     MSG("Inconsistent totalsz in verify_addr_list at %s:%i", file, line);
     abort();
@@ -299,7 +298,7 @@ void rand_chunkelem(size_t *one, size_t *two) {
 /* build a addrlist over the area [addr...addr+len*VEC_SZ]
    note elemlen is a VEC_T element count
  */
-test_addr_list *rand_addr_list(void *addr, size_t chunkelem, int elemlen, int allowoverlap) {
+test_addr_list *rand_addr_list(void *addr, size_t chunkelem, size_t elemlen, int allowoverlap) {
   test_addr_list *al;
   size_t count;
   size_t maxchunks = MIN(MAX_IDXLEN, elemlen/chunkelem);
@@ -311,13 +310,13 @@ test_addr_list *rand_addr_list(void *addr, size_t chunkelem, int elemlen, int al
   al->list = (void **)(al+1);
 
   if (allowoverlap) {
-    int i;
+    size_t i;
     for (i = 0; i < count; i++) {
       size_t offset = TEST_RAND(0, elemlen-chunkelem);
       al->list[i] = ((VEC_T*)addr)+offset;
     }
   } else {
-    int i;
+    size_t i;
     size_t lim = 0;
     size_t per = 0;
     if (count > 0) { per = elemlen / count; assert(chunkelem <= per); }
@@ -338,7 +337,7 @@ test_addr_list *rand_addr_list(void *addr, size_t chunkelem, int elemlen, int al
   return al;
 }
 
-test_addr_list *buildcontig_addr_list(void *addr, int elemlen, int areasz) {
+test_addr_list *buildcontig_addr_list(void *addr, size_t elemlen, size_t areasz) {
   test_addr_list *al = test_malloc(sizeof(test_addr_list)+sizeof(void *));
   al->list = (void **)(al+1);
   al->list[0] = ((VEC_T*)addr) + TEST_RAND(0,areasz-elemlen);
@@ -349,7 +348,7 @@ test_addr_list *buildcontig_addr_list(void *addr, int elemlen, int areasz) {
     al->count = 1;
     al->chunklen = elemlen*VEC_SZ;
   }
-  al->totalsz = al->count*al->chunklen;
+  al->totalsz = ((uintptr_t)al->count)*al->chunklen;
   al->checksum = test_checksum(al->list, al->count*sizeof(void *));
   verify_addr_list(al);
   return al;
@@ -376,7 +375,7 @@ void _verify_addr_list_data_both(test_addr_list *src, void *result,
                             const char *context, const char *file, int line) {
   VEC_T *p = result;
   size_t chunkelem = src->chunklen / VEC_SZ;
-  int i,j;
+  size_t i,j;
   for (i = 0; i < src->count; i++) {
     for (j = 0; j < chunkelem; j++) {
       VEC_T srcval;
@@ -410,7 +409,7 @@ void _verify_addr_list_data_both(test_addr_list *src, void *result,
 typedef struct {
   uint64_t checksum;
   size_t _descsz; /* in bytes */
-  size_t totalsz; /* in bytes */
+  uintptr_t totalsz; /* in bytes */
   size_t srcvolume; /* in bytes */
   size_t dstvolume; /* in bytes */
   void *srcaddr;
@@ -425,10 +424,10 @@ typedef struct {
 } test_strided_desc;
 
 void _verify_strided_desc(test_strided_desc *sd, const char *file, int line) {
-  int i;
-  int sz = 1;
-  int srcvol = VEC_SZ;
-  int dstvol = VEC_SZ;
+  size_t i;
+  size_t sz = 1;
+  size_t srcvol = VEC_SZ;
+  size_t dstvol = VEC_SZ;
   if (sd->checksum != test_checksum(((uint64_t*)sd)+1, sd->_descsz-8)) {
     MSG("Checksum mismatch in verify_strided_desc at %s:%i", file, line);
     abort();
@@ -469,11 +468,11 @@ void _verify_strided_desc(test_strided_desc *sd, const char *file, int line) {
    [srcaddr...srcaddr+elemlen*VEC_SZ] and [dstaddr...dstaddr+elemlen*VEC_SZ]
    note elemlen is a VEC_T element count
  */
-test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contigaddr, int elemlen) {
+test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contigaddr, size_t elemlen) {
   size_t dim = TEST_RAND(2, TEST_RAND(2, TEST_RAND(2, MAX_STRIDEDIM)));
   size_t sz;
   test_strided_desc *sd;
-  int i;
+  size_t i;
   if (TEST_RAND_ONEIN(10)) dim = 1; /* 1-dim (fully contiguous) */
   sz = sizeof(test_strided_desc)+6*dim*sizeof(size_t);
   sd = test_malloc(sz);
@@ -487,8 +486,8 @@ test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contiga
   sd->stridelevels = dim-1;
 
   { size_t volume = TEST_RAND(elemlen*7/8, elemlen); /* in elem */
-    int srcmax = 0;
-    int dstmax = 0;
+    size_t srcmax = 0;
+    size_t dstmax = 0;
     sd->srcextents[0] = volume;
     sd->dstextents[0] = volume;
     /* choose dimensional extents */
@@ -584,7 +583,7 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
     if (srcval != resval) {
       char idxstr[255];
       char *p = idxstr;
-      int i;
+      size_t i;
       for (i=0; i < dim; i++) {
         sprintf(p, "%i", (int)idx[i]);
         if (i < dim-1) strcat(p, ", ");
@@ -647,7 +646,7 @@ VEC_T *partner_seg_remotewrite_area;
 
 void checkmem() {
   /* check for corruption of read-only memory segments */
-  int i;
+  size_t i;
   for (i = 0; i < areasz; i++) {
     if (my_seg_read_area[i] != SEG_VALUE(mynode, i)) { 
       MSG("detected corruption in my_seg_read_area[%i]\n", i);
@@ -686,7 +685,7 @@ void doit(int iters, int runtests) {
   partner_seg_remotewrite_area = partnerseg+3*areasz;
   
   { /* init memory segments to known values */
-    int i;
+    size_t i;
     for (i = 0; i < areasz; i++) {
       my_seg_read_area[i] =    SEG_VALUE(mynode, i);
       my_heap_read_area[i] = HEAP_VALUE(mynode, i);
@@ -867,11 +866,11 @@ void doit(int iters, int runtests) {
     int iter;
     MSG("Non-blocking tests...");
     for (iter = 0; iter < iters; iter++) {
-      int numops = TEST_RAND(1, MAX_INFLIGHT_OPS);
+      size_t numops = TEST_RAND(1, MAX_INFLIGHT_OPS);
       gasnet_handle_t *handles = test_calloc(sizeof(gasnet_handle_t), numops);
       test_op *ops = test_calloc(sizeof(test_op), numops);
-      int opareasz = areasz / numops;
-      int i;
+      size_t opareasz = areasz / numops;
+      size_t i;
 
       /* puts */
       for(i=0; i < numops; i++) {

@@ -19,7 +19,8 @@ platform_libraries = @LIBS@ @MPI_LIBS@
 
 VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
-INCLUDES = -I$(srcdir) $(platform_defines)
+altincdir = $(srcdir)/..
+INCLUDES = -I$(srcdir) -I$(altincdir) $(platform_defines)
 compile = $(CC) $(CFLAGS) $(INCLUDES)
 link = $(CC) $(CFLAGS) $(LDFLAGS) $(platform_defines) $(INCLUDES) 
 linkend = $(platform_libraries)

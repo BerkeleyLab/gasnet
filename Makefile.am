@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/19 05:07:26 $
-# $Revision: 1.25 $
+#     $Date: 2004/05/12 10:21:08 $
+# $Revision: 1.25.2.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -53,6 +53,10 @@ EXTRA_DIST =              \
 include_HEADERS = $(headers)
 
 force:
+
+# echo an arbitrary make/environment variable
+echovar: force
+	@echo $(VARNAME)=\"$($(VARNAME))\"
 	
 test: tests-seq
 tests: tests-seq

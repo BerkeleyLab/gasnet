@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/03/03 13:47:01 $
- * $Revision: 1.50 $
+ *     $Date: 2004/05/12 10:21:08 $
+ * $Revision: 1.50.4.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
 
@@ -60,6 +61,58 @@ extern void gasneti_checkattach() {
 int gasneti_wait_mode = GASNET_WAIT_SPIN;
 
 /* ------------------------------------------------------------------------------------ */
+/* conduit-independent sanity checks */
+extern void gasneti_check_config_preinit() {
+  gasneti_assert_always(sizeof(int8_t) == 1);
+  gasneti_assert_always(sizeof(uint8_t) == 1);
+  #if !defined(CRAYT3E)
+    gasneti_assert_always(sizeof(int16_t) == 2);
+    gasneti_assert_always(sizeof(uint16_t) == 2);
+  #endif
+  gasneti_assert_always(sizeof(int32_t) == 4);
+  gasneti_assert_always(sizeof(uint32_t) == 4);
+  gasneti_assert_always(sizeof(int64_t) == 8);
+  gasneti_assert_always(sizeof(uint64_t) == 8);
+
+  gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
+
+  /* check GASNET_PAGESIZE is a power of 2 and > 0 */
+  gasneti_assert_always(GASNET_PAGESIZE > 0 && 
+         (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
+
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
+
+  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
+    gasneti_assert_always(sizeof(void*) == 4);
+  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
+    gasneti_assert_always(sizeof(void*) == 8);
+  #else
+    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
+  #endif
+
+  #if defined(GASNETI_UNI_BUILD)
+    if (gasneti_cpu_count() > 1) 
+      gasneti_fatalerror("GASNet was built in uniprocessor (non-SMP-safe) configuration, "
+        "but executed on an SMP. Please re-run GASNet configure with --enable-smp-safe and rebuild");
+  #endif
+}
+
+extern void gasneti_check_config_postattach() {
+  gasneti_check_config_preinit();
+
+  /*  verify sanity of the core interface */
+  gasneti_assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert_always(gasnet_AMMaxMedium() >= 512);
+  gasneti_assert_always(gasnet_AMMaxLongRequest() >= 512);
+  gasneti_assert_always(gasnet_AMMaxLongReply() >= 512);  
+
+  gasneti_assert_always(gasnet_nodes() >= 1);
+  gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
+}
+
+/* ------------------------------------------------------------------------------------ */
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
   char expandedmsg[255];
@@ -83,6 +136,45 @@ extern void gasneti_killmyprocess(int exitcode) {
   #endif
   _exit(exitcode); /* use _exit to bypass atexit handlers */
   abort();
+}
+/* ------------------------------------------------------------------------------------ */
+#if defined(__sgi) || defined(__crayx1)
+#define _SC_NPROCESSORS_ONLN _SC_NPROC_ONLN
+#elif defined(_CRAYT3E)
+#define _SC_NPROCESSORS_ONLN _SC_CRAY_MAXPES
+#elif defined(__APPLE__)
+#include <sys/param.h>
+#include <sys/sysctl.h>
+#endif
+/* return the physical count of CPU's on this node, 
+   or zero if that cannot be determined */
+extern int gasneti_cpu_count() {
+  static int hwprocs = -1;
+  if (hwprocs >= 0) return hwprocs;
+
+  #if defined(__APPLE__)
+      {
+        int mib[2];
+        size_t len;
+
+        mib[0] = CTL_HW;
+        mib[1] = HW_NCPU;
+        len = sizeof(hwprocs);
+        if (sysctl(mib, 2, &hwprocs, &len, NULL, 0)) {
+           perror("sysctl");
+           abort();
+        }
+        if (hwprocs < 1) hwprocs = 0;
+      }
+  #elif defined(HPUX) || defined(SUPERUX)
+      hwprocs = 0; /* appears to be no way to query CPU count on HPUX or SuperUX */
+  #else
+      hwprocs = sysconf(_SC_NPROCESSORS_ONLN);
+      if (hwprocs < 1) hwprocs = 0; /* catch failures on Solaris/Cygwin */
+  #endif
+
+  gasneti_assert_always(hwprocs >= 0);
+  return hwprocs;
 }
 /* ------------------------------------------------------------------------------------ */
 /* build a code-location string (used by gasnete_current_loc) */
