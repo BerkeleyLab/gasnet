@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/10/07 20:31:25 $
-# $Revision: 1.83 $
+#     $Date: 2003/10/11 14:22:38 $
+# $Revision: 1.83.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.83 $)
+AC_REVISION($Revision: 1.83.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -921,6 +921,49 @@ AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
 
+#--------------------------------------------------------------------------------------------------------
+# SCI configuration
+
+GASNET_IF_ENABLED(sci, Enable the SCI (Dolphin SISCI) network conduit,
+  have_sci=yes,
+  have_sci=no)
+
+if test $have_sci = yes; then
+  GASNET_ENV_DEFAULT(SCI_INCLUDE, "$SCIHOME/include")
+  GASNET_ENV_DEFAULT(SCI_LIBDIR, "$SCIHOME/lib/api")
+
+  AC_MSG_CHECKING(for working SCI configuration)
+
+  OLDCFLAGS="$CFLAGS"
+  OLDLIBS="$LIBS"
+  CFLAGS="-I$SCI_INCLUDE"
+  LIBS="-L$SCI_LIBDIR -lsisci"
+  # try to compile and link a simple SCI program
+  AC_TRY_LINK( [
+     #include <sisci_types.h>
+     #include <sisci_api.h>
+     #include <sisci_error.h>
+  ], [{
+     sci_desc_t sd;
+     sci_error_t err;
+     SCIOpen(&sd, 0, &err);
+    }], [ sci_test_worked=yes ], [ sci_test_worked=no ] )
+  CFLAGS="$OLDCFLAGS"
+  LIBS="$OLDLIBS"
+
+  if test "$sci_test_worked" = yes; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    AC_ERROR(build test failed: I don't know how to build SCI programs on your system)
+    have_sci=no
+  fi
+fi
+
+AC_SUBST(SCI_INCLUDE)
+AC_SUBST(SCI_LIBDIR)
+AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
+
 ########################################################################
 
 # Check for broken asm/atomic.h on Linux
@@ -1226,6 +1269,11 @@ vapi-conduit/Makefile
 vapi-conduit/vapi-seq.mak
 vapi-conduit/vapi-parsync.mak
 vapi-conduit/vapi-par.mak
+
+sci-conduit/Makefile
+sci-conduit/sci-seq.mak
+sci-conduit/sci-parsync.mak
+sci-conduit/sci-par.mak
 
 other/Makefile
 other/ammpi/Makefile
