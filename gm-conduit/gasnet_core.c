@@ -1,5 +1,6 @@
-/* $Id: gasnet_core.c,v 1.65.2.2 2004/08/12 21:42:28 phargrov Exp $
- * $Date: 2004/08/12 21:42:28 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
+ *     $Date: 2004/09/20 19:24:59 $
+ * $Revision: 1.65.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -202,7 +203,8 @@ gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
   for (i = 0; i < numentries; i++) {
     int newindex;
 
-    if (table[i].index && dontcare) continue;
+    if ((table[i].index == 0 && !dontcare) || 
+        (table[i].index && dontcare)) continue;
     else if (table[i].index) newindex = table[i].index;
     else { /* deterministic assignment of dontcare indexes */
       for (newindex = lowlimit; newindex <= highlimit; newindex++) {
@@ -492,12 +494,7 @@ gasnetc_exit_old(int exitcode)
 
 	gasnetc_DestroyPinnedBufs();
 
-	if (fflush(stdout)) 
-		gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", 
-		    strerror(errno));
-	if (fflush(stderr)) 
-		gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", 
-		    strerror(errno));
+        gasneti_flush_streams();
         gasneti_trace_finish();
         gasneti_sched_yield();
 
@@ -859,6 +856,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
 static void gasnetc_exit_body(void) {
   int i, role, exitcode;
   int graceful = 0;
+  int tok_drain = 0;
   int64_t timeout_us;
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
@@ -907,11 +905,8 @@ static void gasnetc_exit_body(void) {
   /* Try to flush out all the output, allowing upto 30s */
   alarm(30);
   {
+    gasneti_flush_streams();
     gasneti_trace_finish();
-    if (fflush(stdout)) 
-      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-    if (fflush(stderr)) 
-      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
     alarm(0);
     gasneti_sched_yield();
   }
@@ -926,17 +921,20 @@ static void gasnetc_exit_body(void) {
   switch (role) {
   case GASNETC_EXIT_ROLE_MASTER:
     /* send all the remote exit requests and wait for the replies */
+    tok_drain = _gmc.stoks.total;
     graceful = (gasnetc_exit_master(exitcode, timeout_us) == 0);
     break;
 
   case GASNETC_EXIT_ROLE_SLAVE:
     /* wait for the exit request and reply before proceeding */
+    tok_drain = _gmc.stoks.total;
     graceful = (gasnetc_exit_slave(timeout_us) == 0);
-    /* XXX:
-     * How do we know our reply has actually been sent on the wire before we trash the end point?
-     * For now we rely on a short sleep() to be sufficient.
+    /*
+     * A sleep is insufficient to rely on our reply being out on the wire.  We
+     * must actually verify that we have drained enough tokens before
+     * deregistering pinned buffers.
      */
-    alarm(0); sleep(1);
+    alarm(0);
     break;
 
   default:
@@ -955,14 +953,16 @@ static void gasnetc_exit_body(void) {
 		    gasnetc_mynode);
 	#endif	
 
+	/*
+	 * Make sure we drain the outgoing queue if we sent any messages before
+	 * deregistering any of the prepinned AM buffers
+	 */
+	while (_gmc.stoks.total > tok_drain)
+	    gasnet_AMPoll();
+
 	gasnetc_DestroyPinnedBufs();
 
-	if (fflush(stdout)) 
-		gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", 
-		    strerror(errno));
-	if (fflush(stderr)) 
-		gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", 
-		    strerror(errno));
+        gasneti_flush_streams();
 
 	if (gasneti_init_done) {
   		gm_close(_gmc.port);
@@ -975,17 +975,9 @@ static void gasnetc_exit_body(void) {
   /* Try again to flush out any recent output, allowing upto 5s */
   alarm(5);
   {
-    if (fflush(stdout)) 
-      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-    if (fflush(stderr)) 
-      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
-    if (fclose(stdin)) 
-      gasneti_fatalerror("failed to close stdin in gasnetc_exit: %s", strerror(errno));
-    if (fclose(stdout)) 
-      gasneti_fatalerror("failed to close stdout in gasnetc_exit: %s", strerror(errno));
+    gasneti_flush_streams();
     #if !GASNET_DEBUG_VERBOSE
-      if (fclose(stderr)) 
-          gasneti_fatalerror("failed to close stderr in gasnetc_exit: %s", strerror(errno));
+      gasneti_close_streams();
     #endif
   }
 
