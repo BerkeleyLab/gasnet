@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2003/10/07 03:25:04 $
- * $Revision: 1.20 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.20.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,8 +36,8 @@
     defined(CRAYT3E) || /* TODO: no atomic ops on T3e? */       \
     defined(HPUX)    || /* HPUX seems to have no atomic ops */  \
     (defined(__PGI) && defined(BROKEN_LINUX_ASM_ATOMIC_H)) || /* haven't implemented atomics for PGI */ \
-    (defined(OSF) && !defined(__DECC)) ||  /* OSF atomics are compiler built-ins */ \
     (defined(__MACH__) && defined(__APPLE__)) || /* we careth not about performance on OSX */ \
+    (defined(OSF) && !defined(__DECC) && !defined(__GNUC__)) || /* only implemented for these compilers */ \
     (defined(__INTEL_COMPILER) && defined(__ia64__)) /* IA64 Intel compiler doesn't support asm (contrary to docs) */
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #endif
@@ -50,15 +50,21 @@
   #ifdef _INCLUDED_GASNET_H
     extern gasnet_hsl_t gasneti_atomicop_lock;
 
-    #define gasneti_atomic_set(p,v)     (gasnet_hsl_lock(&gasneti_atomicop_lock), \
-                                         (p)->ctr = (v),                          \
-                                         gasnet_hsl_unlock(&gasneti_atomicop_lock))
-    #define gasneti_atomic_increment(p) (gasnet_hsl_lock(&gasneti_atomicop_lock), \
-                                        ((p)->ctr)++,                             \
-                                         gasnet_hsl_unlock(&gasneti_atomicop_lock))
-    #define gasneti_atomic_decrement(p) (gasnet_hsl_lock(&gasneti_atomicop_lock), \
-                                        ((p)->ctr)--,                             \
-                                         gasnet_hsl_unlock(&gasneti_atomicop_lock))
+    #define gasneti_atomic_set(p,v) do {           \
+        gasnet_hsl_lock(&gasneti_atomicop_lock);   \
+        (p)->ctr = (v);                            \
+        gasnet_hsl_unlock(&gasneti_atomicop_lock); \
+      } while (0)
+    #define gasneti_atomic_increment(p) do {       \
+        gasnet_hsl_lock(&gasneti_atomicop_lock);   \
+        ((p)->ctr)++;                              \
+        gasnet_hsl_unlock(&gasneti_atomicop_lock); \
+      } while (0)
+    #define gasneti_atomic_decrement(p) do {       \
+        gasnet_hsl_lock(&gasneti_atomicop_lock);   \
+        ((p)->ctr)--;                              \
+        gasnet_hsl_unlock(&gasneti_atomicop_lock); \
+      } while (0)
     GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
     int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
       uint32_t newval;
@@ -75,15 +81,21 @@
     #include <pthread.h>
     pthread_mutex_t gasneti_atomicop_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    #define gasneti_atomic_set(p,v)     (pthread_mutex_lock(&gasneti_atomicop_mutex), \
-                                         (p)->ctr = (v),                              \
-                                         pthread_mutex_unlock(&gasneti_atomicop_mutex))
-    #define gasneti_atomic_increment(p) (pthread_mutex_lock(&gasneti_atomicop_mutex), \
-                                        ((p)->ctr)++,                                 \
-                                         pthread_mutex_unlock(&gasneti_atomicop_mutex))
-    #define gasneti_atomic_decrement(p) (pthread_mutex_lock(&gasneti_atomicop_mutex), \
-                                        ((p)->ctr)--,                                 \
-                                         pthread_mutex_unlock(&gasneti_atomicop_mutex))
+    #define gasneti_atomic_set(p,v) do {               \
+        pthread_mutex_lock(&gasneti_atomicop_mutex);   \
+        (p)->ctr = (v);                                \
+        pthread_mutex_unlock(&gasneti_atomicop_mutex); \
+      } while (0)
+    #define gasneti_atomic_increment(p) do {           \
+        pthread_mutex_lock(&gasneti_atomicop_mutex);   \
+        ((p)->ctr)++;                                  \
+        pthread_mutex_unlock(&gasneti_atomicop_mutex); \
+      } while (0)
+    #define gasneti_atomic_decrement(p) do {           \
+        pthread_mutex_lock(&gasneti_atomicop_mutex);   \
+        ((p)->ctr)--;                                  \
+        pthread_mutex_unlock(&gasneti_atomicop_mutex); \
+      } while (0)
     GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
     int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
       uint32_t newval;
@@ -207,26 +219,42 @@
     #define gasneti_atomic_decrement_and_test(p) \
                                         (fetch_and_add((atomic_p)&((p)->ctr),-1) == 1) /* TODO */
   #elif defined(OSF)
-   #if 1
-    #include <sys/machine/builtins.h>
-    typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-    #define gasneti_atomic_increment(p) (__ATOMIC_INCREMENT_LONG(&((p)->ctr)))
-    #define gasneti_atomic_decrement(p) (__ATOMIC_DECREMENT_LONG(&((p)->ctr)))
-    #define gasneti_atomic_read(p)      ((p)->ctr)
-    #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-    #define gasneti_atomic_init(v)      { (v) }
-    #define gasneti_atomic_decrement_and_test(p) \
+   #ifdef __DECC
+     /* OSF atomics are compiler built-ins */
+     #include <sys/machine/builtins.h>
+     typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
+     #define gasneti_atomic_increment(p) (__ATOMIC_INCREMENT_LONG(&((p)->ctr)))
+     #define gasneti_atomic_decrement(p) (__ATOMIC_DECREMENT_LONG(&((p)->ctr)))
+     #define gasneti_atomic_read(p)      ((p)->ctr)
+     #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+     #define gasneti_atomic_init(v)      { (v) }
+     #define gasneti_atomic_decrement_and_test(p) \
                                         (__ATOMIC_DECREMENT_LONG(&((p)->ctr)) == 1)
-   #else
-    #include <sys/systm.h>
-    typedef struct { volatile int ctr; } gasneti_atomic_t;
-    #define gasneti_atomic_increment(p) (atomic_incl(&((p)->ctr)))
-    #define gasneti_atomic_decrement(p) (atomic_decl(&((p)->ctr)))
-    #define gasneti_atomic_read(p)      ((p)->ctr)
-    #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-    #define gasneti_atomic_init(v)      { (v) }
-    #define gasneti_atomic_decrement_and_test(p) \
-                                        (atomic_decl(&((p)->ctr)) == 1)
+   #elif defined(__GNUC__)
+      static __inline__ int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op) {
+        register int32_t volatile * addr = (int32_t volatile *)v;
+        register int32_t temp;
+        register int32_t result;
+        __asm__ __volatile__(
+          "1: \n\t"
+          "ldl_l %0, 0(%2)\n\t"
+          "addl %0, %3, %0\n\t"
+          "mov %0, %1\n\t"
+          "stl_c %0, 0(%2)\n\t"
+          "beq %0, 1b\n\t"
+          "nop\n"
+          : "=&r" (temp), "=&r" (result) /* outputs */
+          : "r" (addr), "r" (op)         /* inputs */
+          : "memory", "cc");             /* kills */
+        return result;
+      }
+     typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
+     #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
+     #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+     #define gasneti_atomic_read(p)      ((p)->ctr)
+     #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+     #define gasneti_atomic_init(v)      { (v) }
+     #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
    #endif
   #elif defined(IRIX)
     #include <mutex.h>
@@ -247,27 +275,6 @@
     #define gasneti_atomic_read(p)      ((p)->ctr)
     #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
     #define gasneti_atomic_init(v)      { (v) }
-    #if 0
-      /* according to the "Alpha Architecture Handbook", the following code 
-         should work on alpha, but the assembler chokes on the load-locked 
-         with "unknown opcode", for both GNU and Sun assemblers. Alpha sucks.
-       */
-      static __inline__ void atomic_add_32(int32_t *v, int32_t op) {
-        register int32_t volatile * addr = (int32_t volatile *)v;
-        register int32_t temp;
-        __asm__ __volatile__( 
-          "retry: \n"
-          "ldl_l %0, %1\n" 
-          "addl %0, %2, %0\n"
-          "stl_c %0, %1\n"
-          "beq %0, retry\n"
-          "nop\n"
-          : "=&r" (temp)          /* outputs */
-          : "r" (addr), "r" (op)  /* inputs */
-          : "memory", "cc");      /* kills */
-        assert(temp);
-      }
-    #endif
   #else
     #error Need to implement atomic increment/decrement for this platform...
   #endif
@@ -314,6 +321,7 @@
   "7c0004ac" /* sync (same opcode used for dcs)*/ \
   "4c00012c" /* isync (instruction sync to squash speculative loads) */ \
 }
+#pragma reg_killed_by _gasneti_do_sync
 #endif
 
 #if defined(__sparc__) || defined(__sparc) || defined(sparc)

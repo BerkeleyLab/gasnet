@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/11 13:10:07 $
- * $Revision: 1.20 $
+ *     $Date: 2003/10/27 13:04:23 $
+ * $Revision: 1.20.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -98,8 +98,8 @@ typedef void (*gasnetc_HandlerShort) (gasnet_token_t token, ...);
 typedef void (*gasnetc_HandlerMedium)(gasnet_token_t token, void *buf, size_t nbytes, ...);
 typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nbytes, ...);
 
-#define RUN_HANDLER_SHORT(phandlerfn, token, args, numargs) do {                       \
-  assert(phandlerfn);                                                                   \
+#define RUN_HANDLER_SHORT(phandlerfn, token, args, numargs) do {                      \
+  gasneti_assert(phandlerfn);                                                         \
   switch (numargs) {                                                                  \
     case 0:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token); break;        \
     case 1:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0]); break;         \
@@ -123,7 +123,7 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
   } while (0)
 
 #define _RUN_HANDLER_MEDLONG(phandlerfn, token, args, numargs, pData, datalen) do {   \
-  assert(phandlerfn);                                                         \
+  gasneti_assert(phandlerfn);                                                         \
   switch (numargs) {                                                        \
     case 0:  (*phandlerfn)(token, pData, datalen); break;                    \
     case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;           \
@@ -147,7 +147,7 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
   } while (0)
 
 #define RUN_HANDLER_MEDIUM(phandlerfn, token, args, numargs, pData, datalen) do {      \
-    assert(((uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
+    gasneti_assert(((uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
     _RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn, (gasnet_token_t)token, args, numargs, (void *)pData, (size_t)datalen); \
   } while(0)
 
@@ -167,7 +167,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define RUN_HANDLER_SYSTEM(phandlerfn, token, args, numargs) \
     if (phandlerfn != NULL) (*phandlerfn)(token, args, numargs)
 
-#ifdef TRACE
+#if GASNET_TRACE
   #define _GASNETC_TRACE_SYSTEM(name,dest,handler,numargs) do {                        \
     _GASNETI_TRACE_GATHERARGS(numargs);                                                \
     _GASNETI_STAT_EVENT(C,name);                                                       \
@@ -200,7 +200,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_TRACE_SYSTEM_REPHANDLER(handlerid, token, numargs, arghandle) 
 #endif
 
-#if defined(TRACE) || defined(STATS)
+#if GASNETI_STATS_OR_TRACE
   #define GASNETC_TRACE_WAIT_BEGIN() \
     gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(C)
 #else 
@@ -250,7 +250,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  * 			This excludes the AM receive thread.
  */
 
-#if defined(GASNET_PAR)
+#if GASNET_PAR
   #define GASNETC_CLI_PAR	1
 #else
   #define GASNETC_CLI_PAR	0
@@ -400,12 +400,12 @@ int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
   return retval;
 }
 
-#if DEBUG
+#if GASNET_DEBUG
   GASNET_INLINE_MODIFIER(gasnetc_sema_check)
   void gasnetc_sema_check(gasnetc_sema_t *s, int limit) {
     uint32_t old = gasneti_atomic_read(&(s->count));
 
-    assert((old >= 0) && (old <= limit));
+    gasneti_assert((old >= 0) && (old <= limit));
   }
   
   #define GASNETC_SEMA_CHECK(S, L)	gasnetc_sema_check((S),(L))
@@ -480,7 +480,7 @@ void *gasneti_freelist_get(gasneti_freelist_t *fl) {
 /* Put an unused element into the freelist */
 GASNET_INLINE_MODIFIER(gasneti_freelist_put)
 void gasneti_freelist_put(gasneti_freelist_t *fl, void *elem) {
-  assert(elem != NULL);
+  gasneti_assert(elem != NULL);
 
   gasneti_mutex_lock(&(fl->lock));
   ((gasneti_freelist_ptr_t *)elem)->next = fl->head;
@@ -491,8 +491,8 @@ void gasneti_freelist_put(gasneti_freelist_t *fl, void *elem) {
 /* Put a chain of unused elements into the freelist */
 GASNET_INLINE_MODIFIER(gasneti_freelist_put_many)
 void gasneti_freelist_put_many(gasneti_freelist_t *fl, void *head, void *tail) {
-  assert(head != NULL);
-  assert(tail != NULL);
+  gasneti_assert(head != NULL);
+  gasneti_assert(tail != NULL);
 
   gasneti_mutex_lock(&(fl->lock));
   ((gasneti_freelist_ptr_t *)tail)->next = fl->head;
@@ -503,7 +503,7 @@ void gasneti_freelist_put_many(gasneti_freelist_t *fl, void *head, void *tail) {
 /* Build a chain (q follows p) for use with _put_many() */
 GASNET_INLINE_MODIFIER(gasneti_freelist_link)
 void gasneti_freelist_link(void *p, void *q) {
-  assert(p != NULL);
+  gasneti_assert(p != NULL);
 
   ((gasneti_freelist_ptr_t *)p)->next = q;
 }
@@ -511,7 +511,7 @@ void gasneti_freelist_link(void *p, void *q) {
 /* Get next element in a chain */
 GASNET_INLINE_MODIFIER(gasneti_freelist_next)
 void *gasneti_freelist_next(void *elem) {
-  assert(elem != NULL);
+  gasneti_assert(elem != NULL);
 
   return (void *)(((gasneti_freelist_ptr_t *)elem)->next);
 }
@@ -525,7 +525,7 @@ typedef struct {
   gasnetc_sema_t	op_sema;	/* control in-flight RDMA ops */
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /* RKey for the segment, registered at attach time */
     VAPI_rkey_t		rkey;
   #else
@@ -591,7 +591,7 @@ extern VAPI_hca_port_t	gasnetc_hca_port;
 extern VAPI_pd_hndl_t	gasnetc_pd;
 extern gasnetc_memreg_t		gasnetc_snd_reg;
 extern gasnetc_memreg_t		gasnetc_rcv_reg;
-#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   extern gasnetc_memreg_t	gasnetc_seg_reg;
 #endif
 extern VAPI_cq_hndl_t	gasnetc_snd_cq;
