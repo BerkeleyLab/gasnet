@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2004/10/23 05:02:05 $
-# $Revision: 1.203 $
+#     $Date: 2004/10/26 01:44:34 $
+# $Revision: 1.205 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.203 $)
+AC_REVISION($Revision: 1.205 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -217,8 +217,8 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 	   AC_MSG_RESULT(failure - ignored)
           ]
         )
-	fi
         [$1]FLAGS="$old[$1]FLAGS"
+	fi
         case "$target_os" in 
           solaris*) # hide pragma warnings in system header files included by absolute path
             ]GASNET_TRY_[$1]FLAG[([-Wno-unknown-pragmas],[[$1]FLAGS="$[$1]FLAGS -Wno-unknown-pragmas"])
@@ -287,21 +287,28 @@ GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode,
     BUILDCONFIG_DEFINES="-DGASNET_NDEBUG"
     BUILDCONFIG="optimize"
     enabled_debug=no])
+AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
 
 GASNET_IF_ENABLED(gasnet-verbose, Build GASNet lib with debugging status messages, 
-  [ BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_DEBUG_VERBOSE=1"], [])
+  [ enabled_debug_verbose=yes ], [ enabled_debug_verbose=no ])
+  if test "$enabled_debug_verbose" = yes; then
+    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_DEBUG_VERBOSE=1"
+  fi
+AM_CONDITIONAL(BUILDCONFIG_DEBUG_VERBOSE, test "$enabled_debug_verbose" = yes)
 
 GASNET_IF_ENABLED_WITH_AUTO(trace, Build GASNet with tracing enabled (enabled by default with --enable-debug), 
   enabled_trace=yes, enabled_trace=no, enabled_trace=$enabled_debug)
   if test "$enabled_trace" = yes; then
     BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_TRACE"
   fi
+AM_CONDITIONAL(BUILDCONFIG_TRACE, test "$enabled_trace" = yes)
 
 GASNET_IF_ENABLED_WITH_AUTO(stats, Build GASNet with statistical collection enabled (enabled by default with --enable-debug), 
   enabled_stats=yes, enabled_stats=no, enabled_stats=$enabled_debug)
   if test "$enabled_stats" = yes; then
     BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_STATS"
   fi
+AM_CONDITIONAL(BUILDCONFIG_STATS, test "$enabled_stats" = yes)
 
 GASNET_CHECK_OPTIMIZEDDEBUG(CC,CFLAGS,[$CPPFLAGS $MISC_CFLAGS $MISC_CPPFLAGS $BUILDCONFIG_DEFINES],[])
 
