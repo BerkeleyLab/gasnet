@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/20 22:41:29 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/06/24 17:31:23 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -98,7 +98,7 @@ void gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req) {
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
 
   vstat = VAPI_post_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
-  assert(vstat == VAPI_OK);
+  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
 }
 
 /* Post an INLINE work request to the send queue of the given endpoint */
@@ -110,7 +110,7 @@ void gasnetc_snd_inline_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req) {
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
 
   vstat = EVAPI_post_inline_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
-  assert(vstat == VAPI_OK);
+  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
 }
 
 /* Post a work request to the receive queue of the given endpoint */
@@ -122,7 +122,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
   
   vstat = VAPI_post_rr(gasnetc_hca, cep->qp_handle, &rbuf->rr_desc);
-  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected */));
+  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_processPacket)
@@ -604,6 +604,11 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
 
 extern void gasnetc_sndrcv_fini(void) {
   VAPI_ret_t vstat;
+
+  if (gasnetc_nodes == 1) {
+    /* Don't even bother with no peers */
+    return;
+  }
 
   #if GASNETC_RCV_THREAD
     vstat = EVAPI_clear_comp_eventh(gasnetc_hca, gasnetc_rcv_handler);
