@@ -1,10 +1,13 @@
 #include <firehose.h>
 #include <firehose_internal.h>
 
+static firehose_request_t *fh_request_new(firehose_request_t *ureq);
+static void fh_request_free(firehose_request_t *req);
+
 /* ##################################################################### */
 /* LOCKS, FIFOS, ETC.                                                    */
 /* ##################################################################### */
-                                                                                                              
+
 /* The following lock, referred to as the "table" lock, must be held for every
  * firehose operation that modifies the state of the firehose table.  It must
  * be held during most of the firehose operations - adding/removing to the hash
@@ -217,19 +220,16 @@ extern const firehose_request_t *
 firehose_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
-	firehose_region_t	region;
-
-	region.addr = FH_ADDR_ALIGN(addr);
-	region.len  = FH_SIZE_ALIGN(addr,nbytes);
 
 	FH_TABLE_LOCK;
 
-	fh_acquire_local_region(&region);
-
 	req         = fh_request_new(ureq);
 	req->node   = fh_mynode;
+	req->addr   = FH_ADDR_ALIGN(addr);
+	req->len    = FH_SIZE_ALIGN(addr,nbytes);
 	req->flags |= FH_FLAG_PINNED;
-	FH_COPY_REGION_TO_REQUEST(req, &region);
+
+	fh_acquire_local_region(req);
 
 	FH_TABLE_UNLOCK;
 
@@ -240,19 +240,19 @@ extern const firehose_request_t *
 firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
-	firehose_region_t	region;
 
-	region.addr = FH_ADDR_ALIGN(addr);
-	region.len  = FH_SIZE_ALIGN(addr,len);
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_ALIGN(addr,len);
 
 	FH_TABLE_LOCK;
-	if (fh_region_ispinned(fh_mynode, &region)) {
-		fh_commit_try_local_region(&region);
-
+	if (fh_region_ispinned(fh_mynode, addr, len)) {
 		req         = fh_request_new(ureq);
 		req->node   = fh_mynode;
+		req->addr   = addr;
+		req->len    = len;
 		req->flags |= FH_FLAG_PINNED;
-		FH_COPY_REGION_TO_REQUEST(req, &region);
+
+		fh_commit_try_local_region(req);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -264,19 +264,19 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
                            firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
-	firehose_region_t	region;
 
-	region.addr = FH_ADDR_ALIGN(addr);
-	region.len  = FH_SIZE_ALIGN(addr,len);
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_ALIGN(addr,len);
 
 	FH_TABLE_LOCK;
-	if (fh_region_partial(fh_mynode, &region)) {
-		fh_commit_try_local_region(&region);
-
+	if (fh_region_partial(fh_mynode, &addr, &len)) {
 		req         = fh_request_new(ureq);
 		req->node   = fh_mynode;
+		req->addr   = addr;
+		req->len    = len;
 		req->flags |= FH_FLAG_PINNED;
-		FH_COPY_REGION_TO_REQUEST(req, &region);
+
+		fh_commit_try_local_region(req);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -289,22 +289,25 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		    firehose_remotecallback_args_t *remote_args,
 		    firehose_completed_fn_t callback, void *context)
 {
-	firehose_region_t	region;
 	firehose_request_t	*req = NULL;
 
 	if_pf (node == fh_mynode)
 		gasneti_fatalerror("Cannot request a Remote pin on a local node.");
 
-	region.addr = FH_ADDR_ALIGN(addr); 
-	region.len  = FH_SIZE_ALIGN(addr,len);
-
 	assert(remote_args == NULL ? 1 : 
 		(flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK));
 
-	/* The 'req' is allocated in fh_acquire_remote_region() since that
-	 * function needs to unlock the table lock prior to returning */
-	req = fh_acquire_remote_region(node, &region, callback, context,
-			flags, remote_args, ureq);
+	FH_TABLE_LOCK;
+
+	req = fh_request_new(ureq);
+	req->node = node;
+	req->addr = FH_ADDR_ALIGN(addr); 
+	req->len  = FH_SIZE_ALIGN(addr,len);
+
+	fh_acquire_remote_region(req, callback, context, flags, remote_args);
+
+	/* Note that fh_acquire_remote_region unlocks before returning */
+	FH_TABLE_ASSERT_UNLOCKED;
 
 	if (req->flags & FH_FLAG_PINNED) {
 		/* If the request could be entirely pinned, process the
@@ -328,22 +331,22 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 			uint32_t flags, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
-	firehose_region_t	region;
 
 	if_pf (node == fh_mynode)
 		gasneti_fatalerror("Cannot request a Remote pin on a local node.");
 
-	region.addr = FH_ADDR_ALIGN(addr);
-	region.len  = FH_SIZE_ALIGN(addr,len);
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_ALIGN(addr,len);
 
 	FH_TABLE_LOCK;
 
-	if (fh_region_ispinned(node, &region)) {
+	if (fh_region_ispinned(node, addr, len)) {
 		req = fh_request_new(ureq);
 		req->node = node;
+		req->addr = addr;
+		req->len  = len;
 
-		fh_commit_try_remote_region(node, &region);
-		FH_COPY_REGION_TO_REQUEST(req, &region);
+		fh_commit_try_remote_region(req);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -356,21 +359,22 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
                             firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
-	firehose_region_t	region;
 
 	if_pf (node == fh_mynode)
 		gasneti_fatalerror("Cannot request a Remote pin on a local node.");
 
-	region.addr = FH_ADDR_ALIGN(addr);
-	region.len  = FH_SIZE_ALIGN(addr,len);
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_ALIGN(addr,len);
 
 	FH_TABLE_LOCK;
 
-	if (fh_region_partial(node, &region)) {
+	if (fh_region_partial(node, &addr, &len)) {
 		req = fh_request_new(ureq);
 		req->node = node;
-		fh_commit_try_remote_region(node, &region);
-		FH_COPY_REGION_TO_REQUEST(req, &region);
+		req->addr = addr;
+		req->len  = len;
+
+		fh_commit_try_remote_region(req);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -439,25 +443,21 @@ fh_free_completion_callback(fh_completion_callback_t *cc)
 static firehose_request_t	*fh_request_freehead = NULL;
 static int			 fh_request_bufidx = 0;
 
-firehose_request_t *
+static firehose_request_t *
 fh_request_new(firehose_request_t *ureq)
 {
 	firehose_request_t	*req;
 
 	FH_TABLE_ASSERT_LOCKED;
 
-	if (ureq != NULL) {
+	if_pt (ureq != NULL) {
 		req = ureq;
 		req->flags = 0;
-		/*
-		req->internal = 
-		    (firehose_private_t *) fh_alloc_completion_callback();
-		((fh_completion_callback_t *)req->internal)->request = req;
-		*/
+		req->internal = NULL;
 		return req;
 	}
 
-	if (fh_request_freehead != NULL) {
+	if_pt (fh_request_freehead != NULL) {
 		req = fh_request_freehead;
 		fh_request_freehead = (firehose_request_t *) req->internal;
 	}
@@ -494,7 +494,7 @@ fh_request_new(firehose_request_t *ureq)
 	return req;
 }
 
-void
+static void
 fh_request_free(firehose_request_t *req)
 {
 	FH_TABLE_ASSERT_LOCKED;

@@ -249,11 +249,6 @@ void	fh_fini_plugin();
 #define FH_FLAG_PINNED	0x02
 #define FH_FLAG_PENDING 0x04
 
-			/* Allocate a request type                       */
-firehose_request_t *	fh_request_new(firehose_request_t *ureq);
-			/* Return the request type to the freelist       */
-void			fh_request_free(firehose_request_t *req);
-
 /* ##################################################################### */
 /* Firehose Hash Table Utility (COMMON, firehose_hash.c)                 */
 /* The hash table utility functions can be used for hashing buckets and  */
@@ -282,8 +277,12 @@ fh_refc_t *	fh_priv_acquire(gasnet_node_t node, firehose_private_t *);
 /* ##################################################################### */
 /* Misc functions (specific to page and region)                          */
 /* ##################################################################### */
-int	fh_region_ispinned(gasnet_node_t node, firehose_region_t *region);
-int	fh_region_partial(gasnet_node_t node, firehose_region_t *region);
+int	fh_region_ispinned(gasnet_node_t node, uintptr_t addr, size_t len);
+int	fh_region_partial(gasnet_node_t node, uintptr_t *addr_p, size_t *len_p);
+
+/* ##################################################################### */
+/* Misc functions (COMMON, firehose.c)                                   */
+/* ##################################################################### */
 unsigned long	fh_getenv(const char *var, unsigned long multiplier);
 
 /* Common Queue Macros for Firehose FIFO and Local Bucket FIFO */
@@ -440,21 +439,18 @@ void	fh_free_completion_callback(fh_completion_callback_t *rc);
 /* Firehose internal pinning functions                                   */
 /* ##################################################################### */
 /* See documentation in firehose_page.c                                  */
-void	fh_acquire_local_region(firehose_region_t *);
-void	fh_commit_try_local_region(firehose_region_t *);
+void	fh_acquire_local_region(firehose_request_t *);
+void	fh_commit_try_local_region(firehose_request_t *);
 void	fh_release_local_region(firehose_request_t *);
 
-firehose_request_t *	fh_acquire_remote_region(gasnet_node_t node, 
-				firehose_region_t *reg, 
+void	fh_acquire_remote_region(firehose_request_t *req,
 				firehose_completed_fn_t callback, 
 				void *context, uint32_t flags,
-		        	firehose_remotecallback_args_t *remote_args,
-				firehose_request_t *ureq);
-void			fh_commit_try_remote_region(gasnet_node_t, 
-						    firehose_region_t *);
-void			fh_release_remote_region(firehose_request_t *);
+		        	firehose_remotecallback_args_t *remote_args);
+void	fh_commit_try_remote_region(firehose_request_t *);
+void	fh_release_remote_region(firehose_request_t *);
 
-void			fh_send_firehose_reply(fh_remote_callback_t *);
+void	fh_send_firehose_reply(fh_remote_callback_t *);
 
 /* How many buffers (of buffers) to allocate to use as bucket descriptors in
  * hash table */

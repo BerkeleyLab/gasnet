@@ -151,9 +151,9 @@ void	fhi_AdjustLocalFifoAndPin(gasnet_node_t node, fhi_RegionPool_t *rpool);
 int	fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 			 int nreg, fh_pollq_t *PendQ);
 
-int	fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req, 
+int	fhi_TryAcquireRemoteRegion(firehose_request_t *req, 
 			fh_completion_callback_t *ccb,
-			firehose_region_t *reg, int *new_regions);
+			int *new_regions);
 
 int	fhi_CoalesceBuckets(uintptr_t *bucket_addr_list, size_t num_buckets,
 			    firehose_region_t *regions);
@@ -334,22 +334,22 @@ fh_bucket_remove(fh_bucket_t *bucket)
 	fh_buckets_freehead = bucket;
 }
 
-/* fh_region_ispinned(node, region)
+/* fh_region_ispinned(node, addr, len)
  * 
  * Returns non-null if the entire region is already pinned 
  *
  * Uses fh_bucket_lookup() to query if the current page is pinned.
  */
 int
-fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
+fh_region_ispinned(gasnet_node_t node, uintptr_t addr, size_t len)
 {
  	uintptr_t	bucket_addr;
-	uintptr_t	end_addr = region->addr + region->len - 1;
+	uintptr_t	end_addr = addr + len - 1;
 	fh_bucket_t	*bd;
 	int		is_local = (node == fh_mynode);
 
 	FH_TABLE_ASSERT_LOCKED;
- 	FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) {
+ 	FH_FOREACH_BUCKET(addr, end_addr, bucket_addr) {
 		bd = fh_bucket_lookup(node, bucket_addr);
 
 		/* 
@@ -365,7 +365,7 @@ fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
 	return 1;
 }
 
-/* fh_region_partial(node, region)
+/* fh_region_partial(node, addr_p, len_p)
  *
  * Search for first range of pinned pages in the given range
  * and if succesful, overwrite the region with the pinned range.
@@ -373,7 +373,7 @@ fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
  * Returns non-zero if any pinned pages were found.
  */
 int
-fh_region_partial(gasnet_node_t node, firehose_region_t *region)
+fh_region_partial(gasnet_node_t node, uintptr_t *addr_p, size_t *len_p)
 {
 	uintptr_t	tmp_addr = 0;
 	uintptr_t	addr, end_addr, bucket_addr;
@@ -381,8 +381,8 @@ fh_region_partial(gasnet_node_t node, firehose_region_t *region)
 	fh_bucket_t	*bd;
 	int		is_local = (node == fh_mynode);
 
-	addr     = region->addr;
-	len      = region->len;
+	addr     = *addr_p;
+	len      = *len_p;
 	end_addr = addr + len - 1;
 
 	FH_TABLE_ASSERT_LOCKED;
@@ -424,8 +424,8 @@ fh_region_partial(gasnet_node_t node, firehose_region_t *region)
 		}
 	}
 
-	region->addr = addr;
-	region->len  = len;
+	*addr_p = addr;
+	*len_p  = len;
 		
 	return 1;
 }
@@ -1466,20 +1466,25 @@ fhi_InitLocalRegionsList(gasnet_node_t node, firehose_region_t *region,
  */
 
 void
-fh_acquire_local_region(firehose_region_t *region)
+fh_acquire_local_region(firehose_request_t *req)
 {
 	int			b_num, b_total;
+	firehose_region_t	region;
 	fhi_RegionPool_t	*pin_p;
 
 
 	FH_TABLE_ASSERT_LOCKED;
 
-	b_total = FH_NUM_BUCKETS(region->addr, region->len);
+	assert(req->node == fh_mynode);
+
+	b_total = FH_NUM_BUCKETS(req->addr, req->len);
 	/* Make sure the size of the region respects the local limits */
 	assert(b_total <= fhc_MaxVictimBuckets);
 
 	pin_p = fhi_AllocRegionPool(FH_MIN_REGIONS_FOR_BUCKETS(b_total));
-	b_num = fhi_AcquireLocalRegionsList(fh_mynode, region, 1, pin_p);
+	region.addr = req->addr;
+	region.len  = req->len;
+	b_num = fhi_AcquireLocalRegionsList(fh_mynode, &region, 1, pin_p);
 
 	/* b_num contains the number of new Buckets to be pinned.  We may have
 	 * to unpin Buckets in order to respect the threshold on locally pinned
@@ -1514,21 +1519,22 @@ fh_acquire_local_region(firehose_region_t *region)
 }
 
 void
-fh_commit_try_local_region(firehose_region_t *region)
+fh_commit_try_local_region(firehose_request_t *req)
 {
 	uintptr_t	end_addr, bucket_addr;
 	fh_bucket_t	*bd;
 
 
 	FH_TABLE_ASSERT_LOCKED;
+	assert(req->node == fh_mynode);
 
 	/* Make sure the size of the region respects the local limits */
-	assert(FH_NUM_BUCKETS(region->addr, region->len)
+	assert(FH_NUM_BUCKETS(req->addr, req->len)
 						<= fhc_MaxVictimBuckets);
 
-	end_addr = region->addr + region->len - 1;
+	end_addr = req->addr + req->len - 1;
 				
-	FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) 
+	FH_FOREACH_BUCKET(req->addr, end_addr, bucket_addr) 
 	{
 		assert(bucket_addr > 0);
 		bd = fh_bucket_lookup(fh_mynode, bucket_addr);
@@ -1661,18 +1667,19 @@ fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 }
 
 void
-fh_commit_try_remote_region(gasnet_node_t node, firehose_region_t *region)
+fh_commit_try_remote_region(firehose_request_t *req)
 {
-	uintptr_t	bucket_addr, end_addr  = region->addr + region->len - 1;
+	uintptr_t	bucket_addr, end_addr  = req->addr + req->len - 1;
 	fh_bucket_t	*bd;
+	gasnet_node_t	node = req->node;
 
 	FH_TABLE_ASSERT_LOCKED;
 
 	/* Make sure the size of the region respects the remote limits */
-	assert(FH_NUM_BUCKETS(region->addr, region->len)
+	assert(FH_NUM_BUCKETS(req->addr, req->len)
 						<= fhc_MaxRemoteBuckets);
 
- 	FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) {
+ 	FH_FOREACH_BUCKET(req->addr, end_addr, bucket_addr) {
 		bd = fh_bucket_lookup(node, bucket_addr);
 		fh_bucket_acquire(node, bd);
 	}
@@ -1714,31 +1721,33 @@ fh_release_local_region(firehose_request_t *request)
  */
 
 int
-fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req, 
+fhi_TryAcquireRemoteRegion(firehose_request_t *req, 
 			fh_completion_callback_t *ccb,
-			firehose_region_t *reg, int *new_regions)
+			int *new_regions)
 {
  	uintptr_t	bucket_addr, end_addr, next_addr = 0;
 	int		unpinned = 0;
 	int		new_r = 0, b_num;
 	fh_bucket_t	*bd;
+	gasnet_node_t	node;
 
 	fh_completion_callback_t *ccba;
 
-	end_addr = reg->addr + (uintptr_t) reg->len - 1;
+	end_addr = req->addr + (uintptr_t) req->len - 1;
 
 	FH_TABLE_ASSERT_LOCKED;
 
 	assert(req != NULL);
-	assert(node != fh_mynode);
+	assert(req->node != fh_mynode);
+	node = req->node;
 
-	b_num = FH_NUM_BUCKETS(reg->addr, reg->len);
+	b_num = FH_NUM_BUCKETS(req->addr, req->len);
 
 	/* Make sure the number of buckets doesn't exceed the maximum number of
 	 * regions required to describe these buckets */
 	assert(b_num <= fh_max_regions); 
 
- 	FH_FOREACH_BUCKET(reg->addr, end_addr, bucket_addr) {
+ 	FH_FOREACH_BUCKET(req->addr, end_addr, bucket_addr) {
 		bd = fh_bucket_lookup(node, bucket_addr);
 
 		if (bd != NULL) {
@@ -1810,7 +1819,7 @@ fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req,
 	return unpinned;
 }
 
-/* fh_acquire_remote_region(node, region, callback, context, flags,
+/* fh_acquire_remote_region(request, callback, context, flags,
  *                          remotecallback_args)
  *
  * The function only requests a remote pin operation (AM) if one of the pages
@@ -1818,29 +1827,37 @@ fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req,
  * the entire region hits the remote firehose hash, the value of the internal
  * pointer is set to FH_REQ_UNPINNED and a request for remote pages to be
  * pinned is enqueued.
+ *
+ * NOTE: this function begins with the table lock held an concludes with the
+ * table lock released!!!
+ * XXX/PHH: Can the UNBIND and AM stuff move to firehose.c to avoid this?
+ *      If so, we must stop using alloca() here!  Instead of alloca(), we
+ *      should pass the AM-args around, eliminating the scalar arguments
+ *      entirely in favor of packing a struct provided by the caller
+ *      (in firehose.c), and replacing 'args'.
+ *      That means either calling alloca() for the maximum size
+ *      unconditionally in the caller, or equivalently having an automatic
+ *	variable or thread-local buffer of maximum size.
  */
 
-firehose_request_t *
-fh_acquire_remote_region(gasnet_node_t node, firehose_region_t *reg, 
-		         firehose_completed_fn_t callback, void *context,
+void
+fh_acquire_remote_region(firehose_request_t *req,
+			 firehose_completed_fn_t callback, void *context,
 			 uint32_t flags, 
-			 firehose_remotecallback_args_t *args,
-			 firehose_request_t *ureq)
+			 firehose_remotecallback_args_t *args)
 {
 	int			 notpinned, new_r = 0;
-	firehose_request_t	 *req;
 	fh_completion_callback_t  ccb;
+	gasnet_node_t node;
 
 	/* Make sure the size of the region respects the remote limits */
 	/* XXX should this check be done in non-assert */
-	assert(FH_NUM_BUCKETS(reg->addr, reg->len) <= fhc_RemoteBucketsM);
+	assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_RemoteBucketsM);
 
-	FH_TABLE_LOCK;
+	FH_TABLE_ASSERT_LOCKED;
 
-	req = fh_request_new(ureq);
-	req->node = node;
+	node = req->node;
 	req->internal = NULL;
-	FH_COPY_REGION_TO_REQUEST(req, reg);
 
 	/* Fill in a completion callback struct temporarily as it may be used
 	 * in fhi_TryAcquireRemoteRegion() */
@@ -1851,7 +1868,7 @@ fh_acquire_remote_region(gasnet_node_t node, firehose_region_t *reg,
 	ccb.context  = context;
 
 	/* Writes the non-pinned buckets to temp_buckets array */
-	notpinned = fhi_TryAcquireRemoteRegion(node, req, &ccb, reg, &new_r);
+	notpinned = fhi_TryAcquireRemoteRegion(req, &ccb, &new_r);
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("Firehose Request Remote on %d (%p,%d) (%d buckets unpinned, "
@@ -1935,7 +1952,7 @@ fh_acquire_remote_region(gasnet_node_t node, firehose_region_t *reg,
 		FH_TABLE_UNLOCK;
 	}
 
-	return req;
+	FH_TABLE_ASSERT_UNLOCKED;
 }
 
 /*
@@ -2007,7 +2024,7 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 	old_reg = (firehose_region_t *) addr + r_new;
 
 	#ifdef FIREHOSE_UNEXPORT_CALLBACK
-	if (old_num > 0)
+	if (r_old > 0)
 		firehose_unexport_callback(node, old_reg, r_old);
 	#endif
 
@@ -2039,7 +2056,7 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 	FH_TABLE_UNLOCK;
 
 	#ifdef FIREHOSE_EXPORT_CALLBACK
-	if (new_num > 0)
+	if (r_new > 0)
 		firehose_export_callback(node, new_reg, r_new);
 	#endif
 
