@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/vapi-par.mak.in,v 1.1.2.3 2003/04/09 17:48:00 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/vapi-par.mak.in,v 1.1.2.4 2003/05/12 22:50:49 bonachea Exp $
 # Description: Makefile fragment for VAPI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -51,6 +51,7 @@ GASNET_LIBS =            \
     @GASNET_THREAD_LIBS@ \
     @VAPI_LIBS@          \
     @LIBGCC@             \
+    @LIBS@               \
     @LIBM@
 
 # ----------------------------------------------------------------------
