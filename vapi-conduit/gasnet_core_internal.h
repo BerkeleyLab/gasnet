@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/24 21:27:42 $
- * $Revision: 1.19.6.3 $
+ *     $Date: 2003/11/01 07:17:25 $
+ * $Revision: 1.19.6.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,6 +30,11 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define GASNETC_HSL_SPINLOCK 1
 
 #define GASNETC_CACHE_LINE_SIZE (128)
+
+/* check (even in optimized build) for VAPI errors */
+#define GASNETC_VAPI_CHECK(vstat,msg) \
+  if_pf ((vstat) != VAPI_OK) \
+    { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(vstat),(msg)); }
 
 /* ------------------------------------------------------------------------------------ */
 /* make a GASNet call - if it fails, print error message and return */
