@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/09 21:09:02 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2003/04/09 23:17:24 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,23 +182,6 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 #define GASNETC_RCV_WQE 2               /* maximum unreaped entries on a rcv work queue */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
-/* gasnetc_sync_t
- *
- * How a given sbuf will be synchronized:
- * + gasnetc_syncNone
- * 	No synchronization will be performed.
- * 	The buf is eligible for reuse as soon at it's reaped from the completion queue.
- * + gasnetc_syncWait
- * 	An explicit wait will be performed on this buf by some thread.
- * 	The buf is eligible for reuse only after it has been waited on.
- *
- * XXX Others will be needed for the extended API implementation.
- */
-typedef enum {
-  gasnetc_syncNone,
-  gasnetc_syncWait,
-} gasnetc_sync_t;
-
 /* Structure for a cep (connection end-point)
  * Include whatever per-node data we need.
  */
@@ -223,11 +206,13 @@ typedef struct {
 
 /* Description of a send buffer */
 typedef struct _gasnetc_sbuf_t {
-  gasneti_atomic_t		done;
-  gasnetc_sync_t		syncType;
   struct _gasnetc_sbuf_t	*next;
   struct _gasnetc_sbuf_t	*tail;
   gasnetc_buffer_t		*buffer;
+
+  /* Function to call on completion, and private data for it's use. */
+  void				(*comp_func)(struct _gasnetc_sbuf_t *sbuf);
+  void				*comp_data;
 } gasnetc_sbuf_t;
 
 /* Description of a registered (pinned) memory region */
@@ -239,6 +224,12 @@ typedef struct {
   uintptr_t		end;	/* inclusive */
   size_t		size;
 } gasnetc_memreg_t;
+
+/* Object used to sync one or more async sends */
+typedef struct {
+  gasneti_atomic_t	count;
+} gasnetc_send_handle_t;
+#define GASNETC_SEND_HANDLE_INITIALIZER	{ gasneti_atomic_init(0) }
 
 /* Bootstrap helper routines in gasnet_bootstrap_*.c */
 extern void gasnetc_bootstrapInit(int *argc, char ***argv);
@@ -257,16 +248,16 @@ extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags);
 /* Send routines in gasnet_core_snd.c */
 extern void gasnetc_snd_init(void);
 extern void gasnetc_snd_fini(void);
-extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, int is_async);
-extern void gasnetc_snd_wait(gasnetc_sbuf_t *sbuf);
+extern int gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, gasnetc_send_handle_t *hand);
+extern void gasnetc_snd_wait(gasnetc_send_handle_t *hand);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr);
+				  int numargs, gasnetc_send_handle_t *rdma_hand, va_list argptr);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnet_token_t token, gasnet_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr);
+				int numargs, gasnetc_send_handle_t *rdma_hand, va_list argptr);
 
 /* General routines in gasnet_core.c */
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start);

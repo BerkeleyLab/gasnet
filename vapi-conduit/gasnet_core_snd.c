@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/09 21:09:02 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2003/04/09 23:17:24 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -30,6 +30,7 @@ typedef struct {
   VAPI_sr_desc_t	sr_desc;		/* send request descriptor */
   VAPI_sg_lst_entry_t	sr_sg[GASNETC_SND_SG];	/* send request gather list */
 } gasnetc_sreq_t;
+
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions                                                               *
  * ------------------------------------------------------------------------------------ */
@@ -52,13 +53,23 @@ void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   pthread_mutex_unlock(&gasnetc_sbuf_lock);
 }
 
+/* Completion function for sbufs associated with a send handle */
+static void gasnetc_comp_handle(gasnetc_sbuf_t *sbuf) {
+  gasnetc_send_handle_t *hand = sbuf->comp_data;
+  gasneti_atomic_decrement(&hand->count);
+  gasnetc_put_sbuf(sbuf, sbuf->tail);
+}
+
+/* Completion function for sbufs which nobody will wait for */
+static void gasnetc_comp_trivial(gasnetc_sbuf_t *sbuf) {
+  gasnetc_put_sbuf(sbuf, sbuf->tail);
+}
+
 /*
- * Pull one completed entry from the send CQ (if any) and return it.
- * If there are subordinate sbuf's (the 'next' pointer), they are freed.
- * The 'next' field is not updated.
+ * Try to pull one completed entry from the send CQ (if any).
  */
 GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
-gasnetc_sbuf_t *gasnetc_snd_reap(void) {
+void gasnetc_snd_reap(void) {
   gasnetc_sbuf_t *sbuf = NULL;
   VAPI_wc_desc_t comp;
   VAPI_ret_t vstat;
@@ -67,10 +78,8 @@ gasnetc_sbuf_t *gasnetc_snd_reap(void) {
   if (vstat == VAPI_OK) {
     if (comp.status == VAPI_SUCCESS) {
       sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
-      if (sbuf->next) {
-	gasnetc_put_sbuf(sbuf->next, sbuf->tail);
-      }
-      gasneti_atomic_set(&sbuf->done, 1);
+      assert(sbuf->comp_func != NULL);
+      (*sbuf->comp_func)(sbuf);
     } else {
 #if 1 
       fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
@@ -83,28 +92,18 @@ gasnetc_sbuf_t *gasnetc_snd_reap(void) {
   } else {
     assert(vstat == VAPI_CQ_EMPTY);
   }
-
-  return sbuf;
 }
 
 /* allocate a send buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
-  gasnetc_sbuf_t *sbuf = NULL;
+  gasnetc_sbuf_t *sbuf;
 
   while (1) {
-    /* First: try to reap a single completed entry from the send CQ.
-     * We skip entries which must be waited on.
-     */
-    do {
-      sbuf = gasnetc_snd_reap();
-    } while ((sbuf != NULL) && (sbuf->syncType != gasnetc_syncNone));
+    /* Try to reap an sbuf from the send CQ.  */
+    gasnetc_snd_reap();
 
-    if (sbuf != NULL) {
-      break;	/* Have a buffer - leave the loop */
-    }
-
-    /* Second: try to get an unused buffer from the free list */
+    /* Now try to get an unused sbuf from the free list */
     pthread_mutex_lock(&gasnetc_sbuf_lock);
     sbuf = gasnetc_sbuf_pool;
     if (sbuf != NULL) {
@@ -120,9 +119,9 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
 
   assert(sbuf != NULL);
 
-  gasneti_atomic_set(&sbuf->done, 0);
   sbuf->next = NULL;
   sbuf->tail = sbuf;
+  sbuf->comp_func = NULL;
   return sbuf;
 }
 
@@ -136,7 +135,7 @@ GASNET_INLINE_MODIFIER(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 			  int dest, gasnet_handler_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
-			  int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr) {
+			  int numargs, gasnetc_send_handle_t *rdma_hand, va_list argptr) {
   gasnetc_sbuf_t *sbuf;
   gasnetc_buffer_t *buf;
   gasnet_handlerarg_t *args;
@@ -145,7 +144,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   int retval, i;
 
   sbuf = gasnetc_get_sbuf();
-  sbuf->syncType = gasnetc_syncNone;
+  sbuf->comp_func = &gasnetc_comp_trivial;
   buf = sbuf->buffer;
 
   switch (category) {
@@ -163,14 +162,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     break;
 
   case gasnetc_Long:
-    if (rdma_sbuf) {
-      /* Long */
-      *rdma_sbuf = gasnetc_rdma_put(dest, (uintptr_t)src_addr, (uintptr_t)dst_addr, nbytes, 0);
-    } else {
-      /* LongAsync */
-      gasnetc_sbuf_t *dummy = gasnetc_rdma_put(dest, (uintptr_t)src_addr, (uintptr_t)dst_addr, nbytes, 1);
-      assert(dummy == NULL);
-    }
+    /* XXX check for error returns */
+    (void)gasnetc_rdma_put(dest, (uintptr_t)src_addr, (uintptr_t)dst_addr, nbytes, rdma_hand);
     args = buf->longmsg.args;
     buf->longmsg.destLoc = (uintptr_t)dst_addr;
     buf->longmsg.nBytes  = nbytes;
@@ -252,28 +245,20 @@ extern void gasnetc_snd_fini(void) {
 }
 
 /*
- * Block until a given sbuf is marked done
+ * Block until a given send handle is marked as done
  */
-extern void gasnetc_snd_wait(gasnetc_sbuf_t *sbuf) {
-  gasnetc_sbuf_t *tmp;
-
-  if (sbuf != NULL) {
-    while (!gasneti_atomic_read(&sbuf->done)) {
-      tmp = gasnetc_snd_reap();
-      if ((tmp != NULL) && (tmp->syncType == gasnetc_syncNone)) {
-        gasnetc_put_sbuf(tmp, tmp);
-      }
+extern void gasnetc_snd_wait(gasnetc_send_handle_t *hand) {
+  if (gasneti_atomic_read(&hand->count) != 0) {
+    gasnetc_snd_reap();
+    while (gasneti_atomic_read(&hand->count) != 0) {
       sched_yield();
+      gasnetc_snd_reap();
     }
-    gasnetc_put_sbuf(sbuf, sbuf);
-  } else {
-    /* NULL is not an error.  We return immediately. */
   }
 }
 
 /* Perform an RDMA put
- * Returns the sbuf on which one should sync for completion.
- * May return NULL if the transfer is known to be "complete".
+ * Iff hand is non-NULL, set it up to allow syncing of the put.
  *
  * Current system uses bounce buffers only when source is not pinned
  * and uses zero-copy when source is pinned.
@@ -284,22 +269,20 @@ extern void gasnetc_snd_wait(gasnetc_sbuf_t *sbuf) {
  * Later "optimization" would be to use bounce buffers for ALL small synchronous transfers,
  * regardless of pinning, because the copy would cost less than blocking for the
  * transfer to complete.
- *
  */
-extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, size_t nbytes, int is_async) {
+extern int gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, size_t nbytes, gasnetc_send_handle_t *hand) {
   gasnetc_cep_t *cep = &gasnetc_cep[dest];
-  gasnetc_sbuf_t *sbuf, *retval = NULL;
+  gasnetc_sbuf_t *sbuf;
   int rc;
 
   if (dest == gasnetc_mynode) {
     memcpy((void *)dst, (void *)src, nbytes);
-    return NULL;
+    return 0;
   }
 
   #if defined(GASNET_SEGMENT_FAST)
   { 
     VAPI_rkey_t rkey = cep->rkey;
-    int did_zero_copy = 0;
 
     /* Outer loop is over RDMA put operations.
      * We perform as many operations as needed to move the entire payload.
@@ -308,13 +291,14 @@ extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, 
       uintptr_t msg_limit = MIN(nbytes, gasnetc_hca_port.max_msg_sz);
       gasnetc_sreq_t req;
       gasnetc_sbuf_t *tail = NULL;
+      int did_zero_copy = 0;
       int i = 0;
 
-     /* Buffers are our means to account for available slots in the send queue.
-      * Therefore we must allocate at least one sbuf even if we will only do zero-copy puts.
-      */
+      /* Buffers are our means to account for available slots in the send queue.
+       * Therefore we must allocate at least one sbuf even if we will only do zero-copy puts.
+       */
       sbuf = gasnetc_get_sbuf();
-      sbuf->syncType = gasnetc_syncNone;
+      sbuf->comp_func = &gasnetc_comp_trivial;
 
       gasnetc_init_sreq(&req, sbuf);
       req.sr_desc.opcode      = VAPI_RDMA_WRITE;
@@ -343,7 +327,7 @@ extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, 
           req.sr_sg[i].addr = src;
           req.sr_sg[i].len  = count;
           req.sr_sg[i].lkey = reg->lkey;
-          did_zero_copy = 1;
+	  did_zero_copy = 1;
 	} else {
 	  /* Bounce buffer case:
 	   *
@@ -374,14 +358,15 @@ extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, 
         ++i;
       } while ((i < GASNETC_SND_SG) && msg_limit);
 
-      if (!nbytes && !is_async && did_zero_copy) {
-	/* ensure caller can wait on the final sbuf */
-	sbuf->syncType = gasnetc_syncWait;
-        retval = sbuf;
-      }
-
       req.sr_desc.sg_lst_len  = i;
       sbuf->tail = tail;
+
+      if (hand && did_zero_copy) {
+	/* Ensure the caller will wait for this descriptor */
+	gasneti_atomic_increment(&hand->count);
+	sbuf->comp_func = &gasnetc_comp_handle;
+	sbuf->comp_data = hand;
+      }
 
       /* ### translate into a sensible error code */
       rc = gasnetc_snd_post(cep, &req);
@@ -391,22 +376,22 @@ extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, 
   #error "I can only do FAST right now"
   #endif
 
-  return retval;
+  return 0;
 }
 
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr) {
+				  int numargs, gasnetc_send_handle_t *rdma_hand, va_list argptr) {
   return gasnetc_ReqRepGeneric(category, 1, dest, handler,
                                src_addr, nbytes, dst_addr,
-                               numargs, rdma_sbuf, argptr);
+                               numargs, rdma_hand, argptr);
 }
 
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnet_token_t token, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr) {
+				  int numargs, gasnetc_send_handle_t *rdma_hand, va_list argptr) {
   gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
   int retval;
 
@@ -417,7 +402,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
   retval = gasnetc_ReqRepGeneric(category, 0, GASNETC_MSG_SRCIDX(rbuf->flags), handler,
 				 src_addr, nbytes, dst_addr,
-				 numargs, rdma_sbuf, argptr);
+				 numargs, rdma_hand, argptr);
 
   rbuf->replyIssued = 1;
   return retval;
