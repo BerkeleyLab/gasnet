@@ -337,6 +337,8 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
     size_t	extend;
     size_t	space_avail = fhi_MaxRegionSize - len;
 
+    gasneti_assert(len <= fhi_MaxRegionSize);
+
     /* Because we prioritize lookups by "forward extent", our best
      * chance of fully replacing a region comes from merging with one
      * which preceeds the new one, even if we can't fully cover it. */
@@ -353,6 +355,7 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
 	    len += extend;
 	    space_avail -= extend;
 	}
+	gasneti_assert(len <= fhi_MaxRegionSize);
     }
 
     /* Now try to extend forward as well.
@@ -373,6 +376,7 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
 		space_avail -= extend;
 	    }
 	}
+	gasneti_assert(len <= fhi_MaxRegionSize);
     }
 
     pin_region->addr = addr;
@@ -479,6 +483,7 @@ fh_acquire_local_region(firehose_request_t *req)
 
     gasneti_assert(req != NULL);
     gasneti_assert(req->node == fh_mynode);
+    gasneti_assert(req->len <= fhi_MaxRegionSize);
 
     /* Make sure the size of the region respects the local limits */
     gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
