@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/30 19:50:17 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2003/06/30 23:18:32 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -128,28 +128,88 @@ void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
   #define gasnetc_put_rbuf(X) do {} while (0)
 #endif
 
-/* Post a work request to the send queue of the given endpoint */
+/* Post a work request to the send queue of the given endpoint
+ *
+ * Rather than actively manage the length of the send queue, we simply rely on the return code
+ * VAPI_E2BIG_WR_NUM to let us know when we've hit the limit.
+ */
 GASNET_INLINE_MODIFIER(gasnetc_snd_post)
 void gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req) {
   VAPI_ret_t vstat;
+  int first_try = 1;
+  GASNETC_TRACE_WAIT_BEGIN();
 
   /* check for attempted loopback traffic */
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
 
-  vstat = VAPI_post_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
-  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
+  /* loop until space is available on the SQ */
+  do {
+    vstat = VAPI_post_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
+
+    if_pt (vstat == VAPI_OK) {
+      /* SUCCESS, the request is posted */
+      if (!first_try) {
+        GASNETC_TRACE_WAIT_END(POST_SR_STALL);
+      }
+      return;
+    } else if_pt(vstat == VAPI_E2BIG_WR_NUM) {
+      /* TRANSIENT FAILURE, the queue is full */
+      first_try = 0;
+      gasnetc_snd_poll(); /* not required for progress, but can't hurt too much */
+      continue;
+    } else {
+      /* PERMANENT FAILURE, the cases are sorted out below... */
+      /* error case leaves loop... */
+      break;
+    }
+  } while (1);
+
+  if_pf (vstat == VAPI_EINVAL_QP_HNDL)
+    return;	/* race against disconnect in another thread */
+
+  gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
 }
 
-/* Post an INLINE work request to the send queue of the given endpoint */
-GASNET_INLINE_MODIFIER(gasnetc_snd_inline_post)
-void gasnetc_snd_inline_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req) {
+/* Post an INLINE work request to the send queue of the given endpoint
+ *
+ * Rather than actively manage the length of the send queue, we simply rely on the return code
+ * VAPI_E2BIG_WR_NUM to let us know when we've hit the limit.
+ */
+GASNET_INLINE_MODIFIER(gasnetc_snd_post_inline)
+void gasnetc_snd_post_inline(gasnetc_cep_t *cep, gasnetc_sreq_t *req) {
   VAPI_ret_t vstat;
+  int first_try = 1;
+  GASNETC_TRACE_WAIT_BEGIN();
 
   /* check for attempted loopback traffic */
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
 
-  vstat = EVAPI_post_inline_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
-  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
+  /* loop until space is available on the SQ */
+  do {
+    vstat = EVAPI_post_inline_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
+
+    if_pt (vstat == VAPI_OK) {
+      /* SUCCESS, the request is posted */
+      if (!first_try) {
+        GASNETC_TRACE_WAIT_END(POST_SR_STALL);
+      }
+      return;
+    } else if_pt(vstat == VAPI_E2BIG_WR_NUM) {
+      /* TRANSIENT FAILURE, the queue is full */
+      first_try = 0;
+      gasnetc_snd_poll(); /* not required for progress, but can't hurt too much */
+      continue;
+    } else {
+      /* PERMANENT FAILURE, the cases are sorted out below... */
+      /* error case leaves loop... */
+      break;
+    }
+  } while (1);
+
+  if_pf (vstat == VAPI_EINVAL_QP_HNDL)
+    return;	/* race against disconnect in another thread */
+
+  gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
 }
 
 /* Post a work request to the receive queue of the given endpoint */
@@ -161,7 +221,13 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
   
   vstat = VAPI_post_rr(gasnetc_hca, cep->qp_handle, &rbuf->rr_desc);
-  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
+
+  if_pt (vstat == VAPI_OK)
+    return;
+  if_pf (vstat == VAPI_EINVAL_QP_HNDL)
+    return;	/* race against disconnect in another thread */
+    
+  gasneti_fatalerror("Got unexpected VAPI error %s while posting a receive work request.", VAPI_strerror_sym(vstat));
 }
 
 /* GASNET_INLINE_MODIFIER(gasnetc_processPacket) */
@@ -192,9 +258,9 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
 	#endif
 	args = buf->shortmsg.args;
         if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETI_TRACE_SYSTEM_REQHANDLER(handler_id, src, rbuf, numargs, args);
+          GASNETC_TRACE_SYSTEM_REQHANDLER(handler_id, src, rbuf, numargs, args);
         else
-          GASNETI_TRACE_SYSTEM_REPHANDLER(handler_id, src, rbuf, numargs, args);
+          GASNETC_TRACE_SYSTEM_REPHANDLER(handler_id, src, rbuf, numargs, args);
         RUN_HANDLER_SYSTEM(sys_handler_fn,rbuf,args,numargs);
       }
       break;
@@ -344,7 +410,7 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   int first_try = 1;
   gasnetc_sbuf_t *sbuf, *tail;
 
-  GASNETI_TRACE_WAIT_BEGIN();
+  GASNETC_TRACE_WAIT_BEGIN();
   GASNETI_TRACE_EVENT(C,GET_SBUF);
 
   while (1) {
@@ -374,7 +440,7 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   }
 
   if (!first_try) {
-    GASNETI_TRACE_WAIT_END(GET_SBUF_STALL);
+    GASNETC_TRACE_WAIT_END(GET_SBUF_STALL);
   }
 
   assert(sbuf != NULL);
@@ -462,7 +528,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     gasnetc_cep_t *cep = &gasnetc_cep[dest];
 
 #if GASNETC_AM_FLOWCTRL
-    if (isReq && (dest != gasnetc_mynode)) {
+    if (isReq) {
       /* Requests require credit for flow control
        * Since the AM recv thread will never send a Request, it can't run here
        *
@@ -470,7 +536,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
        * to avoid blocking the RDMA traffic (which also requires sbuf's).
        */
       int first_try = 1;
-      GASNETI_TRACE_WAIT_BEGIN();
+      GASNETC_TRACE_WAIT_BEGIN();
       GASNETI_TRACE_EVENT(C,GET_AMREQ_CREDIT);
 
       do {
@@ -486,7 +552,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       } while (1);
 
       if (!first_try) {
-        GASNETI_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
+        GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
       }
     }
 #endif
@@ -613,7 +679,7 @@ extern void gasnetc_sndrcv_init(void) {
 
   /* setup rcv resources */
   count = GASNETC_RCV_WQE * (gasnetc_nodes - 1) + GASNETC_RCV_POOL_SIZE;
-  assert(count <= GASNETC_CQ_SIZE);
+  assert(count <= GASNETC_RCV_CQ_SIZE);
   buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
 			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
   assert(buf != NULL);
@@ -649,7 +715,7 @@ extern void gasnetc_sndrcv_init(void) {
   #endif
 
   /* setup snd resources */
-  count = MIN(GASNETC_SQ_SIZE, gasnetc_hca_cap.max_qp_ous_wr * (gasnetc_nodes - 1));
+  count = MIN(GASNETC_SND_CQ_SIZE, gasnetc_hca_cap.max_qp_ous_wr * gasnetc_nodes);
   buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
 		             VAPI_EN_LOCAL_WRITE, &gasnetc_snd_reg);
   assert(buf != NULL);
@@ -791,7 +857,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
       req.sr_sg.addr          = src;
       req.sr_sg.len           = nbytes;
 
-      gasnetc_snd_inline_post(cep, &req);
+      gasnetc_snd_post_inline(cep, &req);
       
       break;	/* done */
     } else if ((nbytes <= GASNETC_PUT_COPY_LIMIT) && (mem_oust != NULL)) {
@@ -991,7 +1057,7 @@ extern int gasnetc_RequestSystem(gasnet_node_t dest,
 
   gasnetc_sndrcv_poll();	/* ensure progress (should this really be done _here_?) */
 
-  GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
+  GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
 
   va_start(argptr, numargs);
   retval = gasnetc_ReqRepGeneric(gasnetc_System, 1, dest, handler,
@@ -1012,7 +1078,7 @@ extern int gasnetc_ReplySystem(gasnet_token_t token,
 
   dest = GASNETC_MSG_SRCIDX(rbuf->flags);
 
-  GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs);
+  GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs);
 
   va_start(argptr, numargs);
   retval = gasnetc_ReqRepGeneric(gasnetc_System, 0, dest, handler,
