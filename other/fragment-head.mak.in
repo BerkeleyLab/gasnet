@@ -1,5 +1,6 @@
 # Description: Makefile fragment for #conduit_name#-conduit, GASNET_#THREAD_MODEL# mode
 # #AUTOGEN#
+# @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 

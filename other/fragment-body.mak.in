@@ -1,5 +1,8 @@
 
 # ----------------------------------------------------------------------
+# Following section @configure_input@
+
+# ----------------------------------------------------------------------
 # Directory-based options
 
 GASNET_INCLUDES = -I###INSTALL_PREFIX###/include -I###INSTALL_PREFIX###/include/#conduit_name#-conduit $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#)

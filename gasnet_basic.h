@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2004/04/20 17:16:28 $
- * $Revision: 1.24.2.2 $
+ *     $Date: 2004/06/17 01:16:30 $
+ * $Revision: 1.24.2.3 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,8 +23,10 @@
 
 #if SIZEOF_VOID_P == 4
   #define GASNETI_PTR32
+  #define GASNETI_PTR_CONFIG 32bit
 #elif SIZEOF_VOID_P == 8
   #define GASNETI_PTR64
+  #define GASNETI_PTR_CONFIG 64bit
 #else
   #error GASNet currently only supports 32-bit and 64-bit platforms
 #endif

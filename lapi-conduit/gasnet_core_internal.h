@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/24 01:37:34 $
- * $Revision: 1.20 $
+ *     $Date: 2004/06/17 01:16:42 $
+ * $Revision: 1.20.6.1 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -97,6 +97,11 @@ typedef struct {
 #define GASNETC_MSG_ISPACKED(pmsg)  ((unsigned int)((pmsg)->flags & 0x8))
 #define GASNETC_MSG_SET_PACKED(pmsg) (pmsg)->flags |= 0x8
 
+#define GASNETC_DOUBLEWORD 8
+/* align pointer to nearest (forward) 8-byte boundary */
+#define GASNETC_ALIGN_PTR(p) (void*)( ((uintptr_t)(p) + 0x7) & ~0x7 )
+/* Round integer up to next multiple of 8 */
+#define GASNETC_ROUND_DOUBLEWORD(x) (int)( ((unsigned int)(x) + 0x7) & ~0x7 )
 /* --------------------------------------------------------------------
  * the following structure is use as a LAPI-conduit gasnet_token_t.
  * It is also the uhdr structure used in all CORE LAPI Amsend calls.
@@ -108,11 +113,25 @@ typedef struct {
  *
  * --------------------------------------------------------------------
  */
-#define GASNETC_TOKEN_SIZE 1024
 typedef struct gasnetc_token_rec {
     struct gasnetc_token_rec  *next;
     gasnetc_msg_t    msg;
 } gasnetc_token_t;
+/*
+ * We currently set the token length at compile time.
+ * Will change this in the future.
+ * On Federation systems the packet size if 2KB, whereas
+ * its 1KB on older, switch2-based systems like Seaborg.
+ * Dont know how to detect this at compile time, so for now
+ * we just use the lapi version number.  All federation systems
+ * use the new version of LAPI and seaborg uses the older version
+ * (at least for now).
+ */
+#if (GASNETC_LAPI_VERSION > 1)
+#define GASNETC_TOKEN_SIZE 2048
+#else
+#define GASNETC_TOKEN_SIZE 1024
+#endif
 
 #define TOKEN_LEN(narg) offsetof(gasnetc_token_t,msg) \
                       + offsetof(gasnetc_msg_t,args) \

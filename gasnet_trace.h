@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2004/04/20 17:16:28 $
- * $Revision: 1.18.2.1 $
+ *     $Date: 2004/06/17 01:16:30 $
+ * $Revision: 1.18.2.2 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -452,7 +452,7 @@ typedef struct {
 } gasneti_stat_timeval_t;
 
 /* startup & cleanup called by GASNet */
-extern void gasneti_trace_init();
+extern void gasneti_trace_init(int argc, char **argv);
 extern void gasneti_trace_finish();
 
 /* defines all the types */
@@ -550,7 +550,7 @@ extern void gasneti_trace_finish();
                                                           \
         TIME(L, HSL_LOCK, waittime)                       \
         TIME(L, HSL_UNLOCK, holdtime)                     \
-        VAL(L, HSL_TRYLOCK, success)                       \
+        VAL(L, HSL_TRYLOCK, success)                      \
                                                           \
         CNT(A, AMREQUEST_SHORT, cnt)                      \
         CNT(A, AMREQUEST_MEDIUM, cnt)                     \

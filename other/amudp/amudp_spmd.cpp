@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp_spmd.cpp                                   $
- *     $Date: 2004/04/20 17:16:43 $
- * $Revision: 1.5.2.1 $
+ *     $Date: 2004/06/17 01:16:52 $
+ * $Revision: 1.5.2.2 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -1343,16 +1343,22 @@ static int AMUDP_SPMDShutdown(int exitcode) {
   flushStreams("AMUDP_SPMDShutdown");
 
   if (fclose(stdin)) {
+  #if AMUDP_DEBUG_VERBOSE
     ErrMessage("failed to fclose stdin in AMUDP_SPMDExit()"); 
     perror("fclose");
+  #endif
   }
   if (fclose(stdout)) {
+  #if AMUDP_DEBUG_VERBOSE
     ErrMessage("failed to fclose stdout in AMUDP_SPMDExit()"); 
     perror("fclose");
+  #endif
   }
   if (fclose(stderr)) {
+  #if AMUDP_DEBUG_VERBOSE
     ErrMessage("failed to fclose stderr in AMUDP_SPMDExit()"); 
     perror("fclose");
+  #endif
   }
 
   /* use normal shutdown and closesocket to ignore errors */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/06/07 17:23:43 $
- * $Revision: 1.2.2.3 $
+ *     $Date: 2004/06/17 01:16:54 $
+ * $Revision: 1.2.2.4 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,7 +32,7 @@ typedef int *gasnet_handle_t;
 typedef uintptr_t gasnet_valget_handle_t;
 
 #define _GASNET_REGISTER_VALUE_T
-#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_p
+#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_P
 typedef uintptr_t gasnet_register_value_t;
 
 
@@ -69,7 +69,7 @@ typedef uintptr_t gasnet_register_value_t;
    * Some clients, such as the UPC Runtime, issue puts/gets on global addresses
    */
   #if GASNETE_GLOBAL_ADDRESS
-    #define GASNETE_SHMPTR(addr,pe)
+    #define GASNETE_SHMPTR(addr,pe) (addr)
   #else
     #define GASNETE_SHMPTR(addr,pe) GASNETE_TRANSLATE_X1(addr,pe)
   #endif
@@ -80,13 +80,16 @@ typedef uintptr_t gasnet_register_value_t;
   extern intptr_t   *gasnetc_segment_shptr_off;
 
   #ifdef GASNETE_GLOBAL_ADDRESS
-    #define GASNETE_SHMPTR(addr,pe)
+    #define GASNETE_SHMPTR(addr,pe) (addr)
   #else
     #define GASNETE_SHMPTR(addr,pe) shmem_ptr(addr,pe)
   #endif
 
+  #define GASNETE_SHMPTR_AM(addr,pe) (addr)
+#if 0
   #define GASNETE_SHMPTR_AM(addr,pe)				    \
 	 ((void *)(((intptr_t)(addr)+gasnetc_segment_shptr_off[pe])))
+#endif
   #define GASNETE_PRAGMA_IVDEP	  /* no ivdep is useful here */
 #endif
 

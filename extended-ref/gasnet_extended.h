@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2004/04/20 17:16:32 $
- * $Revision: 1.22.2.3 $
+ *     $Date: 2004/06/17 01:16:36 $
+ * $Revision: 1.22.2.4 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -119,7 +119,7 @@ gasnet_handle_t _gasnet_put_nb      (gasnet_node_t node, void *dest, void *src, 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_NB_LOCAL,node,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_PUT(PUT_NB,node,dest,src,nbytes);
@@ -152,7 +152,7 @@ gasnet_handle_t _gasnet_put_nb_bulk (gasnet_node_t node, void *dest, void *src, 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_NB_BULK_LOCAL,node,dest,src,nbytes);
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_PUT(PUT_NB_BULK,node,dest,src,nbytes);
@@ -168,7 +168,7 @@ gasnet_handle_t   _gasnet_memset_nb   (gasnet_node_t node, void *dest, int val, 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET(MEMSET_NB_LOCAL,node,dest,val,nbytes);
     memset(dest, val, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_MEMSET(MEMSET_NB,node,dest,val,nbytes);
@@ -316,7 +316,7 @@ void _gasnet_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nby
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_NBI_LOCAL,node,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(PUT_NBI,node,dest,src,nbytes);
     gasnete_put_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
@@ -347,7 +347,7 @@ void _gasnet_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nby
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_NBI_BULK_LOCAL,node,dest,src,nbytes);
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(PUT_NBI_BULK,node,dest,src,nbytes);
     gasnete_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
@@ -362,7 +362,7 @@ void   _gasnet_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nby
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET(MEMSET_NBI_LOCAL,node,dest,val,nbytes);
     memset(dest, val, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_MEMSET(MEMSET_NBI,node,dest,val,nbytes);
     gasnete_memset_nbi(node, dest, val, nbytes GASNETE_THREAD_PASS);
@@ -571,7 +571,7 @@ void _gasnet_put (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNE
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_LOCAL,node,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(PUT,node,dest,src,nbytes);
     gasnete_put(node, dest, src, nbytes GASNETE_THREAD_PASS);
@@ -587,7 +587,7 @@ void _gasnet_put_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_BULK_LOCAL,node,dest,src,nbytes);
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(PUT_BULK,node,dest,src,nbytes);
     gasnete_put_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
@@ -602,7 +602,7 @@ void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GAS
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET(MEMSET_LOCAL,node,dest,val,nbytes);
     memset(dest, val, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_MEMSET(MEMSET,node,dest,val,nbytes);
     gasnete_memset(node, dest, val, nbytes GASNETE_THREAD_PASS);
@@ -634,7 +634,7 @@ void _gasnet_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t val
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_VAL_LOCAL,node,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(PUT_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
     gasnete_put_val(node, dest, value, nbytes GASNETE_THREAD_PASS);
@@ -655,7 +655,7 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t node, void *dest, gasnet_regis
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_NB_VAL_LOCAL,node,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_PUT(PUT_NB_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
@@ -688,7 +688,7 @@ void _gasnet_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_PUT(PUT_NBI_VAL_LOCAL,node,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
-    gasneti_memsync();
+    gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(PUT_NBI_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
     gasnete_put_nbi_val(node, dest, value, nbytes GASNETE_THREAD_PASS);

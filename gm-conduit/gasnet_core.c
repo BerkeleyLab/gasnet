@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.53.2.1 2004/04/20 17:16:33 csbell Exp $
- * $Date: 2004/04/20 17:16:33 $
+/* $Id: gasnet_core.c,v 1.53.2.2 2004/06/17 01:16:38 csbell Exp $
+ * $Date: 2004/06/17 01:16:38 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -45,6 +45,8 @@ extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable();
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   gasneti_assert(gm_min_size_for_length(GASNETC_AM_MEDIUM_MAX) <= GASNETC_AM_SIZE);
   gasneti_assert(gm_min_size_for_length(GASNETC_AM_LONG_REPLY_MAX) <= GASNETC_AM_SIZE);
   gasneti_assert(gm_max_length_for_size(GASNETC_AM_SIZE) <= GASNETC_AM_PACKET);
@@ -125,7 +127,7 @@ gasnetc_init(int *argc, char ***argv)
 	#endif
 
 	gasneti_init_done = 1;
-	gasneti_trace_init();
+	gasneti_trace_init(*argc, *argv);
 
 	#if GASNET_DEBUG_VERBOSE
 	printf("%d> done init\n", gasnetc_mynode);
@@ -2434,12 +2436,14 @@ gasnetc_SysBroadcastAlloc_reph(gasnet_token_t token, gasnet_handlerarg_t phase)
     gasnetc_bootstrapGather_allocdone[phase]++;
 
     #ifdef GASNET_TRACE
+      {
 	gasnet_node_t   node;
 	gasnet_AMGetMsgSource(token, &node);
 
 	GASNETC_BOOTTRACE_PRINTF(C, 
 	    ("AMSystem BroadcastAlloc Received (node=%d,phase=%d,cnt=%d)\n", 
 	    node, phase, gasnetc_bootstrapGather_allocdone[phase]));
+      }
     #endif
 }
 void

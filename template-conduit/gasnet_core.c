@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/<conduitname>-conduit/gasnet_core.c                  $
- *     $Date: 2004/04/20 17:16:47 $
- * $Revision: 1.37.2.1 $
+ *     $Date: 2004/06/17 01:16:58 $
+ * $Revision: 1.37.2.2 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,6 +36,8 @@ gasnet_seginfo_t *gasnetc_seginfo = NULL;
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
 }
@@ -122,7 +124,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 extern int gasnet_init(int *argc, char ***argv) {
   int retval = gasnetc_init(argc, argv);
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
-  gasneti_trace_init();
+  gasneti_trace_init(*argc, *argv);
   return GASNET_OK;
 }
 

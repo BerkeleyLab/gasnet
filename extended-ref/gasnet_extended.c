@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/04/20 17:16:32 $
- * $Revision: 1.35.2.1 $
+ *     $Date: 2004/06/17 01:16:36 $
+ * $Revision: 1.35.2.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,44 +103,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 */
 /* called at startup to check configuration sanity */
 static void gasnete_check_config() {
-  gasneti_assert(sizeof(int8_t) == 1);
-  gasneti_assert(sizeof(uint8_t) == 1);
-  #if !defined(CRAYT3E)
-    gasneti_assert(sizeof(int16_t) == 2);
-    gasneti_assert(sizeof(uint16_t) == 2);
-  #endif
-  gasneti_assert(sizeof(int32_t) == 4);
-  gasneti_assert(sizeof(uint32_t) == 4);
-  gasneti_assert(sizeof(int64_t) == 8);
-  gasneti_assert(sizeof(uint64_t) == 8);
+  gasneti_check_config_postattach();
 
-  gasneti_assert(sizeof(uintptr_t) >= sizeof(void *));
-
-  /* check GASNET_PAGESIZE is a power of 2 and > 0 */
-  gasneti_assert(GASNET_PAGESIZE > 0 && 
-         (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
-
-  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
-  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
-  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
-
-  gasneti_assert(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
-
-  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
-    gasneti_assert(sizeof(void*) == 4);
-  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
-    gasneti_assert(sizeof(void*) == 8);
-  #else
-    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
-  #endif
-
-  gasneti_assert(gasnete_eopaddr_isnil(EOPADDR_NIL));
-
-  /*  verify sanity of the core interface */
-  gasneti_assert(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  gasneti_assert(gasnet_AMMaxMedium() >= 512);
-  gasneti_assert(gasnet_AMMaxLongRequest() >= 512);
-  gasneti_assert(gasnet_AMMaxLongReply() >= 512);
+  gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
+  gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
 }
 
 extern void gasnete_init() {

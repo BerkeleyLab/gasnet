@@ -2,11 +2,34 @@ dnl Terms of use are as specified in license.txt
 
 dnl determine the autoconf version used to build configure script 
 AC_DEFUN([GASNET_GET_AUTOCONF_VERSION],[
+AC_REQUIRE([AC_PROG_AWK])
 AC_MSG_CHECKING(autoconf version)
 dnl AUTOCONF_VERSION=`cat ${srcdir}/configure | perl -e '{ while (<STDIN>) { if (m/enerated.*utoconf.*([[0-9]]+)\.([[0-9]]+).*/) { print "[$]1.[$]2\n"; exit 0 } } }'`
 AUTOCONF_VERSION_STR=`cat ${srcdir}/configure | $AWK '/.*enerated.*utoconf.*([[0-9]]+).([[0-9]]+).*/ { [match]([$]0,"[[0-9]]+.[[0-9]]+"); print [substr]([$]0,RSTART,RLENGTH); exit 0 } '`
 AUTOCONF_VERSION=`echo $AUTOCONF_VERSION_STR | $AWK -F. '{ printf("%i%i",[$]1,[$]2); }'`
 AC_MSG_RESULT($AUTOCONF_VERSION_STR)
+])
+
+dnl GASNET_GCC296CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_GCC296CHECK],[
+AC_MSG_CHECKING(known buggy compilers)
+AC_TRY_COMPILE([
+#if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
+# error
+#endif
+],[ ], [ AC_MSG_RESULT(ok) ],[
+AC_MSG_RESULT([$1] is gcc 2.96)
+gcc296msg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
+It is not an official GNU release and has many serious known bugs, especially \
+in the optimizer, which may lead to bad code and incorrect runtime behavior. \
+Consider using \$[$1] to select a different compiler."
+GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [
+  AC_MSG_WARN([$gcc296msg])
+  ],[
+  AC_MSG_ERROR([$gcc296msg \
+  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])
+])
+])
 ])
 
 AC_DEFUN([GASNET_FIX_SHELL],[
@@ -23,6 +46,7 @@ fi])
 
 dnl find full pathname for a given header file, if it exists and AC_SUBST it
 AC_DEFUN([GASNET_FIND_HEADER],[
+AC_REQUIRE([AC_PROG_AWK])
 AC_CHECK_HEADERS($1)
 pushdef([lowername],patsubst(patsubst(patsubst([$1], [/], [_]), [\.], [_]), [-], [_]))
 pushdef([uppername],translit(lowername,'a-z','A-Z'))
@@ -71,7 +95,7 @@ dnl would be nice to use AC_CONFIG_COMMANDS() for each file, but autoconf 2.53
 dnl  stupidly fails to execute commands having the same tag as a config output file
 dnl  on subsequent calls to config.status
 AC_DEFUN([GASNET_FIX_EXEC],[
-  gasnet_exec_list="$gasnet_exec_list $1"
+  cv_prefix[]exec_list="$cv_prefix[]exec_list $1"
 ])
 
 dnl ensure the "default" command is run on every invocation of config.status
@@ -81,11 +105,11 @@ AC_DEFUN([GASNET_FIX_EXEC_SETUP],[[
     config_commands="default"
   fi
   CONFIG_COMMANDS="\$config_commands"
-  gasnet_exec_list="$gasnet_exec_list"
+  cv_prefix[]exec_list="$cv_prefix[]exec_list"
 ]])
 
 AC_DEFUN([GASNET_FIX_EXEC_OUTPUT],[[
-  for file in $gasnet_exec_list; do
+  for file in $cv_prefix[]exec_list; do
    case "$CONFIG_FILES" in
      *${file}*) chmod +x ${file} ;;
    esac
@@ -94,7 +118,7 @@ AC_DEFUN([GASNET_FIX_EXEC_OUTPUT],[[
 
 AC_DEFUN([GASNET_LIBGCC],[
 AC_REQUIRE([AC_PROG_CC])
-AC_CACHE_CHECK(for libgcc link flags, gasnet_cv_lib_gcc,
+AC_CACHE_CHECK(for libgcc link flags, cv_prefix[]lib_gcc,
 [if test "$GCC" = yes; then
   #LIBGCC="`$CC -v 2>&1 | sed -n 's:^Reading specs from \(.*\)/specs$:-L\1 -lgcc:p'`"
   LIBGCC="-L`$CC -print-libgcc-file-name | xargs dirname` -lgcc"
@@ -102,8 +126,8 @@ AC_CACHE_CHECK(for libgcc link flags, gasnet_cv_lib_gcc,
     AC_MSG_ERROR(cannot find libgcc)
   fi
 fi
-gasnet_cv_lib_gcc="$LIBGCC"])
-LIBGCC="$gasnet_cv_lib_gcc"
+cv_prefix[]lib_gcc="$LIBGCC"])
+LIBGCC="$cv_prefix[]lib_gcc"
 AC_SUBST(LIBGCC)
 ])
 
@@ -126,22 +150,22 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   define(with_expanded_[$1], [set])
 
   envval_src_[$1]="cached"
-  AC_CACHE_VAL(gasnet_cv_envvar_$1, [
+  AC_CACHE_VAL(cv_prefix[]envvar_$1, [
       case "$[$1]" in
 	'') if test "$with_[]lowerscorename" != ""; then
-	      gasnet_cv_envvar_$1="$with_[]lowerscorename"
+	      cv_prefix[]envvar_$1="$with_[]lowerscorename"
 	      envval_src_[$1]=given
 	    else
-	      gasnet_cv_envvar_$1="[$2]"
+	      cv_prefix[]envvar_$1="[$2]"
 	      envval_src_[$1]=default
 	    fi 
 	    ;;
-	*)  gasnet_cv_envvar_$1="$[$1]"
+	*)  cv_prefix[]envvar_$1="$[$1]"
 	    envval_src_[$1]=given
       esac
   ])
 
-  [$1]="$gasnet_cv_envvar_$1"
+  [$1]="$cv_prefix[]envvar_$1"
   case "$envval_src_[$1]" in
       'cached')
 	  AC_MSG_RESULT([using cached value \"$[$1]\"]) ;;
@@ -160,28 +184,31 @@ dnl GASNET_RESTORE_AUTOCONF_ENV(env1 env2 env3)
 dnl  call at top of configure.in to restore cached environment variables 
 dnl  inspected by autoconf macros. Pass in names of variables
 AC_DEFUN([GASNET_RESTORE_AUTOCONF_ENV],[
-  if test "$gasnet_acenv_list" != ""; then
-    AC_MSG_ERROR(_GASNET_RESTORE_AUTOCONF_ENV called more than once)
+  dnl  pushdef = get a variable prefix variable which won't be cached.
+  pushdef([nc_prefix],patsubst(cv_prefix,_cv_,_))
+  if test "$nc_prefix[]acenv_list" != ""; then
+    AC_MSG_ERROR(_GASNET_RESTORE_AUTOCONF_ENV called more than once with prefix = "cv_prefix")
   fi
-  gasnet_acenv_list="$1"
+  nc_prefix[]acenv_list="$1"
   AC_MSG_CHECKING(for cached autoconf environment settings)
   AC_MSG_RESULT("") 
   for varname in $1; do
-    val=`eval echo '$'"gasnet_cv_acenv_$varname"`
+    val=`eval echo '$'"cv_prefix[]acenv_$varname"`
     if test "$val" != ""; then
       eval $varname=\"$val\"
       AC_MSG_RESULT([$varname=\"$val\"]) 
     fi
   done
+  popdef([nc_prefix])
 ])
 
 dnl GASNET_SAVE_AUTOCONF_ENV() 
 dnl  cache the environment variables inspected by autoconf macros
 AC_DEFUN([GASNET_SAVE_AUTOCONF_ENV],[
-  for varname in $gasnet_acenv_list; do
+  for varname in $cv_prefix[]acenv_list; do
     val=`eval echo '$'"$varname"`
     if test "$val" != ""; then
-      cachevarname=gasnet_cv_acenv_$varname
+      cachevarname=cv_prefix[]acenv_$varname
       eval $cachevarname=\"$val\"
     fi
   done
@@ -268,16 +295,45 @@ AC_DEFUN([GASNET_PATH_PROGS],[
 case "$$1" in
   '') AC_PATH_PROGS($1,$2)
       ;;
+  *) AC_MSG_CHECKING(for $3)
+     AC_MSG_RESULT($$1)
+      ;;
 esac
 case "$$1" in
   '') AC_MSG_ERROR(cannot find $3)
       ;;
 esac])
 
+dnl GASNET_GETFULLPATH(var)
+dnl var contains a program name, optionally followed by arguments
+dnl expand the program name to a fully qualified pathname if not already done
+AC_DEFUN([GASNET_GETFULLPATH_CHECK],[
+GASNET_IF_DISABLED(full-path-expansion, [Disable expansion of program names to full pathnames], 
+                   [cv_prefix[]_gfp_disable=1])
+])
+AC_DEFUN([GASNET_GETFULLPATH],[
+AC_REQUIRE([AC_PROG_AWK])
+AC_REQUIRE([GASNET_GETFULLPATH_CHECK])
+if test "$cv_prefix[]_gfp_disable" = ""; then
+  gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' '{ print [$]1 }'`
+  gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) print $i; }'`
+  gasnet_gfp_progname0=`echo "$gasnet_gfp_progname" | $AWK '{ print sub[]str([$]0,1,1) }'`
+  if test "$gasnet_gfp_progname0" != "/" ; then
+    cv_prefix[]_gfp_fullprogname_$1=
+    AC_PATH_PROG(cv_prefix[]_gfp_fullprogname_$1, $gasnet_gfp_progname,[])
+    AC_MSG_CHECKING(for full path expansion of $1)
+    if test "$cv_prefix[]_gfp_fullprogname_$1" != "" ; then
+      $1="$cv_prefix[]_gfp_fullprogname_$1 $gasnet_gfp_progargs"
+    fi
+    AC_MSG_RESULT($$1)
+  fi
+fi
+])
+
 dnl GASNET_CHECK_LIB(library, function, action-if-found, action-if-not-found, other-flags, other-libraries)
 AC_DEFUN([GASNET_CHECK_LIB],[
 GASNET_check_lib_old_ldflags="$LDFLAGS"
-LDFLAGS="$LD_FLAGS $5"
+LDFLAGS="$LDFLAGS $5"
 AC_CHECK_LIB($1, $2, $3, $4, $6)
 LDFLAGS="$GASNET_check_lib_old_ldflags"])
 
@@ -396,18 +452,18 @@ GASNET_TRY_CXXCOMPILE_WITHWARN([], [], [
 ])])
 
 AC_DEFUN([GASNET_TRY_CACHE_CHECK],[
-AC_CACHE_CHECK($1, gasnet_cv_$2,
-AC_TRY_COMPILE([$3], [$4], gasnet_cv_$2=yes, gasnet_cv_$2=no))
-if test "$gasnet_cv_$2" = yes; then
+AC_CACHE_CHECK($1, cv_prefix[]$2,
+AC_TRY_COMPILE([$3], [$4], cv_prefix[]$2=yes, cv_prefix[]$2=no))
+if test "$cv_prefix[]$2" = yes; then
   :
   $5
 fi])
 
 
 AC_DEFUN([GASNET_TRY_CACHE_LINK],[
-AC_CACHE_CHECK($1, gasnet_cv_$2,
-AC_TRY_LINK([$3], [$4], gasnet_cv_$2=yes, gasnet_cv_$2=no))
-if test "$gasnet_cv_$2" = yes; then
+AC_CACHE_CHECK($1, cv_prefix[]$2,
+AC_TRY_LINK([$3], [$4], cv_prefix[]$2=yes, cv_prefix[]$2=no))
+if test "$cv_prefix[]$2" = yes; then
   :
   $5
 fi])
@@ -415,38 +471,134 @@ fi])
 dnl run a program for a success/failure
 dnl GASNET_TRY_CACHE_RUN(description,cache_name,program,action-on-success)
 AC_DEFUN([GASNET_TRY_CACHE_RUN],[
-AC_CACHE_CHECK($1, gasnet_cv_$2,
-AC_TRY_RUN([$3], gasnet_cv_$2=yes, gasnet_cv_$2=no, AC_MSG_ERROR(no default value for cross compiling)))
-if test "$gasnet_cv_$2" = yes; then
+AC_CACHE_CHECK($1, cv_prefix[]$2,
+AC_TRY_RUN([$3], cv_prefix[]$2=yes, cv_prefix[]$2=no, AC_MSG_ERROR(no default value for cross compiling)))
+if test "$cv_prefix[]$2" = yes; then
   :
   $4
 fi])
 
-dnl run a program to extract the value of a runtime expression
-dnl GASNET_TRY_CACHE_RUN(description,cache_name,headers,expression,result_variable)
+dnl run a program to extract the value of a runtime expression 
+dnl the provided code should set the integer val to the relevant value
+dnl GASNET_TRY_CACHE_RUN(description,cache_name,headers,code_to_set_val,result_variable)
 AC_DEFUN([GASNET_TRY_CACHE_RUN_EXPR],[
-AC_CACHE_CHECK($1, gasnet_cv_$2,
+AC_CACHE_CHECK($1, cv_prefix[]$2,
 AC_TRY_RUN([
   #include "confdefs.h"
   #include <stdio.h>
   $3
   main() {
     FILE *f=fopen("conftestval", "w");
+    int val = 0;
     if (!f) exit(1);
-    fprintf(f, "%d\n", (int)($4));
+    { $4; }
+    fprintf(f, "%d\n", (int)(val));
     exit(0);
-  }], gasnet_cv_$2=`cat conftestval`, gasnet_cv_$2=no, AC_MSG_ERROR(no default value for cross compiling)))
-if test "$gasnet_cv_$2" != no; then
+  }], cv_prefix[]$2=`cat conftestval`, cv_prefix[]$2=no, AC_MSG_ERROR(no default value for cross compiling)))
+if test "$cv_prefix[]$2" != no; then
   :
-  $5=$gasnet_cv_$2
+  $5=$cv_prefix[]$2
 fi])
 
+AC_DEFUN([GASNET_PROG_CPP], [
+  AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CC])
+  AC_REQUIRE([AC_PROG_CPP])
+  GASNET_GETFULLPATH(CPP)
+  AC_SUBST(CPP)
+  AC_SUBST(CPPFLAGS)
+  AC_MSG_CHECKING(for working C preprocessor)
+  AC_LANG_SAVE
+  AC_LANG_C
+  gasnet_progcpp_extrainfo=
+  dnl deal with preprocessors who foolishly return success exit code even when they saw #error
+  if test -n "`$CPP -version 2>&1 | grep MIPSpro`" ; then
+    dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
+    dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
+    gasnet_progcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
+    CFLAGS="$CFLAGS -diag_error 1035"
+    CPPFLAGS="$CPPFLAGS -diag_error 1035"    
+  fi
+  dnl final check
+  AC_TRY_CPP([
+    # error
+  ], [AC_MSG_ERROR(Your C preprocessor is broken - reported success when it should have failed)], [])
+  AC_TRY_CPP([], [], [AC_MSG_ERROR(Your C preprocessor is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes$gasnet_progcpp_extrainfo)
+  AC_LANG_RESTORE
+])
+
+AC_DEFUN([GASNET_PROG_CXXCPP], [
+  AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CXX])
+  AC_REQUIRE([AC_PROG_CXXCPP])
+  GASNET_GETFULLPATH(CXXCPP)
+  AC_SUBST(CXXCPP)
+  AC_SUBST(CXXCPPFLAGS)
+  AC_MSG_CHECKING(for working C++ preprocessor)
+  AC_LANG_SAVE
+  AC_LANG_CPLUSPLUS
+  gasnet_progcxxcpp_extrainfo=
+  dnl deal with preprocessors who foolishly return success exit code even when they saw #error
+  if test -n "`$CXXCPP -version 2>&1 | grep MIPSpro`" ; then
+    dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
+    dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
+    gasnet_progcxxcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
+    CXXFLAGS="$CXXFLAGS -diag_error 1035"
+    CXXCPPFLAGS="$CXXCPPFLAGS -diag_error 1035"    
+  fi
+  dnl final check
+  AC_TRY_CPP([
+    # error
+  ], [AC_MSG_ERROR(Your C++ preprocessor is broken - reported success when it should have failed)], [])
+  AC_TRY_CPP([], [], [AC_MSG_ERROR(Your C++ preprocessor is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes$gasnet_progcxxcpp_extrainfo)
+  AC_LANG_RESTORE
+])
+
+AC_DEFUN([GASNET_PROG_CC], [
+  AC_REQUIRE([GASNET_PROG_CPP])
+  GASNET_GETFULLPATH(CC)
+  AC_SUBST(CC)
+  AC_SUBST(CFLAGS)
+  AC_MSG_CHECKING(for working C compiler)
+  AC_LANG_SAVE
+  AC_LANG_C
+  AC_TRY_COMPILE([], [
+    fail for me
+  ], [AC_MSG_ERROR(Your C compiler is broken - reported success when it should have failed)], [])
+  AC_TRY_COMPILE([], [], [], [AC_MSG_ERROR(Your C compiler is broken - reported failure when it should have succeeded)])
+  AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
+              [AC_MSG_ERROR(Your C linker is broken - reported success when it should have failed)], [])
+  AC_TRY_LINK([], [], [], [AC_MSG_ERROR(Your C link is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes)
+  AC_LANG_RESTORE
+])
+
+AC_DEFUN([GASNET_PROG_CXX], [
+  AC_REQUIRE([GASNET_PROG_CXXCPP])
+  GASNET_GETFULLPATH(CXX)
+  AC_SUBST(CXX)
+  AC_SUBST(CXXFLAGS)
+  AC_MSG_CHECKING(for working C++ compiler)
+  AC_LANG_SAVE
+  AC_LANG_CPLUSPLUS
+  AC_TRY_COMPILE([], [
+    fail for me
+  ], [AC_MSG_ERROR(Your C++ compiler is broken - reported success when it should have failed)], [])
+  AC_TRY_COMPILE([], [], [], [AC_MSG_ERROR(Your C++ compiler is broken - reported failure when it should have succeeded)])
+  AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
+              [AC_MSG_ERROR(Your C++ linker is broken - reported success when it should have failed)], [])
+  AC_TRY_LINK([], [], [], [AC_MSG_ERROR(Your C++ link is broken - reported failure when it should have succeeded)])
+  AC_MSG_RESULT(yes)
+  AC_LANG_RESTORE
+])
 
 AC_DEFUN([GASNET_IFDEF],[
 AC_TRY_CPP([
 #ifndef $1
 # error
-#endif], $2, $3)])
+#endif], [$2], [$3])])
 
 
 AC_DEFUN([GASNET_FAMILY_CACHE_CHECK],[
@@ -467,6 +619,18 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(_SX, $3=NEC)
   fi
 ])
+if test "$$3" != "GNU" ; then
+  dnl Some compilers (eg Intel 8.0) define __GNUC__ even though they are definitely not GNU C
+  dnl Don't believe their filthy lies
+  case $2 in 
+    CC) ac_cv_c_compiler_gnu=no
+        GCC=""
+    ;;
+    CXX) ac_cv_cxx_compiler_gnu=no
+        GXX=""
+    ;;
+  esac
+fi
 $2_FAMILY=$$3
 $2_UNWRAPPED=$$2
 case $$3 in
@@ -480,9 +644,14 @@ GASNET_SUBST_FILE(cc_wrapper_mk, cc-wrapper.mk)
 ])
 
 
+dnl deal with a buggy version of autoconf which assumes alloca returns char *
+AC_DEFUN([GASNET_FUNC_ALLOCA_HELPER],[
+  patsubst([$*], [p = alloca], [p = (char *)alloca])
+])
+
 AC_DEFUN([GASNET_FUNC_ALLOCA],[
   AC_SUBST(ALLOCA)
-  patsubst(AC_FUNC_ALLOCA, [p = alloca], [p = (char *) alloca])
+  GASNET_FUNC_ALLOCA_HELPER(AC_FUNC_ALLOCA)
 ])
 
 dnl Set command for use in Makefile.am to install various files

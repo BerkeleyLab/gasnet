@@ -5,6 +5,8 @@ set -e
 
 srcdir=`dirname $0`
 
+autoheaderfilter="2>&1 | perl -0 -pe 's/^(autoheader: )?WARN.+auxiliary files(.|\n)+WARN.+documentation.\n//m'"
+
 if [ \
        -r $srcdir/gasnet_config.h.in \
     -a -r $srcdir/Makefile.in \
@@ -43,7 +45,12 @@ set -x
     cd $srcdir
     rm -Rf autom4te*.cache
     aclocal
-    autoheader
+)
+set +x
+    echo '+ autoheader $autoheaderfilter'
+    eval autoheader $autoheaderfilter
+set -x
+(
     autoconf
 
     # Our configure script requires caching, and autoconf 2.5 stupidly disables

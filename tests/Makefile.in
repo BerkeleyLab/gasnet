@@ -1,5 +1,6 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.17.2.2 2004/04/20 17:16:48 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.17.2.3 2004/06/17 01:17:00 csbell Exp $
 # Description: Makefile for GASNet tests
+# @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 

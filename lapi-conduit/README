@@ -14,6 +14,9 @@ ISBN: 0738415189
 IBM Form Number: SG24-5611-00
 
 ===========================================================
+NOTE: See STATUS file for changes and work-arounds.
+===========================================================
+
 Memory Management
 
 GASNet will allocate the remote access memory segment using

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core.c                  $
- *     $Date: 2004/04/20 17:16:30 $
- * $Revision: 1.37.2.1 $
+ *     $Date: 2004/06/17 01:16:34 $
+ * $Revision: 1.37.2.2 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,6 +92,8 @@ gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  gasneti_check_config_preinit();
+
   /* add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
   char *ver = elan_version();
@@ -226,7 +228,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   /* enable tracing */
-  gasneti_trace_init();
+  gasneti_trace_init(*argc, *argv);
 
   #if 0 
     gasneti_assert(gasnetc_nodes > 0 && gasnetc_mynode >= 0); /* true by datatype */
@@ -296,7 +298,7 @@ extern int gasnet_init(int *argc, char ***argv) {
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   #if 0
     /* called within gasnet_init to allow init tracing */
-    gasneti_trace_init();
+    gasneti_trace_init(*argc, *argv);
   #endif
   return GASNET_OK;
 }

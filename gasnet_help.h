@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/04/20 17:16:28 $
- * $Revision: 1.22.2.1 $
+ *     $Date: 2004/06/17 01:16:30 $
+ * $Revision: 1.22.2.2 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,11 +69,19 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
     } while(0)
 #endif
 
+/* gasneti_assert_always():
+ * an assertion that never compiles away - for sanity checks in non-critical paths 
+ */
+#define gasneti_assert_always(expr) \
+    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+
+/* gasneti_assert():
+ * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
+ */
 #if GASNET_NDEBUG
   #define gasneti_assert(expr) ((void)0)
 #else
-  #define gasneti_assert(expr) \
-    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+  #define gasneti_assert(expr) gasneti_assert_always(expr)
 #endif
 
 #if GASNET_DEBUG
@@ -88,8 +96,10 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
 
 /* Blocking functions */
 extern int gasneti_wait_mode; /* current waitmode hint */
-#define GASNETI_WAITHOOK() \
-  if (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield()
+#define GASNETI_WAITHOOK() do {                                       \
+    if (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield(); \
+    gasneti_spinloop_hint();                                          \
+  } while (0)
 
 /* busy-waits, with no implicit polling (cnd should include an embedded poll)
    differs from GASNET_BLOCKUNTIL because it may be waiting for an event

@@ -3,6 +3,7 @@ README file for vapi-conduit
 Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ TOC: @
+@ Section: Bootstrapping @
 @ Section: Build-time Configuration @
 @ Section: Runtime Configuration @
 @ Section: Core API @
@@ -11,7 +12,20 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: TO DO @
 
 
+@ Section: Bootstrapping @
+  
+  In order to bootstrap a GASNet application using vapi-conduit, a
+  working MPI must be installed and configured on your system.
+  See mpi-conduit/README for information on configuring GASNet
+  for a particular MPI.
+ 
+  Note that MPI is only used in gasnet_init(), gasnet_attach() and
+  gasnet_exit() and not for any GASNet communications.  Therefore
+  it is acceptable to use a TCP/IP based MPI such as MPICH or
+  LAM/MPI.
+
 @ Section: Build-time Configuration @
+
   There are two known bugs in older InfiniHost firmware versions.
   Normally you shouldn't need to do anything special with regards
   to them.  However, if you do need to override the defaults this
@@ -31,7 +45,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     In firmware versions after 1.17 and prior to 3.0, there is a
     performance anomaly with the call EVAPI_post_inline_sr().
     By default, vapi-conduit will use this call to perform small
-    puts.  If firware in the range [1.18, 3.0) is detected at
+    puts.  If firmware in the range [1.18, 3.0) is detected at
     runtime, a warning will be printed but the call will still
     be used.
 
@@ -48,6 +62,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   parameters: connection settings and resource usage parameters.
 
   Connection settings:
+  Under normal conditions, the Host Channel Adapter and Port will be
+  located automatically.  However, in the event you have multiple
+  adapters or multiple active ports on a single adapter, you may need
+  to set these environment variables to identify the correct HCA and
+  Port.
+
+  These parameters may meaningfully be different on each node.
+
   + GASNET_HCA_ID
     This gives the "HCA ID" string of the InfiniBand Host Channel
     Adapter (HCA) to open.  This string is assigned by the device driver
@@ -56,7 +78,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The default value is an empty string, which causes vapi-conduit to
     try all HCAs detected by the device driver and use the first one
     which can be opened.
-    This parameter may meaningfully be different on each node.
 
   + GASNET_PORT_NUM
     This gives the integer port number to use on the HCA.  The "port"
@@ -64,9 +85,18 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     numbers.  IB defines the port numbers to start at 1.
     The default value is 0, which causes vapi-conduit to probe the HCA
     for the lowest-numbered physical port which is configured as ACTIVE.
-    This parameter may meaningfully be different on each node.
 
   Resource usage parameters:
+  The following environment variables control how much memory is
+  preallocated at strtup time to serve various functions.  Because these
+  resource pools do not grow dynamically, it is important that these
+  parameters be sufficiently large, or performance degradations may
+  results.  The default settings should be sufficient for most conditions.
+  You may need to lower some values if you have insufficient memory.
+
+  These parameters must be equal across all nodes, and the behavior
+  otherwise is undefined.
+
   + GASNET_OP_OUST_PP
     This gives the maximum number of outstanding ops (RDMA + AMs) which
     can be in-flight simultaneously from a node to each of its peers.
@@ -78,8 +108,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     consumed for send work queues scales as GASNET_OP_OUST_PP*(N-1),
     on each node.
     The default value is 64.
-    This parameter should be equal across all nodes, and the behavior
-    otherwise is undefined.
+    Reducing this parameter may limit small message throughput.  If you
+    believe your small message throughput is too small, you may try
+    increasing this value.
 
   + GASNET_OP_OUST_LIMIT
     This gives the maximum number of outstanding ops (RDMA + AMs) which
@@ -92,8 +123,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     the memory consumed for the send completion queue and sreqs scales
     as min(GASNET_OP_OUST_LIMIT, GASNET_OP_OUST_PP*(N-1)), on each node.
     The default value is 1024.
-    This parameter should be equal across all nodes, and the behavior
-    otherwise is undefined.
+    Reducing this parameter may limit small message throughput.  If you
+    believe your small message throughput is too small, you may try
+    increasing this value.
 
   + GASNET_AM_OUST_PP
     This give the maximum number of outstanding AM Requests which can
@@ -107,8 +139,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     Thus, the memory consumed for the receive work queues and the receive
     completion queue each scale as GASNET_AM_OUST_PP*(N-1) on each node.
     The default value is 32.  (256KB*(N-1) for receive buffers)
-    This parameter should be equal across all nodes, and the behavior
-    otherwise is undefined.
+    Reducing this parameter may limit Active Message throughput.  If you
+    believe your Active Message throughput is too small, you may try
+    increasing this value.
 
   + GASNET_AM_OUST_LIMIT
     This give the integer number of outstanding AM Requests which can
@@ -122,8 +155,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     values larger than that are clipped to this value.
     The default is 32767, and represents the limit of 65535 completion
     queue entries supported by the InfiniHost firmware.
-    This parameter should be equal across all nodes, and the behavior
-    otherwise is undefined.
+    Reducing this parameter may limit Active Message throughput.  If you
+    believe your Active Message throughput is too small, you may try
+    increasing this value.
 
   + GASNET_AM_SPARES
     This gives the number of "spare" receive buffers which are allocated
@@ -143,8 +177,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     When compiled for GASNET_PARSYNC or GASNET_SEQ, the default is 2
     to allow for a single client thread in GASNet plus the internal AM
     receive thread.  When compiled for GASNET_PAR, the default is 4.
-    This parameter should be equal across all nodes, and the behavior
-    otherwise is undefined.
+    Reducing this parameter may limit concurrency in servicing of Active
+    Messages in a GASNET_PAR configuration.  If you have many threads
+    you may wish to increase this value to as large as (num_threads + 1).
 
   + GASNET_BBUF_LIMIT
     This gives the maximum number of pre-pinned bounce buffers allocated
@@ -155,8 +190,13 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     The actual number of buffers allocated maybe less if the values of
     GASNET_OP_OUST_PP and GASNET_AP_OUST_LIMIT are such that all
     GASNET_BBUF_LIMIT buffers could never be consumed.
-    This parameter should be equal across all nodes, and the behavior
-    otherwise is undefined.
+    Reducing this parameter limits the outstanding number of operations
+    which consume bounce buffers.  This includes all Active Messages, gets
+    with a destination outside the GASNet segment, and puts with a source
+    outside the GASNet segment (excluding those of size less than or equal
+    to GASNETC_PUT_INLINE_LIMIT which is currently 72 bytes).  If you
+    believe that throughput of these operations is too small, you may try
+    increasing this value.
    
 @ Section: Core API @
 
@@ -255,7 +295,7 @@ Notes for myself for extended API:
 
 + The gets are done w/ RDMA-reads, and use the sbuf bounce buffers
   if the local memory is not in the segment (or otherwise registered).
-  The value gets will also though the bounce buffers.  Clearly there
+  The value gets also pass though the bounce buffers.  Clearly there
   is no bulk/non-bulk distinction in terms of local memory reuse, just
   the alignment and optimal size distinctions.  So, only the outstanding
   request counter on the sbuf is needed for syncs of all types of gets.
@@ -546,6 +586,3 @@ The average case is somewhere between these two.
   We need to maintain a shared pool of these unposted buffers and be
   prepared to poll for them to become available along with polling
   for available credits.
-
-+ Implement a firehose-page client for VAPI to do SEGMENT_EVERYTHING.
-  Once that works, I need to implement firehose-region instead.

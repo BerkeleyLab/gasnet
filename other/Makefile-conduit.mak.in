@@ -1,5 +1,6 @@
 # This Makefile fragment is used to build GASNet conduits 
 # it is not meant to be used directly 
+# @configure_input@
 
 .PHONY: do-all do-error libs force clean-local                  \
         do-clean-local do-install-data-local do-uninstall-local \
@@ -52,6 +53,7 @@ libgasnet_objects = \
 	$(CONDUIT_SPECIAL_OBJS)
 
 libgasnet_dependencies =                  \
+        $(CONFIG_HEADER)                  \
         $(srcdir)/*.[ch]                  \
         $(top_srcdir)/*.[ch]              \
         $(top_srcdir)/extended-ref/*.[ch] \

@@ -1,6 +1,6 @@
 /*   $Archive:: /Ti/GASNet/acconfig.h                                      $ */
-/*      $Date: 2004/04/20 17:16:27 $ */
-/*  $Revision: 1.24.2.2 $ */
+/*      $Date: 2004/06/17 01:16:30 $ */
+/*  $Revision: 1.24.2.3 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -43,6 +43,9 @@
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
 
+/* have pause instruction, only relevant on Pentium4 */
+#undef HAVE_X86_PAUSE_INSTRUCTION
+
 /* has __builtin_expect */
 #undef HAVE_BUILTIN_EXPECT
 
@@ -54,6 +57,9 @@
 
 /* forcing UP build, even if build platform is a multi-processor */
 #undef GASNETI_UNI_BUILD
+
+/* force a memory barrier after a GASNet local (loopback) put */
+#undef GASNETI_MEMSYNC_ON_LOOPBACKPUT
 
 /* auto-detected mmap data page size */
 #undef GASNETI_PAGESIZE

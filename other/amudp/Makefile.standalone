@@ -1,6 +1,6 @@
 #  $Archive:: /Ti/AMUDP/Makefile                                         $
-#     $Date: 2004/04/20 17:16:43 $
-# $Revision: 1.8.2.1 $
+#     $Date: 2004/06/17 01:16:52 $
+# $Revision: 1.8.2.2 $
 # Description: Makefile for AMUDP
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -95,6 +95,7 @@ amxdist:
          mkdir amudp$${VERSION} && \
          cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
          rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
+         mv amudp$${VERSION}/Makefile.standalone amudp$${VERSION}/Makefile && \
          tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \
          rm -Rf amudp$${VERSION} && \
          echo "+++ amudp$${VERSION}.tar.gz is ready for distribution +++" \
