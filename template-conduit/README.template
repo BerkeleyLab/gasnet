@@ -13,7 +13,7 @@ To use the template:
 
 * Copy the template-conduit directory to conduitname-conduit
 
-* Do a search-and-replace on the files for the following patterns:
+* Do a global search-and-replace on the files for the following patterns:
   <CONDUITNAME> => your conduit name, all in upper-case
   <conduitname> => your conduit name, all in lower-case
   (be sure not to insert any extraneous space characters around the names)
@@ -26,11 +26,15 @@ To use the template:
 * Add your new directory to the top-level Makefile.am and any necessary
   configuration/enabling checks to the configure.in script. You should create an
   AM_CONDITIONAL() called USE_<CONDUITNAME>_CONDUIT and use it to control the
-  building of your conduit and any associated libraries in other/.
+  building of your conduit and any associated libraries in other/, and add 
+  your conduit to the CONDUITS variable in configure.in when it is enabled.
 
-* Any new header files you add must be placed in the "filelist" variable of 
-  <conduitname>-conduit/Makefile.am, any new .c files must go in 
-  libgasnet_sources and libgasnet_objects variables of that same file.
+* Any new files you add to the conduit must be placed in the 
+  "CONDUIT_FILELIST" variable of <conduitname>-conduit/Makefile.am, 
+  any new .c files to be compiled into your conduit library must go into
+  the CONDUIT_SOURCELIST variable of that same file.
+  See <conduitname>-conduit/Makefile.am for comments on controlling other
+  aspects of the library build process, such as include paths, etc.
   In general, ANY files you add to the repository (even documentation!)
   MUST appear somewhere in a Makefile.am file or they will be omitted from
   the GASNet distribution. See online documentation for automake for more info.

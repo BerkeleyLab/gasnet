@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/03/12 10:58:19 $
- * $Revision: 1.2.2.2 $
+ *     $Date: 2004/03/12 12:15:27 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -639,10 +639,6 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 */
 static gasnet_handlerentry_t const 
 gasnete_handlers[] = {
-    #ifndef GASNETE_CRAYX1_BARRIER
-      GASNETE_AMBARRIER_HANDLERS(),
-    #endif
-
     #ifdef GASNETE_REFBARRIER_HANDLERS
       GASNETE_REFBARRIER_HANDLERS(),
     #endif

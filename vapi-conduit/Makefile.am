@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.19 2004/03/11 08:46:19 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.19.2.1 2004/03/12 12:15:34 csbell Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -66,6 +66,21 @@ CONDUIT_EXTRAHEADERS =
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
 CONDUIT_EXTRADEPS = $(fh_deps)
+
+# additional object files to be included in libgasnet that need to be compiled 
+# using a special, conduit-specific command. These should also be included as
+# forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
+CONDUIT_SPECIAL_OBJS=gasnet_bootstrap_mpi.o
+
+gasnet_bootstrap_mpi.o: gasnet_bootstrap_mpi.c force
+	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) -c $<
+
+# the default job spawn command to be used for "make run-tests"
+# The following substitutions are performed:
+#   %P = program executable name
+#   %N = requested node count
+#   %A = program arguments
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/vapi-conduit/contrib/gasnetrun_vapi -np %N %P %A
 
 # -------- Do not modify anything below this line --------
 

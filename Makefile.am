@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/12 10:58:16 $
-# $Revision: 1.23.2.1 $
+#     $Date: 2004/03/12 12:15:18 $
+# $Revision: 1.23.2.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -55,47 +55,42 @@ include_HEADERS = $(headers)
 
 force:
 	
-TEST_TYPE=tests-seq
+test: tests-seq
+tests: tests-seq
 
-tests: force
+other-tests:
 	@$(MAKE) -C $(top_builddir)/other all tests
-if USE_MPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/mpi-conduit all $(TEST_TYPE)
-endif
-if USE_UDP_CONDUIT
-	@$(MAKE) -C $(top_builddir)/udp-conduit all $(TEST_TYPE)
-endif
-if USE_GM_CONDUIT
-	@$(MAKE) -C $(top_builddir)/gm-conduit all $(TEST_TYPE)
-endif
-if USE_ELAN_CONDUIT
-	@$(MAKE) -C $(top_builddir)/elan-conduit all $(TEST_TYPE)
-endif
-if USE_LAPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/lapi-conduit all $(TEST_TYPE)
-endif
-if USE_SMP_CONDUIT
-	@$(MAKE) -C $(top_builddir)/smp-conduit all $(TEST_TYPE)
-endif
-if USE_VAPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/vapi-conduit all $(TEST_TYPE)
-endif
-if USE_SHMEM_CONDUIT
-	@$(MAKE) -C $(top_builddir)/shmem-conduit all $(TEST_TYPE)
-endif
 
-test: tests
+other-run-tests:
+	@$(MAKE) -C $(top_builddir)/other run-tests
 
-tests-seq: 
-	$(MAKE) -C $(top_builddir) TEST_TYPE=tests-seq tests
+tests-seq: other-tests
+	@for conduit in $(CONDUITS) ; do                             \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" tests-seq ; \
+	done
 
-tests-par: 
-	$(MAKE) -C $(top_builddir) TEST_TYPE=tests-par tests
+tests-par: other-tests
+	@for conduit in $(CONDUITS) ; do                             \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" tests-par ; \
+	done
 
-tests-parsync: 
-	$(MAKE) -C $(top_builddir) TEST_TYPE=tests-parsync tests
+tests-parsync: other-tests
+	@for conduit in $(CONDUITS) ; do                                 \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" tests-parsync ; \
+	done
 
-.PHONY: force clean tests test tests-seq tests-par tests-parsync
+run-tests: other-run-tests
+	@for conduit in $(CONDUITS) ; do                             \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" run-tests ; \
+	done
+
+run-tests-seq: tests-seq run-tests
+run-tests-par: tests-par run-tests
+run-tests-parsync: tests-parsync run-tests
+
+.PHONY: force clean tests test                                        \
+        other-tests other-run-tests tests-seq tests-par tests-parsync \
+        run-tests-seq run-tests-par run-tests-parsync
 
 dist-hook:
 	if test -f $(distdir)/docs/Makefile ; then \

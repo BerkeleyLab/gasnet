@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testlarge.c                                 $
- *     $Date: 2004/03/05 22:44:59 $
- * $Revision: 1.13 $
+ *     $Date: 2004/03/12 12:15:31 $
+ * $Revision: 1.13.2.1 $
  * Description: GASNet bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet bulk gets and puts
@@ -294,7 +294,7 @@ int main(int argc, char **argv)
     }
 
     if (argc > arg) iters = atoi(argv[arg]);
-    if (!iters) iters = 1;
+    if (!iters) iters = 1000;
 
     /* get SPMD info */
     myproc = gasnet_mynode();

@@ -44,10 +44,24 @@ option when maintaining several build trees on the same source tree).
   Configure will detect various interesting features about your system and
 compilers, including which GASNet conduits are supported.
 
-* gmake 
-  Build the GASNet libraries. You can also do 'gmake tests' to build various
-test programs for each conduit. Each conduit also has a tests-{seq,par,parsync}
-target to build tests for just that conduit and configuration.
+* gmake all
+  Build the GASNet libraries. A number of other useful makefile targets 
+  are available from the top-level:
+    gmake tests-{seq,par,parsync}  
+      build all the GASNet tests in a given mode
+    gmake run-tests-{seq,par,parsync}  
+      build and run all the GASNet tests in a given mode
+    gmake run-tests
+      run whatever tests are already built in the conduit directories
+  Each conduit also has several useful makefile targets:
+    gmake tests-{seq,par,parsync}  
+      build the conduit tests in a given mode
+    gmake testXXX [THREAD_MODEL={SEQ,PAR,PARSYNC}]
+      build just testXXX, in a given mode (defaults to SEQ)
+    gmake run-tests-{seq,par,parsync}  
+      build and run the conduit tests in a given mode
+    gmake run-tests
+      run whatever tests are already built in the conduit directories
 
 * gmake install
   Install GASNet to the directory chosen at configure time. This will create an

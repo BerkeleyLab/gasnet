@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v 1.6 2004/03/11 08:46:17 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v 1.6.2.1 2004/03/12 12:15:32 csbell Exp $
 # Description: Makefile for GASNet udp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -37,7 +37,22 @@ CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/amudp/*.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = 
+CONDUIT_EXTRADEPS = $(top_builddir)/other/amudp/libamudp.a
+
+$(top_builddir)/other/amudp/libamudp.a:
+	gmake -C $(top_builddir)/other/amudp libamudp.a
+
+# additional object files to be included in libgasnet that need to be compiled 
+# using a special, conduit-specific command. These should also be included as
+# forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
+CONDUIT_SPECIAL_OBJS=
+
+# the default job spawn command to be used for "make run-tests"
+# The following substitutions are performed:
+#   %P = program executable name
+#   %N = requested node count
+#   %A = program arguments
+CONDUIT_RUNCMD = %P %N %A
 
 # -------- Do not modify anything below this line --------
 

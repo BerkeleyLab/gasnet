@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/12 10:58:16 $
-# $Revision: 1.116.2.2 $
+#     $Date: 2004/03/12 12:15:18 $
+# $Revision: 1.116.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.116.2.2 $)
+AC_REVISION($Revision: 1.116.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -578,10 +578,16 @@ if test "$uni_build" = yes; then
 fi
 
 #---------------------------------------------------------------------------------------------------------------
+# CONDUIT CONFIGURATIONS
+#---------------------------------------------------------------------------------------------------------------
+CONDUITS=
+AC_SUBST(CONDUITS)
+
+#---------------------------------------------------------------------------------------------------------------
+# UDP/AMUDP Configuration
 # Hack-around to prevent a bogus autoconf 2.58 bug when AC_PROG_CXX is called conditionally below
 am__fastdepCXX_TRUE='#'
 am__fastdepCXX_FALSE=
-# Configure AMUDP
 GASNET_IF_ENABLED_WITH_AUTO(udp, Enable the portable UDP network conduit (on by default),
   [enabled_udp=yes;force_udp=yes],
   enabled_udp=no,
@@ -664,6 +670,9 @@ if test $enabled_udp = yes; then
 fi
 AC_SUBST(GASNET_UDP_LIBS)
 AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
+if test "$enabled_udp$have_udp" = yesyes ; then
+  CONDUITS="$CONDUITS udp"
+fi
 
 GASNET_ENV_DEFAULT(GASNET_CSPAWN_CMD, "$TI_CSPAWN_CMD")
 if test "$GASNET_CSPAWN_CMD" != "" ; then
@@ -671,7 +680,7 @@ if test "$GASNET_CSPAWN_CMD" != "" ; then
 fi
 
 #---------------------------------------------------------------------------------------------------------------
-# Configure AMMPI 
+# MPI/AMMPI Configuration
 # (In the future it would be nice to try and discover MPI setup automatically)
 GASNET_IF_ENABLED_WITH_AUTO(mpi, Enable the portable MPI network conduit (on by default), 
   [enabled_mpi=yes;force_mpi=yes],
@@ -852,7 +861,9 @@ AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based
 AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that includes ammpi.h (not including AMMPI library itself)
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
-#--------------------------------------------------------------------------------------------------------
+if test "$enabled_mpi$have_mpi" = yesyes ; then
+  CONDUITS="$CONDUITS mpi"
+fi
 
 #-----------------------------------------------------------------------------------------------
 # SMP configuration
@@ -862,6 +873,9 @@ GASNET_IF_ENABLED_WITH_AUTO(smp, Enable the SMP (loopback) network conduit (on b
   have_smp=no,
   have_smp=yes)
 AM_CONDITIONAL(USE_SMP_CONDUIT, test "$have_smp" = yes)
+if test "$have_smp" = yes ; then
+  CONDUITS="$CONDUITS smp"
+fi
 
 #--------------------------------------------------------------------------------------------------------
 # GM configuration
@@ -928,6 +942,9 @@ fi
 AC_SUBST(GM_INCLUDE)
 AC_SUBST(GM_LIB)
 AM_CONDITIONAL(USE_GM_CONDUIT, test "$have_gm" = yes)
+if test "$have_gm" = yes ; then
+  CONDUITS="$CONDUITS gm"
+fi
 
 #--------------------------------------------------------------------------------------------------------
 # LAPI configuration
@@ -970,6 +987,9 @@ if test $have_lapi = yes; then
 fi
 
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
+if test "$have_lapi" = yes ; then
+  CONDUITS="$CONDUITS lapi"
+fi
 
 #--------------------------------------------------------------------------------------------------------
 # ELAN configuration
@@ -1056,6 +1076,9 @@ AC_SUBST(ELAN_INCLUDE)
 AC_SUBST(ELAN_LIBS)
 AC_SUBST(ELAN_FLAGS)
 AM_CONDITIONAL(USE_ELAN_CONDUIT, test "$have_elan" = yes)
+if test "$have_elan" = yes ; then
+  CONDUITS="$CONDUITS elan"
+fi
 
 #--------------------------------------------------------------------------------------------------------
 # VAPI configuration
@@ -1121,6 +1144,9 @@ AC_SUBST(VAPI_INCLUDE)
 AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
+if test "$have_vapi" = yes ; then
+  CONDUITS="$CONDUITS vapi"
+fi
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$mpi_test_worked" = yes)
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration

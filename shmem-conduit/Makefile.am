@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.2.2.2 2004/03/12 10:58:19 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.2.2.3 2004/03/12 12:15:27 csbell Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -40,6 +40,19 @@ CONDUIT_EXTRAHEADERS =
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
 CONDUIT_EXTRADEPS = 
+
+# additional object files to be included in libgasnet that need to be compiled 
+# using a special, conduit-specific command. These should also be included as
+# forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
+CONDUIT_SPECIAL_OBJS=
+
+# the default job spawn command to be used for "make run-tests"
+# The following substitutions are performed:
+#   %P = program executable name
+#   %N = requested node count
+#   %A = program arguments
+# For now, assume we can use mpirun, as this works on most platforms
+CONDUIT_RUNCMD = mpirun -np %N %P %A
 
 # -------- Do not modify anything below this line --------
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testalign.c                                 $
- *     $Date: 2004/01/23 10:35:05 $
- * $Revision: 1.3 $
+ *     $Date: 2004/03/12 12:15:31 $
+ * $Revision: 1.3.4.1 $
  * Description: GASNet get/put alignment-sensitivity test
  *   measures flood throughput of GASNet gets and puts
  *   over varying payload alignments and fixed payload size
@@ -289,7 +289,7 @@ int main(int argc, char **argv)
     }
 
     if (argc > arg) iters = atoi(argv[arg++]);
-    if (!iters) iters = 1;
+    if (!iters) iters = 1000;
 
     if (argc > arg) size = atoi(argv[arg++]);
     if (!size) size = DEFAULT_SZ;

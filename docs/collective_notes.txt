@@ -1,3 +1,4 @@
+=============================================================================
 * Goals of the design:
 
 ** 1) Must be asynchronous, with distinct initiation and finalization
@@ -45,7 +46,8 @@ data at each node, or use of full barriers where hardware support
 makes them superior to pairwise synchronization.)
 
 
-* Collective and barriers
+=============================================================================
+* Collectives and barriers
 
 At present it is not legal for GASNet collectives and barriers to be
 outstanding simultaneously.  This means that collectives may not be
@@ -56,12 +58,14 @@ call must also be synced before it.
 We may relax this constraint in a future specification.
 
 
-* Collective and handlers
+=============================================================================
+* Collectives and handlers
 
 GASNet collectives may not be initiated or synchronized from within AM
 handlers.  This constraint will NOT be relaxed.
 
 
+=============================================================================
 * Handles
 
 All GASNet collective initiation functions will have blocking and
@@ -90,6 +94,7 @@ been successfully synced and may not be used in future synchronization
 operations.
 
 
+=============================================================================
 * Synchronization modes
 
 In order to efficiently implement the UPC collectives, the GASNet
@@ -144,6 +149,7 @@ to GASNet than the UPC names (where the prefix is TBD):
                               collective (barrier included)
 
 
+=============================================================================
 * Bulk vs. non-bulk data reuse
 
 Consistent with the VIS (Vector, Indexed and Strided) interface, the
@@ -164,6 +170,7 @@ collective operation is synchronized on the same node.
 synchronized on all nodes.
 
 
+=============================================================================
 * Bulk vs. non-bulk alignment
 
 The GASNet collectives for data movement do not assume any data
@@ -173,6 +180,7 @@ The computational collectives (reduce, prefix_reduce and sort)
 requires alignment correct for the operation's data type.
 
 
+=============================================================================
 * Synchronization calls
 
 We'll support the same family of explicit handle try and wait calls as
@@ -191,9 +199,11 @@ int gasnet_all_try_sync_some(gasnet_all_handle_t *handles, size_t n);
 Synchronization of a GASNet collective is NOT itself a collective
 operation and the returns from the synchronization calls on individual
 nodes may occur as early as permitted by the sync mode argument passed
-to the collective initiation function.
+to the collective initiation function.  (See OPEN ISSUES for one
+reason we might wish to change this).
 
 
+=============================================================================
 * Metadata lifetime
 
 Where arguments are passed by reference to the collective initiation
@@ -205,6 +215,7 @@ the meta-data, especially since a remote node may sync before the local
 node has finished with the meta-data.
 
 
+=============================================================================
 * Progress
 
 We expect the non-blocking collectives to make progress in
@@ -214,6 +225,7 @@ implementation to make progress in gasnet_AMPoll() or asynchronously
 when possible.
 
 
+=============================================================================
 * Collectives and threads
 
 Collectives must be initiated in the same order on all nodes.  To
@@ -225,12 +237,13 @@ calls to the collective initiation functions to ensure that only one
 thread is ever inside a GASNet collective initiation function at a
 time.
 
-The type gasnet_handle_t specifies a handle which maybe synchronized
-from any thread, regardless of which thread initiated the collective.
-However, the collective synchronization calls may not be called for
-the *same* handle simultaneously from multiple threads.
+The type gasnet_all_handle_t specifies a handle which maybe
+synchronized from any thread, regardless of which thread initiated the
+collective.  However, the collective synchronization calls may not be
+called for the *same* handle simultaneously from multiple threads.
 
 
+=============================================================================
 * Data segment
 
 For the present we want to implement only cases where the source and
@@ -255,6 +268,7 @@ the GASNet segment.  This restriction should be relaxed in some future
 revision.
 
 
+=============================================================================
 * "Single-valued" arguments
 
 To implement things like Titanium's Exchange operation, we want a
@@ -271,316 +285,191 @@ implementing the UPC collectives *will* provide us with single-valued
 arguments.
 
 The GASNet collectives are *NOT* limited to being called with
-single-valued arguments.  We propose to have flag(s) (possibly
-separate ones for source and destination arguments), indicating which
-arguments to the collective initiation function are "known" values,
-and which must be obtained from the arguments provided on other nodes.
+single-valued arguments.  We will have flag values indicating if
+address arguments to the collective initiation function are given
+in the UPC or Titanium style.
 
  + *_LOCAL -> The arguments provided by the local initiation call
  include correct local addresses, but not correct remote addresses.
- No assertion is made as to the correctness of arguments provided by
- remote nodes.
-
- + *_GLOBAL -> The arguments provided by the local initiation call
- include correct local and remote addresses.
- No assertion is made as to the correctness of arguments provided by
- remote nodes.
 
  + *_SINGLE -> The arguments provided by the initiation calls on all
- nodes include correct local and remote addresses.
- 
-There is no restriction on how _LOCAL and _GLOBAL may mix within a
-single collective operation: some nodes may have only _LOCAL knowledge
-while others in the same operation may have _GLOBAL knowledge.  On any
-node specifying _GLOBAL, the remote addresses must agree with those
-provided as local addresses on the corresponding nodes.
+ nodes include correct local and remote addresses, and they agree.
 
+In the future we may wish to add *_GLOBAL, which would mix freely with
+other nodes specifying *_LOCAL.  This would allow some nodes to know
+all addresses while others knew only local ones.  We have no consumers
+for this at present, and thus don't specify it yet.
+ 
 If any node calls with the _SINGLE flags, then all nodes must do so,
 and all addresses must agree across all nodes.
 
 The 'nbytes', 'root' (for broadcast, scatter and gather) and
 synchronization mode must agree across all nodes regardless of the
-_LOCAL, _GLOBAL or _SINGLE flag.
+_LOCAL, _SINGLE flag.
 
 
+=============================================================================
+END OF NORMATIVE STUFF (MOSTLY AGREED TO)
+START OF OPEN ISSUES
+=============================================================================
 * OPEN ISSUE: "Single address"
 
 At the 2/19 UPC group meeting we (Dan and Paul) talked about having a
 variable number of addresses (dst of broadcast, scatter, gather_all,
 exchange and permute; and src of gather, gather_all, exchange and
-permute).  The number of addresses could only take on a finite set of
-meaningful values.  The value of 1 indicates the same address is to be
-used on all nodes - perfect for UPC collective with aligned GASNet
-segments and UPC heaps.  A value equal to gasnet_nodes() indicated a
-distinct address on each node - perfect for UPC collectives when the
-UPC heaps are not aligned.  Furthermore, a value of N*gasnet_nodes()
-is perfect for dealing with CLUMPS where multiple UPC threads live on
-a single gasnet node with distinct heaps in the same address space.
-As to the ordering of such an array in this case, I expect node-major
-ordering makes the work easier in both UPCR and GASNet.  Of course we
-want to avoid the multiplication and division when we encode this).
-
-There are (at least) five ways one might realistically want to pass
-source or destination addresses:
-
- + Single -> one virtual address valid on all nodes
-   This is the case for the UPC relocalization collectives with
-   aligned GASNet segments and a hierarchical collectives
-   implementation for multiple threads within a node (including the
-   trivial case of 1 thread per node).
-
- + N -> one virtual address per GASNet node
-   This is the case for the UPC collectives with unaligned GASNet
-   segments and a hierarchical thread implementation.
-
- + M -> M virtual addresses, all valid on all nodes
-   This is the case for aligned segments but without a hierarchical
-   implementation of the collectives.  In this case the GASNet
-   implementation is taking care of reading or writing multiple UPC
-   shared heaps per node.
-
-  + M*N -> M virtual addresses per GASNet node
-    This is unaligned segments and no hierarchical collectives.
-
-  + Arbitrary
-    The M and M*N work for a constant thread-per-node value of M, but
-    not for a non-uniform thread layout (like 5 threads on 2 nodes).
-    This could cover this case with some sort of vector of (node,
-    addr) pairs.
-
-My thought at the moment is to reduce this to just 3 cases (1, N and
-Arbitrary) by eliminating the "M" cases, which could still be
-implemented via the Arbitrary mode.  The argument that might remain
-for the "M" cases is that for multi-threaded clients we can reduce the
-meta-data (as compared to a vector of node-address pairs) by telling
-GASNet that we are looking at a regular layout.  (This is somewhat
-analogous to the strided interface as an improvement over the indexed
-one.)  However, the savings comes from making some information
-implicit.  Unfortunately, the information which becomes implicit is
-the layout of threads across nodes.  If we provide 2 addresses and
-there are 2 nodes, which order (node-major or address-major) are the 4
-threads numbered? - it matters for all data movement ops except
-broadcast.  If we pick one (or if we implement both via a flag) then
-the client (think UPCR) will need to make a runtime check (hopefully
-once at initialization) that the thread layout matches what we've
-implemented.  Otherwise it needs to fall back on the fully general
-interface.  For that reason, I think it is appropriate to use the
-fully general interface for all of the multi-threaded UPC clients
-rather than creating a "double wide" implementation inside of UPCR.
+permute).  This allows, for instance, for CLUMPS in which we perform
+data placement directly into multiple UPC or Titanium threads which
+share the address space of a single GASNet node.  This issue is
+currently almost closed in that the current proposed interface covers
+all the known potential clients (unless CAF has something interesting
+to offer us):
+ +  UPC w/ aligned segments, 1 thread/node
+    (or multi-threaded w/ hierarchical data movement)
+ +  UPC w/ unaligned segments, 1 thread/node
+    (or multi-threaded w/ hierarchical data movement)
+ +  UPC multi-threaded w/ direct data placement
+ +  Titanium, 1 thread/node
+    (or multi-threaded w/ hierarchical data movement)
+ +  Ti multi-threaded w/ direct data placement
 
 
 * OPEN ISSUE: Variable contributions
 
 What about calls where each node may contribute a different sized
 source to a gather or gather_all, or different sized dest to a scatter
-(with a proper constraint on the sums).
+(with a proper constraint on the sums).  This would be a natural(?)
+"v" extension to the current two-flavor proposal.
 
 
 * OPEN ISSUE: Computational collectives
 
 Other than "aligned data w/ bulk lifetime" we've not specified
-anything for reduce, prefix_reduce or sort.
+anything for reduce, prefix_reduce or sort.  An issue to be aware of
+is that the UPC collectives spec allows for unequal contributions from
+nodes.
 
 
-=============================================================================
-* Five-flavors interface proposal
+* OPEN ISSUE: Number outstanding vs. one-sided synchronization
 
-Note that there are interesting interactions between the various cases
-described in the "Single valued argument" and "Single address"
-sections.  For instance, when we only have local knowledge of
-addresses, we can't invoke a broadcast that specifies that a single
-destination address is valid across all nodes (if we knew that to be
-true then by inference we'd have "GLOBAL" knowledge).
+In the case of gasnet_handle_t, we specify something along the lines
+of "the implementation must support at least 2^16-1 unsynced handles".
+In the case of the collectives, I expect that the memory use
+associated with an any unsynced gasnet_all_handle_t may be
+significant, possibly scaling as O(N) just for synchronization and
+arrays of gasnet_handle_t (nbi regions don't work if you have to
+spread the initiation calls over time as the collective gets polled).
 
-To motivate another example, lets examine the Titanium Exchange
-operation.  In terms of the UPC collective names, this is an
-all_gather_all.  Each node knows only its own source and destination
-addresses, and not those on other nodes.  The synchronization mode is
-essentially MY/MY.  The IN_MYSYNC is a side effect of having only
-local knowledge of the addresses - no data can move in or out of a
-node until it has entered the call to provide its src and dst
-addresses.  The OUT_MYSYNC constraint is based on what Dan tells me
-about the implementation.  Note that this is in contract to the Ti
-language specification which claims an implicit barrier before and
-after the exchange - which would yield an ALL/ALL sync mode.
+On VAPI the latency to start handler execution is much higher than
+polling a work of memory, even when spin-polling for AMs to arrive,
+and AM requires flow control which is not needed for RDMA.  Therefore
+I'd like to allow truely one-sided (non-AM) implementations of the
+collectives, including the required pairwise synchronization when
+enforcing IN_MYSYNC and/or OUT_MYSYNC.  To do this, a node must be
+able to compute the address of some synchronization word on the remote
+node without communication (beyond some initialization-time exchange).
+Thus one-sided synchronization will require static allocation of
+memory carved out of the GASNet segment (padding the user-requested
+size at attach time).  This is a strong argument for ensuring the
+required allocation is kept as small as reasonably possible.
 
-Looking at the Titanium Exchange, we have the case of a distinct
-source and destination address on each node.  That would fall into the
-"N" case described under "Single address".  One API design idea would
-have us implement the "N" case as taking an array of M virtual
-addresses.  However, combined with the _LOCAL qualifier we wish to
-attach to the addresses, that would mean that each node would
-construct an N-element array with only a single valid entry, and this
-array would have an init-to-sync lifetime.  This is clearly a clumsy
-and inefficient interface.  This would appear to favor implementing
-_SINGLE and _LOCAL as distinct flavors of entry point instead of
-flags.  However, if we follow that path, we probably need to require
-SRC and DST to have the same _SINGLE, _GLOBAL or _LOCAL qualification
-to avoid yet another dimension in the ever-widening interface.
+At this point I am not optimistic about being able to do something
+like the barrier implementation in which exactly 2 phases are
+sufficient to handle an unbounded number of barriers.  If three
+broadcasts are performed consecutively with the same root and
+IN_MYSYNC and OUT_NOSYNC, then I can see the root receiving three "I
+am ready to start" messages from each node (to enforce IN_MYSYNC)
+before it has even processed the first one.  This makes me believe
+that to bound the memory needed perform one-sided syncronization will
+require limiting the number of collectives which are in-flight.
 
-The case we made for _GLOBAL is that in a "rooted" operation such as
-Broadcast, Gather or Scatter a client might have information about all
-the addresses at the root, while the individual nodes might have only
-their own addresses.  The UPC operations are clearly not of this type,
-and the Titanium Broadcast is similar to the Exchange in having only
-local knowledge at each node.  So, I don't see any current consumers
-for such an interface and this will favor the UPC-like SINGLE and
-Titanium-like LOCAL as distinct interfaces.  For example:
+One approach would be to impose a "reasonable" limit, to be enforced
+by the client.  This would be similar in spirit to
+gasnet_AMMaxMedium(), being available to the client at runtime.  We'd
+also document the minimum value that any conduit is permitted to
+impose.  I am thinking a number around 8 is a reasonable lower bound,
+knowing most clients will probably not reach it.
 
-/* Titanium-like version with "locally known" addresses and thus
-   src and dst addresses MAY be different per node: */
-gasnet_all_handle_t
-gasnet_all_gather_all_local_nb(
-		void *my_dst, void *my_src,
-		size_t nbytes, unsigned long flags);
+Unfortunately, enforcement by a client is likely to be tricky because
+to deal with the one-sided synchronization problem, the limit must be
+on the number of collectives outstanding GLOBALLY, not just locally.
+Enforcement would likely come from adding barriers or IN_ALLSYNC flags
+every 8th collective (assuming 8 is the limit).  I am not sure that
+OUT_ALLSYNC is always sufficient since it only ensures data movement
+has completed and IN_NOSYNC+OUT_ALLSYNC could complete on the root of
+a broadcast (for example) even before the other nodes have entered the
+collective.  Because of this difficulty of use, I am against imposing
+such a "reasonable" global limit on the client (local limits of much
+less than 2^16-1 are still possible in my mind).
 
-/* UPC-like version with "globally known" addresses and just one
-   src and dst address (e.g. aligned segments): */
-gasnet_all_handle_t
-gasnet_all_gather_all_global_nb(
-		void *dst, void *src,
-		size_t nbytes, unsigned long flags);
+The preceeding paragraph leads me to think that bounding the number of
+in-flight collectives could best be done with the aide of
+implementation-specific knowedge.  Pushing the enforcement into the
+implementation would allow the client to see an apparent limit like
+2^16-1.  Collectives that would overrun remote synchronization
+resources could be queued locally, using dynamically allocated space
+to store the arguments, until synchronization resources became
+available.  The "flow control" could be piggybacked on the
+collectives, for instance by promoting every 8th (for example)
+collective to have OUT_ALLSYNC.
 
-/* UPC-like version with "globally known" addresses and a separate
-   src and dst address per node (e.g. unaligned segments): */
-gasnet_all_handle_t
-gasnet_all_gather_all_globalN_nb(
-		void * const *dst, void * const *src,
-		size_t nbytes, unsigned long flags);
+Implementing this "flow control" for synchronization resources is an
+area that requires more thought.  I think that enforcing the kind of
+in-flight limit described above MIGHT require making the sync of
+collectives into a collective operation, meaning that not only
+initiation calls for collective operations but also their sync calls
+must execute in the same order on all nodes.  This would be needed so
+that local knowledge would extrapolate to global knowledge without
+requiring additional communication.  I had avoided making the syncs
+collective because I was not sure what it would mean for clients,
+especially multi-threaded ones which would now need to perform some
+additional serialization.  I am pretty sure that we'd want to drop the
+_all and _some sync calls.
 
-Note that the first two have the same signature but very different
-meanings for the first two arguments.  That is why I think they are
-better expressed as distinct calls instead of having the "local
-knowledge" and "global/single knowledge" flags.  I don't see any
-likely clients for selecting these flags as run time.  So, I don't see
-a case for folding them into a single call w/ flags.
+One additional wrinkle is the possibility that RDMA based
+synchronization might be possible without any of the flow control
+issues I've described above.  Since collectives are executed in the
+same order on all nodes and with identical sync flags, it is trivial
+to unambiguously assign a sequence number to each pairwise INSYNC or
+OUTSYNC event.  A static allocation of only N memory locations on each
+node would be sufficient then to hold a counter for pairwise
+synchonization with each peer (or 2*N if IN and OUT events get
+separate counters).  The use of this counter would be slightly
+complicated by the fact that the OUT events might not happen in the
+order that they are numbered (the IN events must by the collective
+nature of the initiation calls).  For instance:
+   all_reduce(..., IN_MYSYNC | OUT_NOSYNC);
+   all_broadcast(..., IN_NOSYNC | OUT_MYSYNC);
+Because of the OUT_NOSYNC on the reduction and IN_NOSYNC on the
+broadcast, it is legal (and desirable) for the broadcast to complete
+on some nodes while the reduction is still being computed on another
+node (or more than one).  Even counting only MYSYNC events has this
+problem if the client issues non-blocking calls like:
+   h1 = all_reduce_nb(..., IN_MYSYNC | OUT_MYSYNC);
+   h2 = all_broadcast_nb(..., IN_NOSYNC | OUT_MYSYNC);
+Again, the broadcast could complete ahead of the reduction, generating
+some internal synchronization event for enforcement of the OUT_MYSYNC.
 
-The first and last are the nearest in "structure", having a distinct
-src and dst address per node.  However, they have entirely different
-signatures and thus are not good candidates for folding into a single
-call.  Furthermore, as noted above using the array of addresses with
-only a single valid entry is a poor design.
+To the best of my knowledge the only way to eliminate the ambiguity
+described above while keeping one-sided synchronization would be to
+either have the implementation internally complete collectives only in
+the order they were initiated or make the client's sync calls
+collective.
 
-So, with just five "flavors" we can cover all the obviously important
-cases:
+There are still a lot of IFs in the text above.  It is still possible
+that flow control of a limited pool of synchronization words can be
+done transparently (perhaps resorting to AMs only occasionally - kind
+of like firehose) without the need to make the sync calls collective.
 
- + "global"  : UPC w/ aligned segments, 1 thread/node
-               (or multi-threaded w/ hierarchical data movement)
- + "globalN" : UPC w/ unaligned segments, 1 thread/node
-               (or multi-threaded w/ hierarchical data movement)
- + "globalV" : UPC multi-threaded w/ direct data placement
- + "local"   : Ti, 1 thread/node (or multi-threaded w/ hierarchical
-	       data movement)
- + "localV"  : Ti multi-threaded w/ direct data placement
-
-
-EXAMPLES:
-
-// I present just Barrier and GatherAll at the moment.
-
-/* All 9 sync modes can be encoded using 4 bits.
-   Note I'm taking the opposite stand from the UPC specs and making
-   0 = no synchronization required */
-#define GASNET_ALL_SYNC_IN_NONE	  0
-#define GASNET_ALL_SYNC_IN_LOCAL  1
-#define GASNET_ALL_SYNC_IN_ALL    2
-#define GASNET_ALL_SYNC_OUT_NONE  0
-#define GASNET_ALL_SYNC_OUT_LOCAL 4
-#define GASNET_ALL_SYNC_OUT_ALL   8
-
-
-typedef SOME_OPAQUE_THINGY gasnet_all_handle_t;
-
-//
-/* ============================================== */
-/* Non-blocking Broadcast in 5 flavors            */
-/* ============================================== */
-
-/* UPC-style with all arguments "single-valued"
-   and equal dst on all nodes */
-gasnet_all_handle_t
-gasnet_all_broadcast_global_nb(
-	void *dst, gasnet_node_t root, void *src,
-	size_t nbytes, unsigned long flags);
-
-/* UPC-style with all arguments "single-valued"
-   and different dst on each node */
-gasnet_all_handle_t
-gasnet_all_broadcast_globalN_nb(
-	void * const *dst, gasnet_node_t root, void *src,
-	size_t nbytes, unsigned long flags);
-
-/* UPC-style with all arguments "single-valued"
-   and a vector of 'addr_count' (dst_node,dst_addr) pairs */
-gasnet_all_handle_t
-gasnet_all_broadcast_globalV_nb(
-	const gasnet_node_t *dst_node, void * const *dst_addr,
-	size_t addr_count, gasnet_node_t root, void *src,
-	size_t nbytes, unsigned long flags);
-
-/* Titanium-style with each node specifying only its own
-   address.  Thus 'dst' is potentially different on each
-   node and 'src' is used only on the 'root' node */
-gasnet_all_handle_t
-gasnet_all_broadcast_local_nb(
-	void *dst, gasnet_node_t root, void *src,
-	size_t nbytes, unsigned long flags);
-
-/* Titanium-style with each node specifying only its own
-   addresses as a vector.
-*/
-gasnet_all_handle_t
-gasnet_all_broadcast_localV_nb(
-	void * const *dst_addr, size_t addr_count,
-	gasnet_node_t root, void *src, unsigned int flags);
-
-/* ============================================== */
-/* Non-blocking GatherAll in 5 flavors            */
-/* ============================================== */
-
-/* UPC-like version with "single-valued" addresses and one
-   src and one dst address (e.g. aligned segments): */
-gasnet_all_handle_t
-gasnet_all_gather_all_global_nb(
-	void *dst, void *src, size_t nbytes, unsigned long flags);
-
-/* UPC-like version with "single-valued" addresses and a separate
-   src and dst address per node (e.g. unaligned segments): */
-gasnet_all_handle_t
-gasnet_all_gather_all_globalN_nb(
-	void * const *dst, void * const *src,
-	size_t nbytes, unsigned long flags);
-
-/* UPC-like version with "single-valued" arguments and a
-   vector for each of the src and dst arguments.
-gasnet_all_handle_t
-gasnet_all_gather_all_globalV_nb(
-	const gasnet_node_t *dst_node, void * const *dst_addr,
-	const gasnet_node_t *src_node, void * const *src_addr,
-	size_t addr_count, size_t nbytes, unsigned long flags);
-
-/* Titanium-like version with "locally known" addresses and thus
-   src and dst addresses MAY be different per node: */
-gasnet_all_handle_t
-gasnet_all_gather_all_local_nb(
-	void *dst, void *src, size_t nbytes, unsigned long flags);
-
-/* Titanium-like version with "locally known" addresses given
-   as a vector of (rank,dst_addr,src_addr) pairs.  Note that
-   for all the data movement collectives execpt Broadcast and
-   Permute, the rank needs to be given in the localV versions.
-   NOTE: The total_count (i.e. total number of UPC threads) is
-   also required here.  We expect it to be constant for the clients we
-   are interested in, and it can help GASNet by letting us know how
-   many ranks we need to deal with. */
-gasnet_all_handle_t
-gasnet_all_gather_all_localV_nb(
-	const size_t *rank, void * const *dst_addr,
-	void * const src_addr, size_t addr_count,
-	size_t total_count, size_t nbytes, unsigned long flags);
+So, I am soliciting feedback on this issue.  Are there any great ideas
+on how to do one-sided synchronization?  Are there thoughts on what it
+would mean to make the sync calls collective?
 
 =============================================================================
-Two-flavors interface proposal
+END OF OPEN ISSUES
+START OF CURRENT PROPOSAL
+=============================================================================
+
+* Two-flavors interface proposal
 
 Dan has objected to the 5-flavored proposal as having an interface
 which is much too wide.  This is especially a concern if we next add
@@ -762,7 +651,7 @@ gasnet_all_exchangei_nb(gasnet_node_t * const nodelist[],
                         int flags);
 
 =============================================================================
-Thoughts on Permute:
+* Generalized collectives proposal
 
 The UPC all_permute is that the source data and the permutation
 indexes have the same affinity.  Therefore a simple put-based
@@ -776,46 +665,117 @@ and it would be an error to pass the "SINGLE" flag.  Each node
 provides almost the arguments it would to a gasnet_put_nb,
 gasnet_get_nb, gasnet_puti_nb or gasnet_geti_nb.  The main difference
 is the addition of the flags argument and the multi-node nature of the
-{put,get}i.  While UPC has a one-to-one restriction on
-upc_all_permute(), I haven't yet decided if this is needed for these
-GASNet collectives.
-
-gasnet_all_handle_t
-gasnet_all_put_nb(gasnet_node_t dstnode, void *dst, void *src,
-                  size_t nbytes, int flags);
-
-gasnet_all_handle_t
-gasnet_all_get_nb(void *dst, gasnet_node_t srcnode, void *src,
-                  size_t nbytes, int flags);
-
-gasnet_all_handle_t
-gasnet_all_puti_nb(gasnet_node_t * const nodelist[], void * const dstlist[],
-                   void * const srclist[],
-                   size_t listlen, size_t nbytes, int flags);
-
-gasnet_all_handle_t
-gasnet_all_geti_nb(void * const dstlist[],
-                   gasnet_node_t * const nodelist[], void * const srclist[],
-                   size_t listlen, size_t nbytes, int flags);
-
+{put,get}i.
 
 All the rules given previously for collectives would apply to these as
 well (such as agreeing on nbytes and flags, and the legality of having
 listlen==0).
 
-Note that if we do implement these calls (and don't add the one-to-one
-restriction) it is trivial to implement all the UPC data movement
-collectives (the GLOBAL modes of the GASNet collectives) in terms of
-single calls to either gasnet_all_puti_nb() or gasnet_all_geti_nb().
-Such an implementation is, of course, totally untuned and would not
-perform any log(N) optimizations.  However, in terms of rapid
-prototyping this is a very appealing approach and is still likely to
-beat the UPC collectives reference implementation on MYSYNC cases of
-broadcast, scatter and gather by performing only pairwise
-synchronizations.
+Implementing the SYNC flags for these interfaces would be potentially
+simpler/more efficient if you knew how many nodes are targeting you,
+even if you don't know which ones (even better if you did know).  For
+instance, OUT_MYSYNC on a put requires you to know that all writes
+into your local memory have completed.  Other than a full barrier, how
+do you do this (even with signaling puts) when you don't know *how
+many* writes are targeting your memory?  This could be done with the
+one-to-one constraint, making these interfaces less useful for
+implementing other collectives.  Alternatively an additional argument
+could give the count of the partners.  The count is likely to be
+either 0 (ex: root of a put-based broadcast or scatter), 1 (ex:
+permute or non-root in a put-based broadcast or scatter), or N (ex:
+put-based gather_all or exchange).  This idea sounds to me to be much
+better than the one-to-one constraint.
 
+Enforcing IN_MYSYNC requires you to know your partner(s) is(are) ready
+as well (unless doing buffering of eager puts).  If they don't know
+who you are then you need a round trip to ask if they are ready (or a
+barrier to know that everyone is ready).  However, if the interfaces
+above provided not only a count of partners who will target your
+memory, but also their node numbers, then this synchronization can be
+performed with one-way primitives instead.  If we have only the case
+of 0, 1, or N then we need only a single 'partner_id': 0 needs none, 1
+needs only one, and N needs none because the list is implicitly all
+nodes.  If we anticipate using these calls for tree-structured data
+movement then we'll need the fully general case of 0...N partners and
+no assumption that the number of outgoing and ingoing match (in a tree
+you have only one parent but a variable number of children).
+
+Note that for static communication patterns construction of the list
+of partners should always be possible without communication.  These
+interfaces do not require that the communication patterns used be
+static; dynamic patterns are possible as long as the dynamic decisions
+made on all nodes will agree.  It is not required that such agreement
+be reached without additional communication, but it certainly seems
+desirable to avoid collective communication to select a collective
+communication algorithm.
+
+Here are generalized collective interfaces, assuming the most general
+case:
+
+gasnet_all_handle_t
+gasnet_all_put_nb(gasnet_node_t dstnode, void *dst,
+                  void *src,
+		  gasnet_node_t * const partnerlist[], size_t partnercount, 
+                  size_t nbytes, int flags);
+
+gasnet_all_handle_t
+gasnet_all_get_nb(void *dst,
+                  gasnet_node_t srcnode, void *src,
+		  gasnet_node_t * const partnerlist[], size_t partnercount, 
+                  size_t nbytes, int flags);
+
+gasnet_all_handle_t
+gasnet_all_puti_nb(gasnet_node_t * const nodelist[], void * const dstlist[],
+                   void * const srclist[],
+                   size_t listlen,
+		   gasnet_node_t * const partnerlist[], size_t partnercount, 
+                   size_t nbytes, int flags);
+
+gasnet_all_handle_t
+gasnet_all_geti_nb(void * const dstlist[],
+                   gasnet_node_t * const nodelist[], void * const srclist[],
+                   size_t listlen,
+		   gasnet_node_t * const partnerlist[], size_t partnercount, 
+                   size_t nbytes, int flags);
+                   
+
+I like these generalized collective calls because they encode all the
+"structure" of a collective communication.  Getting the "big picture"
+takes the union over the arguments on all nodes.  However, with the
+partner args present each node has all the information that affects it
+directly.  With the use of non-blocking calls and the correct sync
+flags to reflect data dependences between (for instance) stages of a
+tree-based communication, these now look like excellent building
+blocks for prototyping the other collectives.
+
+On hardware w/o specialized support (broadcast, multicast, etc.)
+tuning for a given network might just consist of choosing what pattern
+of communication to implement using these generalized calls, as if it
+could really be that easy :-)...  Use of these interfaces would
+prohibit certain algorithms which adapt based only on local timing
+information.  In such cases a given node cannot know in advance from
+which node it will receive a given datum.  In some cases it cannot
+even be certain how many times it will receive it.
+
+An potentially interesting example of an algorithm that adapts to
+timing in this way is a tree-based barrier (or reduction) in which the
+last sibling to arrive is the one to notify the parent.  This can be
+better than always designating the lowest rank child (for instance)
+because the last arrival is known to be "live" at the time of its
+arrival, while other children may be computing digits of pi for all we
+know.  The parent cannot know in advance (at least not until the
+next-to-last arrival) the identity of the last arrival - the node from
+which it will receive notification.  To implement such a tree one
+would probably use normal point-to-point communications (puts or AMs)
+to notify the parent.  (I am not arguing that this is the best possible
+barrier or reduction algorithm, just presenting an example that shows
+that these generalized interfaces alone don't implement all
+interesting collective algorithms).
 =============================================================================
-Thoughts on progress of Implementation:
+END OF CURRENT PROPOSAL
+START OF IMPLEMENTATION NOTES
+=============================================================================
+* Thoughts on progress of implementation:
 
 While not part of the GASNet spec for users, it is important that we
 have a good design for how the reference implementation will interact
@@ -984,8 +944,7 @@ small to justify such a design.
 
 
 =============================================================================
-
-Proposal for gasneti_cond_t:
+* Proposal for gasneti_cond_t:
 
 In order to permit a conduit to block waiting for something that might
 happen in another thread, particularly in a handler executed in
@@ -1040,8 +999,7 @@ gasneti_cond_wait_mutex(gasneti_cond_t *cond, gasneti_mutex_t *lock)
 
 
 =============================================================================
-
-Implementation Ideas:
+* Notes on algorithms 
 
 Broadcast:
 ==========
