@@ -1,32 +1,13 @@
-typedef firehose_private_t	fh_bucket_t;
-#define FH_ADDR_ALIGN(addr) (GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE)
-#define FH_SIZE_ALIGN(addr,len)	(GASNETI_ALIGNUP(addr+len, FH_BUCKET_SIZE)-\
-				 GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE)
-#define FH_NUM_BUCKETS(addr,end)	###
-
-/* values for firehose_private_t * */
-#define FH_REQ_UNPINNED	((firehose_private_t *) 0)
-
-/* Macro to ease looping over buckets in a memory region.  'end' here is
- * defined as 'start + len - 1'.  All parameters should be 'uintptr_t'.
- */
-#define FH_FOREACH_BUCKET(start,end,bucket_addr)			\
-		for ((bucket_addr) = (start); (bucket_addr) <= (end);	\
-		    (bucket_addr) += FH_BUCKET_SIZE)
-
-
-#define FH_FILL_REQUEST(req, nodei, addr, length) do {			\
-		(req)->node = (nodei);					\
-		(req)->start = FH_ADDR_ALIGN(addr);			\
-		(req)->len   = FH_SIZE_ALIGN((req)->start, addr+nbytes);\
-		(req)->end   = (req)->start + (req)->len - 1;		\
-	} while (0)
-
+#include <firehose.h>
+#include <firehose_internal.h>
 
 /* ######################################################################### */
 /* Public firehose interface */
 
 /* firehose_local_pin(addr, nbytes)
+ *
+ * Allocates a request type and fills the values aligned according to bucket
+ * size.  Additionally, a key for 
  */
 extern firehose_request_t *
 firehose_local_pin(uintptr_t addr, size_t nbytes)
@@ -37,11 +18,10 @@ firehose_local_pin(uintptr_t addr, size_t nbytes)
 	req = fh_request_new();
 
 	FH_FILL_REQUEST(req, gasnet_mynode(), addr, nbytes);
-	num_pinned = fh_pin_local_request(req);
 
-	GASNETI_TRACE_EVENT_VAL(C, BUCKET_LOCAL_PINS, num_pinned);
-	GASNETI_TRACE_EVENT_VAL(C, BUCKET_LOCAL_TOUCHED, 
-	    (req->len>>FH_BUCKET_SHIFT));
+	req->internal = fhi_create_key(fhi_key_req(req));
+
+	fh_acquire_local_region(req->addr, req->len);
 
 	return req;
 }
@@ -49,20 +29,17 @@ firehose_local_pin(uintptr_t addr, size_t nbytes)
 extern firehose_request_t *
 firehose_try_local_pin(uintptr_t addr, size_t nbytes)
 {
-	uintptr_t		end 
-	unsigned int		num_pinned;
 	firehose_request_t	*req = NULL;
-
-	end = addr + (uintptr_t) nbytes - 1;
 
 	FH_TABLE_LOCK;
 
-	if (fhi_ispinned_region(gasnet_mynode(), addr, len, end)) {
+	if (fhi_ispinned_region(gasnet_mynode(), addr, len)) {
 		req = fh_request_new();
 
 		FH_FILL_REQUEST(req, gasnet_mynode(), addr, nbytes);
-		num_pinned = 
-		    fh_acquire_local_region(req->start, req->len, req->end);
+
+		req->internal = fhi_create_key(fhi_key_req(req));
+		fh_acquire_local_region(req->addr, req->len);
 	}
 
 	FH_TABLE_UNLOCK;
@@ -80,11 +57,11 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	req = fh_request_new();
 
 	req->node  = gasnet_mynode();
-	req->start = FH_ADDR_ALIGN(addr);
-	req->len   = FH_SIZE_ALIGN(req->start, addr+nbytes);
-	req->end   = req->start + req->len - 1;
+	req->addr = FH_ADDR_ALIGN(addr);
+	req->len   = FH_SIZE_ALIGN(req->addr, addr+nbytes);
+	req->end   = req->addr + req->len - 1;
 
-	num_pinned = fh_remote_pin_request(req);
+	fh_remote_pin_request(req);
 
 	/* If the request could be entirely pinned, process the callback or
 	 * return to user.  If it could not be pinned, the callback will be
@@ -102,7 +79,6 @@ extern firehose_request_t *
 firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
 {
 	uintptr_t		end 
-	unsigned int		num_pinned;
 	firehose_request_t	*req = NULL;
 
 	end = addr + (uintptr_t) nbytes - 1;
@@ -111,9 +87,11 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
 
 	if (fhi_ispinned_region(node, addr, len, end)) {
 		req = fh_request_new();
+
 		FH_FILL_REQUEST(req, node, addr, len);
-		num_pinned = fh_acquire_remote_region(node, 
-		    req->start, req->len, req->end);
+
+		req->internal = fhi_create_key(fhi_key_req(req));
+		fh_acquire_remote_region(node, req->addr, req->len, req->end);
 	}
 
 	FH_TABLE_UNLOCK;
@@ -121,35 +99,19 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
 	return req;
 }
 
-extern int
-firehose_release(firehose_request_t *local, firehose_request_t *remote)
+extern void
+firehose_release(firehose_request_t **reqs, int numreqs)
 {
-	if (local != NULL)
-		fh_release_local_region(local->start, local->len, local->end);
+	int	i;
 
-	if (remote != NULL)
-		fh_release_remote_region(remote->node, remote->start, 
-		    remote->len, remote->end);
+	for (i = 0; i < numreqs; i++) {
+		if (fhi_node(reqs[i]->internal) == gasnet_mynode()) 
+			fh_release_local_region(reqs[i]->addr, reqs[i]->len);
+		else
+			fh_release_remote_region(reqs[i]->addr, reqs[i]->len);
+	}
 
-	return 0;
-}
-
-extern int
-firehose_release_local(firehose_request_t *local)
-{
-	if (local != NULL)
-		fh_release_local_region(local->start, local->len, local->end);
-
-	return 0;
-}
-
-extern int
-firehose_release_remote(firehose_request_t *req)
-{
-	if (remote != NULL)
-		fh_release_remote_region(remote->node, remote->start, 
-		    remote->len, remote->end);
-	return 0;
+	return;
 }
 
 /* ######################################################################### */
@@ -162,7 +124,7 @@ firehose_release_remote(firehose_request_t *req)
  * GENERAL
  *
  * Pins a region of memory according to contents of firehose_request_t.  Field
- * 'start' must be aligned to a page address and 'start+length' must cover a
+ * 'addr' must be aligned to a page address and 'addr+length' must cover a
  * multiple of GASNETI_PAGE_SIZE.
  *
  * Fields may be modified to meet the requirements of the firehose algorithm.
@@ -170,34 +132,23 @@ firehose_release_remote(firehose_request_t *req)
  * the first page of the region (it is essentially caches a hash lookup).
  *
  * Function calls: fhi_create_key(key) to attach a key to the internal pointer
- *                 fh_acquire_local_region(start, length, end) to acquire the
+ *                 fh_acquire_local_region(addr, length, end) to acquire the
  *                         underlying region (pin/increment refcounts)
  *
- * The function returns the amount of pages already pinned.
  */
-int
-fh_pin_local_request(firehose_request_t *req)
-{
-	int pinned;
-
-	req->internal = fhi_create_key(fhi_key_req(req));
-	pinned = fh_acquire_local_region(req->start, req->len, req->end);
-	return pinned;
-}
 
 /* fh_unpin_local_request(req)
  * GENERAL
  *
  * Unpins a region of memory according to contents of firehose_request_t.
- * Field 'start' must be aligned to a page address and 'start+length' must
+ * Field 'addr' must be aligned to a page address and 'addr+length' must
  * cover a multiple of GASNETI_PAGE_SIZE.
  */
-int	
+void
 fh_unpin_local_request(firehose_request_t *req)
 {
-	fh_release_local_region(addr, len, end);
-
-	return 0;
+	fh_release_local_region(req->addr, req->len, req->end);
+	return;
 }
 
 /* fh_acquire_local_region(addr, len, end)
@@ -213,46 +164,60 @@ fh_unpin_local_request(firehose_request_t *req)
  */
 
 int
-fh_acquire_local_region(uintptr_t addr, size_t len, uintptr_t end)
+fh_acquire_local_region(uintptr_t addr, size_t len)
 {
-	uintptr_t	bucket_addr;
-	int		numpinned = 0;
-
-	firehose_request_t	req;
+	uintptr_t		bucket_addr, end_addr;
+	firehose_region_t	region;
+	FH_NUMPINNED_DECL;
 
 	FH_TABLE_LOCK;
 
-	req.start = addr;
-	req.len = 0;
- 	FH_FOREACH_BUCKET(addr, end, bucket_addr) {
-		if (fhi_bucket_ispinned(gasnet_mynode, bucket_addr)) {
-			fhi_bucket_acquire(gasnet_mynode, bucket_addr);
-			numpinned++;
-			if (req.len > 0) {
-				req.end = req.start + req.len - 1;
-				firehose_pin(&req);
-				req.start = req.end + 1;
-				req.len = 0;
+	region.addr = addr;
+	region.len = 0;
+	end_addr = addr + (uintptr_t) len - 1;
+
+ 	FH_FOREACH_BUCKET(addr, end_addr, bucket_addr) {
+		if (fhi_bucket_ispinned(gasnet_mynode(), bucket_addr)) {
+
+			fhi_bucket_acquire(gasnet_mynode(), bucket_addr);
+			FH_NUMPINNED_INC;
+
+			if (region.len > 0) {
+				firehose_pin(&region);
+				region.addr += region.len;
+				region.len = 0;
 			}
 			else
-				req.start += FH_BUCKET_SIZE;
+				region.addr += FH_BUCKET_SIZE;
 		}
 		else {
-			req.len += FH_BUCKET_SIZE;
+			region.len += FH_BUCKET_SIZE;
 		}
 	}
 
-	if (req.len > 0) {
-		req.end = req.start + req.len - 1;
-		firehose_pin(&req);
-	}
+	if (region.len > 0)
+		firehose_pin(&region);
 
 	FH_TABLE_UNLOCK;
 
-	return numpinned;
+	FH_NUMPINNED_TRACE_LOCAL;
+
+	return;
 }
 
-#define FH_LOCAL_FIFO_FULL(buckets)
+#ifdef GASNET_TRACE
+#define FH_NUMPINNED_DECL	int _fh_numpinned = 0
+#define FH_NUMPINNED_INC	_fh_numpinned++
+#define FH_NUMPINNED_TRACE_LOCAL	GASNETI_TRACE_EVENT_VAL(C, \
+					BUCKET_LOCAL_PINS, _fh_numpinned)
+#define FH_NUMPINNED_TRACE_REMOTE	GASNETI_TRACE_EVENT_VAL(C, \
+					BUCKET_REMOTE_PINS, _fh_numpinned)
+#else
+#define FH_NUMPINNED_DECL
+#define FH_NUMPINNED_INC
+#define FH_NUMPINNED_TRACE_LOCAL
+#define FH_NUMPINNED_TRACE_REMOTE
+#endif
 
 /* fh_release_local_region(addr, len, end)
  *
@@ -267,19 +232,19 @@ fh_release_local_region(uintptr_t addr, size_t len, uintptr_t end)
 
 	FH_TABLE_LOCK;
 
-	req.start = addr;
+	req.addr = addr;
 	req.len = 0;
 
 	FH_FOREACH_BUCKET(addr, end, bucket_addr) {
 		if (fhi_bucket_release(gasnet_mynode, bucket_addr) != 0) {
 			if (req.len > 0) {
-				req.end = req.start + req.len - 1;
+				req.end = req.addr + req.len - 1;
 				firehose_unpin(&req);
-				req.start = req.end + 1;
+				req.addr = req.end + 1;
 				req.len = 0;
 			}
 			else
-				req.start += FH_BUCKET_SIZE;
+				req.addr += FH_BUCKET_SIZE;
 		}
 		else {
 			/* if the local fifo is not full, add the bucket */
@@ -292,7 +257,7 @@ fh_release_local_region(uintptr_t addr, size_t len, uintptr_t end)
 	}
 
 	if (req.len > 0) {
-		req.end = req.start + req.len - 1;
+		req.end = req.addr + req.len - 1;
 		firehose_unpin(&req);
 	}
 
@@ -362,7 +327,7 @@ fh_release_region_list(gasnet_node_t node, firehose_region_t *region, size_t num
 /* ####################### */
 /* REMOTE OPERATIONS       */
 /* Pins a region of memory according to contents of firehose_request_t.  Field
- * 'start' must be aligned to a page address and 'start+length' must cover a
+ * 'addr' must be aligned to a page address and 'addr+length' must cover a
  * multiple of GASNETI_PAGE_SIZE.
  *
  * The algorithm only requests a remote pin operation if one of the pages
@@ -398,7 +363,7 @@ fh_remote_pin_request(firehose_request_t *req)
 
 	FH_TABLE_LOCK;
 
- 	FH_FOREACH_BUCKET(req->start, req->end, bucket_addr) {
+ 	FH_FOREACH_BUCKET(req->addr, req->end, bucket_addr) {
 		if (fhi_bucket_ispinned(req->node, bucket_addr))
 			fhi_bucket_acquire(req->node, bucket_addr);
 		else
@@ -533,7 +498,7 @@ fhi_replace_regions(gasnet_node_t node, firehose_region_t *reg, size_t num)
  * This function returns the new reference count
  */
 
-#define fhi_key_req(req)	((fh_int_t) ((req)->node | (req)->start))
+#define fhi_key_req(req)	((fh_int_t) ((req)->node | (req)->addr))
 #define fhi_key_make(addr,node)	((fh_int_t) (addr) | (node))
 #define fhi_key_addr(key)	((uintptr_t) ((key) & ~FH_BUCKET_MASK)
 #define fhi_key_node(key)	((gasnet_node_t) ((key) & FH_BUCKET_MASK)

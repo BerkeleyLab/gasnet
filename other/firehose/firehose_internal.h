@@ -89,3 +89,26 @@ struct _firehose_private_t {
 
 #define FH_PAGE_MASK	(GASNETI_PAGESIZE-1)
 
+#define FH_ADDR_ALIGN(addr) (GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE)
+#define FH_SIZE_ALIGN(addr,len)	(GASNETI_ALIGNUP(addr+len, FH_BUCKET_SIZE)-\
+				 GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE)
+#define FH_NUM_BUCKETS(addr,end)	###
+
+/* values for firehose_private_t * */
+#define FH_REQ_UNPINNED	((firehose_private_t *) 0)
+
+/* Macro to ease looping over buckets in a memory region.  'end' here is
+ * defined as 'start + len - 1'.  All parameters should be 'uintptr_t'.
+ */
+#define FH_FOREACH_BUCKET(start,end,bucket_addr)			\
+		for ((bucket_addr) = (start); (bucket_addr) <= (end);	\
+		    (bucket_addr) += FH_BUCKET_SIZE)
+
+
+#define FH_FILL_REQUEST(req, nodei, addr, length) do {			\
+		(req)->node = (nodei);					\
+		(req)->start = FH_ADDR_ALIGN(addr);			\
+		(req)->len   = FH_SIZE_ALIGN((req)->start, addr+nbytes);\
+		(req)->end   = (req)->start + (req)->len - 1;		\
+	} while (0)
+
