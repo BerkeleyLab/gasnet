@@ -1,6 +1,6 @@
 /* vapi-conduit/firehose_fwd.h
- * $Date: 2003/12/19 02:13:37 $
- * $Revision: 1.1.2.5 $
+ * $Date: 2004/01/06 23:24:15 $
+ * $Revision: 1.1.2.6 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -10,6 +10,9 @@
 #define _VAPI_FIREHOSE_FWD_H
 
 #include <vapi_types.h>
+
+/* Set this here because we need it to match */
+#define FH_BUCKET_SIZE	GASNETI_PAGESIZE
 
 /* vapi offers "Fast Memory Regions".
  * They really are faster, so we use them by default */

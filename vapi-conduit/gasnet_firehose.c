@@ -1,6 +1,6 @@
 /* vapi-conduit/gasnet_firehose.c
- * $Date: 2003/12/19 02:13:37 $
- * $Revision: 1.1.2.4 $
+ * $Date: 2004/01/06 23:24:15 $
+ * $Revision: 1.1.2.5 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -12,7 +12,8 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <firehose.h>
+
+#if GASNETC_USE_FIREHOSE /* otherwise file is empty */
 
 extern int
 firehose_move_callback(gasnet_node_t node,
@@ -53,7 +54,7 @@ firehose_move_callback(gasnet_node_t node,
       GASNETC_VAPI_CHECK(vstat, "from EVAPI_free_fmr");
     }
 
-    /* Allocate more FMRs (if needd) */
+    /* Allocate more FMRs (if needed) */
     for (i = repin_num; i < pin_num; i++) {
       vstat = EVAPI_alloc_fmr(gasnetc_hca, &gasnetc_fmr_props,
 			      &(pin_list[i].client.handle));
@@ -62,16 +63,15 @@ firehose_move_callback(gasnet_node_t node,
 
     /* Now perform all the mappings */
     for (i = 0; i < pin_num; i++) {
-	firehose_region_t *region = &(pin_list[i]);
-	firehose_client_t *client = &region->client;
+	firehose_region_t *region = pin_list + i;
 
 	gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
 	gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
 
 	map.start = (uintptr_t)region->addr;
 	map.size  = region->len;
-        vstat = EVAPI_map_fmr(gasnetc_hca, client->handle, &map,
-			      &client->lkey, &client->rkey);
+        vstat = EVAPI_map_fmr(gasnetc_hca, region->client.handle, &map,
+			      &(region->client.lkey), &(region->client.rkey));
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_map_fmr");
     }
 
@@ -159,3 +159,5 @@ firehose_remote_callback(gasnet_node_t node,
     gasneti_fatalerror("attempted to call firehose_remote_callback()");
     return -1;
 }
+
+#endif /* GASNETC_USE_FIREHOSE */

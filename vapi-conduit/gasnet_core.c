@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/12/19 02:13:37 $
- * $Revision: 1.21.2.12 $
+ *     $Date: 2004/01/06 23:24:15 $
+ * $Revision: 1.21.2.13 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,9 +75,10 @@ VAPI_hca_hndl_t	gasnetc_hca;
 VAPI_hca_cap_t	gasnetc_hca_cap;
 VAPI_hca_port_t	gasnetc_hca_port;
 VAPI_pd_hndl_t	gasnetc_pd;
-#if GASNET_SEGMENT_FAST
+#if GASNETC_PIN_SEGMENT
   gasnetc_memreg_t	gasnetc_seg_reg;
-#else
+#endif
+#if GASNETC_USE_FIREHOSE
   firehose_info_t	gasnetc_firehose_info;
   #if FIREHOSE_VAPI_USE_FMR
     EVAPI_fmr_t		gasnetc_fmr_props;
@@ -129,7 +130,7 @@ static void gasnetc_check_config() {
 }
 
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end) {
-  #if GASNET_SEGMENT_FAST
+  #if GASNETC_PIN_SEGMENT
     if ((start >= gasnetc_seg_reg.addr) && (end <= gasnetc_seg_reg.end)) {
       return &gasnetc_seg_reg;
     }
@@ -147,28 +148,6 @@ extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end) {
 
   /* Not pinned */
   return NULL;
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_is_pinned_remote)
-int gasnetc_is_pinned_remote(gasnet_node_t node, uintptr_t start, size_t len) {
-  uintptr_t	end = (start + (len - 1)); /* subtact 1 first, to avoid overflows */
-
-  #if GASNET_SEGMENT_FAST
-  {
-    /* check if the range is entirely in the remotely pinned segment */
-    uintptr_t segbase = (uintptr_t)gasnetc_seginfo[node].addr;
-    uintptr_t segsize = gasnetc_seginfo[node].size;
-
-    if ((start >= segbase) && (end <= (segbase + (segsize - 1)))) {
-      return 1;
-    }
-  }
-  #else
-    /* (###) implement firehose */
-  #endif
-
-  /* Not pinned */
-  return 0;
 }
 
 static void gasnetc_unpin(gasnetc_memreg_t *reg) {
@@ -537,14 +516,25 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_assert(gasnetc_hca_cap.max_num_cq >= 2);
   gasneti_assert(gasnetc_hca_cap.max_num_ent_cq >= gasnetc_op_oust_limit);
   gasneti_assert(gasnetc_hca_cap.max_num_ent_cq >= gasnetc_am_oust_limit * 2); /* request + reply == 2 */
-  #if GASNET_SEGMENT_FAST
-    gasneti_assert(gasnetc_hca_cap.max_num_mr >= 3);			/* rcv bufs, snd bufs, segment */
-  #elif FIREHOSE_USE_FMR
-    gasneti_assert(gasnetc_hca_cap.max_num_mr >= 2);			/* rcv bufs, snd bufs */
-    gasneti_assert(gasnetc_hca_cap.max_num_fmr >= FIREHOSE_CLIENT_MAXREGIONS)
-  #else
-    gasneti_assert(gasnetc_hca_cap.max_num_mr >=
-		    		(2+FIREHOSE_CLIENT_MAXREGIONS));	/* rcv bufs, snd bufs, fh */
+  #if GASNET_DEBUG
+  {
+    int mr_needed = 2;		/* rcv bufs and snd bufs */
+    int fmr_needed = 0;		/* none by default */
+
+    #if GASNETC_PIN_SEGMENT
+      mr_needed++;		/* +1 for the segment */
+    #endif
+    #if GASNETC_USE_FIREHOSE
+      #if FIREHOSE_USE_FMR
+        fmr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* FMRs needed for firehoses */
+      #else
+        mr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* regular MRs needed for firehoses */
+      #endif
+    #endif
+
+    gasneti_assert(gasnetc_hca_cap.max_num_mr >=  mr_needed);
+    gasneti_assert(gasnetc_hca_cap.max_num_fmr >= fmr_needed);
+  }
   #endif
   gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
 
@@ -560,18 +550,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   #endif
   gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
-
-  /* For some firmware there is a performance bug with EVAPI_post_inline_sr(). */
-  #if GASNETC_VAPI_ENABLE_INLINE_PUTS
-    if ((hca_vendor.fw_ver >= (uint64_t)(0x100180000LL)) &&
-        (hca_vendor.fw_ver <  (uint64_t)(0x300000000LL))) {
-	/* (1.18 <= fw_ver < 3.0) is known bad */
-	fprintf(stderr,
-		"WARNING: Your HCA firmware is suspected to include a performance defect\n"
-		"when using EVAPI_post_inline_sr().  You may wish to either upgrade your\n"
-		"firmware, or configure GASNet with '--disable-vapi-inline-puts'.\n");
-    }
-  #endif
 
   /* For some firmware there is a thread safety bug with VAPI_poll_cq(). */
   #if GASNETC_VAPI_FORCE_POLL_LOCK
@@ -726,7 +704,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   {
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
                         &gasnetc_MaxGlobalSegmentSize,
-                        (uintptr_t)(-1),
+                        /* XXX: 0(uintptr_t)(-1) */ gasnetc_max_pinnable,
                         gasnetc_nodes,
                         &gasnetc_bootstrapAllgather);
   }
@@ -853,7 +831,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_assert(numreg == len);
   }
 
-  #if !GASNET_SEGMENT_FAST
+  #if GASNETC_USE_FIREHOSE
   { /* firehose handlers */
     gasnet_handlerentry_t *ftable = (gasnet_handlerentry_t *)firehose_get_handlertable();
     int len = 0;
@@ -897,7 +875,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
-  #if GASNET_SEGMENT_FAST
+  #if GASNET_SEGMENT_EVERYTHING
+  {
+    int i;
+    for (i=0;i<gasnetc_nodes;i++) {
+      gasnetc_seginfo[i].addr = (void *)0;
+      gasnetc_seginfo[i].size = (uintptr_t)-1;
+    }
+    segbase = (void *)0;
+    segsize = (uintptr_t)-1;
+  }
+  #elif GASNETC_PIN_SEGMENT
   {
     /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapAllgather);
@@ -923,33 +911,23 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasneti_free(rkeys);
     }
   }
-  #elif GASNET_SEGMENT_LARGE
+  #else	/* just allocate the segment but don't pin it */
   {
     /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapAllgather);
     segbase = gasnetc_seginfo[gasnetc_mynode].addr;
     segsize = gasnetc_seginfo[gasnetc_mynode].size;
   }
-  #elif GASNET_SEGMENT_EVERYTHING
-  {
-    int i;
-    for (i=0;i<gasnetc_nodes;i++) {
-      gasnetc_seginfo[i].addr = (void *)0;
-      gasnetc_seginfo[i].size = (uintptr_t)-1;
-    }
-    segbase = (void *)0;
-    segsize = (uintptr_t)-1;
-  }
   #endif
 
-  #if !GASNET_SEGMENT_FAST
+  #if GASNETC_USE_FIREHOSE
   {
     struct gasnetc_fh_info {
       uintptr_t	memsize;
       size_t    regions;
     } my_info, *all_info;
     int i, reg_count;
-    firehose_region_t prereg[2];
+    firehose_region_t prereg[3];
 
     /* Get global min-of-max physical memory */
     all_info = gasneti_malloc(gasnetc_nodes * sizeof(*all_info));
@@ -970,13 +948,21 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     prereg[0].client.rkey   = gasnetc_snd_reg.rkey;
     reg_count = 1;
     if (gasnetc_nodes > 1) {
-	prereg[1].addr          = gasnetc_rcv_reg.addr;
-	prereg[1].len           = gasnetc_rcv_reg.len;
-	prereg[1].client.handle = VAPI_INVAL_HNDL;	/* unreg must fail */
-	prereg[1].client.lkey   = gasnetc_rcv_reg.lkey;
-	prereg[1].client.rkey   = gasnetc_rcv_reg.rkey;
-	reg_count = 2;
+	prereg[reg_count].addr          = gasnetc_rcv_reg.addr;
+	prereg[reg_count].len           = gasnetc_rcv_reg.len;
+	prereg[reg_count].client.handle = VAPI_INVAL_HNDL;	/* unreg must fail */
+	prereg[reg_count].client.lkey   = gasnetc_rcv_reg.lkey;
+	prereg[reg_count].client.rkey   = gasnetc_rcv_reg.rkey;
+	reg_count++;
     }
+    #if GASNETC_PIN_SEGMENT
+	prereg[reg_count].addr          = gasnetc_seg_reg.addr;
+	prereg[reg_count].len           = gasnetc_seg_reg.len;
+	prereg[reg_count].client.handle = VAPI_INVAL_HNDL;	/* unreg must fail */
+	prereg[reg_count].client.lkey   = gasnetc_seg_reg.lkey;
+	prereg[reg_count].client.rkey   = gasnetc_seg_reg.rkey;
+	reg_count++;
+    #endif
 
     #if FIREHOSE_VAPI_USE_FMR
     {
@@ -1446,9 +1432,10 @@ static void gasnetc_exit_body(void) {
     }
     gasnetc_sndrcv_fini();
     if (gasneti_attach_done) {
-#if GASNET_SEGMENT_FAST
+#if GASNETC_PIN_SEGMENT
       gasnetc_unpin(&gasnetc_seg_reg);
-#else
+#endif
+#if GASNETC_USE_FIREHOSE
       firehose_fini();
 #endif
     }
