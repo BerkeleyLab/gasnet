@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/01 22:26:31 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2003/04/02 01:40:31 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,12 +103,16 @@ typedef enum {
 #define GASNETC_MSG_SRCIDX(flags)	((gasnet_node_t)((flags) >> 16))
 
 #define GASNETC_MSG_MED_OFFSET(nargs)	\
-	(offsetof(gasnetc_medmsg_t,args) + nargs + ((nargs & 0x1) ^ ((GASNETC_MEDIUM_HDRSZ>>2) & 0x1)))
+	(offsetof(gasnetc_medmsg_t,args) + 4 * (nargs + ((nargs & 0x1) ^ ((GASNETC_MEDIUM_HDRSZ>>2) & 0x1))))
 
 #define GASNETC_MSG_MED_DATA(msg, nargs) \
 	((void *)((uintptr_t)(msg) + GASNETC_MSG_MED_OFFSET(nargs)))
 
 /* ------------------------------------------------------------------------------------ */
+
+typedef void (*gasnetc_HandlerShort) (gasnet_token_t token, ...);
+typedef void (*gasnetc_HandlerMedium)(gasnet_token_t token, void *buf, size_t nbytes, ...);
+typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nbytes, ...);
 
 #define RUN_HANDLER_SHORT(phandlerfn, token, args, numargs) do {                       \
   assert(phandlerfn);                                                                   \
@@ -199,10 +203,12 @@ typedef struct {
 /* Description of a receive buffer */
 typedef struct {
   /* ### Need more here ? */
+  gasnetc_cep_t		*cep;
   VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
   VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
   uint32_t		flags;		/* filled in at recv time */
-  int			reply_sent;
+  int			replyIssued;
+  int			handlerRunning;
 } gasnetc_rcv_desc_t;
 
 /* Description of a send buffer */
@@ -233,6 +239,10 @@ extern void gasnetc_bootstrapConf(void);
 extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
+
+/* Recv routines in gasnet_core_rcv.c */
+extern void gasnetc_rcv_init(void);
+extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep);
 
 /* Send routines in gasnet_core_snd.c */
 extern void gasnetc_snd_init(void);
