@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/20 22:30:22 $
- * $Revision: 1.2.2.3 $
+ *     $Date: 2003/03/20 23:34:12 $
+ * $Revision: 1.2.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,16 +75,50 @@ static void gasnetc_check_config() {
    * and/or segment sizes */ 
 }
 
-static void gasnetc_bootstrapBarrier() {
-  #if GASNETC_BOOTSTRAP_MPI
-  {
-    int err;
+#if GASNETC_BOOTSTRAP_MPI
+static void gasnetc_bootstrapInit(int *argc, char ***argv) {
+  int err;
 
-    err = MPI_Barrier(MPI_COMM_WORLD);
-    assert(err == MPI_SUCCESS);
-  }
-  #endif /* GASNET_BOOTSTRAP_MPI */
+  err = MPI_Init(argc, argv);
+  assert(err == MPI_SUCCESS);
 }
+
+static void gasnetc_bootstrapFini(void) {
+  (void) MPI_Finalize();
+}
+
+static void gasnetc_bootstrapConf(void) {
+  int err, tmp;
+
+  err = MPI_Comm_rank(MPI_COMM_WORLD, &tmp);
+  assert(err == MPI_SUCCESS);
+  gasnetc_mynode = tmp;
+    
+  err = MPI_Comm_size(MPI_COMM_WORLD, &tmp);
+  assert(err == MPI_SUCCESS);
+  gasnetc_nodes = tmp;
+}
+
+static void gasnetc_bootstrapBarrier(void) {
+  int err;
+
+  err = MPI_Barrier(MPI_COMM_WORLD);
+  assert(err == MPI_SUCCESS);
+}
+
+static void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest) {
+  int err;
+
+  err = MPI_Alltoall(src, len, MPI_CHAR, dest, len, MPI_CHAR, MPI_COMM_WORLD);
+  assert(err == MPI_SUCCESS);
+}
+#else
+extern void gasnetc_bootstrapInit(int *argc, char ***argv);
+extern void gasnetc_bootstrapFini(void);
+extern void gasnetc_bootstrapConf(void);
+extern void gasnetc_bootstrapBarrier(void);
+extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
+#endif
 
 static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_addr_t	*local_addr;
@@ -108,23 +142,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
 
+  /* Initialize the bootstrapping support */
+  gasnetc_bootstrapInit(argc, argv);
+
   /* Determine number of nodes and my own node number */
-  #if GASNETC_BOOTSTRAP_MPI
-  {
-    int err, tmp;
-
-    err = MPI_Init(argc, argv);
-    assert(err == MPI_SUCCESS);
-
-    err = MPI_Comm_rank(MPI_COMM_WORLD, &tmp);
-    assert(err == MPI_SUCCESS);
-    gasnetc_mynode = tmp;
-    
-    err = MPI_Comm_size(MPI_COMM_WORLD, &tmp);
-    assert(err == MPI_SUCCESS);
-    gasnetc_nodes = tmp;
-  }
-  #endif /* GASNETC_BOOTSTRAP_MPI */
+  gasnetc_bootstrapConf();
     
   /* allocate arrays */
   gasnetc_cep = calloc(gasnetc_nodes, sizeof(gasnetc_cep_t));
@@ -216,26 +238,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
   /* exchange endpoint info for connecting */
-  #if GASNETC_BOOTSTRAP_MPI
-  {
-    /* XXX: this ordering is simple to write, but serializes on node 0 */
-    for (i = 0; i < gasnetc_nodes; ++i) {
-      if (i == gasnetc_mynode) {
-	remote_addr[i] = local_addr[i];
-      } else if (i < gasnetc_mynode) {
-	MPI_Send(&local_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR,
-		 i, 1234, MPI_COMM_WORLD);
-	MPI_Recv(&remote_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR,
-		 i, 1234, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      } else {
-	MPI_Recv(&remote_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR, i,
-		 1234, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-	MPI_Send(&local_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR, i,
-		 1234, MPI_COMM_WORLD);
-      }
-    }
-  }
-  #endif /* GASNETC_BOOTSTRAP_MPI */
+  gasnetc_bootstrapAlltoall(local_addr, sizeof(gasnetc_addr_t), remote_addr);
 
   /* connect the endpoints */
   {
@@ -539,14 +542,7 @@ extern void gasnetc_exit(int exitcode) {
   /* XXX: should force termination and same exitcode from all nodes? */
   gasneti_trace_finish();
 
-  #if GASNETC_BOOTSTRAP_MPI
-  {
-    int err;
-
-    err = MPI_Finalize();
-    assert(err == MPI_SUCCESS);
-  }
-  #endif /* GASNETC_BOOTSTRAP_MPI */
+  gasnetc_bootstrapFini();
 
   exit(exitcode);	
   abort();
