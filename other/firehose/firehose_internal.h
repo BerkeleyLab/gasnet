@@ -215,9 +215,6 @@ struct _fh_hash_t;
 typedef struct _fh_hash_t fh_hash_t;
 
 extern fh_hash_t	*fh_BucketTable;
-#ifdef FIREHOSE_REGION
-extern fh_hash_t	*fh_RegionTable;
-#endif
 
 fh_hash_t *	fh_hash_create(size_t entries);
 void		fh_hash_destroy(fh_hash_t *hash);
@@ -258,14 +255,81 @@ struct name {				\
 }
 #define FH_STAILQ_HEAD(name,type)	FH_TAILQ_HEAD
 
-/* Create a fh_fifoq_t type for local and remote fifos */
+/* QUEUE functions (based on the BSD TAILQ and STAILQ macros of
+ * /usr/include/sys/queue.h) */
+#define FH_TAILQ_FIRST(head)	((head)->fh_tqh_first)
+#define FH_TAILQ_LAST(head)	((head)->fh_tqh_last)
+#define FH_TAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
+#define FH_TAILQ_NEXT(elem)	((elem)->fh_tqe_next)
+#define FH_TAILQ_PREV(elem)	((elem)->fh_tqe_prev)
+
+#define FH_STAILQ_FIRST(head)	((head)->fh_tqh_first)
+#define FH_STAILQ_LAST(head)	((head)->fh_tqh_last)
+#define FH_STAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
+#define FH_STAILQ_NEXT(elem)	((elem)->fh_tqe_next)
+
+/* Doubles/single list initialization */
+#define FH_STAILQ_HEAD_INITIALIZER(head)  { NULL, &(head).fh_tqh_first }
+#define FH_TAILQ_HEAD_INITIALIZER(head)   { NULL, &(head).fh_tqh_first }
+
+#define FH_TAILQ_INIT(head)	do {				\
+	FH_TAILQ_FIRST((head)) = NULL;				\
+	FH_TAILQ_LAST(head) = &FH_TAILQ_FIRST((head));		\
+} while (0)
+#define FH_STAILQ_INIT(head)	FH_TAILQ_INIT(head)
+
+/* Double/singe list tail addition */
+#define FH_TAILQ_INSERT_TAIL(head, elem) do {				\
+	FH_TAILQ_NEXT(elem) = NULL;					\
+	FH_TAILQ_PREV(elem) = FH_TAILQ_LAST(head);			\
+	*(FH_TAILQ_LAST(head)) = (elem);				\
+	FH_TAILQ_LAST(head) = &FH_TAILQ_NEXT(elem);			\
+} while (0)
+#define	FH_STAILQ_INSERT_TAIL(head, elem) do {				\
+	FH_STAILQ_NEXT(elem) = NULL;					\
+	*(FH_STAILQ_LAST(head)) = (elem);				\
+	FH_STAILQ_LAST(head) = &FH_STAILQ_NEXT(elem);			\
+} while (0)
+
+#define FH_STAILQ_MERGE(head1, head2) do {				\
+	*(FH_STAILQ_LAST(head1)) = FH_STAILQ_FIRST(head2);		\
+	FH_STAILQ_LAST(head1) = FH_STAILQ_LAST(head2);			\
+} while (0)
+
+/* Double remove anywhere in the list */
+#define FH_TAILQ_REMOVE(head, elem) do {				\
+	if (FH_TAILQ_NEXT(elem) != NULL)				\
+		FH_TAILQ_PREV(FH_TAILQ_NEXT(elem)) = 			\
+			FH_TAILQ_PREV(elem);				\
+	else								\
+		FH_TAILQ_LAST(head) = FH_TAILQ_PREV(elem);		\
+	*(FH_TAILQ_PREV(elem)) = FH_TAILQ_NEXT(elem);			\
+} while (0)
+
+/* Single remove from head only */
+#define	FH_STAILQ_REMOVE_HEAD(head) do {				\
+	if ((FH_STAILQ_FIRST((head)) =					\
+	     FH_STAILQ_NEXT(FH_STAILQ_FIRST((head)))) == NULL)		\
+		FH_STAILQ_LAST(head) = &FH_STAILQ_FIRST(head);		\
+} while (0)
+
+/* Double/single foreach over the list */
+#define FH_TAILQ_FOREACH(head, var)					\
+	for ((var) = FH_TAILQ_FIRST(head); (var) != NULL;		\
+	     (var) = FH_TAILQ_NEXT(var))
+#define FH_STAILQ_FOREACH(head, var)					\
+	for ((var) = FH_STAILQ_FIRST(head); (var) != NULL;		\
+	     (var) = FH_STAILQ_NEXT(var))
+
+/* ##################################################################### */
+/* Firehose/Bucket FIFOs and Callback Polling queues                     */
+/* ##################################################################### */
 FH_TAILQ_HEAD(_fh_fifoq_t, _firehose_private_t);
 typedef struct _fh_fifoq_t	fh_fifoq_t;
 
-/* Create a fh_pollq_t type to hold firehose callbacks queued 
- * from within an AM Reply handler */
 FH_TAILQ_HEAD(_fh_pollq_t, _fh_callback_t);
 typedef struct _fh_pollq_t	fh_pollq_t;
+
 
 /* There is also a pollqueue which is drained by firehose_poll */
 #ifndef FH_POLL_NOOP
@@ -327,74 +391,6 @@ fh_completion_callback_t;
 fh_completion_callback_t *	fh_alloc_completion_callback();
 void	fh_free_completion_callback(fh_completion_callback_t *rc);
 
-
-/* QUEUE functions (based on the BSD TAILQ and STAILQ macros of
- * /usr/include/sys/queue.h) */
-#define FH_TAILQ_FIRST(head)	((head)->fh_tqh_first)
-#define FH_TAILQ_LAST(head)	((head)->fh_tqh_last)
-#define FH_TAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
-#define FH_TAILQ_NEXT(elem)	((elem)->fh_tqe_next)
-#define FH_TAILQ_PREV(elem)	((elem)->fh_tqe_prev)
-
-#define FH_STAILQ_FIRST(head)	((head)->fh_tqh_first)
-#define FH_STAILQ_LAST(head)	((head)->fh_tqh_last)
-#define FH_STAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
-#define FH_STAILQ_NEXT(elem)	((elem)->fh_tqe_next)
-
-/* Doubles/single list initialization */
-#define FH_STAILQ_HEAD_INITIALIZER(head)  { NULL, &(head).fh_tqh_first }
-#define FH_TAILQ_HEAD_INITIALIZER(head)   { NULL, &(head).fh_tqh_first }
-
-#define FH_TAILQ_INIT(head)	do {				\
-	FH_TAILQ_FIRST((head)) = NULL;				\
-	FH_TAILQ_LAST(head) = &FH_TAILQ_FIRST((head));		\
-} while (0)
-#define FH_STAILQ_INIT(head)	FH_TAILQ_INIT(head)
-
-/* Double/singe list tail addition */
-#define FH_TAILQ_INSERT_TAIL(head, elem) do {				\
-	FH_TAILQ_NEXT(elem) = NULL;					\
-	FH_TAILQ_PREV(elem) = FH_TAILQ_LAST(head);			\
-	*(FH_TAILQ_LAST(head)) = (elem);				\
-	FH_TAILQ_LAST(head) = &FH_TAILQ_NEXT(elem);			\
-} while (0)
-#define	FH_STAILQ_INSERT_TAIL(head, elem) do {				\
-	FH_STAILQ_NEXT(elem) = NULL;					\
-	*(FH_STAILQ_LAST(head)) = (elem);				\
-	FH_STAILQ_LAST(head) = &FH_STAILQ_NEXT(elem);			\
-} while (0)
-
-#define FH_STAILQ_MERGE(head1, head2) do {				\
-	*(FH_STAILQ_LAST(head1)) = FH_STAILQ_FIRST(head2);		\
-	FH_STAILQ_LAST(head1) = FH_STAILQ_LAST(head2);			\
-} while (0)
-
-
-/* Double remove anywhere in the list */
-#define FH_TAILQ_REMOVE(head, elem) do {				\
-	if (FH_TAILQ_NEXT(elem) != NULL)				\
-		FH_TAILQ_PREV(FH_TAILQ_NEXT(elem)) = 			\
-			FH_TAILQ_PREV(elem);				\
-	else								\
-		FH_TAILQ_LAST(head) = FH_TAILQ_PREV(elem);		\
-	*(FH_TAILQ_PREV(elem)) = FH_TAILQ_NEXT(elem);			\
-} while (0)
-
-/* Single remove from head only */
-#define	FH_STAILQ_REMOVE_HEAD(head) do {				\
-	if ((FH_STAILQ_FIRST((head)) =					\
-	     FH_STAILQ_NEXT(FH_STAILQ_FIRST((head)))) == NULL)		\
-		FH_STAILQ_LAST(head) = &FH_STAILQ_FIRST(head);		\
-} while (0)
-
-/* Double/single foreach over the list */
-#define FH_TAILQ_FOREACH(head, var)					\
-	for ((var) = FH_TAILQ_FIRST(head); (var) != NULL;		\
-	     (var) = FH_TAILQ_NEXT(var))
-#define FH_STAILQ_FOREACH(head, var)					\
-	for ((var) = FH_STAILQ_FIRST(head); (var) != NULL;		\
-	     (var) = FH_STAILQ_NEXT(var))
-		
 /* ##################################################################### */
 /* Firehose internal pinning functions                                   */
 /* ##################################################################### */

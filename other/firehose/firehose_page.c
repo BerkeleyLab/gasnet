@@ -687,8 +687,8 @@ fhi_AdjustLocalFifoAndPin(gasnet_node_t node, fhi_RegionPool_t *rpool_pin)
 		FH_TABLE_UNLOCK;
 		firehose_move_callback(node, rpool->regions, rpool->regions_num,
 				reg_pin, pin_num);
-
 		FH_TABLE_LOCK;
+
 		fhi_FreeRegionPool(rpool);
 	}
 	else if (pin_num > 0) {
@@ -1416,26 +1416,17 @@ fh_acquire_remote_region(gasnet_node_t node, firehose_region_t *reg,
 
 		fhc_RemoteBucketsUsed[node] += (notpinned - replace_b);
 
+		FH_TABLE_UNLOCK;
+
 		if (args_len > 0)
 			memcpy(reg_alloc_old + old_r, args, 
 				sizeof(firehose_remotecallback_args_t));
+
 
 		#ifdef FIREHOSE_UNBIND_CALLBACK
 		if (old_r > 0)
 			firehose_unbind_callback(node, reg_alloc_old, old_r);
 		#endif
-
-		/* Before sending it off, make sure a fh_completion_callback_t
-		 * has been allocated.  This happens only when the request does
-		 * not rely on any buckets in a "pending state" */
-		if (!(req->flags & FH_FLAG_PENDING)) {
-			fh_completion_callback_t *ccba = 
-			    fh_alloc_completion_callback();
-			ccba->fh_tqe_next = NULL;
-			memcpy(ccba, &ccb, sizeof(fh_completion_callback_t));
-			req->internal = (firehose_private_t *) ccba;
-		}
-		FH_TABLE_UNLOCK;
 
                 MEDIUM_REQ(5, 6, 
                    (node, fh_handleridx(fh_am_move_reqh),
@@ -1480,6 +1471,7 @@ fh_release_remote_region(firehose_request_t *request)
 	FH_FOREACH_BUCKET_REV(request->addr, end_addr, bucket_addr) {
 		bd = fh_bucket_lookup(request->node, bucket_addr);
 		assert(bd != NULL);
+		assert(!FH_IS_REMOTE_PENDING(bd));
 
 		fh_bucket_release(request->node, bd);
 	}
@@ -1632,24 +1624,6 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 	 */
 
 	FH_TABLE_LOCK;
-#if 0
-	ccb = (fh_completion_callback_t *) req->internal;
-
-	if (!(req->flags & FH_FLAG_PENDING)) {
-		/* Set Pending bit to mark for completion deallocation */
-		req->flags |= FH_FLAG_PENDING;
-
-		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
-		ccb->callback(ccb->context, ccb->request, 0);
-		#else
-
-		FH_POLLQ_LOCK;
-		FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, 
-				      (fh_callback_t *) ccb);
-		FH_POLLQ_UNLOCK;
-		#endif
-	}
-#endif
 	/* We have some pending requests, so process them and return with a
 	 * linked list of reqpends. */
 	numpend = 
