@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/16 05:59:51 $
- * $Revision: 1.2.2.31 $
+ *     $Date: 2003/04/16 06:30:31 $
+ * $Revision: 1.2.2.32 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -769,9 +769,8 @@ extern int gasnetc_AMPoll() {
   int retval;
   GASNETC_CHECKATTACH();
 
-  #if 0
-    gasnetc_snd_poll(); /* doing this hear makes barrier progress VERY slow */
-  #endif
+  gasnetc_rcv_poll();
+  gasnetc_snd_poll();
 
   return GASNET_OK;
 }
