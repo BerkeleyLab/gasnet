@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/06/29 02:33:04 $
- * $Revision: 1.11 $
+ *     $Date: 2003/08/04 11:06:51 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -13,6 +13,7 @@
 #include <gasnet.h>
 #include <gasnet_handler.h>
 #include <gasnet_internal.h>
+#include <firehose.h>
 
 /* ------------------------------------------------------------------------------------ */
 /*  reasonable upper-bound on L2 cache line size (don't make this too big) */
@@ -52,12 +53,20 @@ typedef struct _gasnete_eop_t {
 	uint8_t		flags;	/*  state flags */
 
 	gasnete_threadidx_t	threadidx;  /*  thread that owns me */
+
+	const firehose_request_t	*req_local;
+	const firehose_request_t	req_remote;
+
+	/* XXX to be removed.
 	gasnet_node_t		node;
+	*/
 	uintptr_t		dest;
 	uintptr_t		src;
 	uint32_t		len;
+
 	struct _gasnete_iop_t	*iop;
 	struct _gasnete_eop_t	*next;		/* when used in FIFO */
+
 	#ifdef GASNETC_FIREHOSE_TRACE
 	gasnetc_fh_stats_t	fh_stats;
 	gasneti_stattime_t	starttime;

@@ -97,7 +97,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * HPUX/PA-RISC/gcc/32: smp, #
  
-    * Solaris/SPARC/gcc,SunProC/32: smp, mpi
+    * Solaris/SPARC/gcc,SunProC/32,64: smp, mpi
     * Solaris/x86/gcc/32: smp, #
 
     * MSWindows-Cygwin/x86/gcc/32: smp, #

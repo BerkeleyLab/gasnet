@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2003/02/18 03:01:09 $
- * $Revision: 1.9 $
+ *     $Date: 2003/08/04 11:06:53 $
+ * $Revision: 1.9.10.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -195,15 +195,15 @@ int main(int argc, char **argv) {
     gasnet_get(&vals, partner, partnerseg, 300*sizeof(int));
 
     for (i=0; i < 100; i++) {
-      if (vals[i] != ((int)0x5555555555555555ull)) {
+      if (vals[i] != ((int)(unsigned long long)0x5555555555555555ull)) {
         MSG("*** ERROR - FAILED MEMSET TEST!!!");
         success = 0;
       }
-      if (vals[i+100] != ((int)0x6666666666666666ull)) {
+      if (vals[i+100] != ((int)(unsigned long long)0x6666666666666666ull)) {
         MSG("*** ERROR - FAILED MEMSET TEST!!!");
         success = 0;
       }
-      if (vals[i+200] != ((int)0x7777777777777777ull)) {
+      if (vals[i+200] != ((int)(unsigned long long)0x7777777777777777ull)) {
         MSG("*** ERROR - FAILED MEMSET TEST!!!");
         success = 0;
       }

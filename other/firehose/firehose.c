@@ -1,13 +1,10 @@
 #include <firehose.h>
 #include <firehose_internal.h>
 
-firehose_info_t	*fh_limits_info;
-
 /* ##################################################################### */
 /* PUBLIC FIREHOSE INTERFACE                                             */
 /* ##################################################################### */
-/*
- * firehose_init()
+/* firehose_init()
  * firehose_fini()
  *    
  * firehose_local_pin() 
@@ -25,34 +22,80 @@ firehose_info_t	*fh_limits_info;
  *     calls fh_release_local_region() or fh_release_remote_region()
  */
 
-extern const firehose_info_t *
-firehose_init(uintptr_t max_pinnable_memory, size_t max_regions)
+extern void
+firehose_init(uintptr_t max_pinnable_memory, size_t max_regions, 
+	      firehose_info_t *info)
 {
-	firehose_info_t	*info = (firehose_info_t *) 
-	    gasneti_malloc(sizeof(firehose_info_t));
+	int	i;
 
 	/* XXX to be completed */
+
 	/* initialize firehose and bucket tables */
 	/* set firehose maxima according to max_pinnable_memory/max_regions and
 	 * environement variables:
 	 *  - find firehose 'M' parameter
-	 *  - initialize the request_t freelist
-	 *  - initialize the array of per-node victims
-	 *  - initialize the array of per-node available firehoses
 	 */
 
-	fh_limits_info = info;
-	return fh_limits_info;
+	/* Allocate the per-node firehose FIFO queue */
+	fh_RemoteNodeFifo = (fh_fifoq_t *) 
+		gasneti_malloc(gasnet_nodes() * sizeof(fh_fifoq_t));
+	for (i = 0; i < gasnet_nodes(); i++) 
+		FH_TAILQ_INIT(&fh_RemoteNodeFifo[i]);
+
+	/* Initialize the local firehose FIFO queue */
+	FH_TAILQ_INIT(&fh_LocalFifo);
+
+	/* Initialize the Bucket table to 128k lists */
+	fh_BucketTable = fh_hash_create((1<<17));
+
+	#ifdef FIREHOSE_REGION
+	/* XXX ??? */
+	fh_RegionTable = fh_hash_create((1<<16));
+	#endif
+
+
+
+	/* hit the request_t freelist for first allocation */
+	(void) fh_request_new();
+
+	/* Initialize -page OR -region specific data. _MUST_ be the last thing
+	 * called before return */
+	fh_init_plugin(max_pinnable_memory, max_regions, info);
+	return;
 }
 
+/*
+ * XXX should call from gasnet_exit(), fatal or not
+ *
+ */
+static firehose_request_t	*fh_request_bufs[];
+static fh_bucket_t		*fh_buckets_bufs[];
 void
 firehose_fini()
 {
-	/* XXX to be completed */
-	/* - deallocate arrays of per-node victims, per-node firehoses,
-	 * request_t freelist.
+	int	i;
+	/* XXX to be completed 
 	 * - free the bucket and firehose tables
 	 */
+
+	/* Free the per-node firehose FIFO queues and counters */
+	gasneti_free(fh_RemoteNodeFifo);
+
+	/* Deallocate the arrays of request_t buffers used, if applicable */
+	for (i = 0; i < 256; i++) {
+		if (fh_request_bufs[i] == NULL)
+			break;
+		gasneti_free(fh_request_bufs[i]);
+	}
+
+	/* Deallocate the arrays of bucket buffers used, if applicable */
+	for (i = 0; i < 4096; i++) {
+		if (fh_buckets_bufs[i] == NULL)
+			break;
+		gasneti_free(fh_buckets_bufs[i]);
+	}
+
+	fh_fini_plugin();
 	return;
 }
 
@@ -62,67 +105,83 @@ firehose_fini()
  * for 'firehose_local_pin' and 'firehose_try_local_pin'
  */
 GASNET_INLINE_MODIFIER(fh_local_pin)
-extern firehose_request_t *
-fh_local_pin(uintptr_t addr, size_t nbytes)
+firehose_request_t *
+fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 {
-	firehose_request_t	*req;
 	firehose_region_t	region;
 
-	req = fh_request_new();
+	if (req == NULL) {
+		req = fh_request_new();
+		req->flags = FH_FLAG_FHREQ;
+	}
+	else
+		req->flags = 0;
 
-	req->node = node;
+	req->node = gasnet_mynode();
 	FH_FILL_REGION(&region, addr, nbytes);
 
+	FH_TABLE_LOCK;
 	req->internal =
 		fh_acquire_local_region(&region);
+
+	FH_TABLE_UNLOCK;
 
 	FH_COPY_REGION_TO_REQUEST(req, &region);
 
 	return req;
 }
 
-extern firehose_request_t *
-firehose_local_pin(uintptr_t addr, size_t nbytes)
+extern const firehose_request_t *
+firehose_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 {
-	firehose_request_t	*req;
-
 	FH_TABLE_LOCK;
-	req = fh_local_pin(addr, nbytes);
+	req = fh_local_pin(addr, nbytes, req);
 	FH_TABLE_UNLOCK;
 
 	return req;
 }
 
-extern firehose_request_t *
-firehose_try_local_pin(uintptr_t addr, size_t nbytes)
+extern const firehose_request_t *
+firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
 
 	FH_TABLE_LOCK;
+
+	addr = FH_ADDR_ALIGN(addr);
+	len  = FH_SIZE_LEN(addr,len);
 
 	if (fh_region_ispinned(gasnet_mynode(), addr, len) != NULL)
-		req = fh_local_pin(addr, nbytes);
+		req = fh_local_pin(addr, len, ureq);
 
 	FH_TABLE_UNLOCK;
 
 	return req;
 }
 
-extern firehose_request_t *
+extern const firehose_request_t *
 firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		    firehose_completed_fn_t callback, void *context,
-		    int return_if_pinned)
+		    int return_if_pinned, firehose_request_t *ureq) 
 {
-	firehose_request_t	*req = NULL;
 	firehose_private_t	*priv;
 	firehose_region_t	region;
+	firehose_request_t	*req = NULL;
 
 	FH_TABLE_LOCK;
-		priv = fh_acquire_remote_region(&region, callback, context);
+	priv = fh_acquire_remote_region(node, &region, callback, context);
 	FH_TABLE_UNLOCK;
 
 	if (priv != FH_REGION_UNPINNED) {
-		req = fh_request_new();
+		if (ureq == NULL) {
+			req = fh_request_new();
+			req->flags = FH_FLAG_FHREQ;
+		}
+		else {
+			req = ureq;
+			req->flags = 0;
+		}
+	
 		req->internal = priv;
 		req->node     = node;
 
@@ -140,8 +199,9 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	return req;
 }
 
-extern firehose_request_t *
-firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
+extern const firehose_request_t *
+firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
+			firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
 
@@ -150,7 +210,14 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
 	if (fh_region_ispinned(node, addr, len) != NULL) {
 		uintptr_t	bucket_addr, end_addr;
 
-		req = fh_request_new();
+		if (ureq == NULL) {
+			req = fh_request_new();
+			req->flags = FH_FLAG_FHREQ;
+		}
+		else {
+			req = ureq;
+			req->flags = 0;
+		}
 
 		req->node = node;
 		req->addr = FH_ADDR_ALIGN(addr);
@@ -167,10 +234,11 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
 }
 
 extern const firehose_request_t *
-firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len)
+firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
+			    firehose_request_t *ureq)
 {
 	/* Unimplemented, just use a try pin for now */
-	return firehose_try_remote_pin(node, addr, len);
+	return firehose_try_remote_pin(node, addr, len, ureq);
 }
 
 extern void
@@ -178,12 +246,19 @@ firehose_release(firehose_request_t **reqs, int numreqs)
 {
 	int			i;
 
+	FH_TABLE_LOCK;
+
 	for (i = 0; i < numreqs; i++) {
 		if (fhi_node(reqs[i]->internal) == gasnet_mynode()) 
 			fh_release_local_region(reqs[i]);
 		else
 			fh_release_remote_region(reqs[i]);
+
+		if (reqs[i]->flags & FH_FLAG_FHREQ)
+			fh_request_free(reqs[i]);
 	}
+
+	FH_TABLE_UNLOCK;
 
 	return;
 }
@@ -192,17 +267,72 @@ firehose_release(firehose_request_t **reqs, int numreqs)
 /* COMMON FIREHOSE INTERFACE                                             */
 /* ##################################################################### */
 
+/* Although clients can pass a pointer to a request_t, the alternative is to
+ * have the firehose library allocate a request_t and return it.  For the
+ * latter case, allocation is done using a freelist allocator and the internal
+ * pointer is used to link the request_t.
+ */
+#define FH_REQUEST_ALLOC_PERIDX	256
+static firehose_request_t	*fh_request_freehead = NULL;
+static int			 fh_request_bufidx = 0;
+static firehose_request_t	*fh_request_bufs[256] = { 0 };
+
 firehose_request_t *
 fh_request_new()
 {
-	/* XXX to be completed */
-	return NULL;
+	firehose_request_t	*req;
+
+	FH_TABLE_LOCK;
+
+	if (fh_request_freehead != NULL) {
+		req = fh_request_freehead;
+		fh_request_freehead = (firehose_request_t *) req->internal;
+	}
+	else {
+		firehose_request_t	*alloc;
+		int			 i;
+
+		if (fh_request_bufidx == 256)
+			gasneti_fatalerror("Firehose: Ran out "
+			    "of request handles (limit=%d)",
+			    FH_REQUEST_ALLOC_PERIDX*256);
+
+		alloc = (firehose_request_t *)
+			gasneti_malloc(FH_REQUEST_ALLOC_PERIDX*
+				       sizeof(firehose_request_t));
+
+		fh_request_bufs[fh_request_bufidx] = alloc;
+		fh_request_bufidx++;
+
+		memset(alloc, 0, FH_REQUEST_ALLOC_PERIDX*
+		       sizeof(firehose_request_t));
+
+		for (i = 1; i < FH_REQUEST_ALLOC_PERIDX-1; i++)
+			alloc[i].internal = (firehose_private_t *) &alloc[i+1];
+
+		alloc[i].internal = NULL;
+		req = &alloc[0];
+		fh_request_freehead = &alloc[1];
+	}
+
+	req->internal = NULL;
+	req->flags = 0;
+			    
+	FH_TABLE_UNLOCK;
+
+	return req;
 }
 
 void
-fh_request_free(firehose_request_t *)
+fh_request_free(firehose_request_t *req)
 {
-	/* XXX to be completed */
+	FH_TABLE_LOCK;
+
+	req->internal = (firehose_private_t *) fh_request_freehead;
+	fh_request_freehead = req;
+
+	FH_TABLE_UNLOCK;
+
 	return;
 }
 
@@ -243,82 +373,36 @@ fh_request_free(firehose_request_t *)
  *    fh_bucket_t.
  */
 
-	
 /* ##################################################################### */
-/* ACTIVE MESSAGES                                                       */ 
+/* Bucket (local and remote) operations (COMMON CODE)                    */
 /* ##################################################################### */
 
-GASNET_INLINE_MODIFIER(fh_am_move_reqh_inner)
+static fh_bucket_t	*fh_buckets_freehead = NULL;
+static int		 fh_buckets_bufidx = 0;
+static fh_bucket_t	*fh_buckets_bufs[4096] = { 0 };
+static int		 fh_buckets_per_alloc = 0;
+
 void
-fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
-		      size_t nbytes,
-		      gasnet_handlerarg_t new_num,
-		      gasnet_handlerarg_t old_num,
-		      void *callback,
-		      void *context)
+fh_bucket_init_freelist(int max_buckets_pinned)
 {
-	firehose_region_t	*new_regions = (firehose_region_t *) addr;
-	firehose_region_t	*old_regions = 
-				    (firehose_region_t *) addr + new_num;
+	/* XXX this should probably be further aligned. . */
+	fh_buckets_per_alloc = (int) (max_buckets_pinned + (4096-1)) / 4096;
+	fh_buckets_freehead = NULL; 
 
-	gasneti_stattime_t      movetime = GASNETI_STATTIME_NOW_IFENABLED(C);
-	gasneti_stattime_t      unpintime;
-	gasnet_node_t		node;
-	int			i;
-
-	assert(new_regions > 0);
-
-	gasnet_AMGetMsgSource(token, &node);
-
-	FH_TABLE_LOCK;
-
-	/* First take care of old regions, and have the client unpin only old
-	 * regions.
-	 */
-
-
-	/*
-	 * The algorithm for acquiring a new region is the following:
-	 *   Loop over the array of new regions
-	 *      Acquire the region (page)
-	 *
-	 *      If the region is _not_ currently pinned
-	 *         copy the region in the "to_be_pinned" array.
-	 *         XXX In page, we also see if the previous region in the
-	 *             "to_be_pinned" array is contiguous in order to
-	 *             coalesce the pin call.
-	 *         XXX In region, we first try to see if a superset of the
-	 *             requested region can be found to match the reqeusted pin
-	 *             region prior to copying the requested region into the
-	 *             "to_be_pinned" array.
-	 *      Else
-	 *         Simply increment the reference count.
-	 *
-	 *   3. Call firehose_move_callback if there is at least one element in
-	 *      the "to_be_unpinned" and "to_be_pinned" arrays.
-	 */
-	for (i = 0; i < old_num; i++) {
-	
-
-
-	firehose_move_callback(node, &regions[new_regions], old_regions,
-				     &regions[0], new_regions);
-
-	/* Now update the reference counts on all */
+	return;
 }
 
-/* ##################################################################### */
-/* Bucket (local and remote) operations (COMMON)                         */
-/* ##################################################################### */
 fh_bucket_t *
 fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
 {
 	fh_bucket_t *entry;
 
+	FH_TABLE_ASSERT_LOCKED;
+
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
 
 	entry = (fh_bucket_t *)
-		fh_hash_find(fhi_key_make(bucket_addr, node));
+		fh_hash_find(fh_BucketTable, fhi_key_make(bucket_addr, node));
 
 	return entry;
 }
@@ -328,13 +412,43 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 {
 	fh_bucket_t	*entry;
 
+	FH_TABLE_ASSERT_LOCKED;
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
 
 	/* allocate a new bucket for the table */
-	fh_freelist_alloc(fh_bucket_t, fh_fifo_next, entry);
+	if (fh_buckets_freehead != NULL) {
+		entry = fh_buckets_freehead;
+		fh_buckets_freehead = entry->fh_next;
+	}
+	else {
+		fh_bucket_t	*alloc;
+		int		 i;
+
+		if (fh_buckets_bufidx == 4096)
+			gasneti_fatalerror("Firehose: Ran out of "
+				"hash entries (limit=%d)",
+				4096*fh_buckets_per_alloc);
+
+		alloc = (fh_bucket_t *) 
+			gasneti_malloc(fh_buckets_per_alloc*
+				       sizeof(fh_bucket_t *));
+
+		memset(alloc, 0, fh_buckets_per_alloc*sizeof(fh_bucket_t *));
+
+		fh_buckets_bufs[fh_buckets_bufidx] = alloc;
+		fh_buckets_bufidx++;
+
+		for (i = 1; i < fh_buckets_per_alloc-1; i++)
+			alloc[i].fh_next = &alloc[i+1];
+
+		alloc[i].fh_next = NULL;
+		entry = &alloc[0];
+		entry->fh_next = NULL;
+
+		fh_buckets_freehead = &alloc[1];
+	}
 
 	entry->fh_key = fhi_key_make(bucket_addr, node);
-
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
 
 	return entry;
@@ -343,33 +457,52 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 void
 fh_bucket_remove(fh_bucket_t *entry)
 {
-	fh_bucket_t	*bucket = fh_hash_delete(fh_BucketTable, entry);
-	fh_freelist_free(bucket);
+	fh_bucket_t *bucket;
+
+	FH_TABLE_ASSERT_LOCKED;
+	bucket = fh_hash_insert(fh_BucketTable, entry->fh_key, NULL);
+	bucket->fh_next = fh_buckets_freehead;
+	fh_buckets_freehead = bucket;
 }
 
-int
-fh_bucket_refcount(fh_bucket_t *entry)
+/* 
+ * fh_getenv()
+ *
+ * Firehose environement variables are units given 
+ *
+ * Recognizes modifiers [Mm][Kk][Gg] in numbers 
+ */ 
+unsigned long
+fh_getenv(const char *var, unsigned long multiplier)
 {
-	if (entry->fh_fifo_next != NULL)
-		return 0;
-	else
-		return entry->_fr_union.refcount;
-}
+        char	*env;
+        char	numbuf[32], c;
+        int	i;
+        double	num;
 
-int
-fh_bucket_release(fh_bucket_t *entry)
-{
-	/* make sure the refcount is _not_ 0 */
-	assert(fh_bucket_refcount(entry) > 0);
-	return --(entry->_fr_union.refcount);
-}
+        env = gasnet_getenv(var);
 
-int
-fh_bucket_acquire(fh_bucket_t *entry)
-{
-	/* make sure the bucket is _not_ in the fifo */
-	assert(!fh_bucket_infifo(entry));
-	return ++(entry->_fr_union.refcount);
-}
+        if (env == NULL || *env == '\0')
+                return 0;
 
+        memset(numbuf, '\0', 32);
+        for (i = 0; i < strlen(env) && i < 32; i++) {
+                c = env[i];
+                if ((c >= '0' && c <= '9') || c == '.')
+                        numbuf[i] = c;
+                else {  
+                        if (c == 'M' || c == 'm')
+                                multiplier = 1U<<20;
+                        else if (c == 'G' || c == 'g')
+                                multiplier = 1U<<30;
+                        else if (c == 'K' || c == 'k')
+                                multiplier = 1U<<10;
+                        break;
+                }
+        }
+        num = atof(numbuf);
+        num *= multiplier;
+
+        return (unsigned long) num;
+}
 

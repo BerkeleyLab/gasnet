@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.20 2003/01/07 17:30:36 csbell Exp $
- * $Date: 2003/01/07 17:30:36 $
- * $Revision: 1.20 $
+/* $Id: gasnet_core_help.h,v 1.20.10.1 2003/08/04 11:06:51 csbell Exp $
+ * $Date: 2003/08/04 11:06:51 $
+ * $Revision: 1.20.10.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -27,26 +27,22 @@ typedef void (*gasnetc_HandlerMedium)(void *token, void *buf, int nbytes, ...);
 typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 /* -------------------------------------------------------------------------- */
-/* A few more obscore configurable parameters.  Don't modify these unless you
- * know what you're doing */
+/* A few more obscore configurable parameters.                                */
 /* RROBIN_BUFFERS controls the priority (weighting) for giving buffers
  * back either to the AMRequest receive queue or Send Pool
  * Setting it to 3 means give priority to Send Pool once out of three
  * Setting it to 1 or 0 disables any priority: buffers will always be 
  * given back to the receive queue if replies were sent */
 #define GASNETC_RROBIN_BUFFERS	1
-/* MMAP_INITIAL_SIZE controls the desired size to kick off the binary
- * search for valid mmaps
- * MMAP_GRANULARITY controls the binary search for possible mmap
- * sizes for maxlocal and maxglobal
- * MMAP_DEBUG_VERBOSE traces the binary search mmap algorithm if set
- * to > 0
- */
-#define GASNETC_MMAP_GRANULARITY	(4<<20)
-#define GASNETC_MMAP_INITIAL_SIZE	(2<<30)
-#define GASNETC_MMAP_DEBUG_VERBOSE	0
 #define GASNETC_GM_MAXPORTS	8
 #define GASNETC_GM_MAXBOARDS	3
+
+/* Puts changed to gm_put in the GM 2.x API revision */
+#ifdef GASNETC_GM_2
+#define GASNETC_GM_PUT	gm_put
+#else
+#define GASNETC_GM_PUT	gm_directed_send_with_callback
+#endif
 
 /* -------------------------------------------------------------------------- */
 /* These should not be modified */
@@ -79,34 +75,6 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 #define GASNETC_AM_MAX_ARGS	16
 #define GASNETC_AM_MAX_HANDLERS 256
-
-/* CRUST macros for Turkey Sandwich Algorithm */
-/* Actual requests for moving the Crust may return various values
- * CRUST_OK                 local node could register enough memory to satisfy
- *                          request
- *
- * CRUST_SEGMENT_PINNNED    allows the client to ignore crust requests and limit
- *                          puts/gets to a boundscheck in the segment since all
- *                          the segment is pinned.
- *
- * CRUST_CANT_PIN           allows the client to flag a node as unable to satisfy
- *                          further requests for more pinned memory.  From then
- *                          on, all messaging should use the core API if
- *                          puts/gets are in the turkey.
- *
- * CRUST_EXCEEDED_THRESHOLD means the current request to pin memory was too
- *                          large for the algorithm's notion of reasonable
- *                          pinned size.  The client will have to use AM to
- *                          satisfy the put/get but may still attempt further
- *                          crust move requests (unlike the irreversible
- *                          CRUST_CANT_PIN case).
- *
- */
-#define GASNETC_CRUST_OK		 0
-#define GASNETC_CRUST_SEGMENT_PINNED	 1
-#define GASNETC_CRUST_CANT_PIN		 2
-#define GASNETC_CRUST_EXCEEDED_THRESHOLD 3
-#define GASNETC_SEGMENT_ALL_PINNED	((uintptr_t)-1)
 
 #define GASNETC_AM_SHORT_ARGS_OFF	4
 #define GASNETC_AM_MEDIUM_ARGS_OFF	4
@@ -166,13 +134,6 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 #define GASNETC_ASSERT_AMLONG(buf, type, handler, args, req, len, src, dest) \
 	    GASNETC_ASSERT_AMMEDIUM(buf, type, handler, args, req, len,  src);
-
-#if 0
-	do {	GASNETC_ASSERT_AMMEDIUM(buf, type, handler, args, req, len,  \
-			                src);				     \
-		assert(dest != 0);					     \
-	} while (0)
-#endif
 
 /* -------------------------------------------------------------------------- */
 /* Debug, tracing */

@@ -116,14 +116,16 @@ some of the highlights and quirks. .
 	GM 2.x
 	firehose_move_get_v2 (op):
 		if get hits firehose cache
+			local pin
 			rdma get
 			completion decrements/unpins destination
 		else
-			send AMRequest with list of new and replacement firehoses
-			at AMRequestH, pin/inc locally and send AMLongReplyAsync
-			at AMReplyH, update firehose table and 
-			    decrement/unpin locally
-	
+			send Firehose pin request
+			at callback, update table 
+			rdma get
+			decrement locally
+	***********************************************************************
+	GASNet Puts/Gets 
 	put_nb/put_nbi:
 		if < GASNETE_PUT_NON_BULK_CUTOFF
 			get a pinned AM buffer (or poll until one is obtained)

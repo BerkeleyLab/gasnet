@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.6 2003/07/10 23:58:08 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.6.2.1 2003/08/04 11:06:53 csbell Exp $
 # Description: Makefile for GASNet tests
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -34,6 +34,13 @@ distclean:
 testtools: force
 	@CC@ $(GASNET_INCLUDES) @GASNET_THREAD_DEFINES@ -DHAVE_PTHREAD_H -c -o $@.o $(srcdir)/$@.c
 	@CC@ -o $@ $@.o @GASNET_THREAD_LIBS@ @LIBS@ @LIBM@
+
+# testlogGP needs an external file w/ the delay function.
+testlogGP: force delay.o
+	$(GASNET_CC) -I$(srcdir) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) -c -o $@.o $(srcdir)/$@.c
+	$(GASNET_LD) $(GASNET_LDFLAGS) -o $@ $@.o delay.o $(GASNET_LIBS)
+delay.o: $(srcdir)/delay.c
+	$(GASNET_CC) -O0 -c -o $@ $(srcdir)/$*.c
 
 # This is a model for how GASNet clients should be built:
 test% : force

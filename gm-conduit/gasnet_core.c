@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.39 2003/06/11 04:45:31 bonachea Exp $
- * $Date: 2003/06/11 04:45:31 $
+/* $Id: gasnet_core.c,v 1.39.2.1 2003/08/04 11:06:51 csbell Exp $
+ * $Date: 2003/08/04 11:06:51 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -10,6 +10,7 @@
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
+#include <firehose.h>
 
 #include <errno.h>
 #include <unistd.h>
@@ -27,6 +28,7 @@ uintptr_t	gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t	gasnetc_MaxGlobalSegmentSize = 0;
 
 gasnet_seginfo_t *gasnetc_seginfo = NULL;
+firehose_info_t	  gasnetc_firehose_info;
 
 gasneti_mutex_t gasnetc_lock_gm = GASNETI_MUTEX_INITIALIZER;
 gasneti_mutex_t gasnetc_lock_reqpool = GASNETI_MUTEX_INITIALIZER;
@@ -225,7 +227,7 @@ extern int
 gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	       uintptr_t minheapoffset)
 {
-	int retval = GASNET_OK, i = 0;
+	int retval = GASNET_OK, i = 0, fidx = 0;
 
 	GASNETI_TRACE_PRINTF(C,
 	    ("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
@@ -295,6 +297,24 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			GASNETI_RETURN_ERRR(RESOURCE,
 			    "Error registering extended API handlers");
 	    	assert(e_numreg == e_len);
+		fidx = 64+er_len+e_len;
+	}
+	{ /* firehose handlers */
+		gasnet_handlerentry_t *ftable = firehose_get_handlertable();
+		int f_len = 0;
+		int f_numreg = 0;
+
+		assert(ftable);
+
+		while (ftable[f_len].fnptr)
+			f_len++;
+
+		assert(fidx + f_len <= 128);
+		if (gasnetc_reghandlers(ftable, f_len, fidx, 127, 0, &f_numreg)
+		    != GASNET_OK)
+			GASNETI_RETURN_ERRR(RESOURCE,
+			    "Error registering firehose handlers");
+		assert(f_numreg == r_len);
 	}
 
 	if (table) { /*  client handlers */
@@ -372,9 +392,8 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			global_physmem = MIN(global_physmem, global_exch[i]);
 
 		gasneti_free(global_exch);
-		gasnetc_rdma_init((uintptr_t) gasnetc_seginfo[gasnetc_mynode].addr,
-				  gasnetc_seginfo[gasnetc_mynode].size,
-				  global_physmem);
+
+		firehose_init(global_physmem, 0, &gasnetc_firehose_info);
 	}
 			
 	/* -------------------------------------------------------------------- */
@@ -440,7 +459,7 @@ gasnetc_exit(int exitcode)
 	if (gasnetc_init_done) {
   		gm_close(_gmc.port);
 		if (gasnetc_attach_done)
-			gasnetc_rdma_finalize();
+			firehose_fini();
 	}
 	gm_finalize();
 	_exit(exitcode);
@@ -576,7 +595,6 @@ extern int gasnetc_AMRequestMediumM(
     gasnetc_tokensend_AMRequest(bufd->sendbuf, len, 
 		  gasnetc_nodeid(dest), gasnetc_portid(dest),
 		  gasnetc_callback_lo_bufd, (void *)bufd, 0);
-    /* GASNETC_AMTRACE_RequestMedium(Send); */
   }
 
   va_end(argptr);
@@ -584,22 +602,30 @@ extern int gasnetc_AMRequestMediumM(
   else GASNETI_RETURN_ERR(RESOURCE);
 }
 
+/* 
+ * DMA_inner allows to DMA an AMLong when the local buffer isn't pinned and the
+ * remote buffer is
+ */
 GASNET_INLINE_MODIFIER(gasnetc_AMRequestLongM_DMA_inner)
 void
-gasnetc_AMRequestLongM_DMA_inner(gasnet_node_t dest, gasnet_handler_t handler,
-		void *source_addr, size_t nbytes, void *dest_addr, int numargs, 
-		va_list argptr)
+gasnetc_AMRequestLongM_DMA_inner(gasnet_node_t node, gasnet_handler_t handler,
+		void *source_addr, size_t nbytes, const firehose_request_t *req,
+		uintptr_t dest_addr, int numargs, va_list argptr)
 {
 	int	bytes_left = nbytes;
 	int	port, id, len;
 	uint8_t	*psrc, *pdest;
 	gasnetc_bufdesc_t	*bufd;
 
+	assert(nbytes > 0);
 	psrc  = (uint8_t *) source_addr;
 	pdest = (uint8_t *) dest_addr;
-	port  = gasnetc_portid(dest);
-	id    = gasnetc_nodeid(dest);
+	port  = gasnetc_portid(node);
+	id    = gasnetc_nodeid(node);
 
+	/* Until the remaining buffer size fits in a Long Buffer, get AM
+	 * buffers and DMA out of them.  This assumes the remote destination is
+	 * pinned and the local is not */
 	while (bytes_left >GASNETC_AM_LEN-GASNETC_LONG_OFFSET) {
 		bufd = gasnetc_AMRequestPool_block();
 		gasnetc_write_AMBufferBulk(bufd->sendbuf, 
@@ -611,15 +637,15 @@ gasnetc_AMRequestLongM_DMA_inner(gasnet_node_t dest, gasnet_handler_t handler,
 		pdest += GASNETC_AM_LEN;
 		bytes_left -= GASNETC_AM_LEN;
 	}
+	/* Write the header for the AM long buffer */
 	bufd = gasnetc_AMRequestPool_block();
-	bufd->dest_addr = (uintptr_t) dest_addr;
-	bufd->source_addr = 0;
-	bufd->rdma_len = nbytes; 
-	bufd->node = dest;
+	bufd->node = node;
 	len =
 	    gasnetc_write_AMBufferLong(bufd->sendbuf, 
 	        handler, numargs, argptr, nbytes, source_addr, 
 		(uintptr_t) dest_addr, GASNETC_AM_REQUEST);
+
+	/* If bytes are left, write them in the remainder of the AM buffer */
 	if (bytes_left > 0) {
 		gasnetc_write_AMBufferBulk(
 			(uint8_t *)bufd->sendbuf+GASNETC_LONG_OFFSET, 
@@ -629,10 +655,18 @@ gasnetc_AMRequestLongM_DMA_inner(gasnet_node_t dest, gasnet_handler_t handler,
 		    bytes_left, id, port, gasnetc_callback_lo, NULL,
 		    (uintptr_t) pdest);
 	}
+
+	/* Set the firehose request type in the last bufd, so it may be
+	 * released once the last AMRequest receives its reply */
+	bufd->remote_req = req;
 	gasnetc_tokensend_AMRequest(bufd->sendbuf, len, id, 
 	    port, gasnetc_callback_lo_bufd_rdma, (void *)bufd, 0);
 }
 
+/* When the local and remote regions are not pinned, AM buffers are used and
+ * Mediums are sent for the entire payload.  Once the payloads are sent, an
+ * AMLong header is sent (with no payload)
+ */
 GASNET_INLINE_MODIFIER(gasnetc_AMRequestLongM_inner)
 void
 gasnetc_AMRequestLongM_inner(gasnet_node_t dest, gasnet_handler_t handler,
@@ -651,6 +685,8 @@ gasnetc_AMRequestLongM_inner(gasnet_node_t dest, gasnet_handler_t handler,
 	port  = gasnetc_portid(dest);
 	id    = gasnetc_nodeid(dest);
 
+	/* If the length is greater than what we can fit in an AMLong buffer,
+	 * send AM Mediums until that threshold is reached */
 	while (bytes_left >GASNETC_AM_LEN-GASNETC_LONG_OFFSET) {
 		bufd = gasnetc_AMRequestPool_block();
 		GASNETC_ARGPTR(dest_addr_ptr, (uintptr_t) pdest);
@@ -686,7 +722,7 @@ gasnetc_AMRequestLongM_inner(gasnet_node_t dest, gasnet_handler_t handler,
 	return;
 }
 
-extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
+extern int gasnetc_AMRequestLongM( gasnet_node_t node,        /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -695,24 +731,23 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	int	retval;
 	va_list	argptr;
 
-	gasnetc_bufdesc_t	*bufd;
 	GASNETC_CHECKINIT();
   
-	gasnetc_boundscheck(dest, dest_addr, nbytes);
+	gasnetc_boundscheck(node, dest_addr, nbytes);
 	assert(nbytes <= gasnet_AMMaxLongRequest());
-	if_pf (dest >= gasnetc_nodes) 
+	if_pf (node >= gasnetc_nodes) 
 		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-	if_pf (((uintptr_t)dest_addr)< ((uintptr_t)gasnetc_seginfo[dest].addr) ||
+	if_pf (((uintptr_t)dest_addr)< ((uintptr_t)gasnetc_seginfo[node].addr) ||
 	    ((uintptr_t)dest_addr) + nbytes > 
-	        ((uintptr_t)gasnetc_seginfo[dest].addr) + gasnetc_seginfo[dest].size) 
+	        ((uintptr_t)gasnetc_seginfo[node].addr) + gasnetc_seginfo[node].size) 
          	GASNETI_RETURN_ERRR(BAD_ARG,"destination address out of segment range");
-	GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
+	GASNETI_TRACE_AMREQUESTLONG(node,handler,source_addr,nbytes,dest_addr,numargs);
 	va_start(argptr, numargs); /*  pass in last argument */
 
 	retval = 1;
 	assert(nbytes <= GASNETC_AM_LONG_REQUEST_MAX);
 
-	if (dest == gasnetc_mynode) {
+	if (node == gasnetc_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
 
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
@@ -723,17 +758,22 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	else {
 		/* XXX assert(GASNET_LONG_OFFSET >= LONG_HEADER) */
 		if_pt (nbytes > 0) { /* Handle zero-length messages */
-			if (gasnetc_is_pinned(dest, (uintptr_t) dest_addr, nbytes))
-				gasnetc_AMRequestLongM_DMA_inner(dest, handler, 
-				    source_addr, nbytes, dest_addr, numargs, 
-				    argptr);
-			else 
-				gasnetc_AMRequestLongM_inner(dest, handler, 
+			const firehose_request_t	*req;
+			
+			req = firehose_try_remote_pin(node, 
+				(uintptr_t) dest_addr, nbytes, NULL);
+
+			if (req != NULL)
+				gasnetc_AMRequestLongM_DMA_inner(node, handler, 
+				    source_addr, nbytes, req, 
+				    (uintptr_t) dest_addr, numargs, argptr);
+			else
+				gasnetc_AMRequestLongM_inner(node, handler, 
 				    source_addr, nbytes, dest_addr, numargs, 
 				    argptr);
 		}
 		else {
-			gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
+			gasnetc_AMRequestLongM_inner(node, handler, source_addr, 
 			    nbytes, dest_addr, numargs, argptr);
 		}
 	}
@@ -743,14 +783,18 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	else GASNETI_RETURN_ERR(RESOURCE);
 }
 
-extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
-                            void *source_addr, size_t nbytes,   /* data payload */
-                            void *dest_addr,                    /* data destination on destination node */
-                            int numargs, ...)
+extern int 
+gasnetc_AMRequestLongAsyncM( 
+	gasnet_node_t dest,        /* destination node */
+	gasnet_handler_t handler,  /* index to handler */
+	void *source_addr, size_t nbytes,   /* data payload */
+	void *dest_addr,           /* data destination on destination node */
+	int numargs, ...)
 {
 	int	retval;
 	va_list	argptr;
+
+	const firehose_request_t	*reql, *reqr;
 
 	gasnetc_bufdesc_t	*bufd;
 	GASNETC_CHECKINIT();
@@ -762,20 +806,32 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	if_pf (((uintptr_t)dest_addr)<((uintptr_t)gasnetc_seginfo[dest].addr) ||
 	    ((uintptr_t)dest_addr) + nbytes > 
 	        ((uintptr_t)gasnetc_seginfo[dest].addr)+gasnetc_seginfo[dest].size) 
-		GASNETI_RETURN_ERRR(BAD_ARG,"destination address out of segment range");
-	GASNETI_TRACE_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
+		GASNETI_RETURN_ERRR(BAD_ARG,
+		    "destination address out of segment range");
+
+	GASNETI_TRACE_AMREQUESTLONGASYNC(
+		dest,handler,source_addr,nbytes,dest_addr,numargs);
+
 	va_start(argptr, numargs); /*  pass in last argument */
 	retval = 1;
 
-	/* If remote address is not pinned, and Handle zero-length messages */
-	if (!gasnetc_is_pinned(dest, (uintptr_t) dest_addr, nbytes) || nbytes == 0)
+	/* If length is 0 or the remote local is not pinned, send using
+	 * AMMedium payloads */
+	if (nbytes == 0 || 
+	    !(reqr = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
+	    nbytes, NULL)))
 		gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
 		    nbytes, dest_addr, numargs, argptr);
-	/* If remote address is pinned, but local is not pinned */
-	else if (!gasnetc_is_pinned(gasnetc_mynode, (uintptr_t)source_addr, nbytes))
+
+	/* If we couldn't pin locally for free, use DMA method where we use AM
+	 * buffers and copy+RDMA payloads out of them */
+	else if (!(reql = 
+	     firehose_try_local_pin((uintptr_t) source_addr, nbytes, NULL)))
 		gasnetc_AMRequestLongM_DMA_inner(dest, handler, source_addr, 
-		    nbytes, dest_addr, numargs, argptr);
-	/* If remote and local address are pinned */
+		    nbytes, reqr, (uintptr_t) dest_addr, numargs, argptr);
+
+	/* If both local and remote locations are pinned, use RDMA and send a
+	 * header-only AMLong */
 	else {
 		uint16_t port, id;
 		int	 len;
@@ -787,14 +843,16 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 		    gasnetc_write_AMBufferLong(bufd->sendbuf, 
 		        handler, numargs, argptr, nbytes, source_addr, 
 			(uintptr_t) dest_addr, GASNETC_AM_REQUEST);
-		/* send the DMA first */
-		bufd->source_addr = (uintptr_t) source_addr;
-		bufd->dest_addr = (uintptr_t) dest_addr;
-		bufd->rdma_len = nbytes;
+
 		bufd->node = dest;
+		bufd->local_req = reql;
+		bufd->remote_req = reqr;
+
+		/* send the DMA first */
 		gasnetc_tokensend_AMRequest(source_addr, nbytes, id, 
 		    port, gasnetc_callback_lo_rdma, (void *) bufd, 
 		    (uintptr_t) dest_addr);
+
 		/* followed by the Long Header */
 		gasnetc_tokensend_AMRequest(bufd->sendbuf, len, id, 
 		    port, gasnetc_callback_lo_bufd, (void *)bufd, 0);
@@ -804,6 +862,141 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	if (retval) return GASNET_OK;
 	else GASNETI_RETURN_ERR(RESOURCE);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Replies */
+/* -------------------------------------------------------------------------- */
+void
+gasnetc_gm_send_bufd(gasnetc_bufdesc_t *bufd)
+{
+	uintptr_t			send_ptr;
+	uint32_t			len;
+	gm_send_completion_callback_t	callback;
+
+	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
+	assert(bufd != NULL);
+	assert(bufd->sendbuf != NULL);
+	assert(bufd->gm_id > 0);
+
+	if (GASNETC_BUFOPT_ISSET(bufd, GASNETC_FLAG_REPLY_PAYLOAD) &&
+	    (bufd->remote_req != NULL || 
+	     GASNETC_BUFOPT_ISSET(bufd, GASNETC_FLAG_REPLY_ASYNC))) {
+
+		assert(bufd->dest_addr > 0);
+		assert(bufd->payload_len > 0);
+
+		if (bufd->source_addr > 0)
+			send_ptr = bufd->source_addr;
+		else
+			send_ptr = (uintptr_t) 
+				   bufd->sendbuf + bufd->payload_off;
+
+		GASNETI_TRACE_PRINTF(C, ("gm_put (%d,%p <- %p,%d bytes)",
+		    bufd->node, (void *) bufd->dest_addr, (void *) send_ptr,
+		    bufd->payload_len));
+
+		if (GASNETC_BUFOPT_ISSET(bufd, GASNETC_FLAG_REPLY_ASYNC))
+			callback = gasnetc_callback_hi;
+		else
+			callback = gasnetc_callback_hi_rdma;
+
+		gm_directed_send_with_callback(_gmc.port, 
+		    (void *) send_ptr,
+		    (gm_remote_ptr_t) bufd->dest_addr,
+		    bufd->payload_len,
+		    GM_HIGH_PRIORITY,
+		    (uint32_t) bufd->gm_id,
+		    (uint32_t) bufd->gm_port,
+		    callback,
+		    (void *) bufd);
+	}
+	else {
+		if (GASNETC_BUFOPT_ISSET(bufd, 
+		    GASNETC_FLAG_REPLY_PAYLOAD)) {
+			callback = gasnetc_callback_hi;
+			len = bufd->payload_len;
+			send_ptr = 
+				(uintptr_t) bufd->sendbuf + 
+				(uintptr_t) bufd->payload_off;
+		}
+		else {
+			assert(GASNETC_BUFOPT_ISSET(bufd, 
+			       GASNETC_FLAG_REPLY_HEADER));
+			callback = gasnetc_callback_hi_bufd;
+			len = bufd->len;
+			send_ptr = (uintptr_t) bufd->sendbuf;
+		}
+
+		assert(GASNETC_AM_IS_REPLY(*((uint8_t *) bufd->sendbuf)));
+		assert(len <= GASNETC_AM_PACKET);
+		GASNETI_TRACE_PRINTF(C, ("gm_send (gm id %d <- %p,%d bytes)",
+		    (unsigned) bufd->gm_id, (void *) send_ptr, len));
+
+		gm_send_with_callback(_gmc.port, 
+			(void *) send_ptr,
+			GASNETC_AM_SIZE,
+			len,
+			GM_HIGH_PRIORITY,
+			(uint32_t) bufd->gm_id,
+			(uint32_t) bufd->gm_port,
+			callback,
+			(void *) bufd);
+	}
+	return;
+}
+
+int
+gasnetc_AMReplyLongTrySend(gasnetc_bufdesc_t *bufd)
+{
+	int	sends = 0;
+
+	gasneti_mutex_lock(&gasnetc_lock_gm);
+
+	if (gasnetc_token_hi_acquire()) {
+		/* First send the payload */
+		gasnetc_gm_send_bufd(bufd);
+		sends++;
+
+		if_pt (GASNETC_BUFOPT_ISSET(bufd, GASNETC_FLAG_REPLY_PAYLOAD)) {
+
+			/* If we can get the second token, send and
+			 * unset both header and payload bits */
+			if (gasnetc_token_hi_acquire()) {
+				gasnetc_gm_send_bufd(bufd);
+				sends++;
+
+				GASNETC_BUFOPT_UNSET(bufd,
+				    GASNETC_FLAG_REPLY_PAYLOAD | 
+				    GASNETC_FLAG_REPLY_HEADER);
+			}
+			/* If we can't get the second token, unset only
+			 * the payload bit and enqueue the header send
+			 */
+			else {
+				GASNETC_BUFOPT_UNSET(bufd,
+				    GASNETC_FLAG_REPLY_PAYLOAD);
+				gasnetc_fifo_insert(bufd);
+			}
+		}
+		/* If there was no payload, we are done sending only
+		 * the header */
+		else {
+			GASNETC_BUFOPT_UNSET(bufd,
+			    GASNETC_FLAG_REPLY_HEADER);
+		}
+	}
+
+	/* We couldn't get a send token, enqueue the whole bufd and
+	 * leave the flag bits as is */
+	else {
+		gasnetc_fifo_insert(bufd);
+	}
+
+	gasneti_mutex_unlock(&gasnetc_lock_gm);
+
+	return sends;
+}
+
 
 extern int gasnetc_AMReplyShortM( 
                             gasnet_token_t token,       /* token provided on handler entry */
@@ -829,10 +1022,8 @@ extern int gasnetc_AMReplyShortM(
   
     gasneti_mutex_lock(&gasnetc_lock_gm);
     if (gasnetc_token_hi_acquire()) {
-       /* GASNETC_AMTRACE_ReplyShort(Send); */
        gasnetc_gm_send_bufd(bufd);
     } else {
-       /* GASNETC_AMTRACE_ReplyShort(Queued); */
 	assert(bufd->gm_id > 0);
        gasnetc_fifo_insert(bufd);
     }
@@ -862,7 +1053,6 @@ extern int gasnetc_AMReplyMediumM(
     void *loopbuf;
     loopbuf = gasnetc_alloca(nbytes);
     memcpy(loopbuf, source_addr, nbytes);
-    /* GASNETC_AMTRACE_ReplyMedium(Loopbk); */
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
     GASNETC_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) token,
 				argbuf, numargs, loopbuf, nbytes);
@@ -876,10 +1066,8 @@ extern int gasnetc_AMReplyMediumM(
                     argptr, nbytes, source_addr, GASNETC_AM_REPLY);
     gasneti_mutex_lock(&gasnetc_lock_gm);
     if (gasnetc_token_hi_acquire()) {
-       /* GASNETC_AMTRACE_ReplyMedium(Send); */
        gasnetc_gm_send_bufd(bufd); 
     } else {
-       /* GASNETC_AMTRACE_ReplyMedium(Queued); */
 	assert(bufd->gm_id > 0);
        gasnetc_fifo_insert(bufd);
     }
@@ -929,9 +1117,17 @@ extern int gasnetc_AMReplyLongM(
 	else {
 		uintptr_t	pbuf;
 		unsigned int	len;
+
+		const firehose_request_t	*req;
 	
-    		bufd = gasnetc_bufdesc_from_token(token);
-		if (nbytes > 0 && gasnetc_is_pinned(dest, (uintptr_t) dest_addr, nbytes)) {
+    		bufd            = gasnetc_bufdesc_from_token(token);
+		bufd->dest_addr = (uintptr_t) dest_addr;
+		bufd->node      = dest;
+
+		if (nbytes > 0 &&
+		   (req = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
+	    	            nbytes, NULL)) != NULL) {
+
 			pbuf = (uintptr_t) bufd->sendbuf + 
 			    (uintptr_t) GASNETC_LONG_OFFSET;
 			len =
@@ -941,71 +1137,74 @@ extern int gasnetc_AMReplyLongM(
 			gasnetc_write_AMBufferBulk((void *)pbuf, source_addr, 
 			    nbytes);
 
-			bufd->node = dest;
 			bufd->len = len;
-			bufd->rdma_off = GASNETC_LONG_OFFSET; 
-			bufd->rdma_len = nbytes;
-			bufd->dest_addr = (uintptr_t) dest_addr;
-			bufd->source_addr = 0;
-				GASNETC_BUFDESC_OPT_SET(bufd, GASNETC_FLAG_DMA_SEND);
+			bufd->remote_req = req;
+			bufd->local_req = NULL;
+
+			bufd->payload_off = GASNETC_LONG_OFFSET;
+			bufd->payload_len = nbytes;
+
+			GASNETC_BUFOPT_SET(bufd, 
+			    GASNETC_FLAG_REPLY_PAYLOAD | 
+			    GASNETC_FLAG_REPLY_HEADER);
 		}
 		else {
 			int32_t	dest_addr_ptr[2];
-			int	long_len;
+			size_t	header_len;
 	
-			long_len =
+			/* The AMLong Reply doesn't use DMA */
+			bufd->remote_req = NULL;
+			bufd->local_req = NULL;
+
+			header_len = 
 			    gasnetc_write_AMBufferLong(bufd->sendbuf, 
 			        handler, numargs, argptr, nbytes, source_addr, 
 				(uintptr_t) dest_addr, GASNETC_AM_REPLY);
-			pbuf = (uintptr_t)bufd->sendbuf + (uintptr_t) long_len;
+			pbuf = (uintptr_t)bufd->sendbuf 
+				+ (uintptr_t) header_len;
 			GASNETC_ARGPTR(dest_addr_ptr, (uintptr_t) dest_addr);
+
 			if_pt (nbytes > 0) { /* Handle zero-length messages */
 				len = gasnetc_write_AMBufferMedium((void *)pbuf,
 				    gasneti_handleridx(gasnetc_am_medcopy), 
 				    GASNETC_ARGPTR_NUM, (va_list) dest_addr_ptr, 
 				    nbytes, (void *) source_addr, 
 				    GASNETC_AM_REPLY);
-				GASNETC_BUFDESC_OPT_SET(bufd, 
-				    GASNETC_FLAG_LONG_SEND);
-				bufd->rdma_off = long_len; 
-				bufd->rdma_len = len;
+
+				GASNETC_BUFOPT_SET(bufd, 
+				    GASNETC_FLAG_REPLY_PAYLOAD | 
+				    GASNETC_FLAG_REPLY_HEADER);
+
+				bufd->payload_off = header_len;
+				bufd->payload_len = len;
 			}
-			else {
-				bufd->rdma_off = 0; 
-				bufd->rdma_len = 0;
-			}
-			bufd->len = long_len;
-			bufd->dest_addr = 0;
-			bufd->source_addr = 0;
+			else
+				GASNETC_BUFOPT_SET(bufd, 
+				    GASNETC_FLAG_REPLY_HEADER);
+
+			bufd->len = header_len;
 		}
 
-		gasneti_mutex_lock(&gasnetc_lock_gm);
-		if (gasnetc_token_hi_acquire()) {
-			gasnetc_gm_send_bufd(bufd);
-
-			if_pt (GASNETC_BUFDESC_OPT_ISSET(bufd, /* True in cases where nbytes > 0 */
-			    GASNETC_FLAG_LONG_SEND | GASNETC_FLAG_DMA_SEND)) {
-
-				GASNETC_BUFDESC_OPT_UNSET(bufd, 
-				    GASNETC_FLAG_LONG_SEND | GASNETC_FLAG_DMA_SEND);
-
-				if (gasnetc_token_hi_acquire()) {
-					GASNETC_AMTRACE_ReplyLong(Send);
-					gasnetc_gm_send_bufd(bufd);
-				} 
-				else {
+		#ifndef TRACE
+		(void) gasnetc_AMReplyLongTrySend(bufd);
+		#else
+		{
+			int payload = GASNETC_BUFOPT_ISSET(bufd, 
+					GASNETC_FLAG_REPLY_PAYLOAD);
+			int sends = gasnetc_AMReplyLongTrySend(bufd);
+	
+			if (sends == 2)
+				GASNETC_AMTRACE_ReplyLong(Send);
+			else if (sends == 1) {
+				if (payload)
 					GASNETC_AMTRACE_ReplyLong(Queued);
-					gasnetc_fifo_insert(bufd);
-				}
+				else
+					GASNETC_AMTRACE_ReplyLong(Send);
 			}
-		} 
-		else {
-			GASNETC_AMTRACE_ReplyLong(Queued);
-			gasnetc_fifo_insert(bufd);
+			else
+				GASNETC_AMTRACE_ReplyLong(Queued);
 		}
-		gasneti_mutex_unlock(&gasnetc_lock_gm);
-		GASNETI_TRACE_PRINTF(C, ("after enqueue to token=%p, buf=%p %hd:%hd", 
-			    bufd, bufd->sendbuf, bufd->gm_id, bufd->gm_port));
+		#endif
 	}
 	va_end(argptr);
 	if (retval) return GASNET_OK;
@@ -1016,7 +1215,8 @@ extern int gasnetc_AMReplyLongM(
  * This is not officially part of the gasnet spec therefore not exported for the
  * user.  The extended API uses it in order to do directed sends followed by an
  * AMReply.  Therefore, there is no boundscheck of any sort.  The extended API
- * knows how/when to call this function.
+ * knows how/when to call this function and makes sure the source and
+ * destination regions are pinned.
  */
 int 
 gasnetc_AMReplyLongAsyncM( 
@@ -1041,48 +1241,666 @@ gasnetc_AMReplyLongAsyncM(
 	GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,
 	    numargs);
 	retval = 1;
+
 	bufd = gasnetc_bufdesc_from_token(token);
 	len =
 	    gasnetc_write_AMBufferLong(bufd->sendbuf, handler, numargs, argptr, 
 	        nbytes, source_addr, (uintptr_t) dest_addr, GASNETC_AM_REPLY);
+
 	bufd->len = len;
 	bufd->node = dest;
-	bufd->rdma_off = 0;
-	bufd->rdma_len = nbytes;
+	bufd->payload_off = 0;
+	bufd->payload_len = nbytes;
 	bufd->dest_addr = (uintptr_t) dest_addr;
 	bufd->source_addr = (uintptr_t) source_addr;
-	if_pt (bufd->rdma_len > 0) /* Handle zero-length messages */
-		GASNETC_BUFDESC_OPT_SET(bufd, 
-		    GASNETC_FLAG_EXTENDED_DMA_SEND | GASNETC_FLAG_DMA_SEND);
 
-	GASNETI_TRACE_PRINTF(C, ("AsyncReply has flags %d", bufd->flag));
-	gasneti_mutex_lock(&gasnetc_lock_gm);
-	if (gasnetc_token_hi_acquire()) {
-		GASNETI_TRACE_PRINTF(C, ("??? sent Reply Payload"));
-        	gasnetc_gm_send_bufd(bufd);
-		GASNETC_BUFDESC_OPT_UNSET(bufd, 
-		    GASNETC_FLAG_EXTENDED_DMA_SEND | GASNETC_FLAG_DMA_SEND);
-		bufd->dest_addr = 0;
-		if (gasnetc_token_hi_acquire()) {
-			GASNETC_AMTRACE_ReplyLong(Send);
-			gasnetc_gm_send_bufd(bufd);
-		} 
-		else {
-			GASNETC_AMTRACE_ReplyLong(Queued);
-			gasnetc_fifo_insert(bufd);
+	if_pf (nbytes > 0) {
+		/* Also manage loopback by simply copying to the local
+		 * destination */
+		if_pf (dest == gasnetc_mynode) {
+			GASNETE_FAST_ALIGNED_MEMCPY(
+			    dest_addr, source_addr, nbytes);
+			GASNETC_BUFOPT_SET(bufd, GASNETC_FLAG_REPLY_HEADER);
 		}
-	} 
-	else {
-		GASNETC_AMTRACE_ReplyLong(Queued);
-		gasnetc_fifo_insert(bufd);
-		GASNETI_TRACE_PRINTF(C, ("??? queued Payload has flags %d", bufd->flag));
+		else {
+			GASNETC_BUFOPT_SET(bufd, GASNETC_FLAG_REPLY_HEADER |
+			    GASNETC_FLAG_REPLY_PAYLOAD |
+			    GASNETC_FLAG_REPLY_ASYNC);
+		}
 	}
-	gasneti_mutex_unlock(&gasnetc_lock_gm);
+	else
+		GASNETC_BUFOPT_SET(bufd, GASNETC_FLAG_REPLY_HEADER);
+
+	#ifndef TRACE
+	(void) gasnetc_AMReplyLongTrySend(bufd);
+	#else
+	{
+		int payload = GASNETC_BUFOPT_ISSET(bufd, 
+				GASNETC_FLAG_REPLY_PAYLOAD);
+		int sends = gasnetc_AMReplyLongTrySend(bufd);
+
+		if (sends == 2)
+			GASNETC_AMTRACE_ReplyLong(Send);
+		else if (sends == 1) {
+			if (payload)
+				GASNETC_AMTRACE_ReplyLong(Queued);
+			else
+				GASNETC_AMTRACE_ReplyLong(Send);
+		}
+		else
+			GASNETC_AMTRACE_ReplyLong(Queued);
+	}
+	#endif
+
 	va_end(argptr);
 	if (retval) return GASNET_OK;
 	else GASNETI_RETURN_ERR(RESOURCE);
 }
-/* ------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/* Core misc. functions                                                       */
+void
+gasnetc_sendbuf_init()
+{
+	int	i, j;
+	int	stoks, rtoks;
+	int	dma_size;
+
+	assert(_gmc.port != NULL);
+
+	stoks = gm_num_send_tokens(_gmc.port);
+	_gmc.stoks.max = stoks;
+	_gmc.stoks.hi = _gmc.stoks.lo = _gmc.stoks.total = 0;
+
+	rtoks = gm_num_receive_tokens(_gmc.port);
+	_gmc.rtoks.max = rtoks;
+
+	/* We need to allocate the following types of DMA'd buffers:
+	 * 1. 1 AMReplyBuf (handling replies after an AMMediumRequest) 
+	 * 2. (stoks-1) AMRequest bufs
+	 * 3. rtoks AMRequest and AMReply receive bufs
+	 * 4. 1 Scratch DMA buf (System Messages)
+	 *
+	 * Note that each of these have a bufdesc_t attached to them
+	 */
+	_gmc.bd_list_num = 1 + rtoks + stoks-1 + 1;
+	dma_size = _gmc.bd_list_num << GASNETC_AM_SIZE;
+
+	/* Allocate and register DMA buffers */ 
+	_gmc.dma_bufs = gm_alloc_pages(dma_size);
+	if_pf (_gmc.dma_bufs == NULL)
+		gasneti_fatalerror("gm_alloc_pages(%d) %s", dma_size,
+		   gasneti_current_loc);
+	gm_register_memory(_gmc.port, _gmc.dma_bufs, dma_size);
+
+	/* Allocate the AMRequest send buffer pool stack */
+	_gmc.reqs_pool = (int *) 
+	    gasneti_malloc(sizeof(int) * (stoks-1));
+
+	/* Allocate a buffer descriptor (bufdesc_t) for each DMA'd buffer
+	 * and fill in id/sendbuf for cheap reverse lookups */
+	_gmc.bd_ptr = (gasnetc_bufdesc_t *)
+	    gasneti_malloc(_gmc.bd_list_num * sizeof(gasnetc_bufdesc_t));
+	for (i = 0; i < _gmc.bd_list_num; i++) {
+		_gmc.bd_ptr[i].id = i;
+		_gmc.bd_ptr[i].sendbuf = (void *)
+		    ((uint8_t *) _gmc.dma_bufs + (i<<GASNETC_AM_SIZE));
+	}
+	/* fifo_max is the last possible fifo index */
+	_gmc.reqs_pool_cur = _gmc.reqs_pool_max = stoks-2;
+
+	/* stoks-1 AMRequest send in FIFO */
+	for (i = rtoks, j = 0; i < rtoks+stoks-1; i++, j++)
+		_gmc.reqs_pool[j] = i;
+	assert(j-1 == _gmc.reqs_pool_max);
+
+	/* use the omitted send token for the AMReply buf */
+	_gmc.AMReplyBuf = &_gmc.bd_ptr[i]; 
+	_gmc.scratchBuf = (void *) ((uint8_t *) _gmc.dma_bufs + 
+			    ((++i)<<GASNETC_AM_SIZE));
+	_gmc.ReplyCount = 0;
+	#if GASNETC_RROBIN_BUFFERS > 1
+	_gmc.RRobinCount = 0;
+	#endif
+}
+
+void
+gasnetc_sendbuf_finalize()
+{
+	if (_gmc.dma_bufs != NULL)
+		gm_free_pages(_gmc.dma_bufs, 
+		    _gmc.bd_list_num << GASNETC_AM_SIZE);
+	if (_gmc.bd_ptr != NULL)
+		gasneti_free(_gmc.bd_ptr);
+	if (_gmc.reqs_pool != NULL)
+		gasneti_free(_gmc.reqs_pool);
+}
+
+void
+gasnetc_provide_receive_buffers()
+{
+	int 	i;
+	int	rtoks_hi, rtoks_lo;
+
+	/* Extra check to make sure we recovered all our receive
+	 * and send * tokens once the system is bootstrapped */
+	assert(_gmc.stoks.max == gm_num_send_tokens(_gmc.port));
+	assert(_gmc.rtoks.max == gm_num_receive_tokens(_gmc.port));
+
+	_gmc.rtoks.lo = _gmc.rtoks.hi = _gmc.rtoks.total = 0;
+	rtoks_lo = _gmc.rtoks.max/2;
+	rtoks_hi = _gmc.rtoks.max - rtoks_lo;
+
+	/* Provide GM with rtoks_lo AMRequest receive LOW */
+	for (i = 0; i < rtoks_lo; i++) 
+		gasnetc_provide_AMRequest_buffer(
+		    (void *)((uint8_t *)_gmc.dma_bufs + (i<<GASNETC_AM_SIZE)));
+	/* Provide GM with rtoks_hi AMReply receive HIGH */
+	for (i = rtoks_lo; i < _gmc.rtoks.max; i++)
+		gasnetc_provide_AMReply_buffer(
+		    (void *)((uint8_t *)_gmc.dma_bufs + (i<<GASNETC_AM_SIZE)));
+
+	if (gm_set_acceptable_sizes(_gmc.port, GM_HIGH_PRIORITY, 
+			1<<GASNETC_AM_SIZE) != GM_SUCCESS)
+		gasneti_fatalerror("can't set acceptable sizes for HIGH "
+			"priority");
+	if (gm_set_acceptable_sizes(_gmc.port, GM_LOW_PRIORITY, 
+			1<<GASNETC_AM_SIZE) != GM_SUCCESS)
+		gasneti_fatalerror("can't set acceptable sizes for LOW "
+			"priority");
+	gm_allow_remote_memory_access(_gmc.port);
+}
+
+
+int	
+gasnetc_gm_nodes_compare(const void *k1, const void *k2)
+{
+	gasnetc_gm_nodes_rev_t	*a = (gasnetc_gm_nodes_rev_t *) k1;
+	gasnetc_gm_nodes_rev_t	*b = (gasnetc_gm_nodes_rev_t *) k2;
+
+	if (a->id > b->id)
+		return 1;
+	else if (a->id < b->id)
+		return -1;
+	else {
+		if (a->port > b->port) return 1;
+		if (a->port < b->port) return -1;
+		else
+			return 0;
+	}
+}
+
+void
+gasnetc_tokensend_AMRequest(void *buf, uint32_t len, 
+		uint32_t id, uint32_t port,
+		gm_send_completion_callback_t callback, 
+		void *callback_ptr, uintptr_t dest_addr)
+{
+	int sent = 0;
+
+	while (!sent) {
+		/* don't force locking when polling */
+		while (!GASNETC_TOKEN_LO_AVAILABLE())
+			gasnetc_AMPoll();
+
+		gasneti_mutex_lock(&gasnetc_lock_gm);
+		/* assure last poll was successful */
+		if (GASNETC_TOKEN_LO_AVAILABLE()) {
+			if (dest_addr > 0)
+				GASNETC_GM_PUT(_gmc.port, buf, dest_addr, 
+					(unsigned int) len, GM_LOW_PRIORITY, 
+					id, port, callback, callback_ptr);
+			else {
+				assert(GASNETC_AM_IS_REQUEST(
+				       *((uint8_t *) buf)));
+				assert(len <= GASNETC_AM_PACKET);
+				gm_send_with_callback(_gmc.port, buf, 
+					GASNETC_AM_SIZE, (unsigned int) len,
+					GM_LOW_PRIORITY, id, port, callback,
+					callback_ptr);
+			}
+			_gmc.stoks.lo += 1;
+			_gmc.stoks.total += 1;
+			sent = 1;
+		}
+		gasneti_mutex_unlock(&gasnetc_lock_gm);
+	}
+}
+
+gasnetc_bufdesc_t *
+gasnetc_AMRequestPool_block() 
+{
+	int			 bufd_idx = -1;
+	gasnetc_bufdesc_t	*bufd;
+
+	/* Since every AMRequest send must go through the Pool, use this
+	 * as an entry point to make progress in the Receive queue */
+	gasnetc_AMPoll();
+
+	while (bufd_idx < 0) {
+		while (_gmc.reqs_pool_cur < 0)
+			gasnetc_AMPoll();
+
+		gasneti_mutex_lock(&gasnetc_lock_reqpool);
+		if_pt (_gmc.reqs_pool_cur >= 0) {
+			bufd_idx = _gmc.reqs_pool[_gmc.reqs_pool_cur];
+			GASNETI_TRACE_PRINTF(C,
+			    ("AMRequestPool (%d/%d) gave bufdesc id %d\n",
+	    		    _gmc.reqs_pool_cur, _gmc.reqs_pool_max,
+	    		    _gmc.reqs_pool[_gmc.reqs_pool_cur]));
+			_gmc.reqs_pool_cur--;
+		}
+		gasneti_mutex_unlock(&gasnetc_lock_reqpool);
+	}
+	assert(bufd_idx < _gmc.bd_list_num);
+	assert(_gmc.bd_ptr[bufd_idx].sendbuf != NULL);
+	assert(_gmc.bd_ptr[bufd_idx].id == bufd_idx);
+	return &_gmc.bd_ptr[bufd_idx];
+}
+
+/* This function is not thread safe as it is guarenteed to be called
+ * from only one thread, during initialization */
+void
+gasnetc_bootstrapBarrier()
+{
+	int		count = 1;
+	uintptr_t	*scratchPtr;
+
+	gasneti_mutex_lock(&gasnetc_lock_gm);
+	scratchPtr = (uintptr_t *) _gmc.scratchBuf;
+	assert(scratchPtr != NULL);
+	if (gasnetc_mynode == 0) {
+		while (count < gasnetc_nodes) {
+			gm_provide_receive_buffer(_gmc.port, 
+			    (void *) scratchPtr, GASNETC_SYS_SIZE, 
+			    GM_HIGH_PRIORITY);
+			if (gasnetc_SysPoll((void *)&count) != BARRIER_GATHER)
+				gasneti_fatalerror("System Barrier did not "
+				    "receive a BARRIER_GATHER! fatal");
+		}
+		GASNETC_SYSHEADER_WRITE((uint8_t *)scratchPtr, BARRIER_NOTIFY);
+		gasnetc_gm_send_AMSystem_broadcast((void *) scratchPtr, 1,
+		    gasnetc_callback_hi, NULL, 0);
+	}
+	else {
+		GASNETC_SYSHEADER_WRITE((uint8_t *)scratchPtr, BARRIER_GATHER);
+		while (!gasnetc_token_hi_acquire()) {
+			if (gasnetc_SysPoll((void *)-1) != _NO_MSG)
+				gasneti_fatalerror("AMSystem_broadcast: "
+					"unexpected message while "
+					"recuperating tokens");
+		}
+		gasnetc_gm_send_AMSystem((void *) scratchPtr, 1,
+			_gmc.gm_nodes[0].id, _gmc.gm_nodes[0].port, 
+			gasnetc_callback_hi, NULL);
+		GASNETI_TRACE_PRINTF(C, 
+		    ("gasnetc_Sysbarrier: Sent GATHER, waiting for NOTIFY") );
+		gm_provide_receive_buffer(_gmc.port, (void *) scratchPtr, 
+		    GASNETC_SYS_SIZE, GM_HIGH_PRIORITY);
+		if (gasnetc_SysPoll(NULL) != BARRIER_NOTIFY)
+			gasneti_fatalerror("expected BARRIER_NOTIFY, fatal");
+	}
+	gasneti_mutex_unlock(&gasnetc_lock_gm);
+	return;
+}
+			
+/*
+ * Rewrite the gather-type functions to work with exchangefunction typedef from
+ * gasnet internal functions.
+ *
+ * The boostrapExchange function sends src of length 'len' to zero and waits
+ * for a result from zero, which is copied in dest.
+ *
+ */
+void
+gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
+{
+	void		*exch_hdr, *exch;
+	void		*recv;
+
+	GASNETI_TRACE_PRINTF(C,("gasnetc_bootstrapExchange(%i bytes)",len));
+	gasneti_mutex_lock(&gasnetc_lock_gm);
+
+	exch_hdr = (void *) _gmc.scratchBuf;
+	exch = (void *) ((uint32_t *) _gmc.scratchBuf + 1);
+
+	if ((len*gasnetc_nodes+4) > (1U<<GASNETC_SYS_SIZE))
+		gasneti_fatalerror(
+		    "bootstrapExchange: %i bytes too large for system message\n",
+		    len);
+
+	if (gasnetc_mynode == 0) {
+		int count = 1;
+		memcpy(dest, src, len);
+
+		while (count < gasnetc_nodes) {
+
+			gm_provide_receive_buffer(_gmc.port, exch_hdr,
+			    GASNETC_SYS_SIZE, GM_HIGH_PRIORITY);
+
+			if (gasnetc_SysPoll(dest) != EXCHANGE_GATHER)
+				gasneti_fatalerror(
+				    "expected EXCHANGE_GATHER, fatal");
+
+			count++;
+		}
+
+		/* Prepare the global segment info to be broadcasted */
+		GASNETC_SYSHEADER_WRITE((uint8_t *) exch_hdr, EXCHANGE_BROADCAST);
+		memcpy(exch, dest, len*gasnetc_nodes);
+
+		gasnetc_gm_send_AMSystem_broadcast(exch_hdr, len*gasnetc_nodes+4,
+		    gasnetc_callback_hi, NULL, 0);
+	}
+	else {
+		GASNETC_SYSHEADER_WRITE((uint8_t *) exch_hdr, EXCHANGE_GATHER);
+		memcpy(exch, src, len);
+
+		while (!gasnetc_token_hi_acquire()) {
+			if (gasnetc_SysPoll((void *)-1) != _NO_MSG)
+				gasneti_fatalerror("AMSystem_broadcast: "
+				    "unexpected message while recovering tokens");
+		}
+
+		/* Send the seginfo message to the master (node 0) */
+		gasnetc_gm_send_AMSystem(exch_hdr, len+4, 
+		    _gmc.gm_nodes[0].id, _gmc.gm_nodes[0].port, 
+		    gasnetc_callback_hi, NULL);
+
+		gm_provide_receive_buffer(_gmc.port, exch_hdr, GASNETC_SYS_SIZE, 
+		    GM_HIGH_PRIORITY);
+
+		if (gasnetc_SysPoll((void *) dest) != EXCHANGE_BROADCAST)
+			gasneti_fatalerror("expected EXCHANGE_BROADCAST, fatal");
+	}
+	gasneti_mutex_unlock(&gasnetc_lock_gm);
+	return;
+}
+
+/* -------------------------------------------------------------------------- */
+void
+gasnetc_gm_send_AMSystem_broadcast(void *buf, size_t len,
+		gm_send_completion_callback_t callback,
+		void *callback_ptr, int recover)
+{
+	int			i;
+	int			token_hi;
+	gasnetc_sysmsg_t	sysmsg;
+
+	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
+	assert(buf != NULL);
+	assert(len >= 1);
+	assert(callback != NULL);
+	assert(gasnetc_mynode == 0);
+
+	if (recover) 
+		token_hi = _gmc.stoks.hi;
+
+	GASNETI_TRACE_PRINTF(C, ("gm_send_AMSystemBroadcast len=%d data=0x%x",
+	     len, *((uint8_t *)buf)) );
+
+	for (i = 1; i < gasnetc_nodes; i++) {
+		while (!gasnetc_token_hi_acquire()) {
+			if (gasnetc_SysPoll((void *)-1) != _NO_MSG)
+				gasneti_fatalerror("AMSystem_broadcast: "
+				    "unexpected message while "
+				    "recuperating tokens");
+		}
+		gasnetc_gm_send_AMSystem(buf, len, _gmc.gm_nodes[i].id,
+		    _gmc.gm_nodes[i].port, callback, callback_ptr);
+	}
+
+	if (recover) {
+		while (_gmc.stoks.hi != token_hi) {
+			if (gasnetc_SysPoll((void *)-1) != _NO_MSG)
+				gasneti_fatalerror("AMSystem_broadcast: "
+				    "unexpected message while "
+				    "recuperating tokens");
+		}
+	}
+	return;
+}
+
+
+void
+gasnetc_dump_tokens()
+{
+	GASNETI_TRACE_PRINTF(C,
+	    ("Send tokens: lo=%3d, hi=%3d, tot=%3d, max=%3d\n",
+	    _gmc.stoks.lo, _gmc.stoks.hi, _gmc.stoks.total, _gmc.stoks.max));
+
+	GASNETI_TRACE_PRINTF(C,
+	    ("Recv tokens: lo=%3d, hi=%3d, tot=%3d, max=%3d\n",
+	    _gmc.rtoks.lo, _gmc.rtoks.hi, _gmc.rtoks.total, _gmc.rtoks.max));
+}
+
+int
+gasnetc_alloc_nodemap(int numnodes)
+{
+	_gmc.gm_nodes = (gasnetc_gm_nodes_t *) 
+	    gasneti_malloc(numnodes*sizeof(gasnetc_gm_nodes_t));
+
+	_gmc.gm_nodes_rev = (gasnetc_gm_nodes_rev_t *) 
+	    gasneti_malloc(numnodes * sizeof(gasnetc_gm_nodes_rev_t));
+
+	return (_gmc.gm_nodes != NULL && _gmc.gm_nodes_rev != NULL);
+}
+
+int
+gasnetc_gmport_allocate(int *board, int *port)
+{
+	struct gm_port	*p;
+	unsigned int	port_id, board_id, i;
+	gm_status_t	status;
+
+	gm_init();
+
+	for (port_id = 2; port_id < GASNETC_GM_MAXPORTS; port_id++) {
+		if (port_id == 3)
+			continue;
+
+		for (board_id = 0; board_id < GASNETC_GM_MAXBOARDS; board_id++) {
+
+			status = gm_open(&p, board_id, port_id, 
+					"GASNet/GM", GM_API_VERSION_1_4);
+
+			switch (status) {
+				case GM_SUCCESS:
+					*board = board_id;
+					*port = port_id;
+					_gmc.port = p;
+					return 1;
+					break;
+				case GM_INCOMPATIBLE_LIB_AND_DRIVER:
+					gasneti_fatalerror("GM library and "
+					    "driver are out of sync!");
+					break;
+				default:
+					break;
+			}
+
+		}
+	}
+	return 0;
+}
+
+int
+gasnetc_getconf_conffile()
+{
+	FILE		*fp;
+	char		line[128];
+	char		gmconf[128], *gmconfenv;
+	char		gmhost[128], hostname[MAXHOSTNAMELEN+1];
+	char		**hostnames;
+	char		*homedir;
+	int		lnum = 0, gmportnum, i;
+	int		thisport = 0, thisid = 0, numnodes = 0, thisnode = -1;
+	gm_status_t	status;
+	struct gm_port	*p;
+
+	if ((homedir = getenv("HOME")) == NULL)
+		GASNETI_RETURN_ERRR(RESOURCE, "Couldn't find $HOME directory");
+
+	if ((gmconfenv = getenv("GMPI_CONF")) != NULL)
+		snprintf(gmconf, 128, "%s", gmconfenv);
+	else
+		snprintf(gmconf, 128, "%s/.gmpi/conf", homedir);
+
+	if (gethostname(hostname, 128) < 0)
+		GASNETI_RETURN_ERRR(RESOURCE, "Couldn't get local hostname");
+
+	if ((fp = fopen(gmconf, "r")) == NULL) {
+		fprintf(stderr, "Couldn't open GMPI configuration file\n: %s", 
+		    gmconf);
+		return GASNET_ERR_RESOURCE;
+	}
+
+	/* must do gm_init() from this point on since gm_host_name_to_node_id
+	 * must use the port
+	 */
+
+	while (fgets(line, 128, fp)) {
+	
+		if (lnum == 0) {
+	      		if ((sscanf(line, "%d\n", &numnodes)) < 1) 
+				GASNETI_RETURN_ERRR(RESOURCE, 
+				    "job size not found in GMPI config file");
+	      		else if (numnodes < 1) 
+				GASNETI_RETURN_ERRR(RESOURCE, 
+				    "invalid numnodes in GMPI config file");
+
+			if (!gasnetc_alloc_nodemap(numnodes))
+				GASNETI_RETURN_ERRR(RESOURCE, 
+				    ("Can't allocate node mapping"));
+
+			hostnames = (char **)
+			    gasneti_malloc((numnodes+1)*sizeof(char *));
+			hostnames[numnodes] = NULL;
+			for (i = 0; i < numnodes; i++) {
+				hostnames[i] =
+				gasneti_malloc(MAXHOSTNAMELEN);
+			}
+			lnum++;
+	      	}
+
+		else if (lnum <= numnodes) {
+			if ((sscanf(line,"%s %d\n",gmhost,&gmportnum)) == 2) {
+				if (gmportnum < 1 || gmportnum > 7)
+					GASNETI_RETURN_ERRR(RESOURCE, 
+					    "Invalid GM port");
+
+				assert(gmhost != NULL);
+
+				_gmc.gm_nodes[lnum-1].port = gmportnum;
+				memcpy(&hostnames[lnum-1][0], 
+				    (void *)gmhost, MAXHOSTNAMELEN);
+
+				if (strcasecmp(gmhost, hostname) == 0) {
+					GASNETI_TRACE_PRINTF(C,
+					    ("%s will bind to port %d\n", 
+					    hostname, gmportnum) );
+					thisnode = lnum-1;
+					thisport = gmportnum;
+				}
+			}
+                        else {
+				fprintf(stderr, "couldn't parse: %s\n", line);
+			}
+			lnum++;
+		}
+	}
+	
+	fclose(fp);
+
+	if (numnodes == 0 || thisnode == -1)
+		GASNETI_RETURN_ERRR(RESOURCE, 
+		    "could not find myself in GMPI config file");
+	gm_init();
+	status = 
+		gm_open(&p, GASNETC_DEFAULT_GM_BOARD_NUM, thisport,"GASNet/GM", 
+		    GM_API_VERSION_1_4);
+	if (status != GM_SUCCESS) 
+		GASNETI_RETURN_ERRR(RESOURCE, "could not open GM port");
+	status = gm_get_node_id(p, (unsigned int *) &thisid);
+	if (status != GM_SUCCESS)
+		GASNETI_RETURN_ERRR(RESOURCE, "could not get GM node id");
+
+	for (i = 0; i < numnodes; i++) {
+		_gmc.gm_nodes[i].id = 
+		    gm_host_name_to_node_id(p, hostnames[i]);
+
+		if (_gmc.gm_nodes[i].id == GM_NO_SUCH_NODE_ID) {
+			fprintf(stderr, "%s (%d) has no id! Check mapper\n",
+			    hostnames[i],
+			    _gmc.gm_nodes[i].id);
+			GASNETI_RETURN_ERRR(RESOURCE, 
+			    "Unknown GMid or GM mapper down");
+		}
+		_gmc.gm_nodes_rev[i].id = _gmc.gm_nodes[i].id;
+		_gmc.gm_nodes_rev[i].port = _gmc.gm_nodes[i].port;
+		_gmc.gm_nodes_rev[i].node = (gasnet_node_t) i;
+
+		GASNETI_TRACE_PRINTF(C, ("%d> %s (gm %d, port %d)\n", 
+		    i, hostnames[i], _gmc.gm_nodes[i].id, 
+		    _gmc.gm_nodes[i].port));
+
+	}
+
+	gasnetc_mynode = thisnode;
+	gasnetc_nodes = numnodes;
+	for (i = 0; i < numnodes; i++)
+		gasneti_free_inhandler(hostnames[i]);
+	gasneti_free_inhandler(hostnames);
+
+	/* sort out the gm_nodes_rev for bsearch, glibc qsort uses recursion,
+	 * so stack memory in order to complete the sort.  We want to minimize
+	 * the number of mallocs
+	 */
+	qsort(_gmc.gm_nodes_rev, numnodes, sizeof(gasnetc_gm_nodes_rev_t),
+	    gasnetc_gm_nodes_compare);
+	_gmc.port = p;
+	return GASNET_OK;
+}
+
+#ifdef LINUX
+uintptr_t
+gasnetc_getPhysMem()
+{
+	FILE		*fp;
+	char		line[128];
+	unsigned long	mem = 0;
+
+	if ((fp = fopen("/proc/meminfo", "r")) == NULL)
+		gasneti_fatalerror("Can't open /proc/meminfo");
+
+	while (fgets(line, 128, fp)) {
+		if (sscanf(line, "Mem: %ld", &mem) > 0)
+			break;
+	}
+	fclose(fp);
+	return (uintptr_t) mem;
+}
+#elif defined(FREEBSD)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+uintptr_t
+gasnetc_getPhysMem()
+{
+	uintptr_t	mem = 0;
+	size_t		len = sizeof(uintptr_t);
+
+	if (sysctlbyname("hw.physmem", &mem, &len, NULL, NULL))
+		gasneti_fatalerror("couldn't query systcl(hw.physmem");
+	return mem;
+}
+#else
+uintptr_t
+gasnetc_getPhysMem()
+{
+	return (uintptr_t) 0;
+}
+#endif
+
+/* -------------------------------------------------------------------------- */
 /*
   No-interrupt sections
   =====================

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2003/06/17 04:01:55 $
- * $Revision: 1.34 $
+ *     $Date: 2003/08/04 11:06:49 $
+ * $Revision: 1.34.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,22 +75,36 @@ char *gasneti_build_loc_str(const char *funcname, const char *filename, int line
   return loc;
 }
 /* ------------------------------------------------------------------------------------ */
+#ifndef GASNETI_UNFREEZE_SIGNAL
+/* signal to use for unfreezing, could also use SIGUSR1/2 or several others */
+#define GASNETI_UNFREEZE_SIGNAL SIGCONT
+#define GASNETI_UNFREEZE_SIGNAL_STR "SIGCONT"
+#endif
+
 static volatile int gasnet_frozen = TRUE;
+static void gasneti_unfreezeHandler(int sig) {
+  gasnet_frozen = 0;
+}
 /*  all this to make sure we get a full stack frame for debugger */
 static void _freezeForDebugger(int depth) {
   if (!depth) _freezeForDebugger(1);
   else {
     volatile int i=0;
+    gasneti_sighandlerfn_t old = gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, gasneti_unfreezeHandler);
     while (gasnet_frozen) {
       i++;
       sleep(1);
     }
+    gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old);
   }
 }
 extern void gasneti_freezeForDebugger() {
   char name[255];
   gethostname(name, 255);
-  fprintf(stderr,"GASNet node frozen for debugger: host=%s  pid=%i\n", name, (int)getpid()); 
+  fprintf(stderr,"GASNet node frozen for debugger: host=%s  pid=%i\n"
+                 "To unfreeze, attach a debugger and set 'gasnet_frozen' to 0, or send a "
+                 GASNETI_UNFREEZE_SIGNAL_STR "\n", 
+                 name, (int)getpid()); 
   fflush(stderr);
   _freezeForDebugger(0);
 }

@@ -5,15 +5,14 @@
 #include <firehose.h>
 #include <firehose_internal.h>
 
-struct _firehose_hash_t {
+struct _fh_hash_t {
         void   **fh_table;
-        int     *fh_col_table;
         size_t   fh_entries;
         size_t   fh_elemsize;
         unsigned fh_mask;
 
-        int     (*fh_compare)(fh_int_t key1, void *key2); 
 #ifdef FH_HASH_STATS
+        int     *fh_col_table;
         int      fh_used;
         int      fh_collisions;
         uint64_t fh_hops;
@@ -39,13 +38,13 @@ struct _firehose_hash_t {
 #define IS_POWER_OF_2(x)	(!((x)&((x)-1)))
 
 #ifdef FH_HASH_STATS
-#define	_firehose_collision(hash)	(hash)->fh_collisions++
-#define _firehose_entries_add(hash)	(hash)->fh_used++
-#define _firehose_entries_del(hash)	(hash)->fh_used--
+#define	_fh_collision(hash)	(hash)->fh_collisions++
+#define _fh_entries_add(hash)	(hash)->fh_used++
+#define _fh_entries_del(hash)	(hash)->fh_used--
 #else
-#define	_firehose_collision(hash)
-#define _firehose_entries_add(hash)
-#define _firehose_entries_del(hash)
+#define	_fh_collision(hash)
+#define _fh_entries_add(hash)
+#define _fh_entries_del(hash)
 #endif
 
 #define FH_KEY_DELETED	((void *)-1)
@@ -60,22 +59,23 @@ struct fh_dummy_entry {
 }
 fh_dummy_entry_t;
 
-#if SIZEOF_VOID == 33
+/*
 int 
 inthash(fh_int_t key)
 {
-  key += (key << 12);
-  key ^= (key >> 22);
-  key += (key << 4);
-  key ^= (key >> 9);
-  key += (key << 10);
-  key ^= (key >> 2);
-  key += (key << 7);
-  key ^= (key >> 12);
-  return key;
+	key += (key << 12);
+	key ^= (key >> 22);
+	key += (key << 4);
+	key ^= (key >> 9);
+	key += (key << 10);
+	key ^= (key >> 2);
+	key += (key << 7);
+	key ^= (key >> 12);
+	return key;
 }
+*/
 
-#elif SIZEOF_VOID == 32
+#if 1
 GASNET_INLINE_MODIFIER(inthash)
 int
 inthash(fh_int_t key)
@@ -112,7 +112,7 @@ inthash(fh_int_t key)
  */
 
 fh_hash_t *
-fh_hash_create(size_t entries, int (*compare)(fh_int_t key1, void *key2))
+fh_hash_create(size_t entries)
 {
 	fh_hash_t	*hash;
 
@@ -124,11 +124,11 @@ fh_hash_create(size_t entries, int (*compare)(fh_int_t key1, void *key2))
 		gasneti_fatalerror("Can't allocate memory for hash structure");
 	memset(hash, 0, sizeof(fh_hash_t));
 
-	hash->fh_table   = (void **) malloc(entries * sizeof(fh_int_t));
-	hash->fh_col_table = (int *) malloc(entries * sizeof(int));
+	hash->fh_table   = (void **) malloc(entries * sizeof(void *));
 	hash->fh_mask    = entries-1;
 	hash->fh_entries = entries;
 	#ifdef FH_HASH_STATS
+		hash->fh_col_table = (int *) malloc(entries * sizeof(int));
 		//printf("hash create: entries=%d, mask=%x\n", entries, entries-1);
 		hash->fh_used = 0;
 		hash->fh_collisions = 0;
@@ -191,7 +191,9 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 	keyhash = inthash(key) & hash->fh_mask;
 	val = hash->fh_table[keyhash];
 
-	hash->fh_col_table[keyhash]++;
+	#ifdef FH_HASH_STATS
+		hash->fh_col_table[keyhash]++;
+	#endif
 
 	/* May be a deletion request */
 	if (newval == NULL) {
@@ -215,14 +217,14 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 	}
 	/* Add the key mapping */
 	else {
-		_firehose_entries_add(hash);
+		_fh_entries_add(hash);
 
 		/* bucket unused, simply copy the new data */
 		if (val == NULL) {
 			hash->fh_table[keyhash] = newval;
 		}
 		else {
-			_firehose_collision(hash);
+			_fh_collision(hash);
 
 			((fh_dummy_entry_t *) newval)->hash_next = 
 			    hash->fh_table[keyhash];
@@ -233,23 +235,3 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 	}
 }
 
-void *
-fh_hash_delete(fh_hash_t *hash, void *val)
-{
-	fh_dummy_entry_t *prev;
-	fh_dummy_entry_t *cur = (fh_dummy_entry_t *) val;
-
-	while (cur != NULL && key != cur->hash_key) {
-		prev = cur;
-		cur = cur->hash_next;
-	}
-
-	if (cur != NULL) {
-		if (prev != NULL)
-			prev->hash_next = cur->hash_next;
-		else
-			cur = NULL;
-	}
-
-	return val;
-}

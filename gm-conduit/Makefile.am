@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v 1.24 2003/03/29 10:48:28 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v 1.24.10.1 2003/08/04 11:06:51 csbell Exp $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -12,12 +12,14 @@ gm_include = @GM_INCLUDE@
 platform_libraries = @LIBS@ -L@GM_LIB@
 linkend = -lgm
 
-INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_srcdir)/extended-ref/ -I$(top_builddir) -I$(gm_include)
+fh_srcdir = $(top_srcdir)/other/firehose
+
+INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_srcdir)/extended-ref/ \
+	   -I$(fh_srcdir) -I$(top_builddir) -I$(gm_include)
 	   
 filelist = gasnet_core.c              \
            gasnet_core.h              \
            gasnet_core_conf.c         \
-           gasnet_core_firehose.c     \
            gasnet_core_fwd.h          \
            gasnet_core_help.h         \
            gasnet_core_internal.h     \
@@ -28,9 +30,11 @@ filelist = gasnet_core.c              \
            gasnet_extended_fwd.h      \
            gasnet_extended_internal.h \
            gasnet_extended_op.c       \
-	   gasnet_extended_ref.c 
+	   gasnet_extended_ref.c
 
-othersourcefiles = $(top_srcdir)/gasnet_internal.c
+
+othersourcefiles = $(top_srcdir)/gasnet_internal.c $(fh_srcdir)/firehose.c \
+		   $(fh_srcdir)/firehose_hash.c $(fh_srcdir)/firehose_page.c
 
 EXTRA_DIST = $(filelist) README license.txt
 
@@ -38,7 +42,6 @@ SUBDIRS = contrib
 
 libgasnet_sources = $(srcdir)/gasnet_core.c $(srcdir)/gasnet_core_receive.c \
 		    $(srcdir)/gasnet_core_misc.c $(srcdir)/gasnet_core_conf.c \
-		    $(srcdir)/gasnet_core_firehose.c \
 		    $(srcdir)/gasnet_extended.c $(srcdir)/gasnet_extended_op.c \
 		    $(srcdir)/gasnet_extended_ref.c \
 		    $(srcdir)/gasnet_extended_firehose.c $(othersourcefiles)
@@ -48,7 +51,7 @@ libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o \
 		    gasnet_core_receive.o gasnet_core_misc.o \
 		    gasnet_core_conf.o gasnet_extended_op.o \
 		    gasnet_extended_ref.o gasnet_extended_firehose.o \
-		    gasnet_core_firehose.o
+		    firehose.o firehose_hash.o firehose_page.o
 
 if HAVE_PTHREAD
 threaded_libraries = libgasnet-gm-par.a libgasnet-gm-parsync.a
