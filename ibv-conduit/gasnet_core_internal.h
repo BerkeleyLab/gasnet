@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/02/04 00:17:50 $
- * $Revision: 1.19.6.12 $
+ *     $Date: 2004/02/05 00:52:20 $
+ * $Revision: 1.19.6.13 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -707,7 +707,7 @@ extern gasnetc_memreg_t		gasnetc_rcv_reg;
   extern gasnetc_memreg_t	gasnetc_seg_reg;
 #endif
 #if GASNETC_USE_FIREHOSE
-  extern size_t			gasnetc_max_pin;
+  extern size_t			gasnetc_fh_maxsz;
   extern firehose_info_t	gasnetc_firehose_info;
   #if FIREHOSE_VAPI_USE_FMR
     extern EVAPI_fmr_t		gasnetc_fmr_props;
