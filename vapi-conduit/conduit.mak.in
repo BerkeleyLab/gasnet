@@ -1,0 +1,22 @@
+#INSTRUCTIONS# Conduit-specific Makefile fragment settings
+#INSTRUCTIONS#
+#INSTRUCTIONS# The contents of this file are embedded into the 
+#INSTRUCTIONS# *-(seq,par,parsync).mak Makefile fragments at conduit build time
+#INSTRUCTIONS# The settings in those fragments are used to build GASNet clients
+#INSTRUCTIONS# (including the GASNet tests). 
+#INSTRUCTIONS# See the conduit-writer instructions in the generated fragments
+#INSTRUCTIONS# or $(top_srcdir)/other/fragment-head.mak.in for usage info.
+
+# vapi-conduit currently uses an MPI-based bootstrapper,
+# which requires us to link using the system MPI compiler
+GASNET_LD_OVERRIDE = @MPI_CC@
+GASNET_LDFLAGS_OVERRIDE = @MPI_CFLAGS@ @LDFLAGS@
+
+CONDUIT_LIBDIRS = -L@VAPI_LIBDIR@
+CONDUIT_LIBS = @MPI_LIBS@ @VAPI_LIBS@
+
+# vapi-conduit has internal conduit threads, and therefore always needs 
+# threading flags and libs - even in GASNET_SEQ mode
+CONDUIT_DEFINES_SEQ = @GASNET_THREAD_DEFINES@
+CONDUIT_LIBS_SEQ =    @GASNET_THREAD_LIBS@
+
