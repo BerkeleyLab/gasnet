@@ -54,6 +54,8 @@ gasnetc_sockdata_t;
 
 gasnet_seginfo_t    *gasnetc_seginfo;
 
+firehose_info_t	  gasnetc_firehose_info;
+
 /*
  * One mapping for nodeid -> fd and one for pollfd index -> node
  */
@@ -74,10 +76,18 @@ struct pollfd	*gasnetc_pollfds;
 uintptr_t       gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t       gasnetc_MaxGlobalSegmentSize = 0;
 
+
+#if 0
 static gasneti_mutex_t gasnetc_socklock = GASNETI_MUTEX_INITIALIZER;
 #define SOCK_LOCK   gasneti_mutex_lock(&gasnetc_socklock)
 #define SOCK_UNLOCK gasneti_mutex_unlock(&gasnetc_socklock)
 #define SOCK_ASSERT_LOCKED gasneti_mutex_assertlocked(&gasnetc_socklock)
+#else
+static pthread_mutex_t gasnetc_socklock = PTHREAD_MUTEX_INITIALIZER;
+#define SOCK_LOCK   pthread_mutex_lock(&gasnetc_socklock)
+#define SOCK_UNLOCK pthread_mutex_unlock(&gasnetc_socklock)
+#define SOCK_ASSERT_LOCKED pthread_mutex_assertlocked(&gasnetc_socklock)
+#endif
 
 void	gasnetc_barrier();
 void	gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
@@ -88,7 +98,13 @@ size_t	gasnetc_readsocket(int fd, void *buf, size_t len, gasnetc_sockdata_t *sd)
 void	gasnetc_writesocket(int destfd, char *msg, int len);
 int	gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *node);
 
+#define client_put(rem_thread,dest,src,nbytes,mythread)	\
+	    gasnete_put_node(gasnetc_ThreadMapNode[rem_thread],dest,src,nbytes,mythread)
+
+void	gasnete_put_node(int rem_tid, void *dest, void *src, size_t nbytes, int tid);
+
 gasnetc_handler_fn_t	gasnetc_handlers[256];
+
 
 int
 gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *node)
@@ -422,6 +438,24 @@ gasnetc_AMReplyMediumM(
     return GASNET_OK;
 }
 
+/* reference implementation of barrier */
+#define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
+#define _hidx_gasnete_am_medping			(GASNETE_HANDLER_BASE+0)
+#define _hidx_gasnete_am_medpong			(GASNETE_HANDLER_BASE+1)
+#define _hidx_gasnete_am_exchange			(GASNETE_HANDLER_BASE+2)
+
+#define _hidx_gasnete_ambarrier_notify_reqh	        (GASNETE_HANDLER_BASE+3) 
+#define _hidx_gasnete_ambarrier_done_reqh		(GASNETE_HANDLER_BASE+4)
+
+#define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#define gasnete_refbarrier_notify  gasnete_extref_barrier_notify
+#define gasnete_refbarrier_wait    gasnete_extref_barrier_wait
+#define gasnete_refbarrier_try     gasnete_extref_barrier_try
+  
+#include "gasnet_extended_refbarrier.c"
+#undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
+
+
 #if 0
 #define MAX_BUFS    256
 int	 gasnetc_AMBufsIdx  = 0;
@@ -491,7 +525,6 @@ unlock_ret:
 
 }
 
-
 extern int
 firehose_move_callback(gasnet_node_t node, 
 		       const firehose_region_t *unpin_list, 
@@ -546,6 +579,8 @@ gasnetc_init()
   int	send_port = SENDPORTSTART+gasnetc_mynode;
   int	i,j,val=1;
   int	tempfd, sin_size;
+
+  uintptr_t	segsize;
 
   struct sockaddr_in *ina, *ina_local;
   struct sockaddr_in my_addr, their_addr;
@@ -677,6 +712,43 @@ gasnetc_init()
     gasnetc_IdMapFd[i].fd   = gasnetc_sockfds[i];
   }
 
+  gasneti_trace_init();
+
+  GASNETC_NODE_BARRIER;
+
+  gasneti_segmentInit(
+	&gasnetc_MaxLocalSegmentSize, &gasnetc_MaxGlobalSegmentSize,
+	(uintptr_t) -1, gasnetc_nodes, &gasnetc_bootstrapExchange);
+
+  GASNETC_NODE_BARRIER;
+
+  printf("local = %ld and global = %ld\n",
+		    gasnetc_MaxLocalSegmentSize, gasnetc_MaxGlobalSegmentSize);
+
+  {
+	char *env = getenv("GASNET_SEGMENT_SIZE");
+
+	if (env == NULL || *env == '\0')
+	    gasneti_fatalerror("GASNET_SEGMENT_SIZE must be set");
+
+	segsize = atol(env);
+  }
+
+  if (gasnetc_MaxGlobalSegmentSize < segsize)
+	gasneti_fatalerror(
+	    "Largest segment (%ld) is less than %d",
+	    gasnetc_MaxGlobalSegmentSize, segsize);
+
+  /* assume 100 MB of physical memory per thread */
+  firehose_init(100*1024*1024, 0, NULL, 0, &gasnetc_firehose_info);
+  
+
+  gasneti_segmentAttach(
+	segsize, 250*1024*1024, 
+	gasnetc_seginfo, &gasnetc_bootstrapExchange);
+
+  GASNETC_NODE_BARRIER;
+
   gasneti_free(ina);
   gasneti_free(ina_local);
 }
@@ -696,6 +768,7 @@ gasnetc_finalize()
 	}
 
     }
+    firehose_fini();
 }
 
 extern void
@@ -709,24 +782,6 @@ gasnetc_hsl_unlock(gasnet_hsl_t *hsl)
 {
     return;
 }
-
-
-/* reference implementation of barrier */
-#define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_am_medping			(GASNETE_HANDLER_BASE+0)
-#define _hidx_gasnete_am_medpong			(GASNETE_HANDLER_BASE+1)
-#define _hidx_gasnete_am_exchange			(GASNETE_HANDLER_BASE+2)
-
-#define _hidx_gasnete_ambarrier_notify_reqh	        (GASNETE_HANDLER_BASE+3) 
-#define _hidx_gasnete_ambarrier_done_reqh		(GASNETE_HANDLER_BASE+4)
-
-#define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
-#define gasnete_refbarrier_notify  gasnete_extref_barrier_notify
-#define gasnete_refbarrier_wait    gasnete_extref_barrier_wait
-#define gasnete_refbarrier_try     gasnete_extref_barrier_try
-  
-#include "gasnet_extended_refbarrier.c"
-#undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 
 static	volatile int gasnete_medping_count[GASNETE_MAXTHREADS] = { 0 };
 
@@ -852,18 +907,22 @@ user_main(void *arg)
 	gasnetc_AMPoll();
 }
 
+struct threadarg {
+    int	tid;
+    int	tid_local;
+    int	node;
+};
+
 void *
-user_threadmain(void *arg)
+user_threadmain_pingpong(void *arg)
 {
     char    buf[128];
     int	    local_tid = (int) arg;
     int	    global_tid = local_tid + gasnete_mynode*gasnetc_threadspernode;
+    int	    peer_node = gasnete_mynode+1 < gasnete_nodes ? gasnete_mynode+1 : 0;
+    int	    peer_tid = peer_node + local_tid;
 
-    gasnet_node_t dest = gasnetc_threads + 1 < gasnetc_threads
-	 	         ? gasnetc_threads + 1 : 0;
-
-
-    gasnet_AMRequestMedium1(dest,
+    gasnet_AMRequestMedium1(peer_node,
 	gasneti_handleridx(gasnete_am_medping), buf, 128, local_tid);
 
     while (gasnete_medping_count[local_tid] != 1)
@@ -875,13 +934,43 @@ user_threadmain(void *arg)
 
     printf("I am local tid %d out of %d\n", local_tid, global_tid);
 
-    gasnet_AMRequestMedium1(dest,
+    gasnet_AMRequestMedium1(peer_node,
 	gasneti_handleridx(gasnete_am_medping), buf, 128, local_tid);
 
     while (gasnete_medping_count[local_tid] != 1)
 	gasnetc_AMPoll();
 
     gasnete_medping_count[local_tid] = 0;
+}
+
+static char    gasnetc_temp_putbuf[256];
+
+extern void (*work_threads[])(int);
+
+void *
+user_threadmain(void *arg)
+{
+    int	    local_tid = (int) arg;
+    int	    global_tid = local_tid + gasnete_mynode*gasnetc_threadspernode;
+    int	    peer_node = gasnete_mynode+1 < gasnete_nodes ? gasnete_mynode+1 : 0;
+    int	    peer_tid = peer_node*gasnetc_threadspernode + local_tid;
+    void    (*wt)(int) = work_threads[global_tid];
+
+#if 0
+    void *remote_addr = gasnetc_seginfo[peer_node].addr;
+
+    printf("%2d> put (%p,%d) -> to thread %d on node %d (%p)\n",
+	    global_tid, gasnetc_temp_putbuf, 2048, peer_tid, peer_node, remote_addr);
+
+    gasneti_assert(peer_node != gasnete_mynode);
+
+    gasnete_put_node(peer_tid, remote_addr, gasnetc_temp_putbuf, 2048, global_tid);
+
+    gasnetc_barrier();
+#endif
+
+    printf("%d> starting worker thread id is %d\n", global_tid, GASNETI_THREADIDQUERY() );
+    wt(global_tid);
 }
 
 pthread_mutex_t	gasnetc_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -904,11 +993,128 @@ gasnetc_barrier()
 	pthread_mutex_unlock(&gasnetc_barrier_mutex);
 }
 
+/*
+ * Fake alpha-beta model, where a single message takes
+ *
+ * alpha + beta*bytes
+ *
+ * Myrinet: alpha= 7.7us, beta= 0.005us
+ * Quadrics: 
+ */
+
+typedef
+struct gasnete_op {
+    const firehose_request_t	*req_local;
+    const firehose_request_t	req_remote;
+
+    int		    tid;
+    gasnet_node_t   node;
+
+    void    *dest;
+    void    *src;
+    size_t  nbytes;
+}
+gasnete_op_t;
+
+void
+gasnete_fh_request_put(void *_op, const firehose_request_t *req, int allLocalHit)
+{
+    gasnete_op_t    *op = (gasnete_op_t *) _op;
+    const firehose_request_t	*fhreqs[2];
+
+    GASNETI_TRACE_PRINTF(C, 
+	("Firehose put (%p): (%d,%p) <- %p (%d bytes)", 
+	op, (unsigned) op->req_remote.node, op->dest, op->src, op->nbytes));
+
+    if (allLocalHit)
+	GASNETI_TRACE_EVENT(C, FIREHOSE_REMOTE_HITS);
+    else
+	GASNETI_TRACE_EVENT(C, FIREHOSE_REMOTE_MISSES);
+
+    fhreqs[0] = &(op->req_remote);
+    fhreqs[1] = op->req_local;
+
+    firehose_release(fhreqs, 2);
+
+    gasneti_free(op);
+}
+
+void
+gasnete_fh_request_get(void *_op, const firehose_request_t *req, int allLocalHit)
+{
+    gasnete_op_t    *op = (gasnete_op_t *) _op;
+    const firehose_request_t	*fhreqs[2];
+
+    GASNETI_TRACE_PRINTF(C, 
+	("Firehose get (%p): (%d,%p) <- %p (%d bytes)", 
+	op, (unsigned) op->req_remote.node, op->dest, op->src, op->nbytes));
+
+    fhreqs[0] = &(op->req_remote);
+    fhreqs[1] = op->req_local;
+
+    firehose_release(fhreqs, 2);
+
+    gasneti_free(op);
+}
+
+void
+gasnete_get_node(void *dest, int rem_tid, void *src, size_t nbytes, int tid)
+{
+    gasnet_node_t   node = gasnetc_ThreadMapNode[rem_tid];
+
+    gasnete_op_t    *op;
+
+    if (node != gasnete_mynode) {
+	op = gasneti_malloc(sizeof(gasnete_op_t));
+
+	op->src  = src;
+	op->dest = dest;
+	op->nbytes = nbytes;
+	op->tid  = rem_tid;
+	op->node = node;
+
+	op->req_local = firehose_local_pin((uintptr_t) src, nbytes, NULL);
+
+	printf("%d> remote_pin at tid=%d,node=%d\n", tid, rem_tid, node);
+
+	firehose_remote_pin(node, (uintptr_t) dest, nbytes,
+	    0, (firehose_request_t *) &(op->req_remote), NULL,
+	    gasnete_fh_request_get, op);
+    }
+    return;
+}
+
+void
+gasnete_put_node(int rem_tid, void *dest, void *src, size_t nbytes, int tid)
+{
+    gasnet_node_t   node = gasnetc_ThreadMapNode[rem_tid];
+
+    gasnete_op_t    *op;
+
+    if (node != gasnete_mynode) {
+	op = gasneti_malloc(sizeof(gasnete_op_t));
+
+	op->src  = src;
+	op->dest = dest;
+	op->nbytes = nbytes;
+	op->tid  = rem_tid;
+	op->node = node;
+
+	op->req_local = firehose_local_pin((uintptr_t) src, nbytes, NULL);
+
+	printf("%d> remote_pin at tid=%d,node=%d\n", tid, rem_tid, node);
+
+	firehose_remote_pin(node, (uintptr_t) dest, nbytes,
+	    0, (firehose_request_t *) &(op->req_remote), NULL,
+	    gasnete_fh_request_put, op);
+    }
+    return;
+}
+
 int
 main(int argc, char **argv)
 {
     int i, j, tid;
-    uintptr_t	segsize;
 
     pthread_t	*pt_tids;
 
@@ -933,6 +1139,10 @@ main(int argc, char **argv)
     
     if (gasnetc_threadspernode > GASNETE_MAXTHREADS)
 	gasneti_fatalerror("Too many local threads: %d", GASNETE_MAXTHREADS);
+
+    /* Feel free lying to gasnet that we've initialized */
+    gasneti_init_done = 1;
+    gasneti_attach_done = 1;
 
     pt_tids = (pthread_t *) 
 	    gasneti_malloc(sizeof(pthread_t) * gasnetc_threadspernode);
@@ -987,43 +1197,7 @@ main(int argc, char **argv)
 	}
     }
 
-    {
-	char *env = getenv("GASNET_SEGMENT_SIZE");
-
-	if (env == NULL || *env == '\0')
-	    gasneti_fatalerror("GASNET_SEGMENT_SIZE must be set");
-
-	segsize = atol(env);
-    }
-
     gasnetc_init();
-
-    gasneti_init_done = 1;
-    gasneti_attach_done = 1;
-
-    gasneti_trace_init();
-
-    GASNETC_NODE_BARRIER;
-
-    gasneti_segmentInit(
-	&gasnetc_MaxLocalSegmentSize, &gasnetc_MaxGlobalSegmentSize,
-	(uintptr_t) -1, gasnetc_nodes, &gasnetc_bootstrapExchange);
-
-    GASNETC_NODE_BARRIER;
-
-    printf("local = %ld and global = %ld\n",
-		    gasnetc_MaxLocalSegmentSize, gasnetc_MaxGlobalSegmentSize);
-
-    if (gasnetc_MaxGlobalSegmentSize < segsize)
-	gasneti_fatalerror(
-	    "Largest segment (%ld) is less than %d",
-	    gasnetc_MaxGlobalSegmentSize, segsize);
-
-    gasneti_segmentAttach(
-	segsize, 250*1024*1024, 
-	gasnetc_seginfo, &gasnetc_bootstrapExchange);
-
-    GASNETC_NODE_BARRIER;
 
     /* Spawn threads */
 
@@ -1034,8 +1208,6 @@ main(int argc, char **argv)
 
     for (i = 0; i < gasnetc_threadspernode; i++)
 	pthread_join(pt_tids[i], (void **) NULL);
-
-    //user_main();
 
     GASNETC_NODE_BARRIER;
 

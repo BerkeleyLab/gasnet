@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/03/21 21:28:10 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2004/05/12 09:34:52 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,7 +83,11 @@
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) 		\
         GASNETI_REFVIS_STATS(CNT,VAL,TIME)              \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)		\
-	VAL(C, FIREHOSE_MOVES, firehoses moved for puts)\
+	CNT(C, FIREHOSE_REMOTE_HITS, remote firehose hits) \
+	CNT(C, FIREHOSE_REMOTE_MISSES, remote firehose misses) \
+	CNT(C, FIREHOSE_LOCAL_HITS, local firehose hits) \
+	CNT(C, FIREHOSE_LOCAL_MISSES, local firehose misses) \
+	\
 	VAL(C, FIREHOSE_MOVE_OLD_BUCKETS,		\
 		number of replacement firhoses)		\
 	CNT(C, FIREHOSE_VICTIM_POLLS,			\

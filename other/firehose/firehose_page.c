@@ -658,6 +658,10 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
     fh_temp_bucket_ptrs = (fh_bucket_t **)
     	gasneti_malloc(sizeof(fh_bucket_t *) * fh_max_regions);
 
+    #if FIREHOSE_SMP
+    fh_da = (int *) gasneti_malloc(sizeof(int) * gasnet_nodes());
+    #endif
+
     return;
 }
 
@@ -954,6 +958,7 @@ fh_PendingCallbacksProgress(gasnet_node_t node, fh_bucket_t **bd_list,
 	base_addr = FH_BADDR(bd) + FH_BUCKET_SIZE;
 	ccb = (fh_completion_callback_t *) bd->fh_tqe_next;
 	gasneti_assert(ccb != NULL);
+	gasneti_assert(ccb != FH_COMPLETION_END);
 
 	FH_SET_USED(bd);
 
@@ -961,7 +966,7 @@ fh_PendingCallbacksProgress(gasnet_node_t node, fh_bucket_t **bd_list,
 	    next_ccb = FH_STAILQ_NEXT(ccb);
 	    gasneti_assert(ccb->flags & FH_CALLBACK_TYPE_COMPLETION);
 	    req = ccb->request;
-	    gasneti_assert(req && req->flags & FH_FLAG_PENDING);
+	    gasneti_assert(req && (req->flags & FH_FLAG_PENDING));
 
 	    GASNETI_TRACE_PRINTF(C,
 		("Firehose Pending FLUSH bd=%p (%p,%d), req=%p",
@@ -1043,9 +1048,15 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 
 	    /* if there is a pending request on the bucket, save it
 	     * in the temp array */
-	    fh_temp_bucket_ptrs[numpend] = bd;
-	    numpend++;
-	    gasneti_assert(numpend < fh_max_regions);
+	    /* XXX Changed the FH_COMPLETION_END tag to be != FH_USED_TAG in
+	     * order to *only* check for completion callbacks on bucket
+	     * descriptors that have a valid pointer or FH_COMPLETION_END.
+	     */
+	    if (bd->fh_tqe_next != FH_USED_TAG) {
+		fh_temp_bucket_ptrs[numpend] = bd;
+		numpend++;
+		gasneti_assert(numpend < fh_max_regions);
+	    }
 	    FH_UNSET_REMOTE_PENDING(bd);
 	    FH_BSTATE_SET(bd, fh_used);
 	}
@@ -1080,8 +1091,8 @@ fh_PendingCallbacksEnqueue(firehose_request_t *req,
     FH_TRACE_BUCKET(bd, PENDADD);
 
     GASNETI_TRACE_PRINTF(C, 
-        ("Firehose Pending ADD bd=%p (%p,%d), req=%p", 
-        bd, (void *) FH_BADDR(bd), (int) FH_NODE(bd), req));
+        ("Firehose Pending ADD bd=%p (%p,%d), ccb=%p, req=%p", 
+        bd, (void *) FH_BADDR(bd), (int) FH_NODE(bd), bd->fh_tqe_next, req));
 
     return;
 }
@@ -1151,6 +1162,7 @@ fhsmp_TryAcquireLocalRegion(firehose_request_t *req, fhi_RegionPool_t *pin_p)
     uintptr_t	end_addr = req->addr + (uintptr_t)req->len - 1;
     fh_bucket_t	*bd;
 
+    FH_TABLE_ASSERT_LOCKED;
     gasnet_node_t node = req->node;
 
     /*
@@ -1182,6 +1194,8 @@ fhsmp_ConsumeRemoteBucket(gasnet_node_t node, fhi_RegionPool_t *rpool)
     fh_fifoq_t	*fifo_head = &fh_RemoteNodeFifo[node];
     fh_refc_t	*rp;
     fh_bucket_t	*bd;
+
+    FH_TABLE_ASSERT_LOCKED;
 
     /* First, attempt to use any available free energy */
     if (fhc_RemoteBucketsUsed[node] < fhc_RemoteBucketsM) {
@@ -1244,7 +1258,7 @@ inner_again:
 	    /* We have a "pure" miss, increment the count */
 	    count++;
 	}
-	else if (FH_IS_REMOTE_PENDING(bd)) {
+	else if (FH_IS_REMOTE_PENDING_UNCOMMITTED(bd)) {
 	    /* If we hit a non-committed pending bucket, increment the deadlock
 	     * avoidance count and handle the case appropriately (whether we
 	     * own or not the da bit).
@@ -1276,6 +1290,25 @@ inner_again:
     return count;
 }
 
+void
+fhsmp_PinRemoteAllHit(firehose_request_t *req, uintptr_t start, uintptr_t end)
+{
+    uintptr_t	 bucket_addr;
+    fh_bucket_t *bd;
+
+    gasnet_node_t node = req->node;
+
+    FH_FOREACH_BUCKET(start, end, bucket_addr) {
+	bd = fh_bucket_lookup(node, bucket_addr);
+
+	gasneti_assert(bd && FH_BUCKET_REFC(bd)->refc_r > 0);
+	fh_priv_acquire_remote(node, bd);
+    }
+
+    req->flags |= FH_FLAG_PINNED;
+    return;
+}
+
 /*
  * In PinNoLog, we have already established that there are sufficient
  * resources (in Free Energy or in the FIFO) in order to satisfy the remote
@@ -1292,6 +1325,7 @@ fhsmp_PinRemoteNoLog(firehose_request_t *req,
     fh_bucket_t *bd;
     int		 first_pending = 1;
 
+    FH_TABLE_ASSERT_LOCKED;
     gasnet_node_t node = req->node;
 
     pin_p->buckets_num = 0;
@@ -1301,9 +1335,6 @@ fhsmp_PinRemoteNoLog(firehose_request_t *req,
 
     FH_FOREACH_BUCKET(start, end, bucket_addr) {
 	bd = fh_bucket_lookup(node, bucket_addr);
-
-	/* Can't see remote pending *non-committed* buckets */
-	gasneti_assert(!FH_IS_REMOTE_PENDING(bd));
 
 	if (bd == NULL) {
 	    /* 
@@ -1315,24 +1346,33 @@ fhsmp_PinRemoteNoLog(firehose_request_t *req,
 	    FH_BSTATE_SET(bd, fh_pending);
 	    FH_SET_REMOTE_PENDING(bd);
 	    FH_TRACE_BUCKET(bd, INIT);
+
+	    if (first_pending) {
+		fh_PendingCallbacksEnqueue(req, bd, ccb,
+		    (fh_completion_callback_t *) FH_COMPLETION_END);
+		first_pending = 0;
+	    }
 	}
-	else if (FH_IS_REMOTE_PENDING_COMMITTED(bd)) {
+	else if (FH_IS_REMOTE_PENDING(bd)) {
 	    /* hit on a PENDING bucket, attach ourselves to it if we havn't
 	     * done so on any other pending bucket */
 	    gasneti_assert(bd->fh_tqe_next != NULL);
+
+	    FH_BUCKET_REFC(bd)->refc_r++;
+	    gasneti_assert(FH_BUCKET_REFC(bd)->refc_r > 0);
+	    FH_TRACE_BUCKET(bd, PENDING);
 
 	    if (first_pending) {
 		fh_PendingCallbacksEnqueue(req, bd, ccb,
 		    (fh_completion_callback_t *) bd->fh_tqe_next);
 		first_pending = 0;
 	    }
-
-	    FH_BUCKET_REFC(bd)->refc_r++;
-	    gasneti_assert(FH_BUCKET_REFC(bd)->refc_r > 0);
-	    FH_TRACE_BUCKET(bd, PENDING);
 	}
 	else {
-	    /* The bucket exists and is *NOT* pending */
+	    /* The bucket exists and is *NOT* pending, however make sure we
+	     * can't see remote pending *non-committed* buckets */
+	    gasneti_assert(!FH_IS_REMOTE_PENDING_UNCOMMITTED(bd));
+
 	    fh_priv_acquire_remote(node, bd);
 	}
     }
@@ -1382,6 +1422,7 @@ fhsmp_PinWithLog(int n_avail, gasnet_node_t node,
     uintptr_t	 bucket_addr, rem_addr;
     fh_bucket_t *bd;
 
+    FH_TABLE_ASSERT_LOCKED;
     FH_FOREACH_BUCKET(start, end, bucket_addr) {
 	bd = fh_bucket_lookup(node, bucket_addr);
 
@@ -1389,7 +1430,7 @@ fhsmp_PinWithLog(int n_avail, gasnet_node_t node,
 	    /* EstimateRemoteRequest guarentees that we can't see
 	     * remote+noncommitted buckets
 	     */
-	    gasneti_assert(!FH_IS_REMOTE_PENDING(bd));
+	    gasneti_assert(!FH_IS_REMOTE_PENDING_UNCOMMITTED(bd));
 
 	    /* The bucket exists and is *NOT* pending */
 	    fh_priv_acquire_remote(node, bd);
@@ -1442,6 +1483,7 @@ fhsmp_PinWithLogAgain(int n_avail, gasnet_node_t node,
     uintptr_t	 bucket_addr, rem_addr;
     fh_bucket_t *bd;
 
+    FH_TABLE_ASSERT_LOCKED;
     FH_FOREACH_BUCKET(start, end, bucket_addr) {
 	bd = fh_bucket_lookup(node, bucket_addr);
 
@@ -1451,7 +1493,7 @@ fhsmp_PinWithLogAgain(int n_avail, gasnet_node_t node,
 	     * retry later.
 	     */
 
-	    if (FH_IS_REMOTE_PENDING(bd))
+	    if (FH_IS_REMOTE_PENDING_UNCOMMITTED(bd))
 		return bucket_addr;
 
 	    /* The bucket exists and is *NOT* pending */
@@ -1585,6 +1627,8 @@ fhsmp_LocalRollback(fhi_RegionPool_t *pin_p, fhi_RegionPool_t *unpin_p,
      * We should *NOT* have overflowed the LocalOnlyBucketsPinned counter
      */
     gasneti_assert(fhc_LocalOnlyBucketsPinned <= fhc_MaxVictimBuckets);
+
+    return;
 }
 
 void
@@ -1599,7 +1643,7 @@ fhsmp_RemoteRollback(gasnet_node_t node,
 	bd = fh_bucket_lookup(node, bucket_addr);
 	gasneti_assert(bd != NULL);
 
-	if (FH_IS_REMOTE_PENDING(bd)) {
+	if (FH_IS_REMOTE_PENDING_UNCOMMITTED(bd)) {
 	    /*
 	     * We created this bucket (and set it pending and not committed),
 	     * it falls within the "handled" range
@@ -1616,13 +1660,15 @@ fhsmp_RemoteRollback(gasnet_node_t node,
 	fhc_RemoteBucketsUsed[node] +=
 	    (pin_p->buckets_num - unpin_p->buckets_num);
     }
+
+    return;
 }
 
 /*
  * Once we've acquired the required resources, the calling thread can commit.
  * We 
  */
-int
+void
 fhsmp_Commit(firehose_request_t *req,
 	     fh_completion_callback_t *ccb,
 	     uintptr_t start_addr, uintptr_t end_addr,
@@ -1642,9 +1688,9 @@ fhsmp_Commit(firehose_request_t *req,
 	bd = fh_bucket_lookup(node, bucket_addr);
 	gasneti_assert(bd != NULL);
 	gasneti_assert(FH_BUCKET_REFC(bd)->refc_r == 1);
-	gasneti_assert(FH_IS_REMOTE_PENDING(bd));
+	gasneti_assert(FH_IS_REMOTE_PENDING_UNCOMMITTED(bd));
 
-	FH_SET_REMOTE_PENDING_COMMITTED(bd);
+	FH_SET_REMOTE_PENDING(bd);
 
 	if (first_pending) {
 	    fh_PendingCallbacksEnqueue(req, bd, ccb,
@@ -1681,7 +1727,7 @@ fh_acquire_local_region(firehose_request_t *req)
 {
     int			b_num, b_total, b_new;
     int			outer_limit, inner_limit;
-    int			my_da = 0;
+    int			my_da = 0, a = 0;
     int			outer_count = 0;
     firehose_region_t	region;
     fhi_RegionPool_t	*pin_p = NULL, *unpin_p = NULL;
@@ -1706,6 +1752,7 @@ fh_acquire_local_region(firehose_request_t *req)
 again:
     gasneti_assert(pin_p == NULL && unpin_p == NULL);
     pin_p   = fhi_AllocRegionPool(FH_MIN_REGIONS_FOR_BUCKETS(b_total));
+    a++;
     unpin_p = NULL;
 
     FH_TABLE_ASSERT_LOCKED;
@@ -1718,7 +1765,7 @@ again:
     if_pf (fh_local_da) {
 	/* Someone else owns fhi_local_da, wait for them to finish */
 	do {
-	    pthread_cond_wait(&fh_local_da_cv, &fh_table_lock);
+	    pthread_cond_wait(&fh_local_da_cv, GASNETI_MUTEX_PTHREADREF(&fh_table_lock));
 	} while (fh_local_da);	/* loop until we win the race */
     }
     else if_pf (outer_count > outer_limit) {
@@ -1743,6 +1790,7 @@ again:
 	uintptr_t bucket_end, bucket_addr;
 
 	unpin_p = fhi_AllocRegionPool(b_new);
+	a++;
 
         b_remain = fhsmp_CheckLocalBucketsToPin(b_new, unpin_p);
 
@@ -1765,8 +1813,8 @@ again:
                     /* Somebody else "owns" fhi_local_da.
                        We must back off and start from scratch. */
 		    fhsmp_LocalRollback(pin_p, unpin_p, b_remain);
-                    fhi_FreeRegionPool(pin_p);
-                    fhi_FreeRegionPool(unpin_p);
+                    fhi_FreeRegionPool(pin_p),a--;
+                    fhi_FreeRegionPool(unpin_p),a--;
                     pin_p = NULL;
                     unpin_p = NULL;
                     goto again; /* will recheck for (fhi_local_da != 0) */
@@ -1776,7 +1824,7 @@ again:
                     my_da = fh_local_da = 1;
                 }
             } while 
-	      (b_remain = fhsmp_CheckLocalBucketsToPin(b_remain, unpin_p));
+	      ((b_remain = fhsmp_CheckLocalBucketsToPin(b_remain, unpin_p)));
         }
 
         /* We have everything we need... commit */
@@ -1788,7 +1836,9 @@ again:
                             pin_p->regions, pin_p->regions_num);
         FH_TABLE_LOCK;
         fhi_FreeRegionPool(unpin_p);
+	a--;
         fhi_FreeRegionPool(pin_p);
+	a--;
 
 	/* Must remove the PENDING bit on buckets we just pinned */
 	FH_FOREACH_BUCKET_IN_POOL(i, pin_p, bucket_addr, bucket_end) {
@@ -1823,12 +1873,14 @@ again:
          */
 	fhsmp_LocalRollback(pin_p, NULL, 0);
         fhi_FreeRegionPool(pin_p);
+	a--;
 	pin_p = NULL;
-        pthread_cond_wait(&inflight_condvar, &fh_table_lock);
+        pthread_cond_wait(&inflight_condvar, GASNETI_MUTEX_PTHREADREF(&fh_table_lock));
         goto again; /* will recheck for (fh_local_da != 0) */
     }
 
-    FH_TABLE_UNLOCK;
+    gasneti_assert(a == 0);
+    FH_TABLE_ASSERT_LOCKED;
 
     return;
 }
@@ -1842,7 +1894,9 @@ fh_acquire_remote_region(firehose_request_t *req,
     int	da_count = 0, b_total;
     int	my_da = 0;
     int n_buckets, n_avail;
+    int a = 0;
 
+    FH_TABLE_ASSERT_LOCKED;
     gasnet_node_t   node = req->node;
     uintptr_t	    end_addr = req->addr + req->len - 1;
     uintptr_t	    start_addr = req->addr;
@@ -1855,6 +1909,7 @@ fh_acquire_remote_region(firehose_request_t *req,
     /* XXX should this check be done in non-assert */
     gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len) 
 		    <= fhc_RemoteBucketsM);
+    gasneti_assert(req->node != fh_mynode);
     b_total = FH_NUM_BUCKETS(req->addr, req->len);
 
     FH_TABLE_ASSERT_LOCKED;
@@ -1868,18 +1923,35 @@ fh_acquire_remote_region(firehose_request_t *req,
     ccb.request  = req;
     ccb.context  = context;
 
+    GASNETI_TRACE_PRINTF(C, ("in fh_acquire_remote_region"));
+
 outer_again:
-    pin_p   = fhi_AllocRegionPool(FH_MIN_REGIONS_FOR_BUCKETS(b_total));
 
     /* XXX fhi-da */
     /* Wait for deadlock to end */
-    while (fh_da[node]) { FH_UPYL; }
+    while (fh_da[node]) { //FH_UPYL; }
+      FH_TABLE_UNLOCK;
+      gasnet_AMPoll();
+      gasneti_sched_yield();  
+      FH_TABLE_LOCK;         
+    }
 
     n_buckets = 
 	fhsmp_EstimateRemoteRequest(&my_da, &da_count, node, 
 	    start_addr, end_addr);
 
+    /* XXX We should do something special with n_buckets == 0. */
+    #if 0
+    printf("n_buckets = %d\n", n_buckets);
+    if (n_buckets == 0) {
+	fhsmp_PinRemoteAllHit(req, start_addr, end_addr);
+	goto done; /* ??? */
+    }
+    #endif
+
+    pin_p   = fhi_AllocRegionPool(FH_MIN_REGIONS_FOR_BUCKETS(b_total));
     unpin_p = fhi_AllocRegionPool(FH_MIN_REGIONS_FOR_BUCKETS(n_buckets));
+    a +=2;
 
     if (my_da) {
 	gasneti_assert(fh_da[node]);
@@ -1916,6 +1988,7 @@ outer_again:
 	    fhsmp_RemoteRollback(node, start_addr, saved_addr, pin_p, unpin_p);
             fhi_FreeRegionPool(pin_p);
             fhi_FreeRegionPool(unpin_p);
+	    a -= 2;
             pin_p = NULL;
             unpin_p = NULL;
 	    goto outer_again;
@@ -1932,6 +2005,7 @@ outer_again:
 	    fhsmp_RemoteRollback(node, start_addr, saved_addr, pin_p, unpin_p);
             fhi_FreeRegionPool(pin_p);
             fhi_FreeRegionPool(unpin_p);
+	    a -= 2;
             pin_p = NULL;
             unpin_p = NULL;
 	    goto outer_again;
@@ -1977,6 +2051,7 @@ outer_again:
     else {
         fhi_FreeRegionPool(pin_p);
         fhi_FreeRegionPool(unpin_p);
+	a -=2;
         pin_p = NULL;
         unpin_p = NULL;
 	goto outer_again;
@@ -2004,6 +2079,7 @@ done:
 
         fhi_FreeRegionPool(pin_p);
         fhi_FreeRegionPool(unpin_p);
+	a -= 2;
 	FH_TABLE_UNLOCK;
 
 	/* Copy remote callback if required */
@@ -2028,12 +2104,18 @@ done:
 		    PACK(NULL)));
     }
     else {
+        fhi_FreeRegionPool(pin_p);
+        fhi_FreeRegionPool(unpin_p);
+	a -= 2;
 	/* Only set the PINNED flag if the request is not set on any
 	 * pending buckets */
 	if (!(req->flags & FH_FLAG_PENDING))
 	    req->flags |= FH_FLAG_PINNED;
 	FH_TABLE_UNLOCK;
     }
+    FH_TABLE_ASSERT_UNLOCKED;
+    gasneti_assert(a==0);
+    return;
 }
 
 #else /* !FIREHOSE_SMP */
@@ -2433,6 +2515,7 @@ fh_move_request(gasnet_node_t node,
 	fhi_RegionPool_t	*rpool;
 	int			i, r_alloc;
 
+	FH_TABLE_ASSERT_UNLOCKED;
 	FH_TABLE_LOCK;
 
 	GASNETI_TRACE_PRINTF(C, ("Firehose move request: new=%d, old=%d",

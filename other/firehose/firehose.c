@@ -1243,8 +1243,10 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 			ccb = ccb2;
 		}
 		#else
+		gasneti_assert(FH_STAILQ_FIRST(&pendCallbacks) != NULL);
 		
 		FH_POLLQ_LOCK;
+		gasneti_assert(!FH_STAILQ_EMPTY(&pendCallbacks));
 		FH_STAILQ_MERGE(&fh_CallbackFifo, &pendCallbacks);
 		gasneti_assert(!FH_STAILQ_EMPTY(&fh_CallbackFifo));
 		FH_POLLQ_UNLOCK;

@@ -224,10 +224,10 @@ struct _firehose_private_t {
  *      b) NOT PENDING (LOCAL refcount != FH_REMOTE_PENDING_TAG)
  *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
-#define FH_USED_TAG		((firehose_private_t *) -1)
-#define FH_LOCAL_PENDING_TAG	((fh_refc_uint_t) -1)
-#define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
-#define FH_REMOTE_PENDING_COMMITTED_TAG	((fh_refc_uint_t) -2)
+#define FH_USED_TAG			  ((firehose_private_t *) -1)
+#define FH_LOCAL_PENDING_TAG			((fh_refc_uint_t) -1)
+#define FH_REMOTE_PENDING_TAG			((fh_refc_uint_t) -1)
+#define FH_REMOTE_PENDING_UNCOMMITTED_TAG	((fh_refc_uint_t) -2)
 
 #define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
 #define FH_IS_REMOTE_FIFO(priv)	(!FH_IS_REMOTE_PENDING(priv) &&		\
@@ -240,8 +240,8 @@ struct _firehose_private_t {
 		(FH_BUCKET_REFC(priv)->refc_l == FH_LOCAL_PENDING_TAG)
 #define FH_IS_REMOTE_PENDING(priv)					\
 		(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_TAG)
-#define FH_IS_REMOTE_PENDING_COMMITTED(priv)				\
-	(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_COMMITTED_TAG)
+#define FH_IS_REMOTE_PENDING_UNCOMMITTED(priv)				\
+	(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_UNCOMMITTED_TAG)
 
 #define FH_SET_LOCAL_PENDING(priv)      do {				\
 		FH_BUCKET_REFC(priv)->refc_l = FH_LOCAL_PENDING_TAG;	\
@@ -253,9 +253,9 @@ struct _firehose_private_t {
 		FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_TAG;	\
 		FH_BUCKET_REFC(priv)->refc_r = 1;			\
 		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
-#define FH_SET_REMOTE_PENDING_COMMITTED(priv)	do { 			\
+#define FH_SET_REMOTE_PENDING_UNCOMMITTED(priv)	do { 			\
 		FH_BUCKET_REFC(priv)->refc_l =				\
-				FH_REMOTE_PENDING_COMMITTED_TAG;	\
+				FH_REMOTE_PENDING_UNCOMMITTED_TAG;	\
 		FH_BUCKET_REFC(priv)->refc_r = 1;			\
 		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
 #define FH_UNSET_REMOTE_PENDING(priv)					\
@@ -514,7 +514,8 @@ struct _fh_completion_callback_t {
 	void			*context;
 }
 fh_completion_callback_t;
-#define FH_COMPLETION_END	((fh_completion_callback_t *)(FH_USED_TAG))
+/* This tag cannot be USED_TAG */
+#define FH_COMPLETION_END	((fh_completion_callback_t *)(-3))
 
 fh_completion_callback_t *	fh_alloc_completion_callback();
 void	fh_free_completion_callback(fh_completion_callback_t *rc);
