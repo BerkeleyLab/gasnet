@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/15 18:45:10 $
- * $Revision: 1.1.2.44 $
+ *     $Date: 2004/06/15 19:55:35 $
+ * $Revision: 1.1.2.45 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1086,20 +1086,8 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
     case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
-	void   *src   = args->src;
-	size_t nbytes = args->nbytes;
-	int i;
-
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_put(op, i, src, nbytes, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_put(op, i, src, nbytes, 0, 1);
-	}
-
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, nbytes);
+	gasnete_coll_p2p_eager_put_all(op, args->src, args->nbytes, 0, 0, 1);	/* broadcast data */
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
       } else {
@@ -1151,19 +1139,8 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
     case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
-	void *src = args->src;
-	int i;
-
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src, args->nbytes);
+	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1);	/* broadcast src address */
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
       } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, 
 					   *(void **)data->p2p->data,
@@ -1429,23 +1406,10 @@ static int gasnete_coll_pf_bcastM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 
     case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
-	void   *src   = args->src;
-	size_t nbytes = args->nbytes;
-	int i, j, limit;
-
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_put(op, i, src, nbytes, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_put(op, i, src, nbytes, 0, 1);
-	}
-
-	/* Do local copy LAST, perhaps overlapping with communication */
+	gasnete_coll_p2p_eager_put_all(op, args->src, args->nbytes, 0, 0, 1);	/* broadcast data */
 	_gasnete_coll_membcast(gasnete_coll_my_images,
 			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
-			       src, nbytes);
+			       args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	_gasnete_coll_membcast(gasnete_coll_my_images,
 			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
@@ -1499,22 +1463,11 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 
     case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
-	void *src = args->src;
-	int i;
-
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-
+	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1);	/* broadcast src address */
 	/* Do local copy LAST, perhaps overlapping with communication */
 	_gasnete_coll_membcast(gasnete_coll_my_images,
 			       &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
-			       src, args->nbytes);
+			       args->src, args->nbytes);
       } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	/* Get 1st image only */
 	data->handle = gasnete_get_nb_bulk(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
@@ -1768,25 +1721,10 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
     case 1:	/* Data movement */
       if (gasnete_mynode == args->srcnode) {
-	void   *src   = args->src;
-	size_t nbytes = args->nbytes;
-	uintptr_t p;
-	int i;
-
-	/* Send to nodes to the "right" of ourself */
-	p = (uintptr_t)src + nbytes * (gasnete_mynode + 1);
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i, p+= nbytes) {
-	  gasnete_coll_p2p_eager_put(op, i, (void *)p, nbytes, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	p = (uintptr_t)src;
-	for (i = 0; i < gasnete_mynode; ++i, p+= nbytes) {
-	  gasnete_coll_p2p_eager_put(op, i, (void *)p, nbytes, 0, 1);
-	}
-
-	/* Do local copy, perhaps overlapping with communication */
-	p = (uintptr_t)src + nbytes * gasnete_mynode;
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, (void *)p, nbytes);
+	gasnete_coll_p2p_eager_put_all(op, args->src, args->nbytes, 1, 0, 1);	/* scatter data */
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst,
+				      (void *)((uintptr_t)(args->src) + args->nbytes * gasnete_mynode),
+				      args->nbytes);
       } else if (data->p2p->state[0]) {
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
       } else {
@@ -1838,18 +1776,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
     case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
-	void *src = args->src;
-	int i;
-
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-
+	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1);	/* broadcast src address */
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
       } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	size_t nbytes = args->nbytes;
@@ -2261,20 +2188,12 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
     case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
-	void *src = args->src;
 	int i;
 	size_t nbytes = args->nbytes;
 	void * const *p;
 	uintptr_t src_addr;
 
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, src, 0, 1);
-	}
+	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1);	/* broadcast src address */
 
 	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
 	src_addr = (uintptr_t)(args->src) + nbytes * gasnete_coll_my_offset;
@@ -2620,19 +2539,9 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->dstnode) {
 	size_t nbytes = args->nbytes;
-	void *dst = args->dst;
-	int i;
 
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, dst, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, dst, 0, 1);
-	}
-
-	GASNETE_FAST_UNALIGNED_MEMCPY((void *)((uintptr_t)dst + gasnete_mynode * nbytes),
+	gasnete_coll_p2p_eager_addr_all(op, args->dst, 0, 1);	/* broadcast dst address */
+	GASNETE_FAST_UNALIGNED_MEMCPY((void *)((uintptr_t)(args->dst) + gasnete_mynode * nbytes),
 				      args->src, nbytes);
       } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	size_t nbytes = args->nbytes;
@@ -3034,21 +2943,12 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
     case 1:
       if (gasnete_mynode == args->dstnode) {
-	void *dst = args->dst;
 	size_t nbytes = args->nbytes;
 	int i;
 	void * const *p;
 	uintptr_t dst_addr;
 
-	/* Send to nodes to the "right" of ourself */
-	for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, dst, 0, 1);
-	}
-	/* Send to nodes to the "left" of ourself */
-	for (i = 0; i < gasnete_mynode; ++i) {
-	  gasnete_coll_p2p_eager_addr(op, i, dst, 0, 1);
-	}
-
+	gasnete_coll_p2p_eager_addr_all(op, args->dst, 0, 1);	/* broadcast dst address */
 	p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags);
 	dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
 	for (i = 0; i < gasnete_coll_my_images; ++i, ++p, dst_addr += nbytes) {
