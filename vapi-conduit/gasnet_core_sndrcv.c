@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/20 21:29:43 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/06/20 22:41:29 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -273,7 +273,7 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
         }
       } else {
 #if 1 
-        fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+        fprintf(stderr, "@ %d> snd comp.status=%d comp.opcode=%d\n", gasnetc_mynode, comp.status, comp.opcode);
         while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
           fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
         }
@@ -295,6 +295,7 @@ GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   gasnetc_sbuf_t *sbuf, *tail;
 
+  GASNETI_TRACE_WAIT_BEGIN();
   while (1) {
     /* try to get an unused sbuf by reaping the send CQ */
     sbuf = gasnetc_snd_reap(&tail);
@@ -318,6 +319,7 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     /* be kind */
     gasneti_sched_yield();
   }
+  GASNETI_TRACE_WAIT_END(GET_SBUF);
 
   assert(sbuf != NULL);
 
@@ -406,6 +408,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 #if GASNETC_AM_FLOWCTRL
     /* Requests require credit for flow control */
     if (isReq) {
+      GASNETI_TRACE_WAIT_BEGIN();
       do {
         pthread_mutex_lock(&cep->lock);
         if_pt(gasneti_atomic_read(&cep->req_credits)) {
@@ -416,6 +419,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         pthread_mutex_unlock(&cep->lock);
         gasnetc_sndrcv_poll();
       } while (1);
+      GASNETI_TRACE_WAIT_END(GET_AMREQ_CREDIT);
     }
 #endif
 
