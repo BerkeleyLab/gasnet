@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/09 20:59:24 $
- * $Revision: 1.1.2.33 $
+ *     $Date: 2004/06/14 20:54:42 $
+ * $Revision: 1.1.2.34 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,17 +81,10 @@ extern void gasnete_coll_handle_signal(gasnet_coll_handle_t handle GASNETE_THREA
   typedef gasnet_handlerarg_t gasnet_coll_fn_handle_t;
 #endif
 
-typedef enum {
-    GASNET_COLL_FN_KIND_REDUCE,
-    GASNET_COLL_FN_KIND_SORT
-} gasnet_coll_fn_kind_t;
-
 typedef void (*gasnet_coll_fn_t)();
 
 typedef struct {
-    gasnet_coll_fn_handle_t	handle;	/* output only */
     gasnet_coll_fn_t		fnptr;
-    gasnet_coll_fn_kind_t	kind;
     unsigned int		flags;
 } gasnet_coll_fn_entry_t;
 
@@ -234,7 +227,6 @@ typedef struct {
     /* Linkage used by the thread-specific active ops list. */
     #ifndef GASNETE_COLL_LIST_OVERRIDE
 	/* Default implementation of coll_ops active list */
-	gasnete_coll_op_t		*active_head, **active_tail_p;
     #endif
 
     /* XXX: more fields to come */
@@ -983,6 +975,9 @@ typedef struct  {
 #define GASNETE_COLL_GENERIC_OPT_P2P_IF(COND)		((COND) ? GASNETE_COLL_GENERIC_OPT_P2P : 0)
 
 struct gasnete_coll_generic_data_t_ {
+    #if GASNETI_USE_TRUE_MUTEXES || GASNET_DEBUG
+      void				*owner;	/* gasnete_threaddata_t not yet defined */
+    #endif
     #if GASNET_DEBUG
       #define GASNETE_COLL_GENERIC_TAG(T)	_CONCAT(GASNETE_COLL_GENERIC_TAG_,T)
       #define GASNETE_COLL_GENERIC_SET_TAG(D,T)	(D)->tag = GASNETE_COLL_GENERIC_TAG(T)
@@ -1058,17 +1053,7 @@ extern gasnet_coll_handle_t gasnete_coll_op_generic_init(gasnete_coll_team_t tea
 							 gasnete_coll_generic_data_t *data,
 							 gasnete_coll_poll_fn poll_fn
 							 GASNETE_THREAD_FARG);
-
-GASNET_INLINE_MODIFIER(gasnete_coll_generic_syncnb)
-int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data) {
-  gasnet_handle_t handle = data->handle;
-  int result = 1;
-
-  if_pt (handle != GASNET_INVALID_HANDLE)
-    result = (gasnete_try_syncnb(handle) == GASNET_OK);
-
-  return result;
-}
+extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data GASNETE_THREAD_FARG);
 
 GASNET_INLINE_MODIFIER(gasnete_coll_generic_insync)
 int gasnete_coll_generic_insync(gasnete_coll_generic_data_t *data) {
