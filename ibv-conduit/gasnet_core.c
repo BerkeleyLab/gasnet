@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 21:35:24 $
- * $Revision: 1.2.2.16 $
+ *     $Date: 2003/04/01 22:07:36 $
+ * $Revision: 1.2.2.17 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -848,7 +848,6 @@ extern int gasnetc_AMRequestMediumM(
 		  		  source_addr, nbytes, NULL,
 				  numargs, NULL, argptr);
 
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -877,8 +876,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, &rdma_desc, argptr);
 
-  /* ### block for completion of rdma_desc */
-  assert(0);	/* XXX until we have a way to block */
+  if (rdma_desc) {
+    /* ### block for completion of rdma_desc */
+    assert(0);	/* XXX until we have a way to block */
+  }
 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -907,6 +908,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, &rdma_desc, argptr);
+
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -920,11 +922,10 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
-             and send the active message 
-     */
+  retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
+		  		NULL, 0, NULL,
+				numargs, NULL, argptr);
 
-    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -939,11 +940,10 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
-             and send the active message 
-     */
+  retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
+		  		source_addr, nbytes, NULL,
+				numargs, NULL, argptr);
 
-    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -954,6 +954,7 @@ extern int gasnetc_AMReplyLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
+  gasnetc_snd_desc_t *rdma_desc;
   int retval;
   gasnet_node_t dest;
   va_list argptr;
@@ -970,11 +971,15 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
-             and send the active message 
-     */
+  retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
+		  		source_addr, nbytes, dest_addr,
+				numargs, &rdma_desc, argptr);
 
-    retval = 0 /* ### */;
+  if (rdma_desc) {
+    /* ### block for completion of rdma_desc */
+    assert(0);	/* XXX until we have a way to block */
+  }
+
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
