@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/03/12 12:15:27 $
- * $Revision: 1.2.2.3 $
+ *     $Date: 2004/06/07 17:23:43 $
+ * $Revision: 1.2.2.4 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -111,14 +111,10 @@ gasnete_init()
 }
 
 extern gasnet_handle_t 
-gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, 
+gasnete_shmem_put_nb_bulk(gasnet_node_t node, void *dest, void *src, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
-#ifdef GASNETE_GLOBAL_ADDRESS
-    gasnete_g_put(dest,src,nbytes);
-#else
     shmem_putmem(dest, src, nbytes, node);
-#endif
     gasnete_handles[gasnete_handleno_phase] = GASNETE_HANDLE_NB_QUIET;
     return &gasnete_handles[gasnete_handleno_phase];
 }
@@ -140,13 +136,9 @@ gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src,
     return handle;
 }
 
-/*
- * Non-blocking memset
- */
-#ifdef GASNETE_GLOBAL_ADDRESS
 extern gasnet_handle_t
-gasnete_memset_nb(gasnet_node_t node, void *dest, int val, 
-		    size_t nbytes GASNETE_THREAD_FARG) 
+gasnete_global_memset_nb(gasnet_node_t node, void *dest, int val, 
+		    size_t nbytes) 
 {
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
 
@@ -157,9 +149,9 @@ gasnete_memset_nb(gasnet_node_t node, void *dest, int val,
     GASNETE_HANDLE_INC();
     return handle;
 }
-#else
+
 extern gasnet_handle_t
-gasnete_memset_nb(gasnet_node_t node, void *dest, int val, 
+gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
@@ -175,7 +167,6 @@ gasnete_memset_nb(gasnet_node_t node, void *dest, int val,
     GASNETE_HANDLE_INC();
     return handle;
 }
-#endif
     
 /* ------------------------------------------------------------------------ */
 /*
@@ -272,24 +263,25 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
   ==========================================================
 */
 
-#ifdef GASNETE_GLOBAL_ADDRESS
 extern void 
-gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, 
-		    size_t nbytes GASNETE_THREAD_FARG) 
+gasnete_global_memset_nbi(gasnet_node_t node, void *dest, int val, 
+  		    size_t nbytes) 
 {
-    memset(dest, val, nbytes);
-    gasneti_memsync();
-    return;
+      memset(dest, val, nbytes);
+      gasneti_memsync();
+      return;
 }
-#else
+
+#if 0
 extern void 
-gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, 
+gasnete_am_memset_nbi(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(GASNETE_SHMPTR(dest,node)), PACK(&gasnete_nbi_handle))));
+		      PACK(GASNETE_SHMPTR(dest,node)), 
+		      PACK(&gasnete_nbi_handle))));
 
     gasnete_nbi_am_ctr++;
     return;

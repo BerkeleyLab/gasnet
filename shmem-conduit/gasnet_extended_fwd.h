@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/03/12 10:58:19 $
- * $Revision: 1.2.2.2 $
+ *     $Date: 2004/06/07 17:23:43 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,6 @@
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         SHMEM
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
-
 
 #define _GASNET_HANDLE_T
 typedef int *gasnet_handle_t;
@@ -69,7 +68,7 @@ typedef uintptr_t gasnet_register_value_t;
   /*
    * Some clients, such as the UPC Runtime, issue puts/gets on global addresses
    */
-  #ifdef GASNETE_GLOBAL_ADDRESS
+  #if GASNETE_GLOBAL_ADDRESS
     #define GASNETE_SHMPTR(addr,pe)
   #else
     #define GASNETE_SHMPTR(addr,pe) GASNETE_TRANSLATE_X1(addr,pe)
@@ -160,13 +159,6 @@ typedef uintptr_t gasnet_register_value_t;
 
 #define gasnete_get_bulk	    gasnete_get
 
-#ifdef GASNETE_GLOBAL_ADDRESS
-#define gasnete_put(pe,dest,src,nbytes)	gasnete_global_put(dest,src,nbytes)
-#else
-#define gasnete_put(pe,dest,src,nbytes)				    \
-	    do { shmem_putmem(dest,src,nbytes,pe); shmem_quiet(); } while (0)
-#endif
-
 #define gasnete_putTI gasnete_put
 #define gasnete_put_bulk gasnete_put
 
@@ -203,12 +195,56 @@ extern int	    gasnete_handleno_phase;
 
 /* get_nbi is already defined as get_nbi_bulk */
 
+#ifdef GASNETE_GLOBAL_ADDRESS
+#define gasnete_put(pe,dest,src,nbytes)	gasnete_global_put(dest,src,nbytes)
+
+GASNET_INLINE_MODIFIER(_gasnete_put_nb_bulk)
+gasnet_handle_t 
+_gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, 
+		    size_t nbytes) 
+{
+    memcpy(dest, src, nbytes);
+    gasnete_handles[gasnete_handleno_phase] = GASNETE_HANDLE_NB_QUIET;
+    return &gasnete_handles[gasnete_handleno_phase];
+}
+#define gasnete_put_nb_bulk(pe,dest,src,nbytes) _gasnete_put_nb_bulk(pe,dest,src,nbytes)
+#else
+  #define gasnete_put(pe,dest,src,nbytes)				    \
+	    do { shmem_putmem(dest,src,nbytes,pe); shmem_quiet(); } while (0)
+  extern gasnet_handle_t 
+         gasnete_shmem_put_nb_bulk(gasnet_node_t node, void *dest, void *src, size_t nbytes);
+
+  #define gasnete_put_nb_bulk(pe,dest,src,nbytes) gasnete_shmem_put_nb_bulk(pe,dest,src,nbytes)
+#endif
+
+
+/*
+ * Memsets on global addresses
+ */
+#ifdef GASNETE_GLOBAL_ADDRESS
+  extern gasnet_handle_t
+         gasnete_global_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes);
+  #define gasnete_memset_nb gasnete_global_memset_nb
+
+  extern void 
+  gasnete_global_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes);
+  #define gasnete_memset_nbi gasnete_global_memset_nbi
+#else
+  extern gasnet_handle_t
+         gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes);
+  extern void 
+         gasnete_am_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes); 
+  #define gasnete_memset_nb  gasnete_am_memset_nb
+  #define gasnete_memset_nbi gasnete_am_memset_nbi
+#endif
+
+
 /*
  * Non-bulk are the same as bulk, except on X1
  */
 
 #ifdef CRAYX1
-  GASNET_INLINE_MODIFIER(gasnete_get_nb)
+  GASNET_INLINE_MODIFIER(_gasnete_get_nb)
   gasnet_handle_t 
   _gasnete_get_nb(void *dest, gasnet_node_t node, void *src, size_t nbytes)
   {
@@ -216,7 +252,7 @@ extern int	    gasnete_handleno_phase;
     return (gasnet_handle_t) 0;
   }
 
-  GASNET_INLINE_MODIFIER(gasnete_put_nb)
+  GASNET_INLINE_MODIFIER(_gasnete_put_nb)
   gasnet_handle_t 
   _gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t nbytes)
   {
@@ -279,7 +315,6 @@ extern int	    gasnete_handleno_phase;
 #endif
 
 #ifdef GASNETE_GLOBAL_ADDRESS
-#warning global address inner for gets
 GASNET_INLINE_MODIFIER(gasnete_get_nb_val)
 gasnet_valget_handle_t 
 _gasnete_get_nb_val(gasnet_node_t node, void *src, 
@@ -295,12 +330,12 @@ _gasnete_get_nb_val(gasnet_node_t node, void *src,
 	case 1:
 	    return (gasnet_valget_handle_t) *((uint8_t *) src);
 	default:
-	    abort();
-	    /*
+	    return (gasnet_valget_handle_t) 0;
+	    #if 0
 	    gasneti_fatalerror(
 		"VIOLATION: Unsupported size %d in valget", 
 		nbytes);
-		*/
+	    #endif
 	    break;
     }
     return (gasnet_valget_handle_t) 0;
@@ -394,7 +429,6 @@ gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle)
   ====================================
 */
 #ifdef GASNETE_GLOBAL_ADDRESS
-#warning global address inner
 GASNET_INLINE_MODIFIER(gasnet_put_val_inner)
 void 
 gasnete_put_val_inner(gasnet_node_t node, void *dest, 
@@ -415,9 +449,11 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
 	    *((uint8_t *)dest) = (uint8_t)value;
 	    return;
 	default:
+	    #if 0
 	    gasneti_fatalerror(
 		"VIOLATION: Unsupported size %d in valput", 
 		nbytes);
+	    #endif
 	    break;
     }
     return;
