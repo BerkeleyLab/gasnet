@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_ref.c,v 1.13.2.1 2004/05/14 21:30:41 phargrov Exp $
- * $Date: 2004/05/14 21:30:41 $
+/* $Id: gasnet_extended_ref.c,v 1.13.2.2 2004/05/21 00:52:16 phargrov Exp $
+ * $Date: 2004/05/21 00:52:16 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -427,6 +427,9 @@ static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */

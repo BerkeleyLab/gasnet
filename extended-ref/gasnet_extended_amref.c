@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/05/10 23:19:13 $
- * $Revision: 1.35.6.4 $
+ *     $Date: 2004/05/21 00:52:14 $
+ * $Revision: 1.35.6.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -956,6 +956,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */
