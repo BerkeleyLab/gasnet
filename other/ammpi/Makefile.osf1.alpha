@@ -1,0 +1,25 @@
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.osf1.alpha,v $
+#     $Date: 2004/08/26 04:53:48 $
+# $Revision: 1.2 $
+# Description: IBM SP2 Makefile fragment
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# Get default settings for everything
+include Makefile.common
+
+# disable ILP32 tests
+testprograms_ILP32only =
+apputils_flags = -DAPPUTILS_OMIT_READWRITE
+
+# additional defines
+# must include, minimally, a define to identify the platform
+platform_defines = -DUNIX -DOSF -DALPHA
+
+# ------- optional, changed from template ---------
+# additional libraries and/or library directories
+platform_libraries = -lmpi -lelan -lrt
+
+CC = cc
+ccdebugflags = -msg_disable extrasemi -g
+ccoptflags = -msg_disable extrasemi -fast -noifo -O4 -tune host -inline speed
+
