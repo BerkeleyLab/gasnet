@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/06/16 23:30:49 $
- * $Revision: 1.1.2.23 $
+ *     $Date: 2003/06/26 22:22:03 $
+ * $Revision: 1.1.2.24 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -421,7 +421,7 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
 
   /* XXX check error returns */
   gasnetc_rdma_put(node, src, dest, nbytes, &mem_oust, &eop->req_oust);
-  gasnetc_counter_wait(&mem_oust);
+  gasnetc_counter_wait(&mem_oust, 0);
 
   return (gasnet_handle_t)eop;
 }
@@ -466,12 +466,12 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
     assert(op->threadidx == gasnete_mythread()->threadidx);
     if_pt (op->type == gasnete_opExplicit) {
       gasnete_eop_t *eop = (gasnete_eop_t*)op;
-      gasnetc_counter_wait(&eop->req_oust);
+      gasnetc_counter_wait(&eop->req_oust, 0);
       gasnete_eop_free(eop);
     } else {
       gasnete_iop_t *iop = (gasnete_iop_t*)op;
-      gasnetc_counter_wait(&iop->get_req_oust);
-      gasnetc_counter_wait(&iop->put_req_oust);
+      gasnetc_counter_wait(&iop->get_req_oust, 0);
+      gasnetc_counter_wait(&iop->put_req_oust, 0);
       gasnete_iop_free(iop);
     }
   }
@@ -543,7 +543,7 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t n
 
   /* XXX check error returns */ 
   gasnetc_rdma_put(node, src, dest, nbytes, &mem_oust, &iop->put_req_oust);
-  gasnetc_counter_wait(&mem_oust);
+  gasnetc_counter_wait(&mem_oust, 0);
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
@@ -612,7 +612,7 @@ extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_gets() inside an NBI access region");
   #endif
 
-  gasnetc_counter_wait(&iop->get_req_oust);
+  gasnetc_counter_wait(&iop->get_req_oust, 0);
 }
 
 extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
@@ -625,7 +625,7 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_puts() inside an NBI access region");
   #endif
 
-  gasnetc_counter_wait(&iop->put_req_oust);
+  gasnetc_counter_wait(&iop->put_req_oust, 0);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -666,14 +666,14 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
   gasneti_atomic_t req_oust = gasneti_atomic_init(0);
   gasnetc_rdma_get(node, src, dest, nbytes, &req_oust);
-  gasnetc_counter_wait(&req_oust);
+  gasnetc_counter_wait(&req_oust, 0);
 }
 
 extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
   gasneti_atomic_t req_oust = gasneti_atomic_init(0);
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
-  gasnetc_counter_wait(&req_oust);
+  gasnetc_counter_wait(&req_oust, 0);
 }   
 
 extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
@@ -691,7 +691,7 @@ extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
                    PACK(dest), PACK(&req_oust))));
   } 
 
-  gasnetc_counter_wait(&req_oust);
+  gasnetc_counter_wait(&req_oust, 0);
 }
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/25 00:10:40 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2003/06/26 22:22:03 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -675,6 +675,16 @@ extern void gasnetc_sndrcv_poll(void) {
   }
 }
 
+extern void gasnetc_snd_poll(void) {
+  gasnetc_sbuf_t *sbuf, *tail;
+
+  sbuf = gasnetc_snd_reap(&tail);
+
+  if (sbuf) {
+    gasnetc_put_sbuf(sbuf, tail);
+  }
+}
+
 /* Perform an RDMA put
  *
  * Uses bounce buffers when the source is not pinned, or is "small enough" and the caller is
@@ -918,6 +928,8 @@ extern int gasnetc_RequestSystem(gasnet_node_t dest,
                                  int numargs, ...) {
   int retval;
   va_list argptr;
+
+  gasnetc_sndrcv_poll();	/* ensure progress (should this really be done _here_?) */
 
   GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
 
