@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/15 00:58:53 $
- * $Revision: 1.21.2.4 $
+ *     $Date: 2003/10/22 20:01:28 $
+ * $Revision: 1.21.2.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -101,6 +101,8 @@ int		gasnetc_op_oust_pp;
 int		gasnetc_am_oust_limit;
 int		gasnetc_am_oust_pp;
 int		gasnetc_am_spares;
+
+static size_t	gasnetc_max_pinnable;
 
 gasnetc_handler_fn_t const gasnetc_unused_handler = (gasnetc_handler_fn_t)&abort;
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
@@ -245,7 +247,7 @@ static uintptr_t gasnetc_get_physmem()
 #endif
 
 /* Search for largest region we can allocate and pin */
-static uintptr_t gasnetc_max_pinnable(void) {
+static uintptr_t gasnetc_get_max_pinnable(void) {
   uintptr_t lo, hi;
   uintptr_t mmap_size, pin_size;
   void *addr;
@@ -629,11 +631,14 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasnetc_mynode, gasnetc_nodes); fflush(stderr);
   #endif
 
+  /* Find max pinnable size before we start carving up memory w/ mmap()s */
+  gasnetc_max_pinnable = gasnetc_get_max_pinnable();
+
   #if defined(GASNET_SEGMENT_FAST)
   {
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
                         &gasnetc_MaxGlobalSegmentSize,
-                        gasnetc_max_pinnable(),
+                        gasnetc_max_pinnable,
                         gasnetc_nodes,
                         &gasnetc_bootstrapAllgather);
   }
@@ -869,7 +874,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* Get global min-of-max physical memory */
     all_info = gasneti_malloc(gasnetc_nodes * sizeof(*all_info));
-    my_info.memsize = gasnetc_max_pinnable();
+    my_info.memsize = gasnetc_max_pinnable;
     my_info.regions = gasnetc_hca_cap.max_num_mr;
     gasnetc_bootstrapAllgather(&my_info, sizeof(*all_info), all_info);
     for (i = 0; i < gasnetc_nodes; i++) {
