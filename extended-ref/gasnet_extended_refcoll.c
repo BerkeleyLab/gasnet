@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/17 22:34:55 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2004/05/18 19:14:05 $
+ * $Revision: 1.1.2.15 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -648,24 +648,21 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	  if (!gasnete_coll_generic_insync(gen)) {
 	    break;
 	  }
+
+	  gen->handle = gasnet_get_nb_bulk(data->dst, data->srcnode, data->src, data->nbytes);
 	  gen->state = 1;
 
 	case 1:
-	  gen->handle = gasnet_get_nb_bulk(data->dst, data->srcnode, data->src, data->nbytes);
-	  gen->state = 2;
-
-	case 2:
           if (!gasnete_coll_generic_syncnb(gen)) {
 	    break;
 	  }
-	  gen->state = 3;
+	  gen->state = 2;
 
-	case 3:
+	case 2:
 	  if (!gasnete_coll_generic_outsync(gen)) {
 	    break;
 	  }
 
-	/* DONE: */
   	  gasneti_free(op->data);
 	  result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       }
@@ -673,7 +670,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       return result;
     }
 
-    /* bcast RP -> Root Put algorithm */
     static int gasnete_coll_pf_bcast_RP(gasnete_coll_op_t *op) {
       gasnete_coll_broadcast_data_t *data = op->data;
       gasnete_coll_generic_data_t *gen = &(data->gen);
@@ -684,9 +680,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	  if (!gasnete_coll_generic_insync(gen)) {
 	    break;
 	  }
-	  gen->state = 1;
 
-	case 1:
           if (gasnete_mynode == data->srcnode) {
 	    gasnet_node_t i;
 	    void   *src   = data->src;
@@ -704,24 +698,24 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	      gasnet_put_nbi_bulk(i, dst, src, nbytes);
 	    }
 	    gen->handle = gasnet_end_nbi_accessregion();
+
 	    /* Do local copy LAST, perhaps overlapping with communication */
 	    GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes); 
 	  }
-	  gen->state = 2;
+	  gen->state = 1;
 
-	case 2:
+	case 1:
           if ((gasnete_mynode == data->srcnode) &&
 	      !gasnete_coll_generic_syncnb(gen)) {
 	    break;
 	  }
-	  gen->state = 3;
+	  gen->state = 2;
 
-	case 3:
+	case 2:
 	  if (!gasnete_coll_generic_outsync(gen)) {
 	    break;
 	  }
 
-	/* DONE: */
   	  gasneti_free(op->data);
 	  result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       }
@@ -755,7 +749,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       data->gen.out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = &gasnete_coll_pf_bcast_RP;
+      poll_fn = &gasnete_coll_pf_bcast_AG;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn);
     }
