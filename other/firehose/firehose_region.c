@@ -31,6 +31,7 @@ fh_bucket_t;
 /* ##################################################################### */
 
 static firehose_private_t *fhi_lookup_cache;
+static firehose_private_t *fhi_priv_freelist;
 
 static size_t fhi_MaxRegionSize;
 
@@ -245,21 +246,26 @@ fh_bucket_unhash(fh_bucket_t *bucket)
  */
 fh_hash_t *fh_PrivTable;
 
+/* XXX: Would be nice to allow client to supply a hash on client_t.
+ * However, that currently creates lifetime problems when creating
+ * and destroying private_t's.
+ */
 #ifndef FIREHOSE_HASH_PRIV
   #define FIREHOSE_HASH_PRIV(addr, len) \
 	((addr) | ((len) >> FH_BUCKET_SHIFT))
 #endif
 
-static firehose_private_t
-*fh_lookup_priv(uintptr_t addr, size_t len)
+GASNET_INLINE_MODIFIER(fh_region_to_priv)
+firehose_private_t *
+fh_region_to_priv(firehose_region_t *reg)
 {
         FH_TABLE_ASSERT_LOCKED;
 
         return (firehose_private_t *)
-		fh_hash_find(fh_PrivTable, FIREHOSE_HASH_PRIV(addr, len));
+		fh_hash_find(fh_PrivTable,
+			     FIREHOSE_HASH_PRIV(reg->addr, reg->len));
 }
 
-/* XXX/PHH use a freelist here */
 /* Given a node and a region_t, create the necessary hash table entries.
  * The FIFO linkage is NOT initialized */
 firehose_private_t *
@@ -271,7 +277,13 @@ fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
 
     FH_TABLE_ASSERT_LOCKED;
 
-    priv = gasneti_malloc(sizeof(firehose_private_t));
+    priv = fhi_priv_freelist;
+    if_pt (priv != NULL) {
+	fhi_priv_freelist = priv->fh_next;
+    }
+    else {
+        priv = gasneti_malloc(sizeof(firehose_private_t));
+    }
     memset(priv, 0, sizeof(firehose_private_t));
 
     CP_REG_TO_PRIV(priv, node, reg);
@@ -299,7 +311,6 @@ fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
     return priv;
 }
 
-/* XXX/PHH use a freelist here */
 void
 fh_destroy_priv(firehose_private_t *priv)
 {
@@ -323,7 +334,8 @@ fh_destroy_priv(firehose_private_t *priv)
 	fh_hash_insert(fh_PrivTable, priv->fh_key, NULL);
     }
 
-    gasneti_free(priv);
+    priv->fh_next = fhi_priv_freelist;
+    fhi_priv_freelist = priv;
 }
 
 /* Commit a region known to be pinned, possibly in a FIFO */
@@ -700,7 +712,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		fh_completion_callback_t	*ccb;
 
 		/* Find the private_t */
-		priv = fh_lookup_priv(region[i].addr, region[i].len);
+		priv = fh_region_to_priv(&(region[i]));
 		gasneti_assert(priv != NULL);
 
 		/* Make sure the private_t was set as pending */
@@ -1010,9 +1022,18 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 void
 fh_fini_plugin(void)
 {
+	firehose_private_t *priv;
+
         fh_hash_destroy(fh_BucketTable2);
         fh_hash_destroy(fh_BucketTable1);
         fh_hash_destroy(fh_PrivTable);
+
+	priv = fhi_priv_freelist;
+	while (priv != NULL) {
+		firehose_private_t *next = priv->fh_next;
+		gasneti_free(priv);
+		priv = next;
+	}
 }
 
 /* ##################################################################### */
@@ -1060,9 +1081,7 @@ fh_move_request(gasnet_node_t node,
 
 	/* Release the "old" regions, potentially overcommiting the FIFO */
 	for (i=0; i < r_old; ++i) {
-		/* XXX: allow client to supply hash on client_t */
-		fh_priv_release(node, fh_lookup_priv(old_reg[i].addr,
-						     old_reg[i].len));
+		fh_priv_release(node, fh_region_to_priv(&(old_reg[i])));
 	}
 
 	/* Pin the remainder of the regions and fix any FIFO overcommit */
