@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/05/20 19:15:54 $
- * $Revision: 1.2.2.39 $
+ *     $Date: 2003/05/20 21:22:33 $
+ * $Revision: 1.2.2.40 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -80,20 +80,20 @@ static void gasnetc_check_config() {
   assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
 }
 
-extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start) {
+extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end) {
   #if defined(GASNET_SEGMENT_FAST)
-    if ((start >= gasnetc_seg_reg.start) && (start <= gasnetc_seg_reg.end)) {
+    if ((start >= gasnetc_seg_reg.start) && (end <= gasnetc_seg_reg.end)) {
       return &gasnetc_seg_reg;
     }
   #else
     #error "I don't do anything but FAST yet"
   #endif
 
-  if ((start >= gasnetc_rcv_reg.start) && (start <= gasnetc_rcv_reg.end)) {
+  if ((start >= gasnetc_rcv_reg.start) && (end <= gasnetc_rcv_reg.end)) {
     return &gasnetc_rcv_reg;
   }
 
-  if ((start >= gasnetc_snd_reg.start) && (start <= gasnetc_snd_reg.end)) {
+  if ((start >= gasnetc_snd_reg.start) && (end <= gasnetc_snd_reg.end)) {
     return &gasnetc_snd_reg;
   }
 
