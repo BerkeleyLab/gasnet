@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/16 06:30:31 $
- * $Revision: 1.2.2.32 $
+ *     $Date: 2003/04/21 19:43:10 $
+ * $Revision: 1.2.2.33 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -825,7 +825,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  gasneti_atomic_t rdma_counter = gasneti_atomic_init(0);
+  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
   int retval;
   va_list argptr;
   GASNETC_CHECKATTACH();
@@ -842,10 +842,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, &rdma_counter, argptr);
+				  numargs, &mem_oust, argptr);
 
   /* block for completion of RDMA transfer */
-  gasnetc_rdma_wait(&rdma_counter);
+  gasnetc_rdma_wait(&mem_oust);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -919,7 +919,7 @@ extern int gasnetc_AMReplyLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  gasneti_atomic_t rdma_counter = gasneti_atomic_init(0);
+  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
   int retval;
   gasnet_node_t dest;
   va_list argptr;
@@ -938,10 +938,10 @@ extern int gasnetc_AMReplyLongM(
 
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
-				numargs, &rdma_counter, argptr);
+				numargs, &mem_oust, argptr);
 
   /* block for completion of RDMA transfer */
-  gasnetc_rdma_wait(&rdma_counter);
+  gasnetc_rdma_wait(&mem_oust);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
