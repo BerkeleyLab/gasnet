@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2003/11/12 08:56:03 $
- * $Revision: 1.24.4.1 $
+ *     $Date: 2003/12/01 01:04:10 $
+ * $Revision: 1.24.4.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -327,7 +327,7 @@
     #define gasneti_atomic_set(p,v)     (*(p) = (v))
     #define gasneti_atomic_init(v)      (v)
     #define gasneti_atomic_decrement_and_test(p) \
-                                        (_amo_fadd(((p),(long)-1) == 0) 
+                                        (_amo_afadd((p),(long)-1) == 0) 
   #elif 0 && defined(SOLARIS)
     /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
        to the user... after all, what application would be interested in performance? */
