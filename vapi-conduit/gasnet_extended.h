@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/15 23:59:00 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/04/16 05:59:51 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -164,13 +164,14 @@ gasnet_handle_t   _gasnet_memset_nb   (gasnet_node_t node, void *dest, int val, 
 /*
   Synchronization for explicit-handle non-blocking operations:
   ===========================================================
+
+  Note these macros and inlines do not include the AMPoll()
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle);
 extern int  gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles);
 extern void gasnete_wait_syncnb(gasnet_handle_t handle);
-extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles);
 
 GASNET_INLINE_MODIFIER(gasnet_try_syncnb)
 int  gasnet_try_syncnb(gasnet_handle_t handle) {
@@ -196,7 +197,7 @@ int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
 }
 
 /* non-traced version of sync for internal use, checks for INVALID_HANDLE */
-#define gasnete_wait_syncnb_check(handle) do {                                      \
+#define gasnete_wait_syncnb_check(handle) do {                                \
     gasnet_handle_t _handle = (handle);                                       \
     if_pt (_handle != GASNET_INVALID_HANDLE)                                  \
       gasnete_wait_syncnb(_handle);                                           \
@@ -219,7 +220,7 @@ void gasnet_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnb_all)
 void gasnet_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_syncnb_all(phandle, numhandles);
+  gasnete_waitwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_ALL);
 }
 
@@ -321,6 +322,8 @@ void   _gasnet_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nby
 /*
   Synchronization for implicit-handle non-blocking operations:
   ===========================================================
+
+  Note these macros and inlines include the AMPoll()
 */
 
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE);
@@ -332,6 +335,7 @@ GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_gets)
 int _gasnet_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   int retval;
   gasnet_AMPoll();
+  gasnetc_snd_poll();
   retval = gasnete_try_syncnbi_gets(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_GETS,retval);
   return retval;
@@ -343,6 +347,7 @@ GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_puts)
 int _gasnet_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   int retval;
   gasnet_AMPoll();
+  gasnetc_snd_poll();
   retval = gasnete_try_syncnbi_puts(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_PUTS,retval);
   return retval;
@@ -354,6 +359,7 @@ GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_all)
 int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   int retval;
   gasnet_AMPoll();
+  gasnetc_snd_poll();
   retval = gasnete_try_syncnbi_gets(GASNETE_THREAD_PASS_ALONE);
   if (retval == GASNET_OK)
       retval = gasnete_try_syncnbi_puts(GASNETE_THREAD_PASS_ALONE);
@@ -366,6 +372,8 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_gets)
 void gasnet_wait_syncnbi_gets(void) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnet_AMPoll();
+  gasnetc_snd_poll();
   gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_GETS);
 }
@@ -373,6 +381,8 @@ void gasnet_wait_syncnbi_gets(void) {
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_puts)
 void gasnet_wait_syncnbi_puts(void) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnet_AMPoll();
+  gasnetc_snd_poll();
   gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);
 }
@@ -380,6 +390,8 @@ void gasnet_wait_syncnbi_puts(void) {
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_all)
 void gasnet_wait_syncnbi_all(void) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnet_AMPoll();
+  gasnetc_snd_poll();
   gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
   gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_ALL);

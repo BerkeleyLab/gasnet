@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/15 21:08:04 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2003/04/16 05:59:51 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -45,19 +45,21 @@ void gasnetc_init_sreq(gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
 
 /* free a list of send buffers */
 GASNET_INLINE_MODIFIER(gasnetc_put_sbuf)
-void gasnetc_put_sbuf(gasnetc_sbuf_t *sbuf) {
+void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   /* Add the list segment to the free list */
   pthread_mutex_lock(&gasnetc_sbuf_lock);
-  sbuf->tail->next = gasnetc_sbuf_pool;
-  gasnetc_sbuf_pool = sbuf;
+  tail->next = gasnetc_sbuf_pool;
+  gasnetc_sbuf_pool = head;
   pthread_mutex_unlock(&gasnetc_sbuf_lock);
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
 GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
-void gasnetc_snd_reap(void) {
+gasnetc_sbuf_t *gasnetc_snd_reap(void) {
+  gasnetc_sbuf_t *head, *tail;
   int count;
   
+  head = tail = NULL;
   for (count = 0; count < GASNETC_SND_REAP_LIMIT; ++count) {
     VAPI_ret_t vstat;
     VAPI_wc_desc_t comp;
@@ -69,7 +71,11 @@ void gasnetc_snd_reap(void) {
         if (sbuf) {
           if (sbuf->local_counter) gasneti_atomic_decrement(sbuf->local_counter);
           if (sbuf->remote_counter) gasneti_atomic_decrement(sbuf->remote_counter);
-          gasnetc_put_sbuf(sbuf);
+	  if (head) {
+	    sbuf->tail->next = head;
+	    sbuf->tail = head->tail;
+	  }
+	  head = sbuf;
         } else {
           fprintf(stderr, "@ %d> snd_reap reaped NULL sbuf\n", gasnetc_mynode);
         }
@@ -87,6 +93,8 @@ void gasnetc_snd_reap(void) {
       break;
     }
   }
+
+  return head;
 }
 
 /* allocate a send buffer pair */
@@ -95,7 +103,14 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   gasnetc_sbuf_t *sbuf;
 
   while (1) {
-    gasnetc_snd_reap();
+    /* try to get an unused sbuf by reaping the send CQ */
+    sbuf = gasnetc_snd_reap();
+    if (sbuf) {
+      if (sbuf->next) {
+        gasnetc_put_sbuf(sbuf->next, sbuf->tail);
+      }
+      break;
+    }
 
     /* try to get an unused sbuf from the free list */
     pthread_mutex_lock(&gasnetc_sbuf_lock);
@@ -178,7 +193,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
   if (dest == gasnetc_mynode) {
     gasnetc_rcv_loopback(buf, flags);
-    gasnetc_put_sbuf(sbuf);
+    gasnetc_put_sbuf(sbuf, sbuf->tail);
     retval = GASNET_OK;
   } else {
     gasnetc_sreq_t req;
@@ -238,26 +253,46 @@ extern void gasnetc_snd_fini(void) {
    */
 }
 
+
+/* Clean send CQ */
+void gasnetc_snd_poll(void) {
+  gasnetc_sbuf_t *sbuf;
+
+  sbuf = gasnetc_snd_reap();
+
+  if (sbuf) {
+    gasnetc_put_sbuf(sbuf, sbuf->tail);
+  }
+}
+
 /*
  * Block until a given counter is marked as done
  */
 extern void gasnetc_rdma_wait(gasneti_atomic_t *counter) {
-  gasnetc_snd_reap();
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p has value %d", counter, (int)gasneti_atomic_read(counter)));
-  while (gasneti_atomic_read(counter) != 0) {
-    sched_yield();
-    gasnetc_snd_reap();
+  int value = gasneti_atomic_read(counter);
+  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p has value %d", counter, value));
+
+  if (value != 0) {
+    gasnetc_snd_poll();
+    value = gasneti_atomic_read(counter);
+
+    while (value != 0) {
+      sched_yield();
+      gasnetc_snd_poll();
+      value = gasneti_atomic_read(counter);
+    }
   }
+
   GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p is done", counter));
 }
 
 /*
  * Check if a given counter is marked as done
  */
-extern int gasnetc_rdma_poll(gasneti_atomic_t *counter) {
-  gasnetc_snd_reap();
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_poll: counter %p has value %d", counter, (int)gasneti_atomic_read(counter)));
-  return !gasneti_atomic_read(counter);
+extern int gasnetc_rdma_test(gasneti_atomic_t *counter) {
+  int value = gasneti_atomic_read(counter);
+  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_test: counter %p has value %d", counter, value));
+  return !value;
 }
 
 /* Perform an RDMA put

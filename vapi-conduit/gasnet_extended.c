@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/15 23:59:00 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/04/16 05:59:51 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -295,11 +295,11 @@ int gasnete_op_isdone(gasnete_op_t *op) {
   assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (op->type == gasnete_opExplicit) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
-    return gasnetc_rdma_poll(&eop->counter);
+    return gasnetc_rdma_test(&eop->counter);
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
-    return (gasnetc_rdma_poll(&(iop->get_counter)) &&
-            gasnetc_rdma_poll(&(iop->put_counter)));
+    return (gasnetc_rdma_test(&(iop->get_counter)) &&
+            gasnetc_rdma_test(&(iop->put_counter)));
   }
 }
 
@@ -511,13 +511,11 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
   Note that these routines do not check for INVALID_HANDLE
 */
 
-/* XXX: Note that the handle might actually be an IMPLICIT one! 
- * That comes from gasnete_get_nb_bulk calling gasnete_get_nbi_bulk
- * That will go away eventually.
- * */
+/* Note that the handle might actually be an IMPLICIT one! */
 extern void gasnete_wait_syncnb(gasnet_handle_t op) {
   GASNETE_SAFE(gasnet_AMPoll());
-   
+  gasnetc_snd_poll();
+
   assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (op->type == gasnete_opExplicit) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
@@ -531,21 +529,9 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
   gasnete_op_free(op);
 }
 
-extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
-  GASNETE_SAFE(gasnet_AMPoll());
-
-  assert(phandle);
-
-  { int i;
-    for (i = 0; i < numhandles; i++) {
-      gasnete_wait_syncnb_check(phandle[i]);
-      phandle[i] = GASNET_INVALID_HANDLE;
-    }
-  }
-}
-
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   GASNETE_SAFE(gasnet_AMPoll());
+  gasnetc_snd_poll();
 
   if (gasnete_op_isdone(handle)) {
     gasnete_op_free(handle);
@@ -557,7 +543,9 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
+
   GASNETE_SAFE(gasnet_AMPoll());
+  gasnetc_snd_poll();
 
   assert(phandle);
 
@@ -580,7 +568,9 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
+
   GASNETE_SAFE(gasnet_AMPoll());
+  gasnetc_snd_poll();
 
   assert(phandle);
 
@@ -705,7 +695,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
   #endif
 
-  return gasnetc_rdma_poll(&iop->get_counter) ? GASNET_OK: GASNET_ERR_NOT_READY;
+  return gasnetc_rdma_test(&iop->get_counter) ? GASNET_OK: GASNET_ERR_NOT_READY;
 }
 
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
@@ -719,7 +709,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
   #endif
 
-  return gasnetc_rdma_poll(&iop->put_counter) ? GASNET_OK: GASNET_ERR_NOT_READY;
+  return gasnetc_rdma_test(&iop->put_counter) ? GASNET_OK: GASNET_ERR_NOT_READY;
 }
 
 extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
@@ -898,6 +888,9 @@ static void gasnete_barrier_done_reqh(gasnet_token_t token,
 static void gasnete_barrier_kick() {
   int phase = barrier_phase;
   GASNETE_SAFE(gasnet_AMPoll());
+  #if 0
+    gasnetc_snd_poll();	/* if this is allowed then we spin such that rcv thread get very slow */
+  #endif
 
   if (gasnete_mynode != GASNETE_BARRIER_MASTER) return;
 
