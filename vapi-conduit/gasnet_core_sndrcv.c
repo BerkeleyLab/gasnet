@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/10/24 21:27:42 $
- * $Revision: 1.23.6.1 $
+ *     $Date: 2003/10/28 18:45:40 $
+ * $Revision: 1.23.6.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -221,7 +221,7 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
       break;
 
     default:
-      gasneti_fatalerror("this should not happen");
+    gasneti_fatalerror("invalid AM category on recv");
   }
   
   rbuf->handlerRunning = 0;
@@ -273,7 +273,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
 	  gasneti_freelist_link(tail, sbuf);
 	  tail = sbuf;
         } else {
-          fprintf(stderr, "@ %d> snd_reap reaped NULL sbuf\n", gasnetc_mynode);
+          gasneti_fatalerror("snd_reap reaped NULL sbuf");
           break;
         }
       } else {
@@ -283,11 +283,11 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
           fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
         }
 #endif
-        /* ### What needs to be done here? */
+        gasneti_fatalerror("aborting on reap of failed send");
         break;
       }
     } else {
-      gasneti_fatalerror("this should not happen");
+      gasneti_fatalerror("Got unexpected VAPI error %s while reaping the recv queue.", VAPI_strerror_sym(vstat));
     }
   }
 
@@ -420,12 +420,11 @@ static int gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
           fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
         }
 #endif
-        /* ### What needs to be done here? */
+        gasneti_fatalerror("aborting on reap of failed recv");
 	break;
-        gasneti_fatalerror("this should not happen");
       }
     } else {
-      gasneti_fatalerror("this should not happen");
+      gasneti_fatalerror("Got unexpected VAPI error %s while reaping the recv queue.", VAPI_strerror_sym(vstat));
     }
   } 
 
@@ -638,7 +637,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     break;
 
   default:
-    gasneti_fatalerror("this should not happen");
+    gasneti_fatalerror("invalid AM category on send");
     /* NOT REACHED */
   }
  
