@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_receive.c,v 1.31 2003/09/12 20:14:06 csbell Exp $
- * $Date: 2003/09/12 20:14:06 $
- * $Revision: 1.31 $
+/* $Id: gasnet_core_receive.c,v 1.31.2.1 2003/10/27 13:04:12 bonachea Exp $
+ * $Date: 2003/10/27 13:04:12 $
+ * $Revision: 1.31.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -58,8 +58,8 @@ gasnetc_bufdesc_from_event(gm_recv_event_t *e)
 	bufd->node	  = gasnetc_node_lookup(bufd->gm_id, bufd->gm_port);
 	bufd->ran_reply   = NULL;
 
-	assert(bufd->node < gasnetc_nodes);
-	assert(bufd->len <= GASNETC_AM_PACKET);
+	gasneti_assert(bufd->node < gasnetc_nodes);
+	gasneti_assert(bufd->len <= GASNETC_AM_PACKET);
 
 	return bufd;
 }
@@ -100,10 +100,10 @@ gasnetc_AMPoll()
 		case GM_HIGH_RECV_EVENT:
 			gasnetc_relinquish_AMReply_token();
 			bufd = gasnetc_bufdesc_from_event(e);
-			assert(BUFD_ISSTATE(bufd) == BUFD_S_GMREPLY);
+			gasneti_assert(BUFD_ISSTATE(bufd) == BUFD_S_GMREPLY);
 			BUFD_SETSTATE(bufd, BUFD_S_USED);
 			tag = gm_ntoh_u8 (e->recv.tag);
-			assert(tag > 0 ? tag == 1 : 1);
+			gasneti_assert(tag > 0 ? tag == 1 : 1);
 			if (fast)
 				gm_memorize_message(
 				    gm_ntohp(e->recv.message),
@@ -111,7 +111,7 @@ gasnetc_AMPoll()
 				    gm_ntoh_u32(e->recv.length));
 
 			gasneti_mutex_unlock(&gasnetc_lock_gm);
-			assert(GASNETC_AM_IS_REPLY(*((uint8_t *) bufd->buf)));
+			gasneti_assert(GASNETC_AM_IS_REPLY(*((uint8_t *) bufd->buf)));
 			gasnetc_process_AMReply(bufd);
 
 			gasneti_mutex_lock(&gasnetc_lock_gm);
@@ -124,16 +124,16 @@ gasnetc_AMPoll()
 		case GM_RECV_EVENT:
 			gasnetc_relinquish_AMRequest_token();
 			bufd = gasnetc_bufdesc_from_event(e);
-			assert(BUFD_ISSTATE(bufd) == BUFD_S_GMREQ);
+			gasneti_assert(BUFD_ISSTATE(bufd) == BUFD_S_GMREQ);
 			BUFD_SETSTATE(bufd, BUFD_S_USED);
-			assert(BUFD_ISSTATE(bufd) == BUFD_S_USED);
+			gasneti_assert(BUFD_ISSTATE(bufd) == BUFD_S_USED);
 			if (fast)
 				gm_memorize_message(
 				    gm_ntohp(e->recv.message),
 				    bufd->buf,
 				    gm_ntoh_u32(e->recv.length));
 			tag = gm_ntoh_u8 (e->recv.tag);
-			assert(tag > 0 ? tag == 2 : 1);
+			gasneti_assert(tag > 0 ? tag == 2 : 1);
 
 			/* Run handlers concurrently */
 			gasneti_mutex_unlock(&gasnetc_lock_gm);
@@ -146,7 +146,7 @@ gasnetc_AMPoll()
 				gasnetc_provide_AMRequest(bufd);
 			}
 			else {
-				assert(GASNETC_AM_IS_REQUEST(ptr[0]));
+				gasneti_assert(GASNETC_AM_IS_REQUEST(ptr[0]));
 				bufd->ran_reply = &did_reply;
 				bufd->locked_AMMedBuf = &locked_AMMedBuf;
 				gasnetc_process_AMRequest(bufd);
@@ -192,9 +192,9 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 	handler_idx = ptr[1];
 	numargs = GASNETC_AM_NUMARGS(*ptr);
 
-	assert(len >= 2); /* minimum AM message */
-	assert(GASNETC_AM_IS_REQUEST(*ptr));
-	assert(numargs <= GASNETC_AM_MAX_ARGS); /* maximum AM args */
+	gasneti_assert(len >= 2); /* minimum AM message */
+	gasneti_assert(GASNETC_AM_IS_REQUEST(*ptr));
+	gasneti_assert(numargs <= GASNETC_AM_MAX_ARGS); /* maximum AM args */
 
 	switch (GASNETC_AM_TYPE(*ptr)) {
 		case GASNETC_AM_SHORT:
@@ -253,9 +253,9 @@ gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd)
 	handler_idx = ptr[1];
 	numargs = GASNETC_AM_NUMARGS(*ptr);
 
-	assert(len >= 2); /* minimum AM message */
-	assert(GASNETC_AM_IS_REPLY(*ptr));
-	assert(numargs <= GASNETC_AM_MAX_ARGS); /* maximum AM args */
+	gasneti_assert(len >= 2); /* minimum AM message */
+	gasneti_assert(GASNETC_AM_IS_REPLY(*ptr));
+	gasneti_assert(numargs <= GASNETC_AM_MAX_ARGS); /* maximum AM args */
 
 	switch (GASNETC_AM_TYPE(*ptr)) {
 		case GASNETC_AM_SHORT:
@@ -318,10 +318,10 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 
 	switch (msg) {
 		case GASNETC_SYS_GATHER:
-			assert(gasnetc_mynode == 0 || (printf("mynode == %d\n", gasnetc_mynode),0));
+			gasneti_assert(gasnetc_mynode == 0 || (printf("mynode == %d\n", gasnetc_mynode),0));
 			if (len > 4) {
 				paylen = len - 4;
-				assert(bufd->node*paylen+paylen < 4096);
+				gasneti_assert(bufd->node*paylen+paylen < 4096);
 				memcpy(gasnetc_bootstrapGather_buf + 
 				       bufd->node*paylen, payload, paylen);
 
@@ -333,7 +333,7 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 			break;
 
 		case GASNETC_SYS_BROADCAST:
-			assert(gasnetc_mynode != 0);
+			gasneti_assert(gasnetc_mynode != 0);
 			if (len > 4) {
 				paylen = len - 4;
 				memcpy(gasnetc_bootstrapGather_buf, 
@@ -369,7 +369,7 @@ gasnetc_callback_error(gm_status_t status, char *dest_msg)
 {
 	char reason[128];
 
-	assert(status != GM_SUCCESS);	/* function is for errors only */
+	gasneti_assert(status != GM_SUCCESS);	/* function is for errors only */
 
 	switch (status) {
 		case GM_SEND_TIMED_OUT:
@@ -475,8 +475,8 @@ gasnetc_release_rdma(gasnetc_bufdesc_t *bufd)
 	int				numreqs = 1;
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
-	assert(bufd->node < gasnetc_nodes);
-	assert(bufd->remote_req != NULL);
+	gasneti_assert(bufd->node < gasnetc_nodes);
+	gasneti_assert(bufd->remote_req != NULL);
 
 	/* Release firehose on regions (remote and possibly local) */
 	reqs[0] = bufd->remote_req;
@@ -530,10 +530,10 @@ gasnetc_callback_hi_rdma(struct gm_port *p, void *ctx,
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 
-	assert(bufd != NULL);
-	assert(bufd->node < gasnetc_nodes);
-	assert(bufd->payload_len > 0);
-	assert(bufd->local_req == NULL);
+	gasneti_assert(bufd != NULL);
+	gasneti_assert(bufd->node < gasnetc_nodes);
+	gasneti_assert(bufd->payload_len > 0);
+	gasneti_assert(bufd->local_req == NULL);
 
 	if_pf (status != GM_SUCCESS)
 		gasnetc_callback_error(status, "AMReply/DMA");

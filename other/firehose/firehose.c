@@ -45,7 +45,7 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 
 	/* Make sure the refc field in buckets can also be used as a FIFO
 	 * pointer */
-	assert(sizeof(fh_refc_t) == sizeof(void *));
+	gasneti_assert(sizeof(fh_refc_t) == sizeof(void *));
 
 	FH_TABLE_LOCK;
 
@@ -256,7 +256,7 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	region.addr = FH_ADDR_ALIGN(addr); 
 	region.len  = FH_SIZE_ALIGN(addr,len);
 
-	assert(remote_args == NULL ? 1 : 
+	gasneti_assert(remote_args == NULL ? 1 : 
 		(flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK));
 
 	/* The 'req' is allocated in fh_acquire_remote_region() since that
@@ -458,13 +458,13 @@ fh_request_free(firehose_request_t *req)
 	FH_TABLE_ASSERT_LOCKED;
 
 	if (req->flags & FH_FLAG_PENDING) {
-		assert(req->internal != NULL);
+		gasneti_assert(req->internal != NULL);
 		fh_free_completion_callback(
 		    (fh_completion_callback_t *)req->internal);
 	}
 	/*
 	else
-		assert(req->internal == NULL);
+		gasneti_assert(req->internal == NULL);
 		*/
 
 	if (req->flags & FH_FLAG_FHREQ) {
@@ -597,7 +597,7 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 	FH_SET_USED(entry);
 
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
-	assert(fh_bucket_lookup(node, bucket_addr) == entry);
+	gasneti_assert(fh_bucket_lookup(node, bucket_addr) == entry);
 
 	return entry;
 }
@@ -610,7 +610,7 @@ fh_bucket_remove(fh_bucket_t *entry)
 	FH_TABLE_ASSERT_LOCKED;
 	FH_SET_USED(entry);
 	bucket = fh_hash_insert(fh_BucketTable, entry->fh_key, NULL);
-	assert(entry == bucket);
+	gasneti_assert(entry == bucket);
 	memset(bucket, 0, sizeof(fh_bucket_t));
 	bucket->fh_next = fh_buckets_freehead;
 	fh_buckets_freehead = bucket;

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2003/10/11 13:09:54 $
- * $Revision: 1.40 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.40.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -72,7 +72,7 @@ extern void gasneti_fatalerror(char *msg, ...) {
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_killmyprocess(int exitcode) {
   /* wrapper for _exit() that does the "right thing" to immediately kill this process */
-  #if defined(GASNETI_THREADS) && defined(HAVE_PTHREAD_KILL_OTHER_THREADS_NP)
+  #if GASNETI_THREADS && defined(HAVE_PTHREAD_KILL_OTHER_THREADS_NP)
     /* on LinuxThreads we need to explicitly kill other threads before calling _exit() */
     pthread_kill_other_threads_np();
   #endif
@@ -185,7 +185,7 @@ void gasneti_defaultSignalHandler(int sig) {
       signame = gasneti_signals[i].signame;
     }
   }
-  assert(signame);
+  gasneti_assert(signame);
 
   switch (sig) {
     case SIGQUIT:
@@ -281,7 +281,7 @@ static void gasneti_serializeEnvironment(uint8_t **pbuf, int *psz) {
     p += strlen((char*)p) + 1;
     }
   *p = 0;
-  assert((p+1) - buf == totalEnvSize);
+  gasneti_assert((p+1) - buf == totalEnvSize);
 
   *pbuf = buf;
   *psz = totalEnvSize;
@@ -311,7 +311,7 @@ extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t
   gasneti_envdesc_t myenvdesc;
   gasneti_envdesc_t *allenvdesc;
 
-  assert(exchangefn);
+  gasneti_assert(exchangefn);
 
   gasneti_serializeEnvironment(&myenv,&sz);
   checksum = gasneti_checksum(myenv,sz);
@@ -355,7 +355,7 @@ extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t
         memcpy(gasneti_globalEnv, tmp+rootid*envsize, envsize);
         gasneti_free(tmp);
       }
-      assert(gasneti_checksum(gasneti_globalEnv,envsize) == rootdesc.checksum);
+      gasneti_assert(gasneti_checksum(gasneti_globalEnv,envsize) == rootdesc.checksum);
       gasneti_free(allenvdesc);
       gasneti_free(myenv);
       return;
@@ -394,10 +394,10 @@ extern char *gasneti_getenv(const char *keyname) {
 /* ------------------------------------------------------------------------------------ */
 /* GASNet Tracing and Statistics */
 
-#ifdef TRACE
+#if GASNET_TRACE
   GASNETI_IDENT(gasneti_IdentString_trace, "$GASNetTracingEnabled: 1 $");
 #endif
-#ifdef STATS
+#if GASNET_STATS
   GASNETI_IDENT(gasneti_IdentString_stats, "$GASNetStatisticsEnabled: 1 $");
 #endif
 
@@ -408,7 +408,7 @@ FILE *gasneti_tracefile = NULL;
 FILE *gasneti_statsfile = NULL;
 gasneti_stattime_t starttime;
 
-#if defined(STATS) || defined(TRACE)
+#if GASNETI_STATS_OR_TRACE
   #define BUILD_STATS(type,name,desc) { #type, #name, #desc },
   gasneti_statinfo_t gasneti_stats[] = {
     GASNETI_ALL_STATS(BUILD_STATS, BUILD_STATS, BUILD_STATS)
@@ -442,7 +442,7 @@ gasneti_stattime_t starttime;
 
     va_start(argptr, format); /*  pass in last argument */
       { int sz = vsnprintf(output, BUFSZ, format, argptr);
-        assert(sz <= BUFSZ);
+        gasneti_assert(sz <= BUFSZ);
         if (sz >= (BUFSZ-5)) strcpy(output+(BUFSZ-5),"...");
       }
     va_end(argptr);
@@ -498,9 +498,9 @@ gasneti_stattime_t starttime;
   /* private helper for gasneti_trace/stats_output */
   static void gasneti_file_output(FILE *fp, double time, char *type, char *msg, int traceheader) {
     gasneti_mutex_assertlocked(&gasneti_tracelock);
-    assert(fp);
+    gasneti_assert(fp);
     if (traceheader) {
-      #ifdef GASNETI_THREADS
+      #if GASNETI_THREADS
         fprintf(fp, "%i(%x) %8.6fs> (%c) %s%s", 
           (int)gasnet_mynode(), (int)(uintptr_t)pthread_self(), time, *type, msg,
           (msg[strlen(msg)-1]=='\n'?"":"\n"));
@@ -553,7 +553,7 @@ gasneti_stattime_t starttime;
   /* private helper for gasneti_trace/stats_printf */
   static void gasneti_file_vprintf(FILE *fp, char *format, va_list argptr) {
     gasneti_mutex_assertlocked(&gasneti_tracelock);
-    assert(fp);
+    gasneti_assert(fp);
     fprintf(fp, "%i> ", (int)gasnet_mynode());
     vfprintf(fp, format, argptr);
     if (format[strlen(format)-1]!='\n') fprintf(fp, "\n");
@@ -646,7 +646,7 @@ static FILE *gasneti_open_outputfile(char *filename, char *desc) {
 
 extern void gasneti_trace_init() {
 
-  #if defined(STATS) || defined(TRACE)
+  #if GASNETI_STATS_OR_TRACE
   char *tracetypes = NULL;
   char *statstypes = NULL;
   { /* setup tracetypes */
@@ -672,23 +672,23 @@ extern void gasneti_trace_init() {
     char *statsfilename = gasnet_getenv("GASNET_STATSFILE");
     if (tracefilename && !strcmp(tracefilename, "")) tracefilename = NULL;
     if (statsfilename && !strcmp(statsfilename, "")) statsfilename = NULL;
-    #if defined(TRACE) || defined(STATS) && GASNETI_STATS_ECHOED_TO_TRACEFILE
+    #if GASNET_TRACE || (GASNET_STATS && GASNETI_STATS_ECHOED_TO_TRACEFILE)
       if (tracefilename) {
         gasneti_tracefile = gasneti_open_outputfile(tracefilename, 
-        #ifdef TRACE
+        #if GASNET_TRACE
           "tracing"
-          #if defined(STATS) && GASNETI_STATS_ECHOED_TO_TRACEFILE
+          #if GASNET_STATS && GASNETI_STATS_ECHOED_TO_TRACEFILE
             " and "
           #endif
         #endif
-        #if defined(STATS) && GASNETI_STATS_ECHOED_TO_TRACEFILE
+        #if GASNET_STATS && GASNETI_STATS_ECHOED_TO_TRACEFILE
           "statistical"
         #endif
         );
       } else 
     #endif
       gasneti_tracefile = NULL;
-    #if defined(STATS)
+    #if GASNET_STATS
       if (statsfilename) gasneti_statsfile = gasneti_open_outputfile(statsfilename, "statistical");
       else 
     #endif
@@ -701,15 +701,15 @@ extern void gasneti_trace_init() {
     strcpy(temp, ctime(&ltime));
     if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
     gasneti_tracestats_printf("Program starting at: %s", temp);
-    #ifdef STATS
+    #if GASNET_STATS
       gasneti_stats_printf("GASNET_STATSMASK: %s", statstypes);
     #endif
-    #ifdef TRACE
+    #if GASNET_TRACE
       gasneti_trace_printf("GASNET_TRACEMASK: %s", tracetypes);
     #endif
   }
 
-  #ifdef NDEBUG
+  #if GASNET_NDEBUG
   { char *NDEBUG_warning =
      "WARNING: tracing/statistical collection may adversely affect application performance.";
     gasneti_tracestats_printf(NDEBUG_warning);
@@ -755,7 +755,7 @@ AGGR(C);
 AGGR(D);
 
 extern void gasneti_trace_finish() {
-#if defined(STATS) || defined(TRACE)
+#if GASNETI_STATS_OR_TRACE
   static gasneti_mutex_t gasneti_tracefinishlock = GASNETI_MUTEX_INITIALIZER;
   gasneti_mutex_lock(&gasneti_tracefinishlock);
   if (gasneti_tracefile || gasneti_statsfile) {
@@ -763,7 +763,7 @@ extern void gasneti_trace_finish() {
     double time = GASNETI_STATTIME_TO_US(GASNETI_STATTIME_NOW() - starttime) / 1000000.0;
     gasneti_tracestats_printf("Total application run time: %10.6fs", time);
 
-    #ifdef STATS
+    #if GASNET_STATS
     { /* output statistical summary */
 
       gasneti_stats_printf("--------------------------------------------------------------------------------");
@@ -889,7 +889,7 @@ extern void gasneti_trace_finish() {
 
 
 /* ------------------------------------------------------------------------------------ */
-#ifdef STATS
+#if GASNET_STATS
   #define DEF_CTR(type,name,desc)                   \
     gasneti_statctr_t gasneti_stat_ctr_##name = 0;
   #define DEF_INTVAL(type,name,desc)                   \
@@ -935,7 +935,7 @@ extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gas
   | allocdesc (pad to 8 bytes) | data sz | BEGINPOST | <user data> | ENDPOST |
                                ptr returned by malloc ^
  */
-#ifdef DEBUG
+#if GASNET_DEBUG
   static uint64_t gasneti_memalloc_cnt = 0;
   static size_t   gasneti_memalloc_maxbytes = 0;
   static uintptr_t gasneti_memalloc_maxloc = 0;

@@ -1,11 +1,10 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.c                                     $
- *     $Date: 2003/09/13 17:17:54 $
- * $Revision: 1.11 $
+ *     $Date: 2003/10/27 13:04:16 $
+ * $Revision: 1.11.2.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <assert.h>
 #include <stdio.h>
 #ifdef WIN32
   #define sched_yield() Sleep(0)
@@ -55,7 +54,7 @@ static void freezeForDebugger() {
   _freezeForDebugger(0);
 }
 
-#if DEBUG_VERBOSE
+#if AMMPI_DEBUG_VERBOSE
   #define DEBUG_MSG(msg)  do { fprintf(stderr,"slave %i: %s\n", AMMPI_SPMDMYPROC, msg); fflush(stderr); } while(0)
 #else
   #define DEBUG_MSG(msg)  do {} while(0) /* prevent silly warnings about empty statements */
@@ -96,12 +95,12 @@ static void flushStreams(char *context) {
   }
 /* ------------------------------------------------------------------------------------ */
 extern char *AMMPI_enStr(en_t en, char *buf) {
-  assert(buf);
+  AMMPI_assert(buf);
   sprintf(buf, "(%i)", en.mpirank);
   return buf;
   }
 extern char *AMMPI_tagStr(tag_t tag, char *buf) {
-  assert(buf);
+  AMMPI_assert(buf);
   sprintf(buf, "0x%08x%08x", 
     (uint32_t)(tag >> 32), 
     (uint32_t)(tag & 0xFFFFFFFF));
@@ -115,7 +114,7 @@ extern int AMMPI_SPMDNumProcs() {
     ErrMessage("called AMMPI_SPMDNumProcs before AMMPI_SPMDStartup()");
     return -1;
   }
-  assert(AMMPI_SPMDNUMPROCS >= 1);
+  AMMPI_assert(AMMPI_SPMDNUMPROCS >= 1);
   return AMMPI_SPMDNUMPROCS;
   }
 /* ------------------------------------------------------------------------------------ */
@@ -124,7 +123,7 @@ extern int AMMPI_SPMDMyProc() {
     ErrMessage("called AMMPI_SPMDMyProc before AMMPI_SPMDStartup()");
     return -1;
   }
-  assert(AMMPI_SPMDMYPROC >= 0);
+  AMMPI_assert(AMMPI_SPMDMYPROC >= 0);
   return AMMPI_SPMDMYPROC;
   }
 /* ------------------------------------------------------------------------------------ */
@@ -164,8 +163,8 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
 
   MPI_SAFE(MPI_Comm_rank(MPI_COMM_WORLD, &AMMPI_SPMDMYPROC));
   MPI_SAFE(MPI_Comm_size(MPI_COMM_WORLD, &AMMPI_SPMDNUMPROCS));
-  assert(AMMPI_SPMDNUMPROCS > 0);
-  assert(AMMPI_SPMDMYPROC >= 0 && AMMPI_SPMDMYPROC < AMMPI_SPMDNUMPROCS);
+  AMMPI_assert(AMMPI_SPMDNUMPROCS > 0);
+  AMMPI_assert(AMMPI_SPMDMYPROC >= 0 && AMMPI_SPMDMYPROC < AMMPI_SPMDNUMPROCS);
 
   { /* check job size */
     int temp, maxtranslations = 0;
@@ -184,7 +183,7 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
     }
   }
 
-  #if DEBUG_VERBOSE
+  #if AMMPI_DEBUG_VERBOSE
     fprintf(stderr, "slave %i/%i starting...\n", AMMPI_SPMDMYPROC, AMMPI_SPMDNUMPROCS);
     fflush(stderr);
   #endif
@@ -206,8 +205,8 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
     MPI_SAFE(MPI_Allreduce(&mypid, &networkpidtemp, 1, MPI_INT, MPI_SUM, AMMPI_SPMDMPIComm));
     prvnetworkpid = (uint64_t)networkpidtemp;
     mytag = (((tag_t)prvnetworkpid) << 32 ) | (tag_t)AMMPI_SPMDMYPROC;
-    assert(mytag != AM_ALL);
-    assert(mytag != AM_NONE);
+    AMMPI_assert(mytag != AM_ALL);
+    AMMPI_assert(mytag != AM_NONE);
   }
 
   { /* create endpoint and get name */
@@ -282,7 +281,7 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
 
   MPI_SAFE(MPI_Barrier(AMMPI_SPMDMPIComm)); /* wait for all control handlers to be registered */
 
-  #if DEBUG_VERBOSE
+  #if AMMPI_DEBUG_VERBOSE
   { char temp[80];
     tag_t tag;
     AM_GetTag(AMMPI_SPMDEndpoint, &tag);
@@ -298,13 +297,13 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
 void AMMPI_SPMDHandleControlMessage(void *token, int32_t messageType, int32_t messageArg) {
   switch (messageType) {
     case 'R': { /*  barrier ready */
-      assert(AMMPI_SPMDMYPROC == 0);
+      AMMPI_assert(AMMPI_SPMDMYPROC == 0);
       AMMPI_SPMDBarrierCount++; 
       break;
     }
     case 'B': { /*  barrier complete */
-      assert(AMMPI_SPMDMYPROC != 0);
-      assert(AMMPI_SPMDBarrierDone == 0);
+      AMMPI_assert(AMMPI_SPMDMYPROC != 0);
+      AMMPI_assert(AMMPI_SPMDBarrierDone == 0);
       AMMPI_SPMDBarrierDone = 1; 
       break;
     }
@@ -418,7 +417,7 @@ extern int AMMPI_SPMDBarrier() {
    *  everybody but 0 sends a ready signal to 0 (who counts them)
    *  0 sends back a done signal when everybody has reported
    */
-  assert(AMMPI_SPMDBarrierDone == 0);
+  AMMPI_assert(AMMPI_SPMDBarrierDone == 0);
   AM_GetEventMask(AMMPI_SPMDBundle, &oldmask);
 
   if (AMMPI_SPMDMYPROC == 0) { /* proc zero */

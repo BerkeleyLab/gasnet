@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2003/10/11 13:09:59 $
- * $Revision: 1.18 $
+ *     $Date: 2003/10/27 13:04:12 $
+ * $Revision: 1.18.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,7 +26,7 @@ struct _gasnete_op_t;
 typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
   #define GASNETI_THREADINFO_OPT
   #define GASNETI_LAZY_BEGINFUNCTION
 #endif
@@ -84,7 +84,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
   #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
 #endif
 
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
 #define GASNETE_GM_IN_UNKNOWN()		((gasnete_mythread())->in_gm_unknown)
 #define GASNETE_GM_SET_IN_UNKNOWN()	((gasnete_mythread())->in_gm_unknown = 1)
 #define GASNETE_GM_UNSET_IN_UNKNOWN()	((gasnete_mythread())->in_gm_unknown = 0)

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_timer.h                                   $
- *     $Date: 2003/09/03 00:15:02 $
- * $Revision: 1.11 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_TIMER_H
 #define _GASNET_TIMER_H
 
-#include <assert.h>
+#include <assert.h> /* permit assert.h and assert for gasnet_tools headers */
 /* all of this to support gasneti_getMicrosecondTimeStamp */
 #include <time.h>
 #include <sys/time.h>

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/10/11 13:09:57 $
- * $Revision: 1.29 $
+ *     $Date: 2003/10/27 13:04:10 $
+ * $Revision: 1.29.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@ gasnet_seginfo_t *gasnete_seginfo = NULL;
 static gasnete_threaddata_t *gasnete_threadtable[256] = { 0 };
 static int gasnete_numthreads = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
   static pthread_key_t gasnete_threaddata; /*  pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
@@ -55,12 +55,12 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     idx = gasnete_numthreads;
     gasnete_numthreads++;
   gasnet_hsl_unlock(&threadtable_lock);
-  #ifdef GASNETI_CLIENT_THREADS
+  #if GASNETI_CLIENT_THREADS
     if (idx >= 256) gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=256)");
   #else
-    assert(idx == 0);
+    gasneti_assert(idx == 0);
   #endif
-  assert(gasnete_threadtable[idx] == NULL);
+  gasneti_assert(gasnete_threadtable[idx] == NULL);
 
   threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
 
@@ -74,7 +74,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 }
 /* PURE function (returns same value for a given thread every time) 
 */
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
   extern gasnete_threaddata_t *gasnete_mythread() {
     gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
     GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
@@ -85,7 +85,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
       gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
 
       retval = pthread_setspecific(gasnete_threaddata, threaddata);
-      assert(!retval);
+      gasneti_assert(!retval);
       return threaddata;
     }
   }
@@ -99,53 +99,53 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 */
 /* called at startup to check configuration sanity */
 static void gasnete_check_config() {
-  assert(sizeof(int8_t) == 1);
-  assert(sizeof(uint8_t) == 1);
+  gasneti_assert(sizeof(int8_t) == 1);
+  gasneti_assert(sizeof(uint8_t) == 1);
   #if !defined(CRAYT3E)
-    assert(sizeof(int16_t) == 2);
-    assert(sizeof(uint16_t) == 2);
+    gasneti_assert(sizeof(int16_t) == 2);
+    gasneti_assert(sizeof(uint16_t) == 2);
   #endif
-  assert(sizeof(int32_t) == 4);
-  assert(sizeof(uint32_t) == 4);
-  assert(sizeof(int64_t) == 8);
-  assert(sizeof(uint64_t) == 8);
+  gasneti_assert(sizeof(int32_t) == 4);
+  gasneti_assert(sizeof(uint32_t) == 4);
+  gasneti_assert(sizeof(int64_t) == 8);
+  gasneti_assert(sizeof(uint64_t) == 8);
 
-  assert(sizeof(uintptr_t) >= sizeof(void *));
+  gasneti_assert(sizeof(uintptr_t) >= sizeof(void *));
 
   /* check GASNET_PAGESIZE is a power of 2 and > 0 */
-  assert(GASNET_PAGESIZE > 0 && 
+  gasneti_assert(GASNET_PAGESIZE > 0 && 
          (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
 
-  assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
-  assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
-  assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
+  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
+  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
+  gasneti_assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
 
-  assert(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
+  gasneti_assert(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
 
   #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
-    assert(sizeof(void*) == 4);
+    gasneti_assert(sizeof(void*) == 4);
   #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
-    assert(sizeof(void*) == 8);
+    gasneti_assert(sizeof(void*) == 8);
   #else
     #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
   #endif
 
-  assert(gasnete_eopaddr_isnil(EOPADDR_NIL));
+  gasneti_assert(gasnete_eopaddr_isnil(EOPADDR_NIL));
 
   /*  verify sanity of the core interface */
-  assert(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  assert(gasnet_AMMaxMedium() >= 512);
-  assert(gasnet_AMMaxLongRequest() >= 512);
-  assert(gasnet_AMMaxLongReply() >= 512);
+  gasneti_assert(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
+  gasneti_assert(gasnet_AMMaxMedium() >= 512);
+  gasneti_assert(gasnet_AMMaxLongRequest() >= 512);
+  gasneti_assert(gasnet_AMMaxLongReply() >= 512);
 }
 
 extern void gasnete_init() {
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-  assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
+  gasneti_assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
 
   gasnete_check_config(); /*  check for sanity */
 
-  #ifdef GASNETI_CLIENT_THREADS
+  #if GASNETI_CLIENT_THREADS
   {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
     int retval = pthread_key_create(&gasnete_threaddata, NULL);
     if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
@@ -154,13 +154,13 @@ extern void gasnete_init() {
 
   gasnete_mynode = gasnet_mynode();
   gasnete_nodes = gasnet_nodes();
-  assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
+  gasneti_assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
   gasnete_seginfo = (gasnet_seginfo_t*)gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
   gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
 
   { gasnete_threaddata_t *threaddata = NULL;
     gasnete_eop_t *eop = NULL;
-    #ifdef GASNETI_CLIENT_THREADS
+    #if GASNETI_CLIENT_THREADS
       /* register first thread (optimization) */
       threaddata = gasnete_mythread(); 
     #else
@@ -188,10 +188,10 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasnete_eop_t *eop = GASNETE_EOPADDR_TO_PTR(thread, head);
     thread->eop_free = eop->addr;
     eop->addr = head;
-    assert(!gasnete_eopaddr_equal(thread->eop_free,head));
-    assert(eop->threadidx == thread->threadidx);
-    assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-    assert(OPTYPE(eop) == OPSTATE_FREE);
+    gasneti_assert(!gasnete_eopaddr_equal(thread->eop_free,head));
+    gasneti_assert(eop->threadidx == thread->threadidx);
+    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
+    gasneti_assert(OPTYPE(eop) == OPSTATE_FREE);
     SET_OPSTATE(eop, OPSTATE_INFLIGHT);
     return eop;
   } else { /*  free list empty - need more eops */
@@ -237,7 +237,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     head.eopidx = 0;
     thread->eop_free = head;
 
-    #ifdef DEBUG
+    #if GASNET_DEBUG
     { /* verify new free list got built correctly */
       int i;
       int seen[256];
@@ -255,17 +255,17 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
       memset(seen, 0, 256*sizeof(int));
       for (i=0;i<(bufidx==255?255:256);i++) {                                   
         gasnete_eop_t *eop;                                   
-        assert(!gasnete_eopaddr_isnil(addr));                 
+        gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
         eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
-        assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
-        assert(OPSTATE(eop) == OPSTATE_FREE);                 
-        assert(eop->threadidx == threadidx);                  
-        assert(addr.bufferidx == bufidx);
-        assert(!seen[addr.eopidx]);/* see if we hit a cycle */
+        gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
+        gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);                 
+        gasneti_assert(eop->threadidx == threadidx);                  
+        gasneti_assert(addr.bufferidx == bufidx);
+        gasneti_assert(!seen[addr.eopidx]);/* see if we hit a cycle */
         seen[addr.eopidx] = 1;
         addr = eop->addr;                                     
       }                                                       
-      assert(gasnete_eopaddr_isnil(addr)); 
+      gasneti_assert(gasnete_eopaddr_isnil(addr)); 
     }
     #endif
 
@@ -278,8 +278,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   if_pt (thread->iop_free) {
     iop = thread->iop_free;
     thread->iop_free = iop->next;
-    assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-    assert(iop->threadidx == thread->threadidx);
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+    gasneti_assert(iop->threadidx == thread->threadidx);
   } else {
     iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
     SET_OPTYPE((gasnete_op_t *)iop, OPTYPE_IMPLICIT);
@@ -295,9 +295,9 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 
 /*  query an op for completeness - for iop this means both puts and gets */
 int gasnete_op_isdone(gasnete_op_t *op) {
-  assert(op->threadidx == gasnete_mythread()->threadidx);
+  gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
-    assert(OPSTATE(op) != OPSTATE_FREE);
+    gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
     return OPSTATE(op) == OPSTATE_COMPLETE;
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
@@ -310,7 +310,7 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
     gasnete_eop_t *eop = (gasnete_eop_t *)op;
-    assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
+    gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
     SET_OPSTATE(eop, OPSTATE_COMPLETE);
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
@@ -322,11 +322,11 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
-  assert(thread == gasnete_mythread());
+  gasneti_assert(thread == gasnete_mythread());
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
     gasnete_eop_t *eop = (gasnete_eop_t *)op;
     gasnete_eopaddr_t addr = eop->addr;
-    assert(OPSTATE(eop) == OPSTATE_COMPLETE);
+    gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);
     SET_OPSTATE(eop, OPSTATE_FREE);
     eop->addr = thread->eop_free;
     thread->eop_free = addr;
@@ -402,7 +402,7 @@ void gasnete_op_free(gasnete_op_t *op) {
 GASNET_INLINE_MODIFIER(gasnete_get_reqh_inner)
 void gasnete_get_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
-  assert(nbytes <= gasnet_AMMaxMedium());
+  gasneti_assert(nbytes <= gasnet_AMMaxMedium());
   GASNETE_SAFE(
     MEDIUM_REP(2,4,(token, gasneti_handleridx(gasnete_get_reph),
                   src, nbytes, 
@@ -593,7 +593,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
   int empty = 1;
   GASNETE_SAFE(gasnet_AMPoll());
 
-  assert(phandle);
+  gasneti_assert(phandle);
 
   { int i;
     for (i = 0; i < numhandles; i++) {
@@ -617,7 +617,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
   int success = 1;
   GASNETE_SAFE(gasnet_AMPoll());
 
-  assert(phandle);
+  gasneti_assert(phandle);
 
   { int i;
     for (i = 0; i < numhandles; i++) {
@@ -801,9 +801,9 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
-    assert(iop->threadidx == mythread->threadidx);
-    assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-    #ifdef DEBUG
+    gasneti_assert(iop->threadidx == mythread->threadidx);
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+    #if GASNET_DEBUG
       if (iop->next != NULL)
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
     #endif
@@ -826,10 +826,10 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
-    assert(iop->threadidx == mythread->threadidx);
-    assert(iop->next == NULL);
-    assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-    #ifdef DEBUG
+    gasneti_assert(iop->threadidx == mythread->threadidx);
+    gasneti_assert(iop->next == NULL);
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+    #if GASNET_DEBUG
       if (iop->next != NULL)
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
     #endif
@@ -856,7 +856,7 @@ extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop  */
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
-  #ifdef DEBUG
+  #if GASNET_DEBUG
     if (!allowrecursion && mythread->current_iop->next != NULL)
       gasneti_fatalerror("VIOLATION: tried to initiate a recursive NBI access region");
   #endif
@@ -868,7 +868,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
-  #ifdef DEBUG
+  #if GASNET_DEBUG
     if (iop->next == NULL)
       gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion() outside access region");
   #endif
@@ -893,7 +893,7 @@ typedef struct _gasnet_valget_op_t {
 extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnet_valget_handle_t retval;
-  assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
   gasnete_boundscheck(node, src, nbytes);
   if (mythread->valget_free) {
     retval = mythread->valget_free;
@@ -916,7 +916,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
 extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) {
   gasnet_register_value_t val;
   gasnete_threaddata_t * const thread = gasnete_threadtable[handle->threadidx];
-  assert(thread == gasnete_mythread());
+  gasneti_assert(thread == gasnete_mythread());
   handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
   thread->valget_free = handle;       /*  safe because this thread is under our control */
 
@@ -951,7 +951,7 @@ static int volatile barrier_flags; /*  local barrier flags */
 static int volatile barrier_phase = 0;  /*  2-phase operation to improve pipelining */
 static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete */
 static int volatile barrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
-#if defined(STATS) || defined(TRACE)
+#if GASNETI_STATS_OR_TRACE
   static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
 #endif
 
@@ -965,7 +965,7 @@ static int volatile barrier_count[2] = { 0, 0 }; /*  count of how many remotes h
 
 static void gasnete_barrier_notify_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
+  gasneti_assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
 
   gasnet_hsl_lock(&barrier_lock);
   { int count = barrier_count[phase];
@@ -976,16 +976,19 @@ static void gasnete_barrier_notify_reqh(gasnet_token_t token,
                (flags == 0 && barrier_consensus_value[phase] != (int)value)) {
       barrier_consensus_mismatch[phase] = 1;
     }
-    barrier_count[phase] = count+1;
+    count++;
+    if (count == gasnete_nodes) gasneti_memsync(); /* about to signal, ensure we flush state */
+    barrier_count[phase] = count;
   }
   gasnet_hsl_unlock(&barrier_lock);
 }
 
 static void gasnete_barrier_done_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase,  gasnet_handlerarg_t mismatch) {
-  assert(phase == barrier_phase);
+  gasneti_assert(phase == barrier_phase);
 
   barrier_response_mismatch[phase] = mismatch;
+  gasneti_memsync();
   barrier_response_done[phase] = 1;
 }
 
@@ -1022,7 +1025,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if defined(STATS) || defined(TRACE)
+  #if GASNETI_STATS_OR_TRACE
     barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
 
@@ -1043,11 +1046,12 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
   /*  update state */
   barrier_splitstate = INSIDE_BARRIER;
+  gasneti_memsync(); /* ensure all state changes committed before return */
 }
 
 
 extern int gasnete_barrier_wait(int id, int flags) {
-  #if defined(STATS) || defined(TRACE)
+  #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
   int phase = barrier_phase;
@@ -1066,6 +1070,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
   barrier_response_done[phase] = 0;
+  gasneti_memsync(); /* ensure all state changes committed before return */
   if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
         flags != barrier_flags || 
         barrier_response_mismatch[phase]) {

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/10/11 13:09:56 $
- * $Revision: 1.11 $
+ *     $Date: 2003/10/27 13:04:09 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet header for elan conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,15 +58,15 @@ extern void gasnetc_trace_finish();
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int sig);
 
-  /* conduits should define GASNETI_CONDUIT_THREADS if they have one or more 
+  /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc
    */
-/* #define GASNETI_CONDUIT_THREADS */
+/* #define GASNETI_CONDUIT_THREADS 1 */
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-#define GASNETC_USE_INTERRUPTS 0
+/* #define GASNETC_USE_INTERRUPTS 1 */
 
 #endif

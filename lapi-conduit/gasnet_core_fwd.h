@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/10/11 13:10:00 $
- * $Revision: 1.9 $
+ *     $Date: 2003/10/27 13:04:13 $
+ * $Revision: 1.9.2.1 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,17 +28,17 @@
  */
 #define GASNET_ALIGNED_SEGMENTS   1
 
-  /* conduits should define GASNETI_CONDUIT_THREADS if they have one or more 
+  /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc
    */
 /* lapi-conduit always has the LAPI completion and notification threads */
-#define GASNETI_CONDUIT_THREADS
+#define GASNETI_CONDUIT_THREADS 1
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-#define GASNETC_USE_INTERRUPTS 0
+/* #define GASNETC_USE_INTERRUPTS 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

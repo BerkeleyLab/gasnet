@@ -1,6 +1,6 @@
-/* $Id: testcore1.c,v 1.7 2003/09/15 06:31:19 bonachea Exp $
- * $Date: 2003/09/15 06:31:19 $
- * $Revision: 1.7 $
+/* $Id: testcore1.c,v 1.7.2.1 2003/10/27 13:04:21 bonachea Exp $
+ * $Date: 2003/10/27 13:04:21 $
+ * $Revision: 1.7.2.1 $
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  *
@@ -32,7 +32,7 @@
 
 #define DEBUG_TRACE
 #define CHKSUM_LENGTH	8
-#define CHKSUM_NUM	400
+#define CHKSUM_NUM	64
 #define CHKSUM_TOTAL	CHKSUM_LENGTH*CHKSUM_NUM
 #define TESTSafe(x, msg) do {					\
 	    if (!(x)) {  printf msg; gasnet_exit(1); } } while (0)

@@ -1,12 +1,11 @@
 /*  $Archive:: gasnet/vapi-conduit/gasnet_bootstrap_mpi.c                  $
- *     $Date: 2003/07/03 23:07:56 $
- * $Revision: 1.3 $
+ *     $Date: 2003/10/27 13:04:23 $
+ * $Revision: 1.3.4.1 $
  * Description: GASNet vapi conduit implementation, mpi bootstrap code
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
  */
 
-#include <assert.h>
 #include <signal.h>
 
 #include <mpi.h>
@@ -23,27 +22,27 @@ void gasnetc_bootstrapInit(int *argc, char ***argv, gasnet_node_t *nodes, gasnet
 
   /* Call MPI_Init exactly once */
   err = MPI_Initialized(&initialized);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
   if (!initialized) {
     err = MPI_Init(argc, argv);
-    assert(err == MPI_SUCCESS);
+    gasneti_assert(err == MPI_SUCCESS);
   }
 
   /* Create private communicator */
   err = MPI_Comm_group(MPI_COMM_WORLD, &world);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
   err = MPI_Comm_create(MPI_COMM_WORLD, world, &gasnetc_mpi_comm);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
   err = MPI_Group_free(&world);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
 
   /* Get size and rank */
   err = MPI_Comm_size(gasnetc_mpi_comm, &tmp);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
   *nodes = tmp;
 
   err = MPI_Comm_rank(gasnetc_mpi_comm, &tmp);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
   *mynode = tmp;
 }
 
@@ -51,7 +50,7 @@ void gasnetc_bootstrapFini(void) {
   int err;
 
   err = MPI_Comm_free(&gasnetc_mpi_comm);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
 
 #if 0	/* Finalize will prevent exit code from reaching the caller!! */
   (void) MPI_Finalize();
@@ -70,21 +69,21 @@ void gasnetc_bootstrapBarrier(void) {
   int err;
 
   err = MPI_Barrier(gasnetc_mpi_comm);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
 }
 
 void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest) {
   int err;
 
   err = MPI_Allgather(src, len, MPI_CHAR, dest, len, MPI_CHAR, gasnetc_mpi_comm);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
 }
 
 void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest) {
   int err;
 
   err = MPI_Alltoall(src, len, MPI_CHAR, dest, len, MPI_CHAR, gasnetc_mpi_comm);
-  assert(err == MPI_SUCCESS);
+  gasneti_assert(err == MPI_SUCCESS);
 }
 
 void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {

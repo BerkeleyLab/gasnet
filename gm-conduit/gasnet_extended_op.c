@@ -1,6 +1,6 @@
-/* $Id: gasnet_extended_op.c,v 1.5 2003/09/10 02:19:26 csbell Exp $
- * $Date: 2003/09/10 02:19:26 $
- * $Revision: 1.5 $
+/* $Id: gasnet_extended_op.c,v 1.5.2.1 2003/10/27 13:04:12 bonachea Exp $
+ * $Date: 2003/10/27 13:04:12 $
+ * $Revision: 1.5.2.1 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -25,10 +25,10 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 		gasnete_eop_t *eop = GASNETE_EOPADDR_TO_PTR(thread, head);
 		thread->eop_free = eop->addr;
 		eop->addr = head;
-		assert(!gasnete_eopaddr_equal(thread->eop_free,head));
-		assert(eop->threadidx == thread->threadidx);
-		assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-		assert(OPTYPE(eop) == OPSTATE_FREE);
+		gasneti_assert(!gasnete_eopaddr_equal(thread->eop_free,head));
+		gasneti_assert(eop->threadidx == thread->threadidx);
+		gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
+		gasneti_assert(OPTYPE(eop) == OPSTATE_FREE);
 		SET_OPSTATE(eop, OPSTATE_INFLIGHT);
 		return eop;
 	} 
@@ -76,7 +76,7 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 		head.eopidx = 0;
 		thread->eop_free = head;
 
-		#ifdef DEBUG
+		#if GASNET_DEBUG
 		{ /* verify new free list got built correctly */
 			int i;
 			int seen[256];
@@ -85,18 +85,18 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 			memset(seen, 0, 256*sizeof(int));
 			for (i=0;i<(bufidx==255?255:256);i++) {
 				gasnete_eop_t *eop; 
-				assert(!gasnete_eopaddr_isnil(addr));
+				gasneti_assert(!gasnete_eopaddr_isnil(addr));
 				eop = GASNETE_EOPADDR_TO_PTR(thread,addr);
-				assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-				assert(OPSTATE(eop) == OPSTATE_FREE);
-				assert(eop->threadidx == threadidx);
-				assert(addr.bufferidx == bufidx);
+				gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
+				gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);
+				gasneti_assert(eop->threadidx == threadidx);
+				gasneti_assert(addr.bufferidx == bufidx);
 				/* see if we hit a cycle */
-				assert(!seen[addr.eopidx]);
+				gasneti_assert(!seen[addr.eopidx]);
 				seen[addr.eopidx] = 1;
 				addr = eop->addr;
 			}
-			assert(gasnete_eopaddr_isnil(addr)); 
+			gasneti_assert(gasnete_eopaddr_isnil(addr)); 
 		}
 		#endif
 		/*  should succeed this time */
@@ -112,8 +112,8 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 	if_pt (thread->iop_free) {
 		iop = thread->iop_free;
 		thread->iop_free = iop->next;
-		assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-		assert(iop->threadidx == thread->threadidx);
+		gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+		gasneti_assert(iop->threadidx == thread->threadidx);
 	} else {
 		iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
 		SET_OPTYPE((gasnete_op_t *)iop, OPTYPE_IMPLICIT);
@@ -131,9 +131,9 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 int 
 gasnete_op_isdone(gasnete_op_t *op) 
 {
-	assert(op->threadidx == gasnete_mythread()->threadidx);
+	gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
 	if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
-		assert(OPSTATE(op) != OPSTATE_FREE);
+		gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
 		return OPSTATE(op) == OPSTATE_COMPLETE;
 	} else {
 		gasnete_iop_t *iop = (gasnete_iop_t*)op;
@@ -149,7 +149,7 @@ gasnete_op_isdone(gasnete_op_t *op)
 void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 		gasnete_eop_t *eop = (gasnete_eop_t *)op;
-		assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
+		gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
 		SET_OPSTATE(eop, OPSTATE_COMPLETE);
 	} else {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
@@ -163,11 +163,11 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op) {
 	gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
-	assert(thread == gasnete_mythread());
+	gasneti_assert(thread == gasnete_mythread());
 	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 		gasnete_eop_t *eop = (gasnete_eop_t *)op;
 		gasnete_eopaddr_t addr = eop->addr;
-		assert(OPSTATE(eop) == OPSTATE_COMPLETE);
+		gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);
 		SET_OPSTATE(eop, OPSTATE_FREE);
 		eop->addr = thread->eop_free;
 		thread->eop_free = addr;

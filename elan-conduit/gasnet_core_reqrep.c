@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_reqrep.c                  $
- *     $Date: 2003/10/11 13:09:56 $
- * $Revision: 1.16 $
+ *     $Date: 2003/10/27 13:04:09 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,7 +70,7 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf() {
     if (gasnetc_tportTxFree) { /* free list contains some bufs */
       desc = gasnetc_tportTxFree;
       gasnetc_tportTxFree = desc->next;
-      assert(desc->event == NULL);
+      gasneti_assert(desc->event == NULL);
     } else { /* need to reap some tx bufs */
       LOCK_ELAN_WEAK();
       if (gasnetc_tportTxFIFOHead && 
@@ -103,7 +103,7 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf() {
             }
             lastdesc = lastdesc->next;
           }
-          assert(desc || lastdesc == gasnetc_tportTxFIFOTail);
+          gasneti_assert(desc || lastdesc == gasnetc_tportTxFIFOTail);
         }
         if (!desc) { /* nothing available now - poll */
           UNLOCK_ELAN_WEAK();
@@ -121,12 +121,12 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf() {
   desc->event = NULL;
   desc->next = NULL;
   if (gasnetc_tportTxFIFOTail) { /* fifo non-empty */
-    assert(gasnetc_tportTxFIFOHead);
-    assert(gasnetc_tportTxFIFOTail->next == NULL);
+    gasneti_assert(gasnetc_tportTxFIFOHead);
+    gasneti_assert(gasnetc_tportTxFIFOTail->next == NULL);
     gasnetc_tportTxFIFOTail->next = desc;
     gasnetc_tportTxFIFOTail = desc;
   } else {
-    assert(!gasnetc_tportTxFIFOHead);
+    gasneti_assert(!gasnetc_tportTxFIFOHead);
     gasnetc_tportTxFIFOHead = desc;
     gasnetc_tportTxFIFOTail = desc;
   }
@@ -140,7 +140,7 @@ static void gasnetc_tportReleaseTxBuf(gasnetc_bufdesc_t *desc) {
   /* release a Tx buf without sending it
    */
   LOCK_SENDFIFO();
-    assert(desc->event == NULL);
+    gasneti_assert(desc->event == NULL);
     desc->next = gasnetc_tportTxFree;
     gasnetc_tportTxFree = desc;
   UNLOCK_SENDFIFO();
@@ -180,21 +180,21 @@ static void gasnetc_tportAddRxBuf(gasnetc_bufdesc_t *desc) {
   }
 
   /* post a new recv */
-  assert(!desc->event);
+  gasneti_assert(!desc->event);
   desc->event = elan_tportRxStart(TPORT(), 
                     ELAN_TPORT_RXBUF | ELAN_TPORT_RXANY, 
                     0, 0, 0, 0,
                     desc->buf, sizeof(gasnetc_buf_t));
-  assert(desc->event);
+  gasneti_assert(desc->event);
 
   /* push on tail of queue */
   desc->next = NULL;
   if_pt (gasnetc_tportRxFIFOTail) {
-    assert(gasnetc_tportRxFIFOHead);
+    gasneti_assert(gasnetc_tportRxFIFOHead);
     gasnetc_tportRxFIFOTail->next = desc;
     gasnetc_tportRxFIFOTail = desc;
   } else { /* list empty (rare case..) */
-    assert(gasnetc_tportRxFIFOHead == NULL);
+    gasneti_assert(gasnetc_tportRxFIFOHead == NULL);
     gasnetc_tportRxFIFOHead = desc;
     gasnetc_tportRxFIFOTail = desc;
   }
@@ -273,9 +273,9 @@ extern void gasnetc_initbufs() {
       gasneti_fatalerror("Elan-conduit failed to allocate network buffers!");
 
     /* Tx buffers */
-    assert(gasnetc_tportTxFree == NULL);
-    assert(gasnetc_tportTxFIFOHead == NULL);
-    assert(gasnetc_tportTxFIFOTail == NULL);
+    gasneti_assert(gasnetc_tportTxFree == NULL);
+    gasneti_assert(gasnetc_tportTxFIFOHead == NULL);
+    gasneti_assert(gasnetc_tportTxFIFOTail == NULL);
     for (i = gasnetc_queuesz-1; i >= 0 ; i--) {
       gasnetc_buf_t *buf = (gasnetc_buf_t *)(txbuf + (i*bufsize));
       txdesc[i].buf = buf;
@@ -286,8 +286,8 @@ extern void gasnetc_initbufs() {
     }
 
     /* Rx buffers */
-    assert(gasnetc_tportRxFIFOHead == NULL);
-    assert(gasnetc_tportRxFIFOTail == NULL);
+    gasneti_assert(gasnetc_tportRxFIFOHead == NULL);
+    gasneti_assert(gasnetc_tportRxFIFOTail == NULL);
     for (i = 0; i < gasnetc_queuesz; i++) {
       gasnetc_buf_t *buf = (gasnetc_buf_t *)(rxbuf + (i*bufsize));
       rxdesc[i].buf = buf;
@@ -300,12 +300,12 @@ extern void gasnetc_initbufs() {
       int i;
       gasnetc_bufdesc_t *desc = gasnetc_tportRxFIFOHead;
       for (i=0; i < gasnetc_queuesz; i++) {
-        assert(desc == &rxdesc[i]);
-        assert(desc->event);
+        gasneti_assert(desc == &rxdesc[i]);
+        gasneti_assert(desc->event);
         desc = desc->next;
       }
-      assert(desc == NULL);
-      assert(gasnetc_tportRxFIFOTail == &rxdesc[gasnetc_queuesz-1]);
+      gasneti_assert(desc == NULL);
+      gasneti_assert(gasnetc_tportRxFIFOTail == &rxdesc[gasnetc_queuesz-1]);
     }
   }
   UNLOCK_ELAN();
@@ -317,7 +317,7 @@ static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
   gasnetc_handler_fn_t handler = gasnetc_handler[msg->handlerId];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(msg);
   int numargs = GASNETC_MSG_NUMARGS(msg);
-  assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
+  gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
 
   ASSERT_ELAN_UNLOCKED();
 
@@ -378,7 +378,7 @@ extern int gasnetc_AMPoll() {
       gasnetc_bufdesc_t _desc;
       desc = &_desc;
       desc->buf = (gasnetc_buf_t *)( ((((uintptr_t)_buf) >> 3) << 3) + 8); 
-      assert((void *)&(desc->buf->msg) == (void *)desc->buf);
+      gasneti_assert((void *)&(desc->buf->msg) == (void *)desc->buf);
       elan_queueWait(gasnetc_mainqueue, desc->buf, ELAN_POLL_EVENT);
       UNLOCK_ELAN();
 
@@ -413,7 +413,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   gasnetc_buf_t *buf = NULL;
   gasnet_handlerarg_t *pargs;
   int msgsz;
-  assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
+  gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
 
   ASSERT_ELAN_UNLOCKED();
 
@@ -470,7 +470,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     if (category == gasnetc_Long) memcpy(dest_ptr, source_addr, nbytes);
     gasnetc_processPacket(desc);
     if (desc != &_descbuf) {
-      assert(msgsz > GASNETC_ELAN_MAX_QUEUEMSG);
+      gasneti_assert(msgsz > GASNETC_ELAN_MAX_QUEUEMSG);
       gasnetc_tportReleaseTxBuf(desc);
     }
   }
@@ -488,11 +488,11 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
           UNLOCKRELOCK_ELAN_WEAK_IFTRACE(GASNETI_TRACE_EVENT_VAL(C,AMLONG_DIRECT,nbytes));
         } else { /* need to use a bounce buffer */
           /* TODO: this may fail for unmapped segment under GASNET_SEGMENT_EVERYTHING */
-          assert(elan_addressable(STATE(), dest_ptr, nbytes));
+          gasneti_assert(elan_addressable(STATE(), dest_ptr, nbytes));
           /* would be nice to use SDRAM here, but put interface cannot handle it... */
           #if GASNETC_PREALLOC_AMLONG_BOUNCEBUF
             bouncebuf = *gasnetc_mythread(); /* core entry is first in struct */
-            assert(bouncebuf);
+            gasneti_assert(bouncebuf);
           #else
             bouncebuf = elan_allocMain(STATE(), 64, nbytes);
             if (!bouncebuf) /* if we run out of mem here, we're in trouble */
@@ -516,7 +516,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       }
 
       if (msgsz <= GASNETC_ELAN_MAX_QUEUEMSG) {
-        assert(desc == &_descbuf);
+        gasneti_assert(desc == &_descbuf);
         elan_queueReq(gasnetc_mainqueue, dest, &(buf->msg), msgsz);
       }
       else {
@@ -548,9 +548,9 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   gasnetc_bufdesc_t *reqdesc = (gasnetc_bufdesc_t *)token;
   int retval;
 
-  assert(reqdesc->handlerRunning);
-  assert(!reqdesc->replyIssued);
-  assert(GASNETC_MSG_ISREQUEST(&(reqdesc->buf->msg)));
+  gasneti_assert(reqdesc->handlerRunning);
+  gasneti_assert(!reqdesc->replyIssued);
+  gasneti_assert(GASNETC_MSG_ISREQUEST(&(reqdesc->buf->msg)));
   
   retval = gasnetc_ReqRepGeneric(category, 0, reqdesc->buf->msg.sourceId, handler, 
                                  source_addr, nbytes, dest_ptr, 

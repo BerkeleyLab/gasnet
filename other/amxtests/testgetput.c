@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
         printf("Proc %i GET TEST FAILED : sum = %i   verify = %i\n", myproc, sum, verify);
         fflush(stdout);
         }
-      #ifdef DEBUG
+      #ifdef AMMPI_DEBUG
         else {
           printf("Proc %i verified.\n", myproc);
           fflush(stdout);
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
           break;
           }
         }
-      #ifdef DEBUG
+      #ifdef AMMPI_DEBUG
         if (i == numprocs) {
           printf("Proc %i verified.\n", myproc);
           fflush(stdout);

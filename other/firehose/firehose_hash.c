@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
 
 #include <firehose.h>
 #include <firehose_internal.h>

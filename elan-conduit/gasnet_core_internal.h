@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/11 13:09:56 $
- * $Revision: 1.18 $
+ *     $Date: 2003/10/27 13:04:09 $
+ * $Revision: 1.18.2.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -205,7 +205,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
 extern void gasnetc_initbufs();
 
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
 #else
   void **_gasnetc_mythread;
@@ -221,8 +221,8 @@ extern void gasnetc_dump_tportstats();
 extern void gasnetc_dump_groupstats();
 /* ------------------------------------------------------------------------------------ */
 #define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
-  assert(phandlerfn);                                                                   \
-  if (numargs == 0) (*(gasnetc_HandlerShort)phandlerfn)((void *)token);                   \
+  gasneti_assert(phandlerfn);                                                           \
+  if (numargs == 0) (*(gasnetc_HandlerShort)phandlerfn)((void *)token);                 \
   else {                                                                                \
     gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */    \
     switch (numargs) {                                                                  \
@@ -248,7 +248,7 @@ extern void gasnetc_dump_groupstats();
   } while (0)
 /* ------------------------------------------------------------------------------------ */
 #define _RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {   \
-  assert(phandlerfn);                                                         \
+  gasneti_assert(phandlerfn);                                                 \
   if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
   else {                                                                      \
     gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */    \
@@ -274,7 +274,7 @@ extern void gasnetc_dump_groupstats();
     }                                                                                   \
   } while (0)
 #define RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
-    assert(((uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
+    gasneti_assert(((uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
     _RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn, (gasnet_token_t)token, pArgs, numargs, (void *)pData, (int)datalen); \
     } while(0)
 #define RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen)             \
@@ -293,16 +293,16 @@ extern gasneti_mutex_t gasnetc_sendfifoLock;
 #define LOCK_SENDFIFO()   gasneti_mutex_lock(&gasnetc_sendfifoLock)
 #define UNLOCK_SENDFIFO() gasneti_mutex_unlock(&gasnetc_sendfifoLock)
 
-#define ASSERT_ELAN_LOCKED() gasneti_mutex_assertlocked(&gasnetc_elanLock)
-#define ASSERT_ELAN_UNLOCKED() gasneti_mutex_assertunlocked(&gasnetc_elanLock)
-#define ASSERT_SENDFIFO_LOCKED() gasneti_mutex_assertlocked(&gasnetc_sendfifoLock)
+#define ASSERT_ELAN_LOCKED()       gasneti_mutex_assertlocked(&gasnetc_elanLock)
+#define ASSERT_ELAN_UNLOCKED()     gasneti_mutex_assertunlocked(&gasnetc_elanLock)
+#define ASSERT_SENDFIFO_LOCKED()   gasneti_mutex_assertlocked(&gasnetc_sendfifoLock)
 #define ASSERT_SENDFIFO_UNLOCKED() gasneti_mutex_assertunlocked(&gasnetc_sendfifoLock)
 
 /* (UN)LOCK_ELAN_WEAK is used when we only need mutual exclusion for the
    purposes of an elan call (which quadrics claims are all thread-safe)
    OK - so apparently the elan library is only threadsafe starting in v1.4
  */
-#ifdef GASNETI_THREADS
+#if GASNETI_THREADS
   #if defined(ELAN_VER_1_2) || defined(ELAN_VER_1_3)
     /* use real locks to provide thread-safety */
     #define LOCK_ELAN_WEAK()    LOCK_ELAN()
@@ -327,7 +327,7 @@ extern gasneti_mutex_t gasnetc_sendfifoLock;
     LOCK_ELAN_WEAK();                    \
   } while (0)
 
-#if defined(TRACE) || defined(STATS)
+#if GASNETI_STATS_OR_TRACE
   /* wrap around trace calls in locked sections to prevent 
      weak lock violation on elan_clock() */
   #define UNLOCKRELOCK_ELAN_WEAK_IFTRACE(cmd) UNLOCKRELOCK_ELAN_WEAK(cmd)

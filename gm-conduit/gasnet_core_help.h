@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.22 2003/10/08 06:06:54 csbell Exp $
- * $Date: 2003/10/08 06:06:54 $
- * $Revision: 1.22 $
+/* $Id: gasnet_core_help.h,v 1.22.2.1 2003/10/27 13:04:12 bonachea Exp $
+ * $Date: 2003/10/27 13:04:12 $
+ * $Revision: 1.22.2.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -137,12 +137,12 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
                                 (GASNETC_AM_TYPE(buf) == GASNETC_AM_LONG ?     \
 				 "Long" : "Error!")))
 /* -------------------------------------------------------------------------- */
-#define GASNETC_ASSERT_AMSHORT(buf, type, handler, args, req) 		\
-	do { 	assert(buf != NULL); 					\
-		assert(type >= GASNETC_AM_SHORT && 			\
-				type <= GASNETC_AM_SYSTEM);		\
-		assert(req == 0 || req == 1);				\
-		assert(numargs >= 0 && numargs <= 16);			\
+#define GASNETC_ASSERT_AMSHORT(buf, type, handler, args, req)  \
+        do {    gasneti_assert(buf != NULL);                   \
+                gasneti_assert(type >= GASNETC_AM_SHORT &&     \
+                                type <= GASNETC_AM_SYSTEM);    \
+                gasneti_assert(req == 0 || req == 1);          \
+                gasneti_assert(numargs >= 0 && numargs <= 16); \
 	} while (0)
 
 #define GASNETC_ASSERT_AMMEDIUM(buf, type, handler, args, req, len, src) \
@@ -153,7 +153,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 /* -------------------------------------------------------------------------- */
 /* Debug, tracing */
-#ifdef TRACE
+#if GASNET_TRACE
 /* Generic Trace debug for AM handlers (gasnet_core) or elsewhere */
 #define GASNETC_TRACE_SHORT(reqrep, type, dest, token, idx, args)	       \
 		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token=0x%x index=%d args=%d",\
@@ -220,17 +220,17 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 /* Need GASNETC_DPRINTF for init functions since gasnet tracing
  * is not enabled yet
  */
-#ifdef	DEBUG
+#if	GASNET_DEBUG
 #define GASNETC_DPRINTF(x)	printf x
 #else
 #define GASNETC_DPRINTF(x)
 #endif
 
 /* -------------------------------------------------------------------------- */
-#define GASNETC_ASSERT_BUFDESC_PTR(bufd, ptr) do {                        \
-		assert((bufd)->id ==                                      \
-		(((uintptr_t)(ptr) - (uintptr_t)_gmc.dma_bufs) >> \
-			GASNETC_AM_SIZE));				  \
+#define GASNETC_ASSERT_BUFDESC_PTR(bufd, ptr) do {                \
+                gasneti_assert((bufd)->id ==                      \
+                (((uintptr_t)(ptr) - (uintptr_t)_gmc.dma_bufs) >> \
+                        GASNETC_AM_SIZE));                        \
 		} while (0)
 #define GASNETC_BUFDESC_PTR(x) ((gasnetc_bufdesc_t *) &_gmc.bd_ptr[	       \
 				(((uintptr_t)(x) - (uintptr_t)_gmc.dma_bufs)>> \
@@ -284,7 +284,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 /* -------------------------------------------------------------------------- */
 #define GASNETC_RUN_HANDLER_SHORT(pfn, token, pArgs, numargs) do { 	       \
-	assert(pfn);						               \
+	gasneti_assert(pfn);						       \
   	if (numargs == 0) (*(gasnetc_HandlerShort)pfn)((void *)token); 	       \
 	else {								       \
     		uint32_t *args = (uint32_t *)(pArgs); /* eval only once */     \
@@ -343,7 +343,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 /* -------------------------------------------------------------------------- */
 #define _GASNETC_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs,        \
 		pData, datalen) do {					       \
-	assert(phandlerfn);						       \
+	gasneti_assert(phandlerfn);					       \
   	if (numargs == 0) (*phandlerfn)(token, pData, datalen);	               \
 	else {								       \
     		uint32_t *args = (uint32_t *)(pArgs); /* eval only once */     \

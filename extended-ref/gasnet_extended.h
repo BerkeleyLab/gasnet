@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/06/17 04:01:57 $
- * $Revision: 1.19 $
+ *     $Date: 2003/10/27 13:04:10 $
+ * $Revision: 1.19.4.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,6 @@
 #define _GASNET_EXTENDED_H
 
 #include <string.h>
-#include <assert.h>
 
 #include <gasnet_extended_help.h>
 
@@ -602,7 +601,7 @@ void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GAS
 
 GASNET_INLINE_MODIFIER(_gasnet_put_val)
 void _gasnet_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
-  assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
   gasnete_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(dest, nbytes);
   if (gasnete_islocal(node)) {
@@ -623,7 +622,7 @@ void _gasnet_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t val
 
 GASNET_INLINE_MODIFIER(_gasnet_put_nb_val)
 gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
-  assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
   gasnete_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(dest, nbytes);
   if (gasnete_islocal(node)) {
@@ -656,7 +655,7 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t node, void *dest, gasnet_regis
 
 GASNET_INLINE_MODIFIER(_gasnet_put_nbi_val)
 void _gasnet_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
-  assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
   gasnete_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(dest, nbytes);
   if (gasnete_islocal(node)) {
@@ -682,7 +681,7 @@ void _gasnet_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t
 
 GASNET_INLINE_MODIFIER(_gasnet_get_val)
 gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
   gasnete_boundscheck(node, src, nbytes);
   gasnete_aligncheck(src, nbytes);
   if (gasnete_islocal(node)) {

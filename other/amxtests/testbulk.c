@@ -36,7 +36,7 @@ static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
   assert(buf == ((uint8_t *)VMseg) + 100);
   /* assert(done < 2*nummsgs); */
 
-  #ifdef DEBUG
+  #ifdef AMMPI_DEBUG
     /*  verify the result */
     { int i;
       for (i = 0; i < nbytes/4; i++) {

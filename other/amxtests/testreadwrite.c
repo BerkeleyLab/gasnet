@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
           break;
           }
         }
-      #ifdef DEBUG
+      #ifdef AMMPI_DEBUG
         if (i != MAX_PROCS) {
           printf("Proc %i verified.\n", myproc);
           fflush(stdout);

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_mmap.c                   $
- *     $Date: 2003/08/30 07:16:39 $
- * $Revision: 1.16 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -112,7 +112,7 @@ extern void *gasneti_mmap(size_t segsize) {
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_munmap(void *segbase, size_t segsize) {
   gasneti_stattime_t t1, t2;
-  assert(segsize > 0);
+  gasneti_assert(segsize > 0);
   t1 = GASNETI_STATTIME_NOW();
     #if 0 && defined(OSF) /* doesn't seem to help */
       /* invalidate the pages before unmap to avoid write-back penalty */
@@ -144,7 +144,7 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(size_t lowsz, size_t highsz)
   }
 
   si.size = GASNETI_PAGE_ALIGNDOWN((lowsz + (highsz - lowsz) / 2));
-  assert(si.size > 0);
+  gasneti_assert(si.size > 0);
 
   si.addr = gasneti_mmap(si.size);
 
@@ -228,8 +228,8 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
   if (si.addr == NULL) 
     gasneti_fatalerror("Unable to find an adequate mmap segment.");
 
-  assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
-  assert(si.size % GASNET_PAGESIZE == 0);
+  gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
+  gasneti_assert(si.size % GASNET_PAGESIZE == 0);
   if (mmaped && ((uintptr_t)si.addr) % GASNET_PAGESIZE == 0) {
     /* aligned and mmaped - nothing to do */
   } else { /* need to page-align base */
@@ -245,8 +245,8 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
     gasneti_mmap_fixed(si.addr, si.size);
   }
 
-  assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
-  assert(((uintptr_t)si.addr) % GASNET_PAGESIZE == 0 && si.size % GASNET_PAGESIZE == 0);
+  gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
+  gasneti_assert(((uintptr_t)si.addr) % GASNET_PAGESIZE == 0 && si.size % GASNET_PAGESIZE == 0);
   return si;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -284,10 +284,10 @@ void gasneti_segmentInit(uintptr_t *MaxLocalSegmentSize,
   gasneti_segexch_t se;
   int i;
 
-  assert(MaxLocalSegmentSize);
-  assert(MaxGlobalSegmentSize);
-  assert(exchangefn);
-  assert(numnodes);
+  gasneti_assert(MaxLocalSegmentSize);
+  gasneti_assert(MaxGlobalSegmentSize);
+  gasneti_assert(exchangefn);
+  gasneti_assert(numnodes);
   gasneti_nodes = numnodes;
 
   gasneti_segexch = (gasneti_segexch_t *)gasneti_malloc(gasneti_nodes*sizeof(gasneti_segexch_t));
@@ -371,10 +371,10 @@ void gasneti_segmentInit(uintptr_t *MaxLocalSegmentSize,
                      "MaxGlobalSegmentSize = %lu",
                      (unsigned long)gasneti_MaxLocalSegmentSize, 
                      (unsigned long)gasneti_MaxGlobalSegmentSize));
-  assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
-  assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
-  assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
-  assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
+  gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
+  gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
+  gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
+  gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
 
   *MaxLocalSegmentSize = gasneti_MaxLocalSegmentSize;
   *MaxGlobalSegmentSize = gasneti_MaxGlobalSegmentSize;
@@ -389,9 +389,9 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
   void *segbase = NULL;
-  assert(seginfo);
-  assert(exchangefn);
-  assert(gasneti_segexch);
+  gasneti_assert(seginfo);
+  gasneti_assert(exchangefn);
+  gasneti_assert(gasneti_segexch);
 
   #ifdef HAVE_MMAP
   { /* TODO: this assumes heap grows up */
@@ -416,8 +416,8 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
             uintptr_t segstart = 
                 ((uintptr_t)gasneti_segexch[i].seginfo.addr + gasneti_segexch[i].seginfo.size) - 
                  gasneti_segexch[i].segsize_request;
-            /*assert(gasneti_segexch[i].segsize_request >= 0); True by typing */
-            assert(segstart >= gasneti_maxbase);
+            /*gasneti_assert(gasneti_segexch[i].segsize_request >= 0); True by typing */
+            gasneti_assert(segstart >= gasneti_maxbase);
             if (segstart < minsegstart) minsegstart = segstart;
           }
 
@@ -463,7 +463,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
       /* trim final segment if required */
       if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
-        assert(segbase >= gasneti_segment.addr &&
+        gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
         gasneti_mmap_fixed(segbase, segsize);
@@ -480,8 +480,8 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     }
     if (segbase) segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
   #endif
-  assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-  assert(segsize % GASNET_PAGESIZE == 0);
+  gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
+  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
     GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
 

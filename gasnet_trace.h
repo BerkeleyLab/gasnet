@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2003/06/17 04:01:55 $
- * $Revision: 1.9 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.9.4.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@ BEGIN_EXTERNC
    See README for user-interface usage information
 */
 
-#if defined(TRACE) || defined(STATS)
+#if GASNETI_STATS_OR_TRACE
   /* emit trace info and increment a stat ctr */
   #define GASNETI_TRACE_EVENT(type, name) do { \
        _GASNETI_STAT_EVENT (type, name);       \
@@ -48,7 +48,7 @@ BEGIN_EXTERNC
   #define GASNETI_TRACE_EVENT_TIME(type, name, time)
 #endif
 
-#ifdef TRACE
+#if GASNET_TRACE
   /* print a string on the trace 
      Ex: GASNETI_TRACE_MSG(C, "init complete") */
   #define GASNETI_TRACE_MSG(type, string) \
@@ -69,7 +69,7 @@ BEGIN_EXTERNC
   #define GASNETI_TRACE_PRINTF(type, args)
 #endif
 
-#ifdef STATS
+#if GASNET_STATS
   /* print an arbitrary string of statistical output on the trace 
      Ex: GASNETI_STATS_MSG(C, "init complete") */
   #define GASNETI_STATS_MSG(type, string) \
@@ -135,7 +135,7 @@ BEGIN_EXTERNC
 #define GASNETI_TRACE_TRYSYNC(name,success) \
   GASNETI_TRACE_EVENT_VAL(S,name,((success) == GASNET_OK?1:0))
 
-#if defined(TRACE) || defined(STATS)
+#if GASNETI_STATS_OR_TRACE
   #define GASNETI_TRACE_WAITSYNC_BEGIN() \
     gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(S)
 #else 
@@ -185,7 +185,7 @@ BEGIN_EXTERNC
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));                                       \
 } while(0)
 
-#ifdef TRACE
+#if GASNET_TRACE
   #define GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs) \
           GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,numargs)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) do {         \
@@ -222,7 +222,7 @@ BEGIN_EXTERNC
   #define GASNETI_TRACE_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs) \
           GASNETI_TRACE_AMLONG(AMREQUEST_LONGASYNC,dest,handler,source_addr,nbytes,dest_addr,numargs)
 
-#elif defined(STATS)
+#elif GASNET_STATS
   #define GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs) \
      GASNETI_TRACE_EVENT(A,AMREQUEST_SHORT)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) \
@@ -248,7 +248,7 @@ BEGIN_EXTERNC
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* AM Handler tracing */
-#if defined(TRACE) || defined(STATS)
+#if GASNETI_STATS_OR_TRACE
   #define _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle)              \
     char argstr[256];                                                       \
     do {                                                                    \
@@ -441,7 +441,7 @@ extern void gasneti_trace_finish();
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME)
 #endif
 
-#if defined(STATS) || defined(TRACE)
+#if GASNETI_STATS_OR_TRACE
   #define BUILD_ENUM(type,name,desc) GASNETI_STAT_##name,
   typedef enum {
     GASNETI_ALL_STATS(BUILD_ENUM, BUILD_ENUM, BUILD_ENUM)
@@ -464,19 +464,19 @@ extern void gasneti_trace_finish();
   extern char gasneti_tracetypes[];
   extern char gasneti_statstypes[];
 #endif
-#if defined(TRACE)
+#if GASNET_TRACE
   #define GASNETI_TRACE_ENABLED(type) (gasneti_tracetypes[(int)*(char*)#type])
 #else
   #define GASNETI_TRACE_ENABLED(type) 0
 #endif
-#if defined(STATS)
+#if GASNET_STATS
   #define GASNETI_STATS_ENABLED(type) (gasneti_statstypes[(int)*(char*)#type])
 #else
   #define GASNETI_STATS_ENABLED(type) 0
 #endif
 
 
-#ifdef TRACE
+#if GASNET_TRACE
   #define _GASNETI_TRACE_EVENT(type, name) \
     GASNETI_TRACE_PRINTF(type, ("%s", #name))
   #define _GASNETI_TRACE_EVENT_VAL(type, name, val) \
@@ -493,7 +493,7 @@ extern void gasneti_trace_finish();
 #endif
 
 
-#ifdef STATS
+#if GASNET_STATS
   #define DECL_CTR(type,name,desc)                   \
     extern gasneti_statctr_t gasneti_stat_ctr_##name;
   #define DECL_INTVAL(type,name,desc)                   \

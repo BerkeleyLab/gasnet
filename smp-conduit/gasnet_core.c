@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/smp-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/11 13:10:03 $
- * $Revision: 1.12 $
+ *     $Date: 2003/10/27 13:04:19 $
+ * $Revision: 1.12.2.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,12 +46,12 @@ static void gasnetc_check_config() {
 }
 
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
-  assert(gasnetc_nodes == 1); /* trivial because we only have one node */
+  gasneti_assert(gasnetc_nodes == 1); /* trivial because we only have one node */
   memmove(dest, src, len);
 }
 void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
-  assert(gasnetc_nodes == 1); /* trivial because we only have one node */
-  assert(rootnode == 0);
+  gasneti_assert(gasnetc_nodes == 1); /* trivial because we only have one node */
+  gasneti_assert(rootnode == 0);
   memmove(dest, src, len);
 }
 
@@ -64,7 +64,7 @@ static void gasnetc_bootstrapBarrier() {
      If your underlying spawning or batch system provides barrier functionality,
       that would probably be a good choice for this
    */
-  assert(gasnetc_nodes == 1); /* trivial because we only have one node */
+  gasneti_assert(gasnetc_nodes == 1); /* trivial because we only have one node */
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -77,7 +77,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   if (getenv("GASNET_FREEZE")) gasneti_freezeForDebugger();
 
-  #if DEBUG_VERBOSE
+  #if GASNET_DEBUG_VERBOSE
     /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
@@ -90,12 +90,12 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* enable tracing */
   gasneti_trace_init();
 
-  #if DEBUG_VERBOSE
+  #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasnetc_mynode, gasnetc_nodes); fflush(stderr);
   #endif
 
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
       gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize, 
                           &gasnetc_MaxGlobalSegmentSize,
@@ -104,7 +104,7 @@ static int gasnetc_init(int *argc, char ***argv) {
                           &gasnetc_bootstrapExchange);
 
     }
-  #elif defined(GASNET_SEGMENT_EVERYTHING)
+  #elif GASNET_SEGMENT_EVERYTHING
     gasnetc_MaxLocalSegmentSize =  (uintptr_t)-1;
     gasnetc_MaxGlobalSegmentSize = (uintptr_t)-1;
   #else
@@ -209,7 +209,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
 
   /*  check argument sanity */
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     if ((segsize % GASNET_PAGESIZE) != 0) 
       GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
     if (segsize > gasnetc_getMaxLocalSegmentSize()) 
@@ -227,22 +227,22 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;
     int numreg = 0;
-    assert(ctable);
+    gasneti_assert(ctable);
     while (ctable[len].fnptr) len++; /* calc len */
     if (gasnetc_reghandlers(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
-    assert(numreg == len);
+    gasneti_assert(numreg == len);
   }
 
   { /*  extended API handlers */
     gasnet_handlerentry_t *etable = (gasnet_handlerentry_t *)gasnete_get_handlertable();
     int len = 0;
     int numreg = 0;
-    assert(etable);
+    gasneti_assert(etable);
     while (etable[len].fnptr) len++; /* calc len */
     if (gasnetc_reghandlers(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
-    assert(numreg == len);
+    gasneti_assert(numreg == len);
   }
 
   if (table) { /*  client handlers */
@@ -257,7 +257,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     if (gasnetc_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
 
-    assert(numreg1 + numreg2 == numentries);
+    gasneti_assert(numreg1 + numreg2 == numentries);
   }
 
   /* ------------------------------------------------------------------------------------ */
@@ -277,10 +277,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapExchange);
-    assert(((uintptr_t)gasnetc_seginfo[gasnetc_mynode].addr) % GASNET_PAGESIZE == 0);
-    assert(gasnetc_seginfo[gasnetc_mynode].size % GASNET_PAGESIZE == 0);
+    gasneti_assert(((uintptr_t)gasnetc_seginfo[gasnetc_mynode].addr) % GASNET_PAGESIZE == 0);
+    gasneti_assert(gasnetc_seginfo[gasnetc_mynode].size % GASNET_PAGESIZE == 0);
   #else
     /* GASNET_SEGMENT_EVERYTHING */
     { int i;
@@ -307,7 +307,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
 
-  assert(gasnetc_seginfo[gasnetc_mynode].addr == segbase &&
+  gasneti_assert(gasnetc_seginfo[gasnetc_mynode].addr == segbase &&
          gasnetc_seginfo[gasnetc_mynode].size == segsize);
 
   #if GASNET_ALIGNED_SEGMENTS == 1
@@ -364,7 +364,7 @@ extern void gasnetc_exit(int exitcode) {
 */
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
   GASNETI_CHECKATTACH();
-  assert(gasnetc_seginfo && seginfo_table);
+  gasneti_assert(gasnetc_seginfo && seginfo_table);
   if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
   memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
   memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
@@ -385,7 +385,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   /* add code here to write the source index into sourceid */
   sourceid = 0;
 
-  assert(sourceid < gasnetc_nodes);
+  gasneti_assert(sourceid < gasnetc_nodes);
   *srcindex = sourceid;
   return GASNET_OK;
 }
@@ -417,8 +417,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   gasnetc_bufdesc_t *desc = &_descbuf;
   gasnet_handlerarg_t pargs[GASNETC_MAX_ARGS];
 
-  assert(dest == gasnetc_mynode);
-  assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
+  gasneti_assert(dest == gasnetc_mynode);
+  gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
 
   { int i;
     for(i=0; i < numargs; i++) {
@@ -443,7 +443,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       { 
         void **corethreadinfo = gasnetc_mythread();
         uint8_t *buf = NULL;
-        assert(corethreadinfo);
+        gasneti_assert(corethreadinfo);
         if (!*corethreadinfo) 
           *corethreadinfo = gasneti_malloc(sizeof(gasnetc_threadinfo_t));
         if (isReq) buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->requestBuf;
@@ -496,9 +496,9 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
   int retval;
   gasnet_node_t sourceid = 0;
 
-  assert(reqdesc->handlerRunning);
-  assert(!reqdesc->replyIssued);
-  assert(reqdesc->isReq);
+  gasneti_assert(reqdesc->handlerRunning);
+  gasneti_assert(!reqdesc->replyIssued);
+  gasneti_assert(reqdesc->isReq);
   
   retval = gasnetc_ReqRepGeneric(category, 0, sourceid, handler, 
                                  source_addr, nbytes, dest_ptr, 
@@ -517,7 +517,7 @@ extern int gasnetc_AMRequestShortM(
   va_list argptr;
   GASNETI_CHECKATTACH();
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -539,7 +539,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_CHECKATTACH();
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -564,7 +564,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   
   gasnetc_boundscheck(dest, dest_addr, nbytes);
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   if_pf (nbytes > gasnet_AMMaxLongRequest()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   if_pf (((uintptr_t)dest_addr) < ((uintptr_t)gasnetc_seginfo[dest].addr) ||
          ((uintptr_t)dest_addr) + nbytes > 
@@ -594,7 +594,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   
   gasnetc_boundscheck(dest, dest_addr, nbytes);
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   if_pf (nbytes > gasnet_AMMaxLongRequest()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   if_pf (((uintptr_t)dest_addr) < ((uintptr_t)gasnetc_seginfo[dest].addr) ||
          ((uintptr_t)dest_addr) + nbytes > 
@@ -619,7 +619,7 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -639,7 +639,7 @@ extern int gasnetc_AMReplyMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -667,7 +667,7 @@ extern int gasnetc_AMReplyLongM(
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
   gasnetc_boundscheck(dest, dest_addr, nbytes);
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-  assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   if_pf (nbytes > gasnet_AMMaxLongReply()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   if_pf (((uintptr_t)dest_addr) < ((uintptr_t)gasnetc_seginfo[dest].addr) ||
          ((uintptr_t)dest_addr) + nbytes > 
@@ -739,7 +739,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
 
   { int retval; 
-    #if defined(STATS) || defined(TRACE)
+    #if GASNETI_STATS_OR_TRACE
       gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
@@ -747,7 +747,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
     #else
       gasneti_mutex_lock(&(hsl->lock));
     #endif
-    #if defined(STATS) || defined(TRACE)
+    #if GASNETI_STATS_OR_TRACE
       hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
       GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
     #endif

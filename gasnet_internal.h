@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.h                               $
- *     $Date: 2003/10/11 13:09:54 $
- * $Revision: 1.42 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.42.2.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,6 @@
 #ifndef _GASNET_INTERNAL_H
 #define _GASNET_INTERNAL_H
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -28,7 +27,7 @@ extern int gasneti_init_done; /*  true after init */
 extern int gasneti_attach_done; /*  true after attach */
 
 /*  safe memory allocation/deallocation */
-#ifdef DEBUG
+#if GASNET_DEBUG
   extern void *_gasneti_malloc(size_t nbytes, char *curloc);
   extern void _gasneti_free(void *ptr, char *curloc);
   extern void *_gasneti_calloc(size_t N, size_t S, char *curloc);
@@ -69,6 +68,11 @@ extern int gasneti_attach_done; /*  true after attach */
 #define malloc !!! ERROR: GASNet conduit code must use gasneti_malloc !!!
 #define calloc !!! ERROR: GASNet conduit code must use gasneti_calloc !!!
 #define free   !!! ERROR: GASNet conduit code must use gasneti_free   !!!
+
+#include <assert.h>
+#undef assert
+#define assert(x)   !!! ERROR: GASNet conduit code should use gasneti_assert()   !!!
+
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
 GASNET_INLINE_MODIFIER(gasneti_strdup)
@@ -122,11 +126,11 @@ char *gasneti_strndup(const char *s, size_t n) {
 extern void gasneti_freezeForDebugger();
 extern void gasneti_killmyprocess(int exitcode);
 
-/* DEBUG_VERBOSE is set by configure to request job startup and general 
+/* GASNET_DEBUG_VERBOSE is set by configure to request job startup and general 
    status messages on stderr 
 */
-#ifndef DEBUG_VERBOSE
-  #define DEBUG_VERBOSE               0
+#ifndef GASNET_DEBUG_VERBOSE
+  #define GASNET_DEBUG_VERBOSE               0
 #endif
 
 /* ------------------------------------------------------------------------------------ */

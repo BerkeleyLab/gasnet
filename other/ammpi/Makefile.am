@@ -26,9 +26,6 @@ libammpi_a_SOURCES = \
     ammpi_internal.h \
     ammpi_spmd.h
 
-#EXTRA_libammpi_SOURCES = 
-
-
 EXTRA_DIST =        \
     apputils.c      \
     apputils.h      \

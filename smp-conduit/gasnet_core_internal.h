@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/smp-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/11 13:10:03 $
- * $Revision: 1.4 $
+ *     $Date: 2003/10/27 13:04:19 $
+ * $Revision: 1.4.2.1 $
  * Description: GASNet smp conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,7 +59,7 @@ typedef enum {
   gasnetc_System=3
   } gasnetc_category_t;
 
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
 #else
   void *_gasnetc_mythread;
@@ -68,8 +68,8 @@ typedef enum {
 
 /* ------------------------------------------------------------------------------------ */
 #define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
-  assert(phandlerfn);                                                                   \
-  if (numargs == 0) (*(gasnetc_HandlerShort)phandlerfn)((void *)token);                   \
+  gasneti_assert(phandlerfn);                                                           \
+  if (numargs == 0) (*(gasnetc_HandlerShort)phandlerfn)((void *)token);                 \
   else {                                                                                \
     gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */    \
     switch (numargs) {                                                                  \
@@ -95,7 +95,7 @@ typedef enum {
   } while (0)
 /* ------------------------------------------------------------------------------------ */
 #define _RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {   \
-  assert(phandlerfn);                                                         \
+  gasneti_assert(phandlerfn);                                                 \
   if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
   else {                                                                      \
     gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */    \
@@ -123,7 +123,7 @@ typedef enum {
 #define RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
     /* disable this check for smp-conduit which runs all handlers as loopback */        \
     /* if client didn't provide alignment on input, they probably don't need it for handler */ \
-    /*assert(((uintptr_t)pData) % 8 == 0);*/  /* we guarantee double-word alignment for data payload of medium xfers */ \
+    /*gasneti_assert(((uintptr_t)pData) % 8 == 0);*/  /* we guarantee double-word alignment for data payload of medium xfers */ \
     _RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn, (gasnet_token_t)token, pArgs, numargs, (void *)pData, (int)datalen); \
     } while(0)
 #define RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen)             \

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2003/10/11 13:10:06 $
- * $Revision: 1.18 $
+ *     $Date: 2003/10/27 13:04:21 $
+ * $Revision: 1.18.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,15 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+#if !defined(DEBUG) && !defined(NDEBUG)
+  #ifdef GASNET_DEBUG
+    #define DEBUG 1
+  #else
+    #define NDEBUG 1
+  #endif
+#endif
+#include <assert.h>
 
 #include <gasnet.h>
 

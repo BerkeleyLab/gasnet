@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/10/13 06:31:07 $
-# $Revision: 1.83.2.2 $
+#     $Date: 2003/10/27 13:04:07 $
+# $Revision: 1.83.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.83.2.2 $)
+AC_REVISION($Revision: 1.83.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -154,7 +154,7 @@ case "$gasnet_cv_cc_family" in
   MIPS) CCOPTFLAGS="-O3" ;;
   XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=8192" ;; # -O5 == -O3 w/ intra-procedural analysis
         CCOPTFLAGS="-O3 -qsmp=noauto -qmaxmem=8192" ;; # -O5 causes linker to hang on Titanium
-  Compaq) CCOPTFLAGS="-O4 -tune host -inline all" ;;
+  Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
   Intel) CCOPTFLAGS="-O3" ;;
   PGI) CCOPTFLAGS="-O2" ;;
   *)    CCOPTFLAGS="-O" ;;
@@ -187,27 +187,27 @@ esac
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
   [ CFLAGS="$CCDEBUGFLAGS"
-    BUILDCONFIG_DEFINES="-DDEBUG"
+    BUILDCONFIG_DEFINES="-DGASNET_DEBUG"
     BUILDCONFIG="debug"
     enabled_debug=yes],
   [ CFLAGS="$CCOPTFLAGS"
-    BUILDCONFIG_DEFINES="-DNDEBUG"
+    BUILDCONFIG_DEFINES="-DGASNET_NDEBUG"
     BUILDCONFIG="optimize"
     enabled_debug=no])
 
 GASNET_IF_ENABLED(gasnet-verbose, Build GASNet lib with debugging status messages, 
-  [ BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DDEBUG_VERBOSE=1"], [])
+  [ BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_DEBUG_VERBOSE=1"], [])
 
 GASNET_IF_ENABLED_WITH_AUTO(trace, Build GASNet with tracing enabled (enabled by default with --enable-debug), 
   enabled_trace=yes, enabled_trace=no, enabled_trace=$enabled_debug)
   if test "$enabled_trace" = yes; then
-    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DTRACE"
+    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_TRACE"
   fi
 
 GASNET_IF_ENABLED_WITH_AUTO(stats, Build GASNet with statistical collection enabled (enabled by default with --enable-debug), 
   enabled_stats=yes, enabled_stats=no, enabled_stats=$enabled_debug)
   if test "$enabled_stats" = yes; then
-    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DSTATS"
+    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_STATS"
   fi
 
 AC_SUBST(CFLAGS)	      # opt/debug flags
@@ -527,7 +527,7 @@ if test $enabled_mpi = yes; then
     	  GASNET_ENV_DEFAULT(MPI_CC, /usr/sww/opt/SUNWspro/bin/cc)
 	  BASIC_MPI_CFLAGS="-DAMMPI_COEXIST_WITH_AM \
 		-I/usr/now/am2/include -I/usr/now/include -I/usr/now/mpi/mpich/include \
-		-w $BUILDCONFIG_DEFINES"
+		-w"
 	  if test "$BUILDCONFIG" = "optimize" ; then
     	    GASNET_ENV_DEFAULT(MPI_CFLAGS,  $BASIC_MPI_CFLAGS \
 		-dalign -xarch=v8plusa -xchip=ultra -fast -xtarget=native -xO5)
@@ -544,13 +544,13 @@ if test $enabled_mpi = yes; then
           # I don't have access to a Solaris cluster with MPI (other than NOW) 
           # but these seem like sane defaults
     	  GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, $BUILDCONFIG_DEFINES $MISC_CFLAGS $CFLAGS)
+    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
     	  GASNET_ENV_DEFAULT(MPI_LIBS, )
 	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         fi
         ;;
     linux*) 
-    	GASNET_ENV_DEFAULT(MPI_CFLAGS, $BUILDCONFIG_DEFINES $CFLAGS)
+    	GASNET_ENV_DEFAULT(MPI_CFLAGS, $CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
         if test "$enable_millennium" = yes; then
 
@@ -572,7 +572,7 @@ if test $enabled_mpi = yes; then
         # user may need to do a "module load mpt" to make this work
     	GASNET_ENV_DEFAULT(MPI_CC, cc -n32)
         # cannot use MISC_CFLAGS here because C compiler may not be MIPSPro
-	BASIC_MPI_CFLAGS="$BUILDCONFIG_DEFINES -diag_suppress1171,1174,1209,1552"
+	BASIC_MPI_CFLAGS="-diag_suppress1171,1174,1209,1552"
 	if test "$BUILDCONFIG" = "optimize" ; then
       	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O2 $BASIC_MPI_CFLAGS)
 	else
@@ -583,7 +583,7 @@ if test $enabled_mpi = yes; then
         ;;
     aix*)
     	GASNET_ENV_DEFAULT(MPI_CC, mpcc)
-	BASIC_MPI_CFLAGS="$BUILDCONFIG_DEFINES"
+	BASIC_MPI_CFLAGS=""
 	if test "$BUILDCONFIG" = "optimize" ; then
     	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O3 -qstrict -qarch=pwr3 -qtune=pwr3 -qsmp=noauto -qmaxmem=8192 $BASIC_MPI_CFLAGS)
 	else
@@ -594,9 +594,9 @@ if test $enabled_mpi = yes; then
         ;;
     osf*)
 	GASNET_ENV_DEFAULT(MPI_CC, cc)
-	BASIC_MPI_CFLAGS="$BUILDCONFIG_DEFINES -msg_disable extrasemi"
+	BASIC_MPI_CFLAGS="-msg_disable extrasemi"
         if test "$BUILDCONFIG" = "optimize" ; then
-          GASNET_ENV_DEFAULT(MPI_CFLAGS, -O4 -tune host $BASIC_MPI_CFLAGS)
+          GASNET_ENV_DEFAULT(MPI_CFLAGS, -fast -noifo -O4 -tune host $BASIC_MPI_CFLAGS)
         else
           GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
         fi
@@ -607,7 +607,7 @@ if test $enabled_mpi = yes; then
         # Cray cc - need to enable private global vars and disable a silly warning
         # user may need to do a "module load mpt" to make this work
     	GASNET_ENV_DEFAULT(MPI_CC, cc)
-	BASIC_MPI_CFLAGS="$BUILDCONFIG_DEFINES -hnomessage=236 -htaskprivate $LIBCM"
+	BASIC_MPI_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM"
 	if test "$BUILDCONFIG" = "optimize" ; then
     	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O2 $BASIC_MPI_CFLAGS)
 	else
@@ -619,7 +619,7 @@ if test $enabled_mpi = yes; then
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
       GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-      GASNET_ENV_DEFAULT(MPI_CFLAGS, $BUILDCONFIG_DEFINES $MISC_CFLAGS $CFLAGS)
+      GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
       GASNET_ENV_DEFAULT(MPI_LIBS, )
       GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
       if test "$MPI_CC" = ""; then
@@ -630,6 +630,8 @@ if test $enabled_mpi = yes; then
       fi 
       ;;
   esac
+
+  MPI_CFLAGS="$BUILDCONFIG_DEFINES $MPI_CFLAGS"
 
   # now run a basic test of the MPI configuration to make sure it works
   if test $have_mpi = yes; then

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2003/10/11 13:10:02 $
- * $Revision: 1.36 $
+ *     $Date: 2003/10/27 13:04:15 $
+ * $Revision: 1.36.2.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,20 +58,20 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
-  assert(GASNET_MAXNODES <= AMMPI_MAX_SPMDPROCS);
-  assert(AMMPI_MAX_NUMHANDLERS >= 256);
-  assert(AMMPI_MAX_SEGLENGTH == (uintptr_t)-1);
+  gasneti_assert(GASNET_MAXNODES <= AMMPI_MAX_SPMDPROCS);
+  gasneti_assert(AMMPI_MAX_NUMHANDLERS >= 256);
+  gasneti_assert(AMMPI_MAX_SEGLENGTH == (uintptr_t)-1);
 
-  assert(GASNET_ERR_NOT_INIT == AM_ERR_NOT_INIT);
-  assert(GASNET_ERR_RESOURCE == AM_ERR_RESOURCE);
-  assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
+  gasneti_assert(GASNET_ERR_NOT_INIT == AM_ERR_NOT_INIT);
+  gasneti_assert(GASNET_ERR_RESOURCE == AM_ERR_RESOURCE);
+  gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 }
 
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   GASNETI_AM_SAFE_NORETURN(AMMPI_SPMDAllGather(src, dest, len));
 }
 void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
-  assert(gasnetc_nodes > 0 && gasnetc_mynode < gasnetc_nodes);
+  gasneti_assert(gasnetc_nodes > 0 && gasnetc_mynode < gasnetc_nodes);
   if (gasnetc_mynode == rootnode) memcpy(dest, src, len);
   GASNETI_AM_SAFE_NORETURN(AMMPI_SPMDBroadcast(dest, len, rootnode));
 }
@@ -100,7 +100,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     if (getenv("GASNET_FREEZE")) gasneti_freezeForDebugger();
 
-    #if DEBUG_VERBOSE
+    #if GASNET_DEBUG_VERBOSE
       /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
       fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
     #endif
@@ -129,18 +129,18 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_trace_init();
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
 
-    #if DEBUG_VERBOSE
+    #if GASNET_DEBUG_VERBOSE
       fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
         gasnetc_mynode, gasnetc_nodes); fflush(stderr);
     #endif
 
-    #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize, 
                           &gasnetc_MaxGlobalSegmentSize,
                           (uintptr_t)-1,
                           gasnetc_nodes,
                           &gasnetc_bootstrapExchange);
-    #elif defined(GASNET_SEGMENT_EVERYTHING)
+    #elif GASNET_SEGMENT_EVERYTHING
       gasnetc_MaxLocalSegmentSize =  (uintptr_t)-1;
       gasnetc_MaxGlobalSegmentSize = (uintptr_t)-1;
     #else
@@ -149,7 +149,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   AMUNLOCK();
 
-  assert(retval == GASNET_OK);
+  gasneti_assert(retval == GASNET_OK);
   return retval;
 
 done: /*  error return while locked */
@@ -242,7 +242,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     if (retval != AM_OK) INITERR(RESOURCE, "AMMPI_SPMDBarrier() failed");
 
     /*  check argument sanity */
-    #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       if ((segsize % GASNET_PAGESIZE) != 0) 
         INITERR(BAD_ARG, "segsize not page-aligned");
       if (segsize > gasnetc_getMaxLocalSegmentSize()) 
@@ -260,22 +260,22 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
       int len = 0;
       int numreg = 0;
-      assert(ctable);
+      gasneti_assert(ctable);
       while (ctable[len].fnptr) len++; /* calc len */
       if (gasnetc_reghandlers(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
         INITERR(RESOURCE,"Error registering core API handlers");
-      assert(numreg == len);
+      gasneti_assert(numreg == len);
     }
 
     { /*  extended API handlers */
       gasnet_handlerentry_t *etable = (gasnet_handlerentry_t *)gasnete_get_handlertable();
       int len = 0;
       int numreg = 0;
-      assert(etable);
+      gasneti_assert(etable);
       while (etable[len].fnptr) len++; /* calc len */
       if (gasnetc_reghandlers(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
         INITERR(RESOURCE,"Error registering extended API handlers");
-      assert(numreg == len);
+      gasneti_assert(numreg == len);
     }
 
     if (table) { /*  client handlers */
@@ -290,7 +290,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       if (gasnetc_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
         INITERR(RESOURCE,"Error registering fixed-index client handlers");
 
-      assert(numreg1 + numreg2 == numentries);
+      gasneti_assert(numreg1 + numreg2 == numentries);
     }
 
     /* ------------------------------------------------------------------------------------ */
@@ -306,7 +306,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
-    #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapExchange);
     #else /* GASNET_SEGMENT_EVERYTHING */
       { int i;
@@ -343,7 +343,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ensure extended API is initialized across nodes */
   GASNETI_AM_SAFE(AMMPI_SPMDBarrier()); 
   
-  assert(retval == GASNET_OK);
+  gasneti_assert(retval == GASNET_OK);
   return retval;
 
 done: /*  error return while locked */
@@ -404,7 +404,7 @@ extern void gasnetc_exit(int exitcode) {
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
   GASNETI_CHECKATTACH();
   CHECKCALLNIS();
-  assert(gasnetc_seginfo && seginfo_table);
+  gasneti_assert(gasnetc_seginfo && seginfo_table);
   if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
   memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
   memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
@@ -426,7 +426,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   retval = GASNETI_AM_SAFE_NORETURN(AMMPI_GetSourceId(token, &sourceid));
 
   if (retval) {
-    assert(sourceid >= 0 && sourceid < gasnetc_nodes);
+    gasneti_assert(sourceid >= 0 && sourceid < gasnetc_nodes);
     *srcindex = sourceid;
     return GASNET_OK;
   } else GASNETI_RETURN_ERR(RESOURCE);
@@ -614,7 +614,7 @@ extern int gasnetc_AMReplyLongM(
   } gasnetc_hsl_errcheckinfo_t;
   static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0 };
 
-  #ifdef GASNETI_CLIENT_THREADS
+  #if GASNETI_CLIENT_THREADS
     static pthread_key_t gasnetc_hsl_errcheckinfo; /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
     static int gasnetc_hsl_errcheckinfo_firsttime = 1;
     static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo() {
@@ -747,7 +747,7 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
     if (hsl->islocked)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_destroy() a locked HSL");
     hsl->tag = 0;
-    assert(!hsl->next);
+    gasneti_assert(!hsl->next);
   }
   #endif
 
@@ -770,7 +770,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
   #endif
 
   { int retval; 
-    #if defined(STATS) || defined(TRACE)
+    #if GASNETI_STATS_OR_TRACE
       gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
@@ -778,7 +778,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
     #else
       gasneti_mutex_lock(&(hsl->lock));
     #endif
-    #if defined(STATS) || defined(TRACE)
+    #if GASNETI_STATS_OR_TRACE
       hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
       GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
     #endif
@@ -829,7 +829,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   /* called when entering/leaving handler - also called when entering/leaving AM_Reply call */
   extern void gasnetc_enteringHandler_hook() {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-    assert(!info->inhandler);
+    gasneti_assert(!info->inhandler);
     if (info->locksheld)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call while holding an HSL");
     if (info->interruptsdisabled)
@@ -838,7 +838,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   }
   extern void gasnetc_leavingHandler_hook() {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-    assert(info->inhandler);
+    gasneti_assert(info->inhandler);
     if (info->interruptsdisabled)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to exit a handler with unmatched interrupt hold");
     if (info->locksheld)

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/11 13:10:00 $
- * $Revision: 1.19 $
+ *     $Date: 2003/10/27 13:04:13 $
+ * $Revision: 1.19.2.1 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -193,8 +193,8 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
  */
 
 #define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
-  assert(phandlerfn);                                                                   \
-  if (numargs == 0) (*(gasnetc_HandlerShort)phandlerfn)((void *)token);                   \
+  gasneti_assert(phandlerfn);                                                           \
+  if (numargs == 0) (*(gasnetc_HandlerShort)phandlerfn)((void *)token);                 \
   else {                                                                                \
     gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */    \
     switch (numargs) {                                                                  \
@@ -220,7 +220,7 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
   } while (0)
 /* ------------------------------------------------------------------------------------ */
 #define _RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {   \
-  assert(phandlerfn);                                                         \
+  gasneti_assert(phandlerfn);                                                 \
   if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
   else {                                                                      \
     gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */    \
@@ -246,7 +246,7 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
     }                                                                                   \
   } while (0)
 #define RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
-    /* assert(((int)pData) % 8 == 0);  we guarantee double-word alignment for data payload of medium xfers */ \
+    /* gasneti_assert(((int)pData) % 8 == 0);  we guarantee double-word alignment for data payload of medium xfers */ \
     _RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn, (gasnet_token_t)token, pArgs, numargs, (void *)pData, (int)datalen); \
     } while(0)
 #define RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen)             \

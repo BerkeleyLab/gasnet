@@ -1,13 +1,12 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_ep.c                                       $
- *     $Date: 2003/08/30 07:16:48 $
- * $Revision: 1.11 $
+ *     $Date: 2003/10/27 13:04:16 $
+ * $Revision: 1.11.2.1 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <time.h>
 #ifdef WIN32
   #define sched_yield() Sleep(0)
@@ -53,8 +52,8 @@ static int AMMPI_ContainsEndpoint(eb_t eb, ep_t ep) {
   }
 /* ------------------------------------------------------------------------------------ */
 static void AMMPI_InsertEndpoint(eb_t eb, ep_t ep) {
-  assert(eb && ep);
-  assert(eb->endpoints);
+  AMMPI_assert(eb && ep);
+  AMMPI_assert(eb->endpoints);
   if (eb->n_endpoints == eb->cursize) { /* need to grow array */
     int newsize = eb->cursize * 2;
     ep_t *newendpoints = (ep_t *)malloc(sizeof(ep_t)*newsize);
@@ -68,9 +67,9 @@ static void AMMPI_InsertEndpoint(eb_t eb, ep_t ep) {
   }
 /* ------------------------------------------------------------------------------------ */
 static void AMMPI_RemoveEndpoint(eb_t eb, ep_t ep) {
-  assert(eb && ep);
-  assert(eb->endpoints);
-  assert(AMMPI_ContainsEndpoint(eb, ep));
+  AMMPI_assert(eb && ep);
+  AMMPI_assert(eb->endpoints);
+  AMMPI_assert(AMMPI_ContainsEndpoint(eb, ep));
   {
     int i;
     for (i = 0; i < eb->n_endpoints; i++) {
@@ -80,7 +79,7 @@ static void AMMPI_RemoveEndpoint(eb_t eb, ep_t ep) {
         return;
         }
       }
-    assert(0);
+    abort();
     }
   }
 /*------------------------------------------------------------------------------------
@@ -97,7 +96,7 @@ static int AMMPI_AllocateEndpointResource(ep_t ep) {
   int procnum;
   int mpitag;
   int pid = getpid();
-  assert(ep);
+  AMMPI_assert(ep);
 
   ep->translation = calloc(AMMPI_INIT_NUMTRANSLATIONS, sizeof(ammpi_translation_t));
   if (ep->translation == NULL) 
@@ -122,12 +121,12 @@ static int AMMPI_AllocateEndpointResource(ep_t ep) {
 static int AMMPI_AllocateEndpointBuffers(ep_t ep) {
   int numBufs;
   int retval = TRUE;
-  assert(ep);
-  assert(ep->depth >= 1);
-  assert(ep->translationsz >= AMMPI_INIT_NUMTRANSLATIONS);
-  assert(ep->translationsz <= AMMPI_MAX_NUMTRANSLATIONS);
-  assert(ep->totalP <= ep->translationsz);
-  assert(sizeof(ammpi_buf_t) % sizeof(int) == 0); /* assume word-addressable machine */
+  AMMPI_assert(ep);
+  AMMPI_assert(ep->depth >= 1);
+  AMMPI_assert(ep->translationsz >= AMMPI_INIT_NUMTRANSLATIONS);
+  AMMPI_assert(ep->translationsz <= AMMPI_MAX_NUMTRANSLATIONS);
+  AMMPI_assert(ep->totalP <= ep->translationsz);
+  AMMPI_assert(sizeof(ammpi_buf_t) % sizeof(int) == 0); /* assume word-addressable machine */
 
   numBufs = ep->depth;
 
@@ -141,7 +140,7 @@ static int AMMPI_AllocateEndpointBuffers(ep_t ep) {
     ep->rxBuf = (ammpi_buf_t *)malloc(numBufs * sizeof(ammpi_buf_t));
     ep->rxHandle = (MPI_Request *)malloc(numBufs * sizeof(MPI_Request));
     if (ep->rxBuf == NULL || ep->rxHandle == NULL) return FALSE;
-    assert(((uintptr_t)ep->rxBuf) % 8 == 0);
+    AMMPI_assert(((uintptr_t)ep->rxBuf) % 8 == 0);
     ep->rxNumBufs = numBufs;
 
     { int i;
@@ -152,7 +151,7 @@ static int AMMPI_AllocateEndpointBuffers(ep_t ep) {
         retval &= MPI_SAFE_NORETURN(MPI_Irecv(&ep->rxBuf[i], AMMPI_MAX_NETWORK_MSG, MPI_BYTE, 
                            MPI_ANY_SOURCE, MPI_ANY_TAG, *(ep->pmpicomm), 
                            &ep->rxHandle[i]));
-        assert(ep->rxHandle[i] != MPI_REQUEST_NULL);
+        AMMPI_assert(ep->rxHandle[i] != MPI_REQUEST_NULL);
       }
       ep->rxCurr = 0; /* oldest recv */
     }
@@ -166,11 +165,11 @@ static int AMMPI_AllocateEndpointBuffers(ep_t ep) {
   }
 /* ------------------------------------------------------------------------------------ */
 static int AMMPI_FreeEndpointResource(ep_t ep) {
-  assert(ep);
-  assert(ep->translation);
+  AMMPI_assert(ep);
+  AMMPI_assert(ep->translation);
   free(ep->translation);
   ep->translation = NULL;
-  assert(ep->pmpicomm);
+  AMMPI_assert(ep->pmpicomm);
   free(ep->pmpicomm);
   ep->pmpicomm = NULL;
   return TRUE;
@@ -178,7 +177,7 @@ static int AMMPI_FreeEndpointResource(ep_t ep) {
 /* ------------------------------------------------------------------------------------ */
 static int AMMPI_FreeEndpointBuffers(ep_t ep) {
   int retval = TRUE;
-  assert(ep);
+  AMMPI_assert(ep);
 
   free(ep->perProcInfo);
   ep->perProcInfo = NULL;
@@ -224,8 +223,8 @@ static int AMMPI_FreeEndpointBuffers(ep_t ep) {
 static int AMMPI_initSendBufferPool(ammpi_sendbuffer_pool_t* pool, int count, int bufsize) {
   char* tmp = NULL;
   int i;
-  assert(pool && count > 0 && bufsize > 0);
-  assert(bufsize % sizeof(int) == 0);
+  AMMPI_assert(pool && count > 0 && bufsize > 0);
+  AMMPI_assert(bufsize % sizeof(int) == 0);
   pool->txHandle = (MPI_Request *)malloc(count*sizeof(MPI_Request));
   pool->txBuf = (ammpi_buf_t**)malloc(count*sizeof(ammpi_buf_t*)); 
   tmp = (char*)malloc(count*bufsize);
@@ -253,10 +252,10 @@ static int AMMPI_initSendBufferPool(ammpi_sendbuffer_pool_t* pool, int count, in
  */
 extern int AMMPI_AllocateSendBuffers(ep_t ep) {
   int retval = TRUE;
-  assert(ep);
-  assert(ep->depth >= 1);
-  assert(ep->translationsz <= AMMPI_MAX_NUMTRANSLATIONS);
-  assert(ep->totalP <= ep->translationsz);
+  AMMPI_assert(ep);
+  AMMPI_assert(ep->depth >= 1);
+  AMMPI_assert(ep->translationsz <= AMMPI_MAX_NUMTRANSLATIONS);
+  AMMPI_assert(ep->totalP <= ep->translationsz);
   
   retval &= AMMPI_initSendBufferPool(&(ep->sendPool_smallRequest), ep->depth, AMMPI_MAX_SMALL_NETWORK_MSG);
   retval &= AMMPI_initSendBufferPool(&(ep->sendPool_smallReply),   ep->depth, AMMPI_MAX_SMALL_NETWORK_MSG);
@@ -268,7 +267,7 @@ extern int AMMPI_AllocateSendBuffers(ep_t ep) {
 /* ------------------------------------------------------------------------------------ */
 static int AMMPI_freeSendBufferPool(ammpi_sendbuffer_pool_t* pool) {
   int retval = TRUE;
-  assert(pool);
+  AMMPI_assert(pool);
 
   /* terminate any outstanding communications */
   { int i;
@@ -304,7 +303,7 @@ static int AMMPI_freeSendBufferPool(ammpi_sendbuffer_pool_t* pool) {
                 else sleep(1);
               }
               if (j == RETRIES) {
-                #if DEBUG_VERBOSE
+                #if AMMPI_DEBUG_VERBOSE
                   fprintf(stderr,"WARNING: Giving up on a timed-out send during shutdown\n");
                 #endif
                 /* attempt to cancel */
@@ -342,7 +341,7 @@ static int AMMPI_freeSendBufferPool(ammpi_sendbuffer_pool_t* pool) {
  */
 extern int AMMPI_ReleaseSendBuffers(ep_t ep) {
   int retval = TRUE;
-  assert(ep);
+  AMMPI_assert(ep);
 
   retval &= AMMPI_freeSendBufferPool(&(ep->sendPool_smallRequest));
   retval &= AMMPI_freeSendBufferPool(&(ep->sendPool_smallReply));
@@ -364,10 +363,10 @@ extern int AMMPI_ReleaseSendBuffers(ep_t ep) {
 extern int AMMPI_AcquireSendBuffer(ep_t ep, int numBytes, int isrequest, 
                             ammpi_buf_t** pbuf, MPI_Request** pHandle) {
   ammpi_sendbuffer_pool_t* pool = NULL;
-  assert(ep);
-  assert(pbuf);
-  assert(pHandle);
-  assert(numBytes >= AMMPI_MIN_NETWORK_MSG && numBytes <= AMMPI_MAX_NETWORK_MSG);
+  AMMPI_assert(ep);
+  AMMPI_assert(pbuf);
+  AMMPI_assert(pHandle);
+  AMMPI_assert(numBytes >= AMMPI_MIN_NETWORK_MSG && numBytes <= AMMPI_MAX_NETWORK_MSG);
 
   /* select the appropriate pool */
   if (isrequest) {
@@ -400,11 +399,11 @@ tryagain:
     for (i=numcompleted-1; i >= 0; i--) {
       int doneidx = pool->tmpIndexArray[i];
       int activeidx = pool->numActive-1;
-      assert(pool->txHandle[doneidx] == MPI_REQUEST_NULL);
+      AMMPI_assert(pool->txHandle[doneidx] == MPI_REQUEST_NULL);
       if (doneidx != activeidx) {
         /* swap a still-active buffer into this place */
         ammpi_buf_t* tmp = pool->txBuf[doneidx];
-        assert(pool->txHandle[activeidx] != MPI_REQUEST_NULL);
+        AMMPI_assert(pool->txHandle[activeidx] != MPI_REQUEST_NULL);
         pool->txHandle[doneidx] = pool->txHandle[activeidx];
         pool->txBuf[doneidx] = pool->txBuf[activeidx];
         pool->txHandle[activeidx] = MPI_REQUEST_NULL;
@@ -417,7 +416,7 @@ tryagain:
   /* find a free buffer to fulfill request */
   if (pool->numActive < pool->numBufs) { /* buffer available */
     int idx = pool->numActive;
-    assert(pool->txBuf[idx] && pool->txHandle[idx] == MPI_REQUEST_NULL);
+    AMMPI_assert(pool->txBuf[idx] && pool->txHandle[idx] == MPI_REQUEST_NULL);
     *pbuf = pool->txBuf[idx];
     *pHandle = &pool->txHandle[idx];
     pool->numActive++;
@@ -427,12 +426,12 @@ tryagain:
   /* nothing immediately available */
   if (isrequest) { /* poll until something available */
     int junk;
-    #ifdef DEBUG
+    #if AMMPI_DEBUG
       { static int repeatcnt = 0; 
         static unsigned int reportmask = 0xFF;
         /* TODO: can we grow send buffer pool here? */
         repeatcnt++;
-        if (DEBUG_VERBOSE || (repeatcnt & reportmask) == 0) {
+        if (AMMPI_DEBUG_VERBOSE || (repeatcnt & reportmask) == 0) {
           reportmask = (reportmask << 1) | 0x1;
           fprintf(stderr, "Out of request send buffers. polling...(has happenned %i times)\n", repeatcnt); fflush(stderr);
         }
@@ -457,7 +456,7 @@ tryagain:
     if (!newtxHandle || !newtxBuf || !newmemBlocks || !newBlock || 
         !newtmpIndexArray || !newtmpStatusArray) AMMPI_RETURN_ERR(RESOURCE); /* out of mem */
 
-    #ifdef DEBUG
+    #if AMMPI_DEBUG
       fprintf(stderr, "Out of reply send buffers. growing pool...\n"); fflush(stderr);
     #endif
 
@@ -508,25 +507,25 @@ extern int AM_Init() {
 
   if (ammpi_Initialized == 0) { /* first call */
     /* check system attributes */
-    assert(sizeof(int8_t) == 1);
-    assert(sizeof(uint8_t) == 1);
+    AMMPI_assert(sizeof(int8_t) == 1);
+    AMMPI_assert(sizeof(uint8_t) == 1);
     #if !defined(CRAYT3E)
-      assert(sizeof(int16_t) == 2);
-      assert(sizeof(uint16_t) == 2);
+      AMMPI_assert(sizeof(int16_t) == 2);
+      AMMPI_assert(sizeof(uint16_t) == 2);
     #endif
-    assert(sizeof(int32_t) == 4);
-    assert(sizeof(uint32_t) == 4);
-    assert(sizeof(int64_t) == 8);
-    assert(sizeof(uint64_t) == 8);
+    AMMPI_assert(sizeof(int32_t) == 4);
+    AMMPI_assert(sizeof(uint32_t) == 4);
+    AMMPI_assert(sizeof(int64_t) == 8);
+    AMMPI_assert(sizeof(uint64_t) == 8);
 
-    assert(sizeof(uintptr_t) >= sizeof(void *));
+    AMMPI_assert(sizeof(uintptr_t) >= sizeof(void *));
 
     #if 0
       #define DUMPSZ(T) printf("sizeof(" #T ")=%i\n", sizeof(T))
       DUMPSZ(ammpi_msg_t); DUMPSZ(ammpi_buf_t); DUMPSZ(en_t); DUMPSZ(ammpi_bufstatus_t);
     #endif 
-    assert(sizeof(ammpi_msg_t) % 4 == 0);
-    assert(sizeof(ammpi_buf_t) % 8 == 0); /* needed for payload alignment */
+    AMMPI_assert(sizeof(ammpi_msg_t) % 4 == 0);
+    AMMPI_assert(sizeof(ammpi_buf_t) % 8 == 0); /* needed for payload alignment */
 
     { char *buffer;
       buffer = (char *)malloc(AMMPI_SENDBUFFER_SZ);
@@ -593,7 +592,7 @@ extern int AM_FreeBundle(eb_t bundle) {
       int retval = AM_FreeEndpoint(bundle->endpoints[i]);
       if (retval != AM_OK) AMMPI_RETURN(retval);
       }
-    assert(bundle->n_endpoints == 0);
+    AMMPI_assert(bundle->n_endpoints == 0);
 
     /* remove from bundle list */
     for (i = 0; i < AMMPI_numBundles; i++) {
@@ -602,7 +601,7 @@ extern int AM_FreeBundle(eb_t bundle) {
         break;
         }
       }
-    assert(i < AMMPI_numBundles);
+    AMMPI_assert(i < AMMPI_numBundles);
     AMMPI_numBundles--;
 
     free(bundle->endpoints);
@@ -792,7 +791,7 @@ extern int AM_UnMap(ep_t ea, int index) {
 extern int AM_GetNumTranslations(ep_t ea, int *pntrans) {
   AMMPI_CHECKINIT();
   if (!ea) AMMPI_RETURN_ERR(BAD_ARG);
-  assert(ea->translationsz <= AMMPI_MAX_NUMTRANSLATIONS);
+  AMMPI_assert(ea->translationsz <= AMMPI_MAX_NUMTRANSLATIONS);
   *(pntrans) = ea->translationsz;
   return AM_OK;
 }

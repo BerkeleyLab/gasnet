@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet.h                                        $
- *     $Date: 2003/10/11 13:09:54 $
- * $Revision: 1.17 $
+ *     $Date: 2003/10/27 13:04:08 $
+ * $Revision: 1.17.2.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,8 +18,8 @@
 
 /* Usage:
    see the GASNet specification for details on how to use the GASNet interface
-   clients should #define NDEBUG when compiling this implementation for production use
-     or #define DEBUG for extra debugging safety checks
+   clients should #define GASNET_NDEBUG when compiling this implementation for production use
+     or #define GASNET_DEBUG for extra debugging safety checks
 */
 
 /* Conventions:
@@ -28,46 +28,67 @@
 * All private symbols in the reference extended API implementation are prefixed with gasnete_ (or GASNETE_ for macros)
 * All private symbols in a core API implementation are prefixed with gasnetc_ (or GASNETC_ for macros)
 * All private symbols shared throughout GASNet are prefixed with gasneti_ (or GASNETI_ for macros)
+* All GASNET_ or GASNETI_ configuration selection macros are either #defined to 1 or #undef'd
 */
 
 /* ------------------------------------------------------------------------------------ */
 /* check threading configuration */
 #if defined(GASNET_SEQ) && !defined(GASNET_PARSYNC) && !defined(GASNET_PAR)
+  #undef GASNET_SEQ
+  #define GASNET_SEQ 1
   #define GASNETI_THREADMODEL SEQ
 #elif !defined(GASNET_SEQ) && defined(GASNET_PARSYNC) && !defined(GASNET_PAR)
+  #undef GASNET_PARSYNC
+  #define GASNET_PARSYNC 1
   #define GASNETI_THREADMODEL PARSYNC
 #elif !defined(GASNET_SEQ) && !defined(GASNET_PARSYNC) && defined(GASNET_PAR)
+  #undef GASNET_PAR
+  #define GASNET_PAR 1
   #define GASNETI_THREADMODEL PAR
 #else
   #error Client code must #define exactly one of (GASNET_PAR, GASNET_PARSYNC, GASNET_SEQ) before #including gasnet.h
 #endif
 
 /* GASNETI_CLIENT_THREADS = GASNet client has multiple application threads */
-#if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
-  #define GASNETI_CLIENT_THREADS
+#if GASNET_PAR || GASNET_PARSYNC
+  #define GASNETI_CLIENT_THREADS 1
+#elif defined(GASNETI_CLIENT_THREADS)
+  #error bad defn of GASNETI_CLIENT_THREADS
 #endif
 
-#if !((defined(DEBUG) && !defined(NDEBUG)) || (!defined(DEBUG) && defined(NDEBUG)))
-  #error Client code #define exactly one of (DEBUG or NDEBUG) to select GASNet build configuration
+#if !((defined(GASNET_DEBUG) && !defined(GASNET_NDEBUG)) || (!defined(GASNET_DEBUG) && defined(GASNET_NDEBUG)))
+  #error Client code #define exactly one of (GASNET_DEBUG or GASNET_NDEBUG) to select GASNet build configuration
 #endif
 
 /* codify other configuration settings */
-#ifdef DEBUG
+#ifdef GASNET_DEBUG
+  #undef GASNET_DEBUG
+  #define GASNET_DEBUG 1
   #define GASNETI_DEBUG_CONFIG "debug"
 #else
   #define GASNETI_DEBUG_CONFIG "nodebug"
 #endif
 
-#ifdef TRACE
+#ifdef GASNET_TRACE
+  #undef GASNET_TRACE
+  #define GASNET_TRACE 1
   #define GASNETI_TRACE_CONFIG "trace"
 #else
   #define GASNETI_TRACE_CONFIG "notrace"
 #endif
 
-#ifdef STATS
+#ifdef GASNET_STATS
+  #undef GASNET_STATS
+  #define GASNET_STATS 1
   #define GASNETI_STATS_CONFIG "stats"
 #else
   #define GASNETI_STATS_CONFIG "nostats"
+#endif
+
+#if defined(GASNET_STATS) || defined(GASNET_TRACE)
+  #define GASNETI_STATS_OR_TRACE 1
+#elif defined(GASNETI_STATS_OR_TRACE)
+  #error bad def of GASNETI_STATS_OR_TRACE
 #endif
 
 /* autoconf-generated configuration header */
@@ -80,21 +101,23 @@
 /* check segment configuration */
 
 #if defined(GASNET_SEGMENT_FAST) && !defined(GASNET_SEGMENT_LARGE) && !defined(GASNET_SEGMENT_EVERYTHING)
+  #undef GASNET_SEGMENT_FAST
+  #define GASNET_SEGMENT_FAST 1
   #define GASNETI_SEGMENT_CONFIG FAST
 #elif !defined(GASNET_SEGMENT_FAST) && defined(GASNET_SEGMENT_LARGE) && !defined(GASNET_SEGMENT_EVERYTHING)
+  #undef GASNET_SEGMENT_LARGE
+  #define GASNET_SEGMENT_LARGE 1
   #define GASNETI_SEGMENT_CONFIG LARGE
 #elif !defined(GASNET_SEGMENT_FAST) && !defined(GASNET_SEGMENT_LARGE) && defined(GASNET_SEGMENT_EVERYTHING)
+  #undef GASNET_SEGMENT_EVERYTHING
+  #define GASNET_SEGMENT_EVERYTHING 1
   #define GASNETI_SEGMENT_CONFIG EVERYTHING
 #else
   #error Segment configuration must be exactly one of (GASNET_SEGMENT_FAST, GASNET_SEGMENT_LARGE, GASNET_SEGMENT_EVERYTHING) 
 #endif
 
 /* ensure that client links the correct library */
-#ifdef GASNET_SEGMENT_EVERYTHING
-  #define gasnet_init _CONCAT(_CONCAT(gasnet_init_GASNET_,GASNETI_THREADMODEL),GASNETI_SEGMENT_CONFIG)
-#else
-  #define gasnet_init _CONCAT(gasnet_init_GASNET_,GASNETI_THREADMODEL)
-#endif
+#define gasnet_init _CONCAT(_CONCAT(gasnet_init_GASNET_,GASNETI_THREADMODEL),GASNETI_SEGMENT_CONFIG)
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet forward definitions, which may override some of the defaults below */
@@ -103,9 +126,14 @@
 
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
                              which may be used to run AM handlers */
+#if defined(GASNETI_CONDUIT_THREADS) && (GASNETI_CONDUIT_THREADS != 1)
+  #error bad defn of GASNETI_CONDUIT_THREADS
+#endif
 
-#if defined(GASNETI_CLIENT_THREADS) || defined(GASNETI_CONDUIT_THREADS)
-  #define GASNETI_THREADS
+#if GASNETI_CLIENT_THREADS || GASNETI_CONDUIT_THREADS
+  #define GASNETI_THREADS 1
+#elif defined(GASNETI_THREADS)
+  #error bad defn of GASNETI_THREADS
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -125,7 +153,8 @@
   #define GASNET_MAXNODES (0x7FFFFFFFu)
 #endif
 
-#ifndef GASNET_ALIGNED_SEGMENTS
+#if !defined(GASNET_ALIGNED_SEGMENTS) || \
+    (defined(GASNET_ALIGNED_SEGMENTS) && GASNET_ALIGNED_SEGMENTS != 0 && GASNET_ALIGNED_SEGMENTS != 1)
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
   #error GASNet core failed to define GASNET_ALIGNED_SEGMENTS to 0 or 1
@@ -252,6 +281,9 @@ char *gasnet_ErrorDesc(int errval) {
     #define GASNET_PAGESIZE 1
   #else
     #error GASNET_PAGESIZE unknown and not set by conduit
+  #endif
+  #if GASNET_PAGESIZE <= 0
+    #error bad defn of GASNET_PAGESIZE
   #endif
 #endif
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/apputils.h                                       $
- *     $Date: 2003/04/10 13:08:11 $
- * $Revision: 1.3 $
+ *     $Date: 2003/10/27 13:04:16 $
+ * $Revision: 1.3.12.1 $
  * Description: Application utilities on AMMPI
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -11,6 +11,14 @@
 #ifdef WIN32
   #include <windows.h>  
   #define sleep(x) Sleep(1000*x)
+#endif
+
+#if !defined(DEBUG) && !defined(NDEBUG)
+  #ifdef AMMPI_DEBUG
+    #define DEBUG 1
+  #else
+    #define NDEBUG 1
+  #endif
 #endif
 #include <assert.h>
 

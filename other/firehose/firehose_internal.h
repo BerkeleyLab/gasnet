@@ -52,7 +52,7 @@ extern gasneti_mutex_t		fh_pollq_lock;
 #define FH_SIZE_ALIGN(addr,len)	(GASNETI_ALIGNUP(addr+len, FH_BUCKET_SIZE)-\
 				 GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE))
 #define FH_NUM_BUCKETS(addr,len)(FH_SIZE_ALIGN(addr,len)>>FH_BUCKET_SHIFT)
-#define FH_ASSERT_BUCKET_ADDR(bucket) (assert((bucket) % FH_BUCKET_SIZE == 0))
+#define FH_ASSERT_BUCKET_ADDR(bucket) (gasneti_assert((bucket) % FH_BUCKET_SIZE == 0))
 
 /* fh_bucket_t
  *
@@ -88,7 +88,7 @@ fh_refc_t;
 #ifdef DEBUG_BUCKETS
   typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused }
   fh_bstate_t;
-  #define FH_BSTATE_ASSERT(entry, state) assert((entry)->fh_state == state)
+  #define FH_BSTATE_ASSERT(entry, state) gasneti_assert((entry)->fh_state == state)
   #define FH_BSTATE_SET(entry, state)	 (entry)->fh_state = state
   #else
   #define FH_BSTATE_ASSERT(entry, state)
@@ -316,7 +316,9 @@ struct name {				\
 	FH_STAILQ_LAST(head1) = FH_STAILQ_LAST(head2);			\
 } while (0)
 
-/* Double remove anywhere in the list */
+/* Double remove anywhere in the list.  The membar at the end prevents a
+ * reordering bug that occurs on gcc when the optimizer has strict aliasing
+ * enabled.  We are on the lookout to see if this happens elsewhere. */
 #define FH_TAILQ_REMOVE(head, elem) do {				\
 	if (FH_TAILQ_NEXT(elem) != NULL)				\
 		FH_TAILQ_PREV(FH_TAILQ_NEXT(elem)) = 			\
@@ -324,6 +326,7 @@ struct name {				\
 	else								\
 		FH_TAILQ_LAST(head) = FH_TAILQ_PREV(elem);		\
 	*(FH_TAILQ_PREV(elem)) = FH_TAILQ_NEXT(elem);			\
+	gasneti_local_membar();						\
 } while (0)
 
 /* Single remove from head only */
@@ -479,7 +482,7 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 	} while (0)
 #endif
 
-#ifdef TRACE
+#if GASNET_TRACE
 #define FH_TRACE_BUCKET(bd, bmsg) 					\
 	do {								\
 		char	msg[64];					\

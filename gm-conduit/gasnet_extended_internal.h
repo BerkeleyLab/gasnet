@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/10/11 13:09:59 $
- * $Revision: 1.13 $
+ *     $Date: 2003/10/27 13:04:12 $
+ * $Revision: 1.13.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -18,7 +18,7 @@
 /* ------------------------------------------------------------------------------------ */
 /*  reasonable upper-bound on L2 cache line size (don't make this too big) */
 #define GASNETE_CACHE_LINE_BYTES  (128)
-#if defined(TRACE) || defined(STATS)
+#if GASNETI_STATS_OR_TRACE
   #define GASNETC_FIREHOSE_TRACE
   typedef
   enum gasnetc_fh_stats { 
@@ -126,7 +126,7 @@ typedef struct _gasnete_threaddata_t {
 GASNET_INLINE_MODIFIER(SET_OPTYPE)
 void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 	op->flags = (op->flags & 0x7F) | (type & 0x80);
-	assert(OPTYPE(op) == type);
+	gasneti_assert(OPTYPE(op) == type);
 }
 
 /*  state */
@@ -140,13 +140,13 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 GASNET_INLINE_MODIFIER(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
 	op->flags = (op->flags & 0xFC) | (state & 0x03);
-	assert(OPSTATE(op) == state);
+	gasneti_assert(OPSTATE(op) == state);
 }
 
 GASNET_INLINE_MODIFIER(SET_OPMISC)
 void SET_OPMISC(gasnete_eop_t *op, uint8_t misc) {
 	op->flags = (op->flags & 0xF3) | (misc & 0x0C);
-	assert(OPMISC(op) == misc);
+	gasneti_assert(OPMISC(op) == misc);
 }
 
 /* New op creation, gets new op and marks it in flight */
@@ -160,10 +160,10 @@ int		gasnete_op_isdone(gasnete_op_t *op);
 void		gasnete_op_markdone(gasnete_op_t *op, int isget);
 void		gasnete_op_free(gasnete_op_t *op);
 
-#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)            \
-      (assert(threaddata),                                     \
-       assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
-       assert(!gasnete_eopaddr_isnil(eopaddr)),                \
+#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                    \
+      (gasneti_assert(threaddata),                                     \
+       gasneti_assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
+       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                \
        (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
 
 /* 1 = scatter newly allocated eops across cache lines to 
@@ -186,7 +186,7 @@ void		gasnete_op_free(gasnete_op_t *op);
 /* Extended threads support */
 extern const gasnete_eopaddr_t	EOPADDR_NIL;
 extern gasnete_threaddata_t	*gasnete_threadtable[256];
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
 extern gasnete_threaddata_t * gasnete_mythread();
 #else
   #define gasnete_mythread() (gasnete_threadtable[0])

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_internal.h                                 $
- *     $Date: 2003/06/11 01:31:19 $
- * $Revision: 1.10 $
+ *     $Date: 2003/10/27 13:04:16 $
+ * $Revision: 1.10.4.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -12,7 +12,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #ifdef UNIX
   #include <unistd.h>
@@ -43,8 +42,29 @@
 #define ABORT_JOB_ON_NODE_FAILURE   1   /* kill everyone if any slave drops the TCP coord */
 #define USE_BLOCKING_SPMD_BARRIER   1   /* use blocking AM calls in SPMDBarrier() */
 
-#ifndef DEBUG_VERBOSE
-  #define DEBUG_VERBOSE               0
+#ifndef AMMPI_DEBUG_VERBOSE
+  #ifdef GASNET_DEBUG_VERBOSE
+    #define AMMPI_DEBUG_VERBOSE       1
+  #else
+    #define AMMPI_DEBUG_VERBOSE       0
+  #endif
+#endif
+
+#if !defined(AMMPI_DEBUG) && !defined(AMMPI_NDEBUG)
+  #if defined(GASNET_DEBUG)
+    #define AMMPI_DEBUG 1
+  #elif defined(GASNET_NDEBUG)
+    #define AMMPI_NDEBUG 1
+  #endif
+#endif
+#if defined(AMMPI_DEBUG) && !defined(AMMPI_NDEBUG)
+  #undef AMMPI_DEBUG
+  #define AMMPI_DEBUG 1
+#elif !defined(AMMPI_DEBUG) && defined(AMMPI_NDEBUG)
+  #undef AMMPI_NDEBUG
+  #define AMMPI_NDEBUG 1
+#else
+  #error bad defns of AMMPI_DEBUG and AMMPI_NDEBUG
 #endif
 
 #ifndef TRUE
@@ -74,9 +94,14 @@
    in one direction and the branch is a bottleneck
  */
 #ifndef PREDICT_TRUE
-  #if defined(HAVE_BUILTIN_EXPECT)
-   #define PREDICT_TRUE(exp)  __builtin_expect( (exp), 1 )
-   #define PREDICT_FALSE(exp) __builtin_expect( (exp), 0 )
+  #if defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
+    /* cast to uintptr_t avoids warnings on some compilers about passing 
+       non-integer arguments to __builtin_expect(), and we don't use (int)
+       because on some systems this is smaller than (void*) and causes 
+       other warnings
+     */
+   #define PREDICT_TRUE(exp)  __builtin_expect( ((uintptr_t)(exp)), 1 )
+   #define PREDICT_FALSE(exp) __builtin_expect( ((uintptr_t)(exp)), 0 )
   #else
    #define PREDICT_TRUE(exp)  (exp)
    #define PREDICT_FALSE(exp) (exp)
@@ -85,15 +110,9 @@
 
 /* if with branch prediction */
 #ifndef if_pf
-  /* cast to uintptr_t avoids warnings on some compilers about passing 
-     non-integer arguments to __builtin_expect(), and we don't use (int)
-     because on some systems this is smaller than (void*) and causes 
-     other warnings
-   */
-  #define if_pf(cond) if (PREDICT_FALSE((uintptr_t)(cond)))
-  #define if_pt(cond) if (PREDICT_TRUE((uintptr_t)(cond)))
+  #define if_pf(cond) if (PREDICT_FALSE(cond))
+  #define if_pt(cond) if (PREDICT_TRUE(cond))
 #endif
-
 
 BEGIN_EXTERNC
 
@@ -251,6 +270,23 @@ static int ErrMessage(char *msg, ...) {
   va_end(argptr);
   return retval; /*  this MUST be only return in this function */
   }
+
+#include <assert.h>
+#undef assert
+#define assert(x) !!! Error - use AMMPI_assert() !!!
+#if AMMPI_NDEBUG
+  #define AMMPI_assert(expr) ((void)0)
+#else
+  static void AMMPI_assertfail(const char *fn, const char *file, int line, const char *expr) {
+    fprintf(stderr, "Assertion failure at %s %s:%i: %s\n", fn, file, line, expr);
+    fflush(stderr);
+    abort();
+  }
+  #define AMMPI_assert(expr)                                     \
+    (PREDICT_TRUE(expr) ? (void)0 :                              \
+      AMMPI_assertfail((__CURR_FUNCTION ? __CURR_FUNCTION : ""), \
+                        __FILE__, __LINE__, #expr))
+#endif
 
 extern int enEqual(en_t en1, en_t en2);
 extern int64_t getMicrosecondTimeStamp();

@@ -6,7 +6,7 @@
 
 #include "apputils.h"
 
-#ifdef DEBUG
+#ifdef AMMPI_DEBUG
 #define VERBOSE 0
 #else
 #define VERBOSE 0

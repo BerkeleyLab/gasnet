@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_help.h                 $
- *     $Date: 2003/10/11 13:09:57 $
- * $Revision: 1.14 $
+ *     $Date: 2003/10/27 13:04:10 $
+ * $Revision: 1.14.2.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@ extern gasnet_node_t gasnete_mynode;
 extern gasnet_node_t gasnete_nodes;
 extern gasnet_seginfo_t *gasnete_seginfo;
 
-#ifdef GASNETI_CLIENT_THREADS
+#if GASNETI_CLIENT_THREADS
   struct _gasnete_threaddata_t;
   extern struct _gasnete_threaddata_t *gasnete_mythread() __attribute__ ((const));
   #if defined(__xlC__)
@@ -127,13 +127,13 @@ extern gasnet_seginfo_t *gasnete_seginfo;
       memcpy((dest), GASNETE_STARTOFBITS(&(value),nbytes), nbytes);     \
   } } while (0)
 
-#ifdef NDEBUG
+#if GASNET_NDEBUG
   #define gasnete_aligncheck(ptr,nbytes)
 #else
   #if 0
-    #define gasnete_aligncheck(ptr,nbytes) do {       \
-        if ((nbytes) <= 8 && (nbytes) % 2 == 0)       \
-          assert(((uintptr_t)(ptr)) % (nbytes) == 0); \
+    #define gasnete_aligncheck(ptr,nbytes) do {               \
+        if ((nbytes) <= 8 && (nbytes) % 2 == 0)               \
+          gasneti_assert(((uintptr_t)(ptr)) % (nbytes) == 0); \
       } while (0)
   #else
     static uint8_t _gasnete_aligncheck[600];
@@ -142,7 +142,7 @@ extern gasnet_seginfo_t *gasnete_seginfo;
           (uint8_t *)((((uintptr_t)&_gasnete_aligncheck) + 0xFF) & ~((uintptr_t)0xFF)); \
         uintptr_t offset = ((uintptr_t)(ptr)) & 0xFF;                                   \
         uint8_t *p = _gasnete_alignbuf + offset;                                        \
-        assert(p >= _gasnete_aligncheck &&                                              \
+        gasneti_assert(p >= _gasnete_aligncheck &&                                      \
               (p + 8) < (_gasnete_aligncheck+sizeof(_gasnete_aligncheck)));             \
         /* NOTE: a runtime bus error in this code indicates the relevant pointer        \
             was not "properly aligned for accessing objects of size nbytes", as         \
@@ -164,7 +164,7 @@ extern gasnet_seginfo_t *gasnete_seginfo;
 #include <gasnet_atomicops.h>
 
 #ifndef gasneti_memsync
-  #ifdef GASNETI_THREADS
+  #if GASNETI_THREADS
     #define gasneti_memsync() gasneti_local_membar()
   #else
     #define gasneti_memsync() 

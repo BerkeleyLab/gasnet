@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/06/29 02:33:03 $
- * $Revision: 1.8 $
+ *     $Date: 2003/10/27 13:04:10 $
+ * $Revision: 1.8.4.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -99,7 +99,7 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 GASNET_INLINE_MODIFIER(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
-  assert(OPSTATE(op) == state);
+  gasneti_assert(OPSTATE(op) == state);
 }
 
 /*  get a new op and mark it in flight */
@@ -111,10 +111,10 @@ int gasnete_op_isdone(gasnete_op_t *op);
 void gasnete_op_markdone(gasnete_op_t *op, int isget);
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op);
-#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)            \
-      (assert(threaddata),                                     \
-       assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
-       assert(!gasnete_eopaddr_isnil(eopaddr)),                \
+#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                    \
+      (gasneti_assert(threaddata),                                     \
+       gasneti_assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
+       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                \
        (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
 
 /*  1 = scatter newly allocated eops across cache lines to reduce false sharing */

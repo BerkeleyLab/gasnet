@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_ref.c,v 1.6 2002/12/26 03:43:19 bonachea Exp $
- * $Date: 2002/12/26 03:43:19 $
+/* $Id: gasnet_extended_ref.c,v 1.6.12.1 2003/10/27 13:04:12 bonachea Exp $
+ * $Date: 2003/10/27 13:04:12 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -62,7 +62,7 @@
 GASNET_INLINE_MODIFIER(gasnete_extref_get_reqh_inner)
 void gasnete_extref_get_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
-  assert(nbytes <= gasnet_AMMaxMedium());
+  gasneti_assert(nbytes <= gasnet_AMMaxMedium());
   GASNETE_SAFE(
     MEDIUM_REP(2,4,(token, gasneti_handleridx(gasnete_extref_get_reph),
                   src, nbytes, 
@@ -409,7 +409,7 @@ static int volatile barrier_flags; /*  local barrier flags */
 static int volatile barrier_phase = 0;  /*  2-phase operation to improve pipelining */
 static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete */
 static int volatile barrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
-#if defined(STATS) || defined(TRACE)
+#if GASNETI_STATS_OR_TRACE
   static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
 #endif
 
@@ -423,7 +423,7 @@ static int volatile barrier_count[2] = { 0, 0 }; /*  count of how many remotes h
 
 static void gasnete_extref_barrier_notify_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
+  gasneti_assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
 
   gasnet_hsl_lock(&barrier_lock);
   { int count = barrier_count[phase];
@@ -434,16 +434,19 @@ static void gasnete_extref_barrier_notify_reqh(gasnet_token_t token,
                (flags == 0 && barrier_consensus_value[phase] != (int)value)) {
       barrier_consensus_mismatch[phase] = 1;
     }
-    barrier_count[phase] = count+1;
+    count++;
+    if (count == gasnete_nodes) gasneti_memsync(); /* about to signal, ensure we flush state */
+    barrier_count[phase] = count;
   }
   gasnet_hsl_unlock(&barrier_lock);
 }
 
 static void gasnete_extref_barrier_done_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase,  gasnet_handlerarg_t mismatch) {
-  assert(phase == barrier_phase);
+  gasneti_assert(phase == barrier_phase);
 
   barrier_response_mismatch[phase] = mismatch;
+  gasneti_memsync();
   barrier_response_done[phase] = 1;
 }
 
@@ -480,7 +483,7 @@ void gasnete_extref_barrier_notify(int id, int flags) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if defined(STATS) || defined(TRACE)
+  #if GASNETI_STATS_OR_TRACE
     barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
 
@@ -501,11 +504,12 @@ void gasnete_extref_barrier_notify(int id, int flags) {
 
   /*  update state */
   barrier_splitstate = INSIDE_BARRIER;
+  gasneti_memsync(); /* ensure all state changes committed before return */
 }
 
 
 int gasnete_extref_barrier_wait(int id, int flags) {
-  #if defined(STATS) || defined(TRACE)
+  #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
   int phase = barrier_phase;
@@ -524,6 +528,7 @@ int gasnete_extref_barrier_wait(int id, int flags) {
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
   barrier_response_done[phase] = 0;
+  gasneti_memsync(); /* ensure all state changes committed before return */
   if_pf(id != barrier_value || flags != barrier_flags || 
         barrier_response_mismatch[phase]) {
         barrier_response_mismatch[phase] = 0;
