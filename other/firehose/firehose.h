@@ -464,6 +464,20 @@ firehose_poll(void);
  * would eventually lead to the release of the first request_t.
  * Otherwise, the second call may deadlock waiting for resources that
  * will never be released to it.
+ *
+ * A potential deadlock can occur in a situation such as this:
+ *   thread0: firehose_local_pin();       firehose_remote_pin(nodeN);
+ *   thread1: firehose_remote_pin(nodeN); firehose_local_pin();
+ * If the available resources are sufficient to satisfy the first pin
+ * request from each thread, but not sufficient to simultaneously
+ * satisfy the second pin request from either thread, then a deadlock
+ * will occur.
+ * It is the client writter's responsibility to avoid this situation.
+ * A recommended solution is to pick an order to pin (local-then-remote
+ * or remote-then-local) and use it consistently throughout the client.
+ * If there are uses for firehose which require obtaining request_t's
+ * on multiple remote nodes to complete a single operation, then a
+ * total ordering (by node number, for instance) is recommended.
  */
 
 /********************************************************************/
