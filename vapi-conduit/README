@@ -297,6 +297,9 @@ becomes the exit code for the parallel job.  Therefore, using zero
 here gives the specified exit code from the parallel job for both
 collective and non-collective returns from main.
 
+(See the TO DO for notes on how the exit barrier stage can be made
+more scalable).
+
 
 @ Section: TO DO @
 
@@ -370,3 +373,77 @@ collective and non-collective returns from main.
   We need to maintain a shared pool of these unposted buffers and be
   prepared to poll for them to become available along with polling
   for available credits.
+
++ More scalable graceful exit code
+
+  On 6/26/2003, in response to the description of the graceful exit
+  code, Dan Bonachea wrote:
+  [snip]
+  > I'm a little worried about the scalability of the solution you
+  > describe above - it sounds like on a collective exit it will
+  > trigger a flurry of messages (all-to-all N^2 messages, which is
+  > about the worst way to implement barrier that one can imagine, and
+  > I'm not even sure that barrier is what you really want here).
+  >
+  > Is there any way to make this smarter? It seems like once a node
+  > has received an exit message from another node, it can assume that
+  > other node is also sending the message to the N other nodes, and
+  > forgo sending them itself. This should result in much fewer
+  > messages being sent during a collective exit and still accomplish
+  > the same thing, unless I'm missing something?
+  >
+  > If you really need to know that all nodes have acknowledged the
+  > pending shutdown (in order to invoke a more forceful exit
+  > otherwise), a better way is probably to keep a centralized flag on
+  > node 0 which is incremented atomically by a request handler in
+  > order to acquire the right to send shutdown messages (and nodes
+  > only try if they haven't received any shutdown messages yet). The
+  > node that wins the race sends shutdown messages to each node, and
+  > after all have been acknowledged sends another round of messages
+  > to each node to inform them the shutdown is graceful. If a given
+  > node fails to contact node 0 or never gets the second message
+  > within a timeout can assume the shutdown is abortive. This
+  > approach results in exactly 2+2N AM messages for non-collective
+  > exit and up to 4N AM messages in the worst case for collective
+  > exit (although usually closer to 2+2N).
+ [snip]
+
+  I acknowledge the scalability problems and will try to address it
+  later, probably based on what you describe.  My existing system was
+  easy to write and thus I could be more confident in its correctness.
+
+  I _think_ that a barrier is required here because of the
+  connection-oriented nature of the conduit.  If I start shutting down
+  the transport at one end of the connection while the other end is
+  still trying to send, I will get a flood of messages on the system
+  console and probably an abort() in the sender (I can see this now
+  only very rarely with just 4 nodes).  Of course, I've not yet
+  implemented the send-queue drain which is needed to avoid this
+  entirely, but once it _is_ implemented, I'll think I'll need the
+  barrier.
+
+  I agree that using an atomic counter on a "root node" to elect a
+  shutdown coordinator node makes sense and should produce an O(N)
+  bound on AM messages in all cases.  However, I get different counts
+  (including AMs to self), because of the final "this is graceful"
+  message that forms the end of the barrier.
+
+  Non-collective case:
+    2       for round-trip to root node to become the coordinator
+    2*(N-1) for round-trips to notify all nodes except self of the
+            shutdown and get acknowledgment
+    (N-1)   to notify all peers that exit is "graceful"
+  = 3N - 1
+
+  Collective worst case:
+    2*N     for all N to make round trips asking to become coordinator
+    2*(N-1) for coordinator to notify others and they acknowledge
+    (N-1)   to announce this exit is "graceful"
+  = 5N - 3
+
+  Collective best-case looks like non-collective case when one node
+  (most likely the root node?) wins the race to become coordinator and
+  starts sending out notifications so quickly that the other nodes
+  will never even try to become "coordinator".
+
+  Collective average-case is somewhere in between.
