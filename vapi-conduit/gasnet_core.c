@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2004/02/09 20:04:01 $
- * $Revision: 1.21.2.20 $
+ *     $Date: 2004/02/09 20:04:27 $
+ * $Revision: 1.21.2.21 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1442,7 +1442,7 @@ static void gasnetc_exit_body(void) {
       gasnetc_unpin(&gasnetc_seg_reg);
 #endif
 #if GASNETC_USE_FIREHOSE
-#if 1	/* Dump firehose table as pairs: page_number length_in_pages */
+#if 0	/* Dump firehose table as pairs: page_number length_in_pages */
       {
 	firehose_request_t r;
 	const firehose_request_t *p;
