@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2003/12/01 01:03:40 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/12/06 13:26:21 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,9 @@
 #define GASNETE_MAX_HANDLES	    4096
 #define GASNETE_HANDLES_MASK	    4095
 
+#ifdef GASNETE_CRAYX1_BARRIER
 static void gasnete_barrier_init();
+#endif
 
 /*
  * NBs use up to GASNETE_MAX_HANDLES handles, and can have two states:
@@ -103,7 +105,9 @@ gasnete_init()
     for (i = 0; i < GASNETE_MAX_HANDLES; i++)
 	gasnete_handles[i] = GASNETE_HANDLE_DONE;
 
-    gasnete_barrier_init();
+    #ifdef GASNETE_CRAYX1_BARRIER
+      gasnete_barrier_init();
+    #endif
 }
 
 extern gasnet_handle_t 
@@ -391,6 +395,22 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
   Barrier adapted to shmem from elan-conduit
 */
 
+#ifndef GASNETE_CRAYX1_BARRIER
+  /* use reference implementation of barrier */
+  #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+  #define gasnete_refbarrier_notify  gasnete_barrier_notify
+  #define gasnete_refbarrier_wait    gasnete_barrier_wait
+  #define gasnete_refbarrier_try     gasnete_barrier_try
+  #include "gasnet_extended_refbarrier.c"
+  #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
+/* ------------------------------------------------------------------------------------ */
+#else /* GASNETE_CRAYX1_BARRIER */
+
+/*
+ * This barrier is optimized for nc-NUMA on the X1. In the notify phase, all
+ * processors send a fetchinc to processor 0
+ */
+
 #if GASNETI_STATS_OR_TRACE
   static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
 #endif
@@ -398,12 +418,6 @@ static
 enum { OUTSIDE_BARRIER, INSIDE_BARRIER } 
 barrier_splitstate = OUTSIDE_BARRIER;
 
-#ifdef GASNETE_CRAYX1_BARRIER
-
-/*
- * This barrier is optimized for nc-NUMA on the X1. In the notify phase, all
- * processors send a fetchinc to processor 0
- */
 typedef 
 struct {
     long volatile barrier_value;
@@ -581,158 +595,6 @@ gasnete_barrier_try(int id, int flags)
     GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
     return gasnete_barrier_wait(id, flags);
 }
-#else /* AM barrier */
-static int volatile barrier_value; /*  local barrier value */
-static int volatile barrier_flags; /*  local barrier flags */
-static int volatile barrier_phase = 0;  /*  2-phase operation to improve pipelining */
-static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete */
-static int volatile barrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
-
-/*  global state on P0 */
-#define GASNETE_BARRIER_MASTER (gasnete_nodes-1)
-static gasnet_hsl_t barrier_lock = GASNET_HSL_INITIALIZER;
-static int volatile barrier_consensus_value[2]; /*  consensus barrier value */
-static int volatile barrier_consensus_value_present[2] = { 0, 0 }; /*  consensus barrier value found */
-static int volatile barrier_consensus_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
-static int volatile barrier_count[2] = { 0, 0 }; /*  count of how many remotes have notified (on P0) */
-
-static void gasnete_barrier_init()
-{
-    return;
-}
-
-static void gasnete_barrier_notify_reqh(gasnet_token_t token, 
-  gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  gasneti_assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
-
-  gasnet_hsl_lock(&barrier_lock);
-  { int count = barrier_count[phase];
-    if (flags == 0 && !barrier_consensus_value_present[phase]) {
-      barrier_consensus_value[phase] = (int)value;
-      barrier_consensus_value_present[phase] = 1;
-    } else if (flags == GASNET_BARRIERFLAG_MISMATCH ||
-               (flags == 0 && barrier_consensus_value[phase] != (int)value)) {
-      barrier_consensus_mismatch[phase] = 1;
-    }
-    count++;
-    if (count == gasnete_nodes) gasneti_memsync(); /* about to signal, ensure we flush state */
-    barrier_count[phase] = count;
-  }
-  gasnet_hsl_unlock(&barrier_lock);
-}
-
-static void gasnete_barrier_done_reqh(gasnet_token_t token, 
-  gasnet_handlerarg_t phase,  gasnet_handlerarg_t mismatch) {
-  gasneti_assert(phase == barrier_phase);
-
-  barrier_response_mismatch[phase] = mismatch;
-  gasneti_memsync();
-  barrier_response_done[phase] = 1;
-}
-
-/*  make some progress on the barrier */
-static void gasnete_barrier_kick() {
-  int phase = barrier_phase;
-  GASNETE_SAFE(gasnet_AMPoll());
-
-  if (gasnete_mynode != GASNETE_BARRIER_MASTER) return;
-
-  /*  master does all the work */
-  if (barrier_count[phase] == gasnete_nodes) {
-    /*  barrier is complete */
-    int i;
-    int mismatch = barrier_consensus_mismatch[phase];
-
-    /*  inform the nodes */
-    for (i=0; i < gasnete_nodes; i++) {
-      GASNETE_SAFE(
-        gasnet_AMRequestShort2(i, gasneti_handleridx(gasnete_barrier_done_reqh), 
-                             phase, mismatch));
-    }
-
-    /*  reset state */
-    barrier_count[phase] = 0;
-    barrier_consensus_mismatch[phase] = 0;
-    barrier_consensus_value_present[phase] = 0;
-  }
-}
-
-extern void gasnete_barrier_notify(int id, int flags) {
-  int phase;
-  if_pf(barrier_splitstate == INSIDE_BARRIER) 
-    gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
-
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if GASNETI_STATS_OR_TRACE
-    barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
-  #endif
-
-  barrier_value = id;
-  barrier_flags = flags;
-  phase = !barrier_phase; /*  enter new phase */
-  barrier_phase = phase;
-
-  if (gasnete_nodes > 1) {
-    /*  send notify msg to 0 */
-    GASNETE_SAFE(
-      gasnet_AMRequestShort3(GASNETE_BARRIER_MASTER, gasneti_handleridx(gasnete_barrier_notify_reqh), 
-                           phase, barrier_value, flags));
-  } else {
-    barrier_response_mismatch[phase] = (flags & GASNET_BARRIERFLAG_MISMATCH);
-    barrier_response_done[phase] = 1;
-  }
-
-  /*  update state */
-  barrier_splitstate = INSIDE_BARRIER;
-  gasneti_memsync(); /* ensure all state changes committed before return */
-}
-
-
-extern int gasnete_barrier_wait(int id, int flags) {
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
-  #endif
-  int phase = barrier_phase;
-  if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
-    gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW()-barrier_notifytime);
-
-  /*  wait for response */
-  while (!barrier_response_done[phase]) {
-    gasnete_barrier_kick();
-  }
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
-
-  /*  update state */
-  barrier_splitstate = OUTSIDE_BARRIER;
-  barrier_response_done[phase] = 0;
-  gasneti_memsync(); /* ensure all state changes committed before return */
-  if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
-        flags != barrier_flags || 
-        barrier_response_mismatch[phase]) {
-        barrier_response_mismatch[phase] = 0;
-        return GASNET_ERR_BARRIER_MISMATCH;
-  }
-  else return GASNET_OK;
-}
-
-extern int gasnete_barrier_try(int id, int flags) {
-  if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
-    gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
-
-  gasnete_barrier_kick();
-
-  if (barrier_response_done[barrier_phase]) {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
-    return gasnete_barrier_wait(id, flags);
-  }
-  else {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,0);
-    return GASNET_ERR_NOT_READY;
-  }
-}
 #endif
 
 /* ------------------------------------------------------------------------ */
@@ -776,11 +638,11 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 */
 static gasnet_handlerentry_t const 
 gasnete_handlers[] = {
-  /* ptr-width independent handlers */
-#ifndef GASNETE_CRAYX1_BARRIER
-    gasneti_handler_tableentry_no_bits(gasnete_barrier_notify_reqh),
-    gasneti_handler_tableentry_no_bits(gasnete_barrier_done_reqh),
-#endif
+    #ifndef GASNETE_CRAYX1_BARRIER
+      GASNETE_AMBARRIER_HANDLERS(),
+    #endif
+
+    /* ptr-width independent handlers */
 
     /* ptr-width dependent handlers */
     gasneti_handler_tableentry_with_bits(gasnete_memset_reqh),
