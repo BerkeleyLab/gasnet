@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/15 21:08:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/04/15 22:32:45 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -190,7 +190,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     eop->addr = head;
     assert(!gasnete_eopaddr_equal(thread->eop_free,head));
     assert(eop->threadidx == thread->threadidx);
-    assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
+    assert(eop->type == gasnete_opExplicit);
     gasneti_atomic_set(&eop->counter, 0);
     return eop;
   } else { /*  free list empty - need more eops */
@@ -218,9 +218,9 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
       #endif
       buf[i].threadidx = threadidx;
       buf[i].addr = addr;
-      #if 0 /* this can safely be skipped when the values are zero */
-        SET_OPTYPE((gasnete_op_t *)&(buf[i]),OPTYPE_EXPLICIT); 
-        gasneti_atomic_set(&(buf[i]->counter), 0);
+      #if 0 /* this can safely be skipped when values are zero */
+        buf[i].type = gasnete_opExplicit; 
+        gasneti_atomic_set(&(buf[i].counter), 0);
       #endif
     }
      /*  add a list terminator */
@@ -257,7 +257,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
         gasnete_eop_t *eop;                                   
         assert(!gasnete_eopaddr_isnil(addr));                 
         eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
-        assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
+        assert(eop->type == gasnete_opExplicit);               
         assert(eop->threadidx == threadidx);                  
         assert(addr.bufferidx == bufidx);
         assert(!seen[addr.eopidx]);/* see if we hit a cycle */
@@ -277,11 +277,11 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   if_pt (thread->iop_free) {
     iop = thread->iop_free;
     thread->iop_free = iop->next;
-    assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+    assert(iop->type == gasnete_opImplicit);
     assert(iop->threadidx == thread->threadidx);
   } else {
     iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
-    SET_OPTYPE((gasnete_op_t *)iop, OPTYPE_IMPLICIT);
+    iop->type = gasnete_opImplicit;
     iop->threadidx = thread->threadidx;
   }
   iop->next = NULL;
@@ -293,7 +293,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 /*  query an op for completeness - for iop this means both puts and gets */
 int gasnete_op_isdone(gasnete_op_t *op) {
   assert(op->threadidx == gasnete_mythread()->threadidx);
-  if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
+  if_pt (op->type == gasnete_opExplicit) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
     return gasnetc_rdma_poll(&eop->counter);
   } else {
@@ -307,7 +307,7 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 void gasnete_op_free(gasnete_op_t *op) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
   assert(thread == gasnete_mythread());
-  if (OPTYPE(op) == OPTYPE_EXPLICIT) {
+  if (op->type == gasnete_opExplicit) {
     gasnete_eop_t *eop = (gasnete_eop_t *)op;
     gasnete_eopaddr_t addr = eop->addr;
     eop->addr = thread->eop_free;
@@ -664,7 +664,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   assert(iop->threadidx == mythread->threadidx);
-  assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+  assert(iop->type == gasnete_opImplicit);
   #ifdef DEBUG
     if (iop->next != NULL)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
@@ -678,7 +678,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   gasnete_iop_t *iop = mythread->current_iop;
   assert(iop->threadidx == mythread->threadidx);
   assert(iop->next == NULL);
-  assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+  assert(iop->type == gasnete_opImplicit);
   #ifdef DEBUG
     if (iop->next != NULL)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");

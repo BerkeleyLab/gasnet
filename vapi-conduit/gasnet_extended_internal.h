@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/04/15 21:08:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/04/15 22:32:45 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,11 +19,16 @@
 
 typedef uint8_t gasnete_threadidx_t;
 
+enum {
+  gasnete_opExplicit = 0,	/* gasnete_eop_new() relies on this value */
+  gasnete_opImplicit
+};
+
 /* gasnet_handle_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t
    */
 typedef struct _gasnete_op_t {
-  uint8_t flags;                  /*  flags - type tag */
+  uint8_t type;                   /*  type tag */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
 } gasnete_op_t;
 
@@ -37,21 +42,21 @@ typedef struct _gasnete_eopaddr_t {
 #define gasnete_eopaddr_isnil(addr) (*(uint16_t*)&(addr) == *(uint16_t*)&(EOPADDR_NIL))
 
 typedef struct _gasnete_eop_t {
-  uint8_t flags;                  /*  state flags */
+  uint8_t type;                   /*  type tag */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
   gasneti_atomic_t counter;
 } gasnete_eop_t;
 
 typedef struct _gasnete_iop_t {
-  uint8_t flags;                  /*  state flags */
+  uint8_t type;                   /*  type tag */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   uint16_t _unused;
 
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the counters live on different cache lines for SMP's */
-  uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)]; /* XXX check this */
+  uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(struct _gasnete_iop_t *) - sizeof(gasneti_atomic_t) - 4];
 
   gasneti_atomic_t get_counter;     /*  count of get ops outstanding */
   gasneti_atomic_t put_counter;     /*  count of put ops outstanding */
@@ -75,15 +80,6 @@ typedef struct _gasnete_threaddata_t {
   struct _gasnet_valget_op_t *valget_free; /* free list of valget cells */
 } gasnete_threaddata_t;
 /* ------------------------------------------------------------------------------------ */
-
-/* gasnete_op_t flags field */
-#define OPTYPE_EXPLICIT               0x00  /*  gasnete_eop_new() relies on this value */
-#define OPTYPE_IMPLICIT               0x80
-#define OPTYPE(op) ((op)->flags & 0x80)
-GASNET_INLINE_MODIFIER(SET_OPTYPE)
-void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
-  op->flags = (op->flags & 0x7F) | (type & 0x80);
-}
 
 /*  get a new op */
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t *thread);
