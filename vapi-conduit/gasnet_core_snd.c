@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/16 06:54:41 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2003/04/21 18:37:11 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -23,15 +23,30 @@ VAPI_cq_hndl_t				gasnetc_snd_cq;
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped variables & types                                                       *
  * ------------------------------------------------------------------------------------ */
-static gasnetc_sbuf_t			*gasnetc_sbuf_pool;
-#if !defined(GASNET_SEQ)
-  static pthread_mutex_t		gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
+/* Description of a send buffer */
+typedef struct _gasnetc_sbuf_t {
+  struct _gasnetc_sbuf_t	*next;
+  struct _gasnetc_sbuf_t	*tail;
+  gasnetc_buffer_t		*buffer;
+
+  /* Completion counters */
+  gasneti_atomic_t		*local_counter;
+  gasneti_atomic_t		*remote_counter;
+  /* Destination address for bounced RDMA reads */
+  void				*dest;
+} gasnetc_sbuf_t;
+
+/* VAPI structures for a send request */
 typedef struct {
   VAPI_sr_desc_t	sr_desc;		/* send request descriptor */
   VAPI_sg_lst_entry_t	sr_sg[GASNETC_SND_SG];	/* send request gather list */
 } gasnetc_sreq_t;
+
+static gasnetc_sbuf_t			*gasnetc_sbuf_pool;
+#if !defined(GASNET_SEQ)
+  static pthread_mutex_t		gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions                                                               *
@@ -75,8 +90,16 @@ gasnetc_sbuf_t *gasnetc_snd_reap(void) {
       if (comp.status == VAPI_SUCCESS) {
         gasnetc_sbuf_t *sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
         if (sbuf) {
-          if (sbuf->local_counter) gasneti_atomic_decrement(sbuf->local_counter);
-          if (sbuf->remote_counter) gasneti_atomic_decrement(sbuf->remote_counter);
+          if (sbuf->dest){
+	    memcpy(sbuf->dest, sbuf->buffer, comp.byte_len);
+            gasneti_memsync();
+	  }
+          if (sbuf->local_counter) {
+	    gasneti_atomic_decrement(sbuf->local_counter);
+	  }
+          if (sbuf->remote_counter){
+            gasneti_atomic_decrement(sbuf->remote_counter);
+	  }
 	  if (head) {
 	    sbuf->tail->next = head;
 	    sbuf->tail = head->tail;
@@ -144,6 +167,8 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   sbuf->tail = sbuf;
   sbuf->local_counter = NULL;
   sbuf->remote_counter = NULL;
+  sbuf->dest = NULL;
+
   return sbuf;
 }
 
@@ -343,12 +368,14 @@ extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, size_t nbyte
       gasnetc_sreq_t req;
       gasnetc_sbuf_t *tail = NULL;
       int did_zero_copy = 0;
+      int first_used = 0;
       int i = 0;
 
       /* Buffers are our means to account for available slots in the send queue.
        * Therefore we must allocate at least one sbuf even if we will only do zero-copy puts.
        */
       sbuf = gasnetc_get_sbuf();
+      tail = sbuf;
 
       gasnetc_init_sreq(&req, sbuf);
       req.sr_desc.opcode      = VAPI_RDMA_WRITE;
@@ -389,14 +416,14 @@ extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, size_t nbyte
 	   */
 	  count = MIN(msg_limit, GASNETC_BUFSZ);
 
-	  if (tail == NULL) {
-	    /* The first sbuf has not yet been used.  Use it now. */
-	    tail = sbuf;
-	  } else {
+	  if (first_used) {
 	    /* Allocate a new sbuf, adding to the chain. */
 	    tail->next = gasnetc_get_sbuf();
 	    tail = tail->next;
+	  } else {
+	    /* The first sbuf has not yet been used.  Use it now. */
  	  }
+	  first_used = 1;	/* do here to save one branch */
           memcpy(tail->buffer, (void *)src, count);
           req.sr_sg[i].addr = (uintptr_t)tail->buffer;
           req.sr_sg[i].len  = count;

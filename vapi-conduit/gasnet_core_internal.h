@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/16 06:30:31 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2003/04/21 18:37:11 $
+ * $Revision: 1.1.2.25 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -209,17 +209,6 @@ typedef struct {
   VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
   VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
 } gasnetc_rbuf_t;
-
-/* Description of a send buffer */
-typedef struct _gasnetc_sbuf_t {
-  struct _gasnetc_sbuf_t	*next;
-  struct _gasnetc_sbuf_t	*tail;
-  gasnetc_buffer_t		*buffer;
-
-  /* Completion counters */
-  gasneti_atomic_t		*local_counter;
-  gasneti_atomic_t		*remote_counter;
-} gasnetc_sbuf_t;
 
 /* Description of a registered (pinned) memory region */
 typedef struct {
