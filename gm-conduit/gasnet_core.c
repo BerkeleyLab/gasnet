@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.39.2.4 2003/08/25 08:23:52 csbell Exp $
- * $Date: 2003/08/25 08:23:52 $
+/* $Id: gasnet_core.c,v 1.39.2.5 2003/08/27 00:40:28 phargrov Exp $
+ * $Date: 2003/08/27 00:40:28 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1859,7 +1859,7 @@ gasnetc_getPhysMem()
 		gasneti_fatalerror("Can't open /proc/meminfo");
 
 	while (fgets(line, 128, fp)) {
-		if (sscanf(line, "Mem: %ld", &mem) > 0)
+		if (sscanf(line, "Mem: %lu", &mem) > 0)
 			break;
 	}
 	fclose(fp);
