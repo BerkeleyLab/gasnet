@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2004/08/31 01:55:06 $
- * $Revision: 1.15.2.3 $
+ *     $Date: 2004/09/10 20:34:31 $
+ * $Revision: 1.15.2.4 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -86,11 +86,19 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif defined(CRAYT3E)
+#elif defined(CRAYT3E) || defined(CRAYX1)
+  #if defined(CRAYT3E) 
+    #include <sys/machinfo.h>
+    /* 75 Mhz sys. clock, according to docs */
+    #define GASNETI_UNICOS_SYS_CLOCK 75 
+  #elif defined(CRAYX1)
+    #include <intrinsics.h>
+    /* 100 Mhz sys. clock, according to Fortran IRTC_RATE() */
+    #define GASNETI_UNICOS_SYS_CLOCK 100
+  #endif
   #ifdef __GNUC__
     #define _rtc rtclock
   #else
-    #include <sys/machinfo.h>
     long    _rtc();
   #endif
 
@@ -102,7 +110,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
     #define GASNETI_STATTIME_TO_US(st)  ((st) * 1000000 / GetMachineInfo(mi_hz))
   #else
     /* 75 Mhz sys. clock */
-    #define GASNETI_STATTIME_TO_US(st)  ((st) / 75)
+    #define GASNETI_STATTIME_TO_US(st)  ((st) / GASNETI_UNICOS_SYS_CLOCK)
   #endif
   #define GASNETI_STATTIME_NOW()      (_rtc())
 #elif defined(IRIX)
