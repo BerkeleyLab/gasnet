@@ -964,7 +964,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		}
 	}
 
-	/* Each 'bd' is confirmed to be pinned and contains a pending request.
+	/* Each 'bd' is confirmed to pinned and may contain a pending request.
 	 *
 	 * For each pending request 
 	 *
@@ -979,7 +979,8 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		gasneti_assert(ccb != NULL);
 		while (ccb != FH_COMPLETION_END) {
 			next_ccb = FH_STAILQ_NEXT(ccb);
-			gasneti_assert(ccb->flags & FH_CALLBACK_TYPE_COMPLETION);
+			gasneti_assert(ccb->flags &
+					FH_CALLBACK_TYPE_COMPLETION);
 			req = ccb->request;
 			gasneti_assert(req && req->flags & FH_FLAG_PENDING);
 
