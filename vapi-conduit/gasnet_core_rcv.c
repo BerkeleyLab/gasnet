@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/02 02:04:10 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/04/07 18:53:36 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -105,17 +105,22 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
   VAPI_wc_desc_t	comp;
   gasnetc_rcv_desc_t	*desc;
 
-  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-  assert(vstat == VAPI_OK);
+  while (VAPI_OK == (vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp))) {
+    desc = (gasnetc_rcv_desc_t *)(uintptr_t)comp.id;
+    desc->flags = comp.imm_data; 
 
-  desc = (gasnetc_rcv_desc_t *)(uintptr_t)comp.id;
-  desc->flags = comp.imm_data; 
-
-  if (comp.status == VAPI_SUCCESS) {
-    gasnetc_processPacket(desc);
-    gasnetc_rcv_post(desc);
-  } else {
-    /* ### What needs to be done here? */
+    if (comp.status == VAPI_SUCCESS) {
+      gasnetc_processPacket(desc);
+      gasnetc_rcv_post(desc);
+    } else {
+#if 0
+      fprintf(stderr, "@ %d> comp.status=%d\n", gasnetc_mynode, comp.status);
+      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
+        fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+      }
+#endif
+      /* ### What needs to be done here? */
+    }
   }
   
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
@@ -132,6 +137,11 @@ extern void gasnetc_rcv_init(void) {
   gasnetc_buffer_t	*buf;
   gasnetc_rcv_desc_t	*desc;
   int 			count, i;
+
+  if (gasnetc_nodes == 1) {
+    /* Don't even bother to allocate zero-byte regions */
+    return;
+  }
 
   count = GASNETC_RCV_WQE * (gasnetc_nodes - 1);
 

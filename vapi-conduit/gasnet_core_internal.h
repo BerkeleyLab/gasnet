@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/02 01:55:04 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2003/04/07 18:53:36 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,6 +188,23 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 #define GASNETC_RCV_WQE 2               /* maximum unreaped entries on a rcv work queue */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
+/* gasnetc_sync_t
+ *
+ * How a given send descriptor will be synchronized:
+ * + gasnetc_syncNone
+ * 	No synchronization will be performed.
+ * 	The descriptor is eligible for reuse as soon at it's reaped from the completion queue.
+ * + gasnetc_syncWait
+ * 	An explicit wait will be performed on this descriptor by some thread.
+ * 	The descriptor is eligible for reuse only after it has been waited on.
+ *
+ * XXX Others will be needed for the extended API implementation.
+ */
+typedef enum {
+  gasnetc_syncNone,
+  gasnetc_syncWait,
+} gasnetc_sync_t;
+
 /* Structure for a cep (connection end-point)
  * Include whatever per-node data we need.
  */
@@ -215,6 +232,7 @@ typedef struct {
 typedef struct _gasnetc_snd_desc_t {
   /* ### Need more here ? */
   gasneti_atomic_t		done;
+  gasnetc_sync_t		syncType;
   struct _gasnetc_snd_desc_t	*next;
   struct _gasnetc_snd_desc_t	*tail;
   gasnetc_buffer_t		*buffer;
@@ -248,7 +266,7 @@ extern void gasnetc_rcv_loopback(gasnetc_snd_desc_t *desc);
 /* Send routines in gasnet_core_snd.c */
 extern void gasnetc_snd_init(void);
 extern void gasnetc_snd_fini(void);
-extern gasnetc_snd_desc_t *gasnetc_rdma_put(gasnetc_cep_t *cep, uintptr_t src, uintptr_t dst, uintptr_t nbytes);
+extern gasnetc_snd_desc_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, int is_async);
 extern void gasnetc_snd_wait(gasnetc_snd_desc_t *desc);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,

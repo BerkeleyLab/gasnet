@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/02 02:04:10 $
- * $Revision: 1.2.2.21 $
+ *     $Date: 2003/04/07 18:53:36 $
+ * $Revision: 1.2.2.22 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -844,7 +844,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  gasnetc_snd_desc_t *rdma_desc;
   int retval;
   va_list argptr;
   GASNETC_CHECKATTACH();
@@ -861,7 +860,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, &rdma_desc, argptr);
+				  numargs, NULL, argptr);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
