@@ -130,7 +130,10 @@ firehose_poll()
 			#endif
 
 			#ifndef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
-			else if (fhc->flags & FH_CALLBACK_TYPE_REMOTE) {
+			#ifndef FIREHOSE_COMPLETION_IN_HANDLER
+			else
+			#endif
+			if (fhc->flags & FH_CALLBACK_TYPE_REMOTE) {
 				fh_remote_callback_t *rc =
 					(fh_remote_callback_t *) fhc;
 				firehose_remote_callback(rc->node, 
