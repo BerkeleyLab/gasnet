@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/06/20 21:28:28 $
- * $Revision: 1.2.2.5 $
+ *     $Date: 2003/06/20 22:41:29 $
+ * $Revision: 1.2.2.6 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,7 +38,9 @@ typedef uint8_t gasnet_handler_t;
         CNT(C, SYSTEM_REQUEST, cnt)               \
         CNT(C, SYSTEM_REPLY, cnt)                 \
         CNT(C, SYSTEM_REQHANDLER, cnt)            \
-        CNT(C, SYSTEM_REPHANDLER, cnt)         
+        CNT(C, SYSTEM_REPHANDLER, cnt)            \
+	TIME(C, GET_AMREQ_CREDIT, waittime)       \
+	TIME(C, GET_SBUF, waittime)               
 
 /*
  * The VAPI conduit requires real HSLs, even for GASNET_SYNC, because there is a network progress thread.
