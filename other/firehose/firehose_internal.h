@@ -190,6 +190,7 @@ struct _firehose_private_t {
 
 #define FH_KEYMAKE(addr,node)	(addr | node)
 #define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
+#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 #define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
 
 /* Local and Remote buckets can be in various states.

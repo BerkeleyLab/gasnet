@@ -107,7 +107,8 @@ uintptr_t fh_bucket_end(const fh_bucket_t *bucket)
 /* Compare two buckets with the same (node, address)
  * return non-zero if first is best
  * "best" is the one with the greatest forward extent.
- * In case of a tie, the longer region wins.
+ * In case of a tie on forward extent, the longer region wins.
+ * In case of a complete tie, we return 0.
  */
 GASNET_INLINE_MODIFIER(fh_bucket_is_better)
 int fh_bucket_is_better(const fh_bucket_t *a, const fh_bucket_t *b)
@@ -127,7 +128,7 @@ int fh_bucket_is_better(const fh_bucket_t *a, const fh_bucket_t *b)
     return (end_a > end_b);
   }
   else {
-    return (a->priv->len > a->priv->len);
+    return (a->priv->len > b->priv->len);
   }
 }
 
@@ -231,8 +232,70 @@ fh_bucket_unhash(fh_bucket_t *bucket)
     return;
 }
 
-/* Also keep a hash table of the private_t's we create so that we can match
- * them when received in an AM (pin reply or unpin request).
+static void
+fh_bucket_rehash(fh_bucket_t *bucket)
+{
+    fh_bucket_t *other;
+    fh_int_t key;
+
+    FH_TABLE_ASSERT_LOCKED;
+    gasneti_assert(bucket != NULL);
+
+    key = bucket->fh_key;
+
+    other = (fh_bucket_t *)fh_hash_find(fh_BucketTable1, key);
+    if_pf ((other != bucket) && fh_bucket_is_better(bucket, other)) {
+	/* We've moved up in the world */
+	fh_hash_replace(fh_BucketTable2, bucket, NULL);
+	fh_hash_replace(fh_BucketTable1, other, bucket);
+	fh_hash_insert(fh_BucketTable2, key, other);
+    }
+
+    return;
+}
+
+/* XXX: merge freelist w/ page? */
+static fh_bucket_t *fhi_bucket_freelist = NULL;
+
+GASNET_INLINE_MODIFIER(fh_bucket_new)
+fh_bucket_t *fh_bucket_new(void)
+{
+    fh_bucket_t *bucket = fhi_bucket_freelist;
+
+    if_pt (bucket != NULL) {
+	fhi_bucket_freelist = bucket->fh_next;
+    }
+    else {
+        bucket = gasneti_malloc(sizeof(fh_bucket_t));
+    }
+    memset(bucket, 0, sizeof(fh_bucket_t));
+
+    return bucket;
+}
+
+GASNET_INLINE_MODIFIER(fh_bucket_free)
+void fh_bucket_free(fh_bucket_t *bucket)
+{
+    bucket->fh_next = fhi_bucket_freelist;
+    fhi_bucket_freelist = bucket;
+}
+
+/* Also keep a hash table of the local private_t's we create so that we can
+ * match them when received in an AM (pin reply or unpin request).
+ * XXX: this use is trashing the NODE portion of priv->fh_key.  We've been
+ * careful to ensure that the only thing this breaks is the debugging output.
+ * However, we should really see about a better way to do the lookup from
+ * the unpin request to the private_t.  I see two options:
+ * 1) Carry an extra field over the wire (probably the actual private_t *)
+ *    that must be passed back to unpin (stored and passed in exactly the
+ *    same places that the client_t is)
+ * 2) Keep a "PrivTable" which hashes locally pinned regions, but does so
+ *    external to the private_t.
+ * If only local regions need to be hashed in this way then #2 wins on both
+ * network traffic and storage space.
+ * If remote regions are also hashed in this way (perhaps for detection of
+ * duplicates?), then #2 wins on network traffic but loses slightly on
+ * storage.
  */
 fh_hash_t *fh_PrivTable;
 
@@ -242,7 +305,7 @@ fh_hash_t *fh_PrivTable;
  */
 #ifndef FIREHOSE_HASH_PRIV
   #define FIREHOSE_HASH_PRIV(addr, len) \
-	((addr) | ((len) >> FH_BUCKET_SHIFT))
+	FH_KEYMAKE((addr), ((len) >> FH_BUCKET_SHIFT))
 #endif
 
 GASNET_INLINE_MODIFIER(fh_region_to_priv)
@@ -285,7 +348,7 @@ fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
     end_addr = fh_region_end(reg);
     prev = &priv->bucket;
     FH_FOREACH_BUCKET(reg->addr, end_addr, bucket_addr) {
-        fh_bucket_t *bd = gasneti_malloc(sizeof(fh_bucket_t));
+        fh_bucket_t *bd = fh_bucket_new();
 
 	bd->priv = priv;
 	fh_bucket_hash(bd, FH_KEYMAKE(bucket_addr, node));
@@ -297,6 +360,7 @@ fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
 
     /* Hash the priv IFF local*/
     if_pt (node == fh_mynode) {
+	/* XXX: preserves the ADDR part but invalidates NODE */
 	priv->fh_key = FIREHOSE_HASH_PRIV(reg->addr, reg->len);
 	gasneti_assert(fh_hash_find(fh_PrivTable, priv->fh_key) == NULL);
 	fh_hash_insert(fh_PrivTable, priv->fh_key, priv);
@@ -318,7 +382,7 @@ fh_destroy_priv(firehose_private_t *priv)
     do {
 	fh_bucket_t *next = bucket->next;
         fh_bucket_unhash(bucket);
-	gasneti_free(bucket);
+	fh_bucket_free(bucket);
 	bucket = next;
     } while (bucket != NULL);
 
@@ -330,6 +394,81 @@ fh_destroy_priv(firehose_private_t *priv)
 
     priv->fh_next = fhi_priv_freelist;
     fhi_priv_freelist = priv;
+}
+
+/* Given an existing private_t and a region_t, change the necessary hash
+ * table entries.
+ */
+void
+fh_update_priv(firehose_private_t *priv, const firehose_region_t *reg)
+{
+    uintptr_t bucket_addr;
+    uintptr_t old_start, new_start;
+    uintptr_t old_end, new_end;
+    gasnet_node_t node = FH_NODE(priv);	/* XXX safe because priv is remote */
+    fh_bucket_t *bucket;
+    fh_bucket_t **prev;
+
+    FH_TABLE_ASSERT_LOCKED;
+
+    old_start = FH_BADDR(priv);
+    old_end = fh_priv_end(priv);
+    new_start = reg->addr;
+    new_end = fh_region_end(reg);
+
+    if_pt ((old_start == new_start) && (old_end == new_end)) {
+	FH_CP_CLIENT(priv, reg);
+	return;		/* nothing else needs to change */
+    }
+
+#if 0
+    bucket = fh_bucket_lookup(node, new_start);
+    if (bucket && (fh_bucket_end(bucket) == new_end)) {
+	fprintf(stderr, "%d> exact match %p %p (%d, %p, %dk)\n",
+		fh_mynode, bucket->priv, priv, node, (void *)reg->addr, (int)(reg->len)/1024);
+    }
+#endif
+
+    /* updates fh_key, len and client */
+    CP_REG_TO_PRIV(priv, node, reg);
+
+    /* Create new hash entries for "prefix" */
+    bucket = priv->bucket;
+    if (new_start < old_start) {
+        prev = &priv->bucket;
+        FH_FOREACH_BUCKET(new_start, old_start-1, bucket_addr) {
+            fh_bucket_t *bd = fh_bucket_new();
+
+	    bd->priv = priv;
+	    fh_bucket_hash(bd, FH_KEYMAKE(bucket_addr, node));
+
+	    *prev = bd;
+	    prev = &bd->next;
+        }
+	*prev = bucket;
+    }
+
+    /* Rehash existing buckets as needed */
+    do {
+	fh_bucket_rehash(bucket);
+	prev = &bucket->next;
+	bucket = bucket->next;
+    } while (bucket != NULL);
+
+    /* Create new hash entries for "suffix" */
+    if (new_end > old_end) {
+	FH_FOREACH_BUCKET(old_end+1, new_end, bucket_addr) {
+            fh_bucket_t *bd = fh_bucket_new();
+
+	    bd->priv = priv;
+	    fh_bucket_hash(bd, FH_KEYMAKE(bucket_addr, node));
+
+	    *prev = bd;
+	    prev= &bd->next;
+        }
+    }
+
+    return;
 }
 
 void
@@ -678,10 +817,8 @@ fh_acquire_remote_region(firehose_request_t *req,
 	size_t payload_size = sizeof(firehose_region_t);
 	int num_unpin = 0;
 
-	/* XXX: THIS IS THE WRONG END TO BE DOING THE MERGE! */
 	pin_region->addr = req->addr;
 	pin_region->len  = req->len;
-	fhi_merge_regions(node, pin_region);
 
 	/* Acquire resources for the pinning */
 	if_pt (fhc_RemoteBucketsM > fhc_RemoteBucketsUsed[node]) {
@@ -808,21 +945,23 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 	FH_TABLE_ASSERT_LOCKED;
 
 	/* Sanity checks */
+	gasneti_assert(priv != NULL);
 	gasneti_assert(node != fh_mynode);
+	gasneti_assert(node == FH_NODE(priv));
 	gasneti_assert(nreg == 1);
 
 	FH_STAILQ_INIT(PendQ);
 
 	/* Make sure the private_t was set as pending */
-	gasneti_assert(priv != NULL);
 	gasneti_assert(FH_IS_REMOTE_PENDING(priv));
 	FH_BSTATE_ASSERT(priv, fh_pending);
 
+	/* Update priv to reflect the reply */
+	fh_update_priv(priv, region);
+
 	/* Now make the private_t not pending */
 	FH_UNSET_REMOTE_PENDING(priv);
-	FH_SET_USED(priv);
 	FH_BSTATE_SET(priv, fh_used);
-	FH_CP_CLIENT(priv, region);
 
 	/* Queue the callbacks */
 	ccb = (fh_completion_callback_t *) priv->fh_tqe_next;
@@ -838,6 +977,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		req = ccb->request;
 
 		gasneti_assert(req && (req->flags & FH_FLAG_PENDING));
+		req->flags &= ~FH_FLAG_PENDING;
 		req->internal = priv;
 
 		FH_STAILQ_INSERT_TAIL(PendQ, (fh_callback_t *) ccb);
@@ -850,7 +990,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		ccb = next;
 	}
 
-	priv->fh_tqe_next = (firehose_private_t *) FH_COMPLETION_END;
+	FH_SET_USED(priv);
 
 	return callspend;
 }

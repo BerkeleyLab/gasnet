@@ -330,15 +330,17 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		 * callback will be subsequently called from within the
 		 * firehose library */
 
-		if (!(flags & FIREHOSE_FLAG_RETURN_IF_PINNED)) {
+		if (flags & FIREHOSE_FLAG_RETURN_IF_PINNED) {
+			return req;
+		}
+		else {
 			GASNETI_TRACE_PRINTF(C, 
 			    ("Firehoses pinned, callback"));
 			callback(context, req, 1);
 		}
-		return req;
 	}
-	else
-		return NULL;
+
+	return NULL;
 }
 
 extern const firehose_request_t *
@@ -404,6 +406,8 @@ firehose_release(firehose_request_t const **reqs, int numreqs)
 	FH_TABLE_LOCK;
 
 	for (i = 0; i < numreqs; i++) {
+		gasneti_assert(!(reqs[i]->flags & FH_FLAG_PENDING));
+
 		if (reqs[i]->node == fh_mynode)
 			fh_release_local_region(
 				(firehose_request_t *) reqs[i]);
@@ -1236,15 +1240,17 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 
 	gasnet_AMGetMsgSource(token, &node);
 
-	FH_TABLE_LOCK;
-
 	/* 
-	 * At least one pending request is attached a bucket, so process them
+	 * At least one pending request is attached to a bucket, so process them
 	 * and dynamically create a list in pendCallbacks
 	 */
 
+	FH_TABLE_LOCK;
+
 	numpend = 
 	    fh_find_pending_callbacks(node, regions, r_new, context, &pendCallbacks);
+
+	FH_TABLE_UNLOCK;
 
 	if (numpend > 0) {
 		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
@@ -1265,7 +1271,9 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 		FH_POLLQ_UNLOCK;
 		#endif
 	}
-	FH_TABLE_UNLOCK;
+	else {
+		gasneti_assert(FH_STAILQ_FIRST(&pendCallbacks) == NULL);
+	}
 
 	return;
 }
