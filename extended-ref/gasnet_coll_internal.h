@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/28 16:30:08 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2004/05/29 00:06:47 $
+ * $Revision: 1.1.2.21 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -203,10 +203,12 @@ extern void gasnete_coll_p2p_init(void);
 extern void gasnete_coll_p2p_fini(void);
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnet_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t pos,
-                                      void *src, size_t nbytes, uint32_t state);
-extern void gasnet_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t pos,
-                                      void *addr, uint32_t state);
+extern void gasnet_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+					   void *src, size_t nbytes, uint32_t pos, uint32_t state);
+extern void gasnet_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                      void *src, size_t nbytes, uint32_t pos, uint32_t state);
+extern void gasnet_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                      void *addr, uint32_t pos, uint32_t state);
 
 /*---------------------------------------------------------------------------------*/
 
