@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/14 20:54:42 $
- * $Revision: 1.1.2.34 $
+ *     $Date: 2004/06/15 18:45:10 $
+ * $Revision: 1.1.2.35 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -167,15 +167,14 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 /*---------------------------------------------------------------------------------*/
 /* Type for point-to-point synchronization */
 
-#ifndef GASNETE_COLL_P2P_EAGER_LIMIT
-    /* Define carefully to ensure "good" alignment of data */
-    #define GASNETE_COLL_P2P_EAGER_LIMIT	16
+#ifndef GASNETE_COLL_P2P_EAGER_SCALE
+    /* Number of bytes per-image to allocate for eager data */
+    #define GASNETE_COLL_P2P_EAGER_SCALE	16
 #endif
-
-union gasnete_coll_p2p_entry_t_ {
-    void			*addr;
-    uint8_t			data[GASNETE_COLL_P2P_EAGER_LIMIT];
-};
+#ifndef GASNETE_COLL_P2P_EAGER_MIN
+    /* Minumum number of bytes to allocate for eager data */
+    #define GASNETE_COLL_P2P_EAGER_MIN		16
+#endif
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
     struct gasnete_coll_p2p_t_ {
@@ -185,12 +184,12 @@ union gasnete_coll_p2p_entry_t_ {
 
 	/* Unique (team_id, sequence) tuple for the associated op */
 	/* XXX: could play games w/ a single 64-bit field to speed comparisions */
-	uint32_t	team_id;
-	uint32_t	sequence;
+	uint32_t		team_id;
+	uint32_t		sequence;
 
 	/* Volatile arrays of data and state for the point-to-point synchronization */
-	gasnete_coll_p2p_entry_t	*entry;
-	volatile uint32_t		*state;
+	uint8_t			*data;
+	volatile uint32_t	*state;
     };
 #endif
 
@@ -200,16 +199,34 @@ extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t seque
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
 extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
                                             void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
-                                       void *src, uint32_t size,
-                                       uint32_t pos, uint32_t state);
 extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
-                                        void *src, uint32_t count, uint32_t size,
-                                        uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dstnode,
-                                        void *addr, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_rendezvousM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
-                                         void **addrs, uint32_t count, uint32_t pos, uint32_t state);
+                                        void *src, uint32_t count, size_t size,
+                                        uint32_t offset, uint32_t state);
+
+#ifndef gasnete_coll_p2p_eager_put
+  GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_put)
+  void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                  void *src, size_t size, uint32_t offset, uint32_t state) {
+    gasnete_coll_p2p_eager_putM(op, dstnode, src, 1, size, offset, state);
+  }
+#endif
+    
+#ifndef gasnete_coll_p2p_eager_addrM
+  GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_addrM)
+  void gasnete_coll_p2p_eager_addrM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                    void * addrlist[], uint32_t count,
+				    uint32_t offset, uint32_t state) {
+    gasnete_coll_p2p_eager_putM(op, dstnode, addrlist, count, sizeof(void *), offset, state);
+  }
+#endif
+
+#ifndef gasnete_coll_p2p_eager_addr
+  GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_addr)
+  void gasnete_coll_p2p_eager_addr(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+                                   void *addr, uint32_t offset, uint32_t state) {
+    gasnete_coll_p2p_eager_putM(op, dstnode, &addr, 1, sizeof(void *), offset, state);
+  }
+#endif
 
 /*---------------------------------------------------------------------------------*/
 
