@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 22:19:33 $
- * $Revision: 1.2.2.18 $
+ *     $Date: 2003/04/01 22:26:31 $
+ * $Revision: 1.2.2.19 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -62,6 +62,9 @@ void gasnetc_checkattach() {
     gasneti_fatalerror("Illegal call to GASNet before gasnet_attach() initialization");
 }
 
+gasnetc_handler_fn_t const gasnetc_unused_handler = (gasnetc_handler_fn_t)&abort;
+gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -71,9 +74,6 @@ void gasnetc_checkattach() {
 static void gasnetc_check_config() {
   assert(sizeof(gasnetc_medmsg_t) == (GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS));
   assert((GASNET_MAXNODES * GASNETC_RCV_WQE) <= GASNETC_CQ_SIZE);
-
-  /* (###) add code to do some sanity checks on the number of nodes, handlers
-   * and/or segment sizes */ 
 }
 
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start) {
@@ -578,8 +578,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
-    /* (###) add code here to register table[i].fnptr 
-             on index (gasnet_handler_t)newindex */
+    gasnetc_handler[newindex] = table[i].fnptr;
 
     if (dontcare) table[i].index = newindex;
     (*numregistered)++;

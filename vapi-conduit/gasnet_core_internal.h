@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/01 22:19:33 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2003/04/01 22:26:31 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -165,6 +165,12 @@ typedef enum {
 
 #define RUN_HANDLER_LONG(phandlerfn, token, args, numargs, pData, datalen)             \
   _RUN_HANDLER_MEDLONG((gasnetc_HandlerLong)phandlerfn, (gasnet_token_t)token, args, numargs, (void *)pData, (size_t)datalen)
+
+/* ------------------------------------------------------------------------------------ */
+
+#define GASNETC_MAX_NUMHANDLERS   256
+typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
+extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 
