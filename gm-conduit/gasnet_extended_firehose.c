@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_firehose.c,v 1.21.8.4 2003/08/12 07:47:03 csbell Exp $
- * $Date: 2003/08/12 07:47:03 $
+/* $Id: gasnet_extended_firehose.c,v 1.21.8.5 2003/08/25 08:23:52 csbell Exp $
+ * $Date: 2003/08/25 08:23:52 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -303,7 +303,7 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 	bufd = gasnetc_AMRequestPool_block();
 
 	pop = gasnete_eop_new(GASNETE_MYTHREAD);
-	pop->src = (uintptr_t) bufd->sendbuf;
+	pop->src = (uintptr_t) bufd->buf;
 	pop->dest = (uintptr_t) dest;
 	pop->len = (uint32_t) nbytes;
 	pop->iop = iop;
@@ -311,7 +311,7 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 	#if defined(TRACE) || defined(STATS)
 	pop->starttime = GASNETI_STATTIME_NOW_IFENABLED(C);
 	#endif
-	GASNETE_FAST_UNALIGNED_MEMCPY(bufd->sendbuf, src, nbytes);
+	GASNETE_FAST_UNALIGNED_MEMCPY(bufd->buf, src, nbytes);
 
 	/* If we were dealing with implicit put, increment the iop */
 	if (iop != NULL)

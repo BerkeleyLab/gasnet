@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.20.10.3 2003/08/09 08:03:56 csbell Exp $
- * $Date: 2003/08/09 08:03:56 $
- * $Revision: 1.20.10.3 $
+/* $Id: gasnet_core_help.h,v 1.20.10.4 2003/08/25 08:23:52 csbell Exp $
+ * $Date: 2003/08/25 08:23:52 $
+ * $Revision: 1.20.10.4 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -195,9 +195,9 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_AMTRACE_RequestLongAsyncM GASNETC_AMTRACE_RequestLongM
 
 #define GASNETC_TRACE_FIFO(bufd) do {					       \
-		uint8_t idx = *((uint8_t *)(bufd)->sendbuf+1);		       \
+		uint8_t idx = *((uint8_t *)(bufd)->buf+1);		       \
 		uint8_t args = GASNETC_AM_NUMARGS(*recv_buf);		       \
-		switch (*((uint8_t *)(bufd)->sendbuf)) {		       \
+		switch (*((uint8_t *)(bufd)->buf)) {		       	       \
 			case GASNETC_AM_SHORT:				       \
 				GASNETC_TRACE_SHORT(SendFifo, AMRequestShort,  \
 				_GASNETC_GMNODE_REPLY, (bufd), idx, args);     \
@@ -205,8 +205,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 			case GASNETC_AM_MEDIUM:				       \
 				GASNETC_TRACE_MEDIUM(SendFifo, AMRequestMedium,\
 				_GASNETC_GMNODE_REPLY, (bufd), idx, args,      \
-				(bufd)->sendbuf+			       \
-				GASNETC_AM_MEDIUM_HEADER_LEN(args),	       \
+				(bufd)->buf+GASNETC_AM_MEDIUM_HEADER_LEN(args),\
 				(bufd)->len); break;			       \
 			case GASNETC_AM_LONG:				       \
 				GASNETC_TRACE_LONG(SendFifo, AMRequestLong,    \
@@ -250,9 +249,9 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 			(((uintptr_t)(ptr) - (uintptr_t)_gmc.dma_bufs) >> \
 			GASNETC_AM_SIZE));				  \
 		} while (0)
-#define GASNETC_BUFDESC_PTR(x) &_gmc.bd_ptr[				       \
+#define GASNETC_BUFDESC_PTR(x) ((gasnetc_bufdesc_t *) &_gmc.bd_ptr[	       \
 				(((uintptr_t)(x) - (uintptr_t)_gmc.dma_bufs)>> \
-				 GASNETC_AM_SIZE)]
+				 GASNETC_AM_SIZE)])
 #define GASNETC_GM_RECV_PTR(e,fast)				\
 	(fast) ? (uint8_t *) gm_ntohp((e)->recv.message) :	\
 	    (uint8_t *) gm_ntohp((e)->recv.buffer)

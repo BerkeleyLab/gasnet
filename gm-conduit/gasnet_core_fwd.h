@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_fwd.h,v 1.21.2.1 2003/08/04 11:06:51 csbell Exp $
- * $Date: 2003/08/04 11:06:51 $
- * $Revision: 1.21.2.1 $
+/* $Id: gasnet_core_fwd.h,v 1.21.2.2 2003/08/25 08:23:52 csbell Exp $
+ * $Date: 2003/08/25 08:23:52 $
+ * $Revision: 1.21.2.2 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -24,6 +24,8 @@
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
 #define GASNET_ALIGNED_SEGMENTS	1
 #define GASNET_MAXNODES		1024
+
+#define GASNETI_FORCE_TRUE_MUTEXES 1
 
 /* only have firehose for now */
 #define GASNETC_FIREHOSE

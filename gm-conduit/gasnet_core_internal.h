@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.45.2.1 2003/08/04 11:06:51 csbell Exp $
- * $Date: 2003/08/04 11:06:51 $
- * $Revision: 1.45.2.1 $
+/* $Id: gasnet_core_internal.h,v 1.45.2.2 2003/08/25 08:23:52 csbell Exp $
+ * $Date: 2003/08/25 08:23:52 $
+ * $Revision: 1.45.2.2 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -167,7 +167,7 @@ gasnetc_token_t;
 #define GASNETC_BUFOPT_RESET(b)		((b)->flag = 0x00)
 
 struct gasnetc_bufdesc {
-	void	*sendbuf;	/* map to buffer */
+	void	*buf;		/* map to buffer */
 	short	id;		/* reverse map in bufdesc list */
 	uint8_t	flag;		/* bufdesc flags as defined above */
 
@@ -516,37 +516,31 @@ GASNET_INLINE_MODIFIER(gasnetc_fifo_progress)
 void
 gasnetc_fifo_progress()
 {
+
+	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
+
 	while (gasnetc_fifo_head() && GASNETC_TOKEN_HI_AVAILABLE()) {
 
-		gasneti_mutex_lock(&gasnetc_lock_gm);
+		gasnetc_token_hi_acquire();
 
-		if_pt (gasnetc_token_hi_acquire()) { 
+		gasnetc_bufdesc_t *bufd = gasnetc_fifo_head();
+		assert(bufd->gm_id > 0);
 
-			gasnetc_bufdesc_t *bufd = gasnetc_fifo_head();
-			assert(bufd->gm_id > 0);
+		gasnetc_gm_send_bufd(bufd);
 
-			gasnetc_gm_send_bufd(bufd);
-
-			/* If there was a payload, leave the bufdesc in the
-			 * fifo and let the next loop iteration send the header
-			 */
-			if (GASNETC_BUFOPT_ISSET(bufd, 
-			    GASNETC_FLAG_REPLY_PAYLOAD)) {
-				GASNETC_BUFOPT_UNSET(bufd, 
-				    GASNETC_FLAG_REPLY_PAYLOAD);
-			}
-			else {
-				GASNETC_BUFOPT_UNSET(bufd, 
-				    GASNETC_FLAG_REPLY_HEADER);
-				gasnetc_fifo_remove();
-			}
+		/* If there was a payload, leave the bufdesc in the fifo and
+		 * let the next loop iteration send the header
+		 */
+		if (GASNETC_BUFOPT_ISSET(bufd, 
+		    GASNETC_FLAG_REPLY_PAYLOAD)) {
+			GASNETC_BUFOPT_UNSET(bufd, 
+			    GASNETC_FLAG_REPLY_PAYLOAD);
 		}
 		else {
-			GASNETI_TRACE_PRINTF(C, 
-			    ("gasnetc_fifo_progress() lock interrupted.\n"));
+			GASNETC_BUFOPT_UNSET(bufd, 
+			    GASNETC_FLAG_REPLY_HEADER);
+			gasnetc_fifo_remove();
 		}
-
-		gasneti_mutex_unlock(&gasnetc_lock_gm);
 	}
 }
 
