@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/14 20:54:42 $
- * $Revision: 1.1.2.40 $
+ *     $Date: 2004/06/14 22:44:33 $
+ * $Revision: 1.1.2.41 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2598,7 +2598,7 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       } else {
 	GASNETE_FAST_UNALIGNED_MEMCPY((void *)((uintptr_t)(args->dst) + args->nbytes * gasnete_mynode),
 				      args->src, args->nbytes);
-	data->p2p->state[gasnete_mynode] = 1;
+	data->p2p->state[gasnete_mynode] = 2;
       }
 
     case 1:	/* Complete data movement */
