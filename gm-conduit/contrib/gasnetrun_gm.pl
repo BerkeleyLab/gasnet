@@ -90,7 +90,7 @@ sub clean_up {
 	$pid_reaper = fork;
 	if ($pid_reaper == 0) {
 	  if ($verbose) {
-	    print ("\t @rexec_flags $hosts[$z] -n kill -9 $remote_pids[$z] 2>/dev/null\n");
+	    print ("\t ".@rexec_flags." $hosts[$z] -n kill -9 $remote_pids[$z] 2>/dev/null\n");
 	  }
 	  exec (@rexec_flags, $hosts[$z], '-n', "kill -9 $remote_pids[$z]", "2>/dev/null");
 	}

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gm-conduit/gasnet_extended.c                  $
- *     $Date: 2004/03/29 17:46:24 $
- * $Revision: 1.19.2.2 $
+ *     $Date: 2004/04/20 00:24:19 $
+ * $Revision: 1.19.2.3 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -201,6 +201,9 @@ gasnete_init()
 		gasnete_op_markdone((gasnete_op_t *)eop, 0);
 		gasnete_op_free((gasnete_op_t *)eop);
 	}
+ 
+	/* Initialize barrier resources */
+	gasnete_barrier_init();
 }
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/29 17:46:16 $
-# $Revision: 1.83.2.4 $
+#     $Date: 2004/04/20 00:24:13 $
+# $Revision: 1.83.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.83.2.4 $)
+AC_REVISION($Revision: 1.83.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -78,6 +78,12 @@ AC_SUBST(GMAKE)
 ##
 ##  C/C++ Compilers
 ##
+
+# Some OS's need help to find the right C compiler
+case "$target_os" in
+  superux*) # "cc" is completely broken on SuperUX, never use it
+     GASNET_ENV_DEFAULT(CC, c++ -Xa) ;; # may also/alternately want -Kc99
+esac
 
 AC_PROG_CC
 AC_PROG_CPP
@@ -229,6 +235,7 @@ case "$gasnet_cv_cc_family" in
         CCDEBUGFLAGS="$CFLAGS"
         CFLAGS="$oldCFLAGS"
   ;;
+  NEC)   CCDEBUGFLAGS="-g -Cnoopt -Cdebug" ;; 
   HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
   *)    CCDEBUGFLAGS="-g" ;;
 esac
@@ -242,6 +249,7 @@ case "$gasnet_cv_cc_family" in
   MIPS) MISC_CFLAGS="-common -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
   Intel) MISC_CFLAGS="-wd279" ;;
+  NEC) MISC_CFLAGS="-woff=68:111:174:177:236:301:550:940" ;; 
   PGI) MISC_CFLAGS="-Masmkeyword" ;;
   Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
   XLC) MISC_CFLAGS="-qsuppress=1500-010" ;; # 1500-010 = infinite loop (such as in our tests)
@@ -311,6 +319,23 @@ AM_CONDITIONAL(GASNET_SEGMENT_FAST, test "$segconfig" = fast)
 AM_CONDITIONAL(GASNET_SEGMENT_LARGE, test "$segconfig" = large)
 AM_CONDITIONAL(GASNET_SEGMENT_EVERYTHING, test "$segconfig" = everything)
 
+GASNET_WITH(segment-mmap-max,
+   [Upper bound for mmap-based GASNet segments (ex: "2GB", "1045MB")],
+   [case "$withval" in
+      [[1-9]]*G*) 
+        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
+            [((uint64_t)(`expr "${withval}" : "\([[0-9]]\+\)"`ull << 30))]) 
+        ;;
+      [[1-9]]*M*) 
+        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
+            [((uint64_t)(`expr "${withval}" : "\([[0-9]]\+\)"`ull << 20))]) 
+        ;;
+      [[1-9]][[0-9]]*) 
+        AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
+            [((uint64_t)${withval}ull)]) 
+        ;;
+      *) AC_MSG_ERROR(Illegal value for --with-segment-mmap-max=$withval) ;;
+    esac])
 
 GASNET_LIBGCC
 
@@ -364,14 +389,21 @@ if test "$GASNETI_PAGESIZE" != ""; then
   AC_DEFINE_UNQUOTED(GASNETI_PAGESIZE,$GASNETI_PAGESIZE)
 
   case "$GASNETI_PAGESIZE" in
-    1024)   GASNETI_PAGESHIFT=10 ;;
-    2048)   GASNETI_PAGESHIFT=11 ;;
-    4096)   GASNETI_PAGESHIFT=12 ;;
-    8192)   GASNETI_PAGESHIFT=13 ;;
-    16384)  GASNETI_PAGESHIFT=14 ;;
-    32768)  GASNETI_PAGESHIFT=15 ;;
-    65536)  GASNETI_PAGESHIFT=16 ;;
-    131072) GASNETI_PAGESHIFT=17 ;;
+    1024)     GASNETI_PAGESHIFT=10 ;;
+    2048)     GASNETI_PAGESHIFT=11 ;;
+    4096)     GASNETI_PAGESHIFT=12 ;;
+    8192)     GASNETI_PAGESHIFT=13 ;;
+    16384)    GASNETI_PAGESHIFT=14 ;;
+    32768)    GASNETI_PAGESHIFT=15 ;;
+    65536)    GASNETI_PAGESHIFT=16 ;;
+    131072)   GASNETI_PAGESHIFT=17 ;;
+    262144)   GASNETI_PAGESHIFT=18 ;;
+    524288)   GASNETI_PAGESHIFT=19 ;;
+    1048576)  GASNETI_PAGESHIFT=20 ;;
+    2097152)  GASNETI_PAGESHIFT=21 ;;
+    4194304)  GASNETI_PAGESHIFT=22 ;;
+    8388608)  GASNETI_PAGESHIFT=23 ;;
+    16777216) GASNETI_PAGESHIFT=24 ;;
     *) AC_MSG_ERROR(unknown GASNETI_PAGESIZE=$GASNETI_PAGESIZE) ;;
   esac
   AC_DEFINE_UNQUOTED(GASNETI_PAGESHIFT,$GASNETI_PAGESHIFT)
@@ -464,6 +496,12 @@ case "$target_os" in
   hpux*)
 	AC_DEFINE(HPUX)
 	GASNET_MACHINE_DEFINES="-DHPUX"
+        GASNET_THREAD_DEFINES="-D_REENTRANT"
+        GASNET_THREAD_LIBS="-lpthread"
+	;;
+  superux*)
+	AC_DEFINE(SUPERUX)
+	GASNET_MACHINE_DEFINES="-DSUPERUX"
         GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
@@ -583,7 +621,7 @@ AC_SUBST(CONDUITS)
 # reporting file output at completion
 CONDUIT_LIST=conduits.tmp
 echo > $CONDUIT_LIST
-AC_DEFUN(CONDUIT_REPORT,[echo "  CONDUIT_DESC m4_substr([                                                  ],len(CONDUIT_DESC))$1" >> $CONDUIT_LIST])
+AC_DEFUN([CONDUIT_REPORT],[echo "  CONDUIT_DESC m4_substr([                                                  ],len(CONDUIT_DESC))$1" >> $CONDUIT_LIST])
 echo " Portable conduits:" >> $CONDUIT_LIST
 echo " -----------------" >> $CONDUIT_LIST
 
@@ -610,6 +648,7 @@ if test $enabled_udp = yes; then
   GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
+  GASNET_UDP_LIBS=""
   case "$gasnet_cv_cxx_family" in
     GNU) 
        GASNET_GCC296CHECK(CXX)
@@ -622,6 +661,10 @@ if test $enabled_udp = yes; then
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
     MIPS)  MISC_CXXFLAGS="-diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279" ;;
+    NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
+           CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
+	   GASNET_UDP_LIBS="-Kexceptions" 
+      ;; 
     Cray)
      case "$target_cpu" in
        # Cray CC v3.3.0.2 fails to accept "-htaskprivate", but accepts "-htask private"
@@ -651,7 +694,7 @@ if test $enabled_udp = yes; then
       LIBS=""
       AC_SEARCH_LIBS(socket, socket, have_udp=yes, have_udp=no)
       AC_SEARCH_LIBS(gethostbyname, nsl, , have_udp=no)
-      GASNET_UDP_LIBS="$LIBS"
+      GASNET_UDP_LIBS="$GASNET_UDP_LIBS $LIBS"
 
       if test "$have_udp" = yes ; then
 	AC_MSG_CHECKING(for working UDP configuration)
@@ -802,6 +845,12 @@ if test $enabled_mpi = yes; then
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
         ;;
+    superux*)
+      GASNET_ENV_DEFAULT(MPI_CC, mpic++ -Xa)
+      GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
+      GASNET_ENV_DEFAULT(MPI_LIBS, )
+      GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+      ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
       GASNET_ENV_DEFAULT(MPI_CC, mpicc)
@@ -1621,53 +1670,39 @@ Makefile
 other/perlstart dnl must precede files that use it
 
 mpi-conduit/Makefile
-mpi-conduit/mpi-seq.mak
-mpi-conduit/mpi-parsync.mak
-mpi-conduit/mpi-par.mak
+mpi-conduit/conduit.mak
 mpi-conduit/contrib/Makefile
 mpi-conduit/contrib/gasnetrun_mpi
 
 udp-conduit/Makefile
-udp-conduit/udp-seq.mak
-udp-conduit/udp-parsync.mak
-udp-conduit/udp-par.mak
+udp-conduit/conduit.mak
 
 gm-conduit/Makefile
-gm-conduit/gm-seq.mak
-gm-conduit/gm-parsync.mak
-gm-conduit/gm-par.mak
+gm-conduit/conduit.mak
 gm-conduit/contrib/Makefile
 gm-conduit/contrib/gasnetrun_gm
 
 lapi-conduit/Makefile
-lapi-conduit/lapi-seq.mak
-lapi-conduit/lapi-parsync.mak
-lapi-conduit/lapi-par.mak
+lapi-conduit/conduit.mak
 
 sci-conduit/Makefile
-sci-conduit/sci-seq.mak
-sci-conduit/sci-parsync.mak
-sci-conduit/sci-par.mak
+sci-conduit/conduit.mak
 
 smp-conduit/Makefile
-smp-conduit/smp-seq.mak
-smp-conduit/smp-parsync.mak
-smp-conduit/smp-par.mak
+smp-conduit/conduit.mak
 
 elan-conduit/Makefile
-elan-conduit/elan-seq.mak
-elan-conduit/elan-parsync.mak
-elan-conduit/elan-par.mak
+elan-conduit/conduit.mak
 
 vapi-conduit/Makefile
-vapi-conduit/vapi-seq.mak
-vapi-conduit/vapi-parsync.mak
-vapi-conduit/vapi-par.mak
+vapi-conduit/conduit.mak
 vapi-conduit/contrib/Makefile
 vapi-conduit/contrib/gasnetrun_vapi
 
 other/Makefile
 other/Makefile-conduit.mak
+other/fragment-head.mak
+other/fragment-body.mak
 other/ammpi/Makefile
 other/amudp/Makefile
 tests/Makefile

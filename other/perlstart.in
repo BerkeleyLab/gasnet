@@ -3,7 +3,7 @@
 # create a script.in file with the following contents (minus leading #'s)
 #      #!@BOURNE_SHELL@
 #      SOME_VAR_YOUR_SCRIPT_NEEDS=@SOME_VAR_YOUR_SCRIPT_NEEDS@
-#      @PERLSTART@
+#      @PERL START@     (remove the embedded space and this comment)
 # be sure to place your script file in configure.in AC_OUTPUT and GASNET_FIX_EXEC
 # also be sure to add targets in Makefile to copy the .pl file when builddir!=srcdir
 

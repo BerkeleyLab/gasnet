@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_ref.c,v 1.6.12.2 2004/03/29 17:46:24 bonachea Exp $
- * $Date: 2004/03/29 17:46:24 $
+/* $Id: gasnet_extended_ref.c,v 1.6.12.3 2004/04/20 00:24:19 bonachea Exp $
+ * $Date: 2004/04/20 00:24:19 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -387,6 +387,7 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 /* reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#define gasnete_refbarrier_init    gasnete_barrier_init
 #define gasnete_refbarrier_notify  gasnete_extref_barrier_notify
 #define gasnete_refbarrier_wait    gasnete_extref_barrier_wait
 #define gasnete_refbarrier_try     gasnete_extref_barrier_try

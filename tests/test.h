@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2004/03/29 17:46:42 $
- * $Revision: 1.18.2.2 $
+ *     $Date: 2004/04/20 00:24:36 $
+ * $Revision: 1.18.2.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,7 @@
 #include <assert.h>
 
 #include <gasnet.h>
+#include <gasnet_tools.h>
 
 #define GASNET_Safe(fncall) do {                            \
     int retval;                                             \
@@ -57,7 +58,6 @@
   }
   #define TIME() mygetMicrosecondTimeStamp()
 #else
-  #include <gasnet_tools.h>
   #define TIME() gasnett_ticks_to_us(gasnett_ticks_now()) 
 #endif
 
@@ -118,15 +118,8 @@ static void test_free(void *ptr) {
   gasnet_resume_interrupts();
 }
 
-
-#ifdef IRIX
-  #define PAGESZ 16384
-#elif defined(OSF) || defined(__alpha__)
-  #define PAGESZ 8192
-#else
-  #define PAGESZ 4096
-#endif
-
+#define PAGESZ GASNETT_PAGESIZE
+#define alignup(a,b) ((((a)+(b)-1)/(b))*(b))
 
 #if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
   #ifndef TEST_MAXTHREADS
@@ -136,18 +129,24 @@ static void test_free(void *ptr) {
     #define TEST_SEGZ_PER_THREAD (64*1024)
   #endif
   #ifndef TEST_SEGSZ
-    #define TEST_SEGSZ	      (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
+    #define TEST_SEGSZ	      alignup(TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD,PAGESZ)
   #endif
   #if TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
     #error "TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)"
   #endif
 #else
   #ifndef TEST_SEGSZ
-    #define TEST_SEGSZ          (64*1024)
+    #define TEST_SEGSZ          alignup(64*1024,PAGESZ)
   #endif
 #endif
+#if (TEST_SEGSZ % PAGESZ) != 0 || TEST_SEGSZ <= 0
+  #error Bad TEST_SEGSZ
+#endif
 
-#define TEST_MINHEAPOFFSET  (128*PAGESZ)
+#define TEST_MINHEAPOFFSET  alignup(128*4096,PAGESZ)
+#if (TEST_MINHEAPOFFSET % PAGESZ) != 0 
+  #error Bad TEST_MINHEAPOFFSET
+#endif
 
 #ifdef GASNET_SEGMENT_EVERYTHING
   uint8_t _hidden_seg[TEST_SEGSZ+PAGESZ];

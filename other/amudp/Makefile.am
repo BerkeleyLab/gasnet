@@ -21,7 +21,8 @@ platform_libraries = @LIBS@ @GASNET_UDP_LIBS@
 
 VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
-INCLUDES = -I$(srcdir) $(platform_defines)
+altincdir = $(srcdir)/..
+INCLUDES = -I$(srcdir) -I$(altincdir) $(platform_defines)
 compile = $(CC) $(CFLAGS) $(INCLUDES)
 cxxcompile = $(CXX) $(CXXFLAGS) $(INCLUDES)
 link = $(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) 

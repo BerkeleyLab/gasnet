@@ -1,6 +1,6 @@
-/* $Id: testcore1.c,v 1.7.2.2 2004/03/29 17:46:42 bonachea Exp $
- * $Date: 2004/03/29 17:46:42 $
- * $Revision: 1.7.2.2 $
+/* $Id: testcore1.c,v 1.7.2.3 2004/04/20 00:24:36 bonachea Exp $
+ * $Date: 2004/04/20 00:24:36 $
+ * $Revision: 1.7.2.3 $
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  *
@@ -104,10 +104,10 @@ monoseed_init(int num)
 
 	if (myproc % 2 == 0) {
 		_mseed = (monoseed_t *) test_malloc(sizeof(monoseed_t) * num);
-		srandom(time(0));
+		srand(time(0));
 
 		for (i = 0; i < num; i++) {
-			_mseed[i].seed = (int) random() + 1;
+			_mseed[i].seed = (int) rand() + 1;
 			chksum_gen(_mseed[i].seed, &_mseed[i].chksum);
 		}
 	}

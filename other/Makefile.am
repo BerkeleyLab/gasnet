@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/29 17:46:31 $
-# $Revision: 1.3.2.1 $
+#     $Date: 2004/04/20 00:24:26 $
+# $Revision: 1.3.2.2 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,6 +15,9 @@ SUBDIRS =          \
 EXTRA_DIST =       \
 	amxtests   \
 	firehose   
+
+include_HEADERS = \
+	portable_inttypes.h
 
 if USE_UDP_CONDUIT                           
   UDP_dir=$(top_builddir)/other/amudp

@@ -1,6 +1,6 @@
 #  $Archive::                                                            $
-#     $Date: 2004/03/29 17:46:32 $
-# $Revision: 1.6.4.1 $
+#     $Date: 2004/04/20 00:24:27 $
+# $Revision: 1.6.4.2 $
 # Description: Cray-T3E Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -22,6 +22,5 @@ ccoptflags = -O2
 
 # ------- optional, changed from template ---------
 # additional libraries and/or library directories
-# -lpthread for sched_yield
-platform_libraries = $$LIBCM -lpthread
+platform_libraries = $$LIBCM
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp_internal.h                                 $
- *     $Date: 2004/03/29 17:46:34 $
- * $Revision: 1.4.6.1 $
+ *     $Date: 2004/04/20 00:24:29 $
+ * $Revision: 1.4.6.2 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -24,7 +24,15 @@
 #endif
 
 /* AMUDP system configuration parameters */
-#define DISABLE_STDSOCKET_REDIRECT  0   /* disable redirection of slave stdin/stdout/stderr to master */
+#if defined(SUPERUX)
+  /* broken on SuperUX due to a bad FIONREAD implementation, which causes numBytesWaiting to fail
+     also seems to possibly be some issue with a redirected stdout always triggering select, even when
+     no output is waiting
+   */
+  #define DISABLE_STDSOCKET_REDIRECT  1 
+#else
+  #define DISABLE_STDSOCKET_REDIRECT  0   /* disable redirection of slave stdin/stdout/stderr to master */
+#endif
 #define USE_SOCKET_RECVBUFFER_GROW  1   /* grow RCVBUF on UDP sockets */
 #define AMUDP_RECVBUFFER_MAX  4194304   /* never exceed 4 MB (huge) */
 #ifdef UETH

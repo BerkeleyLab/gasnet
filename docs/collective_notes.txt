@@ -409,6 +409,7 @@ before reaching the collective initiation, waiting for the result of
 some action that will be taken by node B when it exits the collective
 initiation. We need to formalize this requirement in the spec.
 
+
 * OPEN ISSUE: Co-Array FORTRAN (CAF)
 
 The CAF "spec" does not provide any library or intrinsic collective
@@ -427,6 +428,7 @@ communication.
 CAF permits team syncs and team collectives.  We need to look at that
 when trying to extend GASNet for teams.
 
+
 * OPEN ISSUE: Computational collectives (reduce, prefix reduce and sort).
 
 ** Data lifetime and alignment
@@ -435,99 +437,97 @@ Like the other collectives we want bulk lifetimes for both data and
 metadata.  Unlike the other collective operations, we require that the
 data be properly aligned for its type.
 
-** Typed or untyped interface
+** Client-provided (prefix) reduction function.
 
-I am inclined toward an untyped interface in which the client provides
-the number and size of elements, but not a data type.  This means that
-GASNet will not implement any of the operators (+, *, MIN, MAX, etc.)
-"inline", but must invoke a client-provided function to evaluate even
-the simple operators.  I consider this an acceptable overhead, since
-communication should be the dominant factor.
+GASNet computational collectives use an untyped interface in which the
+client provides the number and size of elements, but not a data type.
+GASNet has no built-in reductions for particular data types or
+operations, nor built-in sorts.  The client provides a function
+pointer on each node.
 
-** "Blocked" interface to client-provided function
+GASNet does not assume a single-image environment.  Therefore the
+function pointer is specified independently on each node, and may
+legal differ across nodes even when the GASNET_COLL_SINGLE flag is
+passed to indicate identical address arguments.  Furthermore, the
+GASNet implementation of the computational collectives is constrained
+to only invoke a function pointer on the same node which provided it.
+However, like AM handlers, GASNet does not ensure that the
+client-provided function is executed in the context of any particular
+thread, and may legally execute it in a thread internal to the
+implementation.  GASNet also does not provide any serialization of
+these function invocations.
+
+There is currently nothing in the UPC spec that would prohibit the
+app-provided function from accessing remote memory.  Therefore we do
+not evaluate functions from AM handler context unless we have
+assurance from the client that it is safe to do so.  For this purpose,
+we include GASNET_COLL_AMSAFE flag, which may be included in the
+'flags' argument to a computational collective initiation call.
+Inclusion of this flag is a hint to the GASNet implementation which
+permits it to evaluate the client-provided function (reduction,
+prefix-reduction, or comparison) in an AM context, which the
+implementation must never do without this flag.
 
 In the case of a cyclic array layout each block contains only a single
-data element and there will be a single call to the client-provided
-function.  However, in the case of block and block cyclic layouts
-there is a choice between a simple interface that requires N calls to
-the (prefix) reduction function, and a more complicated one which
-would make a single call to perform the (prefix) reduction on an
-entire block.  I am in favor of this blocked interface.  The choice of
-an untyped interface already requires passing of pointers to data
-elements, so the blocked interface need only add arguments to indicate
-the size(s) of the block(s).
+data element and there will be a single call to a client-provided
+(prefix) reduction function.  However, in the case of block and block
+cyclic layouts one may potentially benefit from an interface which can
+pass an entire block.  This interface has the added advantage of
+placing the function call outside the loops.  This means that we
+should be able to get compiler optimization of the inner reduction
+loops.  This includes vectorization on some platforms, and things like
+loop unrolling, software pipelining and SIMD floating point on others.
 
-This interface has the added advantage of placing the function call
-*outside* the computing loops.  This means that we should be able to
-get compiler optimization of the inner reduction loops.  This includes
-vectorization on some platforms, and things like loop unrolling,
-software pipelining and SIMD floating point on others.
+We keep a single signature for both commutative and non-commutative
+operators and for reduction and prefix-reduction, so that we can pass
+the function pointers through the same call.  Note that a prefix
+reduction function, when called for exactly one output argument is
+semantically identical to a reduction.  This provides important
+freedom to the GASNet implementation of a prefix reduction, which can
+freely perform reductions of intermediate results while only requiring
+the client to provide a single prefix-reduce function, and not a
+distinct function for reduction only.
 
 We can easily allow for full generality of the implementation by
 making no assumptions about the number of partial reductions which
-might be present at any stage of the computation.  Thus we would want
-to support an arbitrary number of left-hand and right-hand operands.
-This leads to a simple interface with two pointers to vectors of
-operands and two scalars giving the vector lengths.  Since a reduction
-or prefix reduction might not need both operands, we can reduce the
-complexity slightly by saying that the vector of left-hand operands is
-optional (may have zero elements), but the right-hand operand vector
-is always non-empty.  This is the natural choice for a
-prefix-reduction since there are never "optional" right-hand operands.
+might be present at any stage of the computation.  We may have zero or
+more operands which do not have corresponding outputs and will always
+have one or more operands which do have corresponding outputs.  In
+the case of a non-commutative prefix reduction, we know that the
+operands which have corresponding outputs will always lie to the right
+of those without.  In the case of a reduction we have exactly one
+output, but need not associate it with any particular input.  Thus we
+support an arbitrary number of left-hand and an non-zero number of
+right-hand operands.  This leads to a simple interface with two
+pointers to vectors of operands and two scalars giving the vector
+lengths.  A third vector of outputs is also required, and will have
+the same length as the right-hand operand vector.  This is the natural
+choice for a prefix-reduction since there are never "optional"
+right-hand operands.
 
-Note that a prefix reduction function, when called with exactly one
-right-hand argument is semantically identical to a reduction,
-producing one result which is the reduction of the concatenation of
-the left and right-hand vectors.
-
-We should keep a single signature for both commutative and
-non-commutative operators so that we can pass the function pointers
-through the same call.  However, the use of an untyped interface
-already forces use of (void *) to point to operands and result
-buffers, to this should mostly be an issue of knowing how to interpret
-the args.
-
-I think it "best practice" to have the client pass distinct function
-pointers for reductions vs. prefix-reduction, but to help avoid
-ambiguity and to enable some debugging, we can trivially encode
-commutative vs. non-commutative and reduce vs. prefix reduce into
-flags.
-
-** Function vs. AM interface
-
-There is nothing in the UPC spec that would prohibit the app-provided
-function from accessing remote memory.  Therefore I think we must NOT
-evaluate functions from AM handler context.  So, we will use a
-function pointer, not an AM handler index, as the mechanism for
-specifying an op.  Since we have chosen an untyped interface, GASNet
-will always take a function pointer from the client.  We can also take
-a (void *) argument to pass through to the client-provided function.
-In the case of UPC_FUNC and UPC_NONCOMM_FUNC that argument might be
-the application-provided function, so the client can implement the
-block-level looping described above.  For the rest of the
-UPC-specified operations, I envision upcr having one reduction
-function per type and using the (void *) argument to carry the upc_op_t.
-
-** (Prefix) Reduction Functions
+To allow client freedom in implementing (prefix) reduction functions,
+we pass the size of the data elements, the commutativity and a
+client-provided opaque argument from the initiation function through
+to the invocation of the client-provided function.
 
 Following the ideas above leads to this prototype:
 
 /* For flags to the reduce_fn: */
-#define GASNET_COLL_OP_REDUCE		???
-#define GASNET_COLL_OP_PREFIX_REDUCE	???
-#define GASNET_COLL_OP_COMM		???
 #define GASNET_COLL_OP_NONCOMM		???
 
 typedef void
-	(gasnet_coll_reduce_fn)(void *results,
+	(gasnet_coll_reduce_fn)(void *results, size_t result_count,
 				const void *left_operands, size_t left_count,
-				const void *right_operands, size_t right_count,
-				int flags, void *arg);
+				const void *right_operands,
+				size_t elem_size, int flags, uintptr_t arg);
 	results: Output array
 		This argument is the address of the space into which the
 		result(s) should be written.
-		For a reduction there is exactly one result.
-		For a prefix reduction, there are 'right_count' results.
+	result_count: Result count
+		The number of results to be generated.  Since there is
+		a one-to-one correspondence between results and
+		right-hand operands, this is also the length of the
+		'right_operands' array.
 	left_operands: Optional left-hand operand array
 		This argument is the address of 0 or more operands which lie
 		to the left of those given by the 'right_operands' argument.
@@ -540,17 +540,16 @@ typedef void
 		This argument is the address of 1 or more operands which lie
 		to the right of those given by the 'left_operands' argument.
 		The number of operands in this array is given by the
-		'right_count' argument.
-	right_count: Right-hand operand count
-		The number of operands in the 'right_operands' array.
-		This argument must be non-zero.
+		'result_count' argument.
+	elem_size: Size of the operand and result elements.
+		This argument gives the size of the data elements
+		which are to be manipulated.
 	flags: Flag values
 		This argument gives information about the operation and
-		is composed of a bitwise or of values..
-		The value of 'flags' will include either GASNET_COLL_OP_REDUCE
-		or GASNET_COLL_OP_PREFIX.
-		The value of 'flags' will include either GASNET_COLL_OP_COMM
-		or GASNET_COLL_OP_NONCOMM.
+		is composed of a bitwise or of values.
+		The value of 'flags' will include GASNET_COLL_OP_NONCOMM
+		if and only if the client passed this same flag to the
+		collective initiation function.
 		The remaining bits of 'flags' are reserved for future use and
 		the client must not assume they will have any particular
 		value.
@@ -562,22 +561,16 @@ Here is an example for a reduction (summation of integers), which takes
 (slight) advantage of commutativity to start with the right-hand operands,
 knowing that they must be non-empty:
 
-void summation_example( void *results,
+void summation_example( void *results, size_t result_count,
 			const void *left_operands, size_t left_count,
-			const void *right_operands, size_t right_count,
-			int flags, void *arg)
+			const void *right_operands,
+			size_t elem_size, int flags, uintptr_t arg)
 {
 	int *left = (int *)left_operands;
 	int *right = (int *)right_operands;
 	int sum;
 	int i;
 	
-	assert(flags & GASNET_COLL_OP_REDUCE);
-	assert(flags & GASNET_COLL_OP_COMM);
-	assert((left_count == 0) || (left_operands != NULL));
-	assert(right_count != 0);
-	assert(right_operands != NULL);
-
 	sum = right[0];
 	for (i = 1; i < right_count; ++i) sum += right[i];
 	for (i = 0; i < left_count;  ++i) sum += left[i];
@@ -587,12 +580,12 @@ void summation_example( void *results,
 
 Here is an example where we call a non-commutative function on doubles
 to perform a prefix reduction.  Note that the application-provided
-function is passed "over" gasnet in the "arg".
+function is passed "over" gasnet in the 'arg'.
 		
-void noncomm_prefix_example(void *results,
+void noncomm_prefix_example(void *results, size_t result_count,
 			    const void *left_operands, size_t left_count,
-			    const void *right_operands, size_t right_count,
-			    int flags, void *arg)
+			    const void *right_operands,
+			    size_t elem_size, int flags, uintptr_t arg)
 {
 	double (*func)(double, double) = (double (*)(double, double))arg;
 	double *output = (double *)results;
@@ -600,12 +593,6 @@ void noncomm_prefix_example(void *results,
 	double *right = (double *)right_operands;
 	double tmp;
 	int i;
-
-	assert(flags & GASNET_COLL_OP_PREFIX);
-	assert(flags & GASNET_COLL_OP_NONCOMM);
-	assert((left_count == 0) || (left_operands != NULL));
-	assert(right_count != 0);
-	assert(right_operands != NULL);
 
 	/* The computation of the first result will depend on the presence
 	 * or absence of partial reductions from "left neighbors". */
@@ -629,7 +616,7 @@ void noncomm_prefix_example(void *results,
 	}
 }
 
-From these 2 examples, one can see how this choice of interface can
+From these examples, one can see how this choice of interface can
 enable vectorization.
 
 ** UPC-imposed complications (data layout)
@@ -683,83 +670,249 @@ allow prefix_reduce+gather and scatter+prefix_reduce to become single
 prefix reductions.  I expect to support this reblocking in the sort as
 well.
 
-If we don't allow for reblocking, then indefinite layout is probably
-dealt with best by the client.  A reduction is just performed on the
-source node, plus synchronization and sending the scalar result to the
-destination node.  A prefix reduction or sort is performed by moving
-the data to the destination node (if it differs from the source node)
-and then the computation is performed on the destination.
-
-If we do want to allow for reblocking, then indefinite layout is
-something we need to express cleanly.  As in UPC, we can use blk_sz=0
-to express the fact that a given src or dst array has indefinite
-layout.  However, we would seem to need an additional argument to
-indicate to which node the array has affinity.  However, the offset
-needed for block-cyclic arrays is not needed for its original purpose.
-Therefore, the "offset" would be a node number for the indefinite case
-and would remain an element count for the other cases.
+To allow for reblocking indefinite layout is something we need to
+express cleanly.  As in UPC, we can use blk_sz=0 to express the fact
+that a given src or dst array has indefinite layout.  However, we
+would seem to need an additional argument to indicate to which node
+the array has affinity.  However, the offset needed for block-cyclic
+arrays is not needed for its original purpose.  Therefore, the
+"offset" would be a node number for the indefinite case and would
+remain an element count for the other cases.
 
 ** Commutativity/Associativity
 
 In the UPC spec it is stated that all reduction ops are assumed
 associative and all are assumed commutative except UPC_NONCOMM_FUNC.
-I think we should stay away from non-associative operators and have an
-flag value to indicate commutativity.
-
-This is consistent with MPI which assumes associativity, but urges
+The associativity assumption is consistent with MPI, which urges
 implementers to evaluate things in a predetermined order so that
 multiple runs produce identical results, even in the presence of
 floating-point roundoff.  I would reiterate this advice as advice to
 GASNet implementers as well.
 
-Ex:
+GASNet provides the GASNET_COLL_OP_NONCOMM flag so the client may
+indicate that the client-provided (prefix) reduction function is
+non-commutative.  The default, when this flag is not passed, is to
+assume a commutative operator.
 
-Imaging X # Y # Z, where # is some operator implemented by f(.,.).
+** Prototypes
 
-Let C={True,False} denote commutativity
-
-C = False:
-	Freedom to change grouping, but not order.
-	Only legal options are f(f(X,Y), Z) and f(X, f(Y,Z))
-C = True:
-	Freedom to change grouping and order, allowing 12 options:
-	    f(f(X,Y),Z)	      f(X,f(Y,Z))
-	    f(f(X,Z),Y)	      f(X,f(Z,Y))
-	    f(f(Y,X),Z)	      f(Y,f(X,Z))
-	    f(f(Y,Z),X)	      f(Y,f(Z,X))
-	    f(f(Z,X),Y)	      f(Z,f(X,Y))
-	    f(f(Z,Y),X)	      f(Z,f(Y,X))
-
-For operators which are non-commutative (i.e. matrix multiply on
-non-square matrices) we can perform partial reductions over the blocks
-in parallel, but cannot reduce multiple blocks per row on a given node
-w/o communication.  The communication that IS required for a reduction
-can be done in O(log(P)) stages which moves n_elems/blk_sz/P elements
-per node in each stage.  [This is not the only way to do it.]
-
-For operators which are commutative we can reduce the multiple blocks
-on a node to a single scalar before starting communication.  We can
-perform the full reduction in O(log(P)) stages requiring only a single
-scalar communicated per node per stage.
-
-Note that for pure-blocked layout there is no difference between
-commutative and non-commutative operators.  For the case of
-pure-cyclic the difference is the most extreme.
-
-** Example
+#define GASNET_COLL_AMSAFE		???
 
 gasnet_coll_handle_t
 gasnet_coll_reduce_nb(
 	gasnet_node_t dstnode, void *dst,
-	void *src, size_t src_offset,
-	size_t elem_size, size_t elem_count, size_t blk_sz,
+	void *src, size_t src_blksz, size_t src_offset,
+	size_t elem_size, size_t elem_count,
+	gasnet_coll_reduce_fn *func, uintptr_t func_arg,
+	int flags);	
+gasnet_coll_handle_t
+gasnet_coll_reducei_nb(
+	gasnet_node_t dstnode, void *dst,
+	void * const srclist[], size_t src_blksz, size_t src_offset,
+	size_t elem_size, size_t elem_count,
+	gasnet_coll_reduce_fn *func, uintptr_t func_arg,
+	int flags);
+
+Argument descriptions:
+  dstnode, dst: Destination
+    The result of a reduction is a single data element of the size
+    given by the 'elem_size'.  This pair of arguments gives the node
+    and address at which the result will be placed.  For
+    GASNET_COLL_LOCAL the 'dst' address is ignored on all nodes except
+    'dstnode'.  The value of the 'dstnode' argument must be equal
+    across all nodes or the behavior is undefined.
+  src: Source address(es)
+    This argument gives the address or addresses of the source array
+    for gasnet_coll_reduce_nb(), containing data items of size
+    'elem_size' bytes.  The layout of elements across the nodes source
+    arrays depend on additional arguments.  When 'src_blksz' is zero,
+    we have indefinite layout and all 'elem_count' data elements
+    reside on a single image, given by 'src_offset'.  When 'src_blksz'
+    is non-zero, the data has a block-cyclic layout consisting of at
+    least ('elem_count'+'src_offset') elements with a block size of
+    'src_blksz' elements per block.
+
+    When GASNET_COLL_SINGLE is included in the 'flags' argument, the
+    same value must be passed on all nodes, and is used as the
+    starting address of the source array on all nodes (when
+    'src_blksz' is non-zero) or exactly one node (when 'src_blksz' is
+    zero).  When GASNET_COLL_LOCAL is included in the 'flags'
+    argument, the value passed on each node is independent and
+    provides only the address of the source array on the given node.
+  srclist: Source address(es)
+    This argument replaces 'src' for use in gasnet_coll_reducei_nb().
+    When GASNET_COLL_SINGLE is included in the 'flags' argument, this
+    argument is an array of NImages addreses, which must be identical
+    across all nodes.  The ith address is used as the source address
+    of the ith image, where the correspondence between images and
+    GASNet nodes is the one given by the gasnet_coll_init() call.
+    In the LOCAL case this argument may be passed independent values
+    on each node.  On node i, this argument is an array of images[i]
+    local addresses, where images[] is the argument passed to
+    gasnet_coll_init().
+  src_blksz: Source blocksize
+    This argument gives the blocksize of the data layout for the
+    source data.  When equal to zero, 'src_blksz' denotes indefinite
+    layout and 'src_offset' gives the index of the corresponding node
+    or image.  Otherwise, this is the blocksize, in units of elements
+    ('elem_size' bytes), of a block-cyclic layout.  The value of this
+    argument must be equal across all nodes or the behavior is
+    undefined.
+  src_offset: Source offset
+    This argument gives the offset to the first data element, relative
+    to the base of the distributed array defined by the 'src' or
+    'srclist' and 'src_blksz' arguments.  When 'src_blksz' is zero the
+    offset is in units of images, and gives the index of the image
+    holding the data.  For gasnet_coll_reduce_nb() images are
+    synonymous with nodes, while for gasnet_coll_reducei_nb() the
+    node/image corresponence is that given by the gasnet_coll_init()
+    call.  When 'src_blksz' is non-zero the offset is in units of data
+    elements ('elem_size' bytes) and follows the ordering of the
+    block-cyclic layout.  The value of this argument must be equal
+    across all nodes or the behavior is undefined.
+  elem_size: Element size
+    This argument gives the size, in bytes, of the data elements to be
+    reduced, and must be equal across all nodes or the behavior is
+    undefined.
+  elem_count: Element count
+    This argument gives the number of elements to be reduced, and must
+    be equal across all nodes or the behavior is undefined.
+  func, func_arg: Reduction function and argument
+    This pair of arguments define the client-provided function which
+    will perform the reduction.  The 'func' argument is a pointer to a
+    function of type gasnet_coll_reduce_fn (described elsewhere).  The
+    'func_arg' argument is an argument passed to 'func' to allow the
+    client to pass information not handled by GASNet.  Even when
+    GASNET_COLL_SINGLE is included in 'flags', these arguments may be
+    passed independently on each node.  GASNet will use, on any given
+    node, only the 'func' and 'func_arg' given on that node.  See
+    elsewhere for important information on threading issues associated
+    with invoking 'func'.
+  flags: Flags argument
+    The value of this argument must be equal across all nodes or the
+    behavior is undefined.
+    This argument gives a bitwise OR of flags which determine how the
+    reduction operation will be performed.  Flags include:
+    GASNET_COLL_{IN,OUT}_{NO,MY,ALL}SYNC:
+      As defined elsewhere
+    GASNET_COLL_OP_NONCOMM:
+      This flag indicates that the client-provided function is not
+      commutative and will restrict the GASNet implementation to
+      invoke the function accordingly.  When present, this flag will
+      also be passed to the client-provided function.
+    GASNET_COLL_AMSAFE:
+      This flag is an assertion by the client that GASNet is permitted
+      to invoke the reduction function in the context of a GASNet
+      Active Message handler.  GASNet will never invoke the function
+      from the context of an AM handler unless this flag is present in
+      the corresponding collective initiation call.
+
+
+gasnet_coll_handle_t
+gasnet_coll_prefix_reduce_nb(
+	void *dst, size_t dst_blksz, size_t dst_offset,
+	void *src, size_t src_blksz, size_t src_offset,
+	size_t elem_size, size_t elem_count,
 	gasnet_coll_reduce_fn *func, void *func_arg,
 	int flags);	
+gasnet_coll_handle_t
+gasnet_coll_prefix_reducei_nb(
+	void * const dstlist[], size_t dst_blksz, size_t dst_offset,
+	void * const srclist[], size_t src_blksz, size_t src_offset,
+	size_t elem_size, size_t elem_count,
+	gasnet_coll_reduce_fn *func, void *func_arg,
+	int flags);	
+
+[TO DO:
+Need full argument descriptions.
+Same as Reduce with the addition of a dst array specification.
+May wish to merge the reduce and prefix-reduce argument descriptions.]
+
+** Status of a GASNet sort collective
+
+Paul and Dan have identified a number of potential issues in the UPC
+specification of the sort collective [to be typed up in Bugzilla and
+then distributed to the collectives committee for consideration].  The
+GASNet sort interface, if any, will follow the pattern set by the
+reduce and prefix reduce collectives.  However, detailed work on SORT
+has been postponed, pending an attempt to resolve some of these UPC
+issues.
+
+
+* OPEN ISSUE: Teams
+
+Dan and Paul came up with the following formal description of the
+ordering requirement on team collectives.
+
+"
+Informally, we require that for any pair of collectives all nodes
+which participate in both must agree on their ordering.  Formally this
+may be expressed as follows.
+
+For any collective X let Participants(X) denote the set of nodes which
+are members of the corresponding team.  For non-team collectives,
+Participants() is the set of all GASNet nodes.
+
+For node I, and collectives X and Y, let Precedes_I(X,Y) be a
+predicate true when X != Y and collective X is initiated before
+collective Y on node I.
+
+For all collectives X and Y:
+  For all nodes I and J in Intersection(Participants(X), Participants(Y)):
+    Precedes_I(X,Y) = Precedes_J(X,Y).
+"
+
+[Note there is no ambiguity when X==Y or I==J]
+
+We need a representation for a team.  Once constructed, we want a team
+to be an immutable object.  Thus an opaque handle of some sort is
+appropriate.  We cannot guarantee the same bitwise representation on
+all nodes and should make this clear so the client doesn't try passing
+team handles between nodes.  [Do we need anything extra to deal with
+clients which have a need to globally name their teams?  Do we even
+see a reason a client would need to?]
+
+We can imagine needing to access a team in at least three different
+ways.  The simplest is to ask "does node I belong to team T?"  With a
+vector of node numbers we can perform this test in O(|T|) time, or in
+O(log(|T|)) if the vector is sorted.  If we have a bitmap
+representation then we can perform the is_member() test in O(1) time.
+
+Another is a potential need to iterate over the members of a team.
+For a team with |T| << P, we'd like to perform the iteration in
+O(|T|).  The node vector implementation allows for a O(|T|)
+implementation of iteration (total time for all |T| iterations).
+
+We may also need a mapping between global node number and a "rank"
+within a team.  The node-vector representation makes the rank->node
+mapping trivial.  The inverse mapping will require either O(P)
+additional storage to perform the mapping in O(1) time, or could be
+done by binary search within the node vector on O(log(|T|)) time.
+
+By using an opaque identifier for teams, we can internally keep both
+the node vector representation and a bitmap (and the node->rank
+mapping array if desired).
+
+Note that the major issues with adding teams to UPC are related to
+pointer arithmetic and memory allocation, neither of which affect
+GASNet.  Therefore, we can make the GASNet collective team-ready
+immediately (even if we delay implementation until we have a client).
+One simple design idea would be to add a team handle as the first
+argument to the exisiting proposal for collective initiation calls,
+which avoids doubling the width of this part of the interface.  By
+introducing a GASNET_TEAM_ALL (analogous to MPI_COMM_WORLD) we can
+easily identify non-team collectives at compile time and avoid paying
+any runtime cost for the team generality when it is not needed.  [I
+actually envision leaving team!=GASNET_TEAM_ALL unimplemented
+initially.]
 
 =============================================================================
 END OF OPEN ISSUES
 START OF CURRENT PROPOSAL
 =============================================================================
+
+[TODO: "i" is probably not the right suffix and we also need a better
+name in the descriptions than "no suffix" and "i-suffix".]
 
 There are two flavors of interface to each collective.  The basic (no
 suffix) case moves an equal amount of contiguous data to or from each
@@ -785,8 +938,8 @@ number of images, such as one per language-level thread, and not for
 varying the size of the contribution from each node dynamically.
 
 Common to all these interfaces is the presence of either
-GASNET_COLL_LOCAL or GASNET_COLL_SINGLE in the flags argument .  In
-the SINGLE case we have UPC-style arguments in which the addresses are
+GASNET_COLL_LOCAL or GASNET_COLL_SINGLE in the flags argument.  In the
+SINGLE case we have UPC-style arguments in which the addresses are
 known (and thus passed in) on all nodes.  In the LOCAL case we have
 Titanium-style arguments in which only the local addresses are known,
 and passed in.
@@ -847,31 +1000,32 @@ sequence of initiation calls with the GASNET_COLL_AGGREGATE flag set
 form a multiple-member aggregate, together with the first following
 call without GASNET_COLL_AGGREGATE.
 
-Only the Last member of an aggregate returns a valid handle.
 The handle returned by any collective initiation call with
 GASNET_COLL_AGGREGATE in the flags is undefined.  If a client attempts
-to sync on a handle returned by any collective initiation call with
-GASNET_COLL_AGGREGATE in the flags then the behavior is undefined.
+to sync on a handle returned by such a call then the behavior is
+undefined.  If the Last member of an aggregate is a non-blocking
+initiation call, then it will return a valid handle, successful
+synchronization of which indicates that all members of the aggregate
+have completed to the extent required by their synchronization flags.
+If the Last member of an aggregate is a blocking call then it will not
+return until all members of the aggregate have completed to the extent
+required by their synchronization flags
 
 Gasnet non-blocking collectives have bulk data lifetime semantics
-regardless of the use of aggregation.
+regardless of the use of aggregation.  The lifetime of any given
+buffer starts with the initiation call describing that buffer, and is
+not deferred until the Last member of the aggregate.
 
-It is illegal to make blocking collective initiation calls between the
-First and Last collective initiation calls of any aggregate.  It is
-permitted to make other GASNet calls between the First and Last calls
-of an aggregate, excepting those calls that would be prohibited even
-in the absence of aggregation, such as the gasnet_barrier_* calls.
+It is permitted to make other GASNet calls between the First and Last
+calls of an aggregate, excepting those calls that would be prohibited
+even in the absence of aggregation, such as the gasnet_barrier_*
+calls.
 
-[OPEN/TBD: The description above (most notably the data lifetime
-comment) allows for an implementation which does nothing but aggregate
-the handles in the spirit of an nbi access region.  Such an
-implementation could start the communications just as it would in the
-absence of aggregation.  This seems the most natural semantic to me.
-However, one alternative would be to say that communication MUST NOT
-start until the Last initiation call.  If this is taken as far as
-saying that the bulk data lifetime did not begin until the Last
-member, then we allow the client to continue setting up the source
-data until the Last call.]
+Note to implementers:
+The description above allows for an implementation which does nothing
+but aggregate the handles in the spirit of an nbi access region,
+starting communications just as it would in the absence of
+aggregation.
 
 With all of that said, here are the 11 prototypes needed to cover the
 relocalization collectives, excluding permute:
@@ -1254,6 +1408,41 @@ gasneti_cond_wait_mutex(gasneti_cond_t *cond, gasneti_mutex_t *lock)
 }
 
 
+=============================================================================
+* Notes on (non-)commutative (prefix) reduction operators.
+
+Imagine X # Y # Z, where # is some operator implemented by f(.,.).
+
+Let C={True,False} denote commutativity
+
+C = False:
+	Freedom to change grouping, but not order.
+	Only legal options are f(f(X,Y), Z) and f(X, f(Y,Z))
+C = True:
+	Freedom to change grouping and order, allowing 12 options:
+	    f(f(X,Y),Z)	      f(X,f(Y,Z))
+	    f(f(X,Z),Y)	      f(X,f(Z,Y))
+	    f(f(Y,X),Z)	      f(Y,f(X,Z))
+	    f(f(Y,Z),X)	      f(Y,f(Z,X))
+	    f(f(Z,X),Y)	      f(Z,f(X,Y))
+	    f(f(Z,Y),X)	      f(Z,f(Y,X))
+
+For operators which are non-commutative (i.e. matrix multiply on
+non-square matrices) we can perform partial reductions over the blocks
+in parallel, but cannot reduce multiple blocks per row on a given node
+w/o communication.  The communication that IS required for a reduction
+can be done in O(log(P)) stages which moves n_elems/blk_sz/P elements
+per node in each stage.  [This is not the only way to do it.]
+
+For operators which are commutative we can reduce the multiple blocks
+on a node to a single scalar before starting communication.  We can
+perform the full reduction in O(log(P)) stages requiring only a single
+scalar communicated per node per stage.
+
+Note that for pure-blocked layout there is no difference in
+implementation between commutative and non-commutative operators.  For
+the case of pure-cyclic the difference is the most extreme.
+
 
 =============================================================================
 * Notes on algorithms 
@@ -1309,6 +1498,7 @@ The LogGP paper [Alexandrov95] describes an algorithm for constructing
 the optimal scatter, analogous the the broadcast scahedule of [Karp93].
 This being log_G_P, takes proper consideration of the varying size of
 the messages when a tree is used to forward data.
+
 
 Gather:
 =======
@@ -1464,9 +1654,9 @@ want equal contribution from each node, and Sort does not require it.
 This might be another case for implementing collectives with
 variable-sized contributions.
 
-I have yet to start searching for literature specific to this problem,
-so there may be methods much better than the Gather+Scatter described
-above.
+I have not yet finished searching for literature specific to this
+problem, and there are methods much better than the Gather+Scatter
+described above.
 
 
 =============================================================================
@@ -1542,7 +1732,7 @@ and Richard P. Martin",
  url = "citeseer.ist.psu.edu/dusseau96fast.html"
 }
 
-@inproceedings{215427,
+@inproceedings{Alexandrov95,
  author = {Albert Alexandrov and Mihai F. Ionescu and Klaus E. Schauser and Chris Scheiman},
  title = {LogGP: incorporating long messages into the LogP model\-one step closer towards a realistic model for parallel computation},
  booktitle = {Proceedings of the seventh annual ACM symposium on Parallel algorithms and architectures},

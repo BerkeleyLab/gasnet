@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_help.h                 $
- *     $Date: 2004/03/29 17:46:22 $
- * $Revision: 1.14.2.2 $
+ *     $Date: 2004/04/20 00:24:17 $
+ * $Revision: 1.14.2.3 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -129,7 +129,7 @@ extern gasnet_seginfo_t *gasnete_seginfo;
     static uint8_t _gasnete_aligncheck[600];
     #define gasnete_aligncheck(ptr,nbytes) do {                                         \
         uint8_t *_gasnete_alignbuf =                                                    \
-          (uint8_t *)((((uintptr_t)&_gasnete_aligncheck) + 0xFF) & ~((uintptr_t)0xFF)); \
+          (uint8_t *)(((uintptr_t)&(_gasnete_aligncheck[0x100])) & ~((uintptr_t)0xFF)); \
         uintptr_t offset = ((uintptr_t)(ptr)) & 0xFF;                                   \
         uint8_t *p = _gasnete_alignbuf + offset;                                        \
         gasneti_assert(p >= _gasnete_aligncheck &&                                      \

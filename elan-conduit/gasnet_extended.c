@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_extended.c                  $
- *     $Date: 2004/03/29 17:46:21 $
- * $Revision: 1.26.2.2 $
+ *     $Date: 2004/04/20 00:24:16 $
+ * $Revision: 1.26.2.3 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1435,6 +1435,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
 #if !GASNETE_USE_ELAN_BARRIER
   /* use reference implementation of barrier */
   #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+  #define gasnete_refbarrier_init    gasnete_barrier_init
   #define gasnete_refbarrier_notify  gasnete_barrier_notify
   #define gasnete_refbarrier_wait    gasnete_barrier_wait
   #define gasnete_refbarrier_try     gasnete_barrier_try

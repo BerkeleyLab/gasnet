@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp_spmd.h                                     $
- *     $Date: 2004/03/29 17:46:34 $
- * $Revision: 1.5.6.1 $
+ *     $Date: 2004/04/20 00:24:29 $
+ * $Revision: 1.5.6.2 $
  * Description: AMUDP Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -48,8 +48,14 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
 extern int AMUDP_SPMDExit(int exitcode); 
   /* terminate the parallel job with given exit code (also handles AM_Terminate)
    */
+#if defined(__GNUC__) && (__GNUC__ < 3 || (__GNUC__ == 3 && __GNUC_MINOR__ == 0))
+  /* adding extern C for these versions fails with "multiple storage classes in 
+     declaration of `amudp_exitcallback_t'" */
+#else
+  EXTERNC 
+#endif
+typedef void (*amudp_exitcallback_t)(int);
 
-EXTERNC typedef void (*amudp_exitcallback_t)(int);
 EXTERNC int AMUDP_SPMDSetExitCallback(amudp_exitcallback_t);
   /* register a function to be called when AMUDP_SPMDExit is called by any node
    * exit code is passed

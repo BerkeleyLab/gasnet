@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refbarrier.c                  $
- *     $Date: 2004/03/29 17:46:22 $
- * $Revision: 1.1.6.1 $
+ *     $Date: 2004/04/20 00:24:17 $
+ * $Revision: 1.1.6.2 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -287,7 +287,7 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   const int islocal = (dstnode == gasnete_mynode);
   GASNETI_TRACE_EVENT(C, PUTI_REF_INDIV);
-  gasneti_assert(srccount > 0 && dstcount > 0 && dstcount*dstlen == srccount*srclen);
+  gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
 
@@ -356,7 +356,7 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   const int islocal = (srcnode == gasnete_mynode);
   GASNETI_TRACE_EVENT(C, GETI_REF_INDIV);
-  gasneti_assert(srccount > 0 && dstcount > 0 && dstcount*dstlen == srccount*srclen);
+  gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
 
@@ -640,7 +640,8 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
     GASNETE_STRIDED_HELPER_CASE(4)                                     \
     GASNETE_STRIDED_HELPER_CASE(5)                                     \
     GASNETE_STRIDED_HELPER_CASE(6)                                     \
-    GASNETE_STRIDED_HELPER_CASE(7)                                     \
+    /* GASNETE_STRIDED_HELPER_CASE(7)                                  \ 
+       DOB: workaround preprocessor bug in HP CC */                    \
     default: {                                                         \
       uint8_t *psrc = srcaddr;                                         \
       uint8_t *pdst = dstaddr;                                         \
@@ -906,6 +907,7 @@ gasnet_handle_t gasnete_puts_ref_vector(gasnete_synctype_t synctype,
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasnete_mynode);
+    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats.totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
@@ -939,6 +941,7 @@ gasnet_handle_t gasnete_gets_ref_vector(gasnete_synctype_t synctype,
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasnete_mynode);
+    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats.totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
@@ -974,6 +977,7 @@ gasnet_handle_t gasnete_puts_ref_indexed(gasnete_synctype_t synctype,
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasnete_mynode);
+    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats.totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
@@ -1007,6 +1011,7 @@ gasnet_handle_t gasnete_gets_ref_indexed(gasnete_synctype_t synctype,
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasnete_mynode);
+    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats.totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);

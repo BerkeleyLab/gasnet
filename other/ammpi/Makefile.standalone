@@ -1,6 +1,6 @@
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/29 17:46:32 $
-# $Revision: 1.10.4.1 $
+#     $Date: 2004/04/20 00:24:27 $
+# $Revision: 1.10.4.2 $
 # Description: Makefile for AMMPI
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -20,7 +20,7 @@ ccflags = -DAMMPI_NDEBUG=1 $(ccoptflags) $(apputils_flags)
 # You should never need to change things below this line
 
 VPATH = $(srcdir)
-includes = -I$(srcdir)
+includes = -I$(srcdir) -I$(altincdir)
 libraries = $(platform_libraries)
 Ccompile = $(CC) -c $(ccflags) $(platform_defines) $(includes)
 link = $(CC) $(ccflags) $(platform_ldflags) $(platform_defines) $(includes) 
@@ -80,7 +80,7 @@ amxdist:
          echo "+++ Building distribution for AMMPI version $${VERSION} +++" && \
          rm -Rf ammpi$${VERSION}.tar.gz ammpi$${VERSION} && \
          mkdir ammpi$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* ammpi$${VERSION} && \
+         cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h ammpi$${VERSION} && \
          rm -f ammpi$${VERSION}/Makefile.in ammpi$${VERSION}/Makefile.titanium && \
          tar -cvhf ammpi$${VERSION}.tar ammpi$${VERSION} && gzip -9 ammpi$${VERSION}.tar && \
          rm -Rf ammpi$${VERSION} && \

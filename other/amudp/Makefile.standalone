@@ -1,6 +1,6 @@
 #  $Archive:: /Ti/AMUDP/Makefile                                         $
-#     $Date: 2004/03/29 17:46:34 $
-# $Revision: 1.10.4.1 $
+#     $Date: 2004/04/20 00:24:29 $
+# $Revision: 1.10.4.2 $
 # Description: Makefile for AMUDP
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -25,7 +25,7 @@ cxxflags = -DAMUDP_NDEBUG=1 $(cxxoptflags)
 # You should never need to change things below this line
 
 VPATH = $(srcdir)
-includes = -I$(srcdir) $(glunix_includes) $(rexec_includes) $(ueth_includes)
+includes = -I$(srcdir) -I$(altincdir) $(glunix_includes) $(rexec_includes) $(ueth_includes)
 libraries = $(glunix_libraries) $(ueth_libraries) $(platform_libraries)
 Ccompile = $(CC) -c $(ccflags) $(platform_defines) $(includes)
 CXXcompile = $(CXX) -c $(cxxflags) $(platform_defines) $(includes)
@@ -93,7 +93,7 @@ amxdist:
          echo "+++ Building distribution for AMUDP version $${VERSION} +++" && \
 	 rm -Rf amudp$${VERSION}.tar.gz amudp$${VERSION} && \
          mkdir amudp$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* amudp$${VERSION} && \
+         cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
          rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
          tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \
          rm -Rf amudp$${VERSION} && \

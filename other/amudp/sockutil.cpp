@@ -1,6 +1,6 @@
 //  $Archive:: /Ti/AMUDP/sockutil.cpp                                     $
-//     $Date: 2004/03/29 17:46:34 $
-// $Revision: 1.4.6.1 $
+//     $Date: 2004/04/20 00:24:29 $
+// $Revision: 1.4.6.2 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -171,7 +171,7 @@ void sendAll(SOCKET s, const void* buffer, int numbytes) {
     LPSIGHANDLER oldsighandler = reghandler(SIGPIPE, (LPSIGHANDLER)SIG_IGN); 
     // ignore broken pipes, because we get that when we write to a socket after other side reset
   #endif
-  const char *buf = (const char*)buffer;
+  char *buf = (char*)buffer;
   while (numbytes) {
     int retval;
     retval = send(s, buf, numbytes, 0);

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core.c                  $
- *     $Date: 2004/03/29 17:46:26 $
- * $Revision: 1.38.2.2 $
+ *     $Date: 2004/04/20 00:24:21 $
+ * $Revision: 1.38.2.3 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,7 +39,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
-#include <sched.h>
 #include <signal.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
@@ -1535,6 +1534,30 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
     gasnetc_spinlock_unlock(&(hsl->lock));
+}
+
+extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+  GASNETI_CHECKATTACH();
+
+  {
+    int locked = (gasnetc_spinlock_trylock(&(hsl->lock)) == 0);
+
+    GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
+    if (locked) {
+      #if GASNETI_STATS_OR_TRACE
+        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      #endif
+      #if GASNETC_USE_INTERRUPTS
+        /* conduits with interrupt-based handler dispatch need to add code here to
+           disable handler interrupts on _this_ thread, (if this is the outermost
+           HSL lock acquire and we're not inside an enclosing no-interrupt section)
+         */
+        #error interrupts not implemented
+      #endif
+    }
+
+    return locked ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/03/29 17:46:22 $
- * $Revision: 1.29.2.2 $
+ *     $Date: 2004/04/20 00:24:17 $
+ * $Revision: 1.29.2.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -177,6 +177,9 @@ extern void gasnete_init() {
     gasnete_op_markdone((gasnete_op_t *)eop, 0);
     gasnete_op_free((gasnete_op_t *)eop);
   }
+
+  /* Initialize barrier resources */
+  gasnete_barrier_init();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -947,6 +950,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
 
 /* use reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#define gasnete_refbarrier_init    gasnete_barrier_init
 #define gasnete_refbarrier_notify  gasnete_barrier_notify
 #define gasnete_refbarrier_wait    gasnete_barrier_wait
 #define gasnete_refbarrier_try     gasnete_barrier_try

@@ -1,12 +1,13 @@
 #  $Archive:: /Ti/AMUDP/Makefile.titanium.in                             $
-#     $Date: 2004/03/29 17:46:34 $
-# $Revision: 1.5.4.1 $
+#     $Date: 2004/04/20 00:24:29 $
+# $Revision: 1.5.4.2 $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
 # variables added here should also go in Makefile.common, and vice-versa
 
 srcdir = . # passed in on command-line
+altincdir = $(srcdir)/..
 testdir = $(srcdir)/../amxtests
 
 # compiler

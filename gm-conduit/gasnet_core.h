@@ -1,6 +1,6 @@
-/* $Id: gasnet_core.h,v 1.14.2.2 2004/03/29 17:46:23 bonachea Exp $
- * $Date: 2004/03/29 17:46:23 $
- * $Revision: 1.14.2.2 $
+/* $Id: gasnet_core.h,v 1.14.2.3 2004/04/20 00:24:19 bonachea Exp $
+ * $Date: 2004/04/20 00:24:19 $
+ * $Revision: 1.14.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -136,16 +136,19 @@ typedef struct _gasnet_hsl_t {
   #define gasnet_hsl_destroy(hsl)
   #define gasnet_hsl_lock(hsl)
   #define gasnet_hsl_unlock(hsl)
+  #define gasnet_hsl_trylock(hsl)	GASNET_OK
 #else
   extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
+  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl);
 
   #define gasnet_hsl_init    gasnetc_hsl_init
   #define gasnet_hsl_destroy gasnetc_hsl_destroy
   #define gasnet_hsl_lock    gasnetc_hsl_lock
   #define gasnet_hsl_unlock  gasnetc_hsl_unlock
+  #define gasnet_hsl_trylock gasnetc_hsl_trylock
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*

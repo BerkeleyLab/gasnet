@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/03/29 17:46:16 $
- * $Revision: 1.16.2.2 $
+ *     $Date: 2004/04/20 00:24:13 $
+ * $Revision: 1.16.2.3 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -119,7 +119,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   typedef struct {
     size_t minsz;
     size_t maxsz;
-    size_t totalsz;
+    uintptr_t totalsz;
     void *minaddr;
     void *maxaddr;
   } gasneti_memveclist_stats_t;

@@ -1,6 +1,6 @@
 /*   $Archive::                                                            $ */
-/*      $Date: 2004/04/19 23:22:52 $ */
-/*  $Revision: 1.1 $ */
+/*      $Date: 2004/04/20 00:24:26 $ */
+/*  $Revision: 1.1.2.1 $ */
 /*  Description: portable_inttypes.h  */
 /*  Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> */
 
