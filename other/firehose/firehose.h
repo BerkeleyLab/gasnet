@@ -4,8 +4,10 @@
 struct _firehose_private_t;
 
 #if (defined(FIREHOSE_PAGE) && defined(FIREHOSE_REGION)) || \
-    (!defined(FIREHOSE_PAGE) && !defined(FIREHOSE_REGION))
-#error Only define one of FIREHOSE_PAGE or FIREHOSE_REGION
+    (!defined(FIREHOSE_PAGE) && !defined(FIREHOSE_REGION)) || \
+    (defined(FIREHOSE_PAGE) && defined(FIREHOSE_CLIENT_T)
+#error Only define one of FIREHOSE_PAGE or FIREHOSE_REGION.  Make sure \
+       FIREHOSE_CLIENT_T is only defined if FIREHOSE_REGION is defined.
 #endif
 
 /* The firehose request type is returned as a read-only type from
@@ -52,8 +54,8 @@ firehose_request_t;
  */
 typedef
 struct _firehose_region_t {
-	void	*addr;
-	size_t	len;		/* length field is extraneous on 
+	uintptr_t	addr;
+	size_t		len;	/* length field is extraneous on 
 				   the network in firehose-page */
 
 	#ifdef FIREHOSE_CLIENT_T
@@ -84,6 +86,8 @@ typedef
 struct _firehose_info_t {
 	size_t	max_RemotePinSize;
 	size_t	max_LocalPinSize;
+
+	size_t  max_FifoPages;
 }
 firehose_info_t;
 
