@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/11/13 08:06:09 $
-# $Revision: 1.92.4.3 $
+#     $Date: 2003/12/01 01:04:10 $
+# $Revision: 1.92.4.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.92.4.3 $)
+AC_REVISION($Revision: 1.92.4.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1285,10 +1285,9 @@ case "$target_os" in
         ;;
     # Cray ships ranlib on the T3E but not on the X1. 
     unicos*)
-        RANLIB=""
-        AC_PATH_PROGS($RANLIB,ranlib)
-        if test x"$RANLIB" = x; then 
-            RANLIB="ar s"
+        AC_PATH_PROGS(RANLIB,ranlib)
+        if test ! -n "$RANLIB"; then 
+            RANLIB="ar -s"
         fi
         ;;
     osf*)
@@ -1398,7 +1397,6 @@ vapi-conduit/contrib/gasnetrun_vapi
 
 shmem-conduit/Makefile
 shmem-conduit/shmem-seq.mak
-shmem-conduit/shmem-parsync.mak
 
 other/Makefile
 other/ammpi/Makefile
