@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/04/07 19:51:12 $
-# $Revision: 1.40.2.2 $
+#     $Date: 2003/04/09 17:47:58 $
+# $Revision: 1.40.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.40.2.2 $)
+AC_REVISION($Revision: 1.40.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -166,8 +166,12 @@ case "$gasnet_cv_cc_family" in
   Cray) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; 
   MIPS) MISC_CFLAGS="-diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
-  XLC) MISC_CFLAGS="-qcpluscmt" ;;
   *)    MISC_CFLAGS="" ;;
+esac
+
+case "$gasnet_cv_cc_family" in
+  XLC) MISC_CPPFLAGS="-qcpluscmt" ;; # tell preprocessor to allow C++-style comments
+  *)    MISC_CPPFLAGS="" ;;
 esac
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
@@ -188,7 +192,8 @@ GASNET_IF_ENABLED(stats, Build GASNet with statistical collection enabled,
   BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DSTATS", )
 
 AC_SUBST(CFLAGS)	      # opt/debug flags
-AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc flags
+AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
+AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
 AC_SUBST(BUILDCONFIG_DEFINES) # defines that setup build configuration
 
 segconfig=""

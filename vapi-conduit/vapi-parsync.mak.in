@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/vapi-parsync.mak.in,v 1.1.2.2 2003/03/20 17:43:28 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/vapi-parsync.mak.in,v 1.1.2.3 2003/04/09 17:48:00 phargrov Exp $
 # Description: Makefile fragment for VAPI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -8,7 +8,7 @@
 #
 # Clients should include this file,
 # then use a compile line something like this:
-#  $(GASNET_CC) $(GASNET_CFLAGS) -c myfile.c
+#  $(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) -c myfile.c
 #
 # and a link line something like this:
 #  $(GASNET_LD) $(GASNET_LDFLAGS) -o myfile myfile.o $(GASNET_LIBS)
@@ -32,9 +32,11 @@ GASNET_CC = @MPI_CC@
 
 GASNET_OPT_CFLAGS = @MPI_CFLAGS@ 
 GASNET_MISC_CFLAGS = @MISC_CFLAGS@
+GASNET_MISC_CPPFLAGS = @MISC_CPPFLAGS@
 GASNET_DEFINES = @BUILDCONFIG_DEFINES@ -DGASNET_PARSYNC @GASNET_THREAD_DEFINES@
 # C compiler options that GASNet clients should use 
-GASNET_CFLAGS = $(GASNET_OPT_CFLAGS) $(GASNET_MISC_CFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)
+GASNET_CFLAGS = $(GASNET_OPT_CFLAGS) $(GASNET_MISC_CFLAGS)
+GASNET_CPPFLAGS = $(GASNET_MISC_CPPFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)
 
 # linker that GASNet clients should use 
 GASNET_LD = @MPI_CC@
