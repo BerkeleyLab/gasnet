@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/08/12 17:12:57 $
- * $Revision: 1.47.2.1 $
+ *     $Date: 2004/08/12 21:42:32 $
+ * $Revision: 1.47.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -329,13 +329,13 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  * some resource of known multiplicity.
  */
 typedef struct {
-  #if !GASNETI_HAVE_ATOMIC_CAS
+  #ifndef GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_t	lock;
   #endif
   gasneti_atomic_t	count;
 } gasnetc_sema_t;
 
-#if GASNETI_HAVE_ATOMIC_CAS
+#ifdef GASNETI_HAVE_ATOMIC_CAS
   #define GASNETC_SEMA_INITIALIZER(N) {gasneti_atomic_init(N)}
 #else
   #define GASNETC_SEMA_INITIALIZER(N) {GASNETC_MUTEX_INITIALIZER, gasneti_atomic_init(N)}
@@ -344,7 +344,7 @@ typedef struct {
 /* gasnetc_sema_init */
 GASNET_INLINE_MODIFIER(gasnetc_sema_init)
 void gasnetc_sema_init(gasnetc_sema_t *s, int n) {
-  #if !GASNETI_HAVE_ATOMIC_CAS
+  #ifndef GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_init(&(s->lock));
   #endif
   gasneti_atomic_set(&(s->count), n);
@@ -353,7 +353,7 @@ void gasnetc_sema_init(gasnetc_sema_t *s, int n) {
 /* gasnetc_sema_destroy */
 GASNET_INLINE_MODIFIER(gasnetc_sema_destroy)
 void gasnetc_sema_destroy(gasnetc_sema_t *s) {
-  #if !GASNETI_HAVE_ATOMIC_CAS
+  #ifndef GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_destroy(&(s->lock));
   #endif
 }
@@ -381,7 +381,7 @@ GASNET_INLINE_MODIFIER(gasnetc_sema_trydown)
 int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
   int retval;
 
-  #if GASNETI_HAVE_ATOMIC_CAS
+  #ifdef GASNETI_HAVE_ATOMIC_CAS
     uint32_t old = gasneti_atomic_read(&(s->count));
     retval = (old > 0) && gasneti_atomic_compare_and_swap(&(s->count), old, old - 1);
     if (retval) gasneti_sync_reads();

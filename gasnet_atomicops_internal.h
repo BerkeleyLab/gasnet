@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops_internal.h                               $
- *     $Date: 2004/08/12 19:53:39 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2004/08/12 21:42:26 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet header for semi-portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,7 @@
 #ifndef _GASNET_ATOMICOPS_INTERNAL_H
 #define _GASNET_ATOMICOPS_INTERNAL_H
 
-#if !defined(_IN_GASNET_INTERNAL_H)
+#if !defined(_IN_GASNET_INTERNAL_H) || !defined(_INCLUDED_GASNET_H)
   #error This file is not meant to be included by clients
 #endif
 
@@ -31,67 +31,26 @@
       return 0;
     }
 
-    GASNETI_HAVE_ATOMIC_CAS will be defined non-zero on platforms supporting this operation.
+    GASNETI_HAVE_ATOMIC_CAS will be defined to 1 on platforms supporting this operation.
     
  */
 
-#if defined(SOLARIS) || /* SPARC seems to have no atomic ops */ \
-    defined(CRAYT3E) || /* TODO: no atomic ops on T3e? */       \
-    defined(_SX) || /* NEC SX-6 atomics not available to user code? */ \
-    defined(HPUX)    || /* HPUX seems to have no atomic ops */  \
-    defined(__crayx1) || /* X1 atomics currently broken */ \
-    (defined(__PGI) && defined(BROKEN_LINUX_ASM_ATOMIC_H)) || /* haven't implemented atomics for PGI */ \
-    (defined(OSF) && !defined(__DECC) && !defined(__GNUC__)) /* only implemented for these compilers */
-  #define GASNETI_USE_GENERIC_ATOMICOPS
-#endif
-
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
-  /* a very slow but portable implementation of atomic ops */
-  #ifdef _INCLUDED_GASNET_H
-    extern int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval);
-    #define GASNETI_GENERIC_CAS_DEF                              \
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,     \
-                                        uint32_t oldval,         \
-					uint32_t newval) {       \
-      int retval;                                                \
-      gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);    \
-      retval = (p->ctr == oldval);                               \
-      if_pt (retval) {                                           \
-        p->ctr = newval;                                         \
-      }                                                          \
-      gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);  \
-      return retval;                                             \
-    }
-    #define GASNETI_HAVE_ATOMIC_CAS 1
-  #elif defined(_REENTRANT) || defined(_THREAD_SAFE) || \
-        defined(PTHREAD_MUTEX_INITIALIZER) ||           \
-        defined(HAVE_PTHREAD) || defined(HAVE_PTHREAD_H)
-    /* a version for pthreads which is independent of GASNet HSL's */
-    GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-      int retval;
-
-      pthread_mutex_lock(&gasneti_atomicop_mutex);
-      retval = (p->ctr == oldval);
-      if_pt (retval) {
-        p->ctr = newval;
-      }
-      pthread_mutex_unlock(&gasneti_atomicop_mutex);
-      return retval;
-    }
-    #define GASNETI_HAVE_ATOMIC_CAS 1
-  #else
-    /* only one thread - everything atomic by definition */
-    GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-      int retval = (p->ctr == oldval);
-      if_pt (retval) {
-        p->ctr = newval;
-      }
-      return retval;
-    }
-    #define GASNETI_HAVE_ATOMIC_CAS 1
-  #endif
+  extern int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval);
+  #define GASNETI_GENERIC_CAS_DEF                              \
+  int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,     \
+                                      uint32_t oldval,         \
+                                      uint32_t newval) {       \
+    int retval;                                                \
+    gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);    \
+    retval = (p->ctr == oldval);                               \
+    if_pt (retval) {                                           \
+      p->ctr = newval;                                         \
+    }                                                          \
+    gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);  \
+    return retval;                                             \
+  }
+  #define GASNETI_HAVE_ATOMIC_CAS 1
 #else
   #if defined(LINUX) && defined(__INTEL_COMPILER) && defined(__ia64__)
     /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
@@ -246,8 +205,80 @@
     #endif
   #endif
 #endif
-#ifndef GASNETI_HAVE_ATOMIC_CAS
-  #define GASNETI_HAVE_ATOMIC_CAS 0
+
+/* ------------------------------------------------------------------------------------ */
+/* semi-portable spinlocks using gasneti_atomic_t
+   This useful primitive is not available on all platforms and it therefore reserved 
+   for interal use only.
+
+   On platforms where implemented, the following are roughly equivalent to the
+   corresponding pthread_mutex_* calls:
+     GASNETI_SPINLOCK_INITIALIZER
+     gasneti_spinlock_{init,destroy,lock,unlock,trylock}
+   The functions return 0 on success to match the corresponding pthread_mutex functions.
+
+   There is no gasneti_spinlock_t, these functions operate on gasneti_atomic_t.
+   
+   Unlike the pthread_mutex, the use of spinlocks have no fairness guarantees.  For
+   instance, it would be perfectly legal for a race to always grant the lock to the CPU
+   which "owns" the associated memory.  Therefore, spinlocks must be used with care.
+   Also unlike pthread_mutex, it is safe to unlock one from signal context.  Though
+   trying to acquire a spinlock in signal context is legal, it is dangerous.
+
+   GASNETI_HAVE_SPINLOCK will be defined to 1 on platforms supporting this primitive.
+
+   TODO Possibly add debugging wrappers as well.  That will require an actual struct.
+ */
+#if 0
+  /* TODO Some platforms may have cheaper implementations than atomic-CAS. */
+#elif defined(GASNETI_USE_GENERIC_ATOMICOPS)
+  /* We don't implement this case due to lack of signal safety */
+#elif defined(GASNETI_HAVE_ATOMIC_CAS)
+  #define GASNETI_SPINLOCK_LOCKED	1
+  #define GASNETI_SPINLOCK_UNLOCKED	0
+  #define GASNETI_SPINLOCK_INITIALIZER gasneti_atomic_init(GASNETI_SPINLOCK_UNLOCKED)
+  GASNET_INLINE_MODIFIER(gasneti_spinlock_init)
+  int gasneti_spinlock_init(gasneti_atomic_t *lock) {
+      gasneti_atomic_set(lock, GASNETI_SPINLOCK_UNLOCKED);
+      gasneti_local_wmb();	/* ??? needed? */
+      return 0;
+  }
+  GASNET_INLINE_MODIFIER(gasneti_spinlock_destroy)
+  int gasneti_spinlock_destroy(gasneti_atomic_t *lock) {
+      gasneti_assert(gasneti_atomic_read(lock) == GASNETI_SPINLOCK_UNLOCKED);
+      return 0;
+  }
+  GASNET_INLINE_MODIFIER(gasneti_spinlock_lock)
+  int gasneti_spinlock_lock(gasneti_atomic_t *lock) {
+      gasneti_waituntil(
+		gasneti_atomic_compare_and_swap(lock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED)
+      ); /* Acquire: the rmb() is in the gasneti_waituntil() */
+      gasneti_assert(gasneti_atomic_read(lock) == GASNETI_SPINLOCK_LOCKED);
+      return 0;
+  }
+  GASNET_INLINE_MODIFIER(gasneti_spinlock_unlock)
+  int gasneti_spinlock_unlock(gasneti_atomic_t *lock) {
+      int did_swap;
+      gasneti_assert(gasneti_atomic_read(lock) == GASNETI_SPINLOCK_LOCKED);
+      gasneti_local_wmb();	/* Release */
+      did_swap = gasneti_atomic_compare_and_swap(lock, GASNETI_SPINLOCK_LOCKED, GASNETI_SPINLOCK_UNLOCKED);
+      gasneti_assert(did_swap);
+      return 0;
+  }
+  /* return 0/EBUSY on success/failure to match pthreads */
+  GASNET_INLINE_MODIFIER(gasneti_spinlock_trylock)
+  int gasneti_spinlock_trylock(gasneti_atomic_t *lock) {
+      if (gasneti_atomic_compare_and_swap(lock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED)) {
+	  gasneti_local_rmb();	/* Acquire */  
+          gasneti_assert(gasneti_atomic_read(lock) == GASNETI_SPINLOCK_LOCKED);
+	  return 0;
+      } else {
+	  return EBUSY;
+      }
+  }
+  #define GASNETI_HAVE_SPINLOCK 1
+#else
+  /* TODO some platforms (SPARC?) can support spinlock using test-and-set */
 #endif
 
 #endif

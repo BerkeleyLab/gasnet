@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/08/12 19:53:41 $
- * $Revision: 1.28.2.1 $
+ *     $Date: 2004/08/12 21:42:30 $
+ * $Revision: 1.28.2.2 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -139,54 +139,25 @@ typedef struct gasnetc_token_rec {
 
 /* --------------------------------------------------------------------
  * A simple spinlock implementation
+ * Implemented as either a true spinlock or a mutex
  * --------------------------------------------------------------------
  */
 
 #if GASNETC_USE_SPINLOCKS
-/* NOTE: Make these inline functions that always return 0 to
- * match the use of the corresponding pthread_mutex functions.
- */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_init)
-int gasnetc_spinlock_init(gasnetc_spinlock_t *lock) {
-    gasneti_atomic_set(lock, 0);
-    gasneti_local_wmb();	/* ??? needed? */
-    return 0;
-}
-
-#define gasnetc_spinlock_destroy(lock) 0    
-
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_lock)
-int gasnetc_spinlock_lock(gasnetc_spinlock_t *lock) {
-    gasneti_waituntil(gasneti_atomic_compare_and_swap( (gasneti_atomic_t *)lock, 0, 1 ) );
-    /* Acquire: the rmb() is in waituntil */
-    return 0;
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_unlock)
-int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
-    gasneti_local_wmb();	/* Release */
-    if_pf (!gasneti_atomic_compare_and_swap( (gasneti_atomic_t *)lock, 1, 0 ) )
-        gasneti_fatalerror("spinlock corrupted or unbalanced unlock");
-    return 0;
-}
-
-/* return 0 on success to match pthreads */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_trylock)
-int gasnetc_spinlock_trylock(gasnetc_spinlock_t *lock) {
-    if (gasneti_atomic_compare_and_swap( (gasneti_atomic_t *)lock, 0, 1 ) ) {
-	gasneti_local_rmb();	/* Acquire */  
-	return 0;
-    } else {
-	return 1;
-    }
-}
-
+  #if !GASNETI_HAVE_SPINLOCK
+    #error Missing required spinlock support
+  #endif
+  #define gasnetc_spinlock_init(lock)     gasneti_spinlock_init((lock))
+  #define gasnetc_spinlock_destroy(lock)  gasneti_spinlock_destroy((lock))
+  #define gasnetc_spinlock_lock(lock)     gasneti_spinlock_lock((lock))
+  #define gasnetc_spinlock_unlock(lock)   gasneti_spinlock_unlock((lock))
+  #define gasnetc_spinlock_trylock(lock)  gasneti_spinlock_trylock((lock))
 #else  /* Use pthread mutex for spinlock */
-#define gasnetc_spinlock_init(lock)     gasneti_mutex_init((lock))
-#define gasnetc_spinlock_destroy(lock)  gasneti_mutex_destroy((lock))
-#define gasnetc_spinlock_lock(lock)     gasneti_mutex_lock((lock))
-#define gasnetc_spinlock_unlock(lock)   gasneti_mutex_unlock((lock))
-#define gasnetc_spinlock_trylock(lock)  gasneti_mutex_trylock((lock))
+  #define gasnetc_spinlock_init(lock)     gasneti_mutex_init((lock))
+  #define gasnetc_spinlock_destroy(lock)  gasneti_mutex_destroy((lock))
+  #define gasnetc_spinlock_lock(lock)     gasneti_mutex_lock((lock))
+  #define gasnetc_spinlock_unlock(lock)   gasneti_mutex_unlock((lock))
+  #define gasnetc_spinlock_trylock(lock)  gasneti_mutex_trylock((lock))
 #endif
 
 /* --------------------------------------------------------------------

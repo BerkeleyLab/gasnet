@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_help.h             $
- *     $Date: 2004/08/12 19:53:41 $
- * $Revision: 1.15.2.1 $
+ *     $Date: 2004/08/12 21:42:30 $
+ * $Revision: 1.15.2.2 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,6 +69,7 @@ extern gasnet_node_t gasnetc_nodes;
 #endif
 
 #if GASNETC_USE_SPINLOCKS
+  /* gasneti_spinlock_* not yet seen */
   typedef gasneti_atomic_t gasnetc_spinlock_t;
   #define GASNETC_SPINLOCK_INITIALIZER	gasneti_atomic_init(0)
 #else  /* Use pthread mutex for spinlock */
