@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/27 00:23:51 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2003/06/27 21:49:08 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -69,7 +69,9 @@ typedef struct {
 static gasnetc_sbuf_t			*gasnetc_sbuf_alloc, *gasnetc_sbuf_free;
 static pthread_mutex_t			gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
 static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
-static pthread_mutex_t			gasnetc_rbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+#if GASNETC_AM_FLOWCTRL && !GASNET_SEQ	/* rcv never contends for this lock */
+  static pthread_mutex_t			gasnetc_rbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 #if GASNETC_RCV_THREAD
   static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
 #endif
@@ -99,27 +101,40 @@ static pthread_mutex_t			gasnetc_rbuf_lock = PTHREAD_MUTEX_INITIALIZER;
 #define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16))
 
 
+#if GASNETC_AM_FLOWCTRL
 GASNET_INLINE_MODIFIER(gasnetc_get_rbuf)
 gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
   gasnetc_rbuf_t *rbuf;
 
-  pthread_mutex_lock(&gasnetc_rbuf_lock);
+  #if !GASNET_SEQ
+    pthread_mutex_lock(&gasnetc_rbuf_lock);
+  #endif
   assert(gasnetc_rbuf_free != NULL);
   rbuf = gasnetc_rbuf_free;
   gasnetc_rbuf_free = rbuf->next;
-  pthread_mutex_unlock(&gasnetc_rbuf_lock);
+  #if !GASNET_SEQ
+    pthread_mutex_unlock(&gasnetc_rbuf_lock);
+  #endif
 
   return rbuf;
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_put_rbuf)
 void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
-  pthread_mutex_lock(&gasnetc_rbuf_lock);
-  assert(rbuf != NULL);
-  rbuf->next = gasnetc_rbuf_free;
-  gasnetc_rbuf_free = rbuf;
-  pthread_mutex_unlock(&gasnetc_rbuf_lock);
+  if (rbuf) {
+    #if !GASNET_SEQ
+      pthread_mutex_lock(&gasnetc_rbuf_lock);
+    #endif
+    rbuf->next = gasnetc_rbuf_free;
+    gasnetc_rbuf_free = rbuf;
+    #if !GASNET_SEQ
+      pthread_mutex_unlock(&gasnetc_rbuf_lock);
+    #endif
+  }
 }
+#else
+  #define gasnetc_put_rbuf(X) do {} while (0)
+#endif
 
 /* Post a work request to the send queue of the given endpoint */
 GASNET_INLINE_MODIFIER(gasnetc_snd_post)
@@ -157,7 +172,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected (race) */));
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_processPacket)
+/* GASNET_INLINE_MODIFIER(gasnetc_processPacket) */
 void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
   gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   gasnet_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
@@ -501,8 +516,35 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   GASNETI_RETURN(retval);
 }
 
+GASNET_INLINE_MODIFIER(gasnetc_rcv_am)
+void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
+  gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp->id;
+  uint32_t flags = comp->imm_data;
+  gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
+
+  #if !GASNETC_AM_FLOWCTRL
+    gasnetc_processPacket(rbuf, flags);
+    gasnetc_rcv_post(cep, rbuf);
+  #else
+    if (GASNETC_MSG_ISREPLY(flags)) {
+      gasneti_atomic_increment(&cep->req_credits);
+      gasnetc_processPacket(rbuf, flags);
+      gasnetc_rcv_post(cep, rbuf);
+    } else {
+      gasnetc_rcv_post(cep, (*spare_p) ? (*spare_p) : gasnetc_get_rbuf());
+      gasnetc_processPacket(rbuf, flags);
+      if (!rbuf->replySent) {
+	int retval;
+        retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
+	assert(retval == GASNET_OK);
+      }
+      *spare_p = rbuf;
+    }
+  #endif
+}
+
 GASNET_INLINE_MODIFIER(gasnetc_rcv_reap)
-void gasnetc_rcv_reap(int limit) {
+void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
   VAPI_ret_t vstat;
 
   while (--limit) {
@@ -522,27 +564,7 @@ void gasnetc_rcv_reap(int limit) {
 
     if (vstat == VAPI_OK) {
       if (comp.status == VAPI_SUCCESS) {
-        gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp.id;
-	uint32_t flags = comp.imm_data;
-	gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
-
-        if (!GASNETC_AM_FLOWCTRL) {
-          gasnetc_processPacket(rbuf, flags);
-          gasnetc_rcv_post(cep, rbuf);
-	} else if (GASNETC_MSG_ISREPLY(flags)) {
-          gasneti_atomic_increment(&cep->req_credits);
-          gasnetc_processPacket(rbuf, flags);
-          gasnetc_rcv_post(cep, rbuf);
-        } else {
-          gasnetc_rcv_post(cep, gasnetc_get_rbuf());
-          gasnetc_processPacket(rbuf, flags);
-          if (!rbuf->replySent) {
-	    int retval;
-            retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
-	    assert(retval == GASNET_OK);
-	  }
-          gasnetc_put_rbuf(rbuf);
-	}
+        gasnetc_rcv_am(&comp, spare_p);
       } else {
 #if 1
         fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
@@ -560,17 +582,18 @@ void gasnetc_rcv_reap(int limit) {
 }
 
 #if GASNETC_RCV_THREAD
+static gasnetc_rbuf_t *gasnetc_rcv_spare = NULL;
 static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
 			       VAPI_cq_hndl_t	cq_hndl,
 			       void		*context) {
   VAPI_ret_t vstat;
 
-  gasnetc_rcv_reap(0);
+  gasnetc_rcv_reap(0, &gasnetc_rcv_spare);
 
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
   assert(vstat == VAPI_OK);
 
-  gasnetc_rcv_reap(0);
+  gasnetc_rcv_reap(0, &gasnetc_rcv_spare);
 }
 #endif
 
@@ -625,6 +648,7 @@ extern void gasnetc_sndrcv_init(void) {
     assert(vstat == VAPI_OK);
     vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
     assert(vstat == VAPI_OK);
+    gasnetc_rcv_spare = gasnetc_get_rbuf();
   #endif
 
   /* setup snd resources */
@@ -695,16 +719,22 @@ extern void gasnetc_sndrcv_fini(void) {
 }
 
 extern void gasnetc_sndrcv_poll(void) {
-  gasnetc_sbuf_t *sbuf, *tail;
-
   #if GASNETC_RCV_POLL
-    gasnetc_rcv_reap(GASNETC_RCV_REAP_LIMIT);
+  {
+    gasnetc_rbuf_t *spare = NULL;
+    gasnetc_rcv_reap(GASNETC_RCV_REAP_LIMIT, &spare);
+    gasnetc_put_rbuf(spare);
+  }
   #endif
 
-  sbuf = gasnetc_snd_reap(&tail);
+  {
+    gasnetc_sbuf_t *sbuf, *tail;
 
-  if (sbuf) {
-    gasnetc_put_sbuf(sbuf, tail);
+    sbuf = gasnetc_snd_reap(&tail);
+
+    if (sbuf) {
+      gasnetc_put_sbuf(sbuf, tail);
+    }
   }
 }
 
