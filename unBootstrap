@@ -10,6 +10,7 @@ rm -f Makefile.in              \
       configure                \
       gasnet_config.h.in       \
       aclocal.m4               \
+      config.status            \
       stamp-h.in               \
       config-aux/Makefile.in   \
       config-aux/Makefile      \

@@ -210,6 +210,7 @@ sub usage {
   }
 
   print (STDERR "Usage:\n \t gasnetrun_gm [options] [-np <n>] prog [flags]\n");
+  print (STDERR "   -E   <VAR1[,VAR2...]>   list of environment vars to propagate\n");
   print (STDERR "   -v   Verbose - provide additional details of the script's execution.\n");
   print (STDERR "   -t   Testing - do not actually run, just print what would be executed.\n");
   print (STDERR "   -s   Close stdin - can run in background without tty input problems.\n");
@@ -332,6 +333,14 @@ while (@ARGV > 0) {
     last;
   }
   shift;
+}
+
+# Before going on, check if we should force using GEXEC, if 
+# GASNET_GEXEC_CMD is set.
+if (defined $ENV{"GASNET_GEXEC_CMD"}) {
+    printf "Using gexec command $ENV{GASNET_GEXEC_CMD}\n" if $verbose;
+    $use_gexec = 1;
+    $rexec = $gexec;
 }
 
 @rexec_flags = split(/ /, $rexec);
@@ -561,6 +570,11 @@ if ($eager) {
   $varenv .= " GMPI_EAGER=$eager";
 }
 
+$SIG{'INT'} = 'cleanup_SIGINT';
+$SIG{'TERM'} = 'cleanup_SIGTERM';
+$SIG{'KILL'} = 'cleanup_SIGKILL';
+$SIG{'QUIT'} = 'cleanup_SIGQUIT';
+  
 if ($use_gexec) {
   my %gm_hosts;
   my %gstat_hosts;
@@ -585,7 +599,7 @@ if ($use_gexec) {
     }
 
     if ($gm_disconnected_spawner) {
-    	printf("WARNING: Spawning from a node disconnected from Myrinet") if $verbose;
+    	printf("WARNING: Spawning from a node disconnected from Myrinet\n") if $verbose;
     }
     else {
         while (<BOARD_INFO>)
@@ -659,11 +673,6 @@ if ($use_gexec) {
   splice(@hosts, $np);
   $ENV{'GEXEC_SVRS'} = join(" ", @hosts);
 }
-
-$SIG{'INT'} = 'cleanup_SIGINT';
-$SIG{'TERM'} = 'cleanup_SIGTERM';
-$SIG{'KILL'} = 'cleanup_SIGKILL';
-$SIG{'QUIT'} = 'cleanup_SIGQUIT';
 
 if (!$dry_run) {
   $pid_socket = fork;
@@ -762,19 +771,8 @@ if (!$dry_run) {
 	}
       }
       $local_mapping .= ']]]';
-      @envlist = undef;
-      $envv = '';
-      foreach (keys %ENV) {
-	if (m/(TI_)|(UPC_)|(GASNET_)/) {
-		$envv = "$_=$ENV{$_}";
-		push(@envlist, $envv);
-	}
-      }
-      $envvars = '[[[' . $#envlist . join("||", @envlist) . ']]]';
-      print "Environment variables: $envvars\n" if $verbose;
 
       send (SECOND_SOCKET, "$global_mapping$local_mapping", 0);
-      send (SECOND_SOCKET, "$envvars", 0);
       close (SECOND_SOCKET);
 
       $port_ids[$index] = 0;
@@ -855,8 +853,25 @@ for ($i=0; $i<$np; $i++) {
     $varenv .= " GMPI_NP=$np";
     $varenv .= " GMPI_BOARD=$boards[$i]";
 
+    @envlist = undef;
+    $envv = '';
+    foreach $e (keys %ENV) {
+	if ($e =~ m/(TI_)|(UPC_)|(GASNET_)/) {
+		@sp = split(/\s+/, $ENV{$e});
+		if ($#sp > 0 && $ENV{$e} !~ m/^\".*\"$/ && 
+		                $ENV{$e} !~ m/^'.*'$/) {
+		    $envv = "$e=\"$ENV{$e}\"";
+		}
+		else {
+		    $envv = "$e=$ENV{$e}";
+		}
+		push(@envlist, $envv);
+	}
+    }
+
     $slave_ip = inet_ntoa(inet_aton("$hosts[$i]"));
     $varenv .= " GMPI_SLAVE=$slave_ip";
+    $varenv .= " " . join (" ", @envlist);
 
     if (defined ($logins[$i])) {
       $login = 1;
