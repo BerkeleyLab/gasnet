@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/07/07 21:59:46 $
- * $Revision: 1.3 $
+ *     $Date: 2004/07/08 16:58:50 $
+ * $Revision: 1.3.2.1 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -741,10 +741,6 @@ extern void gasnete_coll_init(const size_t images[],
 					  gasnet_handlerarg_t offset,
 					  gasnet_handlerarg_t state) {
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-
-      if (nbytes) {
-	gasneti_memsync();
-      }
 
       p2p->state[offset] = state;
     }
@@ -2804,6 +2800,7 @@ static int gasnete_coll_pf_gathM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	gasnete_coll_local_gather(gasnete_coll_my_images,
 				  gasnete_coll_scale_ptr(args->dst, gasnete_coll_my_offset, args->nbytes),
 				  &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags), args->nbytes);
+	gasneti_memsync();
 	s = &(data->p2p->state[gasnete_coll_my_offset]);
 	for (i = 0; i < gasnete_coll_my_images; ++i) {
 	  *(s++) = 2;
