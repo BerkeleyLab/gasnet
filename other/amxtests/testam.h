@@ -14,6 +14,7 @@
   #define RequestShort(num,args)                GASNET_Safe(gasnet_AMRequestShort##num args)
   #define RequestMedium(num,args)               GASNET_Safe(gasnet_AMRequestMedium##num args)
   #define RequestLong(num,AMargs,GASNETargs)    GASNET_Safe(gasnet_AMRequestLong##num GASNETargs)
+  #define RequestLongAsync(num,AMargs,GASNETargs)    GASNET_Safe(gasnet_AMRequestLongAsync##num GASNETargs)
   #define ReplyShort(num,args)                  GASNET_Safe(gasnet_AMReplyShort##num args)
   #define ReplyMedium(num,args)                 GASNET_Safe(gasnet_AMReplyMedium##num args)
   #define ReplyLong(num,AMargs,GASNETargs)      GASNET_Safe(gasnet_AMReplyLong##num GASNETargs)
@@ -38,6 +39,8 @@
   #define RequestShort(num,args)                AM_Safe(AM_Request##num args)
   #define RequestMedium(num,args)               AM_Safe(AM_RequestI##num args)
   #define RequestLong(num,AMargs,GASNETargs)    AM_Safe(AM_RequestXfer##num AMargs)
+  /* AM_RequestXferAsync generates errors if cannot be sent immediately - don't use it */
+  #define RequestLongAsync(num,AMargs,GASNETargs) AM_Safe(AM_RequestXfer##num AMargs)
   #define ReplyShort(num,args)                  AM_Safe(AM_Reply##num args)
   #define ReplyMedium(num,args)                 AM_Safe(AM_ReplyI##num args)
   #define ReplyLong(num,AMargs,GASNETargs)      AM_Safe(AM_ReplyXfer##num AMargs)
@@ -50,6 +53,7 @@
   #define ENDPOINT  ep,
   #define GETPARTNER(token)
 #endif
+#define ALLAM_DONE(iters) ((int)NUMREP() == (int)(NUMHANDLERS_PER_TYPE*4*(iters)))
 
 #define ABASE ((handlerarg_t)0xBABE7000)
 
@@ -430,7 +434,9 @@ HANDLERS(16)
   buf[0] = num;                                                                                                          \
   RequestMedium(num,(ENDPOINT partner, MEDIUM_##num##REQ_HANDLER, buf, sizeof(int) AA##num));                            \
   RequestLong(num,(ENDPOINT partner, sizeof(int)*num, LONG_##num##REQ_HANDLER, buf, sizeof(int) AA##num),                \
-                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, buf, sizeof(int), ((int*)TEST_SEG(partner))+num AA##num));  \
+                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, buf, sizeof(int), ((int*)TEST_SEG(partner))+num AA##num)); \
+  RequestLongAsync(num,(ENDPOINT partner, sizeof(int)*num, LONG_##num##REQ_HANDLER, buf, sizeof(int) AA##num),           \
+                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, buf, sizeof(int), ((int*)TEST_SEG(partner))+num AA##num)); \
 } while (0)
 
 #define ALLAM_REQ(partner)  do { \

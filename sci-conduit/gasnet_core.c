@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.c                  $
- *     $Date: 2004/07/04 22:41:40 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2004/07/05 22:08:23 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -332,6 +332,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
    */
    gasnetc_get_SegInfo (gasnetc_seginfo, segsize, segbase); /* place all segment information into the table */
 
+   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
+    GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
   /* ------------------------------------------------------------------------------------ */
 	/* create the environment for DMA transfers in SCI */
   gasnetc_create_dma_queues();

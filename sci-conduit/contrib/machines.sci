@@ -1,6 +1,6 @@
 kappa-5 68
-kappa-6 72
 kappa-7 76
+kappa-6 72
 kappa-8 80
 kappa-1 4
 kappa-2 8
