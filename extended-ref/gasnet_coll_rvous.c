@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2005/02/07 00:30:07 $
- * $Revision: 1.20.2.4 $
+ *     $Date: 2005/02/07 21:27:19 $
+ * $Revision: 1.20.2.5 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1819,7 +1819,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 }
 
 /* bcast TreeGet */
-/* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
+/* Requires GASNETE_COLL_GENERIC_OPT_P2P on all nodes */
 /* Naturally IN_MYSYNC, OUT_MYSYNC */
 /* size is unbounded */
 static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -1917,7 +1917,7 @@ gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
-		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
+		GASNETE_COLL_GENERIC_OPT_P2P;
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreeGet, options,
