@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/21 19:43:11 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/04/25 00:03:08 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -411,14 +411,16 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
 GASNET_INLINE_MODIFIER(gasnete_get_bulk)
 void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
                        size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_wait_syncnb_check(gasnete_get_nb_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS));
+  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_rdma_get(node, src, dest, nbytes, &req_oust);
+  gasnetc_rdma_wait(&req_oust);
 }
 GASNET_INLINE_MODIFIER(gasnete_put_bulk)
 void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
                               size_t nbytes GASNETE_THREAD_FARG) {
-  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
-  gasnetc_rdma_put(node, src, dest, nbytes, NULL, &mem_oust);
-  gasnetc_rdma_wait(&mem_oust);
+  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
+  gasnetc_rdma_wait(&req_oust);
 }
 GASNET_INLINE_MODIFIER(gasnete_memset)
 void gasnete_memset(gasnet_node_t node, void *dest, int val,
@@ -523,11 +525,11 @@ void _gasnet_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t val
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
     gasneti_memsync();
   } else {
-    gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
+    gasneti_atomic_t req_oust = gasneti_atomic_init(0);
     gasnet_register_value_t src = value;
     GASNETI_TRACE_PUT(PUT_VAL,node,dest,GASNETE_STARTOFBITS(&src,nbytes),nbytes);
-    gasnetc_rdma_put(node, GASNETE_STARTOFBITS(&src,nbytes), dest, nbytes, NULL, &mem_oust);
-    gasnetc_rdma_wait(&mem_oust);
+    gasnetc_rdma_put(node, GASNETE_STARTOFBITS(&src,nbytes), dest, nbytes, NULL, &req_oust);
+    gasnetc_rdma_wait(&req_oust);
   }
 }
 #define gasnet_put_val(node,dest,value,nbytes) \

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/22 00:14:12 $
- * $Revision: 1.1.2.21 $
+ *     $Date: 2003/04/25 00:03:08 $
+ * $Revision: 1.1.2.22 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -299,7 +299,7 @@ extern void gasnetc_snd_init(void) {
 
   count = MIN(GASNETC_SQ_SIZE, gasnetc_hca_cap.max_qp_ous_wr * gasnetc_nodes);
 
-  buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t), 0, &gasnetc_snd_reg);
+  buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t), VAPI_EN_LOCAL_WRITE, &gasnetc_snd_reg);
   assert(buf != NULL);
 
   sbuf = calloc(count, sizeof(gasnetc_sbuf_t));
@@ -374,8 +374,8 @@ extern int gasnetc_rdma_test(gasneti_atomic_t *oust_counter) {
  * Uses bounce buffers when the source is not pinned, or is "small enough" and the caller is
  * planning to wait for local completion.  Otherwise zero-copy is used when the source is pinned.
  */
-extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *mem_oust, gasneti_atomic_t *req_oust) {
-  gasnetc_cep_t *cep = &gasnetc_cep[dest];
+extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *mem_oust, gasneti_atomic_t *req_oust) {
+  gasnetc_cep_t *cep = &gasnetc_cep[node];
   gasnetc_sbuf_t *sbuf;
   uintptr_t src, dst;
   int rc;
@@ -488,6 +488,86 @@ extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, size_t nbyte
         memcpy(sbuf->buffer, (void *)src, count);
         req.sr_sg[0].addr = (uintptr_t)sbuf->buffer;
         req.sr_sg[0].lkey = gasnetc_snd_reg.lkey;
+      }
+      req.sr_sg[0].len  = count;
+
+      if (req_oust) {
+	gasneti_atomic_increment(req_oust);
+        sbuf->req_oust = req_oust;
+      }
+
+      /* ### translate into a sensible error code */
+      rc = gasnetc_snd_post(cep, &req);
+
+      src += count;
+      dst += count;
+      nbytes -= count;
+    } while (nbytes);
+  #else
+  #error "I can only do FAST right now"
+  #endif
+  }
+
+  return 0;
+}
+
+/* Perform an RDMA get
+ *
+ * Uses bounce buffers when the destination is not pinned, zero-copy otherwise.
+ */
+extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *req_oust) {
+  gasnetc_cep_t *cep = &gasnetc_cep[node];
+  gasnetc_sbuf_t *sbuf;
+  uintptr_t src, dst;
+  int rc;
+
+  src = (uintptr_t)src_ptr;
+  dst = (uintptr_t)dst_ptr;
+
+  if (nbytes == 0) {
+    /* XXX: Mellanox HW doesn't like 0-byte operations */
+    /* DO NOTHING */
+  } else {
+  #if defined(GASNET_SEGMENT_FAST)
+    /* Now we have the most general non-empty case */
+
+    VAPI_rkey_t rkey = cep->rkey;
+
+    /* Outer loop is over RDMA get operations.
+     * We perform as many operations as needed to move the entire payload.
+     */
+    do {
+      gasnetc_sreq_t req;
+      gasnetc_memreg_t *reg;
+      uintptr_t count;
+
+      /* Buffers are our means to account for available slots in the send queue.
+       * Therefore we must allocate at least one sbuf even if we will only do zero-copy gets.
+       */
+      sbuf = gasnetc_get_sbuf();
+
+      gasnetc_init_sreq(&req, sbuf);
+      req.sr_desc.opcode      = VAPI_RDMA_READ;
+      req.sr_desc.remote_addr = src;
+      req.sr_desc.r_key       = rkey;
+      req.sr_desc.sg_lst_len  = 1;
+
+      reg = gasnetc_local_reg(dst);
+      if (reg) {
+	/* Zero-copy case */
+	count = MIN(gasnetc_hca_port.max_msg_sz, (reg->end - dst) + 1);
+	count = MIN(nbytes, count);
+
+        req.sr_sg[0].addr = dst;
+        req.sr_sg[0].lkey = reg->lkey;
+      } else {
+	/* Bounce buffer case */
+	count = MIN(nbytes, GASNETC_BUFSZ);
+
+        req.sr_sg[0].addr = (uintptr_t)sbuf->buffer;
+        req.sr_sg[0].lkey = gasnetc_snd_reg.lkey;
+	sbuf->addr = (void *)dst;
+	sbuf->len = count;
       }
       req.sr_sg[0].len  = count;
 
