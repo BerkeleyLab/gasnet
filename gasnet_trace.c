@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/05/05 10:59:50 $
- * $Revision: 1.52 $
+ *     $Date: 2004/05/11 23:34:49 $
+ * $Revision: 1.52.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1057,6 +1057,7 @@ extern void gasneti_trace_init() {
 AGGR(G);
 AGGR(P);
 AGGR(S);
+AGGR(W);
 AGGR(B);
 AGGR(L);
 AGGR(A);

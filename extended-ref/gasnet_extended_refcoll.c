@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/10 23:19:13 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2004/05/11 23:34:51 $
+ * $Revision: 1.1.2.10 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,8 +26,8 @@
 int gasnete_coll_init_done = 0;
 
 void gasnete_coll_validate(gasnet_team_handle_t team,
-			   gasnet_node_t dstnode, void *dst,
-                           gasnet_node_t srcnode, void *src,
+			   gasnet_node_t dstnode, void *dst, size_t dstlen, int dstisv,
+                           gasnet_node_t srcnode, void *src, size_t srclen, int srcisv,
 			   unsigned int flags) {
   if_pf (!gasnete_coll_init_done) {
     gasneti_fatalerror("Illegal call to GASNet collectives before gasnet_coll_init()\n");
@@ -40,7 +40,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   gasneti_assert(((flags & GASNET_COLL_SINGLE)?1:0) ^ ((flags & GASNET_COLL_LOCAL)?1:0));
 
   /* XXX: TO DO
-   * + bounds check src and/or dst as indicated by *_IN_SEGMENT and {src,dst}node
+   * + bounds check src and/or dst ranges as indicated by *_IN_SEGMENT
    * + check that team handle is valid (requires a teams interface)
    * + check that mynode is a member of the team (requires a teams interface)
    */
@@ -123,6 +123,8 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
  *   void gasnete_coll_op_table_fini()
  *   gasnete_coll_op_t *gasnete_coll_op_table_find(team, sequence)
  *	Lookup a coll op by its (team, sequence), returning NULL if not found.
+ *   void gasnete_coll_op_table_new(op)
+ *	Init table fields of a coll op.
  *   void gasnete_coll_op_table_ins(op)
  *	Add a coll op to table by (op->team, op->sequence).
  *   void gasnete_coll_op_table_del(op)
@@ -135,6 +137,8 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
  *	Return the first coll op in the active list.
  *   gasnete_coll_op_t *gasnete_coll_op_active_next(op)
  *	Iterate over the coll ops in the active list.
+ *   void gasnete_coll_op_active_new(op)
+ *	Init active list fields of a coll op.
  *   void gasnete_coll_op_active_ins(op)
  *	Add a coll op to the active list.
  *   void gasnete_coll_op_active_del(op)
@@ -173,20 +177,6 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 
     static gasnete_coll_op_t gasnete_coll_table[GASNETE_COLL_TABLE_SIZE];
 
-    void
-    gasnete_coll_op_table_init(void) {
-      int i;
-      for (i = 0; i < GASNETE_COLL_TABLE_SIZE; ++i) {
-        gasnete_coll_op_t *op = &(gasnete_coll_table[i]);
-        op->table_next = op->table_prev = op;
-      }
-    }
-
-    void
-    gasnete_coll_op_table_fini(void) {
-      /* EMPTY */
-    }
-
     gasnete_coll_op_t *
     gasnete_coll_op_table_find(gasnete_coll_team_t team, uint32_t sequence) {
       unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(team, sequence);
@@ -200,6 +190,10 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
       }
 
       return (op == head) ? NULL : op;
+    }
+
+    void gasnete_coll_op_table_new(gasnete_coll_op_t *op) {
+      op->table_next = op->table_prev = op;
     }
 
     void gasnete_coll_op_table_ins(gasnete_coll_op_t *op) {
@@ -218,6 +212,19 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
       op->table_next->table_prev = op->table_prev;
       op->table_prev->table_next = op->table_next;
     }
+
+    void
+    gasnete_coll_op_table_init(void) {
+      int i;
+      for (i = 0; i < GASNETE_COLL_TABLE_SIZE; ++i) {
+        gasnete_coll_op_table_new(&(gasnete_coll_table[i]));
+      }
+    }
+
+    void
+    gasnete_coll_op_table_fini(void) {
+      /* EMPTY */
+    }
 #endif
 
 #ifndef GASNETE_COLL_LIST_OVERRIDE
@@ -228,17 +235,6 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
      */
     static gasnete_coll_op_t gasnete_coll_list_head;
 
-    void
-    gasnete_coll_op_active_init(void) {
-      gasnete_coll_op_t *op = &gasnete_coll_list_head;
-      op->list_next = op->list_prev = op;
-    }
-
-    void
-    gasnete_coll_op_active_fini(void) {
-      /* EMPTY */
-    }
-
     gasnete_coll_op_t *gasnete_coll_op_active_first(void) {
       gasnete_coll_op_t *op = gasnete_coll_list_head.list_next;
       return (op == &gasnete_coll_list_head) ? NULL : op;
@@ -247,6 +243,10 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
     gasnete_coll_op_t *gasnete_coll_op_active_next(gasnete_coll_op_t *op) {
       op = op->list_next;
       return (op == &gasnete_coll_list_head) ? NULL : op;
+    }
+
+    void gasnete_coll_op_active_new(gasnete_coll_op_t *op) {
+      op->list_next = op->list_prev = op;
     }
 
     void gasnete_coll_op_active_ins(gasnete_coll_op_t *op) {
@@ -263,6 +263,16 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
       /* Remove from cicular doubly linked active list */
       op->list_next->list_prev = op->list_prev;
       op->list_prev->list_next = op->list_next;
+    }
+
+    void
+    gasnete_coll_op_active_init(void) {
+      gasnete_coll_op_active_new(&gasnete_coll_list_head);
+    }
+
+    void
+    gasnete_coll_op_active_fini(void) {
+      /* EMPTY */
     }
 #endif
 
@@ -282,13 +292,12 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
     /* Default implementation of aggregation/filtering */
 
     /* XXX: how will teams interact w/ aggregation? */
-
+    
     static gasnete_coll_op_t *gasnete_coll_agg = NULL;
 
     gasnet_coll_handle_t
     gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle) {
-      /* All ops go onto the active list */
-      gasnete_coll_op_active_ins(op);
+      int poll_result;
 
       op->agg_head = NULL;
       op->handle = handle;
@@ -343,37 +352,53 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 	op->handle = GASNET_COLL_INVALID_HANDLE;
       } else {
         /* An isolated coll_op (the normal case) */
+	op->agg_next = NULL;
+      }
+
+      /* Poll the op once, releasing the lock momentarily  */
+      gasnet_hsl_unlock(&gasnete_coll_table_lock);
+      poll_result = (*op->poll_fn)(op);
+      gasnet_hsl_lock(&gasnete_coll_table_lock);
+      if (poll_result != 0) {
+        gasnete_coll_op_complete(op, poll_result);
+      }
+
+      if (!(poll_result & GASNETE_COLL_OP_INACTIVE)) {
+        /* Active ops go onto the active list */
+        gasnete_coll_op_active_ins(op);
       }
 
       return handle;
     }
 
     void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result) {
+
       if (poll_result & GASNETE_COLL_OP_COMPLETE) {
         if_pt (op->handle != GASNET_COLL_INVALID_HANDLE) {
 	    /* Normal case, just signal the handle */
 	    gasnete_coll_handle_signal(op->handle);
 	    gasneti_assert(op->agg_head == NULL);
-	} else if (op->agg_head) {
-	  gasnete_coll_op_t *head = op->agg_head;
+	} else if (op->agg_next) {
+	  gasnete_coll_op_t *head;
 
 	  /* Remove this member from the aggregate */
 	  op->agg_next->agg_prev = op->agg_prev;
 	  op->agg_prev->agg_next = op->agg_next;
 
-	  /* If the container op is now empty, mark it's handle as done. */
-	  if (head->agg_next == head) {
+	  /* If the container op exists and is now empty, mark it's handle as done. */
+	  head = op->agg_head;
+	  if (head && (head->agg_next == head)) {
 	    gasnete_coll_handle_signal(head->handle);
 	    gasnete_coll_op_destroy(head);
 	  }
-        } else if_pt (op->handle != GASNET_COLL_INVALID_HANDLE) {
-	    /* Just signal the handle */
-	    gasnete_coll_handle_signal(op->handle);
 	}
       }
 
       if (poll_result & GASNETE_COLL_OP_INACTIVE) {
-	/* Nothing extra to do */
+        /* delete from active list and table and destoy */
+        gasnete_coll_op_active_del(op);
+        gasnete_coll_op_table_del(op);
+        gasnete_coll_op_destroy(op);
       }
     }
 
@@ -388,6 +413,8 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int
 
   op = gasneti_malloc(sizeof(*op));	/* XXX: use a free list */
 
+  gasnete_coll_op_table_new(op);
+  gasnete_coll_op_active_new(op);
   op->team     = team;
   op->sequence = sequence;
   op->flags    = flags;
@@ -396,7 +423,6 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int
   op->poll_fn  = (gasnete_coll_poll_fn)NULL;
   
   /* The aggregation and 'data' fields are setup elsewhere */
-  /* The gasnete_coll_op_table_ins(op) is done elsewhere */
 
   return op;
 }
@@ -425,34 +451,15 @@ void gasnete_coll_poll(void) {
       int poll_result = 0;
 
       /* Poll/kick the op */
-#if 0
       gasneti_assert(op->poll_fn != (gasnete_coll_poll_fn)NULL);
       poll_result = (*op->poll_fn)(op);
-#else
-      if (gasnet_hsl_trylock(&op->lock) == GASNET_OK) {
-        gasnete_coll_poll_fn poll_fn = op->poll_fn;
-        gasnet_hsl_unlock(&op->lock);
-	/* Note that we drop the lock before calling poll_fn */
-	/* Otherwise poll_fn couldn't call GASNet functions to do useful work */
-        gasneti_assert(poll_fn != (gasnete_coll_poll_fn)NULL);
-        poll_result = (*poll_fn)(op);
-      }
-#endif
 
-      /* Get the next op in the active list, removing current if done.
-         This is the only place items are removed from the active list and table. */
+      /* Get the next op in the active list, removing current if done. */
       gasnet_hsl_lock(&gasnete_coll_table_lock);
       next = gasnete_coll_op_active_next(op);
       if (poll_result != 0) {
         /* invoke the completion hook */
         gasnete_coll_op_complete(op, poll_result);
-
-	if (poll_result & GASNETE_COLL_OP_INACTIVE) {
-          /* delete from active list and table */
-          gasnete_coll_op_active_del(op);
-          gasnete_coll_op_table_del(op);
-          gasnete_coll_op_destroy(op);
-	}
       }
       gasnet_hsl_unlock(&gasnete_coll_table_lock);
 
@@ -559,8 +566,8 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
 	/* XXX: wish we didn't need to assume the worst here */
         gasnet_hsl_lock(&(op->lock));
         op->data = data;
-        op->poll_fn = poll_fn;
         gasnet_hsl_unlock(&(op->lock));
+        op->poll_fn = poll_fn;
       }
       handle = gasnete_coll_op_submit(op, handle);
       gasnet_hsl_unlock(&gasnete_coll_table_lock);
@@ -569,79 +576,54 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
 }
 
 #ifndef GASNETE_COLL_BROADCAST_OVERRIDE
-    static int gasnete_coll_broadcast_poll_insync(gasnete_coll_op_t *op);
-    static int gasnete_coll_broadcast_poll_rdma_sync(gasnete_coll_op_t *op);
-    static int gasnete_coll_broadcast_poll_outsync(gasnete_coll_op_t *op);
-
     typedef struct {
       gasnet_node_t srcnode;
       void *src, *dst;
       size_t nbytes;
 
       gasnete_coll_consensus_t in_barrier, out_barrier;
-      gasnet_handle_t put_handle;
+      gasnet_handle_t rdma_handle;
     } gasnete_coll_broadcast_data_t;
+
+    /* XXX multiple algorithms can plug in here.
+     * Currently on one-step (GET or PUT) fit in this framework.
+     */
+    static void gasnete_coll_broadcast_do_rdma(gasnete_coll_broadcast_data_t *data) {
+      gasneti_assert(data != NULL);
+
+      if (gasnete_mynode == data->srcnode) {
+        gasnet_node_t i;
+        void   *src   = data->src;
+        void   *dst   = data->dst;
+        size_t nbytes = data->nbytes;
+
+        /* Queue PUTS */
+        /* XXX: Schedule this */
+        gasnet_begin_nbi_accessregion();
+        for (i = 0; i < gasnete_nodes; ++i) {
+	  gasnet_put_nbi_bulk(i, dst, src, nbytes);
+        }
+        data->rdma_handle = gasnet_end_nbi_accessregion();
+      } else {
+        data->rdma_handle = GASNET_INVALID_HANDLE;
+      }
+    }
 
     static int gasnete_coll_broadcast_fini(gasnete_coll_op_t *op) {
       gasneti_free(op->data);
       return (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     }
 
-    static int gasnete_coll_broadcast_outsync(gasnete_coll_op_t *op) {
-      int result;
-
-      if (GASNETE_COLL_OUT_MODE(op->flags) == GASNET_COLL_OUT_NOSYNC) {
-        /* DONE */
-        result = gasnete_coll_broadcast_fini(op);
-      } else {
-	/* Advance state to output sync */
-	op->poll_fn = &gasnete_coll_broadcast_poll_outsync;
-	result = (*op->poll_fn)(op);
-      }
-
-      return result;
-    }
-
-    static void gasnete_coll_broadcast_do_rdma(gasnete_coll_broadcast_data_t *data) {
-      void *src, *dst;
-      size_t nbytes;
-      gasnet_node_t i;
-
-      gasneti_assert(data != NULL);
-      gasneti_assert(gasnete_mynode == data->srcnode);
-
-      src    = data->src;
-      dst    = data->dst;
-      nbytes = data->nbytes;
-
-      /* Queue PUTS */
-      /* XXX: Schedule this */
-      gasnet_begin_nbi_accessregion();
-      for (i = 0; i < gasnete_nodes; ++i) {
-	gasnet_put_nbi_bulk(i, dst, src, nbytes);
-      }
-      data->put_handle = gasnet_end_nbi_accessregion();
-    }
-
-    static int gasnete_coll_broadcast_poll_insync(gasnete_coll_op_t *op) {
+    static int gasnete_coll_broadcast_poll_outsync(gasnete_coll_op_t *op) {
       gasnete_coll_broadcast_data_t *data = op->data;
       int result = 0;
 
       gasneti_assert(data != NULL);
-      gasneti_assert(GASNETE_COLL_IN_MODE(op->flags) != GASNET_COLL_IN_NOSYNC);
 
-      if_pf (gasnete_coll_consensus_try(data->in_barrier) == GASNET_OK) {
-        if (gasnete_mynode == data->srcnode) {
-	  /* root node: start the rdma */
-          gasnete_coll_broadcast_do_rdma(op->data);
-
-	  /* Advance state to rdma sync */
-	  op->poll_fn = &gasnete_coll_broadcast_poll_rdma_sync;
-	  result = (*op->poll_fn)(op);
-	} else {
-	  /* non-root node: advance state to output sync */
-          result = gasnete_coll_broadcast_outsync(op);
-        }
+      if_pf ((GASNETE_COLL_OUT_MODE(op->flags) == GASNET_COLL_OUT_NOSYNC) ||
+             (gasnete_coll_consensus_try(data->out_barrier) == GASNET_OK)) {
+	op->poll_fn = &gasnete_coll_broadcast_fini;
+	result = (*op->poll_fn)(op);
       }
 
       return result;
@@ -652,25 +634,30 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
       int result = 0;
 
       gasneti_assert(data != NULL);
-      gasneti_assert(gasnete_mynode == data->srcnode);
 
-      if_pf (gasnet_try_syncnb(data->put_handle) == GASNET_OK) {
+      if_pf (gasnet_try_syncnb(data->rdma_handle) == GASNET_OK) {
 	/* advance state to output sync */
-        result = gasnete_coll_broadcast_outsync(op);
+	op->poll_fn = &gasnete_coll_broadcast_poll_outsync;
+	result = (*op->poll_fn)(op);
       }
 
       return result;
     }
 
-    static int gasnete_coll_broadcast_poll_outsync(gasnete_coll_op_t *op) {
+    static int gasnete_coll_broadcast_poll_insync(gasnete_coll_op_t *op) {
       gasnete_coll_broadcast_data_t *data = op->data;
       int result = 0;
 
       gasneti_assert(data != NULL);
-      gasneti_assert(GASNETE_COLL_OUT_MODE(op->flags) != GASNET_COLL_OUT_NOSYNC);
 
-      if_pf (gasnete_coll_consensus_try(data->out_barrier) == GASNET_OK) {
-	result = gasnete_coll_broadcast_fini(op);
+      if_pf ((GASNETE_COLL_IN_MODE(op->flags) == GASNET_COLL_IN_NOSYNC) ||
+	     (gasnete_coll_consensus_try(data->in_barrier) == GASNET_OK)) {
+	/* start the rdma */
+        gasnete_coll_broadcast_do_rdma(op->data);
+
+	/* Advance state to rdma sync */
+	op->poll_fn = &gasnete_coll_broadcast_poll_rdma_sync;
+	result = (*op->poll_fn)(op);
       }
 
       return result;
@@ -683,8 +670,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
                               size_t nbytes, int flags GASNETE_THREAD_FARG)
     {
       gasnete_coll_broadcast_data_t *data;
-      gasnet_coll_handle_t handle;
-      gasnete_coll_poll_fn poll_fn = NULL;
       uint32_t sequence;
 
       /* Present implementation is VERY limited: */
@@ -701,35 +686,15 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
       data->src     = src;
       data->dst     = dst;
       data->nbytes  = nbytes;
-      
-      /* First deal with input sync */
+
       if (GASNETE_COLL_IN_MODE(flags) != GASNET_COLL_IN_NOSYNC) {
         data->in_barrier = gasnete_coll_consensus_create();
-        poll_fn = &gasnete_coll_broadcast_poll_insync;
-      } else if (srcnode == gasnete_mynode) {
-	/* Queue dma right away */
-        gasnete_coll_broadcast_do_rdma(data);
-	poll_fn = &gasnete_coll_broadcast_poll_rdma_sync;
       }
-
-      /* Now deal with output sync */
       if (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC) {
         data->out_barrier = gasnete_coll_consensus_create();
-	if (poll_fn == NULL) {
-          poll_fn = &gasnete_coll_broadcast_poll_outsync;
-	}
       }
-
-      /* Now get things going */
-      if (poll_fn == NULL) {
-	/* NOSYNC/NOSYNC on non-root node == nothing to do */
-        handle = GASNET_COLL_INVALID_HANDLE;
-	gasneti_free(data);
-      } else {
-	handle = gasnete_coll_op_generic_init(team, sequence, flags, data, poll_fn);
-      }
-
-      return handle;
+      
+      return gasnete_coll_op_generic_init(team, sequence, flags, data, &gasnete_coll_broadcast_poll_insync);
     }
 #endif
 
