@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/03/11 11:19:11 $
-# $Revision: 1.116.2.1 $
+#     $Date: 2004/03/12 10:58:16 $
+# $Revision: 1.116.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.116.2.1 $)
+AC_REVISION($Revision: 1.116.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1589,6 +1589,9 @@ vapi-conduit/vapi-parsync.mak
 vapi-conduit/vapi-par.mak
 vapi-conduit/contrib/Makefile
 vapi-conduit/contrib/gasnetrun_vapi
+
+shmem-conduit/Makefile
+shmem-conduit/shmem-seq.mak
 
 other/Makefile
 other/Makefile-conduit.mak

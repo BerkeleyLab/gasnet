@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/03/11 11:29:45 $
- * $Revision: 1.2.2.1 $
+ *     $Date: 2004/03/12 10:58:19 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -621,6 +621,17 @@ gasnete_markdone_reph_inner(gasnet_token_t token, void *h)
 SHORT_HANDLER(gasnete_markdone_reph,1,2,
               (token, UNPACK(a0)    ),
               (token, UNPACK2(a0, a1)));
+/* ------------------------------------------------------------------------------------ */
+/*
+  Vector, Indexed & Strided:
+  =========================
+*/
+
+/* use reference implementation of scatter/gather and strided */
+#define GASNETI_GASNET_EXTENDED_VIS_C 1
+#include "gasnet_extended_refvis.c"
+#undef GASNETI_GASNET_EXTENDED_VIS_C
+
 /* ------------------------------------------------------------------------ */
 /*
   Handlers:
@@ -630,6 +641,14 @@ static gasnet_handlerentry_t const
 gasnete_handlers[] = {
     #ifndef GASNETE_CRAYX1_BARRIER
       GASNETE_AMBARRIER_HANDLERS(),
+    #endif
+
+    #ifdef GASNETE_REFBARRIER_HANDLERS
+      GASNETE_REFBARRIER_HANDLERS(),
+    #endif
+
+    #ifdef GASNETE_REFVIS_HANDLERS
+      GASNETE_REFVIS_HANDLERS(),
     #endif
 
     /* ptr-width independent handlers */

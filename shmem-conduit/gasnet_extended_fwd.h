@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/03/11 11:29:45 $
- * $Revision: 1.2.2.1 $
+ *     $Date: 2004/03/12 10:58:19 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,7 +40,8 @@ typedef uintptr_t gasnet_register_value_t;
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
-        CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
+        CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
+	GASNETI_REFVIS_STATS(CNT,VAL,TIME)
 
 #define GASNET_POST_THREADINFO(info)   \
   static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
@@ -185,7 +186,7 @@ extern int	    gasnete_handleno_phase;
 	    gasnete_global_put(dest,src,nbytes)
 #else
 #define gasnete_put_nbi(pe,dest,src,nbytes)		 \
-	    do { shmem_putmem(dest,src,nbytes,node);	 \
+	    do { shmem_putmem(dest,src,nbytes,pe);	 \
 		 gasnete_nbi_sync = 1;			 \
 	    } while (0)
 #endif
@@ -197,7 +198,7 @@ extern int	    gasnete_handleno_phase;
 	    gasnete_global_put(dest,src,nbytes)
 #else
 #define gasnete_get_nbi_bulk(dest,pe,src,nbytes)	\
-	    shmem_getmem(dest,src,nbytes,node)
+	    shmem_getmem(dest,src,nbytes,pe)
 #endif
 
 /* get_nbi is already defined as get_nbi_bulk */

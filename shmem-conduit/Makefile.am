@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.2.2.1 2004/03/11 11:29:45 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.2.2.2 2004/03/12 10:58:19 csbell Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,7 +9,8 @@ AUTOMAKE_OPTIONS = foreign 1.4
 CONDUIT_NAME=shmem
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = contrib
+#SUBDIRS = contrib Nothing to make in this contrib
+SUBDIRS = 
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -38,7 +39,7 @@ CONDUIT_EXTRAHEADERS =
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_srcdir)/*.h
+CONDUIT_EXTRADEPS = 
 
 # -------- Do not modify anything below this line --------
 
@@ -52,7 +53,8 @@ libgasnet-shmem-seq.a: $(libgasnet_dependencies)
 
 if USE_SHMEM_CONDUIT  
 lib_LIBRARIES = $(libraries) 
-all: do-all
+#all: do-all
+all: $(libraries) shmem-seq.mak
 clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local
