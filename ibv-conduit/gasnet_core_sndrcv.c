@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/12/24 01:58:43 $
- * $Revision: 1.36.2.4 $
+ *     $Date: 2003/12/24 02:29:22 $
+ * $Revision: 1.36.2.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -246,8 +246,8 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
 static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t **tail_p) {
   VAPI_ret_t vstat;
   VAPI_wc_desc_t comp;
-  gasnetc_sbuf_t dummy;
-  gasnetc_sbuf_t *tail = &dummy;
+  gasneti_freelist_ptr_t dummy;
+  void *tail = &dummy;
   int count;
   
   count = 0;
