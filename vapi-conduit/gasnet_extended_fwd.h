@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2004/08/26 04:54:13 $
- * $Revision: 1.10 $
+ *     $Date: 2004/10/22 21:39:13 $
+ * $Revision: 1.10.8.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -97,6 +97,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNETI_DIRECT_WAIT_SYNCNB 1
 #define GASNETI_DIRECT_WAIT_SYNCNBI_GETS 1
 #define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1
+#define GASNETI_DIRECT_GET_NB_BULK_X 1
 
 #endif
 
