@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/02 22:29:57 $
- * $Revision: 1.1.2.33 $
+ *     $Date: 2004/06/03 00:30:58 $
+ * $Revision: 1.1.2.34 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2312,6 +2312,75 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_all_nb() */
 
+/* gall Gath: Implement gather_all in terms of simultaneous gathers */
+/* Valid wherever the underlying gather is valid */
+extern int
+gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
+  int result = 0;
+
+  switch (data->state) {
+    case 0:
+      if (!gasnete_coll_generic_insync(data)) {
+	break;
+      } else {
+	gasnet_coll_handle_t *h;
+        int flags = op->flags;
+	gasnet_team_handle_t team = op->team;
+	void *dst = args->dst;
+	void *src = args->src;
+	size_t nbytes = args->nbytes;
+        int i;
+
+	/* XXX: freelist ? */
+	h = gasneti_malloc(gasnete_nodes * sizeof(gasnet_coll_handle_t));
+	data->private = h;
+
+        flags &= (GASNET_COLL_SINGLE | GASNET_COLL_LOCAL |
+		  GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SRC_IN_SEGMENT);
+	flags |= (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);
+
+        for (i = 0; i < gasnete_nodes; ++i, ++h) {
+          *h = gasnete_coll_gather_nb(team, i, dst, src, nbytes, flags GASNETE_THREAD_PASS);
+        }
+      }
+
+      data->state = 1;
+
+    case 1:
+      {	/* Can't call gasnete_coll_try_sync_all() because it would recurse */
+	gasnet_coll_handle_t *p = data->private;
+	int done = 1;
+	int i;
+
+	for (i = 0; i < gasnete_nodes; ++i, ++p) {
+	  if (*p != GASNET_COLL_INVALID_HANDLE) {
+            if (gasnete_coll_handle_done(*p GASNETE_THREAD_PASS)) {
+	      *p = GASNET_COLL_INVALID_HANDLE;
+	    } else {
+	      done = 0;
+	    }
+	  }
+	}
+	if (!done) break;
+      }
+
+      data->state = 2;
+
+    case 2:
+      if (!gasnete_coll_generic_outsync(data)) {
+	break;
+      }
+
+      gasneti_free(data->private);
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
+
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
 				   void *dst, void *src,
@@ -2324,8 +2393,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
     data->args.gather_all.src     = src;
     data->args.gather_all.nbytes  = nbytes;
     data->options = options;
-    return GASNETE_COLL_UNIMPLEMENTED();
-    /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS); */
+    return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS);
 }
 
 #ifndef gasnete_coll_gather_all_nb
@@ -2346,7 +2414,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(out_sync != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = NULL;
+      poll_fn = &gasnete_coll_pf_gall_Gath;
 
       return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
 						poll_fn, options GASNETE_THREAD_PASS);
@@ -2355,6 +2423,78 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_allM_nb() */
+
+/* gallM Gath: Implement gather_allM in terms of simultaneous gathers */
+/* Valid wherever the underlying gather is valid */
+extern int
+gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_allM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_allM);
+  int result = 0;
+
+  switch (data->state) {
+    case 0:
+      if (!gasnete_coll_generic_insync(data)) {
+	break;
+      } else {
+	gasnet_coll_handle_t *h;
+        int flags = op->flags;
+	gasnet_team_handle_t team = op->team;
+	void * const *p = args->dstlist;
+	void * const *srclist = args->srclist;
+	size_t nbytes = args->nbytes;
+        int i, j;
+
+	/* XXX: freelist ? */
+	h = gasneti_malloc(gasnete_coll_total_images * sizeof(gasnet_coll_handle_t));
+	data->private = h;
+
+        flags &= (GASNET_COLL_SINGLE | GASNET_COLL_LOCAL |
+		  GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SRC_IN_SEGMENT);
+	flags |= (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);
+
+        for (i = 0; i < gasnete_nodes; ++i) {
+	  size_t count = gasnete_coll_all_images[i];
+	  for (j = 0; j < count; ++j, ++h, ++p) {
+            *h = gasnete_coll_gatherM_nb(team, i, *p, srclist, nbytes, flags GASNETE_THREAD_PASS);
+	  }
+        }
+      }
+
+      data->state = 1;
+
+    case 1:
+      {	/* Can't call gasnete_coll_try_sync_all() because it would recurse */
+	gasnet_coll_handle_t *p = data->private;
+	int done = 1;
+	int i;
+
+	for (i = 0; i < gasnete_coll_total_images; ++i, ++p) {
+	  if (*p != GASNET_COLL_INVALID_HANDLE) {
+            if (gasnete_coll_handle_done(*p GASNETE_THREAD_PASS)) {
+	      *p = GASNET_COLL_INVALID_HANDLE;
+	    } else {
+	      done = 0;
+	    }
+	  }
+	}
+	if (!done) break;
+      }
+
+      data->state = 2;
+
+    case 2:
+      if (!gasnete_coll_generic_outsync(data)) {
+	break;
+      }
+
+      gasneti_free(data->private);
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
@@ -2368,8 +2508,7 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
     data->args.gather_allM.srclist = srclist;
     data->args.gather_allM.nbytes  = nbytes;
     data->options = options;
-    return GASNETE_COLL_UNIMPLEMENTED();
-    /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS); */
+    return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS);
 }
 
 #ifndef gasnete_coll_gather_allM_nb
@@ -2390,7 +2529,7 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(out_sync != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = NULL;
+      poll_fn = &gasnete_coll_pf_gallM_Gath;
 
       return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
 						 poll_fn, options GASNETE_THREAD_PASS);
