@@ -240,17 +240,27 @@ struct _firehose_private_t {
  */
 #define FH_USED_TAG		((firehose_private_t *) -1)
 #define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
+#define FH_REMOTE_PENDING_COMMITTED_TAG	((fh_refc_uint_t) -2)
 
 #define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
 #define FH_IS_REMOTE_FIFO(priv)	(!FH_IS_REMOTE_PENDING(priv) &&		\
 				 (priv)->fh_tqe_next != FH_USED_TAG)
 #define FH_SET_USED(priv)	((priv)->fh_tqe_next = FH_USED_TAG)
 
-/* Remote buckets can be in a 'pending' state */
+/* Remote buckets can be in a 'pending' state, either not committed or
+ * committed. */
 #define FH_IS_REMOTE_PENDING(priv)					\
 		(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_TAG)
+#define FH_IS_REMOTE_PENDING_COMMITTED(priv)				\
+	(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_COMMITTED_TAG)
+
 #define FH_SET_REMOTE_PENDING(priv)	do { 				\
 		FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_TAG;	\
+		FH_BUCKET_REFC(priv)->refc_r = 1;			\
+		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
+#define FH_SET_REMOTE_PENDING_COMMITTED(priv)	do { 			\
+		FH_BUCKET_REFC(priv)->refc_l =				\
+				FH_REMOTE_PENDING_COMMITTED_TAG;	\
 		FH_BUCKET_REFC(priv)->refc_r = 1;			\
 		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
 #define FH_UNSET_REMOTE_PENDING(priv)					\
