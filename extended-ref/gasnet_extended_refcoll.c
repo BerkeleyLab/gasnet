@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/25 00:24:13 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2004/05/26 00:03:08 $
+ * $Revision: 1.1.2.19 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,18 +44,43 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 			   gasnet_node_t dstnode, void *dst, size_t dstlen, int dstisv,
                            gasnet_node_t srcnode, void *src, size_t srclen, int srcisv,
 			   unsigned int flags) {
+  int i;
+
   if_pf (!gasnete_coll_init_done) {
     gasneti_fatalerror("Illegal call to GASNet collectives before gasnet_coll_init()\n");
   }
 
+  /* XXX: temporary limitations: */
+  gasneti_assert(flags & GASNET_COLL_DST_IN_SEGMENT);
+  gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);
+  gasneti_assert(flags & GASNET_COLL_SINGLE);
+  gasneti_assert(team == GASNET_TEAM_ALL);
+
   gasneti_assert(GASNETE_COLL_IN_MODE(flags) != 0);	/* IN mode has no default */
   gasneti_assert(GASNETE_COLL_OUT_MODE(flags) != 0);	/* OUT mode has no default */
-  gasneti_assert(flags & GASNET_COLL_DST_IN_SEGMENT);	/* XXX: Temporary limitation */
-  gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);	/* XXX: Temporary limitation */
   gasneti_assert(((flags & GASNET_COLL_SINGLE)?1:0) ^ ((flags & GASNET_COLL_LOCAL)?1:0));
 
+  if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    if (!dstisv) {
+      gasnete_boundscheck(dstnode, dst, dstlen);
+    } else if (flags & GASNET_COLL_SINGLE) {
+      /* XXX: bounds check all images in list of (node,addr) tuples */
+    } else /* (flags & GASNET_COLL_LOCAL) */ {
+      /* XXX: bounds check local images in list of addrs */
+    }
+  }
+
+  if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    if (!srcisv) {
+      gasnete_boundscheck(srcnode, src, srclen);
+    } else if (flags & GASNET_COLL_SINGLE) {
+      /* XXX: bounds check all images in list of (node,addr) tuples */
+    } else /* (flags & GASNET_COLL_LOCAL) */ {
+      /* XXX: bounds check local images in list of addrs */
+    }
+  }
+
   /* XXX: TO DO
-   * + bounds check src and/or dst ranges as indicated by *_IN_SEGMENT
    * + check that team handle is valid (requires a teams interface)
    * + check that mynode is a member of the team (requires a teams interface)
    */
@@ -137,6 +162,21 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 	    gasneti_fatalerror("Non-zero team id passed, but teams are not yet implemented.");
 	}
         return GASNET_TEAM_ALL;
+    }
+
+    gasnet_node_t gasnet_coll_team_rank2node(gasnete_coll_team_t team, int rank) {
+        gasneti_assert(team == NULL);
+	return (gasnet_node_t)rank;
+    }
+
+    int gasnet_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node) {
+        gasneti_assert(team == NULL);
+	return (int)node;
+    }
+
+    uint32_t gasnet_coll_team_id(gasnete_coll_team_t team) {
+        gasneti_assert(team == NULL);
+	return 0;
     }
 #endif
 
