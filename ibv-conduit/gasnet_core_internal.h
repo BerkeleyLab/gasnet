@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/15 21:08:04 $
- * $Revision: 1.1.2.23 $
+ *     $Date: 2003/04/16 06:30:31 $
+ * $Revision: 1.1.2.24 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -186,6 +186,7 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 #define GASNETC_PUT_COPY_LIMIT	(GASNETC_SND_SG * GASNETC_BUFSZ)
 
 #define GASNETC_SND_REAP_LIMIT	(GASNETC_CQ_SIZE / 4)
+#define GASNETC_RCV_REAP_LIMIT	16
 
 /* Structure for a cep (connection end-point)
  * Include whatever per-node data we need.
@@ -240,11 +241,14 @@ extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 
 /* Recv routines in gasnet_core_rcv.c */
+extern void gasnetc_rcv_poll(void);
 extern void gasnetc_rcv_init(void);
+extern void gasnetc_rcv_fini(void);
 extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep);
 extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags);
 
 /* Send routines in gasnet_core_snd.c */
+extern void gasnetc_snd_poll(void);
 extern void gasnetc_snd_init(void);
 extern void gasnetc_snd_fini(void);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
