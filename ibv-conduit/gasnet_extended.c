@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/01/06 23:24:15 $
- * $Revision: 1.7.6.5 $
+ *     $Date: 2004/01/06 23:38:33 $
+ * $Revision: 1.7.6.6 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,6 +24,7 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
   static pthread_key_t gasnete_threaddata; /*  pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
+extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 #if !defined(GASNETC_PIN_SEGMENT) && GASNETE_MEMSET_PUT_LIMIT
   #error "GASNETE_MEMSET_PUT_LIMIT must be zero when GASNETC_PIN_SEGMENT is disabled"
@@ -65,7 +66,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   extern gasnete_threaddata_t *gasnete_mythread() {
     gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
     GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-    if_pt (threaddata) return threaddata;
+    if_pt (threaddata) {
+      gasneti_memcheck(threaddata);
+      return threaddata;
+    }
 
     /*  first time we've seen this thread - need to set it up */
     { int retval;
@@ -155,6 +159,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
         sleep(5);
       #endif
 
+      gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
       for (i=0;i<(bufidx==255?255:256);i++) {                                   
         gasnete_eop_t *eop;                                   
@@ -181,6 +186,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   if_pt (thread->iop_free) {
     iop = thread->iop_free;
     thread->iop_free = iop->next;
+    gasneti_memcheck(iop);
     gasneti_assert(iop->type == gasnete_opImplicit);
     gasneti_assert(iop->threadidx == thread->threadidx);
     gasneti_assert(gasnetc_counter_done(&(iop->get_req_oust)));
@@ -201,7 +207,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
   gasnete_eopaddr_t addr = eop->addr;
   gasneti_assert(thread == gasnete_mythread());
-  gasneti_assert(eop->type == gasnete_opExplicit);
+  gasnete_eop_check(eop);
   gasneti_assert(gasnetc_counter_done(&(eop->req_oust)));
   eop->addr = thread->eop_free;
   thread->eop_free = addr;
@@ -211,7 +217,7 @@ GASNET_INLINE_MODIFIER(gasnete_iop_free)
 void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
-  gasneti_assert(iop->type == gasnete_opImplicit);
+  gasnete_iop_check(iop);
   gasneti_assert(gasnetc_counter_done(&(iop->get_req_oust)));
   gasneti_assert(gasnetc_counter_done(&(iop->put_req_oust)));
   iop->next = thread->iop_free;
@@ -221,14 +227,14 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
 /* query an eop for completeness */
 GASNET_INLINE_MODIFIER(gasnete_eop_test)
 int gasnete_eop_test(gasnete_eop_t *eop) {
-  gasneti_assert(eop->type == gasnete_opExplicit);
+  gasnete_eop_check(eop);
   return gasnetc_counter_done(&eop->req_oust);
 }
 
 /* query an iop for completeness - this means both puts and gets */
 GASNET_INLINE_MODIFIER(gasnete_iop_test)
 int gasnete_iop_test(gasnete_iop_t *iop) {
-  gasneti_assert(iop->type == gasnete_opImplicit);
+  gasnete_iop_check(iop);
   return (gasnetc_counter_done(&(iop->get_req_oust)) && gasnetc_counter_done(&(iop->put_req_oust)));
 }
 
@@ -771,6 +777,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   if (mythread->valget_free) {
     retval = mythread->valget_free;
     mythread->valget_free = retval->next;
+    gasneti_memcheck(retval);
   } else {
     retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
     retval->threadidx = mythread->threadidx;
