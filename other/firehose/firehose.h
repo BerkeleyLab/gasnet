@@ -430,28 +430,29 @@ firehose_poll(void);
  * region.  Specifically, the start address can be lower than requested
  * and/or the end of the region can be higher than requested.
  *
- * Before any region is returned (or passed to a completion callback)
- * its reference count is incremented.  Therefore, the client is
- * responsible for making exactly one balancing call to
- * firehose_release() for each request_t returned from a firehose_*_pin()
- * function, or received as an argument to a completion callback.
+ * In order to RDMA to/from any local or remote memory, a client must
+ * "own" a request_t at each end (except where the transport may have
+ * weaker requirements on local memory or pre-pinned pages are used
+ * without going through firehose).  A request_t is "owned" by the
+ * client from the time it is returned from a firehose_*_pin() function
+ * or passed to a completion callback, until the time the client calls
+ * firehose_release() on the request_t.
  *
- * XXX: More description of reference counts - explaining that to perform
- * any RDMA one must "own" one or more request_t's to cover the entire
- * source and destination.  If we use the term "own", then we could drop
- * the term "reference count".  Instead we can say that the client "owns"
- * a request_t starting with one of three events:
- *	 1) request_t is passed into firehose_init()
- *	 2) request_t is returned from a firehose_*_pin() function
- *	 3) request_t is passed into a completion callback
- * The client's ownership ends when firehose_release() is invoked for it.
- * We should be careful here not to confuse "owning" the request_t with
- * the ownership of the memory holding it.
- * We can probably also tie in the issue of how max_{Remote,Local}PinSize
- * and max_Regions{Local,Remote} affect the client, saying something to
- * the affect that these are the bounds on the "union" of all request_t's
- * "owned" by the client at any one time.
- * 	-Paul
+ * The firehose limits can be described in terms of the union of the
+ * local or remote request_t's owned by a client at any given instant.
+ * For instance, max_RegionsLocal is the maximum number of distinct
+ * regions pinned by the union of all the request_t's on the local node.
+ *
+ * The client must make progress toward firehose_release() for each
+ * request_t it owns, independent of all calls to the firehose_*_pin()
+ * functions with the same target node as the request_t.  To help ensure
+ * progess is made, clients of firehose can be assured that the
+ * firehose_*_pin() functions will call AMPoll() as needed.  Note that
+ * this progress rule requires, for instance, that the client cannot
+ * call firehose_local_pin() twice without some intervening action that
+ * would eventually lead to the release of the first request_t.
+ * Otherwise, the second call may deadlock waiting for resources that
+ * will never be released to it.
  */
 
 /********************************************************************/
