@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/08 16:11:29 $
- * $Revision: 1.19.6.1 $
+ *     $Date: 2003/10/08 18:25:18 $
+ * $Revision: 1.19.6.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -528,21 +528,21 @@ typedef struct {
   gasnetc_sema_t	op_sema;	/* control in-flight RDMA ops */
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #if defined(GASNET_SEGMENT_FAST)
     /* RKey for the segment, registered at attach time */
     VAPI_rkey_t		rkey;
   #else
   #endif
 } gasnetc_cep_t;
 
-/* Description of a registered (pinned) memory region */
+/* Description of a pre-pinned memory region */
 typedef struct {
-  VAPI_mr_hndl_t	handle;
-  VAPI_lkey_t		lkey;
-  VAPI_rkey_t		rkey;
-  uintptr_t		start;
+  VAPI_mr_hndl_t	handle;	/* used to release or modify the region */
+  VAPI_lkey_t		lkey;	/* used for local access by HCA */
+  VAPI_rkey_t		rkey;	/* used for remote access by HCA */
+  uintptr_t		addr;
+  size_t		len;
   uintptr_t		end;	/* inclusive */
-  size_t		size;
 
   /* requested values, before rounding by HCA */
   void *		req_addr;
@@ -594,9 +594,12 @@ extern VAPI_hca_port_t	gasnetc_hca_port;
 extern VAPI_pd_hndl_t	gasnetc_pd;
 extern gasnetc_memreg_t		gasnetc_snd_reg;
 extern gasnetc_memreg_t		gasnetc_rcv_reg;
-#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+#if defined(GASNET_SEGMENT_FAST)
   extern gasnetc_memreg_t	gasnetc_seg_reg;
+#else
+  extern firehose_info_t	gasnetc_firehose_info;
 #endif
+
 extern VAPI_cq_hndl_t	gasnetc_snd_cq;
 extern VAPI_cq_hndl_t	gasnetc_rcv_cq;
 
