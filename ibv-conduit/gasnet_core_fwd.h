@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/03/28 19:52:04 $
- * $Revision: 1.2.2.2 $
+ *     $Date: 2003/04/08 21:23:27 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,15 +33,9 @@ typedef uint8_t gasnet_handler_t;
      statistical collection values (see gasnet_trace.h) */
 #define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
 
-/* XXX:
- * The VAPI conduit requires real locking, even for GASNET_SYNC,
- * because there is a network progress thread.
- * By defining this here we can be sure the extended-ref impl
- * is compiled with threads support.
- * This will go away when we implement the extended API directly.
+/*
+ * The VAPI conduit requires real HSLs, even for GASNET_SYNC, because there is a network progress thread.
  */
-#ifndef GASNETI_THREADS
-  #define GASNETI_THREADS
-#endif
+#define GASNETI_FORCE_TRUE_MUTEXES 1
 
 #endif
