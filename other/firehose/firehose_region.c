@@ -484,12 +484,18 @@ fhi_remove_from_fifo(firehose_region_t *reg, firehose_private_t *priv,
     fh_destroy_priv(priv);
 }
 
-/* Look for opportunities to merge adjacent pinned regions.
+/* Prepares a pending table entry for a region we are going to pin
+ *
+ * Looks for opportunities to merge adjacent pinned regions.
+ * The hash table is such that any region completely covered by
+ * the new region will no longer get any hits.  So, such regions will
+ * eventually end up being recycled from the FIFO.
  */
-GASNET_INLINE_MODIFIER(fhi_merge_regions)
-void
-fhi_merge_regions(firehose_region_t *pin_region, uintptr_t addr, size_t len)
+GASNET_INLINE_MODIFIER(fhi_prepare_pin)
+firehose_private_t *
+fhi_prepare_pin(firehose_region_t *pin_region, uintptr_t addr, size_t len)
 {
+    firehose_private_t *priv = NULL;
     fh_bucket_t *bd;
     size_t	extend;
     size_t	space_avail = fhi_MaxRegionSize - len;
@@ -538,6 +544,12 @@ fhi_merge_regions(firehose_region_t *pin_region, uintptr_t addr, size_t len)
 
     pin_region->addr = addr;
     pin_region->len  = len;
+
+#if 0
+    /* XXX/PHH create in-TRANSIT "priv" here */
+#endif
+
+    return priv;
 }
 
 /* Lookup a region, returning the coresponding priv if found, else NULL.
@@ -672,15 +684,7 @@ fh_acquire_local_region(firehose_request_t *req)
     priv = fhi_find_priv(fh_mynode, req->addr, req->len);
     if_pf (priv == NULL) {
 	/* Firehose MISS, now must pin it */
-
-	/* Try to look for opportunities to merge adjacent pinned regions.
-	 * The hash table is such that any region completely covered by
-	 * the new region will no longer get any hits.  So, such regions will
-	 * eventually end up being recycled from the FIFO.
-	 */
-	fhi_merge_regions(&pin_region, req->addr, req->len);
-
-	/* XXX/PHH create in-TRANSIT "priv" here, before UNLOCK in Wait... */
+	priv = fhi_prepare_pin(&pin_region, req->addr, req->len);
 
 	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
 	gasneti_assert ((num_unpin == 0) || (num_unpin == 1));
@@ -693,14 +697,16 @@ fh_acquire_local_region(firehose_request_t *req)
 
 #if 0
 	/* XXX/PHH commit the in-TRANSIT "priv" here */
-#else
-	priv = fh_create_priv(fh_mynode, &pin_region);
-
 	FH_BSTATE_SET(priv, fh_used);
 	FH_SET_USED(priv);
-	FH_TRACE_BUCKET(priv, INIT);
+	FH_TRACE_BUCKET(priv, COMMIT);
+#else
+	priv = fh_create_priv(fh_mynode, &pin_region);
+	FH_BSTATE_SET(priv, fh_used);
+	FH_SET_USED(priv);
 	FH_BUCKET_REFC(priv)->refc_l = 1;
 	FH_BUCKET_REFC(priv)->refc_r = 0;
+	FH_TRACE_BUCKET(priv, INIT);
 #endif
     }
     else {
@@ -835,6 +841,7 @@ fh_acquire_remote_region(firehose_request_t *req,
         FH_BSTATE_SET(priv, fh_pending);
         FH_SET_REMOTE_PENDING(priv);
         FH_TRACE_BUCKET(priv, INIT);
+
 	fhi_hang_callback(priv, req, callback, context);
                                                                                                               
 	/* Assemble AM payload */
@@ -972,7 +979,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 
 		gasneti_assert(ccb->flags & FH_CALLBACK_TYPE_COMPLETION);
 
-		next = (fh_completion_callback_t *) ccb->fh_tqe_next;
+		next = FH_STAILQ_NEXT(ccb);
 		req = ccb->request;
 
 		gasneti_assert(req && (req->flags & FH_FLAG_PENDING));
@@ -1226,12 +1233,11 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 		firehose_private_t	*priv;
 
 		priv = fh_create_priv(fh_mynode, &regions[i]);
-
 		FH_BSTATE_SET(priv, fh_used);
 		FH_SET_USED(priv);
-		FH_TRACE_BUCKET(priv, ADDING PREPINNED);
-		FH_BUCKET_REFC(priv)->refc_l = 0; /* XXX/PHH:  =1 ? */
+		FH_BUCKET_REFC(priv)->refc_l = 0;
 		FH_BUCKET_REFC(priv)->refc_r = 0;
+		FH_TRACE_BUCKET(priv, ADDING PREPINNED);
 	}
 
 
@@ -1311,15 +1317,7 @@ fh_move_request(gasnet_node_t node,
 	}
 	else {
 		/* MISSED in table */
-
-		/* Try to look for opportunities to merge adjacent pinned regions.
-		 * The hash table is such that any region completely covered by
-		 * the new region will no longer get any hits.  So, such regions will
-		 * eventually end up being recycled from the FIFO.
-		 */
-		fhi_merge_regions(new_reg, new_reg->addr, new_reg->len);
-
-		/* XXX/PHH create in-TRANSIT "priv" here */
+		priv = fhi_prepare_pin(new_reg, new_reg->addr, new_reg->len);
 
 		num_pin = 1;
 	}
@@ -1341,14 +1339,16 @@ fh_move_request(gasnet_node_t node,
 	if (num_pin) {
 #if 0
 		/* XXX/PHH commit the in-TRANSIT "priv" here */
-#else
-		priv = fh_create_priv(fh_mynode, new_reg);
-
 		FH_BSTATE_SET(priv, fh_used);
 		FH_SET_USED(priv);
-		FH_TRACE_BUCKET(priv, INIT);
+		FH_TRACE_BUCKET(priv, COMMIT);
+#else
+		priv = fh_create_priv(fh_mynode, new_reg);
+		FH_BSTATE_SET(priv, fh_used);
+		FH_SET_USED(priv);
 		FH_BUCKET_REFC(priv)->refc_l = 0;
 		FH_BUCKET_REFC(priv)->refc_r = 1;
+		FH_TRACE_BUCKET(priv, INIT);
 #endif
 	}
 
