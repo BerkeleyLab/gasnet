@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2004/11/23 23:39:53 $
- * $Revision: 1.82.2.1 $
+ *     $Date: 2005/01/03 15:15:31 $
+ * $Revision: 1.82.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1174,7 +1174,7 @@ extern void gasneti_trace_init(int argc, char **argv) {
 
   gasneti_tracestats_printf("GASNET_CONFIG_STRING: %s", GASNET_CONFIG_STRING);
   gasneti_tracestats_printf("GASNet build timestamp:   " __DATE__ " " __TIME__);
-  gasneti_tracestats_printf("GASNet configure args:    " GASNETI_CONFIGURE_ARGS);
+  gasneti_tracestats_printf("GASNet configure args:    %s", GASNETI_CONFIGURE_ARGS);
   gasneti_tracestats_printf("GASNet configure buildid: " GASNETI_BUILD_ID);
   gasneti_tracestats_printf("GASNet system tuple:      " GASNETI_SYSTEM_TUPLE);
   gasneti_tracestats_printf("GASNet configure system:  " GASNETI_SYSTEM_NAME);

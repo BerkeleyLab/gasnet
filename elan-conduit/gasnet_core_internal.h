@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2004/11/02 07:28:10 $
- * $Revision: 1.24.2.2 $
+ *     $Date: 2005/01/03 15:15:33 $
+ * $Revision: 1.24.2.3 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -139,7 +139,7 @@ extern ELAN_TPORT *gasnetc_elan_tport;
     #define gasnetc_elan_addressable(base, sz) 1
   #endif
 #else
-  #define gasnetc_elan_addressable(base, sz) (elan_addressable(STATE(), (base), (sz))
+  #define gasnetc_elan_addressable(base, sz) (elan_addressable(STATE(), (base), (sz)))
 #endif
 
 #ifndef GASNETC_ALLOW_ELAN_PERM_REMAP

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2004/11/23 23:40:21 $
- * $Revision: 1.52.2.1 $
+ *     $Date: 2005/01/03 15:15:39 $
+ * $Revision: 1.52.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,7 +29,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define GASNETC_HSL_SPINLOCK 1
 
 #define GASNETC_CACHE_LINE_SIZE (128)
-#define GASNETC_CACHE_PAD(SZ) (GASNETI_ALIGNUP(SZ,GASNETC_CACHE_LINE_SIZE)-(SZ))
+#define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETC_CACHE_LINE_SIZE)-(SZ))
 
 /* check (even in optimized build) for VAPI errors */
 #define GASNETC_VAPI_CHECK(vstat,msg) \

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2004/10/24 02:27:43 $
- * $Revision: 1.15 $
+ *     $Date: 2005/01/03 15:15:37 $
+ * $Revision: 1.15.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,9 @@ int main() {
       double overhead = gasnett_timer_overheadus();
       double granularity = gasnett_timer_granularityus();
       if (granularity <= 0.0 || overhead <= 0.0 ||
-          granularity < 0.5*overhead)
+          (granularity+0.1) < 0.5*overhead) 
+          /* allow some leeway for noise at granularities approaching cycle speed */
+          /*granularity < 0.5*overhead)*/
         printf("ERROR: nonsensical timer overhead/granularity measurements:\n"
                "  overhead: %.3fus  granularity: %.3fus\n",overhead, granularity);
     }

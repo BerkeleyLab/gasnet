@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c,v $
- *     $Date: 2004/09/22 23:14:12 $
- * $Revision: 1.7 $
+ *     $Date: 2005/01/03 15:15:39 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet vapi conduit implementation, mpi bootstrap code
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -13,17 +13,17 @@
 #include <gasnet_internal.h>
 
 static MPI_Comm gasnetc_mpi_comm;
+static int gasnetc_mpi_preinitialized = 0;
 
 void gasnetc_bootstrapInit(int *argc, char ***argv, gasnet_node_t *nodes, gasnet_node_t *mynode) {
   MPI_Group world;
-  int initialized = 0;
   int err;
   int tmp;
 
   /* Call MPI_Init exactly once */
-  err = MPI_Initialized(&initialized);
+  err = MPI_Initialized(&gasnetc_mpi_preinitialized);
   gasneti_assert(err == MPI_SUCCESS);
-  if (!initialized) {
+  if (!gasnetc_mpi_preinitialized) {
     err = MPI_Init(argc, argv);
     gasneti_assert(err == MPI_SUCCESS);
   }
@@ -52,9 +52,14 @@ void gasnetc_bootstrapFini(void) {
   err = MPI_Comm_free(&gasnetc_mpi_comm);
   gasneti_assert(err == MPI_SUCCESS);
 
-#if 0	/* Finalize will prevent exit code from reaching the caller!! */
-  (void) MPI_Finalize();
-#endif
+  /* In most cases it appears that calling MPI_Finalize() will
+   * prevent us from propagating the exit code to the spawner.
+   * However, as seen w/ mpich-1.2.5, the alternative is to
+   * hang on exit, which is no alternative at all.
+   */
+  if (!gasnetc_mpi_preinitialized) {
+    (void) MPI_Finalize();
+  }
 }
 
 void gasnetc_bootstrapAbort(int exitcode) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2004/10/14 09:05:02 $
-# $Revision: 1.14 $
+#     $Date: 2005/01/03 15:15:35 $
+# $Revision: 1.14.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -10,12 +10,14 @@ use strict;
 
 # NOTE: The value of $ENV{'MPIRUN_CMD'} may be set in the shell wrapper
 my $spawncmd = $ENV{'MPIRUN_CMD'} || 'mpirun -np %N %P %A';
+$spawncmd = stripouterquotes($spawncmd);
 $spawncmd =~ s/%C/%P %A/;	# deal with common alias
 
 # Validate the spawncmd
 unless (exists($ENV{'MPIRUN_CMD_OK'}) ||
         (($spawncmd =~ m/%P/) && ($spawncmd =~ m/%A/) && ($spawncmd =~ m/%N/))) {
-	die("The environment variable MPIRUN_CMD must contain the strings '%P' and '%A'\n"
+	die("gasnetrun: ERROR: MPIRUN_CMD='$spawncmd'\n"
+          . "The environment variable MPIRUN_CMD must contain the strings '%P' and '%A'\n"
 	  . "(or '%C' as an alias for '%P %A') for expansion into the program and its arguments;\n"
 	  . "and '%N' for expansion into the number of processes.\n"
 	  . "To disable this check, set MPIRUN_CMD_OK in your environment.\n");
@@ -101,6 +103,12 @@ sub usage
     print "      -t                    test only, don't execute anything (implies -v)\n";
     print "      --                    ends option parsing\n";
     exit 1;
+}
+
+sub stripouterquotes {
+    my ($val) = @_;
+    while ( $val =~ s/['"](.*?)['"]/$1/ ) { }
+    return $val;
 }
 
 # "Multiply" array(s) for mapping procs to nodes
@@ -195,9 +203,9 @@ sub expand {
 	        }
 	    }
         }
-        die("Unable to locate program '$exebase'\n")
+        die("gasnetrun: unable to locate program '$exebase'\n")
 		    unless (defined($exename) && -x $exename);
-        print("Located executable '$exename'\n") if ($verbose);
+        print("gasnetrun: located executable '$exename'\n") if ($verbose);
     } else {
         $exename = $exebase;
     }
@@ -239,24 +247,63 @@ sub expand {
 
     # Special case for the mpich spawner
     if ($is_mpich && !$is_mpich_nt) {
-	my @spawners = ('ssh', 'rsh');
+        # General approach: create a wrapper script for the rsh/ssh command invoked by MPICH
+        # that glues on the correct environment variables in a way that won't disturb MPICH
+        $tmpdir = "gasnetrun_mpi-temp-$$";
+        mkdir ($tmpdir, 0777) or die "gasnetrun: cannot create \'$tmpdir\'";
+	my @spawners = ('ssh', 'rsh'); # default is to create ssh and rsh capture scripts
+                                       # always create them because MPICH-GM device overrides RSHCOMMAND
+        my $realprog = undef;
+        my $realprog_args = undef;
+        # If we have a direct path to the MPICH spawn script, rewrite it and replace RSHCOMMAND
+        # for the most robust spawner capture (because RSHCOMMAND is sometimes an absolute path)
+        if ($spawncmd =~ /^\s*(\S+)/ && -x "$1" && `grep 'RSHCOMMAND=' "$1" 2> /dev/null` ne "") {
+          my $mpirun_script = stripouterquotes($1);
+          my $tmprun = "$tmpdir/mpirun-tmp";
+          my $tmprsh = 'mpirun-rsh';
+          open (MPIRUN, $mpirun_script) or die "gasnetrun: can't open '$mpirun_script' for reading\n";
+          open (TMPRUN, ">$tmprun") or die "gasnetrun: can't open '$tmprun' for writing\n";
+          print "gasnetrun: cloning '$mpirun_script' to '$tmprun'\n" if ($verbose);
+          while (<MPIRUN>) {
+            my $line = $_;
+            if ($line =~ /^\s*RSHCOMMAND=(.+)$/) {
+              $realprog = $1;
+              $line =~ s/$realprog/"$tmprsh"/; 
+              $realprog = stripouterquotes($realprog);
+              $realprog =~ s/^(\S+)\s*(.*)$/$1/;
+              $realprog_args = $2;
+              $realprog = stripouterquotes($realprog);
+            }
+            print TMPRUN "$line";
+          }
+          close (MPIRUN);
+          close (TMPRUN);
+	  chmod 0700, $tmprun or die "gasnetrun: cannot \'chmod 0700, $tmprun\'";
+	  unshift @tmpfiles, "$tmprun";
+	  if (!($realprog =~ /^\//)) { # RSHCOMMAND is a relative path - get absolute
+             chomp($realprog = `which "$realprog" 2> /dev/null` || $realprog);
+          }
+          if (! -x "$realprog") {
+	    print "gasnetrun: warning: cannot find MPICH underlying spawner '$realprog'\n" if ($verbose);
+            $realprog = `which "ssh" 2> /dev/null`; $realprog_args = undef;
+          }
+	  unshift @spawners, $tmprsh;
+          $spawncmd =~ s#$mpirun_script#$tmprun#;
+        } 
 	my $args = join(' ',map { "\"\'$_\'\"" } @envargs);
 	(my $degooped_exename = $exename) =~ s/#/\\#/g;
 	(my $degooped_args = join(' ',map { "\'$_\'" } @envargs)) =~ s/#/\\#/g;
-        $tmpdir = "gasnetrun_mpi-temp-$$";
-        mkdir ($tmpdir, 0777) or die "Cannot create \'$tmpdir\'";
 	foreach my $spawner (@spawners) {
-          my $realprog = `which "$spawner" 2> /dev/null`;
-  	  chomp $realprog;
+          unless (defined $realprog) { chomp($realprog = `which "$spawner" 2> /dev/null`); }
 	  if (! -x "$realprog") { # Can't find that spawner - Assume we're not using it
-            print "Warning: cannot find \'$spawner\'\n" if ($verbose);
+            print "gasnetrun: warning: cannot find \'$spawner\'\n" if ($verbose);
 	    next;
   	  }
 
 	  my $tmpfile = "$tmpdir/$spawner";
 	  unshift @tmpfiles, "$tmpfile";
-          print "Building $tmpfile\n" if ($verbose);
-	  open (TMPSPAWN, ">$tmpfile") or die "Cannot open $tmpfile";
+          print "gasnetrun: building '$tmpfile' to wrap '$realprog'\n" if ($verbose);
+	  open (TMPSPAWN, ">$tmpfile") or die "gasnetrun: cannot open $tmpfile";
 	  print TMPSPAWN <<EOF;
 #!/bin/sh
 
@@ -278,12 +325,14 @@ done
 
 if test "$verbose" != "0" ; then
   echo \$0 executing command:
-  echo '$realprog' "\$@"
+  echo '$realprog' $realprog_args "\$@"
 fi
-  exec '$realprog' "\$@"
+  exec '$realprog' $realprog_args "\$@"
 EOF
 	  close(TMPSPAWN);
-	  chmod 0700, $tmpfile or die "Cannot \'chmod 0700, $tmpfile\'";
+	  chmod 0700, $tmpfile or die "gasnetrun: cannot \'chmod 0700, $tmpfile\'";
+          $realprog = undef;
+          $realprog_args = undef;
    	}	
 	$ENV{PATH} = "$tmpdir:$ENV{PATH}";
 	@envargs = ();
@@ -308,18 +357,18 @@ EOF
                               $_;
                           }
 			} split(" ", $spawncmd);
-    print("running: ", join(' ', @spawncmd), "\n")
+    print("gasnetrun: running: ", join(' ', @spawncmd), "\n")
 	if ($verbose);
     exit(0) if ($dryrun);
 
-    if (defined $tmpdir) {
+    if (1 && defined $tmpdir) {
 	system(@spawncmd);
 	foreach (@tmpfiles) {
-	    unlink "$_" or die "Failed to unlink \'$_\'";
+	    unlink "$_" or die "gasnetrun: failed to unlink \'$_\'";
 	}
-	rmdir $tmpdir or die "Failed to rmdir \'$tmpdir\'";
+	rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
     } else {
 	exec(@spawncmd);
-	die "exec failed: $!\n";
+	die "gasnetrun: exec failed: $!\n";
     }
 __END__

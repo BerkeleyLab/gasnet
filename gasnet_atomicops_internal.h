@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops_internal.h                               $
- *     $Date: 2004/10/19 04:41:49 $
- * $Revision: 1.9 $
+ *     $Date: 2005/01/03 15:15:31 $
+ * $Revision: 1.9.2.1 $
  * Description: GASNet header for semi-portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,16 +147,16 @@
     #if defined(__xlC__)
       static int32_t gasneti_atomic_swap_not_32(volatile int32_t *v, int32_t oldval, int32_t newval);
       #pragma mc_func gasneti_atomic_swap_not_32 {\
-	/* ARGS: r3 = p, r4=oldval, r5=newval   LOCAL: r2 = tmp */ \
-	"7c401828"	/* 0: lwarx	r2,0,r3		*/ \
-	"7c422279"	/*    xor.	r2,r2,r4	*/ \
+	/* ARGS: r3 = p, r4=oldval, r5=newval   LOCAL: r0 = tmp */ \
+	"7c001828"	/* 0: lwarx	r0,0,r3		*/ \
+	"7c002279"	/*    xor.	r0,r0,r4	*/ \
 	"40820010"	/*    bne	1f		*/ \
 	"7ca0192d"	/*    stwcx.	r5,0,r3		*/ \
 	"40a2fff0"	/*    bne-	0b		*/ \
-	"7c431378"	/* 1: mr	r3,r2		*/ \
+	"7c030378"	/* 1: mr	r3,r0		*/ \
 	/* RETURN in r3 = 0 iff swap took place */ \
       }
-      #pragma reg_killed_by gasneti_atomic_swap_not_32
+      #pragma reg_killed_by gasneti_atomic_swap_not_32 cr0, gr0
       #define gasneti_atomic_compare_and_swap(p, oldval, newval) \
 	(gasneti_atomic_swap_not_32(&((p)->ctr),(oldval),(newval)) == 0)
       #define GASNETI_HAVE_ATOMIC_CAS 1
