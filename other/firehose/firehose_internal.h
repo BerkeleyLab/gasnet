@@ -53,25 +53,19 @@ extern gasneti_mutex_t		fh_table_lock;
  *    XXX/PHH: actually counts of private_t's, rather than bucket_t's
  *
  * fhc_LocalOnlyBucketsPinned - incrementing counter
- *     Amount of buckets pinned only for the local node (localref > 0 AND
- *     remoteref == 0).
- *
- * fhc_LocalOnlyBucketsInFlight - incrementing counter
- *     Total amount of local buckets currently touched (refcount incremented)
- *     by locally-initiated operations.  This count must be less than
- *     fhc_MaxVictimBuckets in order to avoid deadlocks.
+ *     Amount of buckets pinned by the local node or in the FIFO
+ *     (localref > 0 OR remoteref == 0).  This count must be less than
+ *     or equal to fhc_MaxVictimBuckets in order to avoid deadlocks.
  *
  * fhc_LocalVictimFifoBuckets - incrementing counter
  *     Amount of buckets currently contained in the Local Victim FIFO. 
  *
  * fhc_MaxVictimBuckets - static count
- *     Maximum amount of victims that may be pinned other than M.  At all
- *     fhc_LocalOnlyBucketsPinned + 
- *        fhc_LocalVictimFifoBuckets < fhc_MaxVictimBuckets
+ *     Maximum amount of victims that may be pinned other than M.
+ *     fhc_LocalOnlyBucketsPinned <= fhc_MaxVictimBuckets
  */
 
 extern int	fhc_LocalOnlyBucketsPinned;
-extern int	fhc_LocalOnlyBucketsInFlight;
 extern int	fhc_LocalVictimFifoBuckets;
 extern int	fhc_MaxVictimBuckets;
 
@@ -273,8 +267,6 @@ fh_refc_t *	fh_priv_release(gasnet_node_t node, firehose_private_t *);
 		/* Acquires the private_t (increments the refcount). _ONLY_ 
 		 * valid if the private_t already exists in the table    */
 fh_refc_t *	fh_priv_acquire(gasnet_node_t node, firehose_private_t *);
-		/* Stall to respect the limit on local firehoses in flight */
-void		fh_WaitLocalFirehosesInFlight(int count);
 		/* Wait for local firehoses to release/reuse */
 int		fh_WaitLocalFirehoses(int count, firehose_region_t *region);
 		/* Wait for remote firehoses to release/reuse */

@@ -26,7 +26,6 @@ fh_fifoq_t      *fh_RemoteNodeFifo = NULL;
 
 /* Local Limits & Counters */
 int fhc_LocalOnlyBucketsPinned;
-int fhc_LocalOnlyBucketsInFlight;
 int fhc_LocalVictimFifoBuckets;
 int fhc_MaxVictimBuckets;
 
@@ -637,13 +636,13 @@ fh_getenv(const char *var, unsigned long multiplier)
  *          .---. (PINNED)                   .---.
  *       B. |0 0| (IN FIFO) <-- -- -- -- --> |0 1| C. (PINNED)
  *          `---'                            `---'
- *          |  ^                             |  ^ 
- *          |  | LOnly++                     |  |  LOnly++
- *  LOnly-- |  |                     LOnly-- |  |
- *          V  |                             V  |
- *          .---.                            .---.
- *       E. |1 0| (PINNED)  <-- -- -- -- --> |1 1| D. (PINNED)
- *          `---'                            `---'
+ *          |  ^                               ^ 
+ *          |  | LOnly++                       |
+ *  LOnly-- |  |                               |
+ *          V  |                LOnly--        V
+ *          .---.           <-- -- -- -- --  .---.
+ *       E. |1 0| (PINNED)   -- -- -- -- --> |1 1| D. (PINNED)
+ *          `---'               LOnly++      `---'
  *
  * All transitions  _TO_  state 'B' add    the bucket to the FIFO
  * All transitions _FROM_ state 'B' remove the bucket to the FIFO
@@ -707,6 +706,9 @@ fh_priv_acquire(gasnet_node_t node, firehose_private_t *entry)
 		 */
 
 		if (FH_IS_LOCAL_FIFO(entry)) {
+			/* Bucket started in state "B" and is
+			 * now entering state (ref_L ? "C" : "E")
+			 */
 			FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
 			assert(FH_NODE(entry) == fh_mynode);
 			FH_BSTATE_ASSERT(entry, fh_local_fifo);
@@ -714,6 +716,7 @@ fh_priv_acquire(gasnet_node_t node, firehose_private_t *entry)
 			rp->refc_l = ref_L;
 			rp->refc_r = !ref_L;
 
+			/* We must dec LOnly if entering state "E" */
 			fhc_LocalOnlyBucketsPinned -= !ref_L;
 			fhc_LocalVictimFifoBuckets--;
 			FH_BSTATE_SET(entry, fh_used);
@@ -722,18 +725,19 @@ fh_priv_acquire(gasnet_node_t node, firehose_private_t *entry)
 			FH_TRACE_BUCKET(entry, ACQFIFO);
 		}
 		else {
+			/* Bucket started in state "C", "D" or "E" */
 			FH_SET_USED(entry);
 			FH_BSTATE_ASSERT(entry, fh_used);
 			if (ref_L) {
+				/* Bucket is entering state "C" or "D".  We
+				 * must inc LOnly if coming from state "E" */
+				fhc_LocalOnlyBucketsPinned +=
+							(rp->refc_l == 0);
 				rp->refc_l++;
 				FH_TRACE_BUCKET(entry, ACQUIRE);
 			}
 			else {
-				if (rp->refc_r == 0) {
-					assert(rp->refc_l > 0);
-					fhc_LocalOnlyBucketsPinned--;
-				}
-
+				/* Bucket is entering state "D" or "E" */
 				rp->refc_r++;
 				FH_TRACE_BUCKET(entry, ACQUIRE);
 			}
@@ -806,8 +810,10 @@ fh_priv_release(gasnet_node_t node, firehose_private_t *entry)
 
 		/* As a result, the bucket may be unused */
 		if (rp->refc_r == 0 && rp->refc_l == 0) {
+			/* Have entered state "B" (FIFO) */
 			FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
 
+			/* We must inc LOnly if coming from state "E" */
 			fhc_LocalOnlyBucketsPinned += !ref_L;
 			fhc_LocalVictimFifoBuckets++;
 
@@ -816,8 +822,9 @@ fh_priv_release(gasnet_node_t node, firehose_private_t *entry)
 			return rp;
 		}
 		else {
-			if (rp->refc_r == 0 && !ref_L) 
-				fhc_LocalOnlyBucketsPinned++;
+			/* We must dec LOnly if entering state "E" from "D" */
+			fhc_LocalOnlyBucketsPinned -=
+						(rp->refc_l == 0 && ref_L);
 
 			FH_TRACE_BUCKET(entry, RELEASE);
 			return rp;
@@ -887,10 +894,6 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 /*
  * Waiting/Polling for local and remote firehoses
  *
- * The WaitLocalBucketsInFlight() function stalls a local pin operation in
- * order to respect the upper bound on the total number of buckets in flight
- * (represented by the fhc_LocalOnlyBucketsInFlight counter).
- *
  * The WaitLocalFirehoses() and WaitRemoteFirehoses() functions stall on the
  * appropriate FIFO waiting on the total number of firehoses available for
  * replacement.  The replacement firehoses are placed in the supplied array
@@ -899,44 +902,12 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
  * regions in the array, which may be less than the number of requested
  * firehoses if coalescing was possible.
  *
+ * WaitLocalFirehoses() has the additional property of enforcing the limit
+ * fhc_LocalOnlyBucketsPinned <= fhc_MaxVictimBuckets.
+ *
  * TODO:  Firehose should implement a deadlock-free and starvation-free polling
  *        mechanism for threaded clients.
  */
-
-void
-fh_WaitLocalFirehosesInFlight(int count)
-{
-	int	b_remain, b_avail;
-
-	FH_TABLE_ASSERT_LOCKED;
-
-	if_pt (fhc_LocalOnlyBucketsInFlight + count <= fhc_MaxVictimBuckets) {
-		fhc_LocalOnlyBucketsInFlight += count;
-		return;
-	}
-
-	GASNETI_TRACE_PRINTF(C, ("Firehose Outstanding number of "
-	    "buckets in flight reached threshold %d", fhc_MaxVictimBuckets));
-
-	b_remain = count;
-
-	while (b_remain > 0) {
-		b_avail = MIN(b_remain, 
-		        fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsInFlight);
-
-		if (b_avail > 0) {
-			fhc_LocalOnlyBucketsInFlight += b_avail;
-			b_remain -= b_avail;
-		}
-		else {
-			FH_TABLE_UNLOCK;
-			gasnet_AMPoll();
-			FH_TABLE_LOCK;
-		}
-	}
-
-	return;
-}
 
 int
 fh_WaitLocalFirehoses(int count, firehose_region_t *region)
@@ -946,8 +917,9 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 
 	FH_TABLE_ASSERT_LOCKED;
 
-	assert(fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned >= 0);
-	b_avail = MIN(count, fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned);
+	/* First grab any "free" buckets due to a less-than-full FIFO */
+	assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
+	b_avail = MIN(count, FHC_MAXVICTIM_BUCKETS_AVAIL);
 	fhc_LocalOnlyBucketsPinned += b_avail;
 
 	b_remain = count - b_avail;

@@ -438,7 +438,6 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	 */
 	fhc_LocalOnlyBucketsPinned = b_prepinned;
 	fhc_LocalVictimFifoBuckets = 0;
-	fhc_LocalOnlyBucketsInFlight = 0;
 	fhc_MaxVictimBuckets = (maxvictim + m_prepinned) >> FH_BUCKET_SHIFT;
 
 	/* 
@@ -890,11 +889,6 @@ fh_acquire_local_region(firehose_request_t *req)
 		unpin_p->regions_num = 
 			fh_WaitLocalFirehoses(b_num, unpin_p->regions);
 
-		/* Make sure we don't exceed the threshold for buckets in
-		 * flight. This may stall until enough buckets are recovered.
-	 	 */
-		fh_WaitLocalFirehosesInFlight(b_num);
-
 		FH_TABLE_UNLOCK;
 		firehose_move_callback(fh_mynode,
 				unpin_p->regions, unpin_p->regions_num,
@@ -1100,8 +1094,6 @@ fh_release_local_region(firehose_request_t *request)
 
 	fhi_ReleaseLocalRegionsList(fh_mynode, &reg, 1);
 	fh_AdjustLocalFifoAndPin(fh_mynode, NULL, 0);
-
-	fhc_LocalOnlyBucketsInFlight -= b_total;
 
 	return;
 }
@@ -1585,9 +1577,9 @@ fh_dump_counters()
 	gasnet_node_t	node = fh_mynode;
 
 	/* Local counters */
-	printf("%d> MaxVictimB=%d, Local[Only/Fifo/Inflight]=[%d/%d/%d]\n",
+	printf("%d> MaxVictimB=%d, Local[Only/Fifo]=[%d/%d]\n",
 		node, fhc_MaxVictimBuckets, fhc_LocalOnlyBucketsPinned, 
-		fhc_LocalVictimFifoBuckets, fhc_LocalOnlyBucketsInFlight);
+		fhc_LocalVictimFifoBuckets);
 
 	/* Remote counters */
 	for (i = 0; i < gasnet_nodes(); i++) {
