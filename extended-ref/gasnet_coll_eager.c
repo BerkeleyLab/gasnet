@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/04/03 00:10:30 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2004/04/07 18:05:29 $
+ * $Revision: 1.1.2.6 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,17 @@
 
 /*---------------------------------------------------------------------------------*/
 /* Forward decls */
+
+/*---------------------------------------------------------------------------------*/
+/* Handles */
+
+#ifndef GASNETE_COLL_HANDLE_OVERRIDE
+  GASNET_INLINE_MODIFIER(gasnete_coll_hand_signal)
+  void gasnete_coll_handle_signal(gasnet_coll_handle_t handle) {
+    gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE);
+    *handle = 1;
+  }
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* Collective teams */
@@ -203,10 +214,10 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 /* Aggregation/filtering */
 
 /* interface:
- *   gasnete_coll_op_t *gasnete_coll_op_submit(op)
+ *   gasnet_coll_handle_t gasnete_coll_op_submit(op, handle)
  *	Place coll_op in active list or not, as desired/required.
  *   void gasnete_coll_op_complete(op, poll_result);
- *	Mark coll_op done and perform other completion-time tasks.
+ *	Completion hook
  *
  *  Both are called with the table lock held.
  */
@@ -216,85 +227,97 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 
     /* XXX: how will teams interact w/ aggregation? */
 
-    static gasnete_coll_op_t *gasnete_coll_agg_stack = NULL;
+    static gasnete_coll_op_t *gasnete_coll_agg = NULL;
 
-    gasnete_coll_op_t *
-    gasnete_coll_op_submit(gasnete_coll_op_t *op) {
+    gasnet_coll_handle_t
+    gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle) {
       /* All ops go onto the active list */
       gasnete_coll_op_active_ins(op);
 
       op->agg_head = NULL;
+      op->handle = handle;
 
-      if_pf (op->flags && GASNET_COLL_AGGREGATE) {
-        /* Aggregate members get pushed on a stack */
-        op->agg_prev = gasnete_coll_agg_stack;
-        gasnete_coll_agg_stack = op;
-      } else if_pf (gasnete_coll_agg_stack) {
-        gasnete_coll_op_t *tmp;
+      if_pf (op->flags & GASNET_COLL_AGGREGATE) {
+	gasnete_coll_op_t *head = gasnete_coll_agg;
 
-        /* End of aggregate, pop the entire stack */
-        op->agg_prev = gasnete_coll_agg_stack;
-        gasnete_coll_agg_stack = NULL;
+	gasneti_assert(handle == NULL);	/* check for handle leak */
 
-        /* Build a container to hold the aggregate.
-	 * The team, sequence and flags don't matter since this is just a dummy.
-	 * We build a circular doubly linked list from the stack.
+	if (head == NULL) {
+          /* Build a container to hold the aggregate.
+	   * The team, sequence and flags don't matter.
+	   */
+	  head = gasnete_coll_agg = gasnete_coll_op_create(op->team, 0, 0);
+          head->agg_next = head->agg_prev = head;
+	}
+
+        /* Aggregate members go in a circular list */
+        op->agg_next = head;
+        op->agg_prev = head->agg_prev;
+        head->agg_prev->agg_next = op;
+        head->agg_prev = op;
+
+	/* We don't set the agg_head yet.
+	 * If the aggregation list becomes empty now it is
+	 * only temporary and should not signal 'done'.
 	 */
-        tmp = gasnete_coll_op_create(op->team, 0, 0);
+      } else if_pf (gasnete_coll_agg) {
+	gasnete_coll_op_t *tmp;
+
+        /* End of aggregate, place final op in the list */
+	tmp = gasnete_coll_agg;
+        op->agg_next = tmp;
+        op->agg_prev = tmp->agg_prev;
+        tmp->agg_prev->agg_next = op;
         tmp->agg_prev = op;
-	op = tmp;
-        do {
-	  gasnete_coll_op_t *next = op;
-          op = op->agg_prev;
-          op->agg_head = tmp;
-	  op->agg_next = next;
-        } while (op->agg_prev != NULL);
-	op->agg_prev = tmp;
-        tmp->agg_next = op;
 
-	/* The container replaces the real coll_op as the handle */
-	op = tmp;
-
-	/* There is a race in which aggregates coll_ops might have completed
-	 * before we get here.  Since we are serialized with respect to
-	 * completion (by the table lock), we can safely resolve this race
-	 * by examining the 'done' fields now.
-	 * Note that the aggregate will never be empty after this loop since
-	 * at least the most recent coll_op has never been polled.
-	 * XXX: merge this into the pass above?
+	/* Set all of the agg_head fields so we can signal
+	 * the container op when the list becomes empty.
 	 */
-	tmp = op->agg_next;
+	gasneti_assert(tmp == gasnete_coll_agg);
+	tmp = tmp->agg_next;
 	do {
-	  gasnete_coll_op_t *next = tmp->agg_next;
-	  if (tmp->done) {
-	    tmp->agg_next->agg_prev = tmp->agg_prev;
-	    tmp->agg_prev->agg_next = tmp->agg_next;
-	    gasnete_coll_op_destroy(tmp);
-	  }
-	  tmp = next;
-	} while (tmp != op);
+	   tmp->agg_head = gasnete_coll_agg;
+	   tmp = tmp->agg_next;
+	} while (tmp != gasnete_coll_agg);
+
+	/* Return the container in place of the ops */
+	gasneti_assert(tmp == gasnete_coll_agg);
+	gasnete_coll_agg = NULL;
+	tmp->handle = op->handle;
+	op->handle = GASNET_COLL_INVALID_HANDLE;
       } else {
         /* An isolated coll_op (the normal case) */
       }
 
-      return op;
+      return handle;
     }
 
     void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result) {
-      if_pf (op->agg_head) {
-	gasnete_coll_op_t *head = op->agg_head;
+      if (poll_result & GASNETE_COLL_OP_COMPLETE) {
+        if_pt (op->handle != GASNET_COLL_INVALID_HANDLE) {
+	    /* Normal case, just signal the handle */
+	    gasnete_coll_handle_signal(op->handle);
+	    gasneti_assert(op->agg_head == NULL);
+	} else if (op->agg_head) {
+	  gasnete_coll_op_t *head = op->agg_head;
 
-	/* Remove this member from the aggregate */
-	op->agg_next->agg_prev = op->agg_prev;
-	op->agg_prev->agg_next = op->agg_next;
-	gasnete_coll_op_destroy(op);
+	  /* Remove this member from the aggregate */
+	  op->agg_next->agg_prev = op->agg_prev;
+	  op->agg_prev->agg_next = op->agg_next;
 
-	/* Mark the container op done if it has become empty */
-	if (head->agg_next == head) {
-	  head->done = poll_result;
+	  /* If the container op is now empty, mark it's handle as done. */
+	  if (head->agg_next == head) {
+	    gasnete_coll_handle_signal(head->handle);
+	    gasnete_coll_op_destroy(head);
+	  }
+        } else if_pt (op->handle != GASNET_COLL_INVALID_HANDLE) {
+	    /* Just signal the handle */
+	    gasnete_coll_handle_signal(op->handle);
 	}
-      } else {
-        op->done = poll_result;
+      }
+
+      if (poll_result & GASNETE_COLL_OP_INACTIVE) {
+	/* Nothing extra to do */
       }
     }
 
@@ -302,23 +325,30 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 
 /*---------------------------------------------------------------------------------*/
 gasnete_coll_op_t *
-gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int flags)
-{
+gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int flags) {
   gasnete_coll_op_t *op;
+
+  /* ASSERT: table lock held */
 
   op = gasneti_malloc(sizeof(*op));	/* XXX: use a free list */
 
   op->team     = team;
   op->sequence = sequence;
   op->flags    = flags;
-  op->done     = 0;
+  op->handle   = GASNET_COLL_INVALID_HANDLE;
   gasnet_hsl_init(&op->lock);
   op->poll_fn  = (gasnete_coll_poll_fn)NULL;
   
-  /* The aggregation and and 'data' fields are setup elsewhere */
+  /* The aggregation and 'data' fields are setup elsewhere */
   /* The gasnete_coll_op_table_ins(op) is done elsewhere */
 
   return op;
+}
+
+void
+gasnete_coll_op_destroy(gasnete_coll_op_t *op) {
+  /* ASSERT: table lock held */
+  gasneti_free(op);	/* Use free list */
 }
 
 void gasnete_coll_poll(void) {
@@ -348,12 +378,15 @@ void gasnete_coll_poll(void) {
       gasnet_hsl_lock(&gasnete_coll_table_lock);
       next = gasnete_coll_op_active_next(op);
       if (poll_result != 0) {
-        /* delete from active list and table */
-        gasnete_coll_op_active_del(op);
-        gasnete_coll_op_table_del(op);
-
-        /* mark the op as completed */
+        /* invoke the completion hook */
         gasnete_coll_op_complete(op, poll_result);
+
+	if (poll_result & GASNETE_COLL_OP_INACTIVE) {
+          /* delete from active list and table */
+          gasnete_coll_op_active_del(op);
+          gasnete_coll_op_table_del(op);
+          gasnete_coll_op_destroy(op);
+	}
       }
       gasnet_hsl_unlock(&gasnete_coll_table_lock);
 

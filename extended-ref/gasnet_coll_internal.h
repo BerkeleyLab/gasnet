@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/04/03 00:10:30 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2004/04/07 18:05:29 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,6 +29,9 @@
 #define GASNET_COLL_AGGREGATE	(1<<6)
 
 /* XXX: incomplete, in/out of segment and others missing */
+
+#define GASNETE_COLL_OP_COMPLETE	0x1
+#define GASNETE_COLL_OP_INACTIVE	0x2
 
 /*---------------------------------------------------------------------------------*/
 
@@ -63,8 +66,11 @@ struct gasnete_coll_team_t_ {
 
 /*---------------------------------------------------------------------------------*/
 
-/* Handle type for collective ops: */
-typedef gasnete_coll_op_t *gasnet_coll_handle_t;
+#ifndef GASNETE_COLL_HANDLE_OVERRIDE
+  /* Handle type for collective ops: */
+  typedef volatile int *gasnet_coll_handle_t;
+  #define GASNET_COLL_INVALID_HANDLE NULL
+#endif
 
 /* Function pointer type for polling collective ops: */
 typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t *);
@@ -105,14 +111,12 @@ struct gasnete_coll_op_t_ {
     gasnete_coll_team_t		team;
     uint32_t			sequence;
     unsigned int		flags;
+    gasnet_coll_handle_t	handle;
 
     /* Per-instance fields and associated HSL: */
     gasnet_hsl_t		lock;
     void			*data;
     gasnete_coll_poll_fn	poll_fn;
-
-    /* Not serialized: */
-    int				done;	/* XXX: place on private cache line */
 };
 
 /*---------------------------------------------------------------------------------*/
@@ -129,7 +133,8 @@ extern void
 gasnete_coll_op_destroy(gasnete_coll_op_t *op);
 
 /* Aggregation interface: */
-extern gasnete_coll_op_t *gasnete_coll_op_submit(gasnete_coll_op_t *op);
+extern gasnet_coll_handle_t
+gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle);
 extern void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result);
 
 extern void gasnete_coll_poll(void);
