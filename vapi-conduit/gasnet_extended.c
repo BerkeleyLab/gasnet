@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/29 18:22:27 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2003/04/29 19:35:17 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -657,6 +657,27 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   return (gasnet_handle_t)iop;
 }
 
+/* ------------------------------------------------------------------------------------ */
+/*
+  Blocking memory-to-memory transfers
+  ===================================
+*/
+extern void gasnete_memset (gasnet_node_t node, void *dest, int val, size_t nbytes) {
+  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+
+  if (nbytes <= GASNETE_MEMSET_PUT_LIMIT) {
+    /* XXX check error returns */
+    gasnetc_rdma_memset(node, dest, val, nbytes, &req_oust);
+  } else {
+    gasneti_atomic_increment(&req_oust);
+    GASNETE_SAFE(
+      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                   PACK(dest), PACK(&req_oust))));
+  } 
+
+  gasnetc_rdma_wait(&req_oust);
+}
 /* ------------------------------------------------------------------------------------ */
 /*
   Non-Blocking Value Get (explicit-handle)

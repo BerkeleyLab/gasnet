@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/29 19:13:55 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2003/04/29 19:35:17 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -407,7 +407,9 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
   Blocking memory-to-memory transfers
   ===================================
 */
-#define GASNETI_DIRECT_BLOCKINGOPS 0 
+
+extern void gasnete_memset(gasnet_node_t node, void *dest, int val, size_t nbytes);
+
 GASNET_INLINE_MODIFIER(gasnete_get_bulk)
 void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
                        size_t nbytes) {
@@ -421,12 +423,6 @@ void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
   gasneti_atomic_t req_oust = gasneti_atomic_init(0);
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
   gasnetc_rdma_wait(&req_oust);
-}
-GASNET_INLINE_MODIFIER(gasnete_memset)
-void gasnete_memset(gasnet_node_t node, void *dest, int val,
-                           size_t nbytes GASNETE_THREAD_FARG) {
-  /* XXX could implement separate version to avoid thread lookup */
-  gasnete_wait_syncnb_check(gasnete_memset_nb(node, dest, val, nbytes GASNETE_THREAD_PASS));
 }
 
 GASNET_INLINE_MODIFIER(gasnet_get)
@@ -487,8 +483,8 @@ void gasnet_put_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes) 
   }
 }
 
-GASNET_INLINE_MODIFIER(_gasnet_memset)
-void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+GASNET_INLINE_MODIFIER(gasnet_memset)
+void  gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes) {
   GASNETI_CHECKZEROSZ_MEMSET(MEMSET_LOCAL,V);
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_MEMSET(MEMSET_LOCAL,node,dest,val,nbytes);
@@ -496,11 +492,9 @@ void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GAS
     gasneti_memsync();
   } else {
     GASNETI_TRACE_MEMSET(MEMSET,node,dest,val,nbytes);
-    gasnete_memset(node, dest, val, nbytes GASNETE_THREAD_PASS);
+    gasnete_memset(node, dest, val, nbytes);
   }
 }
-#define gasnet_memset(node,dest,val,nbytes) \
-       _gasnet_memset(node,dest,val,nbytes GASNETE_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
