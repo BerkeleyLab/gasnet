@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/11/17 12:14:53 $
- * $Revision: 1.21.4.1 $
+ *     $Date: 2003/12/01 01:04:32 $
+ * $Revision: 1.21.4.2 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -72,12 +72,10 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes   GASNETE_THREAD_FARG);
 
-#if GASNETI_INLINE_GET_NB
-  #define gasnete_get_nb gasnete_inline_get_nb
-#elif GASNETI_DIRECT_GET_NB
+#if GASNETI_DIRECT_GET_NB
   extern gasnet_handle_t gasnete_get_nb (void *dest, gasnet_node_t node, void *src,
                                          size_t nbytes GASNETE_THREAD_FARG);
-#else
+#elif !defined(gasnete_get_nb)
   #define gasnete_get_nb gasnete_get_nb_bulk
 #endif
 
@@ -99,9 +97,7 @@ gasnet_handle_t _gasnet_get_nb      (void *dest, gasnet_node_t node, void *src, 
 #define gasnet_get_nb(dest,node,src,nbytes) \
        _gasnet_get_nb(dest,node,src,nbytes GASNETE_THREAD_GET)
 
-#if GASNETI_INLINE_PUT_NB
-  #define gasnete_put_nb gasnete_inline_put_nb
-#else
+#if !defined(gasnete_put_nb)
   extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, 
 					 void *src, size_t nbytes 
 					 GASNETE_THREAD_FARG);
@@ -183,9 +179,7 @@ gasnet_handle_t   _gasnet_memset_nb   (gasnet_node_t node, void *dest, int val, 
 extern int gasnete_try_syncnb(gasnet_handle_t handle);
 extern int gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
 
-#if GASNETI_INLINE_TRY_SYNCNB_ALL
-#define gasnete_try_syncnb_all	gasnete_inline_try_syncnb_all
-#else
+#if !defined(gasnete_try_syncnb_all)
 extern int gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles);
 #endif
 
@@ -266,33 +260,25 @@ void gasnet_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
    put_nbi_bulk  source memory is NOT safe to modify on return
  */
 
-#if GASNETI_INLINE_PUT_NBI
-#define gasnete_put_nbi	gasnete_inline_put_nbi
-#else
+#ifndef gasnete_put_nbi
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG);
 #endif
 
-#if GASNETI_INLINE_PUT_NBI_BULK
-#define gasnete_put_nbi_bulk gasnete_inline_put_nbi_bulk
-#else
+#ifndef gasnete_put_nbi_bulk
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG);
 #endif
 
-#if GASNETI_INLINE_GET_NBI_BULK
-#define gasnete_get_nbi_bulk gasnete_inline_get_nbi_bulk
-#else
+#ifndef gasnete_get_nbi_bulk
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
 #endif
 
-#if GASNETI_INLINE_MEMSET_NBI
-#define gasnete_memset_nbi  gasnete_inline_memset_nbi
-#else
+#ifndef gasnete_memset_nbi
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val,   size_t nbytes GASNETE_THREAD_FARG);
 #endif
 
 #if GASNETI_DIRECT_GET_NBI
   extern void gasnete_get_nbi (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
-#else
+#elif !defined(gasnete_get_nbi)
   #define gasnete_get_nbi gasnete_get_nbi_bulk
 #endif
 
@@ -491,33 +477,26 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
   ===================================
 */
 
-#if GASNETI_INLINE_GET
-  #define gasnete_get gasnete_inline_get
-#elif GASNETI_DIRECT_GET
+#if GASNETI_DIRECT_GET
   extern void gasnete_get (void *dest, gasnet_node_t node, void *src,
                            size_t nbytes GASNETE_THREAD_FARG);
-#else
+#elif !defined(gasnete_get)
   #define gasnete_get gasnete_get_bulk
 #endif
 
-#if GASNETI_INLINE_GET
-  #define gasnete_get_bulk gasnete_inline_get_bulk
-#elif GASNETI_DIRECT_GET_BULK
+#if GASNETI_DIRECT_GET_BULK
   extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
                                 size_t nbytes GASNETE_THREAD_FARG);
-#else
+#elif !defined(gasnete_get_bulk)
   #define gasnete_get_bulk(dest, node, src, nbytesTI) \
     gasnete_wait_syncnb(gasnete_get_nb_bulk(dest, node, src, nbytesTI))
 #endif
 
-#if GASNETI_INLINE_PUT
-  #define gasnete_put   gasnete_inline_put
-  #define gasnete_putTI gasnete_put
-#elif GASNETI_DIRECT_PUT
+#if GASNETI_DIRECT_PUT
   extern void gasnete_put (gasnet_node_t node, void* dest, void *src,
                            size_t nbytes GASNETE_THREAD_FARG);
   #define gasnete_putTI gasnete_put
-#else
+#elsif !defined(gasnete_put)
   /* only valid because this is blocking put */
   #define gasnete_put   gasnete_put_bulk
   #ifdef GASNETI_THREADINFO_OPT
@@ -530,7 +509,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
 #if GASNETI_DIRECT_PUT_BULK
   extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
                                 size_t nbytes GASNETE_THREAD_FARG);
-#else
+#elif !defined(gasnete_put_bulk)
   #define gasnete_put_bulk(node, dest, src, nbytesTI) \
     gasnete_wait_syncnb(gasnete_put_nb_bulk(node, dest, src, nbytesTI))
 #endif
@@ -748,9 +727,7 @@ gasnet_register_value_t gasnet_wait_syncnb_valget (gasnet_valget_handle_t handle
   ==================
 */
 
-#if GASNETI_INLINE_GET_VAL
-  #define gasnete_get_val gasnete_inline_get_val
-#elif GASNETI_DIRECT_GET_VAL
+#if !defined(gasnete_get_val) && GASNETI_DIRECT_GET_VAL
   extern gasnet_register_value_t gasnete_get_val (gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
 #endif
 
@@ -777,10 +754,10 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
   }
   else {
     GASNETI_TRACE_GET(GET_VAL,NULL,node,src,nbytes);
-    #if GASNETI_INLINE_GET_VAL
-      return gasnete_inline_get_val(node,src,nbytes GASNETE_THREAD_PASS);
-    #elif GASNETI_DIRECT_GET_VAL
+    #if GASNETI_DIRECT_GET_VAL
       return gasnete_get_val(node, src, nbytes GASNETE_THREAD_PASS);
+    #elif defined(gasnete_get_val)
+      return gasnete_get_val(node,src,nbytes GASNETE_THREAD_PASS);
     #else
       { gasnet_register_value_t val = 0;
         gasnete_get(GASNETE_STARTOFBITS(&val,nbytes), node, src, nbytes GASNETE_THREAD_PASS);
