@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/07 18:53:36 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/04/08 23:50:26 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -113,10 +113,10 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
       gasnetc_processPacket(desc);
       gasnetc_rcv_post(desc);
     } else {
-#if 0
-      fprintf(stderr, "@ %d> comp.status=%d\n", gasnetc_mynode, comp.status);
+#if 1
+      fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
       while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
-        fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+        fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
       }
 #endif
       /* ### What needs to be done here? */

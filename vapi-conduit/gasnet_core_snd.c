@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/07 18:53:36 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/04/08 23:50:26 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -39,10 +39,19 @@ gasnetc_snd_desc_t *gasnetc_snd_reap(void) {
 
   vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
   if (vstat == VAPI_OK) {
-    assert(comp.status == VAPI_SUCCESS);
-
-    desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
-    gasneti_atomic_set(&desc->done, 1);
+    if (comp.status == VAPI_SUCCESS) {
+      desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
+      gasneti_atomic_set(&desc->done, 1);
+    } else {
+#if 1 
+      fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
+        fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+      }
+#endif
+      /* ### What needs to be done here? */
+      desc = NULL;
+    }
   } else {
     assert(vstat == VAPI_CQ_EMPTY);
   }
