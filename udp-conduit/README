@@ -1,0 +1,95 @@
+GASNet udp-conduit documentation
+Dan Bonachea <bonachea@cs.berkeley.edu>
+
+User Information:
+-----------------
+
+Recognized environment variables:
+---------------------------------
+
+* All the standard GASNet environment variables (see top-level README)
+
+* GASNET_NETWORKDEPTH - depth of network buffers to allocate
+
+* GASNET_SPAWNFN - job spawn mechanism to use
+
+* GASNET_CSPAWN_CMD - command to use for custom spawn
+
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
+Known problems:
+---------------
+
+* See the Berkeley UPC Bugzilla server for details on known bugs.
+
+Future work:
+------------
+
+==============================================================================
+
+Design Overview:
+----------------
+
+The core API implementation is a very thin wrapper around the AMUDP
+implementation by Dan Bonachea. See documentation in the other/amudp directory
+or the AMUDP webpage (http://www.cs.berkeley.edu/~bonachea/amudp) for details.
+
+The udp-conduit directly uses the extended-ref implementation for the extended
+API - see the extended-ref directory for details.
+
+After some discussions at SC03, I decided it was worthwhile to provide a GASNet
+conduit that runs as-natively-as-possible on gigabit ethernet. Given the
+hardware characteristics of ethernet (most significantly, store-and-forward
+routing), we don't ever expect this to be a very low-latency target, however
+Ethernet is ubiquitous and the bandwidths can be respectable.. and we can
+certainly hope to do better than
+GASNet-over-AMMPI-over-MPICH-over-TCP-over-Ethernet, which was previously our
+only choice on Ethernet. 
+
+Implementing udp-conduit was basically just a matter of adapting my
+mpi-conduit-over-AMMPI glue to accomodate my AM-over-UDP implementation
+(AMUDP), which Titanium tests show can significantly outperform
+AMMPI-over-MPICH-over-TCP (primarily because AM is a natural fit for much
+smarter reliability protocols than TCP and the connectionless model of UDP is
+more scalable).
+
+The GASNet-level design of udp-conduit is very similar to mpi-conduit. It's a
+bare core API implementation using the reference extended API implementation.
+All handlers and network access are serialized on client threads. There's no
+concurrent handler execution or conduit threads. GASNet segment is mmapped but
+not specially registered in any way. Both aligned and unaligned segments are
+supported. Unlike AMMPI (which is limited to MPI-1.1's functionality), AMUDP
+provides a fully functional job management system (which runs on the spawning
+console), which means that udp-conduit provides very robust job exit behavior -
+it passes all testexit tests and should never leave zombie processes.
+
+udp-conduit currently passes all the GASNet tests on Linux and Cygwin, but I'm
+leaving it disabled by default for now until I've had a chance to further test
+the portability.
+
+Current limitations:
+* AMUDP is implemented in C++ (fairly straightforward C++ with no templates,
+should work on any C++ compiler with support for simple exception-handling -
+works on every one I've tried). The GASNet configure script checks for C++
+support if and only if udp-conduit is enabled - platforms lacking a C++
+compiler should configure with --disable-udp.
+
+* job spawning is a little messy because we have to deal with site-specific
+wrinkles, especially for acquiring node names. However, AMUDP offers a number
+of job spawning options (the most portable being ssh-based spawn), and it's
+successfully been deployed on a number of systems. There is also spawner
+support for Glunix, Rexec, Localhost/fork (for debugging), and a "custom
+command" option for extensibility.
+
+* udp-conduit only supports 32-bit platforms (due to some AMUDP limitations)
+however I plan to fix this with some additional work. 
+
+* AMUDP supports a maximum of 255 nodes. This could be expanded with
+significant effort, but is currently a low priority (and its unlikely the
+current buffering/reliability algorithm would scale much beyond a few
+thousand nodes, as the memory usage is currently 4 * NumNodes * NetworkDepth * MaxMedium).
+
+
