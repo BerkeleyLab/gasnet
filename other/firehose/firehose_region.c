@@ -513,7 +513,7 @@ fhi_merge_regions(firehose_region_t *pin_region)
 	    gasneti_assert(fh_priv_end(bd->priv) >= (addr - 1));
 	    gasneti_assert(fh_priv_end(bd->priv) < (addr + (len - 1)));
 
-	    extend = MIN(addr - FH_BADDR(bd), space_avail);
+	    extend = MIN(addr - FH_BADDR(bd->priv), space_avail);
 	    addr -= extend;
 	    len += extend;
 	    space_avail -= extend;
@@ -533,11 +533,17 @@ fhi_merge_regions(firehose_region_t *pin_region)
 	    gasneti_assert(end_addr > next_addr);
 	    extend = end_addr - next_addr;
 
+#if 0
 	    /* only accept complete coverage */
 	    if (extend <= space_avail) {
 		len += extend;
 		space_avail -= extend;
 	    }
+#else
+	    /* accept even partial coverage */
+	    len += extend;
+	    space_avail -= extend;
+#endif
 	}
 	gasneti_assert(len <= fhi_MaxRegionSize);
     }
