@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/gm-conduit/gasnet_extended.c                  $
- *     $Date: 2004/08/30 05:04:46 $
- * $Revision: 1.23.2.3 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
+ *     $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.23.2.4 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

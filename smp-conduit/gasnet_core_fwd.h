@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/smp-conduit/gasnet_core_fwd.h              $
- *     $Date: 2004/08/30 05:05:14 $
- * $Revision: 1.7.6.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
+ *     $Date: 2004/08/30 06:58:04 $
+ * $Revision: 1.7.6.2 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.3
+#define GASNET_CORE_VERSION      1.4
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         SMP
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)

@@ -1,6 +1,7 @@
 README file for template-conduit
 ================================
 Dan Bonachea <bonachea@cs.berkeley.edu>
+$Revision: 1.6.8.4 $
 
 This file contains a template to help implementors get started in implementing a
 GASNet conduit. It is not a functioning conduit - merely a "skeleton" with most

@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_receive.c,v 1.35.2.1 2004/04/20 17:16:33 csbell Exp $
- * $Date: 2004/04/20 17:16:33 $
- * $Revision: 1.35.2.1 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
+ * $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.35.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

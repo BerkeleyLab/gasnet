@@ -1,5 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v 1.24.2.3 2004/08/30 05:05:16 csbell Exp $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v $
+#     $Date: 2004/08/30 06:58:06 $
+# $Revision: 1.24.2.4 $
 # Description: Makefile for GASNet <conduitname> conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2004/08/30 05:04:38 $
- * $Revision: 1.24.2.4 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
+ *     $Date: 2004/08/30 06:57:42 $
+ * $Revision: 1.24.2.5 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

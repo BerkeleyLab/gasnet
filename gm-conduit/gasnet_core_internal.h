@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.53.2.2 2004/08/30 05:04:46 csbell Exp $
- * $Date: 2004/08/30 05:04:46 $
- * $Revision: 1.53.2.2 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
+ * $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.53.2.3 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

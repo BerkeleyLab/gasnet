@@ -1,6 +1,7 @@
 README file for gm-conduit
 =======================================
 Christian Bell <csbell@cs.berkeley.edu>
+$Revision: 1.8.8.3 $
 
 ********************************************************************************
 ** Broken conduit errors -- RDMA GETS are broken

@@ -1,5 +1,6 @@
-/* $Id: gasnet_core.c,v 1.53.2.3 2004/08/30 05:04:46 csbell Exp $
- * $Date: 2004/08/30 05:04:46 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
+ * $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.53.2.4 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -859,6 +860,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
 static void gasnetc_exit_body(void) {
   int i, role, exitcode;
   int graceful = 0;
+  int tok_drain = 0;
   int64_t timeout_us;
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
@@ -926,17 +928,20 @@ static void gasnetc_exit_body(void) {
   switch (role) {
   case GASNETC_EXIT_ROLE_MASTER:
     /* send all the remote exit requests and wait for the replies */
+    tok_drain = _gmc.stoks.total;
     graceful = (gasnetc_exit_master(exitcode, timeout_us) == 0);
     break;
 
   case GASNETC_EXIT_ROLE_SLAVE:
     /* wait for the exit request and reply before proceeding */
+    tok_drain = _gmc.stoks.total;
     graceful = (gasnetc_exit_slave(timeout_us) == 0);
-    /* XXX:
-     * How do we know our reply has actually been sent on the wire before we trash the end point?
-     * For now we rely on a short sleep() to be sufficient.
+    /*
+     * A sleep is insufficient to rely on our reply being out on the wire.  We
+     * must actually verify that we have drained enough tokens before
+     * deregistering pinned buffers.
      */
-    alarm(0); sleep(1);
+    alarm(0);
     break;
 
   default:
@@ -954,6 +959,13 @@ static void gasnetc_exit_body(void) {
 		    "%d> Couldn't deregister prepinned segment",
 		    gasnetc_mynode);
 	#endif	
+
+	/*
+	 * Make sure we drain the outgoing queue if we sent any messages before
+	 * deregistering any of the prepinned AM buffers
+	 */
+	while (_gmc.stoks.total > tok_drain)
+	    gasnet_AMPoll();
 
 	gasnetc_DestroyPinnedBufs();
 

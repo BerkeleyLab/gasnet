@@ -1,3 +1,4 @@
+$Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/license.txt,v 1.2.14.1 2004/08/30 06:58:12 csbell Exp $
 All files in this directory (except where otherwise noted) are subject to the
 following licensing terms: 
 

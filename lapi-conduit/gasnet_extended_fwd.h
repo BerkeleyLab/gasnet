@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/08/30 05:04:50 $
- * $Revision: 1.12.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
+ *     $Date: 2004/08/30 06:57:54 $
+ * $Revision: 1.12.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.3
+#define GASNET_EXTENDED_VERSION      1.4
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         LAPI
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
@@ -23,7 +23,7 @@
 #define GASNETI_DIRECT_PUT_BULK 1
 #define GASNETI_DIRECT_MEMSET   1
 
-#if GASNETC_FEDBUG_WORKAROUND
+#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
 #define GASNETI_DIRECT_WAIT_SYNCNB 1
 #define GASNETI_DIRECT_WAIT_SYNCNB_SOME 1
 #define GASNETI_DIRECT_WAIT_SYNCNB_ALL 1

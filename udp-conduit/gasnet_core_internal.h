@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core_internal.h              $
- *     $Date: 2004/08/30 05:05:20 $
- * $Revision: 1.2.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_internal.h,v $
+ *     $Date: 2004/08/30 06:58:10 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

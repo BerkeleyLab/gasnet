@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_help.h             $
- *     $Date: 2004/08/30 05:04:50 $
- * $Revision: 1.11.6.3 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_help.h,v $
+ *     $Date: 2004/08/30 06:57:54 $
+ * $Revision: 1.11.6.4 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

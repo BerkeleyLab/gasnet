@@ -1,7 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.1.4.3 2004/08/30 05:04:56 csbell Exp $
-# ----------------------------------------------------------------------
-# Following section @configure_input@
-
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.1.4.4 2004/08/30 06:58:00 csbell Exp $
 # ----------------------------------------------------------------------
 # Following section @configure_input@
 

@@ -1,5 +1,6 @@
-/* $Id: gasnet_extended_firehose.c,v 1.34.2.1 2004/08/30 05:04:46 csbell Exp $
- * $Date: 2004/08/30 05:04:46 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
+ * $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.34.2.2 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,5 +1,11 @@
 \input texinfo   @c -*-texinfo-*-
 @c %**start of header
+@c   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/gasnet.texi,v $
+@c     $Date: 2004/08/30 06:57:44 $
+@c $Revision: 1.32.2.3 $
+@c Description: GASNet specification
+@c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
+@c Terms of use are as specified in license.txt
 @setfilename gasnet.info
 @settitle GASNet Specification
 @syncodeindex tp fn
@@ -40,8 +46,8 @@
 @c ------------------------------------------------------------------------------------
 @c Macros:
 
-@set VERSION 1.6draft
-@set RELEASEDATE November 10th, 2003
+@set VERSION 1.6
+@set RELEASEDATE August 19th, 2004
 
 @ifnottex
 @ifhtml
@@ -137,7 +143,7 @@ $2^{16}-1$
 @c ------------------------------------------------------------------------------------
 
 @macro COPYRIGHTTEXT
-Copyright @copyright{} 2002, Dan Bonachea.@*
+Copyright @copyright{} 2002-2004, Dan Bonachea.@*
 Selected portions adapted from:
 @itemize @bullet
 @item @cite{A. Mainwaring and D. Culler, "Active Message Applications Programming Interface and Communication Subsystem Organization", U.C. Berkeley Computer Science Technical Report, 1996.}
@@ -158,9 +164,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2004/08/30 05:04:40 $
+@subtitle $Date: 2004/08/30 06:57:44 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.32.2.2 $ 
+@subtitle $Revision: 1.32.2.3 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -198,8 +204,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2004/08/30 05:04:40 $
-@*$Revision: 1.32.2.2 $ 
+@*$Date: 2004/08/30 06:57:44 $
+@*$Revision: 1.32.2.3 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -2343,9 +2349,8 @@ Returns @code{GASNET_OK} on success.
 
 @menu
 * Open Issues::
-* Collective Operations::  
 * Differences from AM2::  
-* Discarded Design Ideas::
+* Alternate formulation of Active Messages::
 @end menu
 
 @c ------------------------------------------------------------------------------------
@@ -2353,35 +2358,14 @@ Returns @code{GASNET_OK} on success.
 @appendixsec Open Issues in the GASNet Specification
 @itemize @bullet
 @item
+Add support for strided & scatter/gather accesses (spec underway - will be included in GASNet spec v2.0)
+@item
+Add collective ops - reductions, scans, etc. (spec underway - will be included in GASNet spec v2.0)
+@item
 Is it worthwhile to add a blocking barrier call? May want to tune this differently
 from split-phase barrier on some networks, but would need to define the semantics
 of how blocking and non-blocking barriers can be used together.
-@item
-Need a user manual for gasnetrun (i.e. the user interface provided by 
-the core's spawning system)
-@item
-Add support for strided & scatter/gather accesses (waiting to see UPC 
-1.2 spec)
-@item
-Add collective ops - reductions, scans, etc. (waiting to see UPC 1.2 
-spec)
 @end itemize
-
-@c ------------------------------------------------------------------------------------
-@node Collective Operations
-@appendixsec Collective Operations (not yet supported)
-
-@c @appendixsubsec Broadcast 
-
-@deftypefn {} {void} gasnet_all_broadcast_T (void *@var{data}, size_t @var{nbytes}, gasnet_node_t @var{source})
-
-@itemize @bullet
-@item should this be a collective operation?
-@item should it be blocking or split phase?
-@item where should it place the result? return it? specified by each proc? 
-specified by broadcaster for each/all?
-@end itemize
-@end deftypefn
 
 @c ------------------------------------------------------------------------------------
 @node Differences from AM2
@@ -2516,33 +2500,6 @@ request handlers are permitted to omit a reply call if no reply handler is
 needed (and some implementations may optimize this case)
 
 @end itemize
-
-@c ------------------------------------------------------------------------------------
-@node Discarded Design Ideas
-@appendixsec Discarded Design Ideas (not part of spec)
-
-@itemize @bullet
-@item
-maybe all remote accesses and large xfers should be in terms of segment 
-offsets rather than virtual addresses 
-
-pros: helps upcr optimize shared ptr rep (faster addr calc, less bits 
-reqd, slower deref), handle unaligned segments automatically, 
-bounds-checking could be slightly faster
-
-cons: short-circuiting local accesses includes one extra indirection, 
-hardware supported RDMA probably can't handle an offset (need to translate 
-to virtual address on requester)
-
-@item
-alt approach for AM handlers on 64-bit: make the handler args scale with 
-pointer size (64-bit ints)
-
-    cons: LP64 platforms (like Itanium) have 32-bit ints, but 64-bit ptrs
-send twice as many bits in each message just because of pointer width, even if not needed
-
-@end itemize
-
 
 @c ------------------------------------------------------------------------------------
 @node Alternate formulation of Active Messages

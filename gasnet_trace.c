@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/08/30 05:04:38 $
- * $Revision: 1.50.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
+ *     $Date: 2004/08/30 06:57:42 $
+ * $Revision: 1.50.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -726,20 +726,14 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
       if_pt (filename) sli->filename = filename;
       sli->linenum = linenum;
     }
-    GASNET_INLINE_MODIFIER(gasneti_trace_getsourceline)
-    void gasneti_trace_getsourceline(const char **filename, unsigned int *linenum) {
+    extern void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum) {
       gasneti_srclineinfo_t *sli = gasneti_mysrclineinfo();
-      *filename = sli->filename;
-      *linenum = sli->linenum;
+      *pfilename = sli->filename;
+      *plinenum = sli->linenum;
     }
   #else
     const char *gasneti_srcfilename = NULL;
     unsigned int gasneti_srclinenum = 0;
-    GASNET_INLINE_MODIFIER(gasneti_trace_getsourceline)
-    void gasneti_trace_getsourceline(const char **filename, unsigned int *linenum) {
-      *filename = gasneti_srcfilename;
-      *linenum = gasneti_srclinenum;
-    }
   #endif
 
   static char *gasneti_getbuf() {
@@ -833,6 +827,13 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
     return retval;
   }
 
+  #define GASNETI_TRACEFILE_FLUSH(fp) do {               \
+    static int autoflush = -1;                           \
+    if_pf (autoflush == -1)                              \
+      autoflush = !!gasnet_getenv("GASNET_TRACEFLUSH");  \
+    if (autoflush) fflush(fp);                           \
+  } while (0)
+
   /* private helper for gasneti_trace/stats_output */
   static void gasneti_file_output(FILE *fp, double time, const char *type, const char *msg, int traceheader) {
     gasneti_mutex_assertlocked(&gasneti_tracelock);
@@ -858,7 +859,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
         fprintf(fp, "%i> (%c) %s%s", (int)gasnet_mynode(), *type, msg,
                 (msg[strlen(msg)-1]=='\n'?"":"\n"));
     }
-    fflush(fp);
+    GASNETI_TRACEFILE_FLUSH(fp);
   }
 
   /* dump message to tracefile */
@@ -903,7 +904,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
     fprintf(fp, "%i> ", (int)gasnet_mynode());
     vfprintf(fp, format, argptr);
     if (format[strlen(format)-1]!='\n') fprintf(fp, "\n");
-    fflush(fp);
+    GASNETI_TRACEFILE_FLUSH(fp);
   }
 
   /* dump message to tracefile with simple header */

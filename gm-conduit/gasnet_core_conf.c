@@ -1,5 +1,6 @@
-/* $Id: gasnet_core_conf.c,v 1.9.6.1 2004/08/30 05:04:46 csbell Exp $
- * $Date: 2004/08/30 05:04:46 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_conf.c,v $
+ * $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.9.6.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

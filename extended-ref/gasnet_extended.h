@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2004/08/30 05:04:44 $
- * $Revision: 1.22.2.5 $
+ *     $Date: 2004/08/30 06:57:48 $
+ * $Revision: 1.22.2.6 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -508,7 +508,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
   extern void gasnete_put (gasnet_node_t node, void* dest, void *src,
                            size_t nbytes GASNETE_THREAD_FARG);
   #define gasnete_putTI gasnete_put
-#elsif !defined(gasnete_put)
+#elif !defined(gasnete_put)
   /* only valid because this is blocking put */
   #define gasnete_put   gasnete_put_bulk
   #ifdef GASNETI_THREADINFO_OPT

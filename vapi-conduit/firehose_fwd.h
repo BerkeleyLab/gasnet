@@ -1,6 +1,6 @@
-/* vapi-conduit/firehose_fwd.h
- * $Date: 2004/08/30 05:05:22 $
- * $Revision: 1.2.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/firehose_fwd.h,v $
+ *     $Date: 2004/08/30 06:58:12 $
+ * $Revision: 1.2.2.2 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt

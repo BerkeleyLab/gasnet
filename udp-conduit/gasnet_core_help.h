@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core_help.h                  $
- *     $Date: 2003/12/11 20:19:56 $
- * $Revision: 1.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_help.h,v $
+ *     $Date: 2004/08/30 06:58:10 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet MPI conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

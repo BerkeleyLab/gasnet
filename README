@@ -1,5 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
+$Revision: 1.26.2.5 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -127,8 +128,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * Tru64/Compaq-AlphaServer/Compaq C: smp, mpi, udp, elan
 
-    * AIX/IBM-SPPower3/VisualAgeC(xlc)/32,64: smp, mpi, udp, lapi
-    * AIX/IBM-SPPower4/VisualAgeC(xlc)/32,64: smp, mpi, udp, lapi
+    * AIX/IBM-SPPower3/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi
+    * AIX/IBM-SPPower4/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi
 
     * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi, udp
 
@@ -143,7 +144,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MacOSX/PowerPC/{gcc,xlc}/32: smp, udp, mpi, vapi
 
     * Unicos/CrayT3e/CrayC/64: smp, udp, mpi 
-       (Berkeley UPC has known problems on T3E (bug202) - but GASNet works fine)
  
     * Unicos/CrayX1/CrayC/64: smp, udp, mpi 
        (native conduit under development)
@@ -165,7 +165,7 @@ Recognized Environment Variables
 * GASNET_FREEZE - set to make GASNet pause and wait for a debugger to attach on
  startup
 
-* GASNET_TRACEFILE, GASNET_TRACEMASK, GASNET_STATSFILE, GASNET_STATSMASK - 
+* GASNET_TRACEFILE, GASNET_TRACEMASK, GASNET_STATSFILE, GASNET_STATSMASK, GASNET_TRACEFLUSH - 
  control tracing & statistical features, if enabled at configure time. 
  See usage information below.
 
@@ -219,6 +219,10 @@ Optional environment variable settings:
  GASNET_STATSMASK - specify the types of statistics to collect and report
    operates analogously to GASNET_TRACEMASK
 
+ GASNET_TRACEFLUSH - set this variable to force a file system flush 
+   after every write to the tracefile. This seriously degrades tracing
+   performance, but ensures any final trace messages before a crash
+   are flushed into the tracefile.
 
 GASNet Design Information
 =========================

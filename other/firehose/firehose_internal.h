@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2004/08/30 05:05:06 $
- * $Revision: 1.16.2.1 $
+ *     $Date: 2004/08/30 06:58:02 $
+ * $Revision: 1.16.2.2 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,16 +8,6 @@
 #include <inttypes.h>
 #include <gasnet_internal.h>	/* gasnet mutex */
 #include <gasnet_handler.h>
-
-/*
- * If we are building against a threaded client, firehose-smp support needs to
- * be hooked in
- */
-#ifdef GASNET_PAR
-#define FIREHOSE_SMP 1
-#else
-#define FIREHOSE_SMP 0
-#endif
 
 /*
  * If we are building against a threaded client, firehose-smp support needs to

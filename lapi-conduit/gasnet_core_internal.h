@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/08/30 05:04:50 $
- * $Revision: 1.20.6.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
+ *     $Date: 2004/08/30 06:57:54 $
+ * $Revision: 1.20.6.3 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,11 +29,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 extern lapi_info_t        gasnetc_lapi_info;
 extern volatile int gasnetc_got_exit_signal;
 extern int                gasnetc_max_lapi_uhdr_size;
-#if defined(__64BIT__)
-extern ulong              gasnetc_max_lapi_data_size;
-#else
-extern int                gasnetc_max_lapi_data_size;
-#endif
+extern unsigned long      gasnetc_max_lapi_data_size;
 extern void**             gasnetc_remote_req_hh;
 extern void**             gasnetc_remote_reply_hh;
 
@@ -282,7 +278,7 @@ extern void gasnetc_token_enqueue(gasnetc_token_queue_t *q, gasnetc_token_t *p, 
 /* Define a special version of WAITCNTR for selected places in the
  * code where we know the problem is exhimited
  */
-#if GASNETC_FEDBUG_WORKAROUND
+#if GASNETC_LAPI_FED_FLOWCONTROL_BUG
     #define GASNETC_WAITCNTR_FBW(cntr, val, result) \
     GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context, (cntr), (val), (result)))
 #else

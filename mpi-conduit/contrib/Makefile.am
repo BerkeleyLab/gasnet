@@ -1,5 +1,7 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/Makefile.am,v 1.2.6.2 2004/08/30 05:04:54 csbell Exp $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/Makefile.am,v $
+#     $Date: 2004/08/30 06:57:58 $
+# $Revision: 1.2.6.3 $
 # Description: Makefile for GASNet MPI spawner
 # Terms of use are as specified in license.txt
 

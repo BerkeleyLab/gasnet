@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/<conduitname>-conduit/gasnet_core.h                  $
- *     $Date: 2004/08/30 05:05:16 $
- * $Revision: 1.13.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.h,v $
+ *     $Date: 2004/08/30 06:58:06 $
+ * $Revision: 1.13.2.3 $
  * Description: GASNet header for <conduitname> conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

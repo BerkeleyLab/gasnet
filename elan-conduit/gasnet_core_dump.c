@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_dump.c                  $
- *     $Date: 2004/08/30 05:04:42 $
- * $Revision: 1.13.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_dump.c,v $
+ *     $Date: 2004/08/30 06:57:46 $
+ * $Revision: 1.13.2.2 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

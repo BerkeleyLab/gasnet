@@ -1,5 +1,10 @@
 #!/bin/sh
-# /* Terms of use are as specified in license.txt */
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
+#     $Date: 2004/08/30 06:57:42 $
+# $Revision: 1.6.10.2 $
+# Description: GASNet developer Bootstrap script
+# Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
+# Terms of use are as specified in license.txt
 
 set -e
 

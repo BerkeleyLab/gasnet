@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2004/08/30 05:04:38 $
- * $Revision: 1.18.2.3 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
+ *     $Date: 2004/08/30 06:57:42 $
+ * $Revision: 1.18.2.4 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -105,9 +105,13 @@ BEGIN_EXTERNC
      to the given value. This information is used to dump out current line information
      into the tracefile along with each trace message.
      Passing a NULL filename implies no change to the current filename
+     GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum): 
+     fetch the current "high-level" source file and line for the current thread
+     into *pfilename and *plinenum. no-op when tracing is off.
    */
   #if GASNETI_CLIENT_THREADS
     extern void gasneti_trace_setsourceline(const char *filename, unsigned int linenum);
+    extern void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum);
   #else
     extern const char *gasneti_srcfilename;
     extern unsigned int gasneti_srclinenum;
@@ -116,11 +120,19 @@ BEGIN_EXTERNC
       if_pt (filename != NULL) gasneti_srcfilename = filename;
       gasneti_srclinenum = linenum;
     }
+    GASNET_INLINE_MODIFIER(gasneti_trace_getsourceline)
+    void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum) {
+      *pfilename = gasneti_srcfilename;
+      *plinenum = gasneti_srclinenum;
+    }
   #endif
     #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) \
       (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_setsourceline(filename, linenum) : ((void)0))
+    #define GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum) \
+      (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_getsourceline(pfilename, plinenum) : ((void)0))
 #else
   #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) ((void)0)
+  #define GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum) ((void)0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,5 +1,7 @@
 #!/usr/bin/env perl
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.4.2.3 2004/08/30 05:04:54 csbell Exp $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
+#     $Date: 2004/08/30 06:57:58 $
+# $Revision: 1.4.2.4 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 

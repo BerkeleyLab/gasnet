@@ -1,5 +1,6 @@
-/* $Id: gasnet_extended_ref.c,v 1.12.2.2 2004/08/30 05:04:46 csbell Exp $
- * $Date: 2004/08/30 05:04:46 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_ref.c,v $
+ * $Date: 2004/08/30 06:57:50 $
+ * $Revision: 1.12.2.3 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

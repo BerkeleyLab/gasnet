@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2004/08/30 05:04:50 $
- * $Revision: 1.11.6.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_fwd.h,v $
+ *     $Date: 2004/08/30 06:57:54 $
+ * $Revision: 1.11.6.2 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,19 +13,32 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.3
+#define GASNET_CORE_VERSION      1.4
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         LAPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_LAPI      1
 
-/* This preprocessor symbol is used to provide workaround
- * code for bug 717 (on Federation Hardware)
- */
 #ifdef GASNETC_LAPI_FEDERATION
-#define GASNETC_FEDBUG_WORKAROUND 1
-#else
-#define GASNETC_FEDBUG_WORKAROUND 0
+   /* Check for broken version of LAPI on early Federation HW.
+    * reference bug 717.  Was fixed in version 2.3.2.0
+    */
+#  ifndef GASNETC_LAPI_VERSION_A
+#    define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
+#  elif GASNETC_LAPI_VERSION_A <= 2
+#    if GASNETC_LAPI_VERSION_A < 2
+#      define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
+#    elif GASNETC_LAPI_VERSION_B <= 3
+#      if GASNETC_LAPI_VERSION_B < 3
+#        define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
+#      elif GASNETC_LAPI_VERSION_C <= 2
+#        define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
+#      endif
+#    endif
+#  endif
+#endif
+#ifndef GASNETC_LAPI_FED_POLLBUG_WORKAROUND
+#  define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 0
 #endif
 
 /* defined to be 1 if gasnet_init guarantees that the remote-access

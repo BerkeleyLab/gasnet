@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-#  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/08/30 05:04:38 $
-# $Revision: 1.23.2.4 $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
+#     $Date: 2004/08/30 06:57:42 $
+# $Revision: 1.23.2.5 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

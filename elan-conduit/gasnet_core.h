@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core.h                  $
- *     $Date: 2004/08/30 05:04:42 $
- * $Revision: 1.9.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.h,v $
+ *     $Date: 2004/08/30 06:57:46 $
+ * $Revision: 1.9.2.3 $
  * Description: GASNet header for elan conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/gasnet_tools.h                                   $
- *     $Date: 2004/08/30 05:04:38 $
- * $Revision: 1.10.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
+ *     $Date: 2004/08/30 06:57:42 $
+ * $Revision: 1.10.2.3 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,9 +60,6 @@
 /* tight spin loop CPU hint */
 #define gasnett_spinloop_hint()      gasneti_spinloop_hint() 
 
-/* tight spin loop CPU hint */
-#define gasnett_spinloop_hint()      gasneti_spinloop_hint() 
-
 /* ------------------------------------------------------------------------------------ */
 
 /* misc */
@@ -86,10 +83,12 @@
 /* misc internal GASNet things we wish to expose when available */
 #if defined(_INCLUDED_GASNET_H) && defined(GASNET_TRACE)
   #define GASNETT_TRACE_SETSOURCELINE GASNETI_TRACE_SETSOURCELINE
+  #define GASNETT_TRACE_GETSOURCELINE GASNETI_TRACE_GETSOURCELINE
   #define GASNETT_TRACE_PRINTF  _gasnett_trace_printf
   extern void _gasnett_trace_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
 #else
-  #define GASNETT_TRACE_SETSOURCELINE 
+  #define GASNETT_TRACE_SETSOURCELINE(file,line) 
+  #define GASNETT_TRACE_GETSOURCELINE(pfile,pline) 
   #define GASNETT_TRACE_PRINTF  _gasnett_trace_printf
   /*GASNET_INLINE_MODIFIER(_gasnett_trace_printf) 
    * causes many warnings because vararg fns cannot be inlined */

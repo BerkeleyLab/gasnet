@@ -1,5 +1,83 @@
-GASNet ChangeLog
+GASNet ChangeLog 
 ----------------
+$Revision: 1.5.2.1 $
+
+----------------------------------------------------------------------
+08-27-2004 : Release 1.4
+
+* New conduits added:
+  - udp-conduit: a portable conduit that implements GASNet over any standard
+    TCP/IP stack. This is the now the recommended conduit for clusters with
+    only ethernet networking hardware (faster than mpi-conduit over TCP-based MPI).
+    See udp-conduit/README for important info on job spawning. Note that
+    udp-conduit requires a working C++ compiler (but when none is available, it can
+    be disabled with --disable-udp).
+  - sci-conduit: an experimental conduit over Dolphin-SCI. Current
+    implementation is core-only, performance improvements are on the way in the
+    next version.
+
+* GASNet2 extended API interface extensions:
+  - Implement reference version of GASNet collective operations
+  - Implement reference version of GASNet vector/indexed/strided put/get operations
+  - updated GASNet 2.0 spec to be released soon
+ 
+* GASNet Spec v1.6: 
+  - Add gasnet_hsl_trylock()
+  - Specify calls to gasnet_hold_interrupts() and gasnet_resume_interrupts()
+    are ignored while holding an HSL.
+  - Clarify the upper limit of in-flight non-blocking operations is 2^16-1
+  - Clarify gasnet_handle_t is a scalar type
+  - Small clarifications and minor editorial corrections
+
+* gm-conduit:
+  - fix thread-safety problems in firehose library that caused stability
+    problems in GASNET_PAR mode
+  - detect versions of GM driver with broken RDMA get support and don't use it
+    there
+  - remove dependency on gethostbyname to improve reliability of static linking
+    on Linux
+  - improvements to gasnetrun-gm
+
+* vapi-conduit:
+  - add SEGMENT_LARGE and SEGMENT_EVERYTHING support
+  - many performance improvements
+
+* lapi-conduit:
+  - add workaround for a recent LAPI performance bug on Federation hardware
+  - gasnet_exit stability improvements
+
+* elan-conduit:
+  - upgrades for recent libelan versions
+
+* Configure changes:
+  - add autodetection of all conduits, whenever possible. On some systems one
+    may still need to  set some environment variables before running configure
+    to indicate the install location of network drivers.
+  - detect and reject the buggy gcc 3.2.0-2 compilers
+  - handle systems lacking pthreads
+  - improved sanity checks for MPI_CFLAGS
+
+* Makefile changes
+  - Add a set of manual-overrides for compilation of the GASNet libraries and
+    tests, ie "make MANUAL_LIBCFLAGS=..." - see README
+  - Fix "gmake prefix=/new/path install" to work correctly, even when it
+    differs from configure-time prefix
+  - Add limited support for parallel make (not recommended for general use)
+
+* GASNet infrastructure ported to Cray X1, AMD Athlon/Opteron, Sun Pro C, HP C
+
+* Add gasnet_trace contributed tool, which automatically parses and summarizes
+  GASNet trace files
+
+* Add an experimental spin-poll throttling feature to reduce lock contention
+  for GASNET_PAR mode, configure --enable-throttle-poll
+
+* Restructure use of local memory barriers to accomodate architectures
+  requiring read memory barriers
+
+* Fix GASNet headers to be C++ friendly
+
+* Many miscellaneous performance, stability and functionality improvements
 
 ----------------------------------------------------------------------
 11-10-2003 : Release 1.3

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.h                  $
- *     $Date: 2004/08/30 05:05:22 $
- * $Revision: 1.15.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
+ *     $Date: 2004/08/30 06:58:12 $
+ * $Revision: 1.15.2.3 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

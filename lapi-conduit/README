@@ -1,6 +1,7 @@
 GASNet-LAPI README file
 =======================
 Mike Welcome <mlwelcome@lbl.gov>
+$Revision: 1.4.14.2 $
 
 This is an implementation of the GASNet CORE and EXTENDED
 API using the IBM LAPI communication protocol.
@@ -14,9 +15,34 @@ ISBN: 0738415189
 IBM Form Number: SG24-5611-00
 
 ===========================================================
+
+=======
 NOTE: See STATUS file for changes and work-arounds.
 ===========================================================
 
+===========================================================
+GASNET LAPI Environment Variables:
+
+GASNET_LAPI_MODE=POLLING
+  This will set LAPI to run in POLLING mode.  In this mode
+  progress is made ONLY when calls to the LAPI library are
+  made.  Setting this environment variable may improve the
+  performance of highly synchronous, latency sensitive
+  applications.  It may cause serious performance problems
+  in more asynchronous application.
+
+GASNET_LAPI_MODE=INTERRUPT
+  This is the default mode.  In this mode, progress is
+  guaranteed by the existance of a LAPI-internal thread that
+  wakes up and services the network when new network packets
+  arrive.
+  
+GASNET_LAPI_VERSION={0|1}
+  If this environment variable is defined and non-zero, GASNet
+  will print various information about the LAPI version and 
+  hardware to stderr from task 0 at startup.
+
+===========================================================
 Memory Management
 
 GASNet will allocate the remote access memory segment using
@@ -48,20 +74,6 @@ fail at run-time due to insufficient heap or mmap address space.
 
 Possibly the best way to avoid this issue is to compile
 the GASNet library and application in 64 bit mode under AIX.
-
-===========================================================
-LAPI INTERRUPT vs. POLLING mode
-
-By default, the LAPI conduit runs in INTERRUPT mode.
-In this mode, a seperate "notification" thread is created 
-by the LAPI subsystem.  As messages arrive from the switch,
-this thread is unblocked and runs the LAPI progress
-engine.  
-Lower latency for synchronous applications can be achieved
-by placing LAPI into POLLING mode.  To do so, set the
-following environment variable when running the job:
-
-GASNET_LAPI_MODE=POLLING
 
 ===============================================================
 The GASNet EXTENDED API is implemented directly over LAPI
