@@ -39,9 +39,9 @@ static size_t fhi_MaxRegionSize;
 /* FORWARD DECLARATIONS, INTERNAL MACROS, ETC.                           */
 /* ##################################################################### */
 
-/* Disqualify remote pending buckets */
+/* Disqualify local new and remote pending */
 #define FH_IS_READY(is_local, priv) \
-	((is_local) || !FH_IS_REMOTE_PENDING(priv))
+	((is_local) ? !FH_IS_NEW(priv) : !FH_IS_REMOTE_PENDING(priv))
 
 #ifdef FIREHOSE_CLIENT_T
   #define FH_CP_CLIENT(A,B) (A)->client = (B)->client
@@ -282,7 +282,7 @@ void fh_bucket_free(fh_bucket_t *bucket)
 
 /* Also keep a hash table of the local private_t's we create so that we can
  * match them when received in an AM (pin reply or unpin request).
- * XXX: this use is trashing the NODE portion of priv->fh_key.  We've been
+ * XXX: This use is trashing the NODE portion of priv->fh_key.  We've been
  * careful to ensure that the only thing this breaks is the debugging output.
  * However, we should really see about a better way to do the lookup from
  * the unpin request to the private_t.  I see two options:
@@ -361,7 +361,7 @@ fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
 
     /* Hash the priv IFF local*/
     if_pt (node == fh_mynode) {
-	/* XXX: preserves the ADDR part but invalidates NODE */
+	/* preserves the ADDR part but invalidates NODE */
 	priv->fh_key = FIREHOSE_HASH_PRIV(reg->addr, reg->len);
 	gasneti_assert(fh_hash_find(fh_PrivTable, priv->fh_key) == NULL);
 	fh_hash_insert(fh_PrivTable, priv->fh_key, priv);
@@ -408,7 +408,7 @@ fh_update_priv(firehose_private_t *priv, const firehose_region_t *reg)
     uintptr_t bucket_addr;
     uintptr_t old_start, new_start;
     uintptr_t old_end, new_end;
-    gasnet_node_t node = FH_NODE(priv);	/* XXX safe because priv is remote */
+    gasnet_node_t node = FH_NODE(priv);	/* safe because priv is remote */
     fh_bucket_t *bucket;
     fh_bucket_t **prev;
 
@@ -491,16 +491,18 @@ fhi_remove_from_fifo(firehose_region_t *reg, firehose_private_t *priv,
  * the new region will no longer get any hits.  So, such regions will
  * eventually end up being recycled from the FIFO.
  */
-GASNET_INLINE_MODIFIER(fhi_prepare_pin)
+GASNET_INLINE_MODIFIER(fhi_prepare_priv)
 firehose_private_t *
-fhi_prepare_pin(firehose_region_t *pin_region, uintptr_t addr, size_t len)
+fhi_prepare_priv(int local_ref, firehose_region_t *pin_region,
+		 uintptr_t addr, size_t len)
 {
-    firehose_private_t *priv = NULL;
+    firehose_private_t *priv;
     fh_bucket_t *bd;
     size_t	extend;
     size_t	space_avail = fhi_MaxRegionSize - len;
 
     gasneti_assert(len <= fhi_MaxRegionSize);
+    gasneti_assert((local_ref == 0) || (local_ref == 1));
 
     /* Because we prioritize lookups by "forward extent", our best
      * chance of fully replacing a region comes from merging with one
@@ -545,14 +547,30 @@ fhi_prepare_pin(firehose_region_t *pin_region, uintptr_t addr, size_t len)
     pin_region->addr = addr;
     pin_region->len  = len;
 
-#if 0
-    /* XXX/PHH create in-TRANSIT "priv" here */
-#endif
+    /* create in-TRANSIT "priv" */
+    priv = fh_create_priv(fh_mynode, pin_region);
+    FH_BSTATE_SET(priv, fh_new);
+    FH_SET_NEW(priv);
+    FH_BUCKET_REFC(priv)->refc_l = local_ref;
+    FH_BUCKET_REFC(priv)->refc_r = !local_ref;
+    FH_TRACE_BUCKET(priv, INIT);
 
     return priv;
 }
 
+/* commit the priv created by fhi_prepare_priv */
+GASNET_INLINE_MODIFIER(fhi_commit_priv)
+void
+fhi_commit_priv(firehose_private_t *priv)
+{
+	FH_BSTATE_ASSERT(priv, fh_new);
+	FH_BSTATE_SET(priv, fh_used);
+	FH_SET_USED(priv);
+	FH_TRACE_BUCKET(priv, COMMIT);
+}
+
 /* Lookup a region, returning the coresponding priv if found, else NULL.
+ * This routine will spin on "NEW" priv's until they are pinned.
  */
 GASNET_INLINE_MODIFIER(fhi_find_priv)
 firehose_private_t *
@@ -568,7 +586,19 @@ fhi_find_priv(gasnet_node_t node, uintptr_t addr, size_t len)
     if_pt (bd && ((addr + (len - 1)) <= fh_bucket_end(bd))) {
 	/* Firehose HIT */
 	priv = bd->priv;
+
+	if_pf (FH_IS_NEW(priv) /* never true on remote buckets */) {
+	    /* Stall on NEW region */
+	    do {
+	        FH_TABLE_UNLOCK;
+	        gasnet_AMPoll();
+	        gasneti_sched_yield();
+	        FH_TABLE_LOCK;
+	    } while (FH_IS_NEW(priv));
+	}
     }
+
+    FH_TABLE_ASSERT_LOCKED;
 
     return priv;
 }
@@ -684,7 +714,7 @@ fh_acquire_local_region(firehose_request_t *req)
     priv = fhi_find_priv(fh_mynode, req->addr, req->len);
     if_pf (priv == NULL) {
 	/* Firehose MISS, now must pin it */
-	priv = fhi_prepare_pin(&pin_region, req->addr, req->len);
+	priv = fhi_prepare_priv(1, &pin_region, req->addr, req->len);
 
 	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
 	gasneti_assert ((num_unpin == 0) || (num_unpin == 1));
@@ -695,19 +725,9 @@ fh_acquire_local_region(firehose_request_t *req)
 				&pin_region, 1);
 	FH_TABLE_LOCK;
 
-#if 0
-	/* XXX/PHH commit the in-TRANSIT "priv" here */
-	FH_BSTATE_SET(priv, fh_used);
-	FH_SET_USED(priv);
-	FH_TRACE_BUCKET(priv, COMMIT);
-#else
-	priv = fh_create_priv(fh_mynode, &pin_region);
-	FH_BSTATE_SET(priv, fh_used);
-	FH_SET_USED(priv);
-	FH_BUCKET_REFC(priv)->refc_l = 1;
-	FH_BUCKET_REFC(priv)->refc_r = 0;
-	FH_TRACE_BUCKET(priv, INIT);
-#endif
+	/* commit the private_t */
+	FH_CP_CLIENT(priv, &pin_region);
+	fhi_commit_priv(priv);
     }
     else {
 	/* HIT, just need to acquire */
@@ -728,10 +748,6 @@ fh_commit_try_local_region(firehose_request_t *req)
     gasneti_assert(req->node == fh_mynode);
 
     FH_TABLE_ASSERT_LOCKED;
-
-    /* Make sure the size of the region respects the local limits */
-    gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
-		    				<= fhc_MaxVictimBuckets);
 
     /* We *MUST* be commiting the most recent lookup */
     priv = fhi_lookup_cache;
@@ -775,12 +791,9 @@ fhi_hang_callback(firehose_private_t *priv, firehose_request_t *req,
     ccb->fh_tqe_next = (fh_completion_callback_t *) priv->fh_tqe_next;
     priv->fh_tqe_next = (firehose_private_t *) ccb;
                                                                                                               
-#if 0	/* XXX: need this to free the callback from req_free
-	   Also need it to point to 'priv'. */
     gasneti_assert(req->internal == NULL);
     req->internal = (firehose_private_t *) ccb;
-#endif
-                                                                                                              
+
     FH_TRACE_BUCKET(priv, PENDADD);
                                                                                                               
     GASNETI_TRACE_PRINTF(C, ("Firehose Pending ADD priv=%p "
@@ -896,10 +909,6 @@ fh_commit_try_remote_region(firehose_request_t *req)
     gasneti_assert(req->node != fh_mynode);
 
     FH_TABLE_ASSERT_LOCKED;
-
-    /* Make sure the size of the region respects the remote limits */
-    gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
-		    				<= fhc_MaxRemoteBuckets);
 
     /* We *MUST* be commiting the most recent lookup */
     priv = fhi_lookup_cache;
@@ -1317,17 +1326,16 @@ fh_move_request(gasnet_node_t node,
 	}
 	else {
 		/* MISSED in table */
-		priv = fhi_prepare_pin(new_reg, new_reg->addr, new_reg->len);
+		priv = fhi_prepare_priv(0, new_reg,
+				        new_reg->addr, new_reg->len);
 
 		num_pin = 1;
 	}
-
 
 	GASNETI_TRACE_PRINTF(C, ("Firehose move request: pin new=%d",
 				 num_pin));
 
 	/* Release the "old" regions, potentially overcommiting the FIFO */
-	/* XXX: would like to do away with region_to_priv */
 	for (i=0; i < r_old; ++i) {
 		fh_priv_release_local(0, fh_region_to_priv(&(old_reg[i])));
 	}
@@ -1337,19 +1345,8 @@ fh_move_request(gasnet_node_t node,
 
 	/* Finish table entry for newly pinned region */
 	if (num_pin) {
-#if 0
-		/* XXX/PHH commit the in-TRANSIT "priv" here */
-		FH_BSTATE_SET(priv, fh_used);
-		FH_SET_USED(priv);
-		FH_TRACE_BUCKET(priv, COMMIT);
-#else
-		priv = fh_create_priv(fh_mynode, new_reg);
-		FH_BSTATE_SET(priv, fh_used);
-		FH_SET_USED(priv);
-		FH_BUCKET_REFC(priv)->refc_l = 0;
-		FH_BUCKET_REFC(priv)->refc_r = 1;
-		FH_TRACE_BUCKET(priv, INIT);
-#endif
+		FH_CP_CLIENT(priv, new_reg);
+		fhi_commit_priv(priv);
 	}
 
 	FH_TABLE_UNLOCK;

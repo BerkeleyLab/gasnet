@@ -149,7 +149,8 @@ fh_refc_t;
  */
 
 #ifdef DEBUG_BUCKETS
-  typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused }
+  typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending,
+	  	 fh_used, fh_unused, fh_new }
   fh_bstate_t;
   #define FH_BSTATE_ASSERT(entry, state) gasneti_assert((entry)->fh_state == state)
   #define FH_BSTATE_SET(entry, state)	 (entry)->fh_state = state
@@ -195,9 +196,13 @@ struct _firehose_private_t {
 
 /* Local and Remote buckets can be in various states.
  *
- * Local buckets can be in either of these two states:
- *   1. in FIFO (fh_tqe_next != FH_USED_TAG)
+ * Local buckets can be in either of these three states:
+ *   1. in FIFO ((fh_tqe_next != FH_USED_TAG)
+ *               (fh_tqe_next != FH_TRANSIT_TAG))
  *   2. in USE  (fh_tqe_next == FH_USED_TAG)
+ *   3. NEW     (fh_tqe_next == FH_NEW_TAG)
+ * The NEW state indicates that the bucket is in the process of
+ * being pinned.
  *
  * Remote buckets can be in either of these three states 
  *   1. in USE  (fh_tqe_next == FH_USED_TAG)
@@ -206,12 +211,16 @@ struct _firehose_private_t {
  *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
 #define FH_USED_TAG		((firehose_private_t *) -1)
+#define FH_NEW_TAG		((firehose_private_t *) -2)
 #define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
 
-#define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
+#define FH_IS_NEW(priv)		((priv)->fh_tqe_next == FH_NEW_TAG)
+#define FH_IS_LOCAL_FIFO(priv)	(((priv)->fh_tqe_next != FH_USED_TAG) &&\
+				 ((priv)->fh_tqe_next != FH_NEW_TAG))
 #define FH_IS_REMOTE_FIFO(priv)	(!FH_IS_REMOTE_PENDING(priv) &&		\
 				 (priv)->fh_tqe_next != FH_USED_TAG)
 #define FH_SET_USED(priv)	((priv)->fh_tqe_next = FH_USED_TAG)
+#define FH_SET_NEW(priv)	((priv)->fh_tqe_next = FH_NEW_TAG)
 
 /* Remote buckets can be in a 'pending' state */
 #define FH_IS_REMOTE_PENDING(priv)					\
