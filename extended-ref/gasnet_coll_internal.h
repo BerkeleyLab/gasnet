@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/27 20:11:52 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2004/05/28 16:30:08 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,9 +188,6 @@ struct gasnete_coll_p2p_entry_t_ {
 	/* Linkage and bookkeeping */
 	gasnete_coll_p2p_t	*p2p_next;
 	gasnete_coll_p2p_t	*p2p_prev;
-	#if GASNET_DEBUG
-	int			size;
-	#endif
 
 	/* Unique (team_id, sequence) tuple for the associated op */
 	/* XXX: could play games w/ a single 64-bit field to speed comparisions */
@@ -204,10 +201,12 @@ struct gasnete_coll_p2p_entry_t_ {
 
 extern void gasnete_coll_p2p_init(void);
 extern void gasnete_coll_p2p_fini(void);
-extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence, uint32_t size);
+extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnet_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t num_pos, uint32_t pos, void *src, size_t nbytes, uint32_t state);
-extern void gasnet_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t num_pos, uint32_t pos, void *addr, uint32_t state);
+extern void gasnet_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t pos,
+                                      void *src, size_t nbytes, uint32_t state);
+extern void gasnet_coll_p2p_rendezvous(gasnete_coll_op_t *op, gasnet_node_t dst, uint32_t pos,
+                                      void *addr, uint32_t state);
 
 /*---------------------------------------------------------------------------------*/
 
