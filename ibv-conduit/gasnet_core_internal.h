@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/21 19:43:11 $
- * $Revision: 1.1.2.26 $
+ *     $Date: 2003/04/22 00:14:12 $
+ * $Revision: 1.1.2.27 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -177,13 +177,16 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 #define GASNETC_SQ_SIZE 1024	   	/* maximum send entries to queue */
 
 #define GASNETC_SND_WQE GASNETC_SQ_SIZE /* maximum unreaped entries on a snd work queue */
-#define GASNETC_SND_SG  2               /* maximum number of segments to gather on send */
+#define GASNETC_SND_SG  1               /* maximum number of segments to gather on send */
 
 #define GASNETC_RCV_WQE 2               /* maximum unreaped entries on a rcv work queue */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
-/* puts <= this size will be done w/ local copies if sender will wait for local completion */
-#define GASNETC_PUT_COPY_LIMIT	(GASNETC_SND_SG * GASNETC_BUFSZ)
+/* puts <= this size will be done w/ VAPI-level copy */
+#define GASNETC_PUT_INLINE_LIMIT	72
+
+/* puts <= this size will be done w/ local copies iff sender will wait for local completion */
+#define GASNETC_PUT_COPY_LIMIT		4096
 
 #define GASNETC_SND_REAP_LIMIT	(GASNETC_CQ_SIZE / 4)
 #define GASNETC_RCV_REAP_LIMIT	16
