@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/firehose_fwd.h,v $
- *     $Date: 2004/08/26 04:54:13 $
- * $Revision: 1.4 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.4.8.1 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -12,7 +12,7 @@
 #include <vapi_types.h>
 
 /* Set this here because we need it to match */
-#define FH_BUCKET_SIZE	GASNETI_PAGESIZE
+#define FH_BUCKET_SIZE	GASNET_PAGESIZE
 
 /* vapi offers "Fast Memory Regions".
  * They really are faster, so we use them by default when available */
