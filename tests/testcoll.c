@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testcoll.c                                 $
- *     $Date: 2004/05/26 23:08:13 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2004/06/02 18:36:49 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -145,17 +145,11 @@ void ALL_ALL_test(int iters, int nbytes)
 						GASNET_COLL_SRC_IN_SEGMENT |
 						GASNET_COLL_DST_IN_SEGMENT);
 	}
-#if 0
 	gasnet_coll_wait_sync_all(handles, iters);
-#else
-	for (i = 0; i < iters; i++) {
-		gasnet_coll_wait_sync(handles[i]);
-	}
-#endif
+	BARRIER();
 	end = TIME();
  	update_stat(&st, (end - begin), iters);
 	
-	BARRIER();
 	
 	if (iamsender) {
 		print_stat(myproc, &st, "broadcast_nb(ALL,ALL) throughput", PRINT_THROUGHPUT);
@@ -215,13 +209,7 @@ void NO_NO_test(int iters, int nbytes)
 						GASNET_COLL_SRC_IN_SEGMENT |
 						GASNET_COLL_DST_IN_SEGMENT);
 	}
-#if 0
 	gasnet_coll_wait_sync_all(handles, iters);
-#else
-	for (i = 0; i < iters; i++) {
-		gasnet_coll_wait_sync(handles[i]);
-	}
-#endif
 	BARRIER();
 	end = TIME();
  	update_stat(&st, (end - begin), iters);
