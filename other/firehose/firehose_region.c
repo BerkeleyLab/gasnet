@@ -561,16 +561,16 @@ fhi_prepare_priv(int local_ref, firehose_region_t *pin_region,
 /* commit the priv created by fhi_prepare_priv */
 GASNET_INLINE_MODIFIER(fhi_commit_priv)
 void
-fhi_commit_priv(firehose_private_t *priv)
+fhi_commit_priv(firehose_private_t *priv, const firehose_region_t *region)
 {
-	FH_BSTATE_ASSERT(priv, fh_new);
-	FH_BSTATE_SET(priv, fh_used);
-	FH_SET_USED(priv);
-	FH_TRACE_BUCKET(priv, COMMIT);
+    FH_BSTATE_ASSERT(priv, fh_new);
+    FH_CP_CLIENT(priv, region);
+    FH_BSTATE_SET(priv, fh_used);
+    FH_SET_USED(priv);
+    FH_TRACE_BUCKET(priv, COMMIT);
 }
 
 /* Lookup a region, returning the coresponding priv if found, else NULL.
- * This routine will spin on "NEW" priv's until they are pinned.
  */
 GASNET_INLINE_MODIFIER(fhi_find_priv)
 firehose_private_t *
@@ -586,8 +586,29 @@ fhi_find_priv(gasnet_node_t node, uintptr_t addr, size_t len)
     if_pt (bd && ((addr + (len - 1)) <= fh_bucket_end(bd))) {
 	/* Firehose HIT */
 	priv = bd->priv;
+    }
 
-	if_pf (FH_IS_NEW(priv) /* never true on remote buckets */) {
+    return priv;
+}
+
+/* Lookup a local region, returning the coresponding priv if found, else NULL.
+ * This routine will spin on "NEW" priv's until they are pinned.
+ */
+GASNET_INLINE_MODIFIER(fhi_get_local_priv)
+firehose_private_t *
+fhi_get_local_priv(int local_ref, uintptr_t addr, size_t len)
+{
+    firehose_private_t *priv;
+		
+    FH_TABLE_ASSERT_LOCKED;
+
+    priv = fhi_find_priv(fh_mynode, addr, len);
+
+    if_pt (priv) {
+	/* We must acquire BEFORE possibly dropping the table lock */
+	fh_priv_acquire_local(local_ref, priv);
+
+	if_pf (FH_IS_NEW(priv)) {
 	    /* Stall on NEW region */
 	    do {
 	        FH_TABLE_UNLOCK;
@@ -711,7 +732,7 @@ fh_acquire_local_region(firehose_request_t *req)
 		    				<= fhc_MaxVictimBuckets);
     FH_TABLE_ASSERT_LOCKED;
 
-    priv = fhi_find_priv(fh_mynode, req->addr, req->len);
+    priv = fhi_get_local_priv(1, req->addr, req->len);
     if_pf (priv == NULL) {
 	/* Firehose MISS, now must pin it */
 	priv = fhi_prepare_priv(1, &pin_region, req->addr, req->len);
@@ -726,12 +747,7 @@ fh_acquire_local_region(firehose_request_t *req)
 	FH_TABLE_LOCK;
 
 	/* commit the private_t */
-	FH_CP_CLIENT(priv, &pin_region);
-	fhi_commit_priv(priv);
-    }
-    else {
-	/* HIT, just need to acquire */
-	fh_priv_acquire_local(1, priv);
+	fhi_commit_priv(priv, &pin_region);
     }
 
     CP_PRIV_TO_REQ(req, priv);
@@ -1318,10 +1334,9 @@ fh_move_request(gasnet_node_t node,
 
 	gasneti_assert(r_new == 1);	/* a feature of FIREHOSE_REGION */
 
-	priv = fhi_find_priv(fh_mynode, new_reg->addr, new_reg->len);
+	priv = fhi_get_local_priv(0, new_reg->addr, new_reg->len);
 	if_pt (priv) {
 		/* HIT in table */
-		fh_priv_acquire_local(0, priv);
 		CP_PRIV_TO_REG(new_reg, priv);
 	}
 	else {
@@ -1345,8 +1360,7 @@ fh_move_request(gasnet_node_t node,
 
 	/* Finish table entry for newly pinned region */
 	if (num_pin) {
-		FH_CP_CLIENT(priv, new_reg);
-		fhi_commit_priv(priv);
+		fhi_commit_priv(priv, new_reg);
 	}
 
 	FH_TABLE_UNLOCK;
