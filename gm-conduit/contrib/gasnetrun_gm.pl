@@ -37,10 +37,10 @@ $recv_mode = 'polling';
 # GEXEC configuration, preconfigured for millennium.
 $use_gexec     = 0;  # preset to 1 to default to gexec
 $gm_board_info = "/usr/mill/pkg/gm/bin/gm_board_info";
-$gstat         = "/usr/bin/gstat -l1";
-$gexec         = "/usr/bin/gexec";
-$black_listed_hosts = "lime|lemon";
-$domainname    = ".Millennium.Berkeley.EDU";
+$gstat         = $ENV{"GASNET_GSTAT_CMD"} || "/usr/bin/gstat -l1";
+$gexec         = $ENV{"GASNET_GEXEC_CMD"} || "/usr/bin/gexec -p none";
+$black_listed_hosts = $ENV{"GASNET_GEXEC_BLACKLIST"} || "lime|lemon";
+$domainname    = $ENV{"GASNET_GEXEC_DOMAINNAME"} || ".Millennium.Berkeley.EDU";
 
 $totalview = 0;
 $totalview_cmd = $ENV{'TOTALVIEW'} || 'totalview';
@@ -53,7 +53,7 @@ $close_stdin = 0;
 $cleanup_shmem = 0;
 $pid_socket = 1;
 $pid_rexec = 1;
-$default_machinefile = "$ENV{'PBS_NODEFILE'}" || "$ENV{'HOME'}/.machines.$arch";
+$default_machinefile = "$ENV{'PBS_NODEFILE'}";
 $magic = int (rand (9999999));
 $local_host = hostname;
 $local_port = '8000';
@@ -215,8 +215,7 @@ sub usage {
   print (STDERR "   -s   Close stdin - can run in background without tty input problems.\n");
   print (STDERR "   -r   Cleanup remote shared memory files - should be removed automatically,\n");
   print (STDERR "        but always good to have an option to force it.\n");
-  print (STDERR "   -machinefile <file>   Specifies a machine file, default is\n");
-  print (STDERR "                         $default_machinefile.\n");
+  print (STDERR "   -machinefile <file>   Specifies a machine file, There is no default\n");
   print (STDERR "   --gexec         The spawner is gexec.\n");
   print (STDERR "   --gm-no-shmem   Disable the shared memory support (enabled by default).\n");
   print (STDERR "   --gm-numa-shmem Enable shared memory only for processes sharing the same Myrinet interface.\n");
@@ -347,6 +346,11 @@ if (defined ($ENV{"MACHINE_FILE"})) {
 
 # If the machine file is not defined, use the system-wide one.
 $machine_file = $default_machinefile unless defined ($machine_file);
+
+if (!$machine_file) {
+    printf "Can't detect a PBS or a GEXEC environment. Consider using a machinefile\n";
+    exit 1;
+}
 
 # If the machine file is not an absolute path, add the current directory.
 $machine_file = $pwd."/".$machine_file if !($machine_file =~ m|^/|);
@@ -564,6 +568,7 @@ if ($use_gexec) {
   my %gstat_hosts_ignore;
   my @gstat_hosts;
   my $gm_hosts_found = 0;
+  my $gm_disconnected_spawner = 0;
 
   # Either keep user-supplied server list.
   $ENV{'GMPI_MAGIC'}  = $magic;
@@ -575,24 +580,32 @@ if ($use_gexec) {
     open BOARD_INFO, "$gm_board_info |" or die "Can't run $gm_board_info: $!";
     while (<BOARD_INFO>)
     {
+      $gm_disconnected_spawner++ if /No boards found/;
       last if(/^---/);
     }
-  
-    while (<BOARD_INFO>)
-    {
-      (my $foo, my $gmID, my $MAC, my $gmName, my $Route) = split /\s+/, $_; 
-      print "No GM routes found\n" and exit if($gmID eq "***");
-      next if( $gmName =~/$black_listed_hosts/ );
-      $gm_hosts{$gmName.$domainname} = $gmID;
-      $gm_hosts_found++;
+
+    if ($gm_disconnected_spawner) {
+    	printf("WARNING: Spawning from a node disconnected from Myrinet") if $verbose;
     }
-    close (BOARD_INFO);
+    else {
+        while (<BOARD_INFO>)
+        {
+          (my $foo, my $gmID, my $MAC, my $gmName, my $Route) = split /\s+/, $_; 
+          print "No GM routes found\n" and exit if($gmID eq "***");
+          next if( $gmName =~/$black_listed_hosts/ );
+          $gm_hosts{$gmName.$domainname} = $gmID;
+          $gm_hosts_found++;
+        }
+        close (BOARD_INFO);
+    }
 
-    die("Can't find any GM hosts on cluster (is the mapper up?)\n") 
-        if (!$gm_hosts_found);
+    # Don't die if no hosts found, as no hosts may be found when run from a
+    # spawning node disconnected from the Myrinet network
+    #die("Can't find any GM hosts on cluster (is the mapper up?)\n") 
+    #    if (!$gm_hosts_found);
 
-    die("GM cluster only has $gm_hosts_found live nodes and $np requested\n")
-    	if ($gm_hosts_found < $np);
+    #die("GM cluster only has $gm_hosts_found live nodes and $np requested\n")
+    #	if ($gm_hosts_found < $np);
       
   
     open GSTAT_INFO, "$gstat $gstat_opts |" or 
@@ -602,7 +615,7 @@ if ($use_gexec) {
       /^([\w.]+)\s+(\d+)\D+(\d+)\D+(\d+)\D+([\d.]+)/;
       # $1 = name $2 = cpus $3 = running procs $4 total procs, $5 1-min load
       my $available_cpus = int($2);
-      if (not exists $gm_hosts{$1}) {
+      if ((not exists $gm_hosts{$1}) && !$gm_disconnected_spawner) {
       	print "Host $1 not found in gstat\n" if $verbose;
 	next;
       }
@@ -749,7 +762,19 @@ if (!$dry_run) {
 	}
       }
       $local_mapping .= ']]]';
+      @envlist = undef;
+      $envv = '';
+      foreach (keys %ENV) {
+	if (m/(TI_)|(UPC_)|(GASNET_)/) {
+		$envv = "$_=$ENV{$_}";
+		push(@envlist, $envv);
+	}
+      }
+      $envvars = '[[[' . $#envlist . join("||", @envlist) . ']]]';
+      print "Environment variables: $envvars\n" if $verbose;
+
       send (SECOND_SOCKET, "$global_mapping$local_mapping", 0);
+      send (SECOND_SOCKET, "$envvars", 0);
       close (SECOND_SOCKET);
 
       $port_ids[$index] = 0;
