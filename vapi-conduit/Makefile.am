@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.1 2003/03/19 19:57:57 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.2 2003/03/26 23:19:40 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -26,7 +26,7 @@ othersourcefiles =                             \
       $(top_srcdir)/gasnet_internal.c          \
       $(top_srcdir)/extended-ref/gasnet_extended.c 
 
-EXTRA_DIST = $(filelist)
+EXTRA_DIST = $(filelist) README
 
 libgasnet_sources = $(srcdir)/gasnet_core.c $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
@@ -72,7 +72,7 @@ libs: $(libraries)
 if USE_VAPI_CONDUIT                           
 lib_LIBRARIES = $(libraries)
 
-all: libs
+all: libs $(makefile_fragments)
 	
 clean-local: 
 	rm -f $(libgasnet_objects) $(libraries) *.o core
@@ -109,17 +109,17 @@ tests:
 	@echo You must specify one of tests-seq, tests-par or tests-parsync
 	@exit 1
 
-tests-seq: force libgasnet-vapi-seq.a
+tests-seq: force libgasnet-vapi-seq.a vapi-seq.mak
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests     \
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="vapi-seq.mak"
 
-tests-parsync: force libgasnet-vapi-parsync.a
+tests-parsync: force libgasnet-vapi-parsync.a vapi-parsync.mak
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests     \
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="vapi-parsync.mak"
 
-tests-par: force libgasnet-vapi-par.a
+tests-par: force libgasnet-vapi-par.a vapi-par.mak
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests     \
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="vapi-par.mak"
