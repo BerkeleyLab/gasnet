@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/04/07 19:51:13 $
- * $Revision: 1.2.2.6 $
+ *     $Date: 2003/04/14 21:22:58 $
+ * $Revision: 1.2.2.7 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -491,6 +491,13 @@ extern int gasnetc_AMReplyLongM(
 #define gasnet_AMReplyLong16(token, handler, source_addr, nbytes, token_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
         gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, token_addr, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
 
+/* ------------------------------------------------------------------------------------ */
+/*
+  RDMA ops
+  =====================
+ */
+extern int gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, gasneti_atomic_t *local_counter, gasneti_atomic_t *remote_counter);
+extern void gasnetc_rdma_wait(gasneti_atomic_t *counter);
 /* ------------------------------------------------------------------------------------ */
 
 END_EXTERNC
