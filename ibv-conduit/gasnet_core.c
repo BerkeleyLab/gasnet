@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 22:07:36 $
- * $Revision: 1.2.2.17 $
+ *     $Date: 2003/04/01 22:19:33 $
+ * $Revision: 1.2.2.18 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -802,7 +802,7 @@ extern int gasnetc_AMPoll() {
   int retval;
   GASNETC_CHECKATTACH();
 
-  /* (###) add code here to run your AM progress engine */
+  /* no AM progress engine to run */
 
   return GASNET_OK;
 }
@@ -876,10 +876,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, &rdma_desc, argptr);
 
-  if (rdma_desc) {
-    /* ### block for completion of rdma_desc */
-    assert(0);	/* XXX until we have a way to block */
-  }
+  /* block for completion of RDMA transfer */
+  gasnetc_snd_wait(rdma_desc);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -975,10 +973,8 @@ extern int gasnetc_AMReplyLongM(
 		  		source_addr, nbytes, dest_addr,
 				numargs, &rdma_desc, argptr);
 
-  if (rdma_desc) {
-    /* ### block for completion of rdma_desc */
-    assert(0);	/* XXX until we have a way to block */
-  }
+  /* block for completion of RDMA transfer */
+  gasnetc_snd_wait(rdma_desc);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
