@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/25 21:57:18 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2003/04/25 22:35:15 $
+ * $Revision: 1.1.2.25 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -593,7 +593,7 @@ extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, 
     uintptr_t count = MIN(nbytes, GASNETC_BUFSZ);
 
     sbuf = gasnetc_get_sbuf();
-    memset(sbuf->buffer, val, nbytes);
+    memset(sbuf->buffer, val, count);
 
     gasnetc_init_sreq(&req, sbuf);
     req.sr_desc.opcode      = VAPI_RDMA_WRITE;
