@@ -28,6 +28,14 @@ testconduitspecific: force
          $(MAKE) -C $(CONDUIT_DIR) $$conduit_test-$$conduit_mode && \
 	 cp -f $(CONDUIT_DIR)/$$conduit_test $@
 
+check-exports: force
+	@$(MAKE) -C $(CONDUIT_DIR) $@
+	@touch $@ ; chmod +x $@
+
+check-libupcr-exports: force
+	@$(MAKE) -C $(TOP_BUILDDIR) check-exports
+	@touch $@ ; chmod +x $@
+
 force:
 
 .PHONY: force
