@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/21 21:08:19 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/03/25 06:08:36 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,9 @@
 #include <vapi.h>
 #include <evapi.h>
 #include <vapi_common.h>
+
+/* XXX: belongs in gasnet_internal.h ? */
+extern void *gasneti_mmap(size_t segsize);
 
 extern gasnet_seginfo_t *gasnetc_seginfo;
 
@@ -65,10 +68,11 @@ typedef struct {
 } gasnetc_longmsg_t;
 
 typedef union {
+  uint8_t		raw[GASNETC_BUFSZ];
   gasnetc_shortmsg_t	shortmsg;
   gasnetc_medmsg_t	medmsg;
   gasnetc_longmsg_t	longmsg;
-} gasnetc_am_msg_t;
+} gasnetc_buffer_t;
 
 /* Use of IB's 32-bit immediate data:
  *   0-1: category
@@ -164,12 +168,42 @@ typedef enum {
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Structure for a cep, connection end-point
+#define GASNETC_HCA_ID  "InfiniHost0"
+#define GASNETC_CQ_SIZE 65535   	/* maximum entries in a CQ */
+
+#define GASNETC_SND_WQE GASNETC_CQ_SIZE /* maximum unreaped entries on a snd work queue */
+#define GASNETC_SND_SG  2               /* maximum number of segments to gather on send */
+
+#define GASNETC_RCV_WQE 2               /* maximum unreaped entries on a rcv work queue */
+#define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
+
+/* Structure for a cep (connection end-point)
  * Include whatever per-node data we need.
  */
 typedef struct {
   /* ### Need more here */
   VAPI_qp_hndl_t	qp_handle;
 } gasnetc_cep_t;
+
+/* Description of a receive buffer */
+typedef struct {
+  /* ### Need more here ? */
+  VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
+  VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
+} gasnetc_rcv_desc_t;
+
+/* Description of a send buffer */
+typedef struct _gasnetc_snd_desc_t {
+  /* ### Need more here ? */
+  struct _gasnetc_snd_desc_t	*next;
+  VAPI_sr_desc_t		sr_desc;		/* send request descriptor */
+  VAPI_sg_lst_entry_t		sr_sg[GASNETC_SND_SG];	/* send request gather list */
+} gasnetc_snd_desc_t;
+
+/* Description of a registered (pinned) memory region */
+typedef struct {
+  VAPI_mr_hndl_t	handle;
+  VAPI_mr_t		props;
+} gasnetc_regmem_t;
 
 #endif
