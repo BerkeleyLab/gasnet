@@ -933,7 +933,7 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 	fh_bucket_t	*bd, *bdi;
 	int		i;
 
-	fh_completion_callback_t	*ccb;
+	fh_completion_callback_t	*ccb, *next_ccb;
 	firehose_request_t		*req;
 
 	FH_TABLE_ASSERT_LOCKED;	/* uses fh_temp_bucket_ptrs */
@@ -974,9 +974,11 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		base_addr = FH_BADDR(bd) + FH_BUCKET_SIZE;
 		ccb = (fh_completion_callback_t *) bd->fh_tqe_next;
 
+		FH_SET_USED(bd);
+
 		gasneti_assert(ccb != NULL);
 		while (ccb != FH_COMPLETION_END) {
-			bd->fh_tqe_next = (fh_bucket_t *) ccb->fh_tqe_next;
+			next_ccb = ccb->fh_tqe_next;
 			gasneti_assert(ccb->flags & FH_CALLBACK_TYPE_COMPLETION);
 			req = ccb->request;
 			gasneti_assert(req && req->flags & FH_FLAG_PENDING);
@@ -1021,10 +1023,8 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 				callspend++;
 			}
 
-			ccb = (fh_completion_callback_t *) bd->fh_tqe_next;
+			ccb = next_ccb;
 		}
-
-		FH_SET_USED(bd);
 	}
 
 	return callspend;
