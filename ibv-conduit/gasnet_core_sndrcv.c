@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/10/28 18:45:40 $
- * $Revision: 1.23.6.2 $
+ *     $Date: 2003/10/31 21:43:50 $
+ * $Revision: 1.23.6.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -287,7 +287,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
         break;
       }
     } else {
-      gasneti_fatalerror("Got unexpected VAPI error %s while reaping the recv queue.", VAPI_strerror_sym(vstat));
+      gasneti_fatalerror("Got unexpected VAPI error %s while reaping the send queue.", VAPI_strerror_sym(vstat));
     }
   }
 
