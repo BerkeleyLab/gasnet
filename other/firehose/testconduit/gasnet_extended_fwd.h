@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/05/16 00:05:41 $
- * $Revision: 1.7 $
+ *     $Date: 2004/07/15 01:29:30 $
+ * $Revision: 1.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,16 +13,11 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.3
+#define GASNET_EXTENDED_VERSION      1.5
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
-#define GASNET_EXTENDED_NAME         VAPI
+#define GASNET_EXTENDED_NAME         FIREHOSETEST
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
-
-#define _GASNET_HANDLE_T
-/*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
-struct _gasnete_op_t;
-typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 
 #if GASNETI_CLIENT_THREADS
@@ -83,19 +78,47 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
   #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
 #endif
 
-
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
-#define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
-        GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
-        CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
+#define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) 		\
+        GASNETI_REFVIS_STATS(CNT,VAL,TIME)              \
+        CNT(C, DYNAMIC_THREADLOOKUP, cnt)		\
+	CNT(C, FIREHOSE_REMOTE_HITS, remote firehose hits) \
+	CNT(C, FIREHOSE_REMOTE_MISSES, remote firehose misses) \
+	CNT(C, FIREHOSE_LOCAL_HITS, local firehose hits) \
+	CNT(C, FIREHOSE_LOCAL_MISSES, local firehose misses) \
+	\
+	VAL(C, FIREHOSE_MOVE_OLD_BUCKETS,		\
+		number of replacement firhoses)		\
+	CNT(C, FIREHOSE_VICTIM_POLLS,			\
+		number of firehoses recovered by poll)	\
+	VAL(C, FIREHOSE_TOUCHED, 			\
+		firehoses touched for puts)		\
+	VAL(C, BUCKET_LOCAL_PINS,			\
+		local buckets pinned for puts/gets)	\
+	VAL(C, BUCKET_LOCAL_TOUCHED, 			\
+		local buckets touched for puts/gets)	\
+	VAL(C, BUCKET_VICTIM_UNPINS, 			\
+		number of bucket unpins in victim FIFO) \
+	VAL(C, BUCKET_VICTIM_COUNT, 			\
+		number of buckets in victim FIFO)	\
+	TIME(C, FIREHOSE_MOVE_TIME, unpin+pin time in   \
+		firehose handler)			\
+	TIME(C, FIREHOSE_BUILD_LIST_TIME, time to build \
+		firehose list)				\
+	TIME(C, FIREHOSE_MOVE_LOCAL, local bookkeeping	\
+		in firehose reply handler)		\
+	TIME(C, FIREHOSE_UNPIN_TIME, unpin time in	\
+		firehose handler)			\
+	TIME(C, FIREHOSE_PIN_TIME, pin time in firehose \
+		handler)				\
+	TIME(C, FIREHOSE_PUT_ONE, puts one fh move)	\
+	TIME(C, FIREHOSE_PUT_MANY, puts many fh moves)	\
+	TIME(C, FIREHOSE_PUT_ONESIDED, puts one-sided)  \
+	TIME(C, FIREHOSE_GET_ONE, gets one fh move)	\
+	TIME(C, FIREHOSE_GET_MANY, gets many fh moves)	\
+	TIME(C, FIREHOSE_GET_ONESIDED, gets one-sided)
 
-#define GASNETI_DIRECT_GET_BULK 1
-#define GASNETI_DIRECT_PUT_BULK 1
-#define GASNETI_DIRECT_MEMSET 1
-#define GASNETI_DIRECT_WAIT_SYNCNB 1
-#define GASNETI_DIRECT_WAIT_SYNCNBI_GETS 1
-#define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1
 
 #endif
 
