@@ -33,11 +33,18 @@ PrintHelp()
  echo ""
  echo "	-spawn <[rsh, ssh]>	: choose either rsh or ssh as the spawner, default is rsh"
  echo ""
+ echo "	-E VAR1[,VAR2...]	: indicate environment variables to propagate"
+ echo ""
  echo "	-v			: verbose operation"
  echo ""
  echo "	-help			: this message"
  echo ""
 }
+
+# defaults
+RSH=rsh
+USERENV=
+NUMBER_NODES=
 
 #go through each of the arguments to the script
 while [ $1 ]
@@ -62,6 +69,10 @@ do
 	;;
     -spawn)
 	RSH=$2
+	shift 2
+	;;
+    -E)
+	USERENV=$2
 	shift 2
 	;;
     -v)
@@ -108,21 +119,16 @@ then
 	DIR=$PWD
 fi
 
-
-if [ $RSH ]
-then 
-	X=1
-else
-	RSH=rsh
-fi
-
 #echo "spawner is: $RSH"
 
 #check and see if there is a machine file
 #if not, there had better be a jobs file
 if [ $MFILE ]
  then
-	X=1
+	if ! test -e "$MFILE" ; then
+	  echo "ERROR: machine file '$MFILE' does not exist! Exiting..."
+	  exit 1
+	fi
  else
 	if [ -a machines.sci ]
 	then
@@ -140,11 +146,12 @@ if [ $MFILE ]
 fi
 
 #check if number of nodes has been specified
-if [  $NUMBER_NODES ]
+if [  "$NUMBER_NODES" == '' ]
  then
-	X=1
- else
-	NUMBER_NODES=1
+	echo "ERROR: Number of nodes is not specified. Exiting..."
+	echo ""
+	PrintHelp
+	exit 1
 fi
 
 #echo "Program Name is : $PROG"
@@ -238,50 +245,21 @@ fi
 #we need to gather any GASNET environment variables set on this machine and propogate
 # them to all the executing machines
 
-# need to find out which shell we are actually using
-okay=$SHELL
-okay=${okay##*/}
-
-# now check and see if it is tcsh or csh,
-# all others (ksh, sh, bash) use the same syntax
-case $okay in
-	tcsh|csh)
-		  CSHELL=1
-		  ;;
-        *)
-		  #otherwise, we can set the environment the same way as korn shell
-		  ;;
-esac
-
-if [ 0 ] ; then
-# DOB: this code is broken for var values containing spaces
-#grab all the possible GASNET environment variables
-ENV=`env | grep -e GASNET_ -e UPC_ -e TI_`
-
-#set up the commands for environmental settings
-for i in $ENV
- do
-	if [ $CSHELL ]
-	then
-		EXPORT=$EXPORT"setenv $i; "
-	else
-		EXPORT=$EXPORT"export $i; "
-	fi
- done
-
-#replace all "=" with blanks for the C shell
-if [ $CSHELL ]
-then
-	EXPORT=`echo "$EXPORT" | @AWK@ '{ print gensub(/=/, " ", "g") }'` 
-fi
+ENV=/usr/bin/env
+if ! test -x $ENV ; then
+  ENV=`which env`
+  if ! test -x $ENV ; then
+    echo "ERROR: failed to find /usr/bin/env"
+    exit 1
+  fi
 fi
 
-if [ $CSHELL ]
-then
-EXPORT=`env | grep -e GASNET_ -e UPC_ -e TI_ | @AWK@ -F= 'BEGIN{ORS=""}{print "setenv "$1" '"'"'"$2"'"'"'; "; }'`
-else
-EXPORT=`env | grep -e GASNET_ -e UPC_ -e TI_ | @AWK@ -F= 'BEGIN{ORS=""}{print "export "$1"='"'"'"$2"'"'"'; "; }'`
-fi
+# round-up user requested environment variables
+USERENV=`echo "$USERENV" | awk -F, 'BEGIN{ORS=" "}{for(i=1;i<=NF;i++) { print "-e ^"$i"="; } }'`
+SYSTEMENV="-e ^GASNET_"
+
+EXPORT=`$ENV | grep $USERENV $SYSTEMENV | @AWK@ -F= 'BEGIN{ORS=""; print "'"$ENV "'"}{print $1"='"'"'"$2"'"'"' "; }'`
+
 # now with that information, we need to log into every machine and start 
 # the initialization program. 
 
@@ -347,9 +325,9 @@ for h in $HOSTS
  do
 	if (( $i < $NUMBER_NODES ))
 	 then
-		$RSH $h "cd $DIR; $EXPORT; $PROG $ARGS ; exit;"&
+		$RSH $h "cd $DIR; $EXPORT $PROG $ARGS ; exit;"&
 	        if [ $VERBOSE ] ; then
-		  echo "$RSH $h -- cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+		  echo "$RSH $h -- cd $DIR; $EXPORT $PROG $ARGS ; exit;"
 		fi
 		i=`expr $i + 1`
 		#echo "i equal to $i"
@@ -364,8 +342,8 @@ fi
 
 #start the program on this host
 if [ $VERBOSE ] ; then
-  echo "$RSH $FIRST -- cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+  echo "$RSH $FIRST -- cd $DIR; $EXPORT $PROG $ARGS ; exit;"
 fi
-$RSH $FIRST "cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+$RSH $FIRST "cd $DIR; $EXPORT $PROG $ARGS ; exit;"
 
 
