@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/03/31 23:28:27 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2004/04/01 01:16:20 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,9 +15,78 @@
 
 /*---------------------------------------------------------------------------------*/
 
+/* Forward type decls and typedefs: */
+struct gasnete_coll_op_t_;
+typedef struct gasnete_coll_op_t_ gasnete_coll_op_t;
+struct gasnete_coll_team_t_;
+typedef struct gasnete_coll_team_t_ gasnete_coll_team_t;
+
+/*---------------------------------------------------------------------------------*/
+
+/* Type for collective teams: */
+struct gasnete_coll_team_t_ {
+    /* access serialized by gasnete_coll_active_list_lock: */
+    #ifndef GASNETE_COLL_TABLE_OVERRIDE
+	/* XXX: Design not complete yet */
+        gasnete_coll_team_t	*next;
+    #else
+	/* Custom implementation of coll ops table */
+	GASNET_COLL_TABLE_TEAM_FIELDS
+    #endif
+
+    /* read-only fields: */
+    /* XXX: Design not complete yet */
+    uint32_t			team_id;
+};
+
+/*---------------------------------------------------------------------------------*/
+
 /* Handle type for collectives: */
-struct gasnete_coll_op_t_;	/* Forward type declaration in C */
-typedef struct gasnete_coll_op_t_ *gasnet_coll_handle_t;
+typedef gasnete_coll_op_t *gasnet_coll_handle_t;
+
+/* Function pointer type for polling collective ops: */
+typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t *);
+
+/* Type for collective ops: */
+struct gasnete_coll_op_t_ {
+    /* access serialized by gasnete_coll_active_list_lock: */
+    #ifndef GASNETE_COLL_TABLE_OVERRIDE
+	/* Default implementation of coll ops table */
+	gasnete_coll_op_t	*table_next, *table_prev;
+	gasnete_coll_op_t	*hash_next, *hash_prev;
+    #else
+	/* Custom implementation of coll ops table */
+	GASNET_COLL_TABLE_OP_FIELDS
+    #endif
+
+    /* Access serialized by specification+client: */
+    gasnete_coll_op_t		*agg_prev;
+
+    /* Read-only fields: */
+    gasnete_coll_team_t		*team;
+    uint32_t			sequence;
+    unsigned int		flags;
+
+    /* Per-instance fields and associated HSL: */
+    gasnet_hsl_t		lock;
+    void			*data;
+    gasnete_coll_poll_fn	poll_fn;
+
+    /* Atomic (self serializing): */
+    gasneti_atomic_t		done;	/* XXX: place on private cache line */
+};
+
+/*---------------------------------------------------------------------------------*/
+
+extern gasnet_hsl_t gasnete_coll_table_lock;
+
+extern gasnete_coll_team_t *
+gasnete_coll_team_lookup(uint32_t team_id);
+
+extern gasnete_coll_op_t *
+gasnete_coll_create(gasnete_coll_team_t *team, uint32_t sequence, unsigned int flags);
+
+extern void gasnete_coll_poll(void);
 
 /*---------------------------------------------------------------------------------*/
 #endif
