@@ -124,7 +124,7 @@ fh_hash_create(size_t entries)
 		gasneti_fatalerror("Can't allocate memory for hash structure");
 	memset(hash, 0, sizeof(fh_hash_t));
 
-	hash->fh_table   = (void **) gasneti_malloc(entries * sizeof(void *));
+	hash->fh_table   = (void **) gasneti_calloc(entries, sizeof(void *));
 	hash->fh_mask    = entries-1;
 	hash->fh_entries = entries;
 	#ifdef FH_HASH_STATS
