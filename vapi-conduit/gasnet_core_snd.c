@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/21 18:37:11 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2003/04/21 18:50:19 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -175,6 +175,9 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
 /* Post a work request to the send queue of the given endpoint */
 GASNET_INLINE_MODIFIER(gasnetc_snd_post)
 int gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req) {
+  /* check for attempted loopback traffic */
+  assert(cep != &gasnetc_cep[gasnetc_mynode]);
+
   return (VAPI_OK != VAPI_post_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc));
 }
 
@@ -208,8 +211,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     break;
 
   case gasnetc_Long:
-    /* XXX check for error returns */
-    (void)gasnetc_rdma_put(dest, src_addr, dst_addr, nbytes, local_counter, NULL);
+    if (dest == gasnetc_mynode) {
+      memcpy(dst_addr, src_addr, nbytes);
+    } else {
+      /* XXX check for error returns */
+      (void)gasnetc_rdma_put(dest, src_addr, dst_addr, nbytes, local_counter, NULL);
+    }
     args = buf->longmsg.args;
     buf->longmsg.destLoc = (uintptr_t)dst_addr;
     buf->longmsg.nBytes  = nbytes;
@@ -343,11 +350,6 @@ extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, size_t nbyte
   uintptr_t src, dst;
   int force_copy;
   int rc;
-
-  if (dest == gasnetc_mynode) {
-    memcpy(dst_ptr, src_ptr, nbytes);
-    return 0;
-  }
 
   /* If the caller will wait on local completion, then for small transfers it is best to just
    * perform the copy locally and allow the caller to proceed */
