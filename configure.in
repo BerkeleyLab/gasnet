@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/05/13 18:57:10 $
-# $Revision: 1.40.2.4 $
+#     $Date: 2003/06/17 00:02:07 $
+# $Revision: 1.40.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.40.2.4 $)
+AC_REVISION($Revision: 1.40.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -34,8 +34,9 @@ AC_SUBST(TOP_SRCDIR)
 AC_SUBST(TOP_BUILDDIR)
 AC_SUBST(INSTALL_PREFIX)
 
+GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR RANLIB REXEC AWK])
+AC_PROG_AWK
 GASNET_GET_AUTOCONF_VERSION()
-GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR RANLIB REXEC])
 
 ########################################################################
 ##
@@ -159,7 +160,7 @@ case "$gasnet_cv_cc_family" in
 esac
 
 case "$gasnet_cv_cc_family" in
-  GNU)  CCDEBUGFLAGS="-g3 -Wall -Wno-unused -Wpointer-arith -Wnested-externs" 
+  GNU)  CCDEBUGFLAGS="-g3 -Wall -Wno-unused -Wpointer-arith -Wnested-externs -Wno-missing-braces" 
         #CCDEBUGFLAGS="$CCDEBUGFLAGS -ansi -U__STRICT_ANSI__"
   ;;
   *)    CCDEBUGFLAGS="-g" ;;
@@ -220,6 +221,18 @@ case "$segconfig" in
 esac
 
 GASNET_LIBGCC
+
+########################################################################
+# hunt for 16-, 32-, and 64-bit integer types
+# Check sizes
+AC_CHECK_SIZEOF(char, $cross_char)
+AC_CHECK_SIZEOF(short, $cross_short)
+AC_CHECK_SIZEOF(int, $cross_int)
+AC_CHECK_SIZEOF(long, $cross_long)
+AC_CHECK_SIZEOF(long long, $cross_long_long)
+AC_CHECK_SIZEOF(void *, $cross_void_P)
+
+AC_CHECK_HEADERS(inttypes.h)
 
 
 ########################################################################
@@ -338,6 +351,14 @@ case "$target_os" in
   cygwin*) 
 	AC_DEFINE(CYGWIN)
 	GASNET_MACHINE_DEFINES="-DCYGWIN"
+ 	if test "$have_pthread" = yes ; then
+	  GASNET_THREAD_DEFINES="-D_REENTRANT"
+          GASNET_THREAD_LIBS=""
+	fi
+	;;
+  darwin*) 
+	AC_DEFINE(DARWIN)
+	GASNET_MACHINE_DEFINES="-DDARWIN"
  	if test "$have_pthread" = yes ; then
 	  GASNET_THREAD_DEFINES="-D_REENTRANT"
           GASNET_THREAD_LIBS=""
@@ -695,6 +716,13 @@ if test $have_lapi = yes; then
     AC_ERROR(build test failed: I don't know how to build lapi programs on your system)
     have_lapi=no
   fi
+
+  if test x"$ac_cv_sizeof_void_p" = x4; then
+    LAPI_LD="mpcc_r"
+  else
+    LAPI_LD="mpcc_r -q64"
+  fi
+  AC_SUBST(LAPI_LD)
 fi
 
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
@@ -743,13 +771,13 @@ if test $have_elan = yes; then
     AC_MSG_CHECKING(for ELAN version)
     if test -e ${ELAN_INCLUDE}/elan/version.h; then
       verstr=`grep QSNETLIBS_VERSION_STRING ${ELAN_INCLUDE}/elan/version.h`
-      [majorver=`echo $verstr | awk -F'[ \t]*|\"|[.]' '{ print $4 }'`]
-      [minorver=`echo $verstr | awk -F'[ \t]*|\"|[.]' '{ print $5 }'`]
-      [subver=`echo $verstr | awk -F'[ \t]*|\"|[.]' '{ print $6 }'`]
+      [majorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $4 }'`]
+      [minorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $5 }'`]
+      [subver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $6 }'`]
     else
       verstr=`grep 'ELAN_VERSION' ${ELAN_INCLUDE}/elan/misc.h`
-      [majorver=`echo $verstr | awk -F'[ \t]*|\"|[.]' '{ print $5 }'`]
-      [minorver=`echo $verstr | awk -F'[ \t]*|\"|[.]' '{ print $6 }'`]
+      [majorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $5 }'`]
+      [minorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $6 }'`]
       subver=0
     fi
     AC_MSG_RESULT("${majorver}.${minorver}.${subver}")
@@ -779,6 +807,14 @@ if test $have_vapi = yes; then
   GASNET_ENV_DEFAULT(VAPI_LIBS, -lvapi -lmtl_common -lmosal -lpthread -lmpga)
 
   AC_MSG_CHECKING(for working VAPI configuration)
+  if test "$mpi_test_worked" != yes; then
+    if test "$enabled_mpi" = yes; then
+      AC_ERROR([launching VAPI programs requires MPI on your system, but MPI was not sucessfuly configured.]);
+    else
+      AC_ERROR([launching VAPI programs requires MPI on your system, but you have disabled it.]);
+    fi
+  fi
+
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
   CFLAGS="-I$VAPI_INCLUDE"
@@ -1025,20 +1061,6 @@ GASNET_TRY_CACHE_LINK(for __func__, cc_has_func,
 [const char* p = __func__;],
 AC_DEFINE(HAVE_FUNC))
 
-
-########################################################################
-
-# hunt for 16-, 32-, and 64-bit integer types
-
-# Check sizes
-AC_CHECK_SIZEOF(char, $cross_char)
-AC_CHECK_SIZEOF(short, $cross_short)
-AC_CHECK_SIZEOF(int, $cross_int)
-AC_CHECK_SIZEOF(long, $cross_long)
-AC_CHECK_SIZEOF(long long, $cross_long_long)
-AC_CHECK_SIZEOF(void *, $cross_void_P)
-
-AC_CHECK_HEADERS(inttypes.h)
 
 ########################################################################
 ##
