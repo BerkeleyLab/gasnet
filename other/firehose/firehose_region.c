@@ -32,6 +32,8 @@ fh_bucket_t;
 
 static firehose_private_t *fhi_lookup_cache;
 
+static size_t fhi_MaxRegionSize;
+
 /* ##################################################################### */
 /* FORWARD DECLARATIONS, INTERNAL MACROS, ETC.                           */
 /* ##################################################################### */
@@ -214,10 +216,12 @@ fh_bucket_unhash(fh_bucket_t *bucket)
 
 	    fh_hash_replace(fh_BucketTable2, best, NULL);
 	    fh_hash_replace(fh_BucketTable1, bucket, best);
-	} else {
+	}
+	else {
 	    fh_hash_replace(fh_BucketTable1, bucket, NULL);
 	}
-    } else {
+    }
+    else {
 	fh_hash_replace(fh_BucketTable2, bucket, NULL);
     }
 
@@ -299,6 +303,100 @@ fh_commit_region(firehose_request_t *req)
     return;
 }
 
+void
+fhi_remove_from_fifo(firehose_region_t *reg, firehose_private_t *priv,
+			fh_fifoq_t *fifo_head)
+{
+    FH_TAILQ_REMOVE(fifo_head, priv);
+    CP_PRIV_TO_REG(reg, priv);
+    FH_TRACE_BUCKET(priv, REMFIFO);
+    fh_destroy_priv(priv);
+}
+
+/* Look for opportunities to merge adjacent pinned regions.
+ * IFF the regions we are merging with are unused (in the FIFO)
+ * we will also arrange to unpin them, to help reduce R.
+ */
+int
+fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region,
+		  firehose_region_t *unpin_regions)
+{
+    int		num_unpin = 0;
+    uintptr_t	addr = pin_region->addr;
+    size_t	len  = pin_region->len;
+    fh_bucket_t *bd;
+    size_t	extend;
+    size_t	space_avail = fhi_MaxRegionSize - len;
+    fh_fifoq_t	*fifo_head;
+
+    if (node == fh_mynode) {
+	fifo_head = &fh_LocalFifo;
+    }
+    else {
+	fifo_head = &(fh_RemoteNodeFifo[node]);
+    }
+
+    /* Because we prioritize lookups by "forward extent", our best
+     * chance of fully replacing a region comes from merging with one
+     * which preceeds the new one, even if we can't fully cover it. */
+    if_pt (addr != 0) { /* avoid wrap around */
+	bd = fh_bucket_lookup(node, addr - FH_BUCKET_SIZE);
+	if (bd != NULL) {
+
+	    assert(bd->priv != NULL);
+	    assert(fh_priv_end(bd->priv) >= (addr - 1));
+	    assert(fh_priv_end(bd->priv) < (addr + (len - 1)));
+
+	    extend = addr - FH_BADDR(bd);
+	    if (extend <= space_avail) {
+		/* Fully cover the existing region */	
+		if (FH_IS_REMOTE_FIFO(bd->priv)) { /* Works for local, too */
+		    fhi_remove_from_fifo(&unpin_regions[num_unpin],
+					 bd->priv, fifo_head);
+		    num_unpin++;
+		}
+		addr -= extend;
+		len += extend;
+		space_avail -= extend;
+	    }
+	    else {
+		addr -= space_avail;
+		len += space_avail;
+		space_avail = 0;
+	    }
+	}
+    }
+
+    /* Now try to extend forward as well.
+     * Not as worth while if we can't fully cover the other region.
+     */
+    if_pt (addr + len != 0) { /* avoid wrap around */
+	uintptr_t next_addr = addr + len;
+	bd = fh_bucket_lookup(node, next_addr);
+	if (bd != NULL) {
+	    uintptr_t end_addr = fh_priv_end(bd->priv) + 1;
+
+	    assert(end_addr > next_addr);
+	    extend = end_addr - next_addr;
+
+	    /* only accept complete coverage */
+	    if (extend <= space_avail) {
+		if (FH_IS_REMOTE_FIFO(bd->priv)) { /* works for local, too */
+		    fhi_remove_from_fifo(&unpin_regions[num_unpin],
+					 bd->priv, fifo_head);
+		    num_unpin++;
+		}
+		len += extend;
+		space_avail -= extend;
+	    }
+	}
+    }
+
+    pin_region->addr = addr;
+    pin_region->len  = len;
+    return num_unpin;
+}
+
 /*
  * fh_FreeVictim(count, region_array, head)
  *
@@ -324,12 +422,8 @@ fh_FreeVictim(int count, firehose_region_t *reg, fh_fifoq_t *fifo_head)
 	 * fhc_LocalOnlyBucketsPinned. */
 	for (i = 0; i < count; i++) {
 		priv = FH_TAILQ_FIRST(fifo_head);
-		FH_TAILQ_REMOVE(fifo_head, priv);
 
-		CP_PRIV_TO_REG(&reg[i], priv);
-		FH_TRACE_BUCKET(priv, REMFIFO);
-
-		fh_destroy_priv(priv);
+		fhi_remove_from_fifo(&reg[i], priv, fifo_head);
 	}
 	assert(count == i);
 	return i;
@@ -398,6 +492,7 @@ void
 fh_acquire_local_region(firehose_request_t *req)
 {
     fh_bucket_t *bd;
+    firehose_private_t *priv;
     int retval = 0;
 
     assert(req != NULL);
@@ -407,36 +502,48 @@ fh_acquire_local_region(firehose_request_t *req)
     assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_MaxVictimBuckets);
     FH_TABLE_ASSERT_LOCKED;
 
-    bd = fh_bucket_lookup(req->node, req->addr);
+    bd = fh_bucket_lookup(fh_mynode, req->addr);
 
     if_pt (bd && (fh_req_end(req) <= fh_bucket_end(bd))) {
 	/* Firehose HIT, acquire it */
-	fh_priv_acquire(fh_mynode, bd->priv);
-	CP_PRIV_TO_REQ(req, bd->priv);
+	priv = bd->priv;
+	fh_priv_acquire(fh_mynode, priv);
     }
     else {
 	/* Firehose MISS, pin it */
-	/* XXX/PHH Add logic to try to coallesce adjacent regions */
-	firehose_region_t pin_region, unpin_region;
-	firehose_private_t *priv;
-	int num_unpin;
+	firehose_region_t pin_region, unpin_regions[2];
+	int num_unpin = 0;
 
-	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
-	assert ((num_unpin == 0) || (num_unpin == 1));
-	
+	/* Try to look for opportunities to merge adjacent pinned regions.
+	 * IFF the regions we are merging with are unused (in the FIFO)
+	 * we will also unpin them, to help reduce R
+	 */
 	pin_region.addr = req->addr;
 	pin_region.len  = req->len;
+#if 0	/* XXX/PHH figure out why this kills performance so badly */
+	num_unpin = fhi_merge_regions(fh_mynode, &pin_region, unpin_regions);
+#endif
 
-	/* XXX/PHH create in-TRANSIT hash entries here */
+	if (num_unpin) {
+	    /* we've removed num_unpin from the FIFO but will reuse one */
+	    fhc_LocalVictimFifoBuckets -= num_unpin;
+	    fhc_LocalOnlyBucketsPinned -= (num_unpin - 1);
+	}
+	else {
+	    num_unpin = fh_WaitLocalFirehoses(1, unpin_regions);
+	}
+	assert ((num_unpin >= 0) && (num_unpin <= 2));
+
+	/* XXX/PHH create in-TRANSIT "priv" here */
 
 	FH_TABLE_UNLOCK;
 	firehose_move_callback(fh_mynode,
-				&unpin_region, num_unpin,
+				unpin_regions, num_unpin,
 				&pin_region, 1);
 	FH_TABLE_LOCK;
 
 #if 0
-	/* XXX/PHH commit the in-TRANSIT hash entries here */
+	/* XXX/PHH commit the in-TRANSIT "priv" here */
 #else
 	priv = fh_create_priv(fh_mynode, &pin_region);
 
@@ -446,17 +553,9 @@ fh_acquire_local_region(firehose_request_t *req)
 	FH_BUCKET_REFC(priv)->refc_l = 1;
 	FH_BUCKET_REFC(priv)->refc_r = 0;
 #endif
-
-#if 0
-	CP_PRIV_TO_REQ(req, priv);/
-#else
-	assert(req->node == fh_mynode);
-	assert(req->addr == FH_BADDR(priv));
-	assert(req->len == priv->len);
-	req->client = priv->client;
-	req->internal = priv;
-#endif
     }
+
+    CP_PRIV_TO_REQ(req, priv);
 
     return;
 }
@@ -728,6 +827,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	fhc_LocalOnlyBucketsPinned = num_reg;
 	fhc_LocalVictimFifoBuckets = 0;
 	fhc_MaxVictimBuckets = num_reg + param_VR;
+	fhi_MaxRegionSize = param_RS;
 
 	/* 
 	 * Set remote parameters
@@ -803,6 +903,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 void
 fh_fini_plugin(void)
 {
+fprintf(stderr, "# %d pinned %d fifo\n", fhc_LocalOnlyBucketsPinned, fhc_LocalVictimFifoBuckets);
         fh_hash_destroy(fh_BucketTable2);
         fh_hash_destroy(fh_BucketTable1);
 }
