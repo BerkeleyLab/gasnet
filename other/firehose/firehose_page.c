@@ -639,8 +639,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 		med_maxbytes = (med_buckets/2) * FH_BUCKET_SIZE;
 		fh_maxbytes  = fhc_RemoteBucketsM * FH_BUCKET_SIZE;
 
-		fhinfo->max_RegionsLocal = 0;
-		fhinfo->max_RegionsRemote = 0;
+		fhinfo->max_LocalRegions  = 0;
+		fhinfo->max_RemoteRegions = 0;
 
 		fhinfo->max_LocalPinSize  = 
 		    fhc_MaxVictimBuckets * FH_BUCKET_SIZE;

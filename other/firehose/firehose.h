@@ -94,7 +94,9 @@ firehose_region_t;
  * The values returned by firehose_info_t are established at
  * initialization.  Typically, a client will use these limits in order
  * to determine the size of the largest remote and/or local region
- * that can be requested through the firehose interface.
+ * that can be requested through the firehose interface.  See the
+ * section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for more
+ * information.
  */
 typedef
 struct _firehose_info_t {
@@ -104,8 +106,8 @@ struct _firehose_info_t {
 	size_t	max_LocalPinSize;
 
 	/* Local and remote maximum number of active regions */
-	size_t	max_RegionsLocal;
-	size_t	max_RegionsRemote;
+	size_t	max_RemoteRegions;
+	size_t	max_LocalRegions;
 }
 firehose_info_t;
 
@@ -439,10 +441,18 @@ firehose_poll(void);
  * or passed to a completion callback, until the time the client calls
  * firehose_release() on the request_t.
  *
- * The firehose limits can be described in terms of the union of the
+ * The firehose_info_t can be described in terms of the union of the
  * local or remote request_t's owned by a client at any given instant.
- * For instance, max_RegionsLocal is the maximum number of distinct
- * regions pinned by the union of all the request_t's on the local node.
+ * + max_RemotePages - the maximum number of pages pinned by the union
+ *   of all the request_t's referencing remote nodes.
+ * + max_LocalPages - the maximum number of pages pinned by the union
+ *   of all the request_t's referencing the local node.
+ * + max_RemoteRegions - the maximum number of distinct regions
+ *   pinned by the union of all the request_t's referencing remote
+ *   nodes.
+ * + max_LocalRegions - the maximum number of distinct regions pinned
+ *   by the union of all the request_t's referencing the local node.
+ * If any of these values is zero then that limit is not imposed.
  *
  * The client must make progress toward firehose_release() for each
  * request_t it owns, independent of all calls to the firehose_*_pin()
