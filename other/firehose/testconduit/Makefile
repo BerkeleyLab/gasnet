@@ -2,7 +2,7 @@ fh_dir = ..
 gasnet_dir = ../../..
 
 CC     = gcc
-CFLAGS = -I. -I$(fh_dir) -I$(gasnet_dir) -I$(gasnet_dir)/extended-ref -DGASNET_PAR -DGASNET_NDEBUG
+CFLAGS = -g3 -I. -I$(fh_dir) -I$(gasnet_dir) -I$(gasnet_dir)/extended-ref -DGASNET_PAR -DGASNET_DEBUG
 
 .PHONY: clean
 
@@ -22,5 +22,5 @@ testconduit: $(OBJLIST)
 	$(CC) -o testconduit $(OBJLIST)
 
 clean:
-	rm -rf $(OBJLIST) testconduit
+	rm -rf $(OBJLIST) testconduit testconduit.exe
 

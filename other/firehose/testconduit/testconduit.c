@@ -10,6 +10,7 @@
 
 #include <gasnet.h>
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 #include <firehose.h>
 
 #define SENDPORTSTART 21000
@@ -92,8 +93,6 @@ gasnetc_readsocket(int srcfd, char *msg, int len) {
 }
 
 
-
-
 extern int 
 gasnetc_AMRequestMediumM( 
 	    gasnet_node_t dest,      /* destination node */
@@ -106,7 +105,7 @@ gasnetc_AMRequestMediumM(
     void    *buf;
     uint8_t *hdrptr, *payptr;
 
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    gasneti_assert(numargs >= 0 && numargs <= 16);
 
     va_start(argptr, numargs); /*  pass in last argument */
     gasneti_assert(nbytes <= AM_MAXLEN);
@@ -135,7 +134,8 @@ gasnetc_AMRequestMediumM(
     /* Copy payload */
     memcpy(payptr, source_addr, nbytes);
     fd = gasnetc_IdMapFd[dest].fd;
-    gasnetc_writesocket(fd, buf, nbytes+AM_PAYOFF);
+    //gasnetc_writesocket(fd, buf, nbytes+AM_PAYOFF);
+    gasnetc_writesocket(fd, buf, AM_BUFSZ);
     /* On write completion, free the buffer */
     gasneti_free(buf);
 
@@ -158,7 +158,7 @@ gasnetc_AMReplyMediumM(
 
     gasnet_node_t   node;
 
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    gasneti_assert(numargs >= 0 && numargs <= 16);
 
     va_start(argptr, numargs); /*  pass in last argument */
     gasneti_assert(nbytes <= AM_MAXLEN);
@@ -187,7 +187,8 @@ gasnetc_AMReplyMediumM(
 
     /* Copy payload */
     memcpy(payptr, source_addr, nbytes);
-    gasnetc_writesocket(fd, buf, nbytes+AM_PAYOFF);
+    //gasnetc_writesocket(fd, buf, nbytes+AM_PAYOFF);
+    gasnetc_writesocket(fd, buf, AM_BUFSZ);
     /* On write completion, free the buffer */
     gasneti_free(buf);
 
@@ -206,23 +207,62 @@ gasnetc_getRecvBuf()
 {
 #endif
 
-extern int 
-gasnetc_AMPoll()
+static char gasnetc_am_recvbuf[AM_BUFSZ];
+
+void
+gasnetc_ExecuteAMHandler(void *buf, gasnet_node_t node)
 {
     uint8_t  *pptr, hidx;
     int32_t  *argptr;
     uint16_t  hdr, numargs;
     uint32_t  paylen;
     size_t    nbytes;
-    int	      ret, i;
-    void     *buf, *payptr;
+    void     *payptr;
 
     gasnetc_sockmap_t *smap;
+
+    pptr = (uint8_t *) buf;
+
+    printf("POOOOOOOOOOOOOOOOOOOOOOOOP\n");
+
+    hdr     = *((uint8_t  *) (pptr + 0));
+    hidx    = *((uint8_t  *) (pptr + 1));
+    numargs = *((uint16_t *) (pptr + 2));
+    paylen  = *((uint32_t *) (pptr + 4));
+    argptr  =   (uint32_t *) (pptr + 8);
+    payptr  =       (void *) (pptr + AM_PAYOFF);
+    
+    printf("POOOOOOOOOOOOOOOOOOOOOOOOP hidx = %hd\n", hidx);
+
+    //gasneti_assert(nbytes >= AM_PAYOFF);
+    //gasneti_assert(paylen == nbytes - AM_PAYOFF);
+    gasneti_assert(gasnetc_handlers[hidx] != NULL);
+
+    //gasneti_mutex_unlock(&gasnetc_socklock);
+    //
+
+    printf("POOOOOOOOOOOOOOOOOOOOOOOOP\n");
+
+    RUN_HANDLER(gasnetc_handlers[hidx], (void *) smap, argptr, numargs, payptr,
+		    paylen);
+
+    return;
+}
+    
+
+extern int 
+gasnetc_AMPoll()
+{
+    int	      ret, i, fd;
+    void     *buf;
+
+    gasnet_node_t   node;
 
     if (gasnetc_nodes == 1)
 	    return;
 
-    gasneti_mutex_lock(&gasnetc_socklock);
+    //gasneti_mutex_lock(&gasnetc_socklock);
+
     ret = poll(gasnetc_pollfds, gasnetc_nodes-1, 0);
 
     if (ret == -1) {
@@ -237,36 +277,22 @@ gasnetc_AMPoll()
 	if (gasnetc_pollfds[i].revents & (POLLERR|POLLHUP|POLLNVAL)) 
 	    fprintf(stderr, "error polling fd %d\n", i);
 	else if (gasnetc_pollfds[i].revents & POLLIN) {
-	    gasnetc_pollfds[i].fd = gasnetc_sockfds[i];
+	    node = gasnetc_PollMapNode[i].node;
+	    fd = gasnetc_pollfds[i].fd;
+
+	    printf("%d> received something from node %d\n",
+		gasnetc_mynode, node);
+	    gasnetc_readsocket(fd, gasnetc_am_recvbuf, AM_BUFSZ);
+
+	    gasnetc_ExecuteAMHandler(buf, node);
 	}
     }
 
-
-    /*
-    select(...)
-    smap = 
-    */
-
-    pptr = (uint8_t *) buf;
-
-    hdr     = *((uint8_t  *) (pptr + 0));
-    hidx    = *((uint8_t  *) (pptr + 1));
-    numargs = *((uint16_t *) (pptr + 2));
-    paylen  = *((uint32_t *) (pptr + 4));
-    argptr  =   (uint32_t *) (pptr + 8);
-    payptr  =       (void *) (pptr + AM_PAYOFF);
-    
-    gasneti_assert(nbytes >= AM_PAYOFF);
-    gasneti_assert(paylen == nbytes - AM_PAYOFF);
-    gasneti_assert(gasnetc_handlers[hidx] != NULL);
-
-    gasneti_mutex_unlock(&gasnetc_socklock);
-
-    RUN_HANDLER(gasnetc_handlers[hidx], (void *) smap, argptr, numargs, payptr, paylen);
-
     return GASNET_OK;
+
 }
-    
+
+
 extern int
 firehose_move_callback(gasnet_node_t node, 
 		       const firehose_region_t *unpin_list, 
@@ -371,7 +397,7 @@ gasnetc_init()
    
     exit(1);
   }
-  
+
   //accept 0, gasnetc_mynode-1 connections
   for(i=0; i<gasnetc_mynode; i++) {
     int new_fd;
@@ -422,7 +448,8 @@ gasnetc_init()
       exit(1);
     }
     
-    fprintf(stderr, "connection succeeded on port %d, id=%d\n", 
+    fprintf(stderr, "%d> connection succeeded on port %d, id=%d\n", 
+		    gasnetc_mynode,
 		    (int) ntohs(ina_local[i].sin_port),
 		    gasnetc_sockfds[i]);
     
@@ -430,9 +457,10 @@ gasnetc_init()
   //setup the poll list
   //since we will not poll local host we only have total-nodes -1 on the poll list
   //and thus we use seperate counters for the poll list index (kinda of a hack but works
+
   for(j=0, i=0; i<gasnetc_nodes; i++) {
     if(i!=gasnetc_mynode) {
-      // setnonblock(sockfds[i]);
+      // setnonblock(gasnetc_sockfds[i]);
       gasnetc_pollfds[j].fd = gasnetc_sockfds[i];
       gasnetc_pollfds[j].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
       gasnetc_PollMapNode[j].node = i;
@@ -465,13 +493,90 @@ gasnetc_finalize()
     }
 }
 
+/* reference implementation of barrier */
+#define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
+#define _hidx_gasnete_ambarrier_notify_reqh	        (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_ambarrier_done_reqh		(GASNETE_HANDLER_BASE+1)
+#define _hidx_gasnete_am_medping			(GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_am_medpong			(GASNETE_HANDLER_BASE+3)
+
+#define gasnete_nodes		   gasnetc_nodes
+#define gasnete_mynode		   gasnetc_mynode
+
+#ifdef GASNETE_REFBARRIER_HANDLERS
+  #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+  #define gasnete_refbarrier_notify  gasnete_extref_barrier_notify
+  #define gasnete_refbarrier_wait    gasnete_extref_barrier_wait
+  #define gasnete_refbarrier_try     gasnete_extref_barrier_try
+  
+  #include "gasnet_extended_refbarrier.c"
+  #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
+#endif
+
+static	volatile int gasnete_medping_count = 0;
+
+void
+gasnete_am_medping(gasnet_token_t token, void *p, size_t len, 
+		   gasnet_handlerarg_t iter)
+{
+    gasnet_node_t   node;
+
+    gasnetc_AMGetMsgSource(token, &node);
+
+    fprintf(stderr, "%d> Received Ping %d from %d\n", gasnetc_mynode, iter, node);
+
+    gasnete_medping_count++;
+
+    gasnet_AMReplyMedium1(token, gasneti_handleridx(gasnete_am_medpong),
+	    p, len, iter);
+}
+
+void
+gasnete_am_medpong(gasnet_token_t token, gasnet_handlerarg_t iter)
+{
+    gasnet_node_t   node;
+
+    gasnetc_AMGetMsgSource(token, &node);
+
+    fprintf(stderr, "%d> Received Pong %d from %d\n", gasnetc_mynode, iter, node);
+
+    gasnete_medping_count++;
+}
+
+static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
+  #ifdef GASNETE_REFBARRIER_HANDLERS
+    GASNETE_REFBARRIER_HANDLERS(),
+  #endif
+
+  /* ptr-width independent handlers */
+  gasneti_handler_tableentry_no_bits(gasnete_am_medping),
+  gasneti_handler_tableentry_no_bits(gasnete_am_medpong),
+
+  /* ptr-width dependent handlers */
+  { 0, NULL }
+};
+
+void
+user_main()
+{
+    int	    iter = 1;
+    char    buf[128];
+
+    gasnet_node_t   dest = gasnetc_mynode ^ 1;
+
+    gasnet_AMRequestMedium1(dest,
+	gasneti_handleridx(gasnete_am_medpong), buf, 128, iter);
+
+    while (gasnete_medping_count != 2)
+	gasnetc_AMPoll();
+}
+
 int
 main(int argc, char **argv)
 {
     int i;
 
     pthread_t *client_thread_ids;
-    //[THREADS_PER_PROC];
     pthread_t send_thread; /*will handle all the sends*/
     pthread_t recv_thread; /*will handle all the recvs*/
 
@@ -488,27 +593,54 @@ main(int argc, char **argv)
 
     if (argc > 3 && argv[3] != NULL)
 	gasnetc_threadspernode = atoi(argv[3]);
-	
+
+    if (gasnetc_nodes < 1) {
+	fprintf(stderr, "Must have at least 1 GASNet node\n");
+	exit(EXIT_FAILURE);
+    }
+
     gasnetc_sockfds = (int *) gasneti_malloc(sizeof(int) * gasnetc_nodes);
     gasnetc_pollfds = (struct pollfd *) 
 			gasneti_malloc(sizeof(struct pollfd) * (gasnetc_nodes));
+    gasnetc_PollMapNode = (gasnetc_sockmap_t *) 
+			gasneti_malloc(
+			    sizeof(gasnetc_sockmap_t)*(gasnetc_nodes));
+    gasnetc_IdMapFd = (gasnetc_sockmap_t *) 
+			gasneti_malloc(
+			    sizeof(gasnetc_sockmap_t)*(gasnetc_nodes));
 
     /* Initilize firehose handlers */
     {
 	gasnet_handlerentry_t *fh_hnds = firehose_get_handlertable();
+
 	int gidx = 1; /* first free gasnet handler is 1 */
 	int fidx = 0; /* where to start looking for handlers */
 
-	while (fh_hnds[fidx].index != 0) {
+	while (fh_hnds[fidx].fnptr != NULL) {
 	    gasnetc_handlers[gidx] = fh_hnds[fidx].fnptr;
 	    fh_hnds[fidx].index = gidx;
-	    fprintf(stderr, "registered fh idx %d at idx %d\n", fidx, gidx);
+	    fprintf(stderr, "registered firehose handler (%p) at idx %d\n",
+			    fh_hnds[fidx].fnptr, gidx);
 	    gidx++;
 	    fidx++;
+	}
+
+	fidx = 0;
+	gidx = GASNETE_HANDLER_BASE;
+
+	while (gasnete_ref_handlers[fidx].fnptr != NULL) {
+	    gasnetc_handlers[gidx] = gasnete_ref_handlers[fidx].fnptr;
+
+	    fprintf(stderr, "registered ref handler (%p) at idx %d\n",
+			    fh_hnds[fidx].fnptr, gidx);
+	    fidx++;
+	    gidx++;
 	}
     }
 
     gasnetc_init();
+
+    user_main();
 
     printf("i am %d of %d\n", gasnetc_mynode, gasnetc_nodes);
     

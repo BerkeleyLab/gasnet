@@ -1252,7 +1252,7 @@ inner_again:
 	    ++(*dacount);
 	    if (*myda) {
 		/* We own the da bit! */
-		gasneti_assert(da[node] > 0);
+		gasneti_assert(fh_da[node] > 0);
 	    }
 	    else if (fh_da[node]) {
 		/* Someone else owns the da bit, abandon! */
@@ -1545,7 +1545,7 @@ fhsmp_LocalRollback(fhi_RegionPool_t *pin_p, fhi_RegionPool_t *unpin_p,
 
 	gasneti_assert(bd != NULL);
 	gasneti_assert(FH_IS_LOCAL_PENDING(bd));
-	gasneti_assert(bd->refc_l == 1);
+	gasneti_assert(FH_BUCKET_REFC(bd)->refc_l == 1);
 
 	fh_bucket_remove(bd);
     }
@@ -1575,7 +1575,7 @@ fhsmp_LocalRollback(fhi_RegionPool_t *pin_p, fhi_RegionPool_t *unpin_p,
 
 	bd = fh_bucket_lookup(fh_mynode, bucket_addr);
 	gasneti_assert(bd != NULL);
-	gasneti_assert(bd->refc_l == 1);
+	gasneti_assert(FH_BUCKET_REFC(bd)->refc_l == 1);
     }
 
     b_free = pin_p->buckets_num - (unpin_p->buckets_num + b_remain); 
@@ -1685,6 +1685,7 @@ fh_acquire_local_region(firehose_request_t *req)
     int			outer_count = 0;
     firehose_region_t	region;
     fhi_RegionPool_t	*pin_p = NULL, *unpin_p = NULL;
+    fh_bucket_t		*bd;
 
     static pthread_cond_t inflight_condvar = PTHREAD_COND_INITIALIZER;
 
@@ -1758,7 +1759,7 @@ again:
                 inner_count++;
                 if_pf (my_da) {
                     /* We already "own" fhi_local_da, no checks needed */
-                    gasneti_assert(fhi_local_da);
+                    gasneti_assert(fh_local_da);
                 }
                 else if_pf (fh_local_da) {
                     /* Somebody else "owns" fhi_local_da.
@@ -1810,7 +1811,9 @@ again:
             pthread_cond_broadcast(&fh_local_da_cv);
         }
 
+	#if 0 && NOT_SURE_WHY_WE_NEED_THIS_HMMMMMMMM
 	Service_AM_Transit_Queue();
+	#endif
     }
     else {
         /* We saw one of more TRANSIT buckets.  We unwind, wait
@@ -1879,7 +1882,7 @@ outer_again:
     unpin_p = fhi_AllocRegionPool(FH_MIN_REGIONS_FOR_BUCKETS(n_buckets));
 
     if (my_da) {
-	gasneti_assert(da[node]);
+	gasneti_assert(fh_da[node]);
 	goto won_da;
     }
 
