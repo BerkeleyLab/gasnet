@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2004/06/17 01:17:04 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2004/08/30 05:05:22 $
+ * $Revision: 1.11.2.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
