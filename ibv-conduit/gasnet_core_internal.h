@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/12/23 01:09:13 $
- * $Revision: 1.31 $
+ *     $Date: 2003/12/24 02:29:22 $
+ * $Revision: 1.31.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -524,6 +524,8 @@ void gasnetc_spinlock_lock(gasnetc_spinlock_t *s) {
 typedef struct _gasneti_freelist_ptr_s {
   struct _gasneti_freelist_ptr_s *next;
 } gasneti_freelist_ptr_t;
+
+#define GASNETI_FREELIST_PTR_INITIALIZER	{ NULL }
 
 /*
  * Data type for the "head" of a freelist.
