@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 19:28:20 $
- * $Revision: 1.2.2.14 $
+ *     $Date: 2003/04/01 21:06:23 $
+ * $Revision: 1.2.2.15 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,8 @@
 
 #include <errno.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sched.h>
 
 #if GASNETC_BOOTSTRAP_MPI
 #  include <mpi.h>
@@ -917,13 +919,32 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasnetc_exit(int exitcode) {
-  /* XXX: should force termination and same exitcode from all nodes? */
+  /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
+  gasneti_reghandler(SIGQUIT, SIG_IGN);
+
+  {  /* ensure only one thread ever continues past this point */
+    static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
+    gasneti_mutex_lock(&exit_lock);
+  }
+
+  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+
   gasneti_trace_finish();
+  if (fflush(stdout)) 
+    gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
+  if (fflush(stderr)) 
+    gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+  sched_yield();
+  sleep(1); /* pause to ensure everyone has written trace if this is a collective exit */
+
+  /* (###) add code here to terminate the job across _all_ nodes 
+           with _exit(exitcode) (not regular exit()), preferably
+           after raising a SIGQUIT to inform the client of the exit
+  */
 
   gasnetc_bootstrapFini();
 
-  exit(exitcode);	
-  abort();
+  _exit(exitcode);
 }
 
 /* ------------------------------------------------------------------------------------ */
