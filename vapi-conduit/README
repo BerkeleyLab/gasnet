@@ -2,4 +2,79 @@ README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
 
-NOTHING HERE
+Notes for myself for extended API:
+
++ Current generalized send completion facility is nice, but we can
+  probably get a very good (efficient and maintainable) implementation
+  of the extended API based on having each sbuf hold pointers to two
+  counters to be decremented upon completion.
+  
+  One counter would be for awaiting reuse of local memory and would
+  only be used for sbufs which were doing zero copy.  This counter
+  provides the mechanism for Longs and non-bulk puts to block before
+  they return, and could be allocated as an automatic variable.
+
+  The second counter would be for remote completion and would be
+  non-NULL for every sbuf for which remote completion would be checked
+  (all puts, but not the Longs).  For the nb and nbi the counter would
+  be waited on at sync-time.  This means that the explicit handle is
+  probably just the address of a counter (or a struct containing one).
+  
++ Similar to the reference implementation's cut-off between Mediums
+  (which typically do a source-side copy) and Longs (which may not),
+  we want a cut-off size, below which the RDMA-put operation will do
+  source-side copies IFF local completion is desired (Long, put_nb,
+  and put_nbi).
+
++ The gets will be done w/ RDMA-reads, and will use the bounce buffers
+  associated with the sbufs if the local memory is not in the segment
+  (or otherwise registered).  The value gets will also go though the
+  bounce buffers.  Clearly there is no bulk/non-bulk distinction in
+  terms of local memory reuse, just the alignment and optimal size
+  distinctions.  So, only the "remote" counter on the sbuf is needed
+  for synchronization in all cases.
+
++ The memset and barrier routines will continue to be AM-based.
+
++ Table of when syncronization is needed
+	Operation     Local Remote
+	--------------------------
+	LongAsync       X     X
+	Long            I     X
+
+	put_nb          I     S
+	put_nbi         I     S
+	put_nb_bulk     X     S
+	put_nbi_bulk    X     S
+	put_nb_val	X     S
+	put_nbi_val	X     S
+	put             X     I
+	put_bulk        X     I
+	put_val         X     I
+
+	get_nb		X     S
+	get_nbi		X     S
+	get_nb_bulk	X     S
+	get_nbi_bulk	X     S
+	get_nb_val	X     S
+	get_nbi_val (DOES NOT EXIST)
+	get		X     I
+	get_bulk	X     I
+	get_val		X     I
+
+   X = Not needed at all (or not even applicable with _val forms)
+   I = Needed before (I)nitiating function returns
+   S = Needed before (S)ynchronizing function returns
+
++ Some minor tweeks are possible to avoid allocation of counters in
+  some cases.  There should be a small set of core functions (perhaps
+  just the existing rdma_put, plus an rdma_get) which take pointers to
+  the counters as arguments.
+  - For all the functions which require waiting on a counter in in the
+    initiating function, the counter can be allocated on the stack (as
+    an automatic variable).
+  - For the implicit-handle forms the remote counter is in
+    thread-specific data, possibly in an access-region.
+  - For the explicit handle forms the remote counter must be allocated
+    from some pool, requiring some memory management work.  It may be
+    advantageous to make the pools thread-local to avoid some locks.
