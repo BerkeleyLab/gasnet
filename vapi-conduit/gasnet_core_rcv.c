@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/02 01:55:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/04/02 02:04:10 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -133,7 +133,7 @@ extern void gasnetc_rcv_init(void) {
   gasnetc_rcv_desc_t	*desc;
   int 			count, i;
 
-  count = GASNETC_RCV_WQE * gasnetc_nodes;
+  count = GASNETC_RCV_WQE * (gasnetc_nodes - 1);
 
   buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
 			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
@@ -175,7 +175,7 @@ extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep) {
     assert(rc == 0);
 
     gasnetc_rcv_desc_tail++;
-    assert((gasnetc_rcv_desc_tail - gasnetc_rcv_desc_head) <= (GASNETC_RCV_WQE * gasnetc_nodes));
+    assert((gasnetc_rcv_desc_tail - gasnetc_rcv_desc_head) <= (GASNETC_RCV_WQE * (gasnetc_nodes - 1)));
   }
 }
 
