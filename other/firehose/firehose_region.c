@@ -5,13 +5,22 @@
 
 #ifdef FIREHOSE_REGION
 
-                                                                                                              
+typedef
+struct _fh_bucket_t {
+        fh_int_t         fh_key;	/* cached key for hash table */
+        void            *fh_next;	/* linked list in hash table */
+					/* _must_ be in this order */
+
+        /* pointer to the containing region.  holds ref counts, etc */
+        firehose_private_t      *priv;
+        /* pointer to next bucket in same region */
+        struct _fh_bucket_t     *next;
+}
+fh_bucket_t;
+
 /* ##################################################################### */
 /* GLOBAL TABLES, LOCKS, ETC.                                            */
 /* ##################################################################### */
-
-fh_hash_t *fh_BucketTable1;
-fh_hash_t *fh_BucketTable2;
 
 /* ##################################################################### */
 /* FORWARD DECLARATIONS, INTERNAL MACROS, ETC.                           */
@@ -87,17 +96,116 @@ fh_bucket_t *fh_best_bucket(fh_bucket_t *a, fh_bucket_t *b)
   return (fh_bucket_is_better(a,b)) ? a : b;
 }
 
-/*======*/
-int fhc_LocalOnlyBucketsInFlight;
-/*======*/
+/* ##################################################################### */
+/* BUCKET TABLE HANDLING                                                 */
+/* ##################################################################### */
 
+fh_hash_t *fh_BucketTable1;
+fh_hash_t *fh_BucketTable2;
+
+/* "Best" matches for each bucket go in the first ("best") hash table.
+ * Any others go (unsorted) in the second ("other") hash table.
+ *
+ * Lookup only needs to consult the "best" list.
+ * Insertion may involve bumping an entry from "best" to "other".
+ * Deletion may involve promoting an entry from "other" to "best".
+ * Only the deletion requires comparisions in the "other" list and
+ * then only if we are deleting what is otherwise our best match.
+ */
+
+static fh_bucket_t
+*fh_bucket_lookup(gasnet_node_t node, uintptr_t addr)
+{
+        FH_TABLE_ASSERT_LOCKED;
+
+        FH_ASSERT_BUCKET_ADDR(addr);
+
+        /* Only ever need to lookup in the first table */
+        return (fh_bucket_t *)
+		fh_hash_find(fh_BucketTable1, FH_KEYMAKE(addr, node));
+}
+
+#if 0
+/* XXX/PHH: NOT YET FULLY IMPLEMENTED
+ * Need to use a freelist, keep related buckets linked, etc.
+ */
+static void
+fh_bucket_add(fh_bucket_t *bucket)
+{
+	fh_int_t key;
+	fh_bucket_t *other;
+	fh_hash_t *hash;
+
+        FH_TABLE_ASSERT_LOCKED;
+	assert(bucket != NULL);
+
+	key = bucket->fh_key;
+	hash = fh_BucketTable1;
+
+	/* check for existing entry, resolving conflict if any */
+	other = (fh_bucket_t *)fh_hash_find(fh_BucketTable1, key);
+	if_pf (other != NULL) {
+		/* resolve conflict */
+		if (fh_bucket_is_better(bucket, other)) {
+			fh_hash_replace(fh_BucketTable1, other, bucket);
+			bucket = other;
+		}
+		hash = fh_BucketTable2;
+	}
+
+	fh_hash_insert(hash, key, bucket);
+
+	return;
+}
+
+static void
+fh_bucket_remove(fh_bucket_t *bucket)
+{
+    fh_int_t key;
+
+    FH_TABLE_ASSERT_LOCKED;
+    assert(bucket != NULL);
+
+    key = bucket->fh_key;
+
+    /* check for existence in "best" list */
+    if_pf ((fh_bucket_t *)fh_hash_find(fh_BucketTable1, key) == bucket) {
+        /* found in the "best" list, so must search for a replacement */
+        fh_bucket_t *best = (fh_bucket_t *)fh_hash_find(fh_BucketTable2, key);
+
+        if (best != NULL) {
+	    fh_bucket_t *other = fh_hash_next(fh_BucketTable2, best);
+
+            while (other) {
+                best = fh_best_bucket(other, best);
+                other = fh_hash_next(fh_BucketTable2, other);
+	    }
+
+	    fh_hash_replace(fh_BucketTable2, best, NULL);
+	    fh_hash_replace(fh_BucketTable1, bucket, best);
+	} else {
+	    fh_hash_replace(fh_BucketTable1, bucket, NULL);
+	}
+    } else {
+	fh_hash_replace(fh_BucketTable2, bucket, NULL);
+    }
+    
+    /* XXX/PHH: return entry to freelist */
+
+    return;
+}
+#endif
+
+
+/* ========= */
+/* Commit a region known to be pinned, possibly in a FIFO */
 void
 fh_commit_region(gasnet_node_t node, firehose_region_t *region)
 {
     fh_bucket_t     *bd;
-                                                                                                             
+
     FH_TABLE_ASSERT_LOCKED;
-                                                                                                             
+
     /* XXX: should have a way to avoid repeating the lookup here */
     bd = fh_bucket_lookup(node, region->addr);
     assert(bd != NULL);
@@ -235,81 +343,6 @@ fh_release_remote_region(firehose_request_t *request)
                         <= fhc_RemoteBucketsM);
                                                                                                               
 	return;
-}
-
-/* ##################################################################### */
-/* BUCKET TABLE HANDLING                                                 */
-/* ##################################################################### */
-
-/* "Best" matches for each bucket go in the first ("best") hash table.
- * Any others go (unsorted) in the second ("other") hash table.
- *
- * Lookup only needs to consult the "best" list.
- * Insertion may involve bumping an entry from "best" to "other".
- * Deletion may involve promoting an entry from "other" to "best".
- * Only the deletion requires comparisions in the "other" list and
- * then only if we are deleting what is otherwise our best match.
- */
-
-void
-fhi_bucket_add(fh_bucket_t *bucket)
-{
-	fh_int_t key;
-	fh_bucket_t *other;
-	fh_hash_t *hash;
-
-	assert(bucket != NULL);
-
-	key = bucket->fh_key;
-	hash = fh_BucketTable1;
-
-	/* check for existing entry, resolving conflict if any */
-	other = (fh_bucket_t *)fh_hash_find(fh_BucketTable1, key);
-	if_pf (other != NULL) {
-		/* resolve conflict */
-		if (fh_bucket_is_better(bucket, other)) {
-			fh_hash_replace(fh_BucketTable1, other, bucket);
-			bucket = other;
-		}
-		hash = fh_BucketTable2;
-	}
-
-	fh_hash_insert(hash, key, bucket);
-
-	return;
-}
-
-void
-fhi_bucket_remove(fh_bucket_t *bucket)
-{
-    fh_int_t key;
-
-    assert(bucket != NULL);
-    key = bucket->fh_key;
-
-    /* check for existence in "best" list */
-    if_pf ((fh_bucket_t *)fh_hash_find(fh_BucketTable1, key) == bucket) {
-        /* found in the "best" list, so must search for a replacement */
-        fh_bucket_t *best = (fh_bucket_t *)fh_hash_find(fh_BucketTable2, key);
-
-        if (best != NULL) {
-	    fh_bucket_t *other = fh_hash_next(fh_BucketTable2, best);
-
-            while (other) {
-                best = fh_best_bucket(other, best);
-                other = fh_hash_next(fh_BucketTable2, other);
-	    }
-
-	    fh_hash_replace(fh_BucketTable2, best, NULL);
-	    fh_hash_replace(fh_BucketTable1, bucket, best);
-	} else {
-	    fh_hash_replace(fh_BucketTable1, bucket, NULL);
-	}
-    } else {
-	fh_hash_replace(fh_BucketTable2, bucket, NULL);
-    }
-    
-    return;
 }
 
 /* ##################################################################### */

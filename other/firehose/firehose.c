@@ -108,7 +108,6 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  *
  */
 static firehose_request_t	*fh_request_bufs[256] = { 0 };
-static fh_bucket_t		*fh_buckets_bufs[FH_BUCKETS_BUFS] = { 0 };
 
 void
 firehose_fini()
@@ -122,13 +121,6 @@ firehose_fini()
 		if (fh_request_bufs[i] == NULL)
 			break;
 		gasneti_free(fh_request_bufs[i]);
-	}
-
-	/* Deallocate the arrays of bucket buffers used, if applicable */
-	for (i = 0; i < FH_BUCKETS_BUFS; i++) {
-		if (fh_buckets_bufs[i] == NULL)
-			break;
-		gasneti_free(fh_buckets_bufs[i]);
 	}
 
 	fh_fini_plugin();
@@ -496,127 +488,17 @@ fh_request_free(firehose_request_t *req)
 
 /* region/page must provide implementations of these functions */
 
-/* Data structures (PAGE)
+/* Data structures 
  *
- * Table of fh_bucket_t (local and remote)
- *   Adding: fh_bucket_t are added once a bucket is pinned locally or a
- *           firehose maps to a remote bucket.
- *   Removing: Local fh_bucket_t are removed once a bucket is unpinned locally.
- *             Remote firehoses to fh_bucket_t are removed when an AM move is
- *             required and that bucket had been selected as a replacement
- *             bucket.
+ * Table(s) of firehose_private_t
+ *   Adding: Entries are added once a private_t is pinned locally or a
+ *           mapped to a remote location.
+ *   Removing: Local private_t's are removed once memory is unpinned locally.
+ *             Remote private_t's are removed when an AM move is required and
+ *             that private_t had been selected for replacement.
+ *   non-common implementation
  *
- * Local Victim Fifo list of fh_bucket_t (oldest at head, newest at tail)
- *   Popping: fh_bucket_t are usually removed so as to create one contiguous
- *            region_t.
- *   Pushing: fh_bucket_t are usually pushed in reverse order from a region_t.
- *            This allows a subsequent popping operation to optimistically
- *            construct contiguous region_t's.
- *
- * Per-node firehose victim FIFO
- *   Popping: A firehose fh_bucket_t is removed when a node decides that it has
- *            used up all it's firehoses to a remote node and needs replacement
- *            buckets.
- *
- *   Pushing: Firehoses for which fh_bucket_t reaches a refcount of zero are
- *            added to the per-node firehose victim FIFO.
  */
-
-/* ##################################################################### */
-/* Bucket (local and remote) operations (COMMON CODE)                    */
-/* ##################################################################### */
-static fh_bucket_t	*fh_buckets_freehead = NULL;
-static int		 fh_buckets_bufidx = 0;
-static int		 fh_buckets_per_alloc = 0;
-
-void
-fh_bucket_init_freelist(int max_buckets_pinned)
-{
-	FH_TABLE_ASSERT_LOCKED;
-
-	/* XXX this should probably be further aligned. . */
-	fh_buckets_per_alloc = (int) MAX( 
-	    ((max_buckets_pinned + (FH_BUCKETS_BUFS-1)) / FH_BUCKETS_BUFS),
-	    (1024));
-
-	fh_buckets_freehead = NULL; 
-
-	return;
-}
-
-fh_bucket_t *
-fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
-{
-	fh_bucket_t *entry;
-
-	FH_TABLE_ASSERT_LOCKED;
-
-	FH_ASSERT_BUCKET_ADDR(bucket_addr);
-
-	return fhi_bucket_lookup(FH_KEYMAKE(bucket_addr, node));
-}
-
-fh_bucket_t *
-fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
-{
-	fh_bucket_t	*entry;
-
-	FH_TABLE_ASSERT_LOCKED;
-	FH_ASSERT_BUCKET_ADDR(bucket_addr);
-
-	/* allocate a new bucket for the table */
-	if (fh_buckets_freehead != NULL) {
-		entry = fh_buckets_freehead;
-		fh_buckets_freehead = entry->fh_next;
-	}
-	else {
-		fh_bucket_t	*buf;
-		int		 i;
-
-		if (fh_buckets_bufidx == FH_BUCKETS_BUFS)
-			gasneti_fatalerror("Firehose: Ran out of "
-				"hash entries (limit=%d)",
-				FH_BUCKETS_BUFS*fh_buckets_per_alloc);
-
-		buf = (fh_bucket_t *) 
-			gasneti_malloc(fh_buckets_per_alloc*
-				       sizeof(fh_bucket_t));
-		if (buf == NULL)
-			gasneti_fatalerror("Couldn't allocate buffer "
-			    "of buckets");
-
-		memset(buf, 0, fh_buckets_per_alloc*sizeof(fh_bucket_t));
-
-		fh_buckets_bufs[fh_buckets_bufidx] = buf;
-		fh_buckets_bufidx++;
-
-		for (i = 1; i < fh_buckets_per_alloc-1; i++)
-			buf[i].fh_next = &buf[i+1];
-
-		buf[i].fh_next = NULL;
-		entry = &buf[0];
-		entry->fh_next = NULL;
-
-		fh_buckets_freehead = &buf[1];
-	}
-
-	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
-
-	fhi_bucket_add(entry);
-
-	return entry;
-}
-
-void
-fh_bucket_remove(fh_bucket_t *bucket)
-{
-	FH_TABLE_ASSERT_LOCKED;
-
-	fhi_bucket_remove(bucket);
-	memset(bucket, 0, sizeof(fh_bucket_t));
-	bucket->fh_next = fh_buckets_freehead;
-	fh_buckets_freehead = bucket;
-}
 
 /* 
  * fh_getenv()
@@ -663,6 +545,23 @@ fh_getenv(const char *var, unsigned long multiplier)
 }
 
 /* 
+ * Common data structures 
+ *
+ * Local Victim FIFO of firehose_private_t (oldest at head, newest at tail)
+ *   Pushing: Adjacent entries are usually pushed in reverse-address order.
+ *            This allows a subsequent popping operation to optimistically
+ *            construct contiguous region_t's (for firehose-page).
+ *   Popping: Entries are usually removed so as to create one contiguous
+ *            region_t.
+ *
+ * Per-node firehose victim FIFO of firehose_private_t
+ *   Pushing: Firehoses which reach a refcount of zero are added to the
+ *            per-node firehose victim FIFO for possible replacement or reuse.
+ *   Popping: An entry is removed when a node decides that it has used up all
+ *            it's firehoses to a remote node and needs replacements.
+ *
+ * XXX/PHH: update to drop 'bucket' terminology here:
+ *
  * Bucket state transitions
  *
  * Each bucket (whether local or remote) can be either pinned or unpinned.

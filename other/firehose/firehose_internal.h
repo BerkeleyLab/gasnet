@@ -154,8 +154,7 @@ fh_refc_t;
   #define FH_BSTATE_SET(entry, state)
 #endif
 
-#ifdef FIREHOSE_PAGE
-typedef struct _firehose_private_t	fh_bucket_t;
+struct _fh_bucket_t; /* forward decl of type */
 
 struct _firehose_private_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
@@ -164,66 +163,26 @@ struct _firehose_private_t {
 						 /* _must_ be in this order */
 
 	/* FIFO and refcount */
-	#ifdef DEBUG_BUCKETS
-	fh_bstate_t	fh_state;
-	#endif
-
-	fh_bucket_t	*fh_tqe_next;		/* -1 when not in FIFO, 
-						   NULL when end of list,
-						   else next pointer in FIFO */
-	fh_bucket_t	**fh_tqe_prev;		/* refcount when not in FIFO,
-						   prev pointer otherwise    */
-};
-
-#elif defined(FIREHOSE_REGION)
-
-/* Under firehose-region, the private type requires a client type to be inlined
- * if FIREHOSE_CLIENT_T is defined and the region's length to be specified (the
- * region's base address and destination node may be extracted from the pointer
- * to the first bucket of the region).
- *
- * Although all buckets covering pinned regions are hashed just as in
- * firehose-page, firehose-region additionally hashes the firehose_private_t
- * type.  
- */
-
-typedef
-struct _fh_bucket_t {
-        fh_int_t         fh_key;                 /* cached key for hash table */
-
-        void            *fh_next;		 /* linked list in hash table */
-						 /* _must_ be in this order */
-
-	/* pointer to the containing region.  holds ref counts, etc */
-	firehose_private_t	*priv;
-	/* pointer to next bucket in same region */
-	struct _fh_bucket_t	*next;
-}
-fh_bucket_t;
-
-struct _firehose_private_t {
-	fh_int_t	fh_key;			/* cached key for hash table */
-	void		*fh_next;		/* linked list in hash table */
-						/* _must_ be in this order */
-
-	size_t		len;
-	fh_bucket_t	*bucket;		/* pointer to first bucket */
-
-	#ifdef DEBUG_BUCKETS
-	fh_bstate_t	fh_state;
-	#endif
-
 	firehose_private_t *fh_tqe_next;	/* -1 when not in FIFO, 
 						   NULL when end of list,
 						   else next pointer in FIFO */
 	firehose_private_t **fh_tqe_prev;	/* refcount when not in FIFO,
 						   prev pointer otherwise    */
 
+	#ifdef DEBUG_BUCKETS
+	fh_bstate_t	fh_state;
+	#endif
+
+	/* Region-specific additional fields: */
+	#ifdef FIREHOSE_REGION
+	size_t			len;
+	struct _fh_bucket_t	*bucket;	/* pointer to first bucket */
+
 	#ifdef FIREHOSE_CLIENT_T
 	firehose_client_t	client;
-	#endif
+	#endif /* CLIENT_T */
+	#endif /* REGION */
 };
-#endif
 
 #define FH_KEYMAKE(addr,node)	(addr | node)
 #define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
@@ -288,8 +247,8 @@ void			fh_request_free(firehose_request_t *req);
 
 /* ##################################################################### */
 /* Firehose Hash Table Utility (COMMON, firehose_hash.c)                 */
-/* The hash table utility functions can be used for hashing buckets (and */
-/* regions in firehose-region                                            */
+/* The hash table utility functions can be used for hashing buckets and  */
+/* regions (in firehose-region).                                         */
 /* ##################################################################### */
 
 struct _fh_hash_t;
@@ -303,62 +262,13 @@ void *		fh_hash_next(fh_hash_t *hash, void *val);
 void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 
 /* ##################################################################### */
-/* Bucket (local and remote) operations (COMMON, firehose.c)             */
+/* FIFO (local and remote) management operations (COMMON, firehose.c)    */
 /* ##################################################################### */
-		/* Initialize the bucket freelist */
-void		fh_bucket_init_freelist(int max_buckets_pinned);
 		/* Returns a descriptor given an existing bucket address */
-fh_bucket_t *	fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr);
-		/* Adds the bucket to the table and returns its desc.    */
-fh_bucket_t *	fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr);
-		/* Removes the bucket from the table                     */
-void		fh_bucket_remove(fh_bucket_t *);
-		/* Releases the private_t (decrements the refcount)      */
 fh_refc_t *	fh_priv_release(gasnet_node_t node, firehose_private_t *);
 		/* Acquires the private_t (increments the refcount). _ONLY_ 
 		 * valid if the private_t already exists in the table    */
 fh_refc_t *	fh_priv_acquire(gasnet_node_t node, firehose_private_t *);
-
-
-/* The following are implementation-specific helpers */
-#if defined(FIREHOSE_PAGE)
-/* bucket table operations map directly to hash ops */
-extern fh_hash_t *fh_BucketTable;
-GASNET_INLINE_MODIFIER(fhi_bucket_lookup)
-fh_bucket_t *fhi_bucket_lookup(fh_int_t key)
-{
-	return (fh_bucket_t *)fh_hash_find(fh_BucketTable, key);
-}
-GASNET_INLINE_MODIFIER(fhi_bucket_add)
-void fhi_bucket_add(fh_bucket_t *bucket)
-{
-	assert(bucket != NULL);
-	FH_SET_USED(bucket);
-	fh_hash_insert(fh_BucketTable, bucket->fh_key, bucket);
-	assert(fhi_bucket_lookup(bucket->fh_key) == bucket);
-}
-GASNET_INLINE_MODIFIER(fhi_bucket_remove)
-void fhi_bucket_remove(fh_bucket_t *bucket)
-{
-	void * _tmp;
-
-	assert(bucket != NULL);
-	_tmp = fh_hash_insert(fh_BucketTable, bucket->fh_key, NULL);
-	assert(_tmp == (void *)bucket);
-}
-#elif defined(FIREHOSE_REGION)
-/* bucket table operations *don't* map directly to hash ops */
-extern fh_hash_t *fh_BucketTable1;
-extern fh_hash_t *fh_BucketTable2;
-GASNET_INLINE_MODIFIER(fhi_bucket_lookup)
-fh_bucket_t *fhi_bucket_lookup(fh_int_t key)
-{
-	/* Only ever need to lookup in the first table */
-	return (fh_bucket_t *)fh_hash_find(fh_BucketTable1, key);
-}
-extern void fhi_bucket_add(fh_bucket_t *);
-extern void fhi_bucket_remove(fh_bucket_t *);
-#endif
 
 /* ##################################################################### */
 /* Misc functions (specific to page and region)                          */

@@ -4,6 +4,7 @@
 #include <gasnet_handler.h>
 
 #ifdef FIREHOSE_PAGE
+typedef firehose_private_t fh_bucket_t;
 
 /* 
  * The following define is used only when users do not specify 
@@ -236,11 +237,116 @@ static gasnet_handlerentry_t fh_am_handlers[];
 /* ##################################################################### */
 /* UTILITY FUNCTIONS FOR REGIONS AND BUCKETS                             */
 /* ##################################################################### */
+
+static fh_bucket_t      *fh_buckets_bufs[FH_BUCKETS_BUFS] = { 0 };
+static fh_bucket_t	*fh_buckets_freehead = NULL;
+static int		 fh_buckets_bufidx = 0;
+static int		 fh_buckets_per_alloc = 0;
+
+static void
+fh_bucket_init_freelist(int max_buckets_pinned)
+{
+	FH_TABLE_ASSERT_LOCKED;
+
+	/* XXX this should probably be further aligned. . */
+	fh_buckets_per_alloc = (int) MAX( 
+	    ((max_buckets_pinned + (FH_BUCKETS_BUFS-1)) / FH_BUCKETS_BUFS),
+	    (1024));
+
+	fh_buckets_freehead = NULL; 
+
+	return;
+}
+
+GASNET_INLINE_MODIFIER(fh_bucket_lookup)
+fh_bucket_t *
+fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
+{
+	fh_bucket_t *entry;
+	fh_int_t key;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	FH_ASSERT_BUCKET_ADDR(bucket_addr);
+
+	return (fh_bucket_t *)
+			fh_hash_find(fh_BucketTable,
+				     FH_KEYMAKE(bucket_addr, node));
+}
+
+static fh_bucket_t *
+fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
+{
+	fh_bucket_t	*entry;
+
+	FH_TABLE_ASSERT_LOCKED;
+	FH_ASSERT_BUCKET_ADDR(bucket_addr);
+
+	/* allocate a new bucket for the table */
+	if (fh_buckets_freehead != NULL) {
+		entry = fh_buckets_freehead;
+		fh_buckets_freehead = entry->fh_next;
+	}
+	else {
+		fh_bucket_t	*buf;
+		int		 i;
+
+		if (fh_buckets_bufidx == FH_BUCKETS_BUFS)
+			gasneti_fatalerror("Firehose: Ran out of "
+				"hash entries (limit=%d)",
+				FH_BUCKETS_BUFS*fh_buckets_per_alloc);
+
+		buf = (fh_bucket_t *) 
+			gasneti_malloc(fh_buckets_per_alloc*
+				       sizeof(fh_bucket_t));
+		if (buf == NULL)
+			gasneti_fatalerror("Couldn't allocate buffer "
+			    "of buckets");
+
+		memset(buf, 0, fh_buckets_per_alloc*sizeof(fh_bucket_t));
+
+		fh_buckets_bufs[fh_buckets_bufidx] = buf;
+		fh_buckets_bufidx++;
+
+		for (i = 1; i < fh_buckets_per_alloc-1; i++)
+			buf[i].fh_next = &buf[i+1];
+
+		buf[i].fh_next = NULL;
+		entry = &buf[0];
+		entry->fh_next = NULL;
+
+		fh_buckets_freehead = &buf[1];
+	}
+
+	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
+
+	FH_SET_USED(entry);
+	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
+	assert(fhi_bucket_lookup(entry->fh_key) == entry);
+
+	return entry;
+}
+
+static void
+fh_bucket_remove(fh_bucket_t *bucket)
+{
+	void *entry;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	entry = fh_hash_insert(fh_BucketTable, bucket->fh_key, NULL);
+	assert(entry == (void *)bucket);
+
+	memset(bucket, 0, sizeof(fh_bucket_t));
+	bucket->fh_next = fh_buckets_freehead;
+	fh_buckets_freehead = bucket;
+}
+
 /* fh_region_ispinned(node, region)
  * 
  * Returns non-null if the entire region is already pinned 
  *
- * Uses fh_bucket_ispinned() to query if the current page is pinned.
+ * Uses fh_bucket_lookup() to query if the current page is pinned.
  */
 int
 fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
@@ -800,6 +906,14 @@ void
 fh_fini_plugin()
 {
 	fhi_RegionPool_t	*rpool;
+	int			i;
+
+        /* Deallocate the arrays of bucket buffers used, if applicable */
+        for (i = 0; i < FH_BUCKETS_BUFS; i++) {
+                if (fh_buckets_bufs[i] == NULL)
+                        break;
+                gasneti_free(fh_buckets_bufs[i]);
+        }
 
 	fh_hash_destroy(fh_BucketTable);
 
