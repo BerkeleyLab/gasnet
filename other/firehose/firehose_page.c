@@ -1065,8 +1065,8 @@ fhi_WaitRemoteFirehosesToUnpin(gasnet_node_t node, int b_num,
 		b_avail = MIN(b_remain, fhc_RemoteVictimFifoBuckets[node]);
 
 		if (b_avail > 0) {
-			r_freed = fhi_FreeVictimRemote(node, b_remain, reg);
-			fhc_RemoteVictimFifoBuckets[node] -= b_remain;
+			r_freed = fhi_FreeVictimRemote(node, b_avail, reg);
+			fhc_RemoteVictimFifoBuckets[node] -= b_avail;
 			b_remain -= b_avail;
 			reg += r_freed;
 		}
