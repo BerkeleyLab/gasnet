@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/28 19:27:16 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/03/28 19:52:04 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,7 +79,7 @@ typedef union {
  *     2: request or reply
  *   3-7: numargs
  *  8-15: handerID
- * 16-31: source-generated sequence number	(might replace w/ source ID?)
+ * 16-31: source index
  */
 
 typedef enum {
@@ -89,8 +89,8 @@ typedef enum {
   gasnetc_System=3
 } gasnetc_category_t;
 
-#define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, seq)	\
-  (uint32_t)(  (((seq)    & 0xffff) << 16)	\
+#define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx)	\
+  (uint32_t)(  (((srcidx) & 0xffff) << 16)	\
 	     | (((hand)   & 0xff)   << 8 )	\
 	     | (((nargs)  & 0x1f)   << 3 )	\
 	     | ((!(isreq) & 0x1)    << 2 )	\
@@ -99,8 +99,8 @@ typedef enum {
 #define GASNETC_MSG_NUMARGS(flags)	(((flags) >> 3) & 0x1f)
 #define GASNETC_MSG_ISREQUEST(flags)	(!((flags) & 0x4))
 #define GASNETC_MSG_CATEGORY(flags)	((gasnetc_category_t)((flags) & 0x3))
-#define GASNETC_MSG_HANDLERID(flags)	((uint8_t)((flags) >> 8))
-#define GASNETC_MSG_SEQUENCE(flags)	((uint16_t)((flags) >> 16))
+#define GASNETC_MSG_HANDLERID(flags)	((gasnet_handler_t)((flags) >> 8))
+#define GASNETC_MSG_SRCIDX(flags)	((gasnet_node_t)((flags) >> 16))
 
 #define GASNETC_MSG_MED_OFFSET(nargs)	\
 	(offsetof(gasnetc_medmsg_t,args) + nargs + ((nargs & 0x1) ^ ((GASNETC_MEDIUM_HDRSZ>>2) & 0x1)))
