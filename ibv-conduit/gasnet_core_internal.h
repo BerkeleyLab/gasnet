@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/05/20 21:22:33 $
- * $Revision: 1.1.2.29 $
+ *     $Date: 2003/06/17 20:38:24 $
+ * $Revision: 1.1.2.30 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -236,17 +236,11 @@ extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 
-/* Recv routines in gasnet_core_rcv.c */
-extern void gasnetc_rcv_poll(void);
-extern void gasnetc_rcv_init(void);
-extern void gasnetc_rcv_fini(void);
-extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep);
-extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags);
-
-/* Send routines in gasnet_core_snd.c */
-extern void gasnetc_snd_poll(void);
-extern void gasnetc_snd_init(void);
-extern void gasnetc_snd_fini(void);
+/* Routines in gasnet_core_sndrcv.c */
+extern void gasnetc_sndrcv_init(void);
+extern void gasnetc_sndrcv_fini(void);
+extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep);
+extern void gasnetc_sndrcv_poll(void);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
