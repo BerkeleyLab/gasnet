@@ -533,16 +533,19 @@ fhi_merge_regions(firehose_region_t *pin_region)
 	    gasneti_assert(end_addr > next_addr);
 	    extend = end_addr - next_addr;
 
-#if 0
-	    /* only accept complete coverage */
 	    if (extend <= space_avail) {
+	        /* We cover the other region fully */
 		len += extend;
 		space_avail -= extend;
 	    }
-#else
-	    /* accept even partial coverage */
-	    len += extend;
-	    space_avail -= extend;
+#if 1
+	    else if (bd !=
+		     fh_bucket_lookup(fh_mynode, next_addr + space_avail)) {
+		/* We can't cover the entire region.
+		 * However, somebody else already covers the rest. */
+		len += space_avail;
+		space_avail -= space_avail;
+	    }
 #endif
 	}
 	gasneti_assert(len <= fhi_MaxRegionSize);
