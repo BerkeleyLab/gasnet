@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/11/01 07:17:25 $
- * $Revision: 1.21.2.9 $
+ *     $Date: 2003/11/06 02:19:03 $
+ * $Revision: 1.21.2.10 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -363,6 +363,7 @@ static int gasnetc_load_settings(void) {
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
+  VAPI_hca_vendor_t	hca_vendor;
   gasnetc_addr_t	*local_addr;
   gasnetc_addr_t	*remote_addr;
   VAPI_ret_t		vstat;
@@ -401,8 +402,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* open the hca and get port & lid values */
   {
-    VAPI_hca_vendor_t hca_vendor;
-
     if (!gasnetc_hca_id || !strlen(gasnetc_hca_id)) {
       /* Empty means probe for HCAs */
       VAPI_hca_id_t	*hca_ids;
@@ -500,6 +499,25 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
   gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
 
+  /* For some firmware there is a performance bug with EVAPI_post_inline_sr(). */
+  #if GASNETC_VAPI_ENABLE_INLINE_PUTS
+    if ((hca_vendor.fw_ver >= (uint64_t)(0x100180000LL)) &&
+        (hca_vendor.fw_ver <  (uint64_t)(0x300000000LL))) {
+	/* (1.18 <= fw_ver < 3.0) is known bad */
+	fprintf(stderr,
+		"WARNING: Your HCA firmware is suspected to include a performance defect\n"
+		"when using EVAPI_post_inline_sr().  You may wish to either upgrade your\n"
+		"firmware, or configure GASNet with '--disable-vapi-inline-puts'.\n");
+    }
+  #endif
+
+  /* For some firmware there is a thread safety bug with VAPI_poll_cq(). */
+  #if GASNETC_VAPI_FORCE_POLL_LOCK
+    /* The poll lock is used unconditionally */
+  #else
+    /* Use the poll lock only for known bad fw (<3.0.0): */
+    gasnetc_use_poll_lock = (hca_vendor.fw_ver < (uint64_t)(0x300000000LL));
+  #endif
 
   /* get a pd for the QPs and memory registration */
   vstat =  VAPI_alloc_pd(gasnetc_hca, &gasnetc_pd);

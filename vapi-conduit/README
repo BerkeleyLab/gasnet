@@ -3,6 +3,7 @@ README file for vapi-conduit
 Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ TOC: @
+@ Section: Build-time Configuration @
 @ Section: Runtime Configuration @
 @ Section: Core API @
 @ Section: Extended API @
@@ -10,6 +11,36 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: TO DO @
 
 
+@ Section: Build-time Configuration @
+  There are two known bugs in older InfiniHost firmware versions.
+  Normally you shouldn't need to do anything special with regards
+  to them.  However, if you do need to override the defaults this
+  section explains the issues.
+
+  + Thread safety of VAPI_poll_cq()
+    In firmware versions prior to 3.0, the VAPI_poll_cq() call is
+    not thread safe under some conditions.  For this reason,
+    vapi-conduit will check the firmware version at runtime and will
+    use its own mutex around calls to VAPI_poll_cq() if needed.
+
+    If you believe this bug is appearing in firmware 3.0 or later,
+    you can force use of this mutex by configuring GASNet with the
+    flag '--enable-vapi-force-poll-lock'.
+
+  + Performance loss in EVAPI_post_inline_sr()
+    In firmware versions after 1.17 and prior to 3.0, there is a
+    performance anomaly with the call EVAPI_post_inline_sr().
+    By default, vapi-conduit will use this call to perform small
+    puts.  If firware in the range [1.18, 3.0) is detected at
+    runtime, a warning will be printed but the call will still
+    be used.
+
+    If you believe this bug is affecting your performance under
+    other firmware versions, or to silence this warning without
+    updating your firmware, configure GASNet with the flag
+    '--disable-vapi-inline-puts'.  This will disable the use of
+    the EVAPI_post_inline_sr() call, and disable the warning.
+    
 @ Section: Runtime Configuration @
 
   There are a number of parameters in vapi-conduit which can be tuned
