@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/03/22 06:15:28 $
- * $Revision: 1.79.4.1 $
+ *     $Date: 2005/03/22 19:01:27 $
+ * $Revision: 1.79.4.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1072,7 +1072,7 @@ size_t gasnetc_get_lkey(uintptr_t start, size_t len, gasnetc_sreq_t *sreq, VAPI_
 
   if_pt ((start >= gasnetc_seg_start) && (start <= gasnetc_seg_end)) {
     /* Starts in-segment */
-    int i = (start - gasnetc_seg_start) / GASNETC_PIN_MAXSZ;
+    int i = (start - gasnetc_seg_start) >> gasnetc_pin_maxsz_shift;
     gasneti_assert(i >= 0);
     gasneti_assert(i < gasnetc_seg_reg_count);
 
@@ -1114,14 +1114,14 @@ void gasnetc_get_rkey(gasnetc_cep_t *cep, uintptr_t start, size_t *len_p, VAPI_r
   gasneti_assert(start >= gasnetc_seg_start);
   gasneti_assert(end <= cep->end);
 
-  i = (start - gasnetc_seg_start) / GASNETC_PIN_MAXSZ;
+  i = (start - gasnetc_seg_start) >> gasnetc_pin_maxsz_shift;
   gasneti_assert(i >= 0);
   gasneti_assert(i < gasnetc_seg_reg_count);
 
   *rkey = cep->rkeys[i];
 
   /* if in last region might still run past end, but that should be caught elsewhere */
-  tmp = (gasnetc_seg_start - 1) + (GASNETC_PIN_MAXSZ * (i+1));
+  tmp = (gasnetc_seg_start - 1) + ((i+1) << gasnetc_pin_maxsz_shift);
   if (end > tmp) {
     *len_p = (tmp - start) + 1;
   }
