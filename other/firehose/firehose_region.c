@@ -50,12 +50,29 @@ static gasnet_handlerentry_t fh_am_handlers[];
 #define FH_IS_READY(is_local, priv) \
 	((is_local) || !FH_IS_REMOTE_PENDING(priv))
 
+#ifdef FIREHOSE_CLIENT_T
+  #define FH_CP_CLIENT(A,B) (A)->client = (B)->client
+#else
+  #define FH_CP_CLIENT(A,B)
+#endif
+
 /* Assumes node field is correct */
 #define CP_PRIV_TO_REQ(req, priv) 	do {			\
 		(req)->addr = FH_BADDR(priv);			\
 		(req)->len = (priv)->len;			\
 		(req)->internal = (priv);			\
-		(req)->client = (priv)->client;			\
+		FH_CP_CLIENT((req), (priv));			\
+	} while(0)
+
+#define CP_REG_TO_PRIV(priv, node, reg) 	do {		    \
+		(priv)->fh_key = FH_KEYMAKE((reg)->addr, (node));   \
+		(priv)->len = (reg)->len;			    \
+		FH_CP_CLIENT((priv), (reg));			    \
+	} while(0)
+#define CP_PRIV_TO_REG(reg, priv) 	do {			\
+		(reg)->addr = FH_BADDR(priv);			\
+		(reg)->len = (priv)->len;			\
+		FH_CP_CLIENT((reg), (priv));			\
 	} while(0)
 
 /* ##################################################################### */
@@ -209,9 +226,9 @@ fh_bucket_unhash(fh_bucket_t *bucket)
 
 /* XXX/PHH use a freelist here */
 /* Given a node and a region_t, create the necessary hash table entries.
- * The FIFO linkage and client_t are NOT initialized */
+ * The FIFO linkage is NOT initialized */
 firehose_private_t *
-fh_create_priv(gasnet_node_t node, uintptr_t addr, size_t len)
+fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
 {
     uintptr_t end_addr, bucket_addr;
     firehose_private_t *priv;
@@ -222,14 +239,13 @@ fh_create_priv(gasnet_node_t node, uintptr_t addr, size_t len)
     priv = gasneti_malloc(sizeof(firehose_private_t));
     memset(priv, 0, sizeof(firehose_private_t));
 
-    priv->fh_key = FH_KEYMAKE(addr, node);
-    priv->len = len;
+    CP_REG_TO_PRIV(priv, node, reg);
 
-    end_addr = addr + (len - 1);
+    end_addr = fh_region_end(reg);
     prev = &priv->bucket;
-    FH_FOREACH_BUCKET(addr, end_addr, bucket_addr) {
+    FH_FOREACH_BUCKET(reg->addr, end_addr, bucket_addr) {
         fh_bucket_t *bd = gasneti_malloc(sizeof(fh_bucket_t));
-                                                                                
+
 	bd->priv = priv;
 	fh_bucket_hash(bd, FH_KEYMAKE(bucket_addr, node));
 
@@ -243,7 +259,26 @@ fh_create_priv(gasnet_node_t node, uintptr_t addr, size_t len)
     return priv;
 }
 
-/* ========= */
+/* XXX/PHH use a freelist here */
+void
+fh_destroy_priv(firehose_private_t *priv)
+{
+    fh_bucket_t *bucket;
+
+    /* Unhash & free all the buckets */
+    bucket = priv->bucket;
+    assert(bucket != 0);
+    do {
+	fh_bucket_t *next = bucket->next;
+        fh_bucket_unhash(bucket);
+	gasneti_free(bucket);
+	bucket = next;
+    } while (bucket != NULL);
+
+    /* PHH/XXX unhash priv here if hashed in create_priv */
+    gasneti_free(priv);
+}
+
 /* Commit a region known to be pinned, possibly in a FIFO */
 void
 fh_commit_region(firehose_request_t *req)
@@ -262,6 +297,42 @@ fh_commit_region(firehose_request_t *req)
     CP_PRIV_TO_REQ(req, priv);
 
     return;
+}
+
+/*
+ * fh_FreeVictim(count, region_array, head)
+ *
+ * This function removes 'count' firehoses from the victim FIFO (local or
+ * remote), and fills the region_array with regions suitable for move_callback.
+ * It returns the amount of regions (not buckets) created in the region_array.
+ *
+ * NOTE: it is up to the caller to make sure the region array is large enough.
+ */
+int
+fh_FreeVictim(int count, firehose_region_t *reg, fh_fifoq_t *fifo_head)
+{
+	int			i;
+	firehose_private_t	*priv;
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	/* XXX/PHH FOR NOW... */
+	assert(count == 1);
+
+	/* There must be enough buckets in the victim FIFO to unpin.  This
+	 * criteria should always hold true per the constraints on
+	 * fhc_LocalOnlyBucketsPinned. */
+	for (i = 0; i < count; i++) {
+		priv = FH_TAILQ_FIRST(fifo_head);
+		FH_TAILQ_REMOVE(fifo_head, priv);
+
+		CP_PRIV_TO_REG(&reg[i], priv);
+		FH_TRACE_BUCKET(priv, REMFIFO);
+
+		fh_destroy_priv(priv);
+	}
+	assert(count == i);
+	return i;
 }
 
 /* ##################################################################### */
@@ -326,12 +397,67 @@ fh_region_partial(gasnet_node_t node, uintptr_t *addr_p, size_t *len_p)
 void
 fh_acquire_local_region(firehose_request_t *req)
 {
+    fh_bucket_t *bd;
+    int retval = 0;
+
     assert(req != NULL);
     assert(req->node == fh_mynode);
 
+    /* Make sure the size of the region respects the local limits */
+    assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_MaxVictimBuckets);
     FH_TABLE_ASSERT_LOCKED;
 
-    /* XXX unimplemented */
+    bd = fh_bucket_lookup(req->node, req->addr);
+
+    if_pt (bd && (fh_req_end(req) <= fh_bucket_end(bd))) {
+	/* Firehose HIT, acquire it */
+	fh_priv_acquire(fh_mynode, bd->priv);
+	CP_PRIV_TO_REQ(req, bd->priv);
+    }
+    else {
+	/* Firehose MISS, pin it */
+	/* XXX/PHH Add logic to try to coallesce adjacent regions */
+	firehose_region_t pin_region, unpin_region;
+	firehose_private_t *priv;
+	int num_unpin;
+
+	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
+	assert ((num_unpin == 0) || (num_unpin == 1));
+	
+	pin_region.addr = req->addr;
+	pin_region.len  = req->len;
+
+	/* XXX/PHH create in-TRANSIT hash entries here */
+
+	FH_TABLE_UNLOCK;
+	firehose_move_callback(fh_mynode,
+				&unpin_region, num_unpin,
+				&pin_region, 1);
+	FH_TABLE_LOCK;
+
+#if 0
+	/* XXX/PHH commit the in-TRANSIT hash entries here */
+#else
+	priv = fh_create_priv(fh_mynode, &pin_region);
+
+	FH_BSTATE_SET(priv, fh_used);
+	FH_SET_USED(priv);
+	FH_TRACE_BUCKET(priv, INIT);
+	FH_BUCKET_REFC(priv)->refc_l = 1;
+	FH_BUCKET_REFC(priv)->refc_r = 0;
+#endif
+
+#if 0
+	CP_PRIV_TO_REQ(req, priv);/
+#else
+	assert(req->node == fh_mynode);
+	assert(req->addr == FH_BADDR(priv));
+	assert(req->len == priv->len);
+	req->client = priv->client;
+	req->internal = priv;
+#endif
+    }
+
     return;
 }
 
@@ -345,7 +471,7 @@ fh_commit_try_local_region(firehose_request_t *req)
 
     /* Make sure the size of the region respects the local limits */
     assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_MaxVictimBuckets);
-                                                                                                             
+
     fh_commit_region(req);
 }
 
@@ -356,12 +482,9 @@ fh_release_local_region(firehose_request_t *request)
 	assert(request != NULL);
 	assert(request->node == fh_mynode);
 	assert(request->internal != NULL);
-                                                                                                              
+
 	fh_priv_release(fh_mynode, request->internal);
-        //cleanup_overcommitted_local_FIFO();
-                                                                                                              
-        fhc_LocalOnlyBucketsInFlight -= 
-		FH_NUM_BUCKETS(request->addr, request->len);
+	fh_AdjustLocalFifoAndPin(fh_mynode, NULL, 0);
 
 	return;
 }
@@ -407,12 +530,12 @@ fh_release_remote_region(firehose_request_t *request)
 	assert(request->node != fh_mynode);
 	assert(request->internal != NULL);
 	assert(!FH_IS_REMOTE_PENDING(request->internal));
-                                                                                                              
+
 	fh_priv_release(request->node, request->internal);
-                                                                                                              
+
         assert(fhc_RemoteVictimFifoBuckets[request->node]
                         <= fhc_RemoteBucketsM);
-                                                                                                              
+
 	return;
 }
 
@@ -604,7 +727,6 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	 */
 	fhc_LocalOnlyBucketsPinned = num_reg;
 	fhc_LocalVictimFifoBuckets = 0;
-	fhc_LocalOnlyBucketsInFlight = 0;
 	fhc_MaxVictimBuckets = num_reg + param_VR;
 
 	/* 
@@ -638,9 +760,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	for (i = 0; i < num_reg; i++) {
 		firehose_private_t	*priv;
 
-		priv = fh_create_priv(fh_mynode,
-				      regions[i].addr, regions[i].len);
-		priv->client = regions[i].client;
+		priv = fh_create_priv(fh_mynode, &regions[i]);
 
 		FH_BSTATE_SET(priv, fh_used);
 		FH_SET_USED(priv);
@@ -726,7 +846,7 @@ gasnet_handlerentry_t fh_am_handlers[] = {
         gasneti_handler_tableentry_with_bits(fh_am_move_reph),
         { 0, NULL }
 };
-                                                                                                              
+
 gasnet_handlerentry_t *
 firehose_get_handlertable() {
         return fh_am_handlers;
