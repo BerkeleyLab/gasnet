@@ -1,22 +1,18 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2004/11/23 23:40:21 $
- * $Revision: 1.26.4.1 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.26.4.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_internal.h>
+#include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
 
-gasnet_node_t gasnete_mynode = (gasnet_node_t)-1;
-gasnet_node_t gasnete_nodes = 0;
-gasnet_seginfo_t *gasnete_seginfo = NULL;
 static gasnete_threaddata_t *gasnete_threadtable[256] = { 0 };
 static int gasnete_numthreads = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
@@ -26,10 +22,6 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
-
-#if !defined(GASNETC_PIN_SEGMENT) && GASNETE_MEMSET_PUT_LIMIT
-  #error "GASNETE_MEMSET_PUT_LIMIT must be zero when GASNETC_PIN_SEGMENT is disabled"
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -148,9 +140,9 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
       gasnete_eopaddr_t addr = thread->eop_free;
 
       #if 0
-      if (gasnete_mynode == 0)
+      if (gasneti_mynode == 0)
         for (i=0;i<256;i++) {                                   
-          fprintf(stderr,"%i:  %i: next=%i\n",gasnete_mynode,i,buf[i].addr.eopidx);
+          fprintf(stderr,"%i:  %i: next=%i\n",gasneti_mynode,i,buf[i].addr.eopidx);
           fflush(stderr);
         }
         sleep(5);
@@ -303,7 +295,7 @@ SHORT_HANDLER(gasnete_done_reph,1,2,
               (token, UNPACK(a0)    ),
               (token, UNPACK2(a0, a1)));
 #define GASNETE_DONE(token, counter)                                               \
-  GASNETE_SAFE(                                                                    \
+  GASNETI_SAFE(                                                                    \
     SHORT_REP(1,2,((token), gasneti_handleridx(gasnete_done_reph), PACK(counter))) \
   )
 
@@ -320,16 +312,14 @@ static void gasnete_check_config() {
 }
 
 extern void gasnete_init() {
+  static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-  gasneti_assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
+  gasneti_assert(firstcall); /*  make sure we haven't been called before */
+  firstcall = 0;
 
   gasnete_check_config(); /*  check for sanity */
 
-  gasnete_mynode = gasnet_mynode();
-  gasnete_nodes = gasnet_nodes();
-  gasneti_assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
-  gasnete_seginfo = (gasnet_seginfo_t*)gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
-  gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
+  gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
   { gasnete_threaddata_t *threaddata = NULL;
     #if GASNETI_CLIENT_THREADS
@@ -358,7 +348,7 @@ GASNET_INLINE_MODIFIER(gasnete_getmed_reqh_inner)
 void gasnete_getmed_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *counter) {
   gasneti_assert(nbytes <= gasnet_AMMaxMedium());
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     MEDIUM_REP(2,4,(token, gasneti_handleridx(gasnete_getmed_reph),
                   src, nbytes, 
                   PACK(dest), PACK(counter))));
@@ -387,7 +377,7 @@ void gasnete_getlong_reqh_inner(gasnet_token_t token,
 
   rc = gasnet_AMGetMsgSource(token, &node);
   gasneti_assert(rc != 0);
-  gasneti_assert(node != gasnete_mynode);	/* loopback gets should not reach here */
+  gasneti_assert(node != gasneti_mynode);	/* loopback gets should not reach here */
 
   /* This is more-or-less a AMReplyLongAsync, except that the reply handler
    * doesn't get the "nbytes" and "addr" (they are not needed in this case).
@@ -464,16 +454,11 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
 
-  if ((GASNETE_MEMSET_PUT_LIMIT != 0 ) && (nbytes <= GASNETE_MEMSET_PUT_LIMIT)) {
-    /* XXX check error returns */
-    gasnetc_rdma_memset(node, dest, val, nbytes, &eop->req_oust);
-  } else {
-    gasnetc_counter_inc(&eop->req_oust);
-    GASNETE_SAFE(
-      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
-                   PACK(dest), PACK(&eop->req_oust))));
-  } 
+  gasnetc_counter_inc(&eop->req_oust);
+  GASNETI_SAFE(
+    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                 PACK(dest), PACK(&eop->req_oust))));
 
   return (gasnet_handle_t)eop;
 }
@@ -504,7 +489,7 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
 }
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
@@ -513,7 +498,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
   int success = 0;
   int empty = 1;
 
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -532,7 +517,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
 
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -584,16 +569,11 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
 
-  if ((GASNETE_MEMSET_PUT_LIMIT != 0 ) && (nbytes <= GASNETE_MEMSET_PUT_LIMIT)) {
-    /* XXX check error returns */
-    gasnetc_rdma_memset(node, dest, val, nbytes, &iop->put_req_oust);
-  } else {
-    gasnetc_counter_inc(&iop->put_req_oust);
-    GASNETE_SAFE(
-      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
-                   PACK(dest), PACK(&iop->put_req_oust))));
-  } 
+  gasnetc_counter_inc(&iop->put_req_oust);
+  GASNETI_SAFE(
+    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                 PACK(dest), PACK(&iop->put_req_oust))));
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -706,16 +686,11 @@ extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
 		            size_t nbytes GASNETE_THREAD_FARG) {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
 
-  if ((GASNETE_MEMSET_PUT_LIMIT != 0 ) && (nbytes <= GASNETE_MEMSET_PUT_LIMIT)) {
-    /* XXX check error returns */
-    gasnetc_rdma_memset(node, dest, val, nbytes, &req_oust);
-  } else {
-    gasnetc_counter_inc(&req_oust);
-    GASNETE_SAFE(
-      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
-                   PACK(dest), PACK(&req_oust))));
-  } 
+  gasnetc_counter_inc(&req_oust);
+  GASNETI_SAFE(
+    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                 PACK(dest), PACK(&req_oust))));
 
   gasnetc_counter_wait(&req_oust, 0);
 }
@@ -736,7 +711,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnet_valget_handle_t retval;
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasnete_boundscheck(node, src, nbytes);
+  gasneti_boundscheck(node, src, nbytes);
   if (mythread->valget_free) {
     retval = mythread->valget_free;
     mythread->valget_free = retval->next;
