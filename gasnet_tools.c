@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2004/09/19 15:49:27 $
- * $Revision: 1.75 $
+ *     $Date: 2004/10/15 06:54:11 $
+ * $Revision: 1.75.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1024,6 +1024,11 @@ extern void gasneti_trace_init(int argc, char **argv) {
   #if GASNETI_STATS_OR_TRACE
   const char *tracetypes = NULL;
   const char *statstypes = NULL;
+
+  #if GASNET_TRACE && GASNETI_CLIENT_THREADS
+    gasneti_assert_zeroret(pthread_key_create(&gasneti_srclineinfo_key, NULL));
+  #endif
+
   { /* setup tracetypes */
     const char *types;
     types = gasnet_getenv("GASNET_TRACEMASK");
@@ -1071,10 +1076,6 @@ extern void gasneti_trace_init(int argc, char **argv) {
     #endif
         gasneti_statsfile = NULL;
   }
-
-  #if GASNET_TRACE && GASNETI_CLIENT_THREADS
-    gasneti_assert_zeroret(pthread_key_create(&gasneti_srclineinfo_key, NULL));
-  #endif
 
   { time_t ltime;
     int i;
