@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/04/09 00:30:36 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2004/05/10 23:19:13 $
+ * $Revision: 1.1.2.9 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,6 +20,31 @@
 #define GASNETE_COLL_SYNC_MODE(flags) \
 	((flags) & (GASNET_COLL_OUT_NOSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC | \
 	            GASNET_COLL_IN_NOSYNC  | GASNET_COLL_IN_MYSYNC  | GASNET_COLL_IN_ALLSYNC))
+
+/*---------------------------------------------------------------------------------*/
+
+int gasnete_coll_init_done = 0;
+
+void gasnete_coll_validate(gasnet_team_handle_t team,
+			   gasnet_node_t dstnode, void *dst,
+                           gasnet_node_t srcnode, void *src,
+			   unsigned int flags) {
+  if_pf (!gasnete_coll_init_done) {
+    gasneti_fatalerror("Illegal call to GASNet collectives before gasnet_coll_init()\n");
+  }
+
+  gasneti_assert(GASNETE_COLL_IN_MODE(flags) != 0);	/* IN mode has no default */
+  gasneti_assert(GASNETE_COLL_OUT_MODE(flags) != 0);	/* OUT mode has no default */
+  gasneti_assert(flags & GASNET_COLL_DST_IN_SEGMENT);	/* XXX: Temporary limitation */
+  gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);	/* XXX: Temporary limitation */
+  gasneti_assert(((flags & GASNET_COLL_SINGLE)?1:0) ^ ((flags & GASNET_COLL_LOCAL)?1:0));
+
+  /* XXX: TO DO
+   * + bounds check src and/or dst as indicated by *_IN_SEGMENT and {src,dst}node
+   * + check that team handle is valid (requires a teams interface)
+   * + check that mynode is a member of the team (requires a teams interface)
+   */
+}
 
 /*---------------------------------------------------------------------------------*/
 /* Handles */
@@ -42,11 +67,11 @@
   extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle) {
     int result = GASNET_ERR_NOT_READY;
 
+    gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE); /* caller must check */
+
     gasnete_coll_poll();
 
-    if_pf (handle == GASNET_COLL_INVALID_HANDLE) {
-      result = GASNET_OK;
-    } else if_pf (*handle != 0) {
+    if_pf (*handle != 0) {
       gasneti_free((void *)handle);
       result = GASNET_OK;
     }
@@ -438,10 +463,26 @@ void gasnete_coll_poll(void) {
   }
 }
 
-extern void gasnete_coll_init(void) {
+extern void gasnete_coll_init(const size_t images[], int init_flags) {
+  GASNETI_CHECKATTACH();
+  
+  /* Sanity checks - performed only for debug builds */
+  #if GASNET_DEBUG
+    if (gasnete_coll_init_done) {
+      gasneti_fatalerror("Multiple calls to gasnet_coll_init()\n");
+    }
+    if (init_flags) {
+      gasneti_fatalerror("Invalid call to gasnet_coll_init() with non-zero flags\n");
+    }
+  #endif
+
   gasnete_coll_op_table_init();
   gasnete_coll_op_active_init();
   /* gasnete_coll_team_init(); */
+
+  gasnete_coll_init_done = 1;
+  gasnet_barrier_notify(0,0);
+  gasnet_barrier_wait(0,0);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -636,10 +677,10 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
     }
 
     extern gasnet_coll_handle_t
-    gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
-                             void *dst,
-                             gasnet_node_t srcnode, void *src,
-                             size_t nbytes, int flags)
+    gasnete_coll_broadcast_nb(gasnet_team_handle_t team,
+                              void *dst,
+                              gasnet_node_t srcnode, void *src,
+                              size_t nbytes, int flags GASNETE_THREAD_FARG)
     {
       gasnete_coll_broadcast_data_t *data;
       gasnet_coll_handle_t handle;
@@ -648,8 +689,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsign
 
       /* Present implementation is VERY limited: */
       gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_DST_IN_SEGMENT);
-      gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);
       gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate a sequence number */
