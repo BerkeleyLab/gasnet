@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/01 22:19:33 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/04/02 01:40:31 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -173,6 +173,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
+
 /* ------------------------------------------------------------------------------------ *
  *  Externally visible functions                                                        *
  * ------------------------------------------------------------------------------------ */
@@ -201,7 +202,7 @@ extern void gasnetc_snd_init(void) {
     /* REST OF sr_desc SET AT SEND TIME */
     desc->next = desc + 1;
   }
-  desc->next = NULL;
+  (desc - 1)->next = NULL;
 
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_snd_cq, &act_size);
   assert(vstat == VAPI_OK);
@@ -229,7 +230,7 @@ extern void gasnetc_snd_fini(void) {
 extern void gasnetc_snd_wait(gasnetc_snd_desc_t *desc) {
   if (desc != NULL) {
     /* ### implement this */
-    abort();
+    assert(0);
   } else {
     /* NULL is not an error.  We return immediately. */
   }
@@ -363,13 +364,14 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   int retval;
 
   assert(desc);
-  assert(!desc->reply_sent);
+  assert(desc->handlerRunning);
+  assert(!desc->replyIssued);
   assert(GASNETC_MSG_ISREQUEST(desc->flags));
 
   retval = gasnetc_ReqRepGeneric(category, 0, GASNETC_MSG_SRCIDX(desc->flags), handler,
 				 src_addr, nbytes, dst_addr,
 				 numargs, rdma_desc, argptr);
 
-  desc->reply_sent = 1;
+  desc->replyIssued = 1;
   return retval;
 }
