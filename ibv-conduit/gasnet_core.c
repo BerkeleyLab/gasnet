@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/30 23:18:32 $
- * $Revision: 1.2.2.53 $
+ *     $Date: 2003/07/03 00:41:08 $
+ * $Revision: 1.2.2.54 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,11 +23,7 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 #define GASNETC_QP_PATH_MTU		MTU1024
 #define GASNETC_QP_STATIC_RATE		2
 #define GASNETC_QP_MIN_RNR_TIMER	IB_RNR_NAK_TIMER_0_08
-#if GASNETC_AM_FLOWCTRL
-  #define GASNETC_QP_RNR_RETRY		0	/* never */
-#else
-  #define GASNETC_QP_RNR_RETRY		7	/* infinite */
-#endif
+#define GASNETC_QP_RNR_RETRY		0	/* never */
 #define GASNETC_QP_TIMEOUT		0x20
 #define GASNETC_QP_RETRY_COUNT		2
 
@@ -1043,10 +1039,8 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
  * end points, we will need to either restore this code, or define the
  * flow-control semantics of system-category AMs as distinct from other AMs.
  */
-    #if GASNETC_AM_FLOWCTRL
-      /* send the reply required for flow-control ACK now, since we are not returning */
-      (void)gasnetc_ReplySystem(token, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
-    #endif
+    /* send the reply required for flow-control ACK now, since we are not returning */
+    (void)gasnetc_ReplySystem(token, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
 #endif
 
     /* To try and be reasonably robust, want to avoid performing the shutdown and exit from signal
