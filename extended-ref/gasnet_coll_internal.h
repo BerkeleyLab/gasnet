@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/02 00:47:52 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2004/06/02 18:36:51 $
+ * $Revision: 1.1.2.25 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -104,12 +104,9 @@ typedef struct {
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
-    #ifdef GASNETE_COLL_P2P_OVERRIDE
-	/* Custom implementation of point-to-point syncs */
-	GASNET_COLL_P2P_TEAM_FIELDS
-    #else
+    #ifndef GASNETE_COLL_P2P_OVERRIDE
 	/* Default implementation of point-to-point syncs
-	 * does not have a team-specific portion.
+	 * does not (currently) have a team-specific portion.
 	 */
     #endif
 
@@ -117,6 +114,11 @@ struct gasnete_coll_team_t_ {
     uint32_t			team_id;
 
     /* XXX: Design not complete yet */
+
+    /* Hook for conduit-specific extensions/overrides */
+    #ifdef GASNETE_COLL_TEAM_EXTRA
+      GASNETE_COLL_TEAM_EXTRA
+    #endif
 };
 
 /*---------------------------------------------------------------------------------*/
@@ -127,21 +129,15 @@ typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t* GASNETE_THREAD_FARG);
 /* Type for collective ops: */
 struct gasnete_coll_op_t_ {
     /* Linkage used by the thread-specific active ops list. */
-    #ifdef GASNETE_COLL_LIST_OVERRIDE
-	/* Custom implementation of coll_ops active list */
-	GASNET_COLL_LIST_OP_FIELDS
-    #else
+    #ifndef GASNETE_COLL_LIST_OVERRIDE
 	/* Default implementation of coll_ops active list */
 	gasnete_coll_op_t	*active_next, **active_prev_p;
     #endif
 
     /* Linkage used by aggregation.
      * Access is serialized by specification+client: */
-    #ifdef GASNETE_COLL_AGG_OVERRIDE
-	/* Custom implementation of ops aggregation */
-	GASNET_COLL_AGG_OP_FIELDS
-    #else
-	/* Custom implementation of ops aggregation */
+    #ifndef GASNETE_COLL_AGG_OVERRIDE
+	/* Defaule implementation of ops aggregation */
     	gasnete_coll_op_t		*agg_next, *agg_prev, *agg_head;
     #endif
 
@@ -155,6 +151,11 @@ struct gasnete_coll_op_t_ {
     gasnet_hsl_t		lock;
     void			*data;
     gasnete_coll_poll_fn	poll_fn;
+
+    /* Hook for conduit-specific extensions/overrides */
+    #ifdef GASNETE_COLL_OP_EXTRA
+      GASNETE_COLL_OP_EXTRA
+    #endif
 };
 
 /*---------------------------------------------------------------------------------*/
@@ -209,19 +210,13 @@ typedef struct {
     void 		*generic_data_freelist;
 
     /* Linkage used by the thread-specific handle freelist . */
-    #ifdef GASNETE_COLL_HANDLE_OVERRIDE
-	/* Custom implementation of handle freelist */
-        GASNET_COLL_HANDLE_TD_FIELDS;
-    #else
+    #ifndef GASNETE_COLL_HANDLE_OVERRIDE
 	/* Default implementation of handle freelist */
         gasnet_coll_handle_t	handle_freelist;
     #endif
 
     /* Linkage used by the thread-specific active ops list. */
-    #ifdef GASNETE_COLL_LIST_OVERRIDE
-	/* Custom implementation of coll_ops active list */
-	GASNET_COLL_LIST_TD_FIELDS
-    #else
+    #ifndef GASNETE_COLL_LIST_OVERRIDE
 	/* Default implementation of coll_ops active list */
 	gasnete_coll_op_t	*active_head, **active_tail_p;
     #endif
@@ -355,8 +350,31 @@ int _gasnet_coll_try_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
 #define gasnet_coll_try_sync(handle) \
        _gasnet_coll_try_sync(handle GASNETE_THREAD_GET)
 
+#ifndef gasnete_coll_try_sync_some
+  extern int gasnete_coll_try_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG);
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_try_sync_some)
+int _gasnet_coll_try_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+  int result = gasnete_coll_try_sync_some(phandle, numhandles GASNETE_THREAD_PASS);
+  GASNETI_TRACE_COLL_TRYSYNC(COLL_TRY_SYNC_SOME,result);
+  return result;
+}
+#define gasnet_coll_try_sync_some(phandle,numhandles) \
+       _gasnet_coll_try_sync_some(phandle,numhandles GASNETE_THREAD_GET)
+
+#ifndef gasnete_coll_try_sync_all
+  extern int gasnete_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG);
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_try_sync_all)
+int _gasnet_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+  int result = gasnete_coll_try_sync_all(phandle, numhandles GASNETE_THREAD_PASS);
+  GASNETI_TRACE_COLL_TRYSYNC(COLL_TRY_SYNC_ALL,result);
+  return result;
+}
+#define gasnet_coll_try_sync_all(phandle,numhandles) \
+       _gasnet_coll_try_sync_all(phandle,numhandles GASNETE_THREAD_GET)
+
 #ifndef gasnete_coll_wait_sync
-  /* Default 1-line implementation */
   GASNET_INLINE_MODIFIER(gasnete_coll_wait_sync)
   void gasnete_coll_wait_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
     if_pt (handle != GASNET_COLL_INVALID_HANDLE) {
@@ -372,6 +390,36 @@ void _gasnet_coll_wait_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
 }
 #define gasnet_coll_wait_sync(handle) \
        _gasnet_coll_wait_sync(handle GASNETE_THREAD_GET)
+
+#ifndef gasnete_coll_wait_sync_some
+  GASNET_INLINE_MODIFIER(gasnete_coll_wait_sync_some)
+  void gasnete_coll_wait_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+    gasneti_waitwhile(gasnete_coll_try_sync_some(phandle,numhandles GASNETE_THREAD_PASS) == GASNET_ERR_NOT_READY);
+  }
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_wait_sync_some)
+void _gasnet_coll_wait_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+  GASNETI_TRACE_COLL_WAITSYNC_BEGIN();
+  gasnete_coll_wait_sync_some(phandle,numhandles GASNETE_THREAD_PASS);
+  GASNETI_TRACE_COLL_WAITSYNC_END(COLL_WAIT_SYNC_SOME);
+}
+#define gasnet_coll_wait_sync_some(phandle,numhandles) \
+       _gasnet_coll_wait_sync_some(phandle,numhandles GASNETE_THREAD_GET)
+
+#ifndef gasnete_coll_wait_sync_all
+  GASNET_INLINE_MODIFIER(gasnete_coll_wait_sync_all)
+  void gasnete_coll_wait_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+    gasneti_waitwhile(gasnete_coll_try_sync_all(phandle,numhandles GASNETE_THREAD_PASS) == GASNET_ERR_NOT_READY);
+  }
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_wait_sync_all)
+void _gasnet_coll_wait_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+  GASNETI_TRACE_COLL_WAITSYNC_BEGIN();
+  gasnete_coll_wait_sync_all(phandle,numhandles GASNETE_THREAD_PASS);
+  GASNETI_TRACE_COLL_WAITSYNC_END(COLL_WAIT_SYNC_ALL);
+}
+#define gasnet_coll_wait_sync_all(phandle,numhandles) \
+       _gasnet_coll_wait_sync_all(phandle,numhandles GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 

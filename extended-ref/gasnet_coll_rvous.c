@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/01 22:28:12 $
- * $Revision: 1.1.2.30 $
+ *     $Date: 2004/06/02 18:36:51 $
+ * $Revision: 1.1.2.31 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -112,19 +112,70 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
     *handle = 1;
   }
 
-  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
-    int result = GASNET_ERR_NOT_READY;
-
-    gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE); /* caller must check */
-
-    gasnet_AMPoll();
-    gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+  GASNET_INLINE_MODIFIER(gasnete_coll_handle_done)
+  int gasnete_coll_handle_done(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
+    int result = 0;
+    gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE);
 
     if_pf (*handle != 0) {
       gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
       *handle = (uintptr_t)(td->handle_freelist);
       td->handle_freelist = handle;
-      result = GASNET_OK;
+      result = 1;
+    }
+
+    return result;
+  }
+
+  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
+    gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE); /* caller must check */
+
+    gasnet_AMPoll();
+    gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+
+    return gasnete_coll_handle_done(handle GASNETE_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
+
+  extern int gasnete_coll_try_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+    int empty = 1;
+    int result = GASNET_ERR_NOT_READY;
+    int i;
+
+    gasneti_assert(phandle != NULL);
+
+    gasnet_AMPoll();
+    gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+
+    for (i = 0; i < numhandles; ++i, ++phandle) {
+      if (*phandle != GASNET_COLL_INVALID_HANDLE) {
+	empty = 0;
+	if (gasnete_coll_handle_done(*phandle GASNETE_THREAD_PASS)) {
+	  *phandle = GASNET_COLL_INVALID_HANDLE;
+	  result = GASNET_OK;
+	}
+      }
+    }
+
+    return empty ? GASNET_OK : result;
+  }
+
+  extern int gasnete_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+    int result = GASNET_OK;
+    int i;
+
+    gasneti_assert(phandle != NULL);
+
+    gasnet_AMPoll();
+    gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+
+    for (i = 0; i < numhandles; ++i, ++phandle) {
+      if (*phandle != GASNET_COLL_INVALID_HANDLE) {
+	if (gasnete_coll_handle_done(*phandle GASNETE_THREAD_PASS)) {
+	  *phandle = GASNET_COLL_INVALID_HANDLE;
+	} else {
+	  result = GASNET_ERR_NOT_READY;
+	}
+      }
     }
 
     return result;
