@@ -7,15 +7,6 @@
 typedef firehose_private_t fh_bucket_t;
 
 /* 
- * The following define is used only when users do not specify 
- * the amount of memory required for the MACVICTIM_M parameter.
- */
-
-#ifndef FH_MAXVICTIM_TO_PHYSMEM_RATIO
-#define FH_MAXVICTIM_TO_PHYSMEM_RATIO	0.25
-#endif
-
-/* 
  * There is currently no support for bind callbacks in firehose-page 
  * as no client_t is currently envisioned in known -page clients. 
  */
@@ -322,7 +313,8 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 
 	FH_SET_USED(entry);
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
-	assert(fhi_bucket_lookup(entry->fh_key) == entry);
+	assert(entry == (fh_bucket_t *)fh_hash_find(fh_BucketTable,
+						    entry->fh_key));
 
 	return entry;
 }
@@ -698,9 +690,6 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
         /* Initialize the Bucket table to 128k lists */
 	fh_BucketTable = fh_hash_create((1<<17));
 
-	assert(FH_MAXVICTIM_TO_PHYSMEM_RATIO >= 0 && 
-	       FH_MAXVICTIM_TO_PHYSMEM_RATIO <= 1);
-
 	/* 
 	 * In -page, we ignore regions. . there should not be a limit on the
 	 * number of regions 
@@ -712,41 +701,20 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	/*
 	 * Prepin optimization: PHASE 1.
 	 *
-	 * In this phase, we only validate the firehose parameters and count
-	 * the number of buckets that are set as prepinned.
+	 * Count the number of buckets that are set as prepinned.
 	 *
 	 */
 	if (num_reg > 0) {
 		int		i;
 
 		for (i = 0; i < num_reg; i++) {
-
-			if (regions[i].addr % FH_BUCKET_SIZE != 0)
-				gasneti_fatalerror("firehose_init: prepinned "
-				    "region is not aligned on a bucket "
-				    "boundary (addr = %p)", 
-				    (void *) regions[i].addr);
-
-			if (regions[i].len % FH_BUCKET_SIZE != 0)
-				gasneti_fatalerror("firehose_init: prepinned "
-				    "region is not a multiple of firehose "
-				    "bucket size in length (len = %d)",
-				    regions[i].len);
-
+			assert(regions[i].addr % FH_BUCKET_SIZE == 0);
+			assert(regions[i].len % FH_BUCKET_SIZE == 0);
 			b_prepinned +=
 				FH_NUM_BUCKETS(regions[i].addr,regions[i].len);
 
 		}
 	}
-
-	/* Allocate the per-node counters */
-	fhc_RemoteBucketsUsed = (int *)
-		gasneti_malloc(gasnet_nodes() * sizeof(int));
-	memset(fhc_RemoteBucketsUsed, 0, gasnet_nodes() * sizeof(int));
-
-	fhc_RemoteVictimFifoBuckets = (int *)
-		gasneti_malloc(gasnet_nodes() * sizeof(int));
-	memset(fhc_RemoteVictimFifoBuckets, 0, gasnet_nodes() * sizeof(int));
 
 	M           = fh_getenv("GASNET_FIREHOSE_M", (1<<20));
 	m_prepinned = FH_BUCKET_SIZE * b_prepinned;
@@ -809,10 +777,6 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	fhc_RemoteBucketsM = gasnet_nodes() > 1
 				? firehoses / (gasnet_nodes()-1)
 				: firehoses;
-	for (i = 0; i < gasnet_nodes(); i++) {
-		fhc_RemoteVictimFifoBuckets[i] = 0;
-		fhc_RemoteBucketsUsed[i] = 0;
-	}
 
 	/* Initialize bucket freelist with the total amount of buckets
 	 * to be pinned (including the ones the client passed) */
@@ -922,10 +886,6 @@ fh_fini_plugin()
 		FH_STAILQ_REMOVE_HEAD(&fhi_regpool_list);
 		gasneti_free(rpool);
 	}
-
-	gasneti_free(fhc_RemoteBucketsUsed);
-	gasneti_free(fhc_RemoteVictimFifoBuckets);
-
 
 	return;
 }

@@ -4,6 +4,15 @@
 /* firehose_internal.h: Internal Header file
  */
 
+/*
+ * The following define is used only when users do not specify
+ * the amount of memory required for the MACVICTIM_M parameter.
+ * A conduit can also provide a default.
+ */
+#ifndef FH_MAXVICTIM_TO_PHYSMEM_RATIO
+#define FH_MAXVICTIM_TO_PHYSMEM_RATIO   0.25
+#endif
+
 /* Some conduits may be able to support running both the completion and remote
  * callbacks from within an AM Handler, in which case there is no need for the
  * client to make progress through firehose_poll().

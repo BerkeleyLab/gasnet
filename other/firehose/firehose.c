@@ -74,15 +74,29 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 	 * pointer */
 	assert(sizeof(fh_refc_t) == sizeof(void *));
 
+	assert(FH_MAXVICTIM_TO_PHYSMEM_RATIO >= 0 && 
+	       FH_MAXVICTIM_TO_PHYSMEM_RATIO <= 1);
+
+	/* validate the prepinned regions list */
+	for (i = 0; i < num_reg; i++) {
+		const firehose_region_t *region = &prepinned_regions[i];
+		if (region->addr % FH_BUCKET_SIZE != 0)
+			gasneti_fatalerror("firehose_init: prepinned "
+					"region is not aligned on a bucket "
+					"boundary (addr = %p)",
+					(void *) region->addr);
+                                                                                
+		if (region->len % FH_BUCKET_SIZE != 0)
+			gasneti_fatalerror("firehose_init: prepinned "
+					"region is not a multiple of firehose "
+					"bucket size in length (len = %d)",
+					region->len);
+	}
+                                                                                
+
 	FH_TABLE_LOCK;
 
 	fh_mynode = gasnet_mynode();
-
-	/* Allocate the per-node firehose FIFO queue */
-	fh_RemoteNodeFifo = (fh_fifoq_t *) 
-		gasneti_malloc(gasnet_nodes() * sizeof(fh_fifoq_t));
-	for (i = 0; i < gasnet_nodes(); i++) 
-		FH_TAILQ_INIT(&fh_RemoteNodeFifo[i]);
 
 	/* Initialize the local firehose FIFO queue */
 	FH_TAILQ_INIT(&fh_LocalFifo);
@@ -91,6 +105,19 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 	{
 		firehose_request_t *req = fh_request_new(NULL);
 		fh_request_free(req);
+	}
+
+        /* Allocate the per-node FIFOs and counters */
+	fh_RemoteNodeFifo = (fh_fifoq_t *) 
+		gasneti_malloc(gasnet_nodes() * sizeof(fh_fifoq_t));
+        fhc_RemoteBucketsUsed = (int *)
+                gasneti_malloc(gasnet_nodes() * sizeof(int));
+        fhc_RemoteVictimFifoBuckets = (int *)
+                gasneti_malloc(gasnet_nodes() * sizeof(int));
+	for (i = 0; i < gasnet_nodes(); i++) {
+		FH_TAILQ_INIT(&fh_RemoteNodeFifo[i]);
+		fhc_RemoteBucketsUsed[i] = 0;
+		fhc_RemoteVictimFifoBuckets[i] = 0;
 	}
 
 	/* Initialize -page OR -region specific data. _MUST_ be the last thing
@@ -113,8 +140,13 @@ void
 firehose_fini()
 {
 	int	i;
+
+	fh_fini_plugin();
+
 	/* Free the per-node firehose FIFO queues and counters */
 	gasneti_free(fh_RemoteNodeFifo);
+        gasneti_free(fhc_RemoteBucketsUsed);
+        gasneti_free(fhc_RemoteVictimFifoBuckets);
 
 	/* Deallocate the arrays of request_t buffers used, if applicable */
 	for (i = 0; i < 256; i++) {
@@ -123,7 +155,6 @@ firehose_fini()
 		gasneti_free(fh_request_bufs[i]);
 	}
 
-	fh_fini_plugin();
 	return;
 }
 
