@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/04/25 18:04:20 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2003/04/25 20:07:35 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -84,10 +84,6 @@ typedef struct _gasnete_threaddata_t {
 /*  get a new op */
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t *thread);
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
-/*  query an eop for completeness */
-int gasnete_op_isdone(gasnete_op_t *op);
-/*  free an op */
-void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)            \
       (assert(threaddata),                                     \
        assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \

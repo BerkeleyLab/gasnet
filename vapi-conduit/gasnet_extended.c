@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/25 19:52:40 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2003/04/25 20:07:35 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,88 +94,6 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 #else
   #define gasnete_mythread() (gasnete_threadtable[0])
 #endif
-/* ------------------------------------------------------------------------------------ */
-/*
-  Initialization
-  ==============
-*/
-/* called at startup to check configuration sanity */
-static void gasnete_check_config() {
-  assert(sizeof(int8_t) == 1);
-  assert(sizeof(uint8_t) == 1);
-  #if !defined(CRAYT3E)
-    assert(sizeof(int16_t) == 2);
-    assert(sizeof(uint16_t) == 2);
-  #endif
-  assert(sizeof(int32_t) == 4);
-  assert(sizeof(uint32_t) == 4);
-  assert(sizeof(int64_t) == 8);
-  assert(sizeof(uint64_t) == 8);
-
-  assert(sizeof(uintptr_t) >= sizeof(void *));
-
-  /* check GASNET_PAGESIZE is a power of 2 and > 0 */
-  assert(GASNET_PAGESIZE > 0 && 
-         (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
-
-  assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
-  assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
-  assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
-
-  assert(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
-
-  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
-    assert(sizeof(void*) == 4);
-  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
-    assert(sizeof(void*) == 8);
-  #else
-    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
-  #endif
-
-  assert(gasnete_eopaddr_isnil(EOPADDR_NIL));
-
-  /*  verify sanity of the core interface */
-  assert(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  assert(gasnet_AMMaxMedium() >= 512);
-  assert(gasnet_AMMaxLongRequest() >= 512);
-  assert(gasnet_AMMaxLongReply() >= 512);
-}
-
-extern void gasnete_init() {
-  GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-  assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
-
-  gasnete_check_config(); /*  check for sanity */
-
-  #ifdef GASNETI_THREADS
-  {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
-    int retval = pthread_key_create(&gasnete_threaddata, NULL);
-    if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-  }
-  #endif
-
-  gasnete_mynode = gasnet_mynode();
-  gasnete_nodes = gasnet_nodes();
-  assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
-  gasnete_seginfo = (gasnet_seginfo_t*)gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
-  gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
-
-  { gasnete_threaddata_t *threaddata = NULL;
-    gasnete_eop_t *eop = NULL;
-    #ifdef GASNETI_THREADS
-      /* register first thread (optimization) */
-      threaddata = gasnete_mythread(); 
-    #else
-      /* register only thread (required) */
-      threaddata = gasnete_new_threaddata();
-      gasnete_threadtable[0] = threaddata;
-    #endif
-
-    /* cause the first pool of eops to be allocated (optimization) */
-    eop = gasnete_eop_new(threaddata);
-    gasnete_op_free((gasnete_op_t *)eop);
-  }
-}
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -291,32 +209,172 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   return iop;
 }
 
-/*  query an op for completeness - for iop this means both puts and gets */
-int gasnete_op_isdone(gasnete_op_t *op) {
+GASNET_INLINE_MODIFIER(gasnete_eop_free)
+void gasnete_eop_free(gasnete_eop_t *eop) {
+  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
+  gasnete_eopaddr_t addr = eop->addr;
+  assert(thread == gasnete_mythread());
+  assert(eop->type == gasnete_opExplicit);
+  eop->addr = thread->eop_free;
+  thread->eop_free = addr;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_iop_free)
+void gasnete_iop_free(gasnete_iop_t *iop) {
+  gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
+  assert(thread == gasnete_mythread());
+  assert(iop->type == gasnete_opImplicit);
+  iop->next = thread->iop_free;
+  thread->iop_free = iop;
+}
+
+/* query an eop for completeness */
+GASNET_INLINE_MODIFIER(gasnete_eop_test)
+int gasnete_eop_test(gasnete_eop_t *eop) {
+  assert (eop->type == gasnete_opExplicit);
+  return gasnetc_rdma_test(&eop->req_oust);
+}
+
+/* query an iop for completeness - this means both puts and gets */
+GASNET_INLINE_MODIFIER(gasnete_iop_test)
+int gasnete_iop_test(gasnete_iop_t *iop) {
+  assert (iop->type == gasnete_opImplicit);
+  return (gasnetc_rdma_test(&(iop->get_req_oust)) && gasnetc_rdma_test(&(iop->put_req_oust)));
+}
+
+/*  query an op for completeness 
+ *  free it if complete
+ *  returns 0 or 1 */
+int gasnete_op_try_free(gasnet_handle_t handle) {
+  gasnete_op_t *op = (gasnete_op_t *)handle;
+
   assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (op->type == gasnete_opExplicit) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
-    return gasnetc_rdma_test(&eop->req_oust);
+
+    if (gasnete_eop_test(eop)) {
+      gasnete_eop_free(eop);
+      return 1;
+    }
+    return 0;
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
-    return (gasnetc_rdma_test(&(iop->get_req_oust)) &&
-            gasnetc_rdma_test(&(iop->put_req_oust)));
+
+    if (gasnete_iop_test(iop)) {
+      gasnete_iop_free(iop);
+      return 1;
+    }
+    return 0;
   }
 }
 
-/*  free an op */
-void gasnete_op_free(gasnete_op_t *op) {
-  gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
-  assert(thread == gasnete_mythread());
-  if (op->type == gasnete_opExplicit) {
-    gasnete_eop_t *eop = (gasnete_eop_t *)op;
-    gasnete_eopaddr_t addr = eop->addr;
-    eop->addr = thread->eop_free;
-    thread->eop_free = addr;
+/*  query an op for completeness 
+ *  free it and clear the handle if complete
+ *  returns 0 or 1 */
+int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
+  gasnete_op_t *op = (gasnete_op_t *)(*handle_p);
+  int retval;
+
+  assert(op->threadidx == gasnete_mythread()->threadidx);
+  if_pt (op->type == gasnete_opExplicit) {
+    gasnete_eop_t *eop = (gasnete_eop_t*)op;
+
+    if (gasnete_eop_test(eop)) {
+      gasnete_eop_free(eop);
+      *handle_p = GASNET_INVALID_HANDLE;
+      return 1;
+    }
+    return 0;
   } else {
-    gasnete_iop_t *iop = (gasnete_iop_t *)op;
-    iop->next = thread->iop_free;
-    thread->iop_free = iop;
+    gasnete_iop_t *iop = (gasnete_iop_t*)op;
+
+    if (gasnete_iop_test(iop)) {
+      gasnete_iop_free(iop);
+      *handle_p = GASNET_INVALID_HANDLE;
+      return 1;
+    }
+    return 0;
+  }
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Initialization
+  ==============
+*/
+/* called at startup to check configuration sanity */
+static void gasnete_check_config() {
+  assert(sizeof(int8_t) == 1);
+  assert(sizeof(uint8_t) == 1);
+  #if !defined(CRAYT3E)
+    assert(sizeof(int16_t) == 2);
+    assert(sizeof(uint16_t) == 2);
+  #endif
+  assert(sizeof(int32_t) == 4);
+  assert(sizeof(uint32_t) == 4);
+  assert(sizeof(int64_t) == 8);
+  assert(sizeof(uint64_t) == 8);
+
+  assert(sizeof(uintptr_t) >= sizeof(void *));
+
+  /* check GASNET_PAGESIZE is a power of 2 and > 0 */
+  assert(GASNET_PAGESIZE > 0 && 
+         (GASNET_PAGESIZE & (GASNET_PAGESIZE - 1)) == 0);
+
+  assert(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
+  assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
+  assert(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
+
+  assert(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
+
+  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
+    assert(sizeof(void*) == 4);
+  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
+    assert(sizeof(void*) == 8);
+  #else
+    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
+  #endif
+
+  assert(gasnete_eopaddr_isnil(EOPADDR_NIL));
+
+  /*  verify sanity of the core interface */
+  assert(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
+  assert(gasnet_AMMaxMedium() >= 512);
+  assert(gasnet_AMMaxLongRequest() >= 512);
+  assert(gasnet_AMMaxLongReply() >= 512);
+}
+
+extern void gasnete_init() {
+  GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
+  assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
+
+  gasnete_check_config(); /*  check for sanity */
+
+  #ifdef GASNETI_THREADS
+  {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+    int retval = pthread_key_create(&gasnete_threaddata, NULL);
+    if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
+  }
+  #endif
+
+  gasnete_mynode = gasnet_mynode();
+  gasnete_nodes = gasnet_nodes();
+  assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
+  gasnete_seginfo = (gasnet_seginfo_t*)gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
+  gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
+
+  { gasnete_threaddata_t *threaddata = NULL;
+    #ifdef GASNETI_THREADS
+      /* register first thread (optimization) */
+      threaddata = gasnete_mythread(); 
+    #else
+      /* register only thread (required) */
+      threaddata = gasnete_new_threaddata();
+      gasnete_threadtable[0] = threaddata;
+    #endif
+
+    /* cause the first pool of eops to be allocated (optimization) */
+    gasnete_eop_free(gasnete_eop_new(threaddata));
   }
 }
 
@@ -405,23 +463,20 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
   if_pt (op->type == gasnete_opExplicit) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
     gasnetc_rdma_wait(&eop->req_oust);
+    gasnete_eop_free(eop);
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
     gasnetc_rdma_wait(&iop->get_req_oust);
     gasnetc_rdma_wait(&iop->put_req_oust);
+    gasnete_iop_free(iop);
   }
 
-  gasnete_op_free(op);
 }
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   GASNETE_SAFE(gasnet_AMPoll());
 
-  if (gasnete_op_isdone(handle)) {
-    gasnete_op_free(handle);
-    return GASNET_OK;
-  }
-  else return GASNET_ERR_NOT_READY;
+  return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
@@ -434,14 +489,9 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
   { int i;
     for (i = 0; i < numhandles; i++) {
-      gasnete_op_t *op = phandle[i];
-      if (op != GASNET_INVALID_HANDLE) {
+      if (phandle[i] != GASNET_INVALID_HANDLE) {
         empty = 0;
-        if (gasnete_op_isdone(op)) {
-          gasnete_op_free(op);
-          phandle[i] = GASNET_INVALID_HANDLE;
-          success = 1;
-        }  
+	success |= gasnete_op_try_free_clear(&phandle[i]);
       }
     }
   }
@@ -458,12 +508,8 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 
   { int i;
     for (i = 0; i < numhandles; i++) {
-      gasnete_op_t *op = phandle[i];
-      if (op != GASNET_INVALID_HANDLE) {
-        if (gasnete_op_isdone(op)) {
-          gasnete_op_free(op);
-          phandle[i] = GASNET_INVALID_HANDLE;
-        } else success = 0;
+      if (phandle[i] != GASNET_INVALID_HANDLE) {
+        success &= gasnete_op_try_free_clear(&phandle[i]);
       }
     }
   }
@@ -632,6 +678,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
     GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
     retval->eop = (gasnete_eop_t *)GASNET_INVALID_HANDLE;
   } else {
+    /* XXX _bulk implies large sizes and lack of alignment.  Should this be non-bulk? */
     retval->eop = (gasnete_eop_t *)gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
   }
   return retval;
@@ -645,7 +692,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   thread->valget_free = handle;       /*  safe because this thread is under our control */
 
   gasnetc_rdma_wait(&handle->eop->req_oust);
-  gasnete_op_free(handle->eop);
+  gasnete_eop_free(handle->eop);
   val = handle->val;
   return val;
 }
