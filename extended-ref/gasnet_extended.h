@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2004/10/22 22:51:20 $
- * $Revision: 1.28.6.3 $
+ *     $Date: 2004/10/25 19:32:52 $
+ * $Revision: 1.28.6.4 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -883,10 +883,10 @@ extern int gasnete_barrier_try(int id, int flags);
       dst_addr += nbytes;
     }
   }
-  /* Note that we are skipping a layer and couting on the loop to do error checking and logging */
-  #define gasnet_get_nb_bulk_X(dest,node,src,nbytes) \
-         gasnete_get_nb_bulk_X(dest,node,src,nbytes GASNETE_THREAD_GET)
 #endif
+/* Note that we are skipping a layer and couting on the loop to do error checking and logging */
+#define gasnet_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array) \
+	gasnete_get_nb_bulk_X(dest,node,src,count,nbytes_array,handle_array GASNETE_THREAD_GET)
 /* ------------------------------------------------------------------------------------ */
 
 
