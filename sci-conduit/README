@@ -1,0 +1,79 @@
+GASNet sci-conduit documentation
+Burt Gordon, Hung-Hsun Su  {gordon,su}@hcs.ufl.edu ###
+
+User Information:
+-----------------
+The top makefile will look for the available libraries and includes in the /opt/DIS
+directory. If they are not there, please configure GASNet with --with-sci-includes 
+and --with-sci-libs. Here is what a configure might look like:
+
+./configure --enable-sci --enable-segment-fast --with-sci-includes="-I/opt/DIS/include -I/opt/DIS/lib/api" --with-sci-libs=/opt/DIS/lib/api/libsisci.a
+
+Only segment-fast is supported in this release. To use segments of larger than 1MB,
+the kernel must be patched with the BigPhysArea patch (sorry, this is a problem with the Dolphin
+driver and Linux, we are working to change this). The latest Dolphin driver (2.4) supports 
+segment sizes of upto 4MB on some systems, and subsequent releases promise to be able to 
+handle sizes on the order of 512MB-1GB.
+
+Dolphin SISCI has no job management routine that we could find. To execute any 
+program compiled agaist this library you must use the 'start' script found in the 
+sci-conduit directory. This may be seen as the "gasnetrun_sci" script under the contrib 
+directory. It is portable (written for the bourne shell), so you can copy it to your program's 
+working directory and use it there if needed. Run it without any options to see a help menu.
+Basically, the format is: gasnetrun_sci -np [#num_nodes] [-jobs [#machine_file]] <program_name and args>
+It needs one of two files, either the jobs file (used with the -jobs flag) or the 
+default machines.sci file. Both of these files have the same format of:
+
+#machine-name #sci-id-number
+
+for example:
+
+#>cat jobs.sci
+kappa-1	4
+kappa-2	8
+kappa-3	12
+kappa-9 132
+
+and so forth. No comments are allowed in this file as of now (that can be 
+changed later if it seems to be needed). In both cases, if the number of UPC threads
+(designated by -np #) exceeds the number of machines in the file provided, only 
+1 thread will be spawned on each of the machines in the file. The nature of memory 
+mapping in SCI makes it difficult to create more than 1 GASNet thread on any machine. 
+Therefore GASNet cannot be spawned multiple times on any given machine, one of them 
+will not succeed (possibly both if they get intertwined).
+
+As of now, only adapter 0 is supported, that will change in a future revision to 
+look for the first available adapter.
+
+Recognized environment variables:
+---------------------------------
+
+* All the standard GASNet environment variables (see top-level README)
+
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
+Known problems:
+---------------
+
+* See the Berkeley UPC Bugzilla server for details on known bugs.
+
+Future work:
+------------
+
+Lots. Currently, only the core API is implemented. This uses the reference API 
+to implement the extended API. This shows decent performance for put operations, 
+but get operations are terrible.
+
+Also, support is being planned for segment-large and segment-everything using the 
+gasnet-provided firehose infrastructure.
+
+===============================================================================
+
+Design Overview:
+----------------
+
+### Provide overview of the design for your conduit
+
