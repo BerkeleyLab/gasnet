@@ -1,0 +1,35 @@
+GASNet shmem-conduit documentation
+Christian Bell <csbell@cs.berkeley.edu>
+
+User Information:
+-----------------
+
+Recognized environment variables:
+---------------------------------
+
+* All the standard GASNet environment variables (see top-level README)
+
+* GASNET_SHMEM_QDEPTH
+  Can be set to a any power of 2, smaller or equal to 256 and constitutes the
+  queue depth set aside for GASNet core AM operations.
+
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
+Known problems:
+---------------
+
+* See the Berkeley UPC Bugzilla server for details on known bugs.
+
+Future work:
+------------
+
+===============================================================================
+
+Design Overview:
+----------------
+
+### Provide overview of the design for your conduit
+
