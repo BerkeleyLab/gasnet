@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/03/21 01:12:37 $
- * $Revision: 1.2.2.1 $
+ *     $Date: 2003/03/28 19:52:04 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,13 @@
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         VAPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
+
+/* Explicitly set some types/sizes because we depend on the sizes when encoding them */
+#define GASNET_MAXNODES	16384
+#define _GASNET_NODE_T
+typedef uint16_t gasnet_node_t;
+#define _GASNET_HANDLER_T
+typedef uint8_t gasnet_handler_t;
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
