@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2 2003/03/19 17:45:53 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.1 2003/03/19 19:57:57 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -7,6 +7,9 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 thread_defines = @GASNET_THREAD_DEFINES@
+
+# XXX: As long as we use MPI for bootstrapping
+CC = @MPI_CC@
 
 INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir)        \
            -I$(top_srcdir)/extended-ref -I@VAPI_INCLUDE@
