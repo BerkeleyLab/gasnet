@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/26 05:29:42 $
- * $Revision: 1.1.2.22 $
+ *     $Date: 2004/05/26 23:29:02 $
+ * $Revision: 1.1.2.23 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,12 @@
 
 #define GASNETE_COLL_OP_AM_VISIBLE	1
 
+#define GASNETE_COLL_UNIMPLEMENTED() \
+    (gasneti_fatalerror("%s unimplemented", GASNETI_CURRENT_FUNCTION), GASNET_COLL_INVALID_HANDLE)
+
 static gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void);
+
+/*---------------------------------------------------------------------------------*/
 
 GASNET_INLINE_MODIFIER(gasnete_coll_get_threaddata)
 gasnete_coll_threaddata_t *gasnete_coll_get_threaddata(gasnete_threaddata_t *thread) {
@@ -46,8 +51,8 @@ size_t gasnete_coll_my_images;		/* local number of images */
 size_t gasnete_coll_my_1st_image;	/* count of images before my first image */
 
 void gasnete_coll_validate(gasnet_team_handle_t team,
-			   gasnet_node_t dstnode, void *dst, size_t dstlen, int dstisv,
-                           gasnet_node_t srcnode, void *src, size_t srclen, int srcisv,
+			   gasnet_node_t dstnode, const void *dst, size_t dstlen, int dstisv,
+                           gasnet_node_t srcnode, const void *src, size_t srclen, int srcisv,
 			   unsigned int flags) {
   int i;
 
@@ -636,6 +641,38 @@ typedef struct  {
     size_t nbytes;
 } gasnete_coll_broadcastM_args_t;
 
+typedef gasnete_coll_broadcast_args_t gasnete_coll_scatter_args_t;
+typedef gasnete_coll_broadcastM_args_t gasnete_coll_scatterM_args_t;
+
+typedef struct {
+    gasnet_node_t dstnode;
+    void *dst;
+    void *src;
+    size_t nbytes;
+} gasnete_coll_gather_args_t;
+
+typedef struct  {
+    gasnet_node_t dstnode;
+    void *dst;
+    void * const *srclist;
+    size_t nbytes;
+} gasnete_coll_gatherM_args_t;
+
+typedef struct {
+    void *dst;
+    void *src;
+    size_t nbytes;
+} gasnete_coll_gather_all_args_t;
+
+typedef struct  {
+    void * const *dstlist;
+    void * const *srclist;
+    size_t nbytes;
+} gasnete_coll_gather_allM_args_t;
+
+typedef gasnete_coll_gather_all_args_t gasnete_coll_exchange_args_t;
+typedef gasnete_coll_gather_allM_args_t gasnete_coll_exchangeM_args_t;
+
 struct gasnete_coll_generic_sync {
     int				enable;
     gasnete_coll_consensus_t	barrier;
@@ -650,7 +687,15 @@ typedef struct {
     union {
 	gasnete_coll_broadcast_args_t		broadcast;
 	gasnete_coll_broadcastM_args_t		broadcastM;
-	/* XXX: fillout this list */
+	gasnete_coll_scatter_args_t		scatter;
+	gasnete_coll_scatterM_args_t		scatterM;
+	gasnete_coll_gather_args_t		gather;
+	gasnete_coll_gatherM_args_t		gatherM;
+	gasnete_coll_gather_all_args_t		gather_all;
+	gasnete_coll_gather_allM_args_t		gather_allM;
+	gasnete_coll_exchange_args_t		exchange;
+	gasnete_coll_exchangeM_args_t		exchangeM;
+	/* XXX: still need a few more */
     }					args;
 
     gasnete_coll_threaddata_t		*threaddata;
@@ -672,6 +717,8 @@ gasnete_coll_generic_data_t *gasnete_coll_generic_alloc(gasnete_coll_threaddata_
     }
 
     result->threaddata = td;
+    result->state = 0;
+
     return result;
 }
 
@@ -685,6 +732,138 @@ void gasnete_coll_generic_free(gasnete_coll_generic_data_t *data) {
     td = data->threaddata;
     *((gasnete_coll_generic_data_t **)data) =  td->generic_data_freelist;
     td->generic_data_freelist = data;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_broadcast)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_broadcast(void *dst,
+                               gasnet_node_t srcnode, void *src,
+                               size_t nbytes,
+                               gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.broadcast.dst     = dst;
+    result->args.broadcast.srcnode = srcnode;
+    result->args.broadcast.src     = src;
+    result->args.broadcast.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_broadcastM)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_broadcastM(void * const dstlist[],
+                                gasnet_node_t srcnode, void *src,
+                                size_t nbytes,
+                                gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.broadcastM.dstlist = dstlist;
+    result->args.broadcastM.srcnode = srcnode;
+    result->args.broadcastM.src     = src;
+    result->args.broadcastM.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_scatter)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_scatter(void *dst,
+                             gasnet_node_t srcnode, void *src,
+                             size_t nbytes,
+                             gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.scatter.dst     = dst;
+    result->args.scatter.srcnode = srcnode;
+    result->args.scatter.src     = src;
+    result->args.scatter.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_scatterM)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_scatterM(void * const dstlist[],
+                              gasnet_node_t srcnode, void *src,
+                              size_t nbytes,
+                              gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.scatterM.dstlist = dstlist;
+    result->args.scatterM.srcnode = srcnode;
+    result->args.scatterM.src     = src;
+    result->args.scatterM.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_gather)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_gather(gasnet_node_t dstnode, void *dst,
+                            void *src,
+                            size_t nbytes,
+                            gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.gather.dstnode = dstnode;
+    result->args.gather.dst     = dst;
+    result->args.gather.src     = src;
+    result->args.gather.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_gatherM)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_gatherM(gasnet_node_t dstnode, void *dst,
+                             void * const srclist[],
+                             size_t nbytes,
+                             gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.gatherM.dstnode = dstnode;
+    result->args.gatherM.dst     = dst;
+    result->args.gatherM.srclist = srclist;
+    result->args.gatherM.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_gather_all)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_gather_all(void *dst, void *src,
+                                size_t nbytes,
+                                gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.gather_all.dst     = dst;
+    result->args.gather_all.src     = src;
+    result->args.gather_all.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_gather_allM)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_gather_allM(void * const dstlist[], void * const srclist[],
+                                 size_t nbytes,
+                                 gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.gather_allM.dstlist = dstlist;
+    result->args.gather_allM.srclist = srclist;
+    result->args.gather_allM.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_exchange)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_exchange(void *dst, void *src,
+                              size_t nbytes,
+                              gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.exchange.dst     = dst;
+    result->args.exchange.src     = src;
+    result->args.exchange.nbytes  = nbytes;
+    return result;
+}
+
+GASNET_INLINE_MODIFIER(gasnete_coll_generic_exchangeM)
+gasnete_coll_generic_data_t *
+gasnete_coll_generic_exchangeM(void * const dstlist[], void * const srclist[],
+                               size_t nbytes,
+                               gasnete_coll_threaddata_t *td) {
+    gasnete_coll_generic_data_t *result = gasnete_coll_generic_alloc(td);
+    result->args.exchangeM.dstlist = dstlist;
+    result->args.exchangeM.srclist = srclist;
+    result->args.exchangeM.nbytes  = nbytes;
+    return result;
 }
 
 GASNET_INLINE_MODIFIER(gasnete_coll_generic_syncnb)
@@ -862,17 +1041,12 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is VERY limited: */
+      /* Present implementation is limited: */
       gasneti_assert(team == GASNET_TEAM_ALL);
       gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate and initialize op-specific data */
-      data = gasnete_coll_generic_alloc(td);
-      data->args.broadcast.srcnode   = srcnode;
-      data->args.broadcast.src       = src;
-      data->args.broadcast.dst       = dst;
-      data->args.broadcast.nbytes    = nbytes;
-      data->state = 0;
+      data = gasnete_coll_generic_broadcast(dst, srcnode, src, nbytes, td);
 
       /* We currently map MYSYNC->ALLSYNC unconditionally */
       data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
@@ -1013,7 +1187,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 
     extern gasnet_coll_handle_t
     gasnete_coll_broadcastM_nb(gasnet_team_handle_t team,
-                               void *dstlist[],
+                               void * const dstlist[],
                                gasnet_node_t srcnode, void *src,
                                size_t nbytes, int flags GASNETE_THREAD_FARG)
     {
@@ -1021,17 +1195,12 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is VERY limited: */
+      /* Present implementation is limited: */
       gasneti_assert(team == GASNET_TEAM_ALL);
       gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate and initialize op-specific data */
-      data = gasnete_coll_generic_alloc(td);
-      data->args.broadcastM.srcnode   = srcnode;
-      data->args.broadcastM.src       = src;
-      data->args.broadcastM.dstlist   = dstlist;
-      data->args.broadcastM.nbytes    = nbytes;
-      data->state = 0;
+      data = gasnete_coll_generic_broadcastM(dstlist, srcnode, src, nbytes, td);
 
       /* We currently map MYSYNC->ALLSYNC unconditionally */
       data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
@@ -1041,5 +1210,233 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       poll_fn = &gasnete_coll_pf_bcastM_Get;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td);
+    }
+#endif
+
+#ifndef GASNETE_COLL_SCATTER_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_scatter_nb(gasnet_team_handle_t team,
+                            void *dst,
+                            gasnet_node_t srcnode, void *src,
+                            size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_scatter(dst, srcnode, src, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_SCATTER_M_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_scatterM_nb(gasnet_team_handle_t team,
+                             void * const dstlist[],
+                             gasnet_node_t srcnode, void *src,
+                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_scatterM(dstlist, srcnode, src, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_GATHER_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_gather_nb(gasnet_team_handle_t team,
+                           gasnet_node_t dstnode, void *dst,
+                           void *src,
+                           size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_gather(dstnode, dst, src, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_GATHER_M_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_gatherM_nb(gasnet_team_handle_t team,
+                            gasnet_node_t dstnode, void *dst,
+                            void * const srclist[],
+                            size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_gatherM(dstnode, dst, srclist, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_GATHER_ALL_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_gather_all_nb(gasnet_team_handle_t team,
+                               void *dst, void *src,
+                               size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_gather_all(dst, src, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_GATHER_ALL_M_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_gather_allM_nb(gasnet_team_handle_t team,
+                                void * const dstlist[], void * const srclist[],
+                                size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_gather_allM(dstlist, srclist, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_EXCHANGE_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_exchange_nb(gasnet_team_handle_t team,
+                             void *dst, void *src,
+                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_exchange(dst, src, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
+    }
+#endif
+
+#ifndef GASNETE_COLL_EXCHANGE_M_OVERRIDE
+    extern gasnet_coll_handle_t
+    gasnete_coll_exchangeM_nb(gasnet_team_handle_t team,
+                              void * const dstlist[], void * const srclist[],
+                              size_t nbytes, int flags GASNETE_THREAD_FARG) {
+      gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
+      gasnete_coll_generic_data_t *data;
+      gasnete_coll_poll_fn poll_fn;
+
+      /* Present implementation is limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate and initialize op-specific data */
+      data = gasnete_coll_generic_exchangeM(dstlist, srclist, nbytes, td);
+
+      /* We currently map MYSYNC->ALLSYNC unconditionally */
+      data->in.enable   = (GASNETE_COLL_IN_MODE(flags)  != GASNET_COLL_IN_NOSYNC);
+      data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
+
+      /* XXX: multiple choice here */
+      poll_fn = NULL;
+
+      return GASNETE_COLL_UNIMPLEMENTED();
+      /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td); */
     }
 #endif
