@@ -1,0 +1,17 @@
+#  $Archive::                                                            $
+#     $Date: 2003/12/17 10:12:23 $
+# $Revision: 1.3 $
+# Description: Linux Makefile fragment
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# Get default settings for everything
+include Makefile.common
+
+# additional defines
+# must include, minimally, a define to identify the platform
+platform_defines = -DUNIX -DLINUX -DI386
+
+# ------- optional, changed from template ---------
+# additional libraries and/or library directories
+platform_libraries = 
+
