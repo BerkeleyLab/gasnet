@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.h                  $
- *     $Date: 2003/11/12 08:56:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/11/17 12:14:55 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet header for shmem conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -160,7 +160,11 @@ typedef struct _gasnet_hsl_t {
 #define GASNETC_MAX_MEDIUM          512
 #define GASNETC_MAX_MEDIUM_TOTAL    (GASNETC_MAX_MEDIUM + GASNETC_MED_HEADERSZ \
 				     + 4*GASNETC_MAX_ARGS)
+#ifdef SGI_SHMEM
+#define GASNETC_MAX_LONG	    8192
+#else
 #define GASNETC_MAX_LONG            1048576
+#endif
 
 #define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS)
 #define gasnet_AMMaxMedium()        ((size_t)GASNETC_MAX_MEDIUM)

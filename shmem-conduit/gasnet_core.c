@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2003/11/13 08:06:11 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/11/17 12:14:55 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,7 +25,7 @@ static void gasnetc_atexit(void);
 gasnet_node_t gasnetc_mynode = (gasnet_node_t)-1;
 gasnet_node_t gasnetc_nodes = 0;
 
-static gasnet_seginfo_t gasnetc_SHMallocSegmentSearch(size_t maxsz);
+static gasnet_seginfo_t gasnetc_SHMallocSegmentSearch();
 
 #define GASNETC_MAX_NUMHANDLERS   256
 typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
@@ -35,12 +35,14 @@ uintptr_t gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t gasnetc_MaxGlobalSegmentSize = 0;
 
 gasnet_seginfo_t	 gasnetc_seginfo_init;
+int			 gasnetc_seginfo_allocated = 0;
 gasnet_seginfo_t	*gasnetc_seginfo = NULL;
+gasnet_seginfo_t	*gasnetc_seginfo_shmem = NULL;
 size_t			 gasnetc_pagesize;
 
 int  gasnetc_amq_idx = 0;
-int  gasnetc_amq_depth = 16;
-int  gasnetc_amq_mask = 15;
+int  gasnetc_amq_depth = 64;
+int  gasnetc_amq_mask;
 
 gasnetc_am_packet_t  gasnetc_amq_reqs[GASNETC_AMQUEUE_MAX_DEPTH];
 
@@ -64,7 +66,9 @@ static void gasnetc_bootstrapBarrier() {
 	shmem_barrier_all();
 }
 
+
 static int gasnetc_init(int *argc, char ***argv) {
+  char *qdepth;
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -72,6 +76,18 @@ static int gasnetc_init(int *argc, char ***argv) {
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
 
   if (getenv("GASNET_FREEZE")) gasneti_freezeForDebugger();
+
+  qdepth = getenv("GASNET_SHMEM_QDEPTH");
+  if (qdepth && *qdepth != '\0') {
+	int qdepth_i = atoi(qdepth);
+
+	if (!GASNETC_AMQUEUE_SIZE_VALID(qdepth_i))
+	    GASNETI_RETURN_ERRR(BAD_ARG, "Invalid QDepth parameter");
+
+	gasnetc_amq_depth = qdepth_i;
+  }
+
+  gasnetc_amq_mask = (gasnetc_amq_depth-1);
 
   #if GASNET_DEBUG_VERBOSE
     /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
@@ -94,16 +110,16 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
-
 	#if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
 
-		/* XXX Currently SHMallocSegmentSearch takes about 1 second.
-		 * We may want to take another approach if it is too long.
-		 * Since Cray machines do not necessarily ship with much
-		 * configuration variance, perhaps there's a static way of
-		 * determining the amount of physical memory.
-		 */
-		/* 64 MB for now */
+	    /* XXX Currently SHMallocSegmentSearch takes about 1 second.  We
+	     * may want to take another approach if it is too long.  Since Cray
+	     * machines do not necessarily ship with much configuration
+	     * variance, perhaps there's a static way of determining the amount
+	     * of physical memory.
+	     */
+
+	    #if 0
 		if (gasnet_mynode == 0)
 			printf("  0> Before shmalloc \n");
 
@@ -119,17 +135,18 @@ static int gasnetc_init(int *argc, char ***argv) {
 
 		gasnetc_MaxLocalSegmentSize = gasnetc_MaxGlobalSegmentSize 
 			= gasnetc_seginfo_init.size;
+	    #endif
 
-		#if 0
-		gasnetc_seginfo_init = gasnetc_SHMallocSegmentSearch(64UL<<30);
+	    gasnetc_seginfo_init = gasnetc_SHMallocSegmentSearch();
 
-		/* Since shmalloc() is collective, local == global */
-		gasnetc_MaxLocalSegmentSize = gasnetc_MaxGlobalSegmentSize 
+	    /* Since shmalloc() is collective, local == global */
+	    gasnetc_MaxLocalSegmentSize = gasnetc_MaxGlobalSegmentSize 
 			= gasnetc_seginfo_init.size;
 
-		/* We keep the allocation live until gasnet_attach(), in which
-		 * case we can simply use realloc to reduce its size */
-		#endif
+	    gasnetc_seginfo_allocated = 1;
+
+	    /* We keep the allocation live until gasnet_attach(), in which
+	     * case we can simply use realloc to reduce its size */
 
 	#elif defined(ELAN_SHMEM)
 		#error Not implemented yet.  Should merge with code from elan-conduit
@@ -307,49 +324,47 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	#if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
       	{
 	    int	    i;
-	    static long pSync[_SHMEM_COLLECT_SYNC_SIZE];
-	    static long pWork[_SHMEM_REDUCE_MIN_WRKDATA_SIZE];
 
-	    for (i = 0; i < _SHMEM_REDUCE_SYNC_SIZE; i++)
-		pSync[i] = _SHMEM_REDUCE_SYNC_SIZE*_SHMEM_SYNC_VALUE;
+	    if (segsize < gasnetc_seginfo_init.size) {
 
-	    if (0 && segsize < gasnetc_seginfo_init.size) {
-		void	*ret;
-
-		ret = shrealloc(gasnetc_seginfo_init.addr, segsize);
-		if (ret == NULL) {
+		segbase = shrealloc(gasnetc_seginfo_init.addr, segsize);
+		if (segbase == NULL) {
 			shfree(gasnetc_seginfo_init.addr);
-			gasneti_fatalerror("shrealloc() failed on initial GASNet segment\n");
+			gasneti_fatalerror("shrealloc() failed on initial GASNet segment");
 		}
-		gasnetc_seginfo_init.addr = (void *) ret;
+		gasnetc_seginfo_init.addr = (void *) segbase;
 		gasnetc_seginfo_init.size = segsize;
 	    }
+	    else {
+		segbase = gasnetc_seginfo_init.addr;
+		segsize = gasnetc_seginfo_init.size;
+	    }
 
-	    segbase = gasnetc_seginfo_init.addr;
-	    segsize = gasnetc_seginfo_init.size;
-
-	    printf("%d> segbase = %p, segsize = %d\n", gasnetc_mynode, segbase, segsize);
-	    fflush(stdout);
+	    #if 0 && defined(DEBUG_VERBOSE)
+		printf("%d> segbase = %p, segsize = %d\n", gasnetc_mynode, segbase, segsize);
+		fflush(stdout);
+	    #endif
 
 	    /*
 	     * Although remote pointers are translated to a unaligned local
 	     * address on shmem, we consider the segment to be aligned, at
 	     * least in the generic instatiation of shmem-conduit
-	     *
 	     */
 
 	    { int i;
 		for (i=0;i<gasnetc_nodes;i++) {
-		    gasnetc_seginfo[i].addr = gasnetc_seginfo_init.addr;
-		    gasnetc_seginfo[i].size = gasnetc_seginfo_init.size;
+		    gasnetc_seginfo[i].addr = segbase; //shmem_ptr(segbase, i);
+		    gasnetc_seginfo[i].size = segsize;
+		    printf("%d> segment %2d: %p,%9d\n", gasnetc_mynode, i, 
+			gasnetc_seginfo[i].addr, (unsigned int) gasnetc_seginfo[i].size);
 		}
 	    }
+	}
 
 	#else
 	    #error Currently only support shmalloc() and shrealloc() Segment allocators
 	#endif
 
-	}
       /* add code here to choose and register a segment 
          (ensuring alignment across all nodes if this conduit sets GASNET_ALIGNED_SEGMENTS==1) 
          you can use gasneti_segmentAttach() here if you used gasneti_segmentInit() above
@@ -427,6 +442,11 @@ extern void gasnetc_exit(int exitcode) {
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
+
+  #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
+    if (gasnetc_seginfo_allocated)
+	shfree(gasnetc_seginfo_init.addr);
+  #endif
   gasneti_killmyprocess(exitcode);
   abort();
 }
@@ -564,6 +584,8 @@ gasnetc_AMPoll() {
 
     return GASNET_OK;
 }
+#else
+  #error AMPoll only exists for the release_put release variant
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -582,6 +604,7 @@ extern int gasnetc_AMRequestShortM(
   int retval, myidx, i;
   size_t    len;
   va_list argptr;
+  gasneti_stattime_t      starttime, endtime;
 
   GASNETI_CHECKATTACH();
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
@@ -589,6 +612,7 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
+  starttime = GASNETI_STATTIME_NOW();
   gasnetc_AMPoll();
 
   /* Write header and pack args */
@@ -608,6 +632,8 @@ extern int gasnetc_AMRequestShortM(
 
   /* Release a slot in shared AMQueue */
   gasnetc_AMQueueRelease(dest, myidx);
+
+  endtime = GASNETI_STATTIME_NOW();
 
   retval = GASNET_OK;
   va_end(argptr);
@@ -981,6 +1007,17 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable() {
   return gasnetc_handlers;
 }
 
+/*
+ * SegmentInit() uses a network-specific way of detecting the maximum segment
+ * that can be allocated.
+ *
+ */
+static
+int
+gasnetc_SegmentInit()
+{
+	return 1;
+}
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_SHMALLOC_GRANULARITY	(100<<20)
 
@@ -998,7 +1035,6 @@ gasnetc_SHMallocBinarySearch(size_t low, size_t high)
 
 	si.size = GASNETI_PAGE_ALIGNDOWN(low + (high-low)/2);
 
-	/* possibly use shmemalign() */
 	si.addr = shmalloc(si.size);
 
 	if (si.addr == NULL)
@@ -1015,17 +1051,49 @@ gasnetc_SHMallocBinarySearch(size_t low, size_t high)
 	}
 }
 
+#ifdef LINUX
+long
+gasnetc_getMaxMem()
+{
+	FILE		*fp;
+	char		line[128];
+	unsigned long	mem = 0;
+
+	if ((fp = fopen("/proc/meminfo", "r")) == NULL)
+		gasneti_fatalerror("Can't open /proc/meminfo");
+
+	while (fgets(line, 128, fp)) {
+		if (sscanf(line, "Mem: %lu", &mem) > 0)
+			break;
+	}
+	fclose(fp);
+	return (uintptr_t) mem;
+}
+
+#elif CRAY_SHMEM
+size_t
+gasnetc_getMaxMem()
+{
+	return (64UL<<30);
+}
+#else
+  #error No gasnetc_getMaxMem() defined for this platform
+#endif
+
 static
 gasnet_seginfo_t
-gasnetc_SHMallocSegmentSearch(size_t maxsz)
+gasnetc_SHMallocSegmentSearch()
 {
 	gasnet_seginfo_t    si;
-	gasneti_stattime_t      starttime, endtime;
-	int64_t		start, end;
+	gasneti_stattime_t  starttime, endtime;
+	int64_t		    start, end;
+	size_t		    maxsz;
+
+	maxsz = gasnetc_getMaxMem();
 
 	if (gasnetc_mynode == 0)
 		printf("sizeof(size_t)=%d, maxsiz = %lu, pagesize=%d\n\n", 
-			sizeof(size_t), maxsz, gasnetc_pagesize);
+			(int) sizeof(size_t), maxsz, (int) gasnetc_pagesize);
 
 	starttime = GASNETI_STATTIME_NOW_IFENABLED(C);
 	si = gasnetc_SHMallocBinarySearch(0UL, maxsz);
@@ -1033,8 +1101,8 @@ gasnetc_SHMallocSegmentSearch(size_t maxsz)
 
 	if (gasnetc_mynode == 0)
 		printf("shmalloc search for %d bytes (max=%lu) took %d us\n", 
-		    si.size, maxsz, 
-		    GASNETI_STATTIME_TO_US(endtime-starttime));
+		    (int) si.size, maxsz, 
+		    (int) GASNETI_STATTIME_TO_US(endtime-starttime));
 
 	return si;
 }

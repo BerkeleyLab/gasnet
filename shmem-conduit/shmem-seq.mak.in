@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Attic/shmem-seq.mak.in,v 1.1.2.2 2003/11/12 08:56:04 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Attic/shmem-seq.mak.in,v 1.1.2.3 2003/11/17 12:14:55 csbell Exp $
 # Description: Makefile fragment for SHMEM conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -33,7 +33,7 @@ GASNET_CC = @CC@
 GASNET_OPT_CFLAGS = @CFLAGS@ 
 GASNET_MISC_CFLAGS = @MISC_CFLAGS@
 GASNET_MISC_CPPFLAGS = @MISC_CPPFLAGS@
-GASNET_DEFINES = @BUILDCONFIG_DEFINES@ -DGASNET_SEQ
+GASNET_DEFINES = @BUILDCONFIG_DEFINES@ @SHMEM_FLAGS@ -DGASNET_SEQ
 # C compiler options that GASNet clients should use 
 GASNET_CFLAGS = $(GASNET_OPT_CFLAGS) $(GASNET_MISC_CFLAGS)
 GASNET_CPPFLAGS = $(GASNET_MISC_CPPFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)

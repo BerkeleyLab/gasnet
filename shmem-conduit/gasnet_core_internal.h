@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/13 08:06:11 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/11/17 12:14:55 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -142,6 +142,11 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define GASNETC_AMQUEUE_FREE_S		0
 #define GASNETC_AMQUEUE_USED_S		1
 #define GASNETC_AMQUEUE_DONE_S		2
+
+#define GASNETC_POW_2(n)		(!((n)&((n)-1)))
+#define GASNETC_AMQUEUE_SIZE_VALID(q)	(GASNETC_POW_2(q) && (q)>1 && \
+					    (q)<=GASNETC_AMQUEUE_MAX_DEPTH)
+
 
 /*
  * Each queue slot requires some payload area to store AM arguments and

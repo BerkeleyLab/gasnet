@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.2 2003/11/13 08:06:11 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.3 2003/11/17 12:14:55 csbell Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -17,16 +17,16 @@ filelist =                   \
       gasnet_core.h          \
       gasnet_core_fwd.h      \
       gasnet_core_help.h     \
-      gasnet_core_internal.h 
+      gasnet_core_internal.h \
+      gasnet_extended.c
 
 othersourcefiles =                             \
-      $(top_srcdir)/gasnet_internal.c          \
-      $(top_srcdir)/extended-ref/gasnet_extended.c 
+      $(top_srcdir)/gasnet_internal.c
 
 EXTRA_DIST = $(filelist) \
 	README
 
-libgasnet_sources = $(srcdir)/gasnet_core.c $(othersourcefiles)
+libgasnet_sources = $(srcdir)/gasnet_core.c $(srcdir)/gasnet_extended.c $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
                          $(top_srcdir)/extended-ref/*.h       
