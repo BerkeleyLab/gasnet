@@ -29,6 +29,7 @@ gasnet_node_t gasnetc_mynode;
 gasnet_node_t gasnetc_nodes;
 gasnet_node_t gasnete_mynode;
 gasnet_node_t gasnete_nodes;
+int	      gasnete_mythread;
 
 typedef struct _gasnetc_sockmap {
     gasnet_node_t   node;
@@ -52,14 +53,18 @@ typedef struct _gasnetc_sockdata {
 }
 gasnetc_sockdata_t;
 
+gasnet_seginfo_t    *gasnetc_seginfo;
+
 /*
  * One mapping for nodeid -> fd and one for pollfd index -> node
  */
 gasnetc_sockmap_t   *gasnetc_IdMapFd;
 gasnetc_sockmap_t   *gasnetc_PollMapNode;
+int		    *gasnetc_ThreadMapNode;
 
 gasnet_node_t	 gasnetc_nodes;
 gasnet_node_t	 gasnetc_mynode;
+int              gasnetc_threads;
 int		 gasnetc_threadspernode = 1;
 int		 gasnetc_send_portstart = SENDPORTSTART;
 int		 gasnetc_recv_portstart = RECVPORTSTART;
@@ -67,7 +72,12 @@ int		 gasnetc_recv_portstart = RECVPORTSTART;
 int		*gasnetc_sockfds;
 struct pollfd	*gasnetc_pollfds;
 
+uintptr_t       gasnetc_MaxLocalSegmentSize = 0;
+uintptr_t       gasnetc_MaxGlobalSegmentSize = 0;
+
 static gasneti_mutex_t gasnetc_socklock = GASNETI_MUTEX_INITIALIZER;
+#define SOCK_LOCK   gasneti_mutex_lock(&gasnetc_socklock)
+#define SOCK_UNLOCK gasneti_mutex_unlock(&gasnetc_socklock)
 
 gasnetc_handler_fn_t	gasnetc_handlers[256];
 
@@ -113,8 +123,11 @@ gasnetc_readsocket(int fd, void *buf, size_t len, gasnetc_sockdata_t *sd)
 
     brecv = read(fd, hptr, AM_HDRLEN);
 
-    if (brecv != AM_HDRLEN) 
-	gasneti_fatalerror("Couldn't read message header!\n");
+    if (brecv == 0)
+	return 0;
+
+    if (brecv != AM_HDRLEN)
+	gasneti_fatalerror("Couldn't read message header: ", gasneti_formatdata(hptr, brecv));
 
     bread += brecv;
 
@@ -136,13 +149,14 @@ gasnetc_readsocket(int fd, void *buf, size_t len, gasnetc_sockdata_t *sd)
 	}
     }
     else if (sd->hdr & AM_MEDIUM) {
-	size_t argpaylen = sd->paylen + sd->numargs * 4;
+	size_t argpaylen = sd->paylen + sd->numargs*4;
 	if (argpaylen > 0) {
 	    sd->argptr = (uint32_t *) pptr;
 	    sd->payptr = (void *) (pptr + sd->numargs*4);
 	    brecv = read(fd, pptr, argpaylen);
 	    gasneti_assert(brecv == argpaylen);
 	    bread += brecv;
+	    //printf("................ => %s\n", gasneti_formatdata(pptr,argpaylen));
 	}
 	else {
 	    sd->argptr = NULL;
@@ -155,27 +169,6 @@ gasnetc_readsocket(int fd, void *buf, size_t len, gasnetc_sockdata_t *sd)
     }
 
     return bread;
-}
-
-void 
-gasnetc_readsocket_2(int srcfd, char *msg, int len)  {
-  int bytesrecv=0;
-
-  while(bytesrecv<len) {
-    int temp;
-    temp = read(srcfd, msg+bytesrecv, len-bytesrecv);
-    if(temp==-1) {
-      if (errno == EAGAIN)
-	    printf("shit, poll again\n");
-      perror("read");
-      exit(1);
-    } else if (temp == 0) {
-	printf("nuffin!\n");
-	return;
-    } else {
-      bytesrecv+=temp;
-    }
-  }
 }
 
 extern int 
@@ -286,24 +279,26 @@ gasnetc_AMRequestMediumM(
             void *source_addr, size_t nbytes,   /* data payload */
             int numargs, ...) 
 {
-    int	    retval = 1, fd, wbytes;
+    int	    retval = 1, fd, wbytes, totsz;
     va_list argptr;
     void    *buf;
     uint8_t *hdrptr, *payptr;
+    int	     payoff;
+    int32_t *pArg;
 
     gasneti_assert(numargs >= 0 && numargs <= 16);
 
     va_start(argptr, numargs); /*  pass in last argument */
     gasneti_assert(nbytes <= AM_MAXPAYLEN);
 
-    /* XXX local loopback ? */
+    payoff = AM_HDRLEN + 4*numargs;
 
     buf = gasneti_malloc(AM_BUFSZ);
     if (buf == NULL)
 	    abort();
 
     hdrptr = (uint8_t *) buf;
-    payptr = hdrptr + AM_PAYOFF;
+    payptr = hdrptr + payoff;
 
     /* Pack args and header in buffer */
     *((uint8_t *) (hdrptr + 0)) =  (uint8_t) (AM_REQUEST | AM_MEDIUM);
@@ -312,17 +307,27 @@ gasnetc_AMRequestMediumM(
     *((uint32_t *)(hdrptr + 4)) = (uint32_t) nbytes;
     {
 	int i;
-	int32_t *pArg = (int32_t *) (hdrptr + AM_HDRLEN);
+	pArg = (int32_t *) (hdrptr + AM_HDRLEN);
 	for (i = 0; i < numargs; i++)
 	    pArg[i] = (int32_t) va_arg(argptr, int);
     }
 
-    /* Copy payload */
-    memcpy(payptr, source_addr, nbytes);
-    fd = gasnetc_IdMapFd[dest].fd;
+    if (dest == gasnetc_mynode) {
+	gasnetc_sockmap_t smap;
+	smap.node = dest;
+	smap.fd = -42;
+	RUN_HANDLER_MEDLONG(gasnetc_handlers[handler], (void *) &smap, 
+			    pArg, numargs, source_addr, nbytes);
+    }
+    else {
+	/* Copy payload */
+	memcpy(payptr, source_addr, nbytes);
+	fd = gasnetc_IdMapFd[dest].fd;
 
-    gasnetc_writesocket(fd, buf, nbytes + AM_HDRLEN + 4*numargs);
-    //printf("%d> %s\n", gasnetc_mynode, gasneti_formatdata(buf, 16));
+	//printf("%d> ************ %d => %s\n", gasnetc_mynode, dest, gasneti_formatdata(source_addr,nbytes));
+	gasnetc_writesocket(fd, buf, nbytes + payoff);
+    }
+
     /* On write completion, free the buffer */
     gasneti_free(buf);
 
@@ -342,6 +347,8 @@ gasnetc_AMReplyMediumM(
     void    *buf;
     uint8_t *hdrptr, *payptr;
     int	    fd;
+    int	    payoff;
+    int32_t *pArg;
 
     gasnet_node_t   node;
 
@@ -350,12 +357,14 @@ gasnetc_AMReplyMediumM(
     va_start(argptr, numargs); /*  pass in last argument */
     gasneti_assert(nbytes <= AM_MAXPAYLEN);
 
+    payoff = AM_HDRLEN + 4*numargs;
+
     buf = gasneti_malloc(AM_BUFSZ);
     if (buf == NULL)
 	    abort();
 
     hdrptr = (uint8_t *) buf;
-    payptr = hdrptr + AM_PAYOFF;
+    payptr = hdrptr + payoff;
 
     /* Pack args and header in buffer */
     *((uint8_t *) (hdrptr + 0)) =  (uint8_t) (AM_REPLY | AM_MEDIUM);
@@ -364,18 +373,28 @@ gasnetc_AMReplyMediumM(
     *((uint32_t *)(hdrptr + 4)) = (uint32_t) nbytes;
     {
 	int i;
-	int32_t *pArg = (int32_t *) (hdrptr + 8);
+	pArg = (int32_t *) (hdrptr + 8);
 	for (i = 0; i < numargs; i++)
 	    pArg[i] = (int32_t) va_arg(argptr, int);
     }
 
     gasnetc_AMGetMsgSource(token, &node);
-    fd = gasnetc_IdMapFd[node].fd;
 
-    /* Copy payload */
-    memcpy(payptr, source_addr, nbytes);
+    if (node == gasnetc_mynode) {
+	gasnetc_sockmap_t smap;
+	smap.node = node;
+	smap.fd = -42;
+	RUN_HANDLER_MEDLONG(gasnetc_handlers[handler], (void *) &smap, 
+			    pArg, numargs, source_addr, nbytes);
+    }
+    else {
+	fd = gasnetc_IdMapFd[node].fd;
 
-    gasnetc_writesocket(fd, buf, nbytes + AM_HDRLEN + 4*numargs);
+	/* Copy payload */
+	memcpy(payptr, source_addr, nbytes);
+
+	gasnetc_writesocket(fd, buf, nbytes + payoff);
+    }
 
     /* On write completion, free the buffer */
     gasneti_free(buf);
@@ -384,58 +403,20 @@ gasnetc_AMReplyMediumM(
     return GASNET_OK;
 }
 
+#if 0
 #define MAX_BUFS    256
 int	 gasnetc_AMBufsIdx  = 0;
 int	 gasnetc_AMBufsFree = 0;
 uint8_t	*gasnetc_AMBufs[MAX_BUFS];
 
 static char gasnetc_am_recvbuf[AM_BUFSZ];
-
-void
-gasnetc_ExecuteAMHandler(void *buf, gasnetc_sockmap_t *smap)
-{
-    uint8_t  *pptr, hidx, hdr;
-    int32_t  *argptr;
-    uint16_t  numargs;
-    uint32_t  paylen;
-    size_t    nbytes;
-    void     *payptr;
-
-    pptr = (uint8_t *) buf;
-
-    hdr     = *((uint8_t  *) (pptr + 0));
-    hidx    = *((uint8_t  *) (pptr + 1));
-    numargs = *((uint16_t *) (pptr + 2));
-    paylen  = *((uint32_t *) (pptr + 4));
-    argptr  =   (uint32_t *) (pptr + 8);
-    payptr  =       (void *) (pptr + AM_PAYOFF);
-    
-    //gasneti_assert(nbytes >= AM_PAYOFF);
-    //gasneti_assert(paylen == nbytes - AM_PAYOFF);
-    
-    gasneti_assert(gasnetc_handlers[hidx] != NULL);
-    //printf("handler is %p\n", gasnetc_handlers[hidx]);
-
-    //gasneti_mutex_unlock(&gasnetc_socklock);
-
-    if (hdr & AM_SHORT) {
-        //printf("%d> short %d %d %s\n", gasnetc_mynode, hidx, numargs, gasneti_formatdata(buf, 128));
-	RUN_HANDLER_SHORT(gasnetc_handlers[hidx], (void *) smap, argptr, numargs);
-    }
-    else {
-        //printf("%d> medium %d %d %s\n", gasnetc_mynode, hidx, numargs, gasneti_formatdata(buf, 128));
-        RUN_HANDLER_MEDLONG(gasnetc_handlers[hidx], (void *) smap, argptr, numargs, payptr,
-		    paylen);
-    }
-
-    return;
-}
-    
+#endif
 
 extern int 
 gasnetc_AMPoll()
 {
     int	      ret, i;
+    size_t    rbytes;
     void     *buf;
 
     gasnetc_sockmap_t  smap;
@@ -443,15 +424,16 @@ gasnetc_AMPoll()
     if (gasnetc_nodes == 1)
 	    return;
 
-    //gasneti_mutex_lock(&gasnetc_socklock);
+    SOCK_LOCK;
 
     ret = poll(gasnetc_pollfds, gasnetc_nodes-1, 0);
 
     if (ret == -1) {
 	gasneti_fatalerror("poll() failed");
     }
-    else if (ret == 0)
-	return GASNET_OK;
+    else if (ret == 0) {
+	goto unlock_ret;
+    }
 
     for (i=0; i < gasnetc_nodes-1; i++) {
 
@@ -467,7 +449,10 @@ gasnetc_AMPoll()
 	    memset(&sd, 0, sizeof(sd));
 
 	    gasneti_assert(smap.fd != -42);
-	    gasnetc_readsocket(smap.fd, rbuf, AM_BUFSZ, &sd);
+	    rbytes = gasnetc_readsocket(smap.fd, rbuf, AM_BUFSZ, &sd);
+
+	    if (rbytes == 0)
+		continue;
 
 	    if (sd.hdr & AM_SHORT) {
 		RUN_HANDLER_SHORT(gasnetc_handlers[sd.handler_idx], 
@@ -479,6 +464,9 @@ gasnetc_AMPoll()
 	    }
 	}
     }
+
+unlock_ret:
+    SOCK_UNLOCK;
 
     return GASNET_OK;
 
@@ -708,16 +696,11 @@ gasnetc_hsl_unlock(gasnet_hsl_t *hsl)
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_am_medping			(GASNETE_HANDLER_BASE+0)
 #define _hidx_gasnete_am_medpong			(GASNETE_HANDLER_BASE+1)
+#define _hidx_gasnete_am_exchange			(GASNETE_HANDLER_BASE+2)
 
-#define _hidx_gasnete_ambarrier_notify_reqh	        (GASNETE_HANDLER_BASE+2) 
-#define _hidx_gasnete_ambarrier_done_reqh		(GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_ambarrier_notify_reqh	        (GASNETE_HANDLER_BASE+3) 
+#define _hidx_gasnete_ambarrier_done_reqh		(GASNETE_HANDLER_BASE+4)
 
-/*
-#define gasnete_nodes		   gasnetc_nodes
-#define gasnete_mynode		   gasnetc_mynode
-*/
-
-//#define GASNETE_REFBARRIER_HANDLERS
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
 #define gasnete_refbarrier_notify  gasnete_extref_barrier_notify
 #define gasnete_refbarrier_wait    gasnete_extref_barrier_wait
@@ -756,11 +739,77 @@ gasnete_am_medpong(gasnet_token_t token, void *p, size_t len, gasnet_handlerarg_
     gasnete_medping_count++;
 }
 
+#define GASNETE_EXCHANGE_MASTER	(gasnetc_nodes-1)
+
+static int  gasnete_exch_count = 0;
+static int  gasnete_exch_phase = 1;
+static char gasnete_exch_buf[4096][2];
+
+void
+gasnete_am_exchange(gasnet_token_t token, void *p, size_t len)
+{
+    gasnet_node_t   node;
+    uint8_t	    *dst = (uint8_t *) gasnete_exch_buf;
+
+    gasnetc_AMGetMsgSource(token, &node);
+
+    if (gasnete_mynode == GASNETE_EXCHANGE_MASTER) {
+	memcpy(dst + node *len, p, len);
+    }
+    else {
+	memcpy(dst, p, len);
+        //printf("%d> exch from %d: %s\n", gasnetc_mynode, node, gasneti_formatdata(p, len));
+    }
+
+    gasnete_exch_count++;
+}
+
+void 
+gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
+{
+    int	i;
+
+    if (len*gasnete_nodes > 4096)
+	gasneti_fatalerror("exch buf too small");
+
+    if (gasnete_exch_count != 0)
+        gasneti_fatalerror("only one outstanding exch allowed");
+
+    gasnet_AMRequestMedium0(GASNETE_EXCHANGE_MASTER,
+	gasneti_handleridx(gasnete_am_exchange), src, len);
+
+    if (gasnetc_mynode == GASNETE_EXCHANGE_MASTER) {
+
+	while (gasnete_exch_count != gasnete_nodes)
+		gasnetc_AMPoll();
+
+	for (i = 0; i < gasnetc_nodes; i++) {
+	    if (i != GASNETE_EXCHANGE_MASTER) {
+		gasnet_AMRequestMedium0(i,
+		    gasneti_handleridx(gasnete_am_exchange), 
+		    gasnete_exch_buf, gasnetc_nodes*len);
+	    }
+	}
+    }
+    else {
+	while (gasnete_exch_count != 1)
+		gasnetc_AMPoll();
+    }
+
+    memcpy(dest, gasnete_exch_buf, len*gasnete_nodes);
+
+    gasnete_exch_count = 0;
+
+    return;
+}
+
+
 static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
 
   /* ptr-width independent handlers */
   gasneti_handler_tableentry_no_bits(gasnete_am_medping),
   gasneti_handler_tableentry_no_bits(gasnete_am_medpong),
+  gasneti_handler_tableentry_no_bits(gasnete_am_exchange),
 
   /* ptr-width dependent handlers */
 
@@ -770,13 +819,14 @@ static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
   { 0, NULL }
 };
 
-void
-user_main()
+void *
+user_main(void *arg)
 {
     int	    iter = 1;
     char    buf[128];
 
-    gasnet_node_t   dest = gasnetc_mynode ^ 1;
+    gasnet_node_t   dest = gasnetc_mynode + 1 < gasnetc_nodes 
+			    ? gasnetc_mynode + 1 : 0;
 
     gasnet_AMRequestMedium1(dest,
 	gasneti_handleridx(gasnete_am_medping), buf, 128, iter);
@@ -788,11 +838,10 @@ user_main()
 int
 main(int argc, char **argv)
 {
-    int i;
+    int i, j, tid;
+    uintptr_t	segsize;
 
     pthread_t *client_thread_ids;
-    pthread_t send_thread; /*will handle all the sends*/
-    pthread_t recv_thread; /*will handle all the recvs*/
 
     /*
      * testconduit <mynode> <numnodes> [numthreads]
@@ -815,6 +864,8 @@ main(int argc, char **argv)
 	exit(EXIT_FAILURE);
     }
 
+    gasnetc_threads = gasnetc_nodes * gasnetc_threadspernode;
+
     gasnetc_sockfds = (int *) gasneti_malloc(sizeof(int) * gasnetc_nodes);
     gasnetc_pollfds = (struct pollfd *) 
 			gasneti_malloc(sizeof(struct pollfd) * (gasnetc_nodes));
@@ -824,6 +875,16 @@ main(int argc, char **argv)
     gasnetc_IdMapFd = (gasnetc_sockmap_t *) 
 			gasneti_malloc(
 			    sizeof(gasnetc_sockmap_t)*(gasnetc_nodes));
+    gasnetc_ThreadMapNode = (int *) gasneti_malloc(sizeof(int) * gasnetc_threads);
+    gasnetc_seginfo = (gasnet_seginfo_t *) 
+			gasneti_malloc(sizeof(gasnet_seginfo_t) * gasnetc_nodes);
+    
+    for (i = 0; i < gasnetc_nodes; i++) {
+	for (j = 0; j < gasnetc_threadspernode; j++) {
+	    tid = i*gasnetc_threadspernode + j;
+	    gasnetc_ThreadMapNode[tid] = i;
+	}
+    }
 
     /* Initilize firehose handlers */
     {
@@ -853,20 +914,49 @@ main(int argc, char **argv)
 	    gidx++;
 	}
     }
+    {
+	char *env = getenv("GASNET_SEGMENT_SIZE");
+
+	if (env == NULL || *env == '\0')
+	    gasneti_fatalerror("GASNET_SEGMENT_SIZE must be set");
+
+	segsize = atol(env);
+    }
 
     gasnetc_init();
+
     gasneti_init_done = 1;
     gasneti_attach_done = 1;
 
     gasneti_trace_init();
 
-    BARRIER;
+    GASNETC_BARRIER;
+
+    gasneti_segmentInit(
+	&gasnetc_MaxLocalSegmentSize, &gasnetc_MaxGlobalSegmentSize,
+	(uintptr_t) -1, gasnetc_nodes, &gasnetc_bootstrapExchange);
+
+    GASNETC_BARRIER;
+
+    printf("local = %ld and global = %ld\n",
+		    gasnetc_MaxLocalSegmentSize, gasnetc_MaxGlobalSegmentSize);
+
+    if (gasnetc_MaxGlobalSegmentSize < segsize)
+	gasneti_fatalerror(
+	    "Largest segment (%ld) is less than %d",
+	    gasnetc_MaxGlobalSegmentSize, segsize);
+
+    gasneti_segmentAttach(
+	segsize, 250*1024*1024, 
+	gasnetc_seginfo, &gasnetc_bootstrapExchange);
+
+    GASNETC_BARRIER;
 
     printf("i am %d of %d\n", gasnetc_mynode, gasnetc_nodes);
 
     user_main();
 
-    BARRIER;
+    GASNETC_BARRIER;
 
     gasnetc_finalize();
 

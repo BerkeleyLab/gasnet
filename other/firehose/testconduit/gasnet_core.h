@@ -1,6 +1,6 @@
-/* $Id: gasnet_core.h,v 1.1.2.2 2004/05/06 20:54:38 csbell Exp $
- * $Date: 2004/05/06 20:54:38 $
- * $Revision: 1.1.2.2 $
+/* $Id: gasnet_core.h,v 1.1.2.3 2004/05/08 07:13:45 csbell Exp $
+ * $Date: 2004/05/08 07:13:45 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -59,7 +59,7 @@ char *gasnet_getenv(const char *s) {
 
 #define gasnet_AMMaxMedium()	AM_MAXPAYLEN
 
-#define BARRIER	do {							    \
+#define GASNETC_BARRIER	do {						    \
 	    gasnete_ambarrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);	    \
 	    gasnete_ambarrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS);	    \
 	} while (0)

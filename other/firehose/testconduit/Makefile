@@ -19,7 +19,7 @@ all: testconduit
 	$(CC) $(CFLAGS) -c $<
 
 testconduit: $(OBJLIST)
-	$(CC) -o testconduit $(OBJLIST)
+	$(CC) -g -o testconduit $(OBJLIST)
 
 clean:
 	rm -rf $(OBJLIST) testconduit testconduit.exe
