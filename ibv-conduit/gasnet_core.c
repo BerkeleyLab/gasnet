@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/28 18:29:41 $
- * $Revision: 1.2.2.35 $
+ *     $Date: 2003/04/29 18:29:47 $
+ * $Revision: 1.2.2.36 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,6 +76,7 @@ gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 static void gasnetc_check_config() {
   assert(sizeof(gasnetc_medmsg_t) == (GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS));
   assert((GASNET_MAXNODES * GASNETC_RCV_WQE) <= GASNETC_CQ_SIZE);
+  assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
 }
 
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start) {
