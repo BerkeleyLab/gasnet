@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/05/02 08:10:59 $
- * $Revision: 1.18 $
+ *     $Date: 2004/07/29 04:16:02 $
+ * $Revision: 1.18.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,14 +71,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
       return threaddata;
     }
 
-    /*  first time we've seen this thread - need to set it up */
-    { int retval;
-      gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
-
-      retval = pthread_setspecific(gasnete_threaddata, threaddata);
-      gasneti_assert(!retval);
-      return threaddata;
-    }
+    /* first time we've seen this thread - need to set it up */
+    threaddata = gasnete_new_threaddata();
+    gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
+    return threaddata;
   }
 #else
   #define gasnete_mythread() (gasnete_threadtable[0])
@@ -250,6 +246,7 @@ int gasnete_op_try_free(gasnet_handle_t handle) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
 
     if (gasnete_eop_test(eop)) {
+      gasneti_sync_reads();
       gasnete_eop_free(eop);
       return 1;
     }
@@ -258,6 +255,7 @@ int gasnete_op_try_free(gasnet_handle_t handle) {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
 
     if (gasnete_iop_test(iop)) {
+      gasneti_sync_reads();
       gasnete_iop_free(iop);
       return 1;
     }
@@ -276,6 +274,7 @@ int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
 
     if (gasnete_eop_test(eop)) {
+      gasneti_sync_reads();
       gasnete_eop_free(eop);
       *handle_p = GASNET_INVALID_HANDLE;
       return 1;
@@ -285,6 +284,7 @@ int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
 
     if (gasnete_iop_test(iop)) {
+      gasneti_sync_reads();
       gasnete_iop_free(iop);
       *handle_p = GASNET_INVALID_HANDLE;
       return 1;
@@ -326,10 +326,8 @@ extern void gasnete_init() {
   gasnete_check_config(); /*  check for sanity */
 
   #if GASNETI_CLIENT_THREADS
-  {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
-    int retval = pthread_key_create(&gasnete_threaddata, NULL);
-    if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-  }
+    /* TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+    gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
   #endif
 
   gasnete_mynode = gasnet_mynode();
@@ -379,7 +377,7 @@ void gasnete_getmed_reph_inner(gasnet_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *counter) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   gasnete_done_reph_inner(token, counter);
 }
 MEDIUM_HANDLER(gasnete_getmed_reph,2,4,
@@ -420,7 +418,7 @@ GASNET_INLINE_MODIFIER(gasnete_put_reqh_inner)
 void gasnete_put_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes, void *dest, void *counter) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_DONE(token, counter);
 }
 MEDIUM_HANDLER(gasnete_put_reqh,2,4, 
@@ -431,7 +429,7 @@ GASNET_INLINE_MODIFIER(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *counter) {
   memset(dest, (int)(uint32_t)val, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_DONE(token, counter);
 }
 SHORT_HANDLER(gasnete_memset_reqh,4,6,
@@ -511,7 +509,7 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
 }
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
@@ -520,7 +518,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
   int success = 0;
   int empty = 1;
 
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -539,7 +537,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
 
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -802,6 +800,17 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
 #define GASNETI_GASNET_EXTENDED_VIS_C 1
 #include "gasnet_extended_refvis.c"
 #undef GASNETI_GASNET_EXTENDED_VIS_C
+           
+/* ------------------------------------------------------------------------------------ */
+/*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -814,6 +823,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */
