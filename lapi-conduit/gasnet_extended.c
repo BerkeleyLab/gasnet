@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_extended.c                  $
- *     $Date: 2004/05/02 08:10:57 $
- * $Revision: 1.21 $
+ *     $Date: 2004/05/14 21:30:43 $
+ * $Revision: 1.21.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1152,6 +1152,17 @@ extern int gasnete_barrier_try(int id, int flags) {
 #define GASNETI_GASNET_EXTENDED_VIS_C 1
 #include "gasnet_extended_refvis.c"
 #undef GASNETI_GASNET_EXTENDED_VIS_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
 
 /* ------------------------------------------------------------------------------------ */
 /*

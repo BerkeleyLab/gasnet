@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_ref.c,v 1.13 2004/04/05 18:37:45 phargrov Exp $
- * $Date: 2004/04/05 18:37:45 $
+/* $Id: gasnet_extended_ref.c,v 1.13.2.1 2004/05/14 21:30:41 phargrov Exp $
+ * $Date: 2004/05/14 21:30:41 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -404,6 +404,17 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 #define GASNETI_GASNET_EXTENDED_VIS_C 1
 #include "gasnet_extended_refvis.c"
 #undef GASNETI_GASNET_EXTENDED_VIS_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
 
 /* ------------------------------------------------------------------------------------ */
 /*
