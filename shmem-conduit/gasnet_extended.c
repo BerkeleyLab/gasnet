@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2003/11/17 12:14:55 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/11/18 00:53:05 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -51,6 +51,7 @@ static int	    gasnete_nbi_handle       = GASNETE_HANDLE_DONE;
 gasnet_node_t	    gasnete_mynode = (gasnet_node_t)-1;
 gasnet_node_t	    gasnete_nodes = 0;
 gasnet_seginfo_t *  gasnete_seginfo = NULL;
+intptr_t	    gasnete_segment_base = 0;
 
 /* make a GASNet call - if it fails, print error message and abort */
 #define GASNETE_SAFE(fncall) do {                                           \
@@ -74,6 +75,10 @@ gasnet_seginfo_t *  gasnete_seginfo = NULL;
 	    GASNETE_HANDLE_INC();			    \
 	} while (0)
 
+#define GASNETE_SHPTR_PE(myptr,pe)				\
+	 (void *)(((intptr_t)(myptr)+gasnetc_segment_shptr_off[pe]))
+
+
 extern void 
 gasnete_init() 
 {
@@ -91,6 +96,7 @@ gasnete_init()
     gasnete_seginfo = (gasnet_seginfo_t *)
 		       gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
     gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
+    gasnete_segment_base = (intptr_t) gasnete_seginfo[gasnete_mynode].addr;
 
     for (i = 0; i < GASNETE_MAX_HANDLES; i++)
 	gasnete_handles[i] = GASNETE_HANDLE_DONE;
@@ -127,15 +133,14 @@ gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src,
 /*
  * Non-blocking memset
  */
-#ifdef GASNETE_SEGMENT_INCORE
+#ifdef GASNETE_SHMALLOC_SEGMENT
 extern gasnet_handle_t
 gasnete_memset_nb(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
-    void *ptr    = shmem_ptr(dest, node);
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
 
-    //memset(ptr, val, nbytes);
+    memset(dest, val, nbytes);
     gasneti_memsync();	/* XXX _gsync on Cray? */
 
     *handle = GASNETE_HANDLE_DONE;
@@ -148,20 +153,18 @@ gasnete_memset_nb(gasnet_node_t node, void *dest, int val,
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
-    void *dest_peer = shmem_ptr(dest, node);
+    int	 *ptr = GASNETE_SHPTR_PE(dest,node);
 
     *handle = GASNETE_HANDLE_NB_POLL;
 
-    printf("%d> memset nb with %p at address %p (local is %p)\n", gasnete_mynode, handle, dest_peer, dest);
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(dest), PACK(handle))));
+		      PACK(ptr), PACK(handle))));
 
     GASNETE_HANDLE_INC();
     return handle;
 }
-
 #endif
     
 /* ------------------------------------------------------------------------ */
@@ -286,16 +289,14 @@ extern void gasnete_put_nbi_bulk(gasnet_node_t node, void *dest, void *src,
 #endif
 
 /* TODO: Find a way to detect the Altix 3000 at configure time, so it can be
- * set as a segment_incore platform.
+ * set as a shmalloc segment
  */
-/* #if defined(CRAY_SHMEM) || defined(SGI_SHMEM) */
-#ifdef GASNETE_SEGMENT_INCORE
+#ifdef GASNETE_SHMALLOC_SEGMENT
 extern void 
 gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
-    void *ptr = shmem_ptr(dest, node);
-    memset(ptr, val, nbytes);
+    memset(dest, val, nbytes);
     gasneti_memsync();
     return;
 }
@@ -304,12 +305,10 @@ extern void
 gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
-    printf("%d> memset nbi with %p\n", gasnete_mynode, &gasnete_nbi_handle);
-
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(dest), PACK(&gasnete_nbi_handle))));
+		      PACK(GASNETE_SHPTR_PE(dest,node)), PACK(&gasnete_nbi_handle))));
 
     gasnete_nbi_am_ctr++;
     return;
@@ -822,9 +821,8 @@ gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val,
 			  gasnet_handlerarg_t nbytes, void *dest, void *op) 
 {
     memset(dest, (int)(uint32_t)val, nbytes);
-
-    printf("%d> memset reqh => %p, %d, %d\n", gasnete_mynode, dest, val, nbytes);
     gasneti_memsync();
+
     GASNETE_SAFE(
 	SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/17 12:14:55 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/11/18 00:53:05 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,6 +18,7 @@
 #endif
 
 extern gasnet_seginfo_t *gasnetc_seginfo;
+extern intptr_t		*gasnetc_segment_shptr_off;
 
 #define gasnetc_boundscheck(node,ptr,nbytes)		    \
 	    gasneti_boundscheck(node,ptr,nbytes,c)

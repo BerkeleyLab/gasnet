@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2003/11/17 12:14:55 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/11/18 00:53:05 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,7 +53,7 @@ typedef uintptr_t gasnet_valget_handle_t;
  * to find out that the machine is an Altix 3000 at compile time!
  */
 #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
-#define GASNETE_SEGMENT_INCORE
+#define GASNETE_SHMALLOC_SEGMENT
 #endif
 
 /* 

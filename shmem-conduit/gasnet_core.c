@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2003/11/17 12:14:55 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/11/18 00:53:05 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,6 +34,7 @@ gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 uintptr_t gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t gasnetc_MaxGlobalSegmentSize = 0;
 
+intptr_t		*gasnetc_segment_shptr_off;
 gasnet_seginfo_t	 gasnetc_seginfo_init;
 int			 gasnetc_seginfo_allocated = 0;
 gasnet_seginfo_t	*gasnetc_seginfo = NULL;
@@ -323,7 +324,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
        */
 	#if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
       	{
-	    int	    i;
+	    static long	pSync[_SHMEM_BCAST_SYNC_SIZE];
+	    int		i;
+	    intptr_t	*shm_collect;
 
 	    if (segsize < gasnetc_seginfo_init.size) {
 
@@ -344,21 +347,46 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 		printf("%d> segbase = %p, segsize = %d\n", gasnetc_mynode, segbase, segsize);
 		fflush(stdout);
 	    #endif
+	    
+	    for (i=0; i < _SHMEM_BCAST_SYNC_SIZE; i++)
+		pSync[i] = _SHMEM_SYNC_VALUE;
+
+	    gasneti_assert(segsize >= sizeof(uintptr_t) * gasnetc_nodes);
+
+	    shm_collect = (intptr_t *) segbase;
+
+	    #ifdef GASNETI_PTR32
+	    shmem_fcollect32
+	    #else
+	    shmem_fcollect64
+	    #endif
+		    ((void *) shm_collect, &segbase, 1, 0, 0, gasnetc_nodes, pSync);
+	    shm_collect[gasnetc_mynode] = (intptr_t) segbase;
 
 	    /*
 	     * Although remote pointers are translated to a unaligned local
 	     * address on shmem, we consider the segment to be aligned, at
 	     * least in the generic instatiation of shmem-conduit
 	     */
+	    gasnetc_segment_shptr_off = (intptr_t *) 
+		    gasneti_malloc(sizeof(intptr_t) * gasnetc_nodes);
 
 	    { int i;
 		for (i=0;i<gasnetc_nodes;i++) {
-		    gasnetc_seginfo[i].addr = segbase; //shmem_ptr(segbase, i);
+		    gasnetc_seginfo[i].addr = segbase;
 		    gasnetc_seginfo[i].size = segsize;
-		    printf("%d> segment %2d: %p,%9d\n", gasnetc_mynode, i, 
-			gasnetc_seginfo[i].addr, (unsigned int) gasnetc_seginfo[i].size);
+		    gasnetc_segment_shptr_off[i] = 
+			(intptr_t) shm_collect[i] - (intptr_t) segbase;
+		    printf("%d> segment %2d: %p,%9d => base = %p, offset = %d\n", 
+			gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
+			(unsigned int) gasnetc_seginfo[i].size, 
+			(void *) shm_collect[i],
+			(unsigned int) gasnetc_segment_shptr_off[i]);
+		    fflush(stdout);
 		}
 	    }
+
+	    memset(shm_collect, 0,  sizeof(uintptr_t) * gasnetc_nodes);
 	}
 
 	#else
@@ -447,8 +475,13 @@ extern void gasnetc_exit(int exitcode) {
     if (gasnetc_seginfo_allocated)
 	shfree(gasnetc_seginfo_init.addr);
   #endif
-  gasneti_killmyprocess(exitcode);
-  abort();
+  #if defined SGI_SHMEM
+    exit(exitcode);
+    abort();
+  #else
+    gasneti_killmyprocess(exitcode);
+    abort();
+  #endif
 }
 
 /* ------------------------------------------------------------------------------------ */
