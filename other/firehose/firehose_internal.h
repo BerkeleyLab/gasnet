@@ -3,13 +3,8 @@
 /* firehose_internal.h: Internal Header file
  */
 
-#if SIZEOF_VOID == 32
-typedef uint32_t	fh_uint_t;
-typedef int32_t		fh_int_t;
-#elif SIZEOF_VOID == 64
-typedef uint64_t	fh_uint_t;
-typedef int64_t		fh_int_t;
-#endif
+typedef uintptr_t	fh_uint_t;
+typedef intptr_t	fh_int_t;
 
 /* fh_bucket_t
  *
@@ -28,10 +23,6 @@ struct _fh_bucket_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
-
-	#ifdef FIREHOSE_REGION			/* buckets have a list of regions */
-	firehose_private_t	*fh_region_list;
-	#endif
 
 	struct _fh_bucket_t	*fh_fifo_next;	/* 0 when not in FIFO */
         union { 
@@ -112,3 +103,23 @@ struct _firehose_private_t {
 		(req)->end   = (req)->start + (req)->len - 1;		\
 	} while (0)
 
+
+/*
+ * Conduit Features	gm-conduit	vapi-conduit	sci-conduit
+ * ------------------------------------------------------------------
+ * flavour		page		region		?
+ * client_t		no		yes		yes
+ * bind callback	no		yes		yes
+ * unbind callback	no		yes		yes
+ *
+ * Callbacks		gm-conduit	vapi-conduit	sci-conduit
+ * ------------------------------------------------------------------
+ * move callback	unpins/pins	repins ?	unpins,	
+ * 							selects segmentId,
+ * 							stores sci_local_segment_t
+ *
+ * bind callback	n/a		?		connects to segmentId,
+ * 							stores sci_remote_segment_t
+ *
+ * unbind callback	n/a		?		disconnects from sci_remote_segment_t
+ */

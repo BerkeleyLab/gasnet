@@ -62,14 +62,37 @@ struct _firehose_region_t {
 } 
 firehose_region_t;
 
+/* The firehose information type contains information relative to the
+ * the limits of system and network-related available to firehose.
+ * The type is returned at initialization and contains limit
+ * information the client can query at initialization.  The limit
+ * values are calculated by the firehose interface according to the
+ * following parameters:
+ *    1. Maximum amount of globally pinnable memory
+ *    2. Maximum amount of regions that may be created
+ *    3. Environment variables to control firehose (see
+ *       GASNET_FIREHOSE_ environment variables below).
+ *    4. gasnet_AMMaxMedium() as implemented by the underlying gasnet
+ *       core API.
+ *
+ * The values returned by firehose_info_t are established at
+ * initialization.  Typically, a client will use these limits in order
+ * to determine the size of the largest remote and/or local region
+ * that can be requested through the firehose interface.
+ */
+typedef
+struct _firehose_info_t {
+	size_t	max_RemotePinSize;
+	size_t	max_LocalPinSize;
+}
+firehose_info_t;
+
 /* Type for function called after firehose placement is acknowledged */
 typedef int (*firehose_completed_fn_t)(void *context, firehose_request_t *req);
 
-extern int firehose_unpin_callback(firehose_request_t *req);
-
 /* This prototype is for a callback implemented by the CLIENT
  *
- * firehose_move_callback(unpin_list, unpin_num, pin_list, pin_num)
+ * firehose_move_callback(node, unpin_list, unpin_num, pin_list, pin_num)
  *
  * This callback is invoked when the firehose library has determined
  * the need to pin and/or unpin one or many regions.  If there are
@@ -87,10 +110,42 @@ extern int firehose_unpin_callback(firehose_request_t *req);
  *
  * Returns: 0 on success, non-zero on failure.
  */
-extern int firehose_move_callback(firehose_region_t *unpin_list, 
+extern int firehose_move_callback(gasnet_node_t node,
+				  firehose_region_t *unpin_list, 
 				  size_t unpin_num, 
 				  firehose_region_t *pin_list, 
 				  size_t pin_num);
+
+#ifdef FIREHOSE_BIND_CALLBACK
+/* This prototype is for a callback implemented by the CLIENT iff the
+ * client defines FIREHOSE_BIND_CALLBACK.
+ *
+ * This callback is invoked by the firehose library when the node
+ * initiating a move operation has received a reply to the list of
+ * regions to be pinned.  It is up to the client to make sure
+ * (possibly by way of a firehose_client_t) that any metadata required
+ * to bind to a remote region is part of the region type.
+ *
+ */
+extern int firehose_bind_callback(gasnet_node_t node,
+				  firehose_region_t *pin_list,
+				  size_t pin_num);
+#endif
+
+#ifdef FIREHOSE_UNBIND_CALLBACK 
+/* This prototype is for a callback implemented by the CLIENT iff the
+ * client defines FIREHOSE_UNBIND_CALLBACK.
+ *
+ * This callback is invoked by the firehose library selects one or
+ * many regions to be unpinned.  It is up to the client to make sure
+ * (possibly by way of a firehose_client_t) that any metadata required
+ * to unbind a local node to a remote region is part of the region
+ * type.
+ */
+extern int firehose_unbind_callback(gasnet_node_t node,
+				    firehose_region_t *unpin_list,
+				    size_t unpin_num);
+#endif
 
 /* firehose_init(maximum_pinnable_memory, maximum_regions)
  *
@@ -110,31 +165,51 @@ extern int firehose_move_callback(firehose_region_t *unpin_list,
  *   there to be no contraints on the amount of pinned memory or
  *   maximum regions if either value is set to 0.
  */
-extern void
+
+extern const firehose_info_t *
 firehose_init(uintptr_t max_pinnable_memory, size_t max_regions);
 
 /* Environment variables used in firehose initialization
  *
- * Although firehose is informed of job-wide memory limitations
- * through its initialization function, users are expected to control
- * firehose through environment variables.
+ * Although firehose is informed of job-wide resource limitations
+ * through its initialization function, users can control firehose
+ * parameters through environment variables.
  *
- * GASNET_FIREHOSE_M establishes the number of firehose buckets to be 
- *                   partitioned across all nodes.  This is limited by
- *                   the 'max_pinnable_memory' parameter.
+ * Except where noted, the numerical values are assumed to be base-2
+ * megabytes.  For these environement variables, a suffix of 'GB' can
+ * be appended for (base-2) gigabytes ('MB' will simply be ignored if
+ * it is specified).
  *
- * GASNET_FIREHOSE_R establishes the maximum number of regions to be
- *                   partitioned across all nodes.  This value is
- *                   ignored if 'max_regions' is 0.
+ * GASNET_FIREHOSE_M establishes, from megabytes, the number of
+ *                   firehose buckets to be partitioned across all
+ *                   nodes.  This is limited by the
+ *                   'max_pinnable_memory' parameter.
  *
- * GASNET_FIREHOSE_MAXVICTIM limits the length of the FIFO queue and
- *                           hence the amount of inactive pinned
- *                           regions in MB.  This allows firehose to
- *                           ammortize the number of unpin operations.
+ * GASNET_FIREHOSE_R establishes, from units in regions, the maximum
+ * 		     number of regions to be partitioned across all
+ * 		     nodes.  This value is ignored if 'max_regions' is
+ * 		     0.
+ *
+ * GASNET_FIREHOSE_MAXVICTIM_M limits, from megabytes, the length of
+ *                             the FIFO queue and hence the amount of
+ *                             inactive pinned regions.  This allows
+ *                             firehose to ammortize the number
+ *                             of unpin operations.
+ *
+ * GASNET_FIREHOSE_MAXVICTIM_R limits, from units in regions, the
+ *                             length of the FIFO queue and hence the
+ *                             amount of inactive pinned regions.
+ *                             This value is ignored if 'max_regions'
+ *                             is 0.
+ *
+ * GASNET_FIREHOSE_MAXREGION_SIZE limits, from megabytes, the length
+ * 				  of the largest possible region to be
+ * 				  managed by firehose.
  *
  * NOTE: firehose_init() will fail at initialization if
- * GASNET_FIREHOSE_M+GASNET_FIREHOSE_MAXVICTIM > max_pinnable_memory or
- * if GASNET_FIREHOSE_R > max_regions
+ * GASNET_FIREHOSE_M+GASNET_FIREHOSE_MAXVICTIM_M > max_pinnable_memory
+ * or if 
+ * GASNET_FIREHOSE_R+GASNET_FIREHOSE_MAXVICTIM_R > max_regions
  *
  * Failing to set these environment variables causes metadata for the
  * maximum amount of memory and regions to be allocated at
@@ -233,9 +308,6 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len);
  * Called to indicate that use of the indicated 'num_requests'
  * requests for RDMA has completed.  This is a synchronous (blocking)
  * operation.
- *
- * The reference counts are decremented and the regions moved to a
- * victim FIFO if the count reaches zero.
  *
  * The supplied regions can be local or remote.
  *

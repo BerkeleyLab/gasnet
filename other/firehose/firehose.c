@@ -4,6 +4,15 @@
 /* ######################################################################### */
 /* Public firehose interface */
 
+/* firehose_init(max_pinnable_memory, max_regions)
+ *
+ */
+extern const firehose_info_t *
+firehose_init(uintptr_t max_pinnable_memory, size_t max_regions)
+{
+	return NULL;
+}
+
 /* firehose_local_pin(addr, nbytes)
  *
  * Allocates a request type and fills the values aligned according to bucket
@@ -378,6 +387,12 @@ fh_remote_pin_request(firehose_request_t *req)
 
 	FH_TABLE_UNLOCK;
 }
+
+
+/* ####################### */
+/* FIREHOSE request_t allocation */
+fh_request_new
+
 
 /* ####################### */
 /* FIREHOSE TABLE QUERIES  */
