@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/28 19:52:04 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2003/03/31 21:55:01 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -184,6 +184,10 @@ typedef enum {
 typedef struct {
   /* ### Need more here */
   VAPI_qp_hndl_t	qp_handle;
+  #if defined(GASNET_SEGMENT_FAST)
+    /* RKey for the segment, registered at attach time */
+    VAPI_rkey_t		rkey;
+  #endif
 } gasnetc_cep_t;
 
 /* Description of a receive buffer */
@@ -204,7 +208,11 @@ typedef struct _gasnetc_snd_desc_t {
 /* Description of a registered (pinned) memory region */
 typedef struct {
   VAPI_mr_hndl_t	handle;
-  VAPI_mr_t		props;
+  VAPI_lkey_t		lkey;
+  VAPI_rkey_t		rkey;
+  uintptr_t		start;
+  uintptr_t		end;	/* inclusive */
+  size_t		size;
 } gasnetc_regmem_t;
 
 #endif
