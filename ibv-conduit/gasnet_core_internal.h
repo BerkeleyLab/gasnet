@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/01 07:17:25 $
- * $Revision: 1.19.6.4 $
+ *     $Date: 2003/11/06 02:19:03 $
+ * $Revision: 1.19.6.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -236,11 +236,19 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* Define non-zero to enable polling for receiving AMs . */
 #define GASNETC_RCV_POLL		1
 
-/* AM req/rep <= this size will be done w/ VAPI-level copy, 0 disables */
-#define GASNETC_AM_INLINE_LIMIT		0
+#if GASNETC_VAPI_ENABLE_INLINE_PUTS
+  /* AM req/rep <= this size will be done w/ VAPI-level copy, 0 disables */
+  #define GASNETC_AM_INLINE_LIMIT	72
+#else
+  #define GASNETC_AM_INLINE_LIMIT	0
+#endif
 
-/* puts <= this size will be done w/ VAPI-level copy, 0 disables */
-#define GASNETC_PUT_INLINE_LIMIT	0
+#if GASNETC_VAPI_ENABLE_INLINE_PUTS
+  /* puts <= this size will be done w/ VAPI-level copy, 0 disables */
+  #define GASNETC_PUT_INLINE_LIMIT	72
+#else
+  #define GASNETC_PUT_INLINE_LIMIT	0
+#endif
 
 /* puts <= this size will be done w/ local copies iff sender will wait for local completion */
 #define GASNETC_PUT_COPY_LIMIT		4096
@@ -590,6 +598,7 @@ extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_am_spares;
+extern int		gasnetc_use_poll_lock;
 
 /* Global variables */
 extern gasnetc_cep_t	*gasnetc_cep;
