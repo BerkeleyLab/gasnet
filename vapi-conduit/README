@@ -115,3 +115,41 @@ Notes for myself for extended API:
   only need a small amount, perhaps we can carve it out of the segment?
   Perhaps we just allow the extended ref to allocate pinned memory at
   initialization time and pass the rkey with the address.
+
++ Can use "notifn" to make the progress thread only wake if there are
+  multiple outstanding recvs.  This could, for instance, wake only if
+  we reach the RNR state (or maybe are one event shy of it).
+ 
++ There is DDR memory on the board, which is at least 2.5 times faster
+  than host memory from the point-of-view of the network.  The down side
+  is that it is both slower and non-cachable from the host.  However, it
+  might be sensible to use it for some purposes.  In particular bounce
+  buffers don't need to be cachable.  So, the bounce buffers could move
+  to the HCA.
+
+  I speculate that the result could be an increase in overhead, due to
+  the host-copy going to slower memory.  However, I expect that the total
+  end-to-end latency may be reduced slightly and less cache pollution will
+  occur.  Additionally the "background" copy by the HCA will not cause
+  traffic on either the PCI or memory bus - reducing resource contention
+  durring the time one may wish to overlap computation.
+
+    PUT Case I: 
+      CPU copies host_mem->host_mem
+      HCA copies host_mem->HCA_mem
+      HCA sends from HCA_mem to network
+    PUT Case II:
+      CPU copies host_mem->HCA_mem
+      HCA copies HCA_mem->HCA_mem (Might be omitted?)
+      HCA sends from HCA_mem to network
+ 
+    GET Case I:
+      HCA recvs to HCA_mem
+      HCA copies HCA_mem->host_mem
+      CPU copies host_mem->host_mem
+    GET Case II:
+      HCA recvs to HCA_mem
+      HCA copies HCA_mem->HCA_mem (Might be omitted?)
+      CPU copies HCA_mem->host_mem
+
+  Of course I can't get a program to allocate from HCA memory!
