@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2004/05/10 23:19:11 $
- * $Revision: 1.20.2.1 $
+ *     $Date: 2004/05/17 20:57:55 $
+ * $Revision: 1.20.2.2 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -456,7 +456,7 @@ extern void gasneti_trace_init();
 extern void gasneti_trace_finish();
 
 /* defines all the types */
-#define GASNETI_ALLTYPES "GPSWBLAICDNH"
+#define GASNETI_ALLTYPES "GPSWXBLAICDNH"
 
 
 /* GASNETI_ALL_STATS lists all the statistics values we gather, 

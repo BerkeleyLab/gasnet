@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/05/11 23:34:49 $
- * $Revision: 1.25.2.2 $
+ *     $Date: 2004/05/17 20:57:55 $
+ * $Revision: 1.25.2.3 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -162,12 +162,12 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 /* stats needed by the COLL reference implementation */
 #ifndef GASNETI_REFCOLL_STATS
   #define GASNETI_REFCOLL_STATS(CNT,VAL,TIME) \
-        VAL(S, COLL_TRY_SYNC, success)        \
-        VAL(S, COLL_TRY_SYNC_ALL, success)    \
-        VAL(S, COLL_TRY_SYNC_SOME, success)   \
-        TIME(S, COLL_WAIT_SYNC, waittime)     \
-        TIME(S, COLL_WAIT_SYNC_ALL, waittime) \
-        TIME(S, COLL_WAIT_SYNC_SOME, waittime)\
+        VAL(X, COLL_TRY_SYNC, success)        \
+        VAL(X, COLL_TRY_SYNC_ALL, success)    \
+        VAL(X, COLL_TRY_SYNC_SOME, success)   \
+        TIME(X, COLL_WAIT_SYNC, waittime)     \
+        TIME(X, COLL_WAIT_SYNC_ALL, waittime) \
+        TIME(X, COLL_WAIT_SYNC_SOME, waittime)\
         VAL(W, COLL_BROADCAST, sz)            \
         VAL(W, COLL_BROADCAST_NB, sz)         \
         VAL(W, COLL_BROADCAST_M, sz)          \

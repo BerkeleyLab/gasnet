@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/17 19:15:50 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2004/05/17 20:57:57 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -211,6 +211,21 @@ extern void gasnete_coll_poll(void);
 #define GASNETE_COLL_TRACE_EXCHANGE_M(TYPE,TEAM,DSTLIST,SRCLIST,NBYTES,FLAGS) \
   /* XXX: fill this in */
 
+/*------------------------------------------------------------------------------------*/
+#define GASNETE_COLL_TRACE_TRYSYNC(name,success) \
+	GASNETI_TRACE_EVENT_VAL(X,name,((success) == GASNET_OK?1:0))
+
+#if GASNETI_STATS_OR_TRACE
+    #define GASNETE_COLL_TRACE_WAITSYNC_BEGIN() \
+	gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(X)
+#else
+    #define GASNETE_COLL_TRACE_WAITSYNC_BEGIN() \
+	static char _dummy = (char)sizeof(_dummy)
+#endif
+
+
+#define GASNETE_COLL_TRACE_WAITSYNC_END(name) \
+    GASNETI_TRACE_EVENT_TIME(X,name,GASNETI_STATTIME_NOW_IFENABLED(X) - _waitstart)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -236,7 +251,7 @@ int gasnet_coll_try_sync(gasnet_coll_handle_t handle) {
   if_pt (handle != GASNET_COLL_INVALID_HANDLE) {
     result = gasnete_coll_try_sync(handle);
   }
-  GASNETI_TRACE_TRYSYNC(COLL_TRY_SYNC,result);
+  GASNETE_COLL_TRACE_TRYSYNC(COLL_TRY_SYNC,result);
   return result;
 }
 
@@ -251,9 +266,9 @@ int gasnet_coll_try_sync(gasnet_coll_handle_t handle) {
 #endif
 GASNET_INLINE_MODIFIER(gasnet_coll_wait_sync)
 void gasnet_coll_wait_sync(gasnet_coll_handle_t handle) {
-  GASNETI_TRACE_WAITSYNC_BEGIN();
+  GASNETE_COLL_TRACE_WAITSYNC_BEGIN();
   gasnete_coll_wait_sync(handle);
-  GASNETI_TRACE_WAITSYNC_END(COLL_WAIT_SYNC);
+  GASNETE_COLL_TRACE_WAITSYNC_END(COLL_WAIT_SYNC);
 }
 
 /*---------------------------------------------------------------------------------*/
