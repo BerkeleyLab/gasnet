@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/15 22:23:31 $
- * $Revision: 1.1.2.37 $
+ *     $Date: 2004/06/16 00:21:16 $
+ * $Revision: 1.1.2.38 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -303,6 +303,47 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
 
 /*---------------------------------------------------------------------------------*/
 
+/* Helper for scaling of void pointers */
+GASNET_INLINE_MODIFIER(gasnete_coll_scale_ptr)
+void *gasnete_coll_scale_ptr(const void *ptr, size_t elem_count, size_t elem_size) {
+    return (void *)((uintptr_t)ptr + (elem_count * elem_size));
+}
+
+/* Helper to perform in-memory broadcast */
+GASNET_INLINE_MODIFIER(gasnete_coll_local_broadcast)
+void gasnete_coll_local_broadcast(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
+    /* XXX: this could/should be segemented to cache reuse */
+    while (count--) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(*dstlist, src, nbytes);
+	dstlist++;
+    }
+}
+
+/* Helper to perform in-memory scatter */
+GASNET_INLINE_MODIFIER(gasnete_coll_local_scatter)
+void gasnete_coll_local_scatter(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
+    const uint8_t *src_addr = src;
+
+    while (count--) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(*dstlist, src_addr, nbytes);
+	dstlist++;
+	src_addr += nbytes;
+    }
+}
+
+/* Helper to perform in-memory gather */
+GASNET_INLINE_MODIFIER(gasnete_coll_local_gather)
+void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[], size_t nbytes) {
+    uint8_t *dst_addr = dst;
+
+    while (count--) {
+	GASNETE_FAST_UNALIGNED_MEMCPY(dst_addr, *srclist, nbytes);
+	dst_addr += nbytes;
+	srclist++;
+    }
+}
+
+/*---------------------------------------------------------------------------------*/
 /* Thread-specific data: */
 typedef struct {
     gasnete_coll_op_t			*op_freelist;
