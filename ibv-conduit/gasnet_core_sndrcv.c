@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/10/31 21:43:50 $
- * $Revision: 1.23.6.3 $
+ *     $Date: 2003/11/01 07:17:25 $
+ * $Revision: 1.23.6.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -151,7 +151,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, int credit) {
   if_pf (vstat == VAPI_EINVAL_QP_HNDL)
     return;	/* race against disconnect in another thread */
     
-  gasneti_fatalerror("Got unexpected VAPI error %s while posting a receive work request.", VAPI_strerror_sym(vstat));
+  GASNETC_VAPI_CHECK(vstat, "while posting a receive work request");
 }
 
 /* GASNET_INLINE_MODIFIER(gasnetc_processPacket) */
@@ -287,7 +287,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t *
         break;
       }
     } else {
-      gasneti_fatalerror("Got unexpected VAPI error %s while reaping the send queue.", VAPI_strerror_sym(vstat));
+      GASNETC_VAPI_CHECK(vstat, "while reaping the send queue");
     }
   }
 
@@ -424,7 +424,7 @@ static int gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
 	break;
       }
     } else {
-      gasneti_fatalerror("Got unexpected VAPI error %s while reaping the recv queue.", VAPI_strerror_sym(vstat));
+      GASNETC_VAPI_CHECK(vstat, "while reaping the recv queue");
     }
   } 
 
@@ -518,7 +518,7 @@ void gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *s
   } else if (vstat == VAPI_EINVAL_QP_HNDL) {
     /* race against disconnect in another thread (harmless) */
   } else {
-    gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
+    GASNETC_VAPI_CHECK(vstat, "while posting a send work request");
   }
 }
 
@@ -536,7 +536,7 @@ void gasnetc_snd_post_inline(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sb
   } else if (vstat == VAPI_EINVAL_QP_HNDL) {
     /* race against disconnect in another thread (harmless) */
   } else {
-    gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
+    GASNETC_VAPI_CHECK(vstat, "while posting an inline send work request");
   }
 }
 
@@ -550,7 +550,7 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
   (void)gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_thread_rbuf);
 
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_req_comp_notif()");
 
   (void)gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_thread_rbuf);
 }
@@ -969,7 +969,7 @@ extern void gasnetc_sndrcv_init(void) {
 
   /* create the RCV CQ */
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_create_cq(rcv_cq)");
   gasneti_assert(act_size >= count);
 
   if (gasnetc_nodes > 1) {
@@ -977,9 +977,9 @@ extern void gasnetc_sndrcv_init(void) {
       /* create the RCV thread */
       vstat = EVAPI_set_comp_eventh(gasnetc_hca, gasnetc_rcv_cq, &gasnetc_rcv_thread,
 				    NULL, &gasnetc_rcv_handler);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from EVAPI_set_comp_eventh()");
       vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_req_comp_notif()");
     #endif
 
     /* Allocated pinned memory for receive buffers */
@@ -1019,7 +1019,7 @@ extern void gasnetc_sndrcv_init(void) {
 
   /* create the SND CQ */
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_snd_cq, &act_size);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_create_cq(snd_cq)");
   gasneti_assert(act_size >= count);
 
   /* Allocated pinned memory for bounce buffers */
@@ -1073,7 +1073,7 @@ extern void gasnetc_sndrcv_fini(void) {
   if (gasnetc_nodes > 1) {
     #if GASNETC_RCV_THREAD
       vstat = EVAPI_clear_comp_eventh(gasnetc_hca, gasnetc_rcv_handler);
-      gasneti_assert(vstat == VAPI_OK);
+      GASNETC_VAPI_CHECK(vstat, "from EVAPI_clear_comp_eventh()");
     #endif
 
     gasnetc_free_pinned(&gasnetc_rcv_reg);
@@ -1084,10 +1084,10 @@ extern void gasnetc_sndrcv_fini(void) {
   }
 
   vstat = VAPI_destroy_cq(gasnetc_hca, gasnetc_rcv_cq);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_cq(rcv_cq)");
 
   vstat = VAPI_destroy_cq(gasnetc_hca, gasnetc_snd_cq);
-  gasneti_assert(vstat == VAPI_OK);
+  GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_cq(snd_cq)");
 }
 
 extern void gasnetc_sndrcv_poll(void) {
