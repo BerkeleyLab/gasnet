@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2004/08/30 06:57:56 $
- * $Revision: 1.41.2.4 $
+ *     $Date: 2004/09/05 01:08:32 $
+ * $Revision: 1.41.2.5 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,7 +192,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
   for (i = 0; i < numentries; i++) {
     int newindex;
 
-    if (table[i].index && dontcare) continue;
+    if ((table[i].index == 0 && !dontcare) || 
+        (table[i].index && dontcare)) continue;
     else if (table[i].index) newindex = table[i].index;
     else { /* deterministic assignment of dontcare indexes */
       for (newindex = lowlimit; newindex <= highlimit; newindex++) {
@@ -293,7 +294,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
       /*  second pass - fill in dontcare-index handlers */
       if (gasnetc_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
-        INITERR(RESOURCE,"Error registering fixed-index client handlers");
+        INITERR(RESOURCE,"Error registering variable-index client handlers");
 
       gasneti_assert(numreg1 + numreg2 == numentries);
     }
@@ -362,8 +363,10 @@ static void gasnetc_atexit(void) {
 }
 static int gasnetc_exitcalled = 0;
 static void gasnetc_traceoutput(int exitcode) {
-  if (!gasnetc_exitcalled)
+  if (!gasnetc_exitcalled) {
+    gasneti_flush_streams();
     gasneti_trace_finish();
+  }
 }
 
 extern void gasnetc_fatalsignal_callback(int sig) {
@@ -391,10 +394,7 @@ extern void gasnetc_exit(int exitcode) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
-  if (fflush(stdout)) 
-    gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-  if (fflush(stderr)) 
-    gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+  gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
 

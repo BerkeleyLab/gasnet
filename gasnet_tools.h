@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2004/09/01 20:23:02 $
- * $Revision: 1.10.2.4 $
+ *     $Date: 2004/09/05 01:08:24 $
+ * $Revision: 1.10.2.5 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -118,9 +118,12 @@ BEGIN_EXTERNC
   #else
     #define gasnett_mmap(sz) abort()
   #endif
+  extern void gasneti_flush_streams();
+  #define gasnett_flush_streams() gasneti_flush_streams()
 #else
-  #define gasnett_cpu_count() abort()
-  #define gasnett_mmap(sz) abort()
+  #define gasnett_cpu_count()     abort()
+  #define gasnett_mmap(sz)        abort()
+  #define gasnett_flush_streams() abort()
 #endif
 
 END_EXTERNC

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2004/08/30 06:58:10 $
- * $Revision: 1.7.2.4 $
+ *     $Date: 2004/09/05 01:08:42 $
+ * $Revision: 1.7.2.5 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -269,7 +269,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
   for (i = 0; i < numentries; i++) {
     int newindex;
 
-    if (table[i].index && dontcare) continue;
+    if ((table[i].index == 0 && !dontcare) || 
+        (table[i].index && dontcare)) continue;
     else if (table[i].index) newindex = table[i].index;
     else { /* deterministic assignment of dontcare indexes */
       for (newindex = lowlimit; newindex <= highlimit; newindex++) {
@@ -435,8 +436,10 @@ static void gasnetc_atexit(void) {
 }
 static int gasnetc_exitcalled = 0;
 static void gasnetc_traceoutput(int exitcode) {
-  if (!gasnetc_exitcalled)
+  if (!gasnetc_exitcalled) {
+    gasneti_flush_streams();
     gasneti_trace_finish();
+  }
 }
 extern void gasnetc_trace_finish() {
   /* dump AMUDP statistics */
@@ -510,10 +513,7 @@ extern void gasnetc_exit(int exitcode) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
-  if (fflush(stdout)) 
-    gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-  if (fflush(stderr)) 
-    gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+  gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
 

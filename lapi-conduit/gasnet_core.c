@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2004/08/30 06:57:54 $
- * $Revision: 1.43.2.4 $
+ *     $Date: 2004/09/05 01:08:30 $
+ * $Revision: 1.43.2.5 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -338,7 +338,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     for (i = 0; i < numentries; i++) {
 	int newindex;
 
-	if (table[i].index && dontcare) continue;
+        if ((table[i].index == 0 && !dontcare) || 
+            (table[i].index && dontcare)) continue;
 	else if (table[i].index) newindex = table[i].index;
 	else { /* deterministic assignment of dontcare indexes */
 	    for (newindex = lowlimit; newindex <= highlimit; newindex++) {
@@ -532,11 +533,8 @@ static void gasnetc_exit_cleanup(void) {
 	    gasnetc_uhdr_freelist.numalloc);
 #endif
 
+    gasneti_flush_streams();
     gasneti_trace_finish();
-    if (fflush(stdout)) 
-      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-    if (fflush(stderr)) 
-      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
 }
 /* ------------------------------------------------------------------------------------ */
 static int amexit_exitcode = 0;

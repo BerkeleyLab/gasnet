@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2004/08/30 06:57:42 $
-# $Revision: 1.116.2.7 $
+#     $Date: 2004/09/05 01:08:24 $
+# $Revision: 1.116.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.116.2.7 $)
+AC_REVISION($Revision: 1.116.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1561,6 +1561,55 @@ AC_SUBST(SHMEM_FLAGS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$have_shmem" = yes)
 if test "$have_shmem" = yes ; then
   CONDUITS="$CONDUITS shmem"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
+fi
+popdef([CONDUIT_DESC])
+
+#--------------------------------------------------------------------------------------------------------
+# SCI configuration
+
+pushdef([CONDUIT_DESC],[Dolphin SISCI network conduit (sci)])
+GASNET_IF_ENABLED_WITH_AUTO(sci, Enable the CONDUIT_DESC (auto-detected),
+  [enabled_sci=yes;force_sci=yes],
+  enabled_sci=no,
+  enabled_sci=yes)
+
+if test "$enabled_sci" = yes; then
+  GASNET_ENV_DEFAULT(SCIHOME, /opt/DIS)
+  GASNET_ENV_DEFAULT(SCI_INCLUDES, [-I$SCIHOME/include -I$SCIHOME/lib/api])
+  GASNET_ENV_DEFAULT(SCI_LIBS, [-L$SCIHOME/lib/api -lsisci])
+
+  AC_MSG_CHECKING(for working SCI configuration)
+  OLDCFLAGS="$CFLAGS"
+  OLDLIBS="$LIBS"
+  CFLAGS="$CFLAGS $SCI_INCLUDES"
+  LIBS="$LIBS $SCI_LIBS"
+  # try to compile and link a simple SCI program
+  AC_TRY_LINK( [
+     #include <sisci_types.h>
+     #include <sisci_api.h>
+     #include <sisci_error.h>
+  ], [{
+     sci_desc_t sd;
+     sci_error_t err;
+     SCIOpen(&sd, 0, &err);
+    }], [ have_sci=yes ], [ have_sci=no ] )
+  CFLAGS="$OLDCFLAGS"
+  LIBS="$OLDLIBS"
+  AC_MSG_RESULT($have_sci)
+
+  # Check for conflict
+  if test "$force_sci$have_sci" = yesno; then
+    AC_MSG_ERROR([User requested --enable-sci but I don't know how to build SCI programs for your system.])
+  fi
+fi
+AC_SUBST(SCI_INCLUDES)
+AC_SUBST(SCI_LIBS)
+AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
+if test "$have_sci" = yes ; then
+  CONDUITS="$CONDUITS sci"
   CONDUIT_REPORT(ON)
 else
   CONDUIT_REPORT(OFF)

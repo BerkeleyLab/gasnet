@@ -2,9 +2,10 @@
 # it is not meant to be used directly 
 # @configure_input@
 
-.PHONY: do-error libs force clean-local                  \
+.PHONY: do-error do-make-fragment libs force clean-local        \
         do-clean-local do-install-data-local do-uninstall-local \
         do-libgasnet-seq do-libgasnet-par do-libgasnet-parsync  \
+	do-libgasnet do-run-testexit do-error do-pthreads-error \
 	test tests tests-seq tests-par tests-parsync tests-clean 
 
 thread_defines = @GASNET_THREAD_DEFINES@

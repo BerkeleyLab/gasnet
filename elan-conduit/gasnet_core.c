@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2004/08/30 06:57:46 $
- * $Revision: 1.37.2.4 $
+ *     $Date: 2004/09/05 01:08:26 $
+ * $Revision: 1.37.2.5 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -326,7 +326,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
   for (i = 0; i < numentries; i++) {
     int newindex;
 
-    if (table[i].index && dontcare) continue;
+    if ((table[i].index == 0 && !dontcare) || 
+        (table[i].index && dontcare)) continue;
     else if (table[i].index) newindex = table[i].index;
     else { /* deterministic assignment of dontcare indexes */
       for (newindex = lowlimit; newindex <= highlimit; newindex++) {
@@ -774,10 +775,7 @@ static void gasnetc_atexit(void) {
       exit_inProgress = 1;
     }
 
-    if (fflush(stdout)) 
-      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-    if (fflush(stderr)) 
-      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+    gasneti_flush_streams();
     gasneti_trace_finish();
     gasneti_sched_yield();
 
@@ -791,17 +789,8 @@ static void gasnetc_atexit(void) {
     }
 
     /* flush and close streams to ensure we don't lose output */
-    if (fflush(stdout)) 
-      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-    if (fflush(stderr)) 
-      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
-    gasneti_sched_yield();
-    if (fclose(stdin)) 
-      gasneti_fatalerror("failed to fclose(stdin) in gasnetc_exit: %s", strerror(errno));
-    if (fclose(stdout)) 
-      gasneti_fatalerror("failed to fclose(stdout) in gasnetc_exit: %s", strerror(errno));
-    if (fclose(stderr)) 
-      gasneti_fatalerror("failed to fclose(stderr) in gasnetc_exit: %s", strerror(errno));
+    gasneti_flush_streams();
+    gasneti_close_streams();
     gasneti_sched_yield();
 
     gasneti_killmyprocess(exitcode); 
@@ -822,10 +811,7 @@ static void gasnetc_atexit(void) {
 #else /* !GASNETC_USE_SIGNALING_EXIT */
   extern void gasnetc_exit(int exitcode) {
     /* do a naive non-collective exit */
-    if (fflush(stdout)) 
-      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-    if (fflush(stderr)) 
-      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+    gasneti_flush_streams();
     gasneti_trace_finish();
     gasneti_sched_yield();
     gasneti_killmyprocess(exitcode); 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2004/08/30 06:57:42 $
- * $Revision: 1.50.2.3 $
+ *     $Date: 2004/09/05 01:08:24 $
+ * $Revision: 1.50.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -179,6 +179,24 @@ extern void gasneti_killmyprocess(int exitcode) {
   #endif
   _exit(exitcode); /* use _exit to bypass atexit handlers */
   gasneti_fatalerror("gasneti_killmyprocess failed to kill the process!");
+}
+extern void gasneti_flush_streams() {
+  if (fflush(NULL)) /* passing NULL to fflush causes it to flush all open FILE streams */
+    gasneti_fatalerror("failed to fflush(NULL): %s", strerror(errno));
+  if (fflush(stdout)) 
+    gasneti_fatalerror("failed to flush stdout: %s", strerror(errno));
+  if (fflush(stderr)) 
+    gasneti_fatalerror("failed to flush stderr: %s", strerror(errno));
+  gasneti_sched_yield();
+}
+extern void gasneti_close_streams() {
+  if (fclose(stdin)) 
+    gasneti_fatalerror("failed to fclose(stdin) in gasnetc_exit: %s", strerror(errno));
+  if (fclose(stdout)) 
+    gasneti_fatalerror("failed to fclose(stdout) in gasnetc_exit: %s", strerror(errno));
+  if (fclose(stderr)) 
+    gasneti_fatalerror("failed to fclose(stderr) in gasnetc_exit: %s", strerror(errno));
+  gasneti_sched_yield();
 }
 /* ------------------------------------------------------------------------------------ */
 #if defined(__sgi) || defined(__crayx1)
