@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/30 19:50:17 $
- * $Revision: 1.1.2.39 $
+ *     $Date: 2003/06/30 23:18:32 $
+ * $Revision: 1.1.2.40 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,17 +168,17 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
     if (phandlerfn != NULL) (*phandlerfn)(token, args, numargs)
 
 #ifdef TRACE
-  #define _GASNETI_TRACE_SYSTEM(name,dest,handler,numargs) do {                        \
+  #define _GASNETC_TRACE_SYSTEM(name,dest,handler,numargs) do {                        \
     _GASNETI_TRACE_GATHERARGS(numargs);                                                \
     _GASNETI_STAT_EVENT(C,name);                                                       \
     GASNETI_TRACE_PRINTF(C,(#name": dest=%i handler=%i args:%s",dest,handler,argstr)); \
   } while(0)
-  #define GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs) \
-          _GASNETI_TRACE_SYSTEM(SYSTEM_REQUEST,dest,handler,numargs)
-  #define GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs) \
-          _GASNETI_TRACE_SYSTEM(SYSTEM_REPLY,dest,handler,numargs)
+  #define GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs) \
+          _GASNETC_TRACE_SYSTEM(SYSTEM_REQUEST,dest,handler,numargs)
+  #define GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs) \
+          _GASNETC_TRACE_SYSTEM(SYSTEM_REPLY,dest,handler,numargs)
 
-  #define _GASNETI_TRACE_SYSTEM_HANDLER(name, handlerid, src, token, numargs, arghandle) do { \
+  #define _GASNETC_TRACE_SYSTEM_HANDLER(name, handlerid, src, token, numargs, arghandle) do { \
     _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                 \
     _GASNETI_STAT_EVENT(C,name);                                                          \
     GASNETI_TRACE_PRINTF(C,(#name": src=%i handler=%i args:%s",                           \
@@ -186,26 +186,26 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
     GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                           \
                       gasneti_formatdata(&token, sizeof(token))));                        \
     } while(0)
-  #define GASNETI_TRACE_SYSTEM_REQHANDLER(handlerid, src, token, numargs, arghandle) \
-         _GASNETI_TRACE_SYSTEM_HANDLER(SYSTEM_REQHANDLER, handlerid, src, token, numargs, arghandle)
-  #define GASNETI_TRACE_SYSTEM_REPHANDLER(handlerid, src, token, numargs, arghandle) \
-         _GASNETI_TRACE_SYSTEM_HANDLER(SYSTEM_REPHANDLER, handlerid, src, token, numargs, arghandle)
+  #define GASNETC_TRACE_SYSTEM_REQHANDLER(handlerid, src, token, numargs, arghandle) \
+         _GASNETC_TRACE_SYSTEM_HANDLER(SYSTEM_REQHANDLER, handlerid, src, token, numargs, arghandle)
+  #define GASNETC_TRACE_SYSTEM_REPHANDLER(handlerid, src, token, numargs, arghandle) \
+         _GASNETC_TRACE_SYSTEM_HANDLER(SYSTEM_REPHANDLER, handlerid, src, token, numargs, arghandle)
 #else
-  #define GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs)
-  #define GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs)
-  #define GASNETI_TRACE_SYSTEM_REQHANDLER(handlerid, src, token, numargs, arghandle) 
-  #define GASNETI_TRACE_SYSTEM_REPHANDLER(handlerid, src, token, numargs, arghandle) 
+  #define GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs)
+  #define GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs)
+  #define GASNETC_TRACE_SYSTEM_REQHANDLER(handlerid, src, token, numargs, arghandle) 
+  #define GASNETC_TRACE_SYSTEM_REPHANDLER(handlerid, src, token, numargs, arghandle) 
 #endif
 
 #if defined(TRACE) || defined(STATS)
-  #define GASNETI_TRACE_WAIT_BEGIN() \
+  #define GASNETC_TRACE_WAIT_BEGIN() \
     gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(C)
 #else 
-  #define GASNETI_TRACE_WAIT_BEGIN() \
+  #define GASNETC_TRACE_WAIT_BEGIN() \
     static char _dummy = (char)sizeof(_dummy)
 #endif
 
-#define GASNETI_TRACE_WAIT_END(name) \
+#define GASNETC_TRACE_WAIT_END(name) \
   GASNETI_TRACE_EVENT_TIME(C,name,GASNETI_STATTIME_NOW() - _waitstart)
 
 /* ------------------------------------------------------------------------------------ */
@@ -235,13 +235,13 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* ------------------------------------------------------------------------------------ */
 
 #define GASNETC_HCA_ID  "InfiniHost0"
-#define GASNETC_CQ_SIZE 65535   	/* maximum entries in a CQ */
-#define GASNETC_SQ_SIZE 1024	   	/* maximum send entries to queue */
+#define GASNETC_RCV_CQ_SIZE 65535   	/* maximum unreaped entries on a rcv CQ */
+#define GASNETC_SND_CQ_SIZE 1024   	/* maximum unreaped entries on a snd CQ */
 
-#define GASNETC_SND_WQE GASNETC_SQ_SIZE /* maximum unreaped entries on a snd work queue */
+#define GASNETC_SND_WQE 1024		/* maximum queued entries on a snd work queue */
 #define GASNETC_SND_SG  1               /* maximum number of segments to gather on send */
 
-#define GASNETC_RCV_WQE 4               /* maximum unreaped entries on a rcv work queue */
+#define GASNETC_RCV_WQE 4               /* maximum queued entries on a rcv work queue */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
 /* Define non-zero to use AM-level flow control.
@@ -261,7 +261,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* puts <= this size will be done w/ local copies iff sender will wait for local completion */
 #define GASNETC_PUT_COPY_LIMIT		4096
 
-#define GASNETC_SND_REAP_LIMIT	(GASNETC_SQ_SIZE / 4)
+#define GASNETC_SND_REAP_LIMIT	32
 #define GASNETC_RCV_REAP_LIMIT	16
 
 /* Structure for a cep (connection end-point)
