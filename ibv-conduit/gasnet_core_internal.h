@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/22 00:14:12 $
- * $Revision: 1.1.2.27 $
+ *     $Date: 2003/05/20 19:15:54 $
+ * $Revision: 1.1.2.28 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -221,6 +221,10 @@ typedef struct {
   uintptr_t		start;
   uintptr_t		end;	/* inclusive */
   size_t		size;
+
+  /* requested values, before rounding by HCA */
+  void *		req_addr;
+  size_t		req_size;
 } gasnetc_memreg_t;
 
 /* Bootstrap helper routines in gasnet_bootstrap_*.c */
@@ -255,6 +259,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 /* General routines in gasnet_core.c */
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start);
 extern void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
+extern void gasnetc_free_pinned(gasnetc_memreg_t *reg);
 
 /* Global variables */
 extern gasnetc_cep_t	*gasnetc_cep;
