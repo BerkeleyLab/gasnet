@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/07 18:53:36 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2003/04/07 19:51:13 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,12 +25,6 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
-
-#if defined(DEBUG) && !defined(GASNET_QUIET)
-  #define DEBUG_VERBOSE               1
-#else
-  #define DEBUG_VERBOSE               0
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* make a GASNet call - if it fails, print error message and return */
@@ -257,6 +251,7 @@ extern void gasnetc_bootstrapConf(void);
 extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
+extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 
 /* Recv routines in gasnet_core_rcv.c */
 extern void gasnetc_rcv_init(void);

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/vapi-conduit/gasnet_bootstrap_mpi.c                  $
- *     $Date: 2003/04/01 21:35:24 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/04/07 19:51:13 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet vapi conduit implementation, mpi bootstrap code
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -53,3 +53,14 @@ void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest) {
   err = MPI_Alltoall(src, len, MPI_CHAR, dest, len, MPI_CHAR, MPI_COMM_WORLD);
   assert(err == MPI_SUCCESS);
 }
+
+void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
+  int err;
+  
+  if (gasnetc_mynode == rootnode) {
+    memcpy(dest, src, len);
+  }
+  err = MPI_Bcast(dest, len, MPI_CHAR, rootnode, MPI_COMM_WORLD);
+}
+
+

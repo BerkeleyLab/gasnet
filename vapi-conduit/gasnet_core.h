@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/04/01 19:28:20 $
- * $Revision: 1.2.2.5 $
+ *     $Date: 2003/04/07 19:51:13 $
+ * $Revision: 1.2.2.6 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -78,7 +78,7 @@ gasnet_node_t gasnet_nodes() {
 GASNET_INLINE_MODIFIER(gasnet_getenv)
 char *gasnet_getenv(const char *s) {
   GASNETC_CHECKINIT();
-  return getenv(s);
+  return gasneti_getenv(s);
 }
 
 /* ------------------------------------------------------------------------------------ */
