@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/08 00:07:09 $
- * $Revision: 1.1 $
+ *     $Date: 2003/03/20 22:30:22 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,10 @@
 
 #include <gasnet.h>
 #include <gasnet_internal.h>
+
+#include <vapi.h>
+#include <evapi.h>
+#include <vapi_common.h>
 
 extern gasnet_seginfo_t *gasnetc_seginfo;
 
@@ -42,5 +46,12 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define _hidx_                              (GASNETC_HANDLER_BASE+)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
+/* Structure for a cep, connection end-point
+ * Include whatever per-node data we need.
+ */
+typedef struct gasnetc_cep_t_ {
+  /* ### Need more here */
+  VAPI_qp_hndl_t	qp_handle;
+} gasnetc_cep_t;
 
 #endif

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/19 22:24:24 $
- * $Revision: 1.2.2.2 $
+ *     $Date: 2003/03/20 22:30:22 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,6 +22,26 @@
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
+
+gasnetc_cep_t	*gasnetc_cep;
+VAPI_hca_hndl_t	gasnetc_hca;
+VAPI_pd_hndl_t	gasnetc_pd;
+VAPI_cq_hndl_t	gasnetc_rcv_cq;
+VAPI_cq_hndl_t	gasnetc_snd_cq;
+
+#define GASNETC_HCA_ID	"InfiniHost0"
+
+#define GASNETC_SND_WQE	65535	/* maximum unreaped entries on a snd queue */
+#define GASNETC_SND_SG	4	/* maximum number of segments to gather on send */ 
+
+#define GASNETC_RCV_WQE	2	/* maximum unreaped entries on a rcv queue */
+#define GASNETC_RCV_SG	1	/* maximum number of segments to scatter on rcv */ 
+
+/* Used only once, to exchange addresses at connection time */
+typedef struct _gasnetc_addr_t {
+  IB_lid_t	lid;
+  VAPI_qp_num_t	qp_num;
+} gasnetc_addr_t;
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
 
@@ -67,6 +87,14 @@ static void gasnetc_bootstrapBarrier() {
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
+  gasnetc_addr_t	*local_addr;
+  gasnetc_addr_t	*remote_addr;
+  VAPI_hca_cap_t	hca_cap;
+  VAPI_hca_port_t	hca_port;
+  IB_port_t		port;
+  VAPI_ret_t		vstat;
+  int i;
+
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -98,16 +126,190 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
   #endif /* GASNETC_BOOTSTRAP_MPI */
     
-  /* ### create correct number of endpoints here */
+  /* allocate arrays */
+  gasnetc_cep = calloc(gasnetc_nodes, sizeof(gasnetc_cep_t));
+  assert(gasnetc_cep != NULL);
+  local_addr = calloc(gasnetc_nodes, sizeof(gasnetc_addr_t));
+  assert(local_addr != NULL);
+  remote_addr = calloc(gasnetc_nodes, sizeof(gasnetc_addr_t));
+  assert(remote_addr != NULL);
 
-  /* Exchange endpoint info for connecting */
+  /* open the hca */
+  /* XXX: should also check args/env for non-default HCA ID */
+  {
+    VAPI_hca_vendor_t hca_vendor;
+
+    vstat = VAPI_open_hca(GASNETC_HCA_ID, &gasnetc_hca);
+    if (vstat != VAPI_OK) {
+      vstat = EVAPI_get_hca_hndl(GASNETC_HCA_ID, &gasnetc_hca);
+    }
+    assert(vstat == VAPI_OK && "Unable to open the HCA");
+
+    vstat = VAPI_query_hca_cap(gasnetc_hca, &hca_vendor, &hca_cap);
+    assert(vstat == VAPI_OK);
+  }
+
+  /* get the port number and the corresponding lid */
+  /* XXX: should first check args/env for non-default port number */
+  {
+    for (port = 1; port <= hca_cap.phys_port_num; ++port) {
+      vstat = VAPI_query_hca_port_prop(gasnetc_hca, port, &hca_port);
+      assert(vstat == VAPI_OK);
+
+      if (hca_port.state == PORT_ACTIVE) {
+	break;
+      }
+    }
+
+    assert(port <= hca_cap.phys_port_num && "No ACTIVE ports found");
+  }
+
+  /* create the CQs */
+  {
+    VAPI_cqe_num_t req_size;	/* requested */
+    VAPI_cqe_num_t act_size;	/* actual */
+
+    req_size = MIN(65535, GASNETC_RCV_WQE * gasnetc_nodes);	/* XXX: may need to throttle or split? */
+    vstat = VAPI_create_cq(gasnetc_hca, req_size, &gasnetc_rcv_cq, &act_size);
+    assert(vstat == VAPI_OK);
+    assert(act_size >= req_size);
+
+    req_size = 65535;	/* XXX: may need to split? */
+    vstat = VAPI_create_cq(gasnetc_hca, req_size, &gasnetc_snd_cq, &act_size);
+    assert(vstat == VAPI_OK);
+    assert(act_size >= req_size);
+  }
+
+  /* get a pd for the QPs */
+  vstat =  VAPI_alloc_pd(gasnetc_hca, &gasnetc_pd);
+  assert(vstat == VAPI_OK);
+
+  /* ### allocate and register recv buffers */
+
+  /* create all the endpoints */
+  {
+    VAPI_qp_init_attr_t	qp_init_attr;
+    VAPI_qp_prop_t	qp_prop;
+
+    qp_init_attr.cap.max_oust_wr_rq = GASNETC_RCV_WQE;
+    qp_init_attr.cap.max_oust_wr_sq = GASNETC_SND_WQE;
+    qp_init_attr.cap.max_sg_size_rq = GASNETC_RCV_SG;
+    qp_init_attr.cap.max_sg_size_sq = GASNETC_SND_SG;
+    qp_init_attr.pd_hndl            = gasnetc_pd;
+    qp_init_attr.rdd_hndl           = 0;
+    qp_init_attr.rq_cq_hndl         = gasnetc_rcv_cq;
+    qp_init_attr.rq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.sq_cq_hndl         = gasnetc_snd_cq;
+    qp_init_attr.sq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.ts_type            = VAPI_TS_RC;
+
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      /* create the QP */
+      vstat = VAPI_create_qp(gasnetc_hca, &qp_init_attr, &gasnetc_cep[i].qp_handle, &qp_prop);
+      assert(vstat == VAPI_OK);
+      assert(qp_prop.cap.max_oust_wr_rq >= GASNETC_RCV_WQE);
+      assert(qp_prop.cap.max_oust_wr_sq >= GASNETC_SND_WQE);
+
+      local_addr[i].lid = hca_port.lid;
+      local_addr[i].qp_num = qp_prop.qp_num;
+    }
+  }
+
+  /* exchange endpoint info for connecting */
   #if GASNETC_BOOTSTRAP_MPI
   {
-    /* ### use matrix transpose code to exchange endpoint info */
+    /* XXX: this ordering is simple to write, but serializes on node 0 */
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      if (i == gasnetc_mynode) {
+	remote_addr[i] = local_addr[i];
+      } else if (i < gasnetc_mynode) {
+	MPI_Send(&local_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR,
+		 i, 1234, MPI_COMM_WORLD);
+	MPI_Recv(&remote_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR,
+		 i, 1234, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      } else {
+	MPI_Recv(&remote_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR, i,
+		 1234, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	MPI_Send(&local_addr[i], sizeof(gasnetc_addr_t), MPI_CHAR, i,
+		 1234, MPI_COMM_WORLD);
+      }
+    }
   }
   #endif /* GASNETC_BOOTSTRAP_MPI */
 
-  /* ### connect endpoints here */
+  /* connect the endpoints */
+  {
+    VAPI_qp_attr_t	qp_attr;
+    VAPI_qp_attr_mask_t	qp_mask;
+    VAPI_qp_cap_t	qp_cap;
+
+    /* advance RST -> INIT */
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PKEY_IX);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PORT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_REMOTE_ATOMIC_FLAGS);
+    qp_attr.qp_state            = VAPI_INIT;
+    qp_attr.pkey_ix             = 0;
+    qp_attr.port                = port;
+    qp_attr.remote_atomic_flags = VAPI_EN_REM_WRITE | VAPI_EN_REM_READ;
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
+      assert(vstat == VAPI_OK);
+
+      /* ### post recv buffers */
+    }
+
+    /* advance INIT -> RTR */
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_AV);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PATH_MTU);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RQ_PSN);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_OUS_RD_ATOM);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_DEST_QP_NUM);
+    QP_ATTR_MASK_SET(qp_mask,QP_ATTR_MIN_RNR_TIMER);
+    qp_attr.qp_state         = VAPI_RTR;
+    qp_attr.av.sl            = 0;
+    qp_attr.av.grh_flag      = FALSE;
+    qp_attr.av.static_rate   = 2;	/* XXX: 1x? */
+    qp_attr.av.src_path_bits = 0;
+    qp_attr.path_mtu         = hca_port.max_mtu;
+    qp_attr.qp_ous_rd_atom   = 4;	/* XXX: get max from HCA */
+    qp_attr.min_rnr_timer    = 0;
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      qp_attr.rq_psn         = i;
+      qp_attr.av.dlid        = remote_addr[i].lid;
+      qp_attr.dest_qp_num    = remote_addr[i].qp_num;
+      vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
+      assert(vstat == VAPI_OK);
+    }
+
+    /* QPs must reach RTR before their peer can advance to RTS */
+    gasnetc_bootstrapBarrier();
+
+    /* advance RTR -> RTS */
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_SQ_PSN);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_TIMEOUT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RETRY_COUNT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RNR_RETRY);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_OUS_DST_RD_ATOM);
+    qp_attr.qp_state         = VAPI_RTS;
+    qp_attr.sq_psn           = gasnetc_mynode;
+    qp_attr.timeout          = 0x20;
+    qp_attr.retry_count      = 1;
+    qp_attr.rnr_retry        = 1;
+    qp_attr.ous_dst_rd_atom  = 4; 	/* XXX get max from HCA*/
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
+      assert(vstat == VAPI_OK);
+    }
+  }
+
+  free(remote_addr);
+  free(local_addr);
 
   #if DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
