@@ -113,18 +113,31 @@ uintptr_t fh_bucket_end(const fh_bucket_t *bucket)
 	return fh_priv_end(bucket->priv);
 }
 
-/* Compare two buckets with the same (node, address)	*
- * return true if first is best				*
- * "best" is the one with the greatest forward extent.	*
- *  XXX: we don't yet try to break ties intelligently.	*/
+/* Compare two buckets with the same (node, address)
+ * return non-zero if first is best
+ * "best" is the one with the greatest forward extent.
+ * In case of a tie, the longer region wins.
+ */
 GASNET_INLINE_MODIFIER(fh_bucket_is_better)
-int fh_bucket_is_better(fh_bucket_t *a, fh_bucket_t *b)
+int fh_bucket_is_better(const fh_bucket_t *a, const fh_bucket_t *b)
 {
+  uintptr_t end_a, end_b;
+
   assert(a != NULL);
+  assert(a->priv != NULL);
   assert(b != NULL);
+  assert(b->priv != NULL);
   assert(a->fh_key == b->fh_key);
 
-  return (fh_bucket_end(a) > fh_bucket_end(b));
+  end_a = fh_bucket_end(a);
+  end_b = fh_bucket_end(b);
+
+  if_pt (end_a != end_b) {
+    return (end_a > end_b);
+  }
+  else {
+    return (a->priv->len > a->priv->len);
+  }
 }
 
 /* Compare two buckets with the same (node, address) to pick the "best" one */
@@ -314,27 +327,15 @@ fhi_remove_from_fifo(firehose_region_t *reg, firehose_private_t *priv,
 }
 
 /* Look for opportunities to merge adjacent pinned regions.
- * IFF the regions we are merging with are unused (in the FIFO)
- * we will also arrange to unpin them, to help reduce R.
  */
 int
-fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region,
-		  firehose_region_t *unpin_regions)
+fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
 {
-    int		num_unpin = 0;
     uintptr_t	addr = pin_region->addr;
     size_t	len  = pin_region->len;
     fh_bucket_t *bd;
     size_t	extend;
     size_t	space_avail = fhi_MaxRegionSize - len;
-    fh_fifoq_t	*fifo_head;
-
-    if (node == fh_mynode) {
-	fifo_head = &fh_LocalFifo;
-    }
-    else {
-	fifo_head = &(fh_RemoteNodeFifo[node]);
-    }
 
     /* Because we prioritize lookups by "forward extent", our best
      * chance of fully replacing a region comes from merging with one
@@ -347,23 +348,10 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region,
 	    assert(fh_priv_end(bd->priv) >= (addr - 1));
 	    assert(fh_priv_end(bd->priv) < (addr + (len - 1)));
 
-	    extend = addr - FH_BADDR(bd);
-	    if (extend <= space_avail) {
-		/* Fully cover the existing region */	
-		if (FH_IS_REMOTE_FIFO(bd->priv)) { /* Works for local, too */
-		    fhi_remove_from_fifo(&unpin_regions[num_unpin],
-					 bd->priv, fifo_head);
-		    num_unpin++;
-		}
-		addr -= extend;
-		len += extend;
-		space_avail -= extend;
-	    }
-	    else {
-		addr -= space_avail;
-		len += space_avail;
-		space_avail = 0;
-	    }
+	    extend = MIN(addr - FH_BADDR(bd), space_avail);
+	    addr -= extend;
+	    len += extend;
+	    space_avail -= extend;
 	}
     }
 
@@ -381,11 +369,6 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region,
 
 	    /* only accept complete coverage */
 	    if (extend <= space_avail) {
-		if (FH_IS_REMOTE_FIFO(bd->priv)) { /* works for local, too */
-		    fhi_remove_from_fifo(&unpin_regions[num_unpin],
-					 bd->priv, fifo_head);
-		    num_unpin++;
-		}
 		len += extend;
 		space_avail -= extend;
 	    }
@@ -394,7 +377,6 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region,
 
     pin_region->addr = addr;
     pin_region->len  = len;
-    return num_unpin;
 }
 
 /*
@@ -511,34 +493,26 @@ fh_acquire_local_region(firehose_request_t *req)
     }
     else {
 	/* Firehose MISS, pin it */
-	firehose_region_t pin_region, unpin_regions[2];
+	firehose_region_t pin_region, unpin_region;
 	int num_unpin = 0;
 
 	/* Try to look for opportunities to merge adjacent pinned regions.
-	 * IFF the regions we are merging with are unused (in the FIFO)
-	 * we will also unpin them, to help reduce R
+	 * The hash table is such that any region completely covered by
+	 * the new region will no longer get any hits.  So, such regions will
+	 * eventually end up being recycled from the FIFO.
 	 */
 	pin_region.addr = req->addr;
 	pin_region.len  = req->len;
-#if 0	/* XXX/PHH figure out why this kills performance so badly */
-	num_unpin = fhi_merge_regions(fh_mynode, &pin_region, unpin_regions);
-#endif
+	fhi_merge_regions(fh_mynode, &pin_region);
 
-	if (num_unpin) {
-	    /* we've removed num_unpin from the FIFO but will reuse one */
-	    fhc_LocalVictimFifoBuckets -= num_unpin;
-	    fhc_LocalOnlyBucketsPinned -= (num_unpin - 1);
-	}
-	else {
-	    num_unpin = fh_WaitLocalFirehoses(1, unpin_regions);
-	}
-	assert ((num_unpin >= 0) && (num_unpin <= 2));
+	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
+	assert ((num_unpin == 0) || (num_unpin == 2));
 
 	/* XXX/PHH create in-TRANSIT "priv" here */
 
 	FH_TABLE_UNLOCK;
 	firehose_move_callback(fh_mynode,
-				unpin_regions, num_unpin,
+				&unpin_region, num_unpin,
 				&pin_region, 1);
 	FH_TABLE_LOCK;
 
@@ -903,7 +877,6 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 void
 fh_fini_plugin(void)
 {
-fprintf(stderr, "# %d pinned %d fifo\n", fhc_LocalOnlyBucketsPinned, fhc_LocalVictimFifoBuckets);
         fh_hash_destroy(fh_BucketTable2);
         fh_hash_destroy(fh_BucketTable1);
 }
