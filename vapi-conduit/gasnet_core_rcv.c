@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/16 18:58:43 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2003/05/20 19:15:54 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -98,7 +98,6 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf) {
   rbuf->handlerRunning = 0;
 }
 
-/* return non-zero if one or more entries reaped */
 GASNET_INLINE_MODIFIER(gasnetc_rcv_reap)
 void gasnetc_rcv_reap(int limit) {
   static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -207,6 +206,19 @@ extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep) {
     gasnetc_rbuf_tail++;
     assert((gasnetc_rbuf_tail - gasnetc_rbuf_head) <= (GASNETC_RCV_WQE * (gasnetc_nodes - 1)));
   }
+}
+
+extern void gasnetc_rcv_fini(void) {
+  VAPI_ret_t vstat;
+
+  vstat = EVAPI_clear_comp_eventh(gasnetc_hca, gasnetc_rcv_handler);
+  assert(vstat == VAPI_OK);
+
+  vstat = VAPI_destroy_cq(gasnetc_hca, gasnetc_rcv_cq);
+  assert(vstat == VAPI_OK);
+
+  gasnetc_free_pinned(&gasnetc_rcv_reg);
+  free(gasnetc_rbuf_head);
 }
 
 extern void gasnetc_rcv_poll(void) {

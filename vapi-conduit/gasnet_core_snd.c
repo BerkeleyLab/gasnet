@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/05/01 21:13:37 $
- * $Revision: 1.1.2.30 $
+ *     $Date: 2003/05/20 19:15:54 $
+ * $Revision: 1.1.2.31 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -301,13 +301,13 @@ extern void gasnetc_snd_init(void) {
 }
 
 extern void gasnetc_snd_fini(void) {
-  /* ### cleanup/release everything done in gasnetc_snd_init()
-   *
-   * Some things to free/destroy:
-   *   gasnetc_snd_cq
-   *   gasnetc_sbuf_pool (sbufs and actual buffers)
-   *   gasnetc_snd_reg
-   */
+  VAPI_ret_t vstat;
+
+  vstat = VAPI_destroy_cq(gasnetc_hca, gasnetc_snd_cq);
+  assert(vstat == VAPI_OK);
+
+  gasnetc_free_pinned(&gasnetc_snd_reg);
+  free(gasnetc_sbuf_pool);
 }
 
 
@@ -364,8 +364,9 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
       sbuf->req_oust = req_oust;
     }
 
-    /* ###: check error return */
+    /* ### translate into a sensible error code */
     rc = gasnetc_snd_inline_post(cep, &req);
+    assert(rc == VAPI_OK);
   } else if ((nbytes <= GASNETC_PUT_COPY_LIMIT) && (mem_oust != NULL)) {
     /* If the transfer is "not too large" and the caller will wait on local completion,
      * then perform the copy locally, thus allowing the caller to proceed.
@@ -394,6 +395,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
     /* ### translate into a sensible error code */
     rc = gasnetc_snd_post(cep, &req);
+    assert(rc == VAPI_OK);
   } else {
   #if defined(GASNET_SEGMENT_FAST)
     /* Now we have the most general non-empty case */
@@ -449,6 +451,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
       /* ### translate into a sensible error code */
       rc = gasnetc_snd_post(cep, &req);
+      assert(rc == VAPI_OK);
 
       src += count;
       dst += count;
