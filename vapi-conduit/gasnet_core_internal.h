@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/01 00:16:00 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2003/04/01 19:28:20 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,6 +8,8 @@
 
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
+
+#include <stddef.h>	/* for offsetof() */
 
 #include <gasnet.h>
 #include <gasnet_internal.h>
@@ -203,6 +205,7 @@ typedef struct _gasnetc_snd_desc_t {
   /* ### Need more here ? */
   gasneti_atomic_t		done;
   struct _gasnetc_snd_desc_t	*next;
+  struct _gasnetc_snd_desc_t	*tail;
   gasnetc_buffer_t		*buffer;
   VAPI_sr_desc_t		sr_desc;		/* send request descriptor */
   VAPI_sg_lst_entry_t		sr_sg[GASNETC_SND_SG];	/* send request gather list */
@@ -216,6 +219,6 @@ typedef struct {
   uintptr_t		start;
   uintptr_t		end;	/* inclusive */
   size_t		size;
-} gasnetc_regmem_t;
+} gasnetc_memreg_t;
 
 #endif
