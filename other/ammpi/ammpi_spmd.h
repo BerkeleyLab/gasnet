@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.h                                     $
- *     $Date: 2003/04/10 13:08:11 $
- * $Revision: 1.5 $
+ *     $Date: 2003/08/30 10:39:54 $
+ * $Revision: 1.5.10.1 $
  * Description: AMMPI Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -37,6 +37,11 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
    */
 extern int AMMPI_SPMDExit(int exitcode); 
   /* terminate the parallel job with given exit code (also handles AM_Terminate)
+   */
+
+extern int AMMPI_SPMDSetExitCallback(void (*fp)(int));
+  /* register a function to be called when AMMPI_SPMDExit is called by any node
+   * exit code is passed
    */
 
 extern int AMMPI_SPMDIsWorker(char **argv); 

@@ -147,9 +147,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2003/07/02 20:02:19 $
+@subtitle $Date: 2003/08/30 10:39:47 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.26 $ 
+@subtitle $Revision: 1.26.2.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -187,8 +187,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2003/07/02 20:02:19 $
-@*$Revision: 1.26 $ 
+@*$Date: 2003/08/30 10:39:47 $
+@*$Revision: 1.26.2.1 $ 
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @*@uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 @*@uref{http://upc.lbl.gov/}
@@ -922,7 +922,7 @@ There are three categories of active messages:
 @table @samp
 @cindex Short Active Message
 @item Short Active Message
-These messages carry only a few integer arguments (up to @code{gasnet_AMMaxShort()})
+These messages carry only a few integer arguments (up to @code{gasnet_AMMaxArgs()})
 @*handler prototype: 
 @lisp
 void handler(gasnet_token_t token, 
@@ -1369,9 +1369,10 @@ GASNet implementations. Clients which violate any of these rules may be
 subject to intermittent crashes, fatal errors or network deadlocks.
 
 @itemize @bullet
-@item @code{gasnet_hold_interrupts()} and @code{gasnet_resume_interrupts()} should not be 
+@item @code{gasnet_hold_interrupts()} and @code{gasnet_resume_interrupts()} need not be 
 called from within a handler context - handlers are run within an implicit 
-No-Interrupt Section
+No-Interrupt Section, and @code{gasnet_hold_interrupts()} and @code{gasnet_resume_interrupts()}
+calls are ignored within a handler context.
 
 @item Code in a No-Interrupt Section must not call any GASNet functions that may 
 send requests or synchronously run handlers - specifically, the only GASNet 

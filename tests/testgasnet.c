@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2003/08/04 11:06:53 $
- * $Revision: 1.9.10.1 $
+ *     $Date: 2003/08/30 10:39:57 $
+ * $Revision: 1.9.10.3 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
   MSG("running...");
 

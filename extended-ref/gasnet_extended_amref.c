@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/06/11 04:45:30 $
- * $Revision: 1.27 $
+ *     $Date: 2003/08/30 10:39:49 $
+ * $Revision: 1.27.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -62,8 +62,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   #endif
   assert(gasnete_threadtable[idx] == NULL);
 
-  threaddata = (gasnete_threaddata_t *)gasneti_malloc(sizeof(gasnete_threaddata_t));
-  memset(threaddata, 0, sizeof(gasnete_threaddata_t));
+  threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
 
   threaddata->threadidx = idx;
   threaddata->eop_free = EOPADDR_NIL;
@@ -202,8 +201,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasnete_threadidx_t threadidx = thread->threadidx;
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
-    buf = (gasnete_eop_t *)gasneti_malloc(256*sizeof(gasnete_eop_t));
-    memset(buf, 0, 256*sizeof(gasnete_eop_t));
+    buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
     for (i=0; i < 256; i++) {
       gasnete_eopaddr_t addr;
       addr.bufferidx = bufidx;

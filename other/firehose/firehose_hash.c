@@ -4,6 +4,7 @@
 
 #include <firehose.h>
 #include <firehose_internal.h>
+#include <gasnet_internal.h>
 
 struct _fh_hash_t {
         void   **fh_table;
@@ -119,16 +120,16 @@ fh_hash_create(size_t entries)
 	if (!IS_POWER_OF_2(entries))
 		gasneti_fatalerror("fh_hash_create requires a power of 2!");
 
-	hash = (fh_hash_t *) malloc(sizeof(fh_hash_t));
+	hash = (fh_hash_t *) gasneti_malloc(sizeof(fh_hash_t));
 	if (hash == NULL)
 		gasneti_fatalerror("Can't allocate memory for hash structure");
 	memset(hash, 0, sizeof(fh_hash_t));
 
-	hash->fh_table   = (void **) malloc(entries * sizeof(void *));
+	hash->fh_table   = (void **) gasneti_malloc(entries * sizeof(void *));
 	hash->fh_mask    = entries-1;
 	hash->fh_entries = entries;
 	#ifdef FH_HASH_STATS
-		hash->fh_col_table = (int *) malloc(entries * sizeof(int));
+		hash->fh_col_table = (int *) gasneti_malloc(entries * sizeof(int));
 		//printf("hash create: entries=%d, mask=%x\n", entries, entries-1);
 		hash->fh_used = 0;
 		hash->fh_collisions = 0;
@@ -152,10 +153,11 @@ fh_hash_destroy(fh_hash_t *hash)
 				//printf("%d\t%d\n", i, hits);
 		}
 	}
+	gasneti_free(hash->fh_col_table);
 
 #endif
-	free(hash->fh_table);
-	free(hash);
+	gasneti_free(hash->fh_table);
+	gasneti_free(hash);
 }
 
 

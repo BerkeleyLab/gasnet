@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.h                               $
- *     $Date: 2003/07/07 23:15:21 $
- * $Revision: 1.36 $
+ *     $Date: 2003/08/30 10:39:46 $
+ * $Revision: 1.36.2.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,48 +24,51 @@ BEGIN_EXTERNC
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 
+extern int gasneti_init_done; /*  true after init */
+extern int gasneti_attach_done; /*  true after attach */
+
 /*  safe memory allocation/deallocation */
-GASNET_INLINE_MODIFIER(_gasneti_malloc)
-void *_gasneti_malloc(size_t nbytes, char *curloc) {
-  void *ret = NULL;
-  gasnet_hold_interrupts();
-  ret = malloc(nbytes);
-  if_pf (ret == NULL)
-    gasneti_fatalerror("malloc(%d) failed: %s", nbytes, 
-      curloc == NULL ? "" : curloc);
-  gasnet_resume_interrupts();
-  return ret;
-}
 #ifdef DEBUG
-#define gasneti_malloc(nbytes)	_gasneti_malloc(nbytes, __FILE__ ":" _STRINGIFY(__LINE__))
+  extern void *_gasneti_malloc(size_t nbytes, char *curloc);
+  extern void _gasneti_free(void *ptr, char *curloc);
+  extern void *_gasneti_calloc(size_t N, size_t S, char *curloc);
+  #define gasneti_malloc(nbytes) _gasneti_malloc(nbytes, __FILE__ ":" _STRINGIFY(__LINE__))
+  #define gasneti_calloc(N,S)    _gasneti_calloc(N,S, __FILE__ ":" _STRINGIFY(__LINE__))
+  #define gasneti_free(ptr)	 _gasneti_free(ptr, __FILE__ ":" _STRINGIFY(__LINE__))
 #else
-#define gasneti_malloc(nbytes)	_gasneti_malloc(nbytes, NULL)
+  GASNET_INLINE_MODIFIER(gasneti_malloc)
+  void *gasneti_malloc(size_t nbytes) {
+    void *ret = NULL;
+    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    ret = malloc(nbytes);
+    if_pf (ret == NULL) 
+      gasneti_fatalerror("gasneti_malloc(%d) failed", nbytes);
+    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+    return ret;
+  }
+  GASNET_INLINE_MODIFIER(gasneti_free)
+  void gasneti_free(void *ptr) {
+    if_pf (ptr == NULL) return;
+    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    free(ptr);
+    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+  }
+  GASNET_INLINE_MODIFIER(gasneti_calloc)
+  void *gasneti_calloc(size_t N, size_t S) {
+    size_t nbytes = N*S;
+    void *ptr = gasneti_malloc(nbytes);
+    memset(ptr,0,nbytes);
+    return ptr;
+  }
 #endif
-GASNET_INLINE_MODIFIER(gasneti_free)
-void gasneti_free(void *ptr) {
-  gasnet_hold_interrupts();
-  free(ptr);
-  gasnet_resume_interrupts();
-}
-GASNET_INLINE_MODIFIER(_gasneti_malloc_inhandler)
-void *_gasneti_malloc_inhandler(size_t nbytes, char *curloc) {
-  void *ret = NULL;
-  ret = malloc(nbytes);
-  if_pf (ret == NULL)
-    gasneti_fatalerror("malloc_inhandler(%d) failed: %s", 
-      nbytes, curloc == NULL ? "" : curloc);
-  return ret;
-}
-#ifdef DEBUG
-#define gasneti_malloc_inhandler(nbytes) \
-         _gasneti_malloc_inhandler(nbytes, __FILE__ ":" _STRINGIFY(__LINE__))
-#else
-#define gasneti_malloc_inhandler(nbytes) _gasneti_malloc_inhandler(nbytes, NULL)
-#endif
-GASNET_INLINE_MODIFIER(gasneti_free_inhandler)
-void gasneti_free_inhandler(void *ptr) {
-  free(ptr);
-}
+/* Beware - in debug mode, 
+   gasneti_malloc/gasneti_calloc/gasneti_free are NOT
+   compatible with malloc/calloc/free
+   (freeing memory allocated from one using the other is likely to crash)
+ */
+#define malloc !!! ERROR: GASNet conduit code must use gasneti_malloc !!!
+#define calloc !!! ERROR: GASNet conduit code must use gasneti_calloc !!!
+#define free   !!! ERROR: GASNet conduit code must use gasneti_free   !!!
 /* ------------------------------------------------------------------------------------ */
 /* page alignment macros */
 #define GASNETI_ALIGNDOWN(p,P)    ((uintptr_t)(p)&~((uintptr_t)(P)-1))

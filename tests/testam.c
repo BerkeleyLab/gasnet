@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testmisc.c                             $
- *     $Date: 2003/05/24 02:17:00 $
- * $Revision: 1.3 $
+ *     $Date: 2003/08/30 10:39:57 $
+ * $Revision: 1.3.2.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -142,6 +142,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
                             TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
   MSG("running...");
 

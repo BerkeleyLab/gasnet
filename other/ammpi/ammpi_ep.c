@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_ep.c                                       $
- *     $Date: 2003/06/05 11:58:56 $
- * $Revision: 1.10 $
+ *     $Date: 2003/08/30 10:39:54 $
+ * $Revision: 1.10.2.1 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -59,6 +59,7 @@ static void AMMPI_InsertEndpoint(eb_t eb, ep_t ep) {
     int newsize = eb->cursize * 2;
     ep_t *newendpoints = (ep_t *)malloc(sizeof(ep_t)*newsize);
     memcpy(newendpoints, eb->endpoints, sizeof(ep_t)*eb->n_endpoints);
+    free(eb->endpoints);
     eb->endpoints = newendpoints;
     eb->cursize = newsize;
     }
@@ -169,6 +170,9 @@ static int AMMPI_FreeEndpointResource(ep_t ep) {
   assert(ep->translation);
   free(ep->translation);
   ep->translation = NULL;
+  assert(ep->pmpicomm);
+  free(ep->pmpicomm);
+  ep->pmpicomm = NULL;
   return TRUE;
   }
 /* ------------------------------------------------------------------------------------ */
@@ -223,7 +227,7 @@ static int AMMPI_initSendBufferPool(ammpi_sendbuffer_pool_t* pool, int count, in
   assert(pool && count > 0 && bufsize > 0);
   assert(bufsize % sizeof(int) == 0);
   pool->txHandle = (MPI_Request *)malloc(count*sizeof(MPI_Request));
-  pool->txBuf = (ammpi_buf_t**)malloc(count*sizeof(ammpi_buf_t**)); 
+  pool->txBuf = (ammpi_buf_t**)malloc(count*sizeof(ammpi_buf_t*)); 
   tmp = (char*)malloc(count*bufsize);
   pool->memBlocks = (char **)malloc(sizeof(char *));
   pool->tmpIndexArray = (int *)malloc(count * sizeof(int));
@@ -444,7 +448,7 @@ tryagain:
     int newnumBufs = pool->numBufs * 2;
     MPI_Request *newtxHandle = (MPI_Request *)malloc(newnumBufs*sizeof(MPI_Request));
     ammpi_buf_t**newtxBuf = (ammpi_buf_t**)malloc(newnumBufs*sizeof(ammpi_buf_t*));
-    char **newmemBlocks = (char **)malloc(sizeof(char *)*pool->numBlocks+1);
+    char **newmemBlocks = (char **)malloc(sizeof(char *)*(pool->numBlocks+1));
     char* newBlock = (char*)malloc(pool->numBufs*pool->bufSize);
     int * newtmpIndexArray = (int *)malloc(newnumBufs * sizeof(int));
     MPI_Status *newtmpStatusArray = (MPI_Status *)malloc(newnumBufs * sizeof(MPI_Status));

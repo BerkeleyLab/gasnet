@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2003/08/25 19:49:02 $
- * $Revision: 1.12.2.1 $
+ *     $Date: 2003/08/30 10:39:57 $
+ * $Revision: 1.12.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,8 +81,9 @@ uint64_t test_checksum(void *p, int numbytes) {
 #endif
 
 #ifdef GASNETI_THREADS
-  #define TEST_MAXTHREADS     256
-  #define TEST_SEGSZ	      (TEST_MAXTHREADS*64*1024)
+  #define TEST_MAXTHREADS	256
+  #define TEST_SEGZ_PER_THREAD	(64*1024)
+  #define TEST_SEGSZ		(TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
 #else
   #define TEST_MAXTHREADS     0
   #define TEST_SEGSZ          (64*1024)
@@ -97,13 +98,20 @@ uint64_t test_checksum(void *p, int numbytes) {
      (PAGESZ-(((uintptr_t)_hidden_seg)%PAGESZ)))))          
 #else
   static void *_test_getseg(gasnet_node_t node) {
-    gasnet_seginfo_t *si = malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
-    void *ptr;
-    GASNET_Safe(gasnet_getSegmentInfo(si, gasnet_nodes()));
-    assert(si[gasnet_mynode()].size >= TEST_SEGSZ && si[node].size >= TEST_SEGSZ);
-    ptr = si[node].addr;
-    free(si);
-    return ptr;
+    static gasnet_seginfo_t *si = NULL;
+    if (si == NULL) {
+      int i;
+      gasnet_seginfo_t *s = malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
+      GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
+      for (i=0; i < gasnet_nodes(); i++) {
+        assert(s[i].size >= TEST_SEGSZ);
+        #if GASNET_ALIGNED_SEGMENTS == 1
+          assert(s[i].addr == s[0].addr);
+        #endif
+      }
+      si = s;
+    }
+    return si[node].addr;
   }
   #define TEST_SEG(node) (_test_getseg(node))
 #endif

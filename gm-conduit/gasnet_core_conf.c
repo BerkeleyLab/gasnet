@@ -1,5 +1,5 @@
-/* $Id: gasnet_core_conf.c,v 1.5 2003/05/22 15:11:38 csbell Exp $
- * $Date: 2003/05/22 15:11:38 $
+/* $Id: gasnet_core_conf.c,v 1.5.2.1 2003/08/30 10:39:50 csbell Exp $
+ * $Date: 2003/08/30 10:39:50 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -34,6 +34,7 @@
 	} while (0)
 
 #ifdef GASNETC_HAVE_BNR
+#warning BNR support is untested (and probably broken)
 int
 gasnetc_getconf_BNR(void)
 {
@@ -113,7 +114,6 @@ gasnetc_getconf_sockets(void)
 	char	*id, *np, *board;
 	char	buffer[GASNETC_SOCKET_BUFSIZ];
 	char	*temp;
-	//char	temp[32];
 	int	sockfd;
 
 	unsigned int 	count, magic_number, master_port1, master_port2;
@@ -197,6 +197,19 @@ gasnetc_getconf_sockets(void)
 	/* get the GM node id */
 	if (gm_get_node_id (_gmc.port, &_gmc.my_id) != GM_SUCCESS)
 		RETURN_ERR(("%d: Can't get local GM node id", gasnetc_mynode));
+
+#ifdef GASNETC_GM_2
+	{
+		uint16_t	id = _gmc.my_id
+		
+	/* GM2 only stores local node ids, so a global one has to be
+	 * obtained */
+	if (gm_node_id_to_global_id
+	   (_gmc.port, port_id, &(_gmc.myport)) != GM_SUCCESS)
+		gasneti_fatalerror("Couldn't get GM global node id");
+#else
+#endif
+
 
 	/* allocate space for node mapping */
 	if (!gasnetc_alloc_nodemap(gasnetc_nodes))

@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v 1.12 2003/03/26 23:16:03 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v 1.12.10.1 2003/08/30 10:39:53 csbell Exp $
 # Description: Makefile for GASNet MPI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -113,17 +113,17 @@ tests:
 	@exit 1
 
 tests-seq: force libgasnet-mpi-seq.a mpi-seq.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests     \
+	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-seq \
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="mpi-seq.mak"
 
 tests-parsync: force libgasnet-mpi-parsync.a mpi-parsync.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests     \
+	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="mpi-parsync.mak"
 
 tests-par: force libgasnet-mpi-par.a mpi-par.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests     \
+	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="mpi-par.mak"
 

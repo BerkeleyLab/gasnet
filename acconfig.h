@@ -1,6 +1,6 @@
 /*   $Archive:: /Ti/GASNet/acconfig.h                                      $ */
-/*      $Date: 2003/06/17 03:07:43 $ */
-/*  $Revision: 1.16 $ */
+/*      $Date: 2003/08/30 10:39:46 $ */
+/*  $Revision: 1.16.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -51,6 +51,7 @@
 
 /* auto-detected mmap data page size */
 #undef GASNETI_PAGESIZE
+#undef GASNETI_PAGESHIFT
 
 /* various OS and machine definitions */
 #undef UNIX

@@ -1,6 +1,6 @@
-/* $Id: gasnet_extended_op.c,v 1.3 2003/01/04 15:17:25 csbell Exp $
- * $Date: 2003/01/04 15:17:25 $
- * $Revision: 1.3 $
+/* $Id: gasnet_extended_op.c,v 1.3.10.1 2003/08/30 10:39:50 csbell Exp $
+ * $Date: 2003/08/30 10:39:50 $
+ * $Revision: 1.3.10.1 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -43,8 +43,7 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 			    "of explicit handles (limit=65535)");
 		thread->eop_num_bufs++;
 		buf = (gasnete_eop_t *)
-		    gasneti_malloc(256*sizeof(gasnete_eop_t));
-		memset(buf, 0, 256*sizeof(gasnete_eop_t));
+		    gasneti_calloc(256, sizeof(gasnete_eop_t));
 		for (i=0; i < 256; i++) {
 			gasnete_eopaddr_t addr;
 			addr.bufferidx = bufidx;

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core_internal.h              $
- *     $Date: 2003/06/29 02:33:07 $
- * $Revision: 1.10 $
+ *     $Date: 2003/08/30 10:39:53 $
+ * $Revision: 1.10.2.1 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,8 +22,10 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define gasnetc_boundscheck(node,ptr,nbytes) gasneti_boundscheck(node,ptr,nbytes,c)
 
 extern gasneti_mutex_t gasnetc_AMlock; /*  protect access to AMMPI */
-#define AMLOCK()   gasneti_mutex_lock(&gasnetc_AMlock);
-#define AMUNLOCK() gasneti_mutex_unlock(&gasnetc_AMlock);
+#define AMLOCK()             gasneti_mutex_lock(&gasnetc_AMlock)
+#define AMUNLOCK()           gasneti_mutex_unlock(&gasnetc_AMlock)
+#define AM_ASSERT_LOCKED()   gasneti_mutex_assertlocked(&gasnetc_AMlock)
+#define AM_ASSERT_UNLOCKED() gasneti_mutex_assertlocked(&gasnetc_AMlock)
 
 /* ------------------------------------------------------------------------------------
  *  AM Error Handling

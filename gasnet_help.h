@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2003/04/05 06:39:38 $
- * $Revision: 1.14 $
+ *     $Date: 2003/08/30 10:39:46 $
+ * $Revision: 1.14.10.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,6 +49,16 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
                            ((uint8_t*)gasnet##T##_seginfo[_node].addr) + gasnet##T##_seginfo[_node].size,          \
                            gasneti_current_loc);                                                                   \
     } while(0)
+#endif
+
+#ifdef DEBUG
+  extern void gasneti_checkinit();
+  extern void gasneti_checkattach();
+  #define GASNETI_CHECKINIT()    gasneti_checkinit()
+  #define GASNETI_CHECKATTACH()  gasneti_checkattach()
+#else
+  #define GASNETI_CHECKINIT()
+  #define GASNETI_CHECKATTACH()
 #endif
 
 /* high-performance timer library */

@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/07/07 23:15:21 $
-# $Revision: 1.74 $
+#     $Date: 2003/08/30 10:39:46 $
+# $Revision: 1.74.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.74 $)
+AC_REVISION($Revision: 1.74.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -274,6 +274,19 @@ fi
 
 if test "$GASNETI_PAGESIZE" != ""; then
   AC_DEFINE_UNQUOTED(GASNETI_PAGESIZE,$GASNETI_PAGESIZE)
+
+  case "$GASNETI_PAGESIZE" in
+    1024)   GASNETI_PAGESHIFT=10 ;;
+    2048)   GASNETI_PAGESHIFT=11 ;;
+    4096)   GASNETI_PAGESHIFT=12 ;;
+    8192)   GASNETI_PAGESHIFT=13 ;;
+    16384)  GASNETI_PAGESHIFT=14 ;;
+    32768)  GASNETI_PAGESHIFT=15 ;;
+    65536)  GASNETI_PAGESHIFT=16 ;;
+    131072) GASNETI_PAGESHIFT=17 ;;
+    *) AC_ERROR(unknown GASNETI_PAGESIZE=$GASNETI_PAGESIZE) ;;
+  esac
+  AC_DEFINE_UNQUOTED(GASNETI_PAGESHIFT,$GASNETI_PAGESHIFT)
 fi
 
 ########################################################################
@@ -386,6 +399,13 @@ case "$target_os" in
 esac
 
 GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DUNIX"
+
+# Find the appropriate OS suffix for executables
+case "$target_os" in
+  cygwin*)    EXESUFFIX='.exe' ;;
+  *)          EXESUFFIX='' ;;
+esac
+AC_SUBST(EXESUFFIX)
 
 ########################################################################
 ##
@@ -758,7 +778,15 @@ if test $have_elan = yes; then
     #include <stdlib.h>
     #include <elan/elan.h>
   ], [
-    elan_baseInit();
+   #ifdef QSNETLIBS_VERSION_CODE
+     #if QSNETLIBS_VERSION_CODE >= QSNETLIBS_VERSION(1,4,10)
+       elan_baseInit(0);
+     #else
+       elan_baseInit();
+     #endif
+   #else
+     elan_baseInit();
+   #endif
   ], [ elan_test_worked=yes ], [ elan_test_worked=no ] )
   CFLAGS="$OLDCFLAGS"
   LIBS="$OLDLIBS"
@@ -778,7 +806,7 @@ if test $have_elan = yes; then
       subver=0
     fi
     AC_MSG_RESULT("${majorver}.${minorver}.${subver}")
-    ELAN_FLAGS="-DELAN_VERSION_MAJOR=${majorver} -DELAN_VERSION_MINOR=${minorver}"
+    ELAN_FLAGS="-DELAN_VERSION_MAJOR=${majorver} -DELAN_VERSION_MINOR=${minorver} -DELAN_VERSION_SUB=${subver}"
   else
     AC_MSG_RESULT(no)
     ELAN_FLAGS=""

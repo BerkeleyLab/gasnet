@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.c                                     $
- *     $Date: 2003/06/05 11:58:56 $
- * $Revision: 1.9 $
+ *     $Date: 2003/08/30 10:39:54 $
+ * $Revision: 1.9.2.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -320,12 +320,20 @@ void AMMPI_SPMDHandleControlMessage(void *token, int32_t messageType, int32_t me
 /* ------------------------------------------------------------------------------------ 
  *  process termination
  * ------------------------------------------------------------------------------------ */
+static void (*AMMPI_SPMDExitCallback)(int) = NULL;
+extern int AMMPI_SPMDSetExitCallback(void (*fp)(int)) {
+  AMMPI_SPMDExitCallback = fp;
+  return AM_OK;
+}
+
 static int AMMPI_SPMDShutdown(int exitcode) {
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
   { static int exitInProgress = FALSE;
     if (exitInProgress) abort(); 
     exitInProgress = TRUE;
   }
+
+  if (AMMPI_SPMDExitCallback) (*AMMPI_SPMDExitCallback)(exitcode);
 
   flushStreams("AMMPI_SPMDExit");
 

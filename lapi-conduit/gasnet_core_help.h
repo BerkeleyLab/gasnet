@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_help.h             $
- *     $Date: 2003/04/28 20:12:41 $
- * $Revision: 1.7 $
+ *     $Date: 2003/08/30 10:39:51 $
+ * $Revision: 1.7.4.1 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,9 +34,9 @@ BEGIN_EXTERNC
  * adjusted.
  */
 #if defined(__64BIT__)
-#define GASNETC_UHDR_SIZE 908
+#define GASNETC_UHDR_SIZE 912
 #else
-#define GASNETC_UHDR_SIZE 944
+#define GASNETC_UHDR_SIZE 912
 #endif
 
 /* The max size of a medium message.  Can really be arbitrary size

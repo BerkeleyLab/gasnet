@@ -5,10 +5,9 @@
 
 #ifdef FIREHOSE_PAGE
 
-#define FH_MAX_REGION_BUCKETS	4096
-#define FH_MAX_REGION_BUCKETS_SIZE					\
-		(FH_MAX_REGION_BUCKETS*sizeof(firehose_region_t))
-#define FH_MAX_REGIONBYTES	(FH_MAX_REGION_BUCKETS*FH_BUCKET_SIZE)
+/* MAX_REGION_PER_REQUEST sets an upper bound on the amount of
+ * firehose_region_t that can made in a single request */
+#define FH_MAX_REGIONS_PER_REQUEST	8192
 
 #ifndef FH_MAXVICTIM_TO_PHYSMEM_RATIO
 #define FH_MAXVICTIM_TO_PHYSMEM_RATIO	0.25
@@ -52,7 +51,7 @@ fhi_RegionPool_t;
  *
  * (5+3+1)/2 = 5
  */
-#define FH_BUCKETS_NUM_COALESCE(x)	(((x)+1)>>2)
+#define FH_BUCKETS_NUM_COALESCE(x)	(((x)+1)>>1)
 
 /* Internal, firehose-page only functions */
 int	fhi_AcquireLocalRegionsList(gasnet_node_t node, 
@@ -110,8 +109,8 @@ gasneti_mutex_t		fh_pollq_lock = GASNETI_MUTEX_INITIALIZER;
  * firehose to use gasneti_malloc() in the less common case that polling is
  * required to recover some buckets.
  */
-static uintptr_t		fh_temp_buckets[FH_MAX_REGIONBYTES];
-static fh_bucket_t *		fh_temp_bucket_ptrs[FH_MAX_REGIONBYTES];
+static uintptr_t		fh_temp_buckets[FH_MAX_REGIONS_PER_REQUEST];
+static fh_bucket_t *		fh_temp_bucket_ptrs[FH_MAX_REGIONS_PER_REQUEST];
 
 fh_fifoq_t	fh_LocalFifo = FH_TAILQ_HEAD_INITIALIZER(fh_LocalFifo);
 fh_fifoq_t	*fh_RemoteNodeFifo = NULL;
@@ -216,6 +215,7 @@ fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 
 		if (FH_IS_LOCAL_FIFO(entry)) {
 			FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
+			assert(FH_NODE(entry) == gasnet_mynode());
 			FH_REFCSET(FH_REFCOUNT(entry), loc, !loc);
 			fhc_LocalOnlyBucketsPinned += loc;
 			FH_SET_USED(entry);
@@ -223,6 +223,7 @@ fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 			return 1;
 		}
 		else {
+			FH_SET_USED(entry);
 			FH_TRACE_BUCKET(entry, ACQUIRE);
 			if (loc) {
 				FH_LREFCINC(FH_REFCOUNT(entry));
@@ -247,6 +248,7 @@ fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 
 		if (FH_IS_REMOTE_FIFO(entry)) {
 			FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
+			assert(FH_NODE(entry) != gasnet_mynode());
 			fhc_RemoteVictimFifoBuckets[node]--;
 			FH_REFCSET(FH_REFCOUNT(entry), 0, 1);
 			FH_SET_USED(entry);
@@ -295,12 +297,14 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 		if (FH_REFC_IS_VICTIM(FH_REFCOUNT(entry))) {
 			FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
 			assert(FH_IS_LOCAL_FIFO(entry));
+			assert(FH_NODE(FH_TAILQ_FIRST(&fh_LocalFifo)) == gasnet_mynode());
 			if (loc)
 				fhc_LocalOnlyBucketsPinned--;
 			FH_TRACE_BUCKET(entry, ADDFIFO);
 			return 0;
 		}
 		else {
+			FH_SET_USED(entry);
 			if (FH_RREFC(FH_REFCOUNT(entry)) == 0 && !loc)
 				fhc_LocalOnlyBucketsPinned++;
 
@@ -320,6 +324,7 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 		if (refc == 0) {
 			FH_TAILQ_INSERT_TAIL(
 			    &fh_RemoteNodeFifo[node], entry);
+			assert(FH_NODE(FH_TAILQ_FIRST(&fh_RemoteNodeFifo[node])) != gasnet_mynode());
 			fhc_RemoteVictimFifoBuckets[node]++;
 			FH_TRACE_BUCKET(entry, ADDFIFO);
 			return 0;
@@ -787,7 +792,6 @@ fhi_AcquireLocalRegionsList(gasnet_node_t node, firehose_region_t *region,
  * We process each region in the reverse order in order to ease coalescing when
  * popping victims from the victim FIFO.
  *
- * XXX rpool can be NULL.
  */
 void
 fhi_ReleaseLocalRegionsList(gasnet_node_t node, firehose_region_t *reg, 
@@ -802,10 +806,12 @@ fhi_ReleaseLocalRegionsList(gasnet_node_t node, firehose_region_t *reg,
 	for (i = 0; i < reg_num; i++) {
 		end_addr = reg[i].addr + reg[i].len - 1;
 				
- 		FH_FOREACH_BUCKET(reg[i].addr, end_addr, bucket_addr) 
+ 		FH_FOREACH_BUCKET_REV(reg[i].addr, end_addr, bucket_addr) 
 		{
 			bd = fh_bucket_lookup(gasnet_mynode(), bucket_addr);
+
 			assert(bd != NULL);
+			assert(!FH_IS_LOCAL_FIFO(bd));
 
 			fh_bucket_release(node, bd);
 		}
@@ -871,6 +877,7 @@ int
 fhi_FreeVictimLocal(int buckets, firehose_region_t *reg)
 {
 	assert(buckets <= fhc_LocalVictimFifoBuckets);
+	abort();
 	return _fhi_FreeVictim(buckets, reg, &fh_LocalFifo);
 }
 
@@ -882,6 +889,7 @@ int
 fhi_FreeVictimRemote(gasnet_node_t node, int buckets, firehose_region_t *reg)
 {
 	assert(buckets <= fhc_RemoteVictimFifoBuckets[node]);
+	abort();
 	return _fhi_FreeVictim(buckets, reg, &fh_RemoteNodeFifo[node]);
 }
 
@@ -1076,6 +1084,7 @@ fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 			 * in the temp array */
 			fh_temp_bucket_ptrs[numpend] = bd;
 			numpend++;
+			assert(numpend < FH_MAX_REGIONS_PER_REQUEST);
 			FH_UNSET_REMOTE_PENDING(bd);
 		}
 	}
@@ -1216,6 +1225,10 @@ fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req,
 	assert(node != gasnet_mynode());
 
 	b_num = FH_NUM_BUCKETS(reg->addr, reg->len);
+
+	/* Make sure the number of buckets doesn't exceed the maximum number of
+	 * regions required to describe these buckets */
+	assert(b_num < FH_MAX_REGIONS_PER_REQUEST);
 
  	FH_FOREACH_BUCKET(reg->addr, end_addr, bucket_addr) {
 		bd = fh_bucket_lookup(node, bucket_addr);

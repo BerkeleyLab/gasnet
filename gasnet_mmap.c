@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_mmap.c                   $
- *     $Date: 2003/05/25 02:06:20 $
- * $Revision: 1.15 $
+ *     $Date: 2003/08/30 10:39:46 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -290,7 +290,7 @@ void gasneti_segmentInit(uintptr_t *MaxLocalSegmentSize,
   assert(numnodes);
   gasneti_nodes = numnodes;
 
-  gasneti_segexch = (gasneti_segexch_t *)gasneti_malloc_inhandler(gasneti_nodes*sizeof(gasneti_segexch_t));
+  gasneti_segexch = (gasneti_segexch_t *)gasneti_malloc(gasneti_nodes*sizeof(gasneti_segexch_t));
 
   #ifdef HAVE_MMAP
     gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
@@ -472,11 +472,11 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   }
   #else /* !HAVE_MMAP */
     /* for the T3E, and other platforms which don't support mmap */
-    segbase = malloc(segsize);
+    segbase = gasneti_malloc(segsize);
     while (!segbase) {
       segsize = GASNETI_PAGE_ALIGNDOWN(segsize/2);
       if (segsize == 0) break; 
-      segbase = malloc(segsize + GASNET_PAGESIZE);
+      segbase = gasneti_malloc(segsize + GASNET_PAGESIZE);
     }
     if (segbase) segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
   #endif

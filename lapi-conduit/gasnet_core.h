@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/04/28 20:12:41 $
- * $Revision: 1.6 $
+ *     $Date: 2003/08/30 10:39:51 $
+ * $Revision: 1.6.4.1 $
  * Description: GASNet header for lapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,16 +24,6 @@
 #include <gasnet_core_help.h>
 
 BEGIN_EXTERNC
-
-#ifdef DEBUG
-  void gasnetc_checkinit();
-  void gasnetc_checkattach();
-  #define GASNETC_CHECKINIT()    gasnetc_checkinit()
-  #define GASNETC_CHECKATTACH()  gasnetc_checkattach()
-#else
-  #define GASNETC_CHECKINIT()
-  #define GASNETC_CHECKATTACH()
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -65,13 +55,13 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 
 GASNET_INLINE_MODIFIER(gasnet_mynode)
 gasnet_node_t gasnet_mynode() {
-  GASNETC_CHECKINIT();
+  GASNETI_CHECKINIT();
   return gasnetc_mynode;
 }
  
 GASNET_INLINE_MODIFIER(gasnet_nodes)
 gasnet_node_t gasnet_nodes() {
-  GASNETC_CHECKINIT();
+  GASNETI_CHECKINIT();
   return gasnetc_nodes;
 }
 
@@ -79,7 +69,7 @@ gasnet_node_t gasnet_nodes() {
 
 GASNET_INLINE_MODIFIER(gasnet_getenv)
 char *gasnet_getenv(const char *s) {
-  GASNETC_CHECKINIT();
+  GASNETI_CHECKINIT();
   return gasneti_getenv(s);
 }
 

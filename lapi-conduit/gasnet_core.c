@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/11 04:45:33 $
- * $Revision: 1.32 $
+ *     $Date: 2003/08/30 10:39:51 $
+ * $Revision: 1.32.2.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,17 +53,6 @@ gasnet_node_t gasnetc_nodes = 0;
 uintptr_t gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t gasnetc_MaxGlobalSegmentSize = 0;
 gasnet_seginfo_t *gasnetc_seginfo = NULL;
-
-static int gasnetc_init_done = 0; /*  true after init */
-static int gasnetc_attach_done = 0; /*  true after attach */
-void gasnetc_checkinit() {
-    if (!gasnetc_init_done)
-	gasneti_fatalerror("Illegal call to GASNet before gasnet_init() initialization");
-}
-void gasnetc_checkattach() {
-    if (!gasnetc_attach_done)
-	gasneti_fatalerror("Illegal call to GASNet before gasnet_attach() initialization");
-}
 
 /* -------------------------------------------------------------------
  * Begin: LAPI specific variables
@@ -157,7 +146,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     /*  check system sanity */
     gasnetc_check_config();
 
-    if (gasnetc_init_done) 
+    if (gasneti_init_done) 
 	GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
 
     if (getenv("GASNET_FREEZE")) gasneti_freezeForDebugger();
@@ -246,8 +235,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 
     /* collect remote addresses of header handler function */
-    gasnetc_remote_req_hh = (void**)gasneti_malloc_inhandler(num_tasks*sizeof(void*));
-    gasnetc_remote_reply_hh = (void**)gasneti_malloc_inhandler(num_tasks*sizeof(void*));
+    gasnetc_remote_req_hh = (void**)gasneti_malloc(num_tasks*sizeof(void*));
+    gasnetc_remote_reply_hh = (void**)gasneti_malloc(num_tasks*sizeof(void*));
     GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context,
 				     (void*)&gasnetc_lapi_AMreq_hh,
 				     gasnetc_remote_req_hh));
@@ -255,7 +244,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 				     (void*)&gasnetc_lapi_AMreply_hh,
 				     gasnetc_remote_reply_hh));
 #if GASNETC_AM_EXIT
-    gasnetc_remote_amexit_hh = (void**)gasneti_malloc_inhandler(num_tasks*sizeof(void*));
+    gasnetc_remote_amexit_hh = (void**)gasneti_malloc(num_tasks*sizeof(void*));
     GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context,
 				     (void*)&gasnetc_amexit_hh,
 				     gasnetc_remote_amexit_hh));
@@ -298,7 +287,7 @@ static int gasnetc_init(int *argc, char ***argv) {
      */
     atexit(gasnetc_atexit);
 
-    gasnetc_init_done = 1;  
+    gasneti_init_done = 1;  
 
     return GASNET_OK;
 }
@@ -312,11 +301,11 @@ extern int gasnet_init(int *argc, char ***argv) {
 }
 
 extern uintptr_t gasnetc_getMaxLocalSegmentSize() {
-    GASNETC_CHECKINIT();
+    GASNETI_CHECKINIT();
     return gasnetc_MaxLocalSegmentSize;
 }
 extern uintptr_t gasnetc_getMaxGlobalSegmentSize() {
-    GASNETC_CHECKINIT();
+    GASNETI_CHECKINIT();
     return gasnetc_MaxGlobalSegmentSize;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -387,9 +376,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
                             numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
-    if (!gasnetc_init_done) 
+    if (!gasneti_init_done) 
 	GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
-    if (gasnetc_attach_done) 
+    if (gasneti_attach_done) 
 	GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
 
     /*  check argument sanity */
@@ -462,9 +451,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* ------------------------------------------------------------------------------------ */
     /*  register segment  */
 
-    /* use gasneti_malloc_inhandler during bootstrapping because we can't assume the 
-       hold/resume interrupts functions are operational yet */
-    gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc_inhandler(gasnetc_nodes*sizeof(gasnet_seginfo_t));
+    gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
 #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
     if (segsize == 0) segbase = NULL; /* no segment */
@@ -495,7 +482,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ------------------------------------------------------------------------------------ */
     /*  primary attach complete */
-    gasnetc_attach_done = 1;
+    gasneti_attach_done = 1;
     gasnetc_bootstrapBarrier();
 
     GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
@@ -787,9 +774,8 @@ extern void gasnetc_exit(int exitcode) {
   =======================
 */
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
     assert(gasnetc_seginfo && seginfo_table);
-    if (!gasnetc_attach_done) GASNETI_RETURN_ERR(NOT_INIT);
     if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
     memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
     memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
@@ -803,7 +789,7 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
     gasnet_node_t sourceid;
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
     if (!token) GASNETI_RETURN_ERRR(BAD_ARG,"bad token");
     if (!srcindex) GASNETI_RETURN_ERRR(BAD_ARG,"bad src ptr");
 
@@ -817,7 +803,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 
 extern int gasnetc_AMPoll() {
     int retval;
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     /* Check if any request handlers are queued for processing
      * and execute all on the list
@@ -874,8 +860,9 @@ extern int gasnetc_AMRequestShortM(
     gasnetc_msg_t  *msg = &token.buf.msg;
     va_list argptr;
 
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
     if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
     GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
 
     msg->handlerId = handler;
@@ -934,8 +921,10 @@ extern int gasnetc_AMRequestMediumM(
     int udata_packed = 0;
     va_list argptr;
 
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
     if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
     GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
 
     msg->handlerId = handler;
@@ -971,7 +960,7 @@ extern int gasnetc_AMRequestMediumM(
 	if (udata_packed) {
 	    destloc = udata_start;
 	} else {
-	    destloc = gasneti_malloc_inhandler(nbytes > 0 ? nbytes : 1);
+	    destloc = gasneti_malloc(nbytes > 0 ? nbytes : 1);
 	    memcpy(destloc,source_addr,nbytes);
 	}
 	RUN_HANDLER_MEDIUM(pfn,&token,&msg->args[0],numargs,destloc,nbytes);
@@ -1014,9 +1003,11 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     int udata_packed = 0;
     va_list argptr;
 
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
     gasnetc_boundscheck(dest, dest_addr, nbytes);
     if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    if_pf (nbytes > gasnet_AMMaxLongRequest()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
     if_pf (((uintptr_t)dest_addr) < ((uintptr_t)gasnetc_seginfo[dest].addr) ||
 	   ((uintptr_t)dest_addr) + nbytes > 
            ((uintptr_t)gasnetc_seginfo[dest].addr) + gasnetc_seginfo[dest].size) 
@@ -1091,10 +1082,12 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     int udata_packed = 0;
     int retval;
     va_list argptr;
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
   
     gasnetc_boundscheck(dest, dest_addr, nbytes);
     if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    if_pf (nbytes > gasnet_AMMaxLongRequest()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
     if_pf (((uintptr_t)dest_addr) < ((uintptr_t)gasnetc_seginfo[dest].addr) ||
 	   ((uintptr_t)dest_addr) + nbytes > 
            ((uintptr_t)gasnetc_seginfo[dest].addr) + gasnetc_seginfo[dest].size) 
@@ -1180,6 +1173,7 @@ extern int gasnetc_AMReplyShortM(
     int token_len, i, cur_cntr;
 
     va_list argptr;
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
     GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);
     va_start(argptr, numargs); /*  pass in last argument */
 
@@ -1242,6 +1236,8 @@ extern int gasnetc_AMReplyMediumM(
     int udata_packed = 0;
     
     va_list argptr;
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
     GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
 
     /* we can re-use the token passed into us.  It was allocated in the
@@ -1277,7 +1273,7 @@ extern int gasnetc_AMReplyMediumM(
 	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
 	void *destloc;
 	if (nbytes > udata_avail) {
-	    destloc = gasneti_malloc_inhandler(nbytes > 0 ? nbytes : 1);
+	    destloc = gasneti_malloc(nbytes > 0 ? nbytes : 1);
 	    memcpy(destloc,source_addr,nbytes);
 	} else {
 	    destloc = udata_start;
@@ -1328,6 +1324,8 @@ extern int gasnetc_AMReplyLongM(
     if (retval != GASNET_OK) GASNETI_RETURN(retval);
     gasnetc_boundscheck(dest, dest_addr, nbytes);
     if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
+    assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+    if_pf (nbytes > gasnet_AMMaxLongReply()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
     if_pf (((uintptr_t)dest_addr) < ((uintptr_t)gasnetc_seginfo[dest].addr) ||
 	   ((uintptr_t)dest_addr) + nbytes > 
            ((uintptr_t)gasnetc_seginfo[dest].addr) + gasnetc_seginfo[dest].size) 
@@ -1414,7 +1412,7 @@ extern int gasnetc_AMReplyLongM(
  */
 #if GASNETC_USE_IBH
 extern void gasnetc_hold_interrupts() {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     /* Check to see of interrupts are already being held */
     {
@@ -1429,7 +1427,7 @@ extern void gasnetc_hold_interrupts() {
     /* (###) add code here to disable handler interrupts for _this_ thread */
 }
 extern void gasnetc_resume_interrupts() {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     /* Check to insure that interrupts are being held */
     {
@@ -1470,7 +1468,7 @@ extern void gasnetc_resume_interrupts() {
 */
 
 extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     {	int retval = gasnetc_spinlock_init(&(hsl->lock));
     if (retval) 
@@ -1481,7 +1479,7 @@ extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
 }
 
 extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     {	int retval = gasnetc_spinlock_destroy(&(hsl->lock));
     if (retval) 
@@ -1492,7 +1490,7 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
 }
 
 extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     { int retval; 
 #if defined(STATS) || defined(TRACE)
@@ -1515,7 +1513,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 }
 
 extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
-    GASNETC_CHECKATTACH();
+    GASNETI_CHECKATTACH();
 
     /* (###) conduits with interrupt-based handler dispatch need to add code here to 
        re-enable handler interrupts on _this_ thread, (if this is the outermost
@@ -1598,7 +1596,7 @@ void gasnetc_lapi_exchange(void *src, size_t len, void *dest)
     /* First, need to determine address of dest on each node,
      * Note that this is a collective operation.
      */
-    dest_addr_tab = gasneti_malloc_inhandler(num_nodes*sizeof(void*));
+    dest_addr_tab = gasneti_malloc(num_nodes*sizeof(void*));
     GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context,dest,dest_addr_tab));
     
     /* Now, put my src value into all remote dest arrays */
@@ -1749,7 +1747,7 @@ void* gasnetc_lapi_AMreply_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 	} else {
 	    /* data payload not in uhdr, alloc space of it */
 	    assert( msg->dataLen == *msg_len);
-	    destloc = gasneti_malloc_inhandler( *msg_len > 0 ? *msg_len : 1 );
+	    destloc = gasneti_malloc( *msg_len > 0 ? *msg_len : 1 );
 	    msg->destLoc = (uintptr_t)destloc;
 	}
 	break;
@@ -1829,7 +1827,7 @@ void* gasnetc_lapi_AMreq_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
 	    is_ready = 1;
 	} else {
 	    assert( msg->dataLen == *msg_len);
-	    destloc = gasneti_malloc_inhandler( *msg_len > 0 ? *msg_len : 1 );
+	    destloc = gasneti_malloc( *msg_len > 0 ? *msg_len : 1 );
 	    msg->destLoc = (uintptr_t)destloc;
 	}
 	break;
@@ -2067,30 +2065,22 @@ int gasnetc_uhdr_more(int want)
     /* NOTE: assumes lock already held */
 
     int i;
-#if 0
-    gasnetc_token_t *free = (gasnetc_token_t*)gasneti_malloc_inhandler(want * sizeof(gasnetc_token_t));
-#else
-    gasnetc_token_t *free = (gasnetc_token_t*)malloc(want * sizeof(gasnetc_token_t));
-#endif
+    gasnetc_token_t *freetoks = (gasnetc_token_t*)gasneti_malloc(want * sizeof(gasnetc_token_t));
     assert(gasnetc_uhdr_freelist.head == NULL);
-    while (free == NULL) {
+    while (freetoks == NULL) {
 	if (want <= 1) {
 	    return 0;
 	} else {
 	    want /= 2;
 	}
-#if 0
-	free = (gasnetc_token_t*)gasneti_malloc_inhandler(want * sizeof(gasnetc_token_t));
-#else
-	free = (gasnetc_token_t*)malloc(want * sizeof(gasnetc_token_t));
-#endif
+	freetoks = (gasnetc_token_t*)gasneti_malloc(want * sizeof(gasnetc_token_t));
     }
 
     /* link them onto freelist */
     for (i = 0; i < want; i++) {
-	free->next = gasnetc_uhdr_freelist.head;
-	gasnetc_uhdr_freelist.head = free;
-	free++;
+	freetoks->next = gasnetc_uhdr_freelist.head;
+	gasnetc_uhdr_freelist.head = freetoks;
+	freetoks++;
     }
     gasnetc_uhdr_freelist.numfree += want;
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_tools.h                                   $
- *     $Date: 2003/05/22 09:21:20 $
- * $Revision: 1.7 $
+ *     $Date: 2003/08/30 10:39:46 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,6 +60,17 @@
 #define gasnett_sched_yield()     gasneti_sched_yield() 
 
 #define GASNETT_IDENT(identName, identText) GASNETI_IDENT(identName, identText)
+
+#if defined(GASNET_PAGESIZE)
+  #define GASNETT_PAGESIZE GASNET_PAGESIZE
+#elif defined(GASNETI_PAGESIZE)
+  #define GASNETT_PAGESIZE GASNETI_PAGESIZE
+#endif
+
+#if defined(GASNETI_PAGESHIFT)
+  #define GASNETT_PAGESHIFT GASNETI_PAGESHIFT
+#endif
+
 
 #undef _IN_GASNET_TOOLS_H
 #endif

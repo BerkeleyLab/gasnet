@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2003/08/04 11:06:49 $
- * $Revision: 1.34.2.1 $
+ *     $Date: 2003/08/30 10:39:46 $
+ * $Revision: 1.34.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,15 +41,30 @@ GASNETI_IDENT(gasneti_IdentString_SegConfig, "$GASNetSegment: GASNET_SEGMENT_" G
 /* embed a string with complete configuration info to support versioning checks */
 GASNETI_IDENT(gasneti_IdentString_libraryConfig, "$GASNetConfig: (libgasnet.a) " GASNET_CONFIG_STRING " $");
 
+
+int gasneti_init_done = 0; /*  true after init */
+int gasneti_attach_done = 0; /*  true after attach */
+extern void gasneti_checkinit() {
+  if (!gasneti_init_done)
+    gasneti_fatalerror("Illegal call to GASNet before gasnet_init() initialization");
+}
+extern void gasneti_checkattach() {
+   gasneti_checkinit();
+   if (!gasneti_attach_done)
+    gasneti_fatalerror("Illegal call to GASNet before gasnet_attach() initialization");
+}
+
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_fatalerror(char *msg, ...) {
   va_list argptr;
   char expandedmsg[255];
 
+  strcpy(expandedmsg, "*** GASNet FATAL ERROR: ");
+  strcat(expandedmsg, msg);
+  strcat(expandedmsg, "\n");
   va_start(argptr, msg); /*  pass in last argument */
-  sprintf(expandedmsg, "*** GASNet FATAL ERROR: %s\n", msg);
-  vfprintf(stderr, expandedmsg, argptr);
-  fflush(stderr);
+    vfprintf(stderr, expandedmsg, argptr);
+    fflush(stderr);
   va_end(argptr);
 
   abort();
@@ -248,7 +263,7 @@ static void gasneti_serializeEnvironment(uint8_t **pbuf, int *psz) {
     totalEnvSize += strlen(environ[i]) + 1;
   totalEnvSize++;
 
-  buf = (uint8_t *)malloc(totalEnvSize);
+  buf = (uint8_t *)gasneti_malloc(totalEnvSize);
   p = buf;
   p[0] = 0;
   for(i = 0; environ[i]; i++) {
@@ -294,7 +309,7 @@ extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t
   myenvdesc.sz = sz;
   myenvdesc.checksum = checksum;
 
-  allenvdesc = malloc(numnodes*sizeof(gasneti_envdesc_t));
+  allenvdesc = gasneti_malloc(numnodes*sizeof(gasneti_envdesc_t));
   /* gather environment description from all nodes */
   (*exchangefn)(&myenvdesc, sizeof(gasneti_envdesc_t), allenvdesc);
 
@@ -314,24 +329,25 @@ extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t
       }
     }
     if (identical) { /* node environments all identical - don't bother to propagate */
-      free(allenvdesc);
+      gasneti_free(allenvdesc);
+      gasneti_free(myenv);
       return;
     } else {
       int envsize = rootdesc.sz;
-      gasneti_globalEnv = malloc(envsize);
+      gasneti_globalEnv = gasneti_malloc(envsize);
       if (broadcastfn) {
         (*broadcastfn)(myenv, envsize, gasneti_globalEnv, rootid);
       } else {
         /* this is wasteful of memory and bandwidth, and non-scalable */
-        char *tmp = malloc(envsize*numnodes);
+        char *tmp = gasneti_malloc(envsize*numnodes);
         memcpy(tmp+mynode*envsize, myenv, sz);
         (*exchangefn)(tmp+mynode*envsize, envsize, tmp);
         memcpy(gasneti_globalEnv, tmp+rootid*envsize, envsize);
-        free(tmp);
+        gasneti_free(tmp);
       }
       assert(gasneti_checksum(gasneti_globalEnv,envsize) == rootdesc.checksum);
-      free(allenvdesc);
-      free(myenv);
+      gasneti_free(allenvdesc);
+      gasneti_free(myenv);
       return;
     }
   }
@@ -902,3 +918,95 @@ extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gas
 /* ------------------------------------------------------------------------------------ */
 #define GASNETI_GASNET_INTERNAL_C
 #include "gasnet_mmap.c"
+/* ------------------------------------------------------------------------------------ */
+/* Debug memory management
+   debug memory format:
+  | allocdesc (pad to 8 bytes) | data sz | BEGINPOST | <user data> | ENDPOST |
+                               ptr returned by malloc ^
+ */
+#ifdef DEBUG
+  static uint64_t gasneti_memalloc_cnt = 0;
+  static size_t   gasneti_memalloc_maxbytes = 0;
+  static uintptr_t gasneti_memalloc_maxloc = 0;
+  static gasneti_mutex_t gasneti_memalloc_lock = GASNETI_MUTEX_INITIALIZER;
+  #define GASNETI_MEM_BEGINPOST   ((uint32_t)0xDEADBABE)
+  #define GASNETI_MEM_ENDPOST     ((uint32_t)0xCAFED00D)
+  #define GASNETI_MEM_FREEMARK    ((uint32_t)0xBEEFEFAD)
+  #define GASNETI_MEM_HEADERSZ    16     
+  #define GASNETI_MEM_TAILSZ      4     
+  #define GASNETI_MEM_EXTRASZ     (GASNETI_MEM_HEADERSZ+GASNETI_MEM_TAILSZ)     
+  static uint32_t gasneti_endpost_ref = GASNETI_MEM_ENDPOST;
+  /* get access to system malloc/free */
+  #undef malloc
+  #undef free
+  extern void *_gasneti_malloc(size_t nbytes, char *curloc) {
+    void *ret = NULL;
+    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    ret = malloc(nbytes+GASNETI_MEM_EXTRASZ);
+    if_pf (ret == NULL) {
+      gasneti_fatalerror("gasneti_malloc(%d) failed (%lu bytes allocated): %s", 
+        nbytes, (unsigned long)gasneti_memalloc_cnt, 
+        (curloc == NULL ? "" : curloc));
+    } else {
+      gasneti_mutex_lock(&gasneti_memalloc_lock);
+      gasneti_memalloc_cnt += nbytes+GASNETI_MEM_EXTRASZ;
+      gasneti_mutex_unlock(&gasneti_memalloc_lock);
+      ((uint64_t *)ret)[0] = (uint64_t)(uintptr_t)curloc;
+      ((uint32_t *)ret)[2] = (uint32_t)nbytes;
+      ((uint32_t *)ret)[3] = GASNETI_MEM_BEGINPOST;
+      memcpy(((char*)ret)+nbytes+GASNETI_MEM_HEADERSZ, &gasneti_endpost_ref, 4);
+      if (nbytes > gasneti_memalloc_maxbytes) gasneti_memalloc_maxbytes = nbytes;
+      if (((uintptr_t)ret)+nbytes+GASNETI_MEM_HEADERSZ > gasneti_memalloc_maxloc) 
+        gasneti_memalloc_maxloc = ((uintptr_t)ret)+nbytes+GASNETI_MEM_HEADERSZ;
+      ret = (void *)(((uintptr_t)ret) + GASNETI_MEM_HEADERSZ);
+    }
+    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+    return ret;
+  }
+
+  extern void _gasneti_free(void *ptr, char *curloc) {
+    if_pf (ptr == NULL) return;
+    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    { uint32_t beginpost = *(((uint32_t *)ptr)-1);
+      size_t nbytes = *(((uint32_t *)ptr)-2);
+      char *allocptr = (void *)(uintptr_t)*(((uint64_t *)ptr)-2);
+      uint32_t endpost = 0;
+      char *corruptstr = NULL;
+      if (nbytes > gasneti_memalloc_maxbytes || 
+        ((uintptr_t)ptr)+nbytes > gasneti_memalloc_maxloc) {
+        allocptr = NULL; /* bad nbytes, don't trust allocptr */
+        nbytes = 0;
+      } else memcpy(&endpost,((char*)ptr)+nbytes,4);
+
+      if (beginpost == GASNETI_MEM_FREEMARK)
+        corruptstr = "detected a duplicate gasneti_free() or memory corruption";
+      else if (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST) 
+        corruptstr = "gasneti_free() detected bad ptr or memory corruption";
+
+      if (corruptstr != NULL) {
+        if (allocptr != NULL && memchr(allocptr,'\0',255) == 0) /* allocptr may be bad */
+          allocptr = '\0'; 
+        gasneti_fatalerror("%s\n   ptr="GASNETI_LADDRFMT", nbytes=%i%s%s%s%s",
+             corruptstr,
+             GASNETI_LADDRSTR(ptr), nbytes,
+             (allocptr!=NULL?",\n   allocated at: ":""), (allocptr!=NULL?allocptr:""),
+             (curloc!=NULL?",\n   freed at: ":""), (curloc!=NULL?curloc:"")
+             );
+      }
+      *(((uint32_t *)ptr)-1) = GASNETI_MEM_FREEMARK;
+      gasneti_mutex_lock(&gasneti_memalloc_lock);
+      gasneti_memalloc_cnt -= nbytes+GASNETI_MEM_EXTRASZ;
+      gasneti_mutex_unlock(&gasneti_memalloc_lock);
+    }
+    free(((uint32_t *)ptr)-4);
+    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+  }
+
+  extern void *_gasneti_calloc(size_t N, size_t S, char *curloc) {
+    size_t nbytes = N*S;
+    void *ptr = _gasneti_malloc(nbytes, curloc);
+    memset(ptr,0,nbytes);
+    return ptr;
+  }
+#endif
+/* don't put anything here - malloc stuff must come last */
