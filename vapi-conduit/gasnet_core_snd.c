@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/05/20 19:15:54 $
- * $Revision: 1.1.2.31 $
+ *     $Date: 2003/05/20 21:07:57 $
+ * $Revision: 1.1.2.32 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -44,6 +44,7 @@ typedef struct {
   VAPI_sg_lst_entry_t	sr_sg;			/* single send request gather list entry */
 } gasnetc_sreq_t;
 
+static gasnetc_sbuf_t			*gasnetc_sbuf_head;
 static gasnetc_sbuf_t			*gasnetc_sbuf_pool;
 static pthread_mutex_t		gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -288,6 +289,7 @@ extern void gasnetc_snd_init(void) {
   sbuf = calloc(count, sizeof(gasnetc_sbuf_t));
   assert(sbuf != NULL);
 
+  gasnetc_sbuf_head = sbuf;
   gasnetc_sbuf_pool = sbuf;
   for (i = 0; i < count; ++i, ++sbuf, ++buf) {
     sbuf->buffer	    = buf;
@@ -307,7 +309,7 @@ extern void gasnetc_snd_fini(void) {
   assert(vstat == VAPI_OK);
 
   gasnetc_free_pinned(&gasnetc_snd_reg);
-  free(gasnetc_sbuf_pool);
+  free(gasnetc_sbuf_head);
 }
 
 
