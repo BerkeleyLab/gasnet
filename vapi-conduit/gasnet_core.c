@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2004/10/22 20:56:32 $
- * $Revision: 1.61 $
+ *     $Date: 2004/11/23 23:40:21 $
+ * $Revision: 1.61.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -262,7 +262,7 @@ static uintptr_t gasnetc_get_max_pinnable(void) {
    */
   pages = 2 * (gasnetc_get_physpages() / 3);
   pages = MIN(pages, gasnetc_hca_cap.max_mr_size / GASNET_PAGESIZE);
-  #ifdef RLIMIT_MEMLOCK
+  #if defined(RLIMIT_MEMLOCK) && GASNETC_HONOR_RLIMIT_MEMLOCK
   {
     struct rlimit r;
     if ((getrlimit(RLIMIT_MEMLOCK, &r) == 0) && (r.rlim_cur != RLIM_INFINITY)) {
@@ -270,18 +270,23 @@ static uintptr_t gasnetc_get_max_pinnable(void) {
     }
   }
   #endif
-  si = gasneti_mmap_segment_search(MIN(pages*GASNET_PAGESIZE, GASNETI_MMAP_LIMIT));
+  if (pages == 0) return 0;
 
+  si = gasneti_mmap_segment_search(MIN(pages*GASNET_PAGESIZE, GASNETI_MMAP_LIMIT));
   if (si.addr == NULL) return 0;
 
   /* Now search for largest pinnable region */
   addr = si.addr;
-  lo = 0;
+  lo = GASNETI_MMAP_GRANULARITY;
   hi = GASNETI_ALIGNDOWN(si.size, GASNETI_MMAP_GRANULARITY);
   #if defined(__APPLE__)
     /* work around bug #532: Pin requests >= 1GB kill Cluster X nodes */
     hi = MIN(hi, 0x40000000 - GASNETI_MMAP_GRANULARITY);
   #endif
+  if (hi < GASNETI_MMAP_GRANULARITY) {
+    gasneti_munmap(si.addr, si.size);
+    return 0;
+  }
 
 #if 0 /* Binary search */
   size = hi;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2004/10/22 21:02:17 $
- * $Revision: 1.15 $
+ *     $Date: 2004/11/23 23:40:21 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,7 +43,7 @@ typedef uint8_t gasnet_handler_t;
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME)          \
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)          \
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
         VAL(C, RDMA_PUT_ZEROCP, bytes)            \

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2004/08/26 04:53:36 $
- * $Revision: 1.26 $
+ * $Date: 2004/11/23 23:39:59 $
+ * $Revision: 1.26.8.1 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -44,7 +44,7 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_help.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
 #define _GASNET_NODE_T
 typedef uint16_t	gasnet_node_t;

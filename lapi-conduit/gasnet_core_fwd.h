@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2004/08/26 04:53:40 $
- * $Revision: 1.16 $
+ *     $Date: 2004/11/23 23:40:01 $
+ * $Revision: 1.16.8.1 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,7 +31,7 @@
 #    elif GASNETC_LAPI_VERSION_B <= 3
 #      if GASNETC_LAPI_VERSION_B < 3
 #        define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
-#      elif GASNETC_LAPI_VERSION_C <= 2
+#      elif GASNETC_LAPI_VERSION_C < 2
 #        define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
 #      endif
 #    endif
@@ -64,6 +64,6 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
 #endif

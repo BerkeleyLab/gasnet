@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2004/11/04 11:12:54 $
-# $Revision: 1.208.2.3 $
+#     $Date: 2004/11/23 23:39:53 $
+# $Revision: 1.208.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.208.2.3 $)
+AC_REVISION($Revision: 1.208.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,16 +27,10 @@ AM_INIT_AUTOMAKE(GASNet, 1.5, no-define)
 AC_PREFIX_DEFAULT(/usr/local)
 AM_CONFIG_HEADER(gasnet_config.h)
 
-# Save useful directory names
-GASNET_PATH_PROGS(PWD_PROG, pwd, pwd)
-TOP_SRCDIR=`cd ${srcdir} && ${PWD_PROG}` # don't trust shell's builtin pwd, because it may include symlinks
-TOP_BUILDDIR=`${PWD_PROG}`
-AC_SUBST(TOP_SRCDIR)
-AC_SUBST(TOP_BUILDDIR)
+GASNET_START_CONFIGURE([AWK])
+GASNET_DEFINE_CONFIGURE_VARS([GASNETI])
 
-GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR RANLIB REXEC AWK])
 AC_PROG_AWK
-GASNET_GET_AUTOCONF_VERSION()
 
 ########################################################################
 ##
@@ -626,7 +620,7 @@ if test "$have_pthread" = no ; then
   GASNET_THREAD_DEFINES=""
   GASNET_THREAD_LIBS=""
 else
-  OLDLIBS="$LIBS"   
+  OLDLIBS="$LIBS"
   LIBS="$GASNET_THREAD_LIBS"
   # look for optional pthreads entry points
   AC_SEARCH_LIBS(pthread_kill_other_threads_np, pthread pthreads, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2004/10/11 09:58:33 $
- * $Revision: 1.17 $
+ *     $Date: 2004/11/23 23:39:55 $
+ * $Revision: 1.17.2.1 $
  * Description: GASNet header for elan conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,7 +27,7 @@ BEGIN_EXTERNC
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) \
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) \
         VAL(C, AMLONG_DIRECT, sz)        \
         VAL(C, AMLONG_BUFFERED, sz)      \
         VAL(C, PUT_DIRECT, sz)           \

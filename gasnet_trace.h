@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2004/10/21 20:56:50 $
- * $Revision: 1.33 $
+ *     $Date: 2004/11/23 23:39:53 $
+ * $Revision: 1.33.2.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -773,17 +773,17 @@ extern void gasneti_trace_finish();
         VAL(I, GASNET_MALLOC, sz)                         \
         VAL(I, GASNET_FREE, sz)                           \
                                                           \
-        CONDUIT_CORE_STATS(CNT,VAL,TIME)                  \
-        CONDUIT_EXTENDED_STATS(CNT,VAL,TIME)
+        GASNETC_CONDUIT_STATS(CNT,VAL,TIME)               \
+        GASNETE_CONDUIT_STATS(CNT,VAL,TIME)               
 
-/* CONDUIT_CORE_STATS and CONDUIT_EXTENDED_STATS provide a way for conduits 
+/* GASNETC_CONDUIT_STATS and GASNETE_CONDUIT_STATS provide a way for conduits 
    to declare their own statistics (which should be given type C or I)
  */
-#ifndef CONDUIT_CORE_STATS
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME)
+#ifndef GASNETC_CONDUIT_STATS
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)
 #endif
-#ifndef CONDUIT_EXTENDED_STATS
-#define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME)
+#ifndef GASNETE_CONDUIT_STATS
+#define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)
 #endif
 
 /* these are legal even without STATS/TRACE */

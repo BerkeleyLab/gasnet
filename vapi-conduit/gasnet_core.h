@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2004/10/08 07:47:33 $
- * $Revision: 1.24 $
+ *     $Date: 2004/11/23 23:40:21 $
+ * $Revision: 1.24.2.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -151,7 +151,10 @@ typedef gasneti_atomic_t gasnetc_counter_t;
 #define gasnetc_counter_reset(P)	gasneti_atomic_set((P), 0)
 #define gasnetc_counter_done(P)		(gasneti_atomic_read(P) == 0)
 #define gasnetc_counter_inc(P)		gasneti_atomic_increment(P)
-#define gasnetc_counter_dec(P)		gasneti_atomic_decrement(P)
+#define gasnetc_counter_dec(P)	do {                                              \
+					gasneti_assert(!gasnetc_counter_done(P)); \
+					gasneti_atomic_decrement(P);              \
+				} while (0)
 #if GASNETI_STATS_OR_TRACE
   #define gasnetc_counter_val(P)	gasneti_atomic_read(P)
 #endif

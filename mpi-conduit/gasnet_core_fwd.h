@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2004/10/10 06:15:57 $
- * $Revision: 1.19 $
+ *     $Date: 2004/11/23 23:40:03 $
+ * $Revision: 1.19.2.1 $
  * Description: GASNet header for MPI conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int sig);

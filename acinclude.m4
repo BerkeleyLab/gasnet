@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2004/10/27 01:22:11 $
-dnl $Revision: 1.50 $
+dnl     $Date: 2004/11/23 23:39:53 $
+dnl $Revision: 1.50.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -255,6 +255,45 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 
   popdef([lowerdashname])
   popdef([lowerscorename])
+])
+
+dnl $1 = optional env variables to restore
+AC_DEFUN([GASNET_START_CONFIGURE],[
+  GASNET_PATH_PROGS(PWD_PROG, pwd, pwd)
+
+  dnl Save and display useful info about the configure environment
+  GASNET_GET_AUTOCONF_VERSION()
+  AC_MSG_CHECKING(for configure settings) 
+  AC_MSG_RESULT([])
+  CONFIGURE_ARGS="$ac_configure_args"
+  AC_SUBST(CONFIGURE_ARGS)
+  AC_MSG_RESULT( configure args: $CONFIGURE_ARGS)
+  dnl don't trust shell's builtin pwd, because it may include symlinks
+  TOP_SRCDIR=`cd ${srcdir} && ${PWD_PROG}` 
+  AC_MSG_RESULT( TOP_SRCDIR:     $TOP_SRCDIR)
+  AC_SUBST(TOP_SRCDIR)
+  TOP_BUILDDIR=`${PWD_PROG}`
+  AC_MSG_RESULT( TOP_BUILDDIR:   $TOP_BUILDDIR)
+  AC_SUBST(TOP_BUILDDIR)
+  SYSTEM_NAME="`hostname`"
+  AC_SUBST(SYSTEM_NAME)
+  SYSTEM_TUPLE="$host"
+  AC_SUBST(SYSTEM_TUPLE)
+  AC_MSG_RESULT( host info:      $SYSTEM_NAME $SYSTEM_TUPLE)
+  BUILD_ID="`date` `whoami`"
+  AC_MSG_RESULT( build id:       $BUILD_ID)
+  AC_SUBST(BUILD_ID)
+
+  GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR AS RANLIB PERL SUM LEX YACC $1])
+])
+
+dnl AC_DEFINE the configure information variables detected by GASNET_START_CONFIGURE, with prefix
+AC_DEFUN([GASNET_DEFINE_CONFIGURE_VARS],[
+  AC_REQUIRE([GASNET_START_CONFIGURE])
+  AC_DEFINE_UNQUOTED($1_[]CONFIGURE_ARGS, "$CONFIGURE_ARGS")
+  AC_DEFINE_UNQUOTED($1_[]SYSTEM_NAME,    "$SYSTEM_NAME")
+  AC_DEFINE_UNQUOTED($1_[]SYSTEM_TUPLE,   "$SYSTEM_TUPLE")
+  AC_DEFINE_UNQUOTED($1_[]BUILD_ID,       "$BUILD_ID")
 ])
 
 dnl GASNET_RESTORE_AUTOCONF_ENV(env1 env2 env3) 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2004/10/10 06:15:59 $
- * $Revision: 1.8 $
+ *     $Date: 2004/11/23 23:40:19 $
+ * $Revision: 1.8.2.1 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,7 +59,7 @@ typedef uint8_t gasnet_node_t;
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
 #define GASNETC_TRACE_FINISH()  gasnetc_trace_finish()
 extern void gasnetc_trace_finish();

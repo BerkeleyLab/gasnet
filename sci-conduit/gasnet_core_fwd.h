@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2004/08/26 04:54:01 $
- * $Revision: 1.5 $
+ *     $Date: 2004/11/23 23:40:11 $
+ * $Revision: 1.5.10.1 $
  * Description: GASNet header for sci conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,7 +25,7 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
