@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/08/30 05:05:12 $
- * $Revision: 1.2.2.5 $
+ *     $Date: 2004/08/31 00:19:10 $
+ * $Revision: 1.2.2.6 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,6 +60,13 @@ uintptr_t gasnete_pe_bits_shift = 0;
 uintptr_t gasnete_addr_bits_mask = 0;
 #endif
 
+/* shmem-conduit cannot be used with threads. */
+#ifdef GASNETI_CLIENT_THREADS
+  #error shmem-conduit currently does not support threads
+#endif
+
+gasnete_threaddata_t	gasnete_threaddata;
+#define gasnete_mythread() (&gasnete_threaddata)
 
 /* make a GASNet call - if it fails, print error message and abort */
 #define GASNETE_SAFE(fncall) do {                                           \
@@ -445,7 +452,7 @@ gasnete_barrier_notify(int id, int flags)
 
 	if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
 	    long volatile *rphase = (long volatile *) 
-		GASNETE_SHMPTR(&barrier_notify_ctr[barrier_phase], 0);
+		GASNETE_TRANSLATE_X1(&barrier_notify_ctr[barrier_phase], 0);
 
 	    /* Make sure everyone sees the mismatch if such is the case */
 	    if_pf (flags == GASNET_BARRIERFLAG_MISMATCH) {
@@ -453,7 +460,7 @@ gasnete_barrier_notify(int id, int flags)
 		#pragma _CRI ivdep
 		for (i = 0; i < gasnete_nodes; i++) {
 		    long volatile *rflags = (long volatile *) 
-			    GASNETE_SHMPTR(&barrier_state.barrier_flags, i);
+			    GASNETE_TRANSLATE_X1(&barrier_state.barrier_flags, i);
 		    *rflags = barrier_state.barrier_flags;
 		}
 		shmem_quiet();	/* XXX gsync??? */
@@ -466,7 +473,7 @@ gasnete_barrier_notify(int id, int flags)
 	    if (gasnete_mynode == 0) {
 		#pragma _CRI ivdep
 		for (i = 1; i < gasnete_nodes; i++) {
-		    long *val = (long *) GASNETE_SHMPTR(&barrier_state, i);
+		    long *val = (long *) GASNETE_TRANSLATE_X1(&barrier_state, i);
 		    long *flags = val+1;
 
 		    val   = barrier_state.value;
@@ -493,7 +500,7 @@ gasnete_barrier_notify(int id, int flags)
 		    #pragma _CRI ivdep
 		    for (i = 0; i < gasnete_nodes; i++) {
 			long volatile *flags = (long volatile *) 
-			    GASNETE_SHMPTR(&barrier_state.barrier_flags, i);
+			  GASNETE_TRANSLATE_X1(&barrier_state.barrier_flags, i);
 			*flags = barrier_state.barrier_flags;
 		    }
 		    shmem_quiet();
@@ -541,7 +548,7 @@ gasnete_barrier_wait(int id, int flags)
 		    shmem_long_p((long *) &barrier_notify_ctr[barrier_phase], 1, i);
 			*/
 		    long volatile *rctr = 
-			GASNETE_SHMPTR(&barrier_notify_ctr[barrier_phase], i);
+			GASNETE_TRANSLATE_X1(&barrier_notify_ctr[barrier_phase], i);
 		    *rctr = 1;
 		}
 		_gsync(0x1);
@@ -635,7 +642,7 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 
 /* use reference implementation of collectives */
 #define GASNETI_GASNET_EXTENDED_COLL_C 1
-//#include "gasnet_extended_refcoll.c"
+#include "gasnet_extended_refcoll.c"
 #undef GASNETI_GASNET_EXTENDED_COLL_C
 
 /* ------------------------------------------------------------------------ */

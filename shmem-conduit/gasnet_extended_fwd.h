@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/08/30 05:05:12 $
- * $Revision: 1.2.2.5 $
+ *     $Date: 2004/08/31 00:19:10 $
+ * $Revision: 1.2.2.6 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,7 +37,6 @@ typedef uintptr_t gasnet_valget_handle_t;
 #define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_P
 typedef uintptr_t gasnet_register_value_t;
 
-
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
@@ -68,32 +67,12 @@ typedef uintptr_t gasnet_register_value_t;
     (void *) ( (((uintptr_t) (addr)) & gasnete_addr_bits_mask) |    \
                (((uintptr_t) (pe)) << gasnete_pe_bits_shift))
 
-  /*
-   * Some clients, such as the UPC Runtime, issue puts/gets on global addresses
-   */
-  #ifdef GASNETE_GLOBAL_ADDRESS
-    #define GASNETE_SHMPTR(addr,pe) (addr)
-  #else
-    #define GASNETE_SHMPTR(addr,pe) GASNETE_TRANSLATE_X1(addr,pe)
-  #endif
-
   #define GASNETE_SHMPTR_AM GASNETE_TRANSLATE_X1
 
 #elif defined(SGI_SHMEM)
   extern intptr_t   *gasnetc_segment_shptr_off;
 
   #define GASNETE_SHMPTR_AM(addr,pe) (addr)
-
-  #ifdef GASNETE_GLOBAL_ADDRESS
-    #define GASNETE_SHMPTR(addr,pe) (addr)
-  #else
-    #define GASNETE_SHMPTR(addr,pe) shmem_ptr(addr,pe)
-    //#define GASNETE_SHMPTR_AM(addr,pe) (gasnetc_mynode==(pe)?(addr):shmem_ptr(addr,pe))
-	/*
-    #define GASNETE_SHMPTR_AM(addr,pe)				    \
-	 ((void *)(((intptr_t)(addr)+gasnetc_segment_shptr_off[pe])))
-	 */
-  #endif
 
   #define GASNETE_PRAGMA_IVDEP	  /* no ivdep is useful here */
 #endif
@@ -148,12 +127,10 @@ typedef uintptr_t gasnet_register_value_t;
 #define gasnete_global_get(dest,src,nbytes) gasnete_global_put(dest,src,nbytes)
 
 #define gasnete_inline_ldst_put(TYPE,TRG,SRC,LEN,PE)	    \
-	    gasnete_inline_ldst_generic( \
-		    PUT,TYPE,GASNETE_SHMPTR(TRG,PE),SRC,LEN,PE)
+	    gasnete_inline_ldst_generic(PUT,TYPE,TRG,SRC,LEN,PE)
 
 #define gasnete_inline_ldst_get(TYPE,TRG,SRC,LEN,PE)	    \
-	    gasnete_inline_ldst_generic( \
-		    GET,TYPE,TRG,GASNETE_SHMPTR(SRC,PE),LEN,PE)
+	    gasnete_inline_ldst_generic(GET,TYPE,TRG,SRC,LEN,PE)
 
 /* 
  * Blocking operations map directly to shmem functions
@@ -533,7 +510,6 @@ _gasnete_put_nbi_val(gasnet_node_t node, void *dest,
     return;
 }
 #define gasnete_put_nbi_val _gasnete_put_nbi_val 
-
 
 #endif
 

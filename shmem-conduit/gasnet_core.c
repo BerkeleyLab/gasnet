@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2004/08/30 05:05:12 $
- * $Revision: 1.2.2.5 $
+ *     $Date: 2004/08/31 00:19:10 $
+ * $Revision: 1.2.2.6 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -334,13 +334,27 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 				: segup;
 		#endif
 
-		segbase = 
-		    shrealloc(gasnetc_seginfo_init.addr, segsize*gasnetc_nodes);
-		if (segbase == NULL) {
+		#ifdef CRAY_SHMEM
+		    /* X1: shrealloc on a pointer returned by shmemalign dumps core */
+		    shfree(gasnetc_seginfo_init.addr);
+		    segbase = shmemalign(GASNETT_PAGESIZE, segsize);
+		    if (segbase == NULL) 
+			gasneti_fatalerror(
+			    "shmalloc couldn't resize GASNet segment from "
+			    "%lu bytes down to %lu bytes\n", 
+			    gasnetc_seginfo_init.size, segsize);
+
+		#elif defined(SGI_SHMEM)
+		    segbase = 
+			shrealloc(gasnetc_seginfo_init.addr, segsize);
+
+		    if (segbase == NULL) {
 			shfree(gasnetc_seginfo_init.addr);
 			gasneti_fatalerror(
 			    "shrealloc() failed on initial GASNet segment");
-		}
+		    }
+		#endif
+
 		gasnetc_seginfo_init.addr = (void *) segbase;
 		gasnetc_seginfo_init.size = segsize;
 	    }
@@ -377,8 +391,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 		    gasnetc_segment_shptr_off[i] = 
 			    (intptr_t) shm_collect[i] - (intptr_t) segbase;
 
-		    if (1 || gasnetc_mynode == 0) {
-			printf("%d> seg %2d: %p,%9lu => off = %lu\n",
+		    if (0) {
+			printf("%d> seg %2d: %p12,%9lu => off = %16lx\n",
 			    gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
 			    (unsigned long) gasnetc_seginfo[i].size, 
 			    (unsigned long) gasnetc_segment_shptr_off[i]);
@@ -878,13 +892,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueRequest(dest);
 
-#if defined(GASNETC_GLOBAL_ADDRESS)
-  //printf("AMlong memcpy(%p,%p,%d)\n",(void*)dest_addr,(void*)source_addr,(int)nbytes);
-  //fflush(stdout);
+#if defined(GASNETC_GLOBAL_ADDRESS) && !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else
-  //printf("AMlong memcpy(%p,%p,%d)\n",(void*)dest_addr,(void*)source_addr,(int)nbytes);
-  //fflush(stdout);
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
 #endif
   shmem_quiet();
@@ -1041,8 +1051,7 @@ extern int gasnetc_AMReplyLongM(
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueReply(dest);
 
-#if defined(GASNETC_GLOBAL_ADDRESS)
-  //printf("long memcpy, addr = %p, src = %p, node = %d\n", dest_addr, source_addr, dest);
+#if defined(GASNETC_GLOBAL_ADDRESS) && !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
@@ -1223,7 +1232,7 @@ gasnetc_SHMallocBinarySearch(size_t low, size_t high)
 
 	si.size = GASNETI_PAGE_ALIGNDOWN(low + (high-low)/2);
 
-	si.addr = shmalloc(si.size);
+	si.addr = shmemalign(GASNETT_PAGESIZE, si.size);
 
 	if (si.addr == NULL)
 		return gasnetc_SHMallocBinarySearch(low, si.size);
