@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2003/11/08 21:49:42 $
- * $Revision: 1.24 $
+ *     $Date: 2003/11/12 08:56:03 $
+ * $Revision: 1.24.4.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -318,6 +318,16 @@
     #define gasneti_atomic_init(v)      (v)
     #define gasneti_atomic_decrement_and_test(p) \
                                         (add_then_test32((p),(uint32_t)-1) == 0) 
+  #elif defined(UNICOS) /* This works on X1 and T3E */
+    #include <intrinsics.h>
+    typedef long gasneti_atomic_t;
+    #define gasneti_atomic_increment(p)	(_amo_aadd((p),1))
+    #define gasneti_atomic_decrement(p)	(_amo_aadd((p),(long)-1))
+    #define gasneti_atomic_read(p)      (*(p))
+    #define gasneti_atomic_set(p,v)     (*(p) = (v))
+    #define gasneti_atomic_init(v)      (v)
+    #define gasneti_atomic_decrement_and_test(p) \
+                                        (_amo_fadd(((p),(long)-1) == 0) 
   #elif 0 && defined(SOLARIS)
     /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
        to the user... after all, what application would be interested in performance? */
@@ -474,8 +484,15 @@
    #include <machine/builtins.h>
    #define gasneti_local_membar() __MB() /* only available as compaq C built-in */
  #endif
-#elif defined(_CRAYT3E)
-   /* don't have shared memory on T3E - does this take care of e-regs too? */
+#elif defined(_CRAYT3E) /* Takes care of e-regs also */
+  #include <intrinsics.h>
+  GASNET_INLINE_MODIFIER(gasneti_local_membar)
+  void gasneti_local_membar(void) {
+    _memory_barrier();
+  }
+#elif defined(__crayx1)
+   /* Many memory barrier intrinsics on the X1, but none seem to match what we
+    * need in a local (scalar-scalar) membar */
    GASNET_INLINE_MODIFIER(gasneti_local_membar)
    void gasneti_local_membar(void) {
      static int volatile x;

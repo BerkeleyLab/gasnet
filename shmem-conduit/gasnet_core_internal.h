@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/11 13:40:39 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/11/12 08:56:04 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,11 @@
 
 #include <gasnet.h>
 #include <gasnet_internal.h>
+#if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
+#include <mpp/shmem.h>
+#elif defined(ELAN_SHMEM)
+#include <shmem.h>
+#endif
 
 extern gasnet_seginfo_t *gasnetc_seginfo;
 
@@ -31,6 +36,8 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
    }                                                         \
  } while (0)
+
+#define GASNET_DEBUG_VERBOSE 1
 
 /*
  * These settings are based on benchmarks executed over various implementations
@@ -79,7 +86,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
  * distance future.
  */
 #define GASNETC_REQREP_M    0x80000000
-#define GASNETC_TYPE_	    0x60000000
+#define GASNETC_TYPE_M	    0x60000000
 #define GASNETC_NUMARGS_M   0x1f000000
 #define GASNETC_HANDLER_M   0x00ff0000
 #define GASNETC_NODEID_M    0x0000ffff
@@ -106,7 +113,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 	 (req) = (hdr) & GASNETC_REQREP_M;				    \
 	 (type) = (hdr) & GASNETC_TYPE_M;				    \
 	 (numargs) = ((hdr) & GASNETC_NUMARGS_M) >> GASNETC_NUMARGS_SHIFT;  \
-	 (handlerid) = ((hdr) & GASNETC_HANDLER_M) >> GASNETC_HANDLER_SHIFT;\
+	 (handler) = ((hdr) & GASNETC_HANDLER_M) >> GASNETC_HANDLER_SHIFT;  \
 	 (nodeid) = (hdr) & GASNETC_NODEID_M;			            \
 	} while (0)
 
@@ -123,8 +130,12 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 
 #define GASNETC_AMHEADER_NODEID(hdr)	((hdr) & GASNETC_NODEID_M)
 
-#define 
-
+#define GASNETC_ARGS_WRITE(buf, argptr, numargs)                        \
+        do {    int _i; int32_t *_pbuf = (int32_t *) buf;               \
+                for (_i = 0; _i < (numargs); _i++)      {               \
+                        _pbuf[_i] = (int32_t) va_arg((argptr), int);    \
+                }                                                       \
+           } while (0)
 
 /*
  * AMQUEUE DEPTH and maximum sizes
@@ -143,7 +154,7 @@ struct _gasnetc_am_packet
 {
 	int	    state;  /* One of FREE, USED, DONE */
 	uint32_t    header;
-	char	    payload[GASNETC_MAX_MEDIUM_TOTAL];	/* 512 bytes */
+	char	    payload[GASNETC_MAX_MEDIUM_TOTAL];
 }
 gasnetc_am_packet_t;
 
@@ -193,7 +204,6 @@ extern int  gasnetc_amq_mask;
 extern gasnetc_am_packet_t  gasnetc_amq_reqs[GASNETC_AMQUEUE_MAX_DEPTH];
 
 #ifdef GASNETC_AMQUEUE_RELEASE_MSWAP
-extern long gasnetc_amq_donevec[GASNETC_MAX_AMQUEUE_DEPTH_VEC];
     #if SIZEOF_LONG == 8
     #define GASNETC_AMQUEUE_VEC_MAX_ID	8
     #define GASNETC_AMQUEUE_VEC_MASK	0x1e0
@@ -202,6 +212,7 @@ extern long gasnetc_amq_donevec[GASNETC_MAX_AMQUEUE_DEPTH_VEC];
     #elif SIZEOF_LONG == 4
 	#error Not implemented yet
     #endif
+extern long gasnetc_amq_donevec[GASNETC_AMQUEUE_VEC_MAX_ID];
 #endif
 
 GASNET_INLINE_MODIFIER(gasnetc_AMQueueRequest)
@@ -210,9 +221,9 @@ int gasnetc_AMQueueRequest(gasnet_node_t pe)
     int	idx;
 
     #if GASNETC_AMQUEUE_REQUEST_FINC
-        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe);
+        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe) & gasnetc_amq_mask;
     #elif GASNETC_AMQUEUE_REQUEST_RANDOM
-        idx = random();
+        idx = random() & gasnetc_amq_mask;
     #else
         #error No GASNETC_AMQUEUE_REQUEST mechansims defined
     #endif
@@ -220,9 +231,14 @@ int gasnetc_AMQueueRequest(gasnet_node_t pe)
     /* Once we have the ID, cswap until the selected slot is free  */
 
     while (shmem_int_cswap(&gasnetc_amq_reqs[idx].state, 
-	    GASNETC_AMQUEUE_FREE_S, GASNETC_AMQUEUE_USED_S) 
+	    GASNETC_AMQUEUE_FREE_S, GASNETC_AMQUEUE_USED_S, (int) pe) 
 	    != GASNETC_AMQUEUE_FREE_S)
 	gasnetc_AMPoll();
+#if 0
+    printf("%d> SLOT idx %d from %d\n", gasnetc_mynode, idx, pe); fflush(stdout);
+#endif
+
+    return idx;
 }
 
 /*
@@ -234,9 +250,9 @@ int gasnetc_AMQueueReply(gasnet_node_t pe)
     int	idx;
 
     #if GASNETC_AMQUEUE_REQUEST_FINC
-        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe);
+        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe) & gasnetc_amq_mask;
     #elif GASNETC_AMQUEUE_REQUEST_RANDOM
-        idx = random();
+        idx = random() & gasnetc_amq_mask;
     #else
         #error No GASNETC_AMQUEUE_REQUEST mechansims defined
     #endif
@@ -244,9 +260,11 @@ int gasnetc_AMQueueReply(gasnet_node_t pe)
     /* Once we have the ID, cswap until the selected slot is free  */
 
     while (shmem_int_cswap(&gasnetc_amq_reqs[idx].state, 
-	    GASNETC_AMQUEUE_FREE_S, GASNETC_AMQUEUE_USED_S) 
+	    GASNETC_AMQUEUE_FREE_S, GASNETC_AMQUEUE_USED_S, (int) pe) 
 	    != GASNETC_AMQUEUE_FREE_S)
 	{}
+
+    return idx;
 }
 
 
@@ -276,7 +294,7 @@ void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
 	     */
 	    int vec_idx = 64 - _leadz64(idx | 0x20) - 6;
 
-	    gasneti_assert(idx >= 0 && idx < GASNETC_AMQUEUE_MAX_DEPTH);
+	    gasneti_assert(idx >= 0 && idx < gasnetc_amq_depth);
 	    gasneti_assert(vec_idx >= 0 && 
 			   vec_idx <= GASNETC_AMQUEUE_VEC_MAX_ID);
 
@@ -290,12 +308,15 @@ void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
 			    (1<<idx), (1<<idx), (int) pe);
 	#endif
     #elif GASNETC_AMQUEUE_RELEASE_PUT
-	    gasneti_assert(idx >= 0 && idx < GASNETC_AMQUEUE_MAX_DEPTH);
+	    gasneti_assert(idx >= 0 && idx < gasnetc_amq_depth);
+	    gasneti_assert(sizeof(int) == sizeof(uint32_t));
 	    shmem_int_p(&(gasnetc_amq_reqs[idx].state), 
 			GASNETC_AMQUEUE_DONE_S, (int) pe);
     #else
 	#error No GASNETC_AMQUEUE_RELEASE mechansims defined
     #endif
+
+    return;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/11/11 13:40:38 $
-# $Revision: 1.92.4.1 $
+#     $Date: 2003/11/12 08:56:03 $
+# $Revision: 1.92.4.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.92.4.1 $)
+AC_REVISION($Revision: 1.92.4.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -893,10 +893,18 @@ GASNET_IF_ENABLED(vapi, Enable the VAPI (Mellanox InfiniBand) network conduit,
   have_vapi=no)
 
 if test $have_vapi = yes; then
-  GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
-  GASNET_ENV_DEFAULT(SHMEM_LIB, /usr/lib)
+  GASNET_ENV_DEFAULT(VAPI_INCLUDE, "$MTHOME/include")
+  GASNET_ENV_DEFAULT(VAPI_LIBDIR, "$MTHOME/lib")
+  GASNET_ENV_DEFAULT(VAPI_LIBS, -lvapi -lmtl_common -lmosal -lpthread -lmpga) 
 
-  AC_MSG_CHECKING(for working SHMEM configuration)
+  AC_MSG_CHECKING(for working VAPI configuration)
+  if test "$mpi_test_worked" != yes; then
+    if test "$enabled_mpi" = yes; then
+      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but MPI was not sucessfuly configured.]);
+    else    
+      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but you have disabled it.]);
+    fi
+  fi
 
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
@@ -949,45 +957,46 @@ GASNET_IF_ENABLED(shmem, Enable the SHMEM network conduit,
   have_shmem=no)
 
 if test $have_shmem = yes; then
-  SHMEM_FLAVOUR=""
+  SHMEM_FLAVOUR="unknown"
 
   AC_MSG_CHECKING(for SHMEM network type)
 
   case "$target_os" in
     unicos*)
+      AC_MSG_RESULT(Cray)
       GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /opt/ctl/mpt/mpt/include)
       GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /opt/ctl/mpt/mpt/lib)
       GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lsma")
       SHMEM_FLAVOUR="CRAY_SHMEM"
-      AC_MSG_RESULT(Cray)
-    ;;
+      ;;
     irix*)
       AC_MSG_ERROR(Currently no access to shmem on IRIX)
       have_shmem=no
-    ;;
+      ;;
     # Linux shmem may mean Quadrics shmem, or SGI shmem.  A first try is to
     # look for _ELAN_SHMEM_H in /usr/include/shmem.h.
     linux*)
-      GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
-      GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
-
       # This first case should catch Elan shmem 
       if test -e ${SHMEM_INCLUDE}/shmem.h; then
 	is_quadrics=`grep ELAN_SHMEM ${SHMEM_INCLUDE}/shmem.h`
 	if test -n "$is_quadrics"; then
 	  SHMEM_FLAVOUR="ELAN_SHMEM"
-	  GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lshmem")
 	  AC_MSG_RESULT(Quadrics/Elan)
+	  GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+	  GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
+	  GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lshmem")
 	fi
       fi
 
       # If we still havn't found what shmem we are on, guess at SGI shmem,
       # which doesn't set any meaningful symbols and follows the cray mpp/
       # include convention
-      if test ! -n ${SHMEM_FLAVOUR}; then
-	AC_MSG_WARN(Guessing at SGI shmem platform)
+      if test x"${SHMEM_FLAVOUR}" = x"unknown"; then
 	SHMEM_FLAVOUR="SGI_SHMEM"
 	AC_MSG_RESULT(SGI)
+	AC_MSG_WARN(Guessing at SGI shmem platform)
+	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
         GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lsma")
       fi
       ;;
@@ -996,14 +1005,14 @@ if test $have_shmem = yes; then
       ;;
   esac
 
-  if test ! -n "${SHMEM_FLAVOUR}"; then
+  if test x"${SHMEM_FLAVOUR}" = x"unknown"; then
     AC_MSG_WARN(shmem conduit disabled: I don't know of the current shmem platform)
     have_shmem=no
   else
     OLDCFLAGS="$CFLAGS"
     OLDLIBS="$LIBS"
-    CFLAGS="-I$SHMEM_INCLUDE/mpp -I$SHMEM_INCLUDE"
-    LIBS="-LSHMEM_LIBDIR $SHMEM_LIBS"
+    CFLAGS="-I${SHMEM_INCLUDE}/mpp -I${SHMEM_INCLUDE}"
+    LIBS="-L${SHMEM_LIBDIR} ${SHMEM_LIBS}"
     SHMEM_FLAGS="-D${SHMEM_FLAVOUR}"
 
     AC_MSG_CHECKING(for working SHMEM configuration)
@@ -1014,7 +1023,7 @@ if test $have_shmem = yes; then
     ], [{
       int mype, numpes;
   
-      mype = shmem_mype();
+      mype = shmem_my_pe();
       numpes = shmem_n_pes();
       }], [ shmem_test_worked=yes ], [ shmem_test_worked=no ] )
     CFLAGS="$OLDCFLAGS"
@@ -1374,6 +1383,10 @@ vapi-conduit/vapi-parsync.mak
 vapi-conduit/vapi-par.mak
 vapi-conduit/contrib/Makefile
 vapi-conduit/contrib/gasnetrun_vapi
+
+shmem-conduit/Makefile
+shmem-conduit/shmem-seq.mak
+shmem-conduit/shmem-parsync.mak
 
 other/Makefile
 other/ammpi/Makefile

@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Attic/shmem-seq.mak.in,v 1.1.2.1 2003/11/11 13:40:39 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Attic/shmem-seq.mak.in,v 1.1.2.2 2003/11/12 08:56:04 csbell Exp $
 # Description: Makefile fragment for SHMEM conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -47,7 +47,8 @@ GASNET_LDFLAGS = @CFLAGS@ @LDFLAGS@
 # libraries that GASNet clients should append to link line
 GASNET_LIBS =            \
     $(GASNET_LIBDIRS)    \
-    -lgasnet-shmem-seq     \
+    -lgasnet-shmem-seq   \
+    @SHMEM_LIBS@	 \
     @LIBGCC@             \
     @LIBS@               \
     @LIBM@

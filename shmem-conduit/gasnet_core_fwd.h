@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/11/11 13:40:39 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/11/12 08:56:04 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for shmem conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,21 +21,29 @@
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#define GASNET_ALIGNED_SEGMENTS   1
+#define GASNET_ALIGNED_SEGMENTS   0 
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc
    */
-#define GASNETI_CONDUIT_THREADS 0
+/* #define GASNETI_CONDUIT_THREADS 1 */
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-#define GASNETC_USE_INTERRUPTS 0
+/* #define GASNETC_USE_INTERRUPTS 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+
+#define _GASNET_NODE_T
+typedef uint32_t        gasnet_node_t;
+#define _GASNET_HANDLER_T
+typedef uint32_t        gasnet_handler_t;
+
+#define _GASNET_TOKEN_T
+typedef uintptr_t    gasnet_token_t;
 
 #endif
