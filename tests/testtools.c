@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testtools.c                                    $
- *     $Date: 2004/01/05 05:01:24 $
- * $Revision: 1.9 $
+ *     $Date: 2004/07/29 04:15:58 $
+ * $Revision: 1.9.6.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,11 +88,19 @@ int main() {
     }
   }
 
-  printf("Testing local membar...\n");
+  printf("Testing local write membar...\n");
   { /* local membar */
     int i;
     for (i=0;i<100;i++) {
-      gasnett_local_membar();
+      gasnett_local_wmb();
+    }
+  }
+
+  printf("Testing local read membar...\n");
+  { /* local membar */
+    int i;
+    for (i=0;i<100;i++) {
+      gasnett_local_rmb();
     }
   }
 

@@ -41,6 +41,7 @@ $varenv = '';
 $dry_run = 0;
 $kill_time = 0;
 $recv_mode = 'polling';
+$exit_code = 0;
 
 # GEXEC configuration, preconfigured for millennium.
 $gm_board_info = "/usr/mill/pkg/gm/bin/gm_board_info";
@@ -61,11 +62,13 @@ $close_stdin = 0;
 $cleanup_shmem = 0;
 $pid_socket = 1;
 $pid_rexec = 1;
-$default_machinefile = "$ENV{'PBS_NODEFILE'}";
+$default_machinefile = "$ENV{'GASNET_MACHINEFILE'}" || "$ENV{'PBS_NODEFILE'}";
 $magic = int (rand (9999999));
 $local_host = hostname;
+$local_ip   = inet_ntoa(scalar gethostbyname($local_host || 'localhost'));
 $local_port = '8000';
 $runcmd = "";
+
 
 ###################
 #                 #
@@ -187,7 +190,7 @@ sub cleanup_ALARM {
 }
 
 sub cleanup_TIMEOUT {
-  print ("Timeout: still waiting for data from remote MPI processes !\n");
+  print ("Timeout: still waiting for data from remote GASNet processes !\n");
   print ("Timeout: cleaning up...\n");
   clean_up
   exit (1);
@@ -576,7 +579,7 @@ if ($verbose) {
 
 # Open the first socket with the first available port.
 if (!$dry_run) {
-  print ("Open a socket on $local_host...\n") if $verbose;
+  print ("Open a socket on $local_host ($local_ip)...\n") if $verbose;
   socket (FIRST_SOCKET, AF_INET, SOCK_STREAM, getprotobyname ('tcp'))
     or die ("First socket creation failed: $!\n");
   setsockopt (FIRST_SOCKET, SOL_SOCKET, SO_REUSEADDR, 1)
@@ -588,7 +591,7 @@ if (!$dry_run) {
   }
   if ($local_port < 20000) {
     print ("Got a first socket opened on port $local_port.\n") if $verbose;
-    $varenv .= " GMPI_MASTER=$local_host GMPI_PORT=$local_port";
+    $varenv .= " GMPI_MASTER=$local_ip GMPI_PORT=$local_port";
     listen (FIRST_SOCKET, SOMAXCONN)
       or die ("Error when listening on first socket: $!\n");
   } else {
@@ -635,7 +638,7 @@ if ($rexec_type eq "gexec") {
 
   # Either keep user-supplied server list.
   $ENV{'GMPI_MAGIC'}  = $magic;
-  $ENV{'GMPI_MASTER'} = $local_host;
+  $ENV{'GMPI_MASTER'} = $local_ip;
   $ENV{'GMPI_PORT'}   = $local_port;
   $ENV{'GMPI_BOARD'}  = -1; # No multiboard support
 
@@ -1003,18 +1006,20 @@ if ($kill_time) {
   $index--;
   if ($first_pid == -1) {
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
 
   if ($first_pid == $pid_socket) {
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
+
+  $exit_code = ($? << 8);
 
   if ($verbose) {
     for ($i=0; $i<$np; $i++) {
       if ($first_pid == $pids[$i]) {
-	print ("MPI Process $i has exited, wait $kill_time seconds and kill all remaining processes...\n") if $verbose;
+	print ("GASNet Process $i has exited, wait $kill_time seconds and kill all remaining processes...\n") if $verbose;
 	last;
       }
     }
@@ -1029,21 +1034,23 @@ while (1) {
   if ($next_pid == -1) {
     print ("All processes have exited.\n") if $verbose;
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
 
   if ($next_pid != $pid_socket) {
+    print ("Remote GASNet exited with status " . ($? >> 8) . ".\n") if $verbose;
+    $exit_code = ($? >> 8) unless ($exit_code != 0);	# Save first non-zero exit
     $index--;
     if ($index == 0) {
-      print ("All remote MPI processes have exited.\n") if $verbose;
+      print ("All remote GASNet processes have exited.\n") if $verbose;
       clean_up;
-      exit 0;
+      exit $exit_code;
     }
   } else {
     # the process waiting for an Abort has exited, so let's aborting
     print ("Abort in progress...\n") if $verbose;
     clean_up;
-    exit 0;
+    exit $exit_code;
   }
 }
-exit 0;
+exit $exit_code;

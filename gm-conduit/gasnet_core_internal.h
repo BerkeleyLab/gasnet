@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.55 2004/04/09 01:05:09 bonachea Exp $
- * $Date: 2004/04/09 01:05:09 $
- * $Revision: 1.55 $
+/* $Id: gasnet_core_internal.h,v 1.55.2.1 2004/07/29 04:15:28 jduell Exp $
+ * $Date: 2004/07/29 04:15:28 $
+ * $Revision: 1.55.2.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -373,7 +373,7 @@ gasnetc_token_lo_poll()
 			return;
 
 		gasneti_mutex_unlock(&gasnetc_lock_gm);
-		gasnetc_AMPoll();
+		gasneti_AMPoll();
 		gasneti_mutex_lock(&gasnetc_lock_gm);
 	}
 }

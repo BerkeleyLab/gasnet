@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2004/05/19 07:35:48 $
- * $Revision: 1.11 $
+ *     $Date: 2004/07/29 04:16:00 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -583,7 +583,7 @@ extern int gasnetc_AMRequestShortM(
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
   GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-    AMLOCK();
+    AMLOCK_TOSEND();
       retval = GASNETI_AM_SAFE_NORETURN(
                AMUDP_RequestVA(gasnetc_endpoint, dest, handler, 
                                numargs, argptr));
@@ -604,7 +604,7 @@ extern int gasnetc_AMRequestMediumM(
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
   GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-    AMLOCK();
+    AMLOCK_TOSEND();
       retval = GASNETI_AM_SAFE_NORETURN(
                AMUDP_RequestIVA(gasnetc_endpoint, dest, handler, 
                                 source_addr, nbytes, 
@@ -635,7 +635,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-    AMLOCK();
+    AMLOCK_TOSEND();
       retval = GASNETI_AM_SAFE_NORETURN(
                AMUDP_RequestXferVA(gasnetc_endpoint, dest, handler, 
                                    source_addr, nbytes, 

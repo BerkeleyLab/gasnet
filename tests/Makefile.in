@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.27 2004/06/08 19:59:17 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.27.2.1 2004/07/29 04:15:58 jduell Exp $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -40,7 +40,10 @@ testprograms_seq =      \
         testhsl         \
         testbarrierconf \
         testbarrierlate \
-	testtools   
+        testtools       \
+        testcoll        \
+        $(CONDUIT_TESTS)
+  
 
 # tests that should only be built in PARSYNC and PAR modes
 testprograms_parsync =  \
@@ -48,6 +51,7 @@ testprograms_parsync =  \
 # tests that should only be built in PAR mode
 testprograms_par =  \
 	testthreads \
+	testcontend \
 	$(MPI_TEST)
 
 testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par)
@@ -127,15 +131,15 @@ run-tests: force
 	      echo "*** Running $(CONDUIT_NAME)-conduit $$file ***" ;                   \
 	      cmd="./$$file $$args" ;                                                   \
 	    else                                                                        \
-	      awk_threadscan='BEGIN {FS=" ";RS="$$"}                                    \
-		/GASNetThreadModel: [^ ]* / { split($$2,A,/_/); print A[2] ; exit}' ;   \
-	      threadmode=`cat -v $$file@EXESUFFIX@ 2> /dev/null |                       \
-                          eval @AWK@ \'$$awk_threadscan\'` ;                            \
+	      perl_threadscan='print $$1                                                \
+                               if (/\$$GASNetThreadModel: GASNET_([^ ]*) \$$/);' ;      \
+	      threadmode=`eval @PERL@ -n -e \'$$perl_threadscan\'                       \
+                          $$file@EXESUFFIX@ 2> /dev/null` ;                             \
 	      echo "*** Running $(CONDUIT_NAME)-conduit $$file"                         \
 		   "in $$threadmode/$(GASNET_SEGMENT_STR) mode ***" ;                   \
 	      awk_cmdbuild='{ gsub("%C","%P %A");                                       \
                               gsub("%P","./'$$file'");                                  \
-			      gsub("%E","");                                            \
+			      gsub("%L","DUMMY");                                       \
 			      gsub("%V ","");                                           \
 			      gsub("%N","'$$nodes'");                                   \
 			      gsub("%A","'"$$args"'"); print $0 }' ;                    \
@@ -169,6 +173,13 @@ testmpi: force
 	@MPI_CC@ -I$(srcdir) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) @MPI_CFLAGS@ -c -o $@.o $(srcdir)/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
 	rm -f $@.o	
+
+# testcxx tests support for compiling a C++-based GASNet client 
+# this is unlikely to work on conduits requiring a special linker (eg mpi-conduit)
+testcxx: force
+	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ -I$(srcdir) $(GASNET_CPPFLAGS) -c -o $@.o $(srcdir)/$@.cc
+	@CXX@ @CXXFLAGS@ $(GASNET_LDFLAGS) -o $@ $@.o $($@_extraobjs) $(GASNET_LIBS)
+	rm -f $@.o
 
 # This is a model for how GASNet clients should be built:
 test% : force

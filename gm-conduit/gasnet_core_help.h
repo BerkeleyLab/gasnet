@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.28 2004/03/18 09:24:18 bonachea Exp $
- * $Date: 2004/03/18 09:24:18 $
- * $Revision: 1.28 $
+/* $Id: gasnet_core_help.h,v 1.28.4.1 2004/07/29 04:15:28 jduell Exp $
+ * $Date: 2004/07/29 04:15:28 $
+ * $Revision: 1.28.4.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -15,6 +15,15 @@
 #define _GASNET_CORE_HELP_H
 
 BEGIN_EXTERNC
+
+/* 
+ * Set the following to 1 here or prior to including this file in order to to
+ * disable RDMA gets altogether.  This may be required if stability problems
+ * are encountered.
+ */
+#ifndef GASNETC_DISABLE_RDMA_GETS
+  #define GASNETC_DISABLE_RDMA_GETS   0
+#endif
 
 #include <gasnet_help.h>
 #include <gm.h>
@@ -46,20 +55,41 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_SEGMENT_PINNED	0
 #endif
 
-/* Puts changed to gm_put in the GM 2.x API revision */
-#ifdef GASNETC_GM_2
-#define GASNETC_RDMA_GETS		1
-#define GASNETE_GET_NON_DMA_CUTOFF	0
+/*
+ * RDMA PUTS
+ *
+ * GM 2.x API revision supports gm_put as a synonym for
+ * gm_directed_send_with_callback
+ */
+#if defined(GASNETC_GM_2)
 #define GASNETC_GM_PUT	gm_put
 #else
-#define GASNETC_RDMA_GETS		0
-#define GASNETE_GET_NON_DMA_CUTOFF	8192
 #define GASNETC_GM_PUT	gm_directed_send_with_callback
 #endif
-
-#define GASNETE_PUT_NON_DMA_CUTOFF	0	
-#define GASNETE_PUT_NON_BULK_CUTOFF	GASNETC_AM_LEN
+#define GASNETE_PUT_NON_DMA_CUTOFF		0	
+#define GASNETE_PUT_NON_BULK_CUTOFF		GASNETC_AM_LEN
 #define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD	8192
+
+/*
+ * RDMA GETS
+ *
+ * Appeared with GM API version 2.x but there are serious problems for versions
+ * prior to 2.0.12 in 2.0 series and prior to 2.1.2 in 2.1 series
+ */
+
+#if GM_API_VERSION_2_0 &&                                 \
+   ((GM_API_VERSION_2_1_0 && GM_API_VERSION < 0x20102) || \
+     GM_API_VERSION < 0x2000c)
+    #define GASNETC_GM_RDMA_GETS_BROKEN 1
+#endif
+/* Enable GM gets only if we have GM 2 API and a version that's not broken */
+#if !defined(GASNETC_GM_2) || GASNETC_GM_RDMA_GETS_BROKEN || GASNETC_DISABLE_RDMA_GETS
+  #define GASNETC_RDMA_GETS		0
+  #define GASNETE_GET_NON_DMA_CUTOFF	8192
+#else
+  #define GASNETC_RDMA_GETS		1
+  #define GASNETE_GET_NON_DMA_CUTOFF	0
+#endif
 
 #define GASNETC_SEGMENT_ALIGN	GASNETI_PAGESIZE
 

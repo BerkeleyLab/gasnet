@@ -1,4 +1,4 @@
-/* $Id: testthreads.c,v 1.13 2004/01/23 10:35:05 bonachea Exp $
+/* $Id: testthreads.c,v 1.13.6.1 2004/07/29 04:15:58 jduell Exp $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -575,7 +575,7 @@ test_amshort(threaddata_t *tdata)
 
 	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d", tdata->tid, peer);
 	tdata->flag = -1;
-        gasnett_local_membar();
+        gasnett_local_wmb();
 	GASNET_Safe(gasnet_AMRequestShort1(node, 
 		    hidx_ping_shorthandler, tdata->ltid));
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
@@ -598,7 +598,7 @@ test_ammedium(threaddata_t *tdata)
 		
 	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
-        gasnett_local_membar();
+        gasnett_local_wmb();
 	GASNET_Safe(gasnet_AMRequestMedium1(node, 
 		    hidx_ping_medhandler, laddr, len, 
 		    tdata->ltid));
@@ -624,7 +624,7 @@ test_amlong(threaddata_t *tdata)
               || (len > TEST_SEGZ_PER_THREAD));
 		
 	tdata->flag = -1;
-        gasnett_local_membar();
+        gasnett_local_wmb();
 	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 
 	GASNET_Safe(gasnet_AMRequestLong2(node, 

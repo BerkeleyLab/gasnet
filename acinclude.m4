@@ -512,7 +512,7 @@ AC_DEFUN([GASNET_PROG_CPP], [
   AC_LANG_C
   gasnet_progcpp_extrainfo=
   dnl deal with preprocessors who foolishly return success exit code even when they saw #error
-  if test -n "`$CPP -version 2>&1 | grep MIPSpro`" ; then
+  if test -n "`$CPP -version 2>&1 < /dev/null | grep MIPSpro`" ; then
     dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
@@ -540,7 +540,7 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
   AC_LANG_CPLUSPLUS
   gasnet_progcxxcpp_extrainfo=
   dnl deal with preprocessors who foolishly return success exit code even when they saw #error
-  if test -n "`$CXXCPP -version 2>&1 | grep MIPSpro`" ; then
+  if test -n "`$CXXCPP -version 2>&1 < /dev/null | grep MIPSpro`" ; then
     dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcxxcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
@@ -592,6 +592,26 @@ AC_DEFUN([GASNET_PROG_CXX], [
   AC_TRY_LINK([], [], [], [AC_MSG_ERROR(Your C++ link is broken - reported failure when it should have succeeded)])
   AC_MSG_RESULT(yes)
   AC_LANG_RESTORE
+])
+
+dnl find working version of perl.  Checks to see if 'bytes' module is available,
+dnl and sets GASNET_PERL_BYTESFLAG to either '-Mbytes' or empty string, for
+dnl scripts that need to ward off Perl/UTF-8 issues 
+AC_DEFUN([GASNET_PROG_PERL],[
+  GASNET_PATH_PROGS(PERL, perl5 perl, perl)
+  MIN_PERL_VERSION="5.005"
+  AC_MSG_CHECKING(for perl version $MIN_PERL_VERSION or later)
+  if $PERL -e "require $MIN_PERL_VERSION;" 2>/dev/null; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_ERROR(cannot find perl $MIN_PERL_VERSION or later)
+  fi
+  if $PERL -Mbytes -e "exit 0" 2>/dev/null; then
+    GASNET_PERL_BYTESFLAG="-Mbytes"
+  else
+    GASNET_PERL_BYTESFLAG=
+  fi
+  AC_SUBST(GASNET_PERL_BYTESFLAG)
 ])
 
 AC_DEFUN([GASNET_IFDEF],[

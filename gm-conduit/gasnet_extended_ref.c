@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_ref.c,v 1.13 2004/04/05 18:37:45 phargrov Exp $
- * $Date: 2004/04/05 18:37:45 $
+/* $Id: gasnet_extended_ref.c,v 1.13.4.1 2004/07/29 04:15:28 jduell Exp $
+ * $Date: 2004/07/29 04:15:28 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -77,7 +77,7 @@ void gasnete_extref_get_reph_inner(gasnet_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *op) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   gasnete_op_markdone((gasnete_op_t *)op, 1);
 }
 MEDIUM_HANDLER(gasnete_extref_get_reph,2,4,
@@ -101,7 +101,7 @@ GASNET_INLINE_MODIFIER(gasnete_extref_getlong_reph_inner)
 void gasnete_extref_getlong_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes, 
   void *op) {
-  gasneti_memsync();
+  gasneti_sync_writes();
   gasnete_op_markdone((gasnete_op_t *)op, 1);
 }
 LONG_HANDLER(gasnete_extref_getlong_reph,1,2,
@@ -113,7 +113,7 @@ void gasnete_extref_put_reqh_inner(gasnet_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *op) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_extref_markdone_reph),
                   PACK(op))));
@@ -126,7 +126,7 @@ GASNET_INLINE_MODIFIER(gasnete_extref_putlong_reqh_inner)
 void gasnete_extref_putlong_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *op) {
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_extref_markdone_reph),
                   PACK(op))));
@@ -139,7 +139,7 @@ GASNET_INLINE_MODIFIER(gasnete_extref_memset_reqh_inner)
 void gasnete_extref_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
   memset(dest, (int)(uint32_t)val, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_extref_markdone_reph),
                   PACK(op))));
@@ -407,6 +407,17 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -416,6 +427,9 @@ static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */

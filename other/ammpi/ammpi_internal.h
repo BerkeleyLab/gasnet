@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_internal.h                                 $
- *     $Date: 2004/03/31 14:18:10 $
- * $Revision: 1.15 $
+ *     $Date: 2004/07/29 04:15:40 $
+ * $Revision: 1.15.2.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -338,6 +338,7 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
 /* interface for allowing control messages to be sent between mutually mapped endpoints 
  * up to AMMPI_MAX_SHORT integer arguments are passed verbatim to the registered handler,
  * which should NOT call any AMMPI functions (including poll, reply, etc)
+ * AMMPI_SendControlMessage is safe to call from a handler context
  */
 extern int AMMPI_SendControlMessage(ep_t from, en_t to, int numargs, ...);
   /* beware - cast all optional args of AMMPI_SendControlMessage to int32_t */

@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v 1.10 2004/03/17 00:19:30 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v 1.10.6.1 2004/07/29 04:16:00 jduell Exp $
 # Description: Makefile for GASNet udp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -53,6 +53,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %N = requested node count
 #   %A = program arguments
 CONDUIT_RUNCMD = %P %N %A
+
+# conduit-specific tests in ../tests directory
+CONDUIT_TESTS = testcxx
 
 # -------- Do not modify anything below this line --------
 

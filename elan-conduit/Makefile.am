@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v 1.25 2004/03/13 03:54:28 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v 1.25.4.1 2004/07/29 04:15:24 jduell Exp $
 # Description: Makefile for GASNet elan conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -57,6 +57,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %N = requested node count
 #   %A = program arguments
 CONDUIT_RUNCMD = prun -n %N -N %N %P %A
+
+# conduit-specific tests in ../tests directory
+CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 

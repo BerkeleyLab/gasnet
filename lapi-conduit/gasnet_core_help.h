@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_help.h             $
- *     $Date: 2004/05/28 17:11:46 $
- * $Revision: 1.14 $
+ *     $Date: 2004/07/29 04:15:32 $
+ * $Revision: 1.14.2.1 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -77,7 +77,7 @@ typedef atomic_p gasnetc_spinlock_t;
 GASNET_INLINE_MODIFIER(gasnetc_spinlock_init)
 int gasnetc_spinlock_init(gasnetc_spinlock_t *lock) {
     *lock = 0;
-    gasneti_local_membar();
+    gasneti_local_wmb();
     return 0;
 }
 
@@ -89,7 +89,7 @@ int gasnetc_spinlock_lock(gasnetc_spinlock_t *lock) {
       int locked = 1;
       while (1) {
 	  if (compare_and_swap( (atomic_p)lock, &avail, locked ) ) {
-	      gasneti_local_membar();
+	      gasneti_local_rmb();
 	      break;
 	  }
 	  gasneti_assert(avail == 1);
@@ -102,7 +102,7 @@ GASNET_INLINE_MODIFIER(gasnetc_spinlock_unlock)
 int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
     int avail = 0;
     int locked = 1;
-    gasneti_local_membar();
+    gasneti_local_wmb();
     if (!compare_and_swap( (atomic_p)lock, &locked, avail ) )
         gasneti_fatalerror("this should not happen");
     return 0;
@@ -114,7 +114,7 @@ int gasnetc_spinlock_trylock(gasnetc_spinlock_t *lock) {
       int avail = 0;
       int locked = 1;
       if (compare_and_swap( (atomic_p)lock, &avail, locked )) {
-	  gasneti_local_membar();
+	  gasneti_local_rmb();
 	  return 0;
       }
       return 1;

@@ -1,4 +1,4 @@
-/* $Id: testcontend.c,v 1.1 2004/07/17 17:00:47 bonachea Exp $
+/* $Id: testcontend.c,v 1.1.2.1 2004/07/29 04:15:58 jduell Exp $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  

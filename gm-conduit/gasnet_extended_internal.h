@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2004/01/05 16:20:01 $
- * $Revision: 1.17 $
+ *     $Date: 2004/07/29 04:15:28 $
+ * $Revision: 1.17.8.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -104,6 +104,9 @@ typedef struct _gasnete_iop_t {
 typedef struct _gasnete_threaddata_t {
 	/* pointer reserved for use by the core */
 	void			*gasnetc_threaddata;
+	/* pointer reserved for use by the collectives */
+	void			*gasnete_coll_threaddata;
+
 	gasnete_threadidx_t	threadidx;
 
 	int eop_num_bufs;	/*  number of valid buffer entries */
@@ -132,7 +135,7 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 /*  state */
 #define OPSTATE_FREE		0   /* gasnete_eop_new() relies on this value */
 #define OPSTATE_INFLIGHT	1
-#define OPSTATE_COMPLETE	3
+#define OPSTATE_COMPLETE	2
 #define OPSTATE(op)		((op)->flags & 0x03) 
 #define OPMISC_NONAMBUF		4
 #define OPMISC_AMBUF		8
@@ -140,7 +143,10 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 GASNET_INLINE_MODIFIER(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
 	op->flags = (op->flags & 0xFC) | (state & 0x03);
-	gasneti_assert(OPSTATE(op) == state);
+	/* RACE: If we are marking the op COMPLETE, don't assert for completion
+	 * state as another thread spinning on the op may already have changed
+	 * the state. */
+	gasneti_assert(state == OPSTATE_COMPLETE ? 1 : OPSTATE(op) == state);
 }
 
 GASNET_INLINE_MODIFIER(SET_OPMISC)

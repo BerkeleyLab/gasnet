@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/05/16 00:05:41 $
- * $Revision: 1.7 $
+ *     $Date: 2004/07/29 04:16:02 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,6 +88,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
      specific to the extended API implementation (see gasnet_help.h) */
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
         GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
+	GASNETI_REFCOLL_STATS(CNT,VAL,TIME)  \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
 
 #define GASNETI_DIRECT_GET_BULK 1

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/24 01:37:29 $
- * $Revision: 1.19 $
+ *     $Date: 2004/07/29 04:15:24 $
+ * $Revision: 1.19.10.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -305,13 +305,13 @@ extern gasneti_mutex_t gasnetc_sendfifoLock;
 #if GASNETI_THREADS
   #if defined(ELAN_VER_1_2) || defined(ELAN_VER_1_3)
     /* use real locks to provide thread-safety */
-    #define LOCK_ELAN_WEAK()    LOCK_ELAN()
-    #define UNLOCK_ELAN_WEAK()  UNLOCK_ELAN()
+    #define LOCK_ELAN_WEAK()   do { gasneti_suspend_spinpollers(); LOCK_ELAN(); } while (0)
+    #define UNLOCK_ELAN_WEAK() do { UNLOCK_ELAN(); gasneti_resume_spinpollers(); } while (0)
     #define ASSERT_ELAN_LOCKED_WEAK() gasneti_mutex_assertlocked(&gasnetc_elanLock)
   #else
     /* elan library v1.4+ thread-safe - no weak locking required */
-    #define LOCK_ELAN_WEAK()
-    #define UNLOCK_ELAN_WEAK()
+    #define LOCK_ELAN_WEAK()   gasneti_suspend_spinpollers()
+    #define UNLOCK_ELAN_WEAK() gasneti_resume_spinpollers()
     #define ASSERT_ELAN_LOCKED_WEAK()
   #endif
 #else

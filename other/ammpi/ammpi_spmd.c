@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.c                                     $
- *     $Date: 2004/05/29 09:25:34 $
- * $Revision: 1.20 $
+ *     $Date: 2004/07/29 04:15:40 $
+ * $Revision: 1.20.2.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -395,7 +395,8 @@ extern int AMMPI_SPMDExit(int exitcode) {
     en_t remoteName;
     if (AM_GetTranslationName(AMMPI_SPMDEndpoint, i, &remoteName) == AM_OK &&
         !enEqual(remoteName, AMMPI_SPMDName)) {
-      AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'E', (int32_t)exitcode);
+      if (AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'E', (int32_t)exitcode) != AM_OK)
+        ErrMessage("Failed to AMMPI_SendControlMessage in AMMPI_SPMDExit()");
     }
   }
 
@@ -457,7 +458,8 @@ extern int AMMPI_SPMDBarrier() {
       en_t remoteName;
       if (AM_GetTranslationName(AMMPI_SPMDEndpoint, i, &remoteName) != AM_OK)
         AMMPI_RETURN_ERR(RESOURCE);
-      AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'B', (int32_t)0);
+      if (AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'B', (int32_t)0) != AM_OK)
+        AMMPI_RETURN_ERR(RESOURCE);
     }
   }
   else { /* proc non-zero */
@@ -466,7 +468,8 @@ extern int AMMPI_SPMDBarrier() {
       AMMPI_RETURN_ERR(RESOURCE);
 
     /*  signal zero */
-    AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'R', (int32_t)0);
+    if (AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'R', (int32_t)0) != AM_OK)
+      AMMPI_RETURN_ERR(RESOURCE);
 
     /*  wait for completion */
     AM_Poll(AMMPI_SPMDBundle);

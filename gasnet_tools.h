@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_tools.h                                   $
- *     $Date: 2004/05/02 08:05:11 $
- * $Revision: 1.13 $
+ *     $Date: 2004/07/29 04:15:20 $
+ * $Revision: 1.13.2.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -52,7 +52,8 @@
 
 /* portable memory barrier */
 
-#define gasnett_local_membar()       gasneti_local_membar()
+#define gasnett_local_wmb()          gasneti_local_wmb()
+#define gasnett_local_rmb()          gasneti_local_rmb()
 
 /* tight spin loop CPU hint */
 #define gasnett_spinloop_hint()      gasneti_spinloop_hint() 

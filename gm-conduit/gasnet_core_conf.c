@@ -1,5 +1,5 @@
-/* $Id: gasnet_core_conf.c,v 1.9 2003/11/08 23:50:57 csbell Exp $
- * $Date: 2003/11/08 23:50:57 $
+/* $Id: gasnet_core_conf.c,v 1.9.10.1 2004/07/29 04:15:28 jduell Exp $
+ * $Date: 2004/07/29 04:15:28 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -8,8 +8,8 @@
 /* Much of the code below is taken from Myricom's MPICH bootstrap code */
 
 #include <gasnet_core_internal.h>
+#include <arpa/inet.h>
 #include <string.h>
-#include <netdb.h>
 
 #define RETURN_ERR(err)	do {	\
 		printf err;			\
@@ -34,7 +34,7 @@
 
 static
 char *
-gasnetc_gexec_hostname(char *buf, size_t buflen, gasnet_node_t nodeid)
+gasnetc_gexec_ip(char *buf, size_t buflen, gasnet_node_t nodeid)
 {
 	char	*svrs, *rank, *c, *e, *hostname;
 	int	id, procs, i, len;
@@ -151,17 +151,17 @@ gasnetc_getconf_mpiexec()
 		    "Bootstrap doesn't support spawning from MPICH 1.2.4..8");
 	}
 
-	if (sscanf (magic, "%d", &magic_number) != 1)
+	if (sscanf (magic, "%ud", &magic_number) != 1)
 		gasneti_fatalerror("Bootstrap: Bad magic number %s", magic);
 	_gmc.job_magic = magic_number;
 		
-	if (sscanf (port, "%d", &master_port) != 1) 
+	if (sscanf (port, "%ud", &master_port) != 1) 
 		gasneti_fatalerror(
 		    "Bootstrap: Bad master port 1 (%s out of %d processes", 
 		    id, gasnetc_nodes);
 	_gmc.master_port = master_port;
 
-	if (sscanf (board, "%d", &board_id) != 1)
+	if (sscanf (board, "%ud", &board_id) != 1)
 		gasneti_fatalerror("Bootstrap: Bad magic number: %s", magic);
 	_gmc.my_board = board_id;
 
@@ -201,32 +201,28 @@ gasnetc_getconf_mpiexec()
 		gasneti_fatalerror(
 		    "%d> Can't open first socket", gasnetc_mynode);
 	else {
-		struct hostent	*slave_he;
-		char		*slave;
-		char		buf[256];
+		char	buf[256];
+		char	*slave;
+		char	slave_n[32];
+		int	hostlen;
 
 		slave = getenv("GMPI_SLAVE");
 		if (slave == NULL || *slave == '\0') {
-			slave = gasnetc_gexec_hostname(buf, 256, 
-					gasnetc_mynode);
+			slave = gasnetc_gexec_ip(buf, 256, gasnetc_mynode);
 
 			if (slave == NULL)
 				gasneti_fatalerror(
 				    "Can't identify local hostname");
 		}
 
-		slave_he = gethostbyname(slave);
-		if (slave_he == NULL)
-			gasneti_fatalerror("%d> can't get hostname for %s",
-					gasnetc_mynode, slave);
-		/*
-		 * Bind the slave to a port
-		 */
+		memset(&slave_n, 0, 32);
+		if (inet_pton(AF_INET, slave, slave_n) == INADDR_NONE)
+		    gasneti_fatalerror("%d> Could not translate IP %s", 
+			gasnetc_mynode, slave);
 
 		memset(&_gmc.slave_addr, 0, sizeof(struct sockaddr));
 		_gmc.slave_addr.sin_family = AF_INET;
-		memcpy(&_gmc.slave_addr.sin_addr, 
-			slave_he->h_addr, slave_he->h_length);
+		memcpy(&_gmc.slave_addr.sin_addr, slave_n, strlen(slave_n));
 
 		for (slave_port = 8000; slave_port < 20000; slave_port++) {
 			_gmc.slave_addr.sin_port = htons(slave_port);
@@ -238,7 +234,6 @@ gasnetc_getconf_mpiexec()
 			gasneti_fatalerror(
 			    "%d> Couldn't find a port to bind slave socket",
 			    gasnetc_mynode);
-	
 	}
 
 	/*
@@ -257,22 +252,20 @@ gasnetc_getconf_mpiexec()
 		gasneti_fatalerror(
 		    "%d> Can't open second socket", gasnetc_mynode);
 	else {
-		struct hostent		*master_he;
-		gm_u64_t 		start_time, stop_time;
-		ssize_t			b;
-		int			junk;
+		gm_u64_t    start_time, stop_time;
+		char	    master_n[32];
+		ssize_t	    b;
+		int	    junk;
 
-		master_he = gethostbyname (master);
-
-		if (master_he == NULL)
-			gasneti_fatalerror("%d> can't get hostname for %s",
-					gasnetc_mynode, master);
+		memset(&master_n, 0, 32);
+		if (inet_pton(AF_INET, master, master_n) == INADDR_NONE)
+		    gasneti_fatalerror("%d> Could not translate IP %s",
+			gasnetc_mynode, master);
 
 		memset(&_gmc.master_addr, 0, sizeof(struct sockaddr));
 		_gmc.master_addr.sin_family = AF_INET;
 		_gmc.master_addr.sin_port = htons(_gmc.master_port);
-		memcpy(&_gmc.master_addr.sin_addr, master_he->h_addr, 
-		       master_he->h_length);
+		memcpy(&_gmc.master_addr.sin_addr, master_n, strlen(master_n));
 
 		start_time = gm_ticks(_gmc.port);
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_extended.c                  $
- *     $Date: 2004/05/02 08:10:57 $
- * $Revision: 1.21 $
+ *     $Date: 2004/07/29 04:15:32 $
+ * $Revision: 1.21.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,14 +82,10 @@ extern gasnete_threaddata_t *gasnete_mythread() {
       return threaddata;
     }
 
-    /*  first time we've seen this thread - need to set it up */
-    { int retval;
-    gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
-
-    retval = pthread_setspecific(gasnete_threaddata, threaddata);
-    gasneti_assert(!retval);
+    /* first time we've seen this thread - need to set it up */
+    threaddata = gasnete_new_threaddata();
+    gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
     return threaddata;
-    }
 }
 #else
 #define gasnete_mythread() (gasnete_threadtable[0])
@@ -112,12 +108,10 @@ extern void gasnete_init() {
 
     gasnete_check_config(); /*  check for sanity */
 
-#if GASNETI_CLIENT_THREADS
-    {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
-	int retval = pthread_key_create(&gasnete_threaddata, NULL);
-	if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-    }
-#endif
+    #if GASNETI_CLIENT_THREADS
+      /*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+      gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
+    #endif
 
     gasnete_mynode = gasnet_mynode();
     gasnete_nodes = gasnet_nodes();
@@ -581,9 +575,10 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     if (gasnete_op_isdone(handle)) {
+	gasneti_sync_reads();
 	gasnete_op_free(handle);
 	return GASNET_OK;
     }
@@ -593,7 +588,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 0;
     int empty = 1;
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     gasneti_assert(phandle);
 
@@ -603,6 +598,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 	if (op != GASNET_INVALID_HANDLE) {
 	    empty = 0;
 	    if (gasnete_op_isdone(op)) {
+		gasneti_sync_reads();
 		gasnete_op_free(op);
 		phandle[i] = GASNET_INVALID_HANDLE;
 		success = 1;
@@ -617,7 +613,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 1;
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     gasneti_assert(phandle);
 
@@ -626,6 +622,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 	gasnete_op_t *op = phandle[i];
 	if (op != GASNET_INVALID_HANDLE) {
 	    if (gasnete_op_isdone(op)) {
+		gasneti_sync_reads();
 		gasnete_op_free(op);
 		phandle[i] = GASNET_INVALID_HANDLE;
 	    } else success = 0;
@@ -770,6 +767,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 	      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->get_cntr,0));
               iop->initiated_get_cnt = 0;
             }
+	    gasneti_sync_reads();
 	    return GASNET_OK;
         } else return GASNET_ERR_NOT_READY;
     }
@@ -793,10 +791,11 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 	    gasneti_assert(cnt <= iop->initiated_put_cnt);
 	}
         if (iop->initiated_put_cnt == cnt) {
-          if (cnt > 65000) { /* make sure we don't overflow the counters */
+            if (cnt > 65000) { /* make sure we don't overflow the counters */
 	      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->put_cntr,0));
               iop->initiated_put_cnt = 0;
             }
+	    gasneti_sync_reads();
 	    return GASNET_OK;
         } else return GASNET_ERR_NOT_READY;
     }
@@ -1036,7 +1035,7 @@ void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 	gasneti_assert(phase == barrier_phase);
 
 	barrier_response_mismatch[phase] = u->mismatch;
-        gasneti_memsync(); /* ensure mimatch committed before signal */
+        gasneti_sync_writes(); /* ensure mimatch committed before signal */
 	barrier_response_done[phase] = 1;
     }
     return NULL;
@@ -1086,7 +1085,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
     /*  update state */
     barrier_splitstate = INSIDE_BARRIER;
-    gasneti_memsync(); /* ensure all state changes committed before return */
+    gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
 
@@ -1102,7 +1101,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
 
     /*  wait for response */
     while (!barrier_response_done[phase]) {
-	GASNETE_SAFE(gasnet_AMPoll());
+	GASNETE_SAFE(gasneti_AMPoll());
     }
 
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
@@ -1117,7 +1116,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
     /*  update local state */
     barrier_splitstate = OUTSIDE_BARRIER;
     barrier_response_done[phase] = 0;
-    gasneti_memsync(); /* ensure all state changes committed before return */
+    gasneti_sync_writes(); /* ensure all state changes committed before return */
     if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
 	  flags != barrier_flags || 
 	  barrier_response_mismatch[phase]) {
@@ -1155,6 +1154,17 @@ extern int gasnete_barrier_try(int id, int flags) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -1164,6 +1174,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
     /* ptr-width independent handlers */
 

@@ -1,6 +1,6 @@
-/* $Id: gasnet_extended_op.c,v 1.9 2004/03/03 13:47:06 bonachea Exp $
- * $Date: 2004/03/03 13:47:06 $
- * $Revision: 1.9 $
+/* $Id: gasnet_extended_op.c,v 1.9.6.1 2004/07/29 04:15:28 jduell Exp $
+ * $Date: 2004/07/29 04:15:28 $
+ * $Revision: 1.9.6.1 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -171,10 +171,10 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op) {
 	gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
-	gasneti_assert(thread == gasnete_mythread());
 	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 		gasnete_eop_t *eop = (gasnete_eop_t *)op;
 		gasnete_eopaddr_t addr = eop->addr;
+		//gasneti_assert(thread == gasnete_mythread());
 		gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);
                 gasnete_eop_check(eop);
 		SET_OPSTATE(eop, OPSTATE_FREE);

@@ -2,8 +2,21 @@ README file for gm-conduit
 =======================================
 Christian Bell <csbell@cs.berkeley.edu>
 
-This first version of the GM conduit implements the full GASNet spec.  Here are
-some of the highlights and quirks. .
+********************************************************************************
+** RDMA GETS
+
+If you see the following message while building gm-conduit,
+  GASNet/GM RDMA gets disabled for broken GM 2.x build (see gm-conduit README)
+
+gm-conduit has detected that the GM version you are compiling against has
+problems handling RDMA gets.  In order to enable RDMA gets, make sure the
+target system is running at least 2.0.12 for GM-2.0 series or 2.1.2 for GM-2.1
+series.  If not, make sure you pester your system administrator to upgrade to
+at least these versions or else gm-conduit _cannot_ use RDMA gets.
+
+If any stability problems are encountered when gets are enabled, an alternative
+is to #define GASNETC_DISABLE_RDMA_GETS to 1 at the top of the
+gm-conduit/gasnet_core_help.h file.
 
 ********************************************************************************
 ** Bootstrapping
@@ -46,8 +59,8 @@ some of the highlights and quirks. .
     for pinned memory while MAXVICTIM is the amount to satisfy locally
     initiated one-sided operations.  These parameters are controlled at runtime
     using two environment variables,
-       GASNETGM_FIREHOSE_M,
-       GASNETGM_FIREHOSE_MAXVICTIM.
+       GASNET_FIREHOSE_M,
+       GASNET_FIREHOSE_MAXVICTIM.
     Although a site administrator can tune these values to better match the
     cluster's needs, the bootstrapping mechanism manages to find a sensible
     default.  If the gasnetrun script is used, the '--fh-M' and

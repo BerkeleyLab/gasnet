@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_extended.c                  $
- *     $Date: 2004/05/02 08:05:13 $
- * $Revision: 1.35 $
+ *     $Date: 2004/07/29 04:15:24 $
+ * $Revision: 1.35.4.1 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -205,14 +205,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
       return threaddata;
     }
 
-    /*  first time we've seen this thread - need to set it up */
-    { int retval;
-      gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
-
-      retval = pthread_setspecific(gasnete_threaddata, threaddata);
-      gasneti_assert(!retval);
-      return threaddata;
-    }
+    /* first time we've seen this thread - need to set it up */
+    threaddata = gasnete_new_threaddata();
+    gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
+    return threaddata;
   }
 #else
   #define gasnete_mythread() (gasnete_threadtable[0])
@@ -237,10 +233,8 @@ extern void gasnete_init() {
   gasnete_check_config(); /*  check for sanity */
 
   #if GASNETI_CLIENT_THREADS
-  {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
-    int retval = pthread_key_create(&gasnete_threaddata, NULL);
-    if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-  }
+    /*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+    gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
   #endif
 
   gasnete_mynode = gasnet_mynode();
@@ -523,7 +517,7 @@ void gasnete_get_reph_inner(gasnet_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *op) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   gasnete_op_markdone((gasnete_op_t *)op, 1);
 }
 MEDIUM_HANDLER(gasnete_get_reph,2,4,
@@ -547,7 +541,7 @@ GASNET_INLINE_MODIFIER(gasnete_getlong_reph_inner)
 void gasnete_getlong_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes, 
   void *op) {
-  gasneti_memsync();
+  gasneti_sync_writes();
   gasnete_op_markdone((gasnete_op_t *)op, 1);
 }
 LONG_HANDLER(gasnete_getlong_reph,1,2,
@@ -559,7 +553,7 @@ void gasnete_put_reqh_inner(gasnet_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *op) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
@@ -572,7 +566,7 @@ GASNET_INLINE_MODIFIER(gasnete_putlong_reqh_inner)
 void gasnete_putlong_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *op) {
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
@@ -585,7 +579,7 @@ GASNET_INLINE_MODIFIER(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
   memset(dest, (int)(uint32_t)val, nbytes);
-  gasneti_memsync();
+  gasneti_sync_writes();
   GASNETE_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
@@ -788,6 +782,7 @@ int gasnete_try_syncnb_inner(gasnet_handle_t handle) {
   if (GASNETE_HANDLE_IS_OP(handle)) {
     gasnete_op_t *op = GASNETE_HANDLE_TO_OP(handle);
     if (gasnete_op_isdone(op, FALSE)) {
+      gasneti_sync_reads();
       gasnete_op_free(op);
       return GASNET_OK;
     }
@@ -805,14 +800,14 @@ int gasnete_try_syncnb_inner(gasnet_handle_t handle) {
 }
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
   return gasnete_try_syncnb_inner(handle);
 }
 
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -838,7 +833,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -901,7 +896,7 @@ static void gasnete_putgetctrl_save(gasnete_putgetctrl *pgctrl, ELAN_EVENT *evt)
       }
     }
     if (pgctrl->evt_cnt == gasnete_nbi_throttle) {
-      UNLOCKRELOCK_ELAN_WEAK(gasnetc_AMPoll());
+      UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
     }
   }
   evt_lst[pgctrl->evt_cnt] = evt;
@@ -916,8 +911,10 @@ static gasnete_eop_t * gasnete_putgetbblist_pending(gasnete_eop_t *eoplist) {
     gasneti_assert(OPCAT(op) == OPCAT_ELANGETBB || OPCAT(op) == OPCAT_ELANPUTBB);
     gasneti_assert(eoplist->bouncebuf);
     next = eoplist->bouncebuf->next;
-    if (gasnete_op_isdone(op, TRUE)) 
+    if (gasnete_op_isdone(op, TRUE)) {
+      gasneti_sync_reads();
       gasnete_op_free(op);
+    }
     else 
       return eoplist; /* stop when we find the first pending one */
     eoplist = next;
@@ -979,7 +976,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
           if (((iop->elan_getbb_list = gasnete_putgetbblist_pending(iop->elan_getbb_list)) != NULL) 
                | /* don't want short-circuit || evaluation here */
               ((iop->elan_putbb_list = gasnete_putgetbblist_pending(iop->elan_putbb_list)) != NULL)) {
-            UNLOCKRELOCK_ELAN_WEAK(gasnetc_AMPoll()); /* prevent deadlock */
+            UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll()); /* prevent deadlock */
           }
           goto tryagain;
         }
@@ -1104,7 +1101,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
           if (((iop->elan_getbb_list = gasnete_putgetbblist_pending(iop->elan_getbb_list)) != NULL) 
                | /* don't want short-circuit || evaluation here */
               ((iop->elan_putbb_list = gasnete_putgetbblist_pending(iop->elan_putbb_list)) != NULL)) {
-            UNLOCKRELOCK_ELAN_WEAK(gasnetc_AMPoll()); /* prevent deadlock */
+            UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll()); /* prevent deadlock */
           }
           goto tryagain;
         }
@@ -1274,7 +1271,7 @@ static int gasnete_iop_puts_done(gasnete_iop_t *iop) {
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1286,7 +1283,10 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
     #endif
 
-    if (gasnete_iop_gets_done(iop)) return GASNET_OK;
+    if (gasnete_iop_gets_done(iop)) {
+      gasneti_sync_reads();
+      return GASNET_OK;
+    }
     else return GASNET_ERR_NOT_READY;
   }
 }
@@ -1294,7 +1294,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1307,7 +1307,10 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
     #endif
 
-    if (gasnete_iop_puts_done(iop)) return GASNET_OK;
+    if (gasnete_iop_puts_done(iop)) {
+      gasneti_sync_reads();
+      return GASNET_OK;
+    }
     else return GASNET_ERR_NOT_READY;
   }
 }
@@ -1435,7 +1438,7 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
         /* prevent high contention for trace lock while idling at barrier */
         _GASNETI_STAT_EVENT(C, POLL_CALLBACK_BARRIER); 
       #endif
-      gasnet_AMPoll(); 
+      gasneti_AMPoll(); 
       barrier_blocking = 1;
     LOCK_ELAN_WEAK();
   } 
@@ -1523,7 +1526,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
   /*  update state */
   barrier_splitstate = INSIDE_BARRIER;
-  gasneti_memsync(); /* ensure all state changes committed before return */
+  gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
 extern int gasnete_barrier_wait(int id, int flags) {
@@ -1539,7 +1542,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
 
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
-  gasneti_memsync(); /* ensure all state changes committed before return */
+  gasneti_sync_writes(); /* ensure all state changes committed before return */
   if_pf(barrier_state->barrier_flags == GASNET_ERR_BARRIER_MISMATCH ||
         flags != barrier_state->barrier_flags ||
         (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_state->barrier_value)) 
@@ -1569,6 +1572,17 @@ extern int gasnete_barrier_try(int id, int flags) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -1578,6 +1592,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
 
   /* ptr-width independent handlers */

@@ -100,7 +100,7 @@ run-tests: tests
 	@echo TESTBULK
 	$(TEST_RUNCMD) ./testbulk $(TEST_ITERS) 1048576 $(TEST_MODE) $(TEST_DUPLEX)
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo TESTAMUDP
+	@echo TESTAM
 	$(TEST_RUNCMD) ./testam $(TEST_ITERS) $(TEST_MODE)
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo TESTBOUNCE

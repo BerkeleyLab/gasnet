@@ -1,6 +1,6 @@
-/* $Id: gasnet_core.h,v 1.2 2004/07/15 01:29:30 csbell Exp $
- * $Date: 2004/07/15 01:29:30 $
- * $Revision: 1.2 $
+/* $Id: gasnet_core.h,v 1.2.2.1 2004/07/29 04:15:48 jduell Exp $
+ * $Date: 2004/07/29 04:15:48 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

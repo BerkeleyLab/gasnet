@@ -194,6 +194,8 @@ Optional environment variable settings:
      G - gets
      P - puts
      S - non-blocking synchronization
+     W - collective operations (excluding barriers)
+     X - collective synchronization (excluding barriers)
      B - barriers
      L - locks
      A - AM requests/replies (and handler execution, if conduit-supported)
@@ -332,12 +334,65 @@ mpi-conduit for an example).
 
 * docs: documentation on GASNet and various conduits
 
-  Please do not make any conduit-specific changes to the files in the
-extended-ref or tests directories.  They do not have any Makefiles because they
-just provide a centralized place for files used in other directories.
+GASNet coding standards
+=======================
+All GASNet conduit code is required to meet the following coding standards:
 
-  When implementing the extended API for your conduit, please clone only the
-necessary files from the extended-ref directory that you need to change 
-(and continue to include the unchanged files) to reduce maintenance headache
-(this applies especially to gasnet_extended.h).
+* Naming Conventions for macros and identifiers:
+  - All entry points required by GASNet spec are lower-case identifiers with
+    the prefix gasnet_ 
+  - All constants or macros required by GASNet spec are upper-case and preceded
+    with the prefix GASNET_
+  - All private symbols in the reference extended API implementation are
+    prefixed with gasnete_ (or GASNETE_ for macros)
+  - All private symbols in a core API implementation are prefixed with gasnetc_
+    (or GASNETC_ for macros)
+  - All private symbols shared throughout GASNet are prefixed with gasneti_ (or
+    GASNETI_ for macros)
+  - All GASNET_ or GASNETI_ configuration selection macros are either #defined
+    to 1 or #undef'd
+
+* GASNet code should be as close to C89 as possible (ie never differing without
+  good reason), because many C compilers still do not provide full C99 support,
+  and differ quite widely in the supported features. Most notably:
+   - Do not use C99-style // comments. Use only /* */.
+   - Do not use mid-block declarations of variables. Place the declarations at
+     the top of the current block or create a nested block.
+   - Do not use variable-length array declarations, zero-length structure fields, 
+     trigraphs, or any GNU C extensions
+  Running your code through "gcc -pedantic" is a good way to track down
+  violations of these rules.
+
+* All code in public header files should be C++-compliant to support C++ 
+  GASNet clients. This means using {BEGIN,END}_EXTERNC around function 
+  prototypes, and ensuring any inline function code passes the C++ typechecker.
+  Run a "gmake testcxx" to verify compliance.
+
+* GASNet conduit code should never call any of the following functions 
+  directly:
+   malloc, calloc, free, str(n)dup, assert, sched_yield, 
+   (un)setenv, mmap, pthread_*
+  Instead, you should use the gasneti_* wrapper functions of the same name.
+
+* Use gasneti_fatalerror() to signal fatal errors - the arguments work
+  just like printf. NEVER use "assert(0)".
+
+* Learn how to use the tracing macros and use them to trace interesting
+  events in your conduit. They're invaluable for debugging mysterious behavior.
+  See the comments in gasnet_trace.h for usage information.
+
+* Do NOT make trivial and/or non-meaningful changes to the code or
+  makefile framework inherited from template-conduit (e.g. re-indenting lines, 
+  moving code into different files, renaming existing identifiers, etc.)
+  as this makes it more difficult to patch your conduit if a bug is 
+  discovered in template-conduit or a GASNet-wide change is required.
+
+* Do not make any conduit-specific changes to the files in the
+  extended-ref or tests directories.  They do not have any Makefiles because they
+  just provide a centralized place for files used in other directories.
+
+* When implementing the extended API for your conduit, please clone only the
+  necessary files from the extended-ref directory that you need to change 
+  (and continue to include the unchanged files) to reduce maintenance headache
+  (this applies especially to gasnet_extended.h).
 
