@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2005/02/05 01:10:57 $
- * $Revision: 1.16.2.2 $
+ *     $Date: 2005/02/07 00:30:07 $
+ * $Revision: 1.16.2.3 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,8 +12,6 @@
 
 #ifndef _GASNET_EXTENDED_COLL_H
 #define _GASNET_EXTENDED_COLL_H
-
-#define GASNETE_COLL_TREES 1	/* XXX: should have this conditional */
 
 /*---------------------------------------------------------------------------------*/
 /* Flag values: */
@@ -200,14 +198,6 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 #endif
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
-    /* Local view of the topology of a tree */
-    typedef struct gasnete_coll_tree_info_t_ {
-	gasnet_node_t	parent;
-	gasnet_node_t	child_count;
-	gasnet_node_t	*child_list;
-	gasnet_node_t	child_id;	/* I am which element of parent's child_list? */
-    } gasnete_coll_tree_info_t;
-
     struct gasnete_coll_p2p_t_ {
 	/* Linkage and bookkeeping */
 	gasnete_coll_p2p_t	*p2p_next;
@@ -221,13 +211,6 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 	/* Volatile arrays of data and state for the point-to-point synchronization */
 	uint8_t			*data;
 	volatile uint32_t	*state;
-
-	#if GASNETE_COLL_TREES
-	  uint32_t pipe_seg_size; 
-	  uint32_t copied_bytes; 
-	  uint32_t sent_bytes; 
-	  gasnete_coll_tree_info_t tree;	/* XXX: should be pointer to reusable instance */
-	#endif
 
 	#ifdef GASNETE_COLL_P2P_EXTRA_FIELDS
 	  GASNETE_COLL_P2P_EXTRA_FIELDS
@@ -1358,7 +1341,7 @@ typedef struct  {
 #define GASNETE_COLL_GENERIC_OPT_OUTSYNC	0x0002
 #define GASNETE_COLL_GENERIC_OPT_P2P		0x0004
 
-	/* Macros for conditionally setting flags in gasnete_coll_generic_* options */
+/* Macros for conditionally setting flags in gasnete_coll_generic_* options */
 #define GASNETE_COLL_GENERIC_OPT_INSYNC_IF(COND)	((COND) ? GASNETE_COLL_GENERIC_OPT_INSYNC : 0)
 #define GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(COND)	((COND) ? GASNETE_COLL_GENERIC_OPT_OUTSYNC : 0)
 #define GASNETE_COLL_GENERIC_OPT_P2P_IF(COND)		((COND) ? GASNETE_COLL_GENERIC_OPT_P2P : 0)
@@ -1466,76 +1449,111 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
                                   void *dst,
                                   gasnet_image_t srcimage, void *src,
                                   size_t nbytes, int flags,
-                                  gasnete_coll_poll_fn poll_fn, int options
-                                  GASNETE_THREAD_FARG);
+                                  gasnete_coll_poll_fn poll_fn, int options,
+                                  void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
                                    void * const dstlist[],
                                    gasnet_image_t srcimage, void *src,
                                    size_t nbytes, int flags,
-                                   gasnete_coll_poll_fn poll_fn, int options
-                                   GASNETE_THREAD_FARG);
+                                   gasnete_coll_poll_fn poll_fn, int options,
+                                   void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 void *dst,
                                 gasnet_image_t srcimage, void *src,
                                 size_t nbytes, int flags,
-                                gasnete_coll_poll_fn poll_fn, int options
-                                GASNETE_THREAD_FARG);
+                                gasnete_coll_poll_fn poll_fn, int options,
+                                void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
                                  void * const dstlist[],
                                  gasnet_image_t srcimage, void *src,
                                  size_t nbytes, int flags,
-                                 gasnete_coll_poll_fn poll_fn, int options
-                                 GASNETE_THREAD_FARG);
+                                 gasnete_coll_poll_fn poll_fn, int options,
+                                 void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                gasnet_image_t dstimage, void *dst,
                                void *src,
                                size_t nbytes, int flags,
-                               gasnete_coll_poll_fn poll_fn, int options
-                               GASNETE_THREAD_FARG);
+                               gasnete_coll_poll_fn poll_fn, int options,
+                               void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
                                 gasnet_image_t dstimage, void *dst,
                                 void * const srclist[],
                                 size_t nbytes, int flags,
-                                gasnete_coll_poll_fn poll_fn, int options
-                                GASNETE_THREAD_FARG);
+                                gasnete_coll_poll_fn poll_fn, int options,
+                                void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
                                    void *dst, void *src,
                                    size_t nbytes, int flags,
-                                   gasnete_coll_poll_fn poll_fn, int options
-                                   GASNETE_THREAD_FARG);
+                                   gasnete_coll_poll_fn poll_fn, int options,
+                                   void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
                                     void * const dstlist[], void * const srclist[],
                                     size_t nbytes, int flags,
-                                    gasnete_coll_poll_fn poll_fn, int options
-                                    GASNETE_THREAD_FARG);
+                                    gasnete_coll_poll_fn poll_fn, int options,
+                                    void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  void *dst, void *src,
                                  size_t nbytes, int flags,
-                                 gasnete_coll_poll_fn poll_fn, int options
-                                 GASNETE_THREAD_FARG);
+                                 gasnete_coll_poll_fn poll_fn, int options,
+                                 void *private_data GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
                                   void * const dstlist[], void * const srclist[],
                                   size_t nbytes, int flags,
-                                  gasnete_coll_poll_fn poll_fn, int options
-                                  GASNETE_THREAD_FARG);
+                                  gasnete_coll_poll_fn poll_fn, int options,
+                                  void *private_data GASNETE_THREAD_FARG);
+
+/*---------------------------------------------------------------------------------*
+ * Start of generic framework for tree-based reference implementations
+ *---------------------------------------------------------------------------------*/
+
+/* Local view of the layout of a tree */
+typedef struct {
+    gasnet_node_t	parent;
+    int			child_id;       /* I am which element of parent's child_list? */
+    int			child_count;
+    gasnet_node_t	*child_list;
+} gasnete_coll_tree_geom_t;
+                                                                                                              
+/* Data for a given tree-based operation */
+typedef struct {
+    uint32_t			pipe_seg_size;
+    uint32_t			sent_bytes;
+    gasnete_coll_tree_geom_t	*geom;
+} gasnete_coll_tree_data_t;
+                                                                                                              
+typedef enum {
+    GASNETE_COLL_TREE_KIND_CHAIN,
+    GASNETE_COLL_TREE_KIND_BINARY,
+    GASNETE_COLL_TREE_KIND_BINOMIAL,
+    GASNETE_COLL_TREE_KIND_SEQUENTIAL,
+#if 0
+    GASNETE_COLL_TREE_KIND_CHAIN_SMP,
+    GASNETE_COLL_TREE_KIND_BINARY_SMP,
+    GASNETE_COLL_TREE_KIND_BINOMIAL_SMP,
+    GASNETE_COLL_TREE_KIND_SEQUENTIAL_SMP
+#endif
+} gasnete_coll_tree_kind_t;
+                                                                                                              
+extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t rootnode);
+extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree);
 
 /*---------------------------------------------------------------------------------*
  * Start of protypes for reference implementations
@@ -1564,6 +1582,30 @@ gasnete_coll_bcast_RVGet(gasnet_team_handle_t team,
 			 void *dst,
 			 gasnet_image_t srcimage, void *src,
 			 size_t nbytes, int flags GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
+			   void *dst,
+			   gasnet_image_t srcimage, void *src,
+			   size_t nbytes, int flags,
+			   gasnete_coll_tree_kind_t kind
+			   GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
+			   void *dst,
+			   gasnet_image_t srcimage, void *src,
+			   size_t nbytes, int flags,
+			   gasnete_coll_tree_kind_t kind
+			   GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
+			     void *dst,
+			     gasnet_image_t srcimage, void *src,
+			     size_t nbytes, int flags,
+			     gasnete_coll_tree_kind_t kind
+			     GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 
