@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/03/08 00:53:26 $
- * $Revision: 1.2 $
+ *     $Date: 2003/03/21 01:12:37 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#define GASNET_ALIGNED_SEGMENTS   0	/* XXX: fix this later? */
+#define GASNET_ALIGNED_SEGMENTS   1
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
