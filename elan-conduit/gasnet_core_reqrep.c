@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2004/10/27 03:51:05 $
- * $Revision: 1.21 $
+ *     $Date: 2004/10/30 12:33:54 $
+ * $Revision: 1.21.2.1 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,14 +15,14 @@
   Basic design of the core implementation:
   =======================================
 
-  All Shorts/All Longs/Mediums <= GASNETC_ELAN_MAX_QUEUEMSG(320):
+  All Shorts/All Longs/Mediums <= GASNETC_ELAN_MAX_QUEUEMSG(320/2048):
     sent using an elan queue of length LIBELAN_TPORT_NSLOTS
     Longs use a blocking elan_put before queuing to ensure ordering  
       use a bounce-buffer if > GASNETC_ELAN_SMALLPUTSZ and not elan-mapped
     AMPoll checks for incoming queue entries 
     All mediums are argument-padded to ensure payload alignment on recvr
 
-  Mediums > GASNETC_ELAN_MAX_QUEUEMSG(320):
+  Mediums > GASNETC_ELAN_MAX_QUEUEMSG(320/2048):
     sent using a tport message in a pre-allocated buffer
     Keep tport Tx buffers in a FIFO of length LIBELAN_TPORT_NSLOTS - 
       poll for Tx completion starting at oldest Tx buffer whenever we need one
@@ -156,7 +156,12 @@ static gasnetc_bufdesc_t *gasnetc_tportCheckRx() {
   gasnetc_bufdesc_t *desc = gasnetc_tportRxFIFOHead;
   ASSERT_ELAN_LOCKED();
 
-  if (desc && elan_tportRxDone(desc->event)) {
+  if (desc && 
+    #if HAVE_ELAN_DONE
+      /* shaves 0.5 us off do-nothing elan_tportRxDone by avoiding a deviceCheck */
+      elan_done(desc->event, 1) && 
+    #endif
+      elan_tportRxDone(desc->event)) {
     int sender,tag;
     ELAN_SIZE_T size;
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2004/10/30 03:24:47 $
- * $Revision: 1.24 $
+ *     $Date: 2004/10/30 12:33:54 $
+ * $Revision: 1.24.2.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,8 +93,18 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 /* GASNet-elan system configuration parameters */
 #define GASNETC_MAX_RECVMSGS_PER_POLL 10  /* max number of waiting messages serviced per poll (0 for unlimited) */
 #define GASNETC_PREPOST_RECVS         1   /* pre-post non-blocking tport recv's */
+#ifdef ELAN4
+#define GASNETC_ELAN_MAX_QUEUEMSG  2048   /* max message in a mainqueue */
+#else
 #define GASNETC_ELAN_MAX_QUEUEMSG   320   /* max message in a mainqueue */
+#endif
 #define GASNETC_ELAN_SMALLPUTSZ      64   /* max put that elan_put copies to an elan buffer */
+
+#ifdef ELAN_GLOBAL_DEST
+  #define GASNETC_ELAN_GLOBAL_DEST ELAN_GLOBAL_DEST
+#else
+  #define GASNETC_ELAN_GLOBAL_DEST 1
+#endif
 
 #ifndef GASNETC_PREALLOC_AMLONG_BOUNCEBUF
 #define GASNETC_PREALLOC_AMLONG_BOUNCEBUF 1
@@ -124,6 +134,7 @@ extern ELAN_TPORT *gasnetc_elan_tport;
     #define GASNETC_USE_SIGNALING_EXIT 0
   #endif
 #endif
+
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
   /* need real atomic ops for signalling exit - force it off */
   #undef GASNETC_USE_SIGNALING_EXIT

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2004/10/30 03:24:47 $
- * $Revision: 1.50 $
+ *     $Date: 2004/10/30 12:33:54 $
+ * $Revision: 1.50.2.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -121,13 +121,20 @@ static void gasnetc_check_config() {
                          " Actual  : %s", ELAN_VERSION_MAJOR, ELAN_VERSION_MINOR, ver);
   }
 
-  gasneti_assert(sizeof(gasnetc_shortmsg_t) == GASNETC_SHORT_HEADERSZ);
-  gasneti_assert(sizeof(gasnetc_medmsg_t) == GASNETC_MED_HEADERSZ);
-  gasneti_assert(sizeof(gasnetc_longmsg_t) == GASNETC_LONG_HEADERSZ);
-
+  gasneti_assert_always(sizeof(gasnetc_shortmsg_t) == GASNETC_SHORT_HEADERSZ);
+  gasneti_assert_always(sizeof(gasnetc_medmsg_t) == GASNETC_MED_HEADERSZ);
+  gasneti_assert_always(sizeof(gasnetc_longmsg_t) == GASNETC_LONG_HEADERSZ);
   
   gasneti_assert(GASNETC_MAX_TPORT_MSG >= GASNETC_MED_HEADERSZ + 4*GASNETC_MAX_ARGS + GASNETC_MAX_MEDIUM);
-  gasneti_assert(GASNETC_ELAN_MAX_QUEUEMSG >= GASNETC_LONG_HEADERSZ + GASNETC_MAX_ARGS*4);
+  #if HAVE_ELAN_QUEUEMAXSLOTSIZE
+  { int max = elan_queueMaxSlotSize(NULL);
+    if (GASNETC_ELAN_MAX_QUEUEMSG != max) {
+      gasneti_fatalerror("incorrect queue slot size. GASNETC_ELAN_MAX_QUEUEMSG=%i elan_queueMaxSlotSize()=%i",
+                         GASNETC_ELAN_MAX_QUEUEMSG, max);
+    }
+  }
+  #endif
+  gasneti_assert_always(GASNETC_ELAN_MAX_QUEUEMSG >= GASNETC_LONG_HEADERSZ + GASNETC_MAX_ARGS*4);
 }
 
 static void gasnetc_bootstrapBarrier() {
@@ -167,7 +174,7 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   gasnetc_bootstrapBarrier();
 
   /* recv data from 0 */
-  elan_hbcast(GROUP(), temp, gasnetc_nodes*len, 0, 1);    
+  elan_hbcast(GROUP(), temp, gasnetc_nodes*len, 0, GASNETC_ELAN_GLOBAL_DEST);    
 
   /* ensure operation complete */
   gasnetc_bootstrapBarrier();

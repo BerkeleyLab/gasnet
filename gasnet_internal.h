@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2004/10/19 04:41:49 $
- * $Revision: 1.61 $
+ *     $Date: 2004/10/30 12:33:52 $
+ * $Revision: 1.61.2.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -196,7 +196,10 @@ char *gasneti_strndup(const char *s, size_t n) {
 
 /* ------------------------------------------------------------------------------------ */
 /* page alignment macros */
-#define GASNETI_ALIGNDOWN(p,P)    (((uintptr_t)(p))&~((uintptr_t)((P)-1)))
+#define GASNETI_POWEROFTWO(P)    (((P)&((P)-1)) == 0)
+
+#define GASNETI_ALIGNDOWN(p,P)    (gasneti_assert(GASNETI_POWEROFTWO(P)), \
+                                   ((uintptr_t)(p))&~((uintptr_t)((P)-1)))
 #define GASNETI_ALIGNUP(p,P)     (GASNETI_ALIGNDOWN((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
 
 #define GASNETI_PAGE_ALIGNDOWN(p) (GASNETI_ALIGNDOWN(p,GASNET_PAGESIZE))
