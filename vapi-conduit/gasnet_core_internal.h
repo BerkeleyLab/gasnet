@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2004/11/03 00:43:40 $
- * $Revision: 1.53.2.1 $
+ *     $Date: 2004/11/15 22:16:40 $
+ * $Revision: 1.53.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -288,6 +288,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_RCV_REAP_LIMIT	16
 #endif
 
+/* Define non-zero if we want to allow the mlock rlimit to bound the
+ * amount of memory we will pin. */
+#ifndef GASNETC_HONOR_RLIMIT_MEMLOCK
+  #define GASNETC_HONOR_RLIMIT_MEMLOCK 0
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 
