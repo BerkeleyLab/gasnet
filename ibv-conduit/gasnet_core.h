@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/06/20 21:28:28 $
- * $Revision: 1.2.2.15 $
+ *     $Date: 2003/06/24 20:48:08 $
+ * $Revision: 1.2.2.16 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -223,7 +223,7 @@ extern int gasnetc_RequestSystem(
                             int numargs, ...);
 
 extern int gasnetc_ReplySystem( 
-                            gasnet_node_t dest,       /* destination node */
+                            gasnet_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...);
 
