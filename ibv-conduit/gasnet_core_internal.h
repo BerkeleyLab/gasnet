@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2004/11/01 21:43:18 $
- * $Revision: 1.53 $
+ *     $Date: 2004/11/03 00:43:40 $
+ * $Revision: 1.53.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -244,7 +244,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* Scatter-gather segments.
  * Only 1 makes sense right now for normal use.
  */
-#define GASNETC_SND_SG	1		/* maximum number of segments to gather on send */
+#define GASNETC_SND_SG	4		/* maximum number of segments to gather on send */
 #define GASNETC_RCV_SG	1		/* maximum number of segments to scatter on rcv */
 
 /* Define non-zero to enable a progress thread for receiving AMs . */
