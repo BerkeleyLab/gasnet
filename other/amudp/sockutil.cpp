@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.cpp,v $
-//     $Date: 2004/10/13 21:32:52 $
-// $Revision: 1.10 $
+//     $Date: 2005/04/04 03:33:01 $
+// $Revision: 1.10.2.1 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -10,6 +10,7 @@
 #include "sockutil.h"
 #include "sig.h"
 #include "sockaddr.h"
+#include "portable_inttypes.h"
 
 bool endianconvert = false;
 
@@ -348,9 +349,9 @@ SockAddr DNSLookup(const char *hostnameOrIPStr) {
   else {
     hostent *he = gethostbyname(hostname);
     if (!he) xsocket(INVALID_SOCKET, "gethostbyname"); 
-    if (he->h_length != sizeof(unsigned int)) xsocket(INVALID_SOCKET, "gethostbyname returned wrong h_length"); 
+    if (he->h_length != 4) xsocket(INVALID_SOCKET, "gethostbyname returned wrong h_length"); 
     if (he->h_addr_list[0] == NULL) xsocket(INVALID_SOCKET, "gethostbyname returned no entries"); 
-    return SockAddr(ntohl(*((unsigned int *)he->h_addr_list[0])), (unsigned short)0);
+    return SockAddr((unsigned long)ntohl(*((uint32_t *)he->h_addr_list[0])), (unsigned short)0);
     }
   }
 //-------------------------------------------------------------------------------------

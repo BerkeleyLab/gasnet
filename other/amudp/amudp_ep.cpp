@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2004/10/12 11:33:27 $
- * $Revision: 1.7 $
+ *     $Date: 2005/04/04 03:33:01 $
+ * $Revision: 1.7.2.1 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -57,7 +57,7 @@ static void AMUDP_InsertEndpoint(eb_t eb, ep_t ep) {
   AMUDP_assert(eb->endpoints != NULL);
   if (eb->n_endpoints == eb->cursize) { /* need to grow array */
     int newsize = eb->cursize * 2;
-    ep_t *newendpoints = (ep_t *)malloc(sizeof(ep_t)*newsize);
+    ep_t *newendpoints = (ep_t *)AMUDP_malloc(sizeof(ep_t)*newsize);
     memcpy(newendpoints, eb->endpoints, sizeof(ep_t)*eb->n_endpoints);
     eb->endpoints = newendpoints;
     eb->cursize = newsize;
@@ -91,12 +91,12 @@ extern amudp_buf_t *AMUDP_AcquireBulkBuffer(ep_t ep) { // get a bulk buffer
   if (ep->bulkBufferPoolFreeCnt == 0) {
     // grow the pool
     int oldsz = ep->bulkBufferPoolSz;
-    amudp_buf_t **temp = (amudp_buf_t **)malloc((oldsz+1)*sizeof(amudp_buf_t *));
-    temp[0] = (amudp_buf_t *)malloc(AMUDP_MAXBULK_NETWORK_MSG);
+    amudp_buf_t **temp = (amudp_buf_t **)AMUDP_malloc((oldsz+1)*sizeof(amudp_buf_t *));
+    temp[0] = (amudp_buf_t *)AMUDP_malloc(AMUDP_MAXBULK_NETWORK_MSG);
     temp[0]->status.bulkBuffer = NULL;
     if (ep->bulkBufferPool) {
       memcpy(temp+1, ep->bulkBufferPool, sizeof(amudp_buf_t *)*oldsz);
-      free(ep->bulkBufferPool);
+      AMUDP_free(ep->bulkBufferPool);
       }
     ep->bulkBufferPool = temp;
     ep->bulkBufferPoolSz = oldsz + 1;
@@ -125,8 +125,8 @@ static void AMUDP_FreeAllBulkBuffers(ep_t ep) {
   int i;
   AMUDP_assert(ep != NULL);
   AMUDP_assert(ep->bulkBufferPoolFreeCnt <= ep->bulkBufferPoolSz);
-  for (i=0; i < ep->bulkBufferPoolSz; i++) free(ep->bulkBufferPool[i]);
-  if (ep->bulkBufferPool) free(ep->bulkBufferPool);
+  for (i=0; i < ep->bulkBufferPoolSz; i++) AMUDP_free(ep->bulkBufferPool[i]);
+  if (ep->bulkBufferPool) AMUDP_free(ep->bulkBufferPool);
   ep->bulkBufferPool = NULL;
   ep->bulkBufferPoolFreeCnt = 0;
   ep->bulkBufferPoolSz = 0;
@@ -298,7 +298,7 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
     /* one extra rx buffer for ease of implementing circular rx buf
      * one for temporary buffer
      */
-    pool = (amudp_buf_t *)malloc((4 * PD + 2) * sizeof(amudp_buf_t));
+    pool = (amudp_buf_t *)AMUDP_malloc((4 * PD + 2) * sizeof(amudp_buf_t));
     if (!pool) return FALSE;
     ep->requestBuf = pool;
     ep->replyBuf = &pool[PD];
@@ -317,7 +317,7 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
   #endif
 
   #endif
-  ep->requestDesc = (amudp_bufdesc_t*)malloc(2 * PD * sizeof(amudp_bufdesc_t));
+  ep->requestDesc = (amudp_bufdesc_t*)AMUDP_malloc(2 * PD * sizeof(amudp_bufdesc_t));
   ep->replyDesc = &ep->requestDesc[PD];
   /* init descriptor tables */
   memset(ep->requestDesc, 0, PD * sizeof(amudp_bufdesc_t));
@@ -326,7 +326,7 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
   ep->timeoutCheckPosn = 0;
 
   /* instance hint pointers & compressed translation table */
-  ep->perProcInfo = (amudp_perproc_info_t *)malloc(ep->P * sizeof(amudp_perproc_info_t));
+  ep->perProcInfo = (amudp_perproc_info_t *)AMUDP_malloc(ep->P * sizeof(amudp_perproc_info_t));
   memset(ep->perProcInfo, 0, ep->P * sizeof(amudp_perproc_info_t));
 
   { int i; /* need to init the reply bulk buffer ptrs */
@@ -360,17 +360,17 @@ static int AMUDP_FreeEndpointBuffers(ep_t ep) {
   #ifdef UETH
     /* no explicit free required - handled by ueth_terminate */
   #else
-    free(ep->requestBuf);
+    AMUDP_free(ep->requestBuf);
     ep->rxBuf = NULL;
   #endif
   ep->requestBuf = NULL;
   ep->replyBuf = NULL;
 
-  free(ep->requestDesc);
+  AMUDP_free(ep->requestDesc);
   ep->requestDesc = NULL;
   ep->replyDesc = NULL;
 
-  free(ep->perProcInfo);
+  AMUDP_free(ep->perProcInfo);
   ep->perProcInfo = NULL;
 
   AMUDP_FreeAllBulkBuffers(ep);
@@ -385,7 +385,7 @@ extern int AM_Init() {
     /* check system attributes */
     AMUDP_assert(sizeof(int8_t) == 1);
     AMUDP_assert(sizeof(uint8_t) == 1);
-    #if !defined(CRAYT3E)
+    #ifndef INTTYPES_16BIT_MISSING
       AMUDP_assert(sizeof(int16_t) == 2);
       AMUDP_assert(sizeof(uint16_t) == 2);
     #endif
@@ -459,8 +459,8 @@ extern int AM_AllocateBundle(int type, eb_t *endb) {
   if (AMUDP_numBundles == AMUDP_MAX_BUNDLES-1) AMUDP_RETURN_ERR(RESOURCE);
   if (!endb) AMUDP_RETURN_ERR(BAD_ARG);
 
-  eb = (eb_t)malloc(sizeof(struct amudp_eb));
-  eb->endpoints = (ep_t *)malloc(AMUDP_INITIAL_NUMENDPOINTS*sizeof(ep_t));
+  eb = (eb_t)AMUDP_malloc(sizeof(struct amudp_eb));
+  eb->endpoints = (ep_t *)AMUDP_malloc(AMUDP_INITIAL_NUMENDPOINTS*sizeof(ep_t));
   eb->cursize = AMUDP_INITIAL_NUMENDPOINTS;
   eb->n_endpoints = 0;
   eb->event_mask = AM_NOEVENTS;
@@ -492,8 +492,8 @@ extern int AM_FreeBundle(eb_t bundle) {
     AMUDP_assert(i < AMUDP_numBundles);
     AMUDP_numBundles--;
 
-    free(bundle->endpoints);
-    free(bundle);
+    AMUDP_free(bundle->endpoints);
+    AMUDP_free(bundle);
     }
   return AM_OK;
   }
@@ -505,10 +505,10 @@ extern int AM_AllocateEndpoint(eb_t bundle, ep_t *endp, en_t *endpoint_name) {
   AMUDP_CHECKINIT();
   if (!bundle || !endp || !endpoint_name) AMUDP_RETURN_ERR(BAD_ARG);
 
-  ep = (ep_t)malloc(sizeof(struct amudp_ep));
+  ep = (ep_t)AMUDP_malloc(sizeof(struct amudp_ep));
   retval = AMUDP_AllocateEndpointResource(ep);
   if (retval != AM_OK) {
-    free(ep);
+    AMUDP_free(ep);
     AMUDP_RETURN(retval);
     }
 
@@ -551,7 +551,7 @@ extern int AM_FreeEndpoint(ep_t ea) {
   if (!AMUDP_FreeEndpointBuffers(ea)) retval = AM_ERR_RESOURCE;
 
   AMUDP_RemoveEndpoint(ea->eb, ea);
-  free(ea);
+  AMUDP_free(ea);
   AMUDP_RETURN(retval);
   }
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_help.h,v $
- *     $Date: 2004/10/07 23:28:15 $
- * $Revision: 1.4 $
+ *     $Date: 2005/04/04 03:33:21 $
+ * $Revision: 1.4.2.1 $
  * Description: GASNet shmem conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,9 +16,6 @@
 BEGIN_EXTERNC
 
 #include <gasnet_help.h>
-
-extern gasnet_node_t gasnetc_mynode;
-extern gasnet_node_t gasnetc_nodes;
 
 END_EXTERNC
 

@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socket.h,v $
- *      $Date: 2004/10/13 21:32:52 $
- *  $Revision: 1.8 $
+ *      $Date: 2005/04/04 03:33:01 $
+ *  $Revision: 1.8.2.1 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */
@@ -105,7 +105,20 @@
 #endif
 
 /* ioctlsocket */
+#ifdef MTA
+#define ioctlsocket(a,b,c) ioctl((a),(b),(caddr_t)(c))
+/* these are missing on MTA for some reason */
+#ifdef __cplusplus
+extern "C" {
+#endif
+  ssize_t      recv(int, void *, size_t, int); 
+  ssize_t      send(int, const void *, size_t, int);
+#ifdef __cplusplus
+}
+#endif
+#else
 #define ioctlsocket ioctl
+#endif
 
 typedef unsigned int SOCKET;
 typedef fd_set FD_SET;
@@ -129,6 +142,8 @@ typedef fd_set FD_SET;
    defined(__crayx1) /* X1 docs claim it's a size_t, they lie */
   #define IOCTL_FIONREAD_ARG_T unsigned int
 #elif defined(IRIX)
+  #define IOCTL_FIONREAD_ARG_T size_t
+#elif defined(MTA)
   #define IOCTL_FIONREAD_ARG_T size_t
 #else
   #define IOCTL_FIONREAD_ARG_T unsigned long

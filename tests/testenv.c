@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testenv.c,v $
- *     $Date: 2005/03/20 16:32:08 $
- * $Revision: 1.1 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet environment variable propagation test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

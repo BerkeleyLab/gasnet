@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_conf.c,v $
- * $Date: 2004/10/02 11:03:48 $
- * $Revision: 1.18 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.18.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -28,7 +28,7 @@
 		char *ptrenv = getenv(env);				\
 		if (ptrenv == NULL || *ptrenv == '\0') {		\
 			gasneti_fatalerror("%d> Bootstrap error: %s\n",	\
-				gasnetc_mynode, err);			\
+				gasneti_mynode, err);			\
 		}							\
 		else {							\
 			ptr = ptrenv;					\
@@ -281,25 +281,25 @@ gasnetc_getconf_mpiexec()
 	if (sscanf (port, "%ud", &master_port) != 1) 
 		gasneti_fatalerror(
 		    "Bootstrap: Bad master port 1 (%s out of %d processes", 
-		    id, gasnetc_nodes);
+		    id, gasneti_nodes);
 	_gmc.master_port = master_port;
 
 	if (sscanf (board, "%ud", &board_id) != 1)
 		gasneti_fatalerror("Bootstrap: Bad magic number: %s", magic);
 	_gmc.my_board = board_id;
 
-	gasnetc_get_nodeids(&gasnetc_mynode, &gasnetc_nodes);
+	gasnetc_get_nodeids(&gasneti_mynode, &gasneti_nodes);
 
 	port_id = 0;
 	if (!gasnetc_gmport_allocate((int*)&board_id, (int*)&port_id))
-		gasneti_fatalerror("%d: Can't obtain GM port", gasnetc_mynode);
+		gasneti_fatalerror("%d: Can't obtain GM port", gasneti_mynode);
 
 	_gmc.my_port = port_id;
 
 	/* get the GM node id */
 	if (gm_get_node_id (_gmc.port, &_gmc.my_id) != GM_SUCCESS)
 		gasneti_fatalerror(
-		    "%d: Can't get local GM node id", gasnetc_mynode);
+		    "%d: Can't get local GM node id", gasneti_mynode);
 
 	#ifdef GASNETC_GM_2
 	temp_id = _gmc.my_id;
@@ -311,9 +311,9 @@ gasnetc_getconf_mpiexec()
 	#endif
 
 	/* allocate space for node mapping */
-	if (!gasnetc_alloc_nodemap(gasnetc_nodes))
+	if (!gasnetc_alloc_nodemap(gasneti_nodes))
 		gasneti_fatalerror(
-		    "%d: Can't allocate node mapping", gasnetc_mynode);
+		    "%d: Can't allocate node mapping", gasneti_mynode);
 
 	/*
 	 * Set up a socket for the master to connect o.
@@ -322,7 +322,7 @@ gasnetc_getconf_mpiexec()
 	sockfd = socket (AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0)
 		gasneti_fatalerror(
-		    "%d> Can't open first socket", gasnetc_mynode);
+		    "%d> Can't open first socket", gasneti_mynode);
 	else {
 		char	buf[256];
 		char	*slave;
@@ -331,7 +331,7 @@ gasnetc_getconf_mpiexec()
 
 		slave = getenv("GMPI_SLAVE");
 		if (slave == NULL || *slave == '\0') {
-			slave = gasnetc_gexec_ip(buf, 256, gasnetc_mynode);
+			slave = gasnetc_gexec_ip(buf, 256, gasneti_mynode);
 
 			if (slave == NULL)
 				gasneti_fatalerror(
@@ -355,7 +355,7 @@ gasnetc_getconf_mpiexec()
 		if (slave_port >= 20000)
 			gasneti_fatalerror(
 			    "%d> Couldn't find a port to bind slave socket",
-			    gasnetc_mynode);
+			    gasneti_mynode);
 	}
 
 	/*
@@ -363,7 +363,7 @@ gasnetc_getconf_mpiexec()
 	 */
 	if (listen(sockfd, 1) != 0)
 		gasneti_fatalerror("%d> can't listen() on socket",
-				gasnetc_mynode);
+				gasneti_mynode);
 
 	/*
 	 * Get a second socket to connect to the master
@@ -372,7 +372,7 @@ gasnetc_getconf_mpiexec()
 	sockfd2 = socket (AF_INET, SOCK_STREAM, 0);
 	if (sockfd2 < 0)
 		gasneti_fatalerror(
-		    "%d> Can't open second socket", gasnetc_mynode);
+		    "%d> Can't open second socket", gasneti_mynode);
 	else {
 		gm_u64_t    start_time, stop_time;
 		ssize_t	    b;
@@ -399,7 +399,7 @@ gasnetc_getconf_mpiexec()
 			    (2000 * GASNETC_INIT_TIMEOUT))
 				gasneti_fatalerror(
 				    "%d> Unable to connect to master",
-				    gasnetc_mynode);
+				    gasneti_mynode);
 		}
 
 		/* 
@@ -410,7 +410,7 @@ gasnetc_getconf_mpiexec()
 		count = 0;
 		sprintf (buffer, 
 			"<<<%d:%d:%d:%d:%u:%d:%d::%d>>>\n", 
-			magic_number, gasnetc_mynode, port_id, board_id, 
+			magic_number, gasneti_mynode, port_id, board_id, 
 			(unsigned) _gmc.my_id, 0, (int) getpid(), slave_port);
 
 		while (count < strlen (buffer)) {
@@ -418,7 +418,7 @@ gasnetc_getconf_mpiexec()
 				  strlen (buffer) - count);
 			if (b < 0)
 				gasneti_fatalerror("%d> can't write to socket",
-						gasnetc_mynode);
+						gasneti_mynode);
 			count += b;
 		}
 		close (sockfd2);
@@ -429,7 +429,7 @@ gasnetc_getconf_mpiexec()
 		sockfd2 = accept(sockfd, 0, 0);
 		if (sockfd2 < 0)
 			gasneti_fatalerror("%d> can't accept on socket",
-					gasnetc_mynode);
+					gasneti_mynode);
 
 		count = 0;
 		memset(buffer, '0', GASNETC_SOCKET_BUFSIZ * sizeof(char));
@@ -443,7 +443,7 @@ gasnetc_getconf_mpiexec()
 				 GASNETC_SOCKET_BUFSIZ-count);
 			if (b < 0)
 				gasneti_fatalerror("%d> can't read from socket",
-						gasnetc_mynode);
+						gasneti_mynode);
 			count += b;
 		}
 
@@ -457,7 +457,7 @@ gasnetc_getconf_mpiexec()
 		if (strncmp (buffer, "[[[", 3) != 0)
 			gasneti_fatalerror(
 			    "%d> bad format in node data from master",
-			    gasnetc_mynode);
+			    gasneti_mynode);
 
 		/*
 		 * Decrypt the mapping
@@ -465,11 +465,11 @@ gasnetc_getconf_mpiexec()
 		 * We ignore the board id (field 2) and numa_nodes (field 4).
 		 */
 		j += 3;
-		for (i = 0; i < gasnetc_nodes; i++) {
+		for (i = 0; i < gasneti_nodes; i++) {
 			if (sscanf (&buffer[j], "<%hu:%*d:%u:%*d>",
 		    	    (unsigned short *) &_gmc.gm_nodes[i].port, &temp_id) != 2)
 				gasneti_fatalerror("%d> can't decode node mapping",
-						gasnetc_mynode);
+						gasneti_mynode);
 			
 			_gmc.gm_nodes_rev[i].port = _gmc.gm_nodes[i].port;
 			_gmc.gm_nodes_rev[i].node = i;
@@ -480,7 +480,7 @@ gasnetc_getconf_mpiexec()
 			    &temp_local_id) != GM_SUCCESS)
 				gasneti_fatalerror("%d> couldn't translate "
 				    "GM global node id (%u) for gasnet "
-				    "node id %d", gasnetc_mynode, 
+				    "node id %d", gasneti_mynode, 
 				    (unsigned) temp_id, i);
 
 			_gmc.gm_nodes_rev[i].id = (uint16_t) temp_local_id;
@@ -493,7 +493,7 @@ gasnetc_getconf_mpiexec()
 			temp = strchr(&buffer[j], '>');
 			if (temp == NULL)
 				gasneti_fatalerror("%d> malformed node map",
-						gasnetc_mynode);
+						gasneti_mynode);
 			j += (size_t) (temp - &buffer[j] + 1);
 		}
 
@@ -509,16 +509,16 @@ gasnetc_getconf_mpiexec()
 			snprintf(toto, 96, &buffer[j]);
 			gasneti_fatalerror(
 			    "%d: can't decode node mapping (end marker): %s",
-			    gasnetc_mynode, toto);
+			    gasneti_mynode, toto);
 		}
 
 		/* check consistency */
-		if (_gmc.gm_nodes[gasnetc_mynode].port != _gmc.my_port)
+		if (_gmc.gm_nodes[gasneti_mynode].port != _gmc.my_port)
 			gasneti_fatalerror(
 			    "%d: inconsistency in data collected from master",
-			    gasnetc_mynode);
+			    gasneti_mynode);
 
-		qsort(_gmc.gm_nodes_rev, gasnetc_nodes,
+		qsort(_gmc.gm_nodes_rev, gasneti_nodes,
 				sizeof(gasnetc_gm_nodes_rev_t),
 				gasnetc_gm_nodes_compare);
 	}
@@ -526,16 +526,94 @@ gasnetc_getconf_mpiexec()
 	return;
 }
 
-extern void
-gasnetc_getconf ()
+#ifdef GASNETC_GM_MPI_COMPAT
+#include <gasnet_bootstrap_internal.h>
+void
+gasnetc_getconf_bootmpi(int *argc, char ***argv)
 {
-	setbuf (stdout, NULL);
-	setbuf (stderr, NULL);
+    unsigned int    port_id = 0, board_id = 0;
+    unsigned int    temp_id;
+    unsigned int    my_idport[2];
+    unsigned int    *global_idport;
+    int		    i;
 
-	if (getenv("GMPI_MAGIC"))
-		gasnetc_getconf_mpiexec();
+    gasneti_bootstrapInit(argc, argv, &gasneti_nodes, &gasneti_mynode);
+
+    if (!gasnetc_gmport_allocate((int*)&board_id, (int*)&port_id))
+	gasneti_fatalerror("%d: Can't obtain GM port", gasneti_mynode);
+
+    _gmc.my_port = port_id;
+
+    /* get the GM node id */
+    if (gm_get_node_id (_gmc.port, &_gmc.my_id) != GM_SUCCESS)
+	gasneti_fatalerror(
+	    "%d: Can't get local GM node id", gasneti_mynode);
+
+    #ifdef GASNETC_GM_2
+    /* GM2 only stores local node ids, so a global has to be obtained */
+    if (gm_node_id_to_global_id(_gmc.port, _gmc.my_id, &(_gmc.my_id)) != GM_SUCCESS)
+	gasneti_fatalerror("Couldn't get GM global node id");
+    #endif
+
+    /* allocate space for node mapping */
+    if (!gasnetc_alloc_nodemap(gasneti_nodes))
+	gasneti_fatalerror("%d: Can't allocate node mapping", gasneti_mynode);
+
+    if ((global_idport = 
+       gasneti_malloc(sizeof(unsigned int)*2*gasneti_nodes)) == NULL)
+	gasneti_fatalerror("%d: Can't allocate node mapping", gasneti_mynode);
+
+    /* exchange port, id information */
+    my_idport[0] = _gmc.my_id;
+    my_idport[1] = _gmc.my_port;
+    gasneti_bootstrapExchange(&my_idport, sizeof(unsigned int)*2, global_idport);
+
+    for (i = 0; i < gasneti_nodes; i++) {
+
+	temp_id = global_idport[i*2];
+	_gmc.gm_nodes[i].port = 
+	    _gmc.gm_nodes_rev[i].port = (uint16_t) global_idport[i*2+1];
+	_gmc.gm_nodes_rev[i].node = i;
+
+	#ifdef GASNETC_GM_2
+	if (gm_global_id_to_node_id(_gmc.port, temp_id, &temp_id) != GM_SUCCESS)
+	    gasneti_fatalerror(
+	      "%d> couldn't translate GM global node id (%u) for gasnet node id %d", 
+	      gasneti_mynode, (unsigned) temp_id, i);
+	#endif
+
+	_gmc.gm_nodes[i].id = _gmc.gm_nodes_rev[i].id = (uint16_t) temp_id;
+    }
+    /* check consistency */
+    if (_gmc.gm_nodes[gasneti_mynode].port != _gmc.my_port)
+	gasneti_fatalerror( "%d: inconsistency in data collected from MPI spawner",
+			    gasneti_mynode);
+
+    qsort(_gmc.gm_nodes_rev, gasneti_nodes, sizeof(gasnetc_gm_nodes_rev_t), 
+	  gasnetc_gm_nodes_compare);
+
+    gasneti_free(global_idport);
+    return;
+}
+#endif
+
+extern void
+gasnetc_getconf (int *argc, char ***argv)
+{
+    setbuf (stdout, NULL);
+    setbuf (stderr, NULL);
+
+    #ifdef GASNETC_GM_MPI_COMPAT
+	if (getenv("GASNET_GASNETRUN_GM"))
+	    gasnetc_getconf_mpiexec();
 	else
-		gasnetc_getconf_conffile();
+	    gasnetc_getconf_bootmpi(argc, argv);
+    #else
+	if (getenv("GMPI_MAGIC"))
+	    gasnetc_getconf_mpiexec();
+	else
+	    gasnetc_getconf_conffile();
+    #endif
 
-	return;
+    return;
 }

@@ -1,4 +1,4 @@
-$Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/license.txt,v 1.1 2005/01/18 20:49:43 phargrov Exp $
+$Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/license.txt,v 1.1.2.1 2005/04/04 03:33:15 bonachea Exp $
 All files in this directory (except where otherwise noted) are subject to the
 following licensing terms: 
 

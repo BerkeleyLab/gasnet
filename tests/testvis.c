@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2004/08/26 04:54:09 $
- * $Revision: 1.7 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.7.8.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -747,6 +747,7 @@ void doit(int iters, int runtests) {
         test_free(dst);
         test_free(tmp);
       }
+      TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
   }
@@ -809,6 +810,7 @@ void doit(int iters, int runtests) {
         test_free(dst);
         test_free(tmp);
       }
+      TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
   }
@@ -858,9 +860,11 @@ void doit(int iters, int runtests) {
         verify_strided_desc_data_remote(desc, tmpbuf, partner, partner_seg_read_area, "gasnet_gets_bulk test");
         test_free(desc);
       }
+      TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
   }
+  BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_NB) { 
     int iter;
@@ -1002,6 +1006,7 @@ void doit(int iters, int runtests) {
       }
       test_free(handles);
       test_free(ops);
+      TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
   }
@@ -1025,7 +1030,7 @@ int main(int argc, char **argv) {
 
   assert(VEC_SZ == sizeof(VEC_T));
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
   TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
   for (i = 1; i < argc; i++) {
@@ -1046,6 +1051,10 @@ int main(int argc, char **argv) {
   if (i < argc) { iters = atoi(argv[i]); i++; }
   if (i < argc) { seedoffset = atoi(argv[i]); i++; }
   if (i < argc) Usage(argv[0]);
+
+  if (!gasnet_mynode())
+	print_testname("testvis", gasnet_nodes());
+
   MSG("running %i iterations of %s%s%s%s test...", 
     iters, 
     (runtests&RUN_VECTOR?"V":""), 

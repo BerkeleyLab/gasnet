@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2004/08/26 04:54:13 $
- * $Revision: 1.3 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.3.8.1 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -8,12 +8,9 @@
 
 /* Implement client-specific callbacks for use by firehose-region */
 
-#include <gasnet.h>
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-
-#if GASNETC_USE_FIREHOSE /* otherwise file is empty */
 
 extern int
 firehose_move_callback(gasnet_node_t node,
@@ -23,6 +20,7 @@ firehose_move_callback(gasnet_node_t node,
                        size_t pin_num)
 #if FIREHOSE_VAPI_USE_FMR
 {
+    GASNETC_TRACE_WAIT_BEGIN();
     VAPI_ret_t    vstat;
     EVAPI_fmr_map_t map;
     EVAPI_fmr_hndl_t *handles;
@@ -35,7 +33,7 @@ firehose_move_callback(gasnet_node_t node,
     if (unpin_num) {
       handles = alloca(unpin_num * sizeof(EVAPI_fmr_hndl_t));
       for (i = 0; i < unpin_num; ++i) {
-	GASNETC_STAT_EVENT_VAL(DYNAMIC_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_STAT_EVENT_VAL(FIREHOSE_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
 	handles[i] = unpin_list[i].client.handle;
       }
       vstat = EVAPI_unmap_fmr(gasnetc_hca, unpin_num, handles);
@@ -65,21 +63,23 @@ firehose_move_callback(gasnet_node_t node,
     for (i = 0; i < pin_num; i++) {
 	firehose_region_t *region = pin_list + i;
 
-	gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
-	gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
+	gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+	gasneti_assert(region->len % GASNET_PAGESIZE == 0);
 
 	map.start = (uintptr_t)region->addr;
 	map.size  = region->len;
         vstat = EVAPI_map_fmr(gasnetc_hca, region->client.handle, &map,
 			      &(region->client.lkey), &(region->client.rkey));
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_map_fmr");
-	GASNETC_STAT_EVENT_VAL(DYNAMIC_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_STAT_EVENT_VAL(FIREHOSE_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
     }
 
+    GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
 #else
 {
+    GASNETC_TRACE_WAIT_BEGIN();
     VAPI_ret_t    vstat;
     VAPI_mr_t     mr_in;
     int repin_num;
@@ -99,8 +99,8 @@ firehose_move_callback(gasnet_node_t node,
 	VAPI_mr_hndl_t old_handle = unpin_list[i].client.handle;
 	VAPI_mr_t mr_out;
 
-	gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
-	gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
+	gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+	gasneti_assert(region->len % GASNET_PAGESIZE == 0);
 
 	mr_in.start = (uintptr_t)region->addr;
 	mr_in.size  = region->len;
@@ -109,6 +109,8 @@ firehose_move_callback(gasnet_node_t node,
 				   VAPI_MR_CHANGE_TRANS,
 				   &mr_in, &client->handle, &mr_out);
         GASNETC_VAPI_CHECK(vstat, "from VAPI_reregister_mr");
+	GASNETC_STAT_EVENT_VAL(FIREHOSE_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_STAT_EVENT_VAL(FIREHOSE_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
 
 	client->lkey     = mr_out.l_key;
 	client->rkey     = mr_out.r_key;
@@ -126,6 +128,7 @@ firehose_move_callback(gasnet_node_t node,
 
 	    vstat = VAPI_deregister_mr(gasnetc_hca, old_handle);
             GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr");
+	    GASNETC_STAT_EVENT_VAL(FIREHOSE_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
         }
     }
     else if (pin_num) {
@@ -134,19 +137,22 @@ firehose_move_callback(gasnet_node_t node,
 	    firehose_client_t *client = &region->client;
 	    VAPI_mr_t mr_out;
     
-	    gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
-	    gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
+	    gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+	    gasneti_assert(region->len % GASNET_PAGESIZE == 0);
     
 	    mr_in.start = (uintptr_t)region->addr;
 	    mr_in.size  = region->len;
     
 	    vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &client->handle, &mr_out);
             GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr");
+	    GASNETC_STAT_EVENT_VAL(FIREHOSE_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
     
 	    client->lkey     = mr_out.l_key;
 	    client->rkey     = mr_out.r_key;
 	}
     }
+
+    GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
 #endif
@@ -160,5 +166,3 @@ firehose_remote_callback(gasnet_node_t node,
     gasneti_fatalerror("attempted to call firehose_remote_callback()");
     return -1;
 }
-
-#endif /* GASNETC_USE_FIREHOSE */

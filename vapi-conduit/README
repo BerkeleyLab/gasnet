@@ -1,7 +1,7 @@
 README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.13 $
+$Revision: 1.13.8.1 $
 
 @ TOC: @
 @ Section: Bootstrapping @
@@ -15,22 +15,89 @@ $Revision: 1.13 $
 
 @ Section: Bootstrapping @
   
-  In order to bootstrap a GASNet application using vapi-conduit, a
-  working MPI must be installed and configured on your system.
-  See mpi-conduit/README for information on configuring GASNet
-  for a particular MPI.
- 
-  Note that MPI is only used in gasnet_init(), gasnet_attach() and
-  gasnet_exit() and not for any GASNet communications.  Therefore
-  it is acceptable to use a TCP/IP based MPI such as MPICH or
-  LAM/MPI.
+  There are two options for bootstrapping a GASNet application when
+  using vapi-conduit.  You can choose by passing
+      --with-vapi-bootstrap=ssh
+  or  --with-vapi-bootstrap=mpi
+  where mpi is the default.
+
+
+  If ssh is chosen, then the following apply:
+  + usage summary:
+      your_app [-v] N[:M] [args ...]
+    where N is the number of processes to run, and M is the number of
+    nodes/hosts over which the processes will be distributed.  If only
+    N is given, then M=N by default.
+    If running a UPC or Titanium application, then language-specific
+    commands should be used instead.
+  + A list of hosts is specified using either the GASNET_SSH_NODEFILE
+    or GASNET_SSH_SERVERS environment variables.
+    If set, the variable GASNET_SSH_NODEFILE specifies a file with one
+    hostname per line.  Blank lines and comment lines (using '#') are
+    ignored.
+    If set, the variable GASNET_SSH_SERVERS itself contains a list of
+    hostnames, delimited by commas or whitespace.
+    If both are set, GASNET_SSH_NODEFILE takes precedence.
+    Note that if starting a job via upcrun or tirun, these variables
+    may be set for you from other sources.
+  + The environment variable GASNET_SSH_CMD can be set to specify a
+    specific remote shell (perhaps rsh).  The default is "ssh", and
+    a search of $PATH resolves the full path.
+  + The environment variable GASNET_SSH_OPTIONS can be set to
+    specify options that will precede the hostname in the commands
+    used to spawn jobs.  One example, for OpenSsh, would be
+      GASNET_SSH_OPTIONS="-o 'StrictHostKeyChecking no'"
+  + For the following, the term "compute node"  means one of the hosts
+    given by GASNET_SSH_NODEFILE or GASNET_SSH_SERVERS, which will run
+    an application process.  The term "master node" means the node from
+    which the job was spawned.  The master node may or may not be one
+    of the compute nodes.
+  + The ssh (or rsh) at your site must be configured to allow logins
+    from the master node to compute nodes, and among the compute nodes.
+    These must be achieved without interaction (such as entering a
+    password or accepting new host keys).
+  + Any firewall or port filtering must allow the ssh/rsh connections
+    described above, plus TCP connections on untrusted port (those
+    with numbers over 1024) from a compute node to the master node and
+    and among compute nodes.
+  + Resolution for all given hostnames must be possible from both the
+    master node and the compute nodes.
+  + THE SSH SPAWNER MAY NOT WORK WITH SOME OLDER VAPI VERSIONS WHICH
+    DON'T ALLOW A VAPI APPLICATION TO CALL fork().
+
+
+  If MPI is chosen, then the following apply:
+  + usage summary:
+      mpirun -np N your_app [args ...]
+    where N is the number of processes to run.
+    If running a UPC or Titanium application, then language-specific
+    commands should be used instead.
+  + In order to bootstrap vapi-conduit, a working MPI must be installed
+    and configured on your system.  See mpi-conduit/README for
+    information on configuring GASNet for a particular MPI.  Note that
+    you must compile mpi-conduit as well (even if you never plan to use
+    it).
+  + MPI is only used in gasnet_init(), gasnet_attach() and gasnet_exit()
+    and not for any GASNet cals between attach and exit.  Therefore it is
+    acceptable to use a TCP/IP based MPI such as MPICH or LAM/MPI.
 
 @ Section: Build-time Configuration @
 
+  By default vapi-conduit ensures network attentiveness (timely
+  processing of incoming AMs) by spawning an extra thread that
+  remains blocked until the arrival of an Active Message.  One
+  can disable this thread by configuring GASNet with the flag
+  '--disable-vapi-rcv-thread'.  It is recommended that one NOT
+  use this option, but instead disabled the thread at runtime
+  (see Runtime Configuration section).  If the extra thread will
+  never be needed, disabling it at build time will yield a small
+  reduction in latencies by allowing some locking operations to
+  compile away.
+
   There are two known bugs in older InfiniHost firmware versions.
   Normally you shouldn't need to do anything special with regards
-  to them.  However, if you do need to override the defaults this
-  section explains the issues.
+  to them.  However, if you do need to override the defaults the
+  remainder of this section explains the issues.
 
   + Thread safety of VAPI_poll_cq()
     In firmware versions prior to 3.0, the VAPI_poll_cq() call is
@@ -59,17 +126,14 @@ $Revision: 1.13 $
 @ Section: Runtime Configuration @
 
   There are a number of parameters in vapi-conduit which can be tuned
-  at runtime via environment variables.  There are two categories of
-  parameters: connection settings and resource usage parameters.
+  at runtime via environment variables.
 
   Connection settings:
   Under normal conditions, the Host Channel Adapter and Port will be
   located automatically.  However, in the event you have multiple
   adapters or multiple active ports on a single adapter, you may need
   to set these environment variables to identify the correct HCA and
-  Port.
-
-  These parameters may meaningfully be different on each node.
+  Port.  These parameters may legally take different values on each node.
 
   + GASNET_HCA_ID
     This gives the "HCA ID" string of the InfiniBand Host Channel
@@ -87,9 +151,58 @@ $Revision: 1.13 $
     The default value is 0, which causes vapi-conduit to probe the HCA
     for the lowest-numbered physical port which is configured as ACTIVE.
 
+  Software configuration settings:
+  There are some optional behaviors in vapi-conduit that can be turnned
+  ON or OFF.  These parameters may legally take different values on each
+  node, but doing so may not be useful.
+
+  + GASNET_RCV_THREAD
+    This gives a boolean: "0" to disable or "1" to enable the use
+    of an extra thread that blocks waiting for vapi to wake it when an
+    Active Message request arrives.  This allows vapi-conduit to be
+    more attentive to incoming AMs even while the application may not
+    be making any calls to GASNet.  The down side is that each time
+    this thread wakes it must contend for CPU resources.  Thus for an
+    application that is calling GASNet sufficiently often, use of this
+    thread may significantly INCREASE running time.  However, on an SMP
+    where an otherwise idle processor is available the use of this
+    thread can REDUCE running time by relieving the application thread
+    of the burden of servicing incoming AM requests and replies.
+    Note that if '--disable-vapi-rcv-thread' was specified at build time
+    then the extra thread is unavailable and this environment variable
+    is ignored.
+    Currently the default is enabled (1), but this is subject to change
+    in a future version.
+
+  + GASNET_USE_FIREHOSE
+    This gives a boolean: "0" to disable or "1" to enable the use
+    of the "firehose" dynamic pinning library in a GASNET_SEGMENT_FAST
+    configuration.  In a GASNET_SEGMENT_FAST configuration, the GASNet
+    segment is registered (pinned) with the HCA at initialization time,
+    because pinning is required for RDMA.  However, GASNet allows for
+    local addresses (source of a PUT or destination of a GET) to lie
+    outside of the GASNet segment.  So, to perform RDMA GETs and PUTs,
+    vapi-conduit must either copy out-of-segment transfers though
+    preregistered bounce buffers, or dynamically register memory.  By
+    default the firehose dynamic registration library is used to manage
+    registration of out-of-segment memory.  (default is ON).
+    Setting this environment variable to "0" (or "no") will disable use
+    of firehose, forcing the use of bounce buffers for out-of-segment
+    transfers.  This will result in a significantly lower peak bandwidth
+    for large PUTs and GETs, with little or no affect on small message
+    latency.  See http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=955
+    for an example of a situation where one may wish to disable firehose.
+    If you believe that you are observing communication failures due
+    to the behavior described at the link above, then you should
+    try setting GASNET_USE_FIREHOSE=no in your environment to see if
+    your problems go away.
+    In a GASNET_SEGMENT_LARGE or GASNET_SEGMENT_EVERYTHING configuration,
+    the GASNet segment is not preregistred and use of firehose is required.
+    Thus it is an error to disable firehose in such a configuration.
+
   Resource usage parameters:
   The following environment variables control how much memory is
-  preallocated at strtup time to serve various functions.  Because these
+  preallocated at startup time to serve various functions.  Because these
   resource pools do not grow dynamically, it is important that these
   parameters be sufficiently large, or performance degradations may
   results.  The default settings should be sufficient for most conditions.
@@ -110,7 +223,7 @@ $Revision: 1.13 $
     on each node.
     The default value is 64.
     Reducing this parameter may limit small message throughput.  If you
-    believe your small message throughput is too small, you may try
+    believe your small message throughput is too low, you may try
     increasing this value.
 
   + GASNET_OP_OUST_LIMIT
@@ -125,7 +238,7 @@ $Revision: 1.13 $
     as min(GASNET_OP_OUST_LIMIT, GASNET_OP_OUST_PP*(N-1)), on each node.
     The default value is 1024.
     Reducing this parameter may limit small message throughput.  If you
-    believe your small message throughput is too small, you may try
+    believe your small message throughput is too low, you may try
     increasing this value.
 
   + GASNET_AM_OUST_PP
@@ -135,69 +248,53 @@ $Revision: 1.13 $
     the matching Reply has not yet been processed for AM flow control
     (described in another section of this README).
     This is the number of receive buffers which must be preposted to each
-    endpoint for AM Requests.  With the current flow-control scheme the
-    same number of additional receive buffers are needed to accept replies.
+    endpoint for AM Requests.
     Thus, the memory consumed for the receive work queues and the receive
     completion queue each scale as GASNET_AM_OUST_PP*(N-1) on each node.
-    The default value is 32.  (256KB*(N-1) for receive buffers)
+    The default value is 32 (128KB*(N-1) for receive buffers).
     Reducing this parameter may limit Active Message throughput.  If you
-    believe your Active Message throughput is too small, you may try
+    believe your Active Message throughput is too low, you may try
     increasing this value.
 
   + GASNET_AM_OUST_LIMIT
-    This give the integer number of outstanding AM Requests which can
+    This gives the integer number of outstanding AM Requests which can
     be in-flight simultaneously from each node, with "in-flight" defined
     as in GASNET_AM_OUST_PP.
-    With the current flow-control scheme this parameter is not yet fully
-    implemented.  Intended to control the size of the receive completion
-    queue, this parameter will be used with the "dynamic flow-control"
-    scheme (elsewhere in this README).  For now it is an error to set
-    this parameter to anything smaller than GASNET_AM_OUST_PP*(N-1), and
-    values larger than that are clipped to this value.
-    The default is 32767, and represents the limit of 65535 completion
-    queue entries supported by the InfiniHost firmware.
+    This is the number of receive buffers which must be allocated for
+    posting to an endpoint for the AM Reply which follows each AM Request.
+    The default is 1024 (4MB for reply buffers).
     Reducing this parameter may limit Active Message throughput.  If you
-    believe your Active Message throughput is too small, you may try
+    believe your Active Message throughput is too low, you may try
     increasing this value.
-
-  + GASNET_AM_SPARES
-    This gives the number of "spare" receive buffers which are allocated
-    in addition to those needed to satisfy the settings of the parameters
-    GASNET_AM_OUST_PP and GASNET_AM_OUST_LIMIT.  These spare receive
-    buffers are used while running AM handlers, to aid the flow-control
-    process.
-    Because a "spare" receive buffer is used while an AM handler is
-    running, this parameter limits the number of AM handlers which can
-    run concurrently without running the risk of an empty receive work
-    queue.  As described in the section on AM flow-control the empty
-    queue condition is undesirable, but not fatal.  Since a given thread
-    can only run one handler at a time, values of GASNET_AM_SPARES
-    larger than the number of threads running concurrently in GASNet
-    offer no extra benefit.  So, the default value depends on the
-    threading configuration.
-    When compiled for GASNET_PARSYNC or GASNET_SEQ, the default is 2
-    to allow for a single client thread in GASNet plus the internal AM
-    receive thread.  When compiled for GASNET_PAR, the default is 4.
-    Reducing this parameter may limit concurrency in servicing of Active
-    Messages in a GASNET_PAR configuration.  If you have many threads
-    you may wish to increase this value to as large as (num_threads + 1).
 
   + GASNET_BBUF_LIMIT
     This gives the maximum number of pre-pinned bounce buffers allocated
     on each node.  These buffers are needed for assembly of AM headers
-    (and the payload of mediums), and for gets and puts with the local
+    (and the payload of mediums), and for some puts with the local
     address outside the GASNet segment.  The default is 1024, which results
     in a limit of 4MB (unless GASNETC_BUFSZ is changed at compile time).
     The actual number of buffers allocated maybe less if the values of
     GASNET_OP_OUST_PP and GASNET_AP_OUST_LIMIT are such that all
     GASNET_BBUF_LIMIT buffers could never be consumed.
     Reducing this parameter limits the outstanding number of operations
-    which consume bounce buffers.  This includes all Active Messages, gets
-    with a destination outside the GASNet segment, and puts with a source
-    outside the GASNet segment (excluding those of size less than or equal
-    to GASNETC_PUT_INLINE_LIMIT which is currently 72 bytes).  If you
-    believe that throughput of these operations is too small, you may try
-    increasing this value.
+    which consume bounce buffers.  This includes all Active Messages,
+    and non-bulk non-blocking puts with a source outside the GASNet segment
+    (excluding those of size less than or equal to GASNETC_PUT_INLINE_LIMIT
+    which is currently 72 bytes).  If you believe that throughput of these
+    operations is too small, you may try increasing this value.
+   
+  + GASNET_PIN_MAXSZ
+    This gives the maximum size of a single VAPI pinned region, and must
+    be a power of two.  If the GASNet segment is larger than this size in a
+    GASNET_SEGMENT_FAST configuration, then it will be pinned using multiple
+    regions.  This works around an observed bug in Mellanox HCAs and/or
+    drivers in which large regions lead to premature trashing of the HCA's
+    on board TPT (Translation and Protection Table) cache while pinning
+    the same memory with multiple smaller regions does not.
+    If you see throughput of large messages dropping off sharply with an
+    increase in message size, you may try reducing this value.
+    The suffixes "K", "M" and "G" are interpreted as Kilobytes, Megabytes
+    and Gigabytes respectively.  The current default is 256K.
    
 @ Section: Core API @
 
@@ -228,10 +325,9 @@ $Revision: 1.13 $
   and every REQUEST has exactly one matching REPLY, then M becomes a
   limit on the number of un-acknowledged REQUESTS in flight on an
   endpoint.  If we want to avoid RNR conditions, then we should start
-  with M credits and 2*M preposted recv buffers on each endpoint.  The
-  factor of 2 is because we can consume M of the buffers on the peer's
-  endpoint with our REQUESTs and an additional M for REPLYs to her
-  REQUESTS.
+  with M credits and M preposted recv buffers on each endpoint.  This
+  allows for only the receipt of M REQUESTS.  In addition, a recv buffer
+  will be posted on demand for a REPLY just before sending each REQUEST.
 
   It is a simple matter to count the credits when a REPLY is received
   and to poll for credits when needed to send a REQUEST.  It is also
@@ -242,19 +338,20 @@ $Revision: 1.13 $
   "system category" handler, gasnetc_SYS_ack, which doesn't even run
   a handler.
 
-  To avoid a window of time between when we send a reply (credit) and
+  To avoid a window of time between when we send a REPLY (credit) and
   when we post the recv buffer, we must post the replacement recv
   buffer BEFORE running an AM REQUEST handler.  To do this we keep a
-  pool of unposted recv buffers.  So, when we recv an AM, we grab a
-  free recv buffer from the pool and post it to the endpoint, and run
-  the handler.  We send an implicit reply if the AM was a REQUEST and
-  the handler didn't send any REPLY.  Finally we take the recv buffer
+  pool of unposted recv buffers (also used for the on-demand posting
+  of buffers needed for REPLIES).  So, when we recv an AM REQUEST, we
+  grab a free recv buffer from the pool and post it to the endpoint,
+  and only then run the handler.  We send an implicit reply if a REQUEST
+  handler didn't send any REPLY.  Finally we take the recv buffer
   containing the just-processed AM and we return it to the unposted
   pool.
 
   There is a corner case we must deal with when there are no spares
-  left in the unposted pool.  In this case we will copy the recevied
-  message into a temporary (non-pinned) buffer before processing it.
+  left in the unposted pool.  In this case we will copy the received
+  REQUEST into a temporary (non-pinned) buffer before processing it.
   This allows us to repost the recv buffer immediately.  Since the
   temporary buffer is not pinned, it cannot be used for receives.
   Therefore, we free the temporary buffer when the handler is done,
@@ -344,9 +441,9 @@ Notes for myself for extended API:
     done with a modification to the code from the the reference
     implementation, and uses thread-local data to avoid locks.
 
-+ The memsets are be more efficiently implemented as a _local_ memset
++ The memsets can be more efficiently implemented as a _local_ memset
   followed by a RDMA put, for small enough sizes.  The cutoff is
-  presently the size of one bounce buffer.
+  presently the size of one bounce buffer, but has not been tuned.
   Larger memsets are still done by Active Messages.
   
 
@@ -362,9 +459,9 @@ required in all cases in the first implementation.
 
 Additionally, the exit code is properly propagated through the
 bootstrap, to yield a correct exit code for the parallel job as a
-whole.  However, there are some corner cases such as non-collective
-returns from main() with might not return the correct exit code if a
-different MPI is used for bootstrapping (I am using LAM/MPI).
+whole.  If using MPI for bootstrapping, the actual exit code will
+depend on supported in a given MPI implementation (some ignore the
+exit code of the individual processes).
 
 This code is heavily commented, but for the curious, here is a
 description of the code.
@@ -528,17 +625,6 @@ The average case is somewhere between these two.
   buffers with non-blocking gets.  This _will_ work, however, for blocking
   value gets.
 
-+ If I can be sure there are not deadlock problems,
-  the barrier implementation might be improved using a bunch of puts to
-  mark the barrier done upon the final notify.  However, the notify
-  mechanism will remain AM-based.
-  This would involve the notify passing an address (and perhaps rkey) to
-  which this put would be done.
-  The question remains as to where this memory would come from.  Since we
-  only need a small amount, perhaps we can carve it out of the segment?
-  Perhaps we just allow the extended ref to allocate pinned memory at
-  initialization time and pass the rkey with the address.
-
 + Can use "notifn" to make the progress thread only wake if there are
   multiple outstanding recvs.  This could, for instance, wake only if
   we reach the RNR state (or maybe are one event shy of it).
@@ -576,14 +662,3 @@ The average case is somewhere between these two.
       CPU copies HCA_mem->host_mem
 
   Of course I can't get a program to allocate from HCA memory!
-
-+ Adaptive flow-control for AMs.
-  In this mode we'd prepost just M recv buffer to each QP if we want to
-  have up to M AM's outstanding per peer, rather than 2*M as we do now.
-  The present use of 2*M ensures one available for each matching reply
-  (though coming in the opposite direction).  Since the buffers for the
-  replies are needed LOCALLY, we can be adaptive and post one extra
-  buffer before each AM request rather than preposting them.
-  We need to maintain a shared pool of these unposted buffers and be
-  prepared to poll for them to become available along with polling
-  for available credits.

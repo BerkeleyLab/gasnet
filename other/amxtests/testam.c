@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.c,v $
- *     $Date: 2004/08/26 04:53:53 $
- * $Revision: 1.8 $
+ *     $Date: 2005/04/04 03:33:03 $
+ * $Revision: 1.8.8.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 
   setupUtilHandlers(ep, eb);
   
-  VMsegsz = 2*sizeof(int)*NUMHANDLERS_PER_TYPE;
+  VMsegsz = 2*sizeof(testam_payload_t)*NUMHANDLERS_PER_TYPE;
   VMseg = malloc(VMsegsz);
   memset(VMseg, 0, VMsegsz);
   AM_Safe(AM_SetSeg(ep, VMseg, VMsegsz));

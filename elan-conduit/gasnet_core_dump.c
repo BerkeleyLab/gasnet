@@ -1,12 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_dump.c,v $
- *     $Date: 2004/10/30 02:44:12 $
- * $Revision: 1.16 $
+ *     $Date: 2005/04/04 03:32:43 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <elan3/elan3.h> /* for DMA_BYTE */
 

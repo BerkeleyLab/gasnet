@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlarge.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.23 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.23.2.1 $
  * Description: GASNet bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet bulk gets and puts
@@ -24,8 +24,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
-#if defined(GASNET_SEGMENT_EVERYTHING) && !defined(TEST_SEGSZ)
-#define TEST_SEGSZ alignup((16*1048576),PAGESZ)
+int maxsz = 0;
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ_EXPR ((uintptr_t)maxsz)
 #endif
 #include "test.h"
 
@@ -82,13 +83,13 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 		printf("Proc %3i - %10i byte : %7i iters,"
 			   " latency %12i us total, %9.3f us ave. (%s)\n",
 			myproc, st->datasize, st->iters, (int) st->time,
-			((float)st->time) / st->iters,
+			((double)st->time) / st->iters,
 			name);
 		fflush(stdout);
 		break;
 	case PRINT_THROUGHPUT:
 		printf("Proc %3i - %10i byte : %7i iters,"
-			" throughput %9.3f KB/sec (%s)\n",
+			" throughput %11.3f KB/sec (%s)\n",
 			myproc, st->datasize, st->iters,
                         ((int)st->time == 0 ? 0.0 :
                         (1000000.0 * st->datasize * st->iters / 1024.0) / ((int)st->time)),
@@ -103,7 +104,6 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
     int i;
     int64_t begin, end;
-    int64_t temptime;
     stat_struct_t stget, stput;
     int payload;
     
@@ -151,10 +151,8 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 }
 
 void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
-    int i, j;
-    int increment = 1024;
+    int i;
     int64_t begin, end;
-    int64_t temptime;
     stat_struct_t stget, stput;
     int payload;
     
@@ -204,10 +202,8 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 }
 
 void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
-    int i, j;
+    int i;
     int64_t begin, end;
-    int64_t temptime;
-    int increment = 1024;
     stat_struct_t stget, stput;
     gasnet_handle_t hdlget, hdlput;
     gasnet_handle_t *handles;
@@ -265,7 +261,6 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 int main(int argc, char **argv)
 {
     int iters = 0;
-    int maxsz = 0;
     int arg;
     void *myseg;
     void *alloc;
@@ -319,6 +314,9 @@ int main(int argc, char **argv)
     /* get SPMD info */
     myproc = gasnet_mynode();
     numprocs = gasnet_nodes();
+
+    if (!myproc)
+	print_testname("testlarge", numprocs);
     
     if (!firstlastmode) {
       /* Only allow 1 or even number for numprocs */
@@ -341,31 +339,12 @@ int main(int argc, char **argv)
     }
 
     #ifdef GASNET_SEGMENT_EVERYTHING
-      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %i on GASNET_SEGMENT_EVERYTHING",TEST_SEGSZ); gasnet_exit(1); }
+      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
     #endif
-    GASNET_Safe(gasnet_attach(NULL, 0, alignup(((uintptr_t)maxsz), PAGESZ), TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     TEST_DEBUGPERFORMANCE_WARNING();
-    #ifdef GASNET_SEGMENT_EVERYTHING
-      myseg = TEST_SEG(myproc);
-      tgtmem = TEST_SEG(peerproc);
-    #else
-    { /* ensure we got the segment requested */
-      int i;
-      gasnet_seginfo_t *s = test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
-      GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
-      for (i=0; i < gasnet_nodes(); i++) {
-        assert(s[i].size >= maxsz);
-        #if GASNET_ALIGNED_SEGMENTS == 1
-          assert(s[i].addr == s[0].addr);
-        #endif
-      }
-      tgtmem = s[peerproc].addr; /* get peer segment */
-      myseg = s[myproc].addr; 
-      test_free(s);
-    }
-    #endif
-    assert(((uintptr_t)myseg) % PAGESZ == 0);
-    assert(((uintptr_t)tgtmem) % PAGESZ == 0);
+    myseg = TEST_SEG(myproc);
+    tgtmem = TEST_SEG(peerproc);
 
         if (insegment) {
 	    msgbuf = (void *) myseg;
@@ -376,16 +355,17 @@ int main(int argc, char **argv)
         assert(((uintptr_t)msgbuf) % PAGESZ == 0);
 
         if (myproc == 0) 
-          MSG("Running %i iterations of %sbulk put/get with local addresses %sside the segment for sizes: %i...%i\nGASNET_CONFIG:%s\n", 
+          MSG("Running %i iterations of %sbulk put/get with local addresses %sside the segment for sizes: %i...%i\n", 
           iters, 
           firstlastmode ? "first/last " : "",
           insegment ? "in" : "out", 
-          min_payload, max_payload, GASNET_CONFIG_STRING);
+          min_payload, max_payload);
         BARRIER();
 	bulk_test(iters);
 	bulk_test_nbi(iters);
 	bulk_test_nb(iters);
 
+        BARRIER();
         if (!insegment) {
 	    test_free(alloc);
 	}

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.h,v $
- *     $Date: 2004/10/08 07:47:27 $
- * $Revision: 1.15 $
+ *     $Date: 2005/04/04 03:33:23 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet header for smp conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,33 +32,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 extern void gasnetc_exit(int exitcode) GASNET_NORETURN;
 #define gasnet_exit gasnetc_exit
-
-extern uintptr_t gasnetc_getMaxLocalSegmentSize();
-extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
-#define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize 
-#define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize 
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Job Environment Queries
-  =======================
-*/
-extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
-
-GASNET_INLINE_MODIFIER(gasnet_mynode)
-gasnet_node_t gasnet_mynode() {
-  GASNETI_CHECKINIT();
-  return gasnetc_mynode;
-}
- 
-GASNET_INLINE_MODIFIER(gasnet_nodes)
-gasnet_node_t gasnet_nodes() {
-  GASNETI_CHECKINIT();
-  return gasnetc_nodes;
-}
-
-#define gasnet_getSegmentInfo gasnetc_getSegmentInfo
-
 /* ------------------------------------------------------------------------------------ */
 /*
   No-interrupt sections

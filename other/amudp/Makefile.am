@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.am,v $
-#     $Date: 2004/10/19 04:41:55 $
-# $Revision: 1.21 $
+#     $Date: 2005/04/04 03:33:01 $
+# $Revision: 1.21.2.1 $
 # Description: Makefile for AMUDP/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -54,6 +54,7 @@ headers = \
 
 libamudp_a_SOURCES = \
 	$(headers)		\
+	amudp_cdefs.c		\
 	amudp_ep.cpp		\
 	amudp_reqrep.cpp	\
 	amudp_spawn.cpp		\

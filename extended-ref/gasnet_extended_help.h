@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2004/08/26 04:53:34 $
- * $Revision: 1.23 $
+ *     $Date: 2005/04/04 03:32:45 $
+ * $Revision: 1.23.8.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,9 +18,6 @@ BEGIN_EXTERNC
 #include <gasnet_help.h>
 
 /* ------------------------------------------------------------------------------------ */
-extern gasnet_node_t gasnete_mynode;
-extern gasnet_node_t gasnete_nodes;
-extern gasnet_seginfo_t *gasnete_seginfo;
 
 #if GASNETI_CLIENT_THREADS
   struct _gasnete_threaddata_t;
@@ -47,9 +44,8 @@ extern gasnet_seginfo_t *gasnete_seginfo;
 #elif defined(GASNETE_PUTGET_ALWAYSREMOTE)
   #define gasnete_islocal(nodeid) (0) /* always remote */
 #else
-  #define gasnete_islocal(nodeid) (nodeid == gasnete_mynode)
+  #define gasnete_islocal(nodeid) (nodeid == gasneti_mynode)
 #endif
-#define gasnete_boundscheck(node,ptr,nbytes) gasneti_boundscheck(node,ptr,nbytes,e)
 
 /* ------------------------------------------------------------------------------------ */
 #if defined(_CRAYC) || (SIZEOF_SHORT > 2)  /* deal with Cray's crappy lack of 16-bit types */

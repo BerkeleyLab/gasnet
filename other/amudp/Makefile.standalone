@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.standalone,v $
-#     $Date: 2004/10/10 03:05:05 $
-# $Revision: 1.16 $
+#     $Date: 2005/04/04 03:33:01 $
+# $Revision: 1.16.2.1 $
 # Description: Makefile for AMUDP
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -48,7 +48,7 @@ testprograms =                  \
     $(testprograms_ILP32only)
 
 # all the library objects and headers
-objects=amudp_ep.o amudp_reqrep.o amudp_spmd.o amudp_spawn.o exc.o sig.o socklist.o sockutil.o
+objects=amudp_cdefs.o amudp_ep.o amudp_reqrep.o amudp_spmd.o amudp_spawn.o exc.o sig.o socklist.o sockutil.o
 headers=Makefile* amudp.h amudp_internal.h amudp_spmd.h socket.h exc.h sig.h sockaddr.h socklist.h sockutil.h
 
 .PHONY: all tests clean veryclean dist
@@ -91,13 +91,13 @@ veryclean: clean
 
 # make a distribution
 amxdist:
-	@sh -x -c ' \
+	@bash -x -c ' \
          VERSION=`grep "#define AMUDP_LIBRARY_VERSION" $(srcdir)/amudp.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
          export VERSION ; \
          echo "+++ Building distribution for AMUDP version $${VERSION} +++" && \
 	 rm -Rf amudp$${VERSION}.tar.gz amudp$${VERSION} && \
          mkdir amudp$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.cpp $(srcdir)/*.h $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
+         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.cpp $(srcdir)/*.c $(srcdir)/*.h $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
          rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
          mv amudp$${VERSION}/Makefile.standalone amudp$${VERSION}/Makefile && \
          tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \

@@ -1,16 +1,15 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_op.c,v $
- * $Date: 2004/08/26 04:53:36 $
- * $Revision: 1.11 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.11.8.1 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
-#include <gasnet_tools.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_internal.h>
+#include <gasnet_extended_internal.h>
+#include <gasnet_tools.h>
 
 /*
   Op management
@@ -92,6 +91,7 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 				gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
 				gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);
 				gasneti_assert(eop->threadidx == threadidx);
+				gasneti_assert(eop->iop == NULL);
 				gasneti_assert(addr.bufferidx == bufidx);
 				/* see if we hit a cycle */
 				gasneti_assert(!seen[addr.eopidx]);
@@ -125,8 +125,8 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 	iop->next = NULL;
 	iop->initiated_get_cnt = 0;
 	iop->initiated_put_cnt = 0;
-	gasneti_atomic_set(&(iop->completed_get_cnt), 0);
-	gasneti_atomic_set(&(iop->completed_put_cnt), 0);
+	gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
+	gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
         gasnete_iop_check(iop);
 	return iop;
 }
@@ -144,9 +144,9 @@ gasnete_op_isdone(gasnete_op_t *op)
 		gasnete_iop_t *iop = (gasnete_iop_t*)op;
                 gasnete_iop_check(iop);
 		return 
-		    (gasneti_atomic_read(&(iop->completed_get_cnt)) == 
+		    (gasneti_weakatomic_read(&(iop->completed_get_cnt)) == 
 		         iop->initiated_get_cnt) &&
-		    (gasneti_atomic_read(&(iop->completed_put_cnt)) == 
+		    (gasneti_weakatomic_read(&(iop->completed_put_cnt)) == 
 		         iop->initiated_put_cnt);
 	}
 }
@@ -162,19 +162,21 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
                 gasnete_iop_check(iop);
 		if (isget) 
-			gasneti_atomic_increment(&(iop->completed_get_cnt));
+			gasneti_weakatomic_increment(&(iop->completed_get_cnt));
 		else 
-			gasneti_atomic_increment(&(iop->completed_put_cnt));
+			gasneti_weakatomic_increment(&(iop->completed_put_cnt));
 	}
 }
 
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op) {
 	gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
+        /* DOB: freelist is not lock-protected, hence gasnete_op_free may
+           ONLY be called from the owning thread!!! */
+        gasneti_assert(thread == gasnete_mythread());
 	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 		gasnete_eop_t *eop = (gasnete_eop_t *)op;
 		gasnete_eopaddr_t addr = eop->addr;
-		//gasneti_assert(thread == gasnete_mythread());
 		gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);
                 gasnete_eop_check(eop);
 		SET_OPSTATE(eop, OPSTATE_FREE);

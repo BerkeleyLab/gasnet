@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2004/08/26 04:53:36 $
- * $Revision: 1.37 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.37.8.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -33,7 +33,7 @@ gasnetc_node_lookup(uint16_t sender_node_id, uint16_t sender_port_id)
 	gm_node_sender.port = sender_port_id;
 	gm_node = (gasnetc_gm_nodes_rev_t *)
 		bsearch((void *) &gm_node_sender,
-		    (const void *) _gmc.gm_nodes_rev, (size_t) gasnetc_nodes,
+		    (const void *) _gmc.gm_nodes_rev, (size_t) gasneti_nodes,
 		    sizeof(gasnetc_gm_nodes_rev_t), gasnetc_gm_nodes_compare);
 	if_pf(gm_node == NULL)
 		gasneti_fatalerror("gasnetc_node_lookup() GM id unknown");
@@ -58,7 +58,7 @@ gasnetc_bufdesc_from_event(gm_recv_event_t *e)
 	bufd->node	  = gasnetc_node_lookup(bufd->gm_id, bufd->gm_port);
 	bufd->ran_reply   = NULL;
 
-	gasneti_assert(bufd->node < gasnetc_nodes);
+	gasneti_assert(bufd->node < gasneti_nodes);
 	gasneti_assert(bufd->len <= GASNETC_AM_PACKET);
 
 	return bufd;
@@ -206,7 +206,7 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 			GASNETC_TRACE_SHORT(AMRecv, RequestShort, bufd->node,
 			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr));
 			argptr = (int32_t *) &ptr[GASNETC_AM_SHORT_ARGS_OFF];
-			GASNETC_RUN_HANDLER_SHORT(_gmc.handlers[handler_idx],
+			GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler_idx],
 			    (void *) bufd, argptr, numargs);
 			break;
 
@@ -218,7 +218,7 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 			argptr = (int32_t *) &ptr[GASNETC_AM_MEDIUM_ARGS_OFF];
 
 			BUFD_SET(bufd, BUFD_REQMEDIUM);
-			GASNETC_RUN_HANDLER_MEDIUM(_gmc.handlers[handler_idx],
+			GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler_idx],
 			    (void *) bufd, argptr, numargs, 
 			    (void *) (ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs)), 
 			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs));
@@ -231,7 +231,7 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 			    dest_addr, len-GASNETC_AM_LONG_HEADER_LEN(numargs));
 			argptr = (int32_t *) &ptr[GASNETC_AM_LONG_ARGS_OFF];
 			len = *((uint32_t *) &ptr[4]);
-			GASNETC_RUN_HANDLER_LONG(_gmc.handlers[handler_idx],
+			GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler_idx],
 			    (void *) bufd, argptr, numargs, dest_addr, len);
 			break;
 
@@ -267,7 +267,7 @@ gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd)
 			GASNETC_TRACE_SHORT(AMRecv, ReplyShort, bufd->node,
 			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr));
 			argptr = (int32_t *) &ptr[GASNETC_AM_SHORT_ARGS_OFF];
-			GASNETC_RUN_HANDLER_SHORT(_gmc.handlers[handler_idx],
+			GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler_idx],
 			    (void *) bufd, argptr, numargs);
 			break;
 
@@ -277,7 +277,7 @@ gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd)
 			    ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs), 
 			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs)); 
 			argptr = (int32_t *) &ptr[GASNETC_AM_MEDIUM_ARGS_OFF];
-			GASNETC_RUN_HANDLER_MEDIUM(_gmc.handlers[handler_idx],
+			GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler_idx],
 			    (void *) bufd, argptr, numargs,
 			    (void *)(ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs)), 
 			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs)); 
@@ -290,7 +290,7 @@ gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd)
 			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr), 0, 
 			    dest_addr, len);
 			argptr = (int32_t *) &ptr[GASNETC_AM_LONG_ARGS_OFF];
-			GASNETC_RUN_HANDLER_LONG(_gmc.handlers[handler_idx],
+			GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler_idx],
 			    (void *) bufd, argptr, numargs, dest_addr, len);
 			break;
 
@@ -456,14 +456,13 @@ gasnetc_callback_hi(struct gm_port *p, void *ctx, gm_status_t status)
  * buffers can be used to send payload from).
  */
 GASNET_INLINE_MODIFIER(gasnetc_release_rdma)
-void
-gasnetc_release_rdma(gasnetc_bufdesc_t *bufd)
-{
+void gasnetc_release_rdma(gasnetc_bufdesc_t *bufd) {
+        GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
 	const firehose_request_t	*reqs[2];
 	int				numreqs = 1;
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
-	gasneti_assert(bufd->node < gasnetc_nodes);
+	gasneti_assert(bufd->node < gasneti_nodes);
 	gasneti_assert(bufd->remote_req != NULL);
 
 	/* Release firehose on regions (remote and possibly local) */
@@ -510,16 +509,14 @@ gasnetc_callback_lo_rdma(struct gm_port *p, void *ctx, gm_status_t status)
 /*
  * Callback for AMReply when destination is pinned
  */
-void
-gasnetc_callback_hi_rdma(struct gm_port *p, void *ctx, 
-				  gm_status_t status)
-{
+void gasnetc_callback_hi_rdma(struct gm_port *p, void *ctx, gm_status_t status) {
+        GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
 	gasnetc_bufdesc_t	*bufd = (gasnetc_bufdesc_t *) ctx;
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 
 	gasneti_assert(bufd != NULL);
-	gasneti_assert(bufd->node < gasnetc_nodes);
+	gasneti_assert(bufd->node < gasneti_nodes);
 	gasneti_assert(bufd->payload_len > 0);
 	gasneti_assert(bufd->local_req == NULL);
 

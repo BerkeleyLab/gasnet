@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spawn.cpp,v $
- *     $Date: 2004/10/13 21:32:52 $
- * $Revision: 1.9 $
+ *     $Date: 2005/04/04 03:33:01 $
+ * $Revision: 1.9.2.1 $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -62,7 +62,7 @@ extern int AMUDP_SPMDLocalSpawn(int nproc, int argc, char **argv) {
         exit(1);
       }
     #elif defined(CRAYX1)
-      { char **nargv = new char *[argc+2];
+      { char **nargv = (char **)AMUDP_malloc(sizeof(char *)*(argc+2));
         nargv[0] = argv[0];
         memcpy(nargv+1,argv,argc*sizeof(char *));
         nargv[argc+1] = NULL;

@@ -1,4 +1,4 @@
-/* $Id: testcas.c,v 1.6 2004/10/23 09:59:18 bonachea Exp $
+/* $Id: testcas.c,v 1.6.2.1 2005/04/04 03:33:27 bonachea Exp $
  *
  * Description: GASNet atomic CAS.
  *   The test verifies the atomic compare-and-swap on platforms which support it.
@@ -6,12 +6,12 @@
  * Terms of use are as specified in license.txt
  */
 
-#include "gasnet.h"
-#include "gasnet_tools.h"
 #include <stdio.h>
 #include <pthread.h>
 
+#define GASNETI_INTERNAL_TEST_PROGRAM
 #include "gasnet_internal.h"	/* EVIL, but only way to test internal stuff */
+#include "gasnet_tools.h"
 
 /* more crap required to make the evil hack above function reliably */
 #undef malloc
@@ -42,7 +42,9 @@ static gasneti_atomic_t counter2 = gasneti_atomic_init(0);
 static int iters = DEFAULT_ITERS;
 static int threads = DEFAULT_THREADS;
 
-static gasneti_atomic_t my_lock = gasneti_atomic_init(0);
+#ifdef GASNETI_HAVE_SPINLOCK
+  static gasneti_atomic_t my_lock = GASNETI_SPINLOCK_INITIALIZER;
+#endif
 
 static void *
 threadmain(void *args)
@@ -80,12 +82,14 @@ main(int argc, char **argv)
 	void * myseg;
 
 	GASNET_Safe(gasnet_init(&argc, &argv));
-    	GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
-
-	MSG("running...");
+    	GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 
 	mynode = gasnet_mynode();
 	myseg = TEST_MYSEG();
+	if (!mynode)
+	    print_testname("testcas", gasnet_nodes());
+
+	MSG("running...");
 
 	if (argc > 1) iters = atoi(argv[1]);
 	if (!iters) iters = DEFAULT_ITERS;

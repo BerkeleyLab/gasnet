@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.20 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.20.2.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -16,8 +16,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
-#if defined(GASNET_SEGMENT_EVERYTHING) && !defined(TEST_SEGSZ)
-#define TEST_SEGSZ alignup((16*1048576),PAGESZ)
+int maxsz = 0;
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ_EXPR (2*MAX(PAGESZ,(uintptr_t)maxsz))
 #endif
 #include "test.h"
 
@@ -71,14 +72,14 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 		printf("Proc %2i - %4i byte : %7i iters,"
 			   " latency %10i us total, %9.3f us ave. (%s)\n",
 			myproc, st->datasize, st->iters, (int) st->time,
-			((float)st->time) / st->iters,
+			((double)st->time) / st->iters,
 			name);
 		fflush(stdout);
 		break;
 	case PRINT_THROUGHPUT:
 		printf("Proc %2i - %4i byte : %7i iters,"
 #if 1
-			" throughput %9.3f KB/sec (%s)\n"
+			" throughput %11.3f KB/sec (%s)\n"
 #else
 			" inv. throughput %9.3f us (%s)\n"
 #endif
@@ -88,7 +89,7 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 			((int)st->time == 0 ? 0.0 :
                         (1000000.0 * st->datasize * st->iters / 1024.0) / ((int)st->time)),
 #else
-                        (((float)((int)st->time)) / st->iters),
+                        (((double)((int)st->time)) / st->iters),
 #endif
 			name);
 		fflush(stdout);
@@ -430,7 +431,6 @@ void oneway_nb_test(int iters, int nbytes)
 int main(int argc, char **argv)
 {
     int min_payload, max_payload;
-    int maxsz = 0;
     void *myseg;
     void *alloc;
     int arg;
@@ -485,6 +485,9 @@ int main(int argc, char **argv)
     /* get SPMD info */
     myproc = gasnet_mynode();
     numprocs = gasnet_nodes();
+
+    if (!myproc)
+	print_testname("testsmall", numprocs);
     
     if (!firstlastmode) {
       /* Only allow 1 or even number for numprocs */
@@ -507,31 +510,13 @@ int main(int argc, char **argv)
     }
 
     #ifdef GASNET_SEGMENT_EVERYTHING
-      if (maxsz > TEST_SEGSZ/2) { MSG("maxsz must be <= %i on GASNET_SEGMENT_EVERYTHING",TEST_SEGSZ/2); gasnet_exit(1); }
+      if (maxsz > TEST_SEGSZ/2) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING", (unsigned long)(TEST_SEGSZ/2)); gasnet_exit(1); }
     #endif
-    GASNET_Safe(gasnet_attach(NULL, 0, alignup(((uintptr_t)maxsz), PAGESZ)*2, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     TEST_DEBUGPERFORMANCE_WARNING();
-    #ifdef GASNET_SEGMENT_EVERYTHING
-      myseg = TEST_SEG(myproc);
-      tgtmem = TEST_SEG(peerproc);
-    #else
-    { /* ensure we got the segment requested */
-      int i;
-      gasnet_seginfo_t *s = test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
-      GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
-      for (i=0; i < gasnet_nodes(); i++) {
-        assert(s[i].size >= maxsz);
-        #if GASNET_ALIGNED_SEGMENTS == 1
-          assert(s[i].addr == s[0].addr);
-        #endif
-      }
-      tgtmem = s[peerproc].addr; /* get peer segment */
-      myseg = s[myproc].addr; 
-      test_free(s);
-    }
-    #endif
-    assert(((uintptr_t)myseg) % PAGESZ == 0);
-    assert(((uintptr_t)tgtmem) % PAGESZ == 0);
+    myseg = TEST_SEG(myproc);
+    tgtmem = TEST_SEG(peerproc);
+
         if (insegment) {
 	    msgbuf = (void *) myseg;
         } else {
@@ -542,11 +527,11 @@ int main(int argc, char **argv)
         assert(((uintptr_t)msgbuf) % PAGESZ == 0);
         assert(((uintptr_t)ackbuf) % PAGESZ == 0);
         if (myproc == 0) 
-          MSG("Running %i iterations of %snon-bulk put/get with local addresses %sside the segment for sizes: %i...%i\nGASNET_CONFIG:%s\n", 
+          MSG("Running %i iterations of %snon-bulk put/get with local addresses %sside the segment for sizes: %i...%i\n", 
           iters, 
           firstlastmode ? "first/last " : "",
           insegment ? "in" : "out", 
-          min_payload, max_payload, GASNET_CONFIG_STRING);
+          min_payload, max_payload);
         BARRIER();
 
 	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
@@ -561,6 +546,7 @@ int main(int argc, char **argv)
 
   	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nb_test(iters, j);
 
+        BARRIER();
         if (!insegment) {
 	  test_free(alloc);
 	}

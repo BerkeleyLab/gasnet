@@ -1,8 +1,8 @@
 \input texinfo   @c -*-texinfo-*-
 @c %**start of header
 @c   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/gasnet.texi,v $
-@c     $Date: 2004/09/20 12:10:50 $
-@c $Revision: 1.36 $
+@c     $Date: 2005/04/04 03:32:41 $
+@c $Revision: 1.36.2.1 $
 @c Description: GASNet specification
 @c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 @c Terms of use are as specified in license.txt
@@ -164,9 +164,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2004/09/20 12:10:50 $
+@subtitle $Date: 2005/04/04 03:32:41 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.36 $ 
+@subtitle $Revision: 1.36.2.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -204,8 +204,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2004/09/20 12:10:50 $
-@*$Revision: 1.36 $ 
+@*$Date: 2005/04/04 03:32:41 $
+@*$Revision: 1.36.2.1 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -1088,7 +1088,8 @@ modified once the function returns. The active message is logically
 delivered after the data transfer finishes. 
 
 Upon receipt, the receiver invokes the appropriate request handler function 
-with a pointer to temporary storage containing the data payload, the number 
+with a pointer to temporary storage containing the data payload 
+(in a buffer which is suitably aligned to hold any datatype), the number 
 of data bytes transferred, and the M integer arguments. The dynamic scope of 
 the storage is the same as the dynamic scope of the handler. The data should 
 be copied if it is needed beyond this scope. 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_internal.h,v $
- *     $Date: 2004/10/07 23:28:13 $
- * $Revision: 1.15 $
+ *     $Date: 2005/04/04 03:32:45 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,14 +9,10 @@
 #ifndef _GASNET_EXTENDED_INTERNAL_H
 #define _GASNET_EXTENDED_INTERNAL_H
 
-#include <gasnet.h>
-#include <gasnet_handler.h>
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 
 /* ------------------------------------------------------------------------------------ */
-/*  reasonable upper-bound on L2 cache line size (don't make this too big) */
-#define GASNETE_CACHE_LINE_BYTES  (128)
-
 typedef uint8_t gasnete_threadidx_t;
 
 /* gasnet_handle_t is a void* pointer to a gasnete_op_t, 
@@ -57,10 +53,10 @@ typedef struct _gasnete_iop_t {
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the counters live on different cache lines for SMP's */
-  uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)]; 
+  uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
 
-  gasneti_atomic_t completed_get_cnt;     /*  count of get ops completed */
-  gasneti_atomic_t completed_put_cnt;     /*  count of put ops completed */
+  gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
+  gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -140,10 +136,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
-    _temp = gasneti_atomic_read(&((iop)->completed_put_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt)); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
-    _temp = gasneti_atomic_read(&((iop)->completed_get_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt)); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)
@@ -157,17 +153,6 @@ void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
 
 /* ------------------------------------------------------------------------------------ */
-
-/* make a GASNet call - if it fails, print error message and abort */
-#define GASNETE_SAFE(fncall) do {                                           \
-   int retcode = (fncall);                                                  \
-   if_pf (retcode != (int)GASNET_OK) {                                      \
-     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
-        "  while calling: %s\n"                                             \
-        "  at %s",                                                          \
-        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
-   }                                                                        \
- } while (0)
 
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 

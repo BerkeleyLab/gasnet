@@ -1,21 +1,17 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/11/04 14:08:44 $
- * $Revision: 1.50.2.3 $
+ *     $Date: 2005/04/04 03:32:43 $
+ * $Revision: 1.50.2.4 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
 
-gasnet_node_t gasnete_mynode = (gasnet_node_t)-1;
-gasnet_node_t gasnete_nodes = 0;
-gasnet_seginfo_t *gasnete_seginfo = NULL;
 static gasnete_threaddata_t *gasnete_threadtable[256] = { 0 };
 static int gasnete_numthreads = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
@@ -23,7 +19,7 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
   static gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
 #endif
-static const gasnete_eopaddr_t EOPADDR_NIL = { 0xFF, 0xFF };
+static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /* 
@@ -239,16 +235,14 @@ static void gasnete_check_config() {
 }
 
 extern void gasnete_init() {
+  static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-  gasneti_assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
+  gasneti_assert(firstcall); /*  make sure we haven't been called before */
+  firstcall = 0;
 
   gasnete_check_config(); /*  check for sanity */
 
-  gasnete_mynode = gasnet_mynode();
-  gasnete_nodes = gasnet_nodes();
-  gasneti_assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
-  gasnete_seginfo = (gasnet_seginfo_t*)gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
-  gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
+  gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
   gasnete_nbi_throttle = atoi(
     gasneti_getenv_withdefault("GASNET_NBI_THROTTLE", _STRINGIFY(GASNETE_DEFAULT_NBI_THROTTLE)));
@@ -344,9 +338,9 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
       gasnete_eopaddr_t addr = thread->eop_free;
 
       #if 0
-      if (gasnete_mynode == 0)
+      if (gasneti_mynode == 0)
         for (i=0;i<256;i++) {                                   
-          fprintf(stderr,"%i:  %i: next=%i\n",gasnete_mynode,i,buf[i].addr.eopidx);
+          fprintf(stderr,"%i:  %i: next=%i\n",gasneti_mynode,i,buf[i].addr.eopidx);
           fflush(stderr);
         }
         sleep(5);
@@ -395,8 +389,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   iop->next = NULL;
   iop->initiated_get_cnt = 0;
   iop->initiated_put_cnt = 0;
-  gasneti_atomic_set(&(iop->completed_get_cnt), 0);
-  gasneti_atomic_set(&(iop->completed_put_cnt), 0);
+  gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
+  gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
 
   #if GASNETE_USE_PGCTRL_NBI
     iop->elan_pgctrl = NULL
@@ -482,8 +476,8 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
-    if (isget) gasneti_atomic_increment(&(iop->completed_get_cnt));
-    else gasneti_atomic_increment(&(iop->completed_put_cnt));
+    if (isget) gasneti_weakatomic_increment(&(iop->completed_get_cnt));
+    else gasneti_weakatomic_increment(&(iop->completed_put_cnt));
   }
 }
 
@@ -518,7 +512,7 @@ GASNET_INLINE_MODIFIER(gasnete_get_reqh_inner)
 void gasnete_get_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
   gasneti_assert(nbytes <= gasnet_AMMaxMedium());
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     MEDIUM_REP(2,4,(token, gasneti_handleridx(gasnete_get_reph),
                   src, nbytes, 
                   PACK(dest), PACK(op))));
@@ -543,7 +537,7 @@ GASNET_INLINE_MODIFIER(gasnete_getlong_reqh_inner)
 void gasnete_getlong_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
 
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     LONG_REP(1,2,(token, gasneti_handleridx(gasnete_getlong_reph),
                   src, nbytes, dest,
                   PACK(op))));
@@ -569,7 +563,7 @@ void gasnete_put_reqh_inner(gasnet_token_t token,
   void *dest, void *op) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
   gasneti_sync_writes();
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
 }
@@ -582,7 +576,7 @@ void gasnete_putlong_reqh_inner(gasnet_token_t token,
   void *addr, size_t nbytes,
   void *op) {
   gasneti_sync_writes();
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
 }
@@ -595,7 +589,7 @@ void gasnete_memset_reqh_inner(gasnet_token_t token,
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
   memset(dest, (int)(uint32_t)val, nbytes);
   gasneti_sync_writes();
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
 }
@@ -620,6 +614,8 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: get source not elan-mapped, using AM instead"));
     } else 
+  #else
+    gasneti_assert(gasnetc_elan_addressable(src, nbytes));
   #endif
   if (gasnetc_elan_addressable(dest,nbytes)) { 
     ELAN_EVENT *evt;
@@ -634,7 +630,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     if_pt (bouncebuf) {
       ELAN_EVENT *evt;
       gasnete_eop_t *eop;
-      gasneti_assert(elan_addressable(STATE(),bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
+      gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       evt = elan_get(STATE(), src, bouncebuf+1, nbytes, node);
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_EVENT_VAL(C,GET_BUFFERED,nbytes);
@@ -659,7 +655,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_AMGET);
 
-    GASNETE_SAFE(
+    GASNETI_SAFE(
       SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
                    (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(op))));
     GASNETI_TRACE_EVENT_VAL(C,GET_AMMEDIUM,nbytes);
@@ -683,6 +679,8 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: put destination not elan-mapped, using AM instead"));
     } else 
+  #else
+    gasneti_assert(gasnetc_elan_addressable(dest, nbytes));
   #endif
   if (nbytes <= GASNETC_ELAN_SMALLPUTSZ || 
     (isbulk && gasnetc_elan_addressable(src,nbytes))) { 
@@ -704,7 +702,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       ELAN_EVENT *evt;
       gasnete_eop_t *eop;
       memcpy(bouncebuf+1, src, nbytes);
-      gasneti_assert(elan_addressable(STATE(),bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
+      gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       /* TODO: this gets a "not-addressable" elan exception on dual-rail runs - why? */
       evt = elan_put(STATE(), bouncebuf+1, dest, nbytes, node);
       UNLOCK_ELAN_WEAK();
@@ -731,7 +729,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_AMPUT);
 
-    GASNETE_SAFE(
+    GASNETI_SAFE(
       MEDIUM_REQ(2,4,(node, gasneti_handleridx(gasnete_put_reqh),
                     src, nbytes,
                     PACK(dest), PACK(op))));
@@ -743,13 +741,13 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_AMPUT);
 
     if (isbulk) {
-      GASNETE_SAFE(
+      GASNETI_SAFE(
         LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                     src, nbytes, dest,
                     PACK(op))));
       GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_AMLONG,nbytes);
     } else {
-      GASNETE_SAFE(
+      GASNETI_SAFE(
         LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                     src, nbytes, dest,
                     PACK(op))));
@@ -778,7 +776,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_MEMSET);
 
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
                  (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
                  PACK(dest), PACK(op))));
@@ -827,7 +825,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   return GASNET_ERR_NOT_READY;
  #endif
 #else
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
   return gasnete_try_syncnb_inner(handle);
 #endif
 }
@@ -835,7 +833,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -861,7 +859,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -959,6 +957,8 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: get source not elan-mapped, using AM instead"));
     } else 
+  #else
+    gasneti_assert(gasnetc_elan_addressable(src, nbytes));
   #endif
   if (gasnetc_elan_addressable(dest,nbytes)) { 
     ELAN_EVENT *evt;
@@ -982,7 +982,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     if_pt (bouncebuf) {
       ELAN_EVENT *evt;
       gasnete_eop_t *eop;
-      gasneti_assert(elan_addressable(STATE(),bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
+      gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       evt = elan_get(STATE(), src, bouncebuf+1, nbytes, node);
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_EVENT_VAL(C,GET_BUFFERED,nbytes);
@@ -1018,7 +1018,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     iop->initiated_get_cnt++;
   
-    GASNETE_SAFE(
+    GASNETI_SAFE(
       SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
                    (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(iop))));
     GASNETI_TRACE_EVENT_VAL(C,GET_AMMEDIUM,nbytes);
@@ -1029,12 +1029,8 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     #if GASNETE_USE_LONG_GETS
-      /* TODO: optimize this check by caching segment upper-bound in gasnete_seginfo */
-      gasneti_memcheck(gasnete_seginfo);
-      if (dest >= gasnete_seginfo[gasnete_mynode].addr &&
-         (((uintptr_t)dest) + nbytes) < 
-          (((uintptr_t)gasnete_seginfo[gasnete_mynode].addr) +
-                       gasnete_seginfo[gasnete_mynode].size)) {
+      gasneti_memcheck(gasneti_seginfo);
+      if (gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
         chunksz = gasnet_AMMaxLongReply();
         reqhandler = gasneti_handleridx(gasnete_getlong_reqh);
         GASNETI_TRACE_EVENT_VAL(C,GET_AMLONG,nbytes);
@@ -1048,14 +1044,14 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     for (;;) {
       iop->initiated_get_cnt++;
       if (nbytes > chunksz) {
-        GASNETE_SAFE(
+        GASNETI_SAFE(
           SHORT_REQ(4,7,(node, reqhandler, 
                        (gasnet_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK(iop))));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
-        GASNETE_SAFE(
+        GASNETI_SAFE(
           SHORT_REQ(4,7,(node, reqhandler, 
                        (gasnet_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK(iop))));
         break;
@@ -1077,6 +1073,8 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: put destination not elan-mapped, using AM instead"));
     } else 
+  #else
+    gasneti_assert(gasnetc_elan_addressable(dest, nbytes));
   #endif
   if (nbytes <= GASNETC_ELAN_SMALLPUTSZ || 
     (isbulk && gasnetc_elan_addressable(src,nbytes))) { 
@@ -1104,7 +1102,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       ELAN_EVENT *evt;
       gasnete_eop_t *eop;
       memcpy(bouncebuf+1, src, nbytes);
-      gasneti_assert(elan_addressable(STATE(),bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
+      gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       evt = elan_put(STATE(), bouncebuf+1, dest, nbytes, node);
       UNLOCK_ELAN_WEAK();
       if (isbulk) GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_BUFFERED,nbytes);
@@ -1143,7 +1141,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     iop->initiated_put_cnt++;
 
-    GASNETE_SAFE(
+    GASNETI_SAFE(
       MEDIUM_REQ(2,4,(node, gasneti_handleridx(gasnete_put_reqh),
                     src, nbytes,
                     PACK(dest), PACK(iop))));
@@ -1154,13 +1152,13 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     iop->initiated_put_cnt++;
 
     if (isbulk) {
-      GASNETE_SAFE(
+      GASNETI_SAFE(
         LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                       src, nbytes, dest,
                       PACK(iop))));
       GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_AMLONG,nbytes);
     } else {
-      GASNETE_SAFE(
+      GASNETI_SAFE(
         LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                       src, nbytes, dest,
                       PACK(iop))));
@@ -1178,12 +1176,12 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       iop->initiated_put_cnt++;
       if (nbytes > chunksz) {
         if (isbulk) {
-          GASNETE_SAFE(
+          GASNETI_SAFE(
             LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                           psrc, chunksz, pdest,
                           PACK(iop))));
         } else {
-          GASNETE_SAFE(
+          GASNETI_SAFE(
             LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                           psrc, chunksz, pdest,
                           PACK(iop))));
@@ -1193,12 +1191,12 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
         pdest += chunksz;
       } else {
         if (isbulk) {
-          GASNETE_SAFE(
+          GASNETI_SAFE(
             LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                           psrc, nbytes, pdest,
                           PACK(iop))));
         } else {
-          GASNETE_SAFE(
+          GASNETI_SAFE(
             LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
                           psrc, nbytes, pdest,
                           PACK(iop))));
@@ -1223,7 +1221,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
   gasnete_iop_t *op = mythread->current_iop;
   op->initiated_put_cnt++;
 
-  GASNETE_SAFE(
+  GASNETI_SAFE(
     SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
                  (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
                  PACK(dest), PACK(op))));
@@ -1236,10 +1234,10 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 static int gasnete_iop_gets_done(gasnete_iop_t *iop) {
   ASSERT_ELAN_UNLOCKED();
-  if (gasneti_atomic_read(&(iop->completed_get_cnt)) == iop->initiated_get_cnt) {
+  if (gasneti_weakatomic_read(&(iop->completed_get_cnt)) == iop->initiated_get_cnt) {
     int retval = TRUE;
     if_pf (iop->initiated_get_cnt > 65000) { /* make sure we don't overflow the counters */
-      gasneti_atomic_set(&(iop->completed_get_cnt), 0);
+      gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
       iop->initiated_get_cnt = 0;
     }
     #if !GASNETE_USE_PGCTRL_NBI
@@ -1266,10 +1264,10 @@ static int gasnete_iop_gets_done(gasnete_iop_t *iop) {
 }
 static int gasnete_iop_puts_done(gasnete_iop_t *iop) {
   ASSERT_ELAN_UNLOCKED();
-  if (gasneti_atomic_read(&(iop->completed_put_cnt)) == iop->initiated_put_cnt) {
+  if (gasneti_weakatomic_read(&(iop->completed_put_cnt)) == iop->initiated_put_cnt) {
     int retval = TRUE;
     if_pf (iop->initiated_put_cnt > 65000) { /* make sure we don't overflow the counters */
-      gasneti_atomic_set(&(iop->completed_put_cnt), 0);
+      gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
       iop->initiated_put_cnt = 0;
     }
     #if !GASNETE_USE_PGCTRL_NBI
@@ -1298,7 +1296,7 @@ static int gasnete_iop_puts_done(gasnete_iop_t *iop) {
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasneti_AMPoll());
+    GASNETI_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1321,7 +1319,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasneti_AMPoll());
+    GASNETI_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1391,7 +1389,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnet_valget_handle_t retval;
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasnete_boundscheck(node, src, nbytes);
+  gasneti_boundscheck(node, src, nbytes);
   if (mythread->valget_free) {
     retval = mythread->valget_free;
     mythread->valget_free = retval->next;
@@ -1525,7 +1523,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
   barrier_state[phase+2].barrier_value = id;
   barrier_state[phase+2].barrier_flags = flags;
 
-  if (gasnete_nodes > 1) {
+  if (gasneti_nodes > 1) {
     LOCK_ELAN_WEAK();
     barrier_blocking = 1; /* allow polling while inside blocking barriers */
     #if GASNETE_FAST_ELAN_BARRIER
@@ -1538,7 +1536,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
         if_pf(flags & GASNET_BARRIERFLAG_MISMATCH) { /* notify all of local mismatch */
           int i;
           barrier_state[phase+2].barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
-          for (i=0; i < gasnete_nodes; i++) {
+          for (i=0; i < gasneti_nodes; i++) {
             elan_wait(elan_put(STATE(), (int *)&(barrier_state[phase+2].barrier_flags), 
                                         (int *)&(barrier_state[phase+2].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);
@@ -1563,7 +1561,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
           elan_wait(elan_put(STATE(), (int *)&(barrier_state[phase+4].barrier_value), 
                                       (int *)&(barrier_state[phase+4].barrier_value),
                                       sizeof(int), 0), ELAN_POLL_EVENT);
-          for (i=0; i < gasnete_nodes; i++) { /* notify all of reelection */
+          for (i=0; i < gasneti_nodes; i++) { /* notify all of reelection */
             elan_wait(elan_put(STATE(), (int *)&(barrier_state[phase+4].barrier_flags), 
                                         (int *)&(barrier_state[phase+4].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);
@@ -1575,7 +1573,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
               (flags & GASNET_BARRIERFLAG_MISMATCH)) { /* detected a mismatch - tell everybody */
           int i;
           barrier_state[phase+2].barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
-          for (i=0; i < gasnete_nodes; i++) {
+          for (i=0; i < gasneti_nodes; i++) {
             elan_wait(elan_put(STATE(), (int *)&(barrier_state[phase+2].barrier_flags), 
                                         (int *)&(barrier_state[phase+2].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);

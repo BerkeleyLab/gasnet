@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2004/10/06 09:25:24 $
- * $Revision: 1.63 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.63.2.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -10,10 +10,12 @@
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
 
-#include <gasnet.h>
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <gasnet_extended_internal.h>
+#ifdef GASNETC_GM_MPI_COMPAT
+  #include <gasnet_bootstrap_internal.h>
+#endif
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
@@ -38,26 +40,11 @@
 #include <sys/param.h>
 #endif
 
-extern gasnet_seginfo_t *gasnetc_seginfo;
-
-#define gasnetc_boundscheck(node,ptr,nbytes)     \
-	    gasneti_boundscheck(node,ptr,nbytes,c)
 #define gasnetc_alloca(nbytes) alloca(nbytes)
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
-/* -------------------------------------------------------------------------- */
-/* make a GASNet call - if it fails, print error message and return */
-#define GASNETC_SAFE(fncall) do {                            \
-   int retcode = (fncall);                                   \
-   if_pf (gasneti_VerboseErrors && retcode != GASNET_OK) {   \
-     char msg[1024];                                         \
-     sprintf(msg, "\nGASNet encountered an error: %s(%i)\n", \
-        gasnet_ErrorName(retcode), retcode);                 \
-     GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
-   }                                                         \
- } while (0)
 /* -------------------------------------------------------------------------- */
 /* Core locks */
 extern gasneti_mutex_t	gasnetc_lock_gm;
@@ -66,8 +53,8 @@ extern gasneti_mutex_t	gasnetc_lock_amreq;
 /* -------------------------------------------------------------------------- */
 /* Core-specific AMs */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_gasnetc_am_medcopy	(GASNETC_HANDLER_BASE+0)
-#define _hidx_				(GASNETC_HANDLER_BASE+)
+#define _hidx_gasnetc_auxseg_reqh       (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_am_medcopy	(GASNETC_HANDLER_BASE+1)
 
 /* -------------------------------------------------------------------------- */
 /* System-level AMs */
@@ -101,7 +88,10 @@ int	gasnetc_gmport_allocate(int *board, int *port);
 /* 3 bootstrapping methods */
 void	gasnetc_getconf_conffile();
 void	gasnetc_getconf_mpiexec();
-void	gasnetc_getconf();
+void	gasnetc_getconf(int *argc, char ***argv);
+#ifdef GASNETC_GM_MPI_COMPAT
+void	gasnetc_getconf_bootmpi(int *argc, char ***argv);
+#endif
 
 uintptr_t 	gasnetc_getPhysMem();
 void		gasnetc_am_medcopy(gasnet_token_t token, void *addr, 
@@ -278,7 +268,7 @@ GASNET_INLINE_MODIFIER(gasnetc_portid)
 uint16_t
 gasnetc_portid(gasnet_node_t node)
 {
-	gasneti_assert(node < gasnetc_nodes);
+	gasneti_assert(node < gasneti_nodes);
 	return _gmc.gm_nodes[node].port;
 }
 
@@ -286,7 +276,7 @@ GASNET_INLINE_MODIFIER(gasnetc_nodeid)
 uint16_t
 gasnetc_nodeid(gasnet_node_t node)
 {
-	gasneti_assert(node < gasnetc_nodes);
+	gasneti_assert(node < gasneti_nodes);
 	return _gmc.gm_nodes[node].id;
 }
 

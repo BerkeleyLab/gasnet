@@ -1,12 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2005/04/04 02:53:39 $
- * $Revision: 1.21.2.4 $
+ *     $Date: 2005/04/04 03:32:43 $
+ * $Revision: 1.21.2.5 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
 #include <unistd.h>
@@ -364,7 +364,7 @@ static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
           GASNETI_TRACE_AMSHORT_REQHANDLER(msg->handlerId, desc, numargs, pargs);
         else
           GASNETI_TRACE_AMSHORT_REPHANDLER(msg->handlerId, desc, numargs, pargs);
-        RUN_HANDLER_SHORT(handler,desc,pargs,numargs);
+        GASNETI_RUN_HANDLER_SHORT(handler,desc,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
@@ -375,7 +375,7 @@ static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
           GASNETI_TRACE_AMMEDIUM_REQHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
         else
           GASNETI_TRACE_AMMEDIUM_REPHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
-        RUN_HANDLER_MEDIUM(handler,desc,pargs,numargs,pdata,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(handler,desc,pargs,numargs,pdata,nbytes);
       }
     break;
     case gasnetc_Long:
@@ -386,7 +386,7 @@ static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
           GASNETI_TRACE_AMLONG_REQHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
         else
           GASNETI_TRACE_AMLONG_REPHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
-        RUN_HANDLER_LONG(handler,desc,pargs,numargs,pdata,nbytes);
+        GASNETI_RUN_HANDLER_LONG(handler,desc,pargs,numargs,pdata,nbytes);
       }
     break;
     default: abort();
@@ -487,7 +487,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
           desc->buf = buf;
         }
         else {
-          desc = gasnetc_tportGetTxBuf(dest != gasnetc_mynode);
+          desc = gasnetc_tportGetTxBuf(dest != gasneti_mynode);
           buf = desc->buf;
         }
         pargs = (gasnet_handlerarg_t *)(&(buf->medmsg)+1);
@@ -510,14 +510,14 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   }
   GASNETC_MSG_SETFLAGS(&(buf->msg), isReq, category, numargs);
   buf->msg.handlerId = handler;
-  buf->msg.sourceId = gasnetc_mynode;
+  buf->msg.sourceId = gasneti_mynode;
   { int i;
     for(i=0; i < numargs; i++) {
       pargs[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
     }
   }
 
-  if (dest == gasnetc_mynode) {
+  if (dest == gasneti_mynode) {
     if (category == gasnetc_Long) memcpy(dest_ptr, source_addr, nbytes);
     gasnetc_processPacket(desc);
     if (desc != &_descbuf) {
@@ -579,7 +579,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       }
       else {
         desc->event = elan_tportTxStart(TPORT(), 0, dest, 
-                                        gasnetc_mynode, 0, 
+                                        gasneti_mynode, 0, 
                                         &(buf->medmsg), msgsz);
       }
     UNLOCK_ELAN_WEAK();

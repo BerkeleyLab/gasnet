@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/mpi-spawner/gasnet_bootstrap_internal.h,v $
- *     $Date: 2005/01/15 00:23:20 $
- * $Revision: 1.1 $
+ *     $Date: 2005/04/04 03:33:11 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet conduit-independent mpi-based spawner (prototypes)
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt

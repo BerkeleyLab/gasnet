@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2004/10/18 17:55:35 $
-# $Revision: 1.35 $
+#     $Date: 2005/04/04 03:32:39 $
+# $Revision: 1.35.2.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -50,6 +50,7 @@ EXTRA_DIST =              \
 	docs              \
         extended-ref      \
 	template-conduit  \
+	.autom4te.cfg     \
         Bootstrap         \
         unBootstrap       \
         configure.in      \

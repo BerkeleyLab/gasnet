@@ -1,31 +1,77 @@
 GASNet gm-conduit documentation
 Christian Bell <csbell@cs.berkeley.edu>
-$Revision: 1.16 $
+$Revision: 1.16.2.1 $
 
 User Information:
 -----------------
+
+* MPI GM-conduit Compatibility
+
+  MPI and GM compatibility (--enable-gm-mpi-compat and --disable-gm-mpi-compat)
+  The major problem in allowing GASNet/GM applications and MPI applications to
+  coexist peacefully is related to job spawning, since Myricom doesn't provide
+  an API for opening network endpoints.  As part of GASNet's configure script,
+  if MPI is detected on the system, GASNet/GM will link against MPI and use the
+  mpi-spawner to initialize GASNet -- in Myrinet parlance, this means having
+  MPI open it's own Myrinet port followed by GASNet opening it's own Myrinet
+  port.  As a result, MPI and GASNet/GM independently access the Myrinet on
+  their own port.  
+
+  Providing compatibility as the default compilation option does have the
+  drawback that the MPI library is at least initialized even for GASNet
+  applications that only target the native GM library.  However, as a
+  consolation, the latest MPICH/GM release (1.2.6..14 at this time) is not
+  known to require a wealth of memory resources simply at initialization time.
+  Furthermore, the MPI compatibility for bootstrap purposes can also be carried
+  out over any MPI channel adapter such as Ethernet, which may be preferred if
+  accounting of library resources is critical.
+
+  At any time, whether MPI is detected or not on the target system, the GM-MPI
+  compatibility option can be disabled with --disable-gm-mpi-compat, at which
+  time GASNet/GM job spawning utilities described below must be used.
+
+
 * Job Spawning
+
   Myricom provides no job spawning mechanism and relies on sites to either roll
   their own spawning mechanism or use a perl script they provide for launching
-  MPI jobs.  Even though gm-conduit is *not* an MPI-compiled application, it
-  supports spawning from these 4 approaches
-  1. mpirun.ch_gm.pl (provided by MPICH/GM 1.2.5..10 and above)
-  2. mpiexec -comm gm (0.72 and above)
-  3. ~/.gmpi/conf (file-based spawning, explained below)
-  4. gasnetrun_gm (modified from approach #1 for which support is guaranteed)
-  5. gasnetrun_gm --gexec (uses gexec to spawn the job)
+  MPI jobs.  Job spawning capability differs whether the GM-MPI compatibility
+  option is enabled or not. The following table summarizes the state of
+  spawning support with GM-conduit, whether GM-MPI compatibility is enabled or
+  not.
 
-  * File-based spawning through gmpi conf
-    Although the preferred mechanism is gasnetrun_gm, users can spawn using a
-    configuration file located at $HOME/.gmpi/conf.  The syntax for this file
-    is the following:
-    2
-    host001 2
-    host002 4
-    Where the first line contains the number of processors and each other line
-    contains the host and its GM port number.
+		       |                   |  Spawner availability with  |
+		       | Forwards GASNet   |     GM-MPI Compatibility    |
+		       | environment vars  |   enabled   .    disabled   |
+  ---------------------|-------------------|-------------|---------------|
+  gasnetrun_gm         |        yes        |     yes     |      yes      |
+  ---------------------|-------------------|-------------|---------------|
+  gasnetrun_mpi        |        yes        |     yes     |      no       |
+  ---------------------|-------------------|-------------|---------------|
+  ---------------------|-------------------|-------------|---------------|
+  mpiexec -comm gm (1) |        yes        |     yes     |      yes      |
+  ---------------------|-------------------|-------------|---------------|
+  mpirun.ch_gm  (2)    |  ver. > 1.2.6..14 |     yes     |      yes      | 
+  ---------------------|-------------------|-------------|---------------|
+  ~/.gmpi/conf  (3)    |         no        |     no      |      yes      |
+  ---------------------|-------------------|-------------|---------------|
+
+  (1,2,3) Are "unofficially" supported, but they are functional.
+  (1) mpiexec is supported as of version 0.72 and above.
+  (2) mpirun.ch_gm, the mpirun shipped with MPICH-GM is functional up to the
+      latest released 1.2.6..14 but may break if the sockets spawning protocol
+      is changed in future releases.
+  (3) ~/.gmpi/conf is the file-based spawning utility and obeys the following
+      syntax:
+      2
+      host001 2
+      host002 4
+      Where the first line contains the number of processors and each other
+      line contains the host and its GM port number.
+
 
 * Memory Registration (Firehose algorithm)
+
   Myrinet requires remote memory pages to be explicitly pinned before they can
   be used as the source/target of an RDMA operation.  The GM conduit implements
   a new algorithm for dealing with pinning of large memory spaces.  See paper

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2004/09/24 04:14:53 $
- * $Revision: 1.18 $
+ *     $Date: 2005/04/04 03:32:59 $
+ * $Revision: 1.18.2.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -21,8 +21,8 @@
 #ifdef WIN32
   #define sched_yield() Sleep(0)
   #define sleep(x) Sleep(x*1000)
-#elif defined(_CRAYT3E) || defined(_SX)
-  /* these both implement sched_yield() in libpthread only, which we may not want */
+#elif defined(_CRAYT3E) || defined(_SX) || defined(__MTA__)
+  /* these implement sched_yield() in libpthread only, which we may not want */
   #include <unistd.h>
   #define sched_yield() sleep(0)
 #else
@@ -118,6 +118,53 @@
 #endif
 
 BEGIN_EXTERNC
+
+static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
+
+/* memory allocation */
+#if AMMPI_DEBUG
+  /* use the gasnet debug malloc functions if a debug libgasnet is linked */
+  void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc);
+  void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
+  void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
+  static void *_AMMPI_malloc(size_t sz, const char *curloc) {
+    void *ret = malloc(sz);
+    if_pf(!ret) { ErrMessage("Failed to malloc(%lu) at %s", (unsigned long)sz, curloc); abort(); }
+    return ret;
+  }
+  static void *_AMMPI_calloc(size_t N, size_t S, const char *curloc) {
+    void *ret = calloc(N,S);
+    if_pf(!ret) { ErrMessage("Failed to calloc(%lu,%lu) at %s", (unsigned long)N, (unsigned long)S, curloc); abort(); }
+    return ret;
+  }
+  static void _AMMPI_free(void *ptr, const char *curloc) {
+    free(ptr);
+  }
+  #define AMMPI_curloc __FILE__ ":" _STRINGIFY(__LINE__)
+  #define AMMPI_malloc(sz)                             \
+    ( (PREDICT_FALSE(gasnett_debug_malloc_fn==NULL) ?  \
+        gasnett_debug_malloc_fn = &_AMMPI_malloc : 0), \
+      (*gasnett_debug_malloc_fn)(sz, AMMPI_curloc))
+  #define AMMPI_calloc(N,S)                            \
+    ( (PREDICT_FALSE(gasnett_debug_calloc_fn==NULL) ?  \
+        gasnett_debug_calloc_fn = &_AMMPI_calloc : 0), \
+      (*gasnett_debug_calloc_fn)((N),(S), AMMPI_curloc))
+  #define AMMPI_free(ptr)                           \
+    ( (PREDICT_FALSE(gasnett_debug_free_fn==NULL) ? \
+        gasnett_debug_free_fn = &_AMMPI_free : 0),  \
+      (*gasnett_debug_free_fn)(ptr, AMMPI_curloc))
+
+  #undef malloc
+  #define malloc(x)   ERROR_use_AMMPI_malloc
+  #undef calloc
+  #define calloc(n,s) ERROR_use_AMMPI_calloc
+  #undef free
+  #define free(x)     ERROR_use_AMMPI_free
+#else
+  #define AMMPI_malloc(sz)  malloc(sz)
+  #define AMMPI_calloc(N,S) calloc((N),(S))
+  #define AMMPI_free(ptr)   free(ptr)
+#endif
 
 /*------------------------------------------------------------------------------------
  * Error reporting
@@ -259,17 +306,16 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
   return val;                                                            \
   } while (0)
 
-static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
 static int ErrMessage(const char *msg, ...) {
   static va_list argptr;
-  char *expandedmsg = (char *)malloc(strlen(msg)+50);
+  char *expandedmsg = (char *)AMMPI_malloc(strlen(msg)+50);
   int retval;
 
   va_start(argptr, msg); /*  pass in last argument */
   sprintf(expandedmsg, "*** AMMPI ERROR: %s\n", msg);
   retval = vfprintf(stderr, expandedmsg, argptr);
   fflush(stderr);
-  free(expandedmsg);
+  AMMPI_free(expandedmsg);
 
   va_end(argptr);
   return retval; /*  this MUST be only return in this function */
@@ -277,7 +323,7 @@ static int ErrMessage(const char *msg, ...) {
 
 #include <assert.h>
 #undef assert
-#define assert(x) !!! Error - use AMMPI_assert() !!!
+#define assert(x) ERROR_use_AMMPI_assert
 #if AMMPI_NDEBUG
   #define AMMPI_assert(expr) ((void)0)
 #else

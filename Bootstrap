@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
-#     $Date: 2004/08/26 04:53:28 $
-# $Revision: 1.10 $
+#     $Date: 2005/04/04 03:32:39 $
+# $Revision: 1.10.8.1 $
 # Description: GASNet developer Bootstrap script
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,7 +10,7 @@ set -e
 
 srcdir=`dirname $0`
 
-autoheaderfilter="2>&1 | perl -0 -pe 's/^(autoheader: )?WARN.+auxiliary files(.|\n)+WARN.+documentation.\n//m'"
+autoheaderfilter="2>&1 | perl -0 -pe 's/^(autoheader.*?: )?WARN.+auxiliary files(.|\n)+WARN.+documentation.\n//m'"
 
 if [ \
        -r $srcdir/gasnet_config.h.in \
@@ -43,6 +43,31 @@ if [ \
       y* ) ;;
       *  ) exit 1;
     esac
+fi
+
+if test "$2" != "n" ; then
+missing=
+for autotool in autoconf autoheader automake aclocal m4 ; do
+  info=`( $autotool --version 2>/dev/null || echo 'Not found' ) | head -1`
+  echo "$autotool:	$info"
+  if test "$info" = "Not found" ; then
+    missing="$missing$autotool "
+  fi
+done
+if test "$missing" != ""; then
+  echo "The following GNU autotools are missing from your PATH:"
+  echo "   $missing"
+  if test -r $srcdir/gasnet_config.h.in \
+    -a -r $srcdir/Makefile.in \
+    -a -r $srcdir/aclocal.m4 \
+    -a -r $srcdir/configure ; then
+    echo "However, it appears this directory has already been Bootstrapped."
+    echo "You should skip Bootstrap and instead do: configure ; gmake"
+  else
+    echo "Please download them from ftp://ftp.gnu.org/gnu"
+  fi
+  exit 1
+fi
 fi
 
 set -x

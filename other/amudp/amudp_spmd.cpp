@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2004/10/13 21:32:52 $
- * $Revision: 1.18 $
+ *     $Date: 2005/04/04 03:33:01 $
+ * $Revision: 1.18.2.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -14,7 +14,7 @@
   #include <process.h>
 #else
   #include <unistd.h>
-  #if defined(_CRAYT3E) || defined(_SX) || defined(NETBSD)
+  #if defined(_CRAYT3E) || defined(_SX) || defined(NETBSD) || defined(__MTA__)
     /* these both implement sched_yield() in libpthread only, which we may not want */
     #define sched_yield() sleep(0)
   #else
@@ -215,7 +215,7 @@ static void setupStdSocket(SOCKET& ls, SocketList& list, SocketList& allList) {
 static void handleStdOutput(FILE *fd, fd_set *psockset, SocketList& list, SocketList& allList, int nproc) {
   int numset;
   static SOCKET *tempSockArr = NULL;
-  if (!tempSockArr) tempSockArr = new SOCKET[nproc];
+  if (!tempSockArr) tempSockArr = (SOCKET *)AMUDP_malloc(sizeof(SOCKET)*nproc);
   if ((numset = list.getIntersection(psockset, tempSockArr, nproc))) { // we have some active std sockets
     for (int i=0; i < numset; i++) {
       SOCKET s = tempSockArr[i];
@@ -229,7 +229,7 @@ static void handleStdOutput(FILE *fd, fd_set *psockset, SocketList& list, Socket
       // TODO: line-by-line buffering
       int sz = numBytesWaiting(s);
       if (sz > 0) { // sometimes actually get a zero here, at least on Solaris and UNICOS
-        char *buf = new char[sz+2];
+        char *buf = (char *)AMUDP_malloc(sz+2);
         recvAll(s, buf, sz);
         buf[sz] = '\0';
         #if AMUDP_DEBUG_VERBOSE
@@ -238,7 +238,7 @@ static void handleStdOutput(FILE *fd, fd_set *psockset, SocketList& list, Socket
           fwrite(buf, sz, 1, fd);
         #endif
           fflush(fd);
-          delete buf;
+          AMUDP_free(buf);
       }
     }
   }
@@ -408,7 +408,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
     SocketList stdinList(AMUDP_SPMDNUMPROCS);    // a list of all stdin routing sockets
     SocketList stdoutList(AMUDP_SPMDNUMPROCS);   // a list of all stdout routing sockets
     SocketList stderrList(AMUDP_SPMDNUMPROCS);   // a list of all stderr routing sockets
-    AMUDP_SPMDSlaveSocket = (SOCKET*)malloc(AMUDP_SPMDNUMPROCS * sizeof(SOCKET));
+    AMUDP_SPMDSlaveSocket = (SOCKET*)AMUDP_malloc(AMUDP_SPMDNUMPROCS * sizeof(SOCKET));
 
     try {
       // create our TCP listen ports 
@@ -431,7 +431,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
     allList.insert(AMUDP_SPMDStderrListenSocket);
 
     // create and initialize the translation table that we'll fill in as slaves connect
-    AMUDP_SPMDTranslationTable = (amudp_translation_t*)malloc(bootstrapinfo.translationtablesz);
+    AMUDP_SPMDTranslationTable = (amudp_translation_t*)AMUDP_malloc(bootstrapinfo.translationtablesz);
     for (int i=0; i < AMUDP_SPMDNUMPROCS; i++) {
       AMUDP_SPMDSlaveSocket[i] = INVALID_SOCKET;
       AMUDP_SPMDTranslationTable[i].tag = bootstrapinfo.networkpid | ((uint64_t)i) << 16;
@@ -452,7 +452,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
         totalEnvSize += strlen(environ[i]) + 1;
       totalEnvSize++;
 
-      AMUDP_SPMDMasterEnvironment = (char *)malloc(totalEnvSize);
+      AMUDP_SPMDMasterEnvironment = (char *)AMUDP_malloc(totalEnvSize);
       char *p = AMUDP_SPMDMasterEnvironment;
       p[0] = '\0';
       for(i = 0; environ[i]; i++) {
@@ -465,7 +465,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       }
 
     // setup a slave argv
-    const char **slaveargv = (const char**)malloc(sizeof(const char*)*((*argc)+3));
+    const char **slaveargv = (const char**)AMUDP_malloc(sizeof(const char*)*((*argc)+3));
     int slaveargc = (*argc)+2;
     slaveargv[0] = (*argv)[0];
     slaveargv[1] = AMUDP_SPMDSLAVE_FLAG;
@@ -504,7 +504,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       fd_set sockset;
       fd_set* psockset = &sockset;
       int numset; // helpers for coord socket
-      SOCKET *tempSockArr = new SOCKET[AMUDP_SPMDNUMPROCS];
+      SOCKET *tempSockArr = (SOCKET*)AMUDP_malloc(sizeof(SOCKET)*AMUDP_SPMDNUMPROCS);
       while (1) {
         allList.makeFD_SET(psockset);
 
@@ -656,7 +656,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                 if (AMUDP_SPMDGatherCount == 0) { // first slave to report
                   AMUDP_assert(AMUDP_SPMDGatherBuf == NULL && AMUDP_SPMDGatherLen == 0);
                   AMUDP_SPMDGatherLen = len;
-                  AMUDP_SPMDGatherBuf = new char[AMUDP_SPMDGatherLen*AMUDP_SPMDNUMPROCS];
+                  AMUDP_SPMDGatherBuf = (char *)AMUDP_malloc(AMUDP_SPMDGatherLen*AMUDP_SPMDNUMPROCS);
                 } else AMUDP_assert(len == AMUDP_SPMDGatherLen);
                 try {
                   recvAll(s, &(AMUDP_SPMDGatherBuf[AMUDP_SPMDGatherLen*id]), AMUDP_SPMDGatherLen);
@@ -673,7 +673,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                     sendAll(coordList[i], &len, sizeof(int));
                     sendAll(coordList[i], AMUDP_SPMDGatherBuf, AMUDP_SPMDGatherLen*AMUDP_SPMDNUMPROCS);
                   }
-                  delete AMUDP_SPMDGatherBuf;
+                  AMUDP_free(AMUDP_SPMDGatherBuf);
                   AMUDP_SPMDGatherBuf = NULL;
                   AMUDP_SPMDGatherCount = 0;
                   AMUDP_SPMDGatherLen = 0;
@@ -812,7 +812,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       #if USE_NUMERIC_MASTER_ADDR
         masterAddr = SockAddr((*argv)[2]);
       #else
-        char *IPStr = new char[strlen((*argv)[2])+10];
+        char *IPStr = (char *)AMUDP_malloc(strlen((*argv)[2])+10);
         strcpy(IPStr, (*argv)[2]);
         char *portStr = strchr(IPStr, ':');
         if (!portStr) {
@@ -831,7 +831,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
         catch (xSocket &exn) {
           AMUDP_RETURN_ERRFR(RESOURCE, "slave failed DNSLookup on master host name", exn.why());
           }
-        delete IPStr;
+        AMUDP_free(IPStr);
       #endif
       (*argv)[2] = (*argv)[0]; // strip off our special args
       (*argv) += 2;
@@ -892,7 +892,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       AMUDP_assert(bootstrapinfo.translationtablesz == bootstrapinfo.numprocs * sizeof(amudp_translation_t)); 
       AMUDP_assert(AMUDP_SPMDMYPROC >= 0 && AMUDP_SPMDMYPROC < AMUDP_SPMDNUMPROCS);
 
-      amudp_translation_t *tempTranslationTable = (amudp_translation_t *)malloc(bootstrapinfo.translationtablesz);
+      amudp_translation_t *tempTranslationTable = (amudp_translation_t *)AMUDP_malloc(bootstrapinfo.translationtablesz);
       AMUDP_assert(tempTranslationTable != NULL);
       recvAll(AMUDP_SPMDControlSocket, tempTranslationTable, bootstrapinfo.translationtablesz);
 
@@ -908,11 +908,11 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
           }
         }
 
-      free(tempTranslationTable);
+      AMUDP_free(tempTranslationTable);
       tempTranslationTable = NULL;
 
       // receive snapshot of master environment
-      AMUDP_SPMDMasterEnvironment = (char *)malloc(bootstrapinfo.environtablesz);
+      AMUDP_SPMDMasterEnvironment = (char *)AMUDP_malloc(bootstrapinfo.environtablesz);
       AMUDP_assert(AMUDP_SPMDMasterEnvironment != NULL);
       recvAll(AMUDP_SPMDControlSocket, AMUDP_SPMDMasterEnvironment, bootstrapinfo.environtablesz);
       

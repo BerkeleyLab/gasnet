@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2004/11/23 23:39:53 $
-dnl $Revision: 1.50.2.1 $
+dnl     $Date: 2005/04/04 03:32:39 $
+dnl $Revision: 1.50.2.2 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -124,6 +124,7 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
   AC_CHECK_HEADERS([$1])
   pushdef([lowername],patsubst(patsubst(patsubst([$1], [/], [_]), [\.], [_]), [-], [_]))
   pushdef([uppername],translit(lowername,'a-z','A-Z'))
+ if test "$ac_cv_header_[]lowername" = "yes"; then
   HAVE_[]uppername=$ac_cv_header_[]lowername
   GASNET_TRY_CACHE_RUN([for a complete $1],[COMPLETE_[]uppername],[
     #include <$1>
@@ -155,9 +156,40 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
     AC_SUBST(COMPLETE_[]uppername)
     AC_DEFINE(COMPLETE_[]uppername)
   ])
+ fi
   popdef([lowername])
   popdef([uppername])
 ])
+
+dnl all the inttypes goop required for portable_inttypes.h
+AC_DEFUN([GASNET_SETUP_INTTYPES], [ 
+  # Check sizes
+  GASNET_CHECK_SIZEOF(char, $cross_char)
+  GASNET_CHECK_SIZEOF(short, $cross_short)
+  GASNET_CHECK_SIZEOF(int, $cross_int)
+  GASNET_CHECK_SIZEOF(long, $cross_long)
+  GASNET_CHECK_SIZEOF(long long, $cross_long_long)
+  GASNET_CHECK_SIZEOF(void *, $cross_void_P)
+ 
+  AM_CONDITIONAL(PLATFORM_ILP32, test x"$ac_cv_sizeof_int$ac_cv_sizeof_long$ac_cv_sizeof_void_p" = x444)
+  AM_CONDITIONAL(PLATFORM_LP64, test x"$ac_cv_sizeof_int$ac_cv_sizeof_long$ac_cv_sizeof_void_p" = x488)
+  AM_CONDITIONAL(PLATFORM_ILP64, test x"$ac_cv_sizeof_int$ac_cv_sizeof_long$ac_cv_sizeof_void_p" = x888)
+ 
+  GASNET_CHECK_INTTYPES(stdint.h)
+  GASNET_CHECK_INTTYPES(inttypes.h)
+  GASNET_CHECK_INTTYPES(sys/types.h)
+ 
+  INTTYPES_DEFINES="-DSIZEOF_CHAR=$SIZEOF_CHAR -DSIZEOF_SHORT=$SIZEOF_SHORT -DSIZEOF_INT=$SIZEOF_INT -DSIZEOF_LONG=$SIZEOF_LONG -DSIZEOF_LONG_LONG=$SIZEOF_LONG_LONG -DSIZEOF_VOID_P=$SIZEOF_VOID_P"
+  GASNET_APPEND_DEFINE(INTTYPES_DEFINES, HAVE_STDINT_H)
+  GASNET_APPEND_DEFINE(INTTYPES_DEFINES, COMPLETE_STDINT_H)
+  GASNET_APPEND_DEFINE(INTTYPES_DEFINES, HAVE_INTTYPES_H)
+  GASNET_APPEND_DEFINE(INTTYPES_DEFINES, COMPLETE_INTTYPES_H)
+  GASNET_APPEND_DEFINE(INTTYPES_DEFINES, HAVE_SYS_TYPES_H)
+  GASNET_APPEND_DEFINE(INTTYPES_DEFINES, COMPLETE_SYS_TYPES_H)
+ 
+  AC_SUBST(INTTYPES_DEFINES)
+])
+
 
 dnl Appends -Dvar_to_define onto target_var, iff var_to_define is set
 dnl GASNET_APPEND_DEFINE(target_var, var_to_define)
@@ -280,7 +312,8 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   SYSTEM_TUPLE="$host"
   AC_SUBST(SYSTEM_TUPLE)
   AC_MSG_RESULT( host info:      $SYSTEM_NAME $SYSTEM_TUPLE)
-  BUILD_ID="`date` `whoami`"
+  BUILD_USER=`whoami 2> /dev/null || id -un 2> /dev/null || echo $USER`
+  BUILD_ID="`date` $BUILD_USER"
   AC_MSG_RESULT( build id:       $BUILD_ID)
   AC_SUBST(BUILD_ID)
 
@@ -714,13 +747,13 @@ AC_TRY_RUN([
   #include "confdefs.h"
   #include <stdio.h>
   $3
-  main() {
+  int main() {
     FILE *f=fopen("conftestval", "w");
     int val = 0;
     if (!f) exit(1);
     { $4; }
     fprintf(f, "%d\n", (int)(val));
-    exit(0);
+    return 0;
   }], cv_prefix[]$2=`cat conftestval`, cv_prefix[]$2=no, AC_MSG_ERROR(no default value for cross compiling)))
 if test "$cv_prefix[]$2" != no; then
   :
@@ -869,12 +902,14 @@ AC_REQUIRE_CPP
 AC_CACHE_CHECK(for $1 compiler family, $3, [
   $3=unknown
 
-  GASNET_IFDEF(__GNUC__, $3=GNU)
+  GASNET_IFDEF(__GNUC__, $3=GNU) dnl Note this one must precede many of those below
+  GASNET_IFDEF(__PATHCC__, $3=Pathscale)
   GASNET_IFDEF(__PGI, $3=PGI)
   GASNET_IFDEF(__xlC__, $3=XLC)
   GASNET_IFDEF(__KCC, $3=KAI)
   GASNET_IFDEF(__SUNPRO_C, $3=Sun)  # Sun C
   GASNET_IFDEF(__SUNPRO_CC, $3=Sun) # Sun C++
+  GASNET_IFDEF(__MTA__, $3=MTA)
   GASNET_IFDEF(_CRAYC, $3=Cray)
   GASNET_IFDEF(__INTEL_COMPILER, $3=Intel)
   GASNET_IFDEF(__DECC, $3=Compaq) # Compaq C
@@ -933,5 +968,11 @@ AC_SUBST(GASNET_INSTALL_CMD)
 dnl pass $1 to all subconfigures invoked recursively from this configure script
 AC_DEFUN([GASNET_SUBCONFIGURE_ARG],[
 ac_configure_args="$ac_configure_args $1"
+])
+
+dnl query the numerical value of a system signal and AC_SUBST it
+AC_DEFUN([GASNET_GET_SIG], [
+  GASNET_TRY_CACHE_RUN_EXPR([value of SIG$1], SIG$1, [#include <signal.h>], [val = (int)SIG$1;], SIG$1)
+  AC_SUBST(SIG$1)
 ])
 

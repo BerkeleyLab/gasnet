@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/testconduit/Attic/testconduit.c,v $
- *     $Date: 2004/08/26 04:53:59 $
- * $Revision: 1.3 $
+ *     $Date: 2005/04/04 03:33:09 $
+ * $Revision: 1.3.10.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,6 @@
 #include <errno.h>
 #include <poll.h>
 
-#include <gasnet.h>
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <firehose.h>
@@ -31,11 +30,6 @@ extern int errno;
 /* No interrupts */
 extern int gasnetc_hold_interrupts() { return; }
 extern int gasnetc_resume_interrupts() { return; }
-
-gasnet_node_t gasnetc_mynode;
-gasnet_node_t gasnetc_nodes;
-gasnet_node_t gasnete_mynode;
-gasnet_node_t gasnete_nodes;
 
 typedef struct _gasnetc_sockmap {
     gasnet_node_t   node;
@@ -59,8 +53,6 @@ typedef struct _gasnetc_sockdata {
 }
 gasnetc_sockdata_t;
 
-gasnet_seginfo_t    *gasnetc_seginfo;
-
 firehose_info_t	  gasnetc_firehose_info;
 
 /*
@@ -70,8 +62,6 @@ gasnetc_sockmap_t   *gasnetc_IdMapFd;
 gasnetc_sockmap_t   *gasnetc_PollMapNode;
 int		    *gasnetc_ThreadMapNode;
 
-gasnet_node_t	 gasnetc_nodes;
-gasnet_node_t	 gasnetc_mynode;
 int              gasnetc_threads;
 int		 gasnetc_threadspernode = 1;
 int		 gasnetc_send_portstart = SENDPORTSTART;
@@ -79,10 +69,6 @@ int		 gasnetc_recv_portstart = RECVPORTSTART;
 
 int		*gasnetc_sockfds;
 struct pollfd	*gasnetc_pollfds;
-
-uintptr_t       gasnetc_MaxLocalSegmentSize = 0;
-uintptr_t       gasnetc_MaxGlobalSegmentSize = 0;
-
 
 #if 0
 static gasneti_mutex_t gasnetc_socklock = GASNETI_MUTEX_INITIALIZER;
@@ -119,7 +105,7 @@ gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *node)
     gasnetc_sockmap_t	*smap = (gasnetc_sockmap_t *) token;
 
     gasneti_assert(smap != NULL);
-    gasneti_assert(smap->node < gasnetc_nodes);
+    gasneti_assert(smap->node < gasneti_nodes);
     *node = smap->node;
 }
 
@@ -236,12 +222,12 @@ gasnetc_AMRequestShortM(
 	    pArg[i] = (int32_t) va_arg(argptr, int);
     }
 
-    if (dest == gasnetc_mynode) {
+    if (dest == gasneti_mynode) {
 	gasnetc_sockmap_t smap;
 	smap.node = dest;
 	smap.fd = -42;
 	SOCK_LOCK;
-	RUN_HANDLER_SHORT(gasnetc_handlers[handler], (void *) &smap, pArg, numargs);
+	GASNETI_RUN_HANDLER_SHORT(gasnetc_handlers[handler], (void *) &smap, pArg, numargs);
 	SOCK_UNLOCK;
     }
     else {
@@ -292,11 +278,11 @@ gasnetc_AMReplyShortM(
     gasnetc_AMGetMsgSource(token, &node);
     fd = gasnetc_IdMapFd[node].fd;
 
-    if (node == gasnetc_mynode) {
+    if (node == gasneti_mynode) {
 	gasnetc_sockmap_t smap;
 	smap.node = node;
 	smap.fd = -42;
-	RUN_HANDLER_SHORT(gasnetc_handlers[handler], (void *) &smap, pArg, numargs);
+	GASNETI_RUN_HANDLER_SHORT(gasnetc_handlers[handler], (void *) &smap, pArg, numargs);
     }
     else {
 	SOCK_LOCK;
@@ -350,12 +336,12 @@ gasnetc_AMRequestMediumM(
 	    pArg[i] = (int32_t) va_arg(argptr, int);
     }
 
-    if (dest == gasnetc_mynode) {
+    if (dest == gasneti_mynode) {
 	gasnetc_sockmap_t smap;
 	smap.node = dest;
 	smap.fd = -42;
 	SOCK_LOCK;
-	RUN_HANDLER_MEDLONG(gasnetc_handlers[handler], (void *) &smap, 
+	GASNETI_RUN_HANDLER_MEDIUM(gasnetc_handlers[handler], (void *) &smap, 
 			    pArg, numargs, source_addr, nbytes);
 	SOCK_UNLOCK;
     }
@@ -364,7 +350,7 @@ gasnetc_AMRequestMediumM(
 	memcpy(payptr, source_addr, nbytes);
 	fd = gasnetc_IdMapFd[dest].fd;
 
-	//printf("%d> ************ %d => %s\n", gasnetc_mynode, dest, gasneti_formatdata(source_addr,nbytes));
+	//printf("%d> ************ %d => %s\n", gasneti_mynode, dest, gasneti_formatdata(source_addr,nbytes));
 	SOCK_LOCK;
 	gasnetc_writesocket(fd, buf, nbytes + payoff);
 	SOCK_UNLOCK;
@@ -422,11 +408,11 @@ gasnetc_AMReplyMediumM(
 
     gasnetc_AMGetMsgSource(token, &node);
 
-    if (node == gasnetc_mynode) {
+    if (node == gasneti_mynode) {
 	gasnetc_sockmap_t smap;
 	smap.node = node;
 	smap.fd = -42;
-	RUN_HANDLER_MEDLONG(gasnetc_handlers[handler], (void *) &smap, 
+	GASNETI_RUN_HANDLER_MEDIUM(gasnetc_handlers[handler], (void *) &smap, 
 			    pArg, numargs, source_addr, nbytes);
     }
     else {
@@ -481,12 +467,12 @@ gasnetc_AMPoll()
 
     gasnetc_sockmap_t  smap;
 
-    if (gasnetc_nodes == 1)
+    if (gasneti_nodes == 1)
 	    return;
 
     SOCK_LOCK;
 
-    ret = poll(gasnetc_pollfds, gasnetc_nodes-1, 0);
+    ret = poll(gasnetc_pollfds, gasneti_nodes-1, 0);
 
     if (ret == -1) {
 	gasneti_fatalerror("poll() failed");
@@ -495,7 +481,7 @@ gasnetc_AMPoll()
 	goto unlock_ret;
     }
 
-    for (i=0; i < gasnetc_nodes-1; i++) {
+    for (i=0; i < gasneti_nodes-1; i++) {
 
 	if (gasnetc_pollfds[i].revents & (POLLERR|POLLHUP|POLLNVAL)) 
 	    gasneti_fatalerror("error polling fd %d", i);
@@ -515,11 +501,11 @@ gasnetc_AMPoll()
 		continue;
 
 	    if (sd.hdr & AM_SHORT) {
-		RUN_HANDLER_SHORT(gasnetc_handlers[sd.handler_idx], 
+		GASNETI_RUN_HANDLER_SHORT(gasnetc_handlers[sd.handler_idx], 
 				  (void *) &smap, sd.argptr, sd.numargs);
 	    }
 	    else {
-                RUN_HANDLER_MEDLONG(gasnetc_handlers[sd.handler_idx], 
+                GASNETI_RUN_HANDLER_MEDIUM(gasnetc_handlers[sd.handler_idx], 
 			(void *) &smap, sd.argptr, sd.numargs, sd.payptr, sd.paylen);
 	    }
 	}
@@ -583,7 +569,7 @@ void setblock(int fd) {
 void
 gasnetc_init()
 {
-  int	send_port = SENDPORTSTART+gasnetc_mynode;
+  int	send_port = SENDPORTSTART+gasneti_mynode;
   int	i,j,val=1;
   int	tempfd, sin_size;
 
@@ -593,11 +579,11 @@ gasnetc_init()
   struct sockaddr_in my_addr, their_addr;
   
   ina	    = (struct sockaddr_in *) 
-		    gasneti_malloc(sizeof(struct sockaddr_in)*gasnetc_nodes);
+		    gasneti_malloc(sizeof(struct sockaddr_in)*gasneti_nodes);
   ina_local = (struct sockaddr_in *) 
-		    gasneti_malloc(sizeof(struct sockaddr_in)*gasnetc_nodes);
+		    gasneti_malloc(sizeof(struct sockaddr_in)*gasneti_nodes);
 
-  for(i=0; i<gasnetc_nodes; i++) {
+  for(i=0; i<gasneti_nodes; i++) {
     gasnetc_sockfds[i] = -1;
   }
 
@@ -608,14 +594,14 @@ gasnetc_init()
 
   //create socket addresses for both sides of the communication
   // i play games with the ports to figure out the sender and receiver of the data
-  for(i=0; i<gasnetc_nodes; i++) {
+  for(i=0; i<gasneti_nodes; i++) {
     ina[i].sin_addr.s_addr = inet_addr("127.0.0.1");
     ina[i].sin_family = AF_INET;
     ina[i].sin_port = htons((unsigned short) SENDPORTSTART+i);
     memset(&(ina[i].sin_zero), '\0', 8);
     ina_local[i].sin_addr.s_addr = inet_addr("127.0.0.1");
     ina_local[i].sin_family = AF_INET;
-    ina_local[i].sin_port = htons((unsigned short) RECVPORTSTART+i+1000*gasnetc_mynode);
+    ina_local[i].sin_port = htons((unsigned short) RECVPORTSTART+i+1000*gasneti_mynode);
     memset(&(ina_local[i].sin_zero), '\0', 8);
   }
   //create the listening socket
@@ -639,8 +625,8 @@ gasnetc_init()
     exit(1);
   }
 
-  //accept 0, gasnetc_mynode-1 connections
-  for(i=0; i<gasnetc_mynode; i++) {
+  //accept 0, gasneti_mynode-1 connections
+  for(i=0; i<gasneti_mynode; i++) {
     int new_fd;
     int their_id;
     struct sockaddr_in temp;
@@ -651,22 +637,22 @@ gasnetc_init()
       continue;
     }
     temp = (struct sockaddr_in) their_addr;
-    their_id = (ntohs((unsigned short) temp.sin_port)-gasnetc_mynode-RECVPORTSTART)/1000; 
+    their_id = (ntohs((unsigned short) temp.sin_port)-gasneti_mynode-RECVPORTSTART)/1000; 
     fprintf(stderr, "%d accepting from %d (port=%d), id=%d\n", 
-		    gasnetc_mynode, their_id, (int)ntohs(temp.sin_port), new_fd);
+		    gasneti_mynode, their_id, (int)ntohs(temp.sin_port), new_fd);
     ina[their_id] = (struct sockaddr_in) their_addr;
     gasnetc_sockfds[their_id] = new_fd;
   }
 
-  //fill the array at gasnetc_mynode with junk.
-  gasnetc_sockfds[gasnetc_mynode] = -42; 
-  ina[gasnetc_mynode] =  ina_local[gasnetc_mynode];
+  //fill the array at gasneti_mynode with junk.
+  gasnetc_sockfds[gasneti_mynode] = -42; 
+  ina[gasneti_mynode] =  ina_local[gasneti_mynode];
   close(tempfd); /*tempfd is no longer needed*/
 
-  //fill gasnetc_mynode+1 to gasnetc_nodes with the other connections
-  for (i=gasnetc_mynode+1; i<gasnetc_nodes; i++) {
-    fprintf(stderr, "%d connecting to %d using %d\n", gasnetc_mynode, i, 
-		    RECVPORTSTART+i+1000*gasnetc_mynode);
+  //fill gasneti_mynode+1 to gasneti_nodes with the other connections
+  for (i=gasneti_mynode+1; i<gasneti_nodes; i++) {
+    fprintf(stderr, "%d connecting to %d using %d\n", gasneti_mynode, i, 
+		    RECVPORTSTART+i+1000*gasneti_mynode);
 
     if ((gasnetc_sockfds[i] = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
       perror("socket");
@@ -696,7 +682,7 @@ gasnetc_init()
 
     
     fprintf(stderr, "%d> connection succeeded on port %d, id=%d\n", 
-		    gasnetc_mynode,
+		    gasneti_mynode,
 		    (int) ntohs(ina_local[i].sin_port),
 		    gasnetc_sockfds[i]);
     
@@ -705,8 +691,8 @@ gasnetc_init()
   //since we will not poll local host we only have total-nodes -1 on the poll list
   //and thus we use seperate counters for the poll list index (kinda of a hack but works
 
-  for(j=0, i=0; i<gasnetc_nodes; i++) {
-    if(i!=gasnetc_mynode) {
+  for(j=0, i=0; i<gasneti_nodes; i++) {
+    if(i!=gasneti_mynode) {
       //setnonblock(gasnetc_sockfds[i]);
       gasnetc_pollfds[j].fd = gasnetc_sockfds[i];
       gasnetc_pollfds[j].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
@@ -723,14 +709,14 @@ gasnetc_init()
 
   GASNETC_NODE_BARRIER;
 
-  gasneti_segmentInit(
-	&gasnetc_MaxLocalSegmentSize, &gasnetc_MaxGlobalSegmentSize,
-	(uintptr_t) -1, gasnetc_nodes, &gasnetc_bootstrapExchange);
+  gasneti_segmentInit((uintptr_t) -1, &gasnetc_bootstrapExchange);
 
   GASNETC_NODE_BARRIER;
 
+  gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+
   printf("local = %ld and global = %ld\n",
-		    gasnetc_MaxLocalSegmentSize, gasnetc_MaxGlobalSegmentSize);
+		    gasneti_MaxLocalSegmentSize, gasneti_MaxGlobalSegmentSize);
 
   {
 	char *env = getenv("GASNET_SEGMENT_SIZE");
@@ -741,10 +727,12 @@ gasnetc_init()
 	segsize = atol(env);
   }
 
-  if (gasnetc_MaxGlobalSegmentSize < segsize)
+  if (gasneti_MaxGlobalSegmentSize < segsize)
 	gasneti_fatalerror(
 	    "Largest segment (%ld) is less than %d",
-	    gasnetc_MaxGlobalSegmentSize, segsize);
+	    gasneti_MaxGlobalSegmentSize, segsize);
+
+  segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
 
   /* assume 100 MB of physical memory per thread */
   firehose_init(100*1024*1024, 0, NULL, 0, &gasnetc_firehose_info);
@@ -752,7 +740,9 @@ gasnetc_init()
 
   gasneti_segmentAttach(
 	segsize, 250*1024*1024, 
-	gasnetc_seginfo, &gasnetc_bootstrapExchange);
+	gasneti_seginfo, &gasnetc_bootstrapExchange);
+
+  gasneti_auxseg_attach(); /* provide auxseg */
 
   GASNETC_NODE_BARRIER;
 
@@ -765,7 +755,7 @@ gasnetc_finalize()
 {
     int	i;
 
-    for (i = 0; i < gasnetc_nodes; i++) {
+    for (i = 0; i < gasneti_nodes; i++) {
 	if (gasnetc_sockfds[i] > 0) {
 	    printf("closing socket id %d\n", gasnetc_sockfds[i]);
 	    if (close(gasnetc_sockfds[i]) == -1) {
@@ -800,7 +790,7 @@ gasnete_am_medping(gasnet_token_t token, void *p, size_t len,
 
     gasnetc_AMGetMsgSource(token, &node);
 
-    //fprintf(stderr, "%d> Received Ping from thread %d on node %d\n", gasnetc_mynode, tid, node);
+    //fprintf(stderr, "%d> Received Ping from thread %d on node %d\n", gasneti_mynode, tid, node);
 
     gasnet_AMReplyMedium1(token, gasneti_handleridx(gasnete_am_medpong),
 	    p, len, tid);
@@ -813,12 +803,12 @@ gasnete_am_medpong(gasnet_token_t token, void *p, size_t len, gasnet_handlerarg_
 
     gasnetc_AMGetMsgSource(token, &node);
 
-    fprintf(stderr, "%d> Received Pong from thread %d on node %d\n", gasnetc_mynode, tid, node);
+    fprintf(stderr, "%d> Received Pong from thread %d on node %d\n", gasneti_mynode, tid, node);
 
     gasnete_medping_count[tid]++;
 }
 
-#define GASNETE_EXCHANGE_MASTER	(gasnetc_nodes-1)
+#define GASNETE_EXCHANGE_MASTER	(gasneti_nodes-1)
 
 static int  gasnete_exch_count = 0;
 static int  gasnete_exch_phase = 1;
@@ -832,12 +822,12 @@ gasnete_am_exchange(gasnet_token_t token, void *p, size_t len)
 
     gasnetc_AMGetMsgSource(token, &node);
 
-    if (gasnete_mynode == GASNETE_EXCHANGE_MASTER) {
+    if (gasneti_mynode == GASNETE_EXCHANGE_MASTER) {
 	memcpy(dst + node *len, p, len);
     }
     else {
 	memcpy(dst, p, len);
-        //printf("%d> exch from %d: %s\n", gasnetc_mynode, node, gasneti_formatdata(p, len));
+        //printf("%d> exch from %d: %s\n", gasneti_mynode, node, gasneti_formatdata(p, len));
     }
 
     gasnete_exch_count++;
@@ -848,7 +838,7 @@ gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
 {
     int	i;
 
-    if (len*gasnete_nodes > 4096)
+    if (len*gasneti_nodes > 4096)
 	gasneti_fatalerror("exch buf too small");
 
     if (gasnete_exch_count != 0)
@@ -857,16 +847,16 @@ gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
     gasnet_AMRequestMedium0(GASNETE_EXCHANGE_MASTER,
 	gasneti_handleridx(gasnete_am_exchange), src, len);
 
-    if (gasnetc_mynode == GASNETE_EXCHANGE_MASTER) {
+    if (gasneti_mynode == GASNETE_EXCHANGE_MASTER) {
 
-	while (gasnete_exch_count != gasnete_nodes)
+	while (gasnete_exch_count != gasneti_nodes)
 		gasnetc_AMPoll();
 
-	for (i = 0; i < gasnetc_nodes; i++) {
+	for (i = 0; i < gasneti_nodes; i++) {
 	    if (i != GASNETE_EXCHANGE_MASTER) {
 		gasnet_AMRequestMedium0(i,
 		    gasneti_handleridx(gasnete_am_exchange), 
-		    gasnete_exch_buf, gasnetc_nodes*len);
+		    gasnete_exch_buf, gasneti_nodes*len);
 	    }
 	}
     }
@@ -875,7 +865,7 @@ gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
 		gasnetc_AMPoll();
     }
 
-    memcpy(dest, gasnete_exch_buf, len*gasnete_nodes);
+    memcpy(dest, gasnete_exch_buf, len*gasneti_nodes);
 
     gasnete_exch_count = 0;
 
@@ -904,8 +894,8 @@ user_main(void *arg)
     int	    iter = 1;
     char    buf[128];
 
-    gasnet_node_t   dest = gasnetc_mynode + 1 < gasnetc_nodes 
-			    ? gasnetc_mynode + 1 : 0;
+    gasnet_node_t   dest = gasneti_mynode + 1 < gasneti_nodes 
+			    ? gasneti_mynode + 1 : 0;
 
     gasnet_AMRequestMedium1(dest,
 	gasneti_handleridx(gasnete_am_medping), buf, 128, 0);
@@ -925,8 +915,8 @@ user_threadmain_pingpong(void *arg)
 {
     char    buf[128];
     int	    local_tid = (int) arg;
-    int	    global_tid = local_tid + gasnete_mynode*gasnetc_threadspernode;
-    int	    peer_node = gasnete_mynode+1 < gasnete_nodes ? gasnete_mynode+1 : 0;
+    int	    global_tid = local_tid + gasneti_mynode*gasnetc_threadspernode;
+    int	    peer_node = gasneti_mynode+1 < gasneti_nodes ? gasneti_mynode+1 : 0;
     int	    peer_tid = peer_node + local_tid;
 
     gasnet_AMRequestMedium1(peer_node,
@@ -958,18 +948,18 @@ void *
 user_threadmain(void *arg)
 {
     int	    local_tid = (int) arg;
-    int	    global_tid = local_tid + gasnete_mynode*gasnetc_threadspernode;
-    int	    peer_node = gasnete_mynode+1 < gasnete_nodes ? gasnete_mynode+1 : 0;
+    int	    global_tid = local_tid + gasneti_mynode*gasnetc_threadspernode;
+    int	    peer_node = gasneti_mynode+1 < gasneti_nodes ? gasneti_mynode+1 : 0;
     int	    peer_tid = peer_node*gasnetc_threadspernode + local_tid;
     void    (*wt)(int) = work_threads[global_tid];
 
 #if 0
-    void *remote_addr = gasnetc_seginfo[peer_node].addr;
+    void *remote_addr = gasneti_seginfo[peer_node].addr;
 
     printf("%2d> put (%p,%d) -> to thread %d on node %d (%p)\n",
 	    global_tid, gasnetc_temp_putbuf, 2048, peer_tid, peer_node, remote_addr);
 
-    gasneti_assert(peer_node != gasnete_mynode);
+    gasneti_assert(peer_node != gasneti_mynode);
 
     gasnete_put_node(peer_tid, remote_addr, gasnetc_temp_putbuf, 2048, global_tid);
 
@@ -1071,7 +1061,7 @@ gasnete_get_node(void *dest, int rem_tid, void *src, size_t nbytes, int tid)
 
     gasnete_op_t    *op;
 
-    if (node != gasnete_mynode) {
+    if (node != gasneti_mynode) {
 	op = gasneti_malloc(sizeof(gasnete_op_t));
 
 	op->src  = src;
@@ -1098,7 +1088,7 @@ gasnete_put_node(int rem_tid, void *dest, void *src, size_t nbytes, int tid)
 
     gasnete_op_t    *op;
 
-    if (node != gasnete_mynode) {
+    if (node != gasneti_mynode) {
 	op = gasneti_malloc(sizeof(gasnete_op_t));
 
 	op->src  = src;
@@ -1133,15 +1123,13 @@ main(int argc, char **argv)
 	exit(EXIT_FAILURE);
     }
 
-    gasnetc_mynode = (gasnet_node_t) atoi(argv[1]);
-    gasnetc_nodes  = (gasnet_node_t) atoi(argv[2]);
-    gasnete_nodes  = gasnetc_nodes;
-    gasnete_mynode = gasnetc_mynode;
+    gasneti_mynode = (gasnet_node_t) atoi(argv[1]);
+    gasneti_nodes  = (gasnet_node_t) atoi(argv[2]);
 
     if (argc > 3 && argv[3] != NULL)
 	gasnetc_threadspernode = atoi(argv[3]);
 
-    if (gasnetc_nodes < 1) 
+    if (gasneti_nodes < 1) 
 	gasneti_fatalerror("Must have at least 1 GASNet node");
     
     if (gasnetc_threadspernode > GASNETE_MAXTHREADS)
@@ -1153,22 +1141,22 @@ main(int argc, char **argv)
 
     pt_tids = (pthread_t *) 
 	    gasneti_malloc(sizeof(pthread_t) * gasnetc_threadspernode);
-    gasnetc_threads = gasnetc_nodes * gasnetc_threadspernode;
+    gasnetc_threads = gasneti_nodes * gasnetc_threadspernode;
 
-    gasnetc_sockfds = (int *) gasneti_malloc(sizeof(int) * gasnetc_nodes);
+    gasnetc_sockfds = (int *) gasneti_malloc(sizeof(int) * gasneti_nodes);
     gasnetc_pollfds = (struct pollfd *) 
-			gasneti_malloc(sizeof(struct pollfd) * (gasnetc_nodes));
+			gasneti_malloc(sizeof(struct pollfd) * (gasneti_nodes));
     gasnetc_PollMapNode = (gasnetc_sockmap_t *) 
 			gasneti_malloc(
-			    sizeof(gasnetc_sockmap_t)*(gasnetc_nodes));
+			    sizeof(gasnetc_sockmap_t)*(gasneti_nodes));
     gasnetc_IdMapFd = (gasnetc_sockmap_t *) 
 			gasneti_malloc(
-			    sizeof(gasnetc_sockmap_t)*(gasnetc_nodes));
+			    sizeof(gasnetc_sockmap_t)*(gasneti_nodes));
     gasnetc_ThreadMapNode = (int *) gasneti_malloc(sizeof(int) * gasnetc_threads);
-    gasnetc_seginfo = (gasnet_seginfo_t *) 
-			gasneti_malloc(sizeof(gasnet_seginfo_t) * gasnetc_nodes);
+    gasneti_seginfo = (gasnet_seginfo_t *) 
+			gasneti_malloc(sizeof(gasnet_seginfo_t) * gasneti_nodes);
     
-    for (i = 0; i < gasnetc_nodes; i++) {
+    for (i = 0; i < gasneti_nodes; i++) {
 	for (j = 0; j < gasnetc_threadspernode; j++) {
 	    tid = i*gasnetc_threadspernode + j;
 	    gasnetc_ThreadMapNode[tid] = i;
@@ -1209,7 +1197,7 @@ main(int argc, char **argv)
     /* Spawn threads */
 
     for (i = 0; i < gasnetc_threadspernode; i++) {
-	tid = gasnetc_threadspernode*gasnetc_mynode + i;
+	tid = gasnetc_threadspernode*gasneti_mynode + i;
 	pthread_create(&pt_tids[i], NULL, user_threadmain, (void *) i);
     }
 

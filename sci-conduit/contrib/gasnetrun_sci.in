@@ -1,7 +1,7 @@
 #!@BOURNE_SHELL@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/contrib/Attic/gasnetrun_sci.in,v $
-#     $Date: 2004/10/08 07:47:23 $
-# $Revision: 1.6 $
+#     $Date: 2005/04/04 03:33:19 $
+# $Revision: 1.6.2.1 $
 # Terms of use are as specified in license.txt
 #
 # Burt Gordon, High-performance Computing & Simulation (HCS) Lab
@@ -277,7 +277,7 @@ fi
 # them to all the executing machines
 # use the env command as the default shell may be different on every machine
 
-ENV=/usr/bin/env
+ENV=@ENVCMD@
 if ! test -x $ENV ; then
   ENV=`which env`
   if ! test -x $ENV ; then

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2004/11/23 23:39:53 $
-# $Revision: 1.208.2.4 $
+#     $Date: 2005/04/04 03:32:39 $
+# $Revision: 1.208.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.208.2.4 $)
+AC_REVISION($Revision: 1.208.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -125,6 +125,11 @@ if test "$gasnet_cv_cc_family" = MIPS; then
   # The MIPSPro C compiler apparently has no identifying markings
   AC_DEFINE(MIPSPRO_COMPILER)
 fi
+if test "$gasnet_cv_cc_family" = MTA ; then
+  # override target_os for MTA, which may be wrong if cross-compiling
+  target_os="mtx"  
+fi
+
 
 ### 
 #
@@ -171,14 +176,29 @@ case "$gasnet_cv_cc_family" in
         CCOPTFLAGS="$CFLAGS"
         CFLAGS="$oldCFLAGS"
   ;;
+  Pathscale)  CCOPTFLAGS="-O3 -Winline" ;;
   Sun)  CCOPTFLAGS="-fast -xO5" ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
   HP) CCOPTFLAGS="-O3" ;;
   MIPS) CCOPTFLAGS="-O3" ;;
-  XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
-        CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
+  XLC)
+    case "$target_os" in
+	darwin*)
+	    # enabling ipa (-O4 or higher) breaks linking to MPI (and thus vapi).
+	    case `/usr/sbin/sysctl hw.cpusubtype | cut '-d ' -f2` in
+		# bug926: on G5 (cpusubtype 100) -qarch={ppc970,auto} causes corruption of 64-bit integer arithmetic
+		100)	CCOPTFLAGS="-O3 -qhot -qarch=g5 -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; 
+		*)	CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; 
+	    esac
+	    ;;
+	linux*) CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # XXX: untested
+	*)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
+	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
+    esac
+  ;;
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
   Intel) CCOPTFLAGS="-O3" ;;
+  MTA) CCOPTFLAGS="-O3" ;; # MTA C actually ignores -O, optimization controlled by presence/absence of -g
   PGI) CCOPTFLAGS="-O2" ;;
   *)    CCOPTFLAGS="-O" ;;
 esac
@@ -228,6 +248,7 @@ case "$gasnet_cv_cc_family" in
   ;;
   NEC)   CCDEBUGFLAGS="-g -Cnoopt -Cdebug" ;; 
   HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
+  MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
@@ -239,20 +260,25 @@ case "$gasnet_cv_cc_family" in
     esac ;;
   MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;; # 1035 ensures "#error" is fatal
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
-  HP)     MISC_CFLAGS="+W612 +W2111 +W2177 +W2236 +W2550" ;;
+  HP)     MISC_CFLAGS="+W612 +W2111 +W2174 +W2177 +W2236 +W2550" ;;
   Intel) MISC_CFLAGS="-wd177 -wd279" 
          GASNET_TRY_CFLAG([-wd1572],
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
   NEC) MISC_CFLAGS="-woff=68:111:174:177:236:301:550:940" ;; 
   PGI) MISC_CFLAGS="-Masmkeyword" ;;
+  MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
   Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
-  XLC) MISC_CFLAGS="-qsuppress=1500-010" ;; # 1500-010 = infinite loop (such as in our tests)
+  XLC) MISC_CFLAGS="-qsuppress=1500-010" # 1500-010 = infinite loop (such as in our tests)
+       case "$target_os" in
+	  linux*) MISC_CFLAGS="$MISC_CFLAGS -qsuppress=1506-1108";; # 1506-1108 = __inline__ non-portable
+       esac;;
   *)    MISC_CFLAGS="" ;;
 esac
 
 case "$gasnet_cv_cc_family" in
   XLC) MISC_CPPFLAGS="-qcpluscmt" ;; # tell preprocessor to allow C++-style comments
+  PGI) MISC_CPPFLAGS="-B" ;; # C++ comments
   Sun) MISC_CPPFLAGS="-xCC" ;; # C++ comments
   HP)  MISC_CPPFLAGS="+W67" ;; # unrecognized #pragma upc
   GNU)
@@ -356,31 +382,8 @@ GASNET_LIBGCC
 
 ########################################################################
 # hunt for 16-, 32-, and 64-bit integer types
-# Check sizes
-GASNET_CHECK_SIZEOF(char, $cross_char)
-GASNET_CHECK_SIZEOF(short, $cross_short)
-GASNET_CHECK_SIZEOF(int, $cross_int)
-GASNET_CHECK_SIZEOF(long, $cross_long)
-GASNET_CHECK_SIZEOF(long long, $cross_long_long)
-GASNET_CHECK_SIZEOF(void *, $cross_void_P)
 
-AM_CONDITIONAL(PLATFORM_ILP32, test x"$ac_cv_sizeof_int$ac_cv_sizeof_long$ac_cv_sizeof_void_p" = x444)
-AM_CONDITIONAL(PLATFORM_LP64, test x"$ac_cv_sizeof_int$ac_cv_sizeof_long$ac_cv_sizeof_void_p" = x488)
-AM_CONDITIONAL(PLATFORM_ILP64, test x"$ac_cv_sizeof_int$ac_cv_sizeof_long$ac_cv_sizeof_void_p" = x888)
-
-GASNET_CHECK_INTTYPES(stdint.h)
-GASNET_CHECK_INTTYPES(inttypes.h)
-GASNET_CHECK_INTTYPES(sys/types.h)
-
-INTTYPES_DEFINES="-DSIZEOF_CHAR=$SIZEOF_CHAR -DSIZEOF_SHORT=$SIZEOF_SHORT -DSIZEOF_INT=$SIZEOF_INT -DSIZEOF_LONG=$SIZEOF_LONG -DSIZEOF_LONG_LONG=$SIZEOF_LONG_LONG -DSIZEOF_VOID_P=$SIZEOF_VOID_P"
-GASNET_APPEND_DEFINE(INTTYPES_DEFINES, HAVE_STDINT_H)
-GASNET_APPEND_DEFINE(INTTYPES_DEFINES, COMPLETE_STDINT_H)
-GASNET_APPEND_DEFINE(INTTYPES_DEFINES, HAVE_INTTYPES_H)
-GASNET_APPEND_DEFINE(INTTYPES_DEFINES, COMPLETE_INTTYPES_H)
-GASNET_APPEND_DEFINE(INTTYPES_DEFINES, HAVE_SYS_TYPES_H)
-GASNET_APPEND_DEFINE(INTTYPES_DEFINES, COMPLETE_SYS_TYPES_H)
-
-AC_SUBST(INTTYPES_DEFINES)
+GASNET_SETUP_INTTYPES()
 
 ########################################################################
 ##
@@ -530,7 +533,8 @@ case "$target_os" in
   osf*)
 	AC_DEFINE(OSF)
 	GASNET_MACHINE_DEFINES="-DOSF"
-        GASNET_THREAD_DEFINES="-D_REENTRANT -D_THREAD_SAFE"
+        # -D_PTHREAD_NOMETER_STATIC fixes failures when initially trylocking a statically-init mutex
+        GASNET_THREAD_DEFINES="-D_REENTRANT -D_THREAD_SAFE -D_PTHREAD_NOMETER_STATIC"
         GASNET_THREAD_LIBS="-pthread -lpthreads"
 	;;
   hpux*)
@@ -539,6 +543,12 @@ case "$target_os" in
         GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
+  mtx*)
+	AC_DEFINE(MTA)
+	GASNET_MACHINE_DEFINES="-DMTA" 
+	GASNET_THREAD_DEFINES=""
+        GASNET_THREAD_LIBS="-lpthread" 
+        ;;
   superux*)
 	AC_DEFINE(SUPERUX)
 	GASNET_MACHINE_DEFINES="-DSUPERUX"
@@ -548,21 +558,23 @@ case "$target_os" in
   unicos*)
 	AC_DEFINE(UNICOS)
         GASNET_MACHINE_DEFINES="-DUNICOS"
-        GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	GASNET_TRY_CACHE_CHECK(for Cray T3E, cc_is_t3e, [], [
 	    #ifndef _CRAYT3E
 	      #error not Cray T3E
 	    #endif
 	  ], [
+            GASNET_THREAD_DEFINES="-D_REENTRANT"
 	    GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYT3E"
 	    AC_DEFINE(CRAYT3E)
+	    use_pthreads=no  # pthreads are horribly broken on the T3E
 	  ])
         GASNET_TRY_CACHE_CHECK(for Cray X1, cc_is_x1, [], [
             #ifndef __crayx1
               #error not Cray X1
             #endif
           ], [
+            GASNET_THREAD_DEFINES="-D_REENTRANT -hthreadsafe"
             GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYX1"
             AC_DEFINE(CRAYX1)
           ])
@@ -616,17 +628,46 @@ if test "$use_pthreads$have_pthread" = "tryno" ; then
   pthread_reason="appear to be missing or broken"
 fi
 
+GASNETI_CACHE_LINE_BYTES=""
 if test "$have_pthread" = no ; then
   GASNET_THREAD_DEFINES=""
   GASNET_THREAD_LIBS=""
 else
+  OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
+  CFLAGS="$CFLAGS $GASNET_THREAD_DEFINES -I$TOP_SRCDIR/other"
   LIBS="$GASNET_THREAD_LIBS"
-  # look for optional pthreads entry points
+
+  # define HAVE_PTHREAD_H
+  AC_CHECK_HEADERS(pthread.h)
+
+  # look for optional pthreads entry points and features
+  AC_SEARCH_LIBS(pthread_setconcurrency, pthread pthreads c_r, AC_DEFINE(HAVE_PTHREAD_SETCONCURRENCY))
   AC_SEARCH_LIBS(pthread_kill_other_threads_np, pthread pthreads, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))
+
+  case "$target_os" in
+    darwin*)
+      AC_MSG_CHECKING(for shared data cache line size)
+      GASNETI_CACHE_LINE_BYTES=`/usr/sbin/sysctl hw.cachelinesize | cut '-d ' -f2`
+      AC_MSG_RESULT($GASNETI_CACHE_LINE_BYTES)
+      ;;
+    *)
+      GASNET_TRY_CACHE_RUN_EXPR(for shared data cache line size, datacache_line_size, 
+      [ #define CONFIG_TEST 1
+        #include "detect-cachesz.c" ], [ 
+       val = detect_cachesz(79.0, 0); if (val<=0) exit(1); ], GASNETI_CACHE_LINE_BYTES)
+      ;;
+  esac
+  
   GASNET_THREAD_LIBS="$LIBS"
+  CFLAGS="$OLDCFLAGS"
   LIBS="$OLDLIBS"
 fi
+if test "$GASNETI_CACHE_LINE_BYTES" = "" ; then
+  GASNETI_CACHE_LINE_BYTES=128
+  AC_MSG_WARN([Unable to automatically detect a shared data cache line size (either system load too high, pthreads is broken or this is not a cache-coherent SMP).  Using a safe default size of $GASNETI_CACHE_LINE_BYTES])
+fi
+AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_BYTES,$GASNETI_CACHE_LINE_BYTES)
           
 AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
 PTHREADS="$have_pthread"
@@ -738,8 +779,12 @@ if test $enabled_udp = yes; then
     PGI)   MISC_CXXFLAGS="-w -Masmkeyword" ;; # apparently has no way to indep control warnings
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
     MIPS)  MISC_CXXFLAGS="-diag_error 1035 -diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
-    HP)    MISC_CXXFLAGS="+W612 +W749 +W2111 +W2177 +W2236 +W2550" ;;
+    HP)    MISC_CXXFLAGS="+W612 +W749 +W2111 +W2174 +W2177 +W2236 +W2550" ;;
     Compaq) MISC_CXXFLAGS="-msg_disable extrasemi,boolexprconst,codeunreachable" ;;
+    MTA)   MISC_CXXFLAGS="-exceptions -display_error_number -WS 111,174,238" 
+           CXXDEBUGFLAGS="-g2"
+           CXXOPTFLAGS="-O3"
+      ;;
     Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279"
            GASNET_TRY_CXXFLAG([-wd1572],
                           [MISC_CXXFLAGS="$MISC_CXXFLAGS -wd1572"])
@@ -766,6 +811,8 @@ if test $enabled_udp = yes; then
     CXXFLAGS="$CXXDEBUGFLAGS"
   fi
   GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CXXCPPFLAGS $MISC_CXXFLAGS $BUILDCONFIG_DEFINES],[])
+  oldCXXFLAGS="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS $CXXCPPFLAGS $MISC_CXXFLAGS $BUILDCONFIG_DEFINES"
   GASNET_TRY_CACHE_RUN( [for working C++ exceptions], cxx_exceptions, [
     int main() {
      try {
@@ -780,6 +827,7 @@ if test $enabled_udp = yes; then
   ], [ ], [ 
     GASNET_MSG_ERROR("I can\'t figure out how to build and run a program that uses C++ exceptions")
   ] )  
+  CXXFLAGS="$oldCXXFLAGS"
   AC_SUBST(MISC_CXXFLAGS)
 
   AC_LANG_RESTORE
@@ -862,7 +910,7 @@ if test $enabled_mpi = yes; then
         ;;
     linux*) 
     	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $CFLAGS, $SAFE_MPI_CFLAGS)
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         ;;
@@ -913,9 +961,11 @@ if test $enabled_mpi = yes; then
         case "$target_cpu" in
           alphaev5) BASIC_MPI_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM"  # T3E
                     GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
+    	            GASNET_ENV_DEFAULT(MPI_LIBS, )
           ;;
           *)        BASIC_MPI_CFLAGS="-hnomessage=236 $LIBCM" # X1
                     GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+    	            GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
           ;;
         esac
 	if test "$BUILDCONFIG" = "optimize" ; then
@@ -924,7 +974,12 @@ if test $enabled_mpi = yes; then
     	  BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
 	fi
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $BASIC_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
-    	GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
+        ;;
+    mtx*)
+    	GASNET_ENV_DEFAULT(MPI_CC, cc)
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
+    	GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
+	GASNET_ENV_DEFAULT(MPIRUN_CMD, mtarun -t %N -m %N /usr/bin/env _MPI_MT=%N %C)
         ;;
     superux*)
       GASNET_ENV_DEFAULT(MPI_CC, mpic++ -Xa)
@@ -967,10 +1022,9 @@ if test $enabled_mpi = yes; then
     LIBS="$MPI_LIBS"
     # we just try to link an MPI app - running MPI apps is a whole new can of worms
     AC_TRY_LINK( [
-      #include <stdlib.h>
       #include <mpi.h>
     ], [
-      MPI_Init(NULL,NULL);
+      MPI_Init((void*)0,(void*)0);
       MPI_Finalize();
     ], [ mpi_test_worked=yes ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
     CC="$OLDCC"
@@ -1145,6 +1199,34 @@ if test $enabled_gm = yes; then
       fi
       CFLAGS="$OLDCFLAGS"
       LIBS="$OLDLIBS"
+
+      force_enable_gm_mpi_compat=no
+      AC_MSG_CHECKING(for GM interoperability with MPI)
+      GASNET_IF_ENABLED_WITH_AUTO(gm-mpi-compat, 
+        Enable/disable GM interoperability with MPI (enabled if MPI detected),
+	[force_enable_gm_mpi_compat=yes; enabled_gm_mpi_compat=yes], 
+	 enabled_gm_mpi_compat=no, enabled_gm_mpi_compat=yes)
+
+      if test "$enabled_gm_mpi_compat" = yes; then
+        if test "$have_mpi" = yes; then
+	  AC_DEFINE(GASNETC_GM_MPI_COMPAT)
+	  want_gm_mpi_compat=yes
+	  GM_MPI_COMPAT=''
+	  AC_MSG_RESULT(yes)
+	else
+	  GM_MPI_COMPAT='#'
+	  AC_MSG_RESULT(no)
+	  if test "$force_enable_gm_mpi_compat" = yes; then
+	    AC_MSG_ERROR([GM requires a working MPI for interoperability.  Install MPI \
+	                  and fix detection OR rerun configure with --disable-gm-mpi-compat])
+	  else
+	    AC_MSG_WARN([GM requires MPI for interoperability and MPI $mpi_reason - disabling feature])
+	  fi
+	fi
+      else
+	GM_MPI_COMPAT='#'
+        AC_MSG_RESULT(no)
+      fi
     fi
   fi
   if test "$force_gm$have_gm" = yesno ; then
@@ -1155,7 +1237,9 @@ fi
 AC_SUBST(GM_INCLUDE)
 AC_SUBST(GM_LIB)
 AC_SUBST(GM_NO_ALIAS)
+AC_SUBST(GM_MPI_COMPAT)
 AM_CONDITIONAL(USE_GM_CONDUIT, test "$enabled_gm$have_gm" = yesyes)
+AM_CONDITIONAL(GM_MPI_ENABLE_COMPAT, test "$want_gm_mpi_compat" = yes)
 if test "$enabled_gm$have_gm" = yesyes ; then
   CONDUITS="$CONDUITS gm"
   CONDUIT_REPORT(ON)
@@ -1438,6 +1522,25 @@ GASNET_IF_ENABLED_WITH_AUTO(vapi, Enable/disable the CONDUIT_DESC (auto-detected
   [enabled_vapi=yes;force_vapi=yes],
   enabled_vapi=no,
   enabled_vapi=yes)
+with_vapi_bootstrap_mpi=no
+with_vapi_bootstrap_ssh=no
+GASNET_WITH(vapi-bootstrap,
+   [VAPI job bootstrap mechanism ("ssh" or "mpi", default is mpi)],
+   [case "$withval" in
+      yes) AC_MSG_ERROR([--with-vapi-bootstrap requires an argument ("ssh" or "mpi")])
+	   ;;
+      ssh) with_vapi_bootstrap_ssh=yes
+	   ;;
+      mpi) with_vapi_bootstrap_mpi=yes
+	   ;;
+      *)   AC_MSG_ERROR([--with-vapi-bootstrap argument must be "ssh" or "mpi"])
+	   ;;
+    esac],
+   [AC_MSG_ERROR([--with-vapi-bootstrap argument must be "ssh" or "mpi"])],
+   [with_vapi_bootstrap_mpi=yes])
+if test "$with_vapi_bootstrap_ssh$with_vapi_bootstrap_mpi" = yesyes; then
+  AC_MSG_ERROR([conflicting --with-vapi-bootstrap options given])
+fi
 if test "$force_vapi$have_pthread" = yesno; then
   AC_MSG_ERROR([vapi-conduit requires pthread support but pthreads $pthread_reason])
 fi
@@ -1445,12 +1548,14 @@ if test "$enabled_vapi$have_pthread" = yesno; then
   enabled_vapi=no
   AC_MSG_WARN([vapi-conduit requires pthread support but pthreads $pthread_reason - disabling vapi])
 fi
-if test "$force_vapi$have_mpi" = yesno; then
-  AC_MSG_ERROR([vapi-conduit requires MPI support and MPI $mpi_reason]);
-fi
-if test "$enabled_vapi$have_mpi" = yesno; then
-  enabled_vapi=no
-  AC_MSG_WARN([vapi-conduit requires MPI support and MPI $mpi_reason - disabling vapi])
+if test "$with_vapi_bootstrap_mpi" = yes; then
+  if test "$force_vapi$have_mpi" = yesno; then
+    AC_MSG_ERROR([--with-vapi-bootstrap=mpi requires MPI support and MPI $mpi_reason]);
+  fi
+  if test "$enabled_vapi$have_mpi" = yesno; then
+    enabled_vapi=no
+    AC_MSG_WARN([--with-vapi-bootstrap=mpi requires MPI support and MPI $mpi_reason - disabling vapi])
+  fi
 fi
 if test "$enabled_vapi" = yes; then
   # Start by assuming we do have VAPI
@@ -1483,10 +1588,10 @@ if test "$enabled_vapi" = yes; then
     ])
   fi
 
-  if test "$gasnet_cv_cc_family" = "GNU" -a "$segconfig" != fast; then
-    # If using firehose we need to disable certain gcc optimizations.
+  if test "$gasnet_cv_cc_family" = "GNU"; then
+    # Since we are using firehose we need to disable certain gcc optimizations.
     # See bug #350 for an example of why firehose needs this.
-    # See bug #596 for evidence that VAPi is affected by this.
+    # See bug #596 or #1031 for evidence that VAPI is affected by this.
     VAPI_LIBCFLAGS="$VAPI_LIBCFLAGS -fno-strict-aliasing"
   fi
 
@@ -1550,14 +1655,36 @@ if test "$enabled_vapi" = yes; then
       if test "$enabled_vapi_force_poll_lock" = yes; then
         AC_DEFINE(GASNETC_VAPI_FORCE_POLL_LOCK)
       fi
+
+    GASNET_IF_ENABLED_WITH_AUTO(vapi-rcv-thread, [See vapi-conduit/README (enabled by default)], 
+      enabled_vapi_rcv_thread=yes, enabled_vapi_rcv_thread=no, enabled_vapi_rcv_thread=yes)
+      if test "$enabled_vapi_rcv_thread" = yes; then
+        AC_DEFINE(GASNETC_VAPI_RCV_THREAD)
+      fi
+
+    # Configure corrrect flags/vars (inc. CC and LD) based on bootstrap choice
+    if test "$with_vapi_bootstrap_ssh" = yes; then
+      VAPI_BOOT_SSH=''
+    else
+      VAPI_BOOT_SSH='#'
+    fi
+    if test "$with_vapi_bootstrap_mpi" = yes; then
+      VAPI_LIBS="$MPI_LIBS $VAPI_LIBS"
+      VAPI_BOOT_MPI=''
+    else
+      VAPI_BOOT_MPI='#'
+    fi
   fi
 fi
-
+AC_SUBST(VAPI_BOOT_SSH)
+AC_SUBST(VAPI_BOOT_MPI)
 AC_SUBST(VAPI_INCLUDE)
 AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AC_SUBST(VAPI_LIBCFLAGS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
+AM_CONDITIONAL(VAPI_BOOTSTRAP_SSH,test "$with_vapi_bootstrap_ssh" = yes)
+AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$with_vapi_bootstrap_mpi" = yes)
 if test "$have_vapi" = yes ; then
   CONDUITS="$CONDUITS vapi"
   CONDUIT_REPORT(ON)
@@ -1565,7 +1692,6 @@ else
   CONDUIT_REPORT(OFF)
 fi
 popdef([CONDUIT_DESC])
-AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$mpi_test_worked" = yes)
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
 
@@ -1653,12 +1779,12 @@ if test $enabled_shmem = yes; then
       SHMEM_FLAGS="-D${SHMEM_FLAVOUR} "
     else
       AC_MSG_RESULT(no)
-      GASNET_MSG_ERROR(build test failed: I don't know how to build SHMEM programs on your system)
+      AC_MSG_WARN(build test failed: I don't know how to build SHMEM programs on your system)
       have_shmem=no
     fi
   fi
   if test "$force_shmem$have_shmem" = yesno; then
-    AC_MSG_WARN(User requested --enable-shmem but I don't know how to build shmem programs for your system)
+    GASNET_MSG_ERROR(User requested --enable-shmem but I don't know how to build shmem programs for your system)
   fi
 fi
 
@@ -1735,6 +1861,26 @@ fi
 popdef([CONDUIT_DESC])
 
 ########################################################################
+# Configure conduit-independent spawners
+
+# Things needed by ssh spawner
+AC_CHECK_HEADERS(netinet/tcp.h)
+case "$target_os" in
+  linux*)
+    GASNET_IF_ENABLED(ssh-prctl, Enable use of prctl() in the ssh-based spawner (see other/ssh-spawner/README) (disabled by default), [
+      AC_MSG_CHECKING(for PR_SET_PDEATHSIG)
+      AC_TRY_LINK([
+          #include <sys/prctl.h>
+        ],[
+          int rc = prctl(PR_SET_PDEATHSIG, 0);
+        ], [ AC_MSG_RESULT(yes)
+             AC_DEFINE(HAVE_PR_SET_PDEATHSIG) ],
+           AC_MSG_RESULT(no))
+      ])
+  ;;
+esac
+
+########################################################################
 
 # Check for broken asm/atomic.h on Linux
 case "$target_os" in
@@ -1748,10 +1894,41 @@ case "$target_os" in
       atomic_t v;
       atomic_set(&v,5);
       atomic_inc(&v);
+      #ifdef cmpxchg /* cmpxchg may fail to link when optimizations are disabled */
+      do {
+        volatile int x = 1;
+        cmpxchg(&x, 1, 2);
+      } while (0);
+      #endif
     ], AC_MSG_RESULT(ok), 
     [ AC_MSG_RESULT(broken) 
       AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
     ] )
+    if test "$have_cxx" = 1; then
+      # Do the same check for CXX as well
+      AC_LANG_SAVE
+      AC_LANG_CPLUSPLUS
+      AC_MSG_CHECKING(for broken asm/atomic.h with c++)
+      AC_TRY_LINK( [
+        #include <asm/bitops.h>
+        #include <asm/system.h>
+        #include <asm/atomic.h>
+      ], [
+        atomic_t v;
+        atomic_set(&v,5);
+        atomic_inc(&v);
+        #ifdef cmpxchg /* cmpxchg may fail to link when optimizations are disabled */
+        do {
+          volatile int x = 1;
+          cmpxchg(&x, 1, 2);
+        } while (0);
+        #endif
+      ], AC_MSG_RESULT(ok),
+      [ AC_MSG_RESULT(broken) 
+        AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
+      ] )
+      AC_LANG_RESTORE
+    fi
     ;;
 esac
 
@@ -1943,6 +2120,10 @@ GASNET_TRY_CACHE_LINK(for __builtin_expect, cc_has_builtin_expect,
   [int x;], [if (__builtin_expect(x,1)) return 1;],
   AC_DEFINE(HAVE_BUILTIN_EXPECT))
 
+GASNET_TRY_CACHE_LINK(for __builtin_prefetch, cc_has_builtin_prefetch,
+  [int x;], [__builtin_prefetch(&x,0);],
+  AC_DEFINE(HAVE_BUILTIN_PREFETCH))
+
 GASNET_TRY_CACHE_LINK(for __func__, cc_has_func,
 [],
 [const char* p = __func__;],
@@ -1981,10 +2162,16 @@ fi
 GASNET_PATH_PROGS(AR, $AR ar gar, archiver)
 #AC_PROG_RANLIB
 GASNET_PATH_PROGS(RANLIB, $RANLIB ranlib touch, ranlib)
+case "$target_os" in
+    darwin*) RANLIB="$RANLIB -s -c" ;; # ensure correct common block behavior on darwin
+esac
 GASNET_PATH_PROGS(BASENAME, $BASENAME basename, basename)
 GASNET_PATH_PROGS(DIRNAME, $DIRNAME dirname, dirname)
 # Some platforms are lacking readlink, and we currently do not require it
 AC_PATH_PROGS(READLINK, $READLINK readlink)
+# other optional commands
+AC_PATH_PROGS(TIMECMD, $TIMECMD time, , /usr/bin:${PATH})
+AC_PATH_PROGS(ENVCMD, $ENVCMD env, , /usr/bin/:${PATH})
 
 AC_SUBST(BOURNE_SHELL)
 AC_SUBST(AR)
@@ -1992,6 +2179,8 @@ AC_SUBST(RANLIB)
 AC_SUBST(BASENAME)
 AC_SUBST(DIRNAME)
 AC_SUBST(READLINK)
+AC_SUBST(TIMECMD)
+AC_SUBST(ENVCMD)
 
 ########################################################################
 
@@ -2102,6 +2291,7 @@ other/ammpi/Makefile
 other/amudp/Makefile
 other/contrib/Makefile
 other/contrib/gasnet_trace
+other/testspawn/Makefile
 tests/Makefile
 config-aux/Makefile
 ,

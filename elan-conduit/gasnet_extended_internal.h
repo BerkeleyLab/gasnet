@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2004/08/26 04:53:32 $
- * $Revision: 1.16 $
+ *     $Date: 2005/04/04 03:32:43 $
+ * $Revision: 1.16.8.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,15 +9,11 @@
 #ifndef _GASNET_EXTENDED_INTERNAL_H
 #define _GASNET_EXTENDED_INTERNAL_H
 
-#include <gasnet.h>
-#include <gasnet_handler.h>
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
 
 /* ------------------------------------------------------------------------------------ */
-/*  reasonable upper-bound on L2 cache line size (don't make this too big) */
-#define GASNETE_CACHE_LINE_BYTES  (128)
-
 #ifdef ELAN_VER_1_2
   #define GASNETE_USE_PGCTRL_NBI  0 /* pgctrl not available on 1.2 */
 #else
@@ -35,13 +31,18 @@ typedef struct _gasnete_op_t {
 } gasnete_op_t;
 
 /* for compactness, eops address each other in the free list using a gasnete_eopaddr_t */ 
-typedef struct _gasnete_eopaddr_t {
-  uint8_t bufferidx;
-  uint8_t eopidx;
+typedef union _gasnete_eopaddr_t {
+  struct {
+    uint8_t _bufferidx;
+    uint8_t _eopidx;
+  } compaddr;
+  uint16_t fulladdr;
 } gasnete_eopaddr_t;
+#define bufferidx compaddr._bufferidx
+#define eopidx compaddr._eopidx
 
-#define gasnete_eopaddr_equal(addr1,addr2) (*(uint16_t*)&(addr1) == *(uint16_t*)&(addr2))
-#define gasnete_eopaddr_isnil(addr) (*(uint16_t*)&(addr) == *(uint16_t*)&(EOPADDR_NIL))
+#define gasnete_eopaddr_equal(addr1,addr2) ((addr1).fulladdr == (addr2).fulladdr)
+#define gasnete_eopaddr_isnil(addr) ((addr).fulladdr == EOPADDR_NIL.fulladdr)
 
 /* header for bounce buffers */
 typedef struct {
@@ -86,10 +87,10 @@ typedef struct _gasnete_iop_t {
   gasnete_eop_t *elan_getbb_list; /* list of bounce-buffered elan get eops */
 
   /*  make sure the completion counters live on a cache line by themselves for SMP's */
-  uint8_t _pad[GASNETE_CACHE_LINE_BYTES - 4*sizeof(void*) - sizeof(int)]; 
-  gasneti_atomic_t completed_put_cnt;     /*  count of put ops completed */
-  gasneti_atomic_t completed_get_cnt;     /*  count of get ops completed */
-  uint8_t _pad2[GASNETE_CACHE_LINE_BYTES - 2*sizeof(gasneti_atomic_t)]; 
+  uint8_t _pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - 4*sizeof(void*) - sizeof(int)))]; 
+  gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
+  gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
+  uint8_t _pad2[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - 2*sizeof(gasneti_atomic_t)))]; 
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -194,10 +195,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
-    _temp = gasneti_atomic_read(&((iop)->completed_put_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt)); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
-    _temp = gasneti_atomic_read(&((iop)->completed_get_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt)); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)
@@ -211,18 +212,6 @@ void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
 
 /* ------------------------------------------------------------------------------------ */
-
-/* make a GASNet call - if it fails, print error message and abort */
-#define GASNETE_SAFE(fncall) do {                                           \
-   int retcode = (fncall);                                                  \
-   if_pf (retcode != GASNET_OK) {                                           \
-     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
-        "  while calling: %s\n"                                             \
-        "  at %s",                                                          \
-        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
-   }                                                                        \
- } while (0)
-
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)
@@ -234,9 +223,6 @@ void gasnete_op_free(gasnete_op_t *op);
 #define _hidx_gasnete_putlong_reqh          (GASNETE_HANDLER_BASE+7)
 #define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+8)
 #define _hidx_gasnete_markdone_reph         (GASNETE_HANDLER_BASE+9)
-/*
-#define _hidx_                              (GASNETC_HANDLER_BASE+)
-*/
 
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 

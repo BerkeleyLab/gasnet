@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2004/08/26 04:54:13 $
- * $Revision: 1.15 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.15.8.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,21 +9,10 @@
 #ifndef _GASNET_EXTENDED_INTERNAL_H
 #define _GASNET_EXTENDED_INTERNAL_H
 
-#include <gasnet.h>
-#include <gasnet_handler.h>
 #include <gasnet_internal.h>
-
-/* Tune cut-off between PUTs and AMs for memset, 0 disables PUTs */
-#if GASNETC_PIN_SEGMENT
-  #define GASNETE_MEMSET_PUT_LIMIT        GASNETC_BUFSZ
-#else
-  #define GASNETE_MEMSET_PUT_LIMIT        0
-#endif
+#include <gasnet_handler.h>
 
 /* ------------------------------------------------------------------------------------ */
-/*  reasonable upper-bound on L2 cache line size (don't make this too big) */
-#define GASNETE_CACHE_LINE_BYTES  (128)
-
 typedef uint8_t gasnete_threadidx_t;
 
 enum {
@@ -68,10 +57,10 @@ typedef struct _gasnete_iop_t {
   struct _gasnete_iop_t *next;    /*  next cell while in free list */
 
   /*  make sure the counters live on a distinct cache line for SMPs */
-  uint8_t _pad1[GASNETE_CACHE_LINE_BYTES - 2*sizeof(void *)];
+  uint8_t _pad1[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - 2*sizeof(void *)))];
   gasnetc_counter_t get_req_oust;     /*  count of get ops outstanding */
   gasnetc_counter_t put_req_oust;     /*  count of put ops outstanding */
-  uint8_t _pad2[GASNETE_CACHE_LINE_BYTES - 2*sizeof(gasnetc_counter_t)];
+  uint8_t _pad2[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - 2*sizeof(gasnetc_counter_t)))];
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -130,18 +119,6 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
 
 /* ------------------------------------------------------------------------------------ */
-
-/* make a GASNet call - if it fails, print error message and abort */
-#define GASNETE_SAFE(fncall) do {                                           \
-   int retcode = (fncall);                                                  \
-   if_pf (retcode != GASNET_OK) {                                           \
-     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
-        "  while calling: %s\n"                                             \
-        "  at %s",                                                          \
-        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
-   }                                                                        \
- } while (0)
-
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2005/01/03 15:15:31 $
- * $Revision: 1.55.2.1 $
+ *     $Date: 2005/04/04 03:32:39 $
+ * $Revision: 1.55.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,7 +36,6 @@
     defined(CRAYT3E)   || /* T3E seems to have no atomic ops */              \
     defined(_SX)       || /* NEC SX-6 atomics not available to user code? */ \
     defined(__hppa)    || /* PA-RISC seems to have no atomic ops */          \
-    defined(__crayx1)  || /* X1 atomics currently broken */                  \
     (defined(__PGI) && defined(BROKEN_LINUX_ASM_ATOMIC_H)) /* haven't implemented atomics for PGI */
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #endif
@@ -48,12 +47,11 @@
 /* ------------------------------------------------------------------------------------ */
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
   /* a very slow but portable implementation of atomic ops */
-  typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
-  #define gasneti_atomic_read(p)      ((p)->ctr)
-  #define gasneti_atomic_init(v)      { (v) }
   #ifdef _INCLUDED_GASNET_H
     extern void *gasneti_patomicop_lock; /* bug 693: avoid header dependency cycle */
-
+    typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
+    #define gasneti_atomic_read(p)      ((p)->ctr)
+    #define gasneti_atomic_init(v)      { (v) }
     #define gasneti_atomic_set(p,v) do {                          \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         (p)->ctr = (v);                                           \
@@ -82,32 +80,63 @@
   #elif defined(_REENTRANT) || defined(_THREAD_SAFE) || \
         defined(PTHREAD_MUTEX_INITIALIZER) ||           \
         defined(HAVE_PTHREAD) || defined(HAVE_PTHREAD_H)
-    /* a version for pthreads which is independent of GASNet HSL's */
+    /* a version for pthreads which is independent of GASNet HSL's 
+       requires the client to #define GASNETT_MAIN in exactly one linked file 
+     */
     #include <pthread.h>
-    pthread_mutex_t gasneti_atomicop_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+    extern pthread_mutex_t gasneti_atomicop_mutex; 
+    extern int gasneti_atomicop_initcheck;
+    #ifdef GASNETT_MAIN
+      pthread_mutex_t gasneti_atomicop_mutex = PTHREAD_MUTEX_INITIALIZER;
+      int gasneti_atomicop_initcheck = 1;
+    #endif
+    #if !defined(NDEBUG) && !defined(GASNET_NDEBUG)
+      #define GASNETI_ATOMICOP_INITCHECK() do {                                          \
+        if (!gasneti_atomicop_initcheck) {                                               \
+          fprintf(stderr, "ERROR: on this platform, gasnet_tools.h "                     \
+           "requires exactly one file to #define GASNETT_MAIN in order to use atomics"); \
+          abort();                                                                       \
+        }                                                                                \
+      } while (0)
+    #else
+      #define GASNETI_ATOMICOP_INITCHECK() ((void)0)
+    #endif
+    /* intentionally make these a different size than regular 
+       GASNet atomics, to cause a link error on attempts to mix them
+     */
+    typedef struct { volatile uint32_t ctr; char _pad; } gasneti_atomic_t;
+    #define gasneti_atomic_read(p)      ((p)->ctr)
+    #define gasneti_atomic_init(v)      { (v) }
     #define gasneti_atomic_set(p,v) do {               \
+        GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         (p)->ctr = (v);                                \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
     #define gasneti_atomic_increment(p) do {           \
+        GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         ((p)->ctr)++;                                  \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
     #define gasneti_atomic_decrement(p) do {           \
+        GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         ((p)->ctr)--;                                  \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
-    int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
+    #define gasneti_atomic_decrement_and_test(p) \
+           _gasneti_atomic_decrement_and_test((p), \
+              &gasneti_atomicop_mutex, gasneti_atomicop_initcheck)
+    GASNET_INLINE_MODIFIER(_gasneti_atomic_decrement_and_test)
+    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, 
+                pthread_mutex_t *m, int gasneti_atomicop_initcheck) {
       uint32_t newval;
-      pthread_mutex_lock(&gasneti_atomicop_mutex);
+      GASNETI_ATOMICOP_INITCHECK();
+      pthread_mutex_lock(m);
       newval = p->ctr - 1;
       p->ctr = newval;
-      pthread_mutex_unlock(&gasneti_atomicop_mutex);
+      pthread_mutex_unlock(m);
       return (newval == 0);
     }
   #else
@@ -115,10 +144,14 @@
     /* attempt to generate a compile error if pthreads actually are in use */
     #define PTHREAD_MUTEX_INITIALIZER ERROR_include_pthread_h_before_gasnet_tools_h
     extern int pthread_mutex_lock; 
-    #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-    #define gasneti_atomic_increment(p) (((p)->ctr)++)
-    #define gasneti_atomic_decrement(p) (((p)->ctr)--)
-    #define gasneti_atomic_decrement_and_test(p) ((--((p)->ctr)) == 0)
+
+    typedef volatile int gasneti_atomic_t;
+    #define gasneti_atomic_read(p)      (*(p))
+    #define gasneti_atomic_init(v)      (v)
+    #define gasneti_atomic_set(p,v)     (*(p) = (v))
+    #define gasneti_atomic_increment(p) ((*(p))++)
+    #define gasneti_atomic_decrement(p) ((*(p))--)
+    #define gasneti_atomic_decrement_and_test(p) ((--(*(p))) == 0)
   #endif
 #else
   /* ------------------------------------------------------------------------------------
@@ -145,6 +178,16 @@
       #define gasneti_atomic_init(v)      (v)
       #define gasneti_atomic_decrement_and_test(p) \
                                           (add_then_test32((p),(uint32_t)-1) == 0) 
+  #elif defined(__MTA__)
+      /* use MTA intrinsics */
+      typedef int64_t gasneti_atomic_t;
+      #define gasneti_atomic_increment(p) (int_fetch_add((p),1))
+      #define gasneti_atomic_decrement(p) (int_fetch_add((p),-1))
+      #define gasneti_atomic_read(p)      (*(p))
+      #define gasneti_atomic_set(p,v)     (*(p) = (v))
+      #define gasneti_atomic_init(v)      (v)
+      #define gasneti_atomic_decrement_and_test(p) \
+                                          (int_fetch_add((p),-1) == 1) 
   #elif 0 && defined(SOLARIS)
       /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
          to the user... after all, what application would be interested in performance? */
@@ -202,11 +245,19 @@
    * support for inline assembly code
    * ------------------------------------------------------------------------------------ */
   #elif defined(__i386__) || defined(__x86_64__) /* x86 and Athlon/Opteron */
-    #if defined(__GNUC__) || defined(__INTEL_COMPILER)
+    #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__)
       #ifdef GASNETI_UNI_BUILD
         #define GASNETI_LOCK ""
       #else
-        #define GASNETI_LOCK "lock ; "
+        #define GASNETI_LOCK "lock\n\t"
+      #endif
+      #if defined(__PATHCC__)
+        /* Pathscale optimizer is buggy and fails to clobber memory output location correctly
+           unless we include an extraneous full memory clobber 
+         */
+        #define GASNETI_ATOMIC_MEM_CLOBBER ,"memory"
+      #else
+        #define GASNETI_ATOMIC_MEM_CLOBBER
       #endif
       typedef struct { volatile int ctr; } gasneti_atomic_t;
       #define gasneti_atomic_read(p)      ((p)->ctr)
@@ -216,23 +267,26 @@
       void gasneti_atomic_increment(gasneti_atomic_t *v) {
         __asm__ __volatile__(
                 GASNETI_LOCK "incl %0"
-                :"=m" (v->ctr)
-                :"m" (v->ctr));
+                : "=m" (v->ctr)
+                : "m" (v->ctr)
+                : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
       GASNET_INLINE_MODIFIER(gasneti_atomic_decrement)
       void gasneti_atomic_decrement(gasneti_atomic_t *v) {
         __asm__ __volatile__(
                 GASNETI_LOCK "decl %0"
-                :"=m" (v->ctr)
-                :"m" (v->ctr));
+                : "=m" (v->ctr)
+                : "m" (v->ctr) 
+                : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
       GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
       int gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
           unsigned char c;
           __asm__ __volatile__(
-	          GASNETI_LOCK "decl %0; sete %1"
-	          :"=m" (v->ctr), "=qm" (c)
-	          :"m" (v->ctr) : "memory");
+	          GASNETI_LOCK "decl %0\n\tsete %1"
+	          : "=m" (v->ctr), "=mq" (c)
+	          : "m" (v->ctr) 
+                  : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
           return (c != 0);
       }
     #else
@@ -370,24 +424,19 @@
   #elif defined(__crayx1) /* This works on X1, but NOT the T3E */
     #include <intrinsics.h>
     typedef volatile long gasneti_atomic_t;
-    /* DOB: man pages for atomic ops claim gsync is required for using atomic ops,
-       but trying to do so leads to crashes. Using atomic ops without gync gives
-       incorrect results (testtools fails)
+    /* man pages for atomic ops claim gsync is required for using atomic ops,
+       but it's unclear when exactly it is required for our purposes - 
+       experimentally determined using testtools that it's only required after the amo.
+       Note gsync call MUST be _gsync(0x1) - the manpage docs are gratuitiously wrong, 
+       everything else gives a bus error
      */
-    #if 1
-      #define gasneti_atomic_presync()  ((void)0)
-      #define gasneti_atomic_postsync() ((void)0)
-    #elif 0
-      #define gasneti_atomic_presync()  _gsync(0)
-      #define gasneti_atomic_postsync() _gsync(0)
-    #else
-      #define gasneti_atomic_presync()  _msync_msp(0)
-      #define gasneti_atomic_postsync() _msync_msp(0)
-    #endif
+    #define gasneti_atomic_presync()  ((void)0)
+    #define gasneti_atomic_postsync()  _gsync(0x1)
+
     #define gasneti_atomic_increment(p)	\
       (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
     #define gasneti_atomic_decrement(p)	\
-      (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
+      (gasneti_atomic_presync(),_amo_aadd((p),(long)-1),gasneti_atomic_postsync())
     #define gasneti_atomic_read(p)      (*(p))
     #define gasneti_atomic_set(p,v)     (*(p) = (v))
     #define gasneti_atomic_init(v)      (v)
@@ -395,7 +444,7 @@
     int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
        int retval;
        gasneti_atomic_presync();
-       retval = _amo_afadd((p),(long)-1) == 0;
+       retval = (_amo_afadd((p),(long)-1) == 1);
        gasneti_atomic_postsync();
        return retval;
     }
@@ -422,7 +471,11 @@
                                         (muadd(&((p)->ctr),-1) == 0)
    #endif
   /* ------------------------------------------------------------------------------------ */
-  #elif defined(__APPLE__) && defined(__MACH__) && defined(__ppc__) /* PowerPC */
+  #elif (defined(__APPLE__) && defined(__MACH__) && defined(__ppc__)) || (defined(LINUX) && defined(__PPC__))
+    /* PowerPC
+     * (__APPLE__) && __MACH__ && __ppc__) == OS/X, Darwin
+     * (LINUX && __PPC__) == Linux
+     */
     #if defined(__xlC__)
       /* XLC machine code functions are very rigid, thus we produce all
        * three read-modify-write ops as distinct functions in order to
@@ -499,6 +552,30 @@
   #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
+/* GASNet weak atomics - these operations are guaranteed to be atomic if and only if 
+    the sole updates are from the host processor(s), with no signals involved.
+   if !GASNETI_THREADS, they compile away to a non-atomic counter
+    thereby saving the overhead of unnecessary atomic-memory CPU instructions. 
+   Otherwise, they expand to regular gasneti_atomic_t's
+ */
+#if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
+  typedef gasneti_atomic_t gasneti_weakatomic_t;
+  #define gasneti_weakatomic_init(v)                gasneti_atomic_init(v)
+  #define gasneti_weakatomic_set(p,v)               gasneti_atomic_set(p,v)
+  #define gasneti_weakatomic_read(p)                gasneti_atomic_read(p)
+  #define gasneti_weakatomic_increment(p)           gasneti_atomic_increment(p)
+  #define gasneti_weakatomic_decrement(p)           gasneti_atomic_decrement(p)
+  #define gasneti_weakatomic_decrement_and_test(p)  gasneti_atomic_decrement_and_test(p) 
+#else
+  typedef volatile int gasneti_weakatomic_t;
+  #define gasneti_weakatomic_init(v)                (v)
+  #define gasneti_weakatomic_set(p,v)               (*(p) = (v))
+  #define gasneti_weakatomic_read(p)                (*(p))
+  #define gasneti_weakatomic_increment(p)           ((*p)++)
+  #define gasneti_weakatomic_decrement(p)           ((*p)--)
+  #define gasneti_weakatomic_decrement_and_test(p)  (!(--(*p))) 
+#endif
+/* ------------------------------------------------------------------------------------ */
 /* portable memory barrier support */
 
 /*
@@ -572,6 +649,8 @@
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
 #elif defined(_CRAY)  
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
+#elif defined(__MTA__)  
+  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
 #else
   #error "Don't know how to use inline assembly for your compiler"
 #endif
@@ -628,22 +707,56 @@
         gasneti_compiler_fence();           \
         __mf();  /* memory fence instruction */  \
       } while (0)
+      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
+      #define gasneti_local_rmb() gasneti_local_wmb()
+      #define gasneti_local_mb()  gasneti_local_wmb()
    #elif defined(__HP_cc) || defined(__HP_aCC)
       #include <machine/sys/inline.h>
       /* HP compilers have no inline assembly on Itanium - use intrinsics */
-      #define gasneti_local_wmb() _Asm_mf((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE))
       #define gasneti_compiler_fence() \
          _Asm_sched_fence((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE)) 
+      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
+      #define gasneti_local_wmb() _Asm_mf((_Asm_fence)(_UP_MEM_FENCE))
+      #define gasneti_local_rmb() _Asm_mf((_Asm_fence)(_DOWN_MEM_FENCE))
+      #define gasneti_local_mb() _Asm_mf((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE))
    #else
-      /* mf may cause an illegal instruction trap on uniprocessor kernel */
-      GASNET_INLINE_MODIFIER(gasneti_local_wmb)
-      void gasneti_local_wmb(void) {
-        GASNETI_ASM("mf");
+    #if 1
+      #define gasneti_local_wmb() GASNETI_ASM("mf")
+      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
+      #define gasneti_local_rmb() gasneti_local_wmb()
+      #define gasneti_local_mb()  gasneti_local_wmb()
+    #else
+      /* according to section 4.4.7 in:
+         "Intel Itanium Architecture Software Developer's Manual, Vol 2 System Architecture"
+         the following should work, but for some reason it does not
+       */
+      GASNET_INLINE_MODIFIER(_gasneti_local_wmb)
+      void _gasneti_local_wmb() {
+        int tmp;
+        __asm__ __volatile__(
+                ";;\n\tst4.rel %0 = r0\n\t;;"
+                :"=m" (tmp)
+                :);
       }
+      #define gasneti_local_wmb _gasneti_local_wmb
+
+      GASNET_INLINE_MODIFIER(_gasneti_local_rmb)
+      void _gasneti_local_rmb() {
+        register int r;
+        int tmp;
+        __asm__ __volatile__(
+                ";;\n\tld4.acq %0 = %1\n\t;;"
+                : "=r" (r) : "m" (tmp) : "memory");
+      }
+      #define gasneti_local_rmb _gasneti_local_rmb
+
+      #define gasneti_local_mb() GASNETI_ASM("mf")
+    #endif
    #endif
-#elif defined(_POWER) || (defined(__APPLE__) && defined(__MACH__) && defined(__ppc__))
+#elif defined(_POWER) || (defined(__APPLE__) && defined(__MACH__) && defined(__ppc__)) || (defined(LINUX) && defined(__PPC__))
  /* (_POWER) == IBM SP POWER[234]
   * (__APPLE__ && __MACH__ && __ppc__) == Darwin, OS/X
+  * (LINUX && __PPC__) == Linux
   */
  #ifdef __xlC__
    /* VisualAge C compiler (mpcc_r) has no support for inline symbolic assembly
@@ -716,7 +829,23 @@
      static int volatile x;
      x = 1;
    }
-   #define gasneti_compiler_fence() gasneti_local_wmb()
+   #define gasneti_compiler_fence gasneti_local_wmb
+#elif defined(__MTA__)
+   #if 0 /* causes warnings */
+     #define gasneti_compiler_fence() (_Pragma("mta fence"))
+   #else
+     GASNET_INLINE_MODIFIER(_gasneti_compiler_fence)
+     void _gasneti_compiler_fence(void) {
+       (void)0;
+       #pragma mta fence
+       (void)0;
+     }
+     #define gasneti_compiler_fence() _gasneti_compiler_fence()
+   #endif
+   /* MTA has no caches or write buffers - just need a compiler reordering fence */
+   #define gasnet_local_wmb() gasneti_compiler_fence()
+   #define gasnet_local_rmb() gasneti_compiler_fence()
+   #define gasnet_local_mb()  gasneti_compiler_fence()
 #elif defined(_SX)
    GASNET_INLINE_MODIFIER(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
@@ -738,6 +867,8 @@
 #ifndef gasneti_local_rmb
   #define gasneti_local_rmb() gasneti_compiler_fence()
 #endif
+
+/* NO Default for gasneti_local_wmb() to avoid mistakes - it must be explicitly provided */
 
 /* Default gasneti_local_mb() */
 #ifndef gasneti_local_mb

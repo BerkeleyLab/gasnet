@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2004/10/22 19:47:23 $
- * $Revision: 1.22 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.22.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,9 +92,12 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
-    TEST_SEGSZ, TEST_MINHEAPOFFSET));
+                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
   TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
+
+  if (!gasnet_mynode())
+	print_testname("testgasnet", gasnet_nodes());
 
   MSG("running...");
 
@@ -243,8 +246,8 @@ void doit(int partner, int *partnerseg) {
     for (i=0; i < 100; i++) {
       unsigned int tmp1 = (unsigned int)gasnet_get_val(partner, partnerbase2+i, sizeof(unsigned char));
       unsigned int tmp2 = (unsigned int)gasnet_get_val(partner, partnerbase2+i+200, sizeof(unsigned char));
-      if (tmp1 != (unsigned int)(100 + mynode + i) || 
-          tmp2 != (unsigned int)(100 + mynode + i)) {
+      if (tmp1 != (unsigned char)(100 + mynode + i) || 
+          tmp2 != (unsigned char)(100 + mynode + i)) {
         MSG("*** ERROR - FAILED CHAR VALUE TEST 1!!!");
         printf("node %i/%i  i=%i tmp1=%i tmp2=%i (100 + mynode + i)=%i\n", 
           (int)gasnet_mynode(), (int)gasnet_nodes(), 
@@ -258,7 +261,7 @@ void doit(int partner, int *partnerseg) {
       }
       for (i=0; i < 100; i++) {
         unsigned int tmp = (unsigned int)gasnet_wait_syncnb_valget(handles[i]);
-        if (tmp != (unsigned int)(100 + mynode + i)) {
+        if (tmp != (unsigned char)(100 + mynode + i)) {
           MSG("*** ERROR - FAILED CHAR VALUE TEST 2!!!");
           printf("node %i/%i  i=%i tmp1=%i (100 + mynode + i)=%i\n", 
             (int)gasnet_mynode(), (int)gasnet_nodes(), 
@@ -286,15 +289,18 @@ void doit(int partner, int *partnerseg) {
     gasnet_get(&vals, partner, partnerseg, 300*sizeof(int));
 
     for (i=0; i < 100; i++) {
-      if (vals[i] != ((int)(unsigned long long)0x5555555555555555ull)) {
+      unsigned long long five  = 0x5555555555555555ull;
+      unsigned long long six   = 0x6666666666666666ull;
+      unsigned long long seven = 0x7777777777777777ull;
+      if (vals[i] != ((int)five)) {
         MSG("*** ERROR - FAILED MEMSET TEST!!!");
         success = 0;
       }
-      if (vals[i+100] != ((int)(unsigned long long)0x6666666666666666ull)) {
+      if (vals[i+100] != ((int)six)) {
         MSG("*** ERROR - FAILED MEMSET TEST!!!");
         success = 0;
       }
-      if (vals[i+200] != ((int)(unsigned long long)0x7777777777777777ull)) {
+      if (vals[i+200] != ((int)seven)) {
         MSG("*** ERROR - FAILED MEMSET TEST!!!");
         success = 0;
       }

@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.44 $
+$Revision: 1.44.2.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -55,6 +55,8 @@ compilers, including which GASNet conduits are supported.
       build and run all the GASNet tests in a given mode
     make run-tests
       run whatever tests are already built in the conduit directories
+    make run-tests TESTS="test1 test2..."
+      run specifically-listed tests that are already built in the conduit directories
   Each conduit also has several useful makefile targets:
     make tests-{seq,par,parsync}  
       build the conduit tests in a given mode
@@ -65,7 +67,9 @@ compilers, including which GASNet conduits are supported.
     make run-tests-{seq,par,parsync}  
       build and run the conduit tests in a given mode
     make run-tests
-      run whatever tests are already built in the conduit directories
+      run whatever tests are already built in the conduit directory
+    make run-tests TESTS="test1 test2..."
+      run specifically-listed tests that are already built in the conduit directory
     make run-testexit
       build a script to run the testexit tester and run it
   Compilation and linker flags for the GASNet libraries and tests can be
@@ -122,9 +126,11 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp, gm
     * Linux/Itanium-Quadrics/{gcc,IntelC}/64: smp, mpi, udp, elan
     * Linux/Itanium-Myrinet/{gcc,IntelC}/64: smp, mpi, udp, gm
-    * Linux/Opteron-Ethernet/gcc/64: smp, mpi, udp
-    * Linux/Opteron-Mellanox/gcc/64: smp, mpi, udp, vapi
+    * Linux/Opteron-Ethernet/{gcc,PortlandGroup}/{32,64}: smp, mpi, udp
+    * Linux/Opteron-Mellanox/{gcc,PathScale}/64: smp, mpi, udp, vapi
     * Linux/Alpha/gcc/64:            smp, udp, #
+    * Linux/PowerPC-Myrinet/gcc/32:  smp, mpi, udp, gm
+    * Linux/PowerPC-Ethernet/gcc/64: smp, mpi, udp
 
     * FreeBSD/x86gcc/32:  smp, mpi, udp
     * FreeBSD/Alpha/64:   smp, udp, #
@@ -154,6 +160,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Unicos/CrayX1/CrayC/64: smp, udp, mpi 
        (native conduit under development)
  
+    * MTX/CrayMTA/CrayMTAC/64: smp, udp
+ 
     * SuperUX/SX-6/NEC-C/64: smp, udp, mpi
        (single-threaded only, pthreads broken)
 
@@ -168,17 +176,21 @@ although we generally recommend the vendor C compiler for performance reasons.
 Recognized Environment Variables
 ================================
 
-* GASNET_FREEZE - set to 1 to make GASNet pause and wait for a debugger to attach on
+* GASNET_VERBOSEENV: set to 1 to output information about environment variable settings
+ read by the conduit that affect conduit behavior.
+
+* GASNET_FREEZE: set to 1 to make GASNet pause and wait for a debugger to attach on
  startup
 
 * GASNET_TRACEFILE, GASNET_TRACEMASK, GASNET_STATSFILE, GASNET_STATSMASK, 
-  GASNET_TRACEFLUSH, GASNET_TRACELOCAL - control tracing & statistical features, 
+  GASNET_TRACEFLUSH, GASNET_TRACELOCAL: control tracing & statistical features, 
  if enabled at configure time.  See usage information below.
 
-* GASNET_VERBOSEENV - output information about environment variable settings
- read by the conduit that affect conduit behavior.
+* GASNET_MALLOC_* : control the GASNet debug malloc features, if enabled at configure time.
+ See usage information below.
 
 * see conduit-specific documentation in conduit directories for more settings
+
 
 GASNet tracing & statistical collection
 =======================================
@@ -238,6 +250,57 @@ Optional environment variable settings:
    or suppressed (they are included by default). This can be used to reduce 
    tracing overhead and trace file size for clients with a large number of 
    local put/get operations which are not of interest.
+
+GASNet debug malloc services
+============================
+
+GASNet includes a debug malloc implementation that can be used to find local
+heap corruption bugs in GASNet itself and also in GASNet client applications
+(notably Berkeley UPC). To use, configure with --enable-debug, and run your
+program as usual.  GASNet will regularly scan the heap for corruption at malloc
+events and AMPoll's and report any detected problems.  If you're a GASNet
+client writer, you should see the gasnett_debug_malloc functions in
+gasnet_tools.h to tie your applications into the GASNet debug malloc services.
+
+Note the debug malloc implementation imposes some CPU and memory consumption
+overhead relative to the system malloc implementation (it's implemented as a
+thin wrapper around the system malloc).  This means heap behavior is likely to
+be somewhat perturbed relative to GASNET_NDEBUG mode operation, however the
+overhead is probably less than it would be with third-party heap corruption
+tools such as efence or purify (at some cost in lost precision).
+
+Optional environment variable settings (recognized only in GASNET_DEBUG mode):
+
+GASNET_MALLOC_INIT: When set to 1, every byte of allocated memory is
+ initialized to the value specified by GASNET_MALLOC_INITVAL. This can be useful
+ for detecting use of uninitialized data.
+
+GASNET_MALLOC_CLOBBER: When set to 1, every byte of freed memory is overwritten
+ with the value specified by GASNET_MALLOC_CLOBBERVAL. This can be useful for
+ detecting inadvertant use of freed data.
+
+GASNET_MALLOC_INITVAL, GASNET_MALLOC_CLOBBERVAL: The data value to use for
+ allocation init or free clobberring, respectively. The value may be specified
+ as a decimal integer matching the pattern: "-?[0-9]+" or a hexidecimal integer
+ matching the pattern: "0x[0-9A-F]+".  If the value is between 0 and 255
+ (inclusive) it is taken to be an 8-bit value which is used to overwrite every
+ byte in the given region. Otherwise, it is taken to be a 64-bit value which is
+ used to overwrite the given region in 8-byte chunks.  The value may also be one
+ of "NAN", "sNAN" or "qNAN", which select a double-precision signalling or quiet
+ NAN, which is likely to propagate through floating point calculations and cause
+ segmentation faults when used as a pointer. Both values default to "NAN". 
+
+GASNET_MALLOC_LEAKALL: set to 1 to leak all freed objects, ensuring they are
+ not re-allocated during subsequent mallocs. This has an obvious cost in memory
+ consumption, but can be helpful for tracking bugs in conjunction with
+ GASNET_MALLOC_CLOBBER for tracking usage of dead objects.
+
+GASNET_MALLOC_SCANFREED: set to 1 to enable scanning of freed objects, to
+ detect write-after-free errors. This option implies GASNET_MALLOC_LEAKALL and
+ GASNET_MALLOC_CLOBBER.
+
+GASNET_MALLOC_EXTRACHECK: set to 1 to enable more frequent checking for memory
+ corruption (at a cost in performance)
 
 GASNet Design Information
 =========================
@@ -332,6 +395,12 @@ Many conduits also have <gasnet_core_internal.h> and <gasnet_extended_internal.h
 which are _not_ included by gasnet.h (and therefore not visible to client code) and
 are exclusively for use in building the conduit libraries. 
 <gasnet_internal.h> is the conduit-independent version of these files at the top level.
+Internal GASNet implementation should include <gasnet_internal.h> instead of <gasnet.h>.
+
+<gasnet_tools.h> is header providing a set of conduit-independent general system 
+utilities which are not specified by the GASNet spec. The header can and is used 
+independently of libgasnet*.a (even on systems with no supported conduits) - 
+all that's required is a successful configure and #include <gasnet_tools.h>.
 
 * config-aux: helper scripts for configure
 
@@ -424,4 +493,56 @@ All GASNet conduit code is required to meet the following coding standards:
   necessary files from the extended-ref directory that you need to change 
   (and continue to include the unchanged files) to reduce maintenance headache
   (this applies especially to gasnet_extended.h).
+
+GASNet porting guide
+====================
+
+This section documents the list of changes usually required when porting GASNet
+to a new, UNIX-like operating system, CPU and/or C compiler. Porting existing 
+GASNet conduits to a new system is usually a 1-2 day effort. Writing a new 
+conduit is more complicated (and is not covered in this section), although the
+"fill-in-the-blanks" template-conduit framework is very helpful - given high
+degree of familiarity with the target network hardware, a functional conduit
+can usually be constructed within a week.  Subsequent tuning can take up to
+several months, depending on the level of NIC hardware support available to be
+exploited.
+
+Required porting steps:
+
+* For a new OS, add OS detection to configure.in and acconfig.h, with 
+  appropriate settings for GASNET_MACHINE_DEFINES, GASNET_THREAD_DEFINES,
+  GASNET_THREAD_LIBS.  If the system supports MPI, add appropriate configure.in
+  defaults for MPI_CC, MPI_CFLAGS, MPI_LIBS and MPIRUN_CMD.
+
+* For a new C/C++ compiler, add a detection check for the new compiler to 
+  acinclude.m4:GASNET_FAMILY_CACHE_CHECK. Add configure.in settings for 
+  MISC_CFLAGS and MISC_CXXFLAGS if appropriate. 
+
+* For a new C/C++ compiler, implement GASNETI_ASM for inline assembly 
+  to gasnet_atomicops.h, if supported by the compiler. Ensure configure
+  inline modifier detection worked, otherwise tweak it in gasnet_basic.h.
+
+* For a new CPU, implement atomic increment/decrement operations in 
+  gasnet_atomicops.h, or enable GASNETI_USE_GENERIC_ATOMICOPS if the CPU does
+  not support atomic operations. 
+
+* For a new CPU, implement appropriate memory barriers in gasnet_atomicops.h:
+  gasneti_local_wmb and gasneti_local_rmb (one or both may be no-ops, depending
+  on the memory consistency semantics enforced by hardware).
+
+* Fix any misc compile errors that arise.
+
+* Run the gasnet tests for all supported conduits (gmake run-tests-seq run-tests-par).
+  Pay special attention to testtools, which tests the functionality above and
+  is the most likely to fail on a new system.
+
+Optional porting steps:
+
+* Implement GASNet high-performance timers (gasneti_stattime_t) in gasnet_timer.h,
+  if supported by the system.
+
+* Implement atomic compare-and-swap in gasnet_atomicops_internal.h, if supported
+  by the system.
+
+* Implement a new conduit for the network hardware.
 

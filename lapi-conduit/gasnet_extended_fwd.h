@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2004/11/23 23:40:01 $
- * $Revision: 1.17.8.1 $
+ *     $Date: 2005/04/04 03:32:51 $
+ * $Revision: 1.17.8.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,6 +30,9 @@
 #define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1 
 #define GASNETI_DIRECT_WAIT_SYNCNBI_ALL 1
 #endif
+
+/* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
+#define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
 
 #define _GASNET_HANDLE_T
 /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2005/01/03 15:15:39 $
- * $Revision: 1.24.2.2 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.24.2.3 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,33 +32,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 extern void gasnetc_exit(int exitcode) GASNET_NORETURN;
 #define gasnet_exit gasnetc_exit
-
-extern uintptr_t gasnetc_getMaxLocalSegmentSize();
-extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
-#define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize 
-#define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize 
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Job Environment Queries
-  =======================
-*/
-extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
-
-GASNET_INLINE_MODIFIER(gasnet_mynode)
-gasnet_node_t gasnet_mynode() {
-  GASNETI_CHECKINIT();
-  return gasnetc_mynode;
-}
- 
-GASNET_INLINE_MODIFIER(gasnet_nodes)
-gasnet_node_t gasnet_nodes() {
-  GASNETI_CHECKINIT();
-  return gasnetc_nodes;
-}
-
-#define gasnet_getSegmentInfo gasnetc_getSegmentInfo
-
 /* ------------------------------------------------------------------------------------ */
 /*
   No-interrupt sections
@@ -182,8 +155,13 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 #define GASNETC_ALIGNUP(p,P)	(GASNETC_ALIGNDOWN((uintptr_t)(p)+((P)-1),P))
 
 #define GASNETC_BUFSZ		4096
-#define GASNETC_MEDIUM_HDRSZ	4
-#define GASNETC_LONG_HDRSZ	(4 + SIZEOF_VOID_P)
+#if GASNET_STATS
+  #define GASNETC_MEDIUM_HDRSZ	12
+  #define GASNETC_LONG_HDRSZ	(12 + SIZEOF_VOID_P)
+#else
+  #define GASNETC_MEDIUM_HDRSZ	4
+  #define GASNETC_LONG_HDRSZ	(4 + SIZEOF_VOID_P)
+#endif
 
 #define GASNETC_MAX_ARGS	16
 #define GASNETC_MAX_MEDIUM	\
@@ -237,9 +215,16 @@ extern int gasnetc_ReplySystem(
  */
 
 /* RDMA initiation operations */
-extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, uintptr_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
+#if GASNETC_PIN_SEGMENT
+  extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
+#else
+  extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust, gasnetc_counter_t *am_oust);
+  #define gasnetc_rdma_put(node,src_ptr,dst_ptr,nbytes,mem_oust,req_oust) \
+	gasnetc_rdma_put_fh(node,src_ptr,dst_ptr,nbytes,mem_oust,req_oust,NULL)
+#endif
 extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *req_oust);
-extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, gasnetc_counter_t *req_oust);
+extern int gasnetc_rdma_putv(int node, size_t srccount, gasnet_memvec_t const srclist[], void *dst_ptr, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
+extern int gasnetc_rdma_getv(int node, void *src_ptr, size_t dstcount, gasnet_memvec_t const dstlist[], gasnetc_counter_t *req_oust);
 
 /* ------------------------------------------------------------------------------------ */
 

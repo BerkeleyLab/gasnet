@@ -2,8 +2,8 @@
 
 #############################################################
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/gasnet_trace.pl,v $
-#     $Date: 2004/10/30 02:19:17 $
-# $Revision: 1.28 $
+#     $Date: 2005/04/04 03:33:05 $
+# $Revision: 1.28.2.1 $
 #
 # All files in this directory (except where otherwise noted) are subject to the
 #following licensing terms:
@@ -192,36 +192,37 @@ sub parse_threadinfo
 {
     open (TRACEFILE, $_[0]) or die "Could not open $_[0]: $!\n";
     print STDERR "Parsing thread info for $_[0]..\n";
-    my %thread_seen;
-    
+    my (%thread_seen, %node_threads_seen);
+ 
+    LINE:
     while (<TRACEFILE>) {
-        next unless /MAGIC/ || /\(B\)/; 
+        next unless /MAGIC/ || /\(B\)/;
         if (/MAGIC/) {
-            m/^(\S+).*I am thread\s(\d+).*on node\s(\d+) of (\d+)\s.*<(.+)>$/;
+            m/^(\S+).*?I am thread (\d+) of (\d+).*?on node (\d+) of (\d+).*?in job <([^>]+)>.*$/;
             $threads{$1} = $2;
-            $nodes{$1} = $3;
-            $node_threads{$3}++;
+            $nodes{$1} = $4;
+            $node_threads_seen{$4}++;
+            $node_threads{$4} = $3;
             $thread_seen{$1}++;
             # for error checking of total nodes/threads
-            $job_nodes{$5} = $4;
-            $job_seen{$5}++;
-            if ($job_uniq{$5,$2}++) {
+            $job_nodes{$6} = $5;
+            $job_seen{$6}++;
+            if ($job_uniq{$6,$2}++) {
                 print STDERR "WARNING: duplicate tracing data for thread $2 of job $5\n";
-	        }
-	    }
-	    # After the first barrier of magic lines for each node, stop parsing
-	    # for that node
-	    if (/\(B\)/) {
-	        m/^(\S+)/;
-	        next unless (scalar keys %thread_seen);
-	        foreach my $key (keys %thread_seen) {
-		        next unless $thread_seen{$key};
-	        }
-	        # By now magic lines of every thread seen have been processed 
-	        return;
-	    }		    
-    }	       
-
+                }
+            }
+            # After the first barrier of magic lines for each node, stop parsing
+            # for that node
+            if (/\(B\)/) {
+                m/^(\S+)/;
+                next unless (scalar keys %thread_seen);
+                foreach my $key (keys %node_threads) {
+                        next LINE if ($node_threads_seen{$key} < $node_threads{$key});
+                }
+                # By now magic lines of every thread seen have been processed 
+                return;
+            }
+    }
 }
 
 sub parse_tracefile 

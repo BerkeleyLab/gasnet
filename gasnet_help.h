@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2004/10/19 04:41:49 $
- * $Revision: 1.40 $
+ *     $Date: 2005/04/04 03:32:39 $
+ * $Revision: 1.40.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,10 +56,62 @@ extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval)
 extern void gasneti_setenv(const char *key, const char *value);
 extern void gasneti_unsetenv(const char *key);
 
-/* extern versions of gasneti_{malloc,free,strdup} for use in public headers */
-extern void *gasneti_extern_malloc(size_t sz);
-extern void gasneti_extern_free(void *p);
-extern char *gasneti_extern_strdup(const char *s);
+typedef struct { 
+  uint64_t allocated_bytes;   /* num bytes ever allocated */
+  uint64_t freed_bytes;       /* num bytes ever freed */
+  uint64_t live_bytes;        /* num bytes currently allocated */
+  uint64_t live_bytes_max;    /* max num bytes live at any given time */
+  uint64_t allocated_objects; /* num objects ever allocated */
+  uint64_t freed_objects;     /* num objects ever freed */
+  uint64_t live_objects;      /* num objects currently allocated */
+  uint64_t live_objects_max;  /* max num objects live at any given time */
+  uint64_t overhead_bytes;    /* num bytes consumed by allocator overhead (lower bound) */
+} gasneti_heapstats_t;
+
+#if GASNET_DEBUG
+  #define GASNETI_CURLOCFARG , const char *curloc
+  #define GASNETI_CURLOCAARG , __FILE__ ":" _STRINGIFY(__LINE__)
+  #define GASNETI_CURLOCPARG , curloc
+  extern size_t _gasneti_memcheck(void *ptr, const char *curloc, int checktype);
+  extern void _gasneti_memcheck_one(const char *curloc);
+  extern void _gasneti_memcheck_all(const char *curloc);
+  #define gasneti_memcheck(ptr)  (gasneti_assert(ptr != NULL), \
+         (void)_gasneti_memcheck(ptr, __FILE__ ":" _STRINGIFY(__LINE__), 0)) 
+  #define gasneti_memcheck_one() _gasneti_memcheck_one(__FILE__ ":" _STRINGIFY(__LINE__))
+  #define gasneti_memcheck_all() _gasneti_memcheck_all(__FILE__ ":" _STRINGIFY(__LINE__))
+  extern int gasneti_getheapstats(gasneti_heapstats_t *pstat);
+#else
+  #define GASNETI_CURLOCFARG 
+  #define GASNETI_CURLOCAARG 
+  #define GASNETI_CURLOCPARG 
+  #define gasneti_memcheck(ptr)   ((void)0)
+  #define gasneti_memcheck_one()  ((void)0)
+  #define gasneti_memcheck_all()  ((void)0)
+  #define gasneti_getheapstats(pstat) (memset(pstat, 0, sizeof(gasneti_heapstats_t)),1)
+#endif
+
+/* extern versions of gasnet malloc fns for use in public headers */
+extern void *_gasneti_extern_malloc(size_t sz 
+             GASNETI_CURLOCFARG) __attribute__((__malloc__));
+extern void *_gasneti_extern_realloc(void *ptr, size_t sz 
+             GASNETI_CURLOCFARG);
+extern void *_gasneti_extern_calloc(size_t N, size_t S 
+             GASNETI_CURLOCFARG) __attribute__((__malloc__));
+extern void _gasneti_extern_free(void *ptr
+             GASNETI_CURLOCFARG);
+extern char *_gasneti_extern_strdup(const char *s
+              GASNETI_CURLOCFARG) __attribute__((__malloc__));
+extern char *_gasneti_extern_strndup(const char *s, size_t n 
+              GASNETI_CURLOCFARG) __attribute__((__malloc__));
+#ifdef __SUNPRO_C
+  #pragma returns_new_memory(_gasneti_extern_malloc, _gasneti_extern_calloc, _gasneti_extern_strdup, _gasneti_extern_strndup)
+#endif
+#define gasneti_extern_malloc(sz)      _gasneti_extern_malloc((sz) GASNETI_CURLOCAARG)
+#define gasneti_extern_realloc(ptr,sz) _gasneti_extern_realloc((ptr), (sz) GASNETI_CURLOCAARG)
+#define gasneti_extern_calloc(N,S)     _gasneti_extern_calloc((N),(S) GASNETI_CURLOCAARG)
+#define gasneti_extern_free(ptr)       _gasneti_extern_free((ptr) GASNETI_CURLOCAARG)
+#define gasneti_extern_strdup(s)       _gasneti_extern_strdup((s) GASNETI_CURLOCAARG)
+#define gasneti_extern_strndup(s,n)    _gasneti_extern_strndup((s),(n) GASNETI_CURLOCAARG)
 
 #if defined(__GNUC__) || defined(__FUNCTION__)
   #define GASNETI_CURRENT_FUNCTION __FUNCTION__
@@ -72,26 +124,66 @@ extern char *gasneti_extern_strdup(const char *s);
 extern char *gasneti_build_loc_str(const char *funcname, const char *filename, int linenum);
 #define gasneti_current_loc gasneti_build_loc_str(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__)
 
-#if GASNET_NDEBUG
-  #define gasneti_boundscheck(node,ptr,nbytes,T) 
+#if GASNET_SEGMENT_EVERYTHING
+  #define gasneti_in_clientsegment(node,ptr,nbytes) (gasneti_assert((node) < gasneti_nodes), 1)
+  #define gasneti_in_fullsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
 #else
-  #define gasneti_boundscheck(node,ptr,nbytes,T) do {                                                             \
-      gasnet_node_t _node = node;                                                                                 \
-      uintptr_t _ptr = (uintptr_t)ptr;                                                                            \
-      size_t _nbytes = nbytes;                                                                                    \
-      if_pf (_node > gasnet##T##_nodes)                                                                           \
-        gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",                                          \
-                           (unsigned long)_node, (unsigned long)gasnet##T##_nodes, gasneti_current_loc);          \
-      if_pf (_ptr < (uintptr_t)gasnet##T##_seginfo[_node].addr ||                                                 \
-             (_ptr + _nbytes) > (((uintptr_t)gasnet##T##_seginfo[_node].addr) + gasnet##T##_seginfo[_node].size)) \
-        gasneti_fatalerror("Remote address out of range (node=%lu ptr="GASNETI_LADDRFMT" nbytes=%lu "             \
-                           "segment=("GASNETI_LADDRFMT"..."GASNETI_LADDRFMT")) at %s",                            \
-                           (unsigned long)_node, GASNETI_LADDRSTR(_ptr), (unsigned long)_nbytes,                  \
-                           GASNETI_LADDRSTR(gasnet##T##_seginfo[_node].addr),                                     \
-                           GASNETI_LADDRSTR(((uint8_t*)gasnet##T##_seginfo[_node].addr) +                         \
-                                            gasnet##T##_seginfo[_node].size),                                     \
-                           gasneti_current_loc);                                                                  \
-    } while(0)
+  #define gasneti_in_clientsegment(node,ptr,nbytes) \
+    (gasneti_assert((node) < gasneti_nodes),        \
+     ((ptr) >= gasneti_seginfo_client[node].addr && \
+      (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_client_ub[node]))
+  #define gasneti_in_fullsegment(node,ptr,nbytes) \
+    (gasneti_assert((node) < gasneti_nodes),      \
+     ((ptr) >= gasneti_seginfo[node].addr &&      \
+      (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_ub[node]))
+#endif
+
+#ifdef _INCLUDED_GASNET_INTERNAL_H
+  /* default for GASNet implementation is to check against entire seg */
+  #define gasneti_in_segment gasneti_in_fullsegment
+#else
+  /* default for client is to check against just the client seg */
+  #define gasneti_in_segment gasneti_in_clientsegment
+#endif
+
+#ifdef GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET
+  /* in-segment check for internal put/gets that may exploit outofseg support */
+  #define gasneti_in_segment_allowoutseg(node,ptr,nbytes) \
+          (gasneti_assert((node) < gasneti_nodes), 1)
+#else
+  #define gasneti_in_segment_allowoutseg  gasneti_in_segment
+#endif
+
+#define _gasneti_boundscheck(node,ptr,nbytes,segtest) do {                     \
+    gasnet_node_t _node = (node);                                              \
+    const void *_ptr = (const void *)(ptr);                                    \
+    size_t _nbytes = (size_t)(nbytes);                                         \
+    if_pf (_node >= gasneti_nodes)                                             \
+      gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
+                         (unsigned long)_node, (unsigned long)gasneti_nodes,   \
+                         gasneti_current_loc);                                 \
+    if_pf (_ptr == NULL || !segtest(_node,_ptr,_nbytes))                       \
+      gasneti_fatalerror("Remote address out of range "                        \
+         "(node=%lu ptr="GASNETI_LADDRFMT" nbytes=%lu) at %s"                  \
+         "\n  clientsegment=("GASNETI_LADDRFMT"..."GASNETI_LADDRFMT")"         \
+         "\n    fullsegment=("GASNETI_LADDRFMT"..."GASNETI_LADDRFMT")",        \
+         (unsigned long)_node, GASNETI_LADDRSTR(_ptr), (unsigned long)_nbytes, \
+         gasneti_current_loc,                                                  \
+         GASNETI_LADDRSTR(gasneti_seginfo_client[_node].addr),                 \
+         GASNETI_LADDRSTR(gasneti_seginfo_client_ub[_node]),                   \
+         GASNETI_LADDRSTR(gasneti_seginfo[_node].addr),                        \
+         GASNETI_LADDRSTR(gasneti_seginfo_ub[_node])                           \
+         );                                                                    \
+  } while(0)
+
+#if GASNET_NDEBUG
+  #define gasneti_boundscheck(node,ptr,nbytes) 
+  #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes)
+#else
+  #define gasneti_boundscheck(node,ptr,nbytes) \
+         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_segment)
+  #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes) \
+         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_segment_allowoutseg)
 #endif
 
 /* gasneti_assert_always():
@@ -115,17 +207,36 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
  * useful for making system calls and checking the result
  */
 #if GASNET_DEBUG
-  #define gasneti_assert_zeroret(op) do {                                     \
-    int retval = op;                                                          \
-    if_pf(retval) gasneti_fatalerror(#op": %s(%i)",strerror(retval), retval); \
+  #define gasneti_assert_zeroret(op) do {                   \
+    int _retval = (op);                                     \
+    if_pf(_retval)                                          \
+      gasneti_fatalerror(#op": %s(%i), errno=%s(%i) at %s", \
+        strerror(_retval), _retval, strerror(errno), errno, \
+        gasneti_current_loc);                               \
   } while (0)
-  #define gasneti_assert_nzeroret(op) do {                                     \
-    int retval = op;                                                           \
-    if_pf(!retval) gasneti_fatalerror(#op": %s(%i)",strerror(retval), retval); \
+  #define gasneti_assert_nzeroret(op) do {                  \
+    int _retval = (op);                                     \
+    if_pf(!_retval)                                         \
+      gasneti_fatalerror(#op": %s(%i), errno=%s(%i) at %s", \
+        strerror(_retval), _retval, errno, strerror(errno), \
+        gasneti_current_loc);                               \
   } while (0)
 #else
   #define gasneti_assert_zeroret(op)  op
   #define gasneti_assert_nzeroret(op) op
+#endif
+
+/* make a GASNet core API call - if it fails, print error message and abort */
+#ifndef GASNETI_SAFE
+#define GASNETI_SAFE(fncall) do {                                            \
+   int _retcode = (fncall);                                                  \
+   if_pf (_retcode != (int)GASNET_OK) {                                      \
+     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"            \
+        "  while calling: %s\n"                                              \
+        "  at %s",                                                           \
+        gasnet_ErrorName(_retcode), _retcode, #fncall, gasneti_current_loc); \
+   }                                                                         \
+ } while (0)
 #endif
 
 #if GASNET_DEBUG
@@ -134,10 +245,12 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define GASNETI_CHECKINIT()    gasneti_checkinit()
   #define GASNETI_CHECKATTACH()  gasneti_checkattach()
 #else
-  #define GASNETI_CHECKINIT()
-  #define GASNETI_CHECKATTACH()
+  #define GASNETI_CHECKINIT()    ((void)0)
+  #define GASNETI_CHECKATTACH()  ((void)0)
 #endif
 
+#undef  gasneti_sched_yield
+#define gasneti_sched_yield() gasneti_assert_zeroret(_gasneti_sched_yield())
 
 /* conduits may replace the following types, 
    but they should at least include all the following fields */
@@ -267,13 +380,13 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
 #endif
 
 #if GASNET_DEBUG
-  #define GASNETI_MUTEX_NOOWNER       -1
+  #define GASNETI_MUTEX_NOOWNER         ((uintptr_t)-1)
   #ifndef GASNETI_THREADIDQUERY
     /* allow conduit override of thread-id query */
     #if GASNETI_USE_TRUE_MUTEXES
       #define GASNETI_THREADIDQUERY()   ((uintptr_t)pthread_self())
     #else
-      #define GASNETI_THREADIDQUERY()   (0)
+      #define GASNETI_THREADIDQUERY()   ((uintptr_t)0)
     #endif
   #endif
   #if GASNETI_USE_TRUE_MUTEXES
@@ -286,15 +399,14 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
        */
-      #define GASNETI_MUTEX_INITIALIZER { PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP, (uintptr_t)GASNETI_MUTEX_NOOWNER }
+      #define GASNETI_MUTEX_INITIALIZER { PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP, GASNETI_MUTEX_NOOWNER }
     #else
-      #define GASNETI_MUTEX_INITIALIZER { PTHREAD_MUTEX_INITIALIZER, (uintptr_t)GASNETI_MUTEX_NOOWNER }
+      #define GASNETI_MUTEX_INITIALIZER { PTHREAD_MUTEX_INITIALIZER, GASNETI_MUTEX_NOOWNER }
     #endif
     #define gasneti_mutex_lock(pl) do {                                        \
-              int retval;                                                      \
               gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());          \
               gasneti_assert_zeroret(pthread_mutex_lock(&((pl)->lock)));       \
-              gasneti_assert((pl)->owner == (uintptr_t)GASNETI_MUTEX_NOOWNER); \
+              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);            \
               (pl)->owner = GASNETI_THREADIDQUERY();                           \
             } while (0)
     GASNET_INLINE_MODIFIER(gasneti_mutex_trylock)
@@ -304,25 +416,24 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
               retval = pthread_mutex_trylock(&((pl)->lock));
               if (retval == EBUSY) return EBUSY;
               if (retval) gasneti_fatalerror("pthread_mutex_trylock()=%s",strerror(retval));
-              gasneti_assert((pl)->owner == (uintptr_t)GASNETI_MUTEX_NOOWNER);
+              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);
               (pl)->owner = GASNETI_THREADIDQUERY();
               return 0;
     }
     #define gasneti_mutex_unlock(pl) do {                                  \
-              int retval;                                                  \
               gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());      \
-              (pl)->owner = (uintptr_t)GASNETI_MUTEX_NOOWNER;              \
+              (pl)->owner = GASNETI_MUTEX_NOOWNER;                         \
               gasneti_assert_zeroret(pthread_mutex_unlock(&((pl)->lock))); \
             } while (0)
     #define gasneti_mutex_init(pl) do {                                       \
               gasneti_assert_zeroret(pthread_mutex_init(&((pl)->lock),NULL)); \
-              (pl)->owner = (uintptr_t)GASNETI_MUTEX_NOOWNER;                 \
+              (pl)->owner = GASNETI_MUTEX_NOOWNER;                            \
             } while (0)
     #define gasneti_mutex_destroy(pl) \
               gasneti_assert_zeroret(pthread_mutex_destroy(&((pl)->lock)))
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
-      volatile int owner;
+      volatile uintptr_t owner;
     } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
@@ -582,7 +693,8 @@ static void gasneti_threadkey_init(gasneti_threadkey_t *pkey) {
   #endif
 
   #if !GASNETI_THROTTLE_POLLERS 
-    #define gasneti_AMPoll() (gasneti_AMPoll_spinpollers_check(), gasnetc_AMPoll())
+    #define gasneti_AMPoll() (gasneti_AMPoll_spinpollers_check(), \
+                              gasneti_memcheck_one(), gasnetc_AMPoll())
     #define gasneti_suspend_spinpollers() gasneti_suspend_spinpollers_check()
     #define gasneti_resume_spinpollers()  gasneti_resume_spinpollers_check()
   #else
@@ -617,6 +729,7 @@ static void gasneti_threadkey_init(gasneti_threadkey_t *pkey) {
     int gasneti_AMPoll() {
        int retval;
        gasneti_AMPoll_spinpollers_check();
+       gasneti_memcheck_one();
        if (gasneti_atomic_read(&gasneti_throttle_haveusefulwork) > 0) 
          return GASNET_OK; /* another thread sending - skip the poll */
        if (gasneti_mutex_trylock(&gasneti_throttle_spinpoller) != 0)
@@ -680,8 +793,10 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #include <gasnet_trace.h>
 
 /* ------------------------------------------------------------------------------------ */
-  /* default implementation of public gasnet_AMPoll */
-#ifndef GASNETI_GASNET_AMPOLL
+/* default implementations of various conduit functions (may be overridden in some conduits) */
+
+#ifndef _GASNET_AMPOLL
+#define _GASNET_AMPOLL
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
   GASNET_INLINE_MODIFIER(gasnet_AMPoll)
   int gasnet_AMPoll() {
@@ -697,6 +812,61 @@ extern int gasneti_wait_mode; /* current waitmode hint */
     GASNETI_CHECKINIT();
     return gasneti_getenv(s);
   }
+#endif
+
+#ifndef _GASNET_WAITMODE
+#define _GASNET_WAITMODE
+  #define GASNET_WAIT_SPIN      0 /* contend aggressively for CPU resources while waiting (spin) */
+  #define GASNET_WAIT_BLOCK     1 /* yield CPU resources immediately while waiting (block) */
+  #define GASNET_WAIT_SPINBLOCK 2 /* spin for an implementation-dependent period, then block */
+  extern int gasneti_set_waitmode(int wait_mode);
+  #define gasnet_set_waitmode(wait_mode) gasneti_set_waitmode(wait_mode)
+#endif
+
+#ifndef _GASNET_MYNODE
+#define _GASNET_MYNODE
+#define _GASNET_MYNODE_DEFAULT
+  extern gasnet_node_t gasneti_mynode;
+  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gasnet_node_t)gasneti_mynode)
+#endif
+
+#ifndef _GASNET_NODES
+#define _GASNET_NODES
+#define _GASNET_NODES_DEFAULT
+  extern gasnet_node_t gasneti_nodes;
+  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gasnet_node_t)gasneti_nodes)
+#endif
+
+#ifndef _GASNET_GETMAXSEGMENTSIZE
+#define _GASNET_GETMAXSEGMENTSIZE
+#define _GASNET_GETMAXSEGMENTSIZE_DEFAULT
+  #if GASNET_SEGMENT_EVERYTHING
+    #define gasnet_getMaxLocalSegmentSize()   ((uintptr_t)-1)
+    #define gasnet_getMaxGlobalSegmentSize()  ((uintptr_t)-1)
+  #else
+    extern uintptr_t gasneti_MaxLocalSegmentSize;
+    extern uintptr_t gasneti_MaxGlobalSegmentSize;
+    #define gasnet_getMaxLocalSegmentSize() \
+            (GASNETI_CHECKINIT(), (uintptr_t)gasneti_MaxLocalSegmentSize)
+    #define gasnet_MaxGlobalSegmentSize() \
+            (GASNETI_CHECKINIT(), (uintptr_t)gasneti_MaxGlobalSegmentSize)
+  #endif
+#endif
+
+#ifndef _GASNET_GETSEGMENTINFO
+#define _GASNET_GETSEGMENTINFO
+  extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
+  #define gasnet_getSegmentInfo(seginfo_table, numentries) \
+          gasneti_getSegmentInfo(seginfo_table, numentries)
+#endif
+
+#ifndef _GASNETI_SEGINFO
+#define _GASNETI_SEGINFO
+#define _GASNETI_SEGINFO_DEFAULT
+  extern gasnet_seginfo_t *gasneti_seginfo;
+  extern gasnet_seginfo_t *gasneti_seginfo_client;
+  extern void **gasneti_seginfo_ub;
+  extern void **gasneti_seginfo_client_ub;
 #endif
 
 /* ------------------------------------------------------------------------------------ */

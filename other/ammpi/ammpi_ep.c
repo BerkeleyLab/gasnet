@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2004/10/10 03:05:03 $
- * $Revision: 1.22 $
+ *     $Date: 2005/04/04 03:32:59 $
+ * $Revision: 1.22.2.1 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -50,9 +50,9 @@ static void AMMPI_InsertEndpoint(eb_t eb, ep_t ep) {
   AMMPI_assert(eb->endpoints);
   if (eb->n_endpoints == eb->cursize) { /* need to grow array */
     int newsize = eb->cursize * 2;
-    ep_t *newendpoints = (ep_t *)malloc(sizeof(ep_t)*newsize);
+    ep_t *newendpoints = (ep_t *)AMMPI_malloc(sizeof(ep_t)*newsize);
     memcpy(newendpoints, eb->endpoints, sizeof(ep_t)*eb->n_endpoints);
-    free(eb->endpoints);
+    AMMPI_free(eb->endpoints);
     eb->endpoints = newendpoints;
     eb->cursize = newsize;
     }
@@ -92,7 +92,7 @@ static int AMMPI_AllocateEndpointResource(ep_t ep) {
   int pid = getpid();
   AMMPI_assert(ep);
 
-  ep->translation = calloc(AMMPI_INIT_NUMTRANSLATIONS, sizeof(ammpi_translation_t));
+  ep->translation = AMMPI_calloc(AMMPI_INIT_NUMTRANSLATIONS, sizeof(ammpi_translation_t));
   if (ep->translation == NULL) 
     AMMPI_RETURN_ERRFR(RESOURCE, AMMPI_AllocateEndpointResource, "out of memory");
   ep->translationsz = AMMPI_INIT_NUMTRANSLATIONS;
@@ -105,7 +105,7 @@ static int AMMPI_AllocateEndpointResource(ep_t ep) {
   ep->name.mpirank = procnum;
   ep->name.mpitag = mpitag;
   MPI_SAFE(MPI_Errhandler_set(currentComm, MPI_ERRORS_RETURN));
-  ep->pmpicomm = malloc(sizeof(MPI_Comm));
+  ep->pmpicomm = AMMPI_malloc(sizeof(MPI_Comm));
   *(ep->pmpicomm) = currentComm;
   currentComm = MPI_COMM_NULL;
 
@@ -125,14 +125,14 @@ static int AMMPI_AllocateEndpointBuffers(ep_t ep) {
   numBufs = ep->depth;
 
   /* compressed translation table */
-  ep->perProcInfo = (ammpi_perproc_info_t *)malloc(ep->totalP * sizeof(ammpi_perproc_info_t));
+  ep->perProcInfo = (ammpi_perproc_info_t *)AMMPI_malloc(ep->totalP * sizeof(ammpi_perproc_info_t));
   if (ep->perProcInfo == NULL) return FALSE;
   memset(ep->perProcInfo, 0, ep->totalP * sizeof(ammpi_perproc_info_t));
 
   #if AMMPI_PREPOST_RECVS 
     /* setup recv buffers */
-    ep->rxBuf = (ammpi_buf_t *)malloc(numBufs * sizeof(ammpi_buf_t));
-    ep->rxHandle = (MPI_Request *)malloc(numBufs * sizeof(MPI_Request));
+    ep->rxBuf = (ammpi_buf_t *)AMMPI_malloc(numBufs * sizeof(ammpi_buf_t));
+    ep->rxHandle = (MPI_Request *)AMMPI_malloc(numBufs * sizeof(MPI_Request));
     if (ep->rxBuf == NULL || ep->rxHandle == NULL) return FALSE;
     AMMPI_assert(((uintptr_t)ep->rxBuf) % 8 == 0);
     ep->rxNumBufs = numBufs;
@@ -161,10 +161,10 @@ static int AMMPI_AllocateEndpointBuffers(ep_t ep) {
 static int AMMPI_FreeEndpointResource(ep_t ep) {
   AMMPI_assert(ep);
   AMMPI_assert(ep->translation);
-  free(ep->translation);
+  AMMPI_free(ep->translation);
   ep->translation = NULL;
   AMMPI_assert(ep->pmpicomm);
-  free(ep->pmpicomm);
+  AMMPI_free(ep->pmpicomm);
   ep->pmpicomm = NULL;
   return TRUE;
   }
@@ -173,7 +173,7 @@ static int AMMPI_FreeEndpointBuffers(ep_t ep) {
   int retval = TRUE;
   AMMPI_assert(ep);
 
-  free(ep->perProcInfo);
+  AMMPI_free(ep->perProcInfo);
   ep->perProcInfo = NULL;
 
   #if AMMPI_PREPOST_RECVS 
@@ -199,10 +199,10 @@ static int AMMPI_FreeEndpointBuffers(ep_t ep) {
     }  
 
 
-    free(ep->rxBuf);
+    AMMPI_free(ep->rxBuf);
     ep->rxBuf = NULL;
 
-    free(ep->rxHandle);
+    AMMPI_free(ep->rxHandle);
     ep->rxHandle = NULL;
 
     ep->rxNumBufs = 0;
@@ -224,12 +224,12 @@ static int AMMPI_initSendBufferPool(ammpi_sendbuffer_pool_t* pool, int count, in
   int i;
   AMMPI_assert(pool && count > 0 && bufsize > 0);
   AMMPI_assert(bufsize % sizeof(int) == 0);
-  pool->txHandle = (MPI_Request *)malloc(count*sizeof(MPI_Request));
-  pool->txBuf = (ammpi_buf_t**)malloc(count*sizeof(ammpi_buf_t*)); 
-  tmp = (char*)malloc(count*bufsize);
-  pool->memBlocks = (char **)malloc(sizeof(char *));
-  pool->tmpIndexArray = (int *)malloc(count * sizeof(int));
-  pool->tmpStatusArray = (MPI_Status *)malloc(count * sizeof(MPI_Status));
+  pool->txHandle = (MPI_Request *)AMMPI_malloc(count*sizeof(MPI_Request));
+  pool->txBuf = (ammpi_buf_t**)AMMPI_malloc(count*sizeof(ammpi_buf_t*)); 
+  tmp = (char*)AMMPI_malloc(count*bufsize);
+  pool->memBlocks = (char **)AMMPI_malloc(sizeof(char *));
+  pool->tmpIndexArray = (int *)AMMPI_malloc(count * sizeof(int));
+  pool->tmpStatusArray = (MPI_Status *)AMMPI_malloc(count * sizeof(MPI_Status));
   if (!tmp || !pool->txHandle || !pool->txBuf || 
       !pool->memBlocks || !pool->tmpIndexArray || !pool->tmpStatusArray) 
     return FALSE; /* out of mem */
@@ -318,18 +318,18 @@ static int AMMPI_freeSendBufferPool(ammpi_sendbuffer_pool_t* pool) {
   }  
   
   /* free the mem */
-  free(pool->txHandle);
+  AMMPI_free(pool->txHandle);
   pool->txHandle = NULL;
-  free(pool->txBuf);
+  AMMPI_free(pool->txBuf);
   pool->txBuf = NULL;
-  free(pool->tmpIndexArray);
+  AMMPI_free(pool->tmpIndexArray);
   pool->tmpIndexArray = NULL;
-  free(pool->tmpStatusArray);
+  AMMPI_free(pool->tmpStatusArray);
   pool->tmpStatusArray = NULL;
   { int i;
     for (i=0; i < pool->numBlocks; i++) 
-      free(pool->memBlocks[i]);
-    free(pool->memBlocks);
+      AMMPI_free(pool->memBlocks[i]);
+    AMMPI_free(pool->memBlocks);
     pool->memBlocks = NULL;
   }
 
@@ -444,12 +444,12 @@ tryagain:
   }
   else { /* replies cannot poll - grow the pool (yuk) */
     int newnumBufs = pool->numBufs * 2;
-    MPI_Request *newtxHandle = (MPI_Request *)malloc(newnumBufs*sizeof(MPI_Request));
-    ammpi_buf_t**newtxBuf = (ammpi_buf_t**)malloc(newnumBufs*sizeof(ammpi_buf_t*));
-    char **newmemBlocks = (char **)malloc(sizeof(char *)*(pool->numBlocks+1));
-    char* newBlock = (char*)malloc(pool->numBufs*pool->bufSize);
-    int * newtmpIndexArray = (int *)malloc(newnumBufs * sizeof(int));
-    MPI_Status *newtmpStatusArray = (MPI_Status *)malloc(newnumBufs * sizeof(MPI_Status));
+    MPI_Request *newtxHandle = (MPI_Request *)AMMPI_malloc(newnumBufs*sizeof(MPI_Request));
+    ammpi_buf_t**newtxBuf = (ammpi_buf_t**)AMMPI_malloc(newnumBufs*sizeof(ammpi_buf_t*));
+    char **newmemBlocks = (char **)AMMPI_malloc(sizeof(char *)*(pool->numBlocks+1));
+    char* newBlock = (char*)AMMPI_malloc(pool->numBufs*pool->bufSize);
+    int * newtmpIndexArray = (int *)AMMPI_malloc(newnumBufs * sizeof(int));
+    MPI_Status *newtmpStatusArray = (MPI_Status *)AMMPI_malloc(newnumBufs * sizeof(MPI_Status));
     int i;
 
     if (!newtxHandle || !newtxBuf || !newmemBlocks || !newBlock || 
@@ -472,15 +472,15 @@ tryagain:
       newtxHandle[i] = MPI_REQUEST_NULL;
     }
 
-    free(pool->txHandle);
+    AMMPI_free(pool->txHandle);
     pool->txHandle = newtxHandle;
-    free(pool->txBuf);
+    AMMPI_free(pool->txBuf);
     pool->txBuf = newtxBuf;
-    free(pool->memBlocks);
+    AMMPI_free(pool->memBlocks);
     pool->memBlocks = newmemBlocks;
-    free(pool->tmpIndexArray);
+    AMMPI_free(pool->tmpIndexArray);
     pool->tmpIndexArray = newtmpIndexArray;
-    free(pool->tmpStatusArray);
+    AMMPI_free(pool->tmpStatusArray);
     pool->tmpStatusArray = newtmpStatusArray;
 
     pool->numBlocks++;
@@ -508,7 +508,7 @@ extern int AM_Init() {
     /* check system attributes */
     AMMPI_assert(sizeof(int8_t) == 1);
     AMMPI_assert(sizeof(uint8_t) == 1);
-    #if !defined(CRAYT3E)
+    #ifndef INTTYPES_16BIT_MISSING
       AMMPI_assert(sizeof(int16_t) == 2);
       AMMPI_assert(sizeof(uint16_t) == 2);
     #endif
@@ -527,7 +527,7 @@ extern int AM_Init() {
     AMMPI_assert(sizeof(ammpi_buf_t) % 8 == 0); /* needed for payload alignment */
 
     { char *buffer;
-      buffer = (char *)malloc(AMMPI_SENDBUFFER_SZ);
+      buffer = (char *)AMMPI_malloc(AMMPI_SENDBUFFER_SZ);
       MPI_SAFE(MPI_Buffer_attach(buffer, AMMPI_SENDBUFFER_SZ));
     }
   }
@@ -552,7 +552,7 @@ extern int AM_Terminate() {
     { char *buffer= NULL;
       int sz = 0;
       if (!MPI_SAFE_NORETURN(MPI_Buffer_detach(&buffer, &sz))) retval = AM_ERR_RESOURCE;
-      free(buffer);
+      AMMPI_free(buffer);
     }
   }
 
@@ -570,8 +570,8 @@ extern int AM_AllocateBundle(int type, eb_t *endb) {
   if (AMMPI_numBundles == AMMPI_MAX_BUNDLES-1) AMMPI_RETURN_ERR(RESOURCE);
   if (!endb) AMMPI_RETURN_ERR(BAD_ARG);
 
-  eb = (eb_t)malloc(sizeof(struct ammpi_eb));
-  eb->endpoints = (ep_t *)malloc(AMMPI_INITIAL_NUMENDPOINTS*sizeof(ep_t));
+  eb = (eb_t)AMMPI_malloc(sizeof(struct ammpi_eb));
+  eb->endpoints = (ep_t *)AMMPI_malloc(AMMPI_INITIAL_NUMENDPOINTS*sizeof(ep_t));
   eb->cursize = AMMPI_INITIAL_NUMENDPOINTS;
   eb->n_endpoints = 0;
   eb->event_mask = AM_NOEVENTS;
@@ -603,8 +603,8 @@ extern int AM_FreeBundle(eb_t bundle) {
     AMMPI_assert(i < AMMPI_numBundles);
     AMMPI_numBundles--;
 
-    free(bundle->endpoints);
-    free(bundle);
+    AMMPI_free(bundle->endpoints);
+    AMMPI_free(bundle);
     }
   return AM_OK;
   }
@@ -619,12 +619,12 @@ extern int AM_AllocateEndpoint(eb_t bundle, ep_t *endp, en_t *endpoint_name) {
   if (currentComm == MPI_COMM_NULL) 
     AMMPI_RETURN_ERRFR(RESOURCE, AM_AllocateEndpoint, "required AMMPI_SetEndpointCommunicator() has not been called");
 
-  ep = (ep_t)malloc(sizeof(struct ammpi_ep));
+  ep = (ep_t)AMMPI_malloc(sizeof(struct ammpi_ep));
   if (!ep) AMMPI_RETURN_ERRFR(RESOURCE, AM_AllocateEndpoint, "out of memory");
 
   retval = AMMPI_AllocateEndpointResource(ep);
   if (retval != AM_OK) {
-    free(ep);
+    AMMPI_free(ep);
     AMMPI_RETURN(retval);
     }
 
@@ -666,7 +666,7 @@ extern int AM_FreeEndpoint(ep_t ea) {
   if (!AMMPI_FreeEndpointBuffers(ea)) retval = AM_ERR_RESOURCE;
 
   AMMPI_RemoveEndpoint(ea->eb, ea);
-  free(ea);
+  AMMPI_free(ea);
   AMMPI_RETURN(retval);
   }
 /* ------------------------------------------------------------------------------------ */
@@ -810,12 +810,12 @@ extern int AM_SetNumTranslations(ep_t ea, int ntrans) {
     if (ea->translation[i].inuse) 
       AMMPI_RETURN_ERR(RESOURCE); /* it's an error to truncate away live maps */
   }
-  temp = calloc(sizeof(ammpi_translation_t), ntrans);
+  temp = AMMPI_calloc(sizeof(ammpi_translation_t), ntrans);
   if (!temp) AMMPI_RETURN_ERR(RESOURCE);
   /* we may be growing or truncating the table */
   memcpy(temp, ea->translation, 
          sizeof(ammpi_translation_t)*MIN(ea->translationsz,ntrans));
-  free(ea->translation);
+  AMMPI_free(ea->translation);
   ea->translation = temp;
   ea->translationsz = ntrans;
 

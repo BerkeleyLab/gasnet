@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2004/09/08 09:25:22 $
- * $Revision: 1.19 $
+ *     $Date: 2005/04/04 03:32:45 $
+ * $Revision: 1.19.4.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -68,7 +68,7 @@ void gasnete_ambarrier_init(void)
   gasneti_assert(ambarrier_size < 0);
 
   /* determine barrier size (number of steps) */
-  for (i=0, j=1; j < gasnete_nodes; ++i, j*=2) ;
+  for (i=0, j=1; j < gasneti_nodes; ++i, j*=2) ;
 
   ambarrier_size = i;
   gasneti_assert (ambarrier_size <= GASNETE_AMBARRIER_MAXSTEP);
@@ -105,7 +105,7 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
 static void gasnete_ambarrier_kick() {
   int phase = ambarrier_phase;
   int step = ambarrier_step;
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   if_pt (step != ambarrier_size) {
     if (ambarrier_step_done[phase][step]) {
@@ -126,10 +126,10 @@ static void gasnete_ambarrier_kick() {
 	gasnet_handlerarg_t value = ambarrier_value;
 	gasnet_handlerarg_t flags = ambarrier_flags;
 
-	/* No need for a full mod because worst case is < 2*gasnete_nodes.
+	/* No need for a full mod because worst case is < 2*gasneti_nodes.
 	 * However, we must take care for overflow if we try to do the
 	 * arithmetic in gasnet_node_t.  An example is gasnet_node_t
-	 * of uint8_t and gasnete_nodes=250 nodes.  The largest value of
+	 * of uint8_t and gasneti_nodes=250 nodes.  The largest value of
 	 * gasnet_mynode is 249 and the largest value of 2^step is 128.
 	 * We can't compute (249 + 128) mod 250 in 8-bit arithmetic.
 	 * If we are using GASNET_MAXNODES <= INT_MAX then we can
@@ -143,10 +143,10 @@ static void gasnete_ambarrier_kick() {
 	  #else
 	    uint64_t tmp;
 	  #endif
-	  tmp = (1 << step) + gasnete_mynode;
-	  peer = (tmp >= gasnete_nodes) ? (tmp - gasnete_nodes)
+	  tmp = (1 << step) + gasneti_mynode;
+	  peer = (tmp >= gasneti_nodes) ? (tmp - gasneti_nodes)
                                         : tmp;
-	  gasneti_assert(peer < gasnete_nodes);
+	  gasneti_assert(peer < gasneti_nodes);
 	}
 
 	if ((ambarrier_flags & GASNET_BARRIERFLAG_ANONYMOUS) &&
@@ -159,7 +159,7 @@ static void gasnete_ambarrier_kick() {
 	  value = ambarrier_recv_value[phase];
 	}
 
-        GASNETE_SAFE(
+        GASNETI_SAFE(
           gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                                  phase, step, value, flags));
       }
@@ -189,10 +189,10 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
   ambarrier_phase = phase;
   ambarrier_step = 0;
 
-  if (gasnete_nodes > 1) {
+  if (gasneti_nodes > 1) {
     /*  send notify msg to peer */
-    gasnet_node_t peer = ((gasnete_mynode + 1) < gasnete_nodes) ? (gasnete_mynode + 1) : 0;
-    GASNETE_SAFE(
+    gasnet_node_t peer = ((gasneti_mynode + 1) < gasneti_nodes) ? (gasneti_mynode + 1) : 0;
+    GASNETI_SAFE(
       gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                              phase, 0, id, flags));
   } else {
@@ -304,7 +304,7 @@ static int volatile ambarrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if w
 
 /*  global state on P0 */
 #ifndef GASNETE_AMBARRIER_MASTER
-  #define GASNETE_AMBARRIER_MASTER (gasnete_nodes-1)
+  #define GASNETE_AMBARRIER_MASTER (gasneti_nodes-1)
 #endif
 static gasnet_hsl_t ambarrier_lock = GASNET_HSL_INITIALIZER;
 static int volatile ambarrier_consensus_value[2]; /*  consensus ambarrier value */
@@ -318,7 +318,7 @@ void gasnete_ambarrier_init(void) {
 
 static void gasnete_ambarrier_notify_reqh(gasnet_token_t token, 
   gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  gasneti_assert(gasnete_mynode == GASNETE_AMBARRIER_MASTER);
+  gasneti_assert(gasneti_mynode == GASNETE_AMBARRIER_MASTER);
 
   gasnet_hsl_lock(&ambarrier_lock);
   { int count = ambarrier_count[phase];
@@ -332,7 +332,7 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
       ambarrier_consensus_mismatch[phase] = 1;
     }
     count++;
-    if (count == gasnete_nodes) gasneti_sync_writes(); /* about to signal, ensure we flush state */
+    if (count == gasneti_nodes) gasneti_sync_writes(); /* about to signal, ensure we flush state */
     ambarrier_count[phase] = count;
   }
   gasnet_hsl_unlock(&ambarrier_lock);
@@ -350,19 +350,19 @@ static void gasnete_ambarrier_done_reqh(gasnet_token_t token,
 /*  make some progress on the ambarrier */
 static void gasnete_ambarrier_kick() {
   int phase = ambarrier_phase;
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
-  if (gasnete_mynode != GASNETE_AMBARRIER_MASTER) return;
+  if (gasneti_mynode != GASNETE_AMBARRIER_MASTER) return;
 
   /*  master does all the work */
-  if (ambarrier_count[phase] == gasnete_nodes) {
+  if (ambarrier_count[phase] == gasneti_nodes) {
     /*  ambarrier is complete */
     int i;
     int mismatch = ambarrier_consensus_mismatch[phase];
 
     /*  inform the nodes */
-    for (i=0; i < gasnete_nodes; i++) {
-      GASNETE_SAFE(
+    for (i=0; i < gasneti_nodes; i++) {
+      GASNETI_SAFE(
         gasnet_AMRequestShort2(i, gasneti_handleridx(gasnete_ambarrier_done_reqh), 
                              phase, mismatch));
     }
@@ -394,9 +394,9 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
   phase = !ambarrier_phase; /*  enter new phase */
   ambarrier_phase = phase;
 
-  if (gasnete_nodes > 1) {
+  if (gasneti_nodes > 1) {
     /*  send notify msg to 0 */
-    GASNETE_SAFE(
+    GASNETI_SAFE(
       gasnet_AMRequestShort3(GASNETE_AMBARRIER_MASTER, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                            phase, ambarrier_value, flags));
   } else {

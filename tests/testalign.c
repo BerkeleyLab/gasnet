@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testalign.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.9 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.9.2.1 $
  * Description: GASNet get/put alignment-sensitivity test
  *   measures flood throughput of GASNet gets and puts
  *   over varying payload alignments and fixed payload size
@@ -258,11 +258,11 @@ int main(int argc, char **argv)
     int arg;
     int iters = 0;
     int size = 0;
-    int i, j;
+    int j;
    
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
-    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     TEST_DEBUGPERFORMANCE_WARNING();
 
     /* parse arguments (we could do better) */
@@ -298,7 +298,9 @@ int main(int argc, char **argv)
       MSG("WARNING: This test requires an even number of threads. Test skipped.\n");
       gasnet_exit(0); /* exit 0 to prevent false negatives in test harnesses for smp-conduit */
     }
-    
+
+    if (!myproc)
+	print_testname("testalign", numprocs);
     
     /* Setting peer thread rank */
     peerproc = (myproc % 2) ? (myproc - 1) : (myproc + 1);
@@ -320,6 +322,7 @@ int main(int argc, char **argv)
       for (j = 1; j <= PAGESZ; j *= 2) oneway_nbi_test(iters, size, j);
       for (j = 1; j <= PAGESZ; j *= 2) oneway_nb_test(iters, size, j);
 
+    BARRIER();
     gasnet_exit(0);
 
     return 0;

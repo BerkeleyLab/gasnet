@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcore1.c,v $
- * $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.13 $
+ * $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.13.2.1 $
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  *
@@ -100,7 +100,6 @@ void
 monoseed_init(int num)
 {
 	int 		i;
-	uint64_t	chksum;
 
 	if (myproc % 2 == 0) {
 		_mseed = (monoseed_t *) test_malloc(sizeof(monoseed_t) * num);
@@ -198,8 +197,6 @@ void
 chksum_reph(gasnet_token_t token, 
 	void *buf, size_t nbytes, gasnet_handlerarg_t iter) 
 {
-	uint64_t	chksum;
-
 	gasnett_atomic_increment(&chksum_received);
 	assert(iter < chksum_iters && iter >= 0);
 	assert(nbytes == CHKSUM_TOTAL);
@@ -229,7 +226,7 @@ main(int argc, char **argv)
 
 	/* call startup */
         GASNET_Safe(gasnet_init(&argc, &argv));
-        GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), TEST_SEGSZ, TEST_MINHEAPOFFSET));
+        GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 
         assert(CHKSUM_TOTAL <= gasnet_AMMaxMedium());
 
@@ -246,6 +243,8 @@ main(int argc, char **argv)
 	chksum_iters = iters;
 	myproc = gasnet_mynode();
 	numprocs = gasnet_nodes();
+	if (!gasnet_mynode())
+	    print_testname("testcore1", gasnet_nodes());
         /* Only allow even number for numprocs */
         if (numprocs % 2 != 0) {
           MSG("WARNING: This test requires an even number of threads. Test skipped.\n");

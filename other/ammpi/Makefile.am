@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.am,v $
-#     $Date: 2004/10/19 04:41:53 $
-# $Revision: 1.23 $
+#     $Date: 2005/04/04 03:32:59 $
+# $Revision: 1.23.2.1 $
 # Description: Makefile for AMMPI/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -86,7 +86,7 @@ test%: test%.o apputils.o libammpi.a
 	$(link) -o $@ $< apputils.o -L. -lammpi $(linkend)
 
 TEST_NODES=2
-AMMPI_RUNCMD=mpirun -np $(TEST_NODES)
+AMMPI_RUNCMD=`echo "@MPIRUN_CMD@" | sed 's/%N/$(TEST_NODES)/;s/%C//;s/%P//;s/%A//'`
 TEST_RUNCMD=$(AMMPI_RUNCMD)
 TEST_ITERS=100
 TEST_MODE=P

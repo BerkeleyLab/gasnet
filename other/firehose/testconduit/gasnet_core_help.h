@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/testconduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2004/08/26 04:53:59 $
- * $Revision: 1.3 $
+ *     $Date: 2005/04/04 03:33:09 $
+ * $Revision: 1.3.10.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,9 +15,6 @@
 BEGIN_EXTERNC
 
 #include <gasnet_help.h>
-
-extern gasnet_node_t 		gasnetc_mynode;
-extern gasnet_node_t 		gasnetc_nodes;
 
 END_EXTERNC
 

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v $
-#     $Date: 2004/10/09 14:54:14 $
-# $Revision: 1.7 $
+#     $Date: 2005/04/04 03:33:17 $
+# $Revision: 1.7.2.1 $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -54,6 +54,8 @@ CONDUIT_SPECIAL_OBJS =
 #   %N = requested node count
 #   %A = program arguments
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/sci-conduit/contrib/gasnetrun_sci -n %N -spawn ssh -machines $(srcdir)/contrib/machines.sci %P %A
+
+CONDUIT_TEST_MAKEARGS = CONDUIT_TESTPARAMS="testlarge_args=\"1000 1048576\""
 
 # -------- Do not modify anything below this line --------
 

@@ -1,13 +1,12 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2004/10/13 00:18:47 $
- * $Revision: 1.75 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.75.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
@@ -22,13 +21,8 @@ GASNETI_IDENT(gasnetc_IdentString_Version,
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, 
 		"$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
-gasnet_node_t	gasnetc_mynode = (gasnet_node_t)-1;
-gasnet_node_t	gasnetc_nodes = 0;
-uintptr_t	gasnetc_MaxLocalSegmentSize = 0;
-uintptr_t	gasnetc_MaxGlobalSegmentSize = 0;
 uintptr_t	gasnetc_MaxPinnableMemory = 0;
 
-gasnet_seginfo_t *gasnetc_seginfo = NULL;
 firehose_info_t	  gasnetc_firehose_info;
 
 gasneti_mutex_t gasnetc_lock_gm      = GASNETI_MUTEX_INITIALIZER;
@@ -83,7 +77,7 @@ gasnetc_init(int *argc, char ***argv)
 	#endif
 
 	gasnetc_registerSysHandlers();
-	gasnetc_getconf();
+	gasnetc_getconf(argc, argv);
 	gasnetc_AllocPinnedBufs();
 	gasnetc_AllocGatherBufs();
 
@@ -103,7 +97,7 @@ gasnetc_init(int *argc, char ***argv)
 		float pm_ratio;
 		char *env_ratio;
 		uintptr_t *global_exch = (uintptr_t *)
-		    gasneti_malloc(gasnetc_nodes*sizeof(uintptr_t));
+		    gasneti_malloc(gasneti_nodes*sizeof(uintptr_t));
 
 		env_ratio = gasneti_getenv_withdefault(
 			"GASNET_PHYSMEM_PINNABLE_RATIO", 
@@ -121,7 +115,7 @@ gasnetc_init(int *argc, char ***argv)
 		gasnetc_bootstrapExchange(
 		    &gasnetc_MaxPinnableMemory, sizeof(uintptr_t), global_exch);
 
-		for (i = 0; i < gasnetc_nodes; i++) 
+		for (i = 0; i < gasneti_nodes; i++) 
 		    gasnetc_MaxPinnableMemory = 
 			MIN(gasnetc_MaxPinnableMemory, global_exch[i]);
 		gasneti_free(global_exch);
@@ -134,27 +128,12 @@ gasnetc_init(int *argc, char ***argv)
 		#endif
 	}
 
-	#if defined(GASNET_SEGMENT_FAST) 
-	gasneti_segmentInit(
-	    &gasnetc_MaxLocalSegmentSize,
-	    &gasnetc_MaxGlobalSegmentSize,
-	    max_segmentsize,
-            gasnetc_nodes,
-            &gasnetc_bootstrapExchange);
-
-	#elif defined(GASNET_SEGMENT_LARGE)
-	gasneti_segmentInit(
-	    &gasnetc_MaxLocalSegmentSize,
-	    &gasnetc_MaxGlobalSegmentSize,
-	    max_segmentsize,
-	    gasnetc_nodes,
-	    &gasnetc_bootstrapExchange);
-
+        #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+	  gasneti_segmentInit(max_segmentsize, &gasnetc_bootstrapExchange);
 	#elif GASNET_SEGMENT_EVERYTHING
-		gasnetc_MaxLocalSegmentSize =  (uintptr_t)-1;
-		gasnetc_MaxGlobalSegmentSize = (uintptr_t)-1;
+          /* segment is everything - nothing to do */
 	#else
-		#error Bad segment config
+	  #error Bad segment config
 	#endif
 
 	/* Handler for non-collective returns from main() */
@@ -163,23 +142,13 @@ gasnetc_init(int *argc, char ***argv)
 	gasneti_init_done = 1;
 	gasneti_trace_init(*argc, *argv);
 
+        gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+
 	#if GASNET_DEBUG_VERBOSE
-	printf("%d> done init\n", gasnetc_mynode);
+	printf("%d> done init\n", gasneti_mynode);
 	fflush(stdout);
 	#endif
 	return GASNET_OK;
-}
-
-extern uintptr_t gasnetc_getMaxLocalSegmentSize() 
-{
-	GASNETI_CHECKINIT();
-	return gasnetc_MaxLocalSegmentSize;
-}
-
-extern uintptr_t gasnetc_getMaxGlobalSegmentSize() 
-{
-	GASNETI_CHECKINIT();
-	return gasnetc_MaxGlobalSegmentSize;
 }
 /* ------------------------------------------------------------------------------------ */
 static char checkuniqhandler[256] = { 0 };
@@ -275,7 +244,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	int i = 0, fidx = 0;
 
 	#if GASNET_DEBUG_VERBOSE
-	printf("%d> starting attach\n", gasnetc_mynode);
+	printf("%d> starting attach\n", gasneti_mynode);
 	fflush(stdout);
 	#endif
 
@@ -292,7 +261,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
         #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
 	if ((segsize % GASNET_PAGESIZE) != 0) 
 		GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
-	if (segsize > gasnetc_getMaxLocalSegmentSize()) 
+	if (segsize > gasneti_MaxLocalSegmentSize) 
 		GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
 	minheapoffset = 
 	    GASNETI_ALIGNUP(minheapoffset, GASNETC_SEGMENT_ALIGN);
@@ -300,6 +269,9 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	segsize = 0;
 	minheapoffset = 0;
 	#endif
+
+        segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
+
 	/*  register handlers */
 	gasnetc_AM_InitHandler();
 
@@ -402,11 +374,11 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	/* -------------------------------------------------------------------- */
 	/*  register segment  */
 
-	gasnetc_seginfo = (gasnet_seginfo_t *)
-	    gasneti_calloc(gasnetc_nodes, sizeof(gasnet_seginfo_t));
+	gasneti_seginfo = (gasnet_seginfo_t *)
+	    gasneti_calloc(gasneti_nodes, sizeof(gasnet_seginfo_t));
 
 	#if GASNET_DEBUG_VERBOSE
-	printf("%d> before firehose init\n", gasnetc_mynode);
+	printf("%d> before firehose init\n", gasneti_mynode);
 	fflush(stdout);
 	#endif
 	#if defined(GASNET_SEGMENT_FAST) 
@@ -416,12 +388,12 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 
 		if (segsize > 0) {
 			gasneti_segmentAttach(segsize, minheapoffset,
-					gasnetc_seginfo,
+					gasneti_seginfo,
 					&gasnetc_bootstrapExchange);
 
 			prereg.addr = (uintptr_t) 
-				gasnetc_seginfo[gasnetc_mynode].addr;
-			prereg.len = gasnetc_seginfo[gasnetc_mynode].size;
+				gasneti_seginfo[gasneti_mynode].addr;
+			prereg.len = gasneti_seginfo[gasneti_mynode].size;
 
 			if (gm_register_memory(_gmc.port, 
 			    (void *) prereg.addr, prereg.len) != GM_SUCCESS)
@@ -440,12 +412,12 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 		#if defined(GASNET_SEGMENT_LARGE)
 		if (segsize > 0) {
 			gasneti_segmentAttach(segsize, minheapoffset, 
-			    gasnetc_seginfo, &gasnetc_bootstrapExchange);
+			    gasneti_seginfo, &gasnetc_bootstrapExchange);
 		}
 		#else
-		    for (i=0;i<gasnetc_nodes;i++) {
-			gasnetc_seginfo[i].addr = (void *)0;
-			gasnetc_seginfo[i].size = (uintptr_t)-1;
+		    for (i=0;i<gasneti_nodes;i++) {
+			gasneti_seginfo[i].addr = (void *)0;
+			gasneti_seginfo[i].size = (uintptr_t)-1;
 		    }
 		#endif
 
@@ -455,10 +427,10 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	#endif
 
         #if GASNET_TRACE
-	for (i = 0; i < gasnetc_nodes; i++)
+	for (i = 0; i < gasneti_nodes; i++)
 		GASNETI_TRACE_PRINTF(C, ("SEGINFO at %4d ("GASNETI_LADDRFMT", %d)", i,
-		    GASNETI_LADDRSTR(gasnetc_seginfo[i].addr), 
-		    (unsigned int) gasnetc_seginfo[i].size) );
+		    GASNETI_LADDRSTR(gasneti_seginfo[i].addr), 
+		    (unsigned int) gasneti_seginfo[i].size) );
 	#endif
 
 	/* -------------------------------------------------------------------- */
@@ -509,6 +481,8 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
 
 	gasnetc_bootstrapBarrier();
+        gasneti_auxseg_attach(); /* provide auxseg */
+
 	gasnete_init();
 	gasnetc_bootstrapBarrier();
 
@@ -546,11 +520,11 @@ gasnetc_exit_old(int exitcode)
 
 	#if defined(GASNET_SEGMENT_FAST)
 	if (gasneti_attach_done && gm_deregister_memory(_gmc.port, 
-	    (void *) gasnetc_seginfo[gasnetc_mynode].addr,
-	    gasnetc_seginfo[gasnetc_mynode].size) != GM_SUCCESS)
+	    (void *) gasneti_seginfo[gasneti_mynode].addr,
+	    gasneti_seginfo[gasneti_mynode].size) != GM_SUCCESS)
 		fprintf(stderr, 
 		    "%d> Couldn't deregister prepinned segment",
-		    gasnetc_mynode);
+		    gasneti_mynode);
 	#endif	
 
 	gasnetc_DestroyPinnedBufs();
@@ -628,7 +602,7 @@ gasnetc_SysExitRole_reqh(gasnet_token_t token, void *nop, size_t nsz)
   int rc;
 
   /* May only send this request to the root node */
-  gasneti_assert(gasnetc_mynode == GASNETC_ROOT_NODE);	
+  gasneti_assert(gasneti_mynode == GASNETC_ROOT_NODE);	
   
   /* What role would the local node get if the requester is made the master? */
   rc = gasnet_AMGetMsgSource(token, &src);
@@ -764,7 +738,7 @@ static void gasnetc_exit_now(int exitcode) {
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n", 
-      gasnetc_mynode, gasnetc_nodes); fflush(stderr);
+      gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
   gasneti_killmyprocess(exitcode);
   /* NOT REACHED */
@@ -849,8 +823,8 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   start_time = gasneti_getMicrosecondTimeStamp();
 
   /* Notify phase */
-  for (i = 0; i < gasnetc_nodes; ++i) {
-    if (i == gasnetc_mynode) continue;
+  for (i = 0; i < gasneti_nodes; ++i) {
+    if (i == gasneti_mynode) continue;
 
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
@@ -861,7 +835,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   }
 
   /* Wait phase - wait for replies from our N-1 peers */
-  while (gasneti_atomic_read(&gasnetc_exit_reps) < (gasnetc_nodes - 1)) {
+  while (gasneti_atomic_read(&gasnetc_exit_reps) < (gasneti_nodes - 1)) {
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
     gasneti_AMPoll();
@@ -977,7 +951,7 @@ static void gasnetc_exit_body(void) {
   role = gasnetc_get_exit_role();
 
   /* Attempt a coordinated shutdown */
-  timeout_us = 2000000 + gasnetc_nodes*250000; /* 2s + 0.25s * nodes */
+  timeout_us = 2000000 + gasneti_nodes*250000; /* 2s + 0.25s * nodes */
   alarm(1 + timeout_us/1000000);
   switch (role) {
   case GASNETC_EXIT_ROLE_MASTER:
@@ -1007,11 +981,11 @@ static void gasnetc_exit_body(void) {
   {
 	#if defined(GASNET_SEGMENT_FAST)
 	if (gasneti_attach_done && gm_deregister_memory(_gmc.port, 
-	    (void *) gasnetc_seginfo[gasnetc_mynode].addr,
-	    gasnetc_seginfo[gasnetc_mynode].size) != GM_SUCCESS)
+	    (void *) gasneti_seginfo[gasneti_mynode].addr,
+	    gasneti_seginfo[gasneti_mynode].size) != GM_SUCCESS)
 		fprintf(stderr, 
 		    "%d> Couldn't deregister prepinned segment",
-		    gasnetc_mynode);
+		    gasneti_mynode);
 	#endif	
 
 	/*
@@ -1046,12 +1020,19 @@ static void gasnetc_exit_body(void) {
   alarm(10);
   {
     if (graceful) {
-	/* XXX */
+	#ifdef GASNETC_GM_MPI_COMPAT
+	if (!(getenv("GASNET_GASNETRUN_GM")))
+	  gasneti_bootstrapFini();
+	#endif
     } else {
-      /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
-      gasneti_reghandler(SIGABRT, SIG_DFL);
-      abort();
-      /* NOT REACHED */
+	#ifdef GASNETC_GM_MPI_COMPAT
+	  gasneti_bootstrapAbort(exitcode);
+	#else
+	  /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
+	  gasneti_reghandler(SIGABRT, SIG_DFL);
+	  abort();
+	  /* NOT REACHED */
+	#endif
     }
   }
 
@@ -1193,28 +1174,6 @@ extern void gasnetc_exit(int exitcode) {
   /* NOT REACHED */
 }
 
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Job Environment Queries
-  =======================
-*/
-extern int 
-gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
-	GASNETI_CHECKINIT();
-        gasneti_assert(seginfo_table);
-        gasneti_memcheck(gasnetc_seginfo);
-
-	if (!gasneti_attach_done) GASNETI_RETURN_ERR(NOT_INIT);
-	if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
-
-	memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
-	memcpy(seginfo_table, gasnetc_seginfo, 
-			numentries*sizeof(gasnet_seginfo_t));
-
-	return GASNET_OK;
-}
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Misc. Core handlers
@@ -1242,13 +1201,13 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 
   bufd = (gasnetc_bufdesc_t *) token;
   if ((void *)token == (void *)-1) {
-	  *srcindex = gasnetc_mynode;
+	  *srcindex = gasneti_mynode;
 	  return GASNET_OK;
   }
   if_pf (!bufd->gm_id) GASNETI_RETURN_ERRR(BAD_ARG, "No GM receive event");
   sourceid = bufd->node;
 
-  gasneti_assert(sourceid < gasnetc_nodes);
+  gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;
   return GASNET_OK;
 }
@@ -1270,16 +1229,16 @@ gasnetc_AMRequestShortM(gasnet_node_t dest, gasnet_handler_t handler,
 	GASNETI_CHECKINIT();
 	gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
 
-	if_pf (dest >= gasnetc_nodes) 
+	if_pf (dest >= gasneti_nodes) 
 		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
 	GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
 
 	va_start(argptr, numargs);
 
-	if (dest == gasnetc_mynode) { /* local handler */
+	if (dest == gasneti_mynode) { /* local handler */
 		int argbuf[GASNETC_AM_MAX_ARGS];
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETC_RUN_HANDLER_SHORT(_gmc.handlers[handler], (void *) -1, 
+		GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler], (void *) -1, 
 					  argbuf, numargs);
 	}
 	else {
@@ -1307,22 +1266,23 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_CHECKINIT();
   gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
 
-  if_pf (dest >= gasnetc_nodes)
-	  gasneti_fatalerror("node index too high, dest (%d) >= gasnetc_nodes (%d)\n",
-	    dest, gasnetc_nodes);
+  if_pf (dest >= gasneti_nodes)
+	  gasneti_fatalerror("node index too high, dest (%d) >= gasneti_nodes (%d)\n",
+	    dest, gasneti_nodes);
   if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
   gasneti_assert(nbytes <= GASNETC_AM_MEDIUM_MAX);
   retval = 1;
-  if (dest == gasnetc_mynode) { /* local handler */
+  if (dest == gasneti_mynode) { /* local handler */
     void *loopbuf;
     int argbuf[GASNETC_AM_MAX_ARGS];
-    loopbuf = gasnetc_alloca(nbytes);
+    loopbuf = gasnetc_alloca(nbytes+GASNETI_MEDBUF_ALIGNMENT);
+    loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-    GASNETC_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) -1,
+    GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) -1,
 				argbuf, numargs, loopbuf, nbytes);
   }
   else {
@@ -1458,7 +1418,7 @@ gasnetc_AMRequestLongM_inner(gasnet_node_t node, gasnet_handler_t handler,
 	return;
 }
 
-extern int gasnetc_AMRequestLongM( gasnet_node_t node,        /* destination node */
+extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -1469,29 +1429,25 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t node,        /* destination nod
 
 	GASNETI_CHECKINIT();
   
-	gasnetc_boundscheck(node, dest_addr, nbytes);
 	gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
-
+	if_pf (dest >= gasneti_nodes) 
+		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
 	if_pf (nbytes > gasnet_AMMaxLongRequest()) 
 		GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
-	if_pf (node >= gasnetc_nodes) 
-		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-	if_pf (((uintptr_t)dest_addr)< ((uintptr_t)gasnetc_seginfo[node].addr) ||
-	    ((uintptr_t)dest_addr) + nbytes > 
-	        ((uintptr_t)gasnetc_seginfo[node].addr) + gasnetc_seginfo[node].size) 
-         	GASNETI_RETURN_ERRR(BAD_ARG,"destination address out of segment range");
-	GASNETI_TRACE_AMREQUESTLONG(node,handler,source_addr,nbytes,dest_addr,numargs);
+        if_pf (!gasneti_in_segment(dest, dest_addr, nbytes)) 
+                GASNETI_RETURN_ERRR(BAD_ARG,"destination address out of segment range");
+	GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
 	va_start(argptr, numargs); /*  pass in last argument */
 
 	retval = 1;
 	gasneti_assert(nbytes <= GASNETC_AM_LONG_REQUEST_MAX);
 
-	if (node == gasnetc_mynode) {
+	if (dest == gasneti_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
 
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
 		GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
-		GASNETC_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *) -1, 
+		GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *) -1, 
 		    argbuf, numargs, dest_addr, nbytes);
 	}
 	else {
@@ -1499,20 +1455,20 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t node,        /* destination nod
 		if_pt (nbytes > 0) { /* Handle zero-length messages */
 			const firehose_request_t	*req;
 			
-			req = firehose_try_remote_pin(node, 
+			req = firehose_try_remote_pin(dest, 
 				(uintptr_t) dest_addr, nbytes, 0, NULL);
 
 			if (req != NULL)
-				gasnetc_AMRequestLongM_DMA_inner(node, handler, 
+				gasnetc_AMRequestLongM_DMA_inner(dest, handler, 
 				    source_addr, nbytes, req, 
 				    (uintptr_t) dest_addr, numargs, argptr);
 			else
-				gasnetc_AMRequestLongM_inner(node, handler, 
+				gasnetc_AMRequestLongM_inner(dest, handler, 
 				    source_addr, nbytes, dest_addr, numargs, 
 				    argptr);
 		}
 		else {
-			gasnetc_AMRequestLongM_inner(node, handler, source_addr, 
+			gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
 			    nbytes, dest_addr, numargs, argptr);
 		}
 	}
@@ -1537,19 +1493,13 @@ gasnetc_AMRequestLongAsyncM(
 
 	gasnetc_bufdesc_t	*bufd;
 	GASNETI_CHECKINIT();
-	gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
-	gasnetc_boundscheck(dest, dest_addr, nbytes);
 
         gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
-        if_pf (nbytes > gasnet_AMMaxLongRequest()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
-
-	if_pf (dest >= gasnetc_nodes)
+	if_pf (dest >= gasneti_nodes)
 		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-	if_pf (((uintptr_t)dest_addr)<((uintptr_t)gasnetc_seginfo[dest].addr) ||
-	    ((uintptr_t)dest_addr) + nbytes > 
-	        ((uintptr_t)gasnetc_seginfo[dest].addr)+gasnetc_seginfo[dest].size) 
-		GASNETI_RETURN_ERRR(BAD_ARG,
-		    "destination address out of segment range");
+        if_pf (nbytes > gasnet_AMMaxLongRequest()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
+        if_pf (!gasneti_in_segment(dest, dest_addr, nbytes)) 
+                GASNETI_RETURN_ERRR(BAD_ARG,"destination address out of segment range");
 
 	GASNETI_TRACE_AMREQUESTLONGASYNC(
 		dest,handler,source_addr,nbytes,dest_addr,numargs);
@@ -1557,12 +1507,12 @@ gasnetc_AMRequestLongAsyncM(
 	va_start(argptr, numargs); /*  pass in last argument */
 	retval = 1;
 
-	if (dest == gasnetc_mynode) {
+	if (dest == gasneti_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
 
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
 		GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
-		GASNETC_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *) -1, 
+		GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *) -1, 
 		    argbuf, numargs, dest_addr, nbytes);
 
 		va_end(argptr);
@@ -1640,10 +1590,11 @@ extern int gasnetc_RequestSystem(
   gasneti_assert(nbytes <= GASNETC_AM_MEDIUM_MAX);
 
   retval = 1;
-  if (dest == gasnetc_mynode) { /* local handler */
+  if (dest == gasneti_mynode) { /* local handler */
     void *loopbuf;
     int argbuf[GASNETC_AM_MAX_ARGS];
-    loopbuf = gasnetc_alloca(nbytes);
+    loopbuf = gasnetc_alloca(nbytes+GASNETI_MEDBUF_ALIGNMENT);
+    loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
     GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[handler], (void *) -1,
@@ -1811,7 +1762,7 @@ gasnetc_AMReplyShortM(gasnet_token_t token, gasnet_handler_t handler,
 	if ((void *)token == (void*)-1) { /* local handler */
 		int argbuf[GASNETC_AM_MAX_ARGS];
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETC_RUN_HANDLER_SHORT(_gmc.handlers[handler], 
+		GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler], 
 				(void *) token, argbuf, numargs);
 	}
 	else {
@@ -1852,10 +1803,11 @@ extern int gasnetc_AMReplyMediumM(
   if ((void *)token == (void *)-1) { /* local handler */
     int argbuf[GASNETC_AM_MAX_ARGS];
     void *loopbuf;
-    loopbuf = gasnetc_alloca(nbytes);
+    loopbuf = gasnetc_alloca(nbytes+GASNETI_MEDBUF_ALIGNMENT);
+    loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-    GASNETC_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) token,
+    GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) token,
 				argbuf, numargs, loopbuf, nbytes);
   }
   else {
@@ -1894,15 +1846,12 @@ extern int gasnetc_AMReplyLongM(
 
 	retval = gasnet_AMGetMsgSource(token, &dest);
 	if (retval != GASNET_OK) GASNETI_RETURN(retval);
-	if_pf (dest >= gasnetc_nodes) 
-		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
         gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+	if_pf (dest >= gasneti_nodes) 
+		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
         if_pf (nbytes > gasnet_AMMaxLongReply()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
-	if_pf (((uintptr_t)dest_addr)< ((uintptr_t)gasnetc_seginfo[dest].addr)||
-	    ((uintptr_t)dest_addr) + nbytes > 
-	    ((uintptr_t)gasnetc_seginfo[dest].addr)+gasnetc_seginfo[dest].size)
-		GASNETI_RETURN_ERRR(BAD_ARG,
-		    "destination address out of segment range");
+        if_pf (!gasneti_in_segment(dest, dest_addr, nbytes)) 
+                GASNETI_RETURN_ERRR(BAD_ARG,"destination address out of segment range");
 
 	va_start(argptr, numargs); /*  pass in last argument */
 	GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,
@@ -1914,7 +1863,7 @@ extern int gasnetc_AMReplyLongM(
 		GASNETC_AMTRACE_ReplyLong(Loopbk);
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
 		GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
-		GASNETC_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *)token, 
+		GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *)token, 
 		    argbuf, numargs, dest_addr, nbytes);
 	}
 	else {
@@ -2025,7 +1974,7 @@ gasnetc_AMReplyLongAsyncM(
 
 	retval = gasnet_AMGetMsgSource(token, &dest);
 	if (retval != GASNET_OK) GASNETI_RETURN(retval);
-	if_pf (dest >= gasnetc_nodes) 
+	if_pf (dest >= gasneti_nodes) 
 		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
         gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
 	va_start(argptr, numargs); /*  pass in last argument */
@@ -2052,7 +2001,7 @@ gasnetc_AMReplyLongAsyncM(
 	if_pt (nbytes > 0) {
 		/* Also manage loopback by simply copying to the local
 		 * destination */
-		if_pf (dest == gasnetc_mynode) {
+		if_pf (dest == gasneti_mynode) {
 			GASNETE_FAST_ALIGNED_MEMCPY(
 			    dest_addr, source_addr, nbytes);
 		}
@@ -2104,7 +2053,8 @@ int gasnetc_ReplySystem(
   if ((void *)token == (void *)-1) { /* local handler */
     void *loopbuf;
     int argbuf[GASNETC_AM_MAX_ARGS];
-    loopbuf = gasnetc_alloca(nbytes);
+    loopbuf = gasnetc_alloca(nbytes+GASNETI_MEDBUF_ALIGNMENT);
+    loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
     GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[handler], (void *) token,
@@ -2448,7 +2398,7 @@ gasnetc_AllocGatherBufs()
     size_t  allocsz;
 
     allocsz = MIN(GASNETC_AM_SYSTEM_MAX, 
-		  2*sizeof(gasnet_seginfo_t)*gasnetc_nodes);
+		  2*sizeof(gasnet_seginfo_t)*gasneti_nodes);
 
     gasnetc_bootstrapGather_buf[0] = gasneti_malloc(allocsz);
     gasnetc_bootstrapGather_buf[1] = gasneti_malloc(allocsz);
@@ -2479,7 +2429,7 @@ gasnetc_SysGather_reqh(gasnet_token_t token, void *addr, size_t nbytes,
     gasnet_AMGetMsgSource(token, &node);
 
     /* Only the root runs the request handler */
-    gasneti_assert(gasnetc_mynode == GASNETC_BROADCASTROOT_NODE);
+    gasneti_assert(gasneti_mynode == GASNETC_BROADCASTROOT_NODE);
     /* We only support two phases */
     gasneti_assert(phase == 0 || phase == 1);
 
@@ -2519,7 +2469,7 @@ gasnetc_SysBroadcast_reqh(gasnet_token_t token, void *addr, size_t nbytes,
 
     GASNETC_BOOTTRACE_PRINTF(C, 
 	("AMSystem Broadcast Received (node=%d,phase=%d,nbytes=%d)\n", 
-	 gasnetc_mynode, phase, nbytes));
+	 gasneti_mynode, phase, nbytes));
 }
 
 /*
@@ -2528,7 +2478,7 @@ gasnetc_SysBroadcast_reqh(gasnet_token_t token, void *addr, size_t nbytes,
 void
 gasnetc_SysBroadcastAlloc_reph(gasnet_token_t token, gasnet_handlerarg_t phase)
 {
-    gasneti_assert(gasnetc_mynode == GASNETC_BROADCASTROOT_NODE);
+    gasneti_assert(gasneti_mynode == GASNETC_BROADCASTROOT_NODE);
     gasneti_assert(phase == 0 || phase == 1);
 
     gasnetc_bootstrapGather_allocdone[phase]++;
@@ -2587,7 +2537,7 @@ gasnetc_bootstrapGatherSend(void *data, size_t len)
 	 * buffers contiguously based on the given size will not cause any
 	 * alignment problems.
 	 */
-	exchsz = len * gasnetc_nodes;
+	exchsz = len * gasneti_nodes;
 
 	if (exchsz > GASNETC_AM_SYSTEM_MAX)
 	    gasneti_fatalerror(
@@ -2600,17 +2550,17 @@ gasnetc_bootstrapGatherSend(void *data, size_t len)
 	/* First check if existing buffer is large enough */
 	if (gasnetc_bootstrapGather_bufsz[phase] < exchsz) {
 
-	    if (gasnetc_mynode == GASNETC_BROADCASTROOT_NODE) {
+	    if (gasneti_mynode == GASNETC_BROADCASTROOT_NODE) {
 		/* We need to reallocate the Gather buffer */
 		gasnetc_bootstrapGather_allocdone[phase] = 0;
-		for (i = 0; i < gasnetc_nodes; i++) {
+		for (i = 0; i < gasneti_nodes; i++) {
 		    gasnetc_RequestSystem(i, 
 			gasneti_handleridx(gasnetc_SysBroadcastAlloc_reqh), NULL,
 			NULL, 0, 2, phase, exchsz);
 		}
 		/* Wait until allocation from all nodes is complete */
 		GASNET_BLOCKUNTIL(
-		    gasnetc_bootstrapGather_allocdone[phase] == gasnetc_nodes);
+		    gasnetc_bootstrapGather_allocdone[phase] == gasneti_nodes);
 		gasnetc_bootstrapGather_allocdone[phase] = 0;
 	    }
 
@@ -2630,25 +2580,25 @@ gasnetc_bootstrapGatherSend(void *data, size_t len)
 	    gasneti_handleridx(gasnetc_SysGather_reqh), &sent, 
 	    data, len, 1, phase);
 
-	if (gasnetc_mynode == GASNETC_BROADCASTROOT_NODE) {
+	if (gasneti_mynode == GASNETC_BROADCASTROOT_NODE) {
 
 	    GASNET_BLOCKUNTIL(
-	        gasnetc_bootstrapGather_recvd[phase] == gasnetc_nodes);
+	        gasnetc_bootstrapGather_recvd[phase] == gasneti_nodes);
 	    gasnetc_bootstrapGather_recvd[phase] = 0;
 
-	    if (gasnetc_nodes == 1)
+	    if (gasneti_nodes == 1)
 		goto barrier_done;
 
 	    sent = 0;
 	    /* Once the gather is done, Broadcast to all nodes */ 
-	    for (i = 0; i < gasnetc_nodes; i++) {
+	    for (i = 0; i < gasneti_nodes; i++) {
 		gasnetc_RequestSystem(i, 
 		    gasneti_handleridx(gasnetc_SysBroadcast_reqh), &sent,
 		    gasnetc_bootstrapGather_buf[phase], exchsz, 1, phase);
 	    }
 
 	    /* Wait until all requests are sent */
-	    GASNET_BLOCKUNTIL(sent == gasnetc_nodes);
+	    GASNET_BLOCKUNTIL(sent == gasneti_nodes);
 	}
 
 	/* All nodes, including GASNETC_BROADCASTROOT_NODE, wait until the
@@ -2674,7 +2624,7 @@ gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
 	void	*buf;
 
 	buf = gasnetc_bootstrapGatherSend(src, len);
-	memcpy(dest, buf, len*gasnetc_nodes);
+	memcpy(dest, buf, len*gasneti_nodes);
 
 	return;
 }
@@ -2877,8 +2827,8 @@ gasnetc_getconf_conffile()
 
 	}
 
-	gasnetc_mynode = thisnode;
-	gasnetc_nodes = numnodes;
+	gasneti_mynode = thisnode;
+	gasneti_nodes = numnodes;
 	for (i = 0; i < numnodes; i++)
 		gasneti_free(hostnames[i]);
 	gasneti_free(hostnames);
@@ -3056,6 +3006,9 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gasnet_handlerentry_t const gasnetc_handlers[] = {
+  #ifdef GASNETC_AUXSEG_HANDLERS
+    GASNETC_AUXSEG_HANDLERS(),
+  #endif
   /* ptr-width independent handlers */
   /* ptr-width dependent handlers */
   gasneti_handler_tableentry_with_bits(gasnetc_am_medcopy),

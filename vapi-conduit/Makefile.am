@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2004/10/09 14:54:26 $
-# $Revision: 1.28 $
+#     $Date: 2005/04/04 03:33:31 $
+# $Revision: 1.28.2.1 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,30 +10,37 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=vapi
 
-if GASNET_SEGMENT_FAST
-else
-# only use firehose for segment large/everything
+# Firehose files.  Now used in all segment configurations.
 fh_srcdir = $(top_srcdir)/other/firehose
-fh_include = -I$(fh_srcdir)
-fh_deps = $(fh_srcdir)/*.h
+fh_cflags = -I$(fh_srcdir)
+fh_hdrs = $(fh_srcdir)/*.h
 fh_srcs =                          \
       $(srcdir)/gasnet_firehose.c  \
       $(fh_srcdir)/firehose.c      \
       $(fh_srcdir)/firehose_hash.c \
       $(fh_srcdir)/firehose_region.c
-endif
 
 if VAPI_BOOTSTRAP_MPI
-# If using MPI for bootstrap (currently the only option) then we
-# need to compile this one object with MPI_CC.
-# Note that the 'force' ensures we always rebuild w/ the correct thread model
+# If using MPI for bootstrap then we must compile this one object with MPI_CC.
+mpi_srcdir = $(top_srcdir)/other/mpi-spawner
+mpi_cflags = -I$(mpi_srcdir)
+mpi_srcs = $(mpi_srcdir)/gasnet_bootstrap_mpi.c
+mpi_hdrs = $(mpi_srcdir)/gasnet_bootstrap_fwd.h
 mpi_objs = $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o
-$(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o: $(srcdir)/gasnet_bootstrap_mpi.c force
-	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) -o $@ -c $<
+$(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o: $(mpi_srcs) $(mpi_hdrs)
+	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) -o $@ -c $(mpi_srcs)
+mpi_subdirs = contrib
+endif
+
+if VAPI_BOOTSTRAP_SSH
+ssh_srcdir = $(top_srcdir)/other/ssh-spawner
+ssh_cflags = -I$(ssh_srcdir)
+ssh_srcs = $(ssh_srcdir)/gasnet_bootstrap_ssh.c
+ssh_hdrs = $(ssh_srcdir)/gasnet_bootstrap_fwd.h
 endif
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = contrib
+SUBDIRS = $(mpi_subdirs)
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -48,7 +55,6 @@ CONDUIT_FILELIST =               \
       gasnet_extended.c          \
       gasnet_extended_fwd.h      \
       gasnet_extended_internal.h \
-      gasnet_bootstrap_mpi.c     \
       gasnet_firehose.c          \
       firehose_fwd.h             \
       license.txt                
@@ -59,19 +65,20 @@ CONDUIT_SOURCELIST =                 \
       $(srcdir)/gasnet_core.c        \
       $(srcdir)/gasnet_core_sndrcv.c \
       $(srcdir)/gasnet_extended.c    \
-      $(fh_srcs)
+      $(fh_srcs) $(ssh_srcs)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
 # VAPI conduit always needs GASNET_THREAD_DEFINES
-CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ $(fh_include) @VAPI_LIBCFLAGS@ @GASNET_THREAD_DEFINES@
+CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ $(fh_cflags) $(ssh_cflags) $(mpi_cflags)\
+			 @VAPI_LIBCFLAGS@ @GASNET_THREAD_DEFINES@
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = 
+CONDUIT_EXTRAHEADERS = $(mpi_hdrs) $(ssh_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_deps)
+CONDUIT_EXTRADEPS = $(fh_hdrs) $(mpi_hdrs) $(ssh_hdrs)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
@@ -83,7 +90,12 @@ CONDUIT_SPECIAL_OBJS = $(mpi_objs)
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
+if VAPI_BOOTSTRAP_MPI
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/vapi-conduit/contrib/gasnetrun_vapi -np %N %P %A
+endif
+if VAPI_BOOTSTRAP_SSH
+CONDUIT_RUNCMD = %P %N %A
+endif
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =

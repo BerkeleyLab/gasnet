@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testbarrier.c,v $
- *     $Date: 2004/08/26 04:54:09 $
- * $Revision: 1.14 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.14.8.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,16 +13,18 @@
 int main(int argc, char **argv) {
   int mynode, nodes, iters=0;
   int64_t start,total;
-  int j, i = 0;
+  int i = 0;
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  mynode = gasnet_mynode();
+  nodes = gasnet_nodes();
+  if (!mynode)
+	print_testname("testbarrier", nodes);
   TEST_DEBUGPERFORMANCE_WARNING();
 
   MSG("running...");
 
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;
 

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.h,v $
- * $Date: 2004/10/08 07:47:07 $
- * $Revision: 1.22 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.22.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -33,32 +33,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 extern void gasnetc_exit(int exitcode) GASNET_NORETURN;
 #define gasnet_exit gasnetc_exit
-
-extern uintptr_t gasnetc_getMaxLocalSegmentSize();
-extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
-#define gasnet_getMaxLocalSegmentSize	gasnetc_getMaxLocalSegmentSize 
-#define gasnet_getMaxGlobalSegmentSize	gasnetc_getMaxGlobalSegmentSize 
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Job Environment Queries
-  =======================
-*/
-extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
-
-GASNET_INLINE_MODIFIER(gasnet_mynode)
-gasnet_node_t gasnet_mynode() {
-  GASNETI_CHECKINIT();
-  return gasnetc_mynode;
-}
- 
-GASNET_INLINE_MODIFIER(gasnet_nodes)
-gasnet_node_t gasnet_nodes() {
-  GASNETI_CHECKINIT();
-  return gasnetc_nodes;
-}
-
-#define gasnet_getSegmentInfo gasnetc_getSegmentInfo
 
 /* ------------------------------------------------------------------------------------ */
 /*

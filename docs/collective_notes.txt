@@ -1,6 +1,6 @@
 GASNet collectives design notes
 ===============================
-* $Revision: 1.25 $
+* $Revision: 1.25.2.1 $
 * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> and Paul Hargrove <PHHargrove@lbl.gov>
 * Terms of use are as specified in license.txt
 
@@ -138,32 +138,43 @@ Here, using the UPC naming, are the three input sync modes given in
 terms of GASNet semantics:
 
 + IN_NOSYNC: All data movement may begin on any GASNet node as soon as
-any node has entered the collective initiation function.
+any node has entered the collective initiation function.  This is
+sufficient synchronization when, for instance, no input data has been
+modified in the current barrier phase.
 
 + IN_MYSYNC: Each block of data movement may begin as soon as both its
 source and destination nodes have entered the collective initiation
-function.
+function.  This is sufficient synchronization when, for instance, all
+modification to the input data in the current barrier phase (if any) was
+done locally.
 
 + IN_ALLSYNC: Data movement may begin only when all nodes have entered
-the collective initiation function.
+the collective initiation function.  This is potentially the most costly
+synchronization, and is necessary when remote modification of input
+data (via a put) is possible in the current barrier phase.
 
 Here are the three output sync modes, with the corresponding GASNet
 semantics:
 
 + OUT_NOSYNC: The sync of a collective handle can succeed at any time
-  so long as the last thread to sync does not do so until all data
-  movement has completed.
+so long as the last thread to sync does not do so until all data
+movement has completed.  This is sufficient synchronization when no
+output data will be consumed in the current barrier phase.
 
 + OUT_MYSYNC: The sync of a collective handle can succeed as soon as
-  all data movement has completed to and from local data areas
-  specified in the call (note that movement to or from buffers
-  internal to the implementation and local to the node might still be
-  taking place, for instance in tree-based broadcasts).
+all data movement has completed to and from local data areas
+specified in the call (note that movement to or from buffers
+internal to the implementation and local to the node might still be
+taking place, for instance in tree-based broadcasts).  This is
+sufficient when, for instance, output data will be consumed only
+locally (if at all) in the current barrier phase.
 
 + OUT_ALLSYNC: The sync of a collective handle can succeed as soon as
-  all data movement has completed to and from all data areas specified
-  in the call.  This is weaker than a full barrier, since the
-  equivalent of a zero-byte broadcast is sufficient.
+all data movement has completed to and from all data areas specified
+in the call.  This is weaker than a full barrier, since the equivalent
+of a zero-byte broadcast is sufficient.  This synchronization mode is
+potentially the most costly, and is necessary when output data may be
+consumed remotely (via a get) in the current barrier phase.
 
 In the presence of partial information (see Partial Information,
 below) the descriptions above "all data areas specified in the call"
@@ -258,20 +269,34 @@ when possible.
 //===========================================================================
 * Collectives and threads
 
-Collectives must be initiated in the same order on all participating nodes.  To
-execute a collective operation the collective initiation functions
-should be called exactly once (i.e. by one representative thread) on
-each node.  To disambiguate the order in which collectives are
-initiated by multi-threaded clients, the client must serialize its own
-calls to the collective initiation functions to ensure that at most one
-thread per node is ever inside a GASNet collective initiation function at a
-time.
+Collectives must be initiated in the same order on all participating nodes.
+To execute a collective operation a collective initiation function
+must be called on all nodes.  Depending on flag values, this call may
+be made either by all threads on each node (when GASNET_COLL_ALL_THREADS
+appears in the flags argument), or exactly once on each node, by any
+one representative thread (when GASNET_COLL_ALL_THREADS is absent from
+the flags).  When GASNET_COLL_ALL_THREADS is included in the flags, all
+threads must sync their respective handles.
+
+To disambiguate the order in which collectives are
+initiated by representative threads on multi-threaded clients, the client
+must serialize calls to the collective initiation functions which lack
+GASNET_COLL_ALL_THREADS in the flags, to ensure that such calls are never
+concurrent with any other collective initiation calls on the same node
+(regardless of the presence of absence of GASNET_COLL_ALL_THREADS in the
+flags).
+
+At present, all nodes must agree on the use of GASNET_COLL_ALL_THREADS
+in the flags.  However, this requirement may be relaxed in a future
+specification.
 
 The type gasnet_coll_handle_t specifies a handle which may be
-synchronized only by the thread that initiated the collective.
+synchronized only by the thread to which it was returned when initiating
+the collective.
 (ie the gasnet_coll_handle_t handle is thread-specific. This
 imposes a non-trivial synchronization requirement on a multi-
-threaded client - Specifically, the thread (A) elected to be the
+threaded client when not using GASNET_COLL_ALL_THREADS.
+Specifically, the thread (A) elected to be the
 local representative for the purpose of initiating a given non-blocking
 collective must make independent progress towards syncing that collective
 and not be blocked waiting for some action by another local thread (B) which 
@@ -846,16 +871,6 @@ entry is never evicted while in use (unbounded tables would eliminate
 eviction, but may still be undesirable). Once GASNet and UPC grow 
 real teams, this client table will likely need to be managed per-team.
 
-** Status of a GASNet sort collective
-
-Paul and Dan have identified a number of potential issues in the UPC
-specification of the sort collective [to be typed up in Bugzilla and
-then distributed to the collectives committee for consideration].  The
-GASNet sort interface, if any, will follow the pattern set by the
-reduce and prefix reduce collectives.  However, detailed work on SORT
-has been postponed, pending an attempt to resolve some of these UPC
-issues.
-
 
 * OPEN ISSUE: Teams
 
@@ -952,13 +967,14 @@ must be called by clients before they may invoke any other gasnet_coll_*
 function (even if they never use the multiple-address interfaces).  It
 is therefore a collective operation, called by all nodes in the same
 order (always first) among collectives.  It is also subject to the
-constraint that the arguments agree across nodes.  As with other
-collectives the _init call is made by one representative thread per
-node.  This is a blocking call.  This function may be called at most
-once on each node and may only be called between gasnet_attach() and
+constraint that the arguments agree across nodes.  Unlike other
+collectives the _init call MUST be made collectively by every thread
+on a node.
+This is a blocking call.  This function may be called at most
+once by each thread and may only be called between gasnet_attach() and
 gasnet_exit().
 
-The 'images' argument to gasnet_coll_init() is an array of size_t's,
+The 'images' argument to gasnet_coll_init() is an array of gasnet_image_t's,
 having exactly gasnet_nodes() elements.  The ith element of this array
 indicates the number of images present on node i.  Images are
 analogous to language-level threads in all the clients we envision,
@@ -971,8 +987,10 @@ thread layout of all the runtimes we examined).  All elements of the
 follow, define NImages := SUM(i=0..gasnet_nodes(), images[i]).
 NImages must be less than or equal to SSIZE_MAX (as defined by POSIX).
 A NULL pointer for the 'images' argument indicates a single image
-per GASNet node.  Note that in a GASNET_SEQ configuration is is still
-legal to specify nodes with a image count greater than one.
+per GASNet node.  In a GASNET_SEQ configuration, 'images' must be NULL.
+
+If 'images' is not NULL, then 'my_image' argument to gasnet_coll_init()
+gives the image number of the calling thread.  Otherwise it is ignored.
 
 There is a 'flag' value of GASNET_COLL_AGGREGATE which can be used to
 request that consecutive non-blocking collective initiation calls be
@@ -1039,19 +1057,30 @@ typedef struct {
  *
  *  images:	Array of gasnet_nodes() elements giving the number of
  *		images present on each node.  This must have the
- *		same contents on all nodes or the behavior is undefined.
+ *		same contents on all callers or the behavior is undefined.
+ *		If NULL, then there is one image per node.
+ *		In GASNET_SEQ mode, NULL is the only legal value.
+ *  my_image:   If 'images' is non-NULL, this gives the image number of
+ *		the calling thread.  These image numbers are zero-based,
+ *		always assigning image 0 to node 0.  Image numbers on a
+ *		given node are consecutive, and increase as node numbers
+ *		increase.
  *  fn_tbl:	An array of type gasnet_coll_fn_entry_t, specifying
  *		the functions which can be invoked for the
  *		computational collectives.  This may safely differ
- *		in fnptr contents (but not flags or size) across nodes.
+ *		in fnptr contents (but not flags or size) across nodes,
+ *		but must agree across all images on a given node.
+ *		Multiple images on the same node may safely pass the
+ *		same pointer value, but this is not required.
  *		The client may safely reuse the associated memory after
- *		this call has returned.
+ *		this call has returned (in all local images if the same
+ *		pointer was used across them).
  *  fn_count:	The number of entries in 'fn_tbl'.  Must agree across
- *		all nodes or the behavior is undefined.
+ *		all callers or the behavior is undefined.
  *  init_flags:	Presently unused.  Must be 0.
  */
 void
-gasnet_coll_init(const size_t images[],
+gasnet_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
                  const gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
                  int init_flags);
 
@@ -1067,20 +1096,20 @@ gasnet_coll_init(const size_t images[],
  *	support teams.  Presently this argument must have the value
  *	GASNET_TEAM_ALL.
  * flags: Flags
- * 	The value of this argument must be equal across all nodes or
+ * 	The value of this argument must be equal across all callers or
  *	the behavior is undefined.
  *	This argument supplies flags which determine how the operation
  *	will be performed.  This includes information about the
  *	synchronization required and the scope of addresses.
  *	Input synchronization flags are:
  *	+ GASNET_COLL_IN_NOSYNC: All data movement may begin on any
- *	  GASNet node as soon as any node has entered the collective
+ *	  GASNet node as soon as any caller has entered the collective
  *	  initiation function.
  *	+ GASNET_COLL_IN_MYSYNC: Data movement in or out of the client memory
- *	  of a given node may begin no earlier than the entry to
- *	  the collective initiation function on that node.
+ *	  of a given image may begin no earlier than the entry to
+ *	  the collective initiation function by that image.
  *	+ GASNET_COLL_IN_ALLSYNC: Data movement may begin only when
- *        all nodes with participating images have entered the collective 
+ *        all participating images have entered the collective 
  *        initiation function.
  *	Output synchronization flags are:
  *	+ GASNET_COLL_OUT_NOSYNC: The sync of a collective handle may
@@ -1100,10 +1129,12 @@ gasnet_coll_init(const size_t images[],
  *	  operation (broadcast, scatter and gather).
  *	Addressing scope flags are:
  *	+ GASNET_COLL_SINGLE: This indicates UPC-type addressing
- *	  in which every node provides addresses for the source(s) and
- *	  destination(s) on all participating nodes, and these arguments agree.
+ *	  in which every caller provides addresses for the source(s) and
+ *	  destination(s) on all participating images, and these arguments
+ *	  agree.
  *	+ GASNET_COLL_LOCAL: This indicates Titanium-type addressing
- *	  in which each node provides only the local address(es).
+ *	  in which each caller provides only the local address(es).
+ *        See GASNET_COLL_ALL_THREADS below, for more information.
  *      Defaults:
  *	There are no default values for these three categories of flags.
  *	The client must provide exactly one flag value from each of the
@@ -1112,39 +1143,65 @@ gasnet_coll_init(const size_t images[],
  *	If present, the flag GASNET_COLL_AGGREGATE indicates that a
  *	sequence of non-blocking collective initiation calls should be
  *	aggregated together into a operation with a single handle.
+ *	Callers:
+ *	If present, the flag GASNET_COLL_ALL_THREADS indicates that all
+ *	threads on each node will call this function collectively.  In this
+ *	case the input and output synchronization flags are applied at a
+ *	per-image granularity, where the thread-to-image correspondence is
+ *	that established by the call to gasnet_coll_init().  Combining
+ *      this flag with GASNET_COLL_LOCAL means that the address(es)
+ *	provided by the caller are local to the calling image only.
+ *      If this flag is absent, then one representative thread from each
+ *	node will call this function, and the synchronization flags will be
+ *	applied to the union of all images on each node.  Without this
+ *	flag, use of GASNET_COLL_LOCAL means that the address(es) provided
+ *	by the caller are those of all images on the local node.
+ *	In GASNET_SEQ mode, this flag is legal, but meaningless.
+ *	In GASNET_PARSYNC mode, this flag is illegal.
+ *	In GASNET_PAR mode, this flag is legal and meaningfull.
  *
  * nbytes: Byte count
  *	This is the number of bytes to be transfered per source block.
  *      The value must be greater than zero.
- *      The value of this argument must be equal across all nodes or
+ *      The value of this argument must be equal across all callers or
  *	the behavior is undefined.
  *
- * {dst,src}node: Destination/Source node.
- *      This argument specifies the root node of an asymmetric collective
+ * {dst,src}image: Destination/Source image.
+ *      This argument specifies the root image of an asymmetric collective
  *	operation: Broadcast, Scatter or Gather.
- * 	The value of this argument must be equal across all nodes or
- *	the behavior is undefined.
+ * 	The value of this argument must be equal across all callers or
+ *	the behavior is undefined.  In a GASNET_SEQ configuration, the
+ *	image number is identical to a node number.  Otherwise, the
+ *	image numbering is the one established by the 'my_image' arguments
+ *	to gasnet_coll_init().
  *
  * {dst,src}: Destination (Source) address.
- *	For Broadcast and Scatter the source address is only applicable
- *	to the root node.  For the Gather operation the destination
- *	address is only applicable to the root node.  For the remaining
- *	operations both destination and source apply on all nodes.
+ *	When GASNET_COLL_ALL_THREADS is not specified in the 'flags' the
+ *	one calling thread on each node represents all of the threads on
+ *	the same node.  Therefore, the term "root image/node" will be used
+ *	here to refer either to the root image (when GASNET_COLL_ALL_THREADS
+ *	is given) or the one calling thread on the same node as the given
+ *	root image otherwise.
  *
- * 	In the SINGLE case this argument is passed an identical value
- *	on all nodes.  This value is used as the destination (source)
- *	address on all nodes where the argument is applicable.  Where a
- *	given argument is not applicable to the local node the identical
+ *	For Broadcast and Scatter the source address is only applicable
+ *	to the root image/node.  For the Gather operation the destination
+ *	address is only applicable to the root image/node.  For the remaining
+ *	operations both destination and source apply on all images.
+ *
+ * 	In the SINGLE case this argument is given an identical value
+ *	by all callers.  This value is used as the destination (source)
+ *	address on all images where the argument is applicable.  Where a
+ *	given argument is not applicable to the given image the identical
  *	value must still be provided.
  *
  *	In the LOCAL case this argument may be passed independent values
- *	on each node.  Each node's value is used as it's destination
+ *	by each caller.  Each caller's value is used as it's destination
  *	(source) address where applicable.  Where a given argument is
- *	not applicable to the local node the argument is ignored.
+ *	not applicable to the given caller the argument is ignored.
  *
  * {dst,src}list: Destination (Source) address list.
  * 	In the SINGLE case this argument is an array of NImages addresses.
- *	The contents of this array must be identical across all nodes.
+ *	The contents of this array must be identical across all callers.
  *	The ith address is used as the destination (source) address of the
  *	ith image.  The correspondence between images and GASNet nodes is
  *	the one given by the gasnet_coll_init() call.
@@ -1169,85 +1226,87 @@ gasnet_coll_init(const size_t images[],
  *  + Broadcast:
  *    The source block may legally be identical to any one of the
  *    destination blocks.
- *  + Scatter, Gather and Gather_all:
+ *  + Scatter, Gather, Gather_all and Exchange:
  *    The i'th block of the source may legally be identical to the
  *    i'th block of the destination.
  *  + Exchange
  *    There are no exceptions for the exchange operation.
+ *
+ * There are important interactions to be aware of between the flags
+ * GASNET_COLL_LOCAL and GASNET_COLL_ALL_THREADS:
+ *	* Calling the single-address interfaces with GASNET_COLL_LOCAL in
+ *	  the 'flags' but without GASNET_COLL_ALL_THREADS is NOT permitted
+ *	  when there are multiple images on any node.  This is the case
+ *	  because there would be no way to obtain the addresses for the
+ *	  non-calling images on such nodes.
+ *	* Calling the multiple-address interfaces with GASNET_COLL_LOCAL
+ *	  set in the 'flags' is NOT permitted in a GASNET_SEQ configuration
+ *	  or in combination with GASNET_COLL_ALL_THREADS.  This is because
+ *	  there can only ever be one address per caller in these cases and
+ *	  identical behavior can therefore be achieved less expensively via
+ *	  the single-address interfaces.
  */
-
-DOB: The above definitions of GASNET_COLL_IN/OUT_MYSYNC imply an unfortunate
-synchronization between the images on a single node - specifically, no image
-(which corresponds to an application thread) can init/complete until all the 
-local images init/complete. So for example, in a gather operation with 
-GASNET_COLL_OUT_MYSYNC, the non-root images sharing a node with the root image
-will be unnecessarily stalled until the full gather is complete. This effect
-grows worse with increasing number of images per node. I don't see any obvious
-way to improve on this without doing major violence to the current interface
-(eg allowing multiple local threads to all call the same collective initiation,
-each on behalf of a different image, perhaps with a flag to indicate this is
-what's happening). Note this is only relevant for MYSYNC on CLUMPs.
 
 gasnet_coll_handle_t gasnet_coll_broadcast_nb(
 	gasnet_team_handle_t team,
 	void *dst,
-	gasnet_node_t srcnode, void *src,
+	gasnet_image_t srcimage, void *src,
 	size_t nbytes, int flags);
 gasnet_coll_handle_t gasnet_coll_broadcastm_nb(
 	gasnet_team_handle_t team,
 	void * const dstlist[],
-	gasnet_node_t srcnode, void * src,
+	gasnet_image_t srcimage, void * src,
 	size_t nbytes, int flags);
 void gasnet_coll_broadcast(
 	gasnet_team_handle_t team,
 	void *dst,
-	gasnet_node_t srcnode, void *src,
+	gasnet_image_t srcimage, void *src,
 	size_t nbytes, int flags);
 void gasnet_coll_broadcastm(
 	gasnet_team_handle_t team,
 	void * const dstlist[],
-	gasnet_node_t srcnode, void * src,
+	gasnet_image_t srcimage, void * src,
 	size_t nbytes, int flags);
 
 gasnet_coll_handle_t gasnet_coll_scatter_nb(
 	gasnet_team_handle_t team,
 	void *dst,
-	gasnet_node_t srcnode, void *src,
+	gasnet_image_t srcimage, void *src,
 	size_t nbytes, int flags);
 gasnet_coll_handle_t gasnet_coll_scatterm_nb(
 	gasnet_team_handle_t team,
 	void * const dstlist[],
-	gasnet_node_t srcnode, void * src,
+	gasnet_image_t srcimage, void * src,
 	size_t nbytes, int flags);
 void gasnet_coll_scatter(
 	gasnet_team_handle_t team,
 	void *dst,
-	gasnet_node_t srcnode, void *src,
+	gasnet_image_t srcimage, void *src,
 	size_t nbytes, int flags);
 void gasnet_coll_scatterm(
 	gasnet_team_handle_t team,
 	void * const dstlist[],
-	gasnet_node_t srcnode, void * src,
+	gasnet_image_t srcimage, void * src,
 	size_t nbytes, int flags);
 
 gasnet_coll_handle_t gasnet_coll_gather_nb(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void *dst,
+	gasnet_image_t dstimage, void *dst,
 	void *src,
 	size_t nbytes, int flags);
 gasnet_coll_handle_t gasnet_coll_gatherm_nb(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void * dst,
+	gasnet_image_t dstimage, void * dst,
 	void * const srclist[],
 	size_t nbytes, int flags);
 void gasnet_coll_gather(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void *dst,
+	gasnet_image_t dstimage, void *dst,
 	void *src,
 	size_t nbytes, int flags);
 void gasnet_coll_gatherm(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void * dst,
+	gasnet_image_t dstimage, void * dst,
 	void * const srclist[],
 	size_t nbytes, int flags);
 
@@ -1294,16 +1353,26 @@ void gasnet_coll_exchangem(
  * Destination arguments for Reduction
  *   The result of a reduction is a single data element of the size
  *   given by the 'elem_size' argument.
- * dstnode: Destination Node
- *	This argument gives the destination node for a reduction.  The
- *	value of this argument must be equal across all nodes or the
- *	behavior is undefined.
+ * dstimage: Destination Image
+ *	This argument gives the destination image for a reduction.  The
+ *	value of this argument must be equal across all callers or the
+ *	behavior is undefined.  In a GASNET_SEQ configuration, the
+ *	image number is identical to a node number.  Otherwise, the
+ *	image numbering is the one established by the 'my_image' arguments
+ *	to gasnet_coll_init().
  * dst: Destination Address
+ *	When GASNET_COLL_ALL_THREADS is not specified in the 'flags' the
+ *	one calling thread on each node represents all of the threads on
+ *	the same node.  Therefore, the term "destination image/node" will
+ *	be used here to refer either to the destination image (when
+ *	GASNET_COLL_ALL_THREADS is given) or the one calling thread on the
+ *	same node as the given destination image otherwise.
+ *
  *	This argument gives the address at which the result will be
- *	placed on the destination node.  For GASNET_COLL_LOCAL the
- *	'dst' address is ignored on all nodes except 'dstnode'.  For
- *	GASNET_COLL_SINGLE the value of this argument must be equal
- *	across all nodes or the behavior is undefined.
+ *	placed on the destination image/node.  For GASNET_COLL_LOCAL the
+ *	'dst' address is ignored on all callers except the destination
+ *	image/node.  For GASNET_COLL_SINGLE the value of this argument
+ *	must be equal across all callers or the behavior is undefined.
  *
  * Destination arguments for Prefix Reduction
  *   The result of a prefix reduction is an array of 'elem_count'
@@ -1331,29 +1400,29 @@ void gasnet_coll_exchangem(
  *	This argument gives the address or addresses of the source
  *	array for the single-address interfaces.  The array holds
  *	'elem_count' data items, each of size 'elem_size' bytes.  The
- *	layout of elements across the nodes depend on additional
+ *	layout of elements across the images depend on additional
  *	arguments.  When 'src_blksz' is zero, we have indefinite
  *	layout and all 'elem_count' data elements reside on a single
- *	node, given by 'src_offset'.  When 'src_blksz' is non-zero,
+ *	image, given by 'src_offset'.  When 'src_blksz' is non-zero,
  *	the data has a block-cyclic layout consisting of at least
  *	('elem_count'+'src_offset') elements with a block size of
  *	'src_blksz' elements per block.
  *	When GASNET_COLL_SINGLE is included in the 'flags' argument,
- *	the same value must be passed on all nodes, and is used as the
+ *	the same value must be passed by all callers, and is used as the
  *	starting address of the array on all nodes (when 'src_blksz'
  *	is non-zero) or exactly one node (when 'src_blksz' is zero).
  *	When GASNET_COLL_LOCAL is included in the 'flags' argument,
- *	the value passed on each node is independent and provides only
- *	the address of the array on the given node.
+ *	the value passed by each caller is independent and provides only
+ *	the address of the array on the given image.
  * srclist: Source address(es)
  *	This argument replaces 'src' for use in the multiple-address
  *	interfaces.  When GASNET_COLL_SINGLE is included in the
  *	'flags' argument, this argument is an array of NImages
- *	addresses, which must be identical across all nodes.  The ith
+ *	addresses, which must be identical across all callers.  The ith
  *	address is used as the address of the ith image, where the
  *	correspondence between images and GASNet nodes is the one
  *	given by the gasnet_coll_init() call.  In the LOCAL case this
- *	argument may be passed independent values on each node and on
+ *	argument may be passed independent values by each caller and on
  *	node i, is an array of images[i] local addresses, where
  *	images[] is the argument passed to gasnet_coll_init().
  * src_blksz: Source blocksize
@@ -1362,7 +1431,7 @@ void gasnet_coll_exchangem(
  *	layout and 'src_offset' gives the index of the corresponding
  *	node or image.  Otherwise, this is the blocksize, in units of
  *	elements ('elem_size' bytes), of a block-cyclic layout.  The
- *	value of this argument must be equal across all nodes or the
+ *	value of this argument must be equal across all callers or the
  *	behavior is undefined.
  * src_offset: Source offset
  *	This argument gives the offset to the first data element,
@@ -1376,7 +1445,7 @@ void gasnet_coll_exchangem(
  *	When 'src_blksz' is non-zero the offset is in units of data
  *	elements ('elem_size' bytes) and follows the ordering of the
  *	block-cyclic layout.  The value of this argument must be equal
- *	across all nodes or the behavior is undefined.
+ *	across all callers or the behavior is undefined.
  *      Except where otherwise noted, if any of the source areas overlap any of
  *      the destination areas, the behavior is undefined.
  *      If the arguments to a multiple-address interface specify data
@@ -1385,50 +1454,64 @@ void gasnet_coll_exchangem(
  *      the behavior is undefined (even if both are source blocks).
  * elem_size: Element size
  *	This argument gives the size, in bytes, of the data elements
- *	to be reduced, and must be equal across all nodes or the
+ *	to be reduced, and must be equal across all callers or the
  *	behavior is undefined.
  * elem_count: Element count
  *	This argument gives the number of elements to be reduced, and
- *	must be equal across all nodes or the behavior is undefined.
+ *	must be equal across all callers or the behavior is undefined.
  * func, func_arg: Reduction function and argument
  *	These arguments define the client-provided function which will
  *	perform the reduction or prefix reduction and its one client-
  *	provided argument.  The 'func' argument is an integer index
  *	into the fn_tbl table passed to gasnet_coll_init().
- *	Both arguments must have uniform values across all nodes or
+ *	Both arguments must have uniform values across all callers or
  *	the behavior is undefined.  Passing of pointers in 'func_arg'
  *	is unsafe both because a pointer may be larger than an int,
  *	and because the single-valued constraint may not be
  *	satisfiable for pointers on some platforms.
  * flags: Flags argument
- *	The value of this argument must be equal across all nodes or
+ *	The value of this argument must be equal across all callers or
  *	the behavior is undefined.  This argument gives a bitwise OR
  *	of flags which determine how the operation will be performed
  *	Flags are identical to those defined above for the data
  *	movement collectives.
+ *
+ * There are important interactions to be aware of between the flags
+ * GASNET_COLL_LOCAL and GASNET_COLL_ALL_THREADS:
+ *	* Calling the single-address interfaces with GASNET_COLL_LOCAL in
+ *	  the 'flags' but without GASNET_COLL_ALL_THREADS is NOT permitted
+ *	  when there are multiple images on any node.  This is the case
+ *	  because there would be no way to obtain the addresses for the
+ *	  non-calling images on such nodes.
+ *	* Calling the multiple-address interfaces with GASNET_COLL_LOCAL
+ *	  set in the 'flags' is NOT permitted in a GASNET_SEQ configuration
+ *	  or in combination with GASNET_COLL_ALL_THREADS.  This is because
+ *	  there can only ever be one address per caller in these cases and
+ *	  identical behavior can therefore be achieved less expensively via
+ *	  the single-address interfaces.
  */
 
 gasnet_coll_handle_t gasnet_coll_reduce_nb(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void *dst,
+	gasnet_image_t dstimage, void *dst,
 	void *src, size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
 	int func, int func_arg, int flags);	
 gasnet_coll_handle_t gasnet_coll_reducem_nb(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void *dst,
+	gasnet_image_t dstimage, void *dst,
 	void * const srclist[], size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
 	int func, int func_arg, int flags);
 void gasnet_coll_reduce(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void *dst,
+	gasnet_image_t dstimage, void *dst,
 	void *src, size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
 	gasnet_int func, int func_arg, int flags);	
 void gasnet_coll_reducem(
 	gasnet_team_handle_t team,
-	gasnet_node_t dstnode, void *dst,
+	gasnet_image_t dstimage, void *dst,
 	void * const srclist[], size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
 	gasnet_int func, int func_arg, int flags);

@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2005/01/03 15:15:35 $
-# $Revision: 1.14.2.1 $
+#     $Date: 2005/04/04 03:32:55 $
+# $Revision: 1.14.2.2 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -28,10 +28,12 @@ my $envlist = '';
 my $numproc = undef;
 my $numnode = undef;
 my $verbose = 0;
+my $keep = 0;
 my $dryrun = 0;
 my $exename = undef;
 my $find_exe = 1;	# should we find full path of executable?
 my $tmpdir = undef;
+my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
 my @tmpfiles = ();
 
 # Define how to pass the environment vars
@@ -48,8 +50,14 @@ my @tmpfiles = ();
     my $is_lam      = ($mpirun_help =~ m|LAM/MPI|);
     my $is_mpich_nt = ($mpirun_help =~ m|MPIRun|);
     my $is_mpich    = ($mpirun_help =~ m|ch_p4|);
-    my $is_mvich    = ($mpirun_help =~ m|MVICH|);
+    my $is_mvich    = ($mpirun_help =~ m|MV(AP)?ICH|i);
     my $is_cray_mpi = ($mpirun_help =~ m|Psched|);
+    my $envprog = $ENV{'ENVCMD'};
+    if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
+      $envprog = `which env`;
+      chomp $envprog;
+    }
+    my $extra_quote_argv = 0;
 
     if ($is_lam) {
 	# pass env as "-x A,B,C"
@@ -65,11 +73,10 @@ my @tmpfiles = ();
 	$find_exe = 0;
     } elsif ($is_mvich) {
 	# pass env as "/usr/bin/env 'A=1' 'B=2' 'C=3'"
-        my $envprog = `which env`;
-  	chomp $envprog;
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => "'"
 		  );
+        $extra_quote_argv = 1;
     } elsif ($is_cray_mpi) {
 	# cannot reliably use /usr/bin/env at all when running via aprun 
         # (the binary doesnt support placed execution)
@@ -79,11 +86,6 @@ my @tmpfiles = ();
     } else {
 	# pass env as "/usr/bin/env A=1 B=2 C=3"
 	# Our nearly universal default
-	my $envprog = "/usr/bin/env";
-        if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
-          $envprog = `which env`;
-  	  chomp $envprog;
-        }
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => ''
 		  );
@@ -101,6 +103,7 @@ sub usage
     print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
+    print "      -k                    keep any temporary files created (implies -v)\n";
     print "      --                    ends option parsing\n";
     exit 1;
 }
@@ -162,6 +165,9 @@ sub expand {
 	    $verbose = 1;
 	} elsif ($_ eq '-t') {
 	    $dryrun = 1;
+	    $verbose = 1;
+	} elsif ($_ eq '-k') {
+	    $keep = 1;
 	    $verbose = 1;
 	} elsif (m/^-/) {
 	    usage ("unrecognized option '$_'\n");
@@ -244,9 +250,10 @@ sub expand {
 	    @envargs = ();
 	}
     }
+    print "envargs: " . (join " ", @envargs) . "\n" if ($verbose);
 
     # Special case for the mpich spawner
-    if ($is_mpich && !$is_mpich_nt) {
+    if ($is_mpich && !$is_mpich_nt && !$is_mvich) {
         # General approach: create a wrapper script for the rsh/ssh command invoked by MPICH
         # that glues on the correct environment variables in a way that won't disturb MPICH
         $tmpdir = "gasnetrun_mpi-temp-$$";
@@ -347,28 +354,31 @@ EOF
 			      } else {
 				  $numproc;
 			      }
+			  } elsif ($_ eq '%H') {
+                              $nodefile or die "gasnetrun: %H appears in MPIRUN_CMD, but GASNET_NODEFILE is not set in the environment\n";
 			  } elsif ($_ eq '%P') {
                               (@envargs, $exename);
                           } elsif ($_ eq '%A') {
-			      (@ARGV);
+			      ($extra_quote_argv ? (map { "'$_'" } @ARGV) : (@ARGV));
                           } elsif ($_ eq '%V') {
 			      $verbose?("-v"):();
 			  } else {
                               $_;
                           }
 			} split(" ", $spawncmd);
-    print("gasnetrun: running: ", join(' ', @spawncmd), "\n")
-	if ($verbose);
-    exit(0) if ($dryrun);
+    print("gasnetrun: running: ", join(' ', @spawncmd), "\n") if ($verbose);
 
-    if (1 && defined $tmpdir) {
-	system(@spawncmd);
-	foreach (@tmpfiles) {
+    if (defined $tmpdir) {
+	system(@spawncmd) if (!$dryrun);
+	if (!$keep) {
+          foreach (@tmpfiles) {
 	    unlink "$_" or die "gasnetrun: failed to unlink \'$_\'";
-	}
-	rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
-    } else {
+	  }
+	  rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
+ 	}
+    } elsif (!$dryrun) {
 	exec(@spawncmd);
 	die "gasnetrun: exec failed: $!\n";
     }
+    exit(0);
 __END__

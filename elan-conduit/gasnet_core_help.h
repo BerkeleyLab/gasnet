@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2004/08/26 04:53:32 $
- * $Revision: 1.5 $
+ *     $Date: 2005/04/04 03:32:43 $
+ * $Revision: 1.5.8.1 $
  * Description: GASNet elan conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,9 +16,6 @@
 BEGIN_EXTERNC
 
 #include <gasnet_help.h>
-
-extern gasnet_node_t gasnetc_mynode;
-extern gasnet_node_t gasnetc_nodes;
 
 #define GASNETI_EADDRFMT "0x%08x"
 #define GASNETI_EADDRSTR(ptr) ((uint32_t)(uintptr_t)(ptr))

@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_inttypes.h,v $ */
-/*      $Date: 2004/10/19 04:41:51 $ */
-/*  $Revision: 1.11 $ */
+/*      $Date: 2005/04/04 03:32:57 $ */
+/*  $Revision: 1.11.2.1 $ */
 /*  Description: portable_inttypes.h  */
 /*  Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> */
 
@@ -48,7 +48,8 @@
     typedef          int     intptr_t; 
     typedef unsigned int    uintptr_t; 
   #elif defined(_CRAYT3E)
-    /* oddball architecture lacks a 16-bit type */
+    /* oddball architecture lacking a 16-bit type */
+    #define INTTYPES_16BIT_MISSING 1
     typedef signed char        int8_t;
     typedef unsigned char     uint8_t;
     typedef short             int16_t; /* This is 32-bits, should be 16 !!! */
@@ -60,6 +61,14 @@
 
     typedef          int     intptr_t; 
     typedef unsigned int    uintptr_t; 
+  #elif defined(__MTA__)
+    #include <sys/types.h>
+    typedef u_int8_t          uint8_t;
+    typedef u_int16_t        uint16_t;
+    typedef u_int32_t        uint32_t;
+    typedef u_int64_t        uint64_t;
+    typedef int64_t          intptr_t;
+    typedef u_int64_t       uintptr_t;
   #elif defined(_SX)
     #include <sys/types.h> /* provides int32_t and uint32_t - use to prevent conflict */
     typedef signed char        int8_t;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2004/10/19 04:41:55 $
- * $Revision: 1.21 $
+ *     $Date: 2005/04/04 03:33:01 $
+ * $Revision: 1.21.2.1 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -237,8 +237,8 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
  */
 #if defined(WIN32) || defined(CYGWIN)
   #define BROKEN_IOCTL 1
-#elif defined(AIX) || defined(IRIX) || defined(FREEBSD) || defined(HPUX) || \
-      defined(OSF) || defined(DARWIN) || defined(SUPERUX) || defined(NETBSD) || defined(UNICOS)
+#elif defined(AIX) || defined(IRIX) || defined(FREEBSD) || defined(HPUX) || defined(MTA) || \
+      defined(OSF) || defined(DARWIN) || defined(MACOSX) || defined(SUPERUX) || defined(NETBSD) || defined(UNICOS)
   #define BROKEN_IOCTL 1 // seems these are broken too... 
 #else 
   #define BROKEN_IOCTL 0 // at least Linux and Solaris work as documented
@@ -262,7 +262,7 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
           /* MUST use AMUDP_MAXBULK_NETWORK_MSG here, because some OS's blatently ignore
              the message buffer len and happily overflow the input buffer in recvfrom()
            */
-          if_pf (!junk) junk = (char *)malloc(AMUDP_MAXBULK_NETWORK_MSG);
+          if_pf (!junk) junk = (char *)AMUDP_malloc(AMUDP_MAXBULK_NETWORK_MSG);
           retval = recvfrom(ep->s, junk, AMUDP_MAXBULK_NETWORK_MSG, MSG_PEEK, NULL, NULL);
           if (retval == SOCKET_ERROR && 
             #ifdef WINSOCK

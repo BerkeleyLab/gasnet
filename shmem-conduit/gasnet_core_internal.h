@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_internal.h,v $
- *     $Date: 2004/10/08 07:47:25 $
- * $Revision: 1.5 $
+ *     $Date: 2005/04/04 03:33:21 $
+ * $Revision: 1.5.2.1 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,6 @@
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
 
-#include <gasnet.h>
 #include <gasnet_internal.h>
 #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
 #include <mpp/shmem.h>
@@ -17,31 +16,12 @@
 #include <shmem.h>
 #endif
 
-extern gasnet_seginfo_t *gasnetc_seginfo;
 extern intptr_t		*gasnetc_segment_shptr_off;
-
-#ifndef GASNETE_GLOBAL_ADDRESS
-#define gasnetc_boundscheck(node,ptr,nbytes)		    \
-	    gasneti_boundscheck(node,ptr,nbytes,c)
-#else
-#define gasnetc_boundscheck(node,ptr,nbytes)
-#endif
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
 /* -------------------------------------------------------------------- */
-/* make a GASNet call - if it fails, print error message and return */
-#define GASNETC_SAFE(fncall) do {                            \
-   int retcode = (fncall);                                   \
-   if_pf (gasneti_VerboseErrors && retcode != GASNET_OK) {   \
-     char msg[1024];                                         \
-     sprintf(msg, "\nGASNet encountered an error: %s(%i)\n", \
-        gasnet_ErrorName(retcode), retcode);                 \
-     GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
-   }                                                         \
- } while (0)
-
 /*
  * These settings are based on benchmarks executed over various implementations
  * of shmem, and can be reproduced by the shmem_core.c file in contrib/
@@ -74,7 +54,7 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 
 /* -------------------------------------------------------------------- */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_                              (GASNETC_HANDLER_BASE+)
+#define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /*
@@ -300,139 +280,6 @@ void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
     return;
 }
 
-/* -------------------------------------------------------------------------- */
-typedef void (*gasnetc_HandlerShort) (void *token, ...);
-typedef void (*gasnetc_HandlerMedium)(void *token, void *buf, int nbytes, ...);
-typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
-
-#define GASNETC_RUN_HANDLER_SHORT(pfn, token, pArgs, numargs) do { 	       \
-	gasneti_assert(pfn);						       \
-  	if (numargs == 0) (*(gasnetc_HandlerShort)pfn)((void *)token); 	       \
-	else {								       \
-    		uint32_t *args = (uint32_t *)(pArgs); /* eval only once */     \
-    		switch (numargs) {					       \
-		case 1: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0]);  \
-			break;						       \
-		case 2: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1]); break;	       			       \
-		case 3: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2]); break; 			       \
-		case 4: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3]); break; 		       \
-	     	case 5: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4]); break;   	       \
-	     	case 6: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2],  args[3], args[4], args[5]); break;  \
-	     	case 7: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6]); \
-			break;	       					       \
-	     	case 8: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7]); break;   				       \
-	     	case 9: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8]); break; 			       \
-	     	case 10:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9]); break; 		       \
-	     	case 11:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9], args[10]); break; 	       \
-	     	case 12:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9], args[10], args[11]); break; \
-	     	case 13:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9], args[10], args[11],         \
-			args[12]); break; 				       \
-	     	case 14:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9], args[10], args[11],         \
-			args[12], args[13]); break; 			       \
-	     	case 15:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9], args[10], args[11],         \
-			args[12], args[13], args[14]); break; 		       \
-	     	case 16:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
-			args[1], args[2], args[3], args[4], args[5], args[6],  \
-			args[7], args[8], args[9], args[10], args[11],         \
-			args[12], args[13], args[14], args[15]); break;        \
-	     	default: abort();  					       \
-	     }								       \
-	   }								       \
-	 } while (0)
-
-/* -------------------------------------------------------------------------- */
-#define _GASNETC_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs,        \
-		pData, datalen) do {					       \
-	gasneti_assert(phandlerfn);					       \
-  	if (numargs == 0) (*phandlerfn)(token, pData, datalen);	               \
-	else {								       \
-    		uint32_t *args = (uint32_t *)(pArgs); /* eval only once */     \
-    		switch (numargs) {					       \
-      		case 1: (*phandlerfn)(token, pData, datalen, args[0]); break;  \
-		case 2: (*phandlerfn)(token, pData, datalen, args[0], args[1]);\
-			break;						       \
-		case 3: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2]); break; 				       \
-		case 4: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3]); break; 			       \
-	     	case 5: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4]); break; 		       \
-	     	case 6: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5]); break;          \
-	     	case 7: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			 args[2], args[3], args[4], args[5], args[6]);         \
-			 break;						       \
-	     	case 8: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7]); break; 				       \
-	     	case 9: (*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8]); break; 			       \
-	     	case 10:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8], args[9]); break; 		       \
-	     	case 11:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8], args[9], args[10]); break;         \
-	     	case 12:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8], args[9], args[10], args[11]);      \
-			  break; 					       \
-	     	case 13:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8], args[9], args[10], args[11],       \
-			  args[12]); break; 				       \
-	     	case 14:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8], args[9], args[10], args[11],       \
-			  args[12], args[13]); break; 			       \
-	     	case 15:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6], 	       \
-			  args[7], args[8], args[9], args[10], args[11],       \
-			  args[12], args[13], args[14]); break; 	       \
-	     	case 16:(*phandlerfn)(token, pData, datalen, args[0], args[1], \
-			  args[2], args[3], args[4], args[5], args[6],         \
-			  args[7], args[8], args[9], args[10], args[11],       \
-			  args[12], args[13], args[14], args[15]); break;      \
-	     	default: abort();  					       \
-	     }								       \
-	   }								       \
-	 } while (0)
-
-/* -------------------------------------------------------------------------- */
-#define GASNETC_RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData,   \
-		                   datalen)				       \
-        _GASNETC_RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn,        \
-				 (void *)token, pArgs, numargs, (void *)pData, \
-				 (int)datalen)
-
-#define GASNETC_RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData,     \
-		                   datalen)				       \
-        _GASNETC_RUN_HANDLER_MEDLONG((gasnetc_HandlerLong)phandlerfn,          \
-				 (void *)token, pArgs, numargs, (void *)pData, \
-				 (int)datalen)
 /* -------------------------------------------------------------------------- */
 
 #endif

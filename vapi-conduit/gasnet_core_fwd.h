@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2004/11/23 23:40:21 $
- * $Revision: 1.15.2.1 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.15.2.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,32 +37,34 @@ typedef uint16_t gasnet_node_t;
 #define _GASNET_HANDLER_T
 typedef uint8_t gasnet_handler_t;
 
+#include <gasnet_bootstrap_fwd.h>	/* After definition of gasnet_node_t */
+
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
 #define GASNET_ALIGNED_SEGMENTS   1
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)          \
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)       \
+        CNT(C, AMREQUEST_SYS, cnt)                \
+        CNT(C, AMREPLY_SYS, cnt)                  \
+        CNT(C, AMREQUEST_SYS_HANDLER, cnt)        \
+        CNT(C, AMREPLY_SYS_HANDLER, cnt)          \
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
         VAL(C, RDMA_PUT_ZEROCP, bytes)            \
-        VAL(C, RDMA_PUT_FH, bytes)                \
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
-        VAL(C, RDMA_GET_FH, bytes)                \
-        CNT(C, SYSTEM_REQUEST, cnt)               \
-        CNT(C, SYSTEM_REPLY, cnt)                 \
-        CNT(C, SYSTEM_REQHANDLER, cnt)            \
-        CNT(C, SYSTEM_REPHANDLER, cnt)            \
         CNT(C, ALLOC_AM_SPARE, cnt)	          \
         CNT(C, GET_AMREQ_CREDIT, cnt)             \
 	TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
+	TIME(C, GET_AMREQ_BUFFER_STALL, stalled time) \
+	TIME(C, AM_ROUNDTRIP_TIME, time) \
+	TIME(C, RCV_THREAD_WAKE, time awake)      \
 	CNT(C, GET_BBUF, cnt)                     \
 	TIME(C, GET_BBUF_STALL, stalled time)     \
-	CNT(C, GET_SBUF, cnt)                     \
 	CNT(C, ALLOC_SBUF, cnt)                   \
-	CNT(C, POST_SR, cnt)                      \
+	VAL(C, POST_SR, segments)                 \
 	CNT(C, POST_INLINE_SR, cnt)               \
 	TIME(C, POST_SR_STALL_CQ, stalled time)   \
 	TIME(C, POST_SR_STALL_SQ, stalled time)   \
@@ -70,13 +72,16 @@ typedef uint8_t gasnet_handler_t;
 	VAL(C, POST_SR_LIST, requests)            \
 	VAL(C, SND_REAP, reaped)                  \
 	VAL(C, RCV_REAP, reaped)                  \
-	VAL(C, DYNAMIC_PIN, pages)                \
-	VAL(C, DYNAMIC_UNPIN, pages)
+	TIME(C, FIREHOSE_MOVE, processing time)   \
+	VAL(C, FIREHOSE_PIN, pages)               \
+	VAL(C, FIREHOSE_UNPIN, pages)
 
 /*
- * The VAPI conduit has a network progress thread, even for GASNET_SEQ
+ * The VAPI conduit may have a network progress thread, even for GASNET_SEQ
  */
-#define GASNETI_CONDUIT_THREADS 1
+#if GASNETC_VAPI_RCV_THREAD
+  #define GASNETI_CONDUIT_THREADS 1
+#endif
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)

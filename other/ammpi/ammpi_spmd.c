@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2004/09/22 10:09:11 $
- * $Revision: 1.24 $
+ *     $Date: 2005/04/04 03:32:59 $
+ * $Revision: 1.24.2.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -233,8 +233,8 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
   }
   
   { int i, temp;
-    en_t *namebuf = malloc(sizeof(en_t)*AMMPI_SPMDNUMPROCS);
-    tag_t *tagbuf = malloc(sizeof(tag_t)*AMMPI_SPMDNUMPROCS);
+    en_t *namebuf = AMMPI_malloc(sizeof(en_t)*AMMPI_SPMDNUMPROCS);
+    tag_t *tagbuf = AMMPI_malloc(sizeof(tag_t)*AMMPI_SPMDNUMPROCS);
 
     /* gather names */
     MPI_SAFE(MPI_Allgather(&AMMPI_SPMDName, sizeof(en_t), MPI_BYTE, 
@@ -258,8 +258,8 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
         AMMPI_RETURN(temp);
       }
     }
-    free(namebuf);
-    free(tagbuf);
+    AMMPI_free(namebuf);
+    AMMPI_free(tagbuf);
   }
 
   { /* allocate network buffers */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2004/09/27 09:52:55 $
- * $Revision: 1.32 $
+ *     $Date: 2005/04/04 03:32:39 $
+ * $Revision: 1.32.2.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -65,13 +65,17 @@
 #define MAX(x,y)  ((x)>(y)?(x):(y))
 #endif
 
-#ifdef HAVE_SCHED_YIELD
+#ifdef __MTA__
+   #include <machine/runtime.h>
+   #define _gasneti_sched_yield() mta_yield()
+#elif defined(HAVE_SCHED_YIELD)
    #include <sched.h>
-   #define gasneti_sched_yield() sched_yield()
+   #define _gasneti_sched_yield() sched_yield()
 #else
    #include <unistd.h>
-   #define gasneti_sched_yield() sleep(0)
+   #define _gasneti_sched_yield() (sleep(0),0)
 #endif
+#define gasneti_sched_yield() _gasneti_sched_yield()
 
 #include <stddef.h> /* get standard types, esp size_t */
 
@@ -93,6 +97,8 @@
      that requires providing the function name 
      (the only way to request inlining a particular fn from C) */
   #define GASNET_INLINE_MODIFIER(fnname) GASNETI_PRAGMA(_CRI inline fnname) static
+#elif defined(__MTA__)
+  #define GASNET_INLINE_MODIFIER(fnname) GASNETI_PRAGMA(mta inline) static
 #else
   #define GASNET_INLINE_MODIFIER(fnname) static
 #endif
@@ -146,8 +152,30 @@
 
 /* if with branch prediction */
 #ifndef if_pf
+#ifdef __MTA__
+  #define if_pf(cond) _Pragma("mta expect false") if (cond)
+  #define if_pt(cond) _Pragma("mta expect true")  if (cond)
+#else
   #define if_pf(cond) if (PREDICT_FALSE(cond))
   #define if_pt(cond) if (PREDICT_TRUE(cond))
 #endif
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* Non-binding prefetch hints:
+   These macros take a single address expression and provide a hint to prefetch the
+   corresponding memory to L1 cache for either reading or for writing.
+   These are non-binding hints and so the argument need not always be a valid pointer.
+   For instance, GASNETI_PREFETCH_{READ,WRITE}_HINT(NULL) is explicitly permitted.
+   The macros may expand to nothing, so the argument must not have side effects.
+ */
+#if HAVE_BUILTIN_PREFETCH
+  #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((P),0)
+  #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((P),1)
+#else
+  #define GASNETI_PREFETCH_READ_HINT(P)
+  #define GASNETI_PREFETCH_WRITE_HINT(P)
+#endif
+
 
 #endif

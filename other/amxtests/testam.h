@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2004/08/26 04:53:53 $
- * $Revision: 1.9 $
+ *     $Date: 2005/04/04 03:33:03 $
+ * $Revision: 1.9.8.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,6 +61,14 @@
   #define GETPARTNER(token)
 #endif
 #define ALLAM_DONE(iters) ((int)NUMREP() == (int)(NUMHANDLERS_PER_TYPE*4*(iters)))
+
+typedef struct {
+  double doublevar;
+  uint64_t int64var;
+  int idx;
+} testam_payload_t;
+#define TESTAM_DOUBLEVAR_VAL  (2.5f)
+#define TESTAM_INT64VAR_VAL   (0xFACEFEEDDEAFBEEFllu)
 
 #define ABASE ((handlerarg_t)0xBABE7000)
 
@@ -290,71 +298,90 @@
     INCREP();                                                                        \
   }
 
-#define MEDIUMHANDLERS(num)                                                               \
-  void medium_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {    \
-    if (CA##num) {                                                                        \
-      fprintf(stderr, "Arg mismatch in medium_%sreq_handler on P%i\n", #num, (int)MYPROC);     \
-      fflush(stderr);                                                                     \
-      abort();                                                                            \
-    }                                                                                     \
-    if (nbytes != sizeof(int) || *(int*)buf != num) {                                     \
-      fprintf(stderr, "buf mismatch in medium_%sreq_handler on P%i: nbytes=%i, buf=%i\n", \
-                       #num, (int)MYPROC, (int)nbytes, *(int*)buf);                            \
-      fflush(stderr);                                                                     \
-      abort();                                                                            \
-    }                                                                                     \
-    INCREQ();                                                                             \
-    *(int*)buf = -(*(int*)buf);                                                           \
-    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));             \
-  }                                                                                       \
-  void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {    \
-    if (CA##num) {                                                                        \
-      fprintf(stderr, "Arg mismatch in medium_%srep_handler on P%i\n", #num, (int)MYPROC);     \
-      fflush(stderr);                                                                     \
-      abort();                                                                            \
-    }                                                                                     \
-    if (nbytes != sizeof(int) || *(int*)buf != -num) {                                    \
-      fprintf(stderr, "buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n", \
-                       #num, (int)MYPROC, (int)nbytes, *(int*)buf);                            \
-      fflush(stderr);                                                                     \
-      abort();                                                                            \
-    }                                                                                     \
-    INCREP();                                                                             \
+#define MEDIUMHANDLERS(num)                                                                \
+  void medium_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {     \
+    testam_payload_t *payload = (testam_payload_t *)buf;                                   \
+    if (CA##num) {                                                                         \
+      fprintf(stderr, "Arg mismatch in medium_%sreq_handler on P%i\n", #num, (int)MYPROC); \
+      fflush(stderr);                                                                      \
+      abort();                                                                             \
+    }                                                                                      \
+    if (nbytes != sizeof(testam_payload_t) || payload->idx != num ||                       \
+        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                      \
+        payload->int64var != TESTAM_INT64VAR_VAL) {                                        \
+      fprintf(stderr, "buf mismatch in medium_%sreq_handler on P%i: nbytes=%i, buf=%i\n",  \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                      \
+      fflush(stderr);                                                                      \
+      abort();                                                                             \
+    }                                                                                      \
+    INCREQ();                                                                              \
+    payload->idx = -payload->idx;                                                          \
+    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));              \
+  }                                                                                        \
+  void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {     \
+    testam_payload_t *payload = (testam_payload_t *)buf;                                   \
+    if (CA##num) {                                                                         \
+      fprintf(stderr, "Arg mismatch in medium_%srep_handler on P%i\n", #num, (int)MYPROC); \
+      fflush(stderr);                                                                      \
+      abort();                                                                             \
+    }                                                                                      \
+    if (nbytes != sizeof(testam_payload_t) || payload->idx != -num ||                      \
+        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                      \
+        payload->int64var != TESTAM_INT64VAR_VAL) {                                        \
+      fprintf(stderr, "buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n",  \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                      \
+      fflush(stderr);                                                                      \
+      abort();                                                                             \
+    }                                                                                      \
+    INCREP();                                                                              \
   }
 
-#define LONGHANDLERS(num)                                                                                                         \
-  void long_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {                                              \
-    int mybuf;                                                                                                                    \
-    GETPARTNER(token);                                                                                                            \
-    if (CA##num) {                                                                                                                \
-      fprintf(stderr, "Arg mismatch in long_%sreq_handler on P%i\n", #num, (int)MYPROC);                                               \
-      fflush(stderr);                                                                                                             \
-      abort();                                                                                                                    \
-    }                                                                                                                             \
-    if (nbytes != sizeof(int) || buf != ((int*)MYSEG)+num || *(int*)buf != num) {                                                 \
-      fprintf(stderr, "buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",                                           \
-                       #num, (int)MYPROC, (int)nbytes, *(int*)buf);                                                                    \
-      fflush(stderr);                                                                                                             \
-      abort();                                                                                                                    \
-    }                                                                                                                             \
-    mybuf = -*(int*)buf;                                                                                                          \
-    INCREQ();                                                                                                                     \
-    ReplyLong(num,(token, (NUMHANDLERS_PER_TYPE+num)*sizeof(int), LONG_##num##REP_HANDLER, &mybuf, nbytes aa##num),               \
-                  (token, LONG_##num##REP_HANDLER, &mybuf, nbytes, ((int*)TEST_SEG(partner))+NUMHANDLERS_PER_TYPE+num aa##num));  \
-  }                                                                                                                               \
-  void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {                                              \
-    if (CA##num) {                                                                                                                \
-      fprintf(stderr, "Arg mismatch in long_%srep_handler on P%i\n", #num, (int)MYPROC);                                               \
-      fflush(stderr);                                                                                                             \
-      abort();                                                                                                                    \
-    }                                                                                                                             \
-    if (nbytes != sizeof(int) || buf != ((int*)MYSEG)+NUMHANDLERS_PER_TYPE+num || *(int*)buf != -(int)num) {                      \
-      fprintf(stderr, "buf mismatch in long_%srep_handler on P%i: nbytes=%i, buf=%i\n",                                           \
-                       #num, (int)MYPROC, (int)nbytes, *(int*)buf);                                                                    \
-      fflush(stderr);                                                                                                             \
-      abort();                                                                                                                    \
-    }                                                                                                                             \
-    INCREP();                                                                                                                     \
+#define LONGHANDLERS(num)                                                                     \
+  void long_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
+    testam_payload_t *payload = (testam_payload_t *)buf;                                      \
+    testam_payload_t mybuf;                                                                   \
+    GETPARTNER(token);                                                                        \
+    if (CA##num) {                                                                            \
+      fprintf(stderr, "Arg mismatch in long_%sreq_handler on P%i\n", #num, (int)MYPROC);      \
+      fflush(stderr);                                                                         \
+      abort();                                                                                \
+    }                                                                                         \
+    if (nbytes != sizeof(testam_payload_t) ||                                                 \
+        buf != ((testam_payload_t*)MYSEG)+num ||                                              \
+        payload->idx != num ||                                                                \
+        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                         \
+        payload->int64var != TESTAM_INT64VAR_VAL) {                                           \
+      fprintf(stderr, "buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",       \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
+      fflush(stderr);                                                                         \
+      abort();                                                                                \
+    }                                                                                         \
+    mybuf = *payload;                                                                         \
+    mybuf.idx = -mybuf.idx;                                                                   \
+    INCREQ();                                                                                 \
+    ReplyLong(num,(token, (NUMHANDLERS_PER_TYPE+num)*sizeof(testam_payload_t),                \
+                   LONG_##num##REP_HANDLER, &mybuf, nbytes aa##num),                          \
+                  (token, LONG_##num##REP_HANDLER, &mybuf, nbytes,                            \
+                   ((testam_payload_t*)TEST_SEG(partner))+NUMHANDLERS_PER_TYPE+num aa##num)); \
+  }                                                                                           \
+  void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
+    testam_payload_t *payload = (testam_payload_t *)buf;                                      \
+    if (CA##num) {                                                                            \
+      fprintf(stderr, "Arg mismatch in long_%srep_handler on P%i\n", #num, (int)MYPROC);      \
+      fflush(stderr);                                                                         \
+      abort();                                                                                \
+    }                                                                                         \
+    if (nbytes != sizeof(testam_payload_t) ||                                                 \
+        buf != ((testam_payload_t*)MYSEG)+NUMHANDLERS_PER_TYPE+num ||                         \
+        payload->idx != -num ||                                                               \
+        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                         \
+        payload->int64var != TESTAM_INT64VAR_VAL) {                                           \
+      fprintf(stderr, "buf mismatch in long_%srep_handler on P%i: nbytes=%i, buf=%i\n",       \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
+      fflush(stderr);                                                                         \
+      abort();                                                                                \
+    }                                                                                         \
+    INCREP();                                                                                 \
   }
 
 #define HANDLERS(num) \
@@ -435,15 +462,17 @@ HANDLERS(16)
   ALLAM_HANDLERS_ID(15), \
   ALLAM_HANDLERS_ID(16)
 
-#define ALLAM_REQ_ID(num, partner)  do {                                                                                 \
-  static int buf[1]; /* must be static to satisfy data lifetime reqt for RequestLongAsync */                             \
-  RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER AA##num));                                               \
-  buf[0] = num;                                                                                                          \
-  RequestMedium(num,(ENDPOINT partner, MEDIUM_##num##REQ_HANDLER, buf, sizeof(int) AA##num));                            \
-  RequestLong(num,(ENDPOINT partner, sizeof(int)*num, LONG_##num##REQ_HANDLER, buf, sizeof(int) AA##num),                \
-                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, buf, sizeof(int), ((int*)TEST_SEG(partner))+num AA##num)); \
-  RequestLongAsync(num,(ENDPOINT partner, sizeof(int)*num, LONG_##num##REQ_HANDLER, buf, sizeof(int) AA##num),           \
-                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, buf, sizeof(int), ((int*)TEST_SEG(partner))+num AA##num)); \
+#define ALLAM_REQ_ID(num, partner)  do {                                                                                                            \
+  static testam_payload_t buf; /* must be static to satisfy data lifetime reqt for RequestLongAsync */                                              \
+  buf.doublevar = TESTAM_DOUBLEVAR_VAL;                                                                                                             \
+  buf.int64var = TESTAM_INT64VAR_VAL;                                                                                                               \
+  buf.idx = num;                                                                                                                                    \
+  RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER AA##num));                                                                          \
+  RequestMedium(num,(ENDPOINT partner, MEDIUM_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t) AA##num));                                         \
+  RequestLong(num,(ENDPOINT partner, sizeof(testam_payload_t)*num, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t) AA##num),                 \
+                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t), ((testam_payload_t*)TEST_SEG(partner))+num AA##num)); \
+  RequestLongAsync(num,(ENDPOINT partner, sizeof(testam_payload_t)*num, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t) AA##num),            \
+                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t), ((testam_payload_t*)TEST_SEG(partner))+num AA##num));  \
 } while (0)
 
 #define ALLAM_REQ(partner)  do { \

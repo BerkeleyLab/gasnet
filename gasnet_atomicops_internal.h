@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops_internal.h                               $
- *     $Date: 2005/01/03 15:15:31 $
- * $Revision: 1.9.2.1 $
+ *     $Date: 2005/04/04 03:32:39 $
+ * $Revision: 1.9.2.2 $
  * Description: GASNet header for semi-portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -78,13 +78,13 @@
     #define GASNETI_HAVE_ATOMIC_CAS 1
   #endif
 #elif defined(__i386__) || defined(__x86_64__) /* x86 and Athlon/Opteron */
-  #if defined(__GNUC__) || defined(__INTEL_COMPILER)
+  #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__)
     GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
     int gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
       register unsigned char retval;
       register uint32_t readval;
-      __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1; sete %0"
-			        : "=q" (retval), "=m" (v->ctr), "=a" (readval)
+      __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1\n\tsete %0"
+			        : "=mq" (retval), "=m" (v->ctr), "=a" (readval)
 			        : "r" (newval), "m" (v->ctr), "a" (oldval)
 			        : "memory");
       return (int)retval;
@@ -143,7 +143,17 @@
      }
      #define GASNETI_HAVE_ATOMIC_CAS 1
   #endif
-#elif defined(__APPLE__) && defined(__MACH__) && defined(__ppc__)
+#elif defined(__crayx1) /* This works on X1, but NOT the T3E */
+    GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
+    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, long oldval, long newval) {
+      long result;
+      gasneti_atomic_presync();
+      result = _amo_acswap(p, oldval, newval);
+      gasneti_atomic_postsync();
+      return (result == oldval); 
+    }
+    #define GASNETI_HAVE_ATOMIC_CAS 1
+#elif (defined(__APPLE__) && defined(__MACH__) && defined(__ppc__)) || (defined(LINUX) && defined(__PPC__))
     #if defined(__xlC__)
       static int32_t gasneti_atomic_swap_not_32(volatile int32_t *v, int32_t oldval, int32_t newval);
       #pragma mc_func gasneti_atomic_swap_not_32 {\
@@ -180,6 +190,16 @@
       } 
       #define GASNETI_HAVE_ATOMIC_CAS 1
     #endif
+#endif
+
+#ifdef GASNETI_HAVE_ATOMIC_CAS
+  #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
+    #define gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
+            gasneti_atomic_compare_and_swap(p,oldval,newval)
+  #else
+    #define gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
+            (*(p) == (oldval) ? *(p) = (newval), 1 : 0)
+  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2004/11/23 23:40:13 $
- * $Revision: 1.4.2.1 $
+ *     $Date: 2005/04/04 03:33:21 $
+ * $Revision: 1.4.2.2 $
  * Description: GASNet header for shmem conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,6 +53,12 @@ typedef uintptr_t    gasnet_token_t;
 #else
   #undef GASNETC_GLOBAL_ADDRESS
   #undef GASNETE_GLOBAL_ADDRESS
+#endif
+
+#ifdef SGI_SHMEM
+  /* tweak auxseg allocation to ensure client seg remains power-of-two aligned */
+  #define GASNETI_AUXSEG_PRESERVE_POW2_FULLSEGSZ 1
+  #define GASNETI_FORCE_CLIENTSEG_TO_BASE 1
 #endif
 
 #endif

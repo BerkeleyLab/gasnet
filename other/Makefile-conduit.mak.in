@@ -121,31 +121,33 @@ tests-seq: force libgasnet-$(CONDUIT_NAME)-seq.a $(CONDUIT_NAME)-seq.mak $(CONDU
 	@echo "*** Building all GASNet tests in SEQ/$(GASNET_SEGMENT_STR) mode ***"
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-seq \
 	  configfile="$(CONDUIT_NAME)-seq.mak" \
-	  CONDUIT_TESTS="$(CONDUIT_TESTS)"
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 tests-parsync: force libgasnet-$(CONDUIT_NAME)-parsync.a $(CONDUIT_NAME)-parsync.mak $(CONDUIT_PARSYNC_HOOK)
 	@echo "*** Building all GASNet tests in PARSYNC/$(GASNET_SEGMENT_STR) mode ***"
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
 	  configfile="$(CONDUIT_NAME)-parsync.mak" \
-	  CONDUIT_TESTS="$(CONDUIT_TESTS)"
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 tests-par: force libgasnet-$(CONDUIT_NAME)-par.a $(CONDUIT_NAME)-par.mak $(CONDUIT_PAR_HOOK)
 	@echo "*** Building all GASNet tests in PAR/$(GASNET_SEGMENT_STR) mode ***"
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
 	  configfile="$(CONDUIT_NAME)-par.mak" \
-	  CONDUIT_TESTS="$(CONDUIT_TESTS)"
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 test%: $(top_srcdir)/tests/test%.c force 
 	@$(MAKE) libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a $(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak
 	@echo "*** Building $@ in $(THREAD_MODEL)/$(GASNET_SEGMENT_STR) mode ***"
 	@$(MAKE) -f $(top_builddir)/tests/Makefile $@   \
-	  configfile="$(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak"
+	  configfile="$(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak" \
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 test%: $(top_srcdir)/tests/test%.cc force 
 	@$(MAKE) libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a $(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak
 	@echo "*** Building $@ in $(THREAD_MODEL)/$(GASNET_SEGMENT_STR) mode ***"
 	@$(MAKE) -f $(top_builddir)/tests/Makefile $@   \
-	  configfile="$(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak"
+	  configfile="$(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak" \
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 test%-seq: force 
 	@$(MAKE) `basename $@ -seq` THREAD_MODEL=SEQ
@@ -155,13 +157,14 @@ test%-par: force
 	@$(MAKE) `basename $@ -par` THREAD_MODEL=PAR
 
 tests-clean: 
-	@$(MAKE) -f $(top_builddir)/tests/Makefile clean
+	@$(MAKE) -f $(top_builddir)/tests/Makefile clean \
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 run-tests do-run-testexit:
 	@$(MAKE) -f $(top_builddir)/tests/Makefile $@ \
 	  CONDUIT_NAME=$(CONDUIT_NAME) \
 	  CONDUIT_RUNCMD="$(CONDUIT_RUNCMD)" \
-	  CONDUIT_TESTS="$(CONDUIT_TESTS)"
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 run-tests-seq: tests-clean tests-seq run-tests
 run-tests-par: tests-clean tests-par run-tests

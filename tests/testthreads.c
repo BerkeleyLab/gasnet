@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.17 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.17.2.1 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -196,7 +196,7 @@ main(int argc, char **argv)
 
 	GASNET_Safe(gasnet_init(&argc, &argv));
     	GASNET_Safe(gasnet_attach(htable, HANDLER_TABLE_SIZE,
-		    TEST_SEGSZ, TEST_MINHEAPOFFSET));
+		    TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
         TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
 	while ((i = getopt (argc, argv, getopt_str)) != EOF) {
@@ -225,6 +225,9 @@ main(int argc, char **argv)
           if (opt_m) test_functions[functions_num++] = test_mpi;
         #endif
         if (amtrace) verbose = 1;
+
+	if (!gasnet_mynode())
+	    print_testname("testthreads", gasnet_nodes());
 
 	/* Assume all test functions if no option is passed */
 	if (functions_num  == 0) {
@@ -326,6 +329,7 @@ threadmain(void *args)
 		assert(func != NULL);
 
 		func(td);
+                if (td->ltid == 0) TEST_PROGRESS_BAR(i, iters);
 	}
 
 	thread_barrier();

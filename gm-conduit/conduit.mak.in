@@ -7,8 +7,12 @@
 #INSTRUCTIONS# See the conduit-writer instructions in the generated fragments
 #INSTRUCTIONS# or $(top_srcdir)/other/fragment-head.mak.in for usage info.
 
-CONDUIT_INCLUDES = -I@GM_INCLUDE@
-CONDUIT_LIBDIRS =  -L@GM_LIB@
+# When gm-conduit enables MPI compatibility, we must link with MPI compiler
+@GM_MPI_COMPAT@GASNET_LD_OVERRIDE = @MPI_CC@
+@GM_MPI_COMPAT@GASNET_LDFLAGS_OVERRIDE = @MPI_CFLAGS@ @LDFLAGS@
+@GM_MPI_COMPAT@MPI_COMPAT_INCLUDES = -I@TOP_SRCDIR@/other/mpi-spawner ###NOINSTALL### 
 
+CONDUIT_LIBDIRS =  -L@GM_LIB@
 CONDUIT_LIBS = -lgm
+CONDUIT_INCLUDES = -I@GM_INCLUDE@ $(MPI_COMPAT_INCLUDES)
 

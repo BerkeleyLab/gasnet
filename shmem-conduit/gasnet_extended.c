@@ -1,15 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2004/10/07 23:28:15 $
- * $Revision: 1.4 $
+ *     $Date: 2005/04/04 03:33:21 $
+ * $Revision: 1.4.2.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_internal.h>
 #include <gasnet_handler.h>
 
 /*
@@ -46,9 +45,6 @@ static int	    gasnete_nbi_region_phase = 0;
 static volatile int gasnete_nbi_am_ctr       = 0;
 static int	    gasnete_nbi_handle       = GASNETE_HANDLE_DONE;
 
-gasnet_node_t	    gasnete_mynode = (gasnet_node_t)-1;
-gasnet_node_t	    gasnete_nodes = 0;
-gasnet_seginfo_t *  gasnete_seginfo = NULL;
 intptr_t	    gasnete_segment_base = 0;
 
 #ifdef CRAY_SHMEM
@@ -75,24 +71,17 @@ gasnete_threaddata_t	gasnete_threaddata;
 	    GASNETE_HANDLE_INC();			    \
 	} while (0)
 
-extern void 
-gasnete_init() 
-{
-    int	    i;
-
-    GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-    gasneti_assert(gasnete_nodes == 0); /* we haven't been called before */
+extern void gasnete_init() {
+  int	    i;
+  static int firstcall = 1;
+  GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
+  gasneti_assert(firstcall); /*  make sure we haven't been called before */
+  firstcall = 0;
 
     gasneti_assert(GASNETC_POW_2(GASNETE_MAX_HANDLES));
 
-    gasnete_mynode = gasnet_mynode();
-    gasnete_nodes = gasnet_nodes();
-
-    gasneti_assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
-    gasnete_seginfo = (gasnet_seginfo_t *)
-		       gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
-    gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
-    gasnete_segment_base = (intptr_t) gasnete_seginfo[gasnete_mynode].addr;
+    gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
+    gasnete_segment_base = (intptr_t) gasneti_seginfo[gasneti_mynode].addr;
 
     for (i = 0; i < GASNETE_MAX_HANDLES; i++)
 	gasnete_handles[i] = GASNETE_HANDLE_DONE;
@@ -147,7 +136,7 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 
     *handle = GASNETE_HANDLE_NB_POLL;
 
-    GASNETE_SAFE(
+    GASNETI_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
 		      PACK(ptr), PACK(handle))));
@@ -171,7 +160,7 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	break;
 
 	case GASNETE_HANDLE_NB_POLL:
-	    GASNETE_SAFE(gasnet_AMPoll());
+	    GASNETI_SAFE(gasnet_AMPoll());
 	    if (*handle == GASNETE_HANDLE_DONE)
 		return GASNET_OK;
 	    else
@@ -203,7 +192,7 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	
 	case GASNETE_HANDLE_NBI_POLL:
 	    gasneti_assert(handle == &gasnete_nbi_handle);
-	    GASNETE_SAFE(gasnet_AMPoll());
+	    GASNETI_SAFE(gasnet_AMPoll());
 	    if (gasnete_nbi_am_ctr == 0) {
 		*handle = GASNETE_HANDLE_DONE;
 		return GASNET_OK;
@@ -232,7 +221,7 @@ extern int
 gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) 
 {
     int	i;
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETI_SAFE(gasnet_AMPoll());
 
     gasneti_assert(phandle != NULL);
 
@@ -273,7 +262,7 @@ gasnete_am_memset_nbi(gasnet_node_t node, void *dest, int val,
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
     int *p_nbi_handle = &gasnete_nbi_handle;
     gasnete_nbi_handle = GASNETE_HANDLE_NBI;
-    GASNETE_SAFE(
+    GASNETI_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
 		      PACK(ptr), PACK(p_nbi_handle))));
@@ -474,7 +463,7 @@ gasnete_barrier_notify(int id, int flags)
      * is in a failure, non-optimized code path.
      */
     if (flags & GASNET_BARRIERFLAG_MISMATCH) {
-	for (i=0; i < gasnete_nodes; i++) 
+	for (i=0; i < gasneti_nodes; i++) 
 	    *((int *)shmem_ptr(&barrier_mismatch[barrier_phase], i)) = 1;
     }
     else if (!(flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
@@ -491,7 +480,7 @@ gasnete_barrier_notify(int id, int flags)
 	 * failure, non-optimized path.
 	 */
 	if_pf (curval != BARRIER_INITVAL && curval != id) {
-	    for (i=0; i < gasnete_nodes; i++)
+	    for (i=0; i < gasneti_nodes; i++)
 		*((int *)shmem_ptr(&barrier_mismatch[barrier_phase], i)) = 1;
 	}
     }
@@ -526,8 +515,6 @@ gasnete_barrier_wait(int id, int flags)
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,
 			       GASNETI_STATTIME_NOW()-barrier_notifytime);
 
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,0);
-
     barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_sync_writes();
 
@@ -541,11 +528,11 @@ gasnete_barrier_wait(int id, int flags)
 	local_mismatch = 1;
     }
 
-    if (gasnete_mynode == 0) {
+    if (gasneti_mynode == 0) {
 	long volatile *not_ctr = &barrier_notify_ctr[barrier_phase];
 
 	/* Wait until all nodes have updated value */
-	GASNET_BLOCKUNTIL(*not_ctr == gasnete_nodes);
+	GASNET_BLOCKUNTIL(*not_ctr == gasneti_nodes);
 	*not_ctr = 0;
 
 	/*
@@ -558,7 +545,7 @@ gasnete_barrier_wait(int id, int flags)
 	    *done_ctr = 1;
 	#else
 	    //GASNETC_VECTORIZE
-	    for (i=0; i < gasnete_nodes; i++) 
+	    for (i=0; i < gasneti_nodes; i++) 
 		#ifdef CRAYX1
 		    *((long *) GASNETE_TRANSLATE_X1(done_ctr, i)) = 1;
 		#else
@@ -585,6 +572,8 @@ gasnete_barrier_wait(int id, int flags)
 	#endif
 
     }
+
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
 
     gasneti_sync_writes();
 
@@ -616,7 +605,7 @@ gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val,
     memset(dest, (int)(uint32_t)val, nbytes);
     gasneti_sync_writes();
 
-    GASNETE_SAFE(
+    GASNETI_SAFE(
 	SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
 }

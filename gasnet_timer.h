@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2004/10/12 11:04:51 $
- * $Revision: 1.28 $
+ *     $Date: 2005/04/04 03:32:39 $
+ * $Revision: 1.28.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,9 +81,11 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
   uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
     timebasestruct_t t;
-    read_real_time(&t,TIMEBASE_SZ);
-    assert(t.flag == RTC_POWER_PC); /* otherwise timer arithmetic (min/max/sum) is compromised */
-
+    #if GASNET_DEBUG
+      read_real_time(&t,TIMEBASE_SZ);
+      assert(t.flag == RTC_POWER_PC); /* otherwise timer arithmetic (min/max/sum) is compromised */
+    #endif
+    t.flag = RTC_POWER_PC;
     t.tb_high = (uint32_t)(st >> 32);
     t.tb_low =  (uint32_t)(st);
     time_base_to_time(&t,TIMEBASE_SZ);
@@ -129,6 +131,29 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   }
   #define GASNETI_STATTIME_TO_US(st)  ((st)/1000)
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
+#elif defined(__MTA__)
+  #include <sys/mta_task.h>
+  #include <machine/mtaops.h>
+
+  typedef int64_t gasneti_stattime_t;
+  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
+  uint64_t gasneti_stattime_to_us(gasneti_stattime_t ticks) {
+    static int firsttime = 1;
+    static double adjust;
+    if_pf(firsttime) {
+      double freq = mta_clock_freq();
+      adjust = 1000000.0/freq;
+      firsttime = 0;
+      #if 0
+        printf("first time: ticks=%llu  freq=%f adjust=%f\n", 
+              (unsigned long long) ticks, freq, adjust);
+      #endif
+    }
+    return (uint64_t)(((double)ticks) * adjust);
+  }
+  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
+  #define GASNETI_STATTIME_NOW()      (MTA_CLOCK(0))
+  #define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)(((uint64_t)-1)>>1))
 #elif defined(SOLARIS)
 #if 1
   /* workaround bizarre failures on gcc 3.2.1 - seems they sometimes use a
@@ -216,6 +241,84 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
+#elif defined(LINUX) && defined(__GNUC__) && defined(__PPC__)
+  /* 
+   * This code uses the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs.
+   */
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <string.h>
+  #include <math.h>
+  #include <sys/types.h>
+  #include <dirent.h>
+  typedef uint64_t gasneti_stattime_t;
+  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
+  uint64_t gasneti_stattime_now (void) {
+    uint64_t ret;
+    #if defined(__PPC64__)
+      __asm__ __volatile__("mftb %0"
+                           : "=r" (ret)
+                           : /* no inputs */); 
+    #else
+      /* Note we must read hi twice to protect against wrap of lo */
+      uint32_t o_hi, hi, lo;
+      __asm__ __volatile__("0: \n\t"
+		           "mftbu %0\n\t"
+			   "mftbl %1\n\t"
+			   "mftbu %2\n\t"
+			   "cmpw  %0, %2\n\t"
+			   "bne- 0b\n\t"
+                           : "=r" (o_hi), "=r" (lo), "=r" (hi)
+                           : /* no inputs */); 
+      ret = ((uint64_t)hi << 32) | lo;
+    #endif
+    return ret;
+  } 
+  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
+  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+    static int firstTime = 1;
+    static double Tick = 0.0;
+    if_pf (firstTime) {
+      DIR *dp = opendir("/proc/device-tree/cpus");
+      struct dirent *de = NULL;
+      FILE *fp = NULL;
+      double MHz = 0.0;
+      uint32_t freq;
+      char fname[128];
+      if (!dp) {
+        fprintf(stderr,"*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s\n",strerror(errno));
+        abort();
+      }
+      do {
+        de = readdir(dp);
+	if (de && (de->d_name == strstr(de->d_name, "PowerPC,"))) {
+	  break;
+	}
+      } while (de);
+      closedir(dp);
+      if (!de) {
+        fprintf(stderr,"*** ERROR: Failure to find a PowerPC CPU in /proc/device-tree/cpus\n");
+	abort();
+      }
+      snprintf(fname, sizeof(fname), "/proc/device-tree/cpus/%s/timebase-frequency", de->d_name);
+      fp = fopen(fname, "r");
+      if (!fp) {
+	fprintf(stderr,"*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
+	abort();
+      }
+      if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) {
+        fprintf(stderr,"*** ERROR: Failure to read timebase frequency from '%s': %s\n", fname,strerror(errno));
+	abort();
+      }
+      fclose(fp);
+      assert(freq > 1000000 && freq < 1000000000); /* ensure it looks reasonable (1MHz to 1Ghz) */
+      Tick = 1.0e6 / freq;
+      firstTime = 0;
+    }
+    return (uint64_t)(st * Tick);
+  }
+  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
+  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
 #elif 0 && defined(OSF)
   /* the precision for this is no better than gettimeofday (~1 ms) */
   /* TODO: use elan real-time counter, or rpcc instruction (which returns
@@ -268,6 +371,25 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
+#elif defined(__APPLE__) && defined(__MACH__)
+  /* See http://developer.apple.com/qa/qa2004/qa1398.html */
+  #include <mach/mach_time.h>
+  typedef uint64_t gasneti_stattime_t;
+  #define gasneti_stattime_now() mach_absolute_time()
+  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
+  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+    static int firsttime = 1;
+    static double freq = 0;
+    if_pf (firsttime) {
+      mach_timebase_info_data_t tb;
+      if (mach_timebase_info(&tb)) abort();
+      freq = 1.e-3 * ((double)tb.numer) / ((double)tb.denom);
+      firsttime = 0;
+    }
+    return (uint64_t)(st * freq);
+  }
+  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
+  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
 #else
   #define GASNETI_USING_GETTIMEOFDAY
   /* portable microsecond granularity wall-clock timer */
@@ -295,18 +417,22 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
 */
 #define GASNETI_STATTIME_GRANULARITY() gasneti_stattime_metric(0)
 #define GASNETI_STATTIME_OVERHEAD()    gasneti_stattime_metric(1)
-#if !defined(__cplusplus)
+#if defined(_INCLUDED_GASNET_H) 
+  extern double *_gasneti_stattime_metric;
+#else
+ #if !defined(__cplusplus)
   /* use a tentative definition, so all files can share the same metric
      data structures, and to ensure we pay the timing overhead at most once per run */
   extern double *_gasneti_stattime_metric;
   double *_gasneti_stattime_metric; 
-#else
+ #else
   /* C++ outlaws tentative definitions, and we have no other place to 
      reliably place this data in gasnet_tools mode. 
      So we're forced to place it in each compilation unit and possibly
      pay one timing overhead for each compilation unit that asks
    */
   static double *_gasneti_stattime_metric; 
+ #endif
 #endif
 GASNET_INLINE_MODIFIER(gasneti_stattime_metric)
 double gasneti_stattime_metric(unsigned int idx) {

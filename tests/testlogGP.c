@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlogGP.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.22 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.22.2.1 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -235,7 +235,6 @@ void get_tests(int iters, int nbytes)
     int i;
     int64_t begin, end, delay_time, loops;
     stat_struct_t st;
-    float ratio;
 
 	memset(mymem, 0, nbytes);
 
@@ -361,7 +360,7 @@ int main(int argc, char **argv)
    
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
-    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     TEST_DEBUGPERFORMANCE_WARNING();
     TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
@@ -378,6 +377,9 @@ int main(int argc, char **argv)
     /* get SPMD info */
     myproc = gasnet_mynode();
     numprocs = gasnet_nodes();
+
+    if (!myproc)
+	print_testname("testlogGP", numprocs);
     
     /* Only allow even number for numprocs */
     if (numprocs % 2 != 0) {

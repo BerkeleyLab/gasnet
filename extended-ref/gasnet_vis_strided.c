@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_strided.c,v $
- *     $Date: 2004/08/26 04:53:34 $
- * $Revision: 1.8 $
+ *     $Date: 2005/04/04 03:32:45 $
+ * $Revision: 1.8.8.1 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -98,8 +98,8 @@
 
 #define GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasnete_boundscheck(dstnode, dstaddr, nbytes);                              \
-    gasneti_assert(islocal == (dstnode == gasnete_mynode));                     \
+    gasneti_boundscheck_allowoutseg(dstnode, dstaddr, nbytes);                  \
+    gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_put_nbi_bulk((dstnode), (dstaddr), (srcaddr), (nbytes)         \
                                 GASNETE_THREAD_PASS);                           \
@@ -107,8 +107,8 @@
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasnete_boundscheck(srcnode, srcaddr, nbytes);                              \
-    gasneti_assert(islocal == (srcnode == gasnete_mynode));                     \
+    gasneti_boundscheck_allowoutseg(srcnode, srcaddr, nbytes);                  \
+    gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_get_nbi_bulk((dstaddr), (srcnode), (srcaddr), (nbytes)         \
                                 GASNETE_THREAD_PASS);                           \
@@ -128,7 +128,7 @@ gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  const int islocal = (dstnode == gasnete_mynode);
+  const int islocal = (dstnode == gasneti_mynode);
   GASNETI_TRACE_EVENT(C, PUTV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
@@ -199,7 +199,7 @@ gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnet_node_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  const int islocal = (srcnode == gasnete_mynode);
+  const int islocal = (srcnode == gasneti_mynode);
   GASNETI_TRACE_EVENT(C, GETV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
@@ -279,7 +279,7 @@ extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GASNET_INVALID_HANDLE; 
   if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
-         dstnode == gasnete_mynode) { /* purely local */ 
+         dstnode == gasneti_mynode) { /* purely local */ 
     return gasnete_putv_ref_indiv(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
   }
 
@@ -302,7 +302,7 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GASNET_INVALID_HANDLE; 
   if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
-         srcnode == gasnete_mynode) { /* purely local */ 
+         srcnode == gasneti_mynode) { /* purely local */ 
     if (dstcount == 0 || srccount == 0) return GASNET_INVALID_HANDLE;
     return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
   }
@@ -326,7 +326,7 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode, 
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  const int islocal = (dstnode == gasnete_mynode);
+  const int islocal = (dstnode == gasneti_mynode);
   GASNETI_TRACE_EVENT(C, PUTI_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
@@ -395,7 +395,7 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnet_node_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  const int islocal = (srcnode == gasnete_mynode);
+  const int islocal = (srcnode == gasneti_mynode);
   GASNETI_TRACE_EVENT(C, GETI_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
@@ -520,7 +520,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   /* catch silly degenerate cases */
   if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
-         dstnode == gasnete_mynode) { /* purely local */ 
+         dstnode == gasneti_mynode) { /* purely local */ 
     if (dstcount == 0) return GASNET_INVALID_HANDLE;
     else return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
@@ -553,7 +553,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   /* catch silly degenerate cases */
   if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
-         srcnode == gasnete_mynode) { /* purely local */ 
+         srcnode == gasneti_mynode) { /* purely local */ 
     if (dstcount == 0) return GASNET_INVALID_HANDLE;
     else return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
@@ -751,7 +751,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
       uint8_t *_dstptr_start[GASNETE_DIRECT_DIMS];                     \
       uint8_t ** const dstptr_start = (dim <= GASNETE_DIRECT_DIMS ?    \
          _dstptr_start : gasneti_malloc(sizeof(uint8_t *)*dim));       \
-      size_t *_idx[GASNETE_DIRECT_DIMS];                               \
+      size_t _idx[GASNETE_DIRECT_DIMS];                                \
       size_t * const idx = (dim <= GASNETE_DIRECT_DIMS ?               \
          _idx : gasneti_malloc(sizeof(size_t)*dim));                   \
       for (curdim = 0; curdim < dim; curdim++) {                       \
@@ -795,7 +795,7 @@ gasnet_handle_t gasnete_puts_ref_indiv(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  const int islocal = (dstnode == gasnete_mynode);
+  const int islocal = (dstnode == gasneti_mynode);
   size_t const contiglevel = gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels);
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDIV);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
@@ -823,7 +823,7 @@ gasnet_handle_t gasnete_gets_ref_indiv(gasnete_synctype_t synctype,
                                    gasnet_node_t srcnode, 
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  const int islocal = (srcnode == gasnete_mynode);
+  const int islocal = (srcnode == gasneti_mynode);
   size_t const contiglevel = gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels);
   GASNETI_TRACE_EVENT(C, GETS_REF_INDIV);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
@@ -1001,7 +1001,7 @@ gasnet_handle_t gasnete_puts_ref_vector(gasnete_synctype_t synctype,
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
-    const int islocal = (dstnode == gasnete_mynode);
+    const int islocal = (dstnode == gasneti_mynode);
     gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats.totalsz);
@@ -1035,7 +1035,7 @@ gasnet_handle_t gasnete_gets_ref_vector(gasnete_synctype_t synctype,
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
-    const int islocal = (srcnode == gasnete_mynode);
+    const int islocal = (srcnode == gasneti_mynode);
     gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats.totalsz);
@@ -1071,7 +1071,7 @@ gasnet_handle_t gasnete_puts_ref_indexed(gasnete_synctype_t synctype,
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
-    const int islocal = (dstnode == gasnete_mynode);
+    const int islocal = (dstnode == gasneti_mynode);
     gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats.totalsz);
@@ -1105,7 +1105,7 @@ gasnet_handle_t gasnete_gets_ref_indexed(gasnete_synctype_t synctype,
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
   if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
-    const int islocal = (srcnode == gasnete_mynode);
+    const int islocal = (srcnode == gasneti_mynode);
     gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
       GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats.totalsz);
@@ -1141,7 +1141,7 @@ extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (gasnete_strided_empty(count, stridelevels)) /* empty */
     return GASNET_INVALID_HANDLE;
-  if_pf (dstnode == gasnete_mynode || /* purely local */ 
+  if_pf (dstnode == gasneti_mynode || /* purely local */ 
          stridelevels == 0 || /* fully contiguous */
          gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels) == stridelevels) { 
     return gasnete_puts_ref_indiv(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
@@ -1183,7 +1183,7 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (gasnete_strided_empty(count, stridelevels)) /* empty */
     return GASNET_INVALID_HANDLE;
-  if_pf (srcnode == gasnete_mynode || /* purely local */ 
+  if_pf (srcnode == gasneti_mynode || /* purely local */ 
          stridelevels == 0 || /* fully contiguous */
          gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels) == stridelevels) { 
     return gasnete_gets_ref_indiv(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);

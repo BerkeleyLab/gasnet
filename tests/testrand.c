@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testrand.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.5 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.5.2.1 $
  * Description: GASNet get/put performance test
  *   measures measures the total time to write to each page of the
  *   remote test segment, using blocking puts in a random order.
@@ -21,6 +21,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(GASNET_SEQ)
+  #define TEST_SEGSZ (1024*1024)
+#endif
 #include "test.h"
 
 int myproc;
@@ -36,27 +39,28 @@ void do_test(void) {GASNET_BEGIN_FUNCTION();
     int i;
     int64_t begin, end;
     int iamsender = (myproc % 2 == 0);
-    int pages = TEST_SEGSZ / PAGESZ;
+    int pagesz = MAX(PAGESZ, nbytes);
+    int pages = TEST_SEGSZ / pagesz;
     void **loc_addr = test_malloc(pages * sizeof(void *));
     void **rem_addr = test_malloc(pages * sizeof(void *));
     
 	if (iamsender) {
 		/* create in-order arrays of page addresses */
 		for (i = 0; i < pages; ++i) {
-		    loc_addr[i] = (void *)((uintptr_t)locmem + (i * PAGESZ));
-		    rem_addr[i] = (void *)((uintptr_t)remmem + (i * PAGESZ));
+		    loc_addr[i] = (void *)((uintptr_t)locmem + (i * pagesz));
+		    rem_addr[i] = (void *)((uintptr_t)remmem + (i * pagesz));
 		}
 		/* permute the arrays separately */
 		for (i = 0; i < pages - 1; ++i) {
 		    int j;
 		    void *tmp;
 		   
-		    j = rand() % (pages - i);
+		    j = TEST_RAND(0,pages - 1 - i);
 		    tmp = loc_addr[i+j];
 		    loc_addr[i+j] = loc_addr[i];
 		    loc_addr[i] = tmp;
 		   
-		    j = rand() % (pages - i);
+		    j = TEST_RAND(0,pages - 1 - i);
 		    tmp = rem_addr[i+j];
 		    rem_addr[i+j] = rem_addr[i];
 		    rem_addr[i] = tmp;
@@ -83,7 +87,9 @@ int main(int argc, char **argv)
 {
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
-    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    if (!gasnet_mynode())
+	print_testname("testrand", gasnet_nodes());
     TEST_DEBUGPERFORMANCE_WARNING();
     TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
 
@@ -94,8 +100,8 @@ int main(int argc, char **argv)
     }
     nbytes = atoi(argv[1]);
     if (argc > 2) seed = atoi(argv[2]);
-    if (!seed) seed = getpid();
-    srand(seed);
+    if (!seed) seed = 0;
+    TEST_SRAND(seed);
 
     /* get SPMD info */
     myproc = gasnet_mynode();

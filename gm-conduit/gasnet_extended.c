@@ -1,23 +1,18 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/10/16 19:19:53 $
- * $Revision: 1.30 $
+ *     $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.30.2.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_internal.h>
+#include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
 
-gasnet_node_t	gasnete_mynode = (gasnet_node_t)-1;
-gasnet_node_t	gasnete_nodes = 0;
-
-gasnet_seginfo_t	*gasnete_seginfo = NULL;
 gasnete_threaddata_t	*gasnete_threadtable[256] = { 0 };
 int 			 gasnete_numthreads = 0;
 gasnet_hsl_t		 threadtable_lock = GASNET_HSL_INITIALIZER;
@@ -25,7 +20,7 @@ gasnet_hsl_t		 threadtable_lock = GASNET_HSL_INITIALIZER;
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
   gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
 #endif
-const gasnete_eopaddr_t	EOPADDR_NIL = { 0xFF, 0xFF };
+const gasnete_eopaddr_t	EOPADDR_NIL = { { 0xFF, 0xFF } };
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -116,20 +111,15 @@ static void gasnete_check_config() {
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
 }
 
-extern void 
-gasnete_init() 
-{
-	GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-	gasneti_assert(gasnete_nodes == 0); /*make sure we haven't been called before */
+extern void gasnete_init() {
+    static int firstcall = 1;
+    GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
+    gasneti_assert(firstcall); /*  make sure we haven't been called before */
+    firstcall = 0;
 
 	gasnete_check_config(); /* check for sanity */
 
-	gasnete_mynode = gasnet_mynode();
-	gasnete_nodes = gasnet_nodes();
-	gasneti_assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
-	gasnete_seginfo = (gasnet_seginfo_t*) 
-	    gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
-	gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
+	gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
 	{ 
 		gasnete_threaddata_t *threaddata = NULL;
@@ -158,7 +148,7 @@ gasnete_init()
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-	GASNETE_SAFE(gasneti_AMPoll());
+	GASNETI_SAFE(gasneti_AMPoll());
 
 	if (gasnete_op_isdone(handle)) {
 		gasneti_sync_reads();
@@ -174,7 +164,7 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 	int success = 0;
 	int empty = 1;
 
-	GASNETE_SAFE(gasneti_AMPoll());
+	GASNETI_SAFE(gasneti_AMPoll());
 	gasneti_assert(phandle);
 
 	{ 
@@ -202,7 +192,7 @@ extern int
 gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 {
 	int success = 1;
-	GASNETE_SAFE(gasneti_AMPoll());
+	GASNETI_SAFE(gasneti_AMPoll());
 
 	gasneti_assert(phandle);
 
@@ -236,7 +226,7 @@ gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasneti_AMPoll());
+    GASNETI_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -248,9 +238,9 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
     #endif
 
-    if (gasneti_atomic_read(&(iop->completed_get_cnt)) == iop->initiated_get_cnt) {
+    if (gasneti_weakatomic_read(&(iop->completed_get_cnt)) == iop->initiated_get_cnt) {
       if_pf (iop->initiated_get_cnt > 65000) { /* make sure we don't overflow the counters */
-        gasneti_atomic_set(&(iop->completed_get_cnt), 0);
+        gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
         iop->initiated_get_cnt = 0;
       }
       gasneti_sync_reads();
@@ -262,7 +252,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasneti_AMPoll());
+    GASNETI_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -276,9 +266,9 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     #endif
 
 
-    if (gasneti_atomic_read(&(iop->completed_put_cnt)) == iop->initiated_put_cnt) {
+    if (gasneti_weakatomic_read(&(iop->completed_put_cnt)) == iop->initiated_put_cnt) {
       if_pf (iop->initiated_put_cnt > 65000) { /* make sure we don't overflow the counters */
-        gasneti_atomic_set(&(iop->completed_put_cnt), 0);
+        gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
         iop->initiated_put_cnt = 0;
       }
       gasneti_sync_reads();
@@ -336,7 +326,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnet_valget_handle_t retval;
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasnete_boundscheck(node, src, nbytes);
+  gasneti_boundscheck(node, src, nbytes);
   if (mythread->valget_free) {
     retval = mythread->valget_free;
     mythread->valget_free = retval->next;

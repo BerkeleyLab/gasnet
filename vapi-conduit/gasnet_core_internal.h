@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/01/03 15:15:39 $
- * $Revision: 1.52.2.2 $
+ *     $Date: 2005/04/04 03:33:31 $
+ * $Revision: 1.52.2.3 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,25 +11,18 @@
 
 #include <stddef.h>	/* for offsetof() */
 
-#include <gasnet.h>
 #include <gasnet_internal.h>
-#if GASNETC_USE_FIREHOSE
-  #include <firehose.h>
-#endif
+#include <firehose.h>
+#include <gasnet_bootstrap_internal.h>
 
 #include <vapi.h>
 #include <evapi.h>
 #include <vapi_common.h>
 
-extern gasnet_seginfo_t *gasnetc_seginfo;
-
-#define gasnetc_boundscheck(node,ptr,nbytes) gasneti_boundscheck(node,ptr,nbytes,c)
-
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
-#define GASNETC_CACHE_LINE_SIZE (128)
-#define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETC_CACHE_LINE_SIZE)-(SZ))
+#define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES)-(SZ))
 
 /* check (even in optimized build) for VAPI errors */
 #define GASNETC_VAPI_CHECK(vstat,msg) \
@@ -41,20 +34,8 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running)
 
 /* ------------------------------------------------------------------------------------ */
-/* make a GASNet call - if it fails, print error message and return */
-#define GASNETC_SAFE(fncall) do {                            \
-   int retcode = (fncall);                                   \
-   if_pf (gasneti_VerboseErrors && retcode != GASNET_OK) {   \
-     char msg[1024];                                         \
-     sprintf(msg, "\nGASNet encountered an error: %s(%i)\n", \
-        gasnet_ErrorName(retcode), retcode);                 \
-     GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
-   }                                                         \
- } while (0)
-
-/* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_             (GASNETC_HANDLER_BASE+)
+#define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* System-category handlers.
@@ -69,16 +50,25 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* ------------------------------------------------------------------------------------ */
 
 typedef struct {
+#if GASNETI_STATS_OR_TRACE
+  gasneti_stattime_t	stamp;
+#endif
   gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
 } gasnetc_shortmsg_t;
 
 typedef struct {
+#if GASNETI_STATS_OR_TRACE
+  gasneti_stattime_t	stamp;
+#endif
   uint16_t		nBytes;
   uint16_t		_pad0;
   gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
 } gasnetc_medmsg_t;
 
 typedef struct {
+#if GASNETI_STATS_OR_TRACE
+  gasneti_stattime_t	stamp;
+#endif
   uintptr_t		destLoc;
   uint32_t		nBytes;
   gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
@@ -86,6 +76,9 @@ typedef struct {
 
 typedef union {
   uint8_t		raw[GASNETC_BUFSZ];
+#if GASNETI_STATS_OR_TRACE
+  gasneti_stattime_t	stamp;
+#endif
   gasnetc_shortmsg_t	shortmsg;
   gasnetc_medmsg_t	medmsg;
   gasnetc_longmsg_t	longmsg;
@@ -116,68 +109,6 @@ typedef enum {
 
 /* ------------------------------------------------------------------------------------ */
 
-typedef void (*gasnetc_HandlerShort) (gasnet_token_t token, ...);
-typedef void (*gasnetc_HandlerMedium)(gasnet_token_t token, void *buf, size_t nbytes, ...);
-typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nbytes, ...);
-
-#define RUN_HANDLER_SHORT(phandlerfn, token, args, numargs) do {                      \
-  gasneti_assert(phandlerfn);                                                         \
-  switch (numargs) {                                                                  \
-    case 0:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token); break;        \
-    case 1:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0]); break;         \
-    case 2:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1]); break;\
-    case 3:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2]); break; \
-    case 4:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3]); break; \
-    case 5:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4]); break; \
-    case 6:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-    case 7:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-    case 8:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-    case 9:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-    case 10: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-    case 11: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-    case 12: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-    case 13: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-    case 14: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-    case 15: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-    case 16: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-    default: abort();                                                                 \
-    }                                                                                 \
-  } while (0)
-
-#define _RUN_HANDLER_MEDLONG(phandlerfn, token, args, numargs, pData, datalen) do {   \
-  gasneti_assert(phandlerfn);                                                         \
-  switch (numargs) {                                                        \
-    case 0:  (*phandlerfn)(token, pData, datalen); break;                    \
-    case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;           \
-    case 2:  (*phandlerfn)(token, pData, datalen, args[0], args[1]); break;  \
-    case 3:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2]); break; \
-    case 4:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3]); break; \
-    case 5:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4]); break; \
-    case 6:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-    case 7:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-    case 8:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-    case 9:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-    case 10: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-    case 11: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-    case 12: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-    case 13: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-    case 14: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-    case 15: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-    case 16: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-    default: abort();                                                                 \
-    }                                                                                 \
-  } while (0)
-
-#define RUN_HANDLER_MEDIUM(phandlerfn, token, args, numargs, pData, datalen) do {      \
-    gasneti_assert(((uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
-    _RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn, (gasnet_token_t)token, args, numargs, (void *)pData, (size_t)datalen); \
-  } while(0)
-
-#define RUN_HANDLER_LONG(phandlerfn, token, args, numargs, pData, datalen)             \
-  _RUN_HANDLER_MEDLONG((gasnetc_HandlerLong)phandlerfn, (gasnet_token_t)token, args, numargs, (void *)pData, (size_t)datalen)
-
-/* ------------------------------------------------------------------------------------ */
-
 #define GASNETC_MAX_NUMHANDLERS   256
 typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
@@ -196,9 +127,9 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
     GASNETI_TRACE_PRINTF(C,(#name": dest=%i handler=%i args:%s",dest,handler,argstr)); \
   } while(0)
   #define GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs) \
-          _GASNETC_TRACE_SYSTEM(SYSTEM_REQUEST,dest,handler,numargs)
+          _GASNETC_TRACE_SYSTEM(AMREQUEST_SYS,dest,handler,numargs)
   #define GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs) \
-          _GASNETC_TRACE_SYSTEM(SYSTEM_REPLY,dest,handler,numargs)
+          _GASNETC_TRACE_SYSTEM(AMREPLY_SYS,dest,handler,numargs)
 
   #define _GASNETC_TRACE_SYSTEM_HANDLER(name, handlerid, token, numargs, arghandle) do { \
     gasnet_node_t src;                                                                    \
@@ -212,9 +143,9 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
                       gasneti_formatdata(&token, sizeof(token))));                        \
     } while(0)
   #define GASNETC_TRACE_SYSTEM_REQHANDLER(handlerid, token, numargs, arghandle) \
-         _GASNETC_TRACE_SYSTEM_HANDLER(SYSTEM_REQHANDLER, handlerid, token, numargs, arghandle)
+         _GASNETC_TRACE_SYSTEM_HANDLER(AMREQUEST_SYS_HANDLER, handlerid, token, numargs, arghandle)
   #define GASNETC_TRACE_SYSTEM_REPHANDLER(handlerid, token, numargs, arghandle) \
-         _GASNETC_TRACE_SYSTEM_HANDLER(SYSTEM_REPHANDLER, handlerid, token, numargs, arghandle)
+         _GASNETC_TRACE_SYSTEM_HANDLER(AMREPLY_SYS_HANDLER, handlerid, token, numargs, arghandle)
 #else
   #define GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs)
   #define GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs)
@@ -241,20 +172,12 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* ------------------------------------------------------------------------------------ */
 /* Configuration */
 
-/* Scatter-gather segments.
- * Only 1 makes sense right now for normal use.
- */
-#define GASNETC_SND_SG	1		/* maximum number of segments to gather on send */
-#define GASNETC_RCV_SG	1		/* maximum number of segments to scatter on rcv */
+/* Maximum number of segments to gather on send */
+#define GASNETC_SND_SG	4
 
-/* Define non-zero to enable a progress thread for receiving AMs . */
-#ifndef GASNETC_RCV_THREAD
-  #define GASNETC_RCV_THREAD		1
-#endif
-
-/* Define non-zero to enable polling for receiving AMs . */
-#ifndef GASNETC_RCV_POLL
-  #define GASNETC_RCV_POLL		1
+/* Defined non-zero in gasnet_config.h to enable a progress thread for receiving AMs . */
+#ifndef GASNETC_VAPI_RCV_THREAD
+  #define GASNETC_VAPI_RCV_THREAD	0
 #endif
 
 #if GASNETC_VAPI_ENABLE_INLINE_PUTS
@@ -302,6 +225,8 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  * 			This is inclusive of the AM receive thread.
  * GASNETC_CLI_PAR	Non-zero if multiple _client_ threads can be executing in GASNet.
  * 			This excludes the AM receive thread.
+ * These differ from GASNETI_THREADS and GASNETI_CLIENT_THREADS in that they don't count
+ * GASNET_PARSYNC, since it has threads which do not enter GASNet concurrently.
  */
 
 #if GASNET_PAR
@@ -310,7 +235,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_CLI_PAR	0
 #endif
 
-#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_RCV_THREAD)
+#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_VAPI_RCV_THREAD)
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -601,9 +526,10 @@ typedef struct {
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
   #if GASNETC_PIN_SEGMENT
-    /* RKey for the segment, registered at attach time */
-    VAPI_rkey_t		rkey;		/* == uint32_t */
-    char		_pad[GASNETC_CACHE_PAD(2*sizeof(gasnetc_sema_t)+sizeof(VAPI_qp_hndl_t)+sizeof(VAPI_rkey_t))];
+    /* Bounds and RKey(s) for the segment, registered at attach time */
+    uintptr_t		end;	/* Cached inclusive ending address of the remote segment */
+    VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
+    char		_pad[GASNETC_CACHE_PAD(2*sizeof(gasnetc_sema_t)+sizeof(VAPI_qp_hndl_t)+sizeof(uintptr_t)+sizeof(void*))];
   #else
     char		_pad[GASNETC_CACHE_PAD(2*sizeof(gasnetc_sema_t)+sizeof(VAPI_qp_hndl_t))];
   #endif
@@ -622,15 +548,6 @@ typedef struct {
   void *		req_addr;
   size_t		req_size;
 } gasnetc_memreg_t;
-
-/* Bootstrap helper routines in gasnet_bootstrap_*.c */
-extern void gasnetc_bootstrapInit(int *argc, char ***argv, gasnet_node_t *nodes, gasnet_node_t *mynode);
-extern void gasnetc_bootstrapFini(void);
-extern void gasnetc_bootstrapAbort(int exitcode) GASNET_NORETURN;
-extern void gasnetc_bootstrapBarrier(void);
-extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
-extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
-extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 
 /* Routines in gasnet_core_sndrcv.c */
 extern void gasnetc_sndrcv_init(void);
@@ -658,9 +575,10 @@ extern int		gasnetc_op_oust_limit;
 extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
-extern int		gasnetc_am_spares;
 extern int		gasnetc_bbuf_limit;
 extern int		gasnetc_use_poll_lock;
+extern int		gasnetc_use_rcv_thread;
+extern int		gasnetc_use_firehose;
 
 /* Global variables */
 extern gasnetc_cep_t	*gasnetc_cep;
@@ -671,14 +589,17 @@ extern VAPI_pd_hndl_t	gasnetc_pd;
 extern gasnetc_memreg_t		gasnetc_snd_reg;
 extern gasnetc_memreg_t		gasnetc_rcv_reg;
 #if GASNETC_PIN_SEGMENT
-  extern gasnetc_memreg_t	gasnetc_seg_reg;
+  extern int			gasnetc_seg_reg_count;
+  extern gasnetc_memreg_t	*gasnetc_seg_reg;
+  extern uintptr_t		gasnetc_seg_start;
+  extern uintptr_t		gasnetc_seg_end;
+  extern unsigned long		gasnetc_pin_maxsz;
+  extern int			gasnetc_pin_maxsz_shift;
 #endif
-#if GASNETC_USE_FIREHOSE
-  extern size_t			gasnetc_fh_maxsz;
-  extern firehose_info_t	gasnetc_firehose_info;
-  #if FIREHOSE_VAPI_USE_FMR
-    extern EVAPI_fmr_t		gasnetc_fmr_props;
-  #endif
+extern size_t			gasnetc_fh_maxsz;
+extern firehose_info_t		gasnetc_firehose_info;
+#if FIREHOSE_VAPI_USE_FMR
+  extern EVAPI_fmr_t		gasnetc_fmr_props;
 #endif
 
 extern VAPI_cq_hndl_t	gasnetc_snd_cq;

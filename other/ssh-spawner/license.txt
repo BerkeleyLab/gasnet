@@ -1,4 +1,4 @@
-$Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/license.txt,v 1.1 2005/01/15 00:23:22 phargrov Exp $
+$Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/license.txt,v 1.1.2.1 2005/04/04 03:33:13 bonachea Exp $
 All files in this directory (except where otherwise noted) are subject to the
 following licensing terms: 
 

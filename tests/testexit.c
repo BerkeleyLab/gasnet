@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.12 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.12.2.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,7 +70,6 @@ void noop_handler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
 void *workerthread(void *args) {
-  int fnidx;
   int mythread = (int)(intptr_t)args;
   thread_barrier();
   switch (testid) {
@@ -106,7 +105,7 @@ void *workerthread(void *args) {
           sleep(1); 
           gasnet_exit(18); 
       } else {
-        int i, junk;
+        int junk;
         int lim = MIN(MIN(MIN(gasnet_AMMaxMedium(), gasnet_AMMaxLongRequest()), gasnet_AMMaxLongReply()), TEST_SEGSZ);
         char *p = malloc(lim);
         char *peerseg = TEST_SEG(peer);
@@ -176,6 +175,9 @@ int main(int argc, char **argv) {
     /* w/ odd # of nodes, last one talks to self */
     peer = mynode;
   }
+
+  if (!mynode)
+	print_testname("testexit", nodes);
 	  
   MSG("running...");
 
@@ -209,7 +211,7 @@ int main(int argc, char **argv) {
   }
 
   GASNET_Safe(gasnet_attach(htable,  sizeof(htable)/sizeof(gasnet_handlerentry_t),
-	      TEST_SEGSZ, TEST_MINHEAPOFFSET));
+	                    TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
   { test_sighandlerfn_t fpret = (test_sighandlerfn_t)signal(SIGQUIT, testSignalHandler); 

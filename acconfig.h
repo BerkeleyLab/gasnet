@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2004/11/23 23:39:53 $ */
-/*  $Revision: 1.41.2.3 $ */
+/*      $Date: 2005/04/04 03:32:39 $ */
+/*  $Revision: 1.41.2.4 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -45,6 +45,9 @@
 /* has sched_yield() */
 #undef HAVE_SCHED_YIELD
 
+/* have pthread_setconcurrency */
+#undef HAVE_PTHREAD_SETCONCURRENCY
+
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
 
@@ -53,6 +56,9 @@
 
 /* has __builtin_expect */
 #undef HAVE_BUILTIN_EXPECT
+
+/* has __builtin_prefetch */
+#undef HAVE_BUILTIN_PREFETCH
 
 /* has __func__ function name defined */
 #undef HAVE_FUNC
@@ -64,6 +70,9 @@
 #undef COMPLETE_INTTYPES_H
 #undef COMPLETE_STDINT_H
 #undef COMPLETE_SYS_TYPES_H
+
+/* Linux PR_SET_PDEATHSIG support */
+#undef HAVE_PR_SET_PDEATHSIG
 
 /* Linux asm/atomic.h broken */
 #undef BROKEN_LINUX_ASM_ATOMIC_H
@@ -81,6 +90,9 @@
 #undef GASNETI_PAGESIZE
 #undef GASNETI_PAGESHIFT
 
+/* auto-detected shared data cache line size */
+#undef GASNETI_CACHE_LINE_BYTES
+
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
@@ -93,6 +105,7 @@
 #undef UNICOS
 #undef CRAYT3E
 #undef CRAYX1
+#undef MTA
 #undef AIX
 #undef OSF
 #undef HPUX
@@ -109,11 +122,13 @@
 
 /* GASNet gm-conduit broken 2.x versions */
 #undef GASNETC_GM_ENABLE_BROKEN_VERSIONS
+#undef GASNETC_GM_MPI_COMPAT
 
 /* GASNet vapi-conduit features and bug work-arounds */
 #undef HAVE_VAPI_FMR
 #undef GASNETC_VAPI_ENABLE_INLINE_PUTS
 #undef GASNETC_VAPI_FORCE_POLL_LOCK
+#undef GASNETC_VAPI_RCV_THREAD
 
 /* GASNet lapi-conduit specific */
 #undef GASNETC_LAPI_FEDERATION

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcontend.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.5 $
+ *     $Date: 2005/04/04 03:33:27 $
+ * $Revision: 1.5.2.1 $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  
@@ -82,13 +82,13 @@ gasnet_handlerentry_t htable[] = {
 
 #define SPINPOLL_UNTIL(cond) do { while (!(cond)) gasnet_AMPoll(); } while (0)
 
-#define BARRIER_UNTIL(cond) do {                                           \
-      if (mythread == 0) SPINPOLL_UNTIL(cond);                             \
-      else if (mythread == 1) {                                            \
-        /* one thread sits in barrier during test */                       \
-        gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            \
-        GASNET_Safe(gasnete_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS)); \
-      }                                                                    \
+#define BARRIER_UNTIL(cond) do {                                          \
+      if (mythread == 0) SPINPOLL_UNTIL(cond);                            \
+      else if (mythread == 1) {                                           \
+        /* one thread sits in barrier during test */                      \
+        gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            \
+        GASNET_Safe(gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS)); \
+      }                                                                   \
   } while (0)
 
     
@@ -242,8 +242,8 @@ void * barrier_passive(void *args) {
   thread_barrier();
   while (!signal_done) gasnet_AMPoll();
   if (mythread == 0) { /* match the barrier the active side is waiting for */
-    gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);
-    GASNET_Safe(gasnete_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS));
+    gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);
+    GASNET_Safe(gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS));
   }
   thread_barrier();
   return NULL;
@@ -314,8 +314,9 @@ int main(int argc, char **argv) {
         threadcnt_t *ptcount;
 
 	GASNET_Safe(gasnet_init(&argc, &argv));
-    	GASNET_Safe(gasnet_attach(htable, HANDLER_TABLE_SIZE,
-		    TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    	GASNET_Safe(gasnet_attach(htable, HANDLER_TABLE_SIZE, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+	if (!gasnet_mynode())
+	    print_testname("testcontend", gasnet_nodes());
         TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
         TEST_DEBUGPERFORMANCE_WARNING();
 

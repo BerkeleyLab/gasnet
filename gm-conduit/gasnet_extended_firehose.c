@@ -1,15 +1,14 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2004/10/12 22:59:40 $
- * $Revision: 1.45 $
+ * $Date: 2005/04/04 03:32:47 $
+ * $Revision: 1.45.2.1 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
-#include <gasnet.h>
+#include <gasnet_internal.h>
 #ifdef GASNETC_FIREHOSE
 #include <gasnet_extended_internal.h>
 #include <gasnet_core_internal.h>
-#include <gasnet_internal.h>
 #include <gasnet_handler.h>
 
 #define GASNETE_FH_HAVE_TOKEN		0
@@ -72,13 +71,6 @@ gasnete_fh_request_get_fn(void *op, const firehose_request_t *req, int loc)
 #define GASNETE_FIREHOSE_TRACE_PUTGET(eop, putget)
 #endif
 
-
-#define gasnete_in_segment(node,ptr,len)					\
-		(!((uintptr_t)(ptr) < (uintptr_t)gasnetc_seginfo[(node)].addr	\
-		    || ((uintptr_t)(ptr) + (len)) > 				\
-		    ((uintptr_t)gasnetc_seginfo[(node)].addr + 			\
-		    gasnetc_seginfo[(node)].size)))
-
 extern
 int 
 firehose_move_callback(gasnet_node_t node, 
@@ -92,16 +84,16 @@ firehose_move_callback(gasnet_node_t node,
 		gasneti_mutex_lock(&gasnetc_lock_gm);
 
 	for (i = 0; i < unpin_num; i++) {
-		gasneti_assert(unpin_list[i].addr % GASNETI_PAGESIZE == 0);
-		gasneti_assert(unpin_list[i].len % GASNETI_PAGESIZE == 0);
+		gasneti_assert(unpin_list[i].addr % GASNET_PAGESIZE == 0);
+		gasneti_assert(unpin_list[i].len % GASNET_PAGESIZE == 0);
 		gm_deregister_memory(_gmc.port, (void *) unpin_list[i].addr, 
 				   unpin_list[i].len);
 	}
 	GASNETI_TRACE_EVENT_VAL(C, FIREHOSE_LOCALUNPIN_PAGES, unpin_num);
 
 	for (i = 0; i < pin_num; i++) {
-		gasneti_assert(pin_list[i].addr % GASNETI_PAGESIZE == 0);
-		gasneti_assert(pin_list[i].len % GASNETI_PAGESIZE == 0);
+		gasneti_assert(pin_list[i].addr % GASNET_PAGESIZE == 0);
+		gasneti_assert(pin_list[i].len % GASNET_PAGESIZE == 0);
 		gm_register_memory(_gmc.port, (void *) pin_list[i].addr, 
 				   pin_list[i].len);
 	}
@@ -118,8 +110,8 @@ firehose_move_callback(gasnet_node_t node,
 /* ##################################################################### */
 void
 gasnete_fh_callback_put(struct gm_port *p, void *context, 
-			      gm_status_t status)
-{
+			      gm_status_t status) {
+        GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
 	gasnete_eop_t		*pop = (gasnete_eop_t *) context;
 	gasnet_node_t		node = pop->node;
 	gasneti_stattime_t      starttime = GASNETI_STATTIME_NOW_IFENABLED(C);
@@ -128,7 +120,7 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(pop != NULL);
-	gasneti_assert(node != gasnete_mynode && node < gasnete_nodes);
+	gasneti_assert(node != gasneti_mynode && node < gasneti_nodes);
 
 	if_pf (status != GM_SUCCESS)
 	    gasnetc_callback_error(status, NULL);
@@ -163,18 +155,18 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 	GASNETE_GM_UNSET_IN_UNKNOWN();
 	#endif
 
-	gasnete_op_markdone((gasnete_op_t *)pop, 0);
+	GASNETE_FIREHOSE_TRACE_PUTGET(pop, PUT);
 
 	/* If this was associated to an iop, increment put completed count */
 	if (pop->iop != NULL) {
-		gasneti_atomic_increment(&(pop->iop->completed_put_cnt));
-		gasnete_op_free((gasnete_op_t *) pop);
-	}
+		gasneti_weakatomic_increment(&(pop->iop->completed_put_cnt));
+		gasneti_free(pop); /* free a "dummy" eop */
+        } else {
+	        gasnete_op_markdone((gasnete_op_t *)pop, 0);
+        }
 
 	GASNETI_TRACE_EVENT_TIME(C, FIREHOSE_MOVE_LOCAL,
 		    GASNETI_STATTIME_NOW_IFENABLED(C)-starttime);
-
-	GASNETE_FIREHOSE_TRACE_PUTGET(pop, PUT);
 
 	return;
 }
@@ -189,7 +181,7 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 	gasneti_assert(pop != NULL);
 	gasneti_assert(pop->src > 0 && pop->dest > 0);
 	node = pop->node;
-	gasneti_assert(node != gasnete_mynode && node < gasnete_nodes);
+	gasneti_assert(node != gasneti_mynode && node < gasneti_nodes);
 	gasneti_assert(pop->len > 0);
 	gasneti_assert(req == &(pop->req_remote));
 
@@ -221,7 +213,10 @@ gasnete_firehose_put_bulk(gasnet_node_t node, void *dest, void *src,
 {
 	gasnete_eop_t	*pop;
 
-	pop = gasnete_eop_new(GASNETE_MYTHREAD);
+	if (iop) /* use a "dummy" eop */
+          pop = gasneti_calloc(1, sizeof(gasnete_eop_t));
+        else 
+          pop = gasnete_eop_new(GASNETE_MYTHREAD);
 	pop->src = (uintptr_t) src;
 	pop->dest = (uintptr_t) dest;
 	pop->len = (uint32_t) nbytes;
@@ -248,7 +243,7 @@ gasnete_firehose_put_bulk(gasnet_node_t node, void *dest, void *src,
 		gasnete_fh_request_put, pop);
 	#endif
 
-	return (gasnete_op_t *) pop;
+        return (iop?(gasnete_op_t *)iop:(gasnete_op_t *)pop);
 }
 
 extern gasnet_handle_t
@@ -291,7 +286,10 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 	gasneti_assert(nbytes <= GASNETC_AM_LEN);
 	bufd = gasnetc_AMRequestPool_block();
 
-	pop = gasnete_eop_new(GASNETE_MYTHREAD);
+	if (iop) /* use a "dummy" eop */
+          pop = gasneti_calloc(1, sizeof(gasnete_eop_t));
+        else 
+          pop = gasnete_eop_new(GASNETE_MYTHREAD);
 	pop->node = node;
 	pop->src = (uintptr_t) bufd->buf;
 	pop->dest = (uintptr_t) dest;
@@ -316,7 +314,7 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 		gasnete_fh_request_put, pop);
 	#endif
 	
-	return (gasnete_op_t *) pop;
+        return (iop?(gasnete_op_t *)iop:(gasnete_op_t *)pop);
 }
 
 /*
@@ -402,13 +400,14 @@ gasnete_get_fh_done(gasnete_eop_t *eop)
 	    firehose_release(fhreqs, 2);
 	#endif
 
-	gasnete_op_markdone((gasnete_op_t *) eop, 1);
+	GASNETE_FIREHOSE_TRACE_PUTGET(eop, GET);
 
 	if (eop->iop != NULL) {
-		gasneti_atomic_increment(&(eop->iop->completed_get_cnt));
-		gasnete_op_free((gasnete_op_t *) eop);
-	}
-	GASNETE_FIREHOSE_TRACE_PUTGET(eop, GET);
+		gasneti_weakatomic_increment(&(eop->iop->completed_get_cnt));
+		gasneti_free(eop); /* free a "dummy" eop */
+        } else {
+	        gasnete_op_markdone((gasnete_op_t *) eop, 1);
+        }
 
 	return;
 }
@@ -440,26 +439,22 @@ extern int firehose_remote_callback(gasnet_node_t node,
  * In GM 2.0, we can use directed receives (gm_get) once the remote region is
  * known to be pinned 
  */
-void
-gasnete_fh_callback_get_rdma(struct gm_port *p, void *context, 
-			      gm_status_t status)
-{
+void gasnete_fh_callback_get_rdma(struct gm_port *p, void *context, gm_status_t status) {
+        GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
 	gasnete_eop_t			*gop = (gasnete_eop_t *) context;
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(gop != NULL);
-	gasneti_assert(gop->node!=gasnete_mynode && gop->node < gasnete_nodes);
+	gasneti_assert(gop->node!=gasneti_mynode && gop->node < gasneti_nodes);
 
 	if_pf (status != GM_SUCCESS)
 	    gasnetc_callback_error(status, NULL);
 	gasnetc_token_lo_release();
 
-	/* release the get and mark the op done */
+	/* trace it, release the get and mark the op done */
 	GASNETE_GM_SET_IN_UNKNOWN();
 	gasnete_get_fh_done(gop);
 	GASNETE_GM_UNSET_IN_UNKNOWN();
-
-	GASNETE_FIREHOSE_TRACE_PUTGET(gop, GET);
 
 	return;
 }
@@ -474,7 +469,7 @@ gasnete_fh_request_get_rdma(void *_gop, const firehose_request_t *req,
 	gasneti_assert(gop != NULL);
 	gasneti_assert(gop->src > 0 && gop->dest > 0);
 	node = gop->node;
-	gasneti_assert(node != gasnete_mynode && node < gasnete_nodes);
+	gasneti_assert(node != gasneti_mynode && node < gasneti_nodes);
 	gasneti_assert(gop->len > 0);
 
 	/* If the get callback hit the firehose cache (allLocalHit > 0), we can
@@ -523,9 +518,8 @@ gasnete_fh_request_get_rdma(void *_gop, const firehose_request_t *req,
  * AM Handler: Reply to get into a pinned memory location
  */
 GASNET_INLINE_MODIFIER(gasnete_get_dma_reph_inner)
-void
-gasnete_get_dma_reph_inner(gasnet_token_t token, void *op)
-{
+void gasnete_get_dma_reph_inner(gasnet_token_t token, void *op) {
+        GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
 	gasnete_eop_t	*gop = (gasnete_eop_t *) op;
 
 	GASNETE_GM_SET_IN_UNKNOWN();
@@ -546,7 +540,7 @@ gasnete_get_dma_reqh_inner(gasnet_token_t token,
 {
 	gasneti_assert(op != NULL && op2 != NULL); /* XXX this _was_ a bug on alvarez */
 	/* The memory should already be pinned per a previous pin request */
-	GASNETE_SAFE(
+	GASNETI_SAFE(
 	    LONGASYNC_REP(1,2, (token,
 	    gasneti_handleridx(gasnete_get_dma_reph), src, nbytes,
 	    dest, PACK(op))));
@@ -562,7 +556,7 @@ gasnete_fh_request_get_am(void *_gop, const firehose_request_t *req, int allLoca
 
 	gasneti_assert(gop != NULL);
 	gasneti_assert(gop->src != 0 && gop->dest != 0);
-	gasneti_assert(gop->node != gasnete_mynode && gop->node < gasnete_nodes);
+	gasneti_assert(gop->node != gasneti_mynode && gop->node < gasneti_nodes);
 
 	/* If the remote pages are known to be pinned, send a request for RDMA
 	 * */
@@ -602,7 +596,10 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 
 	firehose_remotecallback_args_t	args;
 
-	gop = gasnete_eop_new(GASNETE_MYTHREAD);
+	if (iop) /* use a "dummy" eop */
+          gop = gasneti_calloc(1, sizeof(gasnete_eop_t));
+        else 
+          gop = gasnete_eop_new(GASNETE_MYTHREAD);
 	gop->dest = (uintptr_t) dest;
 	gop->src = (uintptr_t) src;
 	gop->len = nbytes;
@@ -637,14 +634,14 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 		gasnete_fh_request_get_fn, gop);
 	#endif
 
-	return (gasnete_op_t *) gop;
+        return (iop?(gasnete_op_t *)iop:(gasnete_op_t *)gop);
 }
 
 extern gasnet_handle_t
 gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, 
 		     size_t nbytes GASNETE_THREAD_FARG)
 {
-	gasnete_boundscheck(node, src, nbytes);
+	gasneti_boundscheck(node, src, nbytes);
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_get_nb_bulk Firehose (%p <- %d,%p @ %d bytes)",
@@ -661,7 +658,7 @@ gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src,
 	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 	gasnete_iop_t *iop = mythread->current_iop;
 
-	gasnete_boundscheck(node, src, nbytes);
+	gasneti_boundscheck(node, src, nbytes);
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_get_nb_bulk Firehose (%p <- %d,%p @ %d bytes)",

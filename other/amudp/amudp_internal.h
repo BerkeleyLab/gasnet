@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2004/10/19 04:41:55 $
- * $Revision: 1.15 $
+ *     $Date: 2005/04/04 03:33:01 $
+ * $Revision: 1.15.2.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -131,6 +131,53 @@
 
 BEGIN_EXTERNC
 
+static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
+
+/* memory allocation */
+#if AMUDP_DEBUG
+  /* use the gasnet debug malloc functions if a debug libgasnet is linked */
+  extern void *(*gasnett_debug_malloc_fn)(size_t sz, const char *curloc);
+  extern void *(*gasnett_debug_calloc_fn)(size_t N, size_t S, const char *curloc);
+  extern void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
+  static void *_AMUDP_malloc(size_t sz, const char *curloc) {
+    void *ret = malloc(sz);
+    if_pf(!ret) { ErrMessage("Failed to malloc(%lu) at %s", (unsigned long)sz, curloc); abort(); }
+    return ret;
+  }
+  static void *_AMUDP_calloc(size_t N, size_t S, const char *curloc) {
+    void *ret = calloc(N,S);
+    if_pf(!ret) { ErrMessage("Failed to calloc(%lu,%lu) at %s", (unsigned long)N, (unsigned long)S, curloc); abort(); }
+    return ret;
+  }
+  static void _AMUDP_free(void *ptr, const char *curloc) {
+    free(ptr);
+  }
+  #define AMUDP_curloc __FILE__ ":" _STRINGIFY(__LINE__)
+  #define AMUDP_malloc(sz)                                   \
+    ( (PREDICT_FALSE(gasnett_debug_malloc_fn==NULL) ?        \
+        gasnett_debug_malloc_fn = &_AMUDP_malloc : 0), \
+      (*gasnett_debug_malloc_fn)(sz, AMUDP_curloc))
+  #define AMUDP_calloc(N,S)                                  \
+    ( (PREDICT_FALSE(gasnett_debug_calloc_fn==NULL) ?        \
+        gasnett_debug_calloc_fn = &_AMUDP_calloc : 0), \
+      (*gasnett_debug_calloc_fn)((N),(S), AMUDP_curloc))
+  #define AMUDP_free(ptr)                                \
+    ( (PREDICT_FALSE(gasnett_debug_free_fn==NULL) ?      \
+        gasnett_debug_free_fn = &_AMUDP_free : 0), \
+      (*gasnett_debug_free_fn)(ptr, AMUDP_curloc))
+
+  #undef malloc
+  #define malloc(x)   ERROR_use_AMUDP_malloc
+  #undef calloc
+  #define calloc(n,s) ERROR_use_AMUDP_calloc
+  #undef free
+  #define free(x)     ERROR_use_AMUDP_free
+#else
+  #define AMUDP_malloc(sz)  malloc(sz)
+  #define AMUDP_calloc(N,S) calloc((N),(S))
+  #define AMUDP_free(ptr)   free(ptr)
+#endif
+
 /*------------------------------------------------------------------------------------
  * Error reporting
  *------------------------------------------------------------------------------------ */
@@ -204,17 +251,16 @@ static const char *AMUDP_ErrorDesc(int errval) {
   return val;                                                     \
   } while (0)
 
-static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
 static int ErrMessage(const char *msg, ...) {
   static va_list argptr;
-  char *expandedmsg = (char *)malloc(strlen(msg)+50);
+  char *expandedmsg = (char *)AMUDP_malloc(strlen(msg)+50);
   int retval;
 
   va_start(argptr, msg); // pass in last argument
   sprintf(expandedmsg, "*** AMUDP ERROR: %s\n", msg);
   retval = vfprintf(stderr, expandedmsg, argptr);
   fflush(stderr);
-  free(expandedmsg);
+  AMUDP_free(expandedmsg);
 
   va_end(argptr);
   return retval; // this MUST be only return in this function
@@ -223,14 +269,14 @@ static int ErrMessage(const char *msg, ...) {
 static int WarnMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
 static int WarnMessage(const char *msg, ...) {
   static va_list argptr;
-  char *expandedmsg = (char *)malloc(strlen(msg)+50);
+  char *expandedmsg = (char *)AMUDP_malloc(strlen(msg)+50);
   int retval;
 
   va_start(argptr, msg); // pass in last argument
   sprintf(expandedmsg, "*** AMUDP WARNING: %s\n", msg);
   retval = vfprintf(stderr, expandedmsg, argptr);
   fflush(stderr);
-  free(expandedmsg);
+  AMUDP_free(expandedmsg);
 
   va_end(argptr);
   return retval; // this MUST be only return in this function
@@ -238,7 +284,7 @@ static int WarnMessage(const char *msg, ...) {
 
 #include <assert.h>
 #undef assert
-#define assert(x) !!! Error - use AMUDP_assert() !!!
+#define assert(x) ERROR_use_AMUDP_assert
 #if AMUDP_NDEBUG
   #define AMUDP_assert(expr) ((void)0)
 #else

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2004/09/20 12:10:48 $
- * $Revision: 1.30 $
+ *     $Date: 2005/04/04 03:32:39 $
+ * $Revision: 1.30.2.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,6 +14,9 @@
   #error Applications that use both GASNet and GASNet tools must   \
          include gasnet.h before gasnet_tools.h and must include   \
          _both_ headers in any files that need either header
+#endif
+#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_IN_GASNET_INTERNAL_H)
+  #error Internal GASNet code should not directly include gasnet.h, just gasnet_internal.h
 #endif
 
 /* Usage:
@@ -176,46 +179,10 @@
   #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 #endif
 
-#ifndef _GASNET_ERRORNAME
-#define _GASNET_ERRORNAME
-GASNET_INLINE_MODIFIER(gasnet_ErrorName)
-const char *gasnet_ErrorName(int errval) {
-  switch (errval) {
-    case GASNET_OK:           return "GASNET_OK";      
-    case GASNET_ERR_NOT_INIT: return "GASNET_ERR_NOT_INIT";      
-    case GASNET_ERR_BAD_ARG:  return "GASNET_ERR_BAD_ARG";       
-    case GASNET_ERR_RESOURCE: return "GASNET_ERR_RESOURCE";      
-    case GASNET_ERR_BARRIER_MISMATCH: return "GASNET_ERR_BARRIER_MISMATCH";      
-    case GASNET_ERR_NOT_READY: return "GASNET_ERR_NOT_READY";      
-    default: return "*unknown*";
-  }
-}
-#endif
-
-#ifndef _GASNET_ERRORDESC
-#define _GASNET_ERRORDESC
-GASNET_INLINE_MODIFIER(gasnet_ErrorDesc)
-const char *gasnet_ErrorDesc(int errval) {
-  switch (errval) {
-    case GASNET_OK:           return "No error";      
-    case GASNET_ERR_NOT_INIT: return "GASNet message layer not initialized"; 
-    case GASNET_ERR_BAD_ARG:  return "Invalid function parameter passed";    
-    case GASNET_ERR_RESOURCE: return "Problem with requested resource";      
-    case GASNET_ERR_BARRIER_MISMATCH: return "Barrier id's mismatched";      
-    case GASNET_ERR_NOT_READY: return "Non-blocking operation not complete";      
-    default: return "no description available";
-  }
-}
-#endif
-
-#ifndef _GASNET_WAITMODE
-#define _GASNET_WAITMODE
-  #define GASNET_WAIT_SPIN      0 /* contend aggressively for CPU resources while waiting (spin) */
-  #define GASNET_WAIT_BLOCK     1 /* yield CPU resources immediately while waiting (block) */
-  #define GASNET_WAIT_SPINBLOCK 2 /* spin for an implementation-dependent period, then block */
-  extern int gasneti_set_waitmode(int wait_mode);
-  #define gasnet_set_waitmode(wait_mode) gasneti_set_waitmode(wait_mode)
-#endif
+BEGIN_EXTERNC
+extern const char *gasnet_ErrorName(int);
+extern const char *gasnet_ErrorDesc(int);
+END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* core types */
@@ -247,7 +214,7 @@ const char *gasnet_ErrorDesc(int errval) {
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
   /*  struct type used to negotiate handler registration in gasnet_init() */
-  typedef struct {
+  typedef struct gasneti_handlerentry_s {
     gasnet_handler_t index; /*  == 0 for don't care  */
     void (*fnptr)();    
   } gasnet_handlerentry_t;
@@ -255,7 +222,7 @@ const char *gasnet_ErrorDesc(int errval) {
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
-  typedef struct {
+  typedef struct gasneti_seginfo_s {
     void *addr;
     uintptr_t size;
   } gasnet_seginfo_t;
@@ -275,10 +242,11 @@ const char *gasnet_ErrorDesc(int errval) {
         this is probably because they don't support VM
        actual page size is set separately for each linker section, 
         ranging from 512KB(default) to 8MB
-       Here we return 1 to reflect the lack of page alignment constraints
+       Here we return 8 to reflect the lack of page alignment constraints
+       (for basic sanity, we want page alignment >= reqd double alignment)
    */
 
-    #define GASNET_PAGESIZE 1
+    #define GASNET_PAGESIZE 8
   #else
     #error GASNET_PAGESIZE unknown and not set by conduit
   #endif
@@ -390,6 +358,8 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME));
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME));
 
 static int *gasneti_linkconfig_idiotcheck();
 static int *(*_gasneti_linkconfig_idiotcheck)() = &gasneti_linkconfig_idiotcheck;
@@ -401,7 +371,10 @@ static int *gasneti_linkconfig_idiotcheck() {
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG)
-        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME))
+        + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME))
+        ;
   if (_gasneti_linkconfig_idiotcheck != gasneti_linkconfig_idiotcheck)
     val += *_gasneti_linkconfig_idiotcheck();
   return &val;
@@ -416,4 +389,18 @@ static int *gasneti_linkconfig_idiotcheck() {
 /* ------------------------------------------------------------------------------------ */
 
 #undef _IN_GASNET_H
+#endif
+
+/* intentionally expanded on every include */
+#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(GASNETI_INTERNAL_TEST_PROGRAM) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
+  #define _GASNET_INTERNAL_IDIOTCHECK
+  #undef gasnet_attach
+  GASNET_INLINE_MODIFIER(gasnet_attach)
+  int gasnet_attach(gasnet_handlerentry_t *table, int numentries,
+                    uintptr_t segsize, uintptr_t minheapoffset) {
+    gasneti_fatalerror("GASNet client code must NOT #include <gasnet_internal.h>\n"
+                       "gasnet_internal.h is not installed, and modifies the behavior "
+                       "of various internal operations, such as segment safety bounds-checking.");
+    return GASNET_ERR_NOT_INIT;
+  }
 #endif

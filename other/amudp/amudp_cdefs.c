@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_cdefs.c,v $
- *     $Date: 2005/03/15 13:54:52 $
- * $Revision: 1.1 $
+ *     $Date: 2005/04/04 03:33:01 $
+ * $Revision: 1.1.2.1 $
  * Description: AMUDP definitions that must be compiled in C mode
  * Copyright 2005, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

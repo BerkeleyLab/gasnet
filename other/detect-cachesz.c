@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/detect-cachesz.c,v $
- *     $Date: 2005/02/15 03:28:15 $
- * $Revision: 1.2 $
+ *     $Date: 2005/04/04 03:32:57 $
+ * $Revision: 1.2.2.1 $
  * Description: stand-alone tool to empirically detect SMP shared data cache line size
  * Copyright 2005, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2004/11/23 23:40:11 $
- * $Revision: 1.5.10.1 $
+ *     $Date: 2005/04/04 03:33:17 $
+ * $Revision: 1.5.10.2 $
  * Description: GASNet header for sci conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,5 +37,9 @@
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
+
+/* TODO: sci-conduit currently does not guarantee 8-byte alignment for medium buffers
+   this should be fixed for performance reasons */
+#define GASNETI_MEDBUF_ALIGNMENT 4
 
 #endif
