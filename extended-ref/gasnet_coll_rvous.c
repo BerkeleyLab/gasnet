@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2005/02/02 22:12:58 $
- * $Revision: 1.20.2.1 $
+ *     $Date: 2005/02/04 20:24:26 $
+ * $Revision: 1.20.2.2 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -670,41 +670,99 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 /* Synchronization primitives */
 
 #ifndef GASNETE_COLL_CONSENSUS_OVERRIDE
+    /* gasnete_coll_issued_id counts barrier sequence numbers as they are allocated
+     * to collective operations. */
     static uint32_t gasnete_coll_issued_id = 0;
+
+    /* gasnete_coll_consensus_id holds the current barrier state and sequence.
+     * The upper 31 bits of gasnete_coll_issued_id holds the lower 31 bits of
+     * the barrier sequence number of the current barrier.  This imposes a
+     * limit of around 1 billion simultaneous outstanding collective ops before
+     * counter overflow could introduce ambiguity.  Otherwise, careful use of
+     * unsigned arithmetic eliminates problems due to wrap.
+     * The least significant bit of gasnete_coll_consensus_id is 0 if the next
+     * operation is to be a notify, or a 1 if the next is a try.
+     * Any caller may issue a try (when the phase indicates a try) and must
+     * advance gasnete_coll_issued_id by 1 if the try returns success.
+     * Only the matching caller may issue a notify and must unconditionally
+     * advance gasnete_coll_issued_id by 1.
+     * In a debug build the gasnete_coll_issued_id is also used as the barrier
+     * name to help detect bugs, but anonymous barriers are used in non-debug
+     * builds for speed.
+     */
     static uint32_t gasnete_coll_consensus_id = 0;
 
     extern gasnete_coll_consensus_t gasnete_coll_consensus_create(void) {
       return gasnete_coll_issued_id++;
     }
 
+    GASNET_INLINE_MODIFIER(gasnete_coll_consensus_do_try)
+    int gasnete_coll_consensus_do_try(void) {
+#if GASNET_DEBUG
+      int rc = gasnet_barrier_try(gasnete_coll_consensus_id, 0);
+      if_pt (rc == GASNET_OK) {
+	/* A barrier is complete, advance */
+	++gasnete_coll_consensus_id;
+	return 1;
+      } else if (rc == GASNET_ERR_BARRIER_MISMATCH) {
+	gasneti_fatalerror("Named barrier mismatch detected in collectives");
+      } else {
+	gasneti_assert(rc == GASNET_ERR_NOT_READY);
+      }
+      return 0;
+#else
+      int rc = gasnet_barrier_try(0, GASNET_BARRIERFLAG_ANONYMOUS);
+      if_pt (rc == GASNET_OK) {
+	/* A barrier is complete, advance */
+	++gasnete_coll_consensus_id;
+	return 1;
+      }
+      return 0;
+#endif
+    }
+
+    GASNET_INLINE_MODIFIER(gasnete_coll_consensus_do_notify)
+    void gasnete_coll_consensus_do_notify(void) {
+	  ++gasnete_coll_consensus_id;
+#if GASNET_DEBUG
+	  gasnet_barrier_notify(gasnete_coll_consensus_id, 0);
+#else
+	  gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+#endif
+    }
+
     extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id) {
       uint32_t tmp = id << 1;	/* low bit is used for barrier phase (notify vs wait) */
-#if GASNET_DEBUG
-      const int barrier_flags = 0;
-#else
-      const int barrier_flags = GASNET_BARRIERFLAG_ANONYMOUS;
-#endif
 
-      if (tmp == gasnete_coll_consensus_id) {
-	/* Exact match, so we notify and advance */
-	++gasnete_coll_consensus_id;
-	gasnet_barrier_notify(gasnete_coll_consensus_id, barrier_flags);
-      }
+      /* We can only notify when our own turn comes up.
+       * Thus, the most progress we could make in one call
+       * would be to sucessfully 'try' for our predecessor,
+       * 'notify' our our barrier, and then 'try' our own.
+       */
+      switch (tmp - gasnete_coll_consensus_id) {
+        case 1:
+	  /* Try for our predecessor, hoping we can then notify */
+	  if (!gasnete_coll_consensus_do_try()) {
+	    gasneti_assert((tmp - gasnete_coll_consensus_id) == 1);
+	    /* Sucessor is not yet done */
+	    break;
+	  }
+	  gasneti_assert(tmp == gasnete_coll_consensus_id);
+	  /* ready to advance, so fall through... */
+        case 0:
+	  /* Our own turn has come - notify and try */
+	  gasnete_coll_consensus_do_notify();
+	  gasneti_assert((gasnete_coll_consensus_id - tmp) == 1);
+	  gasnete_coll_consensus_do_try();
+	  gasneti_assert(((gasnete_coll_consensus_id - tmp) == 1) ||
+			 ((gasnete_coll_consensus_id - tmp) == 2));
+	  break;
 
-      if (gasnete_coll_consensus_id & 1) {
-	/* At a wait stage, so try the barrier */
-	int rc = gasnet_barrier_try(gasnete_coll_consensus_id, barrier_flags);
-	if (rc == GASNET_OK) {
-	  /* A barrier is complete, advance */
-	  ++gasnete_coll_consensus_id;
-	}
-#if GASNET_DEBUG
-	else if (rc == GASNET_ERR_BARRIER_MISMATCH) {
-	  gasneti_fatalerror("Named barrier mismatch detected in collectives");
-	} else {
-	  gasneti_assert(rc == GASNET_ERR_NOT_READY);
-	}
-#endif
+        default:
+	  /* not our turn, but we can 'try' if the phase is right */
+	  if (gasnete_coll_consensus_id & 1) {
+	    gasnete_coll_consensus_do_try();
+	  }
       }
 
       /* Note that we need to be careful of wrapping, thus the (int32_t)(a-b) construct
