@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/02 21:15:14 $
- * $Revision: 1.1.2.32 $
+ *     $Date: 2004/06/02 22:29:57 $
+ * $Revision: 1.1.2.33 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1899,7 +1899,6 @@ extern int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
 	data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
 
 	/* Do local copy LAST, perhaps overlapping with communication */
-	/* XXX: for large sizes we should segment this in-memory broadcast */
 	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
 	src_addr = (uintptr_t)args->src + nbytes * gasnete_coll_my_offset;
 	for (i = 0; i < gasnete_coll_my_images; ++i, ++p) {
@@ -1976,6 +1975,108 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_nb() */
 
+/* gath Get: all nodes perform uncoordinated gets */
+/* Valid for SINGLE only, any size */
+extern int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
+  int result = 0;
+
+  switch (data->state) {
+    case 0:
+      if (!gasnete_coll_generic_insync(data)) {
+	break;
+      }
+
+      if (gasnete_mynode == args->dstnode) {
+	void   *src   = args->src;
+	void   *dst   = args->dst;
+	size_t nbytes = args->nbytes;
+	uintptr_t p;
+
+	/* Queue GETs in an NBI access region */
+	gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+	{
+	  int i;
+
+	  /* Get from nodes to the "right" of ourself */
+	  p = (uintptr_t)dst + nbytes * (gasnete_mynode + 1);
+	  for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i, p += nbytes) {
+	    gasnete_get_nbi_bulk((void *)p, i, src, nbytes GASNETE_THREAD_PASS);
+	  }
+	  /* Get from nodes to the "left" of ourself */
+	  p = (uintptr_t)dst;
+	  for (i = 0; i < gasnete_mynode; ++i, p += nbytes) {
+	    gasnete_get_nbi_bulk((void *)p, i, src, nbytes GASNETE_THREAD_PASS);
+	  }
+	}
+	data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+
+	/* Do local copy LAST, perhaps overlapping with communication */
+	p = (uintptr_t)dst + nbytes * gasnete_mynode;
+	GASNETE_FAST_UNALIGNED_MEMCPY((void *)p, src, nbytes);
+      }
+      data->state = 1;
+
+    case 1:
+      if (!gasnete_coll_generic_syncnb(data)) {
+	break;
+      }
+      data->state = 2;
+
+    case 2:
+      if (!gasnete_coll_generic_outsync(data)) {
+	break;
+      }
+
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
+
+/* gath Put: root node performs carefully ordered puts */
+/* Valid for SINGLE only, any size */
+extern int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
+  int result = 0;
+
+  switch (data->state) {
+    case 0:
+      if (!gasnete_coll_generic_insync(data)) {
+	break;
+      } else {
+	void *dst = (void *)((uintptr_t)(args->dst) + args->nbytes * gasnete_mynode);
+
+        if (gasnete_mynode == args->dstnode) {
+	  GASNETE_FAST_UNALIGNED_MEMCPY(dst, args->src, args->nbytes);
+        } else {
+	  data->handle = gasnete_put_nb_bulk(args->dstnode, dst, args->src,
+					     args->nbytes GASNETE_THREAD_PASS);
+        }
+      }
+      data->state = 1;
+
+    case 1:
+      if (!gasnete_coll_generic_syncnb(data)) {
+	break;
+      }
+      data->state = 2;
+
+    case 2:
+      if (!gasnete_coll_generic_outsync(data)) {
+	break;
+      }
+
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
+
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
 			       gasnet_node_t dstnode, void *dst,
@@ -1990,8 +2091,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     data->args.gather.src     = src;
     data->args.gather.nbytes  = nbytes;
     data->options = options;
-    return GASNETE_COLL_UNIMPLEMENTED();
-    /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS); */
+    return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS);
 }
 
 #ifndef gasnete_coll_gather_nb
@@ -2013,7 +2113,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(out_sync != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = NULL;
+      poll_fn = &gasnete_coll_pf_gath_Put;
 
       return gasnete_coll_generic_gather_nb(team, dstnode, dst, src, nbytes, flags,
 					    poll_fn, options GASNETE_THREAD_PASS);
@@ -2022,6 +2122,149 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gatherM_nb() */
+
+/* gathM Get: root node performs carefully ordered gets */
+/* Valid for SINGLE only, any size */
+extern int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gatherM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gatherM);
+  int result = 0;
+
+  switch (data->state) {
+    case 0:
+      if (!gasnete_coll_generic_insync(data)) {
+	break;
+      }
+
+      if (gasnete_mynode == args->dstnode) {
+	size_t nbytes = args->nbytes;
+	uintptr_t dst_addr;
+	int i;
+	void ** dstlist;
+	void * const *p;
+
+	/* Allocate a source vector for geti */
+	/* XXX: Use freelist? */
+	dstlist = gasneti_malloc(gasnete_nodes * sizeof(void *));
+	data->private = dstlist;
+
+	/* Queue GETIs in an NBI access region */
+	gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+	{
+	  void **q;
+
+	  /* Get from the "right" of ourself */
+	  dst_addr = (uintptr_t)args->dst + nbytes * gasnete_coll_all_offset[gasnete_mynode + 1];
+	  p = &GASNETE_COLL_1ST_IMAGE(args->srclist, gasnete_mynode + 1);
+	  q = &dstlist[gasnete_mynode + 1];
+	  for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+	    size_t count = gasnete_coll_all_images[i];
+	    size_t len = count * nbytes;
+	    *q = (void *)dst_addr;
+	    gasnete_geti(gasnete_synctype_nbi, 1, q, len, i, count, p, nbytes GASNETE_THREAD_PASS);
+	    dst_addr += len;
+	    p += count;
+	    ++q;
+	  }
+	  /* Get from nodes to the "left" of ourself */
+	  dst_addr = (uintptr_t)args->dst;
+	  p = &GASNETE_COLL_1ST_IMAGE(args->srclist, 0);
+	  q = &dstlist[0];
+	  for (i = 0; i < gasnete_mynode; ++i) {
+	    size_t count = gasnete_coll_all_images[i];
+	    size_t len = count * nbytes;
+	    *q = (void *)dst_addr;
+	    gasnete_geti(gasnete_synctype_nbi, 1, q, len, i, count, p, nbytes GASNETE_THREAD_PASS);
+	    dst_addr += len;
+	    p += count;
+	    ++q;
+	  }
+	}
+	data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+
+	/* Do local copy LAST, perhaps overlapping with communication */
+	p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, 0);
+	dst_addr = (uintptr_t)args->dst + nbytes * gasnete_coll_my_offset;
+	for (i = 0; i < gasnete_coll_my_images; ++i, ++p) {
+	  GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
+	  dst_addr += nbytes;
+	}
+      }
+      data->state = 1;
+
+    case 1:
+      if (gasnete_mynode == args->dstnode) {
+        if (!gasnete_coll_generic_syncnb(data)) {
+	  break;
+        }
+        gasneti_free(data->private);	/* the temporary dstlist */
+      }
+      data->state = 2;
+
+    case 2:
+      if (!gasnete_coll_generic_outsync(data)) {
+	break;
+      }
+
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
+
+/* gathM Put: all nodes perform uncoordinated puts */
+/* Valid for SINGLE only, any size */
+extern int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gatherM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gatherM);
+  int result = 0;
+
+  switch (data->state) {
+    case 0:
+      if (!gasnete_coll_generic_insync(data)) {
+	break;
+      } else {
+	size_t nbytes = args->nbytes;
+	uintptr_t dst_addr = (uintptr_t)(args->dst) + nbytes * gasnete_coll_my_offset;
+	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, 0);
+
+        if (gasnete_mynode == args->dstnode) {
+	  int i;
+
+	  for (i = 0; i < gasnete_coll_my_images; ++i) {
+	    GASNETE_FAST_UNALIGNED_MEMCPY((void *)dst_addr, *p, nbytes);
+	    ++p;
+	    dst_addr += nbytes;
+	  }
+        } else {
+	  data->private = (void *)dst_addr; 	/* free 1-element arrary :-) */
+	  data->handle = gasnete_puti(gasnete_synctype_nb,
+			  	      args->dstnode, 1, &(data->private), gasnete_coll_my_images * nbytes,
+				      gasnete_coll_my_images, p, nbytes GASNETE_THREAD_PASS);
+        }
+      }
+
+      data->state = 1;
+
+    case 1:
+      if (!gasnete_coll_generic_syncnb(data)) {
+	break;
+      }
+
+      data->state = 2;
+
+    case 2:
+      if (!gasnete_coll_generic_outsync(data)) {
+	break;
+      }
+
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
 
 extern gasnet_coll_handle_t
 gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
@@ -2037,8 +2280,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
     data->args.gatherM.srclist = srclist;
     data->args.gatherM.nbytes  = nbytes;
     data->options = options;
-    return GASNETE_COLL_UNIMPLEMENTED();
-    /* return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS); */
+    return gasnete_coll_op_generic_init(team, flags, data, poll_fn GASNETE_THREAD_PASS);
 }
 
 #ifndef gasnete_coll_gatherM_nb
@@ -2060,7 +2302,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(out_sync != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = NULL;
+      poll_fn = &gasnete_coll_pf_gathM_Put;
 
       return gasnete_coll_generic_gatherM_nb(team, dstnode, dst, srclist, nbytes, flags,
 					     poll_fn, options GASNETE_THREAD_PASS);
