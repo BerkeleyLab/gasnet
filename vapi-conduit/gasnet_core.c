@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/11 16:17:59 $
- * $Revision: 1.2.2.43 $
+ *     $Date: 2003/06/17 20:38:24 $
+ * $Revision: 1.2.2.44 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -342,11 +342,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   vstat =  VAPI_alloc_pd(gasnetc_hca, &gasnetc_pd);
   assert(vstat == VAPI_OK);
 
-  /* allocate/initialize receiver resources */
-  gasnetc_rcv_init();
- 
-  /* allocate/initialize sender resources */
-  gasnetc_snd_init();
+  /* allocate/initialize transport resources */
+  gasnetc_sndrcv_init();
 
   /* create all the endpoints */
   {
@@ -404,7 +401,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       assert(vstat == VAPI_OK);
 	
-      gasnetc_rcv_init_cep(&gasnetc_cep[i]);
+      gasnetc_sndrcv_init_cep(&gasnetc_cep[i]);
     }
 
     /* advance INIT -> RTR */
@@ -747,8 +744,7 @@ extern void gasnetc_exit(int exitcode) {
     assert(vstat == VAPI_OK);
   }
 
-  gasnetc_snd_fini();
-  gasnetc_rcv_fini();
+  gasnetc_sndrcv_fini();
   
   gasnetc_unpin(&gasnetc_seg_reg);
 
@@ -799,8 +795,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 extern int gasnetc_AMPoll() {
   GASNETC_CHECKATTACH();
 
-  gasnetc_rcv_poll();
-  gasnetc_snd_poll();
+  gasnetc_sndrcv_poll();
 
   return GASNET_OK;
 }

@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.10 2003/06/16 23:05:35 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.11 2003/06/17 20:38:24 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -16,8 +16,7 @@ INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir) -I$(top_srcdir)/extende
 
 filelist =                   \
       gasnet_core.c          \
-      gasnet_core_snd.c      \
-      gasnet_core_rcv.c      \
+      gasnet_core_sndrcv.c   \
       gasnet_bootstrap_mpi.c \
       gasnet_core.h          \
       gasnet_core_fwd.h      \
@@ -34,15 +33,14 @@ EXTRA_DIST = $(filelist) README license.txt
 
 libgasnet_sources =                    \
       $(srcdir)/gasnet_core.c          \
-      $(srcdir)/gasnet_core_snd.c      \
-      $(srcdir)/gasnet_core_rcv.c      \
+      $(srcdir)/gasnet_core_sndrcv.c   \
       $(srcdir)/gasnet_bootstrap_mpi.c \
       $(srcdir)/gasnet_extended.c \
       $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
                          $(top_srcdir)/extended-ref/*.h       
-libgasnet_objects = gasnet_core.o gasnet_core_snd.o gasnet_core_rcv.o gasnet_bootstrap_mpi.o gasnet_internal.o gasnet_extended.o
+libgasnet_objects = gasnet_core.o gasnet_core_sndrcv.o gasnet_bootstrap_mpi.o gasnet_internal.o gasnet_extended.o
 
 if HAVE_PTHREAD
 threaded_libraries = libgasnet-vapi-par.a libgasnet-vapi-parsync.a
