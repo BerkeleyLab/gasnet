@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2004/08/26 04:53:34 $
- * $Revision: 1.28 $
+ *     $Date: 2004/09/14 20:37:17 $
+ * $Revision: 1.28.6.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -785,6 +785,75 @@ extern int gasnete_barrier_try(int id, int flags);
 #include "gasnet_extended_coll.h"
 
 /* ------------------------------------------------------------------------------------ */
+/*
+  Misc:
+  =========================
+*/
+
+#if GASNETI_DIRECT_GET_NB_BULK_X
+  extern void gasnete_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
+		  		    size_t count, const size_t nbytes_array[],
+				    gasnet_handle_t handle_array[] GASNETE_THREAD_FARG);
+  GASNET_INLINE_MODIFIER(_gasnet_get_nb_bulk_X)
+  void _gasnet_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
+		  	     size_t count, count size_t nbytes_array[],
+			     gasnet_handle_t handle_array[] GASNETE_THREAD_FARG) {
+    if_pf (count == 0) {
+      GASNETI_TRACE_GET(GET_NB_BULK_LOCAL,dest,node,src,0);
+    } else if (gasnete_islocal(node)) {
+      size_t sum = 0;
+      int i;
+      for (i = 0; i < count; ++i) {
+	size_t nbytes = nbytes_array[i];
+        handle_array[i] = GASNET_INVALID_HANDLE;
+        GASNETI_TRACE_GET(GET_NB_BULK_LOCAL, (void*)(sum + (uintptr_t)dest),
+			  node, (void*)(sum + (uintptr_t)src), nbytes);
+	sum += nbytes;
+      }
+      gasnete_boundscheck(node, src, sum);
+      GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, sum);
+      gasnete_loopbackget_memsync();
+    } else {
+      #if defined(GASNETI_TRACE_OR_STATS) || defined(GASNET_DEBUG)
+      {
+        size_t sum = 0;
+        int i;
+        for (i = 0; i < count; ++i) {
+	  size_t nbytes = nbytes_array[i];
+          GASNETI_TRACE_GET(GET_NB_BULK, (void*)(sum + (uintptr_t)dest),
+			    node, (void*)(sum + (uintptr_t)src), nbytes);
+	  sum += nbytes;
+        }
+        gasnete_boundscheck(node, src, sum);
+      }
+      #endif
+      return gasnete_get_nb_bulk_X(dest, node, src, count,
+		     		   nbytes_array, handle_array GASNETE_THREAD_PASS);
+    }
+}
+#else
+  GASNET_INLINE_MODIFIER(gasnete_get_nb_bulk_X)
+  void gasnete_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
+	  		     size_t count, const size_t nbytes_array[],
+			     gasnet_handle_t handle_array[] GASNETE_THREAD_FARG) {
+    uintptr_t dst_addr = (uintptr_t)dest;
+    uintptr_t src_addr = (uintptr_t)src;
+    int i;
+
+    for (i = 0; i < count; ++i) {
+      size_t nbytes = nbytes_array[i];
+      /* Note that we call the version that performs logging and error checking */
+      handle_array[i] = _gasnet_get_nb_bulk((void *)dst_addr, node, (void *)src_addr, nbytes GASNETE_THREAD_PASS);
+      src_addr += nbytes;
+      dst_addr += nbytes;
+    }
+  }
+  /* Note that we are skipping a layer and couting on the loop to do error checking and logging */
+  #define gasnet_get_nb_bulk_X(dest,node,src,nbytes) \
+         gasnete_get_nb_bulk_X(dest,node,src,nbytes GASNETE_THREAD_GET)
+#endif
+/* ------------------------------------------------------------------------------------ */
+
 
 END_EXTERNC
 
