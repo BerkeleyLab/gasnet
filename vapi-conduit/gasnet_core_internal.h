@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/07/01 22:54:49 $
- * $Revision: 1.1.2.41 $
+ *     $Date: 2003/07/02 00:17:17 $
+ * $Revision: 1.1.2.42 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -214,7 +214,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_RCV_CQ_SIZE 65535   	/* maximum unreaped entries on a rcv CQ */
 #define GASNETC_SND_CQ_SIZE 1024   	/* maximum unreaped entries on a snd CQ */
 
-#define GASNETC_SND_WQE 1024		/* maximum queued entries on a snd work queue */
+#define GASNETC_SND_WQE 16		/* maximum queued entries on a snd work queue */
 #define GASNETC_SND_SG  1               /* maximum number of segments to gather on send */
 
 #define GASNETC_RCV_WQE 4               /* maximum queued entries on a rcv work queue */
@@ -352,6 +352,7 @@ int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
  * Include whatever per-node data we need.
  */
 typedef struct {
+  gasnetc_sema_t	send_sema;
   #if GASNETC_AM_FLOWCTRL
     gasnetc_sema_t	credit_sema;
   #endif
