@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2004/02/05 00:52:20 $
- * $Revision: 1.21.2.19 $
+ *     $Date: 2004/02/09 20:04:01 $
+ * $Revision: 1.21.2.20 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1442,6 +1442,38 @@ static void gasnetc_exit_body(void) {
       gasnetc_unpin(&gasnetc_seg_reg);
 #endif
 #if GASNETC_USE_FIREHOSE
+#if 1	/* Dump firehose table as pairs: page_number length_in_pages */
+      {
+	firehose_request_t r;
+	const firehose_request_t *p;
+	void *prev = NULL;
+	uintptr_t segbase = (uintptr_t)gasnetc_seginfo[gasnetc_mynode].addr;
+	int count = gasnetc_seginfo[gasnetc_mynode].size / 4096UL;
+	int i;
+
+	for (i = 0; i < count; ++i) {
+	  p = firehose_try_local_pin(segbase+i*4096, 8, &r);
+	  if (!p) {
+	    /* MISS */
+	    prev = NULL;
+	  } else {
+	    if ((p->addr == gasnetc_snd_reg.addr)
+	 	|| ((gasnetc_nodes > 0) && (p->addr == gasnetc_rcv_reg.addr))
+#if GASNETC_PIN_SEGMENT
+		|| (p->addr == gasnetc_seg_reg.addr)
+#endif
+		   ) {
+		/* Skip pre-pinned regions */
+		i += (p->len / 4096 - 1);
+	    } else if (p->internal != prev) {
+	      fprintf(stderr, "%d> %d %d\n", gasnetc_mynode, i, (int)p->len/4096);
+	    }
+	    prev = p->internal;
+	    firehose_release(&p, 1);
+	  }
+	}
+}
+#endif
       firehose_fini();
 #endif
     }
@@ -1902,7 +1934,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW()-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
