@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/06/17 01:16:54 $
- * $Revision: 1.2.2.2 $
+ *     $Date: 2004/09/04 08:05:16 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -115,7 +115,7 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 	} while (0)
 
 #define GASNETC_MEDHEADER_PADARG(numargs) \
-        ((numargs & 0x1) ^ ((GASNETC_MED_HEADERSZ>>2) & 0x1))
+        (!((numargs & 0x1) ^ ((GASNETC_MED_HEADERSZ>>2) & 0x1)))
 
 /*
  * Simpler header queries

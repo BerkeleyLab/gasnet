@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2004/09/04 03:29:33 $
- * $Revision: 1.2.2.8 $
+ *     $Date: 2004/09/04 08:05:16 $
+ * $Revision: 1.2.2.9 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -939,11 +939,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   myidx = gasnetc_AMQueueRequest(dest);
 
 #if defined(GASNETC_GLOBAL_ADDRESS) 
-  //&& !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else
-  //printf("putmem(%p, %p, %d, %d)\n", dest_addr, source_addr, nbytes, dest);
-  //fflush(stdout); fflush(stdout); fflush(stdout); fflush(stdout);
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
 #endif
   shmem_quiet();

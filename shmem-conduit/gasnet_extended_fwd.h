@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/09/03 23:39:02 $
- * $Revision: 1.2.2.9 $
+ *     $Date: 2004/09/04 08:05:16 $
+ * $Revision: 1.2.2.10 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -78,8 +78,13 @@ typedef uintptr_t gasnet_register_value_t;
 #elif defined(SGI_SHMEM)
   extern intptr_t   *gasnetc_segment_shptr_off;
 
-  #define GASNETE_SHMPTR_AM(addr,pe) (addr)
-  #define GASNETE_SHMPTR(addr,pe) (addr)
+  #ifdef GASNET_SEGMENT_EVERYTHING
+    #define GASNETE_SHMPTR(addr,pe) shmem_ptr(addr,pe)
+    #define GASNETE_SHMPTR_AM(addr,pe) shmem_ptr(addr,pe)
+  #else
+    #define GASNETE_SHMPTR(addr,pe) (addr)
+    #define GASNETE_SHMPTR_AM(addr,pe) (addr)
+  #endif
 
   #define GASNETE_PRAGMA_IVDEP	  /* no ivdep is useful here */
 #endif
