@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/11/10 10:06:22 $
-# $Revision: 1.92 $
+#     $Date: 2003/11/11 13:40:38 $
+# $Revision: 1.92.4.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.92 $)
+AC_REVISION($Revision: 1.92.4.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -399,14 +399,24 @@ case "$target_os" in
         GASNET_MACHINE_DEFINES="-DUNICOS"
         GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
-	GASNET_TRY_CACHE_CHECK(for Cray T3E, cc_is_t3e, [], [
-	    #ifndef _CRAYT3E
-	      #error not Cray T3E
+	GASNET_TRY_CACHE_CHECK(for Cray X1, cc_is_x1, [], [
+	    #ifndef __crayx1
+	      #error not Cray X1
 	    #endif
 	  ], [
-	    GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYT3E"
-	    AC_DEFINE(CRAYT3E)
+	    GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYX1"
+	    AC_DEFINE(CRAYX1)
 	  ])
+	if test $gasnet_cv_cc_is_x1 = no; then
+	  GASNET_TRY_CACHE_CHECK(for Cray T3E, cc_is_t3e, [], [
+	      #ifndef _CRAYT3E
+		#error not Cray T3E
+	      #endif
+	    ], [
+	      GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYT3E"
+	      AC_DEFINE(CRAYT3E)
+	    ])
+	fi
         ;;
   *)
         AC_MSG_WARN(unknown OS - you may need to update the configure script)
@@ -883,18 +893,10 @@ GASNET_IF_ENABLED(vapi, Enable the VAPI (Mellanox InfiniBand) network conduit,
   have_vapi=no)
 
 if test $have_vapi = yes; then
-  GASNET_ENV_DEFAULT(VAPI_INCLUDE, "$MTHOME/include")
-  GASNET_ENV_DEFAULT(VAPI_LIBDIR, "$MTHOME/lib")
-  GASNET_ENV_DEFAULT(VAPI_LIBS, -lvapi -lmtl_common -lmosal -lpthread -lmpga)
+  GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+  GASNET_ENV_DEFAULT(SHMEM_LIB, /usr/lib)
 
-  AC_MSG_CHECKING(for working VAPI configuration)
-  if test "$mpi_test_worked" != yes; then
-    if test "$enabled_mpi" = yes; then
-      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but MPI was not sucessfuly configured.]);
-    else
-      AC_MSG_ERROR([launching VAPI programs requires MPI on your system, but you have disabled it.]);
-    fi
-  fi
+  AC_MSG_CHECKING(for working SHMEM configuration)
 
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
@@ -938,6 +940,102 @@ AC_SUBST(VAPI_INCLUDE)
 AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
+
+#--------------------------------------------------------------------------------------------------------
+# SHMEM configuration
+
+GASNET_IF_ENABLED(shmem, Enable the SHMEM network conduit, 
+  have_shmem=yes,
+  have_shmem=no)
+
+if test $have_shmem = yes; then
+  SHMEM_FLAVOUR=""
+
+  AC_MSG_CHECKING(for SHMEM network type)
+
+  case "$target_os" in
+    unicos*)
+      GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /opt/ctl/mpt/mpt/include)
+      GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /opt/ctl/mpt/mpt/lib)
+      GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lsma")
+      SHMEM_FLAVOUR="CRAY_SHMEM"
+      AC_MSG_RESULT(Cray)
+    ;;
+    irix*)
+      AC_MSG_ERROR(Currently no access to shmem on IRIX)
+      have_shmem=no
+    ;;
+    # Linux shmem may mean Quadrics shmem, or SGI shmem.  A first try is to
+    # look for _ELAN_SHMEM_H in /usr/include/shmem.h.
+    linux*)
+      GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+      GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
+
+      # This first case should catch Elan shmem 
+      if test -e ${SHMEM_INCLUDE}/shmem.h; then
+	is_quadrics=`grep ELAN_SHMEM ${SHMEM_INCLUDE}/shmem.h`
+	if test -n "$is_quadrics"; then
+	  SHMEM_FLAVOUR="ELAN_SHMEM"
+	  GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lshmem")
+	  AC_MSG_RESULT(Quadrics/Elan)
+	fi
+      fi
+
+      # If we still havn't found what shmem we are on, guess at SGI shmem,
+      # which doesn't set any meaningful symbols and follows the cray mpp/
+      # include convention
+      if test ! -n ${SHMEM_FLAVOUR}; then
+	AC_MSG_WARN(Guessing at SGI shmem platform)
+	SHMEM_FLAVOUR="SGI_SHMEM"
+	AC_MSG_RESULT(SGI)
+        GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lsma")
+      fi
+      ;;
+    *)
+      AC_MSG_RESULT(Unknown)
+      ;;
+  esac
+
+  if test ! -n "${SHMEM_FLAVOUR}"; then
+    AC_MSG_WARN(shmem conduit disabled: I don't know of the current shmem platform)
+    have_shmem=no
+  else
+    OLDCFLAGS="$CFLAGS"
+    OLDLIBS="$LIBS"
+    CFLAGS="-I$SHMEM_INCLUDE/mpp -I$SHMEM_INCLUDE"
+    LIBS="-LSHMEM_LIBDIR $SHMEM_LIBS"
+    SHMEM_FLAGS="-D${SHMEM_FLAVOUR}"
+
+    AC_MSG_CHECKING(for working SHMEM configuration)
+    # only include shmem.h even if some prescribe <mpp/shmem.h> and rely on the
+    # include search directories to be correct.  This approach is more general
+    AC_TRY_LINK( [
+      #include <shmem.h>
+    ], [{
+      int mype, numpes;
+  
+      mype = shmem_mype();
+      numpes = shmem_n_pes();
+      }], [ shmem_test_worked=yes ], [ shmem_test_worked=no ] )
+    CFLAGS="$OLDCFLAGS"
+    LIBS="$OLDLIBS"
+  
+    if test "$shmem_test_worked" = yes; then
+      AC_MSG_RESULT(yes)
+      SHMEM_FLAGS="-D${SHMEM_FLAVOUR} "
+    else
+      AC_MSG_RESULT(no)
+      AC_MSG_ERROR(build test failed: I don't know how to build SHMEM programs on your system)
+      have_shmem=no
+    fi
+  fi
+fi
+
+AC_SUBST(SHMEM_INCLUDE)
+AC_SUBST(SHMEM_LIBDIR)
+AC_SUBST(SHMEM_LIBS)
+AC_SUBST(SHMEM_FLAGS)
+AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$have_shmem" = yes)
 
 ########################################################################
 

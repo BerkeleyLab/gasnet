@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/10/09 00:15:16 $
-# $Revision: 1.18 $
+#     $Date: 2003/11/11 13:40:38 $
+# $Revision: 1.18.6.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -74,6 +74,9 @@ if USE_SMP_CONDUIT
 endif
 if USE_VAPI_CONDUIT
 	@$(MAKE) -C $(top_builddir)/vapi-conduit all $(TEST_TYPE)
+endif
+if USE_SHMEM_CONDUIT
+	@$(MAKE) -C $(top_builddir)/shmem-conduit all $(TEST_TYPE)
 endif
 
 test: tests

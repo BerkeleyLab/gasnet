@@ -1,0 +1,31 @@
+MSP (8 procs)
+
+  0>   1 to one     Ticket/with bitfield (finc slot): tot=2.043 s, periter=   6.808 us
+  0>   2 to one     Ticket/with bitfield (finc slot): tot=0.574 s, periter=   7.170 us
+  0>   3 to one     Ticket/with bitfield (finc slot): tot=0.703 s, periter=   8.793 us
+  0>   4 to one     Ticket/with bitfield (finc slot): tot=1.081 s, periter=  13.516 us
+  0>   5 to one     Ticket/with bitfield (finc slot): tot=1.235 s, periter=  15.435 us
+  0>   6 to one     Ticket/with bitfield (finc slot): tot=1.417 s, periter=  17.706 us
+  0>   7 to one     Ticket/with bitfield (finc slot): tot=1.618 s, periter=  20.228 us
+  0>   1 to one        CAS/with bitfield (finc slot): tot=2.080 s, periter=   6.932 us
+  0>   2 to one        CAS/with bitfield (finc slot): tot=0.571 s, periter=   7.141 us
+  0>   3 to one        CAS/with bitfield (finc slot): tot=0.640 s, periter=   7.998 us
+  0>   4 to one        CAS/with bitfield (finc slot): tot=1.079 s, periter=  13.494 us
+  0>   5 to one        CAS/with bitfield (finc slot): tot=1.209 s, periter=  15.112 us
+  0>   6 to one        CAS/with bitfield (finc slot): tot=1.397 s, periter=  17.462 us
+  0>   7 to one        CAS/with bitfield (finc slot): tot=1.588 s, periter=  19.852 us
+  0>   1 to one    Ticket/no global done (finc slot): tot=3.016 s, periter=  10.052 us
+  0>   2 to one    Ticket/no global done (finc slot): tot=1.597 s, periter=  19.965 us
+  0>   3 to one    Ticket/no global done (finc slot): tot=2.405 s, periter=  30.066 us
+  0>   4 to one    Ticket/no global done (finc slot): tot=3.217 s, periter=  40.217 us
+  0>   5 to one    Ticket/no global done (finc slot): tot=3.964 s, periter=  49.546 us
+  0>   6 to one    Ticket/no global done (finc slot): tot=4.784 s, periter=  59.801 us
+  0>   7 to one    Ticket/no global done (finc slot): tot=5.522 s, periter=  69.021 us
+  0>   1 to one       CAS/no global done (finc slot): tot=2.846 s, periter=   9.488 us
+  0>   2 to one       CAS/no global done (finc slot): tot=1.514 s, periter=  18.923 us
+  0>   3 to one       CAS/no global done (finc slot): tot=2.276 s, periter=  28.455 us
+  0>   4 to one       CAS/no global done (finc slot): tot=3.063 s, periter=  38.284 us
+  0>   5 to one       CAS/no global done (finc slot): tot=3.866 s, periter=  48.328 us
+  0>   6 to one       CAS/no global done (finc slot): tot=4.618 s, periter=  57.723 us
+  0>   7 to one       CAS/no global done (finc slot): tot=5.483 s, periter=  68.544 us
+

@@ -22,6 +22,7 @@ rm -f Makefile.in              \
       smp-conduit/Makefile.in  \
       vapi-conduit/Makefile.in \
       vapi-conduit/contrib/Makefile.in   \
+      shmem-conduit/Makefile.in \
       other/Makefile.in        \
       other/ammpi/Makefile.in  \
       tests/Makefile

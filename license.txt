@@ -36,7 +36,7 @@
  *    smp-conduit
  *    extended-ref
  *    template-conduit
- *  Christian Bell <csbell@cs.berkeley.edu>: gm-conduit
+ *  Christian Bell <csbell@cs.berkeley.edu>: gm-conduit, shmem-conduit
  *  Mike Welcome <mlwelcome@lbl.gov>: lapi-conduit
  *  Paul H. Hargrove <phhargrove@lbl.gov>: vapi-conduit
  * 

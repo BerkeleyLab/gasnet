@@ -1,0 +1,44 @@
+8 PEs.
+  0>   1 to one       CAS/no global done: tot=10172993.00us, periter=  33.910us
+  0>   2 to one       CAS/no global done: tot=2740272.000us, periter=  34.253us
+  0>   3 to one       CAS/no global done: tot=2771523.000us, periter=  34.644us
+  0>   4 to one       CAS/no global done: tot=2802773.000us, periter=  35.035us
+  0>   5 to one       CAS/no global done: tot=2864298.000us, periter=  35.804us
+  0>   6 to one       CAS/no global done: tot=3059612.000us, periter=  38.245us
+  0>   7 to one       CAS/no global done: tot=3446337.000us, periter=  43.079us
+  0>   1 to one     CAS/with global done: tot=10899565.00us, periter=  36.332us
+  0>   2 to one     CAS/with global done: tot=2938517.000us, periter=  36.731us
+  0>   3 to one     CAS/with global done: tot=2979534.000us, periter=  37.244us
+  0>   4 to one     CAS/with global done: tot=3006877.000us, periter=  37.586us
+  0>   5 to one     CAS/with global done: tot=3088910.000us, periter=  38.611us
+  0>   6 to one     CAS/with global done: tot=3232467.000us, periter=  40.406us
+  0>   7 to one     CAS/with global done: tot=3502001.000us, periter=  43.775us
+  0>   1 to one        CAS/with bitfield: tot=12351734.00us, periter=  41.172us
+  0>   2 to one        CAS/with bitfield: tot=3405321.000us, periter=  42.567us
+  0>   3 to one        CAS/with bitfield: tot=3648488.000us, periter=  45.606us
+  0>   4 to one        CAS/with bitfield: tot=4614322.000us, periter=  57.679us
+  0>   5 to one        CAS/with bitfield: tot=6687593.000us, periter=  83.595us
+  0>   6 to one        CAS/with bitfield: tot=9740369.000us, periter= 121.755us
+  0>   7 to one        CAS/with bitfield: tot=13201355.00us, periter= 165.017us
+  0>   1 to one    Ticket/no global done: tot=8012806.000us, periter=  26.709us
+  0>   2 to one    Ticket/no global done: tot=2245148.000us, periter=  28.064us
+  0>   3 to one    Ticket/no global done: tot=2357455.000us, periter=  29.468us
+  0>   4 to one    Ticket/no global done: tot=2496128.000us, periter=  31.202us
+  0>   5 to one    Ticket/no global done: tot=2638709.000us, periter=  32.984us
+  0>   6 to one    Ticket/no global done: tot=2804726.000us, periter=  35.059us
+  0>   7 to one    Ticket/no global done: tot=3002971.000us, periter=  37.537us
+  0>   1 to one  Ticket/with global done: tot=8769653.000us, periter=  29.232us
+  0>   2 to one  Ticket/with global done: tot=2448276.000us, periter=  30.603us
+  0>   3 to one  Ticket/with global done: tot=2562535.000us, periter=  32.032us
+  0>   4 to one  Ticket/with global done: tot=2699256.000us, periter=  33.741us
+  0>   5 to one  Ticket/with global done: tot=2849649.000us, periter=  35.621us
+  0>   6 to one  Ticket/with global done: tot=3007854.000us, periter=  37.598us
+  0>   7 to one  Ticket/with global done: tot=3216841.000us, periter=  40.211us
+  0>   1 to one     Ticket/with bitfield: tot=10334128.00us, periter=  34.447us
+  0>   2 to one     Ticket/with bitfield: tot=3021526.000us, periter=  37.769us
+  0>   3 to one     Ticket/with bitfield: tot=3792045.000us, periter=  47.401us
+  0>   4 to one     Ticket/with bitfield: tot=5122141.000us, periter=  64.027us
+  0>   5 to one     Ticket/with bitfield: tot=6563567.000us, periter=  82.045us
+  0>   6 to one     Ticket/with bitfield: tot=8114370.000us, periter= 101.430us
+  0>   7 to one     Ticket/with bitfield: tot=9591931.000us, periter= 119.899us
+
