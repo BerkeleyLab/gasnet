@@ -176,7 +176,7 @@ uintptr_t fhi_PinWithLog(node, n_avail, start, end...)
       /* miss w/ resources still available */
 try_this_again:
       bd = consume_one_bucket(node, unpin_p);
-      if (FH_BADDR(bd) > bucket_addr && FH_BADDR(bd) < end) {
+      if (bd != NULL && FH_BADDR(bd) > bucket_addr && FH_BADDR(bd) < end) {
 	/* Oops, we just reclaimed a bucket that we need to hit on later */
 	unpin_p->num_buckets--;	/* take it off the unpin list */
 	fhi_release_bucket(bd)  /* put it back on the FIFO (at the far end) */
@@ -264,7 +264,7 @@ void fhi_rollback(node, start, saved_addr, pin_p, unpin_p, ...)
 {
   int pin_count, unpin_count;
 
-  for each bucket in [start, saved_addr) {
+  for each bucket in [start, saved_addr] {
     bd = lookup_bucket(node, bucket_addr);
     gasneti_assert(bd != NULL);
 
@@ -291,7 +291,7 @@ void fhi_commit(node, start, end, pin_p, unpin_p,...)
    * first pending bucket in the range
    */
   int first_pending = 1;
-  foreach bucket in [start, end) {
+  foreach bucket in [start, end] {
     bd = lookup_bucket(node, bucket_addr);
     gasneti_assert(bd != NULL);
 
@@ -367,7 +367,7 @@ outer_again:
     }
     /* da_count is too high now */
     fhi_rollback(node, start, saved_addr, pin_p, unpin_p...);
-    if (!da[node)) { /* WIN */
+    if (!da[node]) { /* WIN */
       my_da = da[node] = 1;
 won_da:
       /* Wait for sufficient resources: */

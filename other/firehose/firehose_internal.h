@@ -2,8 +2,19 @@
 #include <gasnet_internal.h>	/* gasnet mutex */
 #include <gasnet_handler.h>
 
-/* firehose_internal.h: Internal Header file
+/* 
+ * firehose_internal.h: Internal Header file
  */
+
+/*
+ * If we are building against a threaded client, firehose-smp support needs to
+ * be hooked in
+ */
+#ifdef GASNET_PAR
+#define FIREHOSE_SMP 1
+#else
+#define FIREHOSE_SMP 0
+#endif
 
 /*
  * The following define is used only when users do not specify
@@ -95,6 +106,26 @@ extern int	 fhc_RemoteBucketsM;
 extern int	 fhc_MaxRemoteBuckets;
 extern int	*fhc_RemoteBucketsUsed;
 extern int	*fhc_RemoteVictimFifoBuckets;
+
+#define FHI_REMOTE_AVAIL(node)                                               \
+    (                                                                        \
+        (fhc_RemoteBucketsM - fhc_RemoteBucketsUsed[node]) /* Free energy */ \
+        + fhc_RemoteVictimFifoBuckets[node] /* FIFO */                       \
+    )
+
+/* 
+ * Firehose SMP specific macros
+ */
+
+#if FIREHOSE_SMP
+  #define FH_UPYL do {			    \
+	    FH_TABLE_ASSERT_UNLOCKED;	    \
+	    FH_TABLE_UNLOCK;		    \
+	    gasnet_AMPoll();		    \
+	    gasneti_yield();		    \
+	    FH_TABLE_LOCK;		    \
+	} while (0)
+#endif
 
 #ifndef FH_BUCKET_SIZE
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
@@ -525,6 +556,20 @@ extern gasnet_handlerentry_t fh_am_handlers[];
 /* ##################################################################### */
 int	fh_FreeVictim(int count, firehose_region_t *reg,
 			fh_fifoq_t *fifo_head);
+
+GASNET_INLINE_MODIFIER(fhi_FreeVictimLocal)
+int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
+{
+	gasneti_assert(count <= fhc_LocalVictimFifoBuckets);
+	return fh_FreeVictim(count, reg, &fh_LocalFifo);
+}
+
+GASNET_INLINE_MODIFIER(fhi_FreeVictimRemote)
+int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
+{
+	gasneti_assert(count <= fhc_RemoteVictimFifoBuckets[node]);
+	return fh_FreeVictim(count, reg, &fh_RemoteNodeFifo[node]);
+}
 
 /* How many buffers (of buffers) to allocate to use as bucket descriptors in
  * hash table */

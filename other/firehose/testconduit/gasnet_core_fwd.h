@@ -23,4 +23,6 @@
 struct _gasnetc_sockmap;
 typedef struct _gasnetc_sockmap *gasnet_token_t;
 
+typedef void (*gasnetc_handler_fn_t)();
+
 #endif /* _GASNET_CORE_FWD_H */

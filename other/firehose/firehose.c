@@ -878,40 +878,6 @@ fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
 
 	return rp;
 }
-
-/*
- * Victim FIFO handling (remote and local)
- *
- * The local FIFO can be freed in order to replace existing pinned (but unused)
- * entries for new ones.  The FIFO can be freed either by a local pin request
- * that frees unused entries to pin new ones or by a local release which
- * happens to overcommit the FIFO.  In the latter case, enough LRU elements in
- * the FIFO are freed to remain within the established firehose limits.
- *
- */
-
-/* fhi_FreeVictimLocal(count, reg)
- *
- * FreeVictim for the local bucket fifo.
- */
-GASNET_INLINE_MODIFIER(fhi_FreeVictimLocal)
-int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
-{
-	gasneti_assert(count <= fhc_LocalVictimFifoBuckets);
-	return fh_FreeVictim(count, reg, &fh_LocalFifo);
-}
-
-/* fhi_FreeVictimRemote(node, count, reg)
- *
- * FreeVictim for the local bucket fifo.
- */
-GASNET_INLINE_MODIFIER(fhi_FreeVictimRemote)
-int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
-{
-	gasneti_assert(count <= fhc_RemoteVictimFifoBuckets[node]);
-	return fh_FreeVictim(count, reg, &fh_RemoteNodeFifo[node]);
-}
-
 /*
  * Waiting/Polling for local and remote firehoses
  *
