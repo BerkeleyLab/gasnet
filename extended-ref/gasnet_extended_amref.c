@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/03/03 13:47:04 $
- * $Revision: 1.35 $
+ *     $Date: 2004/03/31 23:28:27 $
+ * $Revision: 1.35.6.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -963,6 +963,17 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
 #define GASNETI_GASNET_EXTENDED_VIS_C 1
 #include "gasnet_extended_refvis.c"
 #undef GASNETI_GASNET_EXTENDED_VIS_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of GASNet collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
 
 /* ------------------------------------------------------------------------------------ */
 /*
