@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/11/12 08:56:03 $
-# $Revision: 1.92.4.2 $
+#     $Date: 2003/11/13 08:06:09 $
+# $Revision: 1.92.4.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.92.4.2 $)
+AC_REVISION($Revision: 1.92.4.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -628,7 +628,11 @@ if test $enabled_mpi = yes; then
     	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
 	fi
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
+	if test x"$gasnet_cv_cc_is_t3e" = x"yes"; then
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
+	else
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -n %N %C)
+	fi
         ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
@@ -1277,6 +1281,14 @@ case "$target_os" in
         if test x"$ac_cv_sizeof_void_p" = x8; then
             AR="ar -X64"
             RANLIB="ranlib -X64"
+        fi
+        ;;
+    # Cray ships ranlib on the T3E but not on the X1. 
+    unicos*)
+        RANLIB=""
+        AC_PATH_PROGS($RANLIB,ranlib)
+        if test x"$RANLIB" = x; then 
+            RANLIB="ar s"
         fi
         ;;
     osf*)

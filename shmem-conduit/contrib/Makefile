@@ -1,12 +1,12 @@
 CC=cc
-CFLAGS=-O2  -h ssp
+CFLAGS=-O0  -h ssp
 #CFLAGS=-O
 
 .c.o:
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 #all: shmem_min shmalloc_find
-all: shmem_core_cray
+all: shmem_ovhd_cray
 #all: shmem_core_elan
 
 shmem_min: shmem_min.o
@@ -25,4 +25,7 @@ shmem_core_elan: shmem_core.o
 
 shmem_core_cray: shmem_core.o
 	$(CC) -h ssp -o $@ shmem_core.o -lsma
+
+shmem_ovhd_cray: shmem_ovhd.o
+	$(CC) -h ssp -o $@ shmem_ovhd.o -lsma
 

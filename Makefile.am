@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/11/11 13:40:38 $
-# $Revision: 1.18.6.1 $
+#     $Date: 2003/11/13 08:06:09 $
+# $Revision: 1.18.6.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -16,7 +16,8 @@ SUBDIRS =            \
         lapi-conduit \
 	mpi-conduit  \
 	smp-conduit  \
-	vapi-conduit
+	vapi-conduit \
+	shmem-conduit
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)

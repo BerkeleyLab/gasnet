@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/11/12 08:56:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/11/13 08:06:11 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet header for shmem conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,5 +45,7 @@ typedef uint32_t        gasnet_handler_t;
 
 #define _GASNET_TOKEN_T
 typedef uintptr_t    gasnet_token_t;
+
+#define GASNET_DEBUG_VERBOSE 1
 
 #endif

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2003/11/12 08:56:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/11/13 08:06:11 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -545,7 +545,7 @@ gasnetc_AMPoll() {
 	    GASNETC_AMHEADER_UNPACK(
 		gasnetc_amq_reqs[idx].header,
 		amhdr.reqrep, amhdr.type, amhdr.numargs, 
-		amhdr.handler, (uint32_t) amhdr.pe);
+		amhdr.handler, amhdr.pe);
 
 #if 0
 	    printf("%d> AMPoll: received handler id %d from %d in slot %d\n",

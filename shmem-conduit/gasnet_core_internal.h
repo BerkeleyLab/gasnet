@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/12 08:56:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/11/13 08:06:11 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,8 +37,6 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
    }                                                         \
  } while (0)
 
-#define GASNET_DEBUG_VERBOSE 1
-
 /*
  * These settings are based on benchmarks executed over various implementations
  * of shmem, and can be reproduced by the shmem_core.c file in contrib/
@@ -61,8 +59,8 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #elif defined(CRAY_SHMEM) 
 #define GASNETC_AMQUEUE_REQUEST_FINC	1
 #define GASNETC_AMQUEUE_REQUEST_RANDOM	0
-#define GASNETC_AMQUEUE_RELEASE_MSWAP	1
-#define GASNETC_AMQUEUE_RELEASE_PUT	0
+#define GASNETC_AMQUEUE_RELEASE_MSWAP	0
+#define GASNETC_AMQUEUE_RELEASE_PUT	1
 /* 
  * SGI does not implement shmem_int_mswap (even though it exists in the header
  * file!).  We use the put-based mechanism instead.
@@ -298,7 +296,7 @@ void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
 	    gasneti_assert(vec_idx >= 0 && 
 			   vec_idx <= GASNETC_AMQUEUE_VEC_MAX_ID);
 
-	    shmem_int_mswap(&gasnetc_amq_donevec[vec_idx], 
+	    shmem_long_mswap(&gasnetc_amq_donevec[vec_idx], 
 			    (1<<idx), (1<<idx), pe);
 	#else
 	    /* TODO general bitfield vector function.  Possibly using ffs(). In

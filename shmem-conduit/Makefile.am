@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.1 2003/11/11 13:40:39 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.2 2003/11/13 08:06:11 csbell Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -23,9 +23,7 @@ othersourcefiles =                             \
       $(top_srcdir)/gasnet_internal.c          \
       $(top_srcdir)/extended-ref/gasnet_extended.c 
 
-### template users: Delete the README.template line below and the README.template file 
 EXTRA_DIST = $(filelist) \
-	README.template \
 	README
 
 libgasnet_sources = $(srcdir)/gasnet_core.c $(othersourcefiles)
@@ -81,7 +79,10 @@ clean-local:
 	  configfile="/dev/null"
 
 headers = $(srcdir)/*.h $(top_srcdir)/extended-ref/*.h 
-makefile_fragments = shmem-seq.mak shmem-parsync.mak shmem-par.mak
+
+# Disable shmem-par for now.
+#makefile_fragments = shmem-seq.mak shmem-parsync.mak shmem-par.mak
+makefile_fragments = shmem-seq.mak shmem-parsync.mak 
 
 install-data-local: $(headers)
 	$(mkinstalldirs) $(DESTDIR)$(includedir)/shmem-conduit
