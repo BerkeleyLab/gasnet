@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2005/02/02 20:20:52 $
- * $Revision: 1.20 $
+ *     $Date: 2005/02/02 22:12:58 $
+ * $Revision: 1.20.2.1 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -806,6 +806,17 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 	p2p->p2p_next = head->p2p_next;
 	head->p2p_next->p2p_prev = p2p;
 	head->p2p_next = p2p;
+	#if GASNETE_COLL_TREES
+	  p2p->pipe_seg_size = 1024; 
+	  p2p->copied_bytes = 0; 
+	  p2p->sent_bytes = 0; 
+	  p2p->num_child = 0; 
+	  p2p->parent = -1; 
+	  p2p->child_lst = NULL; 
+	#endif
+	#ifdef GASNETE_P2P_EXTRA_INIT
+	  GASNETE_P2P_EXTRA_INIT(p2p)
+	#endif
       }
 
       gasnet_hsl_unlock(&gasnete_coll_p2p_table_lock);
@@ -824,6 +835,14 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 
       p2p->p2p_prev->p2p_next = p2p->p2p_next;
       p2p->p2p_next->p2p_prev = p2p->p2p_prev;
+      #if GASNETE_COLL_TREES
+	if (p2p->child_lst) {
+	  gasneti_free(p2p->child_lst);
+	}
+      #endif
+      #ifdef GASNETE_P2P_EXTRA_FREE
+        GASNETE_P2P_EXTRA_FREE(p2p)
+      #endif
 
       p2p->p2p_next = gasnete_coll_p2p_freelist;	/* XXX: per-team */
       gasnete_coll_p2p_freelist = p2p;
@@ -865,10 +884,32 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       }
     }
 
-    #define _hidx_gasnete_coll_p2p_put_reqh	126	/* XXX: kludge!!! */
-    #define _hidx_gasnete_coll_p2p_eager_reqh	127	/* XXX: kludge!!! */
-    #define GASNETE_COLL_P2P_HANDLERS              \
-	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_reqh),   \
+    static void gasnete_coll_p2p_eager_state_reqh(gasnet_token_t token, 
+						  gasnet_handlerarg_t team_id,
+						  gasnet_handlerarg_t sequence,
+						  gasnet_handlerarg_t count,
+						  gasnet_handlerarg_t size,
+						  gasnet_handlerarg_t offset,
+						  gasnet_handlerarg_t state) {
+#if GASNETE_COLL_TREES
+      gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
+      int i;
+
+      for (i = 0; i < count; ++i, ++offset) {
+        p2p->state[offset] = state;
+      }
+#else
+      gasneti_fatalerror("Unexpected call to gasnete_coll_p2p_eager_state_reqh");
+#endif
+    }
+
+    /* XXX: Assigning from 127 down here is a total kludge!!! */
+    #define _hidx_gasnete_coll_p2p_eager_state_reqh	125
+    #define _hidx_gasnete_coll_p2p_put_reqh		126
+    #define _hidx_gasnete_coll_p2p_eager_reqh		127
+    #define GASNETE_COLL_P2P_HANDLERS \
+	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_eager_state_reqh), \
+	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_reqh), \
 	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_eager_reqh)
 
     /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
