@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/17 20:38:24 $
- * $Revision: 1.2.2.44 $
+ *     $Date: 2003/06/18 00:18:15 $
+ * $Revision: 1.2.2.45 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,11 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 #define GASNETC_QP_PATH_MTU		MTU1024
 #define GASNETC_QP_STATIC_RATE		2
 #define GASNETC_QP_MIN_RNR_TIMER	5
-#define GASNETC_QP_RNR_RETRY		7	/* infinite */
+#if GASNETC_AM_FLOWCTRL
+  #define GASNETC_QP_RNR_RETRY		0	/* none */
+#else
+  #define GASNETC_QP_RNR_RETRY		7	/* infinite */
+#endif
 #define GASNETC_QP_TIMEOUT		0x20
 #define GASNETC_QP_RETRY_COUNT		2
 
@@ -76,7 +80,7 @@ gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
   assert(sizeof(gasnetc_medmsg_t) == (GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS));
-  assert((GASNET_MAXNODES * GASNETC_RCV_WQE) <= GASNETC_CQ_SIZE);
+  assert(GASNETC_RCV_POLL || GASNETC_RCV_THREAD);
   assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
 }
 
@@ -771,32 +775,6 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
   memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
   memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
-  return GASNET_OK;
-}
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Misc. Active Message Functions
-  ==============================
-*/
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
-  gasnet_node_t sourceid;
-  GASNETC_CHECKATTACH();
-  if (!token) GASNETI_RETURN_ERRR(BAD_ARG,"bad token");
-  if (!srcindex) GASNETI_RETURN_ERRR(BAD_ARG,"bad src ptr");
-
-  sourceid = GASNETC_MSG_SRCIDX(((gasnetc_rbuf_t *)token)->flags);
-
-  assert(sourceid < gasnetc_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
-}
-
-extern int gasnetc_AMPoll() {
-  GASNETC_CHECKATTACH();
-
-  gasnetc_sndrcv_poll();
-
   return GASNET_OK;
 }
 
