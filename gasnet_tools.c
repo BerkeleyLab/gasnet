@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/05/17 20:57:55 $
- * $Revision: 1.52.2.3 $
+ *     $Date: 2004/05/21 00:36:12 $
+ * $Revision: 1.52.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,13 @@
 #ifdef IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
+
+/* get MAXHOSTNAMELEN */
+#ifdef SOLARIS
+#include <netdb.h>
+#else
+#include <sys/param.h>
+#endif 
 
 #include <gasnet.h>
 #include <gasnet_tools.h>
@@ -66,6 +73,7 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG) = 1;
 
 /* ------------------------------------------------------------------------------------ */
 /* conduit-independent sanity checks */
@@ -117,6 +125,10 @@ extern void gasneti_check_config_postattach() {
 
   gasneti_assert_always(gasnet_nodes() >= 1);
   gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
+
+  GASNETI_TRACE_PRINTF(I,("GASNET_CONFIG_STRING: %s", GASNET_CONFIG_STRING));
+  GASNETI_TRACE_PRINTF(I,("gasnet_mynode(): %i", gasnet_mynode()));
+  GASNETI_TRACE_PRINTF(I,("gasnet_nodes(): %i", gasnet_nodes()));
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -955,7 +967,7 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
   return fp;
 }
 
-extern void gasneti_trace_init() {
+extern void gasneti_trace_init(int argc, char **argv) {
 
   #if GASNETI_STATS_OR_TRACE
   const char *tracetypes = NULL;
@@ -1013,11 +1025,27 @@ extern void gasneti_trace_init() {
   #endif
 
   { time_t ltime;
-    char temp[255];
+    int i;
+    char hostname[MAXHOSTNAMELEN];
+    char temp[1024];
+    char *p;
     time(&ltime); 
     strcpy(temp, ctime(&ltime));
     if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
-    gasneti_tracestats_printf("Program starting at: %s", temp);
+    gethostname(hostname, MAXHOSTNAMELEN);
+    gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
+      argv[0], (int)getpid(), hostname, temp);
+    p = temp;
+    for (i=0; i < argc; i++) { 
+      char *q = argv[i];
+      int hasspace = 0;
+      for (;*q;q++) if (isspace(*q)) hasspace = 1;
+      if (hasspace) sprintf(p, "'%s'", argv[i]);
+      else sprintf(p, "%s", argv[i]);
+      if (i < argc-1) strcat(p, " ");
+      p += strlen(p);
+    }
+    gasneti_tracestats_printf("Command-line: %s", temp);
     #if GASNET_STATS
       gasneti_stats_printf("GASNET_STATSMASK: %s", statstypes);
     #endif

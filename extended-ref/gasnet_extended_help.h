@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_help.h                 $
- *     $Date: 2004/03/31 14:18:05 $
- * $Revision: 1.17 $
+ *     $Date: 2004/05/21 00:36:14 $
+ * $Revision: 1.17.2.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -159,6 +159,12 @@ extern gasnet_seginfo_t *gasnete_seginfo;
   #else
     #define gasneti_memsync() 
   #endif
+#endif
+
+#ifdef GASNETI_MEMSYNC_ON_LOOPBACKPUT
+  #define gasnete_loopbackput_memsync() gasneti_memsync()
+#else
+  #define gasnete_loopbackput_memsync() 
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -111,6 +111,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp, gm
     * Linux/Itanium-Quadrics/{gcc,IntelC}/64: smp, mpi, udp, elan
     * Linux/Itanium-Myrinet/{gcc,IntelC}/64: smp, mpi, udp, gm
+    * Linux/Opteron-Ethernet/gcc/32: smp, mpi, udp
 
     * FreeBSD/x86gcc/32:  smp, mpi, udp
 
@@ -194,6 +195,7 @@ Optional environment variable settings:
      P - puts
      S - non-blocking synchronization
      W - collective operations (excluding barriers)
+     S - collective synchronization (excluding barriers)
      B - barriers
      L - locks
      A - AM requests/replies (and handler execution, if conduit-supported)
