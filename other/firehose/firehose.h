@@ -166,8 +166,7 @@ firehose_remote_callback(gasnet_node_t node,
  * Changes to the client type in the region type will be reflected in
  * the request type once the move callback completes.
  *
- * AM-handler context: Never runs within AM handler (unless client
- *                     defines FIREHOSE_REMOTE_CALLBACK_IN_HANDLER).
+ * AM-handler context: May run in AM handler context
  *
  * Returns: 0 on success, non-zero on failure.
  */
@@ -303,7 +302,7 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  *      client to implement a network specific exchange operation to
  *      find the global minimum.
  *   2. The 'maximum_regions' is the upper bound for the firehose
- *      'M-region' parameter and must be the largest global minimum of
+ *      'R' parameter and must be the largest global minimum of
  *      the largest amount of regions that can be allocated by each
  *      node.
  *
@@ -335,7 +334,7 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  *                   nodes.  This is limited by the
  *                   'max_pinnable_memory' parameter.
  *
- * GASNET_FIREHOSE_R establishes, from units in regions, the maximum
+ * GASNET_FIREHOSE_R establishes, in units of regions, the maximum
  * 		     number of regions each node partitions across all
  * 		     nodes.  This value is ignored if 'max_regions' is
  * 		     0.
@@ -346,7 +345,7 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  *                             firehose to ammortize the number
  *                             of unpin operations.
  *
- * GASNET_FIREHOSE_MAXVICTIM_R limits, from units in regions, the
+ * GASNET_FIREHOSE_MAXVICTIM_R limits, in units of regions, the
  *                             length of the FIFO queue and hence the
  *                             amount of inactive pinned regions.
  *                             This value is ignored if 'max_regions'
@@ -357,9 +356,11 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  * 				  managed by firehose.
  *
  * NOTE: firehose_init() will fail at initialization if
- * GASNET_FIREHOSE_M+GASNET_FIREHOSE_MAXVICTIM_M > max_pinnable_memory
+ * (max_pinnable_memory != 0) &&
+ *   (GASNET_FIREHOSE_M+GASNET_FIREHOSE_MAXVICTIM_M > max_pinnable_memory)
  * or if 
- * GASNET_FIREHOSE_R+GASNET_FIREHOSE_MAXVICTIM_R > max_regions
+ * (max_regions != 0) &&
+ *   (GASNET_FIREHOSE_R+GASNET_FIREHOSE_MAXVICTIM_R > max_regions)
  *
  * Failing to set these environment variables causes metadata for the
  * maximum amount of memory and regions to be allocated at
@@ -385,7 +386,7 @@ firehose_fini(void);
  * call is thread-safe and may be called concurrently on different
  * threads outside a handler context.
  *
- * Implementors should remember to call firehose_poll() after
+ * Client implementors should remember to call firehose_poll() after
  * servicing AMReply handlers.
  *
  * AM-handler context: Cannot be run in a handler. 
@@ -399,27 +400,78 @@ firehose_poll(void);
 #endif
 
 /********************************************************************/
+/* FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)                      */
+/********************************************************************/
+/*
+ * The following semantics are shared by all the firehose pinning
+ * functions, firehose_*_pin():
+ *
+ * The firehose pinning functions cannot be called from within an
+ * AM handler context.
+ *
+ * All the pinning functions take a request_t pointer as an
+ * argument, and either return one, or pass one to a completion
+ * callback.
+ * If this "req" argument is not NULL then upon success:
+ *  + The firehose_*_pin() function will use this storage for its
+ *    result, and the value returned (or passed to a callback) will
+ *    be this same pointer.
+ *  + The client maintains ownership of this storage and is
+ *    responsible for any free() (or similar call) required, but
+ *    not before the corresponding firehose_release().
+ * If this "req" argument is NULL then upon success:
+ *  + The firehose firehose_*_pin() function will allocate storage
+ *    necessary for the request_t to be returned (or passed).
+ *  + The balancing call to firehose_release() will recover the
+ *    storage.
+ *
+ * The regions returned (or pased to completion callbacks) by the
+ * firehose_*_pin() functions may lie partly outside of the requested
+ * region.  Specifically, the start address can be lower than requested
+ * and/or the end of the region can be higher than requested.
+ *
+ * Before any region is returned (or passed to a completion callback)
+ * its reference count is incremented.  Therefore, the client is
+ * responsible for making exactly one balancing call to
+ * firehose_release() for each request_t returned from a firehose_*_pin()
+ * function, or received as an argument to a completion callback.
+ *
+ * XXX: More description of reference counts - explaining that to perform
+ * any RDMA one must "own" one or more request_t's to cover the entire
+ * source and destination.  If we use the term "own", then we could drop
+ * the term "reference count".  Instead we can say that the client "owns"
+ * a request_t starting with one of three events:
+ *	 1) request_t is passed into firehose_init()
+ *	 2) request_t is returned from a firehose_*_pin() function
+ *	 3) request_t is passed into a completion callback
+ * The client's ownership ends when firehose_release() is invoked for it.
+ * We should be careful here not to confuse "owning" the request_t with
+ * the ownership of the memory holding it.
+ * We can probably also tie in the issue of how max_{Remote,Local}PinSize
+ * and max_Regions{Local,Remote} affect the client, saying something to
+ * the affect that these are the bounds on the "union" of all request_t's
+ * "owned" by the client at any one time.
+ * 	-Paul
+ */
+
+/********************************************************************/
 /* FIREHOSE LOCAL PINNING FUNCTIONS                                 */
 /********************************************************************/
-/* All the firehose pinning functions below, denoted as
- * firehose_*_pin, cannot be called from within an AM handler context.
+/*
  *
  *********************
  * Firehose Local Pin
  *********************
- * Called to request local pinning of a specified region.  This is a
- * synchronous (blocking) operation and is guarenteed to succeed if it
- * returns a value.
- * 
- * The return value will be non-null on success and may describe a
- * region that is a superset of the one requested, namely the start
- * address can be lower and the length of the region can be larger.
- * The returned request_t pointer must use storage given through a
- * valid, non-null pointer in the function call or be allocated if 
- * the passed request_t is null.
+ * Called to request local pinning of a specified region.
+ * The return value will be non-null on success.
  *
- * This call increments the ref count on the region and therefore must
- * be balanced by a call to firehose_release().
+ * This is an immediate operation, meaning no network communication is
+ * required to complete the operation, and all side effects have
+ * occured before this call returns.
+ * 
+ * See the section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for the
+ * use of the "req" argument, and additional semantics common to all
+ * firehose_*_pin() functions.
  *
  * AM-handler context: Cannot be run in a handler. 
  */
@@ -429,19 +481,18 @@ firehose_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
 /*************************
  * Firehose Try Local Pin
  *************************
- * Called to attempt a local pinning of a specified region.  This is a
- * non-blocking operation.
+ * Called to find an existing local pinning of a specified region.
+ * If the requested region is already pinned, a corresponding request
+ * type is returned.  If the region covered by (addr, addr+len) is not
+ * pinned, the function returns NULL.
  *
- * If it is known that the region is already pinned, the region's
- * reference count is incremented and the region's request descriptor
- * is returned.  The returned region may be a superset of the one
- * requested, namely the start address can be lower and the length of
- * the region can be larger. The returned request_t pointer can use
- * storage given through a valid, non-null pointer in the function
- * call or be allocated if the passed request_t is null.
+ * This is an immediate operation, meaning no network communication is
+ * required to complete the operation, and all side effects have occured
+ * before this call returns.
  *
- * If the region covered by (addr, addr+len) is not pinned, the
- * function returns NULL.
+ * See the section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for the
+ * use of the "req" argument, and additional semantics common to all
+ * firehose_*_pin() functions.
  *
  * AM-handler context: Cannot be run in a handler. 
  */
@@ -451,24 +502,24 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
 /*****************************
  * Firehose Local Partial Pin
  *****************************
- * Called to request a (potentially) partial local pinning operation
- * in a synchronous fashion.  The call returns with a valid request
- * type if any portion of the local region is already pinned.  Only
- * if no portion of the local region is already pinned does the call
- * return NULL.
+ * Called to request a (potentially) partial local pinning operation.
+ * The call returns with a valid request type if any portion of the
+ * requested region is already pinned.  Only if no portion of the
+ * requested region is already pinned does the call return NULL.
  *
- * When multiple pinned regions (applicable only in FIREHOSE_REGION
- * mode) intersect the requested region, then it is guaranteed that
- * the region returned will include the page with the lowest address
- * among all pinned pages in the requested region.  However, the
- * choice among multiple regions which include this lowest pinned
- * page is implementation-specific.
+ * This is an immediate operation, meaning no network communication is
+ * required to complete the operation, and all side effects have occured
+ * before this call returns.
  *
- * The returned request_t pointer must use storage given through a
- * valid, non-null pointer in the function call or be allocated if
- * the passed request_t is null.  The returned region may lie partly
- * outside of the one requested, namely the start address can be
- * lower and/or the end of the region can be higher.
+ * When multiple pinned regions intersect the requested region, then
+ * it is guaranteed that the region returned will include the page with
+ * the lowest address among all pinned pages in the requested region.
+ * However, the choice among multiple regions which include this lowest
+ * pinned page is implementation-specific.
+ *
+ * See the section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for the
+ * use of the "req" argument, and additional semantics common to all
+ * firehose_*_pin() functions.
  *
  * AM-handler context: Cannot be run in a handler.
  */
@@ -540,38 +591,33 @@ typedef void (*firehose_completed_fn_t)
 /**********************
  * Firehose Remote Pin
  **********************
- * Called to request remote pinning of a specified region.  This call
- * always causes an asynchronous callback on the local node except
- * when FIREHOSE_FLAG_RETURN_IF_PINNED is set, in which case the call
- * is allowed to return with a descriptor representing the already
- * pinned region if it is known that the region is already pinned.  If
- * the region is not pinned, the call returns 0 and a remote pin
- * request is enqueued.  It is invalid to call this function with the
- * local node number as a destination node.
+ * Called to request unconditional remote pinning of a specified region.
+ * This call will complete in two different manners, depending on the
+ * presence of FIREHOSE_FLAG_RETURN_IF_PINNED in the "flags" argument.
+ * When FIREHOSE_FLAG_RETURN_IF_PINNED is set and the requested region
+ * is already pinned, a corresponding region_t is returned without
+ * invoking the supplied completion callback.  In all other cases, the
+ * return value is NULL, and the the supplied completion callback will
+ * be invoked on the local node with the supplied context pointer.
  *
- * If FIREHOSE_FLAG_RETURN_IF_PINNED is not set, the supplied
- * completion callback will always be invoked on the local node with
- * the supplied context pointer.  In the event the requested region is
- * already pinned the supplied callback is still called by the
- * firehose library.  However, it is undefined whether that call is
- * made before this call returns, or in what thread it executes.
+ * In the cases which result in invoking the supplied completion
+ * callback, it is not specified when or in what thread the callback
+ * will run.  In particular, if the requested region is already pinned
+ * and FIREHOSE_FLAG_RETURN_IF_PINNED is not set, it is not guaranteed
+ * that the callback will run before firehose_remote_pin() returns.
  *
- * The request_t pointer can use storage given through a valid,
- * non-null pointer in the function call or be allocated if the passed
- * request_t is null.
+ * It is invalid to call this function with the local node number as
+ * a destination node.
  *
  * If FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK is set, the client must a
  * valid pointer to a remotecallback_args_t type as defined in
- * firehose_fwd.h.   The contents of this type is copied over in the
+ * firehose_fwd.h.  The contents of this type is copied over in the
  * firehose move and passed to the remote callback when
  * firehose_remote_callback() is invoked. 
  *
- * The library increments the ref count on the region before invoking
- * the local callback.  Therefore the local callback is responsible
- * for a call to firehose_release(), or ensuring one will be made
- * eventually.  The returned region may be a superset of the one
- * requested, namely the start address can be lower and the length of
- * the region can be larger.
+ * See the section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for the
+ * use of the "req" argument, and additional semantics common to all
+ * firehose_*_pin() functions.
  *
  * AM-handler context: Cannot be run in a handler. 
  */
@@ -584,17 +630,18 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 /**************************
  * Firehose Remote Try Pin
  **************************
- * Called to request a conditional remote pinning operation in a
- * non-blocking fashion.  The call only returns with a valid request
- * type if the remote region is already pinned.  In any other case,
- * the call returns NULL.  
+ * Called to find an existing remote pinning of a specified region.
+ * If the requested region is already pinned, a corresponding request
+ * type is returned.  If the region covered by (addr, addr+len) is not
+ * pinned, the function returns NULL.
  *
- * The returned request_t pointer must use storage given through a 
- * valid, non-null pointer in the function call or be allocated if 
- * the passed request_t is null.  The returned region may be a
- * superset of the one requested, namely the start address can be
- * lower and the length of the region can be
- * larger.
+ * This is an immediate operation, meaning no network communication is
+ * required to complete the operation, and all side effects have occured
+ * before this call returns.
+ * 
+ * See the section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for the
+ * use of the "req" argument, and additional semantics common to all
+ * firehose_*_pin() functions.
  *
  * AM-handler context: Cannot be run in a handler. 
  */
@@ -605,24 +652,24 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 /******************************
  * Firehose Remote Partial Pin
  ******************************
- * Called to request a (potentially) partial remote pinning operation
- * in a synchronous fashion.  The call returns with a valid request
- * type if any portion of the local region is already pinned.  Only
- * if no portion of the local region is already pinned will the call
- * return NULL.
+ * Called to request a (potentially) partial remote pinning operation.
+ * The call returns with a valid request type if any portion of the
+ * requested region is already pinned.  Only if no portion of the
+ * requested region is already pinned does the call return NULL.
  *
- * When multiple pinned regions (applicable only in FIREHOSE_REGION
- * mode) intersect the requested region, then it is guaranteed that
- * the region returned will include the page with the lowest address
- * among all pinned pages in the requested region.  However, the
- * choice among multiple regions which include this lowest pinned
- * page is implementation-specific.
+ * This is an immediate operation, meaning no network communication is
+ * required to complete the operation, and all side effects have occured
+ * before this call returns.
  *
- * The returned request_t pointer must use storage given through a
- * valid, non-null pointer in the function call or be allocated if
- * the passed request_t is null.  The returned region may lie partly
- * outside of the one requested, namely the start address can be
- * lower and/or the end of the region can be higher.
+ * When multiple pinned regions intersect the requested region, then
+ * it is guaranteed that the region returned will include the page with
+ * the lowest address among all pinned pages in the requested region.
+ * However, the choice among multiple regions which include this lowest
+ * pinned page is implementation-specific.
+ *
+ * See the section "FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)" for the
+ * use of the "req" argument, and additional semantics common to all
+ * firehose_*_pin() functions.
  *
  * AM-handler context: Cannot be run in a handler.
  */
