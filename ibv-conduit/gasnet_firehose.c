@@ -1,6 +1,6 @@
 /* vapi-conduit/gasnet_firehose.c
- * $Date: 2003/10/24 21:27:42 $
- * $Revision: 1.1.2.3 $
+ * $Date: 2003/12/19 02:13:37 $
+ * $Revision: 1.1.2.4 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -20,6 +20,64 @@ firehose_move_callback(gasnet_node_t node,
                        size_t unpin_num,
                        firehose_region_t *pin_list,
                        size_t pin_num)
+#if FIREHOSE_VAPI_USE_FMR
+{
+    VAPI_ret_t    vstat;
+    VAPI_mr_t     mr_in;
+    EVAPI_fmr_map_t map;
+    EVAPI_fmr_hndl_t *handles;
+    int repin_num;
+    int i;
+
+    map.page_array_len = 0;
+
+    /* Perform all the unpins with a single unmap call: */
+    if (unpin_num) {
+      handles = alloca(unpin_num * sizeof(EVAPI_fmr_hndl_t));
+      for (i = 0; i < unpin_num; ++i) {
+	handles[i] = unpin_list[i].client.handle;
+      }
+      vstat = EVAPI_unmap_fmr(gasnetc_hca, unpin_num, handles);
+      GASNETC_VAPI_CHECK(vstat, "from EVAPI_unmap_fmr");
+    }
+
+    /* Reuse the unmapped FMRs where possible */
+    repin_num = MIN(unpin_num, pin_num);
+    for (i = 0; i < repin_num; i++) {
+	pin_list[i].client.handle = unpin_list[i].client.handle;
+    }
+    
+    /* Destroy excess FMRs (if any) */
+    for (i = repin_num; i < unpin_num; i++) {
+      vstat = EVAPI_free_fmr(gasnetc_hca, unpin_list[i].client.handle);
+      GASNETC_VAPI_CHECK(vstat, "from EVAPI_free_fmr");
+    }
+
+    /* Allocate more FMRs (if needd) */
+    for (i = repin_num; i < pin_num; i++) {
+      vstat = EVAPI_alloc_fmr(gasnetc_hca, &gasnetc_fmr_props,
+			      &(pin_list[i].client.handle));
+      GASNETC_VAPI_CHECK(vstat, "from EVAPI_alloc_fmr");
+    }
+
+    /* Now perform all the mappings */
+    for (i = 0; i < pin_num; i++) {
+	firehose_region_t *region = &(pin_list[i]);
+	firehose_client_t *client = &region->client;
+
+	gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
+	gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
+
+	map.start = (uintptr_t)region->addr;
+	map.size  = region->len;
+        vstat = EVAPI_map_fmr(gasnetc_hca, client->handle, &map,
+			      &client->lkey, &client->rkey);
+        GASNETC_VAPI_CHECK(vstat, "from EVAPI_map_fmr");
+    }
+
+    return 0;
+}
+#else
 {
     VAPI_ret_t    vstat;
     VAPI_mr_t     mr_in;
@@ -49,7 +107,7 @@ firehose_move_callback(gasnet_node_t node,
 	vstat = VAPI_reregister_mr(gasnetc_hca, old_handle,
 				   VAPI_MR_CHANGE_TRANS,
 				   &mr_in, &client->handle, &mr_out);
-	gasneti_assert(vstat == VAPI_OK);
+        GASNETC_VAPI_CHECK(vstat, "from VAPI_reregister_mr");
 
 	client->lkey     = mr_out.l_key;
 	client->rkey     = mr_out.r_key;
@@ -66,7 +124,7 @@ firehose_move_callback(gasnet_node_t node,
 	    VAPI_mr_hndl_t old_handle = unpin_list[i].client.handle;
 
 	    vstat = VAPI_deregister_mr(gasnetc_hca, old_handle);
-	    gasneti_assert(vstat == VAPI_OK);
+            GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr");
         }
     }
     else if (pin_num) {
@@ -82,7 +140,7 @@ firehose_move_callback(gasnet_node_t node,
 	    mr_in.size  = region->len;
     
 	    vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &client->handle, &mr_out);
-	    gasneti_assert(vstat == VAPI_OK);
+            GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr");
     
 	    client->lkey     = mr_out.l_key;
 	    client->rkey     = mr_out.r_key;
@@ -90,6 +148,7 @@ firehose_move_callback(gasnet_node_t node,
     }
     return 0;
 }
+#endif
 
 extern int
 firehose_remote_callback(gasnet_node_t node,
