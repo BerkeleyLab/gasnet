@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/02/04 01:11:31 $
- * $Revision: 1.23.6.11 $
+ *     $Date: 2004/02/04 01:46:55 $
+ * $Revision: 1.23.6.12 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1511,15 +1511,22 @@ static void gasnetc_fh_put_inline(void *context, const firehose_request_t *req, 
   gasnetc_snd_post_inline(sreq);
 }
 
+GASNET_INLINE_MODIFIER(gasnetc_fh_post)
+void gasnetc_fh_post(gasnetc_sreq_t *sreq) {
+  sreq->has_fh_loc = 1;
+  sreq->has_fh_rem = 1;
+  sreq->sr_sg[0].lkey = sreq->fh_loc.client.lkey;
+  sreq->sr_desc.r_key = sreq->fh_rem.client.rkey;
+  gasnetc_snd_post(sreq);
+}
+
 static void gasnetc_fh_getput(void *context, const firehose_request_t *req, int allLocalHit) {
   gasnetc_sreq_t *sreq = context;
 
   gasneti_assert(req == &(sreq->fh_rem));
-  sreq->has_fh_rem = 1;
-  sreq->sr_desc.r_key = sreq->fh_rem.client.rkey;
 
   if (gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
-    gasnetc_snd_post(sreq);
+    gasnetc_fh_post(sreq);
   }
 }
 
@@ -1541,6 +1548,8 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
   limit = gasnetc_max_pin - (src & (FH_BUCKET_SIZE - 1));
 
   do {
+    const firehose_request_t *rem_req;
+    const firehose_request_t *loc_req;
     size_t size = MIN(nbytes, limit);
     gasnetc_sreq_t *sreq = gasnetc_get_sreq(0);
  
@@ -1567,19 +1576,18 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
     /* Queue the real work */
     if ((GASNETC_PUT_INLINE_LIMIT != 0) && (size <= GASNETC_PUT_INLINE_LIMIT)) {
-      firehose_remote_pin(node, dst, size, 0, &sreq->fh_rem, NULL, &gasnetc_fh_put_inline, sreq);
+      rem_req = firehose_remote_pin(node, dst, size, 0, &sreq->fh_rem,
+				    NULL, &gasnetc_fh_put_inline, sreq);
+      gasneti_assert(rem_req == NULL);
     } else {
-      const firehose_request_t *req;
-
       gasneti_atomic_set(&sreq->fh_oust, 2);
-      firehose_remote_pin(node, dst, size, 0, &sreq->fh_rem, NULL, &gasnetc_fh_put, sreq);
-
-      req = firehose_local_pin(src, size, &sreq->fh_loc);
-      gasneti_assert(req == &(sreq->fh_loc));
-      sreq->has_fh_loc = 1;
-      sreq->sr_sg[0].lkey = sreq->fh_loc.client.lkey;
-      if (gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
-        gasnetc_snd_post(sreq);
+      rem_req = firehose_remote_pin(node, dst, size, FIREHOSE_FLAG_RETURN_IF_PINNED,
+				    &sreq->fh_rem, NULL, &gasnetc_fh_put, sreq);
+      loc_req = firehose_local_pin(src, size, &sreq->fh_loc);
+      gasneti_assert((rem_req == NULL) || (rem_req == &sreq->fh_rem));
+      gasneti_assert(loc_req == &(sreq->fh_loc));
+      if_pt (rem_req || gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
+        gasnetc_fh_post(sreq);
       }
     }
 
@@ -1610,7 +1618,8 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
   limit = gasnetc_max_pin - (src & (FH_BUCKET_SIZE - 1));
 
   do {
-    const firehose_request_t *req;
+    const firehose_request_t *rem_req;
+    const firehose_request_t *loc_req;
     size_t size = MIN(nbytes, limit);
     gasnetc_sreq_t *sreq = gasnetc_get_sreq(0);
  
@@ -1632,14 +1641,13 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     }
 
     gasneti_atomic_set(&sreq->fh_oust, 2);
-    firehose_remote_pin(node, src, size, 0, &sreq->fh_rem, NULL, &gasnetc_fh_get, sreq);
-
-    req = firehose_local_pin(dst, size, &sreq->fh_loc);
-    gasneti_assert(req == &(sreq->fh_loc));
-    sreq->has_fh_loc = 1;
-    sreq->sr_sg[0].lkey = sreq->fh_loc.client.lkey;
-    if (gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
-      gasnetc_snd_post(sreq);
+    rem_req = firehose_remote_pin(node, src, size, FIREHOSE_FLAG_RETURN_IF_PINNED,
+				  &sreq->fh_rem, NULL, &gasnetc_fh_get, sreq);
+    loc_req = firehose_local_pin(dst, size, &sreq->fh_loc);
+    gasneti_assert((rem_req == NULL) || (rem_req == &sreq->fh_rem));
+    gasneti_assert(loc_req == &(sreq->fh_loc));
+    if_pt (rem_req || gasneti_atomic_decrement_and_test(&sreq->fh_oust)) {
+      gasnetc_fh_post(sreq);
     }
 
     src += size;
