@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/08 23:50:26 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2003/04/09 20:05:50 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -31,34 +31,6 @@ static EVAPI_compl_handler_hndl_t	gasnetc_snd_handler;
  *  File-scoped functions                                                               *
  * ------------------------------------------------------------------------------------ */
 
-GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
-gasnetc_snd_desc_t *gasnetc_snd_reap(void) {
-  gasnetc_snd_desc_t *desc = NULL;
-  VAPI_wc_desc_t comp;
-  VAPI_ret_t vstat;
-
-  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-  if (vstat == VAPI_OK) {
-    if (comp.status == VAPI_SUCCESS) {
-      desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
-      gasneti_atomic_set(&desc->done, 1);
-    } else {
-#if 1 
-      fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
-      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
-        fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
-      }
-#endif
-      /* ### What needs to be done here? */
-      desc = NULL;
-    }
-  } else {
-    assert(vstat == VAPI_CQ_EMPTY);
-  }
-
-  return desc;
-}
-
 /* free a list of send descriptor/buffer pairs */
 GASNET_INLINE_MODIFIER(gasnetc_put_snd_desc)
 void gasnetc_put_snd_desc(gasnetc_snd_desc_t *head, gasnetc_snd_desc_t *tail) {
@@ -69,19 +41,56 @@ void gasnetc_put_snd_desc(gasnetc_snd_desc_t *head, gasnetc_snd_desc_t *tail) {
   pthread_mutex_unlock(&gasnetc_snd_desc_lock);
 }
 
+/*
+ * Pull one completed entry from the send CQ (if any) and return it.
+ * If there are subordinate descriptors (the 'next' pointer), they are freed.
+ * The 'next' field is not updated.
+ */
+GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
+gasnetc_snd_desc_t *gasnetc_snd_reap(void) {
+  gasnetc_snd_desc_t *desc = NULL;
+  VAPI_wc_desc_t comp;
+  VAPI_ret_t vstat;
+
+  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+  if (vstat == VAPI_OK) {
+    if (comp.status == VAPI_SUCCESS) {
+      desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
+      if (desc->next) {
+	gasnetc_put_snd_desc(desc->next, desc->tail);
+      }
+      gasneti_atomic_set(&desc->done, 1);
+    } else {
+#if 1 
+      fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
+        fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+      }
+#endif
+      /* ### What needs to be done here? */
+    }
+  } else {
+    assert(vstat == VAPI_CQ_EMPTY);
+  }
+
+  return desc;
+}
+
 /* allocate a send descriptor/buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_snd_desc)
 gasnetc_snd_desc_t *gasnetc_get_snd_desc(void) {
   gasnetc_snd_desc_t *desc = NULL;
 
   while (1) {
-    /* First: try to reap a single completed entry from the send CQ */
+    /* First: try to reap a single completed entry from the send CQ.
+     * We skip entries which must be waited on.
+     */
     do {
       desc = gasnetc_snd_reap();
     } while ((desc != NULL) && (desc->syncType != gasnetc_syncNone));
 
     if (desc != NULL) {
-      break;	/* Have a decsriptor - leave the loop */
+      break;	/* Have a descriptor - leave the loop */
     }
 
     /* Second: try to get an unused descriptor from the free list */
@@ -99,6 +108,7 @@ gasnetc_snd_desc_t *gasnetc_get_snd_desc(void) {
   }
 
   desc->next = NULL;
+  desc->tail = desc;
   return desc;
 }
 
@@ -173,7 +183,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
   if (dest == gasnetc_mynode) {
     gasnetc_rcv_loopback(desc);
-    gasnetc_put_snd_desc(desc, desc);
+    gasnetc_put_snd_desc(desc, desc->tail);
     retval = GASNET_OK;
   } else {
     retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
@@ -238,10 +248,11 @@ extern void gasnetc_snd_wait(gasnetc_snd_desc_t *desc) {
     while (!gasneti_atomic_read(&desc->done)) {
       tmp = gasnetc_snd_reap();
       if ((tmp != NULL) && (tmp->syncType == gasnetc_syncNone)) {
-        gasnetc_put_snd_desc(tmp, tmp->next ? tmp->tail : tmp);
+        gasnetc_put_snd_desc(tmp, tmp);
       }
       sched_yield();
     }
+    gasnetc_put_snd_desc(desc, desc);
   } else {
     /* NULL is not an error.  We return immediately. */
   }
@@ -312,11 +323,6 @@ extern gasnetc_snd_desc_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t d
 	   * 2) (reg->end - src) + 1 = remainder of the pinned region
 	   */
 	  count = MIN(msg_limit, (reg->end - src) + 1);
-	  if (!is_async && (count == msg_limit)) {
-	    /* ensure caller can wait on the final descriptor */
-	    desc->syncType = gasnetc_syncWait;
-            retval = desc;
-	  }
           desc->sr_sg[i].addr = src;
           desc->sr_sg[i].len  = count;
           desc->sr_sg[i].lkey = reg->lkey;
@@ -354,6 +360,12 @@ extern gasnetc_snd_desc_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t d
         dst += count;
         ++i;
       } while ((i < GASNETC_SND_SG) && msg_limit);
+
+      if (!nbytes && !is_async && did_zero_copy) {
+	/* ensure caller can wait on the final descriptor */
+	desc->syncType = gasnetc_syncWait;
+        retval = desc;
+      }
 
       desc->sr_desc.sg_lst_len  = i;
       desc->tail = tail;
