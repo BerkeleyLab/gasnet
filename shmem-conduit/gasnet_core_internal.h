@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/09/08 23:42:24 $
- * $Revision: 1.2.2.4 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_internal.h,v $
+ *     $Date: 2004/09/14 02:31:31 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

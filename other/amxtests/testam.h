@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2004/08/30 05:05:02 $
- * $Revision: 1.4.2.2 $
+ *     $Date: 2004/09/14 02:31:23 $
+ * $Revision: 1.4.2.3 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -332,8 +332,8 @@
       abort();                                                                                                                    \
     }                                                                                                                             \
     if (nbytes != sizeof(int) || buf != ((int*)MYSEG)+num || *(int*)buf != num) {                                                 \
-      fprintf(stderr, "buf mismatch in long_%sreq_handler on P%i: nbytes=%i, MYSEG=%p, bufptr=%p, buf=%i\n",                                           \
-                       #num, (int)MYPROC, (int)nbytes, (void*)MYSEG, buf, *(int*)buf);                                                                    \
+      fprintf(stderr, "buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",                                           \
+                       #num, (int)MYPROC, (int)nbytes, *(int*)buf);                                                                    \
       fflush(stderr);                                                                                                             \
       abort();                                                                                                                    \
     }                                                                                                                             \

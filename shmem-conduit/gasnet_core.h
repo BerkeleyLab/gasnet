@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.h                  $
- *     $Date: 2004/08/30 05:05:12 $
- * $Revision: 1.2.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.h,v $
+ *     $Date: 2004/09/14 02:31:31 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet header for shmem conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

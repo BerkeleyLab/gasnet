@@ -1,7 +1,12 @@
 #!@BOURNE_SHELL@
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/contrib/Attic/gasnetrun_sci.in,v $
+#     $Date: 2004/09/14 02:31:29 $
+# $Revision: 1.5.2.2 $
+# Terms of use are as specified in license.txt
 #
 # Burt Gordon, High-performance Computing & Simulation (HCS) Lab
 # June 2003
+# Description: 
 # This script reads the contents of the "machines" file and 
 # attempts to rsh into each machine and begin SCI initialization.
 # 

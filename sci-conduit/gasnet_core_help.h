@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_help.h             $
- *     $Date: 2004/08/30 05:05:08 $
- * $Revision: 1.4.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_help.h,v $
+ *     $Date: 2004/09/14 02:31:27 $
+ * $Revision: 1.4.2.2 $
  * Description: GASNet sci conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

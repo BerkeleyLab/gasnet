@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_fwd.h              $
- *     $Date: 2004/08/30 05:05:08 $
- * $Revision: 1.5.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_fwd.h,v $
+ *     $Date: 2004/09/14 02:31:27 $
+ * $Revision: 1.5.2.2 $
  * Description: GASNet header for sci conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      0.1
+#define GASNET_CORE_VERSION      1.4
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         SCI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)

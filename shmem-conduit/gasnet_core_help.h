@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_help.h             $
- *     $Date: 2004/03/11 11:29:45 $
- * $Revision: 1.2.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_help.h,v $
+ *     $Date: 2004/09/14 02:31:31 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet shmem conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
