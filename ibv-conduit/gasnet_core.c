@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/14 21:22:58 $
- * $Revision: 1.2.2.28 $
+ *     $Date: 2003/04/14 23:02:50 $
+ * $Revision: 1.2.2.29 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -769,7 +769,7 @@ extern int gasnetc_AMPoll() {
   int retval;
   GASNETC_CHECKATTACH();
 
-  /* no AM progress engine to run */
+  gasnetc_snd_poll();
 
   return GASNET_OK;
 }
