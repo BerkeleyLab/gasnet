@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/03/03 13:47:10 $
- * $Revision: 1.15 $
+ *     $Date: 2004/04/20 17:16:51 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -383,6 +383,9 @@ extern void gasnete_init() {
     /* cause the first pool of eops to be allocated (optimization) */
     gasnete_eop_free(gasnete_eop_new(threaddata));
   }
+   
+  /* Initialize barrier resources */
+  gasnete_barrier_init();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -815,6 +818,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
 
 /* use reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#define gasnete_refbarrier_init    gasnete_barrier_init
 #define gasnete_refbarrier_notify  gasnete_barrier_notify
 #define gasnete_refbarrier_wait    gasnete_barrier_wait
 #define gasnete_refbarrier_try     gasnete_barrier_try
