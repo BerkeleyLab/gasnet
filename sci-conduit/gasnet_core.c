@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.c                  $
- *     $Date: 2004/01/05 05:04:10 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2004/03/26 00:44:11 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
