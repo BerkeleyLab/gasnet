@@ -1,137 +1,83 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.6 2004/01/23 23:22:25 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.7 2004/03/11 11:03:53 bonachea Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
 
-thread_defines = @GASNET_THREAD_DEFINES@
+CONDUIT_NAME=shmem
 
-INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir)        \
-           -I$(top_srcdir)/extended-ref  
-	   
+# any conduit-specific subdirectories containing Makefile.am's
+SUBDIRS = 
 
-filelist =                   \
+# complete list of files in the conduit directory
+# include all headers, documentation, etc. 
+# and any subdirectories not containing Makefile.am's
+CONDUIT_FILELIST =           \
       gasnet_core.c          \
       gasnet_core.h          \
       gasnet_core_fwd.h      \
       gasnet_core_help.h     \
       gasnet_core_internal.h \
-      gasnet_extended.c
+      gasnet_extended.c	     \
+      README
 
-othersourcefiles =                             \
-      $(top_srcdir)/gasnet_internal.c
+# list of conduit core and extended .c source files 
+# to be compiled into libgasnet on the compiler command line
+CONDUIT_SOURCELIST =          \
+      $(srcdir)/gasnet_core.c \
+      $(srcdir)/gasnet_extended.c 
 
-EXTRA_DIST = $(filelist) \
-	README
+# additional -I or -D directives needed by this specific conduit
+# other than the standard GASNet includes and flags
+CONDUIT_EXTRALIBCFLAGS = @SHMEM_FLAGS@
 
-libgasnet_sources = $(srcdir)/gasnet_core.c $(srcdir)/gasnet_extended.c $(othersourcefiles)
-libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
-                         $(top_srcdir)/*.[ch]             \
-                         $(top_srcdir)/extended-ref/*.h       
-libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o
+# additional conduit header files to install from external, non-standard directories
+CONDUIT_EXTRAHEADERS = 
 
+# additional file dependencies not mentioned elsewhere 
+# that should force libgasnet rebuild on update
+CONDUIT_EXTRADEPS = 
+
+# -------- Do not modify anything below this line --------
+
+# TODO: shmem-conduit currently does not support pthreads
+do-pthreads-error:
+	@echo "ERROR: shmem-conduit currently does not support pthreads"
+	@exit 1
+
+CONDUIT_PAR_HOOK = do-pthreads-error
+CONDUIT_PARSYNC_HOOK = do-pthreads-error
+
+threaded_libraries=
 #if HAVE_PTHREAD
-#threaded_libraries = libgasnet-shmem-par.a libgasnet-shmem-parsync.a
 #libgasnet_shmem_par_a_SOURCES =
 #libgasnet_shmem_parsync_a_SOURCES =
+#threaded_libraries = libgasnet-shmem-par.a libgasnet-shmem-parsync.a
 #endif
-#libraries = libgasnet-shmem-seq.a $(threaded_libraries)
-libraries = libgasnet-shmem-seq.a 
+libraries = libgasnet-shmem-seq.a $(threaded_libraries)
 libgasnet_shmem_seq_a_SOURCES =
 
-VPATH=$(srcdir)
-
-LIBCFLAGS = @CFLAGS@ @MISC_CFLAGS@ @BUILDCONFIG_DEFINES@ @GASNET_MACHINE_DEFINES@ $(INCLUDES) @SHMEM_FLAGS@
+include $(top_builddir)/other/Makefile-conduit.mak
 
 libgasnet-shmem-seq.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_SEQ -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+	@$(MAKE) do-libgasnet-seq
 
-#libgasnet-shmem-par.a: $(libgasnet_dependencies)
-#	$(CC) $(LIBCFLAGS) -DGASNET_PAR $(thread_defines) -c $(libgasnet_sources)
-#	$(AR) cru $@ $(libgasnet_objects)
-#	$(RANLIB) $@
-#	rm -f $(libgasnet_objects)
-#
-#libgasnet-shmem-parsync.a: $(libgasnet_dependencies)
-#	$(CC) $(LIBCFLAGS) -DGASNET_PARSYNC $(thread_defines) -c $(libgasnet_sources)
-#	$(AR) cru $@ $(libgasnet_objects)
-#	$(RANLIB) $@
-#	rm -f $(libgasnet_objects)
+libgasnet-shmem-par.a: $(libgasnet_dependencies)
+	@$(MAKE) do-libgasnet-par
 
-.PHONY: all libs clean-local install-data-local uninstall-local tests force tests-seq tests-par tests-parsync
+libgasnet-shmem-parsync.a: $(libgasnet_dependencies)
+	@$(MAKE) do-libgasnet-parsync
 
-
-libs: $(libraries)
-	
-if USE_SHMEM_CONDUIT                           
-lib_LIBRARIES = $(libraries)
-
-all: libs $(makefile_fragments)
-	
-clean-local: 
-	rm -f $(libgasnet_objects) $(libraries) *.o core
-	@$(MAKE) -f $(top_builddir)/tests/Makefile clean     \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="/dev/null"
-
-headers = $(srcdir)/*.h $(top_srcdir)/extended-ref/*.h 
-
-# Disable shmem-par for now.
-#makefile_fragments = shmem-seq.mak shmem-parsync.mak shmem-par.mak
-makefile_fragments = shmem-seq.mak 
-
-install-data-local: $(headers)
-	$(mkinstalldirs) $(DESTDIR)$(includedir)/shmem-conduit
-	@list='$(headers)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    filename=`basename $$p`; \
-	    echo " $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/shmem-conduit/$$filename"; \
-	    $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/shmem-conduit/$$filename; \
-	  else :; fi; \
-	done
-	@list='$(makefile_fragments)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/shmem-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/shmem-conduit/$$filename; \
-	  else :; fi; \
-	done
-
-uninstall-local:
-	rm -f $(DESTDIR)$(includedir)/shmem-conduit/*.h $(DESTDIR)$(includedir)/shmem-conduit/*.mak
-
+if USE_SHMEM_CONDUIT  
+lib_LIBRARIES = $(libraries) 
+all: do-all
+clean-local: do-clean-local
+install-data-local: do-install-data-local
+uninstall-local: do-uninstall-local
 else
-$(top_srcdir)/gasnet.h: force
-	@echo "ERROR: shmem-conduit support was not detected at configure time"
-	@echo "       try re-running configure with --enable-shmem"
-	@exit 1
+$(top_srcdir)/gasnet.h: do-error
 endif
-
-tests:
-	@echo You must specify one of tests-seq, tests-par or tests-parsync
-	@exit 1
-
-tests-seq: force libgasnet-shmem-seq.a shmem-seq.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-seq \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="shmem-seq.mak"
-
-#tests-parsync: force libgasnet-shmem-parsync.a shmem-parsync.mak
-#	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
-#	  srcdir="$(top_srcdir)/tests"			     \
-#	  configfile="shmem-parsync.mak"
-#
-#tests-par: force libgasnet-shmem-par.a shmem-par.mak
-#	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
-#	  srcdir="$(top_srcdir)/tests"			     \
-#	  configfile="shmem-par.mak"
-
-force:
-	
 
 

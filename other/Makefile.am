@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/01/23 23:22:21 $
-# $Revision: 1.4.4.1 $
+#     $Date: 2004/03/11 11:03:52 $
+# $Revision: 1.4.4.2 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -13,6 +13,7 @@ SUBDIRS =          \
 	amudp
 
 EXTRA_DIST =       \
+	amxtests   \
 	firehose   \
 	perlstart
 
@@ -24,6 +25,8 @@ endif
 if USE_MPI_CONDUIT                           
 	@$(MAKE) -C $(top_builddir)/other/ammpi tests
 endif
+
+all-local: Makefile-conduit.mak
 
 .PHONY: force clean tests
 
