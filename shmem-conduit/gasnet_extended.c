@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/09/02 09:27:06 $
- * $Revision: 1.2.2.8 $
+ *     $Date: 2004/09/07 08:20:15 $
+ * $Revision: 1.2.2.9 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -292,12 +292,12 @@ gasnete_am_memset_nbi(gasnet_node_t node, void *dest, int val,
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
-
+    int *p_nbi_handle = &gasnete_nbi_handle;
     gasnete_nbi_handle = GASNETE_HANDLE_NBI;
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(ptr), PACK(&gasnete_nbi_handle))));
+		      PACK(ptr), PACK(p_nbi_handle))));
 
     gasnete_nbi_am_ctr++;
 
