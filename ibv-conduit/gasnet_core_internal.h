@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/01 19:28:20 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2003/04/01 21:35:24 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,8 +18,6 @@
 #include <evapi.h>
 #include <vapi_common.h>
 
-/* XXX: belongs in gasnet_internal.h ? */
-extern void *gasneti_mmap(size_t segsize);
 
 extern gasnet_seginfo_t *gasnetc_seginfo;
 
@@ -220,5 +218,41 @@ typedef struct {
   uintptr_t		end;	/* inclusive */
   size_t		size;
 } gasnetc_memreg_t;
+
+/* Bootstrap helper routines in gasnet_bootstrap_*.c */
+extern void gasnetc_bootstrapInit(int *argc, char ***argv);
+extern void gasnetc_bootstrapFini(void);
+extern void gasnetc_bootstrapConf(void);
+extern void gasnetc_bootstrapBarrier(void);
+extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
+extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
+
+/* Send routines in gasnet_core_snd.c */
+extern void gasnetc_snd_init(void);
+extern void gasnetc_snd_fini(void);
+extern gasnetc_snd_desc_t *gasnetc_rdma_put(gasnetc_cep_t *cep, uintptr_t src, uintptr_t dst, uintptr_t nbytes);
+extern int gasnetc_RequestGeneric(gasnetc_category_t category,
+				  int dest, gasnet_handler_t handler,
+				  void *src_addr, int nbytes, void *dst_addr,
+				  int numargs, gasnetc_snd_desc_t **rdma_desc, va_list argptr);
+
+/* General routines in gasnet_core.c */
+extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start);
+extern void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
+
+/* Global variables */
+extern gasnetc_cep_t	*gasnetc_cep;
+extern VAPI_hca_hndl_t	gasnetc_hca;
+extern VAPI_hca_cap_t	gasnetc_hca_cap;
+extern VAPI_hca_port_t	gasnetc_hca_port;
+extern VAPI_pd_hndl_t	gasnetc_pd;
+extern gasnetc_memreg_t		gasnetc_snd_reg;
+extern gasnetc_memreg_t		gasnetc_rcv_reg;
+#if defined(GASNET_SEGMENT_FAST)
+  extern gasnetc_memreg_t	gasnetc_seg_reg;
+#endif
+extern VAPI_cq_hndl_t	gasnetc_snd_cq;
+extern VAPI_cq_hndl_t	gasnetc_rcv_cq;
+
 
 #endif
