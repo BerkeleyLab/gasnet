@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/27 23:15:24 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2003/06/30 17:31:43 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sched.h>
+#include <limits.h>
 
 /* ------------------------------------------------------------------------------------ *
  *  Global variables                                                                    *
@@ -267,6 +268,8 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
   gasnetc_sbuf_t *head, *tail;
   int count;
   
+  GASNETI_TRACE_EVENT(C,SND_REAP);
+
   head = tail = NULL;
   for (count = 0; count < GASNETC_SND_REAP_LIMIT; ++count) {
     VAPI_ret_t vstat;
@@ -330,6 +333,9 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
     }
   }
 
+  if (count)
+    GASNETI_TRACE_EVENT_VAL(C,SND_REAP_CNT,count);
+
   *tail_p = tail;
   return head;
 }
@@ -337,12 +343,12 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
 /* allocate a send buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
-  #if defined(TRACE) || defined(STATS)
-    int avail = 1;
-  #endif
+  int first_try = 1;
   gasnetc_sbuf_t *sbuf, *tail;
 
   GASNETI_TRACE_WAIT_BEGIN();
+  GASNETI_TRACE_EVENT(C,GET_SBUF);
+
   while (1) {
     /* try to get an unused sbuf by reaping the send CQ */
     sbuf = gasnetc_snd_reap(&tail);
@@ -366,19 +372,12 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     /* be kind */
     gasneti_sched_yield();
 
-    #if defined(TRACE) || defined(STATS)
-      avail = 0;
-    #endif
+    first_try = 0;
   }
-  GASNETI_TRACE_WAIT_END(GET_SBUF);
 
-  #if defined(TRACE) || defined(STATS)
-    if (avail) {
-      GASNETI_TRACE_EVENT(C,SBUF_AVAIL);
-    } else {
-      GASNETI_TRACE_EVENT(C,SBUF_STALL);
-    }
-  #endif
+  if (!first_try) {
+    GASNETI_TRACE_WAIT_END(GET_SBUF_STALL);
+  }
 
   assert(sbuf != NULL);
 
@@ -466,12 +465,13 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
 #if GASNETC_AM_FLOWCTRL
     if (isReq) {
-      /* Requests require credit for flow control, not that the
-       * AM recv thread will never send Request, and thus cant run here */
-      #if defined(TRACE) || defined(STATS)
-	int avail = 1;
-      #endif
+      /* Requests require credit for flow control
+       * Since the AM recv thread will never send Request, it can't run here
+       */
+      int first_try = 1;
       GASNETI_TRACE_WAIT_BEGIN();
+      GASNETI_TRACE_EVENT(C,GET_AMREQ_CREDIT);
+
       do {
         GASNETC_NONSEQ_LOCK(&cep->lock);
         if_pt(gasneti_atomic_read(&cep->req_credits)) {
@@ -481,18 +481,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         }
         GASNETC_NONSEQ_UNLOCK(&cep->lock);
         gasnetc_sndrcv_poll();
-        #if defined(TRACE) || defined(STATS)
-  	  avail = 0;
-        #endif
+  	first_try = 0;
       } while (1);
-      GASNETI_TRACE_WAIT_END(GET_AMREQ_CREDIT);
-      #if defined(TRACE) || defined(STATS)
-        if (avail) {
-          GASNETI_TRACE_EVENT(C,AMREQ_CREDIT_AVAIL);
-        } else {
-          GASNETI_TRACE_EVENT(C,AMREQ_CREDIT_STALL);
-        }
-      #endif
+
+      if (!first_try) {
+        GASNETI_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
+      }
     }
 #endif
 
@@ -544,8 +538,11 @@ void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
 GASNET_INLINE_MODIFIER(gasnetc_rcv_reap)
 void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
   VAPI_ret_t vstat;
+  int count;
 
-  while (--limit) {
+  GASNETI_TRACE_EVENT(C,RCV_REAP);
+
+  for (count = 0; count < limit; ++count) {
     VAPI_wc_desc_t comp;
 
     #if 1
@@ -577,6 +574,9 @@ void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
       break;
     }
   }
+
+  if (count)
+    GASNETI_TRACE_EVENT_VAL(C,RCV_REAP_CNT,count);
 }
 
 #if GASNETC_RCV_THREAD
@@ -586,12 +586,12 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
 			       void		*context) {
   VAPI_ret_t vstat;
 
-  gasnetc_rcv_reap(0, &gasnetc_rcv_spare);
+  gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_spare);
 
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
   assert(vstat == VAPI_OK);
 
-  gasnetc_rcv_reap(0, &gasnetc_rcv_spare);
+  gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_spare);
 }
 #endif
 
