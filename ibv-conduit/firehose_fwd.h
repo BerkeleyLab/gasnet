@@ -1,6 +1,6 @@
 /* vapi-conduit/firehose_fwd.h
- * $Date: 2004/02/09 23:03:32 $
- * $Revision: 1.2 $
+ * $Date: 2004/08/30 05:05:22 $
+ * $Revision: 1.2.2.1 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -15,8 +15,14 @@
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
 
 /* vapi offers "Fast Memory Regions".
- * They really are faster, so we use them by default */
-#define FIREHOSE_VAPI_USE_FMR 1
+ * They really are faster, so we use them by default when available */
+#ifndef FIREHOSE_VAPI_USE_FMR
+  #if HAVE_VAPI_FMR
+    #define FIREHOSE_VAPI_USE_FMR 1
+  #else
+    #define FIREHOSE_VAPI_USE_FMR 0
+  #endif
+#endif
 
 /* vapi-conduit uses firehose-region */
 #define FIREHOSE_REGION
