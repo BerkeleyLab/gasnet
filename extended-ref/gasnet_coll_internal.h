@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/10 23:19:13 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2004/05/11 23:34:51 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,16 +147,70 @@ extern void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result);
 extern void gasnete_coll_poll(void);
 
 /*---------------------------------------------------------------------------------*/
+/* Debugging and tracing macros */
 
 #if GASNET_DEBUG
+  /* Argument validation */
   extern void gasnete_coll_validate(gasnet_team_handle_t team,
-                                    gasnet_node_t dstnode, void *dst,
-                                    gasnet_node_t srcnode, void *src,
+                                    gasnet_node_t dstnode, void *dstaddr, size_t dstlen, int dstisv,
+                                    gasnet_node_t srcnode, void *srcaddr, size_t srclen, int srcisv,
                                     unsigned int flags);
-  #define GASNETE_COLL_VALIDATE(T,DN,D,SN,S,FL)	gasnete_coll_validate(T,DN,D,SN,S,FL)
+  #define GASNETE_COLL_VALIDATE gasnete_coll_validate
 #else
-  #define GASNETE_COLL_VALIDATE(T,DN,D,SN,S,FL)
+  #define GASNETE_COLL_VALIDATE(T,DN,DA,DL,DV,SN,SA,SL,SV,F)
 #endif
+
+#define GASNETE_COLL_VALIDATE_BROADCAST(T,D,R,S,N,F)   \
+	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,0,R,S,N,0,F)
+#define GASNETE_COLL_VALIDATE_BROADCAST_M(T,D,R,S,N,F)   \
+	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,1,R,S,N,0,F)
+
+#define GASNETE_COLL_VALIDATE_SCATTER(T,D,R,S,N,F)   \
+	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,0,R,S,(N)*gasnete_nodes,0,F)
+#define GASNETE_COLL_VALIDATE_SCATTER_M(T,D,R,S,N,F)   \
+	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,1,R,S,(N)*gasnete_nodes,0,F)
+
+#define GASNETE_COLL_VALIDATE_GATHER(T,R,D,S,N,F)     \
+	GASNETE_COLL_VALIDATE(T,R,D,(N)*gasnete_nodes,0,gasnete_mynode,S,N,0,F)
+#define GASNETE_COLL_VALIDATE_GATHER_M(T,R,D,S,N,F)     \
+	GASNETE_COLL_VALIDATE(T,R,D,(N)*gasnete_nodes,0,gasnete_mynode,S,N,1,F)
+
+#define GASNETE_COLL_VALIDATE_GATHER_ALL(T,D,S,N,F)                \
+	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,0,gasnete_mynode,S,N,0,F)
+#define GASNETE_COLL_VALIDATE_GATHER_ALL_M(T,D,S,N,F)                \
+	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,1,gasnete_mynode,S,N,1,F)
+
+#define GASNETE_COLL_VALIDATE_EXCHANGE(T,D,S,N,F)                  \
+        GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,0,gasnete_mynode,S,(N)*gasnete_nodes,0,F)
+#define GASNETE_COLL_VALIDATE_EXCHANGE_M(T,D,S,N,F)                  \
+        GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,1,gasnete_mynode,S,(N)*gasnete_nodes,1,F)
+
+
+#define GASNETE_COLL_TRACE_BROADCAST(TYPE,TEAM,DST,ROOT,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+#define GASNETE_COLL_TRACE_BROADCAST_M(TYPE,TEAM,DSTLIST,ROOT,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+
+#define GASNETE_COLL_TRACE_SCATTER(TYPE,TEAM,DST,ROOT,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+#define GASNETE_COLL_TRACE_SCATTER_M(TYPE,TEAM,DSTLIST,ROOT,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+
+#define GASNETE_COLL_TRACE_GATHER(TYPE,TEAM,ROOT,DST,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+#define GASNETE_COLL_TRACE_GATHER_M(TYPE,TEAM,ROOT,DST,SRCLIST,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+
+#define GASNETE_COLL_TRACE_GATHER_ALL(TYPE,TEAM,DST,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+#define GASNETE_COLL_TRACE_GATHER_ALL_M(TYPE,TEAM,DSTLIST,SRCLIST,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+
+#define GASNETE_COLL_TRACE_EXCHANGE(TYPE,TEAM,DST,SRC,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+#define GASNETE_COLL_TRACE_EXCHANGE_M(TYPE,TEAM,DSTLIST,SRCLIST,NBYTES,FLAGS) \
+  /* XXX: fill this in */
+
 
 /*---------------------------------------------------------------------------------*/
 
@@ -190,7 +244,9 @@ int gasnet_coll_try_sync(gasnet_coll_handle_t handle) {
   /* Default 1-line implementation */
   GASNET_INLINE_MODIFIER(gasnete_coll_wait_sync)
   void gasnete_coll_wait_sync(gasnet_coll_handle_t handle) {
-    gasneti_waitwhile(gasnete_coll_try_sync(handle) == GASNET_ERR_NOT_READY);
+    if_pt (handle != GASNET_COLL_INVALID_HANDLE) {
+      gasneti_waitwhile(gasnete_coll_try_sync(handle) == GASNET_ERR_NOT_READY);
+    }
   }
 #endif
 GASNET_INLINE_MODIFIER(gasnet_coll_wait_sync)
@@ -215,8 +271,8 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
 			  void *dst,
                           gasnet_node_t srcnode, void *src,
                           size_t nbytes, int flags GASNETE_THREAD_FARG) {
-  GASNETE_COLL_VALIDATE(team, gasnete_mynode, dst, srcnode, src, flags);
-  /* XXX: trace here */
+  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST,team,dst,srcnode,src,nbytes,flags);
+  GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcnode,src,nbytes,flags);
   return gasnete_coll_broadcast_nb(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
 }
 #define gasnet_coll_broadcast_nb(team,dst,srcnode,src,nbytes,flags) \
@@ -238,8 +294,8 @@ void _gasnet_coll_broadcast(gasnet_team_handle_t team,
                             void *dst,
                             gasnet_node_t srcnode, void *src,
                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
-  GASNETE_COLL_VALIDATE(team, gasnete_mynode, dst, srcnode, src, flags);
-  /* XXX: trace here */
+  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCAST_NB,team,dst,srcnode,src,nbytes,flags);
+  GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcnode,src,nbytes,flags);
   return gasnete_coll_broadcast(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
 }
 #define gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags) \
