@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/10/14 16:34:00 $
- * $Revision: 1.5.6.1 $
+ *     $Date: 2003/10/24 21:27:42 $
+ * $Revision: 1.5.6.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,11 +56,11 @@ typedef uint8_t gasnet_handler_t;
 /*
  * The VAPI conduit has a network progress thread, even for GASNET_SEQ
  */
-#define GASNETI_CONDUIT_THREADS
+#define GASNETI_CONDUIT_THREADS 1
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-#define GASNETC_USE_INTERRUPTS 0
+/* #define GASNETC_USE_INTERRUPTS 1 */
 
 #endif
