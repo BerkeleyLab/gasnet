@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/25 20:07:35 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2003/04/25 20:33:32 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -678,7 +678,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
     GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
     retval->eop = (gasnete_eop_t *)GASNET_INVALID_HANDLE;
   } else {
-    /* XXX _bulk implies large sizes and lack of alignment.  Should this be non-bulk? */
+    /* Small, aligned source, so would call gasnete_get_nb() here if such a thing existed */
     retval->eop = (gasnete_eop_t *)gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
   }
   return retval;
