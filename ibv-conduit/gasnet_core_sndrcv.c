@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2004/08/26 04:54:13 $
- * $Revision: 1.54 $
+ *     $Date: 2004/09/28 20:00:31 $
+ * $Revision: 1.54.6.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -562,9 +562,9 @@ gasnetc_sreq_t *gasnetc_get_sreq(int need_bbuf) {
       sreq = gasneti_malloc(MAX(sizeof(gasnetc_sreq_t), sizeof(gasneti_freelist_ptr_t)));
       GASNETC_STAT_EVENT(ALLOC_SBUF);
       GASNETI_TRACE_PRINTF(C,("ALLOC_SBUF\n"));
-      /* Set any invariant fields */
-      sreq->sr_desc.fence = FALSE;
     }
+    /* Set any invariant fields */
+    sreq->sr_desc.fence = FALSE;
   } else {
     gasneti_assert(count == 1);
   }
