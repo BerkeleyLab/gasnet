@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/02 01:40:31 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/04/02 01:55:04 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -177,4 +177,13 @@ extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep) {
     gasnetc_rcv_desc_tail++;
     assert((gasnetc_rcv_desc_tail - gasnetc_rcv_desc_head) <= (GASNETC_RCV_WQE * gasnetc_nodes));
   }
+}
+
+extern void gasnetc_rcv_loopback(gasnetc_snd_desc_t *snd_desc) {
+  gasnetc_rcv_desc_t	rcv_desc;
+
+  rcv_desc.flags      = snd_desc->sr_desc.imm_data;
+  rcv_desc.rr_sg.addr = (uintptr_t)snd_desc->buffer;
+
+  gasnetc_processPacket(&rcv_desc);
 }

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/02 01:40:31 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/04/02 01:55:04 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -168,7 +168,15 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   desc->sr_desc.imm_data   = GASNETC_MSG_GENFLAGS(isReq, category, numargs, handler, gasnetc_mynode);
   desc->sr_desc.opcode     = VAPI_SEND_WITH_IMM;
 
-  retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
+  if (dest == gasnetc_mynode) {
+    if (category == gasnetc_Long) {
+      memcpy(dst_addr, src_addr, nbytes);
+    }
+    gasnetc_rcv_loopback(desc);
+    retval = GASNET_OK;
+  } else {
+    retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
+  }
 
   va_end(argptr);
   GASNETI_RETURN(retval);
