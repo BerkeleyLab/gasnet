@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 00:40:11 $
- * $Revision: 1.2.2.13 $
+ *     $Date: 2003/04/01 19:28:20 $
+ * $Revision: 1.2.2.14 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,6 @@
 
 #include <errno.h>
 #include <unistd.h>
-#include <stddef.h>
 
 #if GASNETC_BOOTSTRAP_MPI
 #  include <mpi.h>
@@ -24,24 +23,27 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
-gasnetc_cep_t		*gasnetc_cep;
 
-gasnetc_snd_desc_t	*gasnetc_snd_desc_pool;
-pthread_mutex_t		gasnetc_snd_desc_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t		gasnetc_snd_desc_cond = PTHREAD_COND_INITIALIZER;
-
+/* HCA-level resources */
+gasnetc_cep_t	*gasnetc_cep;
 VAPI_hca_hndl_t	gasnetc_hca;
 VAPI_hca_cap_t	gasnetc_hca_cap;
 VAPI_hca_port_t	gasnetc_hca_port;
 VAPI_pd_hndl_t	gasnetc_pd;
-VAPI_cq_hndl_t	gasnetc_rcv_cq;
-VAPI_cq_hndl_t	gasnetc_snd_cq;
-
-gasnetc_regmem_t	gasnetc_rcv_reg;
-gasnetc_regmem_t	gasnetc_snd_reg;
 #if defined(GASNET_SEGMENT_FAST)
-  gasnetc_regmem_t	gasnetc_seg_reg;
+  gasnetc_memreg_t	gasnetc_seg_reg;
 #endif
+
+/* Send resources */
+gasnetc_memreg_t		gasnetc_snd_reg;
+gasnetc_snd_desc_t		*gasnetc_snd_desc_pool;
+pthread_mutex_t			gasnetc_snd_desc_lock = PTHREAD_MUTEX_INITIALIZER;
+EVAPI_compl_handler_hndl_t	gasnetc_snd_handler;
+VAPI_cq_hndl_t			gasnetc_snd_cq;
+
+/* Recv resources */
+gasnetc_memreg_t	gasnetc_rcv_reg;
+VAPI_cq_hndl_t		gasnetc_rcv_cq;
 
 
 /* Used only once, to exchange addresses at connection time */
@@ -138,31 +140,26 @@ extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 #endif
 
-GASNET_INLINE_MODIFIER(gasnetc_is_pinned_local)
-int gasnetc_is_pinned_local(uintptr_t start, size_t len) {
-  uintptr_t	end = (start + (len - 1)); /* subtact 1 first, to avoid overflows */
-
+GASNET_INLINE_MODIFIER(gasnetc_local_reg)
+gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start) {
   #if defined(GASNET_SEGMENT_FAST)
-    /* check if the range is entirely in the pinned segment */
-    if ((start >= gasnetc_seg_reg.start) && (end <= gasnetc_seg_reg.end)) {
-      return 1;
+    if ((start >= gasnetc_seg_reg.start) && (start <= gasnetc_seg_reg.end)) {
+      return &gasnetc_seg_reg;
     }
   #else
     #error "I don't do anything but FAST yet"
   #endif
 
-  /* check if the range is entirely in the recv buffer pool */
-  if ((start >= gasnetc_rcv_reg.start) && (end <= gasnetc_rcv_reg.end)) {
-    return 1;
+  if ((start >= gasnetc_rcv_reg.start) && (start <= gasnetc_rcv_reg.end)) {
+    return &gasnetc_rcv_reg;
   }
 
-  /* check if the range is entirely in the send/bounce buffer pool */
-  if ((start >= gasnetc_snd_reg.start) && (end <= gasnetc_snd_reg.end)) {
-    return 1;
+  if ((start >= gasnetc_snd_reg.start) && (start <= gasnetc_snd_reg.end)) {
+    return &gasnetc_snd_reg;
   }
 
   /* Not pinned */
-  return 0;
+  return NULL;
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_is_pinned_remote)
@@ -187,14 +184,14 @@ int gasnetc_is_pinned_remote(gasnet_node_t node, uintptr_t start, size_t len) {
   return 0;
 }
 
-static void gasnetc_unpin(gasnetc_regmem_t *reg) {
+static void gasnetc_unpin(gasnetc_memreg_t *reg) {
   VAPI_ret_t vstat;
 
   vstat = VAPI_deregister_mr(gasnetc_hca, reg->handle);
   assert(vstat == VAPI_OK);
 }
 
-static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
+static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg) {
   VAPI_mr_t	mr_in;
   VAPI_mr_t	mr_out;
   VAPI_ret_t	vstat;
@@ -217,7 +214,7 @@ static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasne
 }
 
 /* mmap and pin some memory, returning its address, or NULL */
-static void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
+static void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg) {
   VAPI_ret_t vstat;
   void *addr;
 
@@ -291,7 +288,7 @@ static uintptr_t gasnetc_max_pinnable(void) {
   lo = GASNET_PAGESIZE;
   pin_size = hi = mmap_size;
   do {
-    gasnetc_regmem_t reg;
+    gasnetc_memreg_t reg;
     VAPI_ret_t vstat;
 
     vstat = gasnetc_pin(addr, pin_size, 0, &reg);
@@ -340,57 +337,84 @@ static void gasnetc_snd_init(void) {
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_snd_cq, &act_size);
   assert(vstat == VAPI_OK);
   assert(act_size >= count);
+
+  vstat = EVAPI_set_comp_eventh(gasnetc_hca, gasnetc_snd_cq, EVAPI_POLL_CQ_UNBLOCK_HANDLER,
+                                NULL, &gasnetc_snd_handler);
+  assert(vstat == VAPI_OK);
+}
+
+/* free a list of send descriptor/buffer pairs */
+static void gasnetc_put_snd_desc(gasnetc_snd_desc_t *head, gasnetc_snd_desc_t *tail) {
+  VAPI_ret_t vstat;
+
+  /* Add the list segment to the free list */
+  pthread_mutex_lock(&gasnetc_snd_desc_lock);
+  tail->next = gasnetc_snd_desc_pool;
+  gasnetc_snd_desc_pool = head;
+  pthread_mutex_unlock(&gasnetc_snd_desc_lock);
+
+  /* Wake anybody blocked waiting for free descriptors */
+  vstat = EVAPI_poll_cq_unblock(gasnetc_hca, gasnetc_snd_cq);
+  assert(vstat == VAPI_OK);
 }
 
 /* allocate a send descriptor/buffer pair */
 static gasnetc_snd_desc_t *gasnetc_get_snd_desc(void) {
   gasnetc_snd_desc_t *desc = NULL;
+  VAPI_wc_desc_t comp;
+  VAPI_ret_t vstat;
 
-  /* Try to reap a single completed entry from the send CQ */
-  {
-    VAPI_wc_desc_t comp;
-    VAPI_ret_t vstat;
-
+  while (1) {
+    /* First: try to reap a single completed entry from the send CQ w/o blocking */
     vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
     if (vstat == VAPI_OK) {
       assert(comp.status == VAPI_SUCCESS);
 
       desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
-      return desc;
+
+      /* If the reaped entry is part of a chain then add the others to the free list */
+      if (desc->next) {
+	gasnetc_put_snd_desc(desc->next, desc->tail);
+      }
+
+      break;	/* Have a decsriptor - leave the loop */
+    } else {
+      assert(vstat == VAPI_CQ_EMPTY);
+    }
+
+
+    /* Second: try to get an unused descriptor from the free list */
+    pthread_mutex_lock(&gasnetc_snd_desc_lock);
+    desc = gasnetc_snd_desc_pool;
+    if (desc != NULL) {
+      gasnetc_snd_desc_pool = desc->next;
+      pthread_mutex_unlock(&gasnetc_snd_desc_lock);
+      break;	/* Have a decsriptor - leave the loop */
+    }
+    pthread_mutex_unlock(&gasnetc_snd_desc_lock);
+
+
+    /* Third: block on the CQ until the next completion or until the blocking call
+     * is interrupted.  That will happen if anyone adds new entries to the free list */
+    vstat = EVAPI_poll_cq_block(gasnetc_hca, gasnetc_snd_cq, 0 /* == no timeout */, &comp);
+    if (vstat == VAPI_OK) {
+      assert(comp.status == VAPI_SUCCESS);
+
+      desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
+
+      /* If the reaped entry is part of a chain then add the others to the free list */
+      if (desc->next) {
+	gasnetc_put_snd_desc(desc->next, desc->tail);
+      }
+
+      break;	/* Have a decsriptor - leave the loop */
     } else {
       assert(vstat == VAPI_CQ_EMPTY);
     }
   }
 
-  pthread_mutex_lock(&gasnetc_snd_desc_lock);
-
-  desc = gasnetc_snd_desc_pool;
-
-  if (desc != NULL) {
-    /* provide straight-line path for normal case of non-empty pool */
-    gasnetc_snd_desc_pool = desc->next;
-    pthread_mutex_unlock(&gasnetc_snd_desc_lock);
-    return desc;
-  } else {
-    do {
-      pthread_cond_wait(&gasnetc_snd_desc_cond, &gasnetc_snd_desc_lock);
-      desc = gasnetc_snd_desc_pool;
-    } while (!desc);
-  }
-
-  pthread_mutex_unlock(&gasnetc_snd_desc_lock);
+  desc->next = NULL;
   return desc;
-}
-
-/* free a send descriptor/buffer pair */
-static void gasnetc_put_snd_desc(gasnetc_snd_desc_t *desc) {
-  pthread_mutex_lock(&gasnetc_snd_desc_lock);
-
-  desc->next = gasnetc_snd_desc_pool;
-  gasnetc_snd_desc_pool = desc;
-
-  pthread_cond_broadcast(&gasnetc_snd_desc_cond);
-  pthread_mutex_unlock(&gasnetc_snd_desc_lock);
 }
 
 static gasnetc_rcv_desc_t *gasnetc_rcv_init(void) {
@@ -1036,11 +1060,118 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_RETURN(retval);
 }
 
+/* Perform an RDMA put
+ * Returns the send descriptor one which one should sync for completion.
+ *
+ * Current system uses bounce buffers only when source is not pinned
+ * and uses zero-copy when source is pinned.
+ * Note that if the source is partially pinned, both are used.  However,
+ * the bounce buffers might include a small portion of the pinned memory
+ * since no optimization is doen to get the exact start of the pinned memory.
+ */
+GASNET_INLINE_MODIFIER(gasnetc_do_put)
+gasnetc_snd_desc_t *gasnetc_do_put(gasnetc_cep_t *cep, uintptr_t src, uintptr_t dst, uintptr_t nbytes) {
+  gasnetc_snd_desc_t *desc;
+  int rc;
+
+  #if defined(GASNET_SEGMENT_FAST)
+  { 
+    VAPI_rkey_t rkey = cep->rkey;
+
+    /* Outer loop is over RDMA put operations.
+     * We perform as many operations as needed to move the entire payload.
+     */
+    while (nbytes) {
+      uintptr_t msg_limit = MIN(nbytes, gasnetc_hca_port.max_msg_sz);
+      gasnetc_snd_desc_t *tail = NULL;
+      int i = 0;
+
+      desc = gasnetc_get_snd_desc();
+
+      /* This inner loop assembles gather entries into a single RDMA operation.
+       * Each operation is subject to some limits:
+       * 1) A single operation cannot move more than gasnetc_hca_port.max_msg_sz bytes
+       * 2) Each operation can include no more than GASNETC_SND_SG gather entries.
+       *    Each bounce buffer or zero-copy region uses a single gather entry.
+       * Of course we stop earlier if the entire payload is accounted for.
+       */
+      do {
+	gasnetc_memreg_t *reg = gasnetc_local_reg(src);
+        uintptr_t count;
+
+	tail = NULL;
+
+	if (reg) {
+	  /* Zero-copy case:
+	   *
+	   * Move as many bytes as possible before reaching one of:
+	   * 1) msg_limit = MIN(remainder of payload size, remainder of max_msg_sz)
+	   * 2) (reg->end - src) + 1 = remainder of the pinned region
+	   */
+	  count = MIN(msg_limit, (reg->end - src) + 1);
+          desc->sr_sg[i].addr = src;
+          desc->sr_sg[i].len  = count;
+          desc->sr_sg[i].lkey = reg->lkey;
+	} else {
+	  /* Bounce buffer case:
+	   *
+	   * Move as many bytes as possible before reaching one of:
+	   * 1) msg_limit = MIN(remainder of payload size, remainder of max_msg_sz)
+	   * 2) GASNETC_BUFSZ = size of a bounce buffer
+	   */
+	  count = MIN(msg_limit, GASNETC_BUFSZ);
+
+	  /* Bounce buffers and the descriptors are inseparable.
+	   * Therefore we must allocate a descriptor for each bounce buffer, chaining the 'next' fields,
+	   * even tough we only need the buffer space, not the fields of the descriptor.
+	   */
+	  if (tail == NULL) {
+	    /* The first descriptor's buffer has not yet been used.  Use it now. */
+	    tail = desc;
+	  } else {
+	    /* Allocate a new descriptor, adding to the chain. */
+	    tail->next = gasnetc_get_snd_desc();
+	    tail = tail->next;
+ 	  }
+          memcpy(tail->buffer, (void *)src, count);
+          desc->sr_sg[i].addr = (uintptr_t)tail->buffer;
+          desc->sr_sg[i].len  = count;
+          desc->sr_sg[i].lkey = gasnetc_snd_reg.lkey;
+	}
+
+	msg_limit -= count;
+        nbytes -= count;
+        src += count;
+        dst += count;
+        ++i;
+      } while ((i < GASNETC_SND_SG) && msg_limit);
+
+      desc->sr_desc.opcode      = VAPI_RDMA_WRITE;
+      desc->sr_desc.remote_addr = dst;
+      desc->sr_desc.r_key       = rkey;
+      desc->sr_desc.sg_lst_len  = i;
+      desc->tail = tail;
+
+      /* ### translate into a sensible error code */
+      rc = gasnetc_snd_post(cep, desc);
+    }
+  }
+  #else
+  #error "I can only do FAST right now"
+  #endif
+
+  /* Since IB requires that RDMA Writes don't pass on another, we know that
+   * once the final one is completed, they are all completed.
+   */
+  return desc;
+}
+
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
+  gasnetc_snd_desc_t *rdma_desc;
   gasnetc_snd_desc_t *desc;
   gasnetc_buffer_t *buf;
   gasnet_handlerarg_t *args;
@@ -1061,44 +1192,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_start(argptr, numargs); /*  pass in last argument */
 
   /* Send all the data */
-  #if defined(GASNET_SEGMENT_FAST)
-  { 
-    uintptr_t count;
-    size_t remain = nbytes;
-    uintptr_t src = (uintptr_t)source_addr;
-    uintptr_t dst = (uintptr_t)dest_addr;
-    VAPI_rkey_t rkey = gasnetc_cep[dest].rkey;
-
-    /* XXX: need to gather multiple segments per descriptor */
-
-    /* Use bounce buffers to send all data */
-    while (remain) {
-      count = MIN(remain, GASNETC_BUFSZ);
-
-      desc = gasnetc_get_snd_desc();
-      memcpy(desc->buffer, (void *)src, count);
-
-      desc->sr_sg[0].addr       = (uintptr_t)desc->buffer;
-      desc->sr_sg[0].len        = count;
-      desc->sr_sg[0].lkey       = gasnetc_snd_reg.lkey;
-      desc->sr_desc.sg_lst_len  = 1;
-      desc->sr_desc.opcode      = VAPI_RDMA_WRITE;
-      desc->sr_desc.remote_addr = dst;
-      desc->sr_desc.r_key       = rkey;
-
-      /* ### translate into a sensible error code */
-      retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
-
-      remain -= count;
-      src += count;
-      dst += count;
-    }
-  }
-  #else
-  #error "I can only do FAST right now"
-  #endif
-
+  rdma_desc = gasnetc_do_put(&gasnetc_cep[dest], (uintptr_t)source_addr, (uintptr_t)dest_addr, nbytes);
+  assert(rdma_desc != NULL);
   
+  /* Send the args */
   desc = gasnetc_get_snd_desc();
   buf = desc->buffer;
 
@@ -1121,6 +1218,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   /* ### translate into a sensible error code */
   retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
 
+  /* ### block for completion of rdma_desc (no need to wait on desc) */
+
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -1130,6 +1229,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
+  gasnetc_snd_desc_t *rdma_desc;
   gasnetc_snd_desc_t *desc;
   gasnetc_buffer_t *buf;
   gasnet_handlerarg_t *args;
@@ -1150,91 +1250,10 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   va_start(argptr, numargs); /*  pass in last argument */
 
   /* Send all the data */
-  #if defined(GASNET_SEGMENT_FAST)
-  { 
-    uintptr_t count;
-    size_t remain = nbytes;
-    uintptr_t src = (uintptr_t)source_addr;
-    uintptr_t dst = (uintptr_t)dest_addr;
-    VAPI_rkey_t rkey = gasnetc_cep[dest].rkey;
-
-    /* XXX: need to gather multiple segments per descriptor */
-
-    /* Use bounce buffers for all bytes below the segment */
-    while (remain && src < gasnetc_seg_reg.start) {
-      count = MIN(remain, GASNETC_BUFSZ);
-      count = MIN(count, gasnetc_seg_reg.start - src);
-
-      desc = gasnetc_get_snd_desc();
-      memcpy(desc->buffer, (void *)src, count);
-
-      desc->sr_sg[0].addr       = (uintptr_t)desc->buffer;
-      desc->sr_sg[0].len        = count;
-      desc->sr_sg[0].lkey       = gasnetc_snd_reg.lkey;
-      desc->sr_desc.sg_lst_len  = 1;
-      desc->sr_desc.opcode      = VAPI_RDMA_WRITE;
-      desc->sr_desc.remote_addr = dst;
-      desc->sr_desc.r_key       = rkey;
-
-      /* ### translate into a sensible error code */
-      retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
-
-      remain -= count;
-      src += count;
-      dst += count;
-    }
-
-    /* Use zero-copy for all bytes in the segment */
-    while (remain && src <= gasnetc_seg_reg.end) {
-      count = MIN(remain, gasnetc_hca_port.max_msg_sz);
-      count = MIN(count, src - gasnetc_seg_reg.end + 1);
-
-      desc = gasnetc_get_snd_desc();
-
-      desc->sr_sg[0].addr       = src;
-      desc->sr_sg[0].len        = count;
-      desc->sr_sg[0].lkey       = gasnetc_seg_reg.lkey;
-      desc->sr_desc.sg_lst_len  = 1;
-      desc->sr_desc.opcode      = VAPI_RDMA_WRITE;
-      desc->sr_desc.remote_addr = dst;
-      desc->sr_desc.r_key       = rkey;
-
-      /* ### translate into a sensible error code */
-      retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
-
-      remain -= count;
-      src += count;
-      dst += count;
-    }
-
-    /* Use bounce buffers for all bytes above the segment */
-    while (remain) {
-      count = MIN(remain, GASNETC_BUFSZ);
-
-      desc = gasnetc_get_snd_desc();
-      memcpy(desc->buffer, (void *)src, count);
-
-      desc->sr_sg[0].addr       = (uintptr_t)desc->buffer;
-      desc->sr_sg[0].len        = count;
-      desc->sr_sg[0].lkey       = gasnetc_snd_reg.lkey;
-      desc->sr_desc.sg_lst_len  = 1;
-      desc->sr_desc.opcode      = VAPI_RDMA_WRITE;
-      desc->sr_desc.remote_addr = dst;
-      desc->sr_desc.r_key       = rkey;
-
-      /* ### translate into a sensible error code */
-      retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
-
-      remain -= count;
-      src += count;
-      dst += count;
-    }
-  }
-  #else
-  #error "I can only do FAST right now"
-  #endif
-
+  rdma_desc = gasnetc_do_put(&gasnetc_cep[dest], (uintptr_t)source_addr, (uintptr_t)dest_addr, nbytes);
+  assert(rdma_desc != NULL);
   
+  /* Send the args */
   desc = gasnetc_get_snd_desc();
   buf = desc->buffer;
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/03/28 19:52:04 $
- * $Revision: 1.2.2.4 $
+ *     $Date: 2003/04/01 19:28:20 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -142,7 +142,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
 #define GASNETC_MAX_ARGS	16
 #define GASNETC_MAX_MEDIUM	\
 		(GASNETC_BUFSZ - GASNETC_ALIGNUP(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
-#define GASNETC_MAX_LONG	0x7fffffff		/* XXX: or is it 0x80000000 */
+#define GASNETC_MAX_LONG	((size_t)-1)	/* No limit */
 
 #define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS)
 #define gasnet_AMMaxMedium()        ((size_t)GASNETC_MAX_MEDIUM)
