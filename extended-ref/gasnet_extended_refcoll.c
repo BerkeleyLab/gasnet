@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/26 05:20:59 $
- * $Revision: 1.1.2.21 $
+ *     $Date: 2004/05/26 05:29:42 $
+ * $Revision: 1.1.2.22 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -169,17 +169,17 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
         return GASNET_TEAM_ALL;
     }
 
-    gasnet_node_t gasnet_coll_team_rank2node(gasnete_coll_team_t team, int rank) {
+    gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank) {
         gasneti_assert(team == NULL);
 	return (gasnet_node_t)rank;
     }
 
-    int gasnet_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node) {
+    int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node) {
         gasneti_assert(team == NULL);
 	return (int)node;
     }
 
-    uint32_t gasnet_coll_team_id(gasnete_coll_team_t team) {
+    uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) {
         gasneti_assert(team == NULL);
 	return 0;
     }
