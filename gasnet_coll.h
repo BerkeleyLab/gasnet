@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/04/09 00:30:36 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2004/05/10 23:19:13 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,20 +16,21 @@
 /*---------------------------------------------------------------------------------*/
 /* Flag values: */
 
-#define GASNET_COLL_IN_NOSYNC	0
-#define GASNET_COLL_IN_MYSYNC	(1<<0)
-#define GASNET_COLL_IN_ALLSYNC	(1<<1)
-#define GASNET_COLL_OUT_NOSYNC	0
-#define GASNET_COLL_OUT_MYSYNC	(1<<2)
-#define GASNET_COLL_OUT_ALLSYNC	(1<<3)
+/* Sync flags - NO DEFAULT */
+#define GASNET_COLL_IN_NOSYNC	(1<<0)
+#define GASNET_COLL_IN_MYSYNC	(1<<1)
+#define GASNET_COLL_IN_ALLSYNC	(1<<2)
+#define GASNET_COLL_OUT_NOSYNC	(1<<3)
+#define GASNET_COLL_OUT_MYSYNC	(1<<4)
+#define GASNET_COLL_OUT_ALLSYNC	(1<<5)
 
-#define GASNET_COLL_SINGLE	(1<<4)
-#define GASNET_COLL_LOCAL	(1<<5)
+#define GASNET_COLL_SINGLE	(1<<6)
+#define GASNET_COLL_LOCAL	(1<<7)
 
-#define GASNET_COLL_AGGREGATE	(1<<6)
+#define GASNET_COLL_AGGREGATE	(1<<8)
 
-#define GASNET_COLL_DST_IN_SEGMENT	(1<<7)
-#define GASNET_COLL_SRC_IN_SEGMENT	(1<<8)
+#define GASNET_COLL_DST_IN_SEGMENT	(1<<9)
+#define GASNET_COLL_SRC_IN_SEGMENT	(1<<10)
 
 /* XXX: incomplete? */
 
@@ -143,34 +144,106 @@ extern gasnet_coll_handle_t
 gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle);
 extern void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result);
 
-extern void gasnete_coll_init(void);
 extern void gasnete_coll_poll(void);
 
 /*---------------------------------------------------------------------------------*/
 
-#ifndef gasnet_coll_try_sync
-  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle);
-  #define gasnet_coll_try_sync	gasnete_coll_try_sync
+#if GASNET_DEBUG
+  extern void gasnete_coll_validate(gasnet_team_handle_t team,
+                                    gasnet_node_t dstnode, void *dst,
+                                    gasnet_node_t srcnode, void *src,
+                                    unsigned int flags);
+  #define GASNETE_COLL_VALIDATE(T,DN,D,SN,S,FL)	gasnete_coll_validate(T,DN,D,SN,S,FL)
+#else
+  #define GASNETE_COLL_VALIDATE(T,DN,D,SN,S,FL)
 #endif
-#ifndef gasnet_coll_wait_sync
-  GASNET_INLINE_MODIFIER(gasnet_coll_wait_sync)
-  void gasnet_coll_wait_sync(gasnet_coll_handle_t handle) {
-    gasneti_waitwhile(gasnet_coll_try_sync(handle) != GASNET_OK);
+
+/*---------------------------------------------------------------------------------*/
+
+/* gasnet_coll_init(const size_t images[], int init_flags)
+ *
+ *   images:     Array of gasnet_nodes() elements giving the number of
+ *               images present on each node.
+ *   init_flags: Presently unused.  Must be 0.
+ */
+#ifndef gasnet_coll_init
+  extern void gasnete_coll_init(const size_t images[], int init_flags);
+  #define gasnet_coll_init gasnete_coll_init
+#endif
+
+/*---------------------------------------------------------------------------------*/
+
+#ifndef gasnete_coll_try_sync
+  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle);
+#endif
+GASNET_INLINE_MODIFIER(gasnet_coll_try_sync)
+int gasnet_coll_try_sync(gasnet_coll_handle_t handle) {
+  int result = GASNET_OK;
+  if_pt (handle != GASNET_COLL_INVALID_HANDLE) {
+    result = gasnete_coll_try_sync(handle);
+  }
+  GASNETI_TRACE_TRYSYNC(COLL_TRY_SYNC,result);
+  return result;
+}
+
+#ifndef gasnete_coll_wait_sync
+  /* Default 1-line implementation */
+  GASNET_INLINE_MODIFIER(gasnete_coll_wait_sync)
+  void gasnete_coll_wait_sync(gasnet_coll_handle_t handle) {
+    gasneti_waitwhile(gasnete_coll_try_sync(handle) == GASNET_ERR_NOT_READY);
   }
 #endif
+GASNET_INLINE_MODIFIER(gasnet_coll_wait_sync)
+void gasnet_coll_wait_sync(gasnet_coll_handle_t handle) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_coll_wait_sync(handle);
+  GASNETI_TRACE_WAITSYNC_END(COLL_WAIT_SYNC);
+}
 
-#ifndef gasnet_coll_broadcast_nb
-extern gasnet_coll_handle_t
-  gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
-			   void *dst,
-                           gasnet_node_t srcnode, void *src,
-                           size_t nbytes, int flags);
-#endif
-#ifndef gasnet_coll_broadcast
-  #define gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags) \
-	gasnet_coll_wait_sync(gasnet_coll_broadcast_nb(team,dst,srcnode,src,nbytes,flags))
-#endif
+/*---------------------------------------------------------------------------------*/
 
+#ifndef gasnete_coll_broadcast_nb
+  extern gasnet_coll_handle_t
+  gasnete_coll_broadcast_nb(gasnet_team_handle_t team,
+			    void *dst,
+                            gasnet_node_t srcnode, void *src,
+                            size_t nbytes, int flags GASNETE_THREAD_FARG);
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_broadcast_nb)
+gasnet_coll_handle_t
+_gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
+			  void *dst,
+                          gasnet_node_t srcnode, void *src,
+                          size_t nbytes, int flags GASNETE_THREAD_FARG) {
+  GASNETE_COLL_VALIDATE(team, gasnete_mynode, dst, srcnode, src, flags);
+  /* XXX: trace here */
+  return gasnete_coll_broadcast_nb(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
+}
+#define gasnet_coll_broadcast_nb(team,dst,srcnode,src,nbytes,flags) \
+       _gasnet_coll_broadcast_nb(team,dst,srcnode,src,nbytes,flags GASNETE_THREAD_GET)
+
+#ifndef gasnete_coll_broadcast
+  GASNET_INLINE_MODIFIER(gasnete_coll_broadcast)
+  void gasnete_coll_broadcast(gasnet_team_handle_t team,
+                              void *dst,
+                              gasnet_node_t srcnode, void *src,
+                              size_t nbytes, int flags GASNETE_THREAD_FARG) {
+    gasnet_coll_handle_t handle;
+    handle = gasnete_coll_broadcast_nb(team,dst,srcnode,src,nbytes,flags GASNETE_THREAD_PASS);
+    gasnete_coll_wait_sync(handle);
+  }
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_broadcast)
+void _gasnet_coll_broadcast(gasnet_team_handle_t team,
+                            void *dst,
+                            gasnet_node_t srcnode, void *src,
+                            size_t nbytes, int flags GASNETE_THREAD_FARG) {
+  GASNETE_COLL_VALIDATE(team, gasnete_mynode, dst, srcnode, src, flags);
+  /* XXX: trace here */
+  return gasnete_coll_broadcast(team, dst, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
+}
+#define gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags) \
+       _gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 #endif

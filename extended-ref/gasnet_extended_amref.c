@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2004/05/10 17:55:45 $
- * $Revision: 1.35.6.3 $
+ *     $Date: 2004/05/10 23:19:13 $
+ * $Revision: 1.35.6.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,9 +144,8 @@ extern void gasnete_init() {
     gasnete_op_free((gasnete_op_t *)eop);
   }
 
-  /* Initialize barrier and collective resources */
+  /* Initialize barrier resources */
   gasnete_barrier_init();
-  gasnete_coll_init();
 }
 
 /* ------------------------------------------------------------------------------------ */

@@ -193,6 +193,7 @@ Optional environment variable settings:
      G - gets
      P - puts
      S - non-blocking synchronization
+     W - collective operations (excluding barriers)
      B - barriers
      L - locks
      A - AM requests/replies (and handler execution, if conduit-supported)

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/05/02 08:05:11 $
- * $Revision: 1.25 $
+ *     $Date: 2004/05/10 23:19:11 $
+ * $Revision: 1.25.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -157,6 +157,17 @@ extern int gasneti_wait_mode; /* current waitmode hint */
         CNT(C, GETS_REF_VECTOR, cnt)         \
         CNT(C, PUTS_REF_INDEXED, cnt)        \
         CNT(C, GETS_REF_INDEXED, cnt)
+#endif
+
+/* stats needed by the COLL reference implementation */
+#ifndef GASNETI_REFCOLL_STATS
+  #define GASNETI_REFCOLL_STATS(CNT,VAL,TIME) \
+        VAL(S, COLL_TRY_SYNC, success)        \
+        VAL(S, COLL_TRY_SYNC_ALL, success)    \
+        VAL(S, COLL_TRY_SYNC_SOME, success)   \
+        TIME(S, COLL_WAIT_SYNC, waittime)     \
+        TIME(S, COLL_WAIT_SYNC_ALL, waittime) \
+        TIME(S, COLL_WAIT_SYNC_SOME, waittime)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25.4.1 2004/05/10 18:20:02 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25.4.2 2004/05/10 23:19:15 phargrov Exp $
 # Description: Makefile for GASNet tests
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -24,7 +24,6 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 # tests that can be built in any mode
 # in order of most useful execution
 testprograms_seq =      \
-testcoll      \
         testgasnet      \
         testsmall       \
         testlarge       \
@@ -40,7 +39,8 @@ testcoll      \
         testhsl         \
         testbarrierconf \
         testbarrierlate \
-	testtools   
+	testtools       \
+        testcoll
 
 # tests that should only be built in PARSYNC and PAR modes
 testprograms_parsync =  \
