@@ -1,6 +1,6 @@
 /* vapi-conduit/gasnet_firehose.c
- * $Date: 2003/10/22 19:57:37 $
- * $Revision: 1.1.2.2 $
+ * $Date: 2003/10/24 21:27:42 $
+ * $Revision: 1.1.2.3 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -40,8 +40,8 @@ firehose_move_callback(gasnet_node_t node,
 	VAPI_mr_hndl_t old_handle = unpin_list[i].client.handle;
 	VAPI_mr_t mr_out;
 
-	assert(region->addr % GASNETI_PAGESIZE == 0);
-	assert(region->len % GASNETI_PAGESIZE == 0);
+	gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
+	gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
 
 	mr_in.start = (uintptr_t)region->addr;
 	mr_in.size  = region->len;
@@ -49,7 +49,7 @@ firehose_move_callback(gasnet_node_t node,
 	vstat = VAPI_reregister_mr(gasnetc_hca, old_handle,
 				   VAPI_MR_CHANGE_TRANS,
 				   &mr_in, &client->handle, &mr_out);
-	assert(vstat == VAPI_OK);
+	gasneti_assert(vstat == VAPI_OK);
 
 	client->lkey     = mr_out.l_key;
 	client->rkey     = mr_out.r_key;
@@ -66,7 +66,7 @@ firehose_move_callback(gasnet_node_t node,
 	    VAPI_mr_hndl_t old_handle = unpin_list[i].client.handle;
 
 	    vstat = VAPI_deregister_mr(gasnetc_hca, old_handle);
-	    assert(vstat == VAPI_OK);
+	    gasneti_assert(vstat == VAPI_OK);
         }
     }
     else if (pin_num) {
@@ -75,14 +75,14 @@ firehose_move_callback(gasnet_node_t node,
 	    firehose_client_t *client = &region->client;
 	    VAPI_mr_t mr_out;
     
-	    assert(region->addr % GASNETI_PAGESIZE == 0);
-	    assert(region->len % GASNETI_PAGESIZE == 0);
+	    gasneti_assert(region->addr % GASNETI_PAGESIZE == 0);
+	    gasneti_assert(region->len % GASNETI_PAGESIZE == 0);
     
 	    mr_in.start = (uintptr_t)region->addr;
 	    mr_in.size  = region->len;
     
 	    vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &client->handle, &mr_out);
-	    assert(vstat == VAPI_OK);
+	    gasneti_assert(vstat == VAPI_OK);
     
 	    client->lkey     = mr_out.l_key;
 	    client->rkey     = mr_out.r_key;
