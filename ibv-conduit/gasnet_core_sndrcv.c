@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/01/06 23:24:15 $
- * $Revision: 1.23.6.7 $
+ *     $Date: 2004/01/06 23:38:33 $
+ * $Revision: 1.23.6.8 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -73,7 +73,11 @@ typedef struct {
 /* VAPI structures for a send request */
 typedef struct {
   VAPI_sr_desc_t	sr_desc;		/* send request descriptor */
-  VAPI_sg_lst_entry_t	sr_sg[GASNETC_SND_SG];	/* send request gather list */
+  #if GASNETC_VAPI_USE_SG
+    VAPI_sg_lst_entry_t	sr_sg[GASNETC_SND_SG];	/* send request gather list */
+  #else
+    VAPI_sg_lst_entry_t	sr_sg[1];		/* send request gather list */
+  #endif
 } gasnetc_sreq_t;
 
 /* ------------------------------------------------------------------------------------ *
@@ -249,8 +253,8 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
 static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **head_p, gasnetc_sbuf_t **tail_p) {
   VAPI_ret_t vstat;
   VAPI_wc_desc_t comp;
-  gasnetc_sbuf_t dummy;
-  gasnetc_sbuf_t *tail = &dummy;
+  gasneti_freelist_ptr_t dummy;
+  void *tail = &dummy;
   int count;
   
   for (count = 0; count < limit; ++count) {
@@ -799,19 +803,19 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 
   gasneti_assert(nbytes != 0);
 
+  req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+  req.sr_desc.sg_lst_len  = 1;
+  req.sr_desc.fence       = TRUE;
+  req.sr_desc.r_key       = rkey;
+  req.sr_sg[0].lkey       = gasnetc_snd_reg.lkey;
+
   /* Use full bounce buffers until just one buffer worth of data remains */
   while (nbytes > GASNETC_BUFSZ) {
     sbuf = gasnetc_get_sbuf();
 
-    req.sr_desc.opcode      = VAPI_RDMA_WRITE;
-    req.sr_desc.sg_lst_len  = 1;
-    req.sr_desc.fence       = TRUE;
-    req.sr_desc.remote_addr = dst;
-    req.sr_desc.r_key       = rkey;
-
     memcpy(sbuf->buffer, (void *)src, GASNETC_BUFSZ);
+    req.sr_desc.remote_addr = dst;
     req.sr_sg[0].addr = (uintptr_t)sbuf->buffer;
-    req.sr_sg[0].lkey = gasnetc_snd_reg.lkey;
     req.sr_sg[0].len  = GASNETC_BUFSZ;
 
     gasnetc_snd_post(cep, &req, sbuf);
@@ -826,15 +830,9 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 
   sbuf = gasnetc_get_sbuf();
 
-  req.sr_desc.opcode      = VAPI_RDMA_WRITE;
-  req.sr_desc.sg_lst_len  = 1;
-  req.sr_desc.fence       = TRUE;
-  req.sr_desc.remote_addr = dst;
-  req.sr_desc.r_key       = rkey;
-
   memcpy(sbuf->buffer, (void *)src, nbytes);
+  req.sr_desc.remote_addr = dst;
   req.sr_sg[0].addr = (uintptr_t)sbuf->buffer;
-  req.sr_sg[0].lkey = gasnetc_snd_reg.lkey;
   req.sr_sg[0].len  = nbytes;
 
   if (req_oust) {
@@ -857,19 +855,19 @@ static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
 
   gasneti_assert(nbytes != 0);
 
+  req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+  req.sr_desc.sg_lst_len  = 1;
+  req.sr_desc.fence       = TRUE;
+  req.sr_desc.r_key       = rkey;
+  req.sr_sg[0].lkey       = lkey;
+
   /* Use max-sized messages until just one msg worth of data remains */
   if_pf (nbytes > max_sz) {
     do {
       sbuf = gasnetc_get_sbuf();
 
-      req.sr_desc.opcode      = VAPI_RDMA_WRITE;
-      req.sr_desc.sg_lst_len  = 1;
-      req.sr_desc.fence       = TRUE;
       req.sr_desc.remote_addr = dst;
-      req.sr_desc.r_key       = rkey;
-
       req.sr_sg[0].addr = src;
-      req.sr_sg[0].lkey = lkey;
       req.sr_sg[0].len  = max_sz;
 
       gasnetc_snd_post(cep, &req, sbuf);
@@ -885,14 +883,8 @@ static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
 
   sbuf = gasnetc_get_sbuf();
 
-  req.sr_desc.opcode      = VAPI_RDMA_WRITE;
-  req.sr_desc.sg_lst_len  = 1;
-  req.sr_desc.fence       = TRUE;
   req.sr_desc.remote_addr = dst;
-  req.sr_desc.r_key       = rkey;
-
   req.sr_sg[0].addr = src;
-  req.sr_sg[0].lkey = lkey;
   req.sr_sg[0].len  = nbytes;
 
   if (mem_oust) {
@@ -981,18 +973,18 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 
   gasneti_assert(nbytes != 0);
 
+  req.sr_desc.opcode      = VAPI_RDMA_READ;
+  req.sr_desc.sg_lst_len  = 1;
+  req.sr_desc.fence       = FALSE;
+  req.sr_desc.r_key       = rkey;
+  req.sr_sg[0].lkey       = gasnetc_snd_reg.lkey;
+
   /* Use full bounce buffers until just one buffer worth of data remains */
   while (nbytes > GASNETC_BUFSZ) {
     sbuf = gasnetc_get_sbuf();
 
-    req.sr_desc.opcode      = VAPI_RDMA_READ;
-    req.sr_desc.sg_lst_len  = 1;
-    req.sr_desc.fence       = FALSE;
     req.sr_desc.remote_addr = src;
-    req.sr_desc.r_key       = rkey;
-
     req.sr_sg[0].addr = (uintptr_t)sbuf->buffer;
-    req.sr_sg[0].lkey = gasnetc_snd_reg.lkey;
     req.sr_sg[0].len  = GASNETC_BUFSZ;
     sbuf->addr = (void *)dst;
     sbuf->len = GASNETC_BUFSZ;
@@ -1009,14 +1001,8 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 
   sbuf = gasnetc_get_sbuf();
 
-  req.sr_desc.opcode      = VAPI_RDMA_READ;
-  req.sr_desc.sg_lst_len  = 1;
-  req.sr_desc.fence       = FALSE;
   req.sr_desc.remote_addr = src;
-  req.sr_desc.r_key       = rkey;
-
   req.sr_sg[0].addr = (uintptr_t)sbuf->buffer;
-  req.sr_sg[0].lkey = gasnetc_snd_reg.lkey;
   req.sr_sg[0].len  = nbytes;
   sbuf->addr = (void *)dst;
   sbuf->len = nbytes;
@@ -1041,19 +1027,19 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
 
   gasneti_assert(nbytes != 0);
 
+  req.sr_desc.opcode      = VAPI_RDMA_READ;
+  req.sr_desc.sg_lst_len  = 1;
+  req.sr_desc.fence       = FALSE;
+  req.sr_desc.r_key       = rkey;
+  req.sr_sg[0].lkey       = lkey;
+
   /* Use max-sized messages until just one msg worth of data remains */
   if_pf (nbytes > max_sz) {
     do {
       sbuf = gasnetc_get_sbuf();
 
-      req.sr_desc.opcode      = VAPI_RDMA_READ;
-      req.sr_desc.sg_lst_len  = 1;
-      req.sr_desc.fence       = FALSE;
       req.sr_desc.remote_addr = src;
-      req.sr_desc.r_key       = rkey;
-
       req.sr_sg[0].addr = dst;
-      req.sr_sg[0].lkey = lkey;
       req.sr_sg[0].len  = max_sz;
 
       gasnetc_snd_post(cep, &req, sbuf);
@@ -1069,14 +1055,8 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
 
   sbuf = gasnetc_get_sbuf();
 
-  req.sr_desc.opcode      = VAPI_RDMA_READ;
-  req.sr_desc.sg_lst_len  = 1;
-  req.sr_desc.fence       = FALSE;
   req.sr_desc.remote_addr = src;
-  req.sr_desc.r_key       = rkey;
-
   req.sr_sg[0].addr = dst;
-  req.sr_sg[0].lkey = lkey;
   req.sr_sg[0].len  = nbytes;
 
   if (req_oust) {
