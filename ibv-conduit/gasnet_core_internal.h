@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/01/06 23:38:33 $
- * $Revision: 1.19.6.10 $
+ *     $Date: 2004/02/03 00:06:43 $
+ * $Revision: 1.19.6.11 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@
   #define GASNETC_USE_FIREHOSE 1
   #include <firehose.h>
 #endif
-#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+#if defined(GASNET_SEGMENT_FAST) //|| defined(GASNET_SEGMENT_LARGE)
   #define GASNETC_PIN_SEGMENT 1
 #endif
 
@@ -567,6 +567,10 @@ void gasneti_freelist_init(gasneti_freelist_t *fl) {
 }
 
 /* Get one element from the freelist or NULL if it is empty */
+#ifdef __GNUC__
+  GASNET_INLINE_MODIFIER(gasneti_freelist_get)
+  void *gasneti_freelist_get(gasneti_freelist_t *fl) __attribute__((__malloc__));
+#endif
 GASNET_INLINE_MODIFIER(gasneti_freelist_get)
 void *gasneti_freelist_get(gasneti_freelist_t *fl) {
   gasneti_freelist_ptr_t *head;
@@ -687,6 +691,7 @@ extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_am_spares;
+extern int		gasnetc_bbuf_limit;
 extern int		gasnetc_use_poll_lock;
 
 /* Global variables */
