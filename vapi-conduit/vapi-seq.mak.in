@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/vapi-seq.mak.in,v 1.1.2.1 2003/03/19 20:11:54 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/vapi-seq.mak.in,v 1.1.2.2 2003/03/20 17:43:28 phargrov Exp $
 # Description: Makefile fragment for VAPI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -47,6 +47,7 @@ GASNET_LIBS =            \
     $(GASNET_LIBDIRS)    \
     -lgasnet-vapi-seq     \
     @GASNET_THREAD_LIBS@ \
+    @VAPI_LIBS@          \
     @LIBGCC@             \
     @LIBM@
 
