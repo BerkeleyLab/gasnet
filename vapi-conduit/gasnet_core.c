@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/05/28 22:47:13 $
- * $Revision: 1.2.2.42 $
+ *     $Date: 2003/06/11 16:17:59 $
+ * $Revision: 1.2.2.43 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,7 +46,7 @@ typedef struct _gasnetc_addr_t {
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
 
-gasnet_node_t gasnetc_mynode = -1;
+gasnet_node_t gasnetc_mynode = (gasnet_node_t)-1;
 gasnet_node_t gasnetc_nodes = 0;
 
 uintptr_t gasnetc_MaxLocalSegmentSize = 0;
