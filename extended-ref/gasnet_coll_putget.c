@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/16 00:21:16 $
- * $Revision: 1.1.2.47 $
+ *     $Date: 2004/06/19 01:03:42 $
+ * $Revision: 1.1.2.48 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1773,7 +1773,9 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     case 1:	/* Initiate data movement */
       if (gasnete_mynode == args->srcnode) {
 	gasnete_coll_p2p_eager_addr_all(op, args->src, 0, 1);	/* broadcast src address */
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, 
+				      gasnete_coll_scale_ptr(args->src, gasnete_mynode, args->nbytes),
+				      args->nbytes);
       } else if (GASNETE_COLL_CHECK_OWNER(data) && data->p2p->state[0]) {
 	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode,
 					   gasnete_coll_scale_ptr(*(void **)data->p2p->data,
