@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2004/11/23 23:40:21 $
- * $Revision: 1.58.2.1 $
+ *     $Date: 2005/01/03 15:15:39 $
+ * $Revision: 1.58.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -416,7 +416,9 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
 #if 1 
         fprintf(stderr, "@ %d> snd comp.status=%d comp.opcode=%d\n", gasnetc_mynode, comp.status, comp.opcode);
         while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
-          fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+	  if (comp.status != VAPI_WR_FLUSH_ERR) {
+            fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+	  }
         }
 #endif
         gasneti_fatalerror("aborting on reap of failed send");
@@ -519,7 +521,9 @@ static int gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
 #if 1
         fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
         while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
-          fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
+	  if (comp.status != VAPI_WR_FLUSH_ERR) {
+            fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
+	  }
         }
 #endif
         gasneti_fatalerror("aborting on reap of failed recv");
