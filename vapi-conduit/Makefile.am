@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.2 2003/03/26 23:19:40 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.3 2003/04/01 18:04:23 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -47,7 +47,7 @@ VPATH=$(srcdir)
 LIBCFLAGS = @CFLAGS@ @MISC_CFLAGS@ @BUILDCONFIG_DEFINES@ @GASNET_MACHINE_DEFINES@ $(INCLUDES)
 
 libgasnet-vapi-seq.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_SEQ -c $(libgasnet_sources)
+	$(CC) $(LIBCFLAGS) -DGASNET_SEQ $(thread_defines) -c $(libgasnet_sources)
 	$(AR) cru $@ $(libgasnet_objects)
 	$(RANLIB) $@
 	rm -f $(libgasnet_objects)
