@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25 2004/03/20 02:12:43 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25.4.1 2004/05/10 18:20:02 phargrov Exp $
 # Description: Makefile for GASNet tests
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -24,6 +24,7 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 # tests that can be built in any mode
 # in order of most useful execution
 testprograms_seq =      \
+testcoll      \
         testgasnet      \
         testsmall       \
         testlarge       \
