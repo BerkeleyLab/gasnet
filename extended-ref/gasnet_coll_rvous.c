@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/14 22:44:33 $
- * $Revision: 1.1.2.41 $
+ *     $Date: 2004/06/14 23:27:36 $
+ * $Revision: 1.1.2.42 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1350,7 +1350,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	break;
       } else if (gasnete_mynode != args->srcnode) {
 	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0);
-	_gasnete_coll_membcast(gasnete_coll_my_images - 1, p + 1, p, args->nbytes);
+	_gasnete_coll_membcast(gasnete_coll_my_images - 1, p + 1, *p, args->nbytes);
       }
       data->state = 3;
 
@@ -1593,7 +1593,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	  break;
       } else if (gasnete_mynode != args->srcnode) {
 	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
-	_gasnete_coll_membcast(gasnete_coll_my_images - 1, p + 1, p, args->nbytes);
+	_gasnete_coll_membcast(gasnete_coll_my_images - 1, p + 1, *p, args->nbytes);
       }
       data->state = 3;
 
