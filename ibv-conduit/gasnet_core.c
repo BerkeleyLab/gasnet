@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/31 21:55:01 $
- * $Revision: 1.2.2.8 $
+ *     $Date: 2003/03/31 21:55:31 $
+ * $Revision: 1.2.2.9 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -762,7 +762,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
      hold/resume interrupts functions are operational yet */
   gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc_inhandler(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
-abort();
   #if defined(GASNET_SEGMENT_FAST)
     /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapAllgather);
