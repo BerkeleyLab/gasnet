@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/15 18:45:10 $
- * $Revision: 1.1.2.35 $
+ *     $Date: 2004/06/15 19:55:35 $
+ * $Revision: 1.1.2.36 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -199,10 +199,16 @@ extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t seque
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
 extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
                                             void *src, size_t nbytes, uint32_t pos, uint32_t state);
+
+/* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
+ * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
+ * Set the corresponding entries of the state array to 'state'.
+ */
 extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
                                         void *src, uint32_t count, size_t size,
                                         uint32_t offset, uint32_t state);
 
+/* Shorthand for gasnete_coll_p2p_eager_putM with count == 1 */
 #ifndef gasnete_coll_p2p_eager_put
   GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_put)
   void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
@@ -211,6 +217,10 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
   }
 #endif
     
+/* Treat the eager buffer space at dstnode as an array of (void *)s.
+ * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
+ * Set the corresponding entries of the state array to 'state'.
+ */
 #ifndef gasnete_coll_p2p_eager_addrM
   GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_addrM)
   void gasnete_coll_p2p_eager_addrM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
@@ -220,11 +230,73 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
   }
 #endif
 
+/* Shorthand for gasnete_coll_p2p_eager_addrM with count == 1, taking
+ * the address argument by value rather than reference.
+ */
 #ifndef gasnete_coll_p2p_eager_addr
   GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_addr)
   void gasnete_coll_p2p_eager_addr(gasnete_coll_op_t *op, gasnet_node_t dstnode,
                                    void *addr, uint32_t offset, uint32_t state) {
-    gasnete_coll_p2p_eager_putM(op, dstnode, &addr, 1, sizeof(void *), offset, state);
+    gasnete_coll_p2p_eager_addrM(op, dstnode, &addr, 1, offset, state);
+  }
+#endif
+
+/* Treat the eager buffer space on each node as an array of elements of length 'size'.
+ * Send (to all but the local node) one element to position 'offset' of that array.
+ * Set the corresponding entries of the state array to 'state'.
+ * When 'scatter' == 0, the same local element is sent to all nodes (broadcast).
+ * When 'scatter' != 0, the source is an array with elements of length 'size', with
+ * the ith element sent to node i.
+ */
+#ifndef gasnete_coll_p2p_eager_put_all
+  GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_put_all)
+  void gasnete_coll_p2p_eager_put_all(gasnete_coll_op_t *op, void *src, size_t size,
+				      int scatter, uint32_t offset, uint32_t state) {
+    gasnet_node_t i;
+
+    if (scatter) {
+      uintptr_t src_addr;
+
+      /* Send to nodes to the "right" of ourself */
+      src_addr = (uintptr_t)src + size * (gasnete_mynode + 1);
+      for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i, src_addr += size) {
+        gasnete_coll_p2p_eager_put(op, i, (void *)src_addr, size, offset, state);
+      }
+      /* Send to nodes to the "left" of ourself */
+      src_addr = (uintptr_t)src;
+      for (i = 0; i < gasnete_mynode; ++i, src_addr += size) {
+        gasnete_coll_p2p_eager_put(op, i, (void *)src_addr, size, offset, state);
+      }
+    } else {
+      /* Send to nodes to the "right" of ourself */
+      for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+        gasnete_coll_p2p_eager_put(op, i, src, size, offset, state);
+      }
+      /* Send to nodes to the "left" of ourself */
+      for (i = 0; i < gasnete_mynode; ++i) {
+        gasnete_coll_p2p_eager_put(op, i, src, size, offset, state);
+      }
+    }
+  }
+#endif
+
+/* Loop over calls to gasnete_coll_p2p_eager_addr() to send the same
+ * address to all nodes except the local node.
+ */
+#ifndef gasnete_coll_p2p_eager_addr_all
+  GASNET_INLINE_MODIFIER(gasnete_coll_p2p_eager_addr_all)
+  void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
+				       uint32_t offset, uint32_t state) {
+    gasnet_node_t i;
+
+    /* Send to nodes to the "right" of ourself */
+    for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+      gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
+    }
+    /* Send to nodes to the "left" of ourself */
+    for (i = 0; i < gasnete_mynode; ++i) {
+      gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
+    }
   }
 #endif
 
