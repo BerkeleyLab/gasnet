@@ -1106,3 +1106,66 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
 
 	return;
 }
+
+/*********************************
+ * AM-related functions
+ *********************************/
+/*
+ * Firehose AM Reply Handler
+ * Process (run or queue) pending completion callbacks which are satisfied
+ * by the reply.
+ */
+void
+fh_am_move_reph(gasnet_token_t token, void *addr,
+		size_t nbytes,
+		gasnet_handlerarg_t r_new)
+{
+	firehose_region_t	*regions = (firehose_region_t *) addr;
+	fh_pollq_t		pendCallbacks;
+	int			numpend;
+	gasnet_node_t		node;
+
+	gasnet_AMGetMsgSource(token, &node);
+
+	FH_TABLE_LOCK;
+
+	/* 
+	 * At least one pending request is attached a bucket, so process them
+	 * and dynamically create a list in pendCallbacks
+	 */
+
+	numpend = 
+	    fhi_FlushPendingRequests(node, regions, r_new, &pendCallbacks);
+
+	if (numpend > 0) {
+		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
+		fh_completion_callback_t	*ccb, *ccb2;
+
+		ccb = (fh_completion_callback_t *)FH_STAILQ_FIRST(&pendCallbacks);
+		while (ccb != NULL) {
+			ccb2 = FH_STAILQ_NEXT(ccb);
+			gasneti_assert(!(ccb->request->flags & FH_FLAG_PENDING));
+			ccb->callback(ccb->context, ccb->request, 0);
+			ccb = ccb2;
+		}
+		#else
+		
+		FH_POLLQ_LOCK;
+		FH_STAILQ_MERGE(&fh_CallbackFifo, &pendCallbacks);
+		gasneti_assert(!FH_STAILQ_EMPTY(&fh_CallbackFifo));
+		FH_POLLQ_UNLOCK;
+		#endif
+	}
+	FH_TABLE_UNLOCK;
+
+	return;
+}
+
+void
+fh_send_firehose_reply(fh_remote_callback_t *rc)
+{
+	/* Run the "reply" handler as a request */
+	gasnet_AMRequestMedium1(
+	    rc->node, fh_handleridx(fh_am_move_reph),
+	    rc->pin_list, rc->reply_len, rc->pin_list_num);
+}

@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <gasnet_internal.h>	/* gasnet mutex */
+#include <gasnet_handler.h>
 
 /* firehose_internal.h: Internal Header file
  */
@@ -455,10 +456,6 @@ struct _fh_remote_callback_t {
 	firehose_region_t		*pin_list;
 	size_t				 pin_list_num;
 	size_t				 reply_len;
-
-	/* Initiator's request_t */
-	firehose_request_t		*request;
-
 }
 fh_remote_callback_t;
 
@@ -491,8 +488,23 @@ void	fh_acquire_remote_region(firehose_request_t *req,
 		        	firehose_remotecallback_args_t *remote_args);
 void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
+int	fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
+				 int nreg, fh_pollq_t *PendQ);
 
-void	fh_send_firehose_reply(fh_remote_callback_t *);
+/* ##################################################################### */
+/* Firehose AM-related things (page/region independent)                  */
+/* ##################################################################### */
+void fh_am_move_reph(gasnet_token_t token, void *addr,
+                     size_t nbytes, gasnet_handlerarg_t r_new);
+void fh_send_firehose_reply(fh_remote_callback_t *);
+extern gasnet_handlerentry_t fh_am_handlers[];
+/* Initial value of index for gasnet registration */
+#define _hidx_fh_am_move_reqh                   0
+#define _hidx_fh_am_move_reph                   0
+/* Index into the fh_am_handlers table to obtain the gasnet registered index */
+#define _fh_hidx_fh_am_move_reqh                0
+#define _fh_hidx_fh_am_move_reph                1
+#define fh_handleridx(reqh)     (fh_am_handlers[ _fh_hidx_ ## reqh ].index)
 
 /* ##################################################################### */
 /* FIFO (local and remote) management operations (page/region specific)  */

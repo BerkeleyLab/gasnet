@@ -1,7 +1,6 @@
 #include <firehose.h>
 #include <firehose_internal.h>
 #include <gasnet.h>
-#include <gasnet_handler.h>
 
 #ifdef FIREHOSE_PAGE
 typedef firehose_private_t fh_bucket_t;
@@ -125,18 +124,6 @@ static fh_bucket_t **	fh_temp_bucket_ptrs = NULL;
  * The bucket table
  */
 fh_hash_t	*fh_BucketTable;
-
-/* ACTIVE MESSAGES DECL                                                   */ 
-static gasnet_handlerentry_t fh_am_handlers[];
-/* Initial value of index for gasnet registration */
-#define _hidx_fh_am_move_reqh			0
-#define _hidx_fh_am_move_reph			0
-
-/* Index into the fh_am_handlers table to obtain the gasnet registered index */
-#define _fh_hidx_fh_am_move_reqh		0
-#define _fh_hidx_fh_am_move_reph		1
-
-#define fh_handleridx(reqh)	(fh_am_handlers[ _fh_hidx_ ## reqh ].index)
 
 /* ##################################################################### */
 /* UTILITY FUNCTIONS FOR REGIONS AND BUCKETS                             */
@@ -977,12 +964,16 @@ fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 			FH_BSTATE_ASSERT(bd, fh_pending);
 			gasneti_assert(bd->fh_tqe_next != NULL);
 
-			/* if there is a pending request on the bucket, save it
-			 * in the temp array */
-			fh_temp_bucket_ptrs[numpend] = bd;
-			numpend++;
-			gasneti_assert(numpend < fh_max_regions); 
+			/* ONLY if there is a pending request on the bucket,
+			 * save it in the temp array */
+			if ((fh_completion_callback_t *) bd->fh_tqe_next !=
+							FH_COMPLETION_END) {
+				fh_temp_bucket_ptrs[numpend] = bd;
+				numpend++;
+				gasneti_assert(numpend < fh_max_regions); 
+			}
 			FH_UNSET_REMOTE_PENDING(bd);
+			FH_SET_USED(bd);
 			FH_BSTATE_SET(bd, fh_used);
 		}
 	}
@@ -997,11 +988,9 @@ fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 		base_addr = FH_BADDR(bd) + FH_BUCKET_SIZE;
 		ccb = (fh_completion_callback_t *) bd->fh_tqe_next;
 
-		FH_SET_USED(bd);
-
 		gasneti_assert(ccb != NULL);
-		while (ccb != FH_COMPLETION_END)
-		{
+		gasneti_assert(ccb != FH_COMPLETION_END);
+		do {
 			bd->fh_tqe_next = (fh_bucket_t *) ccb->fh_tqe_next;
 			gasneti_assert(ccb->flags & FH_CALLBACK_TYPE_COMPLETION);
 			req = ccb->request;
@@ -1048,7 +1037,7 @@ fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
 			}
 
 			ccb = (fh_completion_callback_t *) bd->fh_tqe_next;
-		} 
+		} while (ccb != FH_COMPLETION_END);
 	}
 
 	return callspend;
@@ -1161,7 +1150,7 @@ fhi_TryAcquireRemoteRegion(firehose_request_t *req,
 					FH_TRACE_BUCKET(bd, PENDADD);
 
 					GASNETI_TRACE_PRINTF(C,
-			    		    ("Firehose Pending ADD bd=%d "
+			    		    ("Firehose Pending ADD bd=%p "
 					     "(%p,%d), req=%p", bd, 
 					     (void *) FH_BADDR(bd), FH_NODE(bd), 
 					     req));
@@ -1325,11 +1314,11 @@ fh_acquire_remote_region(firehose_request_t *req,
 			firehose_unbind_callback(node, reg_alloc_old, old_r);
 		#endif
 
-                MEDIUM_REQ(5, 6, 
-                   (node, fh_handleridx(fh_am_move_reqh),
+                gasnet_AMRequestMedium3(node,
+                    fh_handleridx(fh_am_move_reqh),
                     reg_alloc, 
 		    sizeof(firehose_region_t) * (new_r+old_r) + args_len, 
-		    flags, new_r, old_r, notpinned, PACK(req)));
+		    flags, new_r, old_r);
 	}
 	else {
 		/* Only set the PINNED flag if the request is not set on any
@@ -1384,15 +1373,12 @@ fh_release_remote_region(firehose_request_t *request)
 /* ##################################################################### */
 /* ACTIVE MESSAGES                                                       */ 
 /* ##################################################################### */
-GASNET_INLINE_MODIFIER(fh_am_move_reqh_inner)
 void
-fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
-		      size_t nbytes,
-		      gasnet_handlerarg_t flags,
-		      gasnet_handlerarg_t r_new,
-		      gasnet_handlerarg_t r_old,
-		      gasnet_handlerarg_t b_new,
-		      void *request_type)
+fh_am_move_reqh(gasnet_token_t token, void *addr,
+		size_t nbytes,
+		gasnet_handlerarg_t flags,
+		gasnet_handlerarg_t r_new,
+		gasnet_handlerarg_t r_old)
 {
 	firehose_region_t	*new_reg, *old_reg;
 	fhi_RegionPool_t	*rpool;
@@ -1401,9 +1387,6 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 	gasneti_stattime_t      movetime = GASNETI_STATTIME_NOW_IFENABLED(C);
 	gasneti_stattime_t      unpintime;
 	gasnet_node_t		node;
-
-	gasneti_assert(request_type != NULL);
-	gasneti_assert(b_new > 0);
 
 	gasnet_AMGetMsgSource(token, &node);
 
@@ -1462,10 +1445,10 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 			firehose_remote_callback(node, 
 			    (const firehose_region_t *) new_reg, r_new);
 
-			MEDIUM_REP(1,1,(token,
+			gasnet_AMReplyMedium1(token,
 			    fh_handleridx(fh_am_move_reph),
 			    new_reg, sizeof(firehose_region_t) * r_new,
-			    r_new));
+			    r_new);
 	
 		#else
 			/* TODO. . solve MALLOC ? */
@@ -1479,7 +1462,6 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 			rc->node = node;
 			rc->pin_list_num = r_new;
 			rc->reply_len = sizeof(firehose_region_t) * r_new;
-			rc->request = request_type;
 
 			rc->pin_list = (firehose_region_t *)
 				gasneti_malloc(sizeof(firehose_region_t)*r_new);
@@ -1497,79 +1479,15 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 		#endif
 	}
 	else {
-		MEDIUM_REP(1,1,(token,
+		gasnet_AMReplyMedium1(token,
 		    fh_handleridx(fh_am_move_reph),
-		    new_reg, sizeof(firehose_region_t) * r_new, r_new));
+		    new_reg, sizeof(firehose_region_t) * r_new, r_new);
 	}
 
 	return;
 }
-MEDIUM_HANDLER(fh_am_move_reqh,5,6,
-              (token,addr,nbytes, a0, a1, a2, a3, UNPACK (a4    )),
-              (token,addr,nbytes, a0, a1, a2, a3, UNPACK2(a4, a5)));
 
-/*
- * Firehose AM Reply
- *
- */
-GASNET_INLINE_MODIFIER(fh_am_move_reph_inner)
-void
-fh_am_move_reph_inner(gasnet_token_t token, void *addr,
-		      size_t nbytes,
-		      gasnet_handlerarg_t r_new)
-{
-	firehose_region_t	*regions = (firehose_region_t *) addr;
-	fh_pollq_t		pendCallbacks;
-	int			numpend;
-	gasnet_node_t		node;
-
-	gasnet_AMGetMsgSource(token, &node);
-
-	FH_TABLE_LOCK;
-
-	/* 
-	 * At least one pending request is attached a bucket, so process them
-	 * and dynamically create a list in pendCallbacks
-	 */
-
-	numpend = 
-	    fhi_FlushPendingRequests(node, regions, r_new, &pendCallbacks);
-
-	if (numpend > 0) {
-		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
-		fh_completion_callback_t	*ccb, *ccb2;
-
-		ccb = FH_STAILQ_FIRST(&pendCallbacks);
-		while (ccb != NULL) {
-			ccb2 = FH_STAILQ_NEXT(ccb);
-			gasneti_assert(!(ccb->request->flags & FH_FLAG_PENDING));
-			ccb->callback(ccb->context, ccb->request, 0);
-			ccb = ccb2;
-		}
-		#else
-		
-		FH_POLLQ_LOCK;
-		FH_STAILQ_MERGE(&fh_CallbackFifo, &pendCallbacks);
-		gasneti_assert(!FH_STAILQ_EMPTY(&fh_CallbackFifo));
-		FH_POLLQ_UNLOCK;
-		#endif
-	}
-	FH_TABLE_UNLOCK;
-
-	return;
-}
-MEDIUM_HANDLER(fh_am_move_reph,1,1,
-              (token,addr,nbytes, a0),
-              (token,addr,nbytes, a0));
-
-
-void
-fh_send_firehose_reply(fh_remote_callback_t *rc)
-{
-	MEDIUM_REQ(1,1,
-	    (rc->node, fh_handleridx(fh_am_move_reph),
-	    rc->pin_list, rc->reply_len, rc->pin_list_num));
-}
+/* Firehose AM Reply is in firehose.c */
 
 void
 fh_dump_counters()
@@ -1599,11 +1517,10 @@ fh_dump_counters()
 }
 
 /* indexes for firehose AM handlers */
-static 
 gasnet_handlerentry_t fh_am_handlers[] = {
-	/* ptr-width dependent handlers */
-	gasneti_handler_tableentry_with_bits(fh_am_move_reqh),
-	gasneti_handler_tableentry_with_bits(fh_am_move_reph),
+	/* ptr-width independent handlers */
+	gasneti_handler_tableentry_no_bits(fh_am_move_reqh),
+	gasneti_handler_tableentry_no_bits(fh_am_move_reph),
 	{ 0, NULL }
 };
 

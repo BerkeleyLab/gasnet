@@ -620,6 +620,14 @@ fh_release_remote_region(firehose_request_t *request)
 	return;
 }
 
+int
+fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
+			 int nreg, fh_pollq_t *PendQ)
+{
+	/* XXX unimplemented */
+	return 0;
+}
+
 /* ##################################################################### */
 /* INITIALIZATION & FINALIZATION                                         */
 /* ##################################################################### */
@@ -894,39 +902,20 @@ fh_fini_plugin(void)
 /* ACTIVE MESSAGES                                                       */
 /* ##################################################################### */
 
-GASNET_INLINE_MODIFIER(fh_am_move_reqh_inner)
 void
-fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
-		      gasnet_handlerarg_t flags,
-		      gasnet_handlerarg_t r_new,
-		      gasnet_handlerarg_t r_old,
-		      gasnet_handlerarg_t b_new,
-		      void *request_type)
+fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
+		gasnet_handlerarg_t flags,
+		gasnet_handlerarg_t r_new,
+		gasnet_handlerarg_t r_old)
 {
 	/* XXX unimplemented */
 	return;
 }
-MEDIUM_HANDLER(fh_am_move_reqh,5,6,
-              (token,addr,nbytes, a0, a1, a2, a3, UNPACK (a4    )),
-              (token,addr,nbytes, a0, a1, a2, a3, UNPACK2(a4, a5)));
 
-GASNET_INLINE_MODIFIER(fh_am_move_reph_inner)
-void
-fh_am_move_reph_inner(gasnet_token_t token, void *addr, size_t nbytes,
-		      gasnet_handlerarg_t r_new)
-{
-	/* XXX unimplemented */
-	return;
-}
-MEDIUM_HANDLER(fh_am_move_reph,1,1,
-              (token,addr,nbytes, a0),
-              (token,addr,nbytes, a0));
-
-static
 gasnet_handlerentry_t fh_am_handlers[] = {
-        /* ptr-width dependent handlers */
-        gasneti_handler_tableentry_with_bits(fh_am_move_reqh),
-        gasneti_handler_tableentry_with_bits(fh_am_move_reph),
+        /* ptr-width independent handlers */
+        gasneti_handler_tableentry_no_bits(fh_am_move_reqh),
+        gasneti_handler_tableentry_no_bits(fh_am_move_reph),
         { 0, NULL }
 };
 
