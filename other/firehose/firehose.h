@@ -141,8 +141,8 @@ firehose_info_t;
  * remote pin flags parameter.  See firehose_remote_pin() and
  * firehose_try_remote_pin() functions.
  *
- * AM-handler context: Never runs within AM handler (unless client
- *                     defines FIREHOSE_REMOTE_CALLBACK_IN_HANDLER).
+ * AM-handler context: Runs within AM handler if (and only if) client
+ *                     defines FIREHOSE_REMOTE_CALLBACK_IN_HANDLER.
  *
  * Returns: 0 on success, non-zero on failure.
  */
@@ -676,11 +676,11 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
  * to non-zero if the remote pin operation could be successfully
  * completed without requiring any firehose moves (network roundtrips).
  *
- * AM-handler context: Never runs within AM handler (unless client
- *                     defines FIREHOSE_COMPLETION_IN_HANDLER).
+ * AM-handler context: Runs within AM handler if (and only if) client
+ *                     defines FIREHOSE_COMPLETION_IN_HANDLER.
  */
 typedef void (*firehose_completed_fn_t)
-	     (void *context, firehose_request_t *req, int allLocalHit);
+	     (void *context, const firehose_request_t *req, int allLocalHit);
 
 /**********************
  * Firehose Remote Pin

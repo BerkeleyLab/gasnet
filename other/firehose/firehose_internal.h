@@ -190,7 +190,6 @@ struct _firehose_private_t {
 
 #define FH_KEYMAKE(addr,node)	(addr | node)
 #define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
-#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 #define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
 
 /* Local and Remote buckets can be in various states.
@@ -263,11 +262,16 @@ void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 /* ##################################################################### */
 /* FIFO (local and remote) management operations (COMMON, firehose.c)    */
 /* ##################################################################### */
-		/* Returns a descriptor given an existing private_t */
-fh_refc_t *	fh_priv_release(gasnet_node_t node, firehose_private_t *);
-		/* Acquires the private_t (increments the refcount). _ONLY_ 
-		 * valid if the private_t already exists in the table    */
-fh_refc_t *	fh_priv_acquire(gasnet_node_t node, firehose_private_t *);
+		/* Return a descriptor given an existing private_t */
+fh_refc_t *	fh_priv_release_local(int local_ref,
+				      firehose_private_t *);
+fh_refc_t *	fh_priv_release_remote(gasnet_node_t node,
+				       firehose_private_t *);
+		/* Acquire and exisiting private_t (increments refcount) */
+fh_refc_t *	fh_priv_acquire_local(int local_ref,
+				      firehose_private_t *);
+fh_refc_t *	fh_priv_acquire_remote(gasnet_node_t node,
+				       firehose_private_t *);
 		/* Wait for local firehoses to release/reuse */
 int		fh_WaitLocalFirehoses(int count, firehose_region_t *region);
 		/* Wait for remote firehoses to release/reuse */
@@ -456,6 +460,8 @@ struct _fh_remote_callback_t {
 	firehose_region_t		*pin_list;
 	size_t				 pin_list_num;
 	size_t				 reply_len;
+
+	void 				*context;
 }
 fh_remote_callback_t;
 
@@ -490,10 +496,12 @@ void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
 void	fh_move_request(gasnet_node_t node,
 			firehose_region_t *new_reg, size_t r_new,
-			firehose_region_t *old_reg, size_t r_old);
+			firehose_region_t *old_reg, size_t r_old,
+			void *context);
 int	fh_find_pending_callbacks(gasnet_node_t node,
 				  firehose_region_t *region,
-				  int nreg, fh_pollq_t *PendQ);
+				  int nreg, void *context,
+				  fh_pollq_t *PendQ);
 
 
 /* ##################################################################### */
@@ -564,6 +572,11 @@ int	fh_FreeVictim(int count, firehose_region_t *reg,
 #endif
 
 #if GASNET_TRACE
+/* XXX:
+ * FH_TRACE_BUCKET is currently broken in firehose-region because the
+ * macro FH_NODE is applied to a "private_t", which doesn't have the
+ * necessary node info in the key
+ */
 #define FH_TRACE_BUCKET(bd, bmsg) 					\
 	do {								\
 		char	msg[64];					\

@@ -676,14 +676,26 @@ fh_getenv(const char *var, unsigned long multiplier)
  * Acquiring a bucket increments the refcount (either R or L)
  * Release a bucket decrements the refcount (ether R or L)
  *
- * Both functions return the new reference count for the incremented count.
+ * These functions return the new reference count for the incremented count.
  *
+ * The name of the function indicates where the memory resides (local, remote).
+ * In the local case, the 'local_ref' boolean argument indicates where the
+ * request originated and in the remote case the 'node' argument indicates
+ * where the memory resides.
  */
 
 fh_refc_t *
-fh_priv_acquire(gasnet_node_t node, firehose_private_t *entry)
+fh_priv_acquire_local(int local_ref, firehose_private_t *entry)
 {
 	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
+	/*
+	 * 'local_ref' is TRUE if we are acquiring a local bucket for the
+	 *		local node (ie: fh_local_pin).  
+	 * 'local_ref' is FALSE if we are acquireing a local bucket from a
+	 *		firehose request (fh_am_move).
+	 */
+	gasneti_assert((local_ref == 0) || (local_ref == 1));
 
 	FH_TABLE_ASSERT_LOCKED;
 	
@@ -694,90 +706,138 @@ fh_priv_acquire(gasnet_node_t node, firehose_private_t *entry)
 	 */
 	gasneti_assert(entry != NULL);
 
-	if (FH_NODE(entry) == fh_mynode) {
-
-		int	ref_L = (node == fh_mynode);
-		/*
-		 * 'ref_L' is TRUE if we are acquiring a local bucket for the
-		 *         local node (ie: fh_local_pin).  
-		 * 'ref_L' is FALSE if we are acquireing a local bucket from a
-		 *         firehose request (fh_am_move).
-		 *
+	if (FH_IS_LOCAL_FIFO(entry)) {
+		/* Bucket started in state "B" and is
+		 * now entering state (local_ref ? "C" : "E")
 		 */
+		FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
+		FH_BSTATE_ASSERT(entry, fh_local_fifo);
 
-		if (FH_IS_LOCAL_FIFO(entry)) {
-			/* Bucket started in state "B" and is
-			 * now entering state (ref_L ? "C" : "E")
-			 */
-			FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
-			gasneti_assert(FH_NODE(entry) == fh_mynode);
-			FH_BSTATE_ASSERT(entry, fh_local_fifo);
+		rp->refc_l = local_ref;
+		rp->refc_r = !local_ref;
 
-			rp->refc_l = ref_L;
-			rp->refc_r = !ref_L;
+		/* We must dec LOnly if entering state "E" */
+		fhc_LocalOnlyBucketsPinned -= !local_ref;
+		fhc_LocalVictimFifoBuckets--;
+		FH_BSTATE_SET(entry, fh_used);
+		FH_SET_USED(entry);
 
-			/* We must dec LOnly if entering state "E" */
-			fhc_LocalOnlyBucketsPinned -= !ref_L;
-			fhc_LocalVictimFifoBuckets--;
-			FH_BSTATE_SET(entry, fh_used);
-			FH_SET_USED(entry);
-
-			FH_TRACE_BUCKET(entry, ACQFIFO);
-		}
-		else {
-			/* Bucket started in state "C", "D" or "E" */
-			FH_SET_USED(entry);
-			FH_BSTATE_ASSERT(entry, fh_used);
-			if (ref_L) {
-				/* Bucket is entering state "C" or "D".  We
-				 * must inc LOnly if coming from state "E" */
-				fhc_LocalOnlyBucketsPinned +=
-							(rp->refc_l == 0);
-				rp->refc_l++;
-				FH_TRACE_BUCKET(entry, ACQUIRE);
-			}
-			else {
-				/* Bucket is entering state "D" or "E" */
-				rp->refc_r++;
-				FH_TRACE_BUCKET(entry, ACQUIRE);
-			}
-		}
+		FH_TRACE_BUCKET(entry, ACQFIFO);
 	}
-
-	/* If the bucket is a remote bucket, the node cannot be equal to
-	 * fh_mynode */
 	else {
-		gasneti_assert(node != fh_mynode);
-
-		if (FH_IS_REMOTE_FIFO(entry)) {
-			FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
-
-			gasneti_assert(FH_NODE(entry) != fh_mynode);
-			FH_BSTATE_ASSERT(entry, fh_remote_fifo);
-
-			fhc_RemoteVictimFifoBuckets[node]--;
-			rp->refc_l = 0;
-			rp->refc_r = 1;
-			
-			FH_SET_USED(entry);
-			FH_BSTATE_SET(entry, fh_used);
-			FH_TRACE_BUCKET(entry, ACQFIFO);
+		/* Bucket started in state "C", "D" or "E" */
+		FH_SET_USED(entry);
+		FH_BSTATE_ASSERT(entry, fh_used);
+		if (local_ref) {
+			/* Bucket is entering state "C" or "D".  We
+			 * must inc LOnly if coming from state "E" */
+			fhc_LocalOnlyBucketsPinned += (rp->refc_l == 0);
+			rp->refc_l++;
+			FH_TRACE_BUCKET(entry, ACQUIRE);
 		}
 		else {
-			/* Pending buckets must be handled separately */
-			gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
-			FH_BSTATE_ASSERT(entry, fh_used);
-
+			/* Bucket is entering state "D" or "E" */
 			rp->refc_r++;
-			gasneti_assert(rp->refc_r > 0);
 			FH_TRACE_BUCKET(entry, ACQUIRE);
 		}
 	}
+
 	return rp;
 }
 
 fh_refc_t *
-fh_priv_release(gasnet_node_t node, firehose_private_t *entry)
+fh_priv_acquire_remote(gasnet_node_t node, firehose_private_t *entry)
+{
+	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
+	FH_TABLE_ASSERT_LOCKED;
+	
+	gasneti_assert(entry != NULL);
+
+	/* If the bucket is a remote bucket, the node cannot be equal to
+	 * fh_mynode */
+	gasneti_assert(node != fh_mynode);
+
+	if (FH_IS_REMOTE_FIFO(entry)) {
+		FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
+
+		FH_BSTATE_ASSERT(entry, fh_remote_fifo);
+
+		fhc_RemoteVictimFifoBuckets[node]--;
+		rp->refc_l = 0;
+		rp->refc_r = 1;
+			
+		FH_SET_USED(entry);
+		FH_BSTATE_SET(entry, fh_used);
+		FH_TRACE_BUCKET(entry, ACQFIFO);
+	}
+	else {
+		/* Pending buckets must be handled separately */
+		gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
+		FH_BSTATE_ASSERT(entry, fh_used);
+
+		rp->refc_r++;
+		gasneti_assert(rp->refc_r > 0);
+		FH_TRACE_BUCKET(entry, ACQUIRE);
+	}
+
+	return rp;
+}
+
+fh_refc_t *
+fh_priv_release_local(int local_ref, firehose_private_t *entry)
+{
+	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
+	/*
+	 * 'local_ref' is TRUE if we are releasing a local bucket for the
+	 *		local node
+	 * 'local_ref' is FALSE if we are releasing a local bucket from a
+	 *		firehose request
+	 *
+	 */
+	gasneti_assert((local_ref == 0) || (local_ref == 1));
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	gasneti_assert(entry != NULL);
+	FH_BSTATE_ASSERT(entry, fh_used);
+	gasneti_assert(!FH_IS_LOCAL_FIFO(entry));
+
+	if (local_ref) {
+		gasneti_assert(rp->refc_l > 0);
+	}
+	else {
+		gasneti_assert(rp->refc_r > 0);
+	}
+
+	rp->refc_l -= local_ref;
+	rp->refc_r -= !local_ref;
+
+	/* As a result, the bucket may be unused */
+	if (rp->refc_r == 0 && rp->refc_l == 0) {
+		/* Have entered state "B" (FIFO) */
+		FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
+
+		/* We must inc LOnly if coming from state "E" */
+		fhc_LocalOnlyBucketsPinned += !local_ref;
+		fhc_LocalVictimFifoBuckets++;
+
+		FH_BSTATE_SET(entry, fh_local_fifo);
+		FH_TRACE_BUCKET(entry, ADDFIFO);
+	}
+	else {
+		/* We must dec LOnly if entering state "E" from "D" */
+		fhc_LocalOnlyBucketsPinned -= (rp->refc_l == 0 && local_ref);
+
+		FH_TRACE_BUCKET(entry, RELEASE);
+	}
+
+	return rp;
+}
+
+fh_refc_t *
+fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
 {
 	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
 
@@ -786,76 +846,28 @@ fh_priv_release(gasnet_node_t node, firehose_private_t *entry)
 	gasneti_assert(entry != NULL);
 	FH_BSTATE_ASSERT(entry, fh_used);
 
-	if (FH_NODE(entry) == fh_mynode) {
-		int		ref_L = (node == fh_mynode);
-		/*
-		 * 'ref_L' is TRUE if we are releasing a local bucket for the
-		 *         local node
-		 * 'ref_L' is FALSE if we are releasing a local bucket from a
-		 *         firehose request
-		 *
-		 */
-
-		gasneti_assert(!FH_IS_LOCAL_FIFO(entry));
-
-		if (ref_L) {
-			gasneti_assert(rp->refc_l > 0);
-		}
-		else {
-			gasneti_assert(rp->refc_r > 0);
-		}
-
-		rp->refc_l -= ref_L;
-		rp->refc_r -= !ref_L;
-
-		/* As a result, the bucket may be unused */
-		if (rp->refc_r == 0 && rp->refc_l == 0) {
-			/* Have entered state "B" (FIFO) */
-			FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
-
-			/* We must inc LOnly if coming from state "E" */
-			fhc_LocalOnlyBucketsPinned += !ref_L;
-			fhc_LocalVictimFifoBuckets++;
-
-			FH_BSTATE_SET(entry, fh_local_fifo);
-			FH_TRACE_BUCKET(entry, ADDFIFO);
-			return rp;
-		}
-		else {
-			/* We must dec LOnly if entering state "E" from "D" */
-			fhc_LocalOnlyBucketsPinned -=
-						(rp->refc_l == 0 && ref_L);
-
-			FH_TRACE_BUCKET(entry, RELEASE);
-			return rp;
-		}
-	}
 	/* The bucket is a remote bucket, and it cannot contain any local
 	 * refcounts.  Also, it should not be pending as pending buckets are
 	 * handled separately */
-	else {
-                fh_refc_t refc;
-		gasneti_assert(node != fh_mynode);
-		gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
+	gasneti_assert(node != fh_mynode);
+	gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
 
-		gasneti_assert(rp->refc_r > 0);
-		rp->refc_r--;
+	gasneti_assert(rp->refc_r > 0);
+	rp->refc_r--;
 
-		if (rp->refc_r== 0) {
-			FH_TAILQ_INSERT_TAIL(
-			    &fh_RemoteNodeFifo[node], entry);
+	if (rp->refc_r == 0) {
+		FH_TAILQ_INSERT_TAIL(&fh_RemoteNodeFifo[node], entry);
 
-			fhc_RemoteVictimFifoBuckets[node]++;
+		fhc_RemoteVictimFifoBuckets[node]++;
 
-			FH_BSTATE_SET(entry, fh_remote_fifo);
-			FH_TRACE_BUCKET(entry, ADDFIFO);
-			return rp;
-		}
-		else {
-			FH_TRACE_BUCKET(entry, RELEASE);
-			return rp;
-		}
+		FH_BSTATE_SET(entry, fh_remote_fifo);
+		FH_TRACE_BUCKET(entry, ADDFIFO);
 	}
+	else {
+		FH_TRACE_BUCKET(entry, RELEASE);
+	}
+
+	return rp;
 }
 
 /*
@@ -1115,10 +1127,11 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
  * Firehose AM Request Handler
  */
 void
-fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
-		gasnet_handlerarg_t flags,
-		gasnet_handlerarg_t r_new,
-		gasnet_handlerarg_t r_old)
+fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
+		      gasnet_handlerarg_t flags,
+		      gasnet_handlerarg_t r_new,
+		      gasnet_handlerarg_t r_old,
+		      void *context)
 {
 	firehose_region_t	*new_reg, *old_reg;
 	gasnet_node_t		node;
@@ -1133,7 +1146,7 @@ fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
 		firehose_unexport_callback(node, old_reg, r_old);
 	#endif
 
-	fh_move_request(node, new_reg, r_new, old_reg, r_old);
+	fh_move_request(node, new_reg, r_new, old_reg, r_old, context);
 
 	#ifdef FIREHOSE_EXPORT_CALLBACK
 	if (r_new > 0)
@@ -1153,10 +1166,13 @@ fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
 			firehose_remote_callback(node, 
 			    (const firehose_region_t *) new_reg, r_new, args);
 
-			gasnet_AMReplyMedium1(token,
-			    fh_handleridx(fh_am_move_reph),
-			    new_reg, sizeof(firehose_region_t) * r_new,
-			    r_new);
+			MEDIUM_REP(2,3,
+				   (token,
+				    fh_handleridx(fh_am_move_reph),
+				    new_reg,
+				    sizeof(firehose_region_t) * r_new,
+				    r_new,
+				    context));
 	
 		#else
 			/* TODO. . solve MALLOC ? */
@@ -1170,6 +1186,7 @@ fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
 			rc->node = node;
 			rc->pin_list_num = r_new;
 			rc->reply_len = sizeof(firehose_region_t) * r_new;
+			rc->context = context;
 
 			rc->pin_list = (firehose_region_t *)
 				gasneti_malloc(sizeof(firehose_region_t)*r_new);
@@ -1187,13 +1204,20 @@ fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
 		#endif
 	}
 	else {
-		gasnet_AMReplyMedium1(token,
-		    fh_handleridx(fh_am_move_reph),
-		    new_reg, sizeof(firehose_region_t) * r_new, r_new);
+		MEDIUM_REP(2,3,
+			   (token,
+			    fh_handleridx(fh_am_move_reph),
+			    new_reg,
+			    sizeof(firehose_region_t) * r_new,
+			    r_new,
+			    context));
 	}
 
 	return;
 }
+MEDIUM_HANDLER(fh_am_move_reqh,4,5,
+	       (token,addr,nbytes, a0, a1, a2, UNPACK (a3    )),
+	       (token,addr,nbytes, a0, a1, a2, UNPACK2(a3, a4)));
 
 /*
  * Firehose AM Reply Handler
@@ -1201,9 +1225,9 @@ fh_am_move_reqh(gasnet_token_t token, void *addr, size_t nbytes,
  * by the reply.
  */
 void
-fh_am_move_reph(gasnet_token_t token, void *addr,
-		size_t nbytes,
-		gasnet_handlerarg_t r_new)
+fh_am_move_reph_inner(gasnet_token_t token, void *addr,
+		      size_t nbytes, gasnet_handlerarg_t r_new,
+		      void *context)
 {
 	firehose_region_t	*regions = (firehose_region_t *) addr;
 	fh_pollq_t		pendCallbacks;
@@ -1220,7 +1244,7 @@ fh_am_move_reph(gasnet_token_t token, void *addr,
 	 */
 
 	numpend = 
-	    fh_find_pending_callbacks(node, regions, r_new, &pendCallbacks);
+	    fh_find_pending_callbacks(node, regions, r_new, context, &pendCallbacks);
 
 	if (numpend > 0) {
 		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
@@ -1245,20 +1269,25 @@ fh_am_move_reph(gasnet_token_t token, void *addr,
 
 	return;
 }
+MEDIUM_HANDLER(fh_am_move_reph,2,3,
+	       (token,addr,nbytes, a0, UNPACK (a1    )),
+	       (token,addr,nbytes, a0, UNPACK2(a1, a2)));
+
 
 void
 fh_send_firehose_reply(fh_remote_callback_t *rc)
 {
 	/* Run the "reply" handler as a request */
-	gasnet_AMRequestMedium1(
-	    rc->node, fh_handleridx(fh_am_move_reph),
-	    rc->pin_list, rc->reply_len, rc->pin_list_num);
+	MEDIUM_REQ(2,3,
+	    (rc->node, fh_handleridx(fh_am_move_reph),
+	     rc->pin_list, rc->reply_len, rc->pin_list_num,
+	     rc->context));
 }
 
 gasnet_handlerentry_t fh_am_handlers[] = {
-        /* ptr-width independent handlers */
-        gasneti_handler_tableentry_no_bits(fh_am_move_reqh),
-        gasneti_handler_tableentry_no_bits(fh_am_move_reph),
+        /* ptr-width dependent handlers */
+        gasneti_handler_tableentry_with_bits(fh_am_move_reqh),
+        gasneti_handler_tableentry_with_bits(fh_am_move_reph),
         { 0, NULL }
 };
 
