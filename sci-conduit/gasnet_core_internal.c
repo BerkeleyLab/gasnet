@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_internal.c         $
- *     $Date: 2003/10/16 07:40:35 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/10/24 01:46:04 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -324,7 +324,7 @@ int gasnetc_get_free_mem()
 	int size, found, mod;
 	char title[100];
 
-	#if defined(GASNET_SEGMENT_FAST)
+	#if GASNET_SEGMENT_FAST
 	{
 		gasnetc_sci_max_local_seg = GASNETC_SCI_FAST_SEG;
 		return GASNETC_SCI_FAST_SEG; /*all will have this value, so no need to write to nodes*/
@@ -378,7 +378,7 @@ int gasnetc_getSCIglobal_seg(int number)
 	sci_error_t	error;
 	bool *ready;
 
-	#if defined(GASNET_SEGMENT_FAST)
+	#if GASNET_SEGMENT_FAST
 	{
 		gasnetc_sci_max_global_seg = GASNETC_SCI_FAST_SEG;
 		return GASNETC_SCI_FAST_SEG;

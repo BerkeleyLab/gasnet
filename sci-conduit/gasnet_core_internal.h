@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/16 07:40:35 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/10/24 01:46:04 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>

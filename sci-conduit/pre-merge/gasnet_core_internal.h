@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/11 14:22:41 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/10/24 01:46:06 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -36,6 +36,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#define gasneti_assert assert
 
 /****************************************************************************/
 // EXTRA STUFF ADDED TO TEST FUNCTIONS BEFORE INTEGRATION. REMOVE AFTER INTEGRATION
@@ -79,7 +81,7 @@ extern gasnet_node_t gasnetc_nodes;
 int gasneti_init_done;
 int gasneti_attach_done;
 
-#ifdef DEBUG
+#if GASNET_DEBUG
   #ifndef GASNETI_FORCE_TRUE_MUTEXES
     /* GASNETI_FORCE_TRUE_MUTEXES will force gasneti_mutex_t to always
        use true locking (even under GASNET_SEQ config), 
@@ -90,13 +92,13 @@ int gasneti_attach_done;
   #define GASNETI_MUTEX_NOOWNER       -1
   #ifndef GASNETI_THREADIDQUERY
     /* allow conduit override of thread-id query */
-    #if defined(GASNET_PAR) || GASNETI_FORCE_TRUE_MUTEXES
+    #if GASNET_PAR || GASNETI_FORCE_TRUE_MUTEXES
       #define GASNETI_THREADIDQUERY()   ((uintptr_t)pthread_self())
     #else
       #define GASNETI_THREADIDQUERY()   (0)
     #endif
   #endif
-  #if defined(GASNET_PAR) || GASNETI_FORCE_TRUE_MUTEXES
+  #if GASNET_PAR || GASNETI_FORCE_TRUE_MUTEXES
     #include <pthread.h>
     typedef struct {
       pthread_mutex_t lock;
@@ -112,18 +114,18 @@ int gasneti_attach_done;
     #endif
     #define gasneti_mutex_lock(pl) do {                                \
               int retval;                                              \
-              assert((pl)->owner != GASNETI_THREADIDQUERY());          \
+              gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());          \
               retval = pthread_mutex_lock(&((pl)->lock));              \
-              assert(!retval);                                         \
-              assert((pl)->owner == (uintptr_t)GASNETI_MUTEX_NOOWNER); \
+              gasneti_assert(!retval);                                         \
+              gasneti_assert((pl)->owner == (uintptr_t)GASNETI_MUTEX_NOOWNER); \
               (pl)->owner = GASNETI_THREADIDQUERY();                   \
             } while (0)
     #define gasneti_mutex_unlock(pl) do {                     \
               int retval;                                     \
-              assert((pl)->owner == GASNETI_THREADIDQUERY()); \
+              gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY()); \
               (pl)->owner = (uintptr_t)GASNETI_MUTEX_NOOWNER; \
               retval = pthread_mutex_unlock(&((pl)->lock));   \
-              assert(!retval);                                \
+              gasneti_assert(!retval);                                \
             } while (0)
     #define gasneti_mutex_init(pl) do {                       \
               pthread_mutex_init(&((pl)->lock),NULL);         \
@@ -136,11 +138,11 @@ int gasneti_attach_done;
     } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                     \
-              assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
+              gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
               (pl)->owner = GASNETI_THREADIDQUERY();        \
             } while (0)
     #define gasneti_mutex_unlock(pl) do {                     \
-              assert((pl)->owner == GASNETI_THREADIDQUERY()); \
+              gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY()); \
               (pl)->owner = GASNETI_MUTEX_NOOWNER;            \
             } while (0)
     #define gasneti_mutex_init(pl) do {                       \
@@ -148,10 +150,10 @@ int gasneti_attach_done;
             } while (0)
     #define gasneti_mutex_destroy(pl)
   #endif
-  #define gasneti_mutex_assertlocked(pl)    assert((pl)->owner == GASNETI_THREADIDQUERY())
-  #define gasneti_mutex_assertunlocked(pl)  assert((pl)->owner != GASNETI_THREADIDQUERY())
+  #define gasneti_mutex_assertlocked(pl)    gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY())
+  #define gasneti_mutex_assertunlocked(pl)  gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY())
 #else
-  #if defined(GASNET_PAR) || GASNETI_FORCE_TRUE_MUTEXES
+  #if GASNET_PAR || GASNETI_FORCE_TRUE_MUTEXES
     #include <pthread.h>
     typedef pthread_mutex_t           gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
