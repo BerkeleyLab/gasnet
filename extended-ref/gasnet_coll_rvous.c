@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/03 21:17:20 $
- * $Revision: 1.1.2.37 $
+ *     $Date: 2004/06/07 18:25:07 $
+ * $Revision: 1.1.2.38 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -630,19 +630,28 @@ extern void gasnete_coll_init(const size_t images[],
 
       /* If not found, create it with all zeros */
       if_pf (p2p == head) {
-	size_t entry_size = gasnete_coll_total_images * sizeof(gasnete_coll_p2p_entry_t);
+	size_t entry_size = gasnete_coll_total_images * (sizeof(gasnete_coll_p2p_entry_t) +
+							 sizeof(uint32_t));
 
 	p2p = gasnete_coll_p2p_freelist;	/* XXX: per-team */
 
 	if_pf (p2p == NULL) {
 	  /* Round to 8-byte alignment of entry array */
 	  size_t alloc_size = ((sizeof(gasnete_coll_p2p_t) + 7) & ~7) + entry_size;
-	  p2p = (gasnete_coll_p2p_t *)gasneti_malloc(alloc_size);
-	  p2p->entry = (gasnete_coll_p2p_entry_t *)((uintptr_t)p2p + ((sizeof(gasnete_coll_p2p_t) + 7) & ~7));
+	  uintptr_t p = (uintptr_t)gasneti_malloc(alloc_size);
+
+	  p2p = (gasnete_coll_p2p_t *)p;
+	  p += ((sizeof(gasnete_coll_p2p_t) + 7) & ~7);
+
+	  p2p->entry = (gasnete_coll_p2p_entry_t *)p;
+	  p += gasnete_coll_total_images * sizeof(gasnete_coll_p2p_entry_t);
+
+	  p2p->state = (uint32_t *)p;
+
 	  p2p->p2p_next = NULL;
 	}
 
-	memset(p2p->entry, 0, entry_size);
+	memset(p2p->entry, 0, entry_size);	/* zeros both entry and state arrays */
 
 	p2p->team_id = team_id;
 	p2p->sequence = sequence;
@@ -682,9 +691,8 @@ extern void gasnete_coll_init(const size_t images[],
 					  gasnet_handlerarg_t pos,
 					  gasnet_handlerarg_t state) {
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-      gasnete_coll_p2p_entry_t *entry = &(p2p->entry[pos]);
 
-      entry->state = state;
+      p2p->state[pos] = state;
     }
 
     static void gasnete_coll_p2p_eager_reqh(gasnet_token_t token, void *buf, size_t nbytes,
@@ -693,15 +701,14 @@ extern void gasnete_coll_init(const size_t images[],
 					    gasnet_handlerarg_t pos,
 					    gasnet_handlerarg_t state) {
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-      gasnete_coll_p2p_entry_t *entry = &(p2p->entry[pos]);
 
       if (nbytes) {
 	gasneti_assert(nbytes <= GASNETE_COLL_P2P_EAGER_LIMIT);
-	GASNETE_FAST_UNALIGNED_MEMCPY(entry->u.data, buf, nbytes);
+	GASNETE_FAST_UNALIGNED_MEMCPY(p2p->entry[pos].data, buf, nbytes);
 	gasneti_memsync();
       }
 
-      entry->state = state;
+      p2p->state[pos] = state;
     }
 
     GASNET_INLINE_MODIFIER(gasnete_coll_p2p_addr_reqh_inner)
@@ -712,12 +719,11 @@ extern void gasnete_coll_init(const size_t images[],
 					  gasnet_handlerarg_t state,
 					  void *addr) {
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-      gasnete_coll_p2p_entry_t *entry = &(p2p->entry[pos]);
 
-      entry->u.addr = addr;
+      p2p->entry[pos].addr = addr;
       gasneti_memsync();
 
-      entry->state = state;
+      p2p->state[pos] = state;
     }
     SHORT_HANDLER(gasnete_coll_p2p_addr_reqh,5,6,
 		  (token, a0, a1, a2, a3, UNPACK (a4)    ),
@@ -1029,16 +1035,14 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
     case 1:
       if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_entry_t *entry;
+	gasnete_coll_p2p_t *p2p = data->p2p;
+	gasneti_assert(p2p != NULL);
 
-	gasneti_assert(data->p2p);
-	entry = &(data->p2p->entry[0]);
-
-	if (!entry->state) {
+	if (!p2p->state[0]) {
 	  break;
 	}
 
-	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, entry->u.data, args->nbytes);
+	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, p2p->entry[0].data, args->nbytes);
       }
       data->state = 2;
 
@@ -1103,17 +1107,15 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
     case 1:
       if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_entry_t *entry;
-	void *src;
+	gasnete_coll_p2p_t *p2p = data->p2p;
 
-	gasneti_assert(data->p2p);
-	entry = &(data->p2p->entry[0]);
+	gasneti_assert(p2p);
 
-	if (!entry->state) {
+	if (!p2p->state[0]) {
 	  break;
 	}
 
-	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, entry->u.addr,
+	data->handle = gasnete_get_nb_bulk(args->dst, args->srcnode, p2p->entry[0].addr,
 					   args->nbytes GASNETE_THREAD_PASS);
       }
       data->state = 2;
@@ -1393,22 +1395,21 @@ static int gasnete_coll_pf_bcastM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 
     case 1:
       if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_entry_t *entry;
+	gasnete_coll_p2p_t *p2p = data->p2p;
 	size_t nbytes;
 	void * const *p;
 	int j;
 
-	gasneti_assert(data->p2p);
-	entry = &(data->p2p->entry[0]);
+	gasneti_assert(p2p);
 
-	if (!entry->state) {
+	if (!p2p->state[0]) {
 	  break;
 	}
 
 	p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
 	nbytes = args->nbytes;
 	for (j = 0; j < gasnete_coll_my_images; ++j, ++p) {
-	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, entry->u.data, nbytes);
+	  GASNETE_FAST_UNALIGNED_MEMCPY(*p, p2p->entry[0].data, nbytes);
 	}
       }
       data->state = 2;
@@ -1481,18 +1482,16 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 
     case 1:
       if (gasnete_mynode != args->srcnode) {
-	gasnete_coll_p2p_entry_t *entry;
+	gasnete_coll_p2p_t *p2p;
+	gasneti_assert(p2p);
 
-	gasneti_assert(data->p2p);
-	entry = &(data->p2p->entry[0]);
-
-	if (!entry->state) {
+	if (!p2p->state[0]) {
 	  break;
 	}
 
 	/* Get 1st image only */
 	data->handle = gasnete_get_nb_bulk(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
-					   args->srcnode, entry->u.addr,
+					   args->srcnode, p2p->entry[0].addr,
 					   args->nbytes GASNETE_THREAD_PASS);
       }
       data->state = 2;

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/06/03 21:17:20 $
- * $Revision: 1.1.2.31 $
+ *     $Date: 2004/06/07 18:25:07 $
+ * $Revision: 1.1.2.32 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,8 +56,8 @@ typedef struct gasnete_coll_op_t_ gasnete_coll_op_t;
 struct gasnete_coll_p2p_t_;
 typedef struct gasnete_coll_p2p_t_ gasnete_coll_p2p_t;
 
-struct gasnete_coll_p2p_entry_t_;
-typedef struct gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
+union gasnete_coll_p2p_entry_t_;
+typedef union gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
 
 struct gasnete_coll_generic_data_t_;
 typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
@@ -176,15 +176,12 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 
 #ifndef GASNETE_COLL_P2P_EAGER_LIMIT
     /* Define carefully to ensure "good" alignment of data */
-    #define GASNETE_COLL_P2P_EAGER_LIMIT	12
+    #define GASNETE_COLL_P2P_EAGER_LIMIT	16
 #endif
 
-struct gasnete_coll_p2p_entry_t_ {
-    union {
-	void			*addr;
-    	uint8_t			data[GASNETE_COLL_P2P_EAGER_LIMIT];
-    }			u;
-    volatile uint32_t 	state;
+union gasnete_coll_p2p_entry_t_ {
+    void			*addr;
+    uint8_t			data[GASNETE_COLL_P2P_EAGER_LIMIT];
 };
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
@@ -198,8 +195,9 @@ struct gasnete_coll_p2p_entry_t_ {
 	uint32_t	team_id;
 	uint32_t	sequence;
 
-	/* Array of states for the point-to-point synchronization */
+	/* Volatile arrays of data and state for the point-to-point synchronization */
 	gasnete_coll_p2p_entry_t	*entry;
+	volatile uint32_t		*state;
     };
 #endif
 
