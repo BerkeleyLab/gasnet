@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/04/09 17:47:58 $
-# $Revision: 1.40.2.3 $
+#     $Date: 2003/05/13 18:57:10 $
+# $Revision: 1.40.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.40.2.3 $)
+AC_REVISION($Revision: 1.40.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -21,7 +21,7 @@ AC_CONFIG_AUX_DIR(config-aux)
  
 AC_CANONICAL_SYSTEM
 AC_VALIDATE_CACHED_SYSTEM_TUPLE
-AM_INIT_AUTOMAKE(GASNet, 1.0, no-define)
+AM_INIT_AUTOMAKE(GASNet, 1.1, no-define)
 
 AC_PREFIX_DEFAULT(/usr/local/gasnet)
 AM_CONFIG_HEADER(gasnet_config.h)
@@ -61,8 +61,8 @@ GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR 
 ##  Supporting Command-Line Tools
 ##
 
-GASNET_CHECK_PROGS(AR,ar gar,archiver)
-GASNET_CHECK_PROGS(MAKE, $GMAKE gmake make $MAKE, GNU make)
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
 GASNET_PATH_PROGS(GMAKE, $GMAKE gmake make $MAKE, GNU make)
 AC_MSG_CHECKING(for GNU make)
 if $GMAKE --version | grep GNU ; then
@@ -71,7 +71,6 @@ else
   AC_MSG_ERROR(cannot find a version of GNU make - please install GNU make and/or set \$GMAKE to indicate where it's located)
 fi
 AC_SUBST(GMAKE)
-AC_PROG_RANLIB
 
 
 
@@ -83,9 +82,7 @@ AC_PROG_RANLIB
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_LN_S
-AC_PROG_RANLIB
 AC_C_BIGENDIAN
-AC_CHECK_PROG(AR,ar)
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
 
 AC_MSG_CHECKING(known buggy C compilers)
@@ -109,6 +106,14 @@ GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc 2.96 compiler, [
 
 if test "$ac_cv_c_bigendian" = 'yes'; then
   ENDIANNESS="-DBIG_ENDIAN"
+  # avoid warnings from re-defining BIG_ENDIAN
+  GASNET_TRY_CACHE_CHECK(for BIG_ENDIAN in sys/types.h, cc_bigend_systypes,
+    [#include <sys/types.h>
+     #ifndef BIG_ENDIAN
+       #error not defined
+     #endif
+    ], [], 
+    ENDIANNESS="")
 else
   ENDIANNESS="-DLITTLE_ENDIAN=1234"
   # avoid warnings from re-defining LITTLE_ENDIAN
@@ -122,8 +127,6 @@ else
 fi
 AC_SUBST(ENDIANNESS)
 AC_SUBST(CC)
-AC_SUBST(RANLIB)
-AC_SUBST(AR)
 
 ## specific compiler families
 
@@ -164,7 +167,7 @@ esac
 
 case "$gasnet_cv_cc_family" in
   Cray) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; 
-  MIPS) MISC_CFLAGS="-diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
+  MIPS) MISC_CFLAGS="-common -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;;
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
   *)    MISC_CFLAGS="" ;;
 esac
@@ -172,6 +175,10 @@ esac
 case "$gasnet_cv_cc_family" in
   XLC) MISC_CPPFLAGS="-qcpluscmt" ;; # tell preprocessor to allow C++-style comments
   *)    MISC_CPPFLAGS="" ;;
+esac
+
+case "$target_os" in
+  darwin*) MISC_CPPFLAGS="-no-cpp-precomp $MISC_CPPFLAGS" ;; # no 'smart preprocessor'
 esac
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
@@ -225,6 +232,9 @@ GASNET_LIBGCC
 #
 OLDLIBS="$LIBS"
 AC_SEARCH_LIBS(pthread_create, [pthread pthreads], have_pthread=yes, have_pthread=no)
+case "$target_os" in
+  hpux*) have_pthread=yes ;; # test fails on HPUX due to signature mismatch
+esac
 LIBS="$OLDLIBS"
 
 AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
@@ -357,6 +367,14 @@ case "$target_os" in
           GASNET_THREAD_LIBS="-pthread -lpthreads"
         fi
 	;;
+  hpux*)
+	AC_DEFINE(HPUX)
+	GASNET_MACHINE_DEFINES="-DHPUX"
+        if test "$have_pthread" = yes ; then
+          GASNET_THREAD_DEFINES="-D_REENTRANT"
+          GASNET_THREAD_LIBS="-lpthread"
+        fi
+	;;
   unicos*)
 	AC_DEFINE(UNICOS)
         GASNET_MACHINE_DEFINES="-DUNICOS"
@@ -405,12 +423,12 @@ AM_CONDITIONAL(USE_AMUDP, test "$supported_amudp$have_udp" = yesyes)
 #---------------------------------------------------------------------------------------------------------------
 # Configure AMMPI 
 # (In the future it would be nice to try and discover MPI setup automatically)
-supported_ammpi=yes
-if test $supported_ammpi = yes; then
+GASNET_IF_ENABLED_WITH_AUTO(mpi, Enable the portable MPI network conduit (on by default), 
+  [enabled_mpi=yes;force_mpi=yes],
+  enabled_mpi=no,
+  enabled_mpi=yes)
+if test $enabled_mpi = yes; then
   # user can explicitly configure MPI by setting MPI_CC, MPI_CFLAGS and MPI_LIBS
-  GASNET_IF_ENABLED(mpi, Enable the portable MPI network conduit (on by default), 
-    enabled_mpi=yes,
-    enabled_mpi=no)
   have_mpi=yes # start by assuming they have it
   case "$target_os" in
     solaris*)  
@@ -512,7 +530,7 @@ if test $supported_ammpi = yes; then
         ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
-      GASNET_ENV_DEFAULT(MPI_CC, )
+      GASNET_ENV_DEFAULT(MPI_CC, mpicc)
       GASNET_ENV_DEFAULT(MPI_CFLAGS, $BUILDCONFIG_DEFINES $MISC_CFLAGS $CFLAGS)
       GASNET_ENV_DEFAULT(MPI_LIBS, )
       GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
@@ -521,9 +539,6 @@ if test $supported_ammpi = yes; then
         AC_WARN(consider using \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want the mpi-* backends)
 	MPI_CC=$CC
         have_mpi=no
-	if test "$enabled_mpi" = yes ; then
-	  AC_ERROR(User requested --enable-mpi but I don't know how to build MPI programs for your system)
-	fi
       fi 
       ;;
   esac
@@ -555,22 +570,21 @@ if test $supported_ammpi = yes; then
     CPPFLAGS="$OLDCPPFLAGS"
     LDFLAGS="$OLDLDFLAGS"
     LIBS="$OLDLIBS"
-
-    if test "$mpi_test_worked" = yes ; then
+  fi
+  if test "$mpi_test_worked" = yes ; then
       AC_MSG_RESULT(yes)
       if echo "$MPI_CFLAGS" | grep -- "-DAMMPI_COEXIST_WITH_AM" > /dev/null ; then
         # -DAMMPI_COEXIST_WITH_AM must be included whenever ammpi.h is compiled, or not at all
         MPI_DEFINES="$MPI_DEFINES -DAMMPI_COEXIST_WITH_AM"
       fi
-    else
+  else
       AC_MSG_RESULT(no)
       AC_WARN(build test failed: I don't know how to build MPI programs on your system)
       AC_WARN(consider using \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want the mpi conduit)
       have_mpi=no
-      if test "$enabled_mpi" = yes ; then
-	AC_ERROR(User requested --enable-mpi but I don't know how to build MPI programs for your system)
-      fi
-    fi
+  fi
+  if test "$force_mpi$have_mpi" = yesno ; then
+    AC_ERROR(User requested --enable-mpi but I don't know how to build MPI programs for your system)
   fi
 fi
 AC_SUBST(MPI_CC) # compiler to be used to build AMMPI, and linker for AMMPI-based backends
@@ -578,13 +592,22 @@ AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used w
 AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based backend
 AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that includes ammpi.h (not including AMMPI library itself)
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
-AM_CONDITIONAL(USE_MPI_CONDUIT, test "$have_mpi$supported_ammpi" = yesyes)
+AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 
 AC_SUBST(GASNET_MACHINE_DEFINES)
 AC_SUBST(GASNET_THREAD_DEFINES)
 AC_SUBST(GASNET_THREAD_LIBS)
 AC_SUBST(GASNET_REXEC_DEFINES)
+
+#-----------------------------------------------------------------------------------------------
+# SMP configuration
+
+GASNET_IF_ENABLED_WITH_AUTO(smp, Enable the SMP (loopback) network conduit (on by default),
+  have_smp=yes,
+  have_smp=no,
+  have_smp=yes)
+AM_CONDITIONAL(USE_SMP_CONDUIT, test "$have_smp" = yes)
 
 #--------------------------------------------------------------------------------------------------------
 # GM configuration
@@ -839,6 +862,7 @@ AC_SUBST(ALLOCA_IN_C)
 OLDLIBS="$LIBS"
 # sin should be in everyone's libm if they've got one.
 AC_CHECK_LIB(m, sin, LIBM="-lm", LIBM="")
+AC_SUBST(LIBS)
 AC_SUBST(LIBM)
 
 LIBS="$OLDLIBS"
@@ -948,6 +972,11 @@ GASNET_TRY_CACHE_CHECK(for sched_yield(), cc_has_sched_yield, [
 
 #  AC_FUNC_MMAP
 # Check for mmap functionality we actually use
+case "$target_os" in
+  cygwin*)  
+  # mmap is known to be broken on Cygwin - dont even try
+  ;;
+  *)
 GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
   #include <unistd.h>
   #include <sys/mman.h>
@@ -978,6 +1007,8 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
     if (ptr2 == MAP_FAILED || ptr2 == NULL || ptr2 != ptr) return 5;
     return 0;
   }],[AC_DEFINE(HAVE_MMAP)])
+  ;;
+esac
 
 AC_SUBST(LIBS)
 
@@ -1008,6 +1039,29 @@ AC_CHECK_SIZEOF(long long, $cross_long_long)
 AC_CHECK_SIZEOF(void *, $cross_void_P)
 
 AC_CHECK_HEADERS(inttypes.h)
+
+########################################################################
+##
+##  Supporting Command-Line Tools (continued)
+##
+
+dnl Use the results of AC_CHECK_SIZEOF(void *) to select 64-bit mode for some tools
+dnl NOTE: AC_CHECK_SIZEOF may only be safely called after AC_PROG_CC/AC_PROG_CPP
+case "$target_os" in
+    aix*)
+        # If on AIX, and in 64 bit mode, we need to use 'ranlib -X64' and 'ar -X64'
+        if test x"$ac_cv_sizeof_void_p" = x8; then
+            AR="ar -X64"
+            RANLIB="ranlib -X64"
+        fi
+        ;;
+esac
+dnl     Store full paths, so we find right ones even if users have
+dnl     some other version in their path
+GASNET_PATH_PROGS(AR, $AR ar gar, archiver)
+GASNET_PATH_PROGS(RANLIB, $RANLIB ranlib, ranlib)
+AC_SUBST(AR)
+AC_SUBST(RANLIB)
 
 ########################################################################
 
@@ -1058,6 +1112,11 @@ lapi-conduit/Makefile
 lapi-conduit/lapi-seq.mak
 lapi-conduit/lapi-parsync.mak
 lapi-conduit/lapi-par.mak
+
+smp-conduit/Makefile
+smp-conduit/smp-seq.mak
+smp-conduit/smp-parsync.mak
+smp-conduit/smp-par.mak
 
 elan-conduit/Makefile
 elan-conduit/elan-seq.mak
