@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/30 23:18:32 $
- * $Revision: 1.1.2.40 $
+ *     $Date: 2003/07/01 22:54:49 $
+ * $Revision: 1.1.2.41 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -210,30 +210,6 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Lock ops that apply even for GASNET_PARSYNC and GASNET_SEQ */
-#define GASNETC_MUTEX_T			pthread_mutex_t
-#define GASNETC_MUTEX_INITIALIZER	PTHREAD_MUTEX_INITIALIZER
-#define GASNETC_MUTEX_INIT(X)		pthread_mutex_init(X,NULL)
-#define GASNETC_MUTEX_LOCK(X)		pthread_mutex_lock(X)
-#define GASNETC_MUTEX_UNLOCK(X)		pthread_mutex_unlock(X)
-
-/* Lock ops that apply only to GASNET_PAR */
-#if GASNET_PAR
-  #define GASNETC_PARLOCK_T		GASNETC_MUTEX_T
-  #define GASNETC_PARLOCK_INITIALIZER	GASNETC_MUTEX_INITIALIZER	
-  #define GASNETC_PARLOCK_INIT		GASNETC_MUTEX_INIT
-  #define GASNETC_PARLOCK_LOCK		GASNETC_MUTEX_LOCK
-  #define GASNETC_PARLOCK_UNLOCK	GASNETC_MUTEX_UNLOCK
-#else
-  #define GASNETC_PARLOCK_T		char *
-  #define GASNETC_PARLOCK_INITIALIZER	NULL
-  #define GASNETC_PARLOCK_INIT(X)	
-  #define GASNETC_PARLOCK_LOCK(X)	
-  #define GASNETC_PARLOCK_UNLOCK(X)	
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-
 #define GASNETC_HCA_ID  "InfiniHost0"
 #define GASNETC_RCV_CQ_SIZE 65535   	/* maximum unreaped entries on a rcv CQ */
 #define GASNETC_SND_CQ_SIZE 1024   	/* maximum unreaped entries on a snd CQ */
@@ -264,15 +240,120 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_SND_REAP_LIMIT	32
 #define GASNETC_RCV_REAP_LIMIT	16
 
+/* ------------------------------------------------------------------------------------ */
+
+/* Measures of concurency
+ *
+ * GASNETC_ANY_PAR	Non-zero if multiple threads can be executing in GASNet.
+ * 			This is inclusive of the AM receive thread.
+ * GASNETC_CLI_PAR	Non-zero if multiple _client_ threads can be executing in GASNet.
+ * 			This excludes the AM receive thread.
+ */
+
+#if defined(GASNET_PAR)
+  #define GASNETC_CLI_PAR	1
+#else
+  #define GASNETC_CLI_PAR	0
+#endif
+
+#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_RCV_THREAD)
+
+/* ------------------------------------------------------------------------------------ */
+
+/* Lock ops that depend on the level of concurrency */
+#define gasnetc_mutex_t                      gasneti_mutex_t
+#define GASNETC_MUTEX_INITIALIZER            GASNETI_MUTEX_INITIALIZER
+#define gasnetc_mutex_lock(X,C)              if (C) { gasneti_mutex_lock(X); }
+#define gasnetc_mutex_unlock(X,C)            if (C) { gasneti_mutex_unlock(X); }
+#define gasnetc_mutex_assertlocked(X,C)      if (C) { gasneti_mutex_assertlocked(X); }
+#define gasnetc_mutex_assertunlocked(X,C)    if (C) { gasneti_mutex_assertlocked(X); }
+
+/* waiting on these to appear for gasneti_mutex_t... */
+#ifdef DEBUG
+  #define gasnetc_mutex_init(X)                do {                                                \
+                                                    pthread_mutex_init(&((X)->lock),NULL);         \
+                                                    (X)->owner = (uintptr_t)GASNETI_MUTEX_NOOWNER; \
+					       } while (0)
+  #define gasnetc_mutex_destroy(X)             pthread_mutex_destroy(&((X)->lock))
+#else
+  #define gasnetc_mutex_init(X)                pthread_mutex_init((X),NULL)
+  #define gasnetc_mutex_destroy(X)             pthread_mutex_destroy(X)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+
+/*
+ * gasnetc_sema_t
+ *
+ * This is a simple busy-waiting semaphore used, for instance, to control access to
+ * some resource of none multiplicity.
+ *
+ * XXX: atomic-compare-and-swap could eliminate the need for a lock here
+ */
+typedef struct {
+  gasnetc_mutex_t	lock;
+  gasneti_atomic_t	count;
+} gasnetc_sema_t;
+
+#define GASNETC_SEMA_INITIALIZER(N) {GASNETC_MUTEX_INITIALIZER, gasneti_atomic_init(N)}
+
+/* gasnetc_sema_init */
+GASNET_INLINE_MODIFIER(gasnetc_sema_init)
+void gasnetc_sema_init(gasnetc_sema_t *s, int n) {
+  gasnetc_mutex_init(&(s->lock));
+  gasneti_atomic_set(&(s->count), n);
+}
+
+/* gasnetc_sema_destroy */
+GASNET_INLINE_MODIFIER(gasnetc_sema_destroy)
+void gasnetc_sema_destroy(gasnetc_sema_t *s) {
+  gasnetc_mutex_destroy(&(s->lock));
+}
+
+/* gasnetc_sema_up
+ *
+ * Atomically increments the value of the semaphore.
+ * Since this just a busy-waiting semaphore, no waking operations are required.
+ */
+GASNET_INLINE_MODIFIER(gasnetc_sema_up)
+void gasnetc_sema_up(gasnetc_sema_t *s) {
+  /* no locking needed here */
+  gasneti_atomic_increment(&(s->count));
+}
+
+/* gasnetc_sema_trydown
+ *
+ * If the value of the semaphore is non-zero, decrements it and returns the old value.
+ * If the value is zero, returns zero.
+ *
+ * If non-zero, the "concurrent" argument indicates that there are multiple threads
+ * calling gasnetc_sema_trydown, and thus locking is required.
+ *
+ * XXX: with compare-and-swap we could do this lock-free
+ */
+GASNET_INLINE_MODIFIER(gasnetc_sema_trydown)
+int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
+  int retval;
+
+  gasnetc_mutex_lock(&(s->lock), concurrent);
+
+  retval = gasneti_atomic_read(&(s->count));
+  if_pt(retval != 0)
+    gasneti_atomic_decrement(&(s->count));
+
+  gasnetc_mutex_unlock(&(s->lock), concurrent);
+
+  return retval;
+}
+
+/* ------------------------------------------------------------------------------------ */
+
 /* Structure for a cep (connection end-point)
  * Include whatever per-node data we need.
  */
 typedef struct {
   #if GASNETC_AM_FLOWCTRL
-    #if GASNET_PAR
-      GASNETC_PARLOCK_T	lock;
-    #endif
-    gasneti_atomic_t	req_credits;
+    gasnetc_sema_t	credit_sema;
   #endif
   VAPI_qp_hndl_t	qp_handle;
   #if defined(GASNET_SEGMENT_FAST)

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/30 23:18:32 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2003/07/01 22:54:49 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -68,10 +68,10 @@ typedef struct {
  * ------------------------------------------------------------------------------------ */
 
 static gasnetc_sbuf_t			*gasnetc_sbuf_alloc, *gasnetc_sbuf_free;
-static GASNETC_MUTEX_T			gasnetc_sbuf_lock = GASNETC_MUTEX_INITIALIZER;
+static gasnetc_mutex_t			gasnetc_sbuf_lock = GASNETC_MUTEX_INITIALIZER;
 static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
-#if GASNETC_AM_FLOWCTRL && GASNET_PAR	/* only application threads contend for this lock */
-  static GASNETC_PARLOCK_T		gasnetc_rbuf_lock = GASNETC_PARLOCK_INITIALIZER;
+#if GASNETC_AM_FLOWCTRL
+  static gasnetc_mutex_t		gasnetc_rbuf_lock = GASNETC_MUTEX_INITIALIZER;
 #endif
 #if GASNETC_RCV_THREAD
   static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
@@ -106,11 +106,11 @@ GASNET_INLINE_MODIFIER(gasnetc_get_rbuf)
 gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
   gasnetc_rbuf_t *rbuf;
 
-  GASNETC_PARLOCK_LOCK(&gasnetc_rbuf_lock);
+  gasnetc_mutex_lock(&gasnetc_rbuf_lock, GASNETC_CLI_PAR);
   assert(gasnetc_rbuf_free != NULL);
   rbuf = gasnetc_rbuf_free;
   gasnetc_rbuf_free = rbuf->next;
-  GASNETC_PARLOCK_UNLOCK(&gasnetc_rbuf_lock);
+  gasnetc_mutex_unlock(&gasnetc_rbuf_lock, GASNETC_CLI_PAR);
 
   return rbuf;
 }
@@ -118,10 +118,10 @@ gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
 GASNET_INLINE_MODIFIER(gasnetc_put_rbuf)
 void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
   if (rbuf) {
-    GASNETC_PARLOCK_LOCK(&gasnetc_rbuf_lock);
+    gasnetc_mutex_lock(&gasnetc_rbuf_lock, GASNETC_CLI_PAR);
     rbuf->next = gasnetc_rbuf_free;
     gasnetc_rbuf_free = rbuf;
-    GASNETC_PARLOCK_UNLOCK(&gasnetc_rbuf_lock);
+    gasnetc_mutex_unlock(&gasnetc_rbuf_lock, GASNETC_CLI_PAR);
   }
 }
 #else
@@ -322,10 +322,10 @@ void gasnetc_init_sreq(gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
 GASNET_INLINE_MODIFIER(gasnetc_put_sbuf)
 void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   /* Add the list segment to the free list */
-  GASNETC_MUTEX_LOCK(&gasnetc_sbuf_lock);
+  gasnetc_mutex_lock(&gasnetc_sbuf_lock, 1);
   tail->next = gasnetc_sbuf_free;
   gasnetc_sbuf_free = head;
-  GASNETC_MUTEX_UNLOCK(&gasnetc_sbuf_lock);
+  gasnetc_mutex_unlock(&gasnetc_sbuf_lock, 1);
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
@@ -342,10 +342,10 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
     #if 1
     {
       /* It seems that VAPI_poll_cq() is not thread-safe */
-      static GASNETC_MUTEX_T poll_lock = GASNETC_MUTEX_INITIALIZER;
-      GASNETC_MUTEX_LOCK(&poll_lock);
+      static gasnetc_mutex_t poll_lock = GASNETC_MUTEX_INITIALIZER;
+      gasnetc_mutex_lock(&poll_lock, 1);
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-      GASNETC_MUTEX_UNLOCK(&poll_lock);
+      gasnetc_mutex_unlock(&poll_lock, 1);
     }
     #else
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
@@ -424,14 +424,14 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     }
 
     /* try to get an unused sbuf from the free list */
-    GASNETC_MUTEX_LOCK(&gasnetc_sbuf_lock);
+    gasnetc_mutex_lock(&gasnetc_sbuf_lock, 1);
     sbuf = gasnetc_sbuf_free;
     if (sbuf != NULL) {
       gasnetc_sbuf_free = sbuf->next;
-      GASNETC_MUTEX_UNLOCK(&gasnetc_sbuf_lock);
+      gasnetc_mutex_unlock(&gasnetc_sbuf_lock, 1);
       break;	/* Have a decsriptor - leave the loop */
     }
-    GASNETC_MUTEX_UNLOCK(&gasnetc_sbuf_lock);
+    gasnetc_mutex_unlock(&gasnetc_sbuf_lock, 1);
 
     /* be kind */
     gasneti_sched_yield();
@@ -539,17 +539,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       GASNETC_TRACE_WAIT_BEGIN();
       GASNETI_TRACE_EVENT(C,GET_AMREQ_CREDIT);
 
-      do {
-        GASNETC_PARLOCK_LOCK(&cep->lock);
-        if_pt(gasneti_atomic_read(&cep->req_credits)) {
-          gasneti_atomic_decrement(&cep->req_credits);
-          GASNETC_PARLOCK_UNLOCK(&cep->lock);
-          break;
-        }
-        GASNETC_PARLOCK_UNLOCK(&cep->lock);
+      while (!gasnetc_sema_trydown(&cep->credit_sema, GASNETC_CLI_PAR)) {
         gasnetc_sndrcv_poll();
   	first_try = 0;
-      } while (1);
+      }
 
       if (!first_try) {
         GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
@@ -586,7 +579,7 @@ void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
     gasnetc_rcv_post(cep, rbuf);
   #else
     if (GASNETC_MSG_ISREPLY(flags)) {
-      gasneti_atomic_increment(&cep->req_credits);
+      gasnetc_sema_up(&cep->credit_sema);
       gasnetc_processPacket(rbuf, flags);
       gasnetc_rcv_post(cep, rbuf);
     } else {
@@ -613,10 +606,10 @@ void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
     #if 1
     {
       /* It seems that VAPI_poll_cq() is not thread-safe */
-      static GASNETC_MUTEX_T poll_lock = GASNETC_MUTEX_INITIALIZER;
-      GASNETC_MUTEX_LOCK(&poll_lock);
+      static gasnetc_mutex_t poll_lock = GASNETC_MUTEX_INITIALIZER;
+      gasnetc_mutex_lock(&poll_lock, 1);
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-      GASNETC_MUTEX_UNLOCK(&poll_lock);
+      gasnetc_mutex_unlock(&poll_lock, 1);
     }
     #else
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
@@ -750,8 +743,7 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
   }
 
   #if GASNETC_AM_FLOWCTRL
-    GASNETC_PARLOCK_INIT(&cep->lock);
-    gasneti_atomic_set(&cep->req_credits, GASNETC_RCV_WQE / 2);
+    gasnetc_sema_init(&cep->credit_sema, GASNETC_RCV_WQE / 2);
   #endif
 }
 
