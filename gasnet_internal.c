@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/05/21 00:36:12 $
- * $Revision: 1.52.2.4 $
+ *     $Date: 2004/06/04 22:45:50 $
+ * $Revision: 1.52.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -127,8 +127,8 @@ extern void gasneti_check_config_postattach() {
   gasneti_assert_always(gasnet_mynode() < gasnet_nodes());
 
   GASNETI_TRACE_PRINTF(I,("GASNET_CONFIG_STRING: %s", GASNET_CONFIG_STRING));
-  GASNETI_TRACE_PRINTF(I,("gasnet_mynode(): %i", gasnet_mynode()));
-  GASNETI_TRACE_PRINTF(I,("gasnet_nodes(): %i", gasnet_nodes()));
+  GASNETI_TRACE_PRINTF(I,("gasnet_mynode(): %i", (int)gasnet_mynode()));
+  GASNETI_TRACE_PRINTF(I,("gasnet_nodes(): %i", (int)gasnet_nodes()));
 }
 
 /* ------------------------------------------------------------------------------------ */
