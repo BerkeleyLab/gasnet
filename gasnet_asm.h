@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2004/04/20 00:24:13 $
- * $Revision: 1.20.2.3 $
+ *     $Date: 2004/06/27 18:30:28 $
+ * $Revision: 1.20.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -652,6 +652,19 @@
    }
 #else
  #error unknown CPU - dont know how to do a local memory barrier for your CPU/OS
+#endif
+
+#ifndef gasneti_spinloop_hint
+ #ifdef HAVE_X86_PAUSE_INSTRUCTION
+   /* Pentium 4 processors get measurably better performance when a "pause" instruction
+      is inserted in spin-loops - this instruction is documented as a "spin-loop hint"
+      which avoids a memory hazard stall on spin loop exit and reduces power consumption
+      Other Intel CPU's treat this instruction as a no-op
+   */
+   #define gasneti_spinloop_hint() GASNETI_ASM("pause")
+ #else
+   #define gasneti_spinloop_hint() ((void)0)
+ #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
