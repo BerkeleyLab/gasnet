@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/18 00:18:15 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/06/20 21:28:28 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -122,7 +122,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   assert(cep != &gasnetc_cep[gasnetc_mynode]);
   
   vstat = VAPI_post_rr(gasnetc_hca, cep->qp_handle, &rbuf->rr_desc);
-  assert(vstat == VAPI_OK);
+  assert((vstat == VAPI_OK) || (vstat == VAPI_EINVAL_QP_HNDL /* disconnected */));
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_processPacket)
@@ -141,6 +141,25 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
   rbuf->flags = flags;
 
   switch (category) {
+    case gasnetc_System:
+      {
+        gasnetc_sys_handler_fn_t sys_handler_fn = gasnetc_sys_handler[handler_id];
+        #if TRACE
+	  /* This is needed because w/o it the ony way for the tracing macros
+	   * to get the src node would be to call _AMGetMsgSource(), which will
+	   * fail with an assertion if invoked before _attach().
+	   */
+	  gasnet_node_t src = GASNETC_MSG_SRCIDX(flags);
+	#endif
+	args = buf->shortmsg.args;
+        if (GASNETC_MSG_ISREQUEST(flags))
+          GASNETI_TRACE_SYSTEM_REQHANDLER(handler_id, src, rbuf, numargs, args);
+        else
+          GASNETI_TRACE_SYSTEM_REPHANDLER(handler_id, src, rbuf, numargs, args);
+        RUN_HANDLER_SYSTEM(sys_handler_fn,rbuf,args,numargs);
+      }
+      break;
+
     case gasnetc_Short:
       { 
 	args = buf->shortmsg.args;
@@ -177,10 +196,6 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
           GASNETI_TRACE_AMLONG_REPHANDLER(handler_id, rbuf, data, nbytes, numargs, args);
         RUN_HANDLER_LONG(handler_fn,rbuf,args,numargs,data,nbytes);
       }
-      break;
-
-    case gasnetc_System:
-      /* just ignore for now */
       break;
 
     default:
@@ -398,6 +413,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
           pthread_mutex_unlock(&cep->lock);
           break;
         }
+fprintf(stderr, "spin...\n");
         pthread_mutex_unlock(&cep->lock);
         gasnetc_sndrcv_poll();
       } while (1);
@@ -455,11 +471,8 @@ void gasnetc_rcv_reap(int limit) {
             gasnetc_rcv_post(cep, rbuf);
 
             if (needReply) {
-	      va_list va_dummy;
 	      int retval;
-
-              retval = gasnetc_ReqRepGeneric(gasnetc_System, 0, src, 0 /* handler doesn't matter yet */,
-					     NULL, 0, NULL, 0, NULL, va_dummy);
+              retval = gasnetc_ReplySystem(src, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
 	      assert(retval == GASNET_OK);
             }
 	  }
@@ -856,6 +869,36 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				 numargs, mem_oust, argptr);
 
   rbuf->needReply = 0;
+  return retval;
+}
+
+extern int gasnetc_RequestSystem(gasnet_node_t dest,
+                                 gasnet_handler_t handler,
+                                 int numargs, ...) {
+  int retval;
+  va_list argptr;
+
+  GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
+
+  va_start(argptr, numargs);
+  retval = gasnetc_ReqRepGeneric(gasnetc_System, 1, dest, handler,
+		  		 NULL, 0, NULL, numargs, NULL, argptr);
+  va_end(argptr);
+  return retval;
+}
+
+extern int gasnetc_ReplySystem(gasnet_node_t dest,
+                               gasnet_handler_t handler,
+                               int numargs, ...) {
+  int retval;
+  va_list argptr;
+
+  GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs);
+
+  va_start(argptr, numargs);
+  retval = gasnetc_ReqRepGeneric(gasnetc_System, 0, dest, handler,
+		  		 NULL, 0, NULL, numargs, NULL, argptr);
+  va_end(argptr);
   return retval;
 }
 
