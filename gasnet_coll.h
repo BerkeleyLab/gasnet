@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2005/02/09 00:40:41 $
- * $Revision: 1.16.2.4 $
+ *     $Date: 2005/02/15 02:08:15 $
+ * $Revision: 1.16.2.5 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,7 @@ typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
     #define gasnete_coll_image_node(I)	\
 	(gasneti_assert(gasnete_coll_image_to_node != NULL), gasnete_coll_image_to_node[I])
   #endif
-  #define gasnete_coll_image_is_local(I)	(gasnete_mynode == gasnete_coll_image_node(I))
+  #define gasnete_coll_image_is_local(I)	(gasneti_mynode == gasnete_coll_image_node(I))
 #endif
 
 /*---------------------------------------------------------------------------------*/
@@ -290,22 +290,22 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
       uintptr_t src_addr;
 
       /* Send to nodes to the "right" of ourself */
-      src_addr = (uintptr_t)src + size * (gasnete_mynode + 1);
-      for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i, src_addr += size) {
+      src_addr = (uintptr_t)src + size * (gasneti_mynode + 1);
+      for (i = gasneti_mynode + 1; i < gasneti_nodes; ++i, src_addr += size) {
         gasnete_coll_p2p_eager_put(op, i, (void *)src_addr, size, offset, state);
       }
       /* Send to nodes to the "left" of ourself */
       src_addr = (uintptr_t)src;
-      for (i = 0; i < gasnete_mynode; ++i, src_addr += size) {
+      for (i = 0; i < gasneti_mynode; ++i, src_addr += size) {
         gasnete_coll_p2p_eager_put(op, i, (void *)src_addr, size, offset, state);
       }
     } else {
       /* Send to nodes to the "right" of ourself */
-      for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+      for (i = gasneti_mynode + 1; i < gasneti_nodes; ++i) {
         gasnete_coll_p2p_eager_put(op, i, src, size, offset, state);
       }
       /* Send to nodes to the "left" of ourself */
-      for (i = 0; i < gasnete_mynode; ++i) {
+      for (i = 0; i < gasneti_mynode; ++i) {
         gasnete_coll_p2p_eager_put(op, i, src, size, offset, state);
       }
     }
@@ -322,11 +322,11 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
     gasnet_node_t i;
 
     /* Send to nodes to the "right" of ourself */
-    for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+    for (i = gasneti_mynode + 1; i < gasneti_nodes; ++i) {
       gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
     }
     /* Send to nodes to the "left" of ourself */
-    for (i = 0; i < gasnete_mynode; ++i) {
+    for (i = 0; i < gasneti_mynode; ++i) {
       gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
     }
   }
@@ -470,29 +470,29 @@ extern void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE);
 #endif
 
 #define GASNETE_COLL_VALIDATE_BROADCAST(T,D,R,S,N,F)   \
-	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,0,R,S,N,0,F)
+	GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,N,0,R,S,N,0,F)
 #define GASNETE_COLL_VALIDATE_BROADCAST_M(T,D,R,S,N,F)   \
-	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,1,R,S,N,0,F)
+	GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,N,1,R,S,N,0,F)
 
 #define GASNETE_COLL_VALIDATE_SCATTER(T,D,R,S,N,F)   \
-	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,0,R,S,(N)*gasnete_nodes,0,F)
+	GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,N,0,R,S,(N)*gasneti_nodes,0,F)
 #define GASNETE_COLL_VALIDATE_SCATTER_M(T,D,R,S,N,F)   \
-	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,N,1,R,S,(N)*gasnete_nodes,0,F)
+	GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,N,1,R,S,(N)*gasneti_nodes,0,F)
 
 #define GASNETE_COLL_VALIDATE_GATHER(T,R,D,S,N,F)     \
-	GASNETE_COLL_VALIDATE(T,R,D,(N)*gasnete_nodes,0,gasnete_mynode,S,N,0,F)
+	GASNETE_COLL_VALIDATE(T,R,D,(N)*gasneti_nodes,0,gasneti_mynode,S,N,0,F)
 #define GASNETE_COLL_VALIDATE_GATHER_M(T,R,D,S,N,F)     \
-	GASNETE_COLL_VALIDATE(T,R,D,(N)*gasnete_nodes,0,gasnete_mynode,S,N,1,F)
+	GASNETE_COLL_VALIDATE(T,R,D,(N)*gasneti_nodes,0,gasneti_mynode,S,N,1,F)
 
 #define GASNETE_COLL_VALIDATE_GATHER_ALL(T,D,S,N,F)                \
-	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,0,gasnete_mynode,S,N,0,F)
+	GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,(N)*gasneti_nodes,0,gasneti_mynode,S,N,0,F)
 #define GASNETE_COLL_VALIDATE_GATHER_ALL_M(T,D,S,N,F)                \
-	GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,1,gasnete_mynode,S,N,1,F)
+	GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,(N)*gasneti_nodes,1,gasneti_mynode,S,N,1,F)
 
 #define GASNETE_COLL_VALIDATE_EXCHANGE(T,D,S,N,F)                  \
-        GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,0,gasnete_mynode,S,(N)*gasnete_nodes,0,F)
+        GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,(N)*gasneti_nodes,0,gasneti_mynode,S,(N)*gasneti_nodes,0,F)
 #define GASNETE_COLL_VALIDATE_EXCHANGE_M(T,D,S,N,F)                  \
-        GASNETE_COLL_VALIDATE(T,gasnete_mynode,D,(N)*gasnete_nodes,1,gasnete_mynode,S,(N)*gasnete_nodes,1,F)
+        GASNETE_COLL_VALIDATE(T,gasneti_mynode,D,(N)*gasneti_nodes,1,gasneti_mynode,S,(N)*gasneti_nodes,1,F)
 
 /*---------------------------------------------------------------------------------*/
 /* In-segment checks */
@@ -513,9 +513,9 @@ extern void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE);
   #define gasnete_coll_in_segment(_node,_addr,_len)	1
 #else
   #define gasnete_coll_in_segment(_node,_addr,_len)                                \
-     (((uintptr_t)(_addr) >= (uintptr_t)gasnete_seginfo[_node].addr) &&            \
-       (((uintptr_t)(_addr) + (_len)) <= ((uintptr_t)gasnete_seginfo[_node].addr + \
-					  gasnete_seginfo[_node].size)))
+     (((uintptr_t)(_addr) >= (uintptr_t)gasneti_seginfo[_node].addr) &&            \
+       (((uintptr_t)(_addr) + (_len)) <= ((uintptr_t)gasneti_seginfo[_node].addr + \
+					  gasneti_seginfo[_node].size)))
 #endif
 
 /* The flags GASNET_COLL_SRC_IN_SEGMENT and GASNET_COLL_DST_IN_SEGMENT are just
@@ -537,7 +537,7 @@ extern void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE);
       } else {
 	/* Check the given address against ALL nodes */
 	int i;
-	for (i = 0; i < gasnete_nodes; ++i) {
+	for (i = 0; i < gasneti_nodes; ++i) {
 	  if (!gasnete_coll_in_segment(i, addr, len)) {
 	    return 0;
 	  }
@@ -586,7 +586,7 @@ extern void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE);
       /* Check the given addresses against ALL nodes */
       void * const *addrlist = (void * const *)addr;
       int i;
-      for (i = 0; i < gasnete_nodes; ++i) {
+      for (i = 0; i < gasneti_nodes; ++i) {
 	#if GASNET_ALIGNED_SEGMENTS /* always use node 0 for cache reuse */
           if (!gasnete_coll_in_segment(0, addrlist[i], len)) {
             return 0;
