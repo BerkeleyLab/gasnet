@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/27 21:49:08 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2003/06/27 23:15:24 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -67,10 +67,10 @@ typedef struct {
  * ------------------------------------------------------------------------------------ */
 
 static gasnetc_sbuf_t			*gasnetc_sbuf_alloc, *gasnetc_sbuf_free;
-static pthread_mutex_t			gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+static GASNETC_MUTEX_T			gasnetc_sbuf_lock = GASNETC_MUTEX_INITIALIZER;
 static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
 #if GASNETC_AM_FLOWCTRL && !GASNET_SEQ	/* rcv never contends for this lock */
-  static pthread_mutex_t			gasnetc_rbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+  static GASNETC_NONSEQ_T		gasnetc_rbuf_lock = GASNETC_NONSEQ_INITIALIZER;
 #endif
 #if GASNETC_RCV_THREAD
   static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
@@ -100,21 +100,16 @@ static gasnetc_rbuf_t			*gasnetc_rbuf_alloc, *gasnetc_rbuf_free;
 #define GASNETC_MSG_HANDLERID(flags)    ((gasnet_handler_t)((flags) >> 8))
 #define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16))
 
-
 #if GASNETC_AM_FLOWCTRL
 GASNET_INLINE_MODIFIER(gasnetc_get_rbuf)
 gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
   gasnetc_rbuf_t *rbuf;
 
-  #if !GASNET_SEQ
-    pthread_mutex_lock(&gasnetc_rbuf_lock);
-  #endif
+  GASNETC_NONSEQ_LOCK(&gasnetc_rbuf_lock);
   assert(gasnetc_rbuf_free != NULL);
   rbuf = gasnetc_rbuf_free;
   gasnetc_rbuf_free = rbuf->next;
-  #if !GASNET_SEQ
-    pthread_mutex_unlock(&gasnetc_rbuf_lock);
-  #endif
+  GASNETC_NONSEQ_UNLOCK(&gasnetc_rbuf_lock);
 
   return rbuf;
 }
@@ -122,14 +117,10 @@ gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
 GASNET_INLINE_MODIFIER(gasnetc_put_rbuf)
 void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
   if (rbuf) {
-    #if !GASNET_SEQ
-      pthread_mutex_lock(&gasnetc_rbuf_lock);
-    #endif
+    GASNETC_NONSEQ_LOCK(&gasnetc_rbuf_lock);
     rbuf->next = gasnetc_rbuf_free;
     gasnetc_rbuf_free = rbuf;
-    #if !GASNET_SEQ
-      pthread_mutex_unlock(&gasnetc_rbuf_lock);
-    #endif
+    GASNETC_NONSEQ_UNLOCK(&gasnetc_rbuf_lock);
   }
 }
 #else
@@ -264,16 +255,15 @@ void gasnetc_init_sreq(gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
 GASNET_INLINE_MODIFIER(gasnetc_put_sbuf)
 void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   /* Add the list segment to the free list */
-  pthread_mutex_lock(&gasnetc_sbuf_lock);
+  GASNETC_MUTEX_LOCK(&gasnetc_sbuf_lock);
   tail->next = gasnetc_sbuf_free;
   gasnetc_sbuf_free = head;
-  pthread_mutex_unlock(&gasnetc_sbuf_lock);
+  GASNETC_MUTEX_UNLOCK(&gasnetc_sbuf_lock);
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
 GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
 gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
-  static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
   gasnetc_sbuf_t *head, *tail;
   int count;
   
@@ -282,10 +272,17 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
     VAPI_ret_t vstat;
     VAPI_wc_desc_t comp;
 
-    /* It seems that VAPI_poll_cq() is not thread-safe */
-    pthread_mutex_lock(&poll_lock);
-    vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-    pthread_mutex_unlock(&poll_lock);
+    #if 1
+    {
+      /* It seems that VAPI_poll_cq() is not thread-safe */
+      static GASNETC_MUTEX_T poll_lock = GASNETC_MUTEX_INITIALIZER;
+      GASNETC_MUTEX_LOCK(&poll_lock);
+      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+      GASNETC_MUTEX_UNLOCK(&poll_lock);
+    }
+    #else
+      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+    #endif
 
     if (vstat == VAPI_OK) {
       if (comp.status == VAPI_SUCCESS) {
@@ -357,14 +354,14 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     }
 
     /* try to get an unused sbuf from the free list */
-    pthread_mutex_lock(&gasnetc_sbuf_lock);
+    GASNETC_MUTEX_LOCK(&gasnetc_sbuf_lock);
     sbuf = gasnetc_sbuf_free;
     if (sbuf != NULL) {
       gasnetc_sbuf_free = sbuf->next;
-      pthread_mutex_unlock(&gasnetc_sbuf_lock);
+      GASNETC_MUTEX_UNLOCK(&gasnetc_sbuf_lock);
       break;	/* Have a decsriptor - leave the loop */
     }
-    pthread_mutex_unlock(&gasnetc_sbuf_lock);
+    GASNETC_MUTEX_UNLOCK(&gasnetc_sbuf_lock);
 
     /* be kind */
     gasneti_sched_yield();
@@ -468,20 +465,21 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     gasnetc_cep_t *cep = &gasnetc_cep[dest];
 
 #if GASNETC_AM_FLOWCTRL
-    /* Requests require credit for flow control */
     if (isReq) {
+      /* Requests require credit for flow control, not that the
+       * AM recv thread will never send Request, and thus cant run here */
       #if defined(TRACE) || defined(STATS)
 	int avail = 1;
       #endif
       GASNETI_TRACE_WAIT_BEGIN();
       do {
-        pthread_mutex_lock(&cep->lock);
+        GASNETC_NONSEQ_LOCK(&cep->lock);
         if_pt(gasneti_atomic_read(&cep->req_credits)) {
           gasneti_atomic_decrement(&cep->req_credits);
-          pthread_mutex_unlock(&cep->lock);
+          GASNETC_NONSEQ_UNLOCK(&cep->lock);
           break;
         }
-        pthread_mutex_unlock(&cep->lock);
+        GASNETC_NONSEQ_UNLOCK(&cep->lock);
         gasnetc_sndrcv_poll();
         #if defined(TRACE) || defined(STATS)
   	  avail = 0;
@@ -553,10 +551,10 @@ void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
     #if 1
     {
       /* It seems that VAPI_poll_cq() is not thread-safe */
-      static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
-      pthread_mutex_lock(&poll_lock);
+      static GASNETC_MUTEX_T poll_lock = GASNETC_MUTEX_INITIALIZER;
+      GASNETC_MUTEX_LOCK(&poll_lock);
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-      pthread_mutex_unlock(&poll_lock);
+      GASNETC_MUTEX_UNLOCK(&poll_lock);
     }
     #else
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
@@ -687,7 +685,7 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
   }
 
   #if GASNETC_AM_FLOWCTRL
-    pthread_mutex_init(&cep->lock, NULL);
+    GASNETC_NONSEQ_INIT(&cep->lock);
     gasneti_atomic_set(&cep->req_credits, GASNETC_RCV_WQE / 2);
   #endif
 }

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/26 22:22:03 $
- * $Revision: 1.1.2.36 $
+ *     $Date: 2003/06/27 23:15:24 $
+ * $Revision: 1.1.2.37 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -210,6 +210,30 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
+/* Lock ops that apply even for GASNET_SEQ */
+#define GASNETC_MUTEX_T			pthread_mutex_t
+#define GASNETC_MUTEX_INITIALIZER	PTHREAD_MUTEX_INITIALIZER
+#define GASNETC_MUTEX_INIT(X)		pthread_mutex_init(X,NULL)
+#define GASNETC_MUTEX_LOCK(X)		pthread_mutex_lock(X)
+#define GASNETC_MUTEX_UNLOCK(X)		pthread_mutex_unlock(X)
+
+/* Lock ops that apply unless building for GASNET_SEQ */
+#if GASNET_SEQ
+  #define GASNETC_NONSEQ_T		char
+  #define GASNETC_NONSEQ_INITIALIZER	'\0'
+  #define GASNETC_NONSEQ_INIT(X)	do { } while (0)
+  #define GASNETC_NONSEQ_LOCK(X)	do { } while (0)
+  #define GASNETC_NONSEQ_UNLOCK(X)	do { } while (0)
+#else
+  #define GASNETC_NONSEQ_T		GASNETC_MUTEX_T
+  #define GASNETC_NONSEQ_INITIALIZER	GASNETC_MUTEX_INITIALIZER	
+  #define GASNETC_NONSEQ_INIT		GASNETC_MUTEX_INIT
+  #define GASNETC_NONSEQ_LOCK		GASNETC_MUTEX_LOCK
+  #define GASNETC_NONSEQ_UNLOCK		GASNETC_MUTEX_UNLOCK
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+
 #define GASNETC_HCA_ID  "InfiniHost0"
 #define GASNETC_CQ_SIZE 65535   	/* maximum entries in a CQ */
 #define GASNETC_SQ_SIZE 1024	   	/* maximum send entries to queue */
@@ -245,7 +269,9 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  */
 typedef struct {
   #if GASNETC_AM_FLOWCTRL
-    pthread_mutex_t	lock;
+    #if !GASNET_SEQ
+      GASNETC_NONSEQ_T	lock;
+    #endif
     gasneti_atomic_t	req_credits;
   #endif
   VAPI_qp_hndl_t	qp_handle;
