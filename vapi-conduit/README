@@ -4,27 +4,30 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 Notes for myself for extended API:
 
-+ Current generalized send completion facility is nice, but we can
-  probably get a very good (efficient and maintainable) implementation
-  of the extended API based on having each sbuf hold pointers to two
-  counters to be decremented upon completion.
++ The send completion facility consists of two pointers to counters,
+  associated with each sbuf.  If these pointers are non-NULL then the
+  counter is decremented atomically when the send is complete.
   
-  One counter would be for awaiting reuse of local memory and would
-  only be used for sbufs which were doing zero copy.  This counter
+  One counter is for awaiting reuse of local memory and is
+  only be used for sbufs which are doing zero copy.  This counter
   provides the mechanism for Longs and non-bulk puts to block before
-  they return, and could be allocated as an automatic variable.
+  they return, and sould be allocated as an automatic variable.
 
-  The second counter would be for remote completion and would be
-  non-NULL for every sbuf for which remote completion would be checked
-  (all puts, but not the Longs).  For the nb and nbi the counter would
+  The second counter is for remote completion and should be non-NULL
+  for every sbuf for which remote completion would be checked (all
+  puts, but not the Longs).  For the nb and nbi the counter should
   be waited on at sync-time.  This means that the explicit handle is
   probably just the address of a counter (or a struct containing one).
   
+  DONE
+
 + Similar to the reference implementation's cut-off between Mediums
   (which typically do a source-side copy) and Longs (which may not),
-  we want a cut-off size, below which the RDMA-put operation will do
+  we have a cut-off size, below which the RDMA-put operation will do
   source-side copies IFF local completion is desired (Long, put_nb,
   and put_nbi).
+
+  DONE
 
 + The gets will be done w/ RDMA-reads, and will use the bounce buffers
   associated with the sbufs if the local memory is not in the segment
