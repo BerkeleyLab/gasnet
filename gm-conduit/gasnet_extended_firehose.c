@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_firehose.c,v 1.21.8.3 2003/08/09 08:03:56 csbell Exp $
- * $Date: 2003/08/09 08:03:56 $
+/* $Id: gasnet_extended_firehose.c,v 1.21.8.4 2003/08/12 07:47:03 csbell Exp $
+ * $Date: 2003/08/12 07:47:03 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -343,6 +343,9 @@ gasnete_put_nb (gasnet_node_t node, void *dest, void *src,
 	gasnet_handle_t	handle;
 
 	if (nbytes < GASNETE_PUT_NON_BULK_CUTOFF) {
+		GASNETI_TRACE_PRINTF(C, 
+		    ("gasnete_put_nb Firehose (%d,%p <- %p,%d bytes)",
+		    (unsigned) node, dest, src, nbytes));
 		handle = gasnete_firehose_put(node, dest, src, nbytes, 
 		    NULL GASNETE_THREAD_PASS);
 		return handle;
@@ -359,6 +362,9 @@ gasnete_put_nbi(gasnet_node_t node, void *dest, void *src,
 	if (nbytes < GASNETE_PUT_NON_BULK_CUTOFF) {
 		gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 		gasnete_iop_t *iop = mythread->current_iop;
+		GASNETI_TRACE_PRINTF(C, 
+		    ("gasnete_put_nbi Firehose (%d,%p <- %p,%d bytes)",
+		    (unsigned) node, dest, src, nbytes));
 		gasnete_firehose_put(node, dest, src, nbytes, 
 		    iop GASNETE_THREAD_PASS);
 	}

@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_receive.c,v 1.28.2.2 2003/08/09 08:03:56 csbell Exp $
- * $Date: 2003/08/09 08:03:56 $
- * $Revision: 1.28.2.2 $
+/* $Id: gasnet_core_receive.c,v 1.28.2.3 2003/08/12 07:47:03 csbell Exp $
+ * $Date: 2003/08/12 07:47:03 $
+ * $Revision: 1.28.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -40,6 +40,8 @@ gasnetc_AMPoll()
 	uint8_t		*ptr = NULL;
 
 	gasnetc_fifo_progress();
+
+	firehose_poll();
 
 	gasneti_mutex_lock(&gasnetc_lock_gm);
 	e = gm_receive(_gmc.port);

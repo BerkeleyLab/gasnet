@@ -29,6 +29,7 @@ fh_hash_t	*fh_RegionTable;
 
 extern void
 firehose_init(uintptr_t max_pinnable_memory, size_t max_regions, 
+	      firehose_region_t *prepinned_regions, size_t num_reg,
 	      firehose_info_t *info)
 {
 	int	i;
@@ -60,7 +61,8 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 
 	/* Initialize -page OR -region specific data. _MUST_ be the last thing
 	 * called before return */
-	fh_init_plugin(max_pinnable_memory, max_regions, info);
+	fh_init_plugin(max_pinnable_memory, max_regions, prepinned_regions, 
+		       num_reg, info);
 
 	FH_TABLE_UNLOCK;
 
@@ -164,20 +166,24 @@ firehose_poll()
  */
 GASNET_INLINE_MODIFIER(fh_local_pin)
 firehose_request_t *
-fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
+fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *ureq)
 {
 	firehose_region_t	region;
+	firehose_request_t	*req;
 
 	FH_TABLE_ASSERT_LOCKED;
 
-	FH_FILL_REGION(&region, addr, nbytes);
+	region.addr = addr;
+	region.len = nbytes;
 
-	if (req == NULL) {
+	if (ureq == NULL) {
 		req = fh_request_new();
 		req->flags = FH_FLAG_FHREQ;
 	}
-	else
+	else {
+		req = ureq;
 		req->flags = 0;
+	}
 
 	req->node = gasnet_mynode();
 
@@ -192,7 +198,7 @@ fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 extern const firehose_request_t *
 firehose_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 {
-	addr = FH_ADDR_ALIGN(addr);
+	addr    = FH_ADDR_ALIGN(addr);
 	nbytes  = FH_SIZE_ALIGN(addr,nbytes);
 
 	FH_TABLE_LOCK;
@@ -221,6 +227,13 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 }
 
 extern const firehose_request_t *
+firehose_partial_local_pin(uintptr_t addr, size_t len,
+                           firehose_request_t *req)
+{
+	return NULL;
+}
+
+extern const firehose_request_t *
 firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		    uint32_t flags, firehose_request_t *ureq,
 		    firehose_remotecallback_args_t *remote_args,
@@ -230,43 +243,26 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	firehose_region_t	region;
 	firehose_request_t	*req = NULL;
 
-	addr = FH_ADDR_ALIGN(addr);
-	len  = FH_SIZE_ALIGN(addr,len);
-	FH_FILL_REGION(&region, addr, len);
+	region.addr = FH_ADDR_ALIGN(addr); 
+	region.len  = FH_SIZE_ALIGN(addr,len);
 
-	FH_TABLE_LOCK;
-	priv = fh_acquire_remote_region(node, &region, callback, context,
-			flags, remote_args);
+	req = fh_acquire_remote_region(node, &region, callback, context,
+			flags, remote_args, ureq);
 
-	if (priv != FH_REGION_UNPINNED) {
-		if (ureq == NULL) {
-			req = fh_request_new();
-			req->flags = FH_FLAG_FHREQ;
-		}
-		else {
-			req = ureq;
-			req->flags = 0;
-		}
-
-		FH_TABLE_UNLOCK;
-	
-		req->internal = priv;
-		req->node     = node;
-
-		FH_COPY_REGION_TO_REQUEST(req, &region);
+	if (req->internal != FH_REGION_UNPINNED) {
 
 		/* If the request could be entirely pinned, process the
 		 * callback or return to user.  If it could not be pinned, the
 		 * callback will be subsequently called from within the
 		 * firehose library */
 
-		if (!(flags & FIREHOSE_FLAG_RETURN_IF_PINNED))
+		if (!(flags & FIREHOSE_FLAG_RETURN_IF_PINNED)) {
 			callback(context, req, 1);
+		}
+		return req;
 	}
 	else
-		FH_TABLE_UNLOCK;
-
-	return req;
+		return NULL;
 }
 
 extern const firehose_request_t *
@@ -306,8 +302,9 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 }
 
 extern const firehose_request_t *
-firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
-			    firehose_request_t *ureq)
+firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
+                            size_t len, uint32_t flags,
+                            firehose_request_t *req)
 {
 	return NULL;
 }
@@ -320,7 +317,7 @@ firehose_release(firehose_request_t const **reqs, int numreqs)
 	FH_TABLE_LOCK;
 
 	for (i = 0; i < numreqs; i++) {
-		if (fh_node(reqs[i]->internal) == gasnet_mynode()) 
+		if (reqs[i]->node == gasnet_mynode())
 			fh_release_local_region(
 				(firehose_request_t *) reqs[i]);
 		else
@@ -479,6 +476,8 @@ fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
 	return entry;
 }
 
+int __bucket_alloc = 0;
+
 fh_bucket_t *
 fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 {
@@ -487,13 +486,15 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 	FH_TABLE_ASSERT_LOCKED;
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
 
+	__bucket_alloc++;
+
 	/* allocate a new bucket for the table */
 	if (fh_buckets_freehead != NULL) {
 		entry = fh_buckets_freehead;
 		fh_buckets_freehead = entry->fh_next;
 	}
 	else {
-		fh_bucket_t	*alloc;
+		fh_bucket_t	*buf;
 		int		 i;
 
 		if (fh_buckets_bufidx == 4096)
@@ -501,27 +502,33 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 				"hash entries (limit=%d)",
 				4096*fh_buckets_per_alloc);
 
-		alloc = (fh_bucket_t *) 
+		buf = (fh_bucket_t *) 
 			gasneti_malloc(fh_buckets_per_alloc*
-				       sizeof(fh_bucket_t *));
+				       sizeof(fh_bucket_t));
+		if (buf == NULL)
+			gasneti_fatalerror("Couldn't allocate buffer "
+			    "of buckets");
 
-		memset(alloc, 0, fh_buckets_per_alloc*sizeof(fh_bucket_t *));
+		memset(buf, 0, fh_buckets_per_alloc*sizeof(fh_bucket_t));
 
-		fh_buckets_bufs[fh_buckets_bufidx] = alloc;
+		fh_buckets_bufs[fh_buckets_bufidx] = buf;
 		fh_buckets_bufidx++;
 
 		for (i = 1; i < fh_buckets_per_alloc-1; i++)
-			alloc[i].fh_next = &alloc[i+1];
+			buf[i].fh_next = &buf[i+1];
 
-		alloc[i].fh_next = NULL;
-		entry = &alloc[0];
+		buf[i].fh_next = NULL;
+		entry = &buf[0];
 		entry->fh_next = NULL;
 
-		fh_buckets_freehead = &alloc[1];
+		fh_buckets_freehead = &buf[1];
 	}
 
 	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
+	entry->fh_tqe_next = (fh_bucket_t *) -1;
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
+
+	assert(fh_bucket_lookup(node, bucket_addr) == entry);
 
 	return entry;
 }
@@ -531,7 +538,9 @@ fh_bucket_remove(fh_bucket_t *entry)
 {
 	fh_bucket_t *bucket;
 
+	assert(0);
 	FH_TABLE_ASSERT_LOCKED;
+	entry->fh_tqe_next = (fh_bucket_t *) -1;
 	bucket = fh_hash_insert(fh_BucketTable, entry->fh_key, NULL);
 	memset(bucket, 0, sizeof(fh_bucket_t));
 	bucket->fh_next = fh_buckets_freehead;

@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.39.2.2 2003/08/09 08:03:56 csbell Exp $
- * $Date: 2003/08/09 08:03:56 $
+/* $Id: gasnet_core.c,v 1.39.2.3 2003/08/12 07:47:03 csbell Exp $
+ * $Date: 2003/08/12 07:47:03 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -296,7 +296,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			f_len++;
 
 		assert(fidx + f_len <= 128);
-		if (gasnetc_reghandlers(ftable, f_len, fidx, 127, 0, &f_numreg)
+		if (gasnetc_reghandlers(ftable, f_len, fidx, 127, 1, &f_numreg)
 		    != GASNET_OK)
 			GASNETI_RETURN_ERRR(RESOURCE,
 			    "Error registering firehose handlers");
@@ -379,7 +379,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 
 		gasneti_free(global_exch);
 
-		firehose_init(global_physmem, 0, &gasnetc_firehose_info);
+		firehose_init(global_physmem, 0, NULL, 0, &gasnetc_firehose_info);
 	}
 			
 	/* -------------------------------------------------------------------- */
@@ -944,6 +944,7 @@ gasnetc_AMReplyLongTrySend(gasnetc_bufdesc_t *bufd)
 		sends++;
 
 		if_pt (GASNETC_BUFOPT_ISSET(bufd, GASNETC_FLAG_REPLY_PAYLOAD)) {
+			GASNETC_BUFOPT_UNSET(bufd, GASNETC_FLAG_REPLY_PAYLOAD);
 
 			/* If we can get the second token, send and
 			 * unset both header and payload bits */
@@ -952,15 +953,12 @@ gasnetc_AMReplyLongTrySend(gasnetc_bufdesc_t *bufd)
 				sends++;
 
 				GASNETC_BUFOPT_UNSET(bufd,
-				    GASNETC_FLAG_REPLY_PAYLOAD | 
 				    GASNETC_FLAG_REPLY_HEADER);
 			}
 			/* If we can't get the second token, unset only
 			 * the payload bit and enqueue the header send
 			 */
 			else {
-				GASNETC_BUFOPT_UNSET(bufd,
-				    GASNETC_FLAG_REPLY_PAYLOAD);
 				gasnetc_fifo_insert(bufd);
 			}
 		}
@@ -1006,6 +1004,7 @@ extern int gasnetc_AMReplyShortM(
     bufd->len = gasnetc_write_AMBufferShort(bufd->sendbuf, handler, 
 		    numargs, argptr, GASNETC_AM_REPLY);
   
+    GASNETC_BUFOPT_SET(bufd, GASNETC_FLAG_REPLY_HEADER);
     gasneti_mutex_lock(&gasnetc_lock_gm);
     if (gasnetc_token_hi_acquire()) {
        gasnetc_gm_send_bufd(bufd);
@@ -1050,6 +1049,7 @@ extern int gasnetc_AMReplyMediumM(
     bufd->len = 
 	    gasnetc_write_AMBufferMedium(bufd->sendbuf, handler, numargs, 
                     argptr, nbytes, source_addr, GASNETC_AM_REPLY);
+    GASNETC_BUFOPT_SET(bufd, GASNETC_FLAG_REPLY_HEADER);
     gasneti_mutex_lock(&gasnetc_lock_gm);
     if (gasnetc_token_hi_acquire()) {
        gasnetc_gm_send_bufd(bufd); 

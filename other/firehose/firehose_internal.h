@@ -79,16 +79,15 @@ typedef uint32_t		fh_refc_t;
 #define FH_RREFCINC(refc_t)	(assert(FH_RREFC(refc_t) < 0xffffff),	\
 					(refc_t) += 0x00000100)
 		
-#define FH_REFCSET(refc_t,l,r)	((refc_t) = (r & 0xffffff00) | (l & 0x000000ff))
+#define FH_REFCSET(refc_t,l,r)	((refc_t) = (((r)<<8) & 0xffffff00) | 	\
+					     ((l) & 0x000000ff))
 #define FH_REFCRST(refc_t)	((refc_t) = 0)
 #define FH_LREFCRST(refc_t)	((refc_t) & 0xffffff00)
 #define FH_RREFCRST(refc_t)	((refc_t) & 0x000000ff)
 #define FH_LREFCDEC(refc_t)	(assert(FH_LREFC(refc_t) > 0), (refc_t)--)
 #define FH_RREFCDEC(refc_t)	(assert(FH_RREFC(refc_t) > 0),		\
 					(refc_t) -= 0x00000100)
-
 #define FH_REFC_IS_VICTIM(refc_t)	((refc_t) == 0)
-#define FH_REFC_INFIFO(refc_t)		((refc_t) == 0)
 
 /*
  * Bucket and private types
@@ -112,9 +111,25 @@ struct _firehose_private_t {
 						   else next pointer in FIFO */
 	fh_bucket_t	**fh_tqe_prev;		/* refcount when not in FIFO,
 						   prev pointer otherwise    */
-#define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
-#define FH_IN_FIFO(priv)  ((priv)->fh_tqe_next != (fh_bucket_t *)-1)
 };
+#define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
+
+/* A bucket can be in three states:
+ * 1. FIFO     : next != -1 and prev != -1
+ * 2. USED     : next == -1 and prev != -1
+ * 3. PREPINNED: next == -1 and prev == -1
+ */
+#define FH_IS_FIFO(priv)      ((priv)->fh_tqe_next != (fh_bucket_t *) -1)
+#define FH_IS_USED(priv)      ((priv)->fh_tqe_next == (fh_bucket_t *) -1 && \
+			       (priv)->fh_tqe_prev != (fh_bucket_t **) -1)
+#define FH_IS_PREPINNED(priv) ((priv)->fh_tqe_next == (fh_bucket_t *) -1 && \
+			       (priv)->fh_tqe_prev == (fh_bucket_t **) -1)
+
+#define FH_SET_PREPINNED(priv)	do { 					\
+		(priv)->fh_tqe_next = (fh_bucket_t *) -1;		\
+		(priv)->fh_tqe_prev = (fh_bucket_t **) -1;		\
+	} while (0)
+#define FH_SET_USED(priv)      ((priv)->fh_tqe_next = (fh_bucket_t *) -1)
 
 #elif defined(FIREHOSE_REGION)
 
@@ -155,9 +170,13 @@ struct _firehose_private_t {
 	firehose_client_t	client;
 	#endif
 };
-
 #define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
-#define FH_IN_FIFO(priv)  ((priv)->fh_tqe_next != (fh_bucket_t *)-1)
+
+#define FH_IS_FIFO(priv)      
+#define FH_IS_USED(priv)     
+#define FH_IS_PREPINNED(priv) 
+#define FH_SET_PREPINNED(priv)
+#define FH_SET_USED(priv) 
 #endif
 
 /*
@@ -169,6 +188,7 @@ struct _firehose_private_t {
 /* ##################################################################### */
 
 void	fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions, 
+		       firehose_region_t *prepinned_regions, size_t num_reg,
 		       firehose_info_t *info);
 void	fh_fini_plugin();
 
@@ -245,14 +265,14 @@ typedef struct _fh_fifoq_t	fh_fifoq_t;
 FH_TAILQ_HEAD(_fh_pollq_t, _fh_callback_t);
 typedef struct _fh_pollq_t	fh_pollq_t;
 
-/* Each node has a FirehoseFifo */
-static fh_fifoq_t	*fh_RemoteNodeFifo;
-static fh_fifoq_t	fh_LocalFifo;
-
 /* There is also a pollqueue which is drained by firehose_poll */
 #ifndef FH_POLL_NOOP
-static fh_pollq_t	fh_CallbackFifo;
+fh_pollq_t	fh_CallbackFifo;
 #endif
+
+/* Each node has a FirehoseFifo */
+fh_fifoq_t	*fh_RemoteNodeFifo;
+fh_fifoq_t	fh_LocalFifo;
 
 /* This type is used to abstract the use of different callback types in the
  * same fifo.  The 'flags' parameter is used as a tag to differentiate both
@@ -316,6 +336,9 @@ fh_completion_callback_t;
 #define FH_STAILQ_NEXT(elem)	((elem)->fh_tqe_next)
 
 /* Doubles/single list initialization */
+#define FH_STAILQ_HEAD_INITIALIZER(head)  { NULL, &(head).fh_tqh_first }
+#define FH_TAILQ_HEAD_INITIALIZER(head)   { NULL, &(head).fh_tqh_first }
+
 #define FH_TAILQ_INIT(head)	do {				\
 	FH_TAILQ_FIRST((head)) = NULL;				\
 	FH_TAILQ_LAST(head) = &FH_TAILQ_FIRST((head));		\
@@ -367,18 +390,19 @@ fh_completion_callback_t;
 firehose_private_t *	fh_acquire_local_region(firehose_region_t *);
 void			fh_release_local_region(firehose_request_t *);
 
-firehose_private_t *	fh_acquire_remote_region(gasnet_node_t node, 
+firehose_request_t *	fh_acquire_remote_region(gasnet_node_t node, 
 				firehose_region_t *reg, 
 				firehose_completed_fn_t callback, 
 				void *context, uint32_t flags,
-		        	firehose_remotecallback_args_t *remote_args);
+		        	firehose_remotecallback_args_t *remote_args,
+				firehose_request_t *ureq);
 void			fh_release_remote_region(firehose_request_t *);
 void			fh_commit_try_remote_region(gasnet_node_t node, 
 						uintptr_t addr, size_t len);
 void			fh_send_firehose_reply(fh_remote_callback_t *);
 
 /* values for firehose_private_t * */
-#define FH_REGION_UNPINNED	((firehose_private_t *) 0)
+#define FH_REGION_UNPINNED	((firehose_private_t *) -1)
 
 /*
  * Macros to implement do/while and foreach over the region.  When a reference
@@ -396,11 +420,6 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 #define FH_WHILE_BUCKET(end,bucket_addr)				\
 		} while ((bucket_addr) <= (end) && 			\
 			(bucket_addr) += FH_BUCKET_SIZE)
-
-#define FH_FILL_REGION(reg, addr, length) do {				\
-		(reg)->addr = FH_ADDR_ALIGN(addr);			\
-		(reg)->len  = FH_SIZE_ALIGN(addr, addr+length);  	\
-	} while (0)
 
 /*
  * Macros to copy client_t to and from region/request
@@ -429,7 +448,25 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 	} while (0)
 #endif
 
-#ifdef GASNET_TRACE
+#ifdef TRACE
+#define FH_TRACE_BUCKET(bd, bmsg) 					\
+	do {								\
+		char	msg[64];					\
+		if (FH_IS_PREPINNED(bd))				\
+			sprintf(msg, "PREPINNED");			\
+		else if (FH_IS_FIFO(bd))				\
+			sprintf(msg, "IN FIFO (lrefc=0, rrefc=0)");	\
+		else							\
+			sprintf(msg, "lrefc=%d, rrefc=%d",		\
+			    FH_LREFC(FH_REFCOUNT(bd)),			\
+			    FH_RREFC(FH_REFCOUNT(bd)));			\
+		GASNETI_TRACE_PRINTF(C,					\
+		    ("Firehose Bucket %s %s node=%d,addr=%p,%s",	\
+		     #bmsg, FH_NODE(bd) == gasnet_mynode() ? 		\
+		     "Local " : "Remote",				\
+		     FH_NODE(bd), FH_BADDR(bd), msg));			\
+	} while (0)
+
 #define FH_NUMPINNED_DECL	int _fh_numpinned = 0
 #define FH_NUMPINNED_INC	_fh_numpinned++
 #define FH_NUMPINNED_TRACE_LOCAL	GASNETI_TRACE_EVENT_VAL(C, \
@@ -437,6 +474,7 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 #define FH_NUMPINNED_TRACE_REMOTE	GASNETI_TRACE_EVENT_VAL(C, \
 					BUCKET_REMOTE_PINS, _fh_numpinned)
 #else
+#define FH_TRACE_BUCKET(bd, bmsg)
 #define FH_NUMPINNED_DECL
 #define FH_NUMPINNED_INC
 #define FH_NUMPINNED_TRACE_LOCAL

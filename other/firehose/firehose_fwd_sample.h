@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 /* firehose_fwd.h: Firehose forward declarations */
-/* At least one of the next two firehose impementations must be defined */
+/* Exactly one one of the next two firehose impementations must be defined */
 #undef FIREHOSE_REGION
 #undef FIREHOSE_PAGE
 
