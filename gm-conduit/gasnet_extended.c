@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/02/27 03:29:20 $
- * $Revision: 1.14 $
+ *     $Date: 2003/04/18 07:00:35 $
+ * $Revision: 1.15 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,6 +79,8 @@ gasnete_new_threaddata()
 
 	threaddata->threadidx = idx;
 	threaddata->eop_free = EOPADDR_NIL;
+	threaddata->fh_buf = NULL;
+	threaddata->fh_num = 0;
 
 	gasnete_threadtable[idx] = threaddata;
 	threaddata->current_iop = gasnete_iop_new(threaddata);

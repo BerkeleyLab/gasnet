@@ -1,5 +1,5 @@
-/* $Id: gasnet_core_conf.c,v 1.3 2003/03/10 01:37:32 csbell Exp $
- * $Date: 2003/03/10 01:37:32 $
+/* $Id: gasnet_core_conf.c,v 1.4 2003/04/18 07:00:35 bonachea Exp $
+ * $Date: 2003/04/18 07:00:35 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -137,26 +137,37 @@ gasnetc_getconf_sockets(void)
 
 	_gmc.job_magic = magic_number;
 		
-	if ((sscanf (np, "%hu", (unsigned short *) &gasnetc_nodes) != 1)) 
+	if ((sscanf (np, "%hu", (unsigned short *) &gasnetc_nodes) != 1) &&
+	    gasnetc_nodes != (gasnet_node_t) -1)
 		RETURN_ERR(("Bad number of processes: %s", np));
 	else {
-		char *nprocs = getenv("GEXEC_NPROCS");
-		if (gasnetc_nodes == (gasnet_node_t) -1 && nprocs != NULL &&
-		    *nprocs != '\0')
+		char *nprocs;
+		nprocs = getenv("GEXEC_NPROCS");
+		if (nprocs != NULL && *nprocs != '\0')
 			gasnetc_nodes = (gasnet_node_t) atoi(nprocs);
-
+		else {
+			nprocs = getenv("LAMWORLD");
+			if (nprocs != NULL && *nprocs != '\0')
+				gasnetc_nodes = (gasnet_node_t) atoi(nprocs);
+		}
 	}
 	if (gasnetc_nodes < 1)
 		RETURN_ERR(("Bad number of processes: %s", np));
 
-	if ((sscanf (id, "%hu", (unsigned short *) &gasnetc_mynode) != 1)) 
+	if ((sscanf (id, "%hu", (unsigned short *) &gasnetc_mynode) != 1) && 
+	    gasnetc_mynode != (gasnet_node_t) 65535) 
 		RETURN_ERR(("Bad id %d out of %d processes", gasnetc_mynode, 
 		    gasnetc_nodes));
 	else {
-		char *myvnn = getenv("GEXEC_MY_VNN");
-		if (gasnetc_mynode == (gasnet_node_t) -1 && myvnn != NULL &&
-		    *myvnn != '\0')
-			gasnetc_mynode = (gasnet_node_t) atoi(myvnn);
+		char *rank;
+		rank = getenv("GEXEC_MY_VNN");
+		if (rank != NULL && *rank != '\0')
+			gasnetc_mynode = (gasnet_node_t) atoi(rank);
+		else {
+			rank = getenv("LAMRANK");
+			if (rank != NULL && *rank != '\0')
+				gasnetc_mynode = (gasnet_node_t) atoi(rank);
+		}
 	}
 	if (gasnetc_mynode >= gasnetc_nodes)
 		RETURN_ERR(("Bad id %d out of %d processes", gasnetc_mynode, 

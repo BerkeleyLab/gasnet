@@ -5,6 +5,7 @@
 #  removing all the automatically generated files and
 #  returning the source tree back to a fully "clean" state
 
+rm -Rf autom4te*.cache
 rm -f Makefile.in              \
       configure                \
       gasnet_config.h.in       \

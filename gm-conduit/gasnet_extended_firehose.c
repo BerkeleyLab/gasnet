@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_firehose.c,v 1.20 2003/03/18 05:57:02 csbell Exp $
- * $Date: 2003/03/18 05:57:02 $
+/* $Id: gasnet_extended_firehose.c,v 1.21 2003/04/18 07:00:35 bonachea Exp $
+ * $Date: 2003/04/18 07:00:35 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -253,6 +253,7 @@ gasnete_firehose_buf_alloc(size_t num_buckets GASNETE_THREAD_FARG)
 
 	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 
+	assert(num_buckets != 0);
 	assert(num_buckets*sizeof(uintptr_t) < gasnet_AMMaxMedium());
 
 	if (mythread->fh_num < num_buckets) {
@@ -272,6 +273,7 @@ gasnete_firehose_buf_alloc(size_t num_buckets GASNETE_THREAD_FARG)
 		}
 	}
 
+	assert(mythread->fh_buf != NULL);
 	return mythread->fh_buf;
 }
 
@@ -306,10 +308,13 @@ gasnete_firehose_move_for_put(gasnete_eop_t *pop GASNETE_THREAD_FARG)
 	num_buckets = GASNETC_NUM_BUCKETS(
 	    GASNETI_ALIGNDOWN(pop->dest, GASNETC_BUCKET_SIZE), 
 	    pop->dest+pop->len);
+	if (num_buckets == 0)
+		num_buckets = 1;
 
 	/* When obtaining a buffer, always assume that we need an equal number
 	 * of bucket replacements */
 	fh_buf = gasnete_firehose_buf_alloc(num_buckets*2 GASNETE_THREAD_PASS); 
+	assert(fh_buf != NULL);
 
 	if ((tot_buckets = 
 	    gasnetc_firehose_build_list(fh_buf, pop->node, pop->dest, num_buckets,
