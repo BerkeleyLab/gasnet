@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2004/08/30 05:04:38 $
- * $Revision: 1.31.2.3 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
+ *     $Date: 2004/08/30 06:57:42 $
+ * $Revision: 1.31.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
