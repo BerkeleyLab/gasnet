@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/11/10 10:06:33 $
- * $Revision: 1.8 $
+ *     $Date: 2003/12/23 23:28:54 $
+ * $Revision: 1.8.6.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,13 +45,14 @@ typedef uint8_t gasnet_handler_t;
         CNT(C, SYSTEM_REQHANDLER, cnt)            \
         CNT(C, SYSTEM_REPHANDLER, cnt)            \
         CNT(C, GET_AMREQ_CREDIT, cnt)             \
-	TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
-	CNT(C, GET_SBUF, cnt)                     \
-	TIME(C, GET_SBUF_STALL, stalled time)     \
-	CNT(C, POST_SR, cnt)                      \
-	TIME(C, POST_SR_STALL, stalled time)      \
-	VAL(C, SND_REAP, reaped)                  \
-	VAL(C, RCV_REAP, reaped)
+        TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
+        CNT(C, TRY_GET_SBUF, cnt)                 \
+        CNT(C, GET_SBUF, cnt)                     \
+        TIME(C, GET_SBUF_STALL, stalled time)     \
+        CNT(C, POST_SR, cnt)                      \
+        TIME(C, POST_SR_STALL, stalled time)      \
+        VAL(C, SND_REAP, reaped)                  \
+        VAL(C, RCV_REAP, reaped)
 
 /*
  * The VAPI conduit has a network progress thread, even for GASNET_SEQ
