@@ -43,7 +43,7 @@ struct _firehose_request_t {
 	size_t		len;
 
 	/* internal -- opaque to client */
-	struct _firehose_private_t	*internal;
+	firehose_private_t		*internal;
 
         #ifdef FIREHOSE_CLIENT_T
 	/* For CLIENT use, defined in firehose_fwd.h Useful for

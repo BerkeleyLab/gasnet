@@ -199,20 +199,19 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 
 	/* May be a deletion request */
 	if (newval == NULL) {
-		fh_dummy_entry_t *prev = 
-		    (fh_dummy_entry_t *) &hash->fh_table[keyhash];
+		fh_dummy_entry_t *prev = NULL;
 		fh_dummy_entry_t *cur = (fh_dummy_entry_t *) val;
 
-		while (cur != NULL && key != cur->hash_key) {
+		while (cur != NULL) {
+			if (cur->hash_key == key) {
+				if (prev != NULL)
+					prev->hash_next = cur->hash_next;
+				else
+					cur = NULL;
+				break;
+			}
 			prev = cur;
 			cur = cur->hash_next;
-		}
-
-		if (cur != NULL) {
-			if (prev != NULL)
-				prev->hash_next = cur->hash_next;
-			else
-				cur = NULL;
 		}
 
 		return val;
@@ -224,6 +223,7 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 		/* bucket unused, simply copy the new data */
 		if (val == NULL) {
 			hash->fh_table[keyhash] = newval;
+			((fh_dummy_entry_t *) newval)->hash_next = NULL;
 		}
 		else {
 			_fh_collision(hash);
