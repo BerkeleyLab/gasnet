@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/07/02 00:17:17 $
- * $Revision: 1.1.2.42 $
+ *     $Date: 2003/07/03 00:41:08 $
+ * $Revision: 1.1.2.43 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,14 +70,6 @@ typedef union {
   gasnetc_medmsg_t	medmsg;
   gasnetc_longmsg_t	longmsg;
 } gasnetc_buffer_t;
-
-/* Use of IB's 32-bit immediate data:
- *   0-1: category
- *     2: request or reply
- *   3-7: numargs
- *  8-15: handerID
- * 16-31: source index
- */
 
 typedef enum {
   gasnetc_Short=0,
@@ -220,10 +212,8 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_RCV_WQE 4               /* maximum queued entries on a rcv work queue */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
-/* Define non-zero to use AM-level flow control.
- * Otherwise IB-level flow control will be used, which can be sub-optimal.
- */
-#define GASNETC_AM_FLOWCTRL		1
+#define GASNETC_RCV_SPARES   8          /* number of spares used to accelerate AM flow control */
+
 
 /* Define non-zero to enable a progress thread for receiving AMs . */
 #define GASNETC_RCV_THREAD		1
@@ -353,9 +343,7 @@ int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
  */
 typedef struct {
   gasnetc_sema_t	send_sema;
-  #if GASNETC_AM_FLOWCTRL
-    gasnetc_sema_t	credit_sema;
-  #endif
+  gasnetc_sema_t	credit_sema;
   VAPI_qp_hndl_t	qp_handle;
   #if defined(GASNET_SEGMENT_FAST)
     /* RKey for the segment, registered at attach time */
