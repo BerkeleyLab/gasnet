@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2004/10/16 19:19:59 $
- * $Revision: 1.26 $
+ *     $Date: 2004/11/23 23:40:21 $
+ * $Revision: 1.26.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -297,7 +297,6 @@ int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
 /* Reply handler to complete an op - might be replaced w/ IB atomics one day */
 GASNET_INLINE_MODIFIER(gasnete_done_reph_inner)
 void gasnete_done_reph_inner(gasnet_token_t token, void *counter) {
-  gasneti_assert(!gasnetc_counter_done((gasnetc_counter_t *)counter));
   gasnetc_counter_dec((gasnetc_counter_t *)counter);
 }
 SHORT_HANDLER(gasnete_done_reph,1,2,
