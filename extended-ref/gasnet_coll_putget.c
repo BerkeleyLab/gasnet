@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/14 23:27:36 $
- * $Revision: 1.1.2.42 $
+ *     $Date: 2004/06/15 18:29:42 $
+ * $Revision: 1.1.2.43 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -472,7 +472,16 @@ gasnete_coll_op_destroy(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
 void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
   static gasneti_mutex_t poll_lock = GASNETI_MUTEX_INITIALIZER;
 
-  if (gasneti_mutex_trylock(&poll_lock) == 0) {
+  /* XXX: We don't want an otherwise idle thread to contend for the lock
+   * with a thread with useful work to do, especially since the only way
+   * to make progress on RDMA is by letting the initiating thread poll.
+   * What we want here is roughly
+   * if ( have_useful_work(GASNETE_MYTHREAD) ? (gasneti_mutex_lock(&poll_lock), 1)
+   * 					     : !gasneti_mutex_trylock(&poll_lock) )
+   * Use of trylock alone is not sufficient, as starvation has been observed.
+   */
+  gasneti_mutex_lock(&poll_lock);
+  {
     gasnete_coll_op_t *op;
 
     gasneti_mutex_lock(&gasnete_coll_active_lock);
@@ -499,8 +508,8 @@ void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
       op = next;
     }
 
-    gasneti_mutex_unlock(&poll_lock);
   }
+  gasneti_mutex_unlock(&poll_lock);
 }
 
 extern void gasnete_coll_init(const size_t images[],
@@ -3216,8 +3225,8 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       }
       data->state = 1;
 
-      /* Initiate data movement */
-      {
+    case 1:	/* Initiate data movement */
+      if (GASNETE_COLL_CHECK_OWNER(data)) {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3237,15 +3246,18 @@ static int gasnete_coll_pf_gall_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         for (i = 0; i < gasnete_nodes; ++i, ++h) {
           *h = gasnete_coll_gather_nb(team, i, dst, src, nbytes, flags GASNETE_THREAD_PASS);
         }
-      }
-
-    case 1:	/* Sync data movement */
-      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_nodes GASNETE_THREAD_PASS)) {
-	break;
+      } else {
+	break;	/* Stalled until owner thread initiates gathers */
       }
       data->state = 2;
 
-    case 2:	/* Optional OUT barrier */
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_nodes GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3314,8 +3326,8 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       }
       data->state = 1;
 
-      /* Initiate data movement */
-      {
+    case 1:	/* Initiate data movement */
+      if (GASNETE_COLL_CHECK_OWNER(data)) {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3338,15 +3350,18 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
             *h = gasnete_coll_gatherM_nb(team, i, *p, srclist, nbytes, flags GASNETE_THREAD_PASS);
 	  }
         }
-      }
-
-    case 1:	/* Sync data movement */
-      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_coll_total_images GASNETE_THREAD_PASS)) {
-	break;
+      } else {
+	break;	/* Stalled until owner thread initiates gathers */
       }
       data->state = 2;
 
-    case 2:	/* Optional OUT barrier */
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_coll_total_images GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3415,8 +3430,8 @@ static int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       }
       data->state = 1;
 
-      /* Initiate data movement */
-      {
+    case 1:	/* Initiate data movement */
+      if (GASNETE_COLL_CHECK_OWNER(data)) {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3436,15 +3451,18 @@ static int gasnete_coll_pf_exchg_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         for (i = 0; i < gasnete_nodes; ++i, ++h, src_addr += nbytes) {
           *h = gasnete_coll_gather_nb(team, i, dst, (void *)src_addr, nbytes, flags GASNETE_THREAD_PASS);
         }
-      }
-
-    case 1:	/* Sync data movement */
-      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_nodes GASNETE_THREAD_PASS)) {
-	break;
+      } else {
+	break;	/* Stalled until owner thread initiates gathers */
       }
       data->state = 2;
 
-    case 2:	/* Optional OUT barrier */
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_nodes GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
@@ -3513,8 +3531,8 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       }
       data->state = 1;
 
-      /* Initiate data movement */
-      {
+    case 1:	/* Initiate data movement */
+      if (GASNETE_COLL_CHECK_OWNER(data)) {
 	gasnet_coll_handle_t *h;
         int flags = op->flags;
 	gasnet_team_handle_t team = op->team;
@@ -3551,15 +3569,18 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
             *h = gasnete_coll_gatherM_nb(team, i, *q, p, nbytes, flags GASNETE_THREAD_PASS);
 	  }
         }
-      }
-
-    case 1:	/* Sync data movement */
-      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_coll_total_images GASNETE_THREAD_PASS)) {
-	break;
+      } else {
+	break;	/* Stalled until owner thread initiates gathers */
       }
       data->state = 2;
 
-    case 2:	/* Optional OUT barrier */
+    case 2:	/* Sync data movement */
+      if (!gasnete_coll_generic_coll_sync(data->private, gasnete_coll_total_images GASNETE_THREAD_PASS)) {
+	break;
+      }
+      data->state = 3;
+
+    case 3:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
