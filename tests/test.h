@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2004/09/01 20:23:04 $
- * $Revision: 1.25.2.4 $
+ *     $Date: 2004/09/04 03:29:35 $
+ * $Revision: 1.25.2.5 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -196,11 +196,77 @@ static void test_free(void *ptr) {
 #endif
 
 #ifdef GASNET_SEGMENT_EVERYTHING
-  /* NOTE: this assumes static data is aligned across nodes! */
-  uint8_t _hidden_seg[TEST_SEGSZ+PAGESZ];
-  #define TEST_SEG(node) ((void *)(((uint8_t*)_hidden_seg) + \
-    (((((uintptr_t)_hidden_seg)%PAGESZ) == 0)? 0 :           \
-     (PAGESZ-(((uintptr_t)_hidden_seg)%PAGESZ)))))          
+  static gasnet_seginfo_t *_test_seginfo = NULL;
+  #define TEST_SEG(node) (assert(_test_seginfo), _test_seginfo[node].addr)
+  /* following trivially handles the case where static data is aligned
+     across the nodes, and also works on X-1 where the static data is
+     misaligned across nodes. 
+     The only assumption is that AM mediums, barriers and atomics work properly
+     We intercept the gasnet_attach call and do the segment exchange there
+   */
+  static int _test_seggather_idx;
+  static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
+  static void _test_seggather(gasnet_token_t token, void *buf, size_t nbytes) {
+    gasnet_node_t srcid;
+    assert(nbytes == sizeof(gasnet_seginfo_t));
+    assert(_test_seginfo != NULL);
+    gasnet_AMGetMsgSource(token, &srcid);
+    assert(srcid < gasnet_nodes());
+    _test_seginfo[srcid] = *(gasnet_seginfo_t *)buf;
+    gasnett_local_wmb();
+    gasnett_atomic_increment(&_test_seggather_done);
+  }
+  static int _test_segbcast_idx;
+  static int _test_segbcast_done = 0;
+  static void _test_segbcast(gasnet_token_t token, void *buf, size_t nbytes) {
+    assert(nbytes == sizeof(gasnet_seginfo_t)*gasnet_nodes());
+    memcpy(_test_seginfo, buf, nbytes);
+    gasnett_local_wmb();
+    _test_segbcast_done = 1;
+  }
+  static int _test_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset) {
+    /* use a block of static data as the segment */
+    static uint8_t _test_hidden_seg[TEST_SEGSZ+PAGESZ];
+    int i, result;
+    gasnet_seginfo_t myseg;
+
+    /* must use malloc here, pre-attach */
+    gasnet_handlerentry_t *mytab = malloc((numentries+2)*sizeof(gasnet_handlerentry_t));
+    if (numentries) memcpy(mytab, table, numentries*sizeof(gasnet_handlerentry_t));
+    mytab[numentries].index = 0; /* "dont care" index */
+    mytab[numentries].fnptr = (void (*)())_test_seggather;
+    mytab[numentries+1].index = 0; /* "dont care" index */
+    mytab[numentries+1].fnptr = (void (*)())_test_segbcast;
+    /* do regular attach, then setup seg_everything segment */
+    GASNET_Safe(result = gasnet_attach(mytab, numentries+2, segsize, minheapoffset));
+    _test_seggather_idx = mytab[numentries].index;
+    _test_segbcast_idx = mytab[numentries+1].index;
+    if (numentries) memcpy(table, mytab, numentries*sizeof(gasnet_handlerentry_t));
+    free(mytab);
+
+    _test_seginfo = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
+    myseg.addr = ((void *)(((uint8_t*)_test_hidden_seg) + 
+      (((((uintptr_t)_test_hidden_seg)%PAGESZ) == 0)? 0 : 
+       (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
+    myseg.size = TEST_SEGSZ;
+    BARRIER();
+    GASNET_Safe(gasnet_AMRequestMedium0(0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t)));
+    if (gasnet_mynode() == 0) {
+      GASNET_BLOCKUNTIL(gasnett_atomic_read(&_test_seggather_done) == gasnet_nodes());
+      for (i=0; i < gasnet_nodes(); i++) {
+        GASNET_Safe(gasnet_AMRequestMedium0(i, _test_segbcast_idx, _test_seginfo, gasnet_nodes()*sizeof(gasnet_seginfo_t)));
+      }
+    }
+    GASNET_BLOCKUNTIL(_test_segbcast_done);
+    BARRIER();
+    for (i=0; i < gasnet_nodes(); i++) {
+      assert(_test_seginfo[i].size >= TEST_SEGSZ);
+      assert((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
+    }
+    return result;
+  }
+  #undef gasnet_attach
+  #define gasnet_attach _test_attach
 #else
   static void *_test_getseg(gasnet_node_t node) {
     static gasnet_seginfo_t *si = NULL;
