@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/02 01:40:31 $
- * $Revision: 1.2.2.20 $
+ *     $Date: 2003/04/02 02:04:10 $
+ * $Revision: 1.2.2.21 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -350,6 +350,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_init_attr.ts_type            = VAPI_TS_RC;
 
     for (i = 0; i < gasnetc_nodes; ++i) {
+      if (i == gasnetc_mynode) continue;
+
       /* create the QP */
       vstat = VAPI_create_qp(gasnetc_hca, &qp_init_attr, &gasnetc_cep[i].qp_handle, &qp_prop);
       assert(vstat == VAPI_OK);
@@ -381,6 +383,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.port                = port;
     qp_attr.remote_atomic_flags = VAPI_EN_REM_WRITE | VAPI_EN_REM_READ;
     for (i = 0; i < gasnetc_nodes; ++i) {
+      if (i == gasnetc_mynode) continue;
+
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       assert(vstat == VAPI_OK);
 	
@@ -405,6 +409,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.qp_ous_rd_atom   = 4;	/* XXX: get max from HCA */
     qp_attr.min_rnr_timer    = 0;
     for (i = 0; i < gasnetc_nodes; ++i) {
+      if (i == gasnetc_mynode) continue;
+
       qp_attr.rq_psn         = i;
       qp_attr.av.dlid        = remote_addr[i].lid;
       qp_attr.dest_qp_num    = remote_addr[i].qp_num;
@@ -430,6 +436,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.rnr_retry        = 1;
     qp_attr.ous_dst_rd_atom  = 4; 	/* XXX get max from HCA*/
     for (i = 0; i < gasnetc_nodes; ++i) {
+      if (i == gasnetc_mynode) continue;
+
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       assert(vstat == VAPI_OK);
     }
