@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/07/02 20:53:57 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2003/07/02 21:51:06 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -641,67 +641,81 @@ extern void gasnetc_sndrcv_init(void) {
   gasnetc_sbuf_t	*sbuf;
   int 			count, i;
 
-  if (gasnetc_nodes == 1) {
-    /* Don't even bother to allocate zero-byte regions */
-    return;
-  }
-
-  /* setup rcv resources */
+  /*
+   * setup RCV resources
+   */
   count = GASNETC_RCV_WQE * (gasnetc_nodes - 1) + GASNETC_RCV_POOL_SIZE;
   assert(count <= GASNETC_RCV_CQ_SIZE);
-  buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
-			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
-  assert(buf != NULL);
 
-  rbuf = calloc(count, sizeof(gasnetc_rbuf_t));
-  assert(rbuf != NULL);
-
-  for (i = 0; i < count; ++i) {
-    rbuf[i].rr_desc.id         = (uintptr_t)&rbuf[i];	/* CQE will point back to this request */
-    rbuf[i].rr_desc.opcode     = VAPI_RECEIVE;
-    rbuf[i].rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
-    rbuf[i].rr_desc.sg_lst_len = 1;
-    rbuf[i].rr_desc.sg_lst_p   = &rbuf[i].rr_sg;
-    rbuf[i].rr_sg.len          = GASNETC_BUFSZ;
-    rbuf[i].rr_sg.addr         = (uintptr_t)&buf[i];
-    rbuf[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
-    rbuf[i].next               = &rbuf[i + 1];
-  }
-  rbuf[count - 1].next = NULL;
-  gasnetc_rbuf_alloc = gasnetc_rbuf_free = rbuf;
-
+  /* create the RCV CQ */
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
   assert(vstat == VAPI_OK);
   assert(act_size >= count);
 
-  #if GASNETC_RCV_THREAD
-    vstat = EVAPI_set_comp_eventh(gasnetc_hca, gasnetc_rcv_cq, &gasnetc_rcv_thread,
-				  NULL, &gasnetc_rcv_handler);
-    assert(vstat == VAPI_OK);
-    vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
-    assert(vstat == VAPI_OK);
-    gasnetc_rcv_spare = gasnetc_get_rbuf();
-  #endif
+  if (gasnetc_nodes > 1) {
+    #if GASNETC_RCV_THREAD
+      /* create the RCV thread */
+      vstat = EVAPI_set_comp_eventh(gasnetc_hca, gasnetc_rcv_cq, &gasnetc_rcv_thread,
+				    NULL, &gasnetc_rcv_handler);
+      assert(vstat == VAPI_OK);
+      vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
+      assert(vstat == VAPI_OK);
+    #endif
 
-  /* setup snd resources */
+    /* Allocated pinned memory for receive buffers */
+    buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
+			       VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
+    assert(buf != NULL);
+
+    /* Allocated normal memory for receive descriptors (rbuf's) */
+    rbuf = calloc(count, sizeof(gasnetc_rbuf_t));
+    assert(rbuf != NULL);
+
+    /* Initialize the rbuf's */
+    for (i = 0; i < count; ++i) {
+      rbuf[i].rr_desc.id         = (uintptr_t)&rbuf[i];	/* CQE will point back to this request */
+      rbuf[i].rr_desc.opcode     = VAPI_RECEIVE;
+      rbuf[i].rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
+      rbuf[i].rr_desc.sg_lst_len = 1;
+      rbuf[i].rr_desc.sg_lst_p   = &rbuf[i].rr_sg;
+      rbuf[i].rr_sg.len          = GASNETC_BUFSZ;
+      rbuf[i].rr_sg.addr         = (uintptr_t)&buf[i];
+      rbuf[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
+      rbuf[i].next               = &rbuf[i + 1];
+    }
+    rbuf[count - 1].next = NULL;
+    gasnetc_rbuf_alloc = gasnetc_rbuf_free = rbuf;
+    #if GASNETC_RCV_THREAD
+      gasnetc_rcv_spare = gasnetc_get_rbuf();
+    #endif
+  }
+
+  /*
+   * setup SND resources
+   */
   count = MIN(GASNETC_SND_CQ_SIZE, GASNETC_SND_WQE * gasnetc_nodes);
+
+  /* create the SND CQ */
+  vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_snd_cq, &act_size);
+  assert(vstat == VAPI_OK);
+  assert(act_size >= count);
+
+  /* Allocated pinned memory for bounce buffers */
   buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
 		             VAPI_EN_LOCAL_WRITE, &gasnetc_snd_reg);
   assert(buf != NULL);
 
+  /* Allocated normal memory for send descriptors (sbuf's) */
   sbuf = calloc(count, sizeof(gasnetc_sbuf_t));
   assert(sbuf != NULL);
 
+  /* Initialize the sbuf's */
   for (i = 0; i < count; ++i) {
     sbuf[i].buffer = &buf[i];
     sbuf[i].next   = &sbuf[i + 1];
   }
   sbuf[count - 1].next = NULL;
   gasnetc_sbuf_alloc = gasnetc_sbuf_free = sbuf;
-
-  vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_snd_cq, &act_size);
-  assert(vstat == VAPI_OK);
-  assert(act_size >= count);
 }
 
 extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
@@ -727,27 +741,24 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
 extern void gasnetc_sndrcv_fini(void) {
   VAPI_ret_t vstat;
 
-  if (gasnetc_nodes == 1) {
-    /* Don't even bother with no peers */
-    return;
-  }
+  if (gasnetc_nodes > 1) {
+    #if GASNETC_RCV_THREAD
+      vstat = EVAPI_clear_comp_eventh(gasnetc_hca, gasnetc_rcv_handler);
+      assert(vstat == VAPI_OK);
+    #endif
 
-  #if GASNETC_RCV_THREAD
-    vstat = EVAPI_clear_comp_eventh(gasnetc_hca, gasnetc_rcv_handler);
-    assert(vstat == VAPI_OK);
-  #endif
+    gasnetc_free_pinned(&gasnetc_rcv_reg);
+    free(gasnetc_rbuf_alloc);
+
+    gasnetc_free_pinned(&gasnetc_snd_reg);
+    free(gasnetc_sbuf_alloc);
+  }
 
   vstat = VAPI_destroy_cq(gasnetc_hca, gasnetc_rcv_cq);
   assert(vstat == VAPI_OK);
 
-  gasnetc_free_pinned(&gasnetc_rcv_reg);
-  free(gasnetc_rbuf_alloc);
-
   vstat = VAPI_destroy_cq(gasnetc_hca, gasnetc_snd_cq);
   assert(vstat == VAPI_OK);
-
-  gasnetc_free_pinned(&gasnetc_snd_reg);
-  free(gasnetc_sbuf_alloc);
 }
 
 extern void gasnetc_sndrcv_poll(void) {
