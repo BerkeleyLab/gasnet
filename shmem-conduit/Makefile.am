@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.4 2003/11/23 12:58:49 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.5 2004/01/05 05:04:47 bonachea Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -105,6 +105,11 @@ install-data-local: $(headers)
 uninstall-local:
 	rm -f $(DESTDIR)$(includedir)/shmem-conduit/*.h $(DESTDIR)$(includedir)/shmem-conduit/*.mak
 
+else
+$(top_srcdir)/gasnet.h: force
+	@echo "ERROR: shmem-conduit support was not detected at configure time"
+	@echo "       try re-running configure with --enable-shmem"
+	@exit 1
 endif
 
 tests:
