@@ -507,7 +507,7 @@ fh_acquire_local_region(firehose_request_t *req)
 	fhi_merge_regions(fh_mynode, &pin_region);
 
 	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
-	gasneti_assert ((num_unpin == 0) || (num_unpin == 2));
+	gasneti_assert ((num_unpin == 0) || (num_unpin == 1));
 
 	/* XXX/PHH create in-TRANSIT "priv" here */
 
