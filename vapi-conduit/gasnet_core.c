@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2004/02/03 00:06:43 $
- * $Revision: 1.21.2.17 $
+ *     $Date: 2004/02/04 00:17:50 $
+ * $Revision: 1.21.2.18 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,9 +22,6 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
-#if GASNET_SEGMENT_LARGE || GASNET_SEGMENT_EVERYTHING
-  #warning "I don't do LARGE or EVERYTHING yet - almost certain to hang at runtime!!"
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -130,27 +127,6 @@ static void gasnetc_check_config() {
   gasneti_assert(sizeof(gasnetc_medmsg_t) == (GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS));
   gasneti_assert(GASNETC_RCV_POLL || GASNETC_RCV_THREAD);
   gasneti_assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
-}
-
-extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end) {
-  #if GASNETC_PIN_SEGMENT
-    if ((start >= gasnetc_seg_reg.addr) && (end <= gasnetc_seg_reg.end)) {
-      return &gasnetc_seg_reg;
-    }
-  #else
-    /* (###) implement firehose */
-  #endif
-
-  if ((start >= gasnetc_rcv_reg.addr) && (end <= gasnetc_rcv_reg.end)) {
-    return &gasnetc_rcv_reg;
-  }
-
-  if ((start >= gasnetc_snd_reg.addr) && (end <= gasnetc_snd_reg.end)) {
-    return &gasnetc_snd_reg;
-  }
-
-  /* Not pinned */
-  return NULL;
 }
 
 static void gasnetc_unpin(gasnetc_memreg_t *reg) {
@@ -992,6 +968,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     firehose_init(my_info.memsize, my_info.regions,
 		  prereg, reg_count,
 		  &gasnetc_firehose_info);
+    gasnetc_max_pin = MIN(gasnetc_hca_port.max_msg_sz,
+			  MIN(gasnetc_firehose_info.max_LocalPinSize,
+			      gasnetc_firehose_info.max_RemotePinSize));
 
     /* Ensure the permanently pinned regions stay in the firehose table */
     for (i = 0; i < reg_count; ++i) {

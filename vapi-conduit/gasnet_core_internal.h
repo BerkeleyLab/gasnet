@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/02/03 00:06:43 $
- * $Revision: 1.19.6.11 $
+ *     $Date: 2004/02/04 00:17:50 $
+ * $Revision: 1.19.6.12 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,11 +18,13 @@
 #include <evapi.h>
 #include <vapi_common.h>
 
+/* XXX: don't yet have any mixed approaches in which there is a pinned
+ * segment and firehose is used to dynamically register stack, etc. */
 #if defined(GASNET_SEGMENT_LARGE) || defined(GASNET_SEGMENT_EVERYTHING)
   #define GASNETC_USE_FIREHOSE 1
   #include <firehose.h>
 #endif
-#if defined(GASNET_SEGMENT_FAST) //|| defined(GASNET_SEGMENT_LARGE)
+#if defined(GASNET_SEGMENT_FAST)
   #define GASNETC_PIN_SEGMENT 1
 #endif
 
@@ -679,7 +681,6 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				int numargs, gasnetc_counter_t *mem_oust, va_list argptr);
 
 /* General routines in gasnet_core.c */
-extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start, uintptr_t end);
 extern void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
 extern void gasnetc_free_pinned(gasnetc_memreg_t *reg);
 
@@ -706,6 +707,7 @@ extern gasnetc_memreg_t		gasnetc_rcv_reg;
   extern gasnetc_memreg_t	gasnetc_seg_reg;
 #endif
 #if GASNETC_USE_FIREHOSE
+  extern size_t			gasnetc_max_pin;
   extern firehose_info_t	gasnetc_firehose_info;
   #if FIREHOSE_VAPI_USE_FMR
     extern EVAPI_fmr_t		gasnetc_fmr_props;

@@ -1,6 +1,6 @@
 /* vapi-conduit/gasnet_firehose.c
- * $Date: 2004/01/06 23:24:15 $
- * $Revision: 1.1.2.5 $
+ * $Date: 2004/02/04 00:17:50 $
+ * $Revision: 1.1.2.6 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -36,6 +36,7 @@ firehose_move_callback(gasnet_node_t node,
     if (unpin_num) {
       handles = alloca(unpin_num * sizeof(EVAPI_fmr_hndl_t));
       for (i = 0; i < unpin_num; ++i) {
+	GASNETC_STAT_EVENT_VAL(DYNAMIC_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
 	handles[i] = unpin_list[i].client.handle;
       }
       vstat = EVAPI_unmap_fmr(gasnetc_hca, unpin_num, handles);
@@ -73,6 +74,7 @@ firehose_move_callback(gasnet_node_t node,
         vstat = EVAPI_map_fmr(gasnetc_hca, region->client.handle, &map,
 			      &(region->client.lkey), &(region->client.rkey));
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_map_fmr");
+	GASNETC_STAT_EVENT_VAL(DYNAMIC_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
     }
 
     return 0;
