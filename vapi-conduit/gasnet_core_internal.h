@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/21 19:41:07 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/03/21 21:08:19 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,6 +46,29 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #define _hidx_                              (GASNETC_HANDLER_BASE+)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
+/* ------------------------------------------------------------------------------------ */
+
+typedef struct {
+  gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
+} gasnetc_shortmsg_t;
+
+typedef struct {
+  uint16_t		nBytes;
+  uint16_t		_pad0;
+  gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
+} gasnetc_medmsg_t;
+
+typedef struct {
+  uintptr_t		destLoc;
+  uint32_t		nBytes;
+  gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
+} gasnetc_longmsg_t;
+
+typedef union {
+  gasnetc_shortmsg_t	shortmsg;
+  gasnetc_medmsg_t	medmsg;
+  gasnetc_longmsg_t	longmsg;
+} gasnetc_am_msg_t;
 
 /* Use of IB's 32-bit immediate data:
  *   0-1: category
@@ -75,6 +98,72 @@ typedef enum {
 #define GASNETC_MSG_HANDLERID(flags)	((uint8_t)((flags) >> 8))
 #define GASNETC_MSG_SEQUENCE(flags)	((uint16_t)((flags) >> 16))
 
+#define GASNETC_MSG_MED_OFFSET(nargs)	\
+	(offsetof(gasnetc_medmsg_t,args) + nargs + ((nargs & 0x1) ^ ((GASNETC_MEDIUM_HDRSZ>>2) & 0x1)))
+
+#define GASNETC_MSG_MED_DATA(msg, nargs) \
+	((void *)((uintptr_t)(msg) + GASNETC_MSG_MED_OFFSET(nargs)))
+
+/* ------------------------------------------------------------------------------------ */
+
+#define RUN_HANDLER_SHORT(phandlerfn, token, args, numargs) do {                       \
+  assert(phandlerfn);                                                                   \
+  switch (numargs) {                                                                  \
+    case 0:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token); break;        \
+    case 1:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0]); break;         \
+    case 2:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1]); break;\
+    case 3:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2]); break; \
+    case 4:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3]); break; \
+    case 5:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4]); break; \
+    case 6:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
+    case 7:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
+    case 8:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
+    case 9:  (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
+    case 10: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
+    case 11: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
+    case 12: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
+    case 13: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
+    case 14: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
+    case 15: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
+    case 16: (*(gasnetc_HandlerShort)phandlerfn)((gasnet_token_t)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
+    default: abort();                                                                 \
+    }                                                                                 \
+  } while (0)
+
+#define _RUN_HANDLER_MEDLONG(phandlerfn, token, args, numargs, pData, datalen) do {   \
+  assert(phandlerfn);                                                         \
+  switch (numargs) {                                                        \
+    case 0:  (*phandlerfn)(token, pData, datalen); break;                    \
+    case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;           \
+    case 2:  (*phandlerfn)(token, pData, datalen, args[0], args[1]); break;  \
+    case 3:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2]); break; \
+    case 4:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3]); break; \
+    case 5:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4]); break; \
+    case 6:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
+    case 7:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
+    case 8:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
+    case 9:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
+    case 10: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
+    case 11: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
+    case 12: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
+    case 13: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
+    case 14: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
+    case 15: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
+    case 16: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
+    default: abort();                                                                 \
+    }                                                                                 \
+  } while (0)
+
+#define RUN_HANDLER_MEDIUM(phandlerfn, token, args, numargs, pData, datalen) do {      \
+    assert(((uintptr_t)pData) % 8 == 0);  /* we guarantee double-word alignment for data payload of medium xfers */ \
+    _RUN_HANDLER_MEDLONG((gasnetc_HandlerMedium)phandlerfn, (gasnet_token_t)token, args, numargs, (void *)pData, (size_t)datalen); \
+  } while(0)
+
+#define RUN_HANDLER_LONG(phandlerfn, token, args, numargs, pData, datalen)             \
+  _RUN_HANDLER_MEDLONG((gasnetc_HandlerLong)phandlerfn, (gasnet_token_t)token, args, numargs, (void *)pData, (size_t)datalen)
+
+/* ------------------------------------------------------------------------------------ */
+
 /* Structure for a cep, connection end-point
  * Include whatever per-node data we need.
  */
@@ -82,22 +171,5 @@ typedef struct {
   /* ### Need more here */
   VAPI_qp_hndl_t	qp_handle;
 } gasnetc_cep_t;
-
-typedef struct {
-  uint32_t	args[GASNETC_MAX_ARGS];	
-} gasnetc_shortmsg_t;
-
-typedef struct {
-  uint16_t	nBytes;
-  uint16_t	_pad0;
-  uint32_t	args[GASNETC_MAX_ARGS];	
-} gasnetc_medmsg_t;
-
-typedef struct {
-  uintptr_t	destLoc;
-  uint32_t	nBytes;
-  uint32_t	args[GASNETC_MAX_ARGS];	
-} gasnetc_longmsg_t;
-
 
 #endif
