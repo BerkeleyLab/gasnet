@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2004/11/04 14:50:24 $
- * $Revision: 1.21.2.3 $
+ *     $Date: 2005/04/04 02:53:39 $
+ * $Revision: 1.21.2.4 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -410,7 +410,7 @@ extern int gasnetc_AMPoll() {
   #if GASNETC_USE_MAINQUEUE
     if (elan_queueHaveReq(gasnetc_mainqueue)) {
   #else
-    if (elan_queueRxPoll(gasnetc_queuerx, 1)) {
+    if (elan_queueRxPoll(gasnetc_queuerx, 0)) {
   #endif
     gasnetc_bufdesc_t _desc;
     #if GASNETC_USE_MAINQUEUE || GASNET_PAR
