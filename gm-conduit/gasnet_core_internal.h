@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.45.2.3 2003/08/30 10:39:50 csbell Exp $
- * $Date: 2003/08/30 10:39:50 $
- * $Revision: 1.45.2.3 $
+/* $Id: gasnet_core_internal.h,v 1.45.2.4 2003/09/07 09:40:03 csbell Exp $
+ * $Date: 2003/09/07 09:40:03 $
+ * $Revision: 1.45.2.4 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -404,6 +404,7 @@ gasnetc_bufdesc_from_token(gasnet_token_t token)
 		_gmc.AMMedBuf->gm_id = bufd->gm_id;
 		_gmc.AMMedBuf->gm_port = bufd->gm_port;
 		BUFD_SETSTATE(_gmc.AMMedBuf, BUFD_S_USED);
+		BUFD_RESET(_gmc.AMMedBuf);
 		BUFD_SET(_gmc.AMMedBuf, BUFD_REPLY);
 		return _gmc.AMMedBuf;
 	}

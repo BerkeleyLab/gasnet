@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.39.2.6 2003/08/30 10:39:50 csbell Exp $
- * $Date: 2003/08/30 10:39:50 $
+/* $Id: gasnet_core.c,v 1.39.2.7 2003/09/07 09:40:03 csbell Exp $
+ * $Date: 2003/09/07 09:40:03 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -100,6 +100,8 @@ gasnetc_init(int *argc, char ***argv)
 	#else
 		#error Bad segment config
 	#endif
+
+	printf("%d> my port is %d\n", gasnetc_mynode, _gmc.my_port);
 
 	return GASNET_OK;
 }
@@ -364,8 +366,6 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 		firehose_init(global_physmem, 0, NULL, 0, &gasnetc_firehose_info);
 	}
 
-	gm_register_memory(_gmc.port, gasnetc_seginfo[i].addr, gasnetc_seginfo[i].size);
-			
 	/* -------------------------------------------------------------------- */
 	/*  primary attach complete */
 	gasneti_attach_done = 1;
@@ -900,8 +900,18 @@ gasnetc_GMSend_bufd(gasnetc_bufdesc_t *bufd)
 		    (unsigned) bufd->gm_id, (void *) send_ptr, len));
 
 		assert(GASNETC_AM_IS_REPLY(*((uint8_t *) send_ptr)));
-		assert(len <= GASNETC_AM_PACKET);
+		assert(len > 0 && len <= GASNETC_AM_PACKET);
 
+		if (_gmc.my_port == bufd->gm_port)
+		gm_send_to_peer_with_callback(_gmc.port, 
+			(void *) send_ptr,
+			GASNETC_AM_SIZE,
+			len,
+			GM_HIGH_PRIORITY,
+			(uint32_t) bufd->gm_id,
+			gasnetc_callback_hi,
+			context);
+		else
 		gm_send_with_callback(_gmc.port, 
 			(void *) send_ptr,
 			GASNETC_AM_SIZE,
@@ -1421,6 +1431,13 @@ gasnetc_GMSend_AMRequest(void *buf, uint32_t len,
 				assert(GASNETC_AM_IS_REQUEST(
 				       *((uint8_t *) buf)));
 				assert(len <= GASNETC_AM_PACKET);
+
+				if (_gmc.my_port == port)
+				gm_send_to_peer_with_callback(_gmc.port, buf, 
+					GASNETC_AM_SIZE, (unsigned int) len,
+					GM_LOW_PRIORITY, id, callback,
+					callback_ptr);
+				else
 				gm_send_with_callback(_gmc.port, buf, 
 					GASNETC_AM_SIZE, (unsigned int) len,
 					GM_LOW_PRIORITY, id, port, callback,
@@ -1700,6 +1717,7 @@ gasnetc_getconf_conffile()
 	char		*homedir;
 	int		lnum = 0, gmportnum, i;
 	int		thisport = 0, thisid = 0, numnodes = 0, thisnode = -1;
+	int		temp_id;
 	gm_status_t	status;
 	struct gm_port	*p;
 
@@ -1791,7 +1809,16 @@ gasnetc_getconf_conffile()
 	}
 	status = gm_get_node_id(p, (unsigned int *) &thisid);
 	if (status != GM_SUCCESS)
-		GASNETI_RETURN_ERRR(RESOURCE, "could not get GM node id");
+		gasneti_fatalerror("could not get GM node id!");
+
+#ifdef GASNETC_GM_2
+	temp_id = _gmc.my_id;
+
+	/* GM2 only stores local node ids, so a global has to be obtained */
+	if (gm_node_id_to_global_id(_gmc.port, temp_id, &(_gmc.my_id)) 
+	    != GM_SUCCESS)
+		gasneti_fatalerror("Couldn't get GM global node id");
+#endif
 
 	for (i = 0; i < numnodes; i++) {
 		_gmc.gm_nodes[i].id = 
@@ -1804,9 +1831,10 @@ gasnetc_getconf_conffile()
 			GASNETI_RETURN_ERRR(RESOURCE, 
 			    "Unknown GMid or GM mapper down");
 		}
-		_gmc.gm_nodes_rev[i].id = _gmc.gm_nodes[i].id;
 		_gmc.gm_nodes_rev[i].port = _gmc.gm_nodes[i].port;
 		_gmc.gm_nodes_rev[i].node = (gasnet_node_t) i;
+
+		_gmc.gm_nodes_rev[i].id = _gmc.gm_nodes[i].id;
 
 		GASNETI_TRACE_PRINTF(C, ("%d> %s (gm %d, port %d)\n", 
 		    i, hostnames[i], _gmc.gm_nodes[i].id, 

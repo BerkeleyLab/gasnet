@@ -89,7 +89,7 @@ firehose_region_t;
  *       GASNET_FIREHOSE_ environment variables below).
  *    4. gasnet_AMMaxMedium() as implemented by the underlying gasnet
  *       core API.
- *    5. THe size of firehose_remotecallback_args_t.
+ *    5. The size of firehose_remotecallback_args_t.
  *
  * The values returned by firehose_info_t are established at
  * initialization.  Typically, a client will use these limits in order
@@ -166,12 +166,13 @@ firehose_remote_callback(gasnet_node_t node,
  * Changes to the client type in the region type will be reflected in
  * the request type once the move callback completes.
  *
- * AM-handler context: May run in AM handler context
+ * AM-handler context: May run in AM handler context, in which case the
+ *                     'inhandler' argument will be set to non-zero.
  *
  * Returns: 0 on success, non-zero on failure.
  */
 extern int 
-firehose_move_callback(gasnet_node_t node,
+firehose_move_callback(gasnet_node_t node, int inhandler,
 		       const firehose_region_t *unpin_list, 
 		       size_t unpin_num, 
 		       firehose_region_t *pin_list, 
@@ -689,9 +690,10 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
  *
  * The supplied regions can be local or remote.
  *
- * AM-handler context: May run in AM handler context
+ * AM-handler context: May be called in an AM handler context, in 
+ * 		       which case the user sets 'inhandler' to non-zero.
  */
 extern void
-firehose_release(firehose_request_t const **reqs, int numreqs);
+firehose_release(firehose_request_t const **reqs, int numreqs, int inhandler);
 
 #endif

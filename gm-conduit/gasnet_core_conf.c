@@ -1,5 +1,5 @@
-/* $Id: gasnet_core_conf.c,v 1.5.2.1 2003/08/30 10:39:50 csbell Exp $
- * $Date: 2003/08/30 10:39:50 $
+/* $Id: gasnet_core_conf.c,v 1.5.2.2 2003/09/07 09:40:03 csbell Exp $
+ * $Date: 2003/09/07 09:40:03 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -117,7 +117,7 @@ gasnetc_getconf_sockets(void)
 	int	sockfd;
 
 	unsigned int 	count, magic_number, master_port1, master_port2;
-	unsigned int	board_id, port_id;
+	unsigned int	board_id, port_id, temp_id, temp_local_id;
 	unsigned int	i, j;
 
 	struct hostent		*master_he;
@@ -190,26 +190,21 @@ gasnetc_getconf_sockets(void)
 
 	port_id = 0;
 	if (!gasnetc_gmport_allocate(&board_id, &port_id))
-		RETURN_ERR(("%d: Can't obtain GM port", gasnetc_mynode));
+		gasneti_fatalerror("%d: Can't obtain GM port", gasnetc_mynode);
 
 	_gmc.my_port = port_id;
 
 	/* get the GM node id */
 	if (gm_get_node_id (_gmc.port, &_gmc.my_id) != GM_SUCCESS)
-		RETURN_ERR(("%d: Can't get local GM node id", gasnetc_mynode));
+		gasneti_fatalerror("%d: Can't get local GM node id", gasnetc_mynode);
 
 #ifdef GASNETC_GM_2
-	{
-		uint16_t	id = _gmc.my_id
-		
-	/* GM2 only stores local node ids, so a global one has to be
-	 * obtained */
-	if (gm_node_id_to_global_id
-	   (_gmc.port, port_id, &(_gmc.myport)) != GM_SUCCESS)
-		gasneti_fatalerror("Couldn't get GM global node id");
-#else
-#endif
+	temp_id = _gmc.my_id;
 
+	/* GM2 only stores local node ids, so a global has to be obtained */
+	if (gm_node_id_to_global_id(_gmc.port, temp_id, &(_gmc.my_id)) != GM_SUCCESS)
+		gasneti_fatalerror("Couldn't get GM global node id");
+#endif
 
 	/* allocate space for node mapping */
 	if (!gasnetc_alloc_nodemap(gasnetc_nodes))
@@ -246,8 +241,8 @@ gasnetc_getconf_sockets(void)
 
 	/* send the magic:ID:port:board:node used to the master */
 	count = 0;
-	sprintf (buffer, "<<<%d:%d:%d:%d:%d:%d>>>\n", magic_number, 
-	    gasnetc_mynode, port_id, board_id, _gmc.my_id, (int) getpid ());
+	sprintf (buffer, "<<<%d:%d:%d:%d:%u:%d>>>\n", magic_number, 
+	    gasnetc_mynode, port_id, board_id, (unsigned) _gmc.my_id, (int) getpid ());
 
 	while (count < strlen (buffer)) {
 		i = write (sockfd, &buffer[count], strlen (buffer) - count);
@@ -308,15 +303,29 @@ gasnetc_getconf_sockets(void)
 	/* Decrypt the global mapping */
 	j += 3;
 	for (i = 0; i < gasnetc_nodes; i++) {
-		if (sscanf (&buffer[j], "<%hu:%*d:%hu>",
+		if (sscanf (&buffer[j], "<%hu:%*d:%u>",
 		    (unsigned short *) &_gmc.gm_nodes[i].port, 
-		    (unsigned short *) &_gmc.gm_nodes[i].id) != 2)
+		    &temp_id) != 2)
 			RETURN_ERR(("%d: can't decode node mapping", 
 			    gasnetc_mynode));
 
 		_gmc.gm_nodes_rev[i].port = _gmc.gm_nodes[i].port;
-		_gmc.gm_nodes_rev[i].id = _gmc.gm_nodes[i].id;
 		_gmc.gm_nodes_rev[i].node = i;
+
+	#ifdef GASNETC_GM_2
+		temp_local_id = 0;
+		if (gm_global_id_to_node_id(_gmc.port, temp_id,
+		    &temp_local_id) != GM_SUCCESS) {
+			gasneti_fatalerror("%d> couldn't translate GM global "
+			    "node id (%u) for gasnet node id %d", 
+			    gasnetc_mynode, (unsigned) temp_id, i);
+		}
+		_gmc.gm_nodes_rev[i].id = (uint16_t) temp_local_id;
+		_gmc.gm_nodes[i].id = (uint16_t) temp_local_id;
+	#else
+		_gmc.gm_nodes[i].id = temp_id;
+		_gmc.gm_nodes_rev[i].id = temp_id;
+	#endif
 
 		temp = strchr(&buffer[j], '>');
 		if (temp == NULL)
@@ -327,14 +336,14 @@ gasnetc_getconf_sockets(void)
 
 	/* decrypt the local mapping */
 	if (strncmp (&buffer[j], "]]]", 3) != 0)
-		RETURN_ERR(("%d: can't decode node mapping (end marker)", 
-		    gasnetc_mynode));
+		gasneti_fatalerror("%d: can't decode node mapping (end marker)",
+		    gasnetc_mynode);
 
 	/* check consistency */
-	if ((_gmc.gm_nodes[gasnetc_mynode].port != _gmc.my_port) 
-	    || (_gmc.gm_nodes[gasnetc_mynode].id != _gmc.my_id))
-		RETURN_ERR(("%d: inconsistency in data collected from master",
-		    gasnetc_mynode));
+	if (_gmc.gm_nodes[gasnetc_mynode].port != _gmc.my_port)
+		gasneti_fatalerror(
+		    "%d: inconsistency in data collected from master",
+		    gasnetc_mynode);
 
 	qsort(_gmc.gm_nodes_rev, gasnetc_nodes, sizeof(gasnetc_gm_nodes_rev_t),
 	    gasnetc_gm_nodes_compare);

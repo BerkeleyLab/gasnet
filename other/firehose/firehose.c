@@ -73,8 +73,9 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  * XXX should call from gasnet_exit(), fatal or not
  *
  */
-static firehose_request_t	*fh_request_bufs[];
-static fh_bucket_t		*fh_buckets_bufs[];
+static firehose_request_t	*fh_request_bufs[256] = { 0 };
+static fh_bucket_t		*fh_buckets_bufs[FH_BUCKETS_BUFS] = { 0 };
+
 void
 firehose_fini()
 {
@@ -254,6 +255,8 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		 * firehose library */
 
 		if (!(flags & FIREHOSE_FLAG_RETURN_IF_PINNED)) {
+			GASNETI_TRACE_PRINTF(C, 
+			    ("Firehoses pinned, callback"));
 			callback(context, req, 1);
 		}
 		return req;
@@ -305,7 +308,7 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
 }
 
 extern void
-firehose_release(firehose_request_t const **reqs, int numreqs)
+firehose_release(firehose_request_t const **reqs, int numreqs, int inhandler)
 {
 	int			i;
 
@@ -314,10 +317,10 @@ firehose_release(firehose_request_t const **reqs, int numreqs)
 	for (i = 0; i < numreqs; i++) {
 		if (reqs[i]->node == gasnet_mynode())
 			fh_release_local_region(
-				(firehose_request_t *) reqs[i]);
+				(firehose_request_t *) reqs[i], inhandler);
 		else
 			fh_release_remote_region(
-				(firehose_request_t *) reqs[i]);
+				(firehose_request_t *) reqs[i], inhandler);
 
 		if (reqs[i]->flags & FH_FLAG_FHREQ)
 			fh_request_free((firehose_request_t *) reqs[i]);
@@ -365,7 +368,6 @@ fh_free_completion_callback(fh_completion_callback_t *cc)
 #define FH_REQUEST_ALLOC_PERIDX	256
 static firehose_request_t	*fh_request_freehead = NULL;
 static int			 fh_request_bufidx = 0;
-static firehose_request_t	*fh_request_bufs[256] = { 0 };
 
 firehose_request_t *
 fh_request_new(firehose_request_t *ureq)
@@ -485,7 +487,6 @@ fh_request_free(firehose_request_t *req)
 /* ##################################################################### */
 static fh_bucket_t	*fh_buckets_freehead = NULL;
 static int		 fh_buckets_bufidx = 0;
-static fh_bucket_t	*fh_buckets_bufs[FH_BUCKETS_BUFS] = { 0 };
 static int		 fh_buckets_per_alloc = 0;
 
 void
@@ -518,8 +519,6 @@ fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
 	return entry;
 }
 
-int __bucket_alloc = 0;
-
 fh_bucket_t *
 fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 {
@@ -527,8 +526,6 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 
 	FH_TABLE_ASSERT_LOCKED;
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
-
-	__bucket_alloc++;
 
 	/* allocate a new bucket for the table */
 	if (fh_buckets_freehead != NULL) {
@@ -568,6 +565,7 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 
 	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
 	entry->fh_tqe_next = (fh_bucket_t *) -1;
+	entry->fh_state = fh_unused;
 
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
 	assert(fh_bucket_lookup(node, bucket_addr) == entry);
@@ -583,6 +581,7 @@ fh_bucket_remove(fh_bucket_t *entry)
 	FH_TABLE_ASSERT_LOCKED;
 	entry->fh_tqe_next = (fh_bucket_t *) -1;
 	bucket = fh_hash_insert(fh_BucketTable, entry->fh_key, NULL);
+	assert(entry == bucket);
 	memset(bucket, 0, sizeof(fh_bucket_t));
 	bucket->fh_next = fh_buckets_freehead;
 	fh_buckets_freehead = bucket;

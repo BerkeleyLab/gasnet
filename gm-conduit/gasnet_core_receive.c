@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_receive.c,v 1.28.2.5 2003/08/30 10:39:50 csbell Exp $
- * $Date: 2003/08/30 10:39:50 $
- * $Revision: 1.28.2.5 $
+/* $Id: gasnet_core_receive.c,v 1.28.2.6 2003/09/07 09:40:03 csbell Exp $
+ * $Date: 2003/09/07 09:40:03 $
+ * $Revision: 1.28.2.6 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -85,26 +85,21 @@ gasnetc_AMPoll()
 
 	gasnetc_bufdesc_t       *bufd;
 
-	firehose_poll();
+	if (!gm_receive_pending(_gmc.port))
+		return GASNET_OK;
 
 	gasneti_mutex_lock(&gasnetc_lock_gm);
 
-	gasnetc_fifo_progress();
-
 	e = gm_receive(_gmc.port);
-
-	assert(_gmc.rtoks.hi > 0 && _gmc.rtoks.lo > 0);
 
 	switch (gm_ntohc(e->recv.type)) {
 		case GM_NO_RECV_EVENT:
 			gasneti_mutex_unlock(&gasnetc_lock_gm);
 			return GASNET_OK;
 
-#if 0
 		case GM_FAST_HIGH_RECV_EVENT:	/* handle AMReplies */
 		case GM_FAST_HIGH_PEER_RECV_EVENT:
 			fast = 1;
-#endif
 		case GM_HIGH_RECV_EVENT:
 			gasnetc_relinquish_AMReply_token();
 			bufd = gasnetc_bufdesc_from_event(e);
@@ -125,11 +120,10 @@ gasnetc_AMPoll()
 			gasneti_mutex_lock(&gasnetc_lock_gm);
 			gasnetc_provide_AMReply(bufd);
 			break;
-#if 0
+
 		case GM_FAST_RECV_EVENT:	/* handle AMRequests */
 		case GM_FAST_PEER_RECV_EVENT:
 			fast = 1;
-#endif
 		case GM_RECV_EVENT:
 			gasnetc_relinquish_AMRequest_token();
 			bufd = gasnetc_bufdesc_from_event(e);
@@ -167,7 +161,6 @@ gasnetc_AMPoll()
 					gasnetc_provide_AMMedium(bufd);
 			}
 			break;
-			/* gasneti_mutex_lock(&gasnetc_lock_gm); */
 		default:
 			gm_unknown(_gmc.port, e);
 	}
@@ -244,6 +237,8 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 			gasneti_fatalerror("AMRequest type unknown 0x%x",
 			    GASNETC_AM_TYPE(*ptr));
 	}
+
+	gasneti_mutex_assertunlocked(&gasnetc_lock_gm);
 
 	return;
 }
@@ -327,7 +322,7 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 
 	switch (msg) {
 		case GASNETC_SYS_GATHER:
-			assert(gasnetc_mynode == 0);
+			assert(gasnetc_mynode == 0 || (printf("mynode == %d\n", gasnetc_mynode),0));
 			if (len > 4) {
 				paylen = len - 4;
 				memcpy(gasnetc_bootstrapGather_buf + 
@@ -491,7 +486,7 @@ gasnetc_release_rdma(gasnetc_bufdesc_t *bufd)
 		reqs[1] = bufd->local_req;
 		numreqs++;
 	}
-	firehose_release(reqs, numreqs);
+	firehose_release(reqs, numreqs, 1);
 }
 
 void
@@ -550,7 +545,7 @@ gasnetc_callback_hi_rdma(struct gm_port *p, void *ctx,
 		GASNETI_TRACE_PRINTF(C, 
 		    ("GM RDMA Hi Callback: stoks.hi=%d, bufd absent",
 		     _gmc.stoks.hi));
-		firehose_release(&(bufd->remote_req), 1);
+		firehose_release(&(bufd->remote_req), 1, 1);
 	}
 
 	gasnetc_token_hi_release();

@@ -44,6 +44,7 @@ extern gasneti_mutex_t		fh_pollq_lock;
 #endif
 
 /* Utility Macros */
+#define FH_CACHE_LINE_BYTES	(128)
 #define FH_PAGE_MASK		(GASNETI_PAGESIZE-1)
 #define FH_ADDR_ALIGN(addr)	(GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE))
 #define FH_SIZE_ALIGN(addr,len)	(GASNETI_ALIGNUP(addr+len, FH_BUCKET_SIZE)-\
@@ -95,6 +96,8 @@ typedef uint32_t		fh_refc_t;
 #ifdef FIREHOSE_PAGE
 typedef struct _firehose_private_t	fh_bucket_t;
 
+typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused } fh_bstate_t;
+
 struct _firehose_private_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
 #define FH_KEYMAKE(addr,node)	(addr | node)
@@ -105,6 +108,7 @@ struct _firehose_private_t {
 						 /* _must_ be in this order */
 
 	/* FIFO and refcount */
+	fh_bstate_t	fh_state;
 	fh_bucket_t	*fh_tqe_next;		/* -1 when not in FIFO, 
 						   NULL when end of list,
 						   else next pointer in FIFO */
@@ -253,7 +257,7 @@ struct name {				\
 	struct type	*fh_tqh_first;	\
 	struct type	**fh_tqh_last;	\
 }
-#define FH_STAILQ_HEAD(name,type)	FH_TAILQ_HEAD
+#define FH_STAILQ_HEAD(name,type)	FH_TAILQ_HEAD(name,type)
 
 /* QUEUE functions (based on the BSD TAILQ and STAILQ macros of
  * /usr/include/sys/queue.h) */
@@ -291,6 +295,12 @@ struct name {				\
 	FH_STAILQ_LAST(head) = &FH_STAILQ_NEXT(elem);			\
 } while (0)
 
+#define FH_STAILQ_INSERT_HEAD(head, elem) do {				\
+	if ((FH_STAILQ_NEXT(elem) = FH_STAILQ_FIRST(head)) == NULL)	\
+		FH_STAILQ_LAST(head) = &FH_STAILQ_NEXT(elem);		\
+	FH_STAILQ_FIRST(head) = (elem);					\
+} while (0);
+
 #define FH_STAILQ_MERGE(head1, head2) do {				\
 	*(FH_STAILQ_LAST(head1)) = FH_STAILQ_FIRST(head2);		\
 	FH_STAILQ_LAST(head1) = FH_STAILQ_LAST(head2);			\
@@ -327,7 +337,7 @@ struct name {				\
 FH_TAILQ_HEAD(_fh_fifoq_t, _firehose_private_t);
 typedef struct _fh_fifoq_t	fh_fifoq_t;
 
-FH_TAILQ_HEAD(_fh_pollq_t, _fh_callback_t);
+FH_STAILQ_HEAD(_fh_pollq_t, _fh_callback_t);
 typedef struct _fh_pollq_t	fh_pollq_t;
 
 
@@ -396,7 +406,7 @@ void	fh_free_completion_callback(fh_completion_callback_t *rc);
 /* ##################################################################### */
 /* See documentation in firehose_page.c                                  */
 void	fh_acquire_local_region(firehose_region_t *);
-void	fh_release_local_region(firehose_request_t *);
+void	fh_release_local_region(firehose_request_t *, int inhandler);
 
 firehose_request_t *	fh_acquire_remote_region(gasnet_node_t node, 
 				firehose_region_t *reg, 
@@ -404,7 +414,8 @@ firehose_request_t *	fh_acquire_remote_region(gasnet_node_t node,
 				void *context, uint32_t flags,
 		        	firehose_remotecallback_args_t *remote_args,
 				firehose_request_t *ureq);
-void			fh_release_remote_region(firehose_request_t *);
+void			fh_release_remote_region(firehose_request_t *, 
+						 int inhandler);
 void			fh_commit_try_remote_region(gasnet_node_t node, 
 						uintptr_t addr, size_t len);
 void			fh_send_firehose_reply(fh_remote_callback_t *);

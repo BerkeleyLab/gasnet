@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.20.10.5 2003/08/30 10:39:50 csbell Exp $
- * $Date: 2003/08/30 10:39:50 $
- * $Revision: 1.20.10.5 $
+/* $Id: gasnet_core_help.h,v 1.20.10.6 2003/09/07 09:40:03 csbell Exp $
+ * $Date: 2003/09/07 09:40:03 $
+ * $Revision: 1.20.10.6 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -32,17 +32,22 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_GM_MAXPORTS	8
 #define GASNETC_GM_MAXBOARDS	3
 
-#if defined(GM_API_VERSION_2_0) && GM_API_VERSION > GM_API_VERSION_2_0
-#warning using GM 2 GM_API_VERSION
+#if defined(GM_API_VERSION_2_0) && GM_API_VERSION >= GM_API_VERSION_2_0
 #define GASNETC_GM_2
 #endif
 
 /* Puts changed to gm_put in the GM 2.x API revision */
 #ifdef GASNETC_GM_2
 #define GASNETC_GM_PUT	gm_put
+#define GASNETE_GET_NON_DMA_CUTOFF	0
 #else
 #define GASNETC_GM_PUT	gm_directed_send_with_callback
+#define GASNETE_GET_NON_DMA_CUTOFF	8192
 #endif
+
+#define GASNETE_PUT_NON_DMA_CUTOFF	0	
+#define GASNETE_PUT_NON_BULK_CUTOFF	GASNETC_AM_LEN
+#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD	8192
 
 #define GASNETC_SEGMENT_ALIGN	GASNETI_PAGESIZE
 #define GASNETC_BLOCKUNTIL(cond)	do {				\

@@ -205,18 +205,28 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 		fh_dummy_entry_t *cur = (fh_dummy_entry_t *) val;
 
 		while (cur != NULL) {
+			/*
+			 * If the key matches, adjust list and return the entry.
+			 * 
+			 */
 			if (cur->hash_key == key) {
-				if (prev != NULL)
-					prev->hash_next = cur->hash_next;
+				if (prev == NULL)
+					hash->fh_table[keyhash] = 
+						cur->hash_next;
 				else
-					cur = NULL;
-				break;
+					prev->hash_next = cur->hash_next;
+
+				return cur;
 			}
 			prev = cur;
 			cur = cur->hash_next;
 		}
 
-		return val;
+		/*
+		 * No keys found matching deletion request
+		 *
+		 */
+		return NULL;
 	}
 	/* Add the key mapping */
 	else {
