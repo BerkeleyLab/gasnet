@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2003/06/30 21:04:05 $
- * $Revision: 1.12 $
+ *     $Date: 2003/08/25 19:49:02 $
+ * $Revision: 1.12.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -80,7 +80,14 @@ uint64_t test_checksum(void *p, int numbytes) {
   #define PAGESZ 4096
 #endif
 
-#define TEST_SEGSZ          (64*1024)
+#ifdef GASNETI_THREADS
+  #define TEST_MAXTHREADS     256
+  #define TEST_SEGSZ	      (TEST_MAXTHREADS*64*1024)
+#else
+  #define TEST_MAXTHREADS     0
+  #define TEST_SEGSZ          (64*1024)
+#endif
+
 #define TEST_MINHEAPOFFSET  (128*PAGESZ)
 
 #ifdef GASNET_SEGMENT_EVERYTHING
@@ -100,6 +107,7 @@ uint64_t test_checksum(void *p, int numbytes) {
   }
   #define TEST_SEG(node) (_test_getseg(node))
 #endif
+
 #define TEST_MYSEG()          (TEST_SEG(gasnet_mynode()))
 
 #endif

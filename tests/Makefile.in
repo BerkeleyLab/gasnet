@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.6.2.1 2003/08/04 11:06:53 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.6.2.2 2003/08/25 19:49:02 csbell Exp $
 # Description: Makefile for GASNet tests
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,7 +9,7 @@ all:
 
 include $(configfile)
 
-testprograms =      \
+testprograms_seq =  \
 	testam      \
         testbarrier \
 	testcore1   \
@@ -22,10 +22,21 @@ testprograms =      \
         testsmall   \
 	testtools
 
-tests: $(testprograms)
+testprograms_parsync =  \
+
+testprograms_par =  \
+	testthreads
+
+testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par)
+
+tests-seq: clean $(testprograms_seq)
+	
+tests-parsync: clean $(testprograms_seq) $(testprograms_parsync)
+	
+tests-par: clean $(testprograms_seq) $(testprograms_parsync) $(testprograms_par)
 	
 clean:
-	rm -f $(testprograms)
+	rm -f $(testprograms:=@EXESUFFIX@)
 
 distclean: 
 	rm -f Makefile

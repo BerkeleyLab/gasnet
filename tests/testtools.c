@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testtools.c                                    $
- *     $Date: 2003/02/18 12:16:41 $
- * $Revision: 1.6 $
+ *     $Date: 2003/08/25 19:49:02 $
+ * $Revision: 1.6.10.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,14 @@ void * thread_fn(void *arg);
 
 int main() {
 
+  #if defined(GASNETT_PAGESIZE) && defined(GASNETT_PAGESHIFT)
+    if (0x1 << GASNETT_PAGESHIFT != GASNETT_PAGESIZE)
+      printf("ERROR: bad pagesizes: GASNETT_PAGESHIFT=%i GASNETT_PAGESIZE=%i\n",
+              GASNETT_PAGESHIFT, GASNETT_PAGESIZE);
+    else 
+      printf("System page size is 2^%i == %i\n", GASNETT_PAGESHIFT, GASNETT_PAGESIZE);
+  #endif
+   
   printf("Testing high-performance timers...\n");
   { /* high performance timers */
     int i;
