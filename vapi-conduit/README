@@ -85,13 +85,6 @@ Notes for myself for extended API:
 
 @ TO DO @
 
-+ Value puts currently move as follows:
-  - From argument (possible on stack) to automatic variable
-  - From automatic variable to inline send
-  Look at how this might be improved slightly, for instance by taking
-  the address of the argument?  Should a value-put be added to
-  gasnet_core_snd.c?
- 
 + Value gets move as follows:
   - From network to bounce buffer
   - From bounce buffer to _gasnet_valget_op_t or automatic variable

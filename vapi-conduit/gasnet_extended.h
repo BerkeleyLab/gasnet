@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/25 18:04:20 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2003/04/25 20:33:32 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -526,9 +526,8 @@ void _gasnet_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t val
     gasneti_memsync();
   } else {
     gasneti_atomic_t req_oust = gasneti_atomic_init(0);
-    gasnet_register_value_t src = value;
-    GASNETI_TRACE_PUT(PUT_VAL,node,dest,GASNETE_STARTOFBITS(&src,nbytes),nbytes);
-    gasnetc_rdma_put(node, GASNETE_STARTOFBITS(&src,nbytes), dest, nbytes, NULL, &req_oust);
+    GASNETI_TRACE_PUT(PUT_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
+    gasnetc_rdma_put(node, GASNETE_STARTOFBITS(&value,nbytes), dest, nbytes, NULL, &req_oust);
     gasnetc_rdma_wait(&req_oust);
   }
 }
@@ -546,9 +545,8 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t node, void *dest, gasnet_regis
     gasneti_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
-    gasnet_register_value_t src = value;
-    GASNETI_TRACE_PUT(PUT_NB_VAL,node,dest,GASNETE_STARTOFBITS(&src,nbytes),nbytes);
-    return gasnete_put_nb(node, dest, GASNETE_STARTOFBITS(&src,nbytes), nbytes GASNETE_THREAD_PASS);
+    GASNETI_TRACE_PUT(PUT_NB_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
+    return gasnete_put_nb(node, dest, GASNETE_STARTOFBITS(&value,nbytes), nbytes GASNETE_THREAD_PASS);
   }
 }
 #define gasnet_put_nb_val(node,dest,value,nbytes) \
@@ -564,9 +562,8 @@ void _gasnet_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
     gasneti_memsync();
   } else {
-    gasnet_register_value_t src = value;
-    GASNETI_TRACE_PUT(PUT_NBI_VAL,node,dest,GASNETE_STARTOFBITS(&src,nbytes),nbytes);
-    gasnete_put_nbi(node, dest, GASNETE_STARTOFBITS(&src,nbytes), nbytes GASNETE_THREAD_PASS);
+    GASNETI_TRACE_PUT(PUT_NBI_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
+    gasnete_put_nbi(node, dest, GASNETE_STARTOFBITS(&value,nbytes), nbytes GASNETE_THREAD_PASS);
   }
 }
 #define gasnet_put_nbi_val(node,dest,value,nbytes) \
