@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.6 2003/04/07 23:58:47 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.7 2003/04/14 21:44:57 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -11,8 +11,7 @@ thread_defines = @GASNET_THREAD_DEFINES@
 # XXX: As long as we use MPI for bootstrapping
 CC = @MPI_CC@
 
-INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir)        \
-           -I$(top_srcdir)/extended-ref -I@VAPI_INCLUDE@
+INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir) -I@VAPI_INCLUDE@
 	   
 
 filelist =                   \
@@ -23,11 +22,15 @@ filelist =                   \
       gasnet_core.h          \
       gasnet_core_fwd.h      \
       gasnet_core_help.h     \
-      gasnet_core_internal.h 
+      gasnet_core_internal.h \
+      gasnet_extended.c      \
+      gasnet_extended.h      \
+      gasnet_extended_fwd.h  \
+      gasnet_extended_help.h \
+      gasnet_extended_internal.h
 
 othersourcefiles =                             \
-      $(top_srcdir)/gasnet_internal.c          \
-      $(top_srcdir)/extended-ref/gasnet_extended.c 
+      $(top_srcdir)/gasnet_internal.c
 
 EXTRA_DIST = $(filelist) README license.txt
 
@@ -36,6 +39,7 @@ libgasnet_sources =                    \
       $(srcdir)/gasnet_core_snd.c      \
       $(srcdir)/gasnet_core_rcv.c      \
       $(srcdir)/gasnet_bootstrap_mpi.c \
+      $(srcdir)/gasnet_extended.c \
       $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
