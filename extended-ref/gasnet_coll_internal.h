@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/04/01 17:51:59 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2004/04/02 18:53:19 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,7 +54,8 @@ typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t *);
 
 /* Type for collective ops: */
 struct gasnete_coll_op_t_ {
-    /* access serialized by gasnete_coll_table_lock: */
+    /* Linkage used by the active list and ops table.
+     * Access is serialized by gasnete_coll_table_lock: */
     #ifdef GASNETE_COLL_TABLE_OP_FIELDS
 	/* Custom implementation of coll ops table */
 	GASNET_COLL_TABLE_OP_FIELDS
@@ -64,8 +65,15 @@ struct gasnete_coll_op_t_ {
 	gasnete_coll_op_t	*hash_next, *hash_prev;
     #endif
 
-    /* Access serialized by specification+client: */
-    gasnete_coll_op_t		*agg_prev;
+    /* Linkage used by aggregation.
+     * Access is serialized by specification+client: */
+    #ifdef GASNETE_COLL_AGG_OP_FIELDS
+	/* Custom implementation of ops aggregation */
+	GASNET_COLL_TABLE_OP_FIELDS
+    #else
+	/* Custom implementation of ops aggregation */
+    	gasnete_coll_op_t		*agg_prev;
+    #endif
 
     /* Read-only fields: */
     gasnete_coll_team_t		*team;
@@ -77,8 +85,8 @@ struct gasnete_coll_op_t_ {
     void			*data;
     gasnete_coll_poll_fn	poll_fn;
 
-    /* Atomic (self serializing): */
-    gasneti_atomic_t		done;	/* XXX: place on private cache line */
+    /* Not serialized: */
+    int				done;	/* XXX: place on private cache line */
 };
 
 /*---------------------------------------------------------------------------------*/
@@ -89,7 +97,9 @@ extern gasnete_coll_team_t *
 gasnete_coll_team_lookup(uint32_t team_id);
 
 extern gasnete_coll_op_t *
-gasnete_coll_op_lookup(gasnete_coll_team_t *team, uint32_t sequence, unsigned int flags);
+gasnete_coll_op_lookup(gasnete_coll_team_t *team, uint32_t sequence);
+extern gasnete_coll_op_t *
+gasnete_coll_op_create(gasnete_coll_team_t *team, uint32_t sequence, unsigned int flags);
 
 extern void gasnete_coll_poll(void);
 
