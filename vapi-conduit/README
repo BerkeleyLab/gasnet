@@ -2,4 +2,10 @@ README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
 
-NOTHING YET
+Things yet to do and ideas for possible to-dos:
+
+? Remove the VAPI_sr_desc_t and VAPI_sg_lst_entry_t from a send descriptor.  They are not actually needed beyond the time of sending.  Therefore, stack variables may be a better option than a large array.
+
+? Separate "completion" from the send descriptor.  Drop the sync_t in favor of two pointers: comp_func and comp_data.  This gives a nice extendible way to build out the extended API w/o getting all the completion semantics right on the first try.
+
+? Do we need GASNETI_HANDLER_CONCURRENCY and/or GASNETI_FORCE_TRUE_MUTEXES
