@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/28 19:27:16 $
- * $Revision: 1.2.2.7 $
+ *     $Date: 2003/03/31 21:55:01 $
+ * $Revision: 1.2.2.8 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,6 +34,9 @@ VAPI_cq_hndl_t	gasnetc_snd_cq;
 
 gasnetc_regmem_t	gasnetc_rcv_reg;
 gasnetc_regmem_t	gasnetc_snd_reg;
+#if defined(GASNET_SEGMENT_FAST)
+  gasnetc_regmem_t	gasnetc_seg_reg;
+#endif
 
 
 /* Used only once, to exchange addresses at connection time */
@@ -130,32 +133,175 @@ extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 #endif
 
-static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
-  VAPI_mr_t	req_mr;
+GASNET_INLINE_MODIFIER(gasnetc_is_pinned_local)
+int gasnetc_is_pinned_local(uintptr_t start, size_t len) {
+  uintptr_t	end = (start + (len - 1)); /* subtact 1 first, to avoid overflows */
 
-  req_mr.type    = VAPI_MR;
-  req_mr.start   = (uintptr_t)addr;
-  req_mr.size    = size;
-  req_mr.pd_hndl = gasnetc_pd;
-  req_mr.acl     = acl;
+  #if defined(GASNET_SEGMENT_FAST)
+    /* check if the range is entirely in the pinned segment */
+    if ((start >= gasnetc_seg_reg.start) && (end <= gasnetc_seg_reg.end)) {
+      return 1;
+    }
+  #else
+    #error "I don't do anything but FAST yet"
+  #endif
 
-  return VAPI_register_mr(gasnetc_hca, &req_mr, &reg->handle, &reg->props);
+  /* check if the range is entirely in the recv buffer pool */
+  if ((start >= gasnetc_rcv_reg.start) && (end <= gasnetc_rcv_reg.end)) {
+    return 1;
+  }
+
+  /* check if the range is entirely in the send/bounce buffer pool */
+  if ((start >= gasnetc_snd_reg.start) && (end <= gasnetc_snd_reg.end)) {
+    return 1;
+  }
+
+  /* Not pinned */
+  return 0;
 }
 
+GASNET_INLINE_MODIFIER(gasnetc_is_pinned_remote)
+int gasnetc_is_pinned_remote(gasnet_node_t node, uintptr_t start, size_t len) {
+  uintptr_t	end = (start + (len - 1)); /* subtact 1 first, to avoid overflows */
+
+  #if defined(GASNET_SEGMENT_FAST)
+  {
+    /* check if the range is entirely in the remotely pinned segment */
+    uintptr_t segbase = (uintptr_t)gasnetc_seginfo[node].addr;
+    uintptr_t segsize = gasnetc_seginfo[node].size;
+
+    if ((start >= segbase) && (end <= (segbase + (segsize - 1)))) {
+      return 1;
+    }
+  }
+  #else
+    #error "I don't do anything but FAST yet"
+  #endif
+
+  /* Not pinned */
+  return 0;
+}
+
+static void gasnetc_unpin(gasnetc_regmem_t *reg) {
+  VAPI_ret_t vstat;
+
+  vstat = VAPI_deregister_mr(gasnetc_hca, reg->handle);
+  assert(vstat == VAPI_OK);
+}
+
+static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
+  VAPI_mr_t	mr_in;
+  VAPI_mr_t	mr_out;
+  VAPI_ret_t	vstat;
+
+  mr_in.type    = VAPI_MR;
+  mr_in.start   = (uintptr_t)addr;
+  mr_in.size    = size;
+  mr_in.pd_hndl = gasnetc_pd;
+  mr_in.acl     = acl;
+
+  vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &reg->handle, &mr_out);
+
+  reg->lkey	= mr_out.l_key;
+  reg->rkey	= mr_out.r_key;
+  reg->start	= mr_out.start;
+  reg->end	= mr_out.start + (mr_out.size - 1); /* subtract first to avoid overflow */
+  reg->size	= mr_out.size;
+
+  return vstat;
+}
+
+/* mmap and pin some memory, returning its address, or NULL */
 static void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
   VAPI_ret_t vstat;
   void *addr;
 
   addr = gasneti_mmap(size);
-  if (addr) {
+  if (addr != (void *)-1) {
     vstat = gasnetc_pin(addr, size, acl, reg);
     if (vstat != VAPI_OK) {
       gasneti_munmap(addr, size);
       addr = NULL;
     }
+  } else {
+    addr = NULL;
   }
 
   return addr;
+}
+
+#ifdef LINUX
+#define _BUFSZ	120
+static uintptr_t gasnetc_get_physmem()
+{
+  FILE            *fp;
+  char            line[_BUFSZ+1];
+  unsigned long   mem = 0;
+
+  if ((fp = fopen("/proc/meminfo", "r")) == NULL) {
+    gasneti_fatalerror("Can't open /proc/meminfo");
+  }
+
+  while (fgets(line, _BUFSZ, fp)) {
+    if (sscanf(line, "Mem: %ld", &mem) > 0) {
+      break;
+    }
+  }
+  fclose(fp);
+
+  return (uintptr_t) mem;
+}
+#else
+#error "Don't know how to get physical memory size on your O/S"
+#endif
+
+/* Search for largest region we can allocate and pin */
+static uintptr_t gasnetc_max_pinnable(void) {
+  uintptr_t alloc_lo, alloc_hi;
+  uintptr_t pin_lo, pin_hi;
+  uintptr_t size;
+  void *addr;
+  int rc;
+
+  /* binary search for largest mmap() region, starting search at middle */
+  alloc_lo = GASNET_PAGESIZE;
+  alloc_hi = MIN(gasnetc_get_physmem() / 2, (uintptr_t)gasnetc_hca_cap.max_mr_size);
+  alloc_hi = GASNETI_PAGE_ALIGNDOWN(alloc_hi);
+  do {
+    size = GASNETI_PAGE_ALIGNDOWN(alloc_lo + (alloc_hi - alloc_lo) / 2);
+
+    addr = gasneti_mmap(size);
+    if (addr == (void *)-1) {
+      alloc_hi = size;
+    } else {
+      gasneti_munmap(addr, size);
+      alloc_lo = size;
+    }
+  } while (alloc_hi > alloc_lo + GASNET_PAGESIZE);
+  addr = gasneti_mmap(alloc_lo);
+
+  /* Now search for largest pinnable region, starting search at top size */
+  pin_lo = GASNET_PAGESIZE;
+  pin_hi = alloc_lo;
+  size = pin_hi;
+  do {
+    gasnetc_regmem_t reg;
+    VAPI_ret_t vstat;
+
+    vstat = gasnetc_pin(addr, size, 0, &reg);
+    if (vstat != VAPI_OK) {
+      pin_hi = size;
+    } else {
+      gasnetc_unpin(&reg);
+      pin_lo = size;
+    }
+
+    size = GASNETI_PAGE_ALIGNDOWN(pin_lo + (pin_hi - pin_lo) / 2);
+  } while (pin_hi > pin_lo + GASNET_PAGESIZE);
+  gasneti_munmap(addr, alloc_lo);
+
+fprintf(stderr, "%d> Found %u bytes pinnable\n", gasnetc_mynode, (unsigned int)pin_lo);
+  return pin_lo;
 }
 
 static void gasnetc_snd_init(void) {
@@ -213,7 +359,7 @@ static gasnetc_rcv_desc_t *gasnetc_rcv_init(void) {
     desc[i].rr_desc.sg_lst_p   = &desc[i].rr_sg;
     desc[i].rr_sg.len          = GASNETC_BUFSZ;
     desc[i].rr_sg.addr         = (uintptr_t)&buf[i];
-    desc[i].rr_sg.lkey         = gasnetc_rcv_reg.props.l_key;
+    desc[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
   }
 
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
@@ -443,13 +589,15 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   #if defined(GASNET_SEGMENT_FAST)
-    /* XXX: should also examine how much O/S will allow pinned? */
+  {
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
                         &gasnetc_MaxGlobalSegmentSize,
-                        (uintptr_t)gasnetc_hca_cap.max_mr_size,
+                        gasnetc_max_pinnable(),
                         gasnetc_nodes,
                         &gasnetc_bootstrapAllgather);
+  }
   #elif defined(GASNET_SEGMENT_LARGE)
+  {
     /* XXX: Should use max mmap size and pin in multiple ranges
 	Currently just using max region size */
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
@@ -457,9 +605,12 @@ static int gasnetc_init(int *argc, char ***argv) {
                         (uintptr_t)gasnetc_hca_cap.max_mr_size,	/* XXX: should be -1, see note above */
                         gasnetc_nodes,
                         &gasnetc_bootstrapAllgather);
+  }
   #elif defined(GASNET_SEGMENT_EVERYTHING)
+  {
     gasnetc_MaxLocalSegmentSize =  (uintptr_t)-1;
     gasnetc_MaxGlobalSegmentSize = (uintptr_t)-1;
+  }
   #else
     #error Bad segment config
   #endif
@@ -611,8 +762,36 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
      hold/resume interrupts functions are operational yet */
   gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc_inhandler(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+abort();
+  #if defined(GASNET_SEGMENT_FAST)
+    /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapAllgather);
+    segbase = gasnetc_seginfo[gasnetc_mynode].addr;
+    segsize = gasnetc_seginfo[gasnetc_mynode].size;
+
+    /* pin the segment and exchange the RKeys */
+    { VAPI_rkey_t	*rkeys;
+      VAPI_ret_t	vstat;
+      int		i;
+
+      vstat = gasnetc_pin(segbase, segsize,
+			  VAPI_EN_LOCAL_WRITE | VAPI_EN_REMOTE_WRITE | VAPI_EN_REMOTE_READ,
+			  &gasnetc_seg_reg);
+      assert(vstat == VAPI_OK);
+
+      rkeys = calloc(gasnetc_nodes, sizeof(VAPI_rkey_t));
+      assert(rkeys != NULL);
+      gasnetc_bootstrapAllgather(&gasnetc_seg_reg.rkey, sizeof(VAPI_rkey_t), rkeys);
+      for (i=0;i<gasnetc_nodes;i++) {
+        gasnetc_cep[i].rkey = rkeys[i];
+      }
+      free(rkeys);
+    }
+  #elif defined(GASNET_SEGMENT_LARGE)
+    gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapAllgather);
+    segbase = gasnetc_seginfo[gasnetc_mynode].addr;
+    segsize = gasnetc_seginfo[gasnetc_mynode].size;
+    /* (###) add any code here needed to setup GASNET_SEGMENT_LARGE support */
   #else /* GASNET_SEGMENT_EVERYTHING */
     { int i;
       for (i=0;i<gasnetc_nodes;i++) {
@@ -620,10 +799,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         gasnetc_seginfo[i].size = (uintptr_t)-1;
       }
     }
+    segbase = (void *)0;
+    segsize = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
-  segbase = gasnetc_seginfo[gasnetc_mynode].addr;
-  segsize = gasnetc_seginfo[gasnetc_mynode].size;
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
