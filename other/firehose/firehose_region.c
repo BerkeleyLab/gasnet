@@ -672,12 +672,75 @@ fh_release_remote_region(firehose_request_t *request)
 	return;
 }
 
+/*
+ * This function is called by the Firehose reply once a firehose request to pin
+ * functions covered into a region completes.
+ *
+ * The function identifies the private_t's that were marked as 'pending'.
+ * These 'pending buckets' may or may not have requests associated to them.
+ * If they do, then requests pending a callback are added to a list to be run.
+ *
+ * The function returns the amount of callbacks that were added to the list of
+ * pending requests pointing to the 'PendQ' parameter.
+ */
 int
-fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
-			 int nreg, fh_pollq_t *PendQ)
+fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
+			  int nreg, fh_pollq_t *PendQ)
 {
-	/* XXX unimplemented */
-	return 0;
+	int		callspend = 0;
+	int		i;
+
+	FH_TABLE_ASSERT_LOCKED;
+	gasneti_assert(node != fh_mynode);
+
+	FH_STAILQ_INIT(PendQ);
+
+	for (i = 0; i < nreg; i++) {
+		firehose_private_t *priv;
+		fh_completion_callback_t	*ccb;
+
+		/* Find the private_t */
+		priv = fh_lookup_priv(region[i].addr, region[i].len);
+		gasneti_assert(priv != NULL);
+
+		/* Make sure the private_t was set as pending */
+		gasneti_assert(FH_IS_REMOTE_PENDING(priv));
+		FH_BSTATE_ASSERT(priv, fh_pending);
+
+		/* Now make the private_t not pending */
+		FH_UNSET_REMOTE_PENDING(priv);
+		FH_SET_USED(priv);
+		FH_BSTATE_SET(priv, fh_used);
+
+		/* Queue the callbacks */
+		ccb = (fh_completion_callback_t *) priv->fh_tqe_next;
+		gasneti_assert(ccb != NULL);
+
+		while (ccb != FH_COMPLETION_END) {
+			firehose_request_t		*req;
+			fh_completion_callback_t	*next;
+
+			gasneti_assert(ccb->flags & FH_CALLBACK_TYPE_COMPLETION);
+
+			next = (fh_completion_callback_t *) ccb->fh_tqe_next;
+			req = ccb->request;
+
+			gasneti_assert(req && req->flags & FH_FLAG_PENDING);
+
+			FH_STAILQ_INSERT_TAIL(PendQ, (fh_callback_t *) ccb);
+			GASNETI_TRACE_PRINTF(C,
+				    ("Firehose Pending Request (%p,%d) "
+				     "enqueued %p for callback", 
+				     (void *) req->addr, req->len, req));
+			callspend++;
+
+			ccb = next;
+		}
+
+		priv->fh_tqe_next = (firehose_private_t *) FH_COMPLETION_END;
+	}
+
+	return callspend;
 }
 
 /* ##################################################################### */

@@ -491,8 +491,10 @@ void	fh_release_remote_region(firehose_request_t *);
 void	fh_move_request(gasnet_node_t node,
 			firehose_region_t *new_reg, size_t r_new,
 			firehose_region_t *old_reg, size_t r_old);
-int	fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
-				 int nreg, fh_pollq_t *PendQ);
+int	fh_find_pending_callbacks(gasnet_node_t node,
+				  firehose_region_t *region,
+				  int nreg, fh_pollq_t *PendQ);
+
 
 /* ##################################################################### */
 /* Firehose AM-related things (page/region independent)                  */

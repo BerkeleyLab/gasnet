@@ -77,19 +77,13 @@ void	fhi_ReleaseLocalRegionsList(gasnet_node_t node, firehose_region_t *reg,
 /* 
  * Remote region handling
  *
- * TryAcquireRemoteRegion builds a list of regions that are not pinned, while
- * FlushPendingRequests is called once a remote firehose move request is
- * completed in order to mark the remote buckets as pinned and make progress on
- * any firehose request waiting on the buckets to be pinned.
+ * TryAcquireRemoteRegion builds a list of regions that are not pinned.
  *
  * CoalesceBuckets is a utility to minimize the number of regions required to
  * describe a list of buckets (contiguous buckets can be described by a single
  * region).
  *
  */
-int	fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
-			 int nreg, fh_pollq_t *PendQ);
-
 int	fhi_TryAcquireRemoteRegion(firehose_request_t *req, 
 			fh_completion_callback_t *ccb,
 			int *new_regions);
@@ -935,8 +929,8 @@ fh_commit_try_local_region(firehose_request_t *req)
  *
  */
 int
-fhi_FlushPendingRequests(gasnet_node_t node, firehose_region_t *region,
-			 int nreg, fh_pollq_t *PendQ)
+fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
+			  int nreg, fh_pollq_t *PendQ)
 {
 	int		numpend = 0, callspend = 0;
 	uintptr_t	base_addr, end_addr, bucket_addr;

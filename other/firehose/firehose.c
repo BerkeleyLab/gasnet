@@ -1220,7 +1220,7 @@ fh_am_move_reph(gasnet_token_t token, void *addr,
 	 */
 
 	numpend = 
-	    fhi_FlushPendingRequests(node, regions, r_new, &pendCallbacks);
+	    fh_find_pending_callbacks(node, regions, r_new, &pendCallbacks);
 
 	if (numpend > 0) {
 		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
