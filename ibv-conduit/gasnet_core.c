@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/05/20 21:22:33 $
- * $Revision: 1.2.2.40 $
+ *     $Date: 2003/05/28 18:59:25 $
+ * $Revision: 1.2.2.41 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -731,7 +731,7 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
   if (fflush(stderr)) 
     gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
-  sched_yield();
+  gasneti_sched_yield();
   sleep(1); /* pause to ensure everyone has written trace if this is a collective exit */
 
   /* (###) add code here to terminate the job across _all_ nodes 
@@ -774,7 +774,7 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   if (!gasnetc_attach_done) GASNETI_RETURN_ERR(NOT_INIT);
   if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
   memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
-  memcpy(seginfo_table, gasnetc_seginfo, gasnetc_nodes*sizeof(gasnet_seginfo_t));
+  memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
   return GASNET_OK;
 }
 
