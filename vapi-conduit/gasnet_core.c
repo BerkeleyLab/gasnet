@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/31 21:55:31 $
- * $Revision: 1.2.2.9 $
+ *     $Date: 2003/03/31 22:06:44 $
+ * $Revision: 1.2.2.10 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -257,51 +257,52 @@ static uintptr_t gasnetc_get_physmem()
 
 /* Search for largest region we can allocate and pin */
 static uintptr_t gasnetc_max_pinnable(void) {
-  uintptr_t alloc_lo, alloc_hi;
-  uintptr_t pin_lo, pin_hi;
-  uintptr_t size;
+  uintptr_t lo, hi;
+  uintptr_t mmap_size, pin_size;
   void *addr;
   int rc;
 
-  /* binary search for largest mmap() region, starting search at middle */
-  alloc_lo = GASNET_PAGESIZE;
-  alloc_hi = MIN(gasnetc_get_physmem() / 2, (uintptr_t)gasnetc_hca_cap.max_mr_size);
-  alloc_hi = GASNETI_PAGE_ALIGNDOWN(alloc_hi);
+  /* binary search for largest mmap() region */
+  lo = GASNET_PAGESIZE;
+  hi = MIN(gasnetc_get_physmem() / 2, (uintptr_t)gasnetc_hca_cap.max_mr_size);
+  mmap_size = hi = GASNETI_PAGE_ALIGNDOWN(hi);
   do {
-    size = GASNETI_PAGE_ALIGNDOWN(alloc_lo + (alloc_hi - alloc_lo) / 2);
+    mmap_size = GASNETI_PAGE_ALIGNDOWN(lo + (hi - lo) / 2);
 
-    addr = gasneti_mmap(size);
+    addr = gasneti_mmap(mmap_size);
     if (addr == (void *)-1) {
-      alloc_hi = size;
+      hi = mmap_size;
     } else {
-      gasneti_munmap(addr, size);
-      alloc_lo = size;
+      gasneti_munmap(addr, mmap_size);
+      lo = mmap_size;
     }
-  } while (alloc_hi > alloc_lo + GASNET_PAGESIZE);
-  addr = gasneti_mmap(alloc_lo);
 
-  /* Now search for largest pinnable region, starting search at top size */
-  pin_lo = GASNET_PAGESIZE;
-  pin_hi = alloc_lo;
-  size = pin_hi;
+    mmap_size = GASNETI_PAGE_ALIGNDOWN(lo + (hi - lo) / 2);
+  } while (hi > lo + GASNET_PAGESIZE);
+  mmap_size = lo;
+  addr = gasneti_mmap(mmap_size);
+
+  /* Now search for largest pinnable region */
+  lo = GASNET_PAGESIZE;
+  pin_size = hi = mmap_size;
   do {
     gasnetc_regmem_t reg;
     VAPI_ret_t vstat;
 
-    vstat = gasnetc_pin(addr, size, 0, &reg);
+    vstat = gasnetc_pin(addr, pin_size, 0, &reg);
     if (vstat != VAPI_OK) {
-      pin_hi = size;
+      hi = pin_size;
     } else {
       gasnetc_unpin(&reg);
-      pin_lo = size;
+      lo = pin_size;
     }
 
-    size = GASNETI_PAGE_ALIGNDOWN(pin_lo + (pin_hi - pin_lo) / 2);
-  } while (pin_hi > pin_lo + GASNET_PAGESIZE);
-  gasneti_munmap(addr, alloc_lo);
+    pin_size = GASNETI_PAGE_ALIGNDOWN(lo + (hi - lo) / 2);
+  } while (hi > lo + GASNET_PAGESIZE);
+  pin_size = lo;
+  gasneti_munmap(addr, mmap_size);
 
-fprintf(stderr, "%d> Found %u bytes pinnable\n", gasnetc_mynode, (unsigned int)pin_lo);
-  return pin_lo;
+  return pin_size;
 }
 
 static void gasnetc_snd_init(void) {
