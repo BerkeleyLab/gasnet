@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.h                  $
- *     $Date: 2004/06/28 09:40:11 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2004/07/04 22:41:40 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet header for sci conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@ BEGIN_EXTERNC
   Initialization
   ==============
 */
-/* gasnet_init not inlined or renamed because we use redef-name trick on  
+/* gasnet_init not inlined or renamed because we use redef-name trick on
    it to ensure proper version linkage */
 extern int gasnet_init(int *argc, char ***argv);
 
@@ -35,8 +35,8 @@ extern void gasnetc_exit(int exitcode) GASNET_NORETURN;
 
 extern uintptr_t gasnetc_getMaxLocalSegmentSize();
 extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
-#define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize 
-#define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize 
+#define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize
+#define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -50,7 +50,7 @@ gasnet_node_t gasnet_mynode() {
   GASNETI_CHECKINIT();
   return gasnetc_mynode;
 }
- 
+
 GASNET_INLINE_MODIFIER(gasnet_nodes)
 gasnet_node_t gasnet_nodes() {
   GASNETI_CHECKINIT();
@@ -101,16 +101,16 @@ typedef struct _gasnet_hsl_t {
 } gasnet_hsl_t;
 
 #if GASNETI_STATS_OR_TRACE
-  #define GASNETC_LOCK_STAT_INIT ,0 
+  #define GASNETC_LOCK_STAT_INIT ,0
 #else
-  #define GASNETC_LOCK_STAT_INIT  
+  #define GASNETC_LOCK_STAT_INIT
 #endif
 
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
-  #define GASNETC_LOCK_INTERRUPT_INIT 
+  #define GASNETC_LOCK_INTERRUPT_INIT
 #else
-  #define GASNETC_LOCK_INTERRUPT_INIT  
+  #define GASNETC_LOCK_INTERRUPT_INIT
 #endif
 
 #define GASNET_HSL_INITIALIZER { \
@@ -122,7 +122,7 @@ typedef struct _gasnet_hsl_t {
 /* decide whether we have "real" HSL's */
 #if GASNETI_THREADS || GASNETC_USE_INTERRUPTS || /* need for safety */ \
     GASNET_DEBUG || GASNETI_STATS_OR_TRACE       /* or debug/tracing */
-  #ifdef GASNETC_NULL_HSL 
+  #ifdef GASNETC_NULL_HSL
     #error bad defn of GASNETC_NULL_HSL
   #endif
 #else

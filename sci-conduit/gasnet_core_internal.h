@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/06/28 09:40:11 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2004/07/04 22:41:40 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -52,7 +52,7 @@ typedef struct
 
 typedef struct
 {
-	uint16_t header;	/*  handler (8 bits) + msg type (1 bit, request/reply) + AM type (2 bits) + num_arg (4 bits) */
+	uint16_t header;	/*  handler (8 bits) + msg type (1 bit, request/reply) + AM type (2 bits) + num_arg (5 bits) */
                                 /*  msg type: 0 = request; 1 = reply; */
                                 /*  AM type: 0 = short; 1 = medium; 2 = long; 3 = control (basic return msg to free mls); */
 } gasnetc_Command_header_t;
@@ -110,7 +110,7 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 #define GASNETC_SCI_FALSE				0
 #define GASNETC_SCI_MAX_REQUEST_MSG			2
 #define GASNETC_SCI_MAX_HANDLER_NUMBER			256
-#define GASNETC_SCI_COMMAND_MESSAGE_SIZE		1096 /*  1024 + 72 = size of the longest header */
+#define GASNETC_SCI_COMMAND_MESSAGE_SIZE		1096 /*  1024 + 76 = size of the longest header */
 #define GASNETC_SCI_MODE_SWITCH_SIZE                    1024 /*  exact size for max medium payload */
 #define GASNETC_SCI_NUM_DMA_QUEUE			2
 #define GASNETC_SCI_MAX_DMA_QUEUE_USAGE			1
@@ -375,7 +375,7 @@ uint8_t gasnetc_get_AM_type (uint16_t header)
 GASNET_INLINE_MODIFIER(gasnetc_get_msg_num_arg)
 uint8_t gasnetc_get_msg_num_arg (uint16_t header)
 {
-        return ((uint8_t) (header & 15));
+        return ((uint8_t) (header & 31));
 }
 
 /********************************************************

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.c                  $
- *     $Date: 2004/06/28 09:40:11 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2004/07/04 22:41:40 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -60,7 +60,6 @@ void gasnetc_sci_call_exit(unsigned int sig)
 #include <sys/time.h>
 gasneti_mutex_t		AMPoll_mutex = GASNETI_MUTEX_INITIALIZER;
 gasneti_mutex_t		AMRequest_mutex = GASNETI_MUTEX_INITIALIZER;
-gasneti_mutex_t		AMReply_mutex = GASNETI_MUTEX_INITIALIZER;
 
 
 /* ------------------------------------------------------------------------------------ */
@@ -361,7 +360,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_bootstrapBarrier();
   gasneti_mutex_init(&AMPoll_mutex);
   gasneti_mutex_init(&AMRequest_mutex);
-  gasneti_mutex_init(&AMReply_mutex);
   gasnetc_sci_internal_barrier_flag = GASNETC_SCI_FALSE;
 
   return GASNET_OK;
@@ -379,13 +377,11 @@ extern void gasnetc_exit(int exitcode) {
 
   gasneti_mutex_destroy(&AMPoll_mutex);
   gasneti_mutex_destroy(&AMRequest_mutex);
-  gasneti_mutex_destroy(&AMReply_mutex);
   /* used to ensure gasnet_exit is not called by two functions at once */
-  /* if(gasnetc_exit_began == 0) */
-  /* {//go ahead */
+  
   pthread_mutex_lock(&gasnetc_sci_cb_exit);
   gasnetc_exit_began = 1;
-  pthread_mutex_unlock(&gasnetc_sci_cb_exit);
+  pthread_mutex_unlock(&gasnetc_sci_cb_exit); 
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -407,12 +403,28 @@ extern void gasnetc_exit(int exitcode) {
            after raising a SIGQUIT to inform the client of the exit
   */
 
-  /* disconnect from everybody -- triggers a callback function on everybody's node */
+  /* disconnect from everybody -- triggers a callback function on everybody's node and tells them to shut down
+     This disconnects all mailboxes and payload regions
+  */
+
   for (i = 0; i < (gasnetc_nodes+2) ; i++)
   {
-	  SCISetSegmentUnavailable(gasnetc_sci_localSegment[i], gasnetc_sci_localAdapterNo,SCI_FLAG_FORCE_DISCONNECT ,&gasnetc_sci_error);
+	  if( (gasneti_attach_done == 1)) /*gasnet_attach() completed successfully so disconnect all segments from the network*/
+	  {
+		SCISetSegmentUnavailable(gasnetc_sci_localSegment[i], gasnetc_sci_localAdapterNo,SCI_FLAG_FORCE_DISCONNECT,&gasnetc_sci_error);
+	  }
+	  else 
+	  {/* attach was not completed so don't set the main payload region unavailable as it
+	          was never created. This should be the rare case.*/
+		if( i != gasnetc_nodes ) /* as long as this isn't the payload region, disconnect from the network */
+		  {
+			SCISetSegmentUnavailable(gasnetc_sci_localSegment[i], gasnetc_sci_localAdapterNo,SCI_FLAG_FORCE_DISCONNECT,&gasnetc_sci_error);
+		  }
+	  }
+
   }
 
+  /* if attach was completed, disconnect from all the remote segments*/
   if(gasneti_attach_done == 1)
 	{
 	  for (i =0 ; i < gasnetc_nodes ; i++)
@@ -424,10 +436,11 @@ extern void gasnetc_exit(int exitcode) {
   /* unmap all segments */
   for (i = 0; i < gasnetc_nodes; i++ )
   {
-	  SCIUnmapSegment(gasnetc_sci_localMap[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
-	  SCIUnmapSegment(gasnetc_sci_remoteMap[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
-	  SCIUnmapSegment(gasnetc_sci_remoteMap_gb[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
+	  SCIUnmapSegment(gasnetc_sci_localMap[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error); 
+	  SCIUnmapSegment(gasnetc_sci_remoteMap[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error); 
+	 /* SCIUnmapSegment(gasnetc_sci_remoteMap_gb[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error); -- forced disconnect takes care of this*/   
   }
+
   /* close all descriptors */
   for (i = 0; i < (gasnetc_nodes + 2); i++)
   {
@@ -447,13 +460,13 @@ extern void gasnetc_exit(int exitcode) {
 	  }
 	}
 
-
   /* free all SCI related resources */
   SCITerminate();
 
-   gasnetc_free_env ();
+  /* free all memory allocated by the conduit */
+  gasnetc_free_env ();
 
-	done =1;
+  done =1;
 
   gasneti_killmyprocess(exitcode);
   abort();
@@ -731,12 +744,9 @@ extern int gasnetc_AMReplyShortM(
 
 	void * gr_addr = gasnetc_gr_get_addr (curr_token->source_id);
 
-        gasneti_mutex_lock(&AMReply_mutex);
-
 	gasnetc_mls_set (curr_token->source_id, curr_token->msg_number + GASNETC_SCI_MAX_REQUEST_MSG);
 	retval = gasnetc_SM_transfer (curr_token->source_id, GASNETC_SCI_MAX_REQUEST_MSG + curr_token->msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_SHORT, handler, numargs, args, NULL, 0, gr_addr, NULL);
 
-        gasneti_mutex_unlock(&AMReply_mutex);
 	va_end(argptr);
 
 
@@ -771,12 +781,8 @@ extern int gasnetc_AMReplyMediumM(
 
 	void * gr_addr = gasnetc_gr_get_addr (curr_token->source_id);
 
-        gasneti_mutex_lock(&AMReply_mutex);
-
 	gasnetc_mls_set (curr_token->source_id, curr_token->msg_number + GASNETC_SCI_MAX_REQUEST_MSG);
 	retval = gasnetc_SM_transfer (curr_token->source_id, GASNETC_SCI_MAX_REQUEST_MSG + curr_token->msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_MEDIUM, handler, numargs, args, source_addr, nbytes, gr_addr, NULL);
-
-        gasneti_mutex_unlock(&AMReply_mutex);
 
 	va_end(argptr);
 
@@ -821,8 +827,6 @@ extern int gasnetc_AMReplyLongM(
 	gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
         void * gr_addr = gasnetc_gr_get_addr (curr_token->source_id);
 
-        gasneti_mutex_lock(&AMReply_mutex);
-
 	/*  payload transfer */
         if (nbytes > GASNETC_SCI_MODE_SWITCH_SIZE)
         {
@@ -833,8 +837,6 @@ extern int gasnetc_AMReplyLongM(
 	/*  command transfer */
 	gasnetc_mls_set (curr_token->source_id, curr_token->msg_number + GASNETC_SCI_MAX_REQUEST_MSG);
 	retval = gasnetc_SM_transfer (curr_token->source_id, GASNETC_SCI_MAX_REQUEST_MSG + curr_token->msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_LONG, handler, numargs, args, source_addr, nbytes, gr_addr, dest_addr);
-
-        gasneti_mutex_unlock(&AMReply_mutex);
 
 	va_end(argptr);
 
@@ -893,7 +895,7 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
 extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
 
-  { 
+  {
     #if GASNETI_STATS_OR_TRACE
       gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
     #endif
@@ -945,7 +947,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
         hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
-        /* conduits with interrupt-based handler dispatch need to add code here to 
+        /* conduits with interrupt-based handler dispatch need to add code here to
            disable handler interrupts on _this_ thread, (if this is the outermost
            HSL lock acquire and we're not inside an enclosing no-interrupt section)
          */
