@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2004/08/26 04:53:36 $
- * $Revision: 1.61 $
+ * $Date: 2004/10/06 05:48:45 $
+ * $Revision: 1.61.6.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -262,8 +262,6 @@ struct _gasnetc_state {
 	unsigned int	my_port;
 	unsigned int	my_board;
 	unsigned long	job_magic;	/* job magic */
-	uintptr_t	pinnable_local;
-	uintptr_t	pinnable_global;
 
 	struct sockaddr_in	master_addr;
 	struct sockaddr_in	slave_addr;
@@ -271,13 +269,6 @@ struct _gasnetc_state {
 
 	void		*reqsbuf;	/* DMAd portion of send buffers */
 	struct gm_port	*port;		/* GM port structure */
-
-#ifdef GASNETC_FIREHOSE
-	uintptr_t	fh_M;		/* size of M parameter */
-	unsigned long	firehoses;	/* number of per-node firehoses */
-	uintptr_t	fh_maxvictim;	/* size of MaxVictim parameter */
-#endif
-
 } gasnetc_state_t;	
 
 extern gasnetc_state_t	_gmc;

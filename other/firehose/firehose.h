@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2004/08/26 04:53:57 $
- * $Revision: 1.10 $
+ *     $Date: 2004/10/06 05:48:47 $
+ * $Revision: 1.10.6.1 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@ typedef struct _firehose_private_t	firehose_private_t;
        FIREHOSE_CLIENT_T is only defined if FIREHOSE_REGION is defined.
 #endif
 
-#define FIREHOSE_API_VERSION	0x100
+#define FIREHOSE_API_VERSION	0x101
 
 /* The firehose request type is returned as a read-only type from
  * firehose local and remote pin functions.  Based on the address and
@@ -408,6 +408,22 @@ firehose_fini(void);
 extern void
 firehose_poll(void);
 #endif
+
+/*************************
+ * Firehose Segment Sizes
+ *************************
+ *
+ * Clients can retrieve M and Maxvictim values if firehose is given 
+ * a maximum amount of pinnable memory.
+ *
+ * AM-handler context: Irrelevent, but safe.
+ *
+ */
+extern 
+void
+firehose_get_params(uintptr_t max_pinnable_memory, 
+		 uintptr_t *M, uintptr_t *Maxvictim);
+
 
 /********************************************************************/
 /* FIREHOSE PINNING FUNCTIONS (LOCAL & REMOTE)                      */

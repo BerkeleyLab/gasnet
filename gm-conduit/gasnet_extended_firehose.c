@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2004/10/02 10:59:47 $
- * $Revision: 1.41.6.1 $
+ * $Date: 2004/10/06 05:48:45 $
+ * $Revision: 1.41.6.2 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -101,13 +101,14 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 			      gm_status_t status)
 {
 	gasnete_eop_t		*pop = (gasnete_eop_t *) context;
+	gasnet_node_t		node = pop->node;
 	gasneti_stattime_t      starttime = GASNETI_STATTIME_NOW_IFENABLED(C);
 	const firehose_request_t	*fhreqs[2];
 	int				numreqs = 1;
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(pop != NULL);
-	gasneti_assert(pop->req_remote.node < gasnete_nodes);
+	gasneti_assert(node != gasnete_mynode && node < gasnete_nodes);
 
 	if_pf (status != GM_SUCCESS)
 	    gasnetc_callback_error(status, NULL);
@@ -115,8 +116,8 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("Firehose decrement remote refcount for (%p,%d) on node %d (op=%p,%p,%d)\n",
-	     (void *) pop->dest, pop->len, (unsigned) pop->req_remote.node, 
-	     (void *) pop, (void *)pop->req_remote.addr, (int)pop->req_remote.len));
+	     (void *) pop->dest, pop->len, (unsigned) node, (void *) pop, 
+	     (void *)pop->req_remote.addr, (int)pop->req_remote.len));
 
 	fhreqs[0] = &(pop->req_remote);
 
@@ -130,11 +131,17 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 	else  {
 		fhreqs[1] = pop->req_local;
 		numreqs++;
+		#ifdef GASNET_SEGMENT_FAST
+		/* Only release locally for "fast" segment */
+		firehose_release(fhreqs+1, 1);
+		#endif
 	}
 
+	#ifndef GASNET_SEGMENT_FAST
 	GASNETE_GM_SET_IN_UNKNOWN();
 	firehose_release(fhreqs, numreqs);
 	GASNETE_GM_UNSET_IN_UNKNOWN();
+	#endif
 
 	gasnete_op_markdone((gasnete_op_t *)pop, 0);
 
@@ -157,11 +164,12 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 			int allLocalHit)
 {
 	gasnete_eop_t	*pop = (gasnete_eop_t *) _pop;
-	gasnet_node_t	node = req->node;
+	gasnet_node_t	node;
 
 	gasneti_assert(pop != NULL);
 	gasneti_assert(pop->src > 0 && pop->dest > 0);
-	gasneti_assert(node < gasnete_nodes);
+	node = pop->node;
+	gasneti_assert(node != gasnete_mynode && node < gasnete_nodes);
 	gasneti_assert(pop->len > 0);
 	gasneti_assert(req == &(pop->req_remote));
 
@@ -170,7 +178,7 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("Firehose directed send(%p): (%d,%p) <- %p (%d bytes)", 
-	     (void *) pop, (unsigned) pop->req_remote.node, (void *) pop->dest, 
+	     (void *) pop, (unsigned) node, (void *) pop->dest, 
 	     (void *) pop->src, pop->len));
 	#if GASNETI_STATS_OR_TRACE
 	if (!allLocalHit)
@@ -197,6 +205,7 @@ gasnete_firehose_put_bulk(gasnet_node_t node, void *dest, void *src,
 	pop->src = (uintptr_t) src;
 	pop->dest = (uintptr_t) dest;
 	pop->len = (uint32_t) nbytes;
+	pop->node = node;
 	pop->iop = iop;
 	SET_OPMISC(pop, OPMISC_NONAMBUF);
 	#if GASNETI_STATS_OR_TRACE
@@ -211,9 +220,13 @@ gasnete_firehose_put_bulk(gasnet_node_t node, void *dest, void *src,
 	pop->req_local = 
 	    firehose_local_pin((uintptr_t) src, nbytes, NULL);
 
-	firehose_remote_pin(node, (uintptr_t) dest, nbytes,
-	    0, (firehose_request_t *) &(pop->req_remote), NULL,
-	    gasnete_fh_request_put, pop);
+	#ifdef GASNET_SEGMENT_FAST
+	    gasnete_fh_request_put(pop, &(pop->req_remote), 1);
+	#else
+	    firehose_remote_pin(node, (uintptr_t) dest, nbytes,
+		0, (firehose_request_t *) &(pop->req_remote), NULL,
+		gasnete_fh_request_put, pop);
+	#endif
 
 	return (gasnete_op_t *) pop;
 }
@@ -259,6 +272,7 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 	bufd = gasnetc_AMRequestPool_block();
 
 	pop = gasnete_eop_new(GASNETE_MYTHREAD);
+	pop->node = node;
 	pop->src = (uintptr_t) bufd->buf;
 	pop->dest = (uintptr_t) dest;
 	pop->len = (uint32_t) nbytes;
@@ -274,9 +288,13 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 	if (iop != NULL)
 		iop->initiated_put_cnt++;
 
-	firehose_remote_pin(node, (uintptr_t) dest, nbytes,
-	    0, (firehose_request_t *) &(pop->req_remote), NULL,
-	    gasnete_fh_request_put, pop);
+	#ifdef GASNET_SEGMENT_FAST
+	    gasnete_fh_request_put(pop, &(pop->req_remote), 1);
+	#else
+	    firehose_remote_pin(node, (uintptr_t) dest, nbytes,
+		0, (firehose_request_t *) &(pop->req_remote), NULL,
+		gasnete_fh_request_put, pop);
+	#endif
 	
 	return (gasnete_op_t *) pop;
 }
@@ -367,13 +385,17 @@ gasnete_get_fh_done(gasnete_eop_t *eop)
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("Firehose decrement remote refcount for (%p,%d) on node %d\n",
-	     (void *) eop->src, eop->len, (unsigned) eop->req_remote.node));
+	     (void *) eop->src, eop->len, (unsigned) eop->node));
 
 	/* Gets with DMA are a result of a local pin and remote pin request */
 	fhreqs[0] = eop->req_local;
-	fhreqs[1] = &(eop->req_remote);
 
-	firehose_release(fhreqs, 2);
+	#ifdef GASNET_SEGMENT_FAST
+	    firehose_release(fhreqs, 1);
+	#else
+	    fhreqs[1] = &(eop->req_remote);
+	    firehose_release(fhreqs, 2);
+	#endif
 
 	gasnete_op_markdone((gasnete_op_t *) eop, 1);
 
@@ -420,7 +442,7 @@ gasnete_fh_callback_get(struct gm_port *p, void *context,
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(gop != NULL);
-	gasneti_assert(gop->req_remote.node < gasnete_nodes);
+	gasneti_assert(gop->node!=gasnete_mynode && gop->node < gasnete_nodes);
 
 	if_pf (status != GM_SUCCESS)
 	    gasnetc_callback_error(status, NULL);
@@ -441,11 +463,12 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req,
 			int allLocalHit)
 {
 	gasnete_eop_t	*gop = (gasnete_eop_t *) _gop;
-	gasnet_node_t	node = req->node;
+	gasnet_node_t	node;
 
 	gasneti_assert(gop != NULL);
 	gasneti_assert(gop->src > 0 && gop->dest > 0);
-	gasneti_assert(node < gasnete_nodes);
+	node = gop->node;
+	gasneti_assert(node != gasnete_mynode && node < gasnete_nodes);
 	gasneti_assert(gop->len > 0);
 
 	/* If the get callback hit the firehose cache (allLocalHit > 0), we can
@@ -534,13 +557,13 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req, int allLocalHi
 
 	gasneti_assert(gop != NULL);
 	gasneti_assert(gop->src != 0 && gop->dest != 0);
-	gasneti_assert(req->node < gasnete_nodes);
+	gasneti_assert(gop->node != gasnete_mynode && gop->node < gasnete_nodes);
 
 	/* If the remote pages are known to be pinned, send a request for RDMA
 	 * */
 	if (allLocalHit) {
 		SHORT_REQ(5, 9,
-		    (req->node, gasneti_handleridx(gasnete_get_dma_reqh), 
+		    (gop->node, gasneti_handleridx(gasnete_get_dma_reqh), 
 		     gop->len,
 		     PACK(gop->dest), PACK(gop->src), PACK(gop), PACK(gop)));
 
@@ -551,7 +574,7 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req, int allLocalHi
 	else {
 	    GASNETI_TRACE_PRINTF(C, 
 		("Firehose RDMA GET w/ PutRev (%p): %p <- (%d,%p) (%d bytes)", 
-		gop, (void *) gop->dest, (unsigned) req->node, 
+		gop, (void *) gop->dest, (unsigned) gop->node, 
 		(void *) gop->src, gop->len));
 
 	    #if GASNETI_STATS_OR_TRACE
@@ -579,6 +602,7 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	gop->dest = (uintptr_t) dest;
 	gop->src = (uintptr_t) src;
 	gop->len = nbytes;
+	gop->node = node;
 	gop->iop = iop;
 	SET_OPMISC(gop, OPMISC_NONAMBUF);
 	#if GASNETI_STATS_OR_TRACE
@@ -593,16 +617,21 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	gop->req_local = 
 	    firehose_local_pin((uintptr_t) dest, nbytes, NULL);
 
-	/* Since Put is in reverse direction, the source is the local address
-	 * and the destination is the remote address */
-	args.local_addr  = (uintptr_t) src;
-	args.remote_addr = (uintptr_t) dest;
-	args.nbytes      = nbytes;
+	#ifdef GASNET_SEGMENT_FAST
+	    /* We know the remote segment is pinned */
+	    gasnete_fh_request_get(gop, &(gop->req_remote), 1);
+	#else
+	    /* Since Put is in reverse direction, the source is the local address
+	     * and the destination is the remote address */
+	    args.local_addr  = (uintptr_t) src;
+	    args.remote_addr = (uintptr_t) dest;
+	    args.nbytes      = nbytes;
 
-	firehose_remote_pin(node, (uintptr_t) src, nbytes,
-	    FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK,
-	    (firehose_request_t *) &(gop->req_remote), &args, 
-	    gasnete_fh_request_get, gop);
+	    firehose_remote_pin(node, (uintptr_t) src, nbytes,
+		FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK,
+		(firehose_request_t *) &(gop->req_remote), &args, 
+		gasnete_fh_request_get, gop);
+	#endif
 
 	return (gasnete_op_t *) gop;
 }

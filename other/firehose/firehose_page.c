@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_page.c,v $
- *     $Date: 2004/08/26 04:53:57 $
- * $Revision: 1.37 $
+ *     $Date: 2004/10/06 05:48:47 $
+ * $Revision: 1.37.6.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,6 +106,8 @@ void	fh_dump_counters();
 static int		fh_max_regions = 0;
 static uintptr_t *	fh_temp_buckets = NULL;
 static fh_bucket_t **	fh_temp_bucket_ptrs = NULL;
+
+static void fh_dump_fhparams(FILE *fp);
 
 /*
  * The bucket table
@@ -484,6 +486,82 @@ fh_FreeVictim(int buckets, firehose_region_t *reg, fh_fifoq_t *fifo_head)
 	return j+1;
 }
 
+static uintptr_t   fh_M         = (uintptr_t) 0;
+static uintptr_t   fh_Maxvictim = (uintptr_t) 0;
+static uintptr_t   fh_MaxPinnableMemory = (uintptr_t) 0;
+
+/*
+ * Given an amount of max_pinnable_memory, return what the largest 'M'
+ * parameter can be.
+ */
+
+#define FH_PRINTMB(d)	    ((int)((d)/(1024*1024)))
+
+void
+firehose_get_params(uintptr_t max_pinnable_memory, 
+		 uintptr_t *M, uintptr_t *Maxvictim)
+{
+    uintptr_t nM, nMaxvictim;
+
+    if (fh_MaxPinnableMemory == max_pinnable_memory && fh_M && fh_Maxvictim) {
+	*M = fh_M;
+	*Maxvictim = fh_Maxvictim;
+	return;
+    }
+
+    fh_MaxPinnableMemory = max_pinnable_memory;
+
+    nM = fh_getenv("GASNET_FIREHOSE_M", (1<<20));
+    nMaxvictim   = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_M", (1<<20));
+
+    /* First assign values based on either what the user passed or what
+     * is determined to be the best M and maxvictim parameters based on
+     * max_pinnable_memory and FH_MAXVICTIM_TO_PHYSMEM_RATIO */
+
+    if (nM == 0 && nMaxvictim == 0) {
+    	nM         = max_pinnable_memory * (1-FH_MAXVICTIM_TO_PHYSMEM_RATIO);
+    	nMaxvictim = max_pinnable_memory * FH_MAXVICTIM_TO_PHYSMEM_RATIO;
+    }
+    else if (nM == 0) {
+	if_pf (nMaxvictim > max_pinnable_memory)
+	    gasneti_fatalerror("GASNET_FIREHOSE_MAXVICTIM_M (%d Mb) is larger "
+		"than the amount of determined pinnable memory (%d Mb)\n", 
+		FH_PRINTMB(nMaxvictim), FH_PRINTMB(max_pinnable_memory));
+    	nM = max_pinnable_memory - nMaxvictim;
+    }
+    else if (nMaxvictim == 0) {
+	if_pf (nM > max_pinnable_memory)
+	    gasneti_fatalerror("GASNET_FIREHOSE_MAXVICTIM_M (%d Mb) is larger "
+		"than the amount of determined pinnable memory (%d Mb)\n", 
+		FH_PRINTMB(nM), FH_PRINTMB(max_pinnable_memory));
+    	nMaxvictim = max_pinnable_memory - nM;
+    }
+
+    /* 
+     * Validate firehose parameters parameters 
+     */ 
+    {
+        uintptr_t M_min = FH_BUCKET_SIZE * gasnet_nodes() * 1024;
+        uintptr_t maxvictim_min = FH_BUCKET_SIZE * 4096;
+
+        if_pf (nM < M_min)
+    	gasneti_fatalerror("GASNET_FIREHOSE_M is less"
+    		    "than the minimum %lu (%lu buckets)", 
+		    (unsigned long) M_min, 
+    		    (unsigned long) (M_min >> FH_BUCKET_SHIFT));
+
+        if_pf (nMaxvictim < maxvictim_min)
+    	gasneti_fatalerror("GASNET_MAXVICTIM_M is less than the "
+    		    "minimum %lu (%lu buckets)", 
+		    (unsigned long) maxvictim_min,
+    		    (unsigned long) (maxvictim_min >> FH_BUCKET_SHIFT));
+    }
+
+    fh_M = *M = nM;
+    fh_Maxvictim = *Maxvictim = nMaxvictim;
+    return;
+}
+
 
 /* fh_init_plugin()
  *
@@ -496,9 +574,9 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	       const firehose_region_t *regions, size_t num_reg,
 	       firehose_info_t *fhinfo)
 {
-    int		    i;
-    unsigned long   M, maxvictim, firehoses, m_prepinned = 0;
-    size_t	    b_prepinned = 0;
+    int	      i,j;
+    uintptr_t M, maxvictim, firehoses, m_prepinned = 0;
+    size_t    b_prepinned = 0;
 
         /* Initialize the Bucket table to 128k lists */
     fh_BucketTable = fh_hash_create((1<<17));
@@ -528,52 +606,23 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 
         }
     }
-
-    M           = fh_getenv("GASNET_FIREHOSE_M", (1<<20));
     m_prepinned = FH_BUCKET_SIZE * b_prepinned;
-    maxvictim   = fh_getenv("GASNET_FIREHOSE_MAXVICTIM_M", (1<<20));
 
-    GASNETI_TRACE_PRINTF(C, 
-        ("Firehose M=%ld, MAXVICTIM_M=%ld", M, maxvictim));
+    firehose_get_params(max_pinnable_memory, (uintptr_t *)&M, 
+		     (uintptr_t *)&maxvictim);
 
-    /* First assign values based on either what the user passed or what
-     * is determined to be the best M and maxvictim parameters based on
-     * max_pinnable_memory and FH_MAXVICTIM_TO_PHYSMEM_RATIO */
-
-    if (M == 0 && maxvictim == 0) {
-    	M         = (unsigned long) max_pinnable_memory *
-    			(1-FH_MAXVICTIM_TO_PHYSMEM_RATIO);
-    	maxvictim = (unsigned long) max_pinnable_memory *
-    			    FH_MAXVICTIM_TO_PHYSMEM_RATIO;
-    }
-    else if (M == 0)
-    	M = max_pinnable_memory - maxvictim;
-    else if (maxvictim == 0)
-    	maxvictim = max_pinnable_memory - M;
-
-    /* 
-     * Validate firehose parameters parameters 
-     */ 
-    {
-        unsigned long M_min = FH_BUCKET_SIZE * gasnet_nodes() * 1024;
-        unsigned long maxvictim_min = FH_BUCKET_SIZE * 4096;
-
-        if_pf (M < M_min)
-    	gasneti_fatalerror("GASNET_FIREHOSE_M is less"
-    		    "than the minimum %lu (%lu buckets)", M_min, 
-    		    M_min >> FH_BUCKET_SHIFT);
-
-        if_pf (maxvictim < maxvictim_min)
-    	gasneti_fatalerror("GASNET_MAXVICTIM_M is less than the "
-    		    "minimum %lu (%lu buckets)", maxvictim_min,
-    		    maxvictim_min >> FH_BUCKET_SHIFT);
-
-        if_pf (M - m_prepinned < M_min)
-    	gasneti_fatalerror("Too many buckets passed on initial"
-    		    " pinned bucket list (%d) for current "
+    if_pf (M < m_prepinned)
+    	gasneti_fatalerror("Too much memory prepinned (%lu) for current "
     		    "GASNET_FIREHOSE_M parameter (%lu)", 
-    		    (int) b_prepinned, M);
-    }
+		    (unsigned long) m_prepinned, (unsigned long) M);
+
+    fh_MaxPinnableMemory = max_pinnable_memory;
+    if (gasnet_getenv("GASNET_FIREHOSE_VERBOSE"))
+	fh_dump_fhparams(stderr);
+
+    GASNETI_TRACE_PRINTF(C, ("Firehose M=(%d MB,%ld), MAXVICTIM_M=(%d MB,%ld)", 
+		    FH_PRINTMB(M), (unsigned long) M, 
+		    FH_PRINTMB(maxvictim), (unsigned long) maxvictim));
 
     /* 
      * Set local parameters
@@ -592,14 +641,13 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 
     /* Initialize bucket freelist with the total amount of buckets
      * to be pinned (including the ones the client passed) */
-    fh_bucket_init_freelist(
-    	firehoses + fhc_MaxVictimBuckets + b_prepinned);
+    fh_bucket_init_freelist(firehoses + fhc_MaxVictimBuckets);
 
     /*
      * Prepin optimization: PHASE 2.
      *
      * In this phase, the firehose parameters have been validated and the
-     * buckets are added to the firehose table and set as 'used'.
+     * buckets are added to the firehose table and sent to the FIFO
      *
      */
     if (num_reg > 0) {
@@ -615,11 +663,20 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 
 		FH_BSTATE_SET(bd, fh_used);
 		FH_SET_LOCAL_INUSE(bd);
-		//FH_TRACE_BUCKET(bd, ADDING PREPINNED);
+		FH_BUCKET_REFC(bd)->refc_l = 1;
+		FH_BUCKET_REFC(bd)->refc_r = 0;
+		/*
+		 * Eventually, we may want to have an option where the client
+		 * passes a list of regions to prepin, but allow that these
+		 * pinned pages be unpinned as replacements later */
+		#if 0
+		if (gasnet_getenv("GASNET_FIREHOSE_REUSE_PREPINNED")
+		    fh_priv_release_local(1, bd);
+		#endif
 	    }
         }
         GASNETI_TRACE_PRINTF(C, ("Firehose Prepinned (%p,%d) total=%d bytes",
-	     (void *) regions[i].addr, (int) regions[i].len,
+	     (void *) regions[0].addr, (int) regions[0].len,
 	     (int) b_prepinned));
     }
 
@@ -652,15 +709,18 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
     	    fhc_MaxVictimBuckets * FH_BUCKET_SIZE;
         fhinfo->max_RemotePinSize = 
     	    fhc_MaxRemoteBuckets * FH_BUCKET_SIZE;
-	/* XXX for testing purposes */
         fh_max_regions = 
-    		FH_MIN_REGIONS_FOR_BUCKETS(fhc_MaxRemoteBuckets*16);
+		MAX(
+		    FH_MIN_REGIONS_FOR_BUCKETS(fhc_MaxVictimBuckets),
+    		    FH_MIN_REGIONS_FOR_BUCKETS(fhc_MaxRemoteBuckets)
+		);
 
         GASNETI_TRACE_PRINTF(C, 
     	    ("Firehose M=%ld (fh=%ld),maxregions=%d,prepinned=%ld (buckets=%d)",
-    	    M, firehoses, fh_max_regions, m_prepinned, (int) b_prepinned));
+    	    (unsigned long) M, (unsigned long) firehoses, fh_max_regions, 
+	    (unsigned long) m_prepinned, (int) b_prepinned));
         GASNETI_TRACE_PRINTF(C, ("Firehose Maxvictim=%ld (fh=%d)",
-    	    maxvictim, fhc_MaxVictimBuckets));
+    	    (unsigned long) maxvictim, fhc_MaxVictimBuckets));
 
         GASNETI_TRACE_PRINTF(C, 
     	    ("MaxLocalPinSize=%d\tMaxRemotePinSize=%d", 
@@ -2205,8 +2265,6 @@ fh_acquire_remote_region(firehose_request_t *req,
     FH_TABLE_ASSERT_LOCKED;
 
     /* Make sure the size of the region respects the remote limits */
-    /* XXX should this check be done in non-assert */
-    gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_RemoteBucketsM);
     gasneti_assert(req->node != fh_mynode);
     b_total = FH_NUM_BUCKETS(req->addr, req->len);
 
@@ -2532,10 +2590,6 @@ fhuni_TryAcquireRemoteRegion(firehose_request_t *req,
 
 	b_num = FH_NUM_BUCKETS(req->addr, req->len);
 
-	/* Validate the maximum number of regions required to describe these
-	 * buckets */
-	gasneti_assert(FH_MIN_REGIONS_FOR_BUCKETS(b_num) <= fh_max_regions); 
-
  	FH_FOREACH_BUCKET(req->addr, end_addr, bucket_addr) {
 
 	    bd = fh_bucket_lookup(node, bucket_addr);
@@ -2555,6 +2609,8 @@ fhuni_TryAcquireRemoteRegion(firehose_request_t *req,
 
 	        next_addr = bucket_addr + FH_BUCKET_SIZE;
 	        unpinned++;
+
+		gasneti_assert(unpinned <= fh_max_regions);
 
 	        if (!has_callback) {
 	            fh_PendingCallbacksEnqueue(req, bd, ccb, FH_COMPLETION_END);
@@ -2685,10 +2741,6 @@ fh_acquire_remote_region(firehose_request_t *req,
 	fh_completion_callback_t  ccb;
 	gasnet_node_t node;
 
-	/* Make sure the size of the region respects the remote limits */
-	/* XXX should this check be done in non-assert */
-	gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
-						<= fhc_RemoteBucketsM);
 	FH_TABLE_ASSERT_LOCKED;
 
 	node = req->node;
@@ -2725,6 +2777,13 @@ fh_acquire_remote_region(firehose_request_t *req,
 
 		gasneti_assert(req->internal != NULL);
 		gasneti_assert(req->flags & FH_FLAG_PENDING);
+
+		/* Make sure the size of the region respects the remote limits */
+		if_pf(notpinned > fhc_RemoteBucketsM)
+		    gasneti_fatalerror("Region of %ld bytes too large for only "
+		       "%d available remote firehoses (%ld bytes)",
+		       (unsigned long) req->len, fhc_RemoteBucketsM,
+		       (unsigned long) fhc_RemoteBucketsM*FH_BUCKET_SIZE);
 
 		/* If the remote victim fifo is not full, no replacements are
 		 * necessary */
@@ -2888,6 +2947,27 @@ fh_move_request(gasnet_node_t node,
 	FH_TABLE_UNLOCK;
 
 	return b_num;
+}
+
+static
+void
+fh_dump_fhparams(FILE *fp)
+{
+    if (fh_mynode)
+	return;
+
+    if (fp == NULL)
+	fp = stderr;
+
+    fprintf(fp, "MaxPinnable Memory = %8u MB, %lu bytes\n", 
+		FH_PRINTMB(fh_MaxPinnableMemory), 
+		(unsigned long) fh_MaxPinnableMemory);
+    fprintf(fp, "Firehose M         = %8u MB, %lu bytes\n", 
+		FH_PRINTMB(fh_M), (unsigned long) fh_M);
+    fprintf(fp, "Firehose MaxVictim = %8u MB, %lu bytes\n", 
+		FH_PRINTMB(fh_Maxvictim), (unsigned long) fh_Maxvictim);
+    fflush(fp);
+    return;
 }
 
 void

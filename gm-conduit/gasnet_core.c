@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2004/10/02 10:59:47 $
- * $Revision: 1.69.2.1 $
+ * $Date: 2004/10/06 05:48:45 $
+ * $Revision: 1.69.2.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -26,6 +26,7 @@ gasnet_node_t	gasnetc_mynode = (gasnet_node_t)-1;
 gasnet_node_t	gasnetc_nodes = 0;
 uintptr_t	gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t	gasnetc_MaxGlobalSegmentSize = 0;
+uintptr_t	gasnetc_MaxPinnableMemory = 0;
 
 gasnet_seginfo_t *gasnetc_seginfo = NULL;
 firehose_info_t	  gasnetc_firehose_info;
@@ -61,6 +62,8 @@ static void gasnetc_check_config() {
 static int 
 gasnetc_init(int *argc, char ***argv)
 {
+	uintptr_t   max_segmentsize;
+
 	/* check system sanity */
 	gasnetc_check_config();
 
@@ -81,36 +84,45 @@ gasnetc_init(int *argc, char ***argv)
 	gasnetc_AllocGatherBufs();
 
 	gasnetc_bootstrapBarrier();
+	gasneti_init_done = 1; /* Not really done, but need getenv internally */
 
-	/* Find the upper bound on pinnable memory for firehose algorithm and
-	 * segment fast */
+	/* 
+	 * Find the upper bound on pinnable memory for firehose algorithm.
+	 *
+	 * After getting a global minimum on the amount of pinnable physical
+	 * memory, we ask firehose what the M/MaxVictim parameters are for tje
+	 * current job.
+	 */
 	{
 		int	i;
+		uintptr_t M, MaxVictim;
 		uintptr_t *global_exch = (uintptr_t *)
 		    gasneti_malloc(gasnetc_nodes*sizeof(uintptr_t));
 
-		_gmc.pinnable_local =
-			gasnetc_getPhysMem() * GASNETC_PHYSMEM_PINNABLE_RATIO;
-		_gmc.pinnable_global = (uintptr_t) -1;
+		gasnetc_MaxPinnableMemory = 
+		    gasnetc_getPhysMem() * GASNETC_PHYSMEM_PINNABLE_RATIO;
 
-		gasnetc_bootstrapExchange(&_gmc.pinnable_local, 
-		    sizeof(uintptr_t), global_exch);
+		gasnetc_bootstrapExchange(
+		    &gasnetc_MaxPinnableMemory, sizeof(uintptr_t), global_exch);
 
 		for (i = 0; i < gasnetc_nodes; i++) 
-			_gmc.pinnable_global = MIN(_gmc.pinnable_global, 
-						   global_exch[i]);
+		    gasnetc_MaxPinnableMemory = 
+			MIN(gasnetc_MaxPinnableMemory, global_exch[i]);
 		gasneti_free(global_exch);
-	}
 
-	#if GASNET_DEBUG_VERBOSE
-	printf("%d> done firehose exchange\n", gasnetc_mynode);
-	#endif
+		firehose_get_params(gasnetc_MaxPinnableMemory, &M, &MaxVictim);
+		#ifdef GASNET_SEGMENT_FAST
+		    max_segmentsize = M;
+		#else
+		    max_segmentsize = (uintptr_t) -1;
+		#endif
+	}
 
 	#if defined(GASNET_SEGMENT_FAST) 
 	gasneti_segmentInit(
 	    &gasnetc_MaxLocalSegmentSize,
 	    &gasnetc_MaxGlobalSegmentSize,
-	    _gmc.pinnable_global,
+	    max_segmentsize,
             gasnetc_nodes,
             &gasnetc_bootstrapExchange);
 
@@ -118,7 +130,7 @@ gasnetc_init(int *argc, char ***argv)
 	gasneti_segmentInit(
 	    &gasnetc_MaxLocalSegmentSize,
 	    &gasnetc_MaxGlobalSegmentSize,
-	    (uintptr_t)-1,
+	    max_segmentsize,
 	    gasnetc_nodes,
 	    &gasnetc_bootstrapExchange);
 
@@ -415,7 +427,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			preg = &prereg;
 		}
 
-		firehose_init(_gmc.pinnable_global, 0, preg, pnum,
+		firehose_init(gasnetc_MaxPinnableMemory, 0, preg, pnum,
 					&gasnetc_firehose_info);
 	}
 	#else /* GASNET_SEGMENT_EVERYTHING | GASNET_SEGMENT_LARGE */
@@ -432,7 +444,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 		    }
 		#endif
 
-		firehose_init(_gmc.pinnable_global, 0, NULL, 0,
+		firehose_init(gasnetc_MaxPinnableMemory, 0, NULL, 0,
 			&gasnetc_firehose_info);
 	}
 	#endif
