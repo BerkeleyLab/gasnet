@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/14 17:37:44 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2004/05/17 22:34:55 $
+ * $Revision: 1.1.2.14 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -637,7 +637,44 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       size_t nbytes;
     } gasnete_coll_broadcast_data_t;
 
-    static int gasnete_coll_pf_bcast(gasnete_coll_op_t *op) {
+    /* bcast AG -> All Get algorithm */
+    static int gasnete_coll_pf_bcast_AG(gasnete_coll_op_t *op) {
+      gasnete_coll_broadcast_data_t *data = op->data;
+      gasnete_coll_generic_data_t *gen = &(data->gen);
+      int result = 0;
+
+      switch (gen->state) {
+ 	case 0:
+	  if (!gasnete_coll_generic_insync(gen)) {
+	    break;
+	  }
+	  gen->state = 1;
+
+	case 1:
+	  gen->handle = gasnet_get_nb_bulk(data->dst, data->srcnode, data->src, data->nbytes);
+	  gen->state = 2;
+
+	case 2:
+          if (!gasnete_coll_generic_syncnb(gen)) {
+	    break;
+	  }
+	  gen->state = 3;
+
+	case 3:
+	  if (!gasnete_coll_generic_outsync(gen)) {
+	    break;
+	  }
+
+	/* DONE: */
+  	  gasneti_free(op->data);
+	  result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+      }
+
+      return result;
+    }
+
+    /* bcast RP -> Root Put algorithm */
+    static int gasnete_coll_pf_bcast_RP(gasnete_coll_op_t *op) {
       gasnete_coll_broadcast_data_t *data = op->data;
       gasnete_coll_generic_data_t *gen = &(data->gen);
       int result = 0;
@@ -656,13 +693,19 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	    void   *dst   = data->dst;
 	    size_t nbytes = data->nbytes;
 
-	    /* Queue PUTS */
-	    /* XXX: Schedule this */
+	    /* Queue PUTS in an NBI access region */
 	    gasnet_begin_nbi_accessregion();
-	    for (i = 0; i < gasnete_nodes; ++i) {
+	    /* Put to nodes to the "right" of ourself */
+	    for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
 	      gasnet_put_nbi_bulk(i, dst, src, nbytes);
 	    }
-	    gen->handle  = gasnet_end_nbi_accessregion();
+	    /* Put to nodes to the "left" of ourself */
+	    for (i = 0; i < gasnete_mynode; ++i) {
+	      gasnet_put_nbi_bulk(i, dst, src, nbytes);
+	    }
+	    gen->handle = gasnet_end_nbi_accessregion();
+	    /* Do local copy LAST, perhaps overlapping with communication */
+	    GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes); 
 	  }
 	  gen->state = 2;
 
@@ -712,7 +755,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       data->gen.out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = &gasnete_coll_pf_bcast;
+      poll_fn = &gasnete_coll_pf_bcast_RP;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn);
     }
