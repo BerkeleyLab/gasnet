@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/11/10 10:06:25 $
- * $Revision: 1.13 $
+ *     $Date: 2004/08/30 05:04:42 $
+ * $Revision: 1.13.6.1 $
  * Description: GASNet header for elan conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,8 @@
 
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
+
+BEGIN_EXTERNC
 
 #define GASNET_CORE_VERSION      1.3
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
@@ -68,5 +70,7 @@ extern void gasnetc_fatalsignal_callback(int sig);
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
+
+END_EXTERNC
 
 #endif

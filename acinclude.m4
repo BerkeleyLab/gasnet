@@ -1,3 +1,8 @@
+dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
+dnl     $Date: 2004/08/30 05:04:38 $
+dnl $Revision: 1.24.2.3 $
+dnl Description: m4 macros
+dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
 
 dnl determine the autoconf version used to build configure script 
@@ -10,26 +15,47 @@ AUTOCONF_VERSION=`echo $AUTOCONF_VERSION_STR | $AWK -F. '{ printf("%i%i",[$]1,[$
 AC_MSG_RESULT($AUTOCONF_VERSION_STR)
 ])
 
-dnl GASNET_GCC296CHECK(type)  type=CC or CXX
-AC_DEFUN([GASNET_GCC296CHECK],[
-AC_MSG_CHECKING(known buggy compilers)
+dnl GASNET_GCC_VERSION_CHECK(type)  type=CC or CXX
+AC_DEFUN([GASNET_GCC_VERSION_CHECK],[
+AC_MSG_CHECKING(for known buggy compilers)
+badgccmsg=""
 AC_TRY_COMPILE([
 #if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
 # error
 #endif
-],[ ], [ AC_MSG_RESULT(ok) ],[
+],[ ], [:], [
 AC_MSG_RESULT([$1] is gcc 2.96)
-gcc296msg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
+badgccmsg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
 It is not an official GNU release and has many serious known bugs, especially \
 in the optimizer, which may lead to bad code and incorrect runtime behavior. \
 Consider using \$[$1] to select a different compiler."
 GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [
-  AC_MSG_WARN([$gcc296msg])
+  AC_MSG_WARN([$badgccmsg])
   ],[
-  AC_MSG_ERROR([$gcc296msg \
+  AC_MSG_ERROR([$badgccmsg \
   You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])
 ])
 ])
+AC_TRY_COMPILE([
+#if __GNUC__ == 3 && __GNUC_MINOR__ == 2 && __GNUC_PATCHLEVEL__ <= 2
+# error
+#endif
+],[ ], [:], [
+AC_MSG_RESULT([$1] is gcc 3.2.0-2)
+badgccmsg="Use of gcc/g++ 3.2.0-2 for compiling this software is strongly discouraged. \
+This version has a serious known bug in the optimizer regarding structure copying, \
+which may lead to bad code and incorrect runtime behavior when optimization is enabled. \
+Consider using \$[$1] to select a different compiler."
+GASNET_IF_ENABLED(allow-gcc32, Allow the use of the known broken gcc/g++ 3.2.0-2 compiler, [
+  AC_MSG_WARN([$badgccmsg])
+  ],[
+  AC_MSG_ERROR([$badgccmsg \
+  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc32 flag.])
+])
+])
+if test -z "$badgccmsg"; then
+  AC_MSG_RESULT(ok)
+fi
 ])
 
 AC_DEFUN([GASNET_FIX_SHELL],[
@@ -451,6 +477,29 @@ GASNET_TRY_CXXCOMPILE_WITHWARN([], [], [
  $3
 ])])
 
+dnl GASNET_SET_CHECKED_CFLAGS CCVAR CFLAGSVAR DEFAULT_CFLAGS SAFE_CFLAGS
+dnl Set CFLAGSVAR to a values that works with CCVAR 
+dnl if CFLAGSVAR is already set, then keep it
+dnl otherwise, if DEFAULT_CFLAGS works, then use it
+dnl otherwise, use SAFE_CFLAGS
+AC_DEFUN([GASNET_SET_CHECKED_CFLAGS],[
+if test "$[$2]" != "" ; then
+  GASNET_ENV_DEFAULT([$2], []) # user-provided flags
+else
+  GASNET_ENV_DEFAULT([$2], [$3]) # try DEFAULT_CFLAGS
+  oldCC="$CC"
+  oldCFLAGS="$CFLAGS"
+  CC="$[$1]"
+  CFLAGS=""
+    GASNET_TRY_CFLAG([$[$2]], [], [
+	AC_MSG_WARN([Unable to use default $2="$[$2]" so using "$4" instead. Consider manually seting $2])
+        $2="$4"
+    ])
+  CC="$oldCC"
+  CFLAGS="$oldCFLAGS"
+fi
+])
+
 AC_DEFUN([GASNET_TRY_CACHE_CHECK],[
 AC_CACHE_CHECK($1, cv_prefix[]$2,
 AC_TRY_COMPILE([$3], [$4], cv_prefix[]$2=yes, cv_prefix[]$2=no))
@@ -512,7 +561,7 @@ AC_DEFUN([GASNET_PROG_CPP], [
   AC_LANG_C
   gasnet_progcpp_extrainfo=
   dnl deal with preprocessors who foolishly return success exit code even when they saw #error
-  if test -n "`$CPP -version 2>&1 | grep MIPSpro`" ; then
+  if test -n "`$CPP -version 2>&1 < /dev/null | grep MIPSpro`" ; then
     dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
@@ -540,7 +589,7 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
   AC_LANG_CPLUSPLUS
   gasnet_progcxxcpp_extrainfo=
   dnl deal with preprocessors who foolishly return success exit code even when they saw #error
-  if test -n "`$CXXCPP -version 2>&1 | grep MIPSpro`" ; then
+  if test -n "`$CXXCPP -version 2>&1 < /dev/null | grep MIPSpro`" ; then
     dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcxxcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
@@ -594,6 +643,26 @@ AC_DEFUN([GASNET_PROG_CXX], [
   AC_LANG_RESTORE
 ])
 
+dnl find working version of perl.  Checks to see if 'bytes' module is available,
+dnl and sets GASNET_PERL_BYTESFLAG to either '-Mbytes' or empty string, for
+dnl scripts that need to ward off Perl/UTF-8 issues 
+AC_DEFUN([GASNET_PROG_PERL],[
+  GASNET_PATH_PROGS(PERL, perl5 perl, perl)
+  MIN_PERL_VERSION="5.005"
+  AC_MSG_CHECKING(for perl version $MIN_PERL_VERSION or later)
+  if $PERL -e "require $MIN_PERL_VERSION;" 2>/dev/null; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_ERROR(cannot find perl $MIN_PERL_VERSION or later)
+  fi
+  if $PERL -Mbytes -e "exit 0" 2>/dev/null; then
+    GASNET_PERL_BYTESFLAG="-Mbytes"
+  else
+    GASNET_PERL_BYTESFLAG=
+  fi
+  AC_SUBST(GASNET_PERL_BYTESFLAG)
+])
+
 AC_DEFUN([GASNET_IFDEF],[
 AC_TRY_CPP([
 #ifndef $1
@@ -609,7 +678,8 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
   GASNET_IFDEF(__PGI, $3=PGI)
   GASNET_IFDEF(__xlC__, $3=XLC)
   GASNET_IFDEF(__KCC, $3=KAI)
-  GASNET_IFDEF(__SUNPRO_C, $3=Sun)
+  GASNET_IFDEF(__SUNPRO_C, $3=Sun)  dnl Sun C
+  GASNET_IFDEF(__SUNPRO_CC, $3=Sun) dnl Sun C++
   GASNET_IFDEF(_CRAYC, $3=Cray)
   GASNET_IFDEF(__INTEL_COMPILER, $3=Intel)
   GASNET_IFDEF(__DECC, $3=Compaq)

@@ -1,3 +1,10 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
+ *     $Date: 2004/08/30 05:05:06 $
+ * $Revision: 1.5.2.1 $
+ * Description: 
+ * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
+ * Terms of use are as specified in license.txt
+ */
 #include <firehose.h>
 #include <firehose_internal.h>
 #include <gasnet.h>
@@ -636,7 +643,7 @@ fhi_init_local_region(int local_ref, firehose_region_t *region)
     /* Create the new table entries w/ proper ref counts */
     priv = fh_create_priv(fh_mynode, region);
     FH_BSTATE_SET(priv, fh_used);
-    FH_SET_USED(priv);
+    FH_SET_LOCAL_INUSE(priv);
     FH_BUCKET_REFC(priv)->refc_l = local_ref;
     FH_BUCKET_REFC(priv)->refc_r = !local_ref;
     FH_TRACE_BUCKET(priv, INIT);
@@ -883,7 +890,13 @@ fhi_hang_callback(firehose_private_t *priv, firehose_request_t *req,
     ccb->callback = callback;
     ccb->context = context;
 
-    ccb->fh_tqe_next = (fh_completion_callback_t *) priv->fh_tqe_next;
+    /* CSB: Make sure the end of the list contains a completion end tag */
+    if ((void *)priv->fh_tqe_next == NULL)
+	ccb->fh_tqe_next = FH_COMPLETION_END;
+    else
+	ccb->fh_tqe_next = (fh_completion_callback_t *) priv->fh_tqe_next;
+
+    gasneti_assert(ccb->fh_tqe_next != NULL);
     priv->fh_tqe_next = (firehose_private_t *) ccb;
                                                                                                               
     gasneti_assert(req->internal == NULL);
@@ -892,10 +905,10 @@ fhi_hang_callback(firehose_private_t *priv, firehose_request_t *req,
     FH_TRACE_BUCKET(priv, PENDADD);
                                                                                                               
     GASNETI_TRACE_PRINTF(C, ("Firehose Pending ADD priv=%p "
-                             "(%p,%d), req=%p", priv,
+                             "(%p,%d), req=%p", (void *) priv,
                              (void *) FH_BADDR(priv),
 			     (int) FH_NODE(priv->bucket),
-                             req));
+                             (void *) req));
 
     req->flags |= FH_FLAG_PENDING;
 }
@@ -948,6 +961,7 @@ fh_acquire_remote_region(firehose_request_t *req,
         priv = fh_create_priv(node, pin_region);
         FH_BSTATE_SET(priv, fh_pending);
         FH_SET_REMOTE_PENDING(priv);
+	FH_BUCKET_REFC(priv)->refc_r = 1;
         FH_TRACE_BUCKET(priv, INIT);
 
 	fhi_hang_callback(priv, req, callback, context);
@@ -1069,7 +1083,6 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 	fh_update_priv(priv, region);
 
 	/* Now make the private_t not pending */
-	FH_UNSET_REMOTE_PENDING(priv);
 	FH_BSTATE_SET(priv, fh_used);
 
 	/* Queue the callbacks */
@@ -1094,13 +1107,13 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
 		GASNETI_TRACE_PRINTF(C,
 			    ("Firehose Pending Request (%p,%d) "
 			     "enqueued %p for callback", 
-			     (void *) req->addr, (int) req->len, req));
+			     (void *) req->addr, (int) req->len, (void *) req));
 		callspend++;
 
 		ccb = next;
 	}
 
-	FH_SET_USED(priv);
+	FH_SET_REMOTE_INUSE(priv);
 
 	return callspend;
 }
@@ -1399,7 +1412,7 @@ fh_fini_plugin(void)
 /* ACTIVE MESSAGES                                                       */
 /* ##################################################################### */
 
-void
+int
 fh_move_request(gasnet_node_t node,
 		firehose_region_t *new_reg, size_t r_new,
 		firehose_region_t *old_reg, size_t r_old,
@@ -1446,7 +1459,7 @@ fh_move_request(gasnet_node_t node,
 
 	FH_TABLE_UNLOCK;
 
-	return;
+	return 1;
 }
 
 #endif

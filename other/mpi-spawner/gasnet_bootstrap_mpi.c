@@ -1,10 +1,15 @@
 /*  $Archive:: gasnet/vapi-conduit/gasnet_bootstrap_mpi.c                  $
- *     $Date: 2003/10/24 01:37:44 $
- * $Revision: 1.4 $
+ *     $Date: 2004/08/30 05:05:22 $
+ * $Revision: 1.4.8.1 $
  * Description: GASNet vapi conduit implementation, mpi bootstrap code
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
  */
+
+/* Work around mpicc which always wants to perform an optimized build */
+#ifndef GASNET_ALLOW_OPTIMIZED_DEBUG
+  #define GASNET_ALLOW_OPTIMIZED_DEBUG 1
+#endif
 
 #include <signal.h>
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/06/17 01:16:30 $
- * $Revision: 1.50.2.1 $
+ *     $Date: 2004/08/30 05:04:38 $
+ * $Revision: 1.50.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,6 +36,18 @@ int gasneti_VerboseErrors = 1;
 
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
   gasnet_hsl_t gasneti_atomicop_lock = GASNET_HSL_INITIALIZER;
+  void *gasneti_patomicop_lock = (void*)&gasneti_atomicop_lock;
+  GASNETI_GENERIC_DEC_AND_TEST_DEF
+#endif
+
+#if GASNETI_THROTTLE_POLLERS
+  gasneti_atomic_t gasneti_throttle_haveusefulwork = gasneti_atomic_init(0);
+  gasneti_mutex_t gasneti_throttle_spinpoller = GASNETI_MUTEX_INITIALIZER;
+#endif
+#if GASNET_DEBUG && GASNETI_THREADS
+  pthread_key_t gasneti_throttledebug_key;
+#elif GASNET_DEBUG
+  int gasneti_throttledebug_cnt = 0;
 #endif
 
 #define GASNET_VERSION_STR  _STRINGIFY(GASNET_VERSION)
@@ -112,6 +124,18 @@ extern void gasneti_check_config_preinit() {
       gasneti_fatalerror("GASNet was built in uniprocessor (non-SMP-safe) configuration, "
         "but executed on an SMP. Please re-run GASNet configure with --enable-smp-safe and rebuild");
   #endif
+
+  { static int firstcall = 1;
+    if (firstcall) { /* miscellaneous conduit-independent initializations */
+      firstcall = 0;
+      #if GASNET_DEBUG && GASNETI_THREADS
+      {
+        int retval = pthread_key_create(&gasneti_throttledebug_key, NULL);
+        if (retval) gasneti_fatalerror("In gasneti_check_config_preinit(), pthread_key_create()=%s",strerror(retval));
+      }
+      #endif
+    }
+  }
 }
 
 extern void gasneti_check_config_postattach() {
@@ -154,7 +178,7 @@ extern void gasneti_killmyprocess(int exitcode) {
     pthread_kill_other_threads_np();
   #endif
   _exit(exitcode); /* use _exit to bypass atexit handlers */
-  abort();
+  gasneti_fatalerror("gasneti_killmyprocess failed to kill the process!");
 }
 /* ------------------------------------------------------------------------------------ */
 #if defined(__sgi) || defined(__crayx1)
@@ -573,7 +597,7 @@ extern void gasneti_unsetenv(const char *key) {
   GASNETI_IDENT(gasneti_IdentString_stats, "$GASNetStatisticsEnabled: 1 $");
 #endif
 
-static gasneti_mutex_t gasneti_tracelock = GASNETI_MUTEX_INITIALIZER;
+gasneti_mutex_t gasneti_tracelock = GASNETI_MUTEX_INITIALIZER;
 char gasneti_tracetypes[256];
 char gasneti_statstypes[256];
 FILE *gasneti_tracefile = NULL;
@@ -693,8 +717,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
       } else {
         /*  first time we've seen this thread - need to set it up */
         gasneti_srclineinfo_t *srclineinfo = gasneti_calloc(1,sizeof(gasneti_srclineinfo_t));
-        int retval = pthread_setspecific(gasneti_srclineinfo_key, srclineinfo);
-        gasneti_assert(!retval);
+        gasneti_assert_zeroret(pthread_setspecific(gasneti_srclineinfo_key, srclineinfo));
         return srclineinfo;
       }
     }
@@ -751,27 +774,27 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   /* format a block of data into a string and return it - 
      caller should not deallocate string, they are recycled automatically
    */
-  extern char *gasneti_formatdata(void *p, int nbytes) { 
+  extern char *gasneti_formatdata(void *p, size_t nbytes) { 
     uint8_t *data = (uint8_t *)p;
     char *output = gasneti_getbuf();
     *output = '\0';
     if (nbytes <= 8) { /* fits on one line */
-      int i;
+      size_t i;
       for (i=0; i < nbytes; i++) {
         char temp[5];
         sprintf(temp,"%02x ",(int)data[i]);
         strcat(output, temp);
       }
     } else {
-      int line;
-      int col;
-      int byteidx = 0;
+      size_t line;
+      size_t col;
+      size_t byteidx = 0;
       strcat(output,"\n");
       for (line=0;line<MAX_LINES && byteidx<nbytes;line++) {
         char nicefmt[BYTES_PER_LINE+1];
         char lineheader[10];
         nicefmt[0] = '\0';
-        sprintf(lineheader, "  0x%-2x:  ", byteidx);
+        sprintf(lineheader, "  0x%-2x:  ", (int)byteidx);
         strcat(output, lineheader);
         for (col=0;col<BYTES_PER_LINE && byteidx<nbytes;col++) {
           char temp[5];
@@ -1019,9 +1042,7 @@ extern void gasneti_trace_init(int argc, char **argv) {
   }
 
   #if GASNET_TRACE && GASNETI_CLIENT_THREADS
-  { int retval = pthread_key_create(&gasneti_srclineinfo_key, NULL);
-    if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-  }
+    gasneti_assert_zeroret(pthread_key_create(&gasneti_srclineinfo_key, NULL));
   #endif
 
   { time_t ltime;
@@ -1092,6 +1113,8 @@ extern void gasneti_trace_init(int argc, char **argv) {
 AGGR(G);
 AGGR(P);
 AGGR(S);
+AGGR(W);
+AGGR(X);
 AGGR(B);
 AGGR(L);
 AGGR(A);
@@ -1195,6 +1218,18 @@ extern void gasneti_trace_finish() {
             (int)p->maxval,
             (int)p->sumval);
       }
+      if (GASNETI_STATS_ENABLED(W)) {
+        gasneti_stat_intval_t *w = &AGGRNAME(intval,W);
+        if (!w->count)
+          gasneti_stats_printf("%-25s  %6i","Total collectives:",0);
+        else
+          gasneti_stats_printf("%-25s  %6i  avg/min/max/total sz = %i/%i/%i/%i", "Total collectives:",
+            (int)w->count,
+            (int)CALC_AVG(w->sumval, w->count),
+            (int)w->minval,
+            (int)w->maxval,
+            (int)w->sumval);
+      }
       if (GASNETI_STATS_ENABLED(S)) {
         gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,S);
         gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,S);
@@ -1209,6 +1244,25 @@ extern void gasneti_trace_finish() {
         else
           gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %i/%i/%i/%i", 
             "Total wait sync. calls:", ((int)wait_time->count),
+            (int)GASNETI_STATTIME_TO_US(CALC_AVG(wait_time->sumval, wait_time->count)),
+            (int)GASNETI_STATTIME_TO_US(wait_time->minval),
+            (int)GASNETI_STATTIME_TO_US(wait_time->maxval),
+            (int)GASNETI_STATTIME_TO_US(wait_time->sumval));
+      }
+      if (GASNETI_STATS_ENABLED(X)) {
+        gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,X);
+        gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,X);
+        if (!try_succ->count)
+          gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
+        else
+          gasneti_stats_printf("%-25s  %6i  collective try success rate = %f%%  \n",
+            "Total coll. try syncs:",  ((int)try_succ->count),
+            (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
+        if (!wait_time->count)
+          gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
+        else
+          gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %i/%i/%i/%i", 
+            "Total coll. wait syncs:", ((int)wait_time->count),
             (int)GASNETI_STATTIME_TO_US(CALC_AVG(wait_time->sumval, wait_time->count)),
             (int)GASNETI_STATTIME_TO_US(wait_time->minval),
             (int)GASNETI_STATTIME_TO_US(wait_time->maxval),
@@ -1397,11 +1451,14 @@ extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gas
     return ret;
   }
 #endif
-/* extern versions of gasneti_malloc/gasnet_free for use in public headers */
+/* extern versions of gasneti_{malloc,free,strdup} for use in public headers */
 extern void *gasneti_extern_malloc(size_t sz) {
   return gasneti_malloc(sz);
 }
 extern void gasneti_extern_free(void *p) {
   gasneti_free(p);
+}
+extern char *gasneti_extern_strdup(const char *s) {
+  return gasneti_strdup(s);
 }
 /* don't put anything here - malloc stuff must come last */

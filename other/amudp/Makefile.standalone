@@ -1,6 +1,6 @@
-#  $Archive:: /Ti/AMUDP/Makefile                                         $
-#     $Date: 2004/06/17 01:16:52 $
-# $Revision: 1.8.2.2 $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.standalone,v $
+#     $Date: 2004/08/30 05:05:00 $
+# $Revision: 1.8.2.3 $
 # Description: Makefile for AMUDP
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -93,7 +93,7 @@ amxdist:
          echo "+++ Building distribution for AMUDP version $${VERSION} +++" && \
 	 rm -Rf amudp$${VERSION}.tar.gz amudp$${VERSION} && \
          mkdir amudp$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
+         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
          rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
          mv amudp$${VERSION}/Makefile.standalone amudp$${VERSION}/Makefile && \
          tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \

@@ -1,7 +1,13 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_fwd_sample.h,v $
+ *     $Date: 2004/08/30 05:05:06 $
+ * $Revision: 1.2.10.1 $
+ * Description: Firehose forward declarations
+ * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
+ * Terms of use are as specified in license.txt
+ */
 #include <inttypes.h>
 #include <stdlib.h>
 
-/* firehose_fwd.h: Firehose forward declarations */
 /* Exactly one one of the next two firehose impementations must be defined */
 #undef FIREHOSE_REGION
 #undef FIREHOSE_PAGE

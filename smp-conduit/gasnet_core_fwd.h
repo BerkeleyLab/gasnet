@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/smp-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/11/10 10:06:31 $
- * $Revision: 1.7 $
+ *     $Date: 2004/08/30 05:05:14 $
+ * $Revision: 1.7.6.1 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,6 +26,14 @@
 #if !defined(GASNETE_PUTGET_ALWAYSREMOTE) && !defined(GASNETE_PUTGET_ALWAYSLOCAL)
   #define GASNETE_PUTGET_ALWAYSLOCAL 1
 #endif
+
+#if GASNETI_THROTTLE_FEATURE_ENABLED
+/* polling is a no-op on smp-conduit, so never throttle it */ 
+#undef GASNETI_THROTTLE_FEATURE_ENABLED
+#endif
+
+#define GASNETI_GASNETC_AMPOLL
+#define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ

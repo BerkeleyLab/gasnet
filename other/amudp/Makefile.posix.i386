@@ -1,6 +1,6 @@
-#  $Archive::                                                            $
-#     $Date: 2004/04/20 17:16:43 $
-# $Revision: 1.1.2.1 $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Attic/Makefile.posix.i386,v $
+#     $Date: 2004/08/30 05:05:00 $
+# $Revision: 1.1.2.2 $
 # Description: Cygwin Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

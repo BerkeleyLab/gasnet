@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core.c                  $
- *     $Date: 2004/06/17 01:16:34 $
- * $Revision: 1.37.2.2 $
+ *     $Date: 2004/08/30 05:04:42 $
+ * $Revision: 1.37.2.3 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,12 @@
 
   /* signal used to propagate exit notification across job using RMS global signalling */
   #ifndef GASNETC_REMOTEEXIT_SIGNAL
-    #define GASNETC_REMOTEEXIT_SIGNAL  SIGUSR1
+    #ifdef SIGURG
+      /* give preference to SIGURG, because SIGUSR1 kills the entire job on bsub (PNNL) */
+      #define GASNETC_REMOTEEXIT_SIGNAL  SIGURG
+    #else
+      #define GASNETC_REMOTEEXIT_SIGNAL  SIGUSR1
+    #endif
   #endif
   static void gasnetc_remoteexithandler(int sig);
 #endif
@@ -694,6 +699,7 @@ static void gasnetc_atexit(void) {
          and it's the first we've heard about an exit 
       */
       raise(SIGQUIT); 
+      while (1) gasneti_sched_yield();
       /* alternate design possibility:
          rather than raising SIQUIT here (within a signal handler) and pay 
          the instability consequences of running gasnet_exit in that context,
@@ -709,6 +715,7 @@ static void gasnetc_atexit(void) {
     }
   }
 
+  extern gasneti_mutex_t gasneti_tracelock;
   extern void gasnetc_exit(int exitcode) {
 
     #if 1
@@ -732,16 +739,30 @@ static void gasnetc_atexit(void) {
       gasneti_mutex_lock(&exit_lock);
     }
 
-    { /* a very nasty hack - 
-        We're in a signal handler and here to stay, so there's no way we can
+    { /* a very nasty hack - Due to signalling exit, we must assume that 
+         we're in a signal handler and here to stay, so there's no way we can
          ever gracefully unlock any locks we may hold in earlier stack frames. 
         All we can really do is clear the locks out (to prevent local deadlocks/errors)
          and hope for the best. If any other threads are actively using the NIC this 
          will likely cause crashes, but there's really no alternative...
       */
-      gasneti_mutex_t dummy_lock = GASNETI_MUTEX_INITIALIZER;
-      memcpy(&gasnetc_elanLock, &dummy_lock, sizeof(gasneti_mutex_t));
-      memcpy(&gasnetc_sendfifoLock, &dummy_lock, sizeof(gasneti_mutex_t));
+      #define _GASNETC_CLOBBER_MUTEX(pm) do {                     \
+          gasneti_mutex_t dummy_lock = GASNETI_MUTEX_INITIALIZER; \
+          memcpy((pm), &dummy_lock, sizeof(gasneti_mutex_t));     \
+        } while (0)
+      #if GASNET_DEBUG 
+        /* prevent shutdown assertion failures in debug mode if other threads 
+           are holding the mutex at exit time */
+        #define GASNETC_CLOBBER_MUTEX(pm) \
+          if ((pm)->owner == GASNETI_THREADIDQUERY()) _GASNETC_CLOBBER_MUTEX(pm)
+      #else
+        #define GASNETC_CLOBBER_MUTEX _GASNETC_CLOBBER_MUTEX
+      #endif
+      GASNETC_CLOBBER_MUTEX(&gasnetc_elanLock); /* may be inside an AM handler or poll */
+      GASNETC_CLOBBER_MUTEX(&gasnetc_sendfifoLock);
+      GASNETC_CLOBBER_MUTEX(&gasneti_tracelock); /* may be inside a trace when signal fires */
+      #undef GASNETC_CLOBBER_MUTEX
+      #undef _GASNETC_CLOBBER_MUTEX
     }
 
     GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));

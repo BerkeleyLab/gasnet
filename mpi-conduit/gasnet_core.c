@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2004/06/17 01:16:44 $
- * $Revision: 1.41.2.2 $
+ *     $Date: 2004/08/30 05:04:52 $
+ * $Revision: 1.41.2.3 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -467,7 +467,7 @@ extern int gasnetc_AMRequestShortM(
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
   GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-    AMLOCK();
+    AMLOCK_TOSEND();
       retval = GASNETI_AM_SAFE_NORETURN(
                AMMPI_RequestVA(gasnetc_endpoint, dest, handler, 
                                numargs, argptr));
@@ -489,7 +489,7 @@ extern int gasnetc_AMRequestMediumM(
   if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
   GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-    AMLOCK();
+    AMLOCK_TOSEND();
       retval = GASNETI_AM_SAFE_NORETURN(
                AMMPI_RequestIVA(gasnetc_endpoint, dest, handler, 
                                 source_addr, nbytes, 
@@ -521,7 +521,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-    AMLOCK();
+    AMLOCK_TOSEND();
       retval = GASNETI_AM_SAFE_NORETURN(
                AMMPI_RequestXferVA(gasnetc_endpoint, dest, handler, 
                                    source_addr, nbytes, 
@@ -630,9 +630,8 @@ extern int gasnetc_AMReplyLongM(
         static gasneti_mutex_t errcheck_setup = GASNETI_MUTEX_INITIALIZER;
         gasneti_mutex_lock(&errcheck_setup);
         if (gasnetc_hsl_errcheckinfo_firsttime) { 
-          int retval = pthread_key_create(&gasnetc_hsl_errcheckinfo, NULL);
-          if (retval) gasneti_fatalerror("Failure in pthread_key_create()=%s",strerror(retval));
-          gasneti_local_membar();
+          gasneti_assert_zeroret(pthread_key_create(&gasnetc_hsl_errcheckinfo, NULL));
+          gasneti_local_wmb();
           gasnetc_hsl_errcheckinfo_firsttime = 0;
         }
         gasneti_mutex_unlock(&errcheck_setup);
@@ -655,8 +654,7 @@ extern int gasnetc_AMReplyLongM(
           hsl_errcheck_cnt++;
         gasneti_mutex_unlock(&hsl_errcheck_tablelock);
         memcpy(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
-        retval = pthread_setspecific(gasnetc_hsl_errcheckinfo, info);
-        if (retval) gasneti_fatalerror("Failure in pthread_setspecific()=%s",strerror(retval));
+        gasneti_assert_zeroret(pthread_setspecific(gasnetc_hsl_errcheckinfo, info));
         return info;
       }
     }

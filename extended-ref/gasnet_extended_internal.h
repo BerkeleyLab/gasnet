@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2004/01/05 05:01:13 $
- * $Revision: 1.11 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_internal.h,v $
+ *     $Date: 2004/08/30 05:04:44 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,6 +66,7 @@ typedef struct _gasnete_iop_t {
 /* ------------------------------------------------------------------------------------ */
 typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* pointer reserved for use by the core */
+  void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
 
   gasnete_threadidx_t threadidx;
 
@@ -99,7 +100,10 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 GASNET_INLINE_MODIFIER(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
-  gasneti_assert(OPSTATE(op) == state);
+  /* RACE: If we are marking the op COMPLETE, don't assert for completion
+   * state as another thread spinning on the op may already have changed
+   * the state. */
+  gasneti_assert(state == OPSTATE_COMPLETE ? 1 : OPSTATE(op) == state);
 }
 
 /*  get a new op and mark it in flight */

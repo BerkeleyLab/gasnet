@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_extended_internal.h         $
- *     $Date: 2004/01/05 15:26:47 $
- * $Revision: 1.12 $
+ *     $Date: 2004/08/30 05:04:42 $
+ * $Revision: 1.12.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -95,6 +95,7 @@ typedef struct _gasnete_iop_t {
 /* ------------------------------------------------------------------------------------ */
 typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* pointer reserved for use by the core - MUST be first */
+  void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
 
   gasnete_threadidx_t threadidx;
 
@@ -128,7 +129,10 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 GASNET_INLINE_MODIFIER(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
-  gasneti_assert(OPSTATE(op) == state);
+  /* RACE: If we are marking the op COMPLETE, don't assert for completion
+   * state as another thread spinning on the op may already have changed
+   * the state. */
+  gasneti_assert(state == OPSTATE_COMPLETE ? 1 : OPSTATE(op) == state);
 }
 
 /* op category - only valid for explicit ops */
@@ -175,7 +179,8 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);            \
     switch (OPCAT(eop)) {                                                       \
       case OPCAT_ELANGETBB: case OPCAT_ELANPUTBB:                               \
-        gasneti_memcheck((eop)->bouncebuf);                                     \
+        /* bouncebuf comes from elan allocator, not gasneti_malloc */           \
+        /* gasneti_memcheck((eop)->bouncebuf); */                               \
         break;                                                                  \
       case OPCAT_AMGET: case OPCAT_AMPUT: case OPCAT_MEMSET: break;             \
       default:                                                                  \

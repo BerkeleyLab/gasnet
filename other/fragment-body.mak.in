@@ -1,3 +1,6 @@
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.1.4.3 2004/08/30 05:04:56 csbell Exp $
+# ----------------------------------------------------------------------
+# Following section @configure_input@
 
 # ----------------------------------------------------------------------
 # Following section @configure_input@
@@ -31,7 +34,7 @@ GASNET_DEFINES = @BUILDCONFIG_DEFINES@ -DGASNET_#THREAD_MODEL# $(GASNET_EXTRADEF
 # ----------------------------------------------------------------------
 # Documented compilation convenience aliases
 
-GASNET_CFLAGS = $(GASNET_OPT_CFLAGS) $(GASNET_MISC_CFLAGS)
+GASNET_CFLAGS = $(GASNET_OPT_CFLAGS) $(GASNET_MISC_CFLAGS) $(MANUAL_CFLAGS)
 GASNET_CPPFLAGS = $(GASNET_MISC_CPPFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)
 
 # ----------------------------------------------------------------------
@@ -40,7 +43,7 @@ GASNET_CPPFLAGS = $(GASNET_MISC_CPPFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)
 GASNET_LD = $(GASNET_LD_OVERRIDE)
 
 # linker flags that GASNet clients should use 
-GASNET_LDFLAGS = $(GASNET_LDFLAGS_OVERRIDE) $(CONDUIT_LDFLAGS) $(CONDUIT_LDFLAGS_#THREAD_MODEL#)
+GASNET_LDFLAGS = $(GASNET_LDFLAGS_OVERRIDE) $(CONDUIT_LDFLAGS) $(CONDUIT_LDFLAGS_#THREAD_MODEL#) $(MANUAL_LDFLAGS)
 
 GASNET_EXTRALIBS_SEQ = 
 GASNET_EXTRALIBS_PAR = @GASNET_THREAD_LIBS@
@@ -55,6 +58,7 @@ GASNET_LIBS =                             \
     $(GASNET_EXTRALIBS_#THREAD_MODEL#)    \
     @LIBGCC@                              \
     @LIBS@                                \
-    @LIBM@
+    @LIBM@                                \
+    $(MANUAL_LIBS)
 
 # ----------------------------------------------------------------------

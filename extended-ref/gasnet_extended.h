@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2004/06/17 01:16:36 $
- * $Revision: 1.22.2.4 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
+ *     $Date: 2004/08/30 05:04:44 $
+ * $Revision: 1.22.2.5 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -96,6 +96,7 @@ gasnet_handle_t _gasnet_get_nb      (void *dest, gasnet_node_t node, void *src, 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET(GET_NB_LOCAL,dest,node,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    gasnete_loopbackget_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_GET(GET_NB,dest,node,src,nbytes);
@@ -136,6 +137,7 @@ gasnet_handle_t _gasnet_get_nb_bulk (void *dest, gasnet_node_t node, void *src, 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET(GET_NB_BULK_LOCAL,dest,node,src,nbytes);
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+    gasnete_loopbackget_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_GET(GET_NB_BULK,dest,node,src,nbytes);
@@ -299,6 +301,7 @@ void _gasnet_get_nbi      (void *dest, gasnet_node_t node, void *src, size_t nby
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET(GET_NBI_LOCAL,dest,node,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    gasnete_loopbackget_memsync();
   } else {
     GASNETI_TRACE_GET(GET_NBI,dest,node,src,nbytes);
     gasnete_get_nbi(dest, node, src, nbytes GASNETE_THREAD_PASS);
@@ -332,6 +335,7 @@ void _gasnet_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nby
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET(GET_NBI_BULK_LOCAL,dest,node,src,nbytes);
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+    gasnete_loopbackget_memsync();
   } else {
     GASNETI_TRACE_GET(GET_NBI_BULK,dest,node,src,nbytes);
     gasnete_get_nbi_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
@@ -383,7 +387,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE);
 GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_gets)
 int _gasnet_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   int retval;
-  gasnet_AMPoll();
+  gasneti_AMPoll();
   retval = gasnete_try_syncnbi_gets(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_GETS,retval);
   return retval;
@@ -394,7 +398,7 @@ int _gasnet_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_puts)
 int _gasnet_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   int retval;
-  gasnet_AMPoll();
+  gasneti_AMPoll();
   retval = gasnete_try_syncnbi_puts(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_PUTS,retval);
   return retval;
@@ -414,7 +418,7 @@ int _gasnet_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_all)
 int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   int retval;
-  gasnet_AMPoll();
+  gasneti_AMPoll();
   retval = gasnete_try_syncnbi_all(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_ALL,retval);
   return retval;
@@ -432,7 +436,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
 
 #define gasnet_wait_syncnbi_gets() do {                                                          \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
-  gasnet_AMPoll(); /* ensure at least one poll */                                                \
+  gasneti_AMPoll(); /* ensure at least one poll */                                                \
   gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);                                           \
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_GETS);                                                 \
   } while (0)
@@ -447,7 +451,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
 
 #define gasnet_wait_syncnbi_puts() do {                                                          \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
-  gasnet_AMPoll(); /* ensure at least one poll */                                                \
+  gasneti_AMPoll(); /* ensure at least one poll */                                                \
   gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);                                           \
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);                                                 \
   } while (0)
@@ -463,7 +467,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
 
 #define gasnet_wait_syncnbi_all() do {                                                           \
   GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
-  gasnet_AMPoll(); /* ensure at least one poll */                                                \
+  gasneti_AMPoll(); /* ensure at least one poll */                                                \
   gasnete_wait_syncnbi_all(GASNETE_THREAD_GET_ALONE);                                            \
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_ALL);                                                  \
   } while (0)
@@ -539,6 +543,7 @@ void _gasnet_get (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNE
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET(GET_LOCAL,dest,node,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+    gasnete_loopbackget_memsync();
   } else {
     GASNETI_TRACE_GET(GET,dest,node,src,nbytes);
     gasnete_get(dest, node, src, nbytes GASNETE_THREAD_PASS);
@@ -554,6 +559,7 @@ void _gasnet_get_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes 
   if (gasnete_islocal(node)) {
     GASNETI_TRACE_GET(GET_BULK_LOCAL,dest,node,src,nbytes);
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+    gasnete_loopbackget_memsync();
   } else {
     GASNETI_TRACE_GET(GET_BULK,dest,node,src,nbytes);
     gasnete_get_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
@@ -798,6 +804,15 @@ extern int gasnete_barrier_try(int id, int flags);
 
 /* Vector, Indexed & Strided put/gets declared in separate header */
 #include "gasnet_extended_vis.h"
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Collectives:
+  =========================
+*/
+
+/* Collective operations declared in separate header */
+#include "gasnet_extended_coll.h"
 
 /* ------------------------------------------------------------------------------------ */
 

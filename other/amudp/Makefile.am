@@ -1,4 +1,10 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.am,v $
+#     $Date: 2004/08/30 05:05:00 $
+# $Revision: 1.13.2.3 $
+# Description: Makefile for AMUDP/GASNet 
+# Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
+# Terms of use are as specified in license.txt
 # NOTE: This Makefile is used to tie in with the GASNet build infrastructure
 #       the stand-alone AMUDP product doesn't currently provide an automake framework
 
@@ -57,7 +63,11 @@ libamudp_a_SOURCES = \
 
 libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o)
 
-EXTRA_DIST = Makefile.common Makefile.standalone Makefile.titanium.in
+EXTRA_DIST = \
+	Makefile.common 	\
+	Makefile.standalone 	\
+	Makefile.titanium.in 	\
+	license.txt
 
 # ---------- test programs -------------
 # all the test executables

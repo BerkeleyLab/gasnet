@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/06/17 01:16:54 $
- * $Revision: 1.2.2.4 $
+ *     $Date: 2004/08/30 05:05:12 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,8 @@
 #else
 #include <shmem.h>
 #endif
+
+#include <string.h> /* memcpy */
 
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
@@ -40,7 +42,8 @@ typedef uintptr_t gasnet_register_value_t;
      specific to the extended API implementation (see gasnet_help.h) */
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
-	GASNETI_REFVIS_STATS(CNT,VAL,TIME)
+	GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
+	GASNETI_REFCOLL_STATS(CNT,VAL,TIME)
 
 #define GASNET_POST_THREADINFO(info)   \
   static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
@@ -68,7 +71,7 @@ typedef uintptr_t gasnet_register_value_t;
   /*
    * Some clients, such as the UPC Runtime, issue puts/gets on global addresses
    */
-  #if GASNETE_GLOBAL_ADDRESS
+  #ifdef GASNETE_GLOBAL_ADDRESS
     #define GASNETE_SHMPTR(addr,pe) (addr)
   #else
     #define GASNETE_SHMPTR(addr,pe) GASNETE_TRANSLATE_X1(addr,pe)
@@ -79,17 +82,19 @@ typedef uintptr_t gasnet_register_value_t;
 #elif defined(SGI_SHMEM)
   extern intptr_t   *gasnetc_segment_shptr_off;
 
+  #define GASNETE_SHMPTR_AM(addr,pe) (addr)
+
   #ifdef GASNETE_GLOBAL_ADDRESS
     #define GASNETE_SHMPTR(addr,pe) (addr)
   #else
     #define GASNETE_SHMPTR(addr,pe) shmem_ptr(addr,pe)
+    //#define GASNETE_SHMPTR_AM(addr,pe) (gasnetc_mynode==(pe)?(addr):shmem_ptr(addr,pe))
+	/*
+    #define GASNETE_SHMPTR_AM(addr,pe)				    \
+	 ((void *)(((intptr_t)(addr)+gasnetc_segment_shptr_off[pe])))
+	 */
   #endif
 
-  #define GASNETE_SHMPTR_AM(addr,pe) (addr)
-#if 0
-  #define GASNETE_SHMPTR_AM(addr,pe)				    \
-	 ((void *)(((intptr_t)(addr)+gasnetc_segment_shptr_off[pe])))
-#endif
   #define GASNETE_PRAGMA_IVDEP	  /* no ivdep is useful here */
 #endif
 
@@ -400,7 +405,7 @@ gasnete_get_nb_val(gasnet_node_t node, void *src,
 	default:
 	    {
 		static uint64_t	tempA;
-		#if GASNET_DEBUG
+		#if 0 && defined(GASNET_DEBUG)
 		if (nbytes > sizeof(gasnet_register_value_t))
 		      gasneti_fatalerror(
 			"VIOLATION: Unsupported size %d in valget", nbytes);
@@ -482,7 +487,7 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
     #endif
 	case 0: return;
 	default:
-	    #if GASNET_DEBUG
+	    #if 0 && defined(GASNET_DEBUG)
 	      if (nbytes > sizeof(gasnet_register_value_t))
 		      gasneti_fatalerror(
 			"VIOLATION: Unsupported size %d in valput", nbytes);

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2004/02/02 13:00:03 $
- * $Revision: 1.13 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
+ *     $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.13.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
 
   mynode = gasnet_mynode();
   partner = (gasnet_mynode() + 1) % gasnet_nodes();
-  partnerseg = TEST_SEG(partner);
+  partnerseg = (int *)TEST_SEG(partner);
 
   /*  blocking test */
   { int val1=0, val2=0;
@@ -161,7 +161,8 @@ int main(int argc, char **argv) {
     for (i=0; i < 100; i++) {
       unsigned int tmp1 = (unsigned int)gasnet_get_val(partner, partnerbase2+i, sizeof(unsigned char));
       unsigned int tmp2 = (unsigned int)gasnet_get_val(partner, partnerbase2+i+200, sizeof(unsigned char));
-      if (tmp1 != 100 + mynode + i || tmp2 != 100 + mynode + i) {
+      if (tmp1 != (unsigned int)(100 + mynode + i) || 
+          tmp2 != (unsigned int)(100 + mynode + i)) {
         MSG("*** ERROR - FAILED CHAR VALUE TEST 1!!!");
         printf("node %i/%i  i=%i tmp1=%i tmp2=%i (100 + mynode + i)=%i\n", 
           (int)gasnet_mynode(), (int)gasnet_nodes(), 
@@ -175,7 +176,7 @@ int main(int argc, char **argv) {
       }
       for (i=0; i < 100; i++) {
         unsigned int tmp = (unsigned int)gasnet_wait_syncnb_valget(handles[i]);
-        if (tmp != 100 + mynode + i) {
+        if (tmp != (unsigned int)(100 + mynode + i)) {
           MSG("*** ERROR - FAILED CHAR VALUE TEST 2!!!");
           printf("node %i/%i  i=%i tmp1=%i (100 + mynode + i)=%i\n", 
             (int)gasnet_mynode(), (int)gasnet_nodes(), 
@@ -226,7 +227,7 @@ int main(int argc, char **argv) {
     for (i=0; i < 10; i++) {
       ALLAM_REQ(partner);
 
-      GASNET_BLOCKUNTIL(NUMREP() == NUMHANDLERS_PER_TYPE*3*(i+1));
+      GASNET_BLOCKUNTIL(ALLAM_DONE(i+1));
     }
 
     MSG("*** passed AM test!!");

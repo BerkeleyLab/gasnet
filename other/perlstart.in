@@ -1,8 +1,17 @@
 # @configure_input@
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/perlstart.in,v $
+#     $Date: 2004/08/30 05:04:56 $
+# $Revision: 1.5.2.3 $
+# Description: 
+# Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
+# Terms of use are as specified in license.txt
+#
 # perlstart usage info: 
 # create a script.in file with the following contents (minus leading #'s)
 #      #!@BOURNE_SHELL@
 #      SOME_VAR_YOUR_SCRIPT_NEEDS=@SOME_VAR_YOUR_SCRIPT_NEEDS@
+#      # use GASNET_PERL_BYTESFLAG iff script needs to avoid UTF-8 encoding 
+#      PERLSTART_FLAGS="$GASNET_PERL_BYTESFLAG -Mstrict"
 #      @PERL START@     (remove the embedded space and this comment)
 # be sure to place your script file in configure.in AC_OUTPUT and GASNET_FIX_EXEC
 # also be sure to add targets in Makefile to copy the .pl file when builddir!=srcdir
@@ -30,17 +39,27 @@ while  test "$link" && \
   newpath="$link";
   newdir=`"$dirname" ${newpath}`;
   newname=`"$basename" ${newpath}`;
-  dir=`cd ${dir} >/dev/null 2>&1; cd ${newdir} >/dev/null 2>&1; pwd`;
+  dir=`cd ${dir} >/dev/null 2>&1; cd ${newdir} >/dev/null 2>&1; @PWD_PROG@`;
   scriptname="${dir}/${newname}";
 
+  oldlink="$link"
   if test -x "$readlink" ; then
     link=`$readlink ${scriptname}`
   else
     link=`/bin/ls -al ${scriptname} | @AWK@ 'BEGIN{FS=">"}{split($2,A," ") ; print A[1]}'`
   fi
+  # readlink on the SGI Origin returns name of non-symlink, instead of blank, so
+  # make sure a 'link' resolves to something other than itself
+  if test x"$link" = x"$oldlink"; then
+    link=
+  fi
 done
 
-exec '@PERL@' "${scriptname}.pl" "$@"
+# be sure we always use a full path
+dir=`"$dirname" ${scriptname}`;
+scriptname=`cd ${dir} >/dev/null 2>&1; @PWD_PROG@`/`"$basename" ${scriptname}`;
+
+exec '@PERL@' $PERLSTART_FLAGS "${scriptname}.pl" "$@"
 
 echo "${scriptname}: exec failed." >&2
 exit 1

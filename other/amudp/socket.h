@@ -1,6 +1,6 @@
-/*   $Archive:: /Ti/AMUDP/socket.h                                         $
- *      $Date: 2004/04/20 17:16:43 $
- *  $Revision: 1.2.2.1 $
+/*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socket.h,v $
+ *      $Date: 2004/08/30 05:05:00 $
+ *  $Revision: 1.2.2.2 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */

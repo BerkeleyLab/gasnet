@@ -1,6 +1,6 @@
-//  $Archive:: /Ti/AMUDP/sig.cpp                                          $
-//     $Date: 2004/04/20 17:16:43 $
-// $Revision: 1.3.2.1 $
+//   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sig.cpp,v $
+//     $Date: 2004/08/30 05:05:00 $
+// $Revision: 1.3.2.2 $
 // Description: signal handling module
 // Copyright 1999, Dan Bonachea
 

@@ -37,13 +37,15 @@ MPIRUN_CMD is a template which tells the gasnetrun_mpi
 script how to invoke your mpirun.  The template should include
 the following strings for variable substitution at run time:
 
-"%N"	The number of nodes requested
+"%N"	The number of MPI processes requested
 "%P"	The GASNet program to run
 "%A"	The arguments to the GASNet program
 "%C"	Alias for "%P %A"
 
 The default is "mpirun -np %N %C".  You may need a full path to
-mpirun if the correct version is not in your PATH.
+mpirun if the correct version is not in your PATH.  This template
+is also the mechanism to add extra arguments - for instance:
+  MPIRUN_CMD='mpirun -np %N -hostfile my_hosts_file %C'
 
 Optional compile-time settings:
 ------------------------------
@@ -53,7 +55,16 @@ Optional compile-time settings:
 Known problems:
 ---------------
 
-* See the Berkeley UPC Bugzilla server for details on known bugs.
+* Proper operation of GASNet and its client often depends on environment
+variables passed to all the processes.  Unfortunately, there is no uniform way
+to achieve this across different implementations of mpirun.  The gasnetrun_mpi
+script tries many different things and is known to work correctly for LAM/MPI
+and for MPICH and most of its derivatives (including MPICH-NT, MVICH and
+MVAPICH).  For assistance with any particular MPI implementation, search the
+Berkeley UPC Bugzilla server and open a new bug (registration required) if
+you cannot find information on your MPI.
+
+* See the Berkeley UPC Bugzilla server for details on other known bugs.
 
 Future work:
 ------------

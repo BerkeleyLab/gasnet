@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2004/06/17 01:16:30 $
- * $Revision: 1.24.2.3 $
+ *     $Date: 2004/08/30 05:04:38 $
+ * $Revision: 1.24.2.4 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* include files that may conflict with macros defined later */
-#if defined(IRIX) || defined(HPUX) || defined(CRAYX1)
+#if defined(IRIX) || defined(HPUX) || defined(UNICOS)
   #include <sys/param.h>
 #endif
 
@@ -82,7 +82,9 @@
 
 #define GASNETI_PRAGMA(x) _Pragma ( #x )
 
-#if defined(STATIC_INLINE_WORKS)
+#if defined(__cplusplus)
+  #define GASNET_INLINE_MODIFIER(fnname) inline
+#elif defined(STATIC_INLINE_WORKS)
   #define GASNET_INLINE_MODIFIER(fnname) static CC_INLINE_MODIFIER
 #elif defined(CC_INLINE_MODIFIER)
   #define GASNET_INLINE_MODIFIER(fnname) CC_INLINE_MODIFIER

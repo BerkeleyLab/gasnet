@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.4.2.2 2004/06/17 01:16:46 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.4.2.3 2004/08/30 05:04:54 csbell Exp $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -15,17 +15,20 @@ unless (exists($ENV{'MPIRUN_CMD_OK'}) ||
         (($spawncmd =~ m/%P/) && ($spawncmd =~ m/%A/) && ($spawncmd =~ m/%N/))) {
 	die("The environment variable MPIRUN_CMD must contain the strings '%P' and '%A'\n"
 	  . "(or '%C' as an alias for '%P %A') for expansion into the program and its arguments;\n"
-	  . "and '%N' for expansion into the number of nodes.\n"
+	  . "and '%N' for expansion into the number of processes.\n"
 	  . "To disable this check, set MPIRUN_CMD_OK in your environment.\n");
 }
 
 # Globals
 my $envlist = '';
-my $nnodes = undef;
+my $numproc = undef;
+my $numnode = undef;
 my $verbose = 0;
 my $dryrun = 0;
 my $exename = undef;
 my $find_exe = 1;	# should we find full path of executable?
+my $tmpdir = undef;
+my @tmpfiles = ();
 
 # Define how to pass the environment vars
 # 5 parameters to set: val, pre, inter, post and join
@@ -40,6 +43,7 @@ my $find_exe = 1;	# should we find full path of executable?
     my $is_lam      = ($mpirun_help =~ m|LAM/MPI|);
     my $is_mpich_nt = ($mpirun_help =~ m|MPIRun|);
     my $is_mpich    = ($mpirun_help =~ m|ch_p4|);
+    my $is_mvich    = ($mpirun_help =~ m|MVICH|);
 
     if ($is_lam) {
 	# pass env as "-x A,B,C"
@@ -50,9 +54,16 @@ my $find_exe = 1;	# should we find full path of executable?
 	# pass env as "-env A=1|B=2|C=3"
 	%envfmt = ( 'pre' => '-env',
 		    'join' => '|',
-		    'val' => 1
+		    'val' => ''
 		  );
 	$find_exe = 0;
+    } elsif ($is_mvich) {
+	# pass env as "/usr/bin/env 'A=1' 'B=2' 'C=3'"
+        my $envprog = `which env`;
+  	chomp $envprog;
+	%envfmt = ( 'pre' => $envprog,
+		    'val' => "'"
+		  );
     } else {
 	# pass env as "/usr/bin/env A=1 B=2 C=3"
 	# Our nearly universal default
@@ -62,7 +73,7 @@ my $find_exe = 1;	# should we find full path of executable?
   	  chomp $envprog;
         }
 	%envfmt = ( 'pre' => $envprog,
-		    'val' => 1
+		    'val' => ''
 		  );
     }
 
@@ -73,7 +84,8 @@ sub usage
 
     print "usage: gasnetrun -n <n> [options] [--] prog [program args]\n";
     print "    options:\n";
-    print "      -n <n>                number of nodes to run on\n";
+    print "      -n <n>                number of processes to run\n";
+    print "      -N <n>                number of nodes to run on (not suppored on all mpiruns)\n";
     print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
@@ -81,22 +93,25 @@ sub usage
     exit 1;
 }
 
-# Function to apply shell quoting for spaces and metachars.
-# Only used for human readable output
-sub do_quote
-{
-    $_ = shift;
-
-    if (m/[\\`" !#&*$()<>|]/) {
-	if (m/'/) { s/'/'\\''/; }
-	return "'$_'";
-    } elsif (m/'/) {
-	return '"' . $_ . '"';
-    } else {
-	return $_;
+# "Multiply" array(s) for mapping procs to nodes
+sub expand {
+  my $ppn = int($numproc / $numnode);
+  my $full = $numproc - $numnode * $ppn;  # nodes carrying ($ppn + 1) procs
+  my $part = $numnode - $full;       # nodes carrying $ppn procs
+                                                                                                              
+  while (my $arr_ref = shift @_) {
+    my @tmp = ();
+    for (my $i = 0; $i < $full; ++$i) {
+      my $elem = shift @$arr_ref;
+      for (my $j = 0; $j <= $ppn; ++$j) { push @tmp, $elem; }
     }
+    for (my $i = 0; $i < $part; ++$i) {
+      my $elem = shift @$arr_ref;
+      for (my $j = 0; $j < $ppn; ++$j) { push @tmp, $elem; }
+    }
+    @$arr_ref = @tmp;
+  }
 }
-	
 
 # We need to parse our command-line arguments
     while (@ARGV > 0) {
@@ -108,11 +123,19 @@ sub do_quote
 	} elsif ($_ eq '-n' || $_ eq '-np') {
 	    shift;
 	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
-	    $nnodes = 0+$ARGV[0];
-	    usage ("$_ option with invalid argument '$ARGV[0]'\n") unless $nnodes >= 1;
+	    $numproc = 0+$ARGV[0];
+	    usage ("$_ option with invalid argument '$ARGV[0]'\n") unless $numproc >= 1;
 	} elsif ($_ =~ /^(-np?)([0-9]+)$/) {
-	    $nnodes = 0+$2;
-	    usage ("$1 option with invalid argument '$2'\n") unless $nnodes >= 1;
+	    $numproc = 0+$2;
+	    usage ("$1 option with invalid argument '$2'\n") unless $numproc >= 1;
+	} elsif ($_ eq '-N') {
+	    shift;
+	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
+	    $numnode = 0+$ARGV[0];
+	    usage ("$_ option with invalid argument '$ARGV[0]'\n") unless $numnode >= 1;
+	} elsif ($_ =~ /^(-N)([0-9]+)$/) {
+	    $numnode = 0+$2;
+	    usage ("$1 option with invalid argument '$2'\n") unless $numnode >= 1;
 	} elsif ($_ eq '-E') {
 	    shift;
 	    usage ("-E option given without an argument\n") unless @ARGV >= 1;
@@ -131,8 +154,14 @@ sub do_quote
     }
 
 # Validate -n as needed
-    if (!defined($nnodes) && $spawncmd =~ /%N/) {
+    if (!defined($numproc) && $spawncmd =~ /%N/) {
 	usage "Required option -n was not given\n";
+    }
+
+# Validate -N as needed
+    if (defined($numnode) && !$is_lam) {
+	warn "WARNING: Don't know how to control process->node layout with your mpirun\n";
+	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
     }
 
 # Find the program
@@ -173,7 +202,8 @@ sub do_quote
     if (@envvars) {
         # pair the variables with their values if desired
         if (defined $envfmt{val}) {
-	    @envargs = map { "$_=$ENV{$_}" } @envargs;
+	    my $q = $envfmt{val};
+	    @envargs = map { "$_=$q$ENV{$_}$q" } @envargs;
         }
         # join them into a single argument if desired
         if (defined $envfmt{join}) {
@@ -193,9 +223,7 @@ sub do_quote
         }
     }
 
-    my @spawncmd;
-    my $tmpdir = undef;
-    my @tmpfiles = ();
+    # Special case for the mpich spawner
     if ($is_mpich && !$is_mpich_nt) {
 	my @spawners = ('ssh', 'rsh');
 	my $args = join(' ',map { "\"\'$_\'\"" } @envargs);
@@ -206,7 +234,7 @@ sub do_quote
 	foreach my $spawner (@spawners) {
           my $realprog = `which "$spawner" 2> /dev/null`;
   	  chomp $realprog;
-	  if (! -x "$realprog") { # Cant find that spawner - Assume we're not using it
+	  if (! -x "$realprog") { # Can't find that spawner - Assume we're not using it
             print "Warning: cannot find \'$spawner\'\n" if ($verbose);
 	    next;
   	  }
@@ -248,27 +276,36 @@ EOF
      }
     
 # Exec it
-    @spawncmd = map { +s/%N/$nnodes/g;
-                          if (m/^%P$/) {
+    my @spawncmd = map {  if ($_ eq '%N') {
+			      if ($is_lam && $numnode) {
+				  my @tmp = (0..($numnode-1));
+				  expand \@tmp;
+				  ($numproc, 'n' . join(',', @tmp));
+			      } else {
+				  $numproc;
+			      }
+			  } elsif ($_ eq '%P') {
                               (@envargs, $exename);
-                          } elsif (m/^%A$/) {
+                          } elsif ($_ eq '%A') {
 			      (@ARGV);
+                          } elsif ($_ eq '%V') {
+			      $verbose?("-v"):();
 			  } else {
                               $_;
                           }
 			} split(" ", $spawncmd);
-    print("running: ", join(' ', (map { do_quote $_; } @spawncmd)), "\n")
+    print("running: ", join(' ', @spawncmd), "\n")
 	if ($verbose);
     exit(0) if ($dryrun);
 
-if (defined $tmpdir) {
-  system(@spawncmd);
-  foreach (@tmpfiles) {
-    unlink "$_" or die "Failed to unlink \'$_\'";
-  }
-  rmdir $tmpdir or die "Failed to rmdir \'$tmpdir\'";
-} else {
-  exec(@spawncmd);
-  die "exec failed: $!\n";
-}
+    if (defined $tmpdir) {
+	system(@spawncmd);
+	foreach (@tmpfiles) {
+	    unlink "$_" or die "Failed to unlink \'$_\'";
+	}
+	rmdir $tmpdir or die "Failed to rmdir \'$tmpdir\'";
+    } else {
+	exec(@spawncmd);
+	die "exec failed: $!\n";
+    }
 __END__

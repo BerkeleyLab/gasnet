@@ -1,4 +1,6 @@
-/* $Id: testthreads.c,v 1.13 2004/01/23 10:35:05 bonachea Exp $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
+ *     $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.13.2.1 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -80,9 +82,10 @@ gasnet_node_t	*tt_thread_map;
 void		**tt_addr_map;
 threaddata_t	*tt_thread_data;
 
+#define thread_barrier() PTHREAD_BARRIER(threads_num)
+
 void	alloc_thread_data(int threads);
 void	free_thread_data();
-void	thread_barrier();
 void *	threadmain(void *args);
 
 /* GASNet Test functions */
@@ -386,30 +389,6 @@ free_thread_data()
 	test_free(tt_thread_data);
 }
 
-/* Cheap (but functional!) pthread + gasnet barrier */
-void
-thread_barrier() {
-        static pthread_mutex_t	barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
-        static pthread_cond_t	barrier_cond = PTHREAD_COND_INITIALIZER;
-        static volatile int	barrier_count = 0;
-        static int volatile phase = 0;
-        pthread_mutex_lock(&barrier_mutex);
-        barrier_count++;
-        if (barrier_count < threads_num) {
-          int myphase = phase;
-          while (myphase == phase) {
-                pthread_cond_wait(&barrier_cond, &barrier_mutex);
-          }
-        } else {  
-		/* Now do the gasnet barrier */
-		BARRIER();
-                barrier_count = 0;
-                phase = !phase;
-                pthread_cond_broadcast(&barrier_cond);
-        }       
-        pthread_mutex_unlock(&barrier_mutex);
-}
-
 /****************************************************************/
 /* AM Handlers */
 #define PRINT_AM(x) \
@@ -575,7 +554,7 @@ test_amshort(threaddata_t *tdata)
 
 	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d", tdata->tid, peer);
 	tdata->flag = -1;
-        gasnett_local_membar();
+        gasnett_local_wmb();
 	GASNET_Safe(gasnet_AMRequestShort1(node, 
 		    hidx_ping_shorthandler, tdata->ltid));
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
@@ -598,7 +577,7 @@ test_ammedium(threaddata_t *tdata)
 		
 	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
-        gasnett_local_membar();
+        gasnett_local_wmb();
 	GASNET_Safe(gasnet_AMRequestMedium1(node, 
 		    hidx_ping_medhandler, laddr, len, 
 		    tdata->ltid));
@@ -624,7 +603,7 @@ test_amlong(threaddata_t *tdata)
               || (len > TEST_SEGZ_PER_THREAD));
 		
 	tdata->flag = -1;
-        gasnett_local_membar();
+        gasnett_local_wmb();
 	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 
 	GASNET_Safe(gasnet_AMRequestLong2(node, 

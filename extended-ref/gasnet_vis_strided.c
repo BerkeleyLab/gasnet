@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refbarrier.c                  $
- *     $Date: 2004/06/17 01:16:36 $
- * $Revision: 1.1.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_strided.c,v $
+ *     $Date: 2004/08/30 05:04:44 $
+ * $Revision: 1.1.2.3 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -113,6 +113,11 @@
     else gasnete_get_nbi_bulk((dstaddr), (srcnode), (srcaddr), (nbytes)         \
                                 GASNETE_THREAD_PASS);                           \
   } while (0)
+
+#ifdef __SUNPRO_C
+  /* disable a harmless warning */
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Vector *** */

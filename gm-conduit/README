@@ -2,14 +2,31 @@ README file for gm-conduit
 =======================================
 Christian Bell <csbell@cs.berkeley.edu>
 
-This first version of the GM conduit implements the full GASNet spec.  Here are
-some of the highlights and quirks. .
+********************************************************************************
+** Broken conduit errors -- RDMA GETS are broken
+
+    If you see the following message while building gm-conduit,
+      GASNet/GM RDMA gets disabled for broken GM 2.x build (see gm-conduit README)
+
+    gm-conduit has detected that the GM version you are compiling against has
+    fatal problems handling RDMA gets.  In order to enable RDMA gets, make sure
+    the target system is running at least 2.0.12 for GM-2.0 series or 2.1.2 for
+    GM-2.1 series.  If not, make sure you pester your system administrator to
+    upgrade to at least these versions or else gm-conduit _cannot_ use RDMA
+    gets.
+
+    Alternatively, gm-conduit can be forced to use these broken versions and
+    will disable RDMA gets if configure is run with '--enable-broken-gm'.  The
+    resulting conduit will, every time a GASNet program is run, spit out a
+    warning that RDMA gets are disabled because of a broken GM build.  This
+    warning can be silenced if the environment variable
+    GASNET_GM_NO_RDMAGET_WARNING is set.
 
 ********************************************************************************
-** Bootstrapping
+** Job spawning
 
-    Bootstrapping has always been a problem over Myrinet.  Myricom releases a
-    better better job spawner at every MPICH release but is not quite there
+    Job spawning has always been a problem over Myrinet.  Myricom releases a
+    better job spawner at every MPICH release but is not quite there
     yet.  As of MPICH 1.2.4.x, MPICH/GM uses a perl script spawner to
     distribute GM port usage information at initialization.  This script has
     been included and edited here in order to work with the GM conduit.
@@ -46,8 +63,8 @@ some of the highlights and quirks. .
     for pinned memory while MAXVICTIM is the amount to satisfy locally
     initiated one-sided operations.  These parameters are controlled at runtime
     using two environment variables,
-       GASNETGM_FIREHOSE_M,
-       GASNETGM_FIREHOSE_MAXVICTIM.
+       GASNET_FIREHOSE_M,
+       GASNET_FIREHOSE_MAXVICTIM.
     Although a site administrator can tune these values to better match the
     cluster's needs, the bootstrapping mechanism manages to find a sensible
     default.  If the gasnetrun script is used, the '--fh-M' and
@@ -117,7 +134,7 @@ some of the highlights and quirks. .
 		at AMRequestH, pin/inc locally and send AMReply
 		at AMReplyH, update firehose table from list 
 
-	GM 1.x
+	GM 1.x (or broken RDMA gets for faulty GM 2.x builds)
 	firehose_move_get_v1 (op):
 		send AMRequest with remote source location 
 		at AMRequestH, pin/inc locally and send AMReplyAsync
@@ -125,7 +142,7 @@ some of the highlights and quirks. .
 
 	GM 2.x
 	firehose_move_get_v2 (op):
-		if get hits firehose cache
+		if get hits in firehose table
 			local pin
 			rdma get
 			completion decrements/unpins destination

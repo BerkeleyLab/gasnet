@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.26.2.1 2004/04/20 17:16:33 csbell Exp $
- * $Date: 2004/04/20 17:16:33 $
- * $Revision: 1.26.2.1 $
+/* $Id: gasnet_core_help.h,v 1.26.2.2 2004/08/30 05:04:46 csbell Exp $
+ * $Date: 2004/08/30 05:04:46 $
+ * $Revision: 1.26.2.2 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -46,20 +46,41 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_SEGMENT_PINNED	0
 #endif
 
-/* Puts changed to gm_put in the GM 2.x API revision */
-#ifdef GASNETC_GM_2
-#define GASNETC_RDMA_GETS		1
-#define GASNETE_GET_NON_DMA_CUTOFF	0
+/*
+ * RDMA PUTS
+ *
+ * GM 2.x API revision supports gm_put as a synonym for
+ * gm_directed_send_with_callback
+ */
+#if defined(GASNETC_GM_2)
 #define GASNETC_GM_PUT	gm_put
 #else
-#define GASNETC_RDMA_GETS		0
-#define GASNETE_GET_NON_DMA_CUTOFF	8192
 #define GASNETC_GM_PUT	gm_directed_send_with_callback
 #endif
-
-#define GASNETE_PUT_NON_DMA_CUTOFF	0	
-#define GASNETE_PUT_NON_BULK_CUTOFF	GASNETC_AM_LEN
+#define GASNETE_PUT_NON_DMA_CUTOFF		0	
+#define GASNETE_PUT_NON_BULK_CUTOFF		GASNETC_AM_LEN
 #define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD	8192
+
+/*
+ * RDMA GETS
+ *
+ * Appeared with GM API version 2.x but there are serious problems for versions
+ * prior to 2.0.12 in 2.0 series and prior to 2.1.2 in 2.1 series
+ */
+
+#if GM_API_VERSION_2_0 &&                                 \
+   ((GM_API_VERSION_2_1_0 && GM_API_VERSION < 0x20102) || \
+     GM_API_VERSION < 0x2000c)
+    #define GASNETC_GM_RDMA_GETS_BROKEN 1
+#endif
+/* Enable GM gets only if we have GM 2 API and a version that's not broken */
+#if !defined(GASNETC_GM_2) || GASNETC_GM_RDMA_GETS_BROKEN
+  #define GASNETC_RDMA_GETS		0
+  #define GASNETE_GET_NON_DMA_CUTOFF	8192
+#else
+  #define GASNETC_RDMA_GETS		1
+  #define GASNETE_GET_NON_DMA_CUTOFF	0
+#endif
 
 #define GASNETC_SEGMENT_ALIGN	GASNETI_PAGESIZE
 

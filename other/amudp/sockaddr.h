@@ -1,6 +1,6 @@
-//  $Archive:: /Ti/AMUDP/sockaddr.h                                       $
-//     $Date: 2004/04/20 17:16:43 $
-// $Revision: 1.1.2.1 $
+//   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockaddr.h,v $
+//     $Date: 2004/08/30 05:05:00 $
+// $Revision: 1.1.2.2 $
 // Description: Objects for encapsulating and hashing SockAddr's
 // Copyright 1998, Dan Bonachea
 

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
-#  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/06/17 01:16:30 $
-# $Revision: 1.116.2.5 $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
+#     $Date: 2004/08/30 05:04:38 $
+# $Revision: 1.116.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.116.2.5 $)
+AC_REVISION($Revision: 1.116.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -22,7 +22,7 @@ AC_CONFIG_AUX_DIR(config-aux)
  
 AC_CANONICAL_SYSTEM
 AC_VALIDATE_CACHED_SYSTEM_TUPLE
-AM_INIT_AUTOMAKE(GASNet, 1.3, no-define)
+AM_INIT_AUTOMAKE(GASNet, 1.4, no-define)
 
 AC_PREFIX_DEFAULT(/usr/local)
 AM_CONFIG_HEADER(gasnet_config.h)
@@ -40,22 +40,14 @@ GASNET_GET_AUTOCONF_VERSION()
 
 ########################################################################
 ##
-##  Site-Specific Prefabricated Collections of Settings
+##  Misc configure option processing
 ##
 
-## Berkeley Millennium cluster
-
-#AC_MSG_CHECKING(for Berkeley Millennium cluster)
-#AC_ARG_ENABLE(millennium,
-#GASNET_OPTION_HELP(enable-millennium, use known directories for Berkeley Millennium cluster),
-#,[case "`hostname`" in
-#  *.Millennium.Berkeley.EDU) enable_millennium=yes ;;
-#  *) enable_millennium=no ;;
-#esac])
-#if test "$enable_millennium" = yes; then
-#fi
-#AC_MSG_RESULT($enable_millennium)
-
+#     default: support pthreads if library found
+#     --enable-pthreads: fail if pthreads lib not found 
+#     --disable-pthreads: don't even look for pthreads library 
+GASNET_IF_ENABLED_WITH_AUTO(pthreads, support pthreaded GASNet clients,
+                 [use_pthreads="yes"], [use_pthreads="no"], [use_pthreads="try"])
 
 ########################################################################
 ##
@@ -74,6 +66,17 @@ else
   AC_MSG_WARN(cannot find a version of GNU make - if you encounter make problems, install GNU make and/or set \$GMAKE to indicate where it's located)
 fi
 AC_SUBST(GMAKE)
+
+########################################################################
+##
+##  Perl
+##
+## We do this early so we can use "$PERL -e" for complex configure tests.
+GASNET_PROG_PERL
+AC_SUBST(PERL)
+PERLSTART=$TOP_BUILDDIR/other/perlstart
+AC_SUBST_FILE(PERLSTART)
+
 
 ########################################################################
 ##
@@ -135,12 +138,22 @@ fi
 #
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_GCC296CHECK(CC)
+  GNU)  GASNET_GCC_VERSION_CHECK(CC)
         oldCFLAGS="$CFLAGS"
         CFLAGS="-O3"
-        # -finline-limit not available on gcc 2.95
-        GASNET_TRY_CFLAG([-finline-limit=10000],
-                         [CFLAGS="$CFLAGS -finline-limit=10000"])
+	# prefer the --param inliner option(s), which give us finer control
+        GASNET_TRY_CFLAG([--param max-inline-insns-single=10000],
+			 [CFLAGS="$CFLAGS --param max-inline-insns-single=10000"
+			  GASNET_TRY_CFLAG([--param max-inline-insns=100000],
+					   [CFLAGS="$CFLAGS --param max-inline-insns=100000"])],
+			 GASNET_TRY_CFLAG([-finline-limit=10000],
+					  [CFLAGS="$CFLAGS -finline-limit=10000"])
+	)
+	# gcc 3.4+ require new flags to enable full inlining
+        GASNET_TRY_CFLAG([--param inline-unit-growth=10000],
+                         [CFLAGS="$CFLAGS --param inline-unit-growth=10000"])
+        GASNET_TRY_CFLAG([--param large-function-growth=200000],
+                         [CFLAGS="$CFLAGS --param large-function-growth=200000"])
         # We'd like to use -Winline to detect call sites where the optimizer
         # ignores our inline function modifier (usually due to technical limitations)
   	# However, some versions of gcc issue spurious warnings with -Winline
@@ -164,11 +177,11 @@ case "$gasnet_cv_cc_family" in
         CCOPTFLAGS="$CFLAGS"
         CFLAGS="$oldCFLAGS"
   ;;
-  Sun)  CCOPTFLAGS="-xO5" ;;
+  Sun)  CCOPTFLAGS="-fast -xO5" ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
   MIPS) CCOPTFLAGS="-O3" ;;
   XLC)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
-        CCOPTFLAGS="-O3 -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
+        CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
   Intel) CCOPTFLAGS="-O3" ;;
   PGI) CCOPTFLAGS="-O2" ;;
@@ -183,7 +196,9 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         ]GASNET_TRY_[$1]FLAG[([-Wpointer-arith],[[$1]FLAGS="$[$1]FLAGS -Wpointer-arith"])
         ]GASNET_TRY_[$1]FLAG[([-Wnested-externs],[[$1]FLAGS="$[$1]FLAGS -Wnested-externs"])
         ]GASNET_TRY_[$1]FLAG[([-Wwrite-strings],[[$1]FLAGS="$[$1]FLAGS -Wwrite-strings"])
+        ]GASNET_TRY_[$1]FLAG[([-Wdeclaration-after-statement],[[$1]FLAGS="$[$1]FLAGS -Wdeclaration-after-statement"])
         ]GASNET_TRY_[$1]FLAG[([-Wmissing-format-attribute],[[$1]FLAGS="$[$1]FLAGS -Wmissing-format-attribute"])
+	if test "$use_pthreads" != "no" ; then
         # some crappy pthread mutex implementations generate warnings without -Wno-missing-braces
 	AC_MSG_CHECKING(for buggy pthread.h mutex initializers)
         old[$1]FLAGS="$[$1]FLAGS"
@@ -196,8 +211,12 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
           [pthread_mutex_t fastmutex = PTHREAD_MUTEX_INITIALIZER;],
           [AC_MSG_RESULT(ok)], [AC_MSG_RESULT(buggy)
           ]GASNET_TRY_[$1]FLAG[([-Wno-missing-braces],[old[$1]FLAGS="$old[$1]FLAGS -Wno-missing-braces"])],
-          [AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)]
+          [#bug611: ignore failures here, which may be due to broken/missing pthreads support
+           #AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)
+	   AC_MSG_RESULT(failure - ignored)
+          ]
         )
+	fi
         [$1]FLAGS="$old[$1]FLAGS"
         case "$target_os" in 
           solaris*) # hide pragma warnings in system header files included by absolute path
@@ -548,21 +567,36 @@ AC_SUBST(EXESUFFIX)
 
 ## POSIX threads
 #             
-OLDLIBS="$LIBS"   
-LIBS="$LIBS $GASNET_THREAD_LIBS"
-AC_SEARCH_LIBS(pthread_create, [pthread pthreads c_r], have_pthread=yes, have_pthread=no)
-case "$target_os" in
-  hpux*) have_pthread=yes ;; # test fails on HPUX due to signature mismatch
-esac        
-LIBS="$OLDLIBS"
+have_pthread=no
+if test "$use_pthreads" != "no"; then
+  AC_MSG_CHECKING([for working pthreads support])
+  OLDLIBS="$LIBS"   
+  OLDCFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $GASNET_THREAD_DEFINES"
+  LIBS="$LIBS $GASNET_THREAD_LIBS"
+  AC_TRY_LINK( [ #include <pthread.h> ], [ pthread_create(NULL,NULL,NULL,NULL); ], [have_pthread=yes])
+  LIBS="$OLDLIBS"
+  CFLAGS="$OLDCFLAGS"
+  AC_MSG_RESULT($have_pthread)
+else
+  pthread_reason="was disabled"
+fi
+if test "$use_pthreads$have_pthread" = "yesno" ; then
+  AC_MSG_ERROR([--enable-pthreads passed but no working pthreads support found])
+fi
+if test "$use_pthreads$have_pthread" = "tryno" ; then
+  AC_MSG_WARN([No working pthreads support found - disabling pthreads support])
+  pthread_reason="appear to be missing or broken"
+fi
 
 if test "$have_pthread" = no ; then
   GASNET_THREAD_DEFINES=""
   GASNET_THREAD_LIBS=""
-  AC_MSG_WARN(No pthreads support found - disabling pthreads)
 fi
           
 AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
+PTHREADS="$have_pthread"
+AC_SUBST(PTHREADS)
 
 ## Solaris threads
 
@@ -618,9 +652,10 @@ if test "$uni_build" = yes; then
   AC_DEFINE(GASNETI_UNI_BUILD)
 fi
 
-GASNET_IF_ENABLED(loopback-put-memsync, Force a memory barrier after a GASNet local (loopback) put,
-  [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACKPUT)])
-
+GASNET_IF_ENABLED(loopback-memsync, Force memory barriers for GASNet local (loopback) puts and gets,
+  [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACK)])
+GASNET_IF_ENABLED(throttle-poll, throttle polling threads in multi-threaded configurations to reduce contention,
+  [AC_DEFINE(GASNETI_THROTTLE_FEATURE_ENABLED)])
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS
 #---------------------------------------------------------------------------------------------------------------
@@ -651,6 +686,7 @@ if test $enabled_udp = yes; then
 
   GASNET_PROG_CXXCPP
   GASNET_PROG_CXX
+  have_cxx=1
 
   AC_LANG_CPLUSPLUS
   GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
@@ -659,7 +695,7 @@ if test $enabled_udp = yes; then
   GASNET_UDP_LIBS=""
   case "$gasnet_cv_cxx_family" in
     GNU) 
-       GASNET_GCC296CHECK(CXX)
+       GASNET_GCC_VERSION_CHECK(CXX)
        oldCXXFLAGS="$CXXFLAGS"  
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        MISC_CXXFLAGS="$CXXFLAGS" 
@@ -725,6 +761,7 @@ if test $enabled_udp = yes; then
     LIBS="$OLDLIBS"
   fi
 fi
+AM_CONDITIONAL(HAVE_CXX, test "$have_cxx" = 1)
 AC_SUBST(GASNET_UDP_LIBS)
 AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
 if test "$enabled_udp$have_udp" = yesyes ; then
@@ -751,77 +788,51 @@ GASNET_IF_ENABLED_WITH_AUTO(mpi, Enable/disable the CONDUIT_DESC (auto-detected)
 if test $enabled_mpi = yes; then
   # user can explicitly configure MPI by setting MPI_CC, MPI_CFLAGS and MPI_LIBS
   have_mpi=yes # start by assuming they have it
+  if test "$BUILDCONFIG" = "debug" ; then
+    SAFE_MPI_CFLAGS="-g"
+  else
+    SAFE_MPI_CFLAGS="-O"
+  fi
   case "$target_os" in
     solaris*)  
-        if test "$enable_now" = "yes" ; then
-          # this config is for AMMPI-over-MPI-over-AMNOW (Berkeley NOW cluster)
-    	  # (not meant as a production platform)
-          # Use Sun cc (man acc to see options)
-    	  GASNET_ENV_DEFAULT(MPI_CC, /usr/sww/opt/SUNWspro/bin/cc)
-	  BASIC_MPI_CFLAGS="-DAMMPI_COEXIST_WITH_AM \
-		-I/usr/now/am2/include -I/usr/now/include -I/usr/now/mpi/mpich/include \
-		-w"
-	  if test "$BUILDCONFIG" = "optimize" ; then
-    	    GASNET_ENV_DEFAULT(MPI_CFLAGS,  $BASIC_MPI_CFLAGS \
-		-dalign -xarch=v8plusa -xchip=ultra -fast -xtarget=native -xO5)
-	  else
-    	    GASNET_ENV_DEFAULT(MPI_CFLAGS, $BASIC_MPI_CFLAGS -g -w)
-	  fi
-    	  GASNET_ENV_DEFAULT(MPI_LIBS, -lposix4 \
-              -L/usr/now/mpi/mpich/lib/solaris/am2 -L/usr/now/lib\
-              -L/usr/now/am2/lib -lmpi -lens -lglunix -lam2 -lthread\
-              -lsocket -lnsl)
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, glurun -%N %C)
-	  CFLAGS="$CFLAGS -DAMMPI_COEXIST_WITH_AM"
-        else
-          # I don't have access to a Solaris cluster with MPI (other than NOW) 
-          # but these seem like sane defaults
-    	  GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
-    	  GASNET_ENV_DEFAULT(MPI_LIBS, )
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-        fi
+        # I don't have access to a Solaris cluster with MPI (other than NOW) 
+        # but these seem like sane defaults
+    	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
+    	GASNET_ENV_DEFAULT(MPI_LIBS, )
+	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         ;;
     linux*) 
-    	GASNET_ENV_DEFAULT(MPI_CFLAGS, $CFLAGS)
+    	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
-        if test "$enable_millennium" = yes; then
-
-          #mpi_loc=/usr/mill/bin  # TCP/IP implementation
-          # Millennium has screwy mpirun syntax to assure distinct nodes on TCP/IP p4 device
-	  #GASNET_ENV_DEFAULT(MPIRUN_CMD, ${mpi_loc}/mpirun -np %N -nodes %N %C)
-
-          mpi_loc=/usr/mill/pkg/mpich-1.2.1..7-gm/bin  # GM-based implementation
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, ${mpi_loc}/mpirun -np %N %C)
-
-    	  GASNET_ENV_DEFAULT(MPI_CC, ${mpi_loc}/mpicc)
-        else
-    	  GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-        fi
+	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         ;;
     irix*)
 	# use SGI native MPI library
         # user may need to do a "module load mpt" to make this work
     	GASNET_ENV_DEFAULT(MPI_CC, cc -n32)
         # cannot use MISC_CFLAGS here because C compiler may not be MIPSPro
-	BASIC_MPI_CFLAGS="-diag_error 1035 -diag_suppress1171,1174,1209,1552"
+        # -common gets us correct linking behavior for tentative definitions
+	BASIC_MPI_CFLAGS="-diag_error 1035 -diag_suppress1171,1174,1209,1552 -common"
 	if test "$BUILDCONFIG" = "optimize" ; then
-      	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O2 $BASIC_MPI_CFLAGS)
+      	  BASIC_MPI_CFLAGS="-O2 $BASIC_MPI_CFLAGS"
 	else
-      	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
+      	  BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
 	fi
-    	GASNET_ENV_DEFAULT(MPI_LIBS, -LD_MSG:off=84 -lmpi)
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $BASIC_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
+    	GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         ;;
     aix*)
     	GASNET_ENV_DEFAULT(MPI_CC, mpcc)
 	BASIC_MPI_CFLAGS=""
 	if test "$BUILDCONFIG" = "optimize" ; then
-    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O3 -qstrict -qarch=pwr3 -qtune=pwr3 -qsmp=noauto -qmaxmem=8192 $BASIC_MPI_CFLAGS)
+    	  BASIC_MPI_CFLAGS="-O3 -qstrict -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1 $BASIC_MPI_CFLAGS"
 	else
-    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
+    	  BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
 	fi
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $BASIC_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, [-Wl,-bbigtoc])
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, poe %C -nodes %N -tasks_per_node 1 -rmpool 1 -euilib us -retry 1 -retrycount 10000)
         ;;
@@ -829,10 +840,11 @@ if test $enabled_mpi = yes; then
 	GASNET_ENV_DEFAULT(MPI_CC, cc)
 	BASIC_MPI_CFLAGS="-msg_disable extrasemi"
         if test "$BUILDCONFIG" = "optimize" ; then
-          GASNET_ENV_DEFAULT(MPI_CFLAGS, -fast -noifo -O4 -tune host $BASIC_MPI_CFLAGS)
+          BASIC_MPI_CFLAGS="-fast -noifo -O4 -tune host -inline speed $BASIC_MPI_CFLAGS"
         else
-          GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
+          BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
         fi
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $BASIC_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
         GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi -lelan -lrt)
         GASNET_ENV_DEFAULT(MPIRUN_CMD, prun -N %N %C)
         ;;
@@ -841,31 +853,31 @@ if test $enabled_mpi = yes; then
         # user may need to do a "module load mpt" to make this work
     	GASNET_ENV_DEFAULT(MPI_CC, cc)
         case "$target_cpu" in
-          alphaev5) BASIC_MPI_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
-          *)        BASIC_MPI_CFLAGS="-hnomessage=236 $LIBCM" ;; # X1
+          alphaev5) BASIC_MPI_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM"  # T3E
+                    GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
+          ;;
+          *)        BASIC_MPI_CFLAGS="-hnomessage=236 $LIBCM" # X1
+                    GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+          ;;
         esac
 	if test "$BUILDCONFIG" = "optimize" ; then
-    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -O2 $BASIC_MPI_CFLAGS)
+    	  BASIC_MPI_CFLAGS="-O2 $BASIC_MPI_CFLAGS"
 	else
-    	  GASNET_ENV_DEFAULT(MPI_CFLAGS, -g $BASIC_MPI_CFLAGS)
+    	  BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
 	fi
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $BASIC_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lpthread)
-	if test x"$gasnet_cv_cc_is_t3e" = x"yes"; then
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpprun -n %N %C)
-	else
-	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -n %N %C)
-	fi
         ;;
     superux*)
       GASNET_ENV_DEFAULT(MPI_CC, mpic++ -Xa)
-      GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
+      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
       GASNET_ENV_DEFAULT(MPI_LIBS, )
       GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
       ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
       GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-      GASNET_ENV_DEFAULT(MPI_CFLAGS, $MISC_CFLAGS $CFLAGS)
+      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
       GASNET_ENV_DEFAULT(MPI_LIBS, )
       GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
       if test "$MPI_CC" = ""; then
@@ -916,13 +928,19 @@ if test $enabled_mpi = yes; then
       fi
   else
       AC_MSG_RESULT(no)
-      AC_MSG_WARN(build test failed: I don't know how to build MPI programs on your system)
+      AC_MSG_WARN(build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details)
       AC_MSG_WARN(consider using \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want the mpi conduit)
       have_mpi=no
   fi
   if test "$force_mpi$have_mpi" = yesno ; then
     AC_MSG_ERROR(User requested --enable-mpi but I don't know how to build MPI programs for your system)
   fi
+  if test "$have_mpi" = no ; then
+    mpi_reason="was not found"
+  fi
+else
+  have_mpi=no
+  mpi_reason="was disabled"
 fi
 AC_SUBST(MPI_CC) # compiler to be used to build AMMPI, and linker for AMMPI-based backends
 AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used with above compiler when building AMMPI
@@ -963,10 +981,14 @@ echo " ---------------------------------" >> $CONDUIT_LIST
 # GM configuration
 
 pushdef([CONDUIT_DESC],[Myricom/GM network conduit (gm)])
-GASNET_IF_ENABLED(gm, Enable the CONDUIT_DESC, 
-  have_gm=yes,
-  have_gm=no)
-if test $have_gm = yes; then
+GASNET_IF_ENABLED_WITH_AUTO(gm, Enable/disable the CONDUIT_DESC (auto-detected),
+  [enabled_gm=yes;force_gm=yes],
+  enabled_gm=no,
+  enabled_gm=yes)
+if test $enabled_gm = yes; then
+  # Assume the best
+  have_gm=yes
+
   # Look for gm binaries in our path
   AC_PATH_PROGS(gm_board_info, gm_board_info)
   case "$gm_board_info" in
@@ -985,11 +1007,9 @@ if test $have_gm = yes; then
         GASNET_ENV_DEFAULT(GM_INCLUDE, $GMHOME/include)
 	GASNET_ENV_DEFAULT(GM_LIB, $GMHOME/lib)
 	if test "$GM_INCLUDE" = "" || test ! -d "$GM_INCLUDE"; then
-	  AC_MSG_ERROR(GM includes: make sure \$GM_INCLUDE is set and exists)
 	  have_gm=no
 	fi
 	if test "$GM_LIB" = ""; then
-	  AC_MSG_ERROR(GM library: make sure \$GM_LIB is set and exists)
 	  have_gm=no
 	fi
     ;;
@@ -1016,7 +1036,6 @@ if test $have_gm = yes; then
       AC_MSG_RESULT(yes)
     else
       AC_MSG_RESULT(no)
-      AC_MSG_ERROR(build test failed: I don't know how to build GM programs on your system)
       have_gm=no
     fi
     # GM conduit was shown to break horribly on some versions of gcc, because
@@ -1028,14 +1047,54 @@ if test $have_gm = yes; then
     else
         GM_NO_ALIAS=""
     fi
+
+    # Only test if working GM config
+    if test $have_gm = yes; then
+      GASNET_IF_ENABLED(broken-gm, Allow 2.x GM versions with broken RDMA gets,
+        [AC_DEFINE(GASNETC_GM_ENABLE_BROKEN_VERSIONS) 
+	 allow_broken_gm=yes],
+        [allow_broken_gm=no])
+
+      # Now test to see if the targetted GM is a broken one 
+      # broken gm builds
+      AC_MSG_CHECKING(for broken GM 2.x RDMA gets build)
+      OLDCFLAGS="$CFLAGS"
+      OLDLIBS="$LIBS"
+      CFLAGS="-I$GM_INCLUDE -L$GM_LIB"
+      LIBS="-lgm"
+      AC_TRY_COMPILE([
+        #include <gm.h>
+        ], [
+        #if GM_API_VERSION_2_0 &&                                 \
+           ((GM_API_VERSION_2_1_0 && GM_API_VERSION < 0x20102) || \
+             GM_API_VERSION < 0x2000c)
+          #error GM build is broken
+	#endif
+        ], [ gm_build_broken=no ], [ gm_build_broken=yes ])
+      if test "$gm_build_broken" = yes; then
+        if test "$allow_broken_gm" = no; then
+          AC_MSG_RESULT(yes)
+	  AC_MSG_ERROR(Detected a broken GM 2.x RDMA gets build. See gm-conduit/README)
+	else
+          AC_MSG_RESULT(yes which disables RDMA gets)
+	fi
+      else
+          AC_MSG_RESULT(no)
+      fi
+      CFLAGS="$OLDCFLAGS"
+      LIBS="$OLDLIBS"
+    fi
+  fi
+  if test "$force_gm$have_gm" = yesno ; then
+    AC_MSG_ERROR(User requested --enable-gm but I don't know how to build GM programs for your system)
   fi
 fi
 
 AC_SUBST(GM_INCLUDE)
 AC_SUBST(GM_LIB)
 AC_SUBST(GM_NO_ALIAS)
-AM_CONDITIONAL(USE_GM_CONDUIT, test "$have_gm" = yes)
-if test "$have_gm" = yes ; then
+AM_CONDITIONAL(USE_GM_CONDUIT, test "$enabled_gm$have_gm" = yesyes)
+if test "$enabled_gm$have_gm" = yesyes ; then
   CONDUITS="$CONDUITS gm"
   CONDUIT_REPORT(ON)
 else
@@ -1047,11 +1106,18 @@ popdef([CONDUIT_DESC])
 # LAPI configuration
 
 pushdef([CONDUIT_DESC],[LAPI (IBM SP) network conduit (lapi)])
-GASNET_IF_ENABLED(lapi, Enable the CONDUIT_DESC, 
-  have_lapi=yes,
-  have_lapi=no)
-
-if test $have_lapi = yes; then
+GASNET_IF_ENABLED_WITH_AUTO(lapi, Enable the CONDUIT_DESC (auto-detected), 
+  [enabled_lapi=yes;force_lapi=yes],
+  enabled_lapi=no,
+  enabled_lapi=yes)
+if test "$force_lapi$have_pthread" = yesno; then
+  AC_MSG_ERROR([lapi-conduit requires pthread support but pthreads $pthread_reason])
+fi
+if test "$enabled_lapi$have_pthread" = yesno; then
+  enabled_lapi=no
+  AC_MSG_WARN([lapi-conduit requires pthread support but pthreads $pthread_reason - disabling lapi])
+fi
+if test "$enabled_lapi" = yes; then
   AC_MSG_CHECKING(for working LAPI configuration)
   OLDLIBS="$LIBS"
   LIBS="-llapi_r -lpthread"
@@ -1065,15 +1131,80 @@ if test $have_lapi = yes; then
 
       memset(&gasnetc_lapi_info, 0, sizeof(lapi_info_t));
       LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
-    }], [ lapi_test_worked=yes ], [ lapi_test_worked=no ] )
+    }], [ have_lapi=yes ], [ have_lapi=no ] )
   LIBS="$OLDLIBS"
+  AC_MSG_RESULT($have_lapi)
 
-  if test "$lapi_test_worked" = yes; then
-    AC_MSG_RESULT(yes)
-  else
-    AC_MSG_RESULT(no)
-    AC_MSG_ERROR(build test failed: I don't know how to build lapi programs on your system)
-    have_lapi=no
+  # Check for hardware version
+  if test "$have_lapi" = "yes"; then
+    have_fed="no"
+    have_col="no"
+    lapi_how="selected"
+    GASNET_WITH(lapi-type,
+	[IBM Switch hardware type ("colony" or "federation", default is to probe)],
+	[case "$withval" in
+	   [[cC]]olony|COLONY) have_col="yes" ;;
+	   [[fF]]ederation|FEDERATION) have_fed="yes" ;;
+	   *) AC_MSG_ERROR([Unrecognized value "$withval" passed to --with-lapi-type.  Legal values are "colony" or "federation".]);
+	 esac],
+	[have_lapi=no],
+	[AC_MSG_CHECKING([for Federation Switch hardware])
+	 if test -n "`lscfg -l sni0 2> /dev/null | grep -- sni0`" ; then
+	   have_fed="yes"
+	 fi
+	 AC_MSG_RESULT([$have_fed])
+	 AC_MSG_CHECKING([for Colony Switch hardware])
+	 if test -n "`lscfg -l css0 2> /dev/null | grep -- css0`" ; then
+	   have_col="yes"
+	 fi
+	 AC_MSG_RESULT([$have_col])
+	 lapi_how="found"])
+    if test "${have_fed}${have_col}" = "yesyes"; then
+      AC_MSG_WARN([Both Federation and Colony Switch hardware $lapi_how - disabling lapi.  Pass exactly one of --with-lapi-type=colony or --with-lapi-type=federation to select one.])
+      have_lapi="no"
+    elif test "${have_fed}" = "yes"; then
+      AC_DEFINE(GASNETC_LAPI_FEDERATION)
+	AC_MSG_CHECKING([For LAPI Federation Version])
+        LAPI_VER=`lslpp -l | grep rsct.lapi.rte 2>/dev/null | tail -1 | $AWK '{print $2}'`
+        if test -z "$LAPI_VER" ; then
+           AC_MSG_WARN([Could not detect LAPI version number with lslpp. ])
+        else
+           LAPI_VER_NUM1=`echo $LAPI_VER | cut -d\. -f 1`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_A,$LAPI_VER_NUM1)
+           LAPI_VER_NUM2=`echo $LAPI_VER | cut -d\. -f 2`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_B,$LAPI_VER_NUM2)
+           LAPI_VER_NUM3=`echo $LAPI_VER | cut -d\. -f 3`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_C,$LAPI_VER_NUM3)
+           LAPI_VER_NUM4=`echo $LAPI_VER | cut -d\. -f 4`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_D,$LAPI_VER_NUM4)
+        fi
+        AC_MSG_RESULT([$LAPI_VER])
+    elif test "${have_col}" = "yes"; then
+      AC_DEFINE(GASNETC_LAPI_COLONY)
+	AC_MSG_CHECKING([For LAPI Colony Version])
+        LAPI_VER=`lslpp -l | grep ssp.css.lapi 2>/dev/null | tail -1 | $AWK '{print $2}'`
+        if test -z "$LAPI_VER" ; then
+           AC_MSG_WARN([Could not detect LAPI version number with lslpp. ])
+        else
+           LAPI_VER_NUM1=`echo $LAPI_VER | cut -d\. -f 1`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_A,$LAPI_VER_NUM1)
+           LAPI_VER_NUM2=`echo $LAPI_VER | cut -d\. -f 2`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_B,$LAPI_VER_NUM2)
+           LAPI_VER_NUM3=`echo $LAPI_VER | cut -d\. -f 3`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_C,$LAPI_VER_NUM3)
+           LAPI_VER_NUM4=`echo $LAPI_VER | cut -d\. -f 4`
+           AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_D,$LAPI_VER_NUM4)
+        fi
+        AC_MSG_RESULT([$LAPI_VER])
+    else
+      AC_MSG_WARN([No IBM SP Switch hardware $lapi_how - disabling lapi])
+      have_lapi="no"
+    fi
+  fi
+
+  # Check for conflict
+  if test "$force_lapi$have_lapi" = yesno; then
+    AC_MSG_ERROR([User requested --enable-lapi but I don't know how to build LAPI programs for your system.])
   fi
 
   if test x"$ac_cv_sizeof_void_p" = x4; then
@@ -1082,6 +1213,7 @@ if test $have_lapi = yes; then
     LAPI_LD="mpcc_r -q64"
   fi
   AC_SUBST(LAPI_LD)
+
 fi
 
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
@@ -1097,11 +1229,14 @@ popdef([CONDUIT_DESC])
 # ELAN configuration
 
 pushdef([CONDUIT_DESC],[Quadrics/Elan network conduit (elan)])
-GASNET_IF_ENABLED(elan, Enable the CONDUIT_DESC, 
-  have_elan=yes,
-  have_elan=no)
+GASNET_IF_ENABLED_WITH_AUTO(elan, Enable/disable the CONDUIT_DESC (auto-detected),
+  [enabled_elan=yes;force_elan=yes],
+  enabled_elan=no,
+  enabled_elan=yes)
+if test $enabled_elan = yes; then
+  # Assume the best
+  have_elan=yes
 
-if test $have_elan = yes; then
   case "$target_os" in
     linux*)
 	# the default locations are /usr/include and /usr/lib
@@ -1122,7 +1257,7 @@ if test $have_elan = yes; then
   # Don't actually place -I/usr/include on the compile line, because this
   # breaks IA64 Intel C, which relies on preceding /usr/include with its own
   # include directory that overrides some system headers (eg asm/*)
-  if test `cd ${ELAN_INCLUDE}; pwd` = "/usr/include"; then
+  if test `cd ${ELAN_INCLUDE} 2>/dev/null; pwd` = "/usr/include"; then
     ELAN_INCLUDE=.
   fi
 
@@ -1165,21 +1300,25 @@ if test $have_elan = yes; then
     fi
     AC_MSG_RESULT("${majorver}.${minorver}.${subver}")
     if test "$majorver" = "" -o "$minorver" = "" -o "$subver" = "" ; then
-      AC_MSG_ERROR("unable to determine libelan version")
+      AC_MSG_ERROR(["libelan present, but unable to determine libelan version"])
     fi
     ELAN_FLAGS="-DELAN_VERSION_MAJOR=${majorver} -DELAN_VERSION_MINOR=${minorver} -DELAN_VERSION_SUB=${subver}"
   else
     AC_MSG_RESULT(no)
     ELAN_FLAGS=""
-    AC_MSG_ERROR(build test failed: I don't know how to build ELAN programs on your system)
+    have_elan=no
+  fi
+
+  if test "$force_elan$have_elan" = yesno; then
+    AC_MSG_ERROR([User requested --enable-elan but I don't know how to build elan programs for your system.])
   fi
 fi
 
 AC_SUBST(ELAN_INCLUDE)
 AC_SUBST(ELAN_LIBS)
 AC_SUBST(ELAN_FLAGS)
-AM_CONDITIONAL(USE_ELAN_CONDUIT, test "$have_elan" = yes)
-if test "$have_elan" = yes ; then
+AM_CONDITIONAL(USE_ELAN_CONDUIT, test "$enabled_elan$have_elan" = yesyes)
+if test "$enabled_elan$have_elan" = yesyes ; then
   CONDUITS="$CONDUITS elan"
   CONDUIT_REPORT(ON)
 else
@@ -1195,23 +1334,19 @@ GASNET_IF_ENABLED_WITH_AUTO(vapi, Enable/disable the CONDUIT_DESC (auto-detected
   [enabled_vapi=yes;force_vapi=yes],
   enabled_vapi=no,
   enabled_vapi=yes)
-if test "$enabled_vapi" = yes; then
-  # Sort out the MPI dependence
-  AC_MSG_CHECKING([for MPI (required to start VAPI programs)])
-  if test "$have_mpi" = yes; then
-    AC_MSG_RESULT(ok)
-  else
-    if test "$enabled_mpi" = no; then
-      reason="disabled"
-    else
-      reason="not found"
-    fi
-    AC_MSG_RESULT([$reason - VAPI auto-detection skipped.]);
-    if test "$force_vapi" = yes; then
-      AC_MSG_ERROR([User requested --enable-vapi but required MPI support was $reason.]);
-    fi
-    enabled_vapi=no
-  fi
+if test "$force_vapi$have_pthread" = yesno; then
+  AC_MSG_ERROR([vapi-conduit requires pthread support but pthreads $pthread_reason])
+fi
+if test "$enabled_vapi$have_pthread" = yesno; then
+  enabled_vapi=no
+  AC_MSG_WARN([vapi-conduit requires pthread support but pthreads $pthread_reason - disabling vapi])
+fi
+if test "$force_vapi$have_mpi" = yesno; then
+  AC_MSG_ERROR([vapi-conduit requires MPI support and MPI $mpi_reason]);
+fi
+if test "$enabled_vapi$have_mpi" = yesno; then
+  enabled_vapi=no
+  AC_MSG_WARN([vapi-conduit requires MPI support and MPI $mpi_reason - disabling vapi])
 fi
 if test "$enabled_vapi" = yes; then
   # Start by assuming we do have VAPI
@@ -1255,8 +1390,8 @@ if test "$enabled_vapi" = yes; then
   AC_MSG_CHECKING(for working VAPI configuration)
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
-  CFLAGS="-I$VAPI_INCLUDE $VAPI_LIBCFLAGS"
-  LIBS="-L$VAPI_LIBDIR $VAPI_LIBS"
+  CFLAGS="-I$VAPI_INCLUDE $GASNET_THREAD_DEFINES $VAPI_LIBCFLAGS"
+  LIBS="-L$VAPI_LIBDIR $VAPI_LIBS $GASNET_THREAD_LIBS"
   # try to compile and link a simple VAPI program
   AC_TRY_LINK( [
     #include <evapi.h>
@@ -1276,14 +1411,29 @@ if test "$enabled_vapi" = yes; then
     have_vapi=no
   fi
 
-
   # Check for conflict
   if test "$force_vapi$have_vapi" = yesno; then
     AC_MSG_ERROR([User requested --enable-vapi but I don't know how to build VAPI programs for your system.])
   fi
 
-
   if test "$have_vapi" = yes; then
+    AC_MSG_CHECKING(for VAPI FMR support)
+    OLDCFLAGS="$CFLAGS"
+    OLDLIBS="$LIBS"
+    CFLAGS="-I$VAPI_INCLUDE $GASNET_THREAD_DEFINES $VAPI_LIBCFLAGS"
+    LIBS="-L$VAPI_LIBDIR $VAPI_LIBS $GASNET_THREAD_LIBS"
+    AC_TRY_LINK( [
+      #include <vapi.h>
+      #include <evapi.h>
+    ], [{
+      VAPI_hca_hndl_t my_hca;
+      EVAPI_fmr_hndl_t handles[1];
+      EVAPI_unmap_fmr(my_hca, 1, handles);
+    }], [ AC_DEFINE(HAVE_VAPI_FMR)
+          AC_MSG_RESULT(yes) ], [ AC_MSG_RESULT(no) ] )
+    CFLAGS="$OLDCFLAGS"
+    LIBS="$OLDLIBS"
+
     # Collect some VAPI-specifc configure options
     GASNET_IF_ENABLED_WITH_AUTO(vapi-inline-puts, [See vapi-conduit/README (enabled by default)], 
       enabled_vapi_inline_puts=yes, enabled_vapi_inline_puts=no, enabled_vapi_inline_puts=yes)
@@ -1411,6 +1561,55 @@ AC_SUBST(SHMEM_FLAGS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$have_shmem" = yes)
 if test "$have_shmem" = yes ; then
   CONDUITS="$CONDUITS shmem"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
+fi
+popdef([CONDUIT_DESC])
+
+#--------------------------------------------------------------------------------------------------------
+# SCI configuration
+
+pushdef([CONDUIT_DESC],[Dolphin SISCI network conduit (sci)])
+GASNET_IF_ENABLED_WITH_AUTO(sci, Enable the CONDUIT_DESC (auto-detected),
+  [enabled_sci=yes;force_sci=yes],
+  enabled_sci=no,
+  enabled_sci=yes)
+
+if test "$enabled_sci" = yes; then
+  GASNET_ENV_DEFAULT(SCIHOME, /opt/DIS)
+  GASNET_ENV_DEFAULT(SCI_INCLUDES, [-I$SCIHOME/include -I$SCIHOME/lib/api])
+  GASNET_ENV_DEFAULT(SCI_LIBS, [-L$SCIHOME/lib/api -lsisci])
+
+  AC_MSG_CHECKING(for working SCI configuration)
+  OLDCFLAGS="$CFLAGS"
+  OLDLIBS="$LIBS"
+  CFLAGS="$CFLAGS $SCI_INCLUDES"
+  LIBS="$LIBS $SCI_LIBS"
+  # try to compile and link a simple SCI program
+  AC_TRY_LINK( [
+     #include <sisci_types.h>
+     #include <sisci_api.h>
+     #include <sisci_error.h>
+  ], [{
+     sci_desc_t sd;
+     sci_error_t err;
+     SCIOpen(&sd, 0, &err);
+    }], [ have_sci=yes ], [ have_sci=no ] )
+  CFLAGS="$OLDCFLAGS"
+  LIBS="$OLDLIBS"
+  AC_MSG_RESULT($have_sci)
+
+  # Check for conflict
+  if test "$force_sci$have_sci" = yesno; then
+    AC_MSG_ERROR([User requested --enable-sci but I don't know how to build SCI programs for your system.])
+  fi
+fi
+AC_SUBST(SCI_INCLUDES)
+AC_SUBST(SCI_LIBS)
+AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
+if test "$have_sci" = yes ; then
+  CONDUITS="$CONDUITS sci"
   CONDUIT_REPORT(ON)
 else
   CONDUIT_REPORT(OFF)
@@ -1655,14 +1854,6 @@ if test x"$BOURNE_SHELL" = x; then
     BOURNE_SHELL="/bin/sh"
 fi
 
-GASNET_PATH_PROGS(PERL, perl5 perl, perl)
-MIN_PERL_VERSION="5.005"
-AC_MSG_CHECKING(for perl version $MIN_PERL_VERSION or later)
-if $PERL -e "require $MIN_PERL_VERSION;" 2>&AC_FD_CC; then
-  AC_MSG_RESULT(yes)
-else
-  AC_MSG_ERROR(cannot find perl $MIN_PERL_VERSION or later)
-fi
 GASNET_PATH_PROGS(AR, $AR ar gar, archiver)
 #AC_PROG_RANLIB
 GASNET_PATH_PROGS(RANLIB, $RANLIB ranlib touch, ranlib)
@@ -1672,7 +1863,6 @@ GASNET_PATH_PROGS(DIRNAME, $DIRNAME dirname, dirname)
 AC_PATH_PROGS(READLINK, $READLINK readlink)
 
 AC_SUBST(BOURNE_SHELL)
-AC_SUBST(PERL)
 AC_SUBST(AR)
 AC_SUBST(RANLIB)
 AC_SUBST(BASENAME)
@@ -1707,9 +1897,6 @@ case "$target_os" in
 esac
 AC_SUBST(LDFLAGS)
 
-PERLSTART=$TOP_BUILDDIR/other/perlstart
-AC_SUBST_FILE(PERLSTART)
-
 # Figure out how to install config files
 GASNET_SET_INSTALL_CMD
 
@@ -1732,7 +1919,9 @@ GASNET_SAVE_AUTOCONF_ENV()
 
 GASNET_FIX_EXEC(gm-conduit/contrib/gasnetrun_gm)
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
+GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
+GASNET_FIX_EXEC(other/contrib/gasnet_trace)
 
 # Files added here should also be added to ./unBootstrap
 
@@ -1756,6 +1945,11 @@ gm-conduit/contrib/gasnetrun_gm
 lapi-conduit/Makefile
 lapi-conduit/conduit.mak
 
+sci-conduit/Makefile
+sci-conduit/conduit.mak
+sci-conduit/contrib/Makefile
+sci-conduit/contrib/gasnetrun_sci
+
 smp-conduit/Makefile
 smp-conduit/conduit.mak
 
@@ -1776,6 +1970,8 @@ other/fragment-head.mak
 other/fragment-body.mak
 other/ammpi/Makefile
 other/amudp/Makefile
+other/contrib/Makefile
+other/contrib/gasnet_trace
 tests/Makefile
 config-aux/Makefile
 ,

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_extended.c                  $
- *     $Date: 2004/06/17 01:16:42 $
- * $Revision: 1.17.2.2 $
+ *     $Date: 2004/08/30 05:04:50 $
+ * $Revision: 1.17.2.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,14 +82,10 @@ extern gasnete_threaddata_t *gasnete_mythread() {
       return threaddata;
     }
 
-    /*  first time we've seen this thread - need to set it up */
-    { int retval;
-    gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
-
-    retval = pthread_setspecific(gasnete_threaddata, threaddata);
-    gasneti_assert(!retval);
+    /* first time we've seen this thread - need to set it up */
+    threaddata = gasnete_new_threaddata();
+    gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
     return threaddata;
-    }
 }
 #else
 #define gasnete_mythread() (gasnete_threadtable[0])
@@ -112,12 +108,10 @@ extern void gasnete_init() {
 
     gasnete_check_config(); /*  check for sanity */
 
-#if GASNETI_CLIENT_THREADS
-    {/*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
-	int retval = pthread_key_create(&gasnete_threaddata, NULL);
-	if (retval) gasneti_fatalerror("In gasnete_init(), pthread_key_create()=%s",strerror(retval));
-    }
-#endif
+    #if GASNETI_CLIENT_THREADS
+      /*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+      gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
+    #endif
 
     gasnete_mynode = gasnet_mynode();
     gasnete_nodes = gasnet_nodes();
@@ -357,6 +351,26 @@ void gasnete_op_free(gasnete_op_t *op) {
     }
 }
 
+#if GASNETC_FEDBUG_WORKAROUND
+/*
+ * MLW: HACK to get around LAPI FEDERATION bug.
+ * We allow syncing some of the outstanding put operations to
+ * throttle the number of outstanding in-flight messages.  
+ */
+static void gasnete_wait_syncnbi_myputs(int numputs GASNETE_THREAD_FARG)
+{
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t *iop = mythread->current_iop;
+    int cnt = 0;
+    gasneti_assert(iop->threadidx == mythread->threadidx);
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+    gasneti_assert(iop->initiated_put_cnt >= numputs);
+    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->put_cntr,numputs,&cnt));
+    iop->initiated_put_cnt -= numputs;
+    gasneti_sync_reads();  /* MLW: is this needed? */
+}
+#endif
+
 /* --------------------------------------------------------------------------
  * This is the LAPI Header Handler that executes a gasnet_memset operation
  * on the remote node.
@@ -391,6 +405,7 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 
     /* Issue as many gets as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_get = MIN(nbytes, gasnetc_max_lapi_data_size);
 	GASNETC_LCHECK(LAPI_Get(gasnetc_lapi_context, (unsigned int)node, to_get,
@@ -400,8 +415,9 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 	num_get++;
 	nbytes -= to_get;
     }
+    gasneti_resume_spinpollers();
     /* block until all gets complete */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&c_cntr,num_get,&cur_cntr));
+    GASNETC_WAITCNTR(&c_cntr,num_get,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
 }
 
@@ -417,6 +433,7 @@ extern void gasnete_put_bulk (gasnet_node_t node, void *dest, void *src,
 
     /* Issue as many puts as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_put = MIN(nbytes, gasnetc_max_lapi_data_size);
 	/* use op lapi counter as completion counter,
@@ -428,9 +445,10 @@ extern void gasnete_put_bulk (gasnet_node_t node, void *dest, void *src,
 	num_put++;
 	nbytes -= to_put;
     }
+    gasneti_resume_spinpollers();
 
     /* block until all complete */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&c_cntr,num_put,&cur_cntr));
+    GASNETC_WAITCNTR_FBW(&c_cntr,num_put,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
 }
 
@@ -451,14 +469,16 @@ extern void gasnete_memset(gasnet_node_t node, void *dest, int val,
     uhdr.nbytes = nbytes;
 	
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
+    gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
 			       gasnete_remote_memset_hh[node],
 			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
 			       NULL, NULL, &c_cntr));
+    gasneti_resume_spinpollers();
    
 
     /* block until complete */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&c_cntr,1,&cur_cntr));
+    GASNETC_WAITCNTR_FBW(&c_cntr,1,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
 }
 
@@ -476,6 +496,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
     /* Issue as many gets as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_get = MIN(nbytes, gasnetc_max_lapi_data_size);
 	GASNETC_LCHECK(LAPI_Get(gasnetc_lapi_context, (unsigned int) node, to_get,
@@ -485,6 +506,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 	op->initiated_cnt++;
 	nbytes -= to_get;
     }
+    gasneti_resume_spinpollers();
     return (gasnet_handle_t)op;
 }
 
@@ -496,6 +518,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 
     /* Issue as many puts as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_put = MIN(nbytes, gasnetc_max_lapi_data_size);
 	/* use op lapi counter as completion counter */
@@ -506,7 +529,14 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 	op->initiated_cnt++;
 	nbytes -= to_put;
     }
+    gasneti_resume_spinpollers();
+
+#if GASNETC_FEDBUG_WORKAROUND
+    gasnete_wait_syncnb((gasnet_handle_t)op);
+    return GASNET_INVALID_HANDLE;
+#else
     return (gasnet_handle_t)op;
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -522,6 +552,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
 
     /* Issue as many puts as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_put = MIN(nbytes, gasnetc_max_lapi_data_size);
 	/* use op lapi counter as completion counter,
@@ -533,14 +564,20 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
 	num_put++;
 	nbytes -= to_put;
     }
+    gasneti_resume_spinpollers();
     op->initiated_cnt += num_put;
     /* Client allowed to modify src data after return.  Make sure operation
      * is complete at origin
      */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&o_cntr,num_put,&cur_cntr));
+    GASNETC_WAITCNTR(&o_cntr,num_put,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
     
+#if GASNETC_FEDBUG_WORKAROUND
+    gasnete_wait_syncnb((gasnet_handle_t)op);
+    return GASNET_INVALID_HANDLE;
+#else
     return (gasnet_handle_t)op;
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -560,18 +597,25 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     uhdr.nbytes = nbytes;
 	
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
+    gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
 			       gasnete_remote_memset_hh[node],
 			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
 			       NULL, &o_cntr, &op->cntr));
+    gasneti_resume_spinpollers();
    
     op->initiated_cnt++;
     /* must insure operation has completed locally since uhdr is a stack variable.
      * This will ALMOST ALWAYS be true in the case of such a small message */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&o_cntr,1,&cur_cntr));
+    GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
 
+#if GASNETC_FEDBUG_WORKAROUND
+    gasnete_wait_syncnb((gasnet_handle_t)op);
+    return GASNET_INVALID_HANDLE;
+#else
     return (gasnet_handle_t)op;
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -581,9 +625,13 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
+
+    if (handle == GASNET_INVALID_HANDLE)
+	return GASNET_OK;
 
     if (gasnete_op_isdone(handle)) {
+	gasneti_sync_reads();
 	gasnete_op_free(handle);
 	return GASNET_OK;
     }
@@ -593,7 +641,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 0;
     int empty = 1;
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     gasneti_assert(phandle);
 
@@ -603,6 +651,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 	if (op != GASNET_INVALID_HANDLE) {
 	    empty = 0;
 	    if (gasnete_op_isdone(op)) {
+		gasneti_sync_reads();
 		gasnete_op_free(op);
 		phandle[i] = GASNET_INVALID_HANDLE;
 		success = 1;
@@ -617,7 +666,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 1;
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     gasneti_assert(phandle);
 
@@ -626,6 +675,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 	gasnete_op_t *op = phandle[i];
 	if (op != GASNET_INVALID_HANDLE) {
 	    if (gasnete_op_isdone(op)) {
+		gasneti_sync_reads();
 		gasnete_op_free(op);
 		phandle[i] = GASNET_INVALID_HANDLE;
 	    } else success = 0;
@@ -636,6 +686,69 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
     if (success) return GASNET_OK;
     else return GASNET_ERR_NOT_READY;
 }
+
+#if GASNETC_FEDBUG_WORKAROUND
+extern void gasnete_wait_syncnb(gasnet_handle_t handle) {
+    int cnt = 0;
+    gasnete_op_t *op = handle;
+    if (handle == GASNET_INVALID_HANDLE)
+	return;
+    gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
+    if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
+	gasnete_eop_t *eop = (gasnete_eop_t*)op;
+	gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
+        gasnete_eop_check(eop);
+	if (eop->initiated_cnt > 0) {
+	    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&eop->cntr,eop->initiated_cnt,&cnt));
+	    gasneti_assert(cnt == 0);
+	    eop->initiated_cnt =0;
+	}
+    } else {
+	gasnete_iop_t *iop = (gasnete_iop_t*)op;
+        gasnete_iop_check(iop);
+	if (iop->initiated_get_cnt > 0) {
+	    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->get_cntr,iop->initiated_get_cnt,&cnt));
+	    gasneti_assert(cnt == 0);
+	    iop->initiated_get_cnt = 0;
+	}
+	if (iop->initiated_put_cnt > 0) {
+	    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->put_cntr,iop->initiated_put_cnt,&cnt));
+	    gasneti_assert(cnt == 0);
+	    iop->initiated_put_cnt = 0;
+	}
+    }
+    gasneti_sync_reads();
+    gasnete_op_free(handle);
+}
+extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
+    gasneti_assert(phandle);
+
+    { int i;
+    for (i = 0; i < numhandles; i++) {
+	gasnete_op_t *op = phandle[i];
+	if (op != GASNET_INVALID_HANDLE) {
+	    gasnete_wait_syncnb(op);
+	    phandle[i] = GASNET_INVALID_HANDLE;
+	    /* got one, just return */
+	    break;
+	}
+    }
+    }
+}
+extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
+    gasneti_assert(phandle);
+
+    { int i;
+    for (i = 0; i < numhandles; i++) {
+	gasnete_op_t *op = phandle[i];
+	if (op != GASNET_INVALID_HANDLE) {
+	    gasnete_wait_syncnb(op);
+	    phandle[i] = GASNET_INVALID_HANDLE;
+	}
+    }
+    }
+}
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -649,6 +762,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src,
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *op = mythread->current_iop;
 
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_get = MIN(nbytes, gasnetc_max_lapi_data_size);
 	GASNETC_LCHECK(LAPI_Get(gasnetc_lapi_context, (unsigned int)node, to_get,
@@ -658,6 +772,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src,
 	op->initiated_get_cnt++;
 	nbytes -= to_get;
     }
+    gasneti_resume_spinpollers();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -666,9 +781,11 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
 {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *op = mythread->current_iop;
+    int num_put = 0;
 
     /* Issue as many puts as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
 	size_t to_put = MIN(nbytes, gasnetc_max_lapi_data_size);
 	/* use op lapi counter as completion counter */
@@ -676,9 +793,15 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
 				dest,src,NULL,NULL,&op->put_cntr));
 	dest = (void*)((char*)dest + to_put);
 	src = (void*)((char*)src + to_put);
-	op->initiated_put_cnt++;
 	nbytes -= to_put;
+	num_put++;
     }
+    op->initiated_put_cnt += num_put;
+    gasneti_resume_spinpollers();
+
+#if GASNETC_FEDBUG_WORKAROUND
+    gasnete_wait_syncnbi_myputs(num_put GASNETE_THREAD_GET);
+#endif    
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -695,7 +818,11 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
 
     /* Issue as many puts as required.
      * Will generally only be one */
+    gasneti_suspend_spinpollers();
     while (nbytes > 0) {
+
+
+
 	size_t to_put = MIN(nbytes, gasnetc_max_lapi_data_size);
 	/* use op lapi counter as completion counter,
 	 * and o_cntr as origin counter */
@@ -706,12 +833,17 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
 	num_put++;
 	nbytes -= to_put;
     }
+    gasneti_resume_spinpollers();
     op->initiated_put_cnt += num_put;
     /* Client allowed to modify src data after return.  Make sure operation
      * is complete at origin
      */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&o_cntr,num_put,&cur_cntr));
+    GASNETC_WAITCNTR(&o_cntr,num_put,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
+
+#if GASNETC_FEDBUG_WORKAROUND
+    gasnete_wait_syncnbi_myputs(num_put GASNETE_THREAD_GET);
+#endif    
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -732,16 +864,22 @@ extern void gasnete_memset_nbi (gasnet_node_t node, void *dest, int val,
     uhdr.nbytes = nbytes;
 	
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
+    gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
 			       gasnete_remote_memset_hh[node],
 			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
 			       NULL, &o_cntr, &op->put_cntr));
+    gasneti_resume_spinpollers();
    
     op->initiated_put_cnt++;
     /* must insure operation has completed locally since uhdr is a stack variable.
      * This will ALMOST ALWAYS be true in the case of such a small message */
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&o_cntr,1,&cur_cntr));
+    GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
+
+#if GASNETC_FEDBUG_WORKAROUND
+    gasnete_wait_syncnbi_myputs(1 GASNETE_THREAD_GET);
+#endif    
 }
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -770,6 +908,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 	      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->get_cntr,0));
               iop->initiated_get_cnt = 0;
             }
+	    gasneti_sync_reads();
 	    return GASNET_OK;
         } else return GASNET_ERR_NOT_READY;
     }
@@ -793,14 +932,43 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 	    gasneti_assert(cnt <= iop->initiated_put_cnt);
 	}
         if (iop->initiated_put_cnt == cnt) {
-          if (cnt > 65000) { /* make sure we don't overflow the counters */
+            if (cnt > 65000) { /* make sure we don't overflow the counters */
 	      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->put_cntr,0));
               iop->initiated_put_cnt = 0;
             }
+	    gasneti_sync_reads();
 	    return GASNET_OK;
         } else return GASNET_ERR_NOT_READY;
     }
 }
+
+#if GASNETC_FEDBUG_WORKAROUND
+/* don't poll for put operations, polling for gets is ok */
+extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t *iop = mythread->current_iop;
+    int cnt = 0;
+    gasneti_assert(iop->threadidx == mythread->threadidx);
+    gasneti_assert(iop->next == NULL);
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+#if GASNET_DEBUG
+    if (iop->next != NULL)
+	gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_puts() inside an NBI access region");
+#endif
+    if (iop->initiated_put_cnt > 0) {
+	GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->put_cntr,iop->initiated_put_cnt,&cnt));
+	/* note that waitcntr decreemnts counter by amount waited for */
+	gasneti_assert(cnt == 0);
+	iop->initiated_put_cnt = 0;
+	gasneti_sync_reads();
+    } 
+}
+
+extern void gasnete_wait_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
+    gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
+    gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
+}
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -961,6 +1129,7 @@ void gasnete_lapi_barrier_ch(lapi_handle_t *context, void* user_info)
 			    barrier_consensus_value[uhdr->phase],barrier_count[uhdr->phase]));
 
     /* inform all nodes (except local node) that barrier is complete */
+    gasneti_suspend_spinpollers();
     for (i=0; i < gasnete_nodes; i++) {
 	if ( i == gasnete_mynode ) continue;
 	GASNETC_LCHECK(LAPI_Amsend(*context, (unsigned int)i,
@@ -968,6 +1137,7 @@ void gasnete_lapi_barrier_ch(lapi_handle_t *context, void* user_info)
 				   uhdr, sizeof(gasnete_barrier_uhdr_t), NULL, 0,
 				   NULL, NULL, NULL));
     }
+    gasneti_resume_spinpollers();
 
 }
 
@@ -1036,7 +1206,7 @@ void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 	gasneti_assert(phase == barrier_phase);
 
 	barrier_response_mismatch[phase] = u->mismatch;
-        gasneti_memsync(); /* ensure mimatch committed before signal */
+        gasneti_sync_writes(); /* ensure mimatch committed before signal */
 	barrier_response_done[phase] = 1;
     }
     return NULL;
@@ -1044,6 +1214,7 @@ void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 
 extern void gasnete_barrier_notify(int id, int flags) {
     int phase;
+    gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
     if_pf(barrier_splitstate == INSIDE_BARRIER) 
 	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
@@ -1071,13 +1242,15 @@ extern void gasnete_barrier_notify(int id, int flags) {
 	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
 	
 	/*  send notify msg to 0 */
+        gasneti_suspend_spinpollers();
 	GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context,
 				   (unsigned int)GASNETE_BARRIER_MASTER,
 				   gasnete_remote_barrier_hh[GASNETE_BARRIER_MASTER],
 				   &uhdr, sizeof(gasnete_barrier_uhdr_t), NULL, 0,
 				   NULL, &o_cntr, NULL));
+        gasneti_resume_spinpollers();
 	/* wait for local completion */
-	GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&o_cntr,1,&cur_cntr));
+	GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
 	gasneti_assert(cur_cntr == 0);
     } else {
 	barrier_response_mismatch[phase] = (flags & GASNET_BARRIERFLAG_MISMATCH);
@@ -1086,7 +1259,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
     /*  update state */
     barrier_splitstate = INSIDE_BARRIER;
-    gasneti_memsync(); /* ensure all state changes committed before return */
+    gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
 
@@ -1094,16 +1267,16 @@ extern int gasnete_barrier_wait(int id, int flags) {
 #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
 #endif
-    int phase = barrier_phase;
+    int phase;
+    gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
+    phase = barrier_phase;
     if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
 
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW()-barrier_notifytime);
 
     /*  wait for response */
-    while (!barrier_response_done[phase]) {
-	GASNETE_SAFE(gasnet_AMPoll());
-    }
+    gasneti_polluntil(barrier_response_done[phase]);
 
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
 
@@ -1117,7 +1290,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
     /*  update local state */
     barrier_splitstate = OUTSIDE_BARRIER;
     barrier_response_done[phase] = 0;
-    gasneti_memsync(); /* ensure all state changes committed before return */
+    gasneti_sync_writes(); /* ensure all state changes committed before return */
     if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
 	  flags != barrier_flags || 
 	  barrier_response_mismatch[phase]) {
@@ -1128,6 +1301,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
 }
 
 extern int gasnete_barrier_try(int id, int flags) {
+    gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
     if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
 
@@ -1155,6 +1329,17 @@ extern int gasnete_barrier_try(int id, int flags) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
@@ -1164,6 +1349,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
     GASNETE_REFVIS_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFCOLL_HANDLERS
+    GASNETE_REFCOLL_HANDLERS(),
   #endif
     /* ptr-width independent handlers */
 

@@ -1,4 +1,10 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.am,v $
+#     $Date: 2004/08/30 05:04:58 $
+# $Revision: 1.15.2.3 $
+# Description: Makefile for AMMPI/GASNet 
+# Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
+# Terms of use are as specified in license.txt
 # NOTE: This Makefile is used to tie in with the GASNet build infrastructure
 #       the stand-alone AMMPI product doesn't currently provide an automake framework
 
@@ -41,7 +47,11 @@ libammpi_a_SOURCES = \
 
 libammpi_a_DEPENDENCIES = $(libammpi_a_SOURCES:%.c=%.o)
 
-EXTRA_DIST = Makefile.common Makefile.standalone Makefile.titanium.in
+EXTRA_DIST = \
+	Makefile.common 	\
+	Makefile.standalone 	\
+	Makefile.titanium.in	\
+	license.txt
 
 # ---------- test programs -------------
 # all the test executables
@@ -100,7 +110,7 @@ run-tests: tests
 	@echo TESTBULK
 	$(TEST_RUNCMD) ./testbulk $(TEST_ITERS) 1048576 $(TEST_MODE) $(TEST_DUPLEX)
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	@echo TESTAMUDP
+	@echo TESTAM
 	$(TEST_RUNCMD) ./testam $(TEST_ITERS) $(TEST_MODE)
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo TESTBOUNCE

@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.53.2.1 2004/04/20 17:16:33 csbell Exp $
- * $Date: 2004/04/20 17:16:33 $
- * $Revision: 1.53.2.1 $
+/* $Id: gasnet_core_internal.h,v 1.53.2.2 2004/08/30 05:04:46 csbell Exp $
+ * $Date: 2004/08/30 05:04:46 $
+ * $Revision: 1.53.2.2 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -373,7 +373,7 @@ gasnetc_token_lo_poll()
 			return;
 
 		gasneti_mutex_unlock(&gasnetc_lock_gm);
-		gasnetc_AMPoll();
+		gasneti_AMPoll();
 		gasneti_mutex_lock(&gasnetc_lock_gm);
 	}
 }
@@ -797,7 +797,7 @@ gasnetc_write_AMBufferSystem(	void *buf,
   }
   #define GASNETI_HAVE_ATOMIC_SWAP 1
 #elif defined(LINUX)
-  #ifdef __i386__
+  #if defined(__i386__) || defined(__x86_64__)
     #ifndef GASNETI_LOCK
         #ifdef GASNETI_UNI_BUILD
           #define GASNETI_LOCK ""
@@ -868,10 +868,6 @@ gasnetc_write_AMBufferSystem(	void *buf,
 #else
   #define GASNETI_HAVE_ATOMIC_SWAP 0
 #endif
-
-#if !GASNETI_HAVE_ATOMIC_SWAP
-  #warning "It would be a good idea to add gasneti_atomic_swap for your arch/OS"
-#endif 
 
 
 /* -------------------------------------------------------------------------- */

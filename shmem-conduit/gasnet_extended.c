@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/06/07 17:23:43 $
- * $Revision: 1.2.2.4 $
+ *     $Date: 2004/08/30 05:05:12 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -143,7 +143,7 @@ gasnete_global_memset_nb(gasnet_node_t node, void *dest, int val,
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
 
     memset(dest, val, nbytes);
-    gasneti_memsync();	/* XXX _gsync on Cray? */
+    gasneti_sync_writes();
 
     *handle = GASNETE_HANDLE_DONE;
     GASNETE_HANDLE_INC();
@@ -156,6 +156,8 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 {
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
+
+    printf("Memset at %p, shmemptr=%p\n", dest, ptr);
 
     *handle = GASNETE_HANDLE_NB_POLL;
 
@@ -223,7 +225,7 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	break;
 
 	default:
-	    gasneti_fatalerror("Invalid handle %d", handle);
+	    gasneti_fatalerror("Invalid handle %p", (void*)handle);
 	    break;
     }
 
@@ -268,25 +270,26 @@ gasnete_global_memset_nbi(gasnet_node_t node, void *dest, int val,
   		    size_t nbytes) 
 {
       memset(dest, val, nbytes);
-      gasneti_memsync();
+      gasneti_sync_writes();
       return;
 }
 
-#if 0
 extern void 
 gasnete_am_memset_nbi(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
+    int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
+
+    printf("Memset at %p, shmemptr=%p\n", dest, ptr);
+
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(GASNETE_SHMPTR(dest,node)), 
-		      PACK(&gasnete_nbi_handle))));
+		      PACK(ptr), PACK(&gasnete_nbi_handle))));
 
     gasnete_nbi_am_ctr++;
     return;
 }
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -499,7 +502,7 @@ gasnete_barrier_notify(int id, int flags)
     }
 
     barrier_splitstate = INSIDE_BARRIER;
-    gasneti_memsync();
+    gasneti_sync_writes();
 }
 
 extern int
@@ -519,7 +522,7 @@ gasnete_barrier_wait(int id, int flags)
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,0);
 
     barrier_splitstate = OUTSIDE_BARRIER;
-    gasneti_memsync();
+    gasneti_sync_writes();
 
     if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
 	    long volatile *ctr = &barrier_notify_ctr[barrier_phase];
@@ -586,7 +589,7 @@ gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val,
 			  gasnet_handlerarg_t nbytes, void *dest, void *op) 
 {
     memset(dest, (int)(uint32_t)val, nbytes);
-    gasneti_memsync();
+    gasneti_sync_writes();
 
     GASNETE_SAFE(
 	SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
@@ -623,6 +626,17 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 #define GASNETI_GASNET_EXTENDED_VIS_C 1
 #include "gasnet_extended_refvis.c"
 #undef GASNETI_GASNET_EXTENDED_VIS_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Collectives:
+  ============
+*/
+
+/* use reference implementation of collectives */
+#define GASNETI_GASNET_EXTENDED_COLL_C 1
+//#include "gasnet_extended_refcoll.c"
+#undef GASNETI_GASNET_EXTENDED_COLL_C
 
 /* ------------------------------------------------------------------------ */
 /*

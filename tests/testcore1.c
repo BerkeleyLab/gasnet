@@ -1,6 +1,6 @@
-/* $Id: testcore1.c,v 1.9.2.1 2004/04/20 17:16:48 csbell Exp $
- * $Date: 2004/04/20 17:16:48 $
- * $Revision: 1.9.2.1 $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcore1.c,v $
+ * $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.9.2.2 $
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  *

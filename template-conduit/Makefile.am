@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v 1.24.2.2 2004/04/20 17:16:47 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v 1.24.2.3 2004/08/30 05:05:16 csbell Exp $
 # Description: Makefile for GASNet <conduitname> conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -53,6 +53,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %A = program arguments
 CONDUIT_RUNCMD = mpirun -np %N %P %A
 
+# conduit-specific tests in ../tests directory
+CONDUIT_TESTS =
+
 # -------- Do not modify anything below this line --------
 
 if HAVE_PTHREAD
@@ -76,7 +79,7 @@ libgasnet-<conduitname>-parsync.a: $(libgasnet_dependencies)
 
 if USE_<CONDUITNAME>_CONDUIT  
 lib_LIBRARIES = $(libraries) 
-all: do-all
+all-local: $(lib_LIBRARIES) $(makefile_fragments)
 clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local

@@ -3,6 +3,7 @@
   by: Dan Bonachea, Christian Bell and Paul Hargrove
   for deadlock-free, thread-safe management of firehose-local resources
   using optimistic concurrency control
+  $Revision: 1.3.2.1 $
 
   Known bugs/issues
   -----------------

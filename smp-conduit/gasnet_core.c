@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/smp-conduit/gasnet_core.c                  $
- *     $Date: 2004/06/17 01:16:56 $
- * $Revision: 1.16.2.2 $
+ *     $Date: 2004/08/30 05:05:14 $
+ * $Revision: 1.16.2.3 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -483,7 +483,7 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
 
-  gasnet_AMPoll(); /* ensure progress */
+  gasneti_AMPoll(); /* ensure progress */
 
   return gasnetc_ReqRepGeneric(category, 1, dest, handler, 
                                source_addr, nbytes, dest_ptr, 

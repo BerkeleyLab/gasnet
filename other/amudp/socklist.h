@@ -1,6 +1,6 @@
-//  $Archive:: /Ti/AMUDP/socklist.h                                       $
-//     $Date: 2003/12/11 20:19:53 $
-// $Revision: 1.1 $
+//   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socklist.h,v $
+//     $Date: 2004/08/30 05:05:00 $
+// $Revision: 1.1.2.1 $
 // Description: 
 // Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

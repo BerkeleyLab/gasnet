@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_reqrep.c                  $
- *     $Date: 2003/10/24 01:37:29 $
- * $Revision: 1.17 $
+ *     $Date: 2004/08/30 05:04:42 $
+ * $Revision: 1.17.6.1 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -108,7 +108,7 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf() {
         if (!desc) { /* nothing available now - poll */
           UNLOCK_ELAN_WEAK();
           UNLOCK_SENDFIFO();
-          gasnetc_AMPoll();
+          gasneti_AMPoll();
           LOCK_SENDFIFO();
           LOCK_ELAN_WEAK();
         }
@@ -508,7 +508,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
            but this isn't that bad because the put DMA is totally one-sided
          */
         while (!elan_poll(putevt, 5)) {
-          UNLOCKRELOCK_ELAN_WEAK(gasnetc_AMPoll());
+          UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
         }
         #if !GASNETC_PREALLOC_AMLONG_BOUNCEBUF
           if (bouncebuf) elan_free(STATE(), bouncebuf);
@@ -534,7 +534,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
 
-  gasnetc_AMPoll(); /* ensure progress */
+  gasneti_AMPoll(); /* ensure progress */
 
   return gasnetc_ReqRepGeneric(category, 1, dest, handler, 
                                source_addr, nbytes, dest_ptr, 

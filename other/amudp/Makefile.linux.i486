@@ -1,6 +1,6 @@
-#  $Archive::                                                            $
-#     $Date: 2003/12/17 10:12:24 $
-# $Revision: 1.1 $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Attic/Makefile.linux.i486,v $
+#     $Date: 2004/08/30 05:05:00 $
+# $Revision: 1.1.2.1 $
 # Description: Linux Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended/gasnet_extended_sg.h                 $
- *     $Date: 2004/04/20 17:16:32 $
- * $Revision: 1.1.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
+ *     $Date: 2004/08/30 05:04:44 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,12 +20,12 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_
   gasneti_memveclist_stats_t retval;
   size_t minsz = (size_t)-1, maxsz = 0;
   uintptr_t totalsz = 0;
-  char *minaddr = (void *)(uintptr_t)-1;
-  char *maxaddr = (void *)0;
-  int i;
+  char *minaddr = (char *)(uintptr_t)-1;
+  char *maxaddr = (char *)0;
+  size_t i;
   for (i = 0; i < count; i++) {
     size_t const len = list[i].len;
-    char * const addr = list[i].addr;
+    char * const addr = (char *)list[i].addr;
     if (len < minsz) minsz = len;
     if (len > maxsz) maxsz = len;
     if (addr < minaddr) minaddr = addr;
@@ -45,11 +45,11 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_
 GASNET_INLINE_MODIFIER(gasnete_addrlist_stats)
 gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t count, void * const *list, size_t len) {
   gasneti_addrlist_stats_t retval;
-  char *minaddr = (void *)(uintptr_t)-1;
-  char *maxaddr = (void *)0;
-  int i;
+  char *minaddr = (char *)(uintptr_t)-1;
+  char *maxaddr = (char *)0;
+  size_t i;
   for (i = 0; i < count; i++) {
-    char * const addr = list[i];
+    char * const addr = (char *)list[i];
     if (addr < minaddr) minaddr = addr;
     if (addr + len - 1 > maxaddr) maxaddr = addr + len - 1;
   }
@@ -63,7 +63,7 @@ gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t count, void * const *list
 /* returns non-zero iff the specified strided region is empty */
 GASNET_INLINE_MODIFIER(gasnete_strided_empty)
 int gasnete_strided_empty(size_t const *count, size_t stridelevels) {
-  int i;
+  size_t i;
   for (i = 0; i <= stridelevels; i++) {
     if_pf (count[i] == 0) return 1;
   }
@@ -72,7 +72,7 @@ int gasnete_strided_empty(size_t const *count, size_t stridelevels) {
 
 /* returns the number of top-level dimensions with a count of 1 */
 GASNET_INLINE_MODIFIER(gasnete_strided_nulldims)
-int gasnete_strided_nulldims(size_t const *count, size_t stridelevels) {
+size_t gasnete_strided_nulldims(size_t const *count, size_t stridelevels) {
   int i;
   for (i = stridelevels; i >= 0; i--) {
     if_pt (count[i] != 1) return stridelevels-i;
@@ -90,7 +90,7 @@ size_t gasnete_strided_extent(size_t const *strides, size_t const *count, size_t
      The true exact length is:
        count[0] + SUM(i=[1..stridelevels] | (count[i]-1)*strides[i-1])
    */
-  int i;
+  size_t i;
   size_t sz = count[0];
   if_pf (count[0] == 0) return 0;
   for (i = 1; i <= stridelevels; i++) {
@@ -103,7 +103,7 @@ size_t gasnete_strided_extent(size_t const *strides, size_t const *count, size_t
 /* returns the total bytes of data in the transfer */
 GASNET_INLINE_MODIFIER(gasnete_strided_datasize)
 size_t gasnete_strided_datasize(size_t const *count, size_t stridelevels) {
-  int i;
+  size_t i;
   size_t sz = count[0];
   for (i = 1; i <= stridelevels; i++) {
     size_t const cnt = count[i];
@@ -202,7 +202,7 @@ size_t gasnete_strided_segments(size_t const *strides, size_t const *count, size
   size_t contiglevel = gasnete_strided_contiguity(strides, count, stridelevels);
   if (contiglevel == stridelevels) return 1;
   else {
-    int i;
+    size_t i;
     size_t sz = count[contiglevel+1];
     for (i = contiglevel+2; i <= stridelevels; i++) {
       sz *= count[i];
@@ -351,7 +351,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     gasnet_node_t __node = (node);                                  \
     size_t _count = (count);                                        \
     gasnet_memvec_t const * const _list = (list);                   \
-    int _i;                                                         \
+    size_t _i;                                                      \
     for (_i=0; _i < _count; _i++) {                                 \
       if (_list[_i].len > 0)                                        \
         gasnete_boundscheck(__node, _list[_i].addr, _list[_i].len); \
@@ -362,8 +362,10 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     gasneti_memveclist_stats_t dststats = gasnete_memveclist_stats((dstcount), (dstlist));     \
     gasneti_memveclist_stats_t srcstats = gasnete_memveclist_stats((srccount), (srclist));     \
     if_pf (dststats.totalsz != srcstats.totalsz) {                                             \
-      char * dstlist_str = gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));   \
-      char * srclist_str = gasneti_extern_malloc(gasneti_format_memveclist_bufsz(srccount));   \
+      char * dstlist_str =                                                                     \
+             (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));         \
+      char * srclist_str =                                                                     \
+             (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(srccount));         \
       gasneti_format_memveclist(dstlist_str, (dstcount), (dstlist));                           \
       gasneti_format_memveclist(srclist_str, (srccount), (srclist));                           \
       gasneti_fatalerror("Source and destination memvec lists disagree on total size at %s:\n" \
@@ -375,7 +377,8 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     }                                                                                          \
     if_pf (dststats.totalsz != 0 &&                                                            \
       ((uintptr_t)dststats.minaddr) + dststats.totalsz - 1 > ((uintptr_t)dststats.maxaddr)) {  \
-      char * dstlist_str = gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));   \
+      char * dstlist_str =                                                                     \
+             (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));         \
       gasneti_format_memveclist(dstlist_str, (dstcount), (dstlist));                           \
       gasneti_fatalerror("Destination memvec list has overlapping elements at %s:\n"           \
                          "  dstlist: %s\n"                                                     \
@@ -391,7 +394,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     size_t _count = (count);                                        \
     void * const * const _list = (list);                            \
     size_t _len = (len);                                            \
-    int _i;                                                         \
+    size_t _i;                                                      \
     if_pt (_len > 0) {                                              \
       for (_i=0; _i < _count; _i++) {                               \
         gasnete_boundscheck(__node, _list[_i], _len);               \
@@ -416,7 +419,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     const size_t * const _count = (count);                                                       \
     const size_t _stridelevels = (stridelevels);                                                 \
     if_pt (!gasnete_strided_empty(_count, _stridelevels)) {                                      \
-      int _i;                                                                                    \
+      size_t _i;                                                                                 \
       if_pf (_stridelevels > 0 && _dststrides[0] < _count[0])                                    \
           gasneti_fatalerror("dststrides[0](%i) < count[0](%i) at: %s",                          \
                         (int)_dststrides[0],(int)_count[0], gasneti_current_loc);                \
@@ -426,12 +429,12 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
       for (_i = 1; _i < _stridelevels; _i++) {                                                   \
         if_pf (_dststrides[_i] < (_count[_i] * _dststrides[_i-1]))                               \
           gasneti_fatalerror("dststrides[%i](%i) < (count[%i](%i) * dststrides[%i](%i)) at: %s", \
-                     _i,(int)_dststrides[_i],                                                    \
-                     _i,(int)_count[_i], _i-1,(int)_dststrides[_i-1], gasneti_current_loc);      \
+                     (int)_i,(int)_dststrides[_i],                                               \
+                     (int)_i,(int)_count[_i], (int)_i-1,(int)_dststrides[_i-1], gasneti_current_loc); \
         if_pf (_srcstrides[_i] < (_count[_i] * _srcstrides[_i-1]))                               \
           gasneti_fatalerror("srcstrides[%i](%i) < (count[%i](%i) * srcstrides[%i](%i)) at: %s", \
-                     _i,(int)_srcstrides[_i],                                                    \
-                     _i,(int)_count[_i], _i-1,(int)_srcstrides[_i-1], gasneti_current_loc);      \
+                     (int)_i,(int)_srcstrides[_i],                                               \
+                     (int)_i,(int)_count[_i], (int)_i-1,(int)_srcstrides[_i-1], gasneti_current_loc); \
       }                                                                                          \
     }                                                                                            \
   } while (0)

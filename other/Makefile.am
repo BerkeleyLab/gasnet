@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-#  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2004/04/20 17:16:40 $
-# $Revision: 1.7.2.2 $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
+#     $Date: 2004/08/30 05:04:56 $
+# $Revision: 1.7.2.3 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,7 +10,8 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 SUBDIRS =          \
         ammpi      \
-	amudp
+	amudp	   \
+	contrib
 
 EXTRA_DIST =       \
 	amxtests   \

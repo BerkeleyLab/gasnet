@@ -1,3 +1,10 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testlatencyM.c,v $
+ *     $Date: 2004/08/30 05:05:02 $
+ * $Revision: 1.7.2.1 $
+ * Description: AMX test
+ * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Terms of use are as specified in license.txt
+ */
 #include "apputils.h"
 
 /* non-pipelined version of ping tester, using AMMediums of a given size */

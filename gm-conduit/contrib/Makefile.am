@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/contrib/Attic/Makefile.am,v 1.8.6.1 2004/04/20 17:16:35 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/contrib/Attic/Makefile.am,v 1.8.6.2 2004/08/30 05:04:48 csbell Exp $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -20,12 +20,12 @@ $(top_builddir)/other/perlstart: $(top_srcdir)/other/perlstart.in
 $(target): $(top_builddir)/other/perlstart
 all-local: $(builddir)/$(target).pl $(target)
 $(builddir)/$(target).pl: force
-	@if test "`cd $(builddir);pwd`" != "`cd $(srcdir);pwd`"; then \
+	@if test "`cd $(builddir);@PWD_PROG@`" != "`cd $(srcdir);@PWD_PROG@`"; then \
 	    echo cp -f $(srcdir)/$(target).pl $(builddir); \
 	    cp -f $(srcdir)/$(target).pl $(builddir); \
 	 fi
 distclean-local:
-	@if test "`cd $(builddir);pwd`" != "`cd $(srcdir);pwd`"; then \
+	@if test "`cd $(builddir);@PWD_PROG@`" != "`cd $(srcdir);@PWD_PROG@`"; then \
 	    echo rm -f $(builddir)/$(target).pl; \
 	    rm -f $(builddir)/$(target).pl; \
 	 fi

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2004/06/17 01:17:00 $
- * $Revision: 1.25.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
+ *     $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.25.2.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,6 +43,14 @@
             gasnet_exit(retval);                            \
     }                                                       \
   } while(0)
+
+#ifndef MIN
+  #define MIN(x,y) ((x)<(y)?(x):(y))
+#endif
+
+#ifndef MAX
+  #define MAX(x,y) ((x)>(y)?(x):(y))
+#endif
 
 /* return a microsecond time-stamp */
 #ifdef FORCE_GETTIMEOFDAY
@@ -92,6 +100,44 @@ static void _MSG(const char *format, ...) {
   gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            \
   GASNET_Safe(gasnete_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS)); \
 } while (0)
+
+#if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
+  /* Cheap (but functional!) pthread + gasnet barrier */
+  void test_pthread_barrier(unsigned int local_pthread_count, int doGASNetbarrier) {
+      static pthread_mutex_t barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
+      static pthread_cond_t barrier_cond = PTHREAD_COND_INITIALIZER;
+      static volatile unsigned int barrier_count = 0;
+      static int volatile phase = 0;
+      pthread_mutex_lock(&barrier_mutex);
+      barrier_count++;
+      if (barrier_count < local_pthread_count) {
+        int myphase = phase;
+        while (myphase == phase) {
+          pthread_cond_wait(&barrier_cond, &barrier_mutex);
+        }
+      } else {  
+        /* Now do the gasnet barrier */
+        if (doGASNetbarrier) BARRIER();
+        barrier_count = 0;
+        phase = !phase;
+        pthread_cond_broadcast(&barrier_cond);
+      }       
+      pthread_mutex_unlock(&barrier_mutex);
+  }
+  #define PTHREAD_BARRIER(local_pthread_count)      \
+    test_pthread_barrier(local_pthread_count, 1)
+  #define PTHREAD_LOCALBARRIER(local_pthread_count) \
+    test_pthread_barrier(local_pthread_count, 0)
+#else
+  #define PTHREAD_BARRIER(local_pthread_count) do {               \
+    MSG("ERROR: cannot call PTHREAD_BARRIER in GASNET_SEQ mode"); \
+    abort();                                                      \
+  } while (0)
+  #define PTHREAD_LOCALBARRIER(local_pthread_count) do {          \
+    MSG("ERROR: cannot call PTHREAD_BARRIER in GASNET_SEQ mode"); \
+    abort();                                                      \
+  } while (0)
+#endif
 
 static void *_test_malloc(size_t sz, const char *curloc) {
   void *ptr;
@@ -157,8 +203,8 @@ static void test_free(void *ptr) {
   static void *_test_getseg(gasnet_node_t node) {
     static gasnet_seginfo_t *si = NULL;
     if (si == NULL) {
-      int i;
-      gasnet_seginfo_t *s = test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
+      gasnet_node_t i;
+      gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
       GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
       for (i=0; i < gasnet_nodes(); i++) {
         assert(s[i].size >= TEST_SEGSZ);
@@ -237,8 +283,9 @@ int64_t test_calibrate_delay(int iters, int64_t *time_p)
 		for (i = 0; i < iters; i++) { test_delay(loops); }
 		end = TIME();
 		time = end - begin;
-                assert(time > 0);
-		ratio = target / (float)time;
+                assert(time >= 0);
+                if (time == 0) ratio = 2.0;/* handle systems with very high granularity clocks */
+                else ratio = target / (float)time;
                 caliters++;
                 if (caliters > TEST_DELAY_CALIBRATION_LIMIT) {
                   fprintf(stderr,"ERROR: test_calibrate_delay(%i,%i) failed to converge after %i iterations.\n",
@@ -257,37 +304,43 @@ int64_t test_calibrate_delay(int iters, int64_t *time_p)
 #endif
 
 static void TEST_DEBUGPERFORMANCE_WARNING() {
-  const char *debug = NULL;
-  const char *trace = NULL;
-  const char *stats = NULL;
   BARRIER();
   if (gasnet_mynode() == 0) {
-#ifdef GASNET_DEBUG
-  const char *debug = "debugging ";
-#endif
-#ifdef GASNET_TRACE
-  const char *trace = "tracing ";
-#endif
-#ifdef GASNET_STATS
-  const char *stats = "statistical collection ";
-#endif
-  if (debug != NULL || trace != NULL || stats != NULL) {
-    if (debug == NULL) debug = "";
-    if (trace == NULL) trace = "";
-    if (stats == NULL) stats = "";
-    printf("-----------------------------------------------------------------------\n");
-    printf(" WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n");
-    printf("\n");
-    printf(" GASNet was configured and built with these optional features enabled:\n");
-    printf("        %s%s%senabled\n",debug,trace,stats);
-    printf(" This usually has a SERIOUS impact on performance, so you should NOT\n");
-    printf(" trust any performance numbers reported in this run!!!\n");
-    printf(" You should configure and build from scratch without the configure\n");
-    printf(" flags that enable the optional additional checking/reporting.\n");
-    printf("\n");
-    printf(" WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n");
-    printf("-----------------------------------------------------------------------\n");
-  }
+    const char *debug = "";
+    const char *trace = "";
+    const char *stats = "";
+    #ifdef GASNET_DEBUG
+      debug = "debugging ";
+    #endif
+    #ifdef GASNET_TRACE
+      trace = "tracing ";
+    #endif
+    #ifdef GASNET_STATS
+      stats = "statistical collection ";
+    #endif
+    if (*debug || *trace || *stats) {
+      fprintf(stderr,
+        "-----------------------------------------------------------------------\n"
+        " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+        "\n"
+        " GASNet was configured and built with these optional features enabled:\n"
+        "        %s%s%senabled\n"
+        " This usually has a SERIOUS impact on performance, so you should NOT\n"
+        " trust any performance numbers reported in this run!!!\n"
+        " You should configure and build from scratch without the configure\n"
+        " flags that enable the optional additional checking/reporting.\n"
+        "\n"
+        " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+        "-----------------------------------------------------------------------\n"
+        ,debug,trace,stats);
+    }
+    #ifdef GASNETT_USING_GETTIMEOFDAY
+      fprintf(stderr, 
+        "WARNING: using gettimeofday() for timing measurement - all short-term time measurements\n"             
+        "WARNING: will be very rough and include significant timer overheads\n");
+    #endif
+    fprintf(stderr, "Timer granularity: <= %.3f us, overhead: ~ %.3f us\n",
+     gasnett_timer_granularityus(), gasnett_timer_overheadus());
   }
   BARRIER();
 }

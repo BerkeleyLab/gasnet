@@ -158,9 +158,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2004/04/20 17:16:29 $
+@subtitle $Date: 2004/08/30 05:04:40 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.32.2.1 $ 
+@subtitle $Revision: 1.32.2.2 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -198,8 +198,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2004/04/20 17:16:29 $
-@*$Revision: 1.32.2.1 $ 
+@*$Date: 2004/08/30 05:04:40 $
+@*$Revision: 1.32.2.2 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml

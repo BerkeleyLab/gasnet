@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.53.2.2 2004/06/17 01:16:38 csbell Exp $
- * $Date: 2004/06/17 01:16:38 $
+/* $Id: gasnet_core.c,v 1.53.2.3 2004/08/30 05:04:46 csbell Exp $
+ * $Date: 2004/08/30 05:04:46 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -38,6 +38,8 @@ gasnetc_state_t _gmc;
 gasnet_handlerentry_t const		*gasnetc_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable();
+
+static void gasnetc_atexit(void);
 
 /*
   Initialization
@@ -125,6 +127,9 @@ gasnetc_init(int *argc, char ***argv)
 	#else
 		#error Bad segment config
 	#endif
+
+	/* Handler for non-collective returns from main() */
+	atexit(gasnetc_atexit);
 
 	gasneti_init_done = 1;
 	gasneti_trace_init(*argc, *argv);
@@ -243,6 +248,18 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	printf("%d> starting attach\n", gasnetc_mynode);
 	fflush(stdout);
 	#endif
+
+	#if GASNETC_GM_RDMA_GETS_BROKEN && GASNETC_GM_ENABLE_BROKEN_VERSIONS
+	{
+	    char *nowarn = getenv("GASNET_GM_NO_RDMAGET_WARNING");
+	    if (nowarn == NULL || *nowarn == '\0') {
+		fprintf(stderr, 
+		    "GASNet/GM support for RDMA gets are disabled because of a "
+		    "broken 2.x GM build -- your drivers should be updated\n");
+	    }
+	}
+	#endif
+
 	GASNETI_TRACE_PRINTF(C,
 	    ("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
 	    numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
@@ -299,12 +316,23 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			    "Error registering extended reference API handlers");
 	    	gasneti_assert(er_numreg == er_len);
 	
+#if 0
 		if (gasnetc_reghandlers(etable, e_len, 64+er_len, 127, 0, 
 		    &e_numreg) != GASNET_OK)
 			GASNETI_RETURN_ERRR(RESOURCE,
 			    "Error registering extended API handlers");
 	    	gasneti_assert(e_numreg == e_len);
-		fidx = 64+er_len+e_len;
+		fidx = 64+er_len_e_len;
+#else
+		/* This deals with the non-contiguous allocation of handlers by the ref collectives.
+		 * XXX: a better solution is needed */
+		if (gasnetc_reghandlers(etable, e_len, 1+ertable[er_len-1].index, 127, 0, 
+		    &e_numreg) != GASNET_OK)
+			GASNETI_RETURN_ERRR(RESOURCE,
+			    "Error registering extended API handlers");
+	    	gasneti_assert(e_numreg == e_len);
+		fidx = 1+etable[e_len-1].index;
+#endif
 	}
 	{ /* firehose handlers */
 		gasnet_handlerentry_t *ftable = firehose_get_handlertable();
@@ -488,6 +516,10 @@ gasnetc_exit_old(int exitcode)
   Exit handling code (originates from Paul's vapi-conduit)
 */
 
+#if !GASNETI_HAVE_ATOMIC_SWAP
+  #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
+#endif
+
 gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
 
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
@@ -623,7 +655,7 @@ static int gasnetc_get_exit_role()
 
     /* Now spin until somebody tells us what our role is */
     do {
-      gasnetc_AMPoll();
+      gasneti_AMPoll();
       role = gasneti_atomic_read(&gasnetc_exit_role);
     } while (role == GASNETC_EXIT_ROLE_UNKNOWN);
   }
@@ -774,7 +806,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   while (gasneti_atomic_read(&gasnetc_exit_reps) < (gasnetc_nodes - 1)) {
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    gasnetc_AMPoll();
+    gasneti_AMPoll();
   }
 
   return 0;
@@ -799,7 +831,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
   while (gasneti_atomic_read(&gasnetc_exit_reqs) == 0) {
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    gasnetc_AMPoll(); /* works even before _attach */
+    gasneti_AMPoll(); /* works even before _attach */
   }
 
 #if 0
@@ -2197,7 +2229,7 @@ gasnetc_GMSend_AMRequest(void *buf, uint32_t len,
 	while (!sent) {
 		/* don't force locking when polling */
 		while (!GASNETC_TOKEN_LO_AVAILABLE())
-			gasnetc_AMPoll();
+			gasneti_AMPoll();
 
 		gasneti_mutex_lock(&gasnetc_lock_gm);
 		/* assure last poll was successful */
@@ -2264,11 +2296,11 @@ gasnetc_AMRequestPool_block()
 
 	/* Since every AMRequest send must go through the Pool, use this
 	 * as an entry point to make progress in the Receive queue */
-	gasnetc_AMPoll();
+	gasneti_AMPoll();
 
 	while (bufd_idx < 0) {
 		while (_gmc.reqs_pool_cur < 0)
-			gasnetc_AMPoll();
+			gasneti_AMPoll();
 
 		gasneti_mutex_lock(&gasnetc_lock_reqpool);
 		if_pt (_gmc.reqs_pool_cur >= 0) {

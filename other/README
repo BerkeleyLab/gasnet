@@ -1,5 +1,6 @@
 External Software README
 ------------------------
+$Revision: 1.2.2.1 $
 
 This subdirectory contains various external libraries and tools
 used by this GASNet implementation.
@@ -35,6 +36,13 @@ AMXTESTS
 
 The amxtests directory contains the test suite for the stand-alone
 AMUDP and AMMPI products.
+
+------------------------------------------------------------------
+CONTRIB
+
+Various extra add-on tools which are useful in conjunction with
+add-on tools. See individual files or subdirectories for licensing
+and contact information.
 
 ------------------------------------------------------------------
 FIREHOSE

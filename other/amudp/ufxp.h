@@ -1,3 +1,10 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/ufxp.h,v $
+ *     $Date: 2004/08/30 05:05:00 $
+ * $Revision: 1.1.2.1 $
+ * Description: 
+ * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Terms of use are as specified in license.txt
+ */
 #ifndef UFXP_H
 #define UFXP_H
 

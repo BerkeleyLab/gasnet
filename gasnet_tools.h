@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_tools.h                                   $
- *     $Date: 2004/06/17 01:16:30 $
- * $Revision: 1.10.2.1 $
+ *     $Date: 2004/08/30 05:04:38 $
+ * $Revision: 1.10.2.2 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,9 +50,15 @@
 #define gasnett_atomic_decrement_and_test(p)  \
                                      gasneti_atomic_decrement_and_test(p)
 
-/* portable memory barrier */
+/* portable memory barriers */
 
-#define gasnett_local_membar()       gasneti_local_membar()
+#define gasnett_local_wmb()          gasneti_local_wmb()
+#define gasnett_local_rmb()          gasneti_local_rmb()
+#define gasnett_local_mb()           gasneti_local_mb()
+#define gasnett_compiler_fence()     gasneti_compiler_fence()
+
+/* tight spin loop CPU hint */
+#define gasnett_spinloop_hint()      gasneti_spinloop_hint() 
 
 /* tight spin loop CPU hint */
 #define gasnett_spinloop_hint()      gasneti_spinloop_hint() 

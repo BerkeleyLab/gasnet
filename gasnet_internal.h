@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.h                               $
- *     $Date: 2004/06/17 01:16:30 $
- * $Revision: 1.50.2.2 $
+ *     $Date: 2004/08/30 05:04:38 $
+ * $Revision: 1.50.2.3 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -96,6 +96,9 @@ extern void gasneti_check_config_postattach();
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
   }
   #define gasneti_memcheck(ptr)   ((void)0)
+  #ifdef __SUNPRO_C
+    #pragma returns_new_memory(gasneti_malloc,gasneti_malloc_allowfail,gasneti_calloc)
+  #endif
 #endif
 /* Beware - in debug mode, 
    gasneti_malloc/gasneti_calloc/gasneti_free are NOT

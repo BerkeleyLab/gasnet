@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/tests/testvis.c                              $
- *     $Date: 2004/06/17 01:17:00 $
- * $Revision: 1.3.2.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
+ *     $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.3.2.3 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

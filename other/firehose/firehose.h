@@ -1,4 +1,10 @@
-/* firehose.h: Public Header file */
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
+ *     $Date: 2004/08/30 05:05:06 $
+ * $Revision: 1.9.2.1 $
+ * Description: Public Header file
+ * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
+ * Terms of use are as specified in license.txt
+ */
 #ifndef FIREHOSE_H
 #define FIREHOSE_H
 #include <firehose_fwd.h>

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2004/04/20 17:16:49 $
- * $Revision: 1.4.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmpi.c,v $
+ *     $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.4.2.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -315,7 +315,7 @@ void test_mpi(threaddata_t *tdata) {
 
 
     tdata->flag = -1;
-    gasnett_local_membar();
+    gasnett_local_wmb();
     ACTION_PRINTF("tid=%3d> MPI AMShortRequest to tid=%3d\n", tdata->tid, peer);
     GASNET_Safe(gasnet_AMRequestShort2(node, hidx_mpi_handler, tdata->tid, sz));
 

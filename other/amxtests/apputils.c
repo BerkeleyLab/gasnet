@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/AMMPI/apputils.c                                       $
- *     $Date: 2004/04/20 17:16:44 $
- * $Revision: 1.10.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.c,v $
+ *     $Date: 2004/08/30 05:05:02 $
+ * $Revision: 1.10.2.2 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

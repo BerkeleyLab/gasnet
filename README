@@ -44,28 +44,37 @@ option when maintaining several build trees on the same source tree).
   Configure will detect various interesting features about your system and
 compilers, including which GASNet conduits are supported.
 
-* gmake all
+* make all
   Build the GASNet libraries. A number of other useful makefile targets 
   are available from the top-level:
-    gmake tests-{seq,par,parsync}  
+    make tests-{seq,par,parsync}  
       build all the GASNet tests in a given mode
-    gmake run-tests-{seq,par,parsync}  
+    make run-tests-{seq,par,parsync}  
       build and run all the GASNet tests in a given mode
-    gmake run-tests
+    make run-tests
       run whatever tests are already built in the conduit directories
   Each conduit also has several useful makefile targets:
-    gmake tests-{seq,par,parsync}  
+    make tests-{seq,par,parsync}  
       build the conduit tests in a given mode
-    gmake testXXX 
+    make testXXX 
       build just testXXX, in SEQ mode
-    gmake testXXX-{seq,par,parsync}
+    make testXXX-{seq,par,parsync}
       build just testXXX, in a given mode
-    gmake run-tests-{seq,par,parsync}  
+    make run-tests-{seq,par,parsync}  
       build and run the conduit tests in a given mode
-    gmake run-tests
+    make run-tests
       run whatever tests are already built in the conduit directories
+    make run-testexit
+      build a script to run the testexit tester and run it
+  Compilation and linker flags for the GASNet libraries and tests can be
+  augmented from the command-line by setting the following variables in the make
+  command:
+    make MANUAL_LIBCFLAGS=... Flags to add on the C compile for the GASNet libs
+    make MANUAL_CFLAGS=...    Flags to add on the C compile for GASNet clients & tests 
+    make MANUAL_LDFLAGS=...   Linker flags to add for GASNet clients & tests
+    make MANUAL_LIBS=...      Linker library flags to add for GASNet clients & tests
 
-* gmake install
+* make install
   Install GASNet to the directory chosen at configure time. This will create an
 include directory with a sub-directory for each supported conduit, and a lib
 directory containing a library file for each supported conduit, as well as any
@@ -111,7 +120,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/x86/PortlandGroupC/32:   smp, mpi, udp, gm
     * Linux/Itanium-Quadrics/{gcc,IntelC}/64: smp, mpi, udp, elan
     * Linux/Itanium-Myrinet/{gcc,IntelC}/64: smp, mpi, udp, gm
-    * Linux/Opteron-Ethernet/gcc/32: smp, mpi, udp
+    * Linux/Opteron-Ethernet/gcc/64: smp, mpi, udp
+    * Linux/Opteron-Mellanox/gcc/64: smp, mpi, udp, vapi
 
     * FreeBSD/x86gcc/32:  smp, mpi, udp
 
@@ -194,6 +204,8 @@ Optional environment variable settings:
      G - gets
      P - puts
      S - non-blocking synchronization
+     W - collective operations (excluding barriers)
+     X - collective synchronization (excluding barriers)
      B - barriers
      L - locks
      A - AM requests/replies (and handler execution, if conduit-supported)
@@ -332,12 +344,65 @@ mpi-conduit for an example).
 
 * docs: documentation on GASNet and various conduits
 
-  Please do not make any conduit-specific changes to the files in the
-extended-ref or tests directories.  They do not have any Makefiles because they
-just provide a centralized place for files used in other directories.
+GASNet coding standards
+=======================
+All GASNet conduit code is required to meet the following coding standards:
 
-  When implementing the extended API for your conduit, please clone only the
-necessary files from the extended-ref directory that you need to change 
-(and continue to include the unchanged files) to reduce maintenance headache
-(this applies especially to gasnet_extended.h).
+* Naming Conventions for macros and identifiers:
+  - All entry points required by GASNet spec are lower-case identifiers with
+    the prefix gasnet_ 
+  - All constants or macros required by GASNet spec are upper-case and preceded
+    with the prefix GASNET_
+  - All private symbols in the reference extended API implementation are
+    prefixed with gasnete_ (or GASNETE_ for macros)
+  - All private symbols in a core API implementation are prefixed with gasnetc_
+    (or GASNETC_ for macros)
+  - All private symbols shared throughout GASNet are prefixed with gasneti_ (or
+    GASNETI_ for macros)
+  - All GASNET_ or GASNETI_ configuration selection macros are either #defined
+    to 1 or #undef'd
+
+* GASNet code should be as close to C89 as possible (ie never differing without
+  good reason), because many C compilers still do not provide full C99 support,
+  and differ quite widely in the supported features. Most notably:
+   - Do not use C99-style // comments. Use only /* */.
+   - Do not use mid-block declarations of variables. Place the declarations at
+     the top of the current block or create a nested block.
+   - Do not use variable-length array declarations, zero-length structure fields, 
+     trigraphs, or any GNU C extensions
+  Running your code through "gcc -pedantic" is a good way to track down
+  violations of these rules.
+
+* All code in public header files should be C++-compliant to support C++ 
+  GASNet clients. This means using {BEGIN,END}_EXTERNC around function 
+  prototypes, and ensuring any inline function code passes the C++ typechecker.
+  Run a "make testcxx" to verify compliance.
+
+* GASNet conduit code should never call any of the following functions 
+  directly:
+   malloc, calloc, free, str(n)dup, assert, sched_yield, 
+   (un)setenv, mmap, pthread_*
+  Instead, you should use the gasneti_* wrapper functions of the same name.
+
+* Use gasneti_fatalerror() to signal fatal errors - the arguments work
+  just like printf. NEVER use "assert(0)".
+
+* Learn how to use the tracing macros and use them to trace interesting
+  events in your conduit. They're invaluable for debugging mysterious behavior.
+  See the comments in gasnet_trace.h for usage information.
+
+* Do NOT make trivial and/or non-meaningful changes to the code or
+  makefile framework inherited from template-conduit (e.g. re-indenting lines, 
+  moving code into different files, renaming existing identifiers, etc.)
+  as this makes it more difficult to patch your conduit if a bug is 
+  discovered in template-conduit or a GASNet-wide change is required.
+
+* Do not make any conduit-specific changes to the files in the
+  extended-ref or tests directories.  They do not have any Makefiles because they
+  just provide a centralized place for files used in other directories.
+
+* When implementing the extended API for your conduit, please clone only the
+  necessary files from the extended-ref directory that you need to change 
+  (and continue to include the unchanged files) to reduce maintenance headache
+  (this applies especially to gasnet_extended.h).
 

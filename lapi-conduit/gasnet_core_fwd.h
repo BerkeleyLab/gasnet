@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/11/10 10:06:27 $
- * $Revision: 1.11 $
+ *     $Date: 2004/08/30 05:04:50 $
+ * $Revision: 1.11.6.1 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,6 +18,15 @@
 #define GASNET_CORE_NAME         LAPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_LAPI      1
+
+/* This preprocessor symbol is used to provide workaround
+ * code for bug 717 (on Federation Hardware)
+ */
+#ifdef GASNETC_LAPI_FEDERATION
+#define GASNETC_FEDBUG_WORKAROUND 1
+#else
+#define GASNETC_FEDBUG_WORKAROUND 0
+#endif
 
 /* defined to be 1 if gasnet_init guarantees that the remote-access
  * memory segment will be aligned at the same virtual address on all

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_amambarrier.c                  $
- *     $Date: 2004/04/20 17:16:32 $
- * $Revision: 1.8.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
+ *     $Date: 2004/08/30 05:04:44 $
+ * $Revision: 1.8.2.2 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,7 +94,7 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
     
     /* gasneti_assert(ambarrier_step_done[phase][step] == 0); */
     
-    gasneti_memsync();
+    gasneti_sync_writes();
     ambarrier_step_done[phase][step] = 1;
   }
   gasnet_hsl_unlock(&ambarrier_lock);
@@ -103,10 +103,11 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
 static void gasnete_ambarrier_kick() {
   int phase = ambarrier_phase;
   int step = ambarrier_step;
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   if_pt (step != ambarrier_size) {
     if (ambarrier_step_done[phase][step]) {
+      gasneti_sync_reads(); /* ensure we read up-to-date values in the following conditional */
       if_pf (ambarrier_mismatch[phase] ||
 	     ((ambarrier_flags == 0) && 
 	      ambarrier_recv_value_present[phase] &&
@@ -117,7 +118,7 @@ static void gasnete_ambarrier_kick() {
       ++step;
       if (step == ambarrier_size) {
 	/* We have the last recv.  There is nothing more to send. */
-	gasneti_memsync();
+	gasneti_sync_writes(); /* flush state before the write below to ambarrier_step */
       } else {
         gasnet_node_t peer;
 	gasnet_handlerarg_t value = ambarrier_value;
@@ -167,6 +168,7 @@ static void gasnete_ambarrier_kick() {
 
 extern void gasnete_ambarrier_notify(int id, int flags) {
   int phase;
+  gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
   if_pf(ambarrier_splitstate == INSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
@@ -201,6 +203,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
 
   /*  update state */
   ambarrier_splitstate = INSIDE_AMBARRIER;
+  gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
 
@@ -211,16 +214,16 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
   #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
-  int phase = ambarrier_phase;
+  int phase;
+  gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
+  phase = ambarrier_phase;
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_wait() called without a matching notify");
 
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-ambarrier_notifytime);
 
   /*  wait for response */
-  if (ambarrier_step != ambarrier_size) {
-    GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), (ambarrier_step == ambarrier_size)));
-  }
+  GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), (ambarrier_step == ambarrier_size)));
 
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-wait_start);
 
@@ -238,12 +241,13 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
     ambarrier_step_done[phase][i] = 0;
   }
   ambarrier_recv_value_present[phase] = 0;
-  gasneti_memsync(); /* ensure all state changes committed before return */
+  gasneti_sync_writes(); /* ensure all state changes committed before return */
 
   return retval;
 }
 
 extern int gasnete_ambarrier_try(int id, int flags) {
+  gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_try() called without a matching notify");
 
@@ -324,7 +328,7 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
       ambarrier_consensus_mismatch[phase] = 1;
     }
     count++;
-    if (count == gasnete_nodes) gasneti_memsync(); /* about to signal, ensure we flush state */
+    if (count == gasnete_nodes) gasneti_sync_writes(); /* about to signal, ensure we flush state */
     ambarrier_count[phase] = count;
   }
   gasnet_hsl_unlock(&ambarrier_lock);
@@ -335,14 +339,14 @@ static void gasnete_ambarrier_done_reqh(gasnet_token_t token,
   gasneti_assert(phase == ambarrier_phase);
 
   ambarrier_response_mismatch[phase] = mismatch;
-  gasneti_memsync();
+  gasneti_sync_writes();
   ambarrier_response_done[phase] = 1;
 }
 
 /*  make some progress on the ambarrier */
 static void gasnete_ambarrier_kick() {
   int phase = ambarrier_phase;
-  GASNETE_SAFE(gasnet_AMPoll());
+  GASNETE_SAFE(gasneti_AMPoll());
 
   if (gasnete_mynode != GASNETE_AMBARRIER_MASTER) return;
 
@@ -368,6 +372,7 @@ static void gasnete_ambarrier_kick() {
 
 extern void gasnete_ambarrier_notify(int id, int flags) {
   int phase;
+  gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
   if_pf(ambarrier_splitstate == INSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
@@ -397,7 +402,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
 
   /*  update state */
   ambarrier_splitstate = INSIDE_AMBARRIER;
-  gasneti_memsync(); /* ensure all state changes committed before return */
+  gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
 
@@ -405,22 +410,23 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
   #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
-  int phase = ambarrier_phase;
+  int phase;
+  gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
+  phase = ambarrier_phase;
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_wait() called without a matching notify");
 
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-ambarrier_notifytime);
 
   /*  wait for response */
-  if (!ambarrier_response_done[phase])
-    GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), ambarrier_response_done[phase]));
+  GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), ambarrier_response_done[phase]));
 
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-wait_start);
 
   /*  update state */
   ambarrier_splitstate = OUTSIDE_AMBARRIER;
   ambarrier_response_done[phase] = 0;
-  gasneti_memsync(); /* ensure all state changes committed before return */
+  gasneti_sync_writes(); /* ensure all state changes committed before return */
   if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && (gasnet_handlerarg_t)id != ambarrier_value) || 
         flags != ambarrier_flags || 
         ambarrier_response_mismatch[phase]) {
@@ -431,6 +437,7 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
 }
 
 extern int gasnete_ambarrier_try(int id, int flags) {
+  gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_try() called without a matching notify");
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_dump.c                  $
- *     $Date: 2004/01/05 15:26:47 $
- * $Revision: 1.13 $
+ *     $Date: 2004/08/30 05:04:42 $
+ * $Revision: 1.13.2.1 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,7 +60,7 @@ extern void gasnetc_dump_base() {
   #if ELAN_VERSION_GE(1,4,8)
     GASNETI_STATS_PRINTF(C,(" group_flags= %i%s",(int)b->group_flags,(b->group_flags&ELAN_HWBCAST?" (ELAN_HWBCAST)":"")));
   #else
-    GASNETI_STATS_PRINTF(C,(" group_hwbcast= %i",b->group_hwbcast));
+    GASNETI_STATS_PRINTF(C,(" group_hwbcast= %i",(int)b->group_hwbcast));
   #endif
 
   GASNETI_STATS_PRINTF(C,(" tport_nslots= %i",(int)b->tport_nslots));

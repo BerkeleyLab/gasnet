@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/AMMPI/ammpi_reqrep.c                                   $
- *     $Date: 2004/02/17 22:57:51 $
- * $Revision: 1.15 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
+ *     $Date: 2004/08/30 05:04:58 $
+ * $Revision: 1.15.2.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -244,7 +244,22 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
  * if blockForActivity, then block until something happens
  * sets numUserHandlersRun to number of user handlers that got run
  */
-extern int AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun) {
+#if AMMPI_DEBUG 
+  /* enforce lack of reentrancy */
+  extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun);
+  extern int AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun) {
+    static int inServiceIncomingMessages = 0;
+    int retval;
+    AMMPI_assert(inServiceIncomingMessages == 0);
+    inServiceIncomingMessages = 1;
+    retval = _AMMPI_ServiceIncomingMessages(ep, blockForActivity, numUserHandlersRun);
+    inServiceIncomingMessages = 0;
+    return retval;
+  }
+#else
+  #define _AMMPI_ServiceIncomingMessages AMMPI_ServiceIncomingMessages
+#endif
+extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun) {
   int i;
   
   if (!numUserHandlersRun) AMMPI_RETURN_ERR(BAD_ARG);
@@ -921,13 +936,19 @@ extern int AMMPI_SendControlMessage(ep_t from, en_t to, int numargs, ...) {
   dest_endpoint_index = sourceAddrToId(from, to);
   if_pf (dest_endpoint_index == -1) AMMPI_RETURN_ERR(BAD_ARG); /* can only send to a mapped peer */
 
-  { /*  call the generic requestor */
+  { /*  control messages use the Reply mechanism in order to be safe in 
+        AM handler context, where it's unsafe to poll
+     */
     int retval;
+    ammpi_buf_t fakeRequestBuf;
     va_list argptr;
     va_start(argptr, numargs); /*  pass in last argument */
-    retval = AMMPI_RequestGeneric(ammpi_Short, 
-                                  from, dest_endpoint_index, 0, 
-                                  NULL, 0, 0,
+    fakeRequestBuf.status.dest = from; /* pretend we're servicing a request from target node */
+    fakeRequestBuf.status.sourceId = dest_endpoint_index;
+    fakeRequestBuf.status.handlerRunning = 1;
+    retval = AMMPI_ReplyGeneric(ammpi_Short, 
+                                  &fakeRequestBuf,
+                                  0, NULL, 0, 0,
                                   numargs, argptr,
                                   ammpi_system_controlmessage, 0);
     va_end(argptr);

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/AMUDP/amudp_reqrep.cpp                                 $
- *     $Date: 2004/04/20 17:16:43 $
- * $Revision: 1.9.2.1 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
+ *     $Date: 2004/08/30 05:05:00 $
+ * $Revision: 1.9.2.2 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -74,8 +74,19 @@ static int sendPacket(ep_t ep, amudp_buf_t *packet, int packetlength, en_t desta
   #else
     if (sendto(ep->s, (char *)packet, packetlength, /* Solaris requires cast to char* */
                0, (struct sockaddr *)&destaddress, sizeof(en_t)) == SOCKET_ERROR) {
-      AMUDP_RETURN_ERRFR(RESOURCE, sendPacket, sockErrDesc());
+      for (int i = 0; i < 5; i++) { 
+         /* Linux intermittently gets EPERM failures here at startup for no apparent reason -
+            so allow a retry */
+        #if AMUDP_DEBUG_VERBOSE
+           fprintf(stderr, "Got a '%s' on sendto(), retrying...\n", strerror(errno)); fflush(stderr);
+        #endif
+        if (sendto(ep->s, (char *)packet, packetlength,
+               0, (struct sockaddr *)&destaddress, sizeof(en_t)) != SOCKET_ERROR) goto success;
+        sleep(1);
       }
+      AMUDP_RETURN_ERRFR(RESOURCE, sendPacket, sockErrDesc());
+      success: ;
+    }
   #endif
   ep->stats.TotalBytesSent += packetlength;
   return AM_OK;

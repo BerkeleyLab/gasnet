@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended/gasnet_extended_help.h                 $
- *     $Date: 2004/06/17 01:16:36 $
- * $Revision: 1.16.6.2 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
+ *     $Date: 2004/08/30 05:04:44 $
+ * $Revision: 1.16.6.3 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -150,21 +150,31 @@ extern gasnet_seginfo_t *gasnete_seginfo;
   #endif
 #endif
 
-/* get membar */
-#include <gasnet_atomicops.h>
 
-#ifndef gasneti_memsync
-  #if GASNETI_THREADS
-    #define gasneti_memsync() gasneti_local_membar()
-  #else
-    #define gasneti_memsync() 
-  #endif
-#endif
-
-#ifdef GASNETI_MEMSYNC_ON_LOOPBACKPUT
-  #define gasnete_loopbackput_memsync() gasneti_memsync()
+/* gasnete_loopback{get,put}_memsync() go after a get or put is done with both source
+ * and destination on the local node.  This is only done if GASNet was configured
+ * for the stricter memory consistency model.
+ * The put_memsync belongs after the memory copy to ensure that writes are committed in
+ * program order.
+ * The get_memsync belongs after the memory copy to ensure that if the value(s) read
+ * is used to predicate any subsequent reads, that the reads are done in program order.
+ * Note that because gasnet_gets may read multiple words, it's possible that the 
+ * values fetched in a multi-word get may reflect concurrent strict writes by other CPU's 
+ * in a way that appears to violate program order, eg:
+ *  CPU0: gasnet_put_val(mynode,&A[0],someval,1) ; gasnet_put_val(mynode,&A[1],someval,1); 
+ *  CPU1: gasnet_get(dest,mynode,&A[0],someval,2) ; // may see updated A[1] but not A[0]
+ * but there doesn't seem to be much we can do about that (adding another rmb before the
+ * get does not solve the problem, because the two puts may globally complete in the middle
+ * of the get's execution, after copying A[0] but before copying A[1]). It's a fundamental
+ * result of the fact that multi-word gasnet put/gets are not performed atomically 
+ * (and for performance reasons, cannot be).
+ */
+#ifdef GASNETI_MEMSYNC_ON_LOOPBACK
+  #define gasnete_loopbackput_memsync() gasneti_local_wmb()
+  #define gasnete_loopbackget_memsync() gasneti_local_rmb()
 #else
   #define gasnete_loopbackput_memsync() 
+  #define gasnete_loopbackget_memsync()
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,10 +1,6 @@
-#! /usr/bin/env perl
+#!/usr/bin/env perl
 
 #############################################################
-#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/gasnet_trace.pl,v $
-#     $Date: 2004/08/26 19:13:02 $
-# $Revision: 1.18 $
-#
 # All files in this directory (except where otherwise noted) are subject to the
 #following licensing terms:
 #
@@ -54,14 +50,13 @@ use Getopt::Long;
 # Global Variables
 ########################
 
-my ($opt_sort, $opt_output, $opt_help, $opt_report);
-my ($opt_internal, $opt_full, $opt_thread, $opt_filter);
+my $opt_sort;
+my $opt_output;
+my $opt_help;
+my $opt_report;
+my $opt_thread;
 
-my (%data, %report, %threads, %nodes);
-my (%node_threads); 
-my (%job_nodes, %job_seen, %job_uniq); 
-#%nodes, %threads are identifier->thread(node)num
-
+my (%data, %report, %thread_match);
 # Getting the Options
 ########################
 
@@ -70,13 +65,7 @@ GetOptions (
     'sort=s'		=> \$opt_sort,
     'o=s'		=> \$opt_output,
     'report=s'		=> \$opt_report,
-    't'			=> \$opt_thread,
-    'thread!'		=> \$opt_thread,
-    'i'			=> \$opt_internal,
-    'internal!'		=> \$opt_internal,
-    'f'			=> \$opt_full,
-    'full!'		=> \$opt_full,
-    'filter=s'		=> \$opt_filter
+    't|thread'		=> \$opt_thread
 );
 
 # The main routine
@@ -96,18 +85,10 @@ if (!$opt_report) {
 } 
 
 while (@ARGV) {
-    my $arg = pop @ARGV;
-    parse_threadinfo($arg);
-    parse_tracefile($arg);
-}
-foreach my $job (keys %job_nodes) {
-    my ($want, $have) = ($job_nodes{$job}, $job_seen{$job});
-    if ($have < $want) {
-	print STDERR "WARNING: only have traces for $have out of $want nodes of job $job\n";
-    }
+    parse_tracefile(pop @ARGV);
 }
 
-convert_report();
+flatten();
 sort_report();
 trace_output(*STDOUT, "GET") if $opt_report =~ /G/;
 trace_output(*STDOUT, "PUT") if $opt_report =~ /P/;
@@ -117,13 +98,12 @@ trace_output(*STDOUT, "BARRIER") if $opt_report =~ /B/;
 sub usage 
 {
     print <<EOF;
-GASNet trace file summarization script, v1.0
-Usage:  gasnet_trace [options] trace-file(s)
+Usage:	gasnet_trace [options] trace-file(s)
 
 Options:
-    -h -? -help         See this message.
-    -o [filename]       Output results to file. Default is STDOUT.
-    -report [r1][r2]..  One or more capital letters to indicate which 
+    -h -? -help		See this message.
+    -o [filename]	Output results to file.  Default is STDOUT.
+    -report [r1][r2]..	One or more capital letters to indicate which 
                         reports to generate: P(PUT), G(GET), and/or B(BARRIER).
                         Default: all reports.
     -sort [f1],[f2]...  Sort output by one or more fields: TOTAL, AVG, MIN, MAX,
@@ -131,15 +111,10 @@ Options:
                         and MAX refer to message size: for BARRIERS, to time
                         spent in barrier).  Default: sort by SRC (source
                         file/line). 
-    -filter [t1],[t2].. Filter out output by one or more types:
-    			LOCAL, GLOBAL, WAIT, WAITNOTIFY.  
-    -t -[no]thread      Output detailed information for each thread.
-    -i -[no]internal    Show internal events (such as the initial and final
-                        barriers) which do not correspond to user source code. 
-    -f -[no]full        Show the full source file name.
+    -t -thread  	Output detailed information for each thread.
 EOF
     exit(-1);
-}
+} 	
 
 
     
@@ -147,64 +122,32 @@ EOF
 # data-structure, namely an array of hashes and return the array.
 # args : the filename to be read.
 ########################
-sub parse_threadinfo
-{
-    open (TRACEFILE, $_[0]) or die "Could not open $_[0]: $!\n";
-    
-    while (<TRACEFILE>) {
-        next unless /MAGIC/;
-        m/^(\S+).*I am thread\s(\d+).*on node\s(\d+) of (\d+)\s.*<(.+)>$/;
-        $threads{$1} = $2;
-        $nodes{$1} = $3;
-        $node_threads{$3}++;
-        $job_nodes{$5} = $4;
-        $job_seen{$5}++;
-        if ($job_uniq{$5,$2}++) {
-            print STDERR "WARNING: duplicate tracing data for thread $2 of job $5\n";
-	}
-    }	       
-
-}
-
 sub parse_tracefile 
 {
     
     open (TRACEFILE, $_[0]) or die "Could not open $_[0]: $!\n";
     
     while (<TRACEFILE>) {
-        my ($thread, $src, $pgb, $type, $sz);
-	if (/(\S+)\s\S+\s\[([^\]]+)\]\s+\([HPGB]\)\s+(PUT|GET|BARRIER)(.*):\D+(\d+)/) { 
-            ($thread, $src, $pgb, $type, $sz) = ($1, $2, $3, $4, $5);
-            if ($pgb =~ /PUT|GET/) {
-	        $type = ($type =~ /_LOCAL$/) ? "LOCAL" : "GLOBAL";
-            } elsif ($pgb =~ /BARRIER/) {
-	        $type =~ s/^_//;
-		next unless ($type =~ /NOTIFYWAIT|WAIT/);	# discard unknowns
-                $thread = $nodes{$thread};
-            }
-	} else {
-	    next;
-	}
-        update_data($thread, $src, $pgb, $type, $sz);
-    }
-}
-                
-sub update_data
-{
-    my ($thread, $src, $pgb, $type, $sz) = @_;        
-    if (!$data{$pgb}{$src}{$type}{$thread}) { # first record
-        push @{$data{$pgb}{$src}{$type}{$thread}}, ($sz, $sz, $sz, $sz, 1);        
-    } else {
-        my ($max, $min, $avg, $total, $totalc) = 
-            @{$data{$pgb}{$src}{$type}{$thread}};
-        $max = $max > $sz ? $max : $sz;
-        $min = $min < $sz ? $min : $sz;
-        $total += $sz;
-        $totalc += 1;
-        $avg = $total / $totalc;
-        @{$data{$pgb}{$src}{$type}{$thread}} 
-            = ($max, $min, $avg, $total, $totalc);
-        
+        if (/MAGIC/) {
+	    (/^(\S+).*I am thread\s(\d+)/);
+	    $thread_match{$1} = $2;
+	    next;		    
+	}            
+        next unless (/(\S+)\s\S+\s\[([^\]]+)\]\s+\([$opt_report]\)\s+(.*)_(.*):\D+(\d+)/); 
+        my ($thread, $src, $pgb, $type, $sz) = ($1, $2, $3, $4, $5);
+        if (!$data{$pgb}{$src}{$type}{$thread}) { # first record
+            push @{$data{$pgb}{$src}{$type}{$thread}}, ($sz, $sz, $sz, $sz, 1);
+        } else {
+            my ($max, $min, $avg, $total, $totalc) = 
+            	@{$data{$pgb}{$src}{$type}{$thread}};
+            $max = $max > $sz ? $max : $sz;
+            $min = $min < $sz ? $min : $sz;
+            $total += $sz;
+            $totalc += 1;
+            $avg = $total / $totalc;
+            @{$data{$pgb}{$src}{$type}{$thread}} 
+            	= ($max, $min, $avg, $total, $totalc);
+        }
     }
 }
 
@@ -254,7 +197,7 @@ sub src_line
 
 # transfer the raw data structure into report -- a hash of arrays 
 #######################
-sub convert_report 
+sub flatten
 {
     foreach my $pgb (keys %data) {
     	foreach my $line (keys %{$data{$pgb}}) {
@@ -262,25 +205,15 @@ sub convert_report
 
     	    	my ($max, $min, $avg, $total, $totalc);
     	    	foreach my $thread (keys %{$data{$pgb}{$line}{$type}}) {
-    	    	    # For Barrier $thread is actually the node number
     	    	    my ($tmax, $tmin, $tavg, $ttotal, $ttotalc) 
 			 = @{$data{$pgb}{$line}{$type}{$thread}};
     	    	    $max = $max > $tmax ? $max : $tmax;
     	    	    $min = ($min > $tmin || !$min) ? $tmin : $min;
-    	    	    if ($pgb =~ /BARRIER/) {
-    	    	        $total += $ttotal * $node_threads{$thread};
-    	    	        $totalc += $ttotalc * $node_threads{$thread};
-    	    	    } else { 
-    	    	        $total += $ttotal;
-    	    	        $totalc += $ttotalc;
-                    }		
+    	    	    $total += $ttotal;
+    	    	    $totalc += $ttotalc;
     	    	}
-		die "INTERNAL ERROR" unless $totalc;
     	    	$avg = $total / $totalc;
-    	    	if ($pgb =~ /BARRIER/) {
-		    die "INTERNAL ERROR" unless scalar (keys %nodes);
-    	    	    $totalc = $totalc / (scalar (keys %nodes));
-                }
+
     	    	my @entry = ($line, $type, $max, $min, $avg, $total, $totalc);
 		push @{$report{$pgb}}, \@entry; 
     	    }
@@ -344,24 +277,12 @@ sub sort_report
 	if ($opt_sort) {
 	    @{$report{$pgb}} = sort {criterion(@sortmtd)} @{$report{$pgb}};
 	} else {
-	    @{$report{$pgb}} = sort {criterion("SRC")} @{$report{$pgb}};
+	    @{$report{$pgb}} = sort {criterion("TOTAL")} @{$report{$pgb}};
     	}
     }
 	 
 }
 
-sub get_threads 
-{
-    my ($node) = @_;
-    my @threads;
-    foreach my $identifier (keys %nodes) {
-        if ($nodes{$identifier} == $node) {
-            push @threads, $threads{$identifier};
-        }
-    }
-    @threads = sort @threads;
-    return $threads[0] . ".." . $threads[-1];
-}       
 
 # subroutine to process the data structure produced by the parse_tracefile 
 # subroutine and print out in a format that the caller specifies.
@@ -371,11 +292,6 @@ sub trace_output
 {
     my ($handle, $pgb) = @_;
     
-    my %filters;
-    foreach my $filter (split /,/, $opt_filter) {
-    	$filters{$filter}++;
-    }
-
     # Print out 
     print "\n$pgb REPORT:\n";
     
@@ -396,36 +312,18 @@ EOF
     foreach my $entry (@{$report{$pgb}}) { 
         ($src_num, $type, $max, $min, $avg, $total, $calls) = @{$entry};
         ($source, $lnum) = src_line($src_num);
-        # Skip internal events (having lnum==0) if not specified.
-        next unless ($lnum || $opt_internal);
-	# Filter out certain types;
-	next unless !$filters{$type};
-        
-        
         $max = shorten($max, $pgb);
         $min = shorten($min, $pgb);
         $avg = shorten($avg, $pgb);
         $total = shorten($total, $pgb);
-        
-        # Options for showing the full file name
-        if ($opt_full) {
-	    printf "%3d %s\n", $rank, $source;
-	    $handle->format_name("FULL");             
-        }
-        else {
-            $source = substr $source, -10, 10;
-            $handle->format_name("DEFAULT");
-        }
+        $handle->format_name("SHOWTYPE");
         write($handle);
         $rank++;
         
         if ($opt_thread) {
             foreach my $thread (sort keys %{$data{$pgb}{$src_num}{$type}}) {
-            	if ($pgb =~ /P|G/) {
-            	    $threadnum = $threads{$thread};
-            	} else {
-            	    $threadnum = get_threads($thread);
-                }
+            	
+            	$threadnum = $thread_match{$thread};
             	($tmax, $tmin, $tavg, $ttotal, $tcalls) = 
             	    @{$data{$pgb}{$src_num}{$type}{$thread}};
     		$tmax = shorten($tmax, $pgb);
@@ -447,18 +345,13 @@ EOF
 # formats
 ########################
 
-    format DEFAULT = 
-@>> @<<<<<<<<< @>>>> @>>>>>>>>>  @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
+    format SHOWTYPE = 
+@<<  @>>>>>>> @>>>> @<<<<<<<<<  @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
 $rank, $source, $lnum, $type, $min, $max, $avg, $total, $calls
 .
-
-    format FULL = 
-               @>>>> @>>>>>>>>>  @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
-               $lnum, $type, $min, $max, $avg, $total, $calls
-.
-	    
+    
     format THREAD =
-    Thread @<<<<<<<<<<<<         @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
+           Thread @>>> :        @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
 $threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls
 .
 }

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/04/20 17:16:51 $
- * $Revision: 1.39.2.1 $
+ *     $Date: 2004/08/30 05:05:22 $
+ * $Revision: 1.39.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -238,6 +238,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   _GASNETI_STAT_EVENT_VAL(C,name,val)
 
 /* ------------------------------------------------------------------------------------ */
+/* Configuration */
 
 /* Scatter-gather segments.
  * Only 1 makes sense right now for normal use.
@@ -246,30 +247,48 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_RCV_SG	1		/* maximum number of segments to scatter on rcv */
 
 /* Define non-zero to enable a progress thread for receiving AMs . */
-#define GASNETC_RCV_THREAD		1
+#ifndef GASNETC_RCV_THREAD
+  #define GASNETC_RCV_THREAD		1
+#endif
 
 /* Define non-zero to enable polling for receiving AMs . */
-#define GASNETC_RCV_POLL		1
+#ifndef GASNETC_RCV_POLL
+  #define GASNETC_RCV_POLL		1
+#endif
 
 #if GASNETC_VAPI_ENABLE_INLINE_PUTS
   /* AM req/rep <= this size will be done w/ VAPI-level copy, 0 disables */
-  #define GASNETC_AM_INLINE_LIMIT	72
+  #ifndef GASNETC_AM_INLINE_LIMIT
+    #define GASNETC_AM_INLINE_LIMIT	72
+  #endif
 #else
   #define GASNETC_AM_INLINE_LIMIT	0
 #endif
 
 #if GASNETC_VAPI_ENABLE_INLINE_PUTS
   /* puts <= this size will be done w/ VAPI-level copy, 0 disables */
-  #define GASNETC_PUT_INLINE_LIMIT	72
+  #ifndef GASNETC_PUT_INLINE_LIMIT
+    #define GASNETC_PUT_INLINE_LIMIT	72
+  #endif
 #else
   #define GASNETC_PUT_INLINE_LIMIT	0
 #endif
 
 /* puts <= this size will be done w/ local copies iff sender will wait for local completion */
-#define GASNETC_PUT_COPY_LIMIT		4096
+#ifndef GASNETC_PUT_COPY_LIMIT
+  #define GASNETC_PUT_COPY_LIMIT	4096
+#endif
 
-#define GASNETC_SND_REAP_LIMIT	32
-#define GASNETC_RCV_REAP_LIMIT	16
+/* maximum number of ops reaped from the send CQ per poll */
+#ifndef GASNETC_SND_REAP_LIMIT
+  #define GASNETC_SND_REAP_LIMIT	32
+#endif
+
+/* maximum number of ops reaped from the recv CQ per poll */
+#ifndef GASNETC_RCV_REAP_LIMIT
+  #define GASNETC_RCV_REAP_LIMIT	16
+#endif
+
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -320,7 +339,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   }
   #define GASNETI_HAVE_ATOMIC_SWAP 1
 #elif defined(LINUX)
-  #ifdef __i386__
+  #if defined(__i386__) || defined(__x86_64__)
     GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
     int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
       register unsigned char retval;
@@ -376,10 +395,6 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #ifndef GASNETI_HAVE_ATOMIC_SWAP
   #define GASNETI_HAVE_ATOMIC_SWAP 0
 #endif
-
-#if !GASNETI_HAVE_ATOMIC_SWAP
-  #warning "It would be a good idea to add gasneti_atomic_swap for your arch/OS/compiler"
-#endif 
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -457,6 +472,7 @@ int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
   #if GASNETI_HAVE_ATOMIC_SWAP
     uint32_t old = gasneti_atomic_read(&(s->count));
     retval = (old > 0) && gasneti_atomic_swap(&(s->count), old, old - 1);
+    if (retval) gasneti_sync_reads();
   #else
     gasnetc_mutex_lock(&(s->lock), concurrent);
 
@@ -484,63 +500,6 @@ int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/*
- * gasnetc_spinlock_t
- *
- * This is a simple busy-waiting lock used for mutual exclusion.
- * This type is only available if atomic swap is available
- */
-#if GASNETI_HAVE_ATOMIC_SWAP
-
-typedef struct {
-  gasneti_atomic_t	lock;
-} gasnetc_spinlock_t;
-
-#define GASNETC_SPINLOCK_LOCKED		(0xcafef00d)
-#define GASNETC_SPINLOCK_UNLOCKED	(0xdeadbeef)
-
-#define GASNETC_SPINLOCK_INITIALIZER {gasneti_atomic_init(GASNETC_SPINLOCK_UNLOCKED)}
-
-/* gasnetc_spinlock_init */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_init)
-void gasnetc_spinlock_init(gasnetc_spinlock_t *s) {
-  gasneti_atomic_set(&(s->lock), GASNETC_SPINLOCK_UNLOCKED);
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_destroy)
-void gasnetc_spinlock_destroy(gasnetc_spinlock_t *s) {
-  gasneti_assert((gasneti_atomic_read(&(s->lock)) == GASNETC_SPINLOCK_LOCKED) ||
-		 (gasneti_atomic_read(&(s->lock)) == GASNETC_SPINLOCK_UNLOCKED));
-}
-
-/* gasnetc_spinlock_unlock */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_unlock)
-void gasnetc_spinlock_unlock(gasnetc_spinlock_t *s) {
-  gasneti_assert(gasneti_atomic_read(&(s->lock)) == GASNETC_SPINLOCK_LOCKED);
-  gasneti_atomic_set(&(s->lock), GASNETC_SPINLOCK_UNLOCKED);
-}
-
-/* gasnetc_spinlock_try */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_try)
-int gasnetc_spinlock_try(gasnetc_spinlock_t *s) {
-  #if GASNET_DEBUG
-    int tmp = gasneti_atomic_read(&(s->lock));
-    gasneti_assert((tmp == GASNETC_SPINLOCK_LOCKED) || (tmp == GASNETC_SPINLOCK_UNLOCKED));
-  #endif
-
-  return gasneti_atomic_swap(&(s->lock), GASNETC_SPINLOCK_UNLOCKED, GASNETC_SPINLOCK_LOCKED);
-}
-
-/* gasnetc_spinlock_lock */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_lock)
-void gasnetc_spinlock_lock(gasnetc_spinlock_t *s) {
-  gasneti_waituntil(gasnetc_spinlock_try(s));
-}
-
-#define GASNETC_HAVE_SPINLOCK 1
-#endif
-
-/* ------------------------------------------------------------------------------------ */
 
 /* Global freelist type
  *
@@ -550,11 +509,6 @@ void gasnetc_spinlock_lock(gasnetc_spinlock_t *s) {
  * Current implementation is a LIFO (stack) with a mutex.
  * Other possibilities include FIFO (queue) with mutex, or lock-free LIFO or FIFO
  */
-
-/* Use spinlocks by default if they are available */
-#ifndef GASNETI_FREELISTS_USE_SPINLOCK
-  #define GASNETI_FREELISTS_USE_SPINLOCK GASNETC_HAVE_SPINLOCK
-#endif
 
 /*
  * Data type for the linkage of a freelist
@@ -580,33 +534,17 @@ typedef struct _gasneti_freelist_ptr_s {
  * Data type for the "head" of a freelist.
  */
 typedef struct {
-  #if GASNETI_FREELISTS_USE_SPINLOCK
-    gasnetc_spinlock_t		lock;
-  #else
-    gasneti_mutex_t		lock;
-  #endif
+  gasneti_mutex_t		lock;
   gasneti_freelist_ptr_t	*head;
 } gasneti_freelist_t;
 
 /* Initializer for staticly allocated freelists */
-#if GASNETI_FREELISTS_USE_SPINLOCK
-  #define GASNETI_FREELIST_INITIALIZER	{ GASNETC_SPINLOCK_INITIALIZER, NULL }
-  #define GASNETI_FREELIST_LOCK(fl)	gasnetc_spinlock_lock(&((fl)->lock))
-  #define GASNETI_FREELIST_UNLOCK(fl)	gasnetc_spinlock_unlock(&((fl)->lock))
-#else
-  #define GASNETI_FREELIST_INITIALIZER	{ GASNETC_MUTEX_INITIALIZER, NULL }
-  #define GASNETI_FREELIST_LOCK(fl)	gasneti_mutex_lock(&((fl)->lock))
-  #define GASNETI_FREELIST_UNLOCK(fl)	gasneti_mutex_unlock(&((fl)->lock))
-#endif
+#define GASNETI_FREELIST_INITIALIZER	{ GASNETI_MUTEX_INITIALIZER, NULL }
 
 /* Initializer for dynamically allocated freelists */
 GASNET_INLINE_MODIFIER(gasneti_freelist_init)
 void gasneti_freelist_init(gasneti_freelist_t *fl) {
-  #if GASNETI_FREELISTS_USE_SPINLOCK
-    gasnetc_spinlock_init(&(fl->lock));
-  #else
-    gasneti_mutex_init(&(fl->lock));
-  #endif
+  gasneti_mutex_init(&(fl->lock));
   fl->head = NULL;
 }
 
@@ -619,12 +557,12 @@ GASNET_INLINE_MODIFIER(gasneti_freelist_get)
 void *gasneti_freelist_get(gasneti_freelist_t *fl) {
   gasneti_freelist_ptr_t *head;
 
-  GASNETI_FREELIST_LOCK(fl);
+  gasneti_mutex_lock(&((fl)->lock));
   head = fl->head;
   if_pt (head != NULL) {
     fl->head = head->next;
   }
-  GASNETI_FREELIST_UNLOCK(fl);
+  gasneti_mutex_unlock(&((fl)->lock));
 
   return (void *)head;
 }
@@ -634,10 +572,10 @@ GASNET_INLINE_MODIFIER(gasneti_freelist_put)
 void gasneti_freelist_put(gasneti_freelist_t *fl, void *elem) {
   gasneti_assert(elem != NULL);
 
-  GASNETI_FREELIST_LOCK(fl);
+  gasneti_mutex_lock(&((fl)->lock));
   ((gasneti_freelist_ptr_t *)elem)->next = fl->head;
   fl->head = elem;
-  GASNETI_FREELIST_UNLOCK(fl);
+  gasneti_mutex_unlock(&((fl)->lock));
 }
 
 /* Put a chain of unused elements into the freelist */
@@ -646,10 +584,10 @@ void gasneti_freelist_put_many(gasneti_freelist_t *fl, void *head, void *tail) {
   gasneti_assert(head != NULL);
   gasneti_assert(tail != NULL);
 
-  GASNETI_FREELIST_LOCK(fl);
+  gasneti_mutex_lock(&((fl)->lock));
   ((gasneti_freelist_ptr_t *)tail)->next = fl->head;
   fl->head = head;
-  GASNETI_FREELIST_UNLOCK(fl);
+  gasneti_mutex_unlock(&((fl)->lock));
 }
 
 /* Build a chain (q follows p) for use with _put_many() */

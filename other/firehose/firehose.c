@@ -1,3 +1,10 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
+ *     $Date: 2004/08/30 05:05:06 $
+ * $Revision: 1.14.2.1 $
+ * Description: 
+ * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
+ * Terms of use are as specified in license.txt
+ */
 #include <firehose.h>
 #include <firehose_internal.h>
 
@@ -146,6 +153,8 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  */
 static firehose_request_t	*fh_request_bufs[256] = { 0 };
 
+extern int fh_dacount;
+
 void
 firehose_fini()
 {
@@ -202,7 +211,11 @@ firehose_poll()
 			if (fhc->flags & FH_CALLBACK_TYPE_COMPLETION) {
 				fh_completion_callback_t *cc =
 					(fh_completion_callback_t *) fhc;
-				cc->callback(cc->context, cc->request, 0);
+				/* we flag a local hit if this completion was
+				 * not from an in-flight request */
+				int localhit = 
+				    !(cc->request->flags & FH_FLAG_INFLIGHT);
+				cc->callback(cc->context, cc->request, localhit);
 				fh_free_completion_callback(cc);
 			}
 			#endif
@@ -338,7 +351,7 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		}
 		else {
 			GASNETI_TRACE_PRINTF(C, 
-			    ("Firehoses pinned, callback"));
+			    ("Firehose callback req=%p", req));
 			callback(context, req, 1);
 		}
 	}
@@ -726,14 +739,13 @@ fh_priv_acquire_local(int local_ref, firehose_private_t *entry)
 		/* We must dec LOnly if entering state "E" */
 		fhc_LocalOnlyBucketsPinned -= !local_ref;
 		fhc_LocalVictimFifoBuckets--;
+		FH_SET_LOCAL_INUSE(entry);
 		FH_BSTATE_SET(entry, fh_used);
-		FH_SET_USED(entry);
 
 		FH_TRACE_BUCKET(entry, ACQFIFO);
 	}
 	else {
 		/* Bucket started in state "C", "D" or "E" */
-		FH_SET_USED(entry);
 		FH_BSTATE_ASSERT(entry, fh_used);
 		if (local_ref) {
 			/* Bucket is entering state "C" or "D".  We
@@ -768,26 +780,21 @@ fh_priv_acquire_remote(gasnet_node_t node, firehose_private_t *entry)
 	gasneti_assert(node != fh_mynode);
 
 	if (FH_IS_REMOTE_FIFO(entry)) {
-		FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
+	    FH_BSTATE_ASSERT(entry, fh_remote_fifo);
+	    FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
 
-		FH_BSTATE_ASSERT(entry, fh_remote_fifo);
-
-		fhc_RemoteVictimFifoBuckets[node]--;
-		rp->refc_l = 0;
-		rp->refc_r = 1;
+	    fhc_RemoteVictimFifoBuckets[node]--;
+	    rp->refc_r = 1;
 			
-		FH_SET_USED(entry);
-		FH_BSTATE_SET(entry, fh_used);
-		FH_TRACE_BUCKET(entry, ACQFIFO);
+	    FH_SET_REMOTE_INUSE(entry);
+	    FH_BSTATE_SET(entry, fh_used);
+	    FH_TRACE_BUCKET(entry, ACQFIFO);
 	}
 	else {
-		/* Pending buckets must be handled separately */
-		gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
-		FH_BSTATE_ASSERT(entry, fh_used);
-
-		rp->refc_r++;
-		gasneti_assert(rp->refc_r > 0);
-		FH_TRACE_BUCKET(entry, ACQUIRE);
+	    gasneti_assert(!FH_IS_REMOTE_PENDING_UNCOMMITTED(entry));
+	    gasneti_assert(rp->refc_r > 0);
+	    rp->refc_r++;
+	    FH_TRACE_BUCKET(entry, ACQUIRE);
 	}
 
 	return rp;
@@ -833,6 +840,7 @@ fh_priv_release_local(int local_ref, firehose_private_t *entry)
 		fhc_LocalVictimFifoBuckets++;
 
 		FH_BSTATE_SET(entry, fh_local_fifo);
+		gasneti_assert(FH_IS_LOCAL_FIFO(entry));
 		FH_TRACE_BUCKET(entry, ADDFIFO);
 	}
 	else {
@@ -859,9 +867,9 @@ fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
 	 * refcounts.  Also, it should not be pending as pending buckets are
 	 * handled separately */
 	gasneti_assert(node != fh_mynode);
-	gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
-
+	gasneti_assert(FH_IS_REMOTE_INUSE(entry));
 	gasneti_assert(rp->refc_r > 0);
+
 	rp->refc_r--;
 
 	if (rp->refc_r == 0) {
@@ -878,40 +886,6 @@ fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
 
 	return rp;
 }
-
-/*
- * Victim FIFO handling (remote and local)
- *
- * The local FIFO can be freed in order to replace existing pinned (but unused)
- * entries for new ones.  The FIFO can be freed either by a local pin request
- * that frees unused entries to pin new ones or by a local release which
- * happens to overcommit the FIFO.  In the latter case, enough LRU elements in
- * the FIFO are freed to remain within the established firehose limits.
- *
- */
-
-/* fhi_FreeVictimLocal(count, reg)
- *
- * FreeVictim for the local bucket fifo.
- */
-GASNET_INLINE_MODIFIER(fhi_FreeVictimLocal)
-int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
-{
-	gasneti_assert(count <= fhc_LocalVictimFifoBuckets);
-	return fh_FreeVictim(count, reg, &fh_LocalFifo);
-}
-
-/* fhi_FreeVictimRemote(node, count, reg)
- *
- * FreeVictim for the local bucket fifo.
- */
-GASNET_INLINE_MODIFIER(fhi_FreeVictimRemote)
-int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
-{
-	gasneti_assert(count <= fhc_RemoteVictimFifoBuckets[node]);
-	return fh_FreeVictim(count, reg, &fh_RemoteNodeFifo[node]);
-}
-
 /*
  * Waiting/Polling for local and remote firehoses
  *
@@ -964,7 +938,7 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 		}
 		else {
 			FH_TABLE_UNLOCK;
-			gasnet_AMPoll();
+			gasneti_AMPoll();
 			FH_TABLE_LOCK;
 
 			/* May have had a D->E state transition */
@@ -1005,7 +979,7 @@ fh_WaitRemoteFirehoses(gasnet_node_t node, int count,
 		}
 		else {
 			FH_TABLE_UNLOCK;
-			gasnet_AMPoll();
+			gasneti_AMPoll();
 			FH_TABLE_LOCK;
 		}
 	}
@@ -1117,6 +1091,8 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
 {
 	FH_TABLE_ASSERT_LOCKED;
 
+	gasneti_assert(rpool != NULL);
+
 	if_pf (rpool->len > 
 	   FH_REGIONPOOL_DEFAULT_COUNT*sizeof(firehose_region_t)) {
 		gasneti_free(rpool->regions);
@@ -1148,6 +1124,11 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 {
 	firehose_region_t	*new_reg, *old_reg;
 	gasnet_node_t		node;
+	int			ret = 1;
+	int			hit_pending = 0;
+	int			remote_callback = 0;
+
+	fh_remote_callback_t	*rc = NULL;
 
 	gasnet_AMGetMsgSource(token, &node);
 
@@ -1159,63 +1140,85 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 		firehose_unexport_callback(node, old_reg, r_old);
 	#endif
 
-	fh_move_request(node, new_reg, r_new, old_reg, r_old, context);
+	ret = fh_move_request(node, new_reg, r_new, old_reg, r_old, context);
+	hit_pending = (ret == -1);
+	remote_callback = (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK);
 
 	#ifdef FIREHOSE_EXPORT_CALLBACK
-	if (r_new > 0)
+	    if (r_new > 0)
 		firehose_export_callback(node, new_reg, r_new);
 	#endif
 
+	/* If ret == -1, we hit a local bucket marked as pending (another
+	 * thread has marked it to be pinned but has not updated the table
+	 * saying the bucket is now pinned.  We handle this by enqueueing the
+	 * request in a special "pending queue"
+	 */
+	gasneti_assert(hit_pending == -1 ? FIREHOSE_SMP : (1));
+
 	/* If the user requires to run a remote callback, and the
 	 * callback is not to be run in place, run it */ 
-	if (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK) {
-		firehose_remotecallback_args_t	*args =
-		    (firehose_remotecallback_args_t *)(old_reg + r_old);
 
-		/* Client may be able to support callbacks for DMA
-		 * operations within the AM handler */
+	#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+	/* Handle this case separately */
+	if (remote_callback) {
+	    firehose_remotecallback_args_t	*args =
+		   (firehose_remotecallback_args_t *)(old_reg + r_old);
+	    gasneti_assert(!hit_pending);
 
-		#ifdef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
-			firehose_remote_callback(node, 
-			    (const firehose_region_t *) new_reg, r_new, args);
+	    firehose_remote_callback(node, 
+		(const firehose_region_t *) new_reg, r_new, args);
 
-			MEDIUM_REP(2,3,
-				   (token,
-				    fh_handleridx(fh_am_move_reph),
-				    new_reg,
-				    sizeof(firehose_region_t) * r_new,
-				    r_new,
-				    PACK(context)));
-	
-		#else
-			/* TODO. . solve MALLOC ? */
-			fh_remote_callback_t *rc = 
-			    (fh_remote_callback_t *)
-			    gasneti_malloc(sizeof(fh_remote_callback_t));
-			if_pf (rc == NULL)
-				gasneti_fatalerror("malloc");
+	    MEDIUM_REP(2,3,
+		(token,
+		fh_handleridx(fh_am_move_reph),
+		new_reg,
+		sizeof(firehose_region_t) * r_new,
+		r_new,
+		PACK(context)));
 
-			rc->flags = FH_CALLBACK_TYPE_REMOTE;
-			rc->node = node;
-			rc->pin_list_num = r_new;
-			rc->reply_len = sizeof(firehose_region_t) * r_new;
-			rc->context = context;
-
-			rc->pin_list = (firehose_region_t *)
-				gasneti_malloc(sizeof(firehose_region_t)*r_new);
-			if_pf (rc->pin_list == NULL)
-				gasneti_fatalerror("malloc");
-
-			memcpy(rc->pin_list, new_reg, rc->reply_len);
-			memcpy(&(rc->args), args,
-			    sizeof(firehose_remotecallback_args_t));
-	
-			FH_POLLQ_LOCK;
-			FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, 
-				      (fh_callback_t *) rc);
-			FH_POLLQ_UNLOCK;
-		#endif
+	    return;
 	}
+	#else
+	if (hit_pending || remote_callback) {
+	    fh_remote_callback_t *rc = (fh_remote_callback_t *) 
+		gasneti_malloc(sizeof(fh_remote_callback_t));
+
+	    rc->flags = 0;
+	    rc->node  = node;
+	    rc->pin_list_num = r_new;
+
+	    rc->reply_len = sizeof(firehose_region_t) * r_new;
+	    rc->context   = context;
+	    rc->pin_list  = (firehose_region_t *)
+			    gasneti_malloc(sizeof(firehose_region_t)*r_new);
+	    memcpy(rc->pin_list, new_reg, rc->reply_len);
+
+	    if (remote_callback) {
+		firehose_remotecallback_args_t	*args = 
+		    (firehose_remotecallback_args_t *)(old_reg + r_old);
+		memcpy(&(rc->args), args, sizeof(firehose_remotecallback_args_t));
+		rc->flags |= FH_CALLBACK_TYPE_REMOTE;
+	    }
+
+	    #if FIREHOSE_SMP
+	    if (hit_pending) {
+		  rc->flags |= FH_CALLBACK_TYPE_PENDING;
+		  FH_POLLQ_LOCK;
+		  FH_TAILQ_INSERT_TAIL(&fhsmp_LocalPendingList, rc);
+		  FH_POLLQ_UNLOCK;
+	    }
+	    else {
+	    #endif
+		FH_POLLQ_LOCK;
+		FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, (fh_callback_t *) rc);
+		FH_POLLQ_UNLOCK;
+	    #if FIREHOSE_SMP
+	    }
+	    #endif
+	}
+	#endif /* REMOTE_CALLBACK_IN_HANDLER */
+
 	else {
 		MEDIUM_REP(2,3,
 			   (token,
@@ -1264,19 +1267,25 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 	if (numpend > 0) {
 		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
 		fh_completion_callback_t	*ccb, *ccb2;
+		int				 hitlocal;
 
 		ccb = (fh_completion_callback_t *)FH_STAILQ_FIRST(&pendCallbacks);
 		while (ccb != NULL) {
 			gasneti_assert(ccb != FH_COMPLETION_END);
 			ccb2 = FH_STAILQ_NEXT(ccb);
 			gasneti_assert(!(ccb->request->flags & FH_FLAG_PENDING));
-			ccb->callback(ccb->context, ccb->request, 0);
+			/* If this request was not in flight, the referenced
+			 * pages are now pinned and the callback is called as
+			 * if we have a hit */
+			hitlocal = !(ccb->request->flags & FH_FLAG_INFLIGHT);
+			ccb->callback(ccb->context, ccb->request, hitlocal);
 			fh_free_completion_callback(ccb);
 			ccb = ccb2;
 		}
 		#else
 		
 		FH_POLLQ_LOCK;
+		gasneti_assert(!FH_STAILQ_EMPTY(&pendCallbacks));
 		FH_STAILQ_MERGE(&fh_CallbackFifo, &pendCallbacks);
 		gasneti_assert(!FH_STAILQ_EMPTY(&fh_CallbackFifo));
 		FH_POLLQ_UNLOCK;
@@ -1296,6 +1305,7 @@ MEDIUM_HANDLER(fh_am_move_reph,2,3,
 void
 fh_send_firehose_reply(fh_remote_callback_t *rc)
 {
+	FH_TABLE_ASSERT_UNLOCKED;
 	/* Run the "reply" handler as a request */
 	MEDIUM_REQ(2,3,
 	    (rc->node, fh_handleridx(fh_am_move_reph),

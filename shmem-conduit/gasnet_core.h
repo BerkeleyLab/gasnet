@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.h                  $
- *     $Date: 2004/03/11 11:29:45 $
- * $Revision: 1.2.2.1 $
+ *     $Date: 2004/08/30 05:05:12 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet header for shmem conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -135,16 +135,19 @@ typedef struct _gasnet_hsl_t {
   #define gasnet_hsl_destroy(hsl)
   #define gasnet_hsl_lock(hsl)
   #define gasnet_hsl_unlock(hsl)
+  #define gasnet_hsl_trylock(hsl)	GASNET_OK
 #else
   extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
+  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl);
 
   #define gasnet_hsl_init    gasnetc_hsl_init
   #define gasnet_hsl_destroy gasnetc_hsl_destroy
   #define gasnet_hsl_lock    gasnetc_hsl_lock
   #define gasnet_hsl_unlock  gasnetc_hsl_unlock
+  #define gasnet_hsl_trylock gasnetc_hsl_trylock
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*

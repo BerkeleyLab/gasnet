@@ -1,6 +1,6 @@
-/*   $Archive:: /Ti/GASNet/acconfig.h                                      $ */
-/*      $Date: 2004/06/17 01:16:30 $ */
-/*  $Revision: 1.24.2.3 $ */
+/*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
+/*      $Date: 2004/08/30 05:04:38 $ */
+/*  $Revision: 1.24.2.4 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -58,8 +58,11 @@
 /* forcing UP build, even if build platform is a multi-processor */
 #undef GASNETI_UNI_BUILD
 
-/* force a memory barrier after a GASNet local (loopback) put */
-#undef GASNETI_MEMSYNC_ON_LOOPBACKPUT
+/* force memory barriers on GASNet local (loopback) puts and gets */
+#undef GASNETI_MEMSYNC_ON_LOOPBACK
+
+/* throttle polling threads in multi-threaded configurations to reduce contention */
+#undef GASNETI_THROTTLE_FEATURE_ENABLED
 
 /* auto-detected mmap data page size */
 #undef GASNETI_PAGESIZE
@@ -90,9 +93,21 @@
 #undef GASNET_SEGMENT_LARGE
 #undef GASNET_SEGMENT_EVERYTHING
 
-/* GASNet vapi-conduit bug work-arounds */
+/* GASNet gm-conduit broken 2.x versions */
+#undef GASNETC_GM_ENABLE_BROKEN_VERSIONS
+
+/* GASNet vapi-conduit features and bug work-arounds */
+#undef HAVE_VAPI_FMR
 #undef GASNETC_VAPI_ENABLE_INLINE_PUTS
 #undef GASNETC_VAPI_FORCE_POLL_LOCK
+
+/* GASNet lapi-conduit specific */
+#undef GASNETC_LAPI_FEDERATION
+#undef GASNETC_LAPI_COLONY
+#undef GASNETC_LAPI_VERSION_A
+#undef GASNETC_LAPI_VERSION_B
+#undef GASNETC_LAPI_VERSION_C
+#undef GASNETC_LAPI_VERSION_D
 
 @BOTTOM@
 

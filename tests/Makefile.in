@@ -1,4 +1,6 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.17.2.3 2004/06/17 01:17:00 csbell Exp $
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
+#     $Date: 2004/08/30 05:05:18 $
+# $Revision: 1.17.2.4 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -40,7 +42,10 @@ testprograms_seq =      \
         testhsl         \
         testbarrierconf \
         testbarrierlate \
-	testtools   
+        testtools       \
+        testcoll        \
+        $(CONDUIT_TESTS)
+  
 
 # tests that should only be built in PARSYNC and PAR modes
 testprograms_parsync =  \
@@ -48,6 +53,7 @@ testprograms_parsync =  \
 # tests that should only be built in PAR mode
 testprograms_par =  \
 	testthreads \
+	testcontend \
 	$(MPI_TEST)
 
 testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par)
@@ -74,7 +80,7 @@ TEST_NODES=2
 TEST_PARAMS=                    \
    testcore1_args="1000";       \
    testrand_args="1024";        \
-   testlogGP_args="1000 65536"; \
+   testlogGP_args="1000 8 65536";\
    testthreads_args="-a 2";	\
    testmisc_nodes="1";		\
    $(EXTRA_PARAMS)
@@ -90,6 +96,14 @@ testprograms_nongasnet = \
 	testtools
 
 CONDUIT_NAME_UC=`echo $(CONDUIT_NAME) | @AWK@  '{print toupper($$0)}'`
+awk_cmdbuild={  gsub("'"'"%C"'"'", "'"'"%P %A"'"'");       \
+		gsub("'"'"%P"'"'", "'"'"./$$file"'"'");    \
+		gsub("'"'"%L"'"'", "'"'"DUMMY"'"'");       \
+		gsub("'"'"%V "'"'","'"'""'"'");            \
+		gsub("'"'"%N"'"'", "'"'"$$nodes"'"'");     \
+		gsub("'"'"%A"'"'", "'"'"$$args"'"'"); print }
+perl_threadscan=print $$1 if (/\\\$$GASNetThreadModel: GASNET_([^ ]*) \\\$$/);
+
 run-tests: force
 	@$(TEST_PARAMS)                                                                 \
 	export `echo "$(TEST_PARAMS)" | @AWK@ 'BEGIN {FS="=";RS=";"}{ print $$1 }'` ;   \
@@ -127,22 +141,73 @@ run-tests: force
 	      echo "*** Running $(CONDUIT_NAME)-conduit $$file ***" ;                   \
 	      cmd="./$$file $$args" ;                                                   \
 	    else                                                                        \
-	      awk_threadscan='BEGIN {FS=" ";RS="$$"}                                    \
-		/GASNetThreadModel: [^ ]* / { split($$2,A,/_/); print A[2] ; exit}' ;   \
-	      threadmode=`cat -v $$file@EXESUFFIX@ 2> /dev/null |                       \
-                          eval @AWK@ \'$$awk_threadscan\'` ;                            \
+	      threadmode=`@PERL@ -n -e '$(perl_threadscan)'                             \
+                          $$file@EXESUFFIX@ 2> /dev/null` ;                             \
 	      echo "*** Running $(CONDUIT_NAME)-conduit $$file"                         \
 		   "in $$threadmode/$(GASNET_SEGMENT_STR) mode ***" ;                   \
-	      awk_cmdbuild='{ gsub("%P","./'$$file'");                                  \
-			      gsub("%N","'$$nodes'");                                   \
-			      gsub("%A","'"$$args"'"); print $0 }' ;                    \
-	      cmd="`echo \"$$TEST_RUNCMD\" | eval @AWK@ \'$$awk_cmdbuild\'`" ;          \
+              awk_cmdbuild=`echo "$(awk_cmdbuild)"` ; 					\
+	      cmd=`echo "$$TEST_RUNCMD" | eval @AWK@ \'$$awk_cmdbuild\'` ;         	\
 	    fi;                                                                         \
 	    echo "$$cmd" ;                                                              \
 	    /usr/bin/time $$cmd || echo "ERROR: Test exited with failure code=$$?" ;    \
 	    echo $$line ;                                                               \
 	done ;                                                                          \
 	echo "TESTS COMPLETE"
+
+TESTEXIT_SCRIPT=run-testexit
+TESTEXIT_SEQMAX=13
+TESTEXIT_PARMAX=18
+do-run-testexit: force
+	@echo "Building $(TESTEXIT_SCRIPT) script..."
+	@echo "#!/bin/sh" > $(TESTEXIT_SCRIPT)
+	@nodes=$${TEST_NODES-2} ; args="" ; file="testexit" ;             \
+         awk_cmdbuild=`echo "$(awk_cmdbuild)"` ; 			  \
+         cmd=`echo "$(CONDUIT_RUNCMD)" | eval @AWK@ \'$$awk_cmdbuild\'` ; \
+	 echo "INTERACTIVE_RUNCMD='$$cmd'"                        >> $(TESTEXIT_SCRIPT)
+	@echo "BATCH_RUNCMD='testexit'"                           >> $(TESTEXIT_SCRIPT)
+	@echo '#BATCH_RUNCMD="$$INTERACTIVE_RUNCMD"'              >> $(TESTEXIT_SCRIPT)
+	@echo 'if test "$$PBS_O_WORKDIR" ; then '                 >> $(TESTEXIT_SCRIPT)
+	@echo '  cd "$$PBS_O_WORKDIR"'                            >> $(TESTEXIT_SCRIPT)
+	@echo 'fi'                                                >> $(TESTEXIT_SCRIPT)
+	@echo 'if test "$$MP_PROCS" -o "$$PBS_NODEFILE" ; then'   >> $(TESTEXIT_SCRIPT)
+	@echo '  RUNCMD="$$BATCH_RUNCMD"'                         >> $(TESTEXIT_SCRIPT)
+	@echo "else"                                              >> $(TESTEXIT_SCRIPT)
+	@echo '  RUNCMD="$$INTERACTIVE_RUNCMD"'                   >> $(TESTEXIT_SCRIPT)
+	@echo "fi"                                                >> $(TESTEXIT_SCRIPT)
+	@echo 'echo "Starting run-testexit at: `date`"'           >> $(TESTEXIT_SCRIPT)
+	@echo 'ID="`hostname`-$$MP_CHILD$$PBS_NODENUM"'           >> $(TESTEXIT_SCRIPT)
+	@i=0; \
+	 while test "$$i" != "$(TESTEXIT_SEQMAX)" ; do                       \
+           i=`expr $$i + 1`;                                                 \
+	   echo ""                                   >> $(TESTEXIT_SCRIPT) ; \
+	   echo 'echo "$$ID: testexit '$$i'"'        >> $(TESTEXIT_SCRIPT) ; \
+	   echo '$$RUNCMD'" $$i"                     >> $(TESTEXIT_SCRIPT) ; \
+	   echo 'echo "$$ID: result=$$?"'            >> $(TESTEXIT_SCRIPT) ; \
+	   echo "sleep 2"                            >> $(TESTEXIT_SCRIPT) ; \
+	 done ; \
+	 echo 'threadmode=`@PERL@ -n -e '"'"'$(perl_threadscan)'"'"' ' \
+              'testexit@EXESUFFIX@ 2> /dev/null`'      >> $(TESTEXIT_SCRIPT) ; \
+	 echo 'if test "$$threadmode" = "SEQ" -o ' \
+                   '"$$threadmode" = "PARSYNC" ; then' >> $(TESTEXIT_SCRIPT) ; \
+	 echo '  echo "WARNING: testexit was compiled' \
+              'in GASNET_$$threadmode mode"'           >> $(TESTEXIT_SCRIPT) ; \
+	 echo '  echo "WARNING: be sure to recompile the test in' \
+              'GASNET_PAR mode for full results"'      >> $(TESTEXIT_SCRIPT) ; \
+	 echo 'else' >> $(TESTEXIT_SCRIPT) ; \
+	 while test "$$i" != "$(TESTEXIT_PARMAX)" ; do                       \
+           i=`expr $$i + 1`;                                                 \
+	   echo ""                                   >> $(TESTEXIT_SCRIPT) ; \
+	   echo 'echo "$$ID: testexit '$$i'"'        >> $(TESTEXIT_SCRIPT) ; \
+	   echo '$$RUNCMD'" $$i"                     >> $(TESTEXIT_SCRIPT) ; \
+	   echo 'echo "$$ID: result=$$?"'            >> $(TESTEXIT_SCRIPT) ; \
+	   echo "sleep 2"                            >> $(TESTEXIT_SCRIPT) ; \
+	 done ; \
+	 echo 'fi' >> $(TESTEXIT_SCRIPT) 
+	@echo 'echo "`hostname`: done."'  >> $(TESTEXIT_SCRIPT)
+	@chmod +x $(TESTEXIT_SCRIPT)
+	@echo "Complete. Starting execution..."
+	@./$(TESTEXIT_SCRIPT)
+
 
 # testtools is a special minimal case for an app that just uses GASNet tools
 # specifically, we carefully omit BUILDCONFIG_DEFINES
@@ -166,6 +231,13 @@ testmpi: force
 	@MPI_CC@ -I$(srcdir) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) @MPI_CFLAGS@ -c -o $@.o $(srcdir)/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
 	rm -f $@.o	
+
+# testcxx tests support for compiling a C++-based GASNet client 
+# this is unlikely to work on conduits requiring a special linker (eg mpi-conduit)
+testcxx: force
+	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ -I$(srcdir) $(GASNET_CPPFLAGS) -c -o $@.o $(srcdir)/$@.cc
+	@CXX@ @CXXFLAGS@ $(GASNET_LDFLAGS) -o $@ $@.o $($@_extraobjs) $(GASNET_LIBS)
+	rm -f $@.o
 
 # This is a model for how GASNet clients should be built:
 test% : force

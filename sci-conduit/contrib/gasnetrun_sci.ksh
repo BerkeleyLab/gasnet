@@ -1,10 +1,5 @@
 #! /bin/ksh
 #
-#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/contrib/Attic/gasnetrun_sci.ksh,v $
-#     $Date: 2004/08/26 04:54:03 $
-# $Revision: 1.3 $
-# Description: 
-# Terms of use are as specified in license.txt
 # Burt Gordon, High-performance Computing & Simulation (HCS) Lab
 # June 2003
 # This script reads the contents of the "machines" file and 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2004/06/17 01:16:54 $
- * $Revision: 1.2.2.4 $
+ *     $Date: 2004/08/30 05:05:12 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,7 +40,6 @@ intptr_t		*gasnetc_segment_shptr_off;
 gasnet_seginfo_t	 gasnetc_seginfo_init;
 int			 gasnetc_seginfo_allocated = 0;
 gasnet_seginfo_t	*gasnetc_seginfo = NULL;
-gasnet_seginfo_t	*gasnetc_seginfo_shmem = NULL;
 size_t			 gasnetc_pagesize;
 
 int  gasnetc_amq_idx = 0;
@@ -54,6 +53,13 @@ gasnetc_am_packet_t  gasnetc_amq_reqs[GASNETC_AMQUEUE_MAX_DEPTH];
   long		gasnetc_amq_numfields;
   extern uintptr_t gasnete_pe_bits_shift;
   extern uintptr_t gasnete_addr_bits_mask;
+#elif defined(SGI_SHMEM)
+  uintptr_t gasnetc_sgi_segbase;
+  /*
+   * Altix requires mpirun to start jobs, and also requests that jobs
+   * explicitly call MPI_Finalize() or else they abort.
+   */
+  extern void MPI_Finalize();
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -343,7 +349,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 		segsize = gasnetc_seginfo_init.size;
 	    }
 
-	    printf("segbase=%p, segsize=%lu\n", segbase, segsize);
+	    //printf("segbase=%p, segsize=%lu\n", segbase, segsize);
 
 	    #ifdef CRAY_SHMEM
 	    {
@@ -370,6 +376,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 		    gasnetc_seginfo[i].size = segsize;
 		    gasnetc_segment_shptr_off[i] = 
 			    (intptr_t) shm_collect[i] - (intptr_t) segbase;
+
+		    if (1 || gasnetc_mynode == 0) {
+			printf("%d> seg %2d: %p,%9lu => off = %lu\n",
+			    gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
+			    (unsigned long) gasnetc_seginfo[i].size, 
+			    (unsigned long) gasnetc_segment_shptr_off[i]);
+			fflush(stdout);
+		    }
 		}
 
 		if (gasnetc_nodes == 1) {
@@ -385,20 +399,30 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	    }
 	    #elif defined(SGI_SHMEM)
 	    {
+		gasnetc_sgi_segbase = (uintptr_t) segbase;
 		gasnetc_segment_shptr_off = (intptr_t *) 
 		    gasneti_malloc(sizeof(intptr_t) * gasnetc_nodes);
 
 		for (i=0; i<gasnetc_nodes; i++) {
+
 		    gasnetc_seginfo[i].addr = (void *) shmem_ptr(segbase, i);
+		    #if 0
+			if (i == gasnetc_mynode)
+			    gasnetc_seginfo[i].addr = (void *)shmem_ptr(segbase,i);
+			else
+			    gasnetc_seginfo[i].addr = (void *)segbase;
+		    #endif
+
 		    gasnetc_seginfo[i].size = segsize;
 		    gasnetc_segment_shptr_off[i] = i*segsize;
-	    if (1 || gasnetc_mynode == 0) {
-		printf("%d> seg %2d: %p,%9lu => off = %lu\n",
-		    gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
-		    (unsigned long) gasnetc_seginfo[i].size, 
-		    (unsigned long) gasnetc_segment_shptr_off[i]);
-		fflush(stdout);
-	    }
+
+		    #if 0
+		    printf("%d> seg %2d: %p,%9lu => off = %lu\n",
+			    gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
+			    (unsigned long) gasnetc_seginfo[i].size, 
+			    (unsigned long) gasnetc_segment_shptr_off[i]);
+		    fflush(stdout);
+		    #endif
 		}
 	    }
 	    #endif
@@ -493,13 +517,12 @@ extern void gasnetc_exit(int exitcode) {
     if (gasnetc_seginfo_allocated)
 	shfree(gasnetc_seginfo_init.addr);
   #endif
-  #if defined SGI_SHMEM
-    exit(exitcode);
-    abort();
-  #else
-    gasneti_killmyprocess(exitcode);
-    abort();
+  #if defined(SGI_SHMEM)
+    MPI_Finalize();
   #endif
+
+  gasneti_killmyprocess(exitcode);
+  abort();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -581,7 +604,8 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 		{   gasnet_handlerarg_t *pargs =
 			(gasnet_handlerarg_t *) &args[4];
 		    int nbytes = args[1];
-		    void *pdata = (void *) &args[2];
+		    void *pdata = (void *) GASNETI_MAKEWORD(args[2],args[3]);
+
 		    if (GASNETC_AMHEADER_ISREQUEST(hdr->reqrep))
 			GASNETI_TRACE_AMLONG_REQHANDLER(
 			    hdr->handler,token,pdata,nbytes,numargs,pargs);
@@ -815,7 +839,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   size_t    len;
   va_list argptr;
   uint32_t *args, *pptr;
-  uintptr_t *rptr;
   gasnetc_am_stub_t   _amstub;
 
   GASNETI_CHECKATTACH();
@@ -843,21 +866,25 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 			GASNETC_REQUEST_T, GASNETC_AMLONG_T, numargs, 
 			handler, gasnetc_mynode);
   _amstub.args[1] = nbytes;
-  *((uintptr_t *) &_amstub.args[2]) = (uintptr_t) dest_addr;
+  _amstub.args[2] = (gasnet_handlerarg_t) GASNETI_HIWORD(dest_addr);
+  _amstub.args[3] = (gasnet_handlerarg_t) GASNETI_LOWORD(dest_addr);
+
   args = &_amstub.args[4];
   for (i = 0; i < numargs; i++)
 	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+
   len = GASNETC_LONG_HEADERSZ + 4 * numargs;
 
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueRequest(dest);
 
-#ifdef GASNETC_GLOBAL_ADDRESS
-  printf("AMlong memcpy(%p,%p,%d)\n",(void*)dest_addr,(void*)source_addr,nbytes);
-  fflush(stdout);
-  fflush(stdout);
+#if defined(GASNETC_GLOBAL_ADDRESS)
+  //printf("AMlong memcpy(%p,%p,%d)\n",(void*)dest_addr,(void*)source_addr,(int)nbytes);
+  //fflush(stdout);
   memcpy(dest_addr, source_addr, nbytes);
 #else
+  //printf("AMlong memcpy(%p,%p,%d)\n",(void*)dest_addr,(void*)source_addr,(int)nbytes);
+  //fflush(stdout);
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
 #endif
   shmem_quiet();
@@ -1002,17 +1029,20 @@ extern int gasnetc_AMReplyLongM(
 			GASNETC_REPLY_T, GASNETC_AMLONG_T, numargs, 
 			handler, gasnetc_mynode);
   _amstub.args[1] = nbytes;
-  *((uintptr_t *) &_amstub.args[2]) = (uintptr_t) dest_addr;
+  _amstub.args[2] = (gasnet_handlerarg_t) GASNETI_HIWORD(dest_addr);
+  _amstub.args[3] = (gasnet_handlerarg_t) GASNETI_LOWORD(dest_addr);
+
   args = &_amstub.args[4];
   for (i = 0; i < numargs; i++)
 	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+
   len = GASNETC_LONG_HEADERSZ + 4 * numargs;
 
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueReply(dest);
 
-#ifdef GASNETC_GLOBAL_ADDRESS
-  printf("long memcpy, addr = %p, src = %p, node = %d\n", dest_addr, source_addr, dest);
+#if defined(GASNETC_GLOBAL_ADDRESS)
+  //printf("long memcpy, addr = %p, src = %p, node = %d\n", dest_addr, source_addr, dest);
   memcpy(dest_addr, source_addr, nbytes);
 #else
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
@@ -1121,6 +1151,30 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
+
+extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+  GASNETI_CHECKATTACH();
+
+  {
+    int locked = (gasneti_mutex_trylock(&(hsl->lock)) == 0);
+
+    GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
+    if (locked) {
+      #if GASNETI_STATS_OR_TRACE
+        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      #endif
+      #if GASNETC_USE_INTERRUPTS
+        /* conduits with interrupt-based handler dispatch need to add code here to 
+           disable handler interrupts on _this_ thread, (if this is the outermost
+           HSL lock acquire and we're not inside an enclosing no-interrupt section)
+         */
+        #error interrupts not implemented
+      #endif
+    }
+
+    return locked ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
+}
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1153,7 +1207,7 @@ gasnetc_SegmentInit()
 	return 1;
 }
 /* ------------------------------------------------------------------------------------ */
-#define GASNETC_SHMALLOC_GRANULARITY	(10<<20)
+#define GASNETC_SHMALLOC_GRANULARITY	(256<<20)
 
 static
 gasnet_seginfo_t
@@ -1227,9 +1281,9 @@ gasnetc_aligndown_pow2(uintptr_t addr)
      */
     for (i = 0; i <= len; i++) {
 	#if SIZEOF_VOID_P == 8
-	  mask = 1ULL << 63-i;
+	  mask = 1ULL << (63-i);
 	#else
-	  mask = 1ULL << 31-i;
+	  mask = 1ULL << (31-i);
 	#endif
 	if (mask == addr)
 	    return addr;
@@ -1253,9 +1307,9 @@ gasnetc_alignup_pow2(uintptr_t addr)
      */
     for (i = 0; i <= len; i++) {
 	#if SIZEOF_VOID_P == 8
-	  mask = 1ULL << 63-i;
+	  mask = 1ULL << (63-i);
 	#else
-	  mask = 1ULL << 31-i;
+	  mask = 1ULL << (31-i);
 	#endif
 	if (mask == addr)
 	    return addr;
@@ -1291,7 +1345,8 @@ gasnetc_SHMallocSegmentSearch()
 		    putenv(buf);
 		}
 #endif
-#ifdef ALTIX
+
+	#ifdef ALTIX
 	{
 	    uintptr_t alloc_perthread;
 	    double  frac;
@@ -1302,7 +1357,7 @@ gasnetc_SHMallocSegmentSearch()
 	    si.addr = NULL;
 
 	    while (alloc_perthread > 0) {
-		si.addr = shmalloc(alloc_perthread);
+		si.addr = shmemalign(GASNETT_PAGESIZE, alloc_perthread);
 		if (si.addr != NULL)
 			break;
 		alloc_perthread /= 2;
@@ -1312,16 +1367,16 @@ gasnetc_SHMallocSegmentSearch()
 	    if (si.addr != NULL)
 		si.size = alloc_perthread;
 	}
-#else
-	starttime = GASNETI_STATTIME_NOW();
-	si = gasnetc_SHMallocBinarySearch(0UL, maxsz);
-	endtime = GASNETI_STATTIME_NOW();
-#endif
+	#else
+	    starttime = GASNETI_STATTIME_NOW();
+	    si = gasnetc_SHMallocBinarySearch(0UL, maxsz);
+	    endtime = GASNETI_STATTIME_NOW();
+	#endif
 
 	//if (gasnetc_mynode == 0)
-		printf("shmalloc search for %lu bytes (max=%lu) took %d us (%p,%lu)\n", 
+		printf("shmalloc search for %lu bytes (max=%lu) took %lu us (%p,%lu)\n", 
 		    si.size, maxsz, 
-		    GASNETI_STATTIME_TO_US(endtime-starttime),
+		    (long)GASNETI_STATTIME_TO_US(endtime-starttime),
 		    (void*)si.addr,(uintptr_t)si.size);
 
 	return si;

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/06/17 01:17:04 $
- * $Revision: 1.47.2.2 $
+ *     $Date: 2004/08/30 05:05:22 $
+ * $Revision: 1.47.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -336,7 +336,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
 	    gasneti_assert(comp.opcode == VAPI_CQE_SQ_RDMA_READ);
 
 	    memcpy(sreq->addr, sreq->buffer, sreq->len);
-            gasneti_memsync();
+            gasneti_sync_writes();
 	  }
 	  
 	  /* decrement any outstanding counters */
@@ -879,7 +879,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     retval = GASNET_OK;
   }
 
-  va_end(argptr);
   GASNETI_RETURN(retval);
 }
 

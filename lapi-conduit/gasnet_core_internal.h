@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/06/17 01:16:42 $
- * $Revision: 1.20.6.1 $
+ *     $Date: 2004/08/30 05:04:50 $
+ * $Revision: 1.20.6.2 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,8 +27,7 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 #include <stddef.h>
 
 extern lapi_info_t        gasnetc_lapi_info;
-extern int                gasnetc_lapi_errno;
-extern char               gasnetc_lapi_msg[];
+extern volatile int gasnetc_got_exit_signal;
 extern int                gasnetc_max_lapi_uhdr_size;
 #if defined(__64BIT__)
 extern ulong              gasnetc_max_lapi_data_size;
@@ -42,6 +41,43 @@ extern void**             gasnetc_remote_reply_hh;
 #define GASNETC_ENABLE_LOOPBACK 1
 
 #define GASNETC_MAX_NUMHANDLERS   256
+
+#define GASNETC_LCHECK(func) do {                                 \
+    int lapi_errno;                                               \
+    if_pf ((lapi_errno = func) != LAPI_SUCCESS) {                 \
+       char gasnetc_lapi_msg[LAPI_MAX_ERR_STRING];                \
+       if (gasnetc_got_exit_signal) {                             \
+         int i;                                                   \
+         /* a shutdown is in progress, and likely caused the */   \
+         /* LAPI failure - silently ignore it and wait to die */  \
+         for (i=0; i < 5; i++) sleep(1);                          \
+         gasneti_killmyprocess(-1); /* prevent zombies */         \
+       }                                                          \
+       LAPI_Msg_string(lapi_errno,gasnetc_lapi_msg);              \
+       gasneti_fatalerror("LAPI Error on node %d in file %s"      \
+                          " at line %d, [%s] return code = %d\n", \
+                          gasnetc_mynode,__FILE__,__LINE__,       \
+                          gasnetc_lapi_msg,lapi_errno);           \
+    }                                                             \
+  } while(0)
+
+/* Define how to poll in LAPI.
+ * Should use LAPI_Msgpoll when available since it
+ * temporarily disables LAPI interrupt mode (if used).  Not available
+ * in older versions of LAPI.  Note that the info structure contains
+ * a status field to determine if the dispatcher did poll, if another
+ * thread was already polling, or if a message operation completed
+ * before the requested number of polling operations completed.
+ */
+#if (GASNETC_LAPI_VERSION > 1)
+#define GASNETC_LAPI_POLL(context) do {          \
+    lapi_msg_info_t info;                        \
+    GASNETC_LCHECK(LAPI_Msgpoll((context),1,&info));    \
+ } while (0)                          
+#else
+#define GASNETC_LAPI_POLL(context) GASNETC_LCHECK(LAPI_Probe(context))
+#endif
+
 typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 extern gasnetc_handler_fn_t gasnetc_handler[]; /* handler table */
 
@@ -170,15 +206,7 @@ typedef struct {
 extern void gasnetc_token_queue_init(gasnetc_token_queue_t *q);
 extern gasnetc_token_t* gasnetc_token_dequeue(gasnetc_token_queue_t *q, int update_schedule);
 extern void gasnetc_token_enqueue(gasnetc_token_queue_t *q, gasnetc_token_t *p, int *schedule);
-/* MLW: Need more descriptive name for this macro */
-#define GASNETC_LCHECK(func) { \
-    int lapi_errno; \
-    if ((lapi_errno = func) != LAPI_SUCCESS) {   \
-       LAPI_Msg_string(lapi_errno,gasnetc_lapi_msg);       \
-       gasneti_fatalerror("LAPI Error on node %d in file %s at line %d, [%s] return code = %d\n", \
-       	                  gasnetc_mynode,__FILE__,__LINE__,gasnetc_lapi_msg,lapi_errno); \
-    } \
-    }
+
 
 #define gasnetc_boundscheck(node,ptr,nbytes) gasneti_boundscheck(node,ptr,nbytes,c)
 
@@ -193,6 +221,73 @@ extern void gasnetc_token_enqueue(gasnetc_token_queue_t *q, gasnetc_token_t *p, 
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
    }                                                         \
  } while (0)
+
+
+#if GASNETI_THROTTLE_POLLERS 
+  #ifndef GASNETC_LAPIWAIT_SPIN
+    /* spinning with LAPI_GetCntr performs better under contention than LAPI_WaitCntr */
+    #define GASNETC_LAPIWAIT_SPIN 1
+  #endif
+  /* next two only affect behavior if GASNETC_LAPIWAIT_SPIN is enabled */
+  #ifndef GASNETC_LAPIWAIT_SPIN_SUSPRESM
+    /* suspend/resume_spinpollers currently never seem to improve lapi performance, 
+       so make them no-ops for now */
+    #define GASNETC_LAPIWAIT_SPIN_SUSPRESM 0
+  #endif
+  #ifndef GASNETC_LAPIWAIT_SPIN_TOGGLEINTR
+    /* toggling interrupt mode while spinning - 
+       produces crazy performance due to lack of thread safety in toggle */
+    #define GASNETC_LAPIWAIT_SPIN_TOGGLEINTR 0
+  #endif
+  
+  #if !GASNETC_LAPIWAIT_SPIN_SUSPRESM
+    #undef gasneti_suspend_spinpollers
+    #undef gasneti_resume_spinpollers
+    #define gasneti_suspend_spinpollers() gasneti_suspend_spinpollers_check()
+    #define gasneti_resume_spinpollers()  gasneti_resume_spinpollers_check()
+  #endif
+  #if GASNETC_LAPIWAIT_SPIN_TOGGLEINTR
+    #define gasnetc_hold_lapiinterrupts()   GASNETC_PAUSE_INTERRUPT_MODE()
+    #define gasnetc_resume_lapiinterrupts() GASNETC_RESUME_INTERRUPT_MODE()
+  #else
+    #define gasnetc_hold_lapiinterrupts()
+    #define gasnetc_resume_lapiinterrupts()
+  #endif
+
+  #if GASNETC_LAPIWAIT_SPIN
+    #define GASNETC_WAITCNTR(cntr, val, result) do {                        \
+      int tmp;                                                              \
+      GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context, (cntr), &tmp));     \
+      if (tmp < (val)) {                                                    \
+        gasnetc_hold_lapiinterrupts();              \
+        do {                                                                \
+          gasneti_AMPoll();                                                 \
+          GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context, (cntr), &tmp)); \
+        } while (tmp < (val));                                              \
+        gasnetc_resume_lapiinterrupts();              \
+      }                                                                     \
+      tmp -= (val);                                                         \
+      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, (cntr), tmp));      \
+      if (result != NULL) *(int*)(result) = tmp;                            \
+    } while (0)
+  #else
+    #define GASNETC_WAITCNTR(cntr, val, result) \
+      GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context, (cntr), (val), (result)))
+  #endif
+#else
+  #define GASNETC_WAITCNTR(cntr, val, result) \
+    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context, (cntr), (val), (result)))
+#endif
+
+/* Define a special version of WAITCNTR for selected places in the
+ * code where we know the problem is exhimited
+ */
+#if GASNETC_FEDBUG_WORKAROUND
+    #define GASNETC_WAITCNTR_FBW(cntr, val, result) \
+    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context, (cntr), (val), (result)))
+#else
+    #define GASNETC_WAITCNTR_FBW(cntr, val, result) GASNETC_WAITCNTR((cntr),(val),(result))
+#endif
 
 /* -------------------------------------------------------------------- */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */

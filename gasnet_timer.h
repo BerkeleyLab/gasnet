@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_timer.h                                   $
- *     $Date: 2004/01/31 14:35:40 $
- * $Revision: 1.15 $
+ *     $Date: 2004/08/30 05:04:38 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,7 +147,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gethrtime())
 #endif
-#elif defined(LINUX) && defined(__GNUC__) && defined(__i386__)
+#elif defined(LINUX) && defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
   #include <stdio.h>
   #include <stdlib.h>
   #include <string.h>
@@ -158,9 +158,19 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   GASNET_INLINE_MODIFIER(gasneti_stattime_now)
   uint64_t gasneti_stattime_now (void) {
     unsigned long long ret;
-    __asm__ __volatile__("rdtsc"
-                        : "=A" (ret)
-                        : /* no inputs */); 
+    #if defined(__i386__)
+      __asm__ __volatile__("rdtsc"
+                           : "=A" (ret)
+                           : /* no inputs */); 
+    #elif defined(__x86_64__)
+      uint32_t lo, hi;
+      __asm__ __volatile__("rdtsc"
+                           : "=a" (lo), "=d" (hi)
+                           : /* no inputs */); 
+      ret = ((uint64_t)lo) | (((uint64_t)hi)<<32);
+    #else
+      #error "unsupported CPU"
+    #endif
     return ret;
   } 
   GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
@@ -188,7 +198,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       assert(Tick != 0.0);
       firstTime = 0;
     }
-    return st * Tick;
+    return (uint64_t)(st * Tick);
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
@@ -213,6 +223,16 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
 #elif defined(CYGWIN)
   #include <windows.h>
+  /* note: QueryPerformanceCounter is a Win32 system call and thus has ~1us overhead
+     Most systems have a QueryPerformanceFrequency() == 3,579,545, which is the
+     ACPI counter that should be reliable across CPU cycle speedstepping, etc.
+     rdtsc has lower overhead, but only works on Pentium or later,
+     produces wildly incorrect results if the  CPU decides to change clock rate 
+     mid-run (and there's no reliable way to get the correct cycle multiplier 
+     short of timing a known-length delay and hoping for the best)
+     See http://www.geisswerks.com/ryan/FAQS/timing.html
+         http://softwareforums.intel.com/ids/board/message?board.id=16&message.id=1509
+  */
   typedef uint64_t gasneti_stattime_t;
   #define GASNETI_STATTIME_MIN        ((gasneti_stattime_t)0)
   #define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)-1)
@@ -234,7 +254,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       freq = 1 / freq;
       firsttime = 0;
     }
-    return st * freq;
+    return (uint64_t)(st * freq);
   }
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
@@ -279,7 +299,7 @@ double gasneti_stattime_metric(unsigned int idx) {
       }
       last = x;
     }
-    _gasneti_stattime_metric = malloc(2*sizeof(double));
+    _gasneti_stattime_metric = (double *)malloc(2*sizeof(double));
     assert(_gasneti_stattime_metric != NULL);
     /* granularity */
     _gasneti_stattime_metric[0] = ((double)GASNETI_STATTIME_TO_US(min*1000))/1000.0;

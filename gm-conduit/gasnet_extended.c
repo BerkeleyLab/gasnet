@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gm-conduit/gasnet_extended.c                  $
- *     $Date: 2004/06/17 01:16:38 $
- * $Revision: 1.23.2.2 $
+ *     $Date: 2004/08/30 05:04:46 $
+ * $Revision: 1.23.2.3 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -98,15 +98,10 @@ gasnete_mythread()
           return threaddata;
         }
 
-	/*	first time we've seen this thread - need to set it up */
-	{ 
-		int retval;
-		gasnete_threaddata_t *threaddata = gasnete_new_threaddata();
-
-		retval = pthread_setspecific(gasnete_threaddata, threaddata);
-		gasneti_assert(!retval);
-		return threaddata;
-	}
+        /* first time we've seen this thread - need to set it up */
+        threaddata = gasnete_new_threaddata();
+        gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
+	return threaddata;
 }
 #else
   #define gasnete_mythread() (gasnete_threadtable[0])
@@ -132,15 +127,10 @@ gasnete_init()
 
 	gasnete_check_config(); /* check for sanity */
 
-	#if GASNETI_CLIENT_THREADS
-	{/*	TODO: we could provide a non-NULL destructor and reap data
-		structures from exiting threads */ 
-		int retval = pthread_key_create(&gasnete_threaddata, NULL);
-		if (retval) 
-			gasneti_fatalerror("In gasnete_init(), "
-			    "pthread_key_create()=%s",strerror(retval));
-	}
-	#endif
+        #if GASNETI_CLIENT_THREADS
+          /*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+          gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
+        #endif
 
 	gasnete_mynode = gasnet_mynode();
 	gasnete_nodes = gasnet_nodes();
@@ -176,9 +166,10 @@ gasnete_init()
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-	GASNETE_SAFE(gasnet_AMPoll());
+	GASNETE_SAFE(gasneti_AMPoll());
 
 	if (gasnete_op_isdone(handle)) {
+		gasneti_sync_reads();
 		gasnete_op_free(handle);
 		return GASNET_OK;
 	}
@@ -191,7 +182,7 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 	int success = 0;
 	int empty = 1;
 
-	GASNETE_SAFE(gasnet_AMPoll());
+	GASNETE_SAFE(gasneti_AMPoll());
 	gasneti_assert(phandle);
 
 	{ 
@@ -201,6 +192,7 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 			if (op != GASNET_INVALID_HANDLE) {
 				empty = 0;
 				if (gasnete_op_isdone(op)) {
+					gasneti_sync_reads();
 					gasnete_op_free(op);
 					phandle[i] = GASNET_INVALID_HANDLE;
 					success = 1;
@@ -218,7 +210,7 @@ extern int
 gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 {
 	int success = 1;
-	GASNETE_SAFE(gasnet_AMPoll());
+	GASNETE_SAFE(gasneti_AMPoll());
 
 	gasneti_assert(phandle);
 
@@ -228,6 +220,7 @@ gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 			gasnete_op_t *op = phandle[i];
 			if (op != GASNET_INVALID_HANDLE) {
 				if (gasnete_op_isdone(op)) {
+					gasneti_sync_reads();
 					gasnete_op_free(op);
 					phandle[i] = GASNET_INVALID_HANDLE;
 				} 
@@ -251,7 +244,7 @@ gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -268,6 +261,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
         gasneti_atomic_set(&(iop->completed_get_cnt), 0);
         iop->initiated_get_cnt = 0;
       }
+      gasneti_sync_reads();
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
   }
@@ -276,7 +270,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETE_SAFE(gasnet_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
   #endif
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -295,6 +289,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
         gasneti_atomic_set(&(iop->completed_put_cnt), 0);
         iop->initiated_put_cnt = 0;
       }
+      gasneti_sync_reads();
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
   }

@@ -1,3 +1,10 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/delay.c,v $
+ *     $Date: 2004/08/30 05:05:18 $
+ * $Revision: 1.2.2.2 $
+ * Description: 
+ * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
+ * Terms of use are as specified in license.txt
+ */
 #include <float.h>
 #include <gasnet_tools.h>
 
