@@ -21,6 +21,18 @@ gasneti_mutex_t         fh_table_lock = GASNETI_MUTEX_INITIALIZER;
 fh_fifoq_t      fh_LocalFifo = FH_TAILQ_HEAD_INITIALIZER(fh_LocalFifo);
 fh_fifoq_t      *fh_RemoteNodeFifo = NULL;
 
+/* Local Limits & Counters */
+int fhc_LocalOnlyBucketsPinned;
+int fhc_LocalOnlyBucketsInFlight;
+int fhc_LocalVictimFifoBuckets;
+int fhc_MaxVictimBuckets;
+
+/* Remote Limits & Counters */
+int fhc_RemoteBucketsM;
+int fhc_MaxRemoteBuckets;
+int *fhc_RemoteBucketsUsed;
+int *fhc_RemoteVictimFifoBuckets;
+
 /* ##################################################################### */
 /* PUBLIC FIREHOSE INTERFACE                                             */
 /* ##################################################################### */
@@ -650,3 +662,245 @@ fh_getenv(const char *var, unsigned long multiplier)
         return (unsigned long) num;
 }
 
+/* 
+ * Bucket state transitions
+ *
+ * Each bucket (whether local or remote) can be either pinned or unpinned.
+ * Local buckets have a remote (R) and local (L) refcount whereas remote
+ * buckets only have remote refcounts.
+ *
+ * Remote bucket handling is straightforward -- if R=0, the bucket is in the
+ * remote fifo, and if R>0, it is in use.
+ *
+ * Local bucket handling is complicated by the L refcount and the necessity to
+ * maintain the 'fhc_LocalOnlyBucketsPinned' counter (shown as LOnly below).
+ *
+ *********************************
+ * LOCAL BUCKET STATE TRANSITIONS
+ *********************************
+ * Each state transition is triggered by acquire and release.
+ *
+ *           R L        
+ *          .---.        
+ *       A. |0 0| (UNPINNED)
+ *          `---'          
+ *          |  ^         
+ *          |  | LOnly--
+ *  LOnly++ |  |        
+ *          V  |                              R L 
+ *          .---. (PINNED)                   .---.
+ *       B. |0 0| (IN FIFO) <-- -- -- -- --> |0 1| C. (PINNED)
+ *          `---'                            `---'
+ *          |  ^                             |  ^ 
+ *          |  | LOnly++                     |  |  LOnly++
+ *  LOnly-- |  |                     LOnly-- |  |
+ *          V  |                             V  |
+ *          .---.                            .---.
+ *       E. |1 0| (PINNED)  <-- -- -- -- --> |1 1| D. (PINNED)
+ *          `---'                            `---'
+ *
+ * All transitions  _TO_  state 'B' add    the bucket to the FIFO
+ * All transitions _FROM_ state 'B' remove the bucket to the FIFO
+ *
+ *********************************
+ * REMOTE BUCKET STATE TRANSITIONS
+ *********************************
+ * State transitions triggers are indicated in the diagram
+ * 
+ *            C.                               B.
+ *          .---. (PINNED)   acquire(),R=1   .---.
+ *          |R=0| (IN FIFO) <-- -- -- -- --> |R>0| (PINNED)
+ *          `---'            release(),R=0   `---'
+ *                                             ^ 
+ *                                             |  Firehose reply
+ *                                             | 
+ *                                             |
+ *                                           .---. (UNPINNED, PENDING PIN)
+ *          Firehose request -- -- -- -- --> |R>0| -- --.
+ *          first acquire()                  `---'      |
+ *                                        A.  ^         |  acquire()
+ *                                            |_ __ __ / 
+ *
+ * - Some transitions from 'B' are missing, the transition to 'C' only happens
+ *   when the reference count reaches zero.
+ * - Subsequent acquires on a bucket pending pin (state 'A') cause firehose
+ *   requests to be queued up at the sender.  In other words, completions can
+ *   be coalesced by a single firehose reply.
+ *
+ *--
+ * Acquiring a bucket increments the refcount (either R or L)
+ * Release a bucket decrements the refcount (ether R or L)
+ *
+ * Both functions return the new reference count for the incremented count.
+ *
+ */
+
+fh_refc_t *
+fh_priv_acquire(gasnet_node_t node, firehose_private_t *entry)
+{
+	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
+	FH_TABLE_ASSERT_LOCKED;
+	
+	/* 
+	 * If the bucket is a local, if can contain both local and remote
+	 * reference counts.
+	 *
+	 */
+	assert(entry != NULL);
+
+	if (FH_NODE(entry) == fh_mynode) {
+
+		int	ref_L = (node == fh_mynode);
+		/*
+		 * 'ref_L' is TRUE if we are acquiring a local bucket for the
+		 *         local node (ie: fh_local_pin).  
+		 * 'ref_L' is FALSE if we are acquireing a local bucket from a
+		 *         firehose request (fh_am_move).
+		 *
+		 */
+
+		if (FH_IS_LOCAL_FIFO(entry)) {
+			FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
+			assert(FH_NODE(entry) == fh_mynode);
+			FH_BSTATE_ASSERT(entry, fh_local_fifo);
+
+			rp->refc_l = ref_L;
+			rp->refc_r = !ref_L;
+
+			fhc_LocalOnlyBucketsPinned -= !ref_L;
+			fhc_LocalVictimFifoBuckets--;
+			FH_BSTATE_SET(entry, fh_used);
+			FH_SET_USED(entry);
+
+			FH_TRACE_BUCKET(entry, ACQFIFO);
+		}
+		else {
+			FH_SET_USED(entry);
+			FH_BSTATE_ASSERT(entry, fh_used);
+			if (ref_L) {
+				rp->refc_l++;
+				FH_TRACE_BUCKET(entry, ACQUIRE);
+			}
+			else {
+				if (rp->refc_r == 0) {
+					assert(rp->refc_l > 0);
+					fhc_LocalOnlyBucketsPinned--;
+				}
+
+				rp->refc_r++;
+				FH_TRACE_BUCKET(entry, ACQUIRE);
+			}
+		}
+	}
+
+	/* If the bucket is a remote bucket, the node cannot be equal to
+	 * fh_mynode */
+	else {
+		assert(node != fh_mynode);
+
+		if (FH_IS_REMOTE_FIFO(entry)) {
+			FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
+
+			assert(FH_NODE(entry) != fh_mynode);
+			FH_BSTATE_ASSERT(entry, fh_remote_fifo);
+
+			fhc_RemoteVictimFifoBuckets[node]--;
+			rp->refc_l = 0;
+			rp->refc_r = 1;
+			
+			FH_SET_USED(entry);
+			FH_BSTATE_SET(entry, fh_used);
+			FH_TRACE_BUCKET(entry, ACQFIFO);
+		}
+		else {
+			/* Pending buckets must be handled separately */
+			assert(!FH_IS_REMOTE_PENDING(entry));
+			FH_BSTATE_ASSERT(entry, fh_used);
+
+			rp->refc_r++;
+			assert(rp->refc_r > 0);
+			FH_TRACE_BUCKET(entry, ACQUIRE);
+		}
+	}
+	return rp;
+}
+
+fh_refc_t *
+fh_priv_release(gasnet_node_t node, firehose_private_t *entry)
+{
+	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
+	FH_TABLE_ASSERT_LOCKED;
+
+	assert(entry != NULL);
+	FH_BSTATE_ASSERT(entry, fh_used);
+
+	if (FH_NODE(entry) == fh_mynode) {
+		int		ref_L = (node == fh_mynode);
+		/*
+		 * 'ref_L' is TRUE if we are releasing a local bucket for the
+		 *         local node
+		 * 'ref_L' is FALSE if we are releasing a local bucket from a
+		 *         firehose request
+		 *
+		 */
+
+		assert(!FH_IS_LOCAL_FIFO(entry));
+
+		if (ref_L) {
+			assert(rp->refc_l > 0);
+		}
+		else {
+			assert(rp->refc_r > 0);
+		}
+
+		rp->refc_l -= ref_L;
+		rp->refc_r -= !ref_L;
+
+		/* As a result, the bucket may be unused */
+		if (rp->refc_r == 0 && rp->refc_l == 0) {
+			FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
+
+			fhc_LocalOnlyBucketsPinned += !ref_L;
+			fhc_LocalVictimFifoBuckets++;
+
+			FH_BSTATE_SET(entry, fh_local_fifo);
+			FH_TRACE_BUCKET(entry, ADDFIFO);
+			return rp;
+		}
+		else {
+			if (rp->refc_r == 0 && !ref_L) 
+				fhc_LocalOnlyBucketsPinned++;
+
+			FH_TRACE_BUCKET(entry, RELEASE);
+			return rp;
+		}
+	}
+	/* The bucket is a remote bucket, and it cannot contain any local
+	 * refcounts.  Also, it should not be pending as pending buckets are
+	 * handled separately */
+	else {
+                fh_refc_t refc;
+		assert(node != fh_mynode);
+		assert(!FH_IS_REMOTE_PENDING(entry));
+
+		assert(rp->refc_r > 0);
+		rp->refc_r--;
+
+		if (rp->refc_r== 0) {
+			FH_TAILQ_INSERT_TAIL(
+			    &fh_RemoteNodeFifo[node], entry);
+
+			fhc_RemoteVictimFifoBuckets[node]++;
+
+			FH_BSTATE_SET(entry, fh_remote_fifo);
+			FH_TRACE_BUCKET(entry, ADDFIFO);
+			return rp;
+		}
+		else {
+			FH_TRACE_BUCKET(entry, RELEASE);
+			return rp;
+		}
+	}
+}

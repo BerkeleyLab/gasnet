@@ -221,42 +221,51 @@ static fh_bucket_t **	fh_temp_bucket_ptrs = NULL;
  */
 fh_hash_t	*fh_BucketTable;
 
+/* ACTIVE MESSAGES DECL                                                   */ 
+static gasnet_handlerentry_t fh_am_handlers[];
+/* Initial value of index for gasnet registration */
+#define _hidx_fh_am_move_reqh			0
+#define _hidx_fh_am_move_reph			0
+
+/* Index into the fh_am_handlers table to obtain the gasnet registered index */
+#define _fh_hidx_fh_am_move_reqh		0
+#define _fh_hidx_fh_am_move_reph		1
+
+#define fh_handleridx(reqh)	(fh_am_handlers[ _fh_hidx_ ## reqh ].index)
+
 /* ##################################################################### */
-/* COUNTERS                                                              */
+/* UTILITY FUNCTIONS FOR REGIONS AND BUCKETS                             */
 /* ##################################################################### */
-/* 
- * LOCAL COUNTERS
- *
- * fhc_LocalOnlyBucketsPinned - incrementing counter
- *     Amount of buckets pinned only for the local node (localref > 0 AND
- *     remoteref == 0).
- *
- * fhc_LocalOnlyBucketsInFlight - incrementing counter
- *     Total amount of local buckets currently touched (refcount incremented)
- *     by locally-initiated operations.  This count must be less than
- *     fhc_MaxVictimBuckets in order to avoid deadlocks.
- *
- * fhc_LocalVictimFifoBuckets - incrementing counter
- *     Amount of buckets currently contained in the Local Victim FIFO. 
- *
- * fhc_MaxVictimBuckets - static count
- *     Maximum amount of victims that may be pinned other than M.  At all
- *     fhc_LocalOnlyBucketsPinned + 
- *        fhc_LocalVictimFifoBuckets < fhc_MaxVictimBuckets
+/* fh_region_ispinned(node, region)
  * 
- * fhc_MaxRemoteBuckets - static count
- *     Maximum number of buckets that may be pinned in a single AM call
- *     in the worst case.
+ * Returns non-null if the entire region is already pinned 
+ *
+ * Uses fh_bucket_ispinned() to query if the current page is pinned.
  */
+int
+fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
+{
+ 	uintptr_t	bucket_addr;
+	uintptr_t	end_addr = region->addr + region->len - 1;
+	fh_bucket_t	*bd;
+	int		is_local = (node == fh_mynode);
 
-int	fhc_LocalOnlyBucketsPinned;
-int	fhc_LocalOnlyBucketsInFlight;
-int	fhc_LocalVictimFifoBuckets;
-int	fhc_MaxVictimBuckets;
-int	fhc_MaxRemoteBuckets;
+	FH_TABLE_ASSERT_LOCKED;
+ 	FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) {
+		bd = fh_bucket_lookup(node, bucket_addr);
 
-#define FHC_MAXVICTIM_BUCKETS_AVAIL 					\
-		(fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned)
+		/* 
+		 * Upon lookup, the bucket can either not be present in the
+		 * hash table in which case it is certainly unpinned, or it
+		 * can be in the table but be pending.  If the bucket is
+		 * pending a firehose move, the region cannot be declared as
+		 * pinned.
+		 */
+		if (bd == NULL || (!is_local && FH_IS_REMOTE_PENDING(bd)))
+			return 0;
+	}
+	return 1;
+}
 
 /* fh_region_partial(node, region)
  *
@@ -320,71 +329,6 @@ fh_region_partial(gasnet_node_t node, firehose_region_t *region)
 	region->addr = addr;
 	region->len  = len;
 		
-	return 1;
-}
-
-/* 
- * REMOTE COUNTERS
- *
- * fhc_RemoteBucketsM - static count
- *    Amount of per-node firehoses that can be mapped as established by the
- *    firehose 'M' parameter.
- *
- * fhc_RemoteBucketsUsed[0..nodes-1] - Array of incrementing counters
- *    Amount of buckets currently used by the current node.
- *
- * fhc_RemoteVictimFifoBuckets[0..nodes-1] - Array of incrementing counters
- *     Available amount of remote buckets that can be used without sending
- *     replacement buckets.
- *
- */
-int	 fhc_RemoteBucketsM;
-int	*fhc_RemoteBucketsUsed;
-int	*fhc_RemoteVictimFifoBuckets;
-
-/* ACTIVE MESSAGES DECL                                                   */ 
-static gasnet_handlerentry_t fh_am_handlers[];
-/* Initial value of index for gasnet registration */
-#define _hidx_fh_am_move_reqh			0
-#define _hidx_fh_am_move_reph			0
-
-/* Index into the fh_am_handlers table to obtain the gasnet registered index */
-#define _fh_hidx_fh_am_move_reqh		0
-#define _fh_hidx_fh_am_move_reph		1
-
-#define fh_handleridx(reqh)	(fh_am_handlers[ _fh_hidx_ ## reqh ].index)
-
-/* ##################################################################### */
-/* UTILITY FUNCTIONS FOR REGIONS AND BUCKETS                             */
-/* ##################################################################### */
-/* fh_region_ispinned(node, region)
- * 
- * Returns non-null if the entire region is already pinned 
- *
- * Uses fh_bucket_ispinned() to query if the current page is pinned.
- */
-int
-fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
-{
- 	uintptr_t	bucket_addr;
-	uintptr_t	end_addr = region->addr + region->len - 1;
-	fh_bucket_t	*bd;
-	int		is_local = (node == fh_mynode);
-
-	FH_TABLE_ASSERT_LOCKED;
- 	FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) {
-		bd = fh_bucket_lookup(node, bucket_addr);
-
-		/* 
-		 * Upon lookup, the bucket can either not be present in the
-		 * hash table in which case it is certainly unpinned, or it
-		 * can be in the table but be pending.  If the bucket is
-		 * pending a firehose move, the region cannot be declared as
-		 * pinned.
-		 */
-		if (bd == NULL || (!is_local && FH_IS_REMOTE_PENDING(bd)))
-			return 0;
-	}
 	return 1;
 }
 
@@ -1174,7 +1118,7 @@ fhi_AcquireLocalRegionsList(gasnet_node_t node, firehose_region_t *region,
 				 * The bucket is already pinned, increment refc
 				 */
 				fh_bucket_acquire(node, bd);
-				assert(bd->fh_tqe_next == (fh_bucket_t *) -1);
+				assert(bd->fh_tqe_next == FH_USED_TAG);
 			}
 			else {
 				/* The bucket is not pinned, see if the
@@ -1403,13 +1347,30 @@ fhi_InitLocalRegionsList(gasnet_node_t node, firehose_region_t *region,
 		assert(region[i].addr > 0);
 
 		FH_FOREACH_BUCKET(region[i].addr,end_addr,bucket_addr) {
-			bd = fh_bucket_add(fh_mynode, bucket_addr);
-			FH_BSTATE_SET(bd, fh_used);
-
-			FH_BUCKET_REFC(bd)->refc_l = loc;
-			FH_BUCKET_REFC(bd)->refc_r = rem;
-
-			FH_TRACE_BUCKET(bd, INIT);
+			/* 
+			 * Normally, the bucket will not already exist in the
+			 * table.  However, in some threaded configurations
+			 * it is possible for another thread to add the bucket
+			 * (and pin the associated memory) while this current
+			 * thread unlocked the table lock.
+			 */
+			#if GASNET_PAR || GASNETI_CONDUIT_THREADS
+			bd = fh_bucket_lookup(fh_mynode, bucket_addr);
+			if_pf (bd != NULL) {
+				FH_BSTATE_SET(bd, fh_used);
+				FH_BUCKET_REFC(bd)->refc_l += loc;
+				FH_BUCKET_REFC(bd)->refc_r += rem;
+				FH_TRACE_BUCKET(bd, INIT++);
+			}
+			else 
+			#endif
+			{
+				bd = fh_bucket_add(fh_mynode, bucket_addr);
+				FH_BSTATE_SET(bd, fh_used);
+				FH_BUCKET_REFC(bd)->refc_l = loc;
+				FH_BUCKET_REFC(bd)->refc_r = rem;
+				FH_TRACE_BUCKET(bd, INIT);
+			}
 		}
 	}
 
@@ -1712,7 +1673,7 @@ fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req,
 			 * allocate it */
 			if (FH_IS_REMOTE_PENDING(bd)) {
 				assert(bd->fh_tqe_next != NULL && 
-				       bd->fh_tqe_next != (fh_bucket_t *) -1);
+				       bd->fh_tqe_next != FH_USED_TAG);
 
 				if (!(req->flags & FH_FLAG_PENDING)) {
 					assert(req->internal == NULL);

@@ -87,13 +87,9 @@ fh_bucket_t *fh_best_bucket(fh_bucket_t *a, fh_bucket_t *b)
   return (fh_bucket_is_better(a,b)) ? a : b;
 }
 
-GASNET_INLINE_MODIFIER(fh_priv_acquire)
-fh_refc_t *fh_priv_acquire(gasnet_node_t node, firehose_private_t *priv)
-{
-  /* XXX Not implemented */
-  /* Is this EXACTLY the same as firehose_page:fh_bucket_acquire() ? */
-  return NULL;
-}
+/*======*/
+int fhc_LocalOnlyBucketsInFlight;
+/*======*/
 
 void
 fh_commit_region(gasnet_node_t node, firehose_region_t *region)
@@ -186,7 +182,17 @@ fh_commit_try_local_region(firehose_region_t *region)
 void
 fh_release_local_region(firehose_request_t *request)
 {
-	/* XXX unimplemented */
+        FH_TABLE_ASSERT_LOCKED;
+	assert(request != NULL);
+	assert(request->node == fh_mynode);
+	assert(request->internal != NULL);
+                                                                                                              
+	fh_priv_release(fh_mynode, request->internal);
+        //cleanup_overcommitted_local_FIFO();
+                                                                                                              
+        fhc_LocalOnlyBucketsInFlight -= 
+		FH_NUM_BUCKETS(request->addr, request->len);
+
 	return;
 }
 
@@ -217,7 +223,17 @@ fh_commit_try_remote_region(gasnet_node_t node, firehose_region_t *region)
 void
 fh_release_remote_region(firehose_request_t *request)
 {
-	/* XXX unimplemented */
+        FH_TABLE_ASSERT_LOCKED;
+	assert(request != NULL);
+	assert(request->node != fh_mynode);
+	assert(request->internal != NULL);
+	assert(!FH_IS_REMOTE_PENDING(request->internal));
+                                                                                                              
+	fh_priv_release(request->node, request->internal);
+                                                                                                              
+        assert(fhc_RemoteVictimFifoBuckets[request->node]
+                        <= fhc_RemoteBucketsM);
+                                                                                                              
 	return;
 }
 
@@ -308,6 +324,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
         /* Initialize the Bucket tables */
         fh_BucketTable1 = fh_hash_create(1<<16); /* 64k */
         fh_BucketTable2 = fh_hash_create(1<<17); /* 128k */
+
+	/* ### Add prepinned regions to the tables */
 }
 
 void

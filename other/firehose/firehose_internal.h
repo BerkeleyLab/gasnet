@@ -39,6 +39,59 @@ extern gasneti_mutex_t		fh_table_lock;
   #define FH_POLLQ_UNLOCK	!!! error - no firehose polling !!!
 #endif
 
+/* 
+ * LOCAL COUNTERS
+ *    XXX/PHH: actually counts of private_t's, rather than bucket_t's
+ *
+ * fhc_LocalOnlyBucketsPinned - incrementing counter
+ *     Amount of buckets pinned only for the local node (localref > 0 AND
+ *     remoteref == 0).
+ *
+ * fhc_LocalOnlyBucketsInFlight - incrementing counter
+ *     Total amount of local buckets currently touched (refcount incremented)
+ *     by locally-initiated operations.  This count must be less than
+ *     fhc_MaxVictimBuckets in order to avoid deadlocks.
+ *
+ * fhc_LocalVictimFifoBuckets - incrementing counter
+ *     Amount of buckets currently contained in the Local Victim FIFO. 
+ *
+ * fhc_MaxVictimBuckets - static count
+ *     Maximum amount of victims that may be pinned other than M.  At all
+ *     fhc_LocalOnlyBucketsPinned + 
+ *        fhc_LocalVictimFifoBuckets < fhc_MaxVictimBuckets
+ */
+
+extern int	fhc_LocalOnlyBucketsPinned;
+extern int	fhc_LocalOnlyBucketsInFlight;
+extern int	fhc_LocalVictimFifoBuckets;
+extern int	fhc_MaxVictimBuckets;
+
+#define FHC_MAXVICTIM_BUCKETS_AVAIL 					\
+		(fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned)
+
+/* 
+ * REMOTE COUNTERS
+ *
+ * fhc_RemoteBucketsM - static count
+ *    Amount of per-node firehoses that can be mapped as established by the
+ *    firehose 'M' parameter.
+ *
+ * fhc_MaxRemoteBuckets - static count
+ *     Maximum number of buckets that can be pinned in a single AM call.
+ * 
+ * fhc_RemoteBucketsUsed[0..nodes-1] - Array of incrementing counters
+ *    Amount of buckets currently used by the current node.
+ *
+ * fhc_RemoteVictimFifoBuckets[0..nodes-1] - Array of incrementing counters
+ *     Available amount of remote buckets that can be used without sending
+ *     replacement buckets.
+ *
+ */
+extern int	 fhc_RemoteBucketsM;
+extern int	 fhc_MaxRemoteBuckets;
+extern int	*fhc_RemoteBucketsUsed;
+extern int	*fhc_RemoteVictimFifoBuckets;
+
 #ifndef FH_BUCKET_SIZE
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
 #endif
@@ -156,6 +209,10 @@ struct _firehose_private_t {
 	size_t		len;
 	fh_bucket_t	*bucket;		/* pointer to first bucket */
 
+	#ifdef DEBUG_BUCKETS
+	fh_bstate_t	fh_state;
+	#endif
+
 	firehose_private_t *fh_tqe_next;	/* -1 when not in FIFO, 
 						   NULL when end of list,
 						   else next pointer in FIFO */
@@ -185,7 +242,7 @@ struct _firehose_private_t {
  *      b) NOT PENDING (LOCAL refcount != FH_REMOTE_PENDING_TAG)
  *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
-#define FH_USED_TAG		((fh_bucket_t *) -1)
+#define FH_USED_TAG		((firehose_private_t *) -1)
 #define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
 
 #define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
@@ -256,13 +313,12 @@ fh_bucket_t *	fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr);
 fh_bucket_t *	fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr);
 		/* Removes the bucket from the table                     */
 void		fh_bucket_remove(fh_bucket_t *);
+		/* Releases the private_t (decrements the refcount)      */
+fh_refc_t *	fh_priv_release(gasnet_node_t node, firehose_private_t *);
+		/* Acquires the private_t (increments the refcount). _ONLY_ 
+		 * valid if the private_t already exists in the table    */
+fh_refc_t *	fh_priv_acquire(gasnet_node_t node, firehose_private_t *);
 
-/* The following two functions are not common */
-		/* Releases the bucket (decrements the refcount)         */
-fh_refc_t *	fh_bucket_release(gasnet_node_t node, fh_bucket_t *);
-		/* Acquires the bucket (increments the refcount). _ONLY_ 
-		 * valid if the bucket already exists in the table       */
-fh_refc_t *	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
 
 /* The following are implementation-specific helpers */
 #if defined(FIREHOSE_PAGE)
@@ -277,7 +333,7 @@ GASNET_INLINE_MODIFIER(fhi_bucket_add)
 void fhi_bucket_add(fh_bucket_t *bucket)
 {
 	assert(bucket != NULL);
-        bucket->fh_tqe_next = (fh_bucket_t *) -1;
+	FH_SET_USED(bucket);
 	fh_hash_insert(fh_BucketTable, bucket->fh_key, bucket);
 	assert(fhi_bucket_lookup(bucket->fh_key) == bucket);
 }
@@ -287,9 +343,6 @@ void fhi_bucket_remove(fh_bucket_t *bucket)
 	void * _tmp;
 
 	assert(bucket != NULL);
-#if 0	/* overwritten by memset() as soon as we return */
-        bucket->fh_tqe_next = (fh_bucket_t *) -1;
-#endif
 	_tmp = fh_hash_insert(fh_BucketTable, bucket->fh_key, NULL);
 	assert(_tmp == (void *)bucket);
 }
@@ -303,8 +356,8 @@ fh_bucket_t *fhi_bucket_lookup(fh_int_t key)
 	/* Only ever need to lookup in the first table */
 	return (fh_bucket_t *)fh_hash_find(fh_BucketTable1, key);
 }
-extern void 		fhi_bucket_add(fh_bucket_t *);
-extern void		fhi_bucket_remove(fh_bucket_t *);
+extern void fhi_bucket_add(fh_bucket_t *);
+extern void fhi_bucket_remove(fh_bucket_t *);
 #endif
 
 /* ##################################################################### */
