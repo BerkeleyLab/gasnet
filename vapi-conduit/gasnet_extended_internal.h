@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/04/25 20:07:35 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/04/25 21:57:18 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,9 @@
 #include <gasnet.h>
 #include <gasnet_handler.h>
 #include <gasnet_internal.h>
+
+/* Tune cut-off between PUTs and AMs for memset */
+#define GASNETE_MEMSET_PUT_LIMIT        GASNETC_BUFSZ
 
 /* ------------------------------------------------------------------------------------ */
 /*  reasonable upper-bound on L2 cache line size (don't make this too big) */

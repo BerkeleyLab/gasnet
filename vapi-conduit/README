@@ -82,6 +82,15 @@ Notes for myself for extended API:
 
   DONE
  
++ The memsets are be more efficiently implemented as a _local_ memset
+  followed by a RDMA put, for small enough sizes.  The cutoff appears
+  to be aroung 32-128k, but is not well tuned yet.
+  The actual point to tune to should be lower, because the bandwidth
+  demands are competing with other traffic.
+  "Large enough" memsets are still done by Active Messages.
+  
+  DONE
+
 
 @ TO DO @
 
@@ -95,10 +104,6 @@ Notes for myself for extended API:
   the bounce buffer, but that creates a problem with long-lived bounce
   buffers with non-blocking gets.  This _will_ work, however, for blocking
   value gets.
- 
-+ There is the possibility that for sufficiently small sizes, the memsets
-  can be more efficiently implemented as a _local_ memset followed by a 
-  RDMA put.
 
 + If I can be sure there are not deadlock problems under RNR conditions,
   the barrier implementation might be improved using a bunch of puts to
