@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/04/07 18:05:29 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2004/04/07 23:49:25 $
+ * $Revision: 1.1.2.7 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,14 +13,42 @@
 /*---------------------------------------------------------------------------------*/
 /* Forward decls */
 
+#define GASNETE_COLL_IN_MODE(flag) \
+	((flags) & (GASNET_COLL_IN_NOSYNC  | GASNET_COLL_IN_MYSYNC  | GASNET_COLL_IN_ALLSYNC))
+#define GASNETE_COLL_OUT_MODE(flag) \
+	((flags) & (GASNET_COLL_OUT_NOSYNC  | GASNET_COLL_OUT_MYSYNC  | GASNET_COLL_OUT_ALLSYNC))
+
 /*---------------------------------------------------------------------------------*/
 /* Handles */
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
+  GASNET_INLINE_MODIFIER(gasnete_coll_hand_create)
+  gasnet_coll_handle_t gasnete_coll_handle_create(void) {
+    /* XXX: use free list, possibly per thread */
+    gasnet_coll_handle_t result = (gasnet_coll_handle_t)gasneti_malloc(sizeof(int));
+    *result = 0;
+    return result;
+  }
+
   GASNET_INLINE_MODIFIER(gasnete_coll_hand_signal)
   void gasnete_coll_handle_signal(gasnet_coll_handle_t handle) {
     gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE);
     *handle = 1;
+  }
+
+  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle) {
+    int result = GASNET_ERR_NOT_READY;
+
+    gasnete_coll_poll();
+
+    if_pf (handle == GASNET_COLL_INVALID_HANDLE) {
+      result = GASNET_OK;
+    } else if_pf (*handle != 0) {
+      gasneti_free((void *)handle);
+      result = GASNET_OK;
+    }
+
+    return result;
   }
 #endif
 
@@ -48,7 +76,7 @@
         if (team_id != 0) {
 	    gasneti_fatalerror("Non-zero team id passed, but teams are not yet implemented.");
 	}
-        return NULL;
+        return GASNET_TEAM_ALL;
     }
 #endif
 
@@ -88,7 +116,7 @@
  */
 
 /* XXX: sequence (and maybe other stuff) will need to be per-team scoped. */
-uint32_t gasnete_coll_sequence = 0;
+uint32_t gasnete_coll_sequence = 12345;	/* arbitrary non-zero starting value */
 
 gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 
@@ -135,11 +163,11 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
     gasnete_coll_op_table_find(gasnete_coll_team_t team, uint32_t sequence) {
       unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(team, sequence);
       const gasnete_coll_op_t *head = &(gasnete_coll_table[slot_nr]);
-      gasnete_coll_op_t *op;
+      gasnete_coll_op_t *op = NULL;
 
       /* Search table */
       op = head->table_next;
-      while ((op != head) && (op->team != team) && (op->sequence != sequence)) {
+      while ((op != head) && ((op->team != team) || (op->sequence != sequence))) {
         op = op->table_next;
       }
 
@@ -173,13 +201,13 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
     static gasnete_coll_op_t gasnete_coll_list_head;
 
     void
-    gasnete_coll_op_list_init(void) {
+    gasnete_coll_op_active_init(void) {
       gasnete_coll_op_t *op = &gasnete_coll_list_head;
       op->list_next = op->list_prev = op;
     }
 
     void
-    gasnete_coll_op_list_fini(void) {
+    gasnete_coll_op_active_fini(void) {
       /* EMPTY */
     }
 
@@ -240,7 +268,7 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
       if_pf (op->flags & GASNET_COLL_AGGREGATE) {
 	gasnete_coll_op_t *head = gasnete_coll_agg;
 
-	gasneti_assert(handle == NULL);	/* check for handle leak */
+	gasneti_assert(handle == GASNET_COLL_INVALID_HANDLE);	/* check for handle leak */
 
 	if (head == NULL) {
           /* Build a container to hold the aggregate.
@@ -352,26 +380,26 @@ gasnete_coll_op_destroy(gasnete_coll_op_t *op) {
 }
 
 void gasnete_coll_poll(void) {
-  static gasnet_hsl_t poll_lock = GASNET_HSL_INITIALIZER;
+  static gasneti_mutex_t poll_lock = GASNETI_MUTEX_INITIALIZER;
   gasnete_coll_op_t *op;
 
   /* Only one thread should poll */
-  if (gasnet_hsl_trylock(&poll_lock) == GASNET_OK) {
+  if (gasneti_mutex_trylock(&poll_lock) == 0) {
+
+    gasnet_AMPoll();	/* XXX: do more often? */
+
     gasnet_hsl_lock(&gasnete_coll_table_lock);
     op = gasnete_coll_op_active_first();
     gasnet_hsl_unlock(&gasnete_coll_table_lock);
 
     while (op != NULL) {
       gasnete_coll_op_t *next;
+      gasnete_coll_poll_fn poll_fn = NULL;
       int poll_result = 0;
 
-      /* Poll/kick the op, unless another thread (typically an AM) is modifying it */
-      if (gasnet_hsl_trylock(&op->lock) == GASNET_OK) {
-        if (op->poll_fn != NULL) {
-          poll_result = (*op->poll_fn)(op);
-        }
-        gasnet_hsl_unlock(&op->lock);
-      }
+      /* Poll/kick the op */
+      gasneti_assert(op->poll_fn != (gasnete_coll_poll_fn)NULL);
+      poll_result = (*op->poll_fn)(op);
 
       /* Get the next op in the active list, removing current if done.
          This is the only place items are removed from the active list and table. */
@@ -393,6 +421,124 @@ void gasnete_coll_poll(void) {
       op = next;
     }
 
-    gasnet_hsl_unlock(&poll_lock);
+    gasneti_mutex_unlock(&poll_lock);
   }
 }
+
+extern void gasnete_coll_init(void) {
+  gasnete_coll_op_table_init();
+  gasnete_coll_op_active_init();
+  /* gasnete_coll_team_init(); */
+}
+
+
+/*---------------------------------------------------------------------------------*/
+
+/* Generic routine to create an op and enter it in the table.
+ * Caller provides 'data' and 'poll_fn' specific to the operation.
+ * Handle is allocated automatically if flags don't indicate aggregation.
+ *
+ * Just returns the handle.
+ */
+gasnet_coll_handle_t
+gasnete_coll_op_generic_init(gasnete_coll_team_t team, uint32_t sequence, unsigned int flags,
+			     void *data, gasnete_coll_poll_fn poll_fn) {
+      gasnet_coll_handle_t handle = GASNET_COLL_INVALID_HANDLE;
+      gasnete_coll_op_t *op;
+
+      gasneti_assert(team == GASNET_TEAM_ALL);
+
+      /* Conditionally allocate a handle */
+      if_pt (!(flags & GASNET_COLL_AGGREGATE)) {
+        handle = gasnete_coll_handle_create();
+      }
+
+      /* Atomically create and initialize the op, which might already exist partially initialized */
+      gasnet_hsl_lock(&gasnete_coll_table_lock);
+      op = gasnete_coll_op_table_find(team, sequence);
+      if_pt (op == NULL) {
+	/* Not in the table yet, allocate and initialize it (no per-instance lock needed) */
+        op = gasnete_coll_op_create(team, sequence, flags);
+        op->data = data;
+        op->poll_fn = poll_fn;
+	gasnete_coll_op_table_ins(op);
+      } else {
+gasneti_assert(0);
+gasneti_assert(op->flags == flags);
+	/* Exists in the table, acquire lock before initializing */
+	/* XXX: wish we didn't need to assume the worst here */
+        gasnet_hsl_lock(&(op->lock));
+        op->data = data;
+        op->poll_fn = poll_fn;
+        gasnet_hsl_unlock(&(op->lock));
+      }
+      handle = gasnete_coll_op_submit(op, handle);
+      gasnet_hsl_unlock(&gasnete_coll_table_lock);
+
+      return handle;
+}
+
+#ifndef GASNETE_COLL_BROADCAST_OVERRIDE
+    typedef struct gasnete_coll_broadcast_data_t_ {
+      gasnet_node_t srcnode;
+      void *src, *dst;
+      size_t nbytes;
+      
+    } gasnete_coll_broadcast_t;
+
+    static int gasnete_coll_broadcast_poll(gasnete_coll_op_t *op) {
+      gasnet_handle_t *handle_ptr;
+      int result = 0;
+
+      gasneti_assert(op != NULL);
+      gasneti_assert(op->data != NULL);
+      /* ASSERT: op->lock held */
+
+      handle_ptr = (gasnet_handle_t *)(op->data);
+      if (gasnet_try_syncnb(*handle_ptr) == GASNET_OK) {
+	gasneti_free(handle_ptr);
+	result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+      }
+
+      return result;
+    }
+
+    extern gasnet_coll_handle_t
+    gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
+                             void *dst,
+                             gasnet_node_t srcnode, void *src,
+                             size_t nbytes, int flags)
+    {
+      gasnet_coll_handle_t handle = GASNET_COLL_INVALID_HANDLE;
+      uint32_t sequence;
+
+      /* Present implementation is VERY limited: */
+      gasneti_assert(team == GASNET_TEAM_ALL);
+      gasneti_assert(GASNETE_COLL_IN_MODE(flags) == GASNET_COLL_IN_NOSYNC);
+      gasneti_assert(GASNETE_COLL_OUT_MODE(flags) == GASNET_COLL_OUT_NOSYNC);
+      gasneti_assert(flags & GASNET_COLL_DST_IN_SEGMENT);
+      gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);
+      gasneti_assert(flags & GASNET_COLL_SINGLE);
+
+      /* Unconditionally allocate a sequence number */
+      sequence = gasnete_coll_sequence++;	/* XXX: need team scope */
+
+      if (srcnode == gasnete_mynode) {
+	gasnet_handle_t *handle_ptr = gasneti_malloc(sizeof(gasnet_handle_t));
+	gasnet_node_t i;
+
+	gasnet_begin_nbi_accessregion();
+	for (i = 0; i < gasnete_nodes; ++i) {
+	  gasnet_put_nbi_bulk(i, dst, src, nbytes);
+	}
+	*handle_ptr = gasnet_end_nbi_accessregion();
+
+	handle = gasnete_coll_op_generic_init(team, sequence, flags, handle_ptr, &gasnete_coll_broadcast_poll);
+      } else {
+	/* Nothing on non-root node(s) */
+      }
+
+      return handle;
+    }
+#endif
+
