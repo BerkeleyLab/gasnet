@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Attic/udp-seq.mak.in,v 1.1 2003/12/11 20:19:56 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Attic/udp-seq.mak.in,v 1.1.6.1 2004/03/29 17:46:44 bonachea Exp $
 # Description: Makefile fragment for GASNet UDP conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

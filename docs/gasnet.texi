@@ -40,8 +40,8 @@
 @c ------------------------------------------------------------------------------------
 @c Macros:
 
-@set VERSION 1.5pre
-@set RELEASEDATE June 28th, 2003
+@set VERSION 1.6draft
+@set RELEASEDATE November 10th, 2003
 
 @ifnottex
 @ifhtml
@@ -79,6 +79,17 @@
 @end cartouche
 @end macro
 @end ifclear
+
+@macro TWOTOSIXTEENTHMINUSONE
+@iftex
+@tex
+$2^{16}-1$
+@end tex
+@end iftex
+@ifnottex
+2^16-1 
+@end ifnottex
+@end macro
 
 @macro FNH {name}
 @node \name\
@@ -147,9 +158,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2003/08/26 05:02:27 $
+@subtitle $Date: 2004/03/29 17:46:19 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.28 $ 
+@subtitle $Revision: 1.28.2.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -187,9 +198,23 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2003/08/26 05:02:27 $
-@*$Revision: 1.28 $ 
+@*$Date: 2004/03/29 17:46:19 $
+@*$Revision: 1.28.2.1 $ 
+@ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
+@end ifnothtml
+@ifhtml
+@html
+<script>
+function emailto(login,domain) @{
+var result = "m"+"a"+"i"+"l"+"t"+"o"+":" + login + "@@" + domain;
+//window.confirm(result);
+window.location.assign(result);
+@}
+</script>
+<br>Editor: <a href="javascript:emailto('bonachea','cs.berkeley.edu')">Dan Bonachea</a>
+@end html
+@end ifhtml
 @*@uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 @*@uref{http://upc.lbl.gov/}
 @HR
@@ -1267,7 +1292,6 @@ The @var{token} argument must be the token passed into the handler on entry.
 Returns @code{GASNET_OK} on success.
 @end deftypefn
 
-
 @c ------------------------------------------------------------------------------------
 @node Atomicity Control
 @section Atomicity Control
@@ -1681,8 +1705,8 @@ return as quickly as possible - however in some cases (e.g. when a large
 number of non-blocking operations have been issued or the network is 
 otherwise busy) it may be necessary to block temporarily while waiting for 
 the network to become available. In any case, all implementations must 
-support an unlimited number of non-blocking operations in-progress - that 
-is, the client is free to issue an unlimited number of non-blocking 
+support at least @TWOTOSIXTEENTHMINUSONE non-blocking operations in-progress - that 
+is, the client is free to issue up to @TWOTOSIXTEENTHMINUSONE non-blocking 
 operations before issuing a sync operation, and the implementation must 
 handle this correctly without deadlock or livelock. 
 
@@ -1700,14 +1724,7 @@ to zero. Implementators are free to define the @code{gasnet_handle_t} type to be
 any reasonable and appropriate size, although they are recommended to use a 
 type which fits within a single standard register on the target 
 architecture. In any case, the datatype should be wide enough to express at least 
-@iftex
-@tex
-$2^{16}-1$
-@end tex
-@end iftex
-@ifnottex
-2^16-1 
-@end ifnottex
+@TWOTOSIXTEENTHMINUSONE
 different handle values, to prevent limiting the number of 
 non-blocking operations in progress due to the number of handles available.  It 
 @strong{is} legal for clients to pass @code{gasnet_handle_t} values into function callees 
@@ -2204,8 +2221,12 @@ last call to @code{gasnet_barrier_notify()} on this node.
 @end deftypefn
 
 @c ------------------------------------------------------------------------------------
+@node Threading support
+@section Threading support
+
+@c ------------------------------------------------------------------------------------
 @node Thread-identification optimization:
-@section Thread-identification optimization:
+@subsection Thread-identification optimization:
 
 When compiled in the @code{GASNET_PAR} or @code{GASNET_PARSYNC} configurations, GASNet is 
 capable of handling multiple client threads. It is likely that GASNet 
@@ -2266,6 +2287,31 @@ on some implementations.
 It has behavior equivalent to @code{GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())}, 
 however some implementations may choose to lazily postpone performing thread discovery 
 until the first place where it is actually needed.
+
+@c ------------------------------------------------------------------------------------
+@node Thread management
+@subsection Thread management
+
+@FN gasnet_set_waitmode
+@deftypefn {} {int} gasnet_set_waitmode (int @var{wait_mode})
+
+Optional call which gives the GASNet implementation a hint about how
+aggressively threads within blocking GASNet calls should contend for 
+CPU resources. @var{wait_mode} must be one of the following recognized values:
+
+@ftable @code
+@item GASNET_WAIT_SPIN
+contend aggressively for CPU resources while waiting (spin)
+@item GASNET_WAIT_BLOCK
+yield CPU resources immediately while waiting (block)
+@item GASNET_WAIT_SPINBLOCK
+spin for an implementation-dependent period, then block
+@end ftable
+
+Wait mode is a per-node hint which is permitted to differ across GASNet nodes.
+
+Returns @code{GASNET_OK} on success.
+@end deftypefn
 
 @c ------------------------------------------------------------------------------------
 @HR

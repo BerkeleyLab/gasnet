@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/27 13:04:13 $
- * $Revision: 1.38.2.1 $
+ *     $Date: 2004/03/29 17:46:26 $
+ * $Revision: 1.38.2.2 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,7 +168,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     {
 	int rc = LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
 	if (rc != LAPI_SUCCESS) {
-	    char *errmsg = "\n*** GASNet FATAL ERROR: In the initialization of the LAPI communication layer\n\n"
+	    const char *errmsg = "\n*** GASNet FATAL ERROR: In the initialization of the LAPI communication layer\n\n"
 		"This application must be run using the poe job scheduler with the following options: \n"
 		"  poe appname -euilib us -msg_api lapi -rmpool 1 -procs nproc -nodes numnodes args...\n"
 		"See the IBM poe documentation for details\n\n[NOTE: Error code %d at line %d in file %s]\n\n";
@@ -207,11 +207,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
     if (sizeof(gasnetc_token_t) > gasnetc_max_lapi_uhdr_size) {
 	gasneti_fatalerror("gasnetc_token_t is %d bytes > max lapi uhdr %d",
-			   sizeof(gasnetc_token_t),gasnetc_max_lapi_uhdr_size);
+			   (int)sizeof(gasnetc_token_t),gasnetc_max_lapi_uhdr_size);
     }
     if (gasnetc_max_lapi_data_size < GASNETC_AM_MAX_LONG) {
 	gasneti_fatalerror("Must recompile with GASNETC_AM_MAX_LONG <= %d",
-			   gasnetc_max_lapi_data_size);
+			   (int)gasnetc_max_lapi_data_size);
     }
 
     /* Do we want to use polling or interrupt mode?  How to
@@ -350,8 +350,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 	/* (###) add code here to register table[i].fnptr 
 	   on index (gasnet_handler_t)newindex */
 	gasnetc_handler[newindex] = table[i].fnptr;
-	GASNETI_TRACE_PRINTF(C,("Registered handler %x at index %d",
-				table[i].fnptr,newindex));
+	GASNETI_TRACE_PRINTF(C,("Registered handler "GASNETI_LADDRFMT" at index %d",
+				GASNETI_LADDRSTR(table[i].fnptr),newindex));
 
 	if (dontcare) table[i].index = newindex;
 	(*numregistered)++;
@@ -494,9 +494,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     {
 	int i;
 	for (i = 0; i < gasnetc_nodes; i++) {
-	    GASNETI_TRACE_PRINTF(C,("For node %d seginfo.addr = %x seginfo.size = %d",
-				    i,gasnetc_seginfo[i].addr,
-				    gasnetc_seginfo[i].size));
+	    GASNETI_TRACE_PRINTF(C,("For node %d seginfo.addr = "GASNETI_LADDRFMT" seginfo.size = %lu",
+				    i,GASNETI_LADDRSTR(gasnetc_seginfo[i].addr),
+				    (unsigned long)gasnetc_seginfo[i].size));
 	}
     }
 
@@ -777,7 +777,8 @@ extern void gasnetc_exit(int exitcode) {
 */
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
     GASNETI_CHECKATTACH();
-    gasneti_assert(gasnetc_seginfo && seginfo_table);
+    gasneti_assert(seginfo_table);
+    gasneti_memcheck(gasnetc_seginfo);
     if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
     memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
     memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
@@ -1498,7 +1499,7 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
 extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
     GASNETI_CHECKATTACH();
 
-    { int retval; 
+    {
 #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
 #endif
@@ -1531,7 +1532,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-    GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW()-hsl->acquiretime);
+    GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
     gasnetc_spinlock_unlock(&(hsl->lock));
 }
@@ -1565,7 +1566,7 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable() {
  * from LAPI.
  * --------------------------------------------------------------------------
  */
-static char* err_type_str[] = {
+static const char* err_type_str[] = {
     "GET_ERR",
     "PUT_ERR",
     "RMW_ERR",

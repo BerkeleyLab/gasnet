@@ -1,6 +1,6 @@
 /*   $Archive:: /Ti/GASNet/acconfig.h                                      $ */
-/*      $Date: 2003/09/13 17:17:46 $ */
-/*  $Revision: 1.20 $ */
+/*      $Date: 2004/03/29 17:46:16 $ */
+/*  $Revision: 1.20.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -56,6 +56,9 @@
 #undef GASNETI_PAGESIZE
 #undef GASNETI_PAGESHIFT
 
+/* udp-conduit default custom spawn command */
+#undef GASNET_CSPAWN_CMD
+
 /* various OS and machine definitions */
 #undef UNIX
 #undef LINUX
@@ -63,6 +66,7 @@
 #undef SOLARIS
 #undef UNICOS
 #undef CRAYT3E
+#undef CRAYX1
 #undef AIX
 #undef OSF
 #undef HPUX
@@ -75,11 +79,20 @@
 #undef GASNET_SEGMENT_LARGE
 #undef GASNET_SEGMENT_EVERYTHING
 
+/* GASNet vapi-conduit bug work-arounds */
+#undef GASNETC_VAPI_ENABLE_INLINE_PUTS
+#undef GASNETC_VAPI_FORCE_POLL_LOCK
+
 @BOTTOM@
 
 /* special GCC features */
 #if ! defined (__GNUC__) && ! defined (__attribute__)
 #define __attribute__(flags)
+#endif
+
+#if defined(__GNUC__) && __GNUC__ <= 2 && __GNUC_MINOR__ < 95
+/* malloc attribute missing in egcs-2.91.66 */
+#define __malloc__
 #endif
 
 #if defined(__GNUC__)

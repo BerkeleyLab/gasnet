@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_internal.h                                 $
- *     $Date: 2003/10/27 13:04:16 $
- * $Revision: 1.10.4.1 $
+ *     $Date: 2004/03/29 17:46:32 $
+ * $Revision: 1.10.4.2 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -24,6 +24,10 @@
 #define AMMPI_INTERNAL
 #include <ammpi.h>
 
+#if ! defined (__GNUC__) && ! defined (__attribute__)
+#define __attribute__(flags)
+#endif
+
 /* AMMPI system configuration parameters */
 #define AMMPI_MAX_RECVMSGS_PER_POLL 10  /* max number of waiting messages serviced per poll (0 for unlimited) */
 #define AMMPI_INITIAL_NUMENDPOINTS  1   /* initial size of bundle endpoint table */
@@ -43,7 +47,7 @@
 #define USE_BLOCKING_SPMD_BARRIER   1   /* use blocking AM calls in SPMDBarrier() */
 
 #ifndef AMMPI_DEBUG_VERBOSE
-  #ifdef GASNET_DEBUG_VERBOSE
+  #if GASNET_DEBUG_VERBOSE
     #define AMMPI_DEBUG_VERBOSE       1
   #else
     #define AMMPI_DEBUG_VERBOSE       0
@@ -83,6 +87,10 @@
   #define __CURR_FUNCTION __FUNCTION__
 #else
   #define __CURR_FUNCTION ((const char *) 0) /* could use __func__ for C99 compilers.. */
+#endif
+
+#if ! defined (__GNUC__) && ! defined (__attribute__)
+  #define __attribute__(flags)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -125,7 +133,7 @@ BEGIN_EXTERNC
 #ifdef __SUNPRO_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
-static char *AMMPI_ErrorName(int errval) {
+static const char *AMMPI_ErrorName(int errval) {
   switch (errval) {
     case AM_ERR_NOT_INIT: return "AM_ERR_NOT_INIT";      
     case AM_ERR_BAD_ARG:  return "AM_ERR_BAD_ARG";       
@@ -135,7 +143,7 @@ static char *AMMPI_ErrorName(int errval) {
     default: return "*unknown*";
     }
   }
-static char *AMMPI_ErrorDesc(int errval) {
+static const char *AMMPI_ErrorDesc(int errval) {
   switch (errval) {
     case AM_ERR_NOT_INIT: return "Active message layer not initialized"; 
     case AM_ERR_BAD_ARG:  return "Invalid function parameter passed";    
@@ -145,8 +153,8 @@ static char *AMMPI_ErrorDesc(int errval) {
     default: return "no description available";
     }
   }
-static char *MPI_ErrorName(int errval) {
-  char *code = NULL;
+static const char *MPI_ErrorName(int errval) {
+  const char *code = NULL;
   char systemErrDesc[MPI_MAX_ERROR_STRING+10];
   int len = MPI_MAX_ERROR_STRING;
   static char msg[MPI_MAX_ERROR_STRING+100];
@@ -256,7 +264,8 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
   return val;                                                            \
   } while (0)
 
-static int ErrMessage(char *msg, ...) {
+static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
+static int ErrMessage(const char *msg, ...) {
   static va_list argptr;
   char *expandedmsg = (char *)malloc(strlen(msg)+50);
   int retval;

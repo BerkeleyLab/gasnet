@@ -10,16 +10,21 @@ rm -f Makefile.in              \
       configure                \
       gasnet_config.h.in       \
       aclocal.m4               \
+      config.status            \
       stamp-h.in               \
       config-aux/Makefile.in   \
       config-aux/Makefile      \
       elan-conduit/Makefile.in \
       gm-conduit/Makefile.in   \
+      gm-conduit/contrib/Makefile.in   \
       lapi-conduit/Makefile.in \
       mpi-conduit/Makefile.in  \
-      sci-conduit/Makefile.in  \
+      mpi-conduit/contrib/Makefile.in   \
       smp-conduit/Makefile.in  \
+      udp-conduit/Makefile.in  \
       vapi-conduit/Makefile.in \
+      vapi-conduit/contrib/Makefile.in   \
       other/Makefile.in        \
       other/ammpi/Makefile.in  \
+      other/amudp/Makefile.in  \
       tests/Makefile

@@ -1,6 +1,6 @@
-/* $Id: gasnet_extended_op.c,v 1.5.2.1 2003/10/27 13:04:12 bonachea Exp $
- * $Date: 2003/10/27 13:04:12 $
- * $Revision: 1.5.2.1 $
+/* $Id: gasnet_extended_op.c,v 1.5.2.2 2004/03/29 17:46:24 bonachea Exp $
+ * $Date: 2004/03/29 17:46:24 $
+ * $Revision: 1.5.2.2 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -16,6 +16,7 @@
   Op management
   =============
 */
+extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 /*  get a new op and mark it in flight */
 gasnete_eop_t *
 gasnete_eop_new(gasnete_threaddata_t * const thread)
@@ -82,6 +83,7 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 			int seen[256];
 			gasnete_eopaddr_t addr = thread->eop_free;
 
+                        gasneti_memcheck(thread->eop_bufs[bufidx]);
 			memset(seen, 0, 256*sizeof(int));
 			for (i=0;i<(bufidx==255?255:256);i++) {
 				gasnete_eop_t *eop; 
@@ -112,6 +114,7 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 	if_pt (thread->iop_free) {
 		iop = thread->iop_free;
 		thread->iop_free = iop->next;
+                gasneti_memcheck(iop);
 		gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
 		gasneti_assert(iop->threadidx == thread->threadidx);
 	} else {
@@ -124,6 +127,7 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 	iop->initiated_put_cnt = 0;
 	gasneti_atomic_set(&(iop->completed_get_cnt), 0);
 	gasneti_atomic_set(&(iop->completed_put_cnt), 0);
+        gasnete_iop_check(iop);
 	return iop;
 }
 
@@ -134,9 +138,11 @@ gasnete_op_isdone(gasnete_op_t *op)
 	gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
 	if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
 		gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
+                gasnete_eop_check((gasnete_eop_t *)op);
 		return OPSTATE(op) == OPSTATE_COMPLETE;
 	} else {
 		gasnete_iop_t *iop = (gasnete_iop_t*)op;
+                gasnete_iop_check(iop);
 		return 
 		    (gasneti_atomic_read(&(iop->completed_get_cnt)) == 
 		         iop->initiated_get_cnt) &&
@@ -150,9 +156,11 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 	if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 		gasnete_eop_t *eop = (gasnete_eop_t *)op;
 		gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
+                gasnete_eop_check(eop);
 		SET_OPSTATE(eop, OPSTATE_COMPLETE);
 	} else {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
+                gasnete_iop_check(iop);
 		if (isget) 
 			gasneti_atomic_increment(&(iop->completed_get_cnt));
 		else 
@@ -168,11 +176,14 @@ void gasnete_op_free(gasnete_op_t *op) {
 		gasnete_eop_t *eop = (gasnete_eop_t *)op;
 		gasnete_eopaddr_t addr = eop->addr;
 		gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);
+                gasnete_eop_check(eop);
 		SET_OPSTATE(eop, OPSTATE_FREE);
 		eop->addr = thread->eop_free;
 		thread->eop_free = addr;
 	} else {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
+                gasnete_iop_check(iop);
+                gasneti_assert(iop->next == NULL);
 		iop->next = thread->iop_free;
 		thread->iop_free = iop;
 	}

@@ -1,148 +1,92 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v 1.13 2003/08/25 09:52:07 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v 1.13.2.1 2004/03/29 17:46:20 bonachea Exp $
 # Description: Makefile for GASNet elan conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
-# Terms of use are as specified in license.txt 
+# Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
 
-thread_defines = @GASNET_THREAD_DEFINES@
+CONDUIT_NAME=elan
 
-INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir) \
-           -I$(top_srcdir)/extended-ref                  \
-	   -I@ELAN_INCLUDE@
-	   
+# any conduit-specific subdirectories containing Makefile.am's
+SUBDIRS = 
 
-filelist =                       \
-      gasnet_core.c              \
-      gasnet_core.h              \
-      gasnet_core_fwd.h          \
-      gasnet_core_help.h         \
-      gasnet_core_internal.h     \
+# complete list of files in the conduit directory
+# include all headers, documentation, etc. 
+# and any subdirectories not containing Makefile.am's
+CONDUIT_FILELIST =           \
+      gasnet_core.c          \
+      gasnet_core.h          \
+      gasnet_core_fwd.h      \
+      gasnet_core_help.h     \
+      gasnet_core_internal.h \
       gasnet_core_dump.c         \
       gasnet_core_reqrep.c       \
       gasnet_extended.c          \
       gasnet_extended_fwd.h      \
-      gasnet_extended_internal.h
+      gasnet_extended_internal.h \
+      README
 
-othersourcefiles =                             \
-      $(top_srcdir)/gasnet_internal.c          
-
-EXTRA_DIST = $(filelist) \
-	README
-
-libgasnet_sources =                  \
+# list of conduit core and extended .c source files 
+# to be compiled into libgasnet on the compiler command line
+CONDUIT_SOURCELIST =		     \
       $(srcdir)/gasnet_core.c        \
       $(srcdir)/gasnet_core_dump.c   \
       $(srcdir)/gasnet_core_reqrep.c \
-      $(srcdir)/gasnet_extended.c    \
-      $(othersourcefiles)
+      $(srcdir)/gasnet_extended.c    
 
-libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
-                         $(top_srcdir)/*.[ch]             \
-                         $(top_srcdir)/extended-ref/*.h      
-			  
-libgasnet_objects =      \
-      gasnet_core.o      \
-      gasnet_internal.o  \
-      gasnet_extended.o  \
-      gasnet_core_dump.o \
-      gasnet_core_reqrep.o
+# additional -I or -D directives needed by this specific conduit
+# other than the standard GASNet includes and flags
+CONDUIT_EXTRALIBCFLAGS = -I@ELAN_INCLUDE@ @ELAN_FLAGS@
+
+# additional conduit header files to install from external, non-standard directories
+CONDUIT_EXTRAHEADERS = 
+
+# additional file dependencies not mentioned elsewhere 
+# that should force libgasnet rebuild on update
+CONDUIT_EXTRADEPS = 
+
+# additional object files to be included in libgasnet that need to be compiled 
+# using a special, conduit-specific command. These should also be included as
+# forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
+CONDUIT_SPECIAL_OBJS = 
+
+# the default job spawn command to be used for "make run-tests"
+# The following substitutions are performed:
+#   %P = program executable name
+#   %N = requested node count
+#   %A = program arguments
+CONDUIT_RUNCMD = prun -n %N -N %N %P %A
+
+# -------- Do not modify anything below this line --------
 
 if HAVE_PTHREAD
-threaded_libraries = libgasnet-elan-par.a libgasnet-elan-parsync.a
 libgasnet_elan_par_a_SOURCES =
 libgasnet_elan_parsync_a_SOURCES =
+threaded_libraries = libgasnet-elan-par.a libgasnet-elan-parsync.a
 endif
-libraries = libgasnet-elan-seq.a $(threaded_libraries)
 libgasnet_elan_seq_a_SOURCES =
+libraries = libgasnet-elan-seq.a $(threaded_libraries)
 
-VPATH=$(srcdir)
-
-LIBCFLAGS = @CFLAGS@ @MISC_CFLAGS@ @BUILDCONFIG_DEFINES@ @GASNET_MACHINE_DEFINES@ $(INCLUDES) @ELAN_FLAGS@
+include $(top_builddir)/other/Makefile-conduit.mak
 
 libgasnet-elan-seq.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_SEQ -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+	@$(MAKE) do-libgasnet-seq
 
 libgasnet-elan-par.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_PAR $(thread_defines) -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+	@$(MAKE) do-libgasnet-par
 
-libgasnet-elan-parsync.a: $(libgasnet_dependencies)	
-	$(CC) $(LIBCFLAGS) -DGASNET_PARSYNC $(thread_defines) -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+libgasnet-elan-parsync.a: $(libgasnet_dependencies)
+	@$(MAKE) do-libgasnet-parsync
 
-.PHONY: all libs clean-local install-data-local uninstall-local tests force tests-seq tests-par tests-parsync
-
-
-libs: $(libraries)
-	
-if USE_ELAN_CONDUIT                           
-lib_LIBRARIES = $(libraries)
-
-all: libs $(makefile_fragments)
-	
-clean-local: 
-	rm -f $(libgasnet_objects) $(libraries) *.o core
-	@$(MAKE) -f $(top_builddir)/tests/Makefile clean     \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="/dev/null"
-
-headers = $(srcdir)/*.h                             \
-  $(top_srcdir)/extended-ref/gasnet_extended.h      \
-  $(top_srcdir)/extended-ref/gasnet_extended_help.h
-
-makefile_fragments = elan-seq.mak elan-parsync.mak elan-par.mak
-
-install-data-local: $(headers)
-	$(mkinstalldirs) $(includedir)/elan-conduit
-	@list='$(headers)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    filename=`basename $$p`; \
-	    echo " $(INSTALL_DATA) $$p $(includedir)/elan-conduit/$$filename"; \
-	    $(INSTALL_DATA) $$p $(includedir)/elan-conduit/$$filename; \
-	  else :; fi; \
-	done
-	@list='$(makefile_fragments)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(includedir)/elan-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(includedir)/elan-conduit/$$filename; \
-	  else :; fi; \
-	done
-
-uninstall-local:
-	rm -f $(includedir)/elan-conduit/*.h $(includedir)/elan-conduit/*.mak
-
+if USE_ELAN_CONDUIT  
+lib_LIBRARIES = $(libraries) 
+all: do-all
+clean-local: do-clean-local
+install-data-local: do-install-data-local
+uninstall-local: do-uninstall-local
+else
+$(top_srcdir)/gasnet.h: do-error
 endif
-
-tests:
-	@echo You must specify one of tests-seq, tests-par or tests-parsync
-	@exit 1
-
-tests-seq: force libgasnet-elan-seq.a elan-seq.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-seq \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="elan-seq.mak"
-
-tests-parsync: force libgasnet-elan-parsync.a elan-parsync.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="elan-parsync.mak"
-
-tests-par: force libgasnet-elan-par.a elan-par.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="elan-par.mak"
-
-force:
-	
 
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_ep.c                                       $
- *     $Date: 2003/10/27 13:04:16 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2004/03/29 17:46:32 $
+ * $Revision: 1.11.2.2 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -898,19 +898,16 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
 /*------------------------------------------------------------------------------------
  * Handler management
  *------------------------------------------------------------------------------------ */
-extern int AM_SetHandler(ep_t ea, handler_t handler, ammpi_handler_fn_t function) {
+extern int _AM_SetHandler(ep_t ea, handler_t handler, ammpi_handler_fn_t function) {
   AMMPI_CHECKINIT();
   if (!ea || !function) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
 
   ea->handler[handler] = function;
   return AM_OK;
   }
 /* ------------------------------------------------------------------------------------ */
-extern int AM_SetHandlerAny(ep_t ea, handler_t *handler, ammpi_handler_fn_t function) {
+extern int _AM_SetHandlerAny(ep_t ea, handler_t *handler, ammpi_handler_fn_t function) {
   int i;
   AMMPI_CHECKINIT();
   if (!ea || !function || !handler) AMMPI_RETURN_ERR(BAD_ARG);
@@ -1067,8 +1064,8 @@ extern int AMMPI_AggregateStatistics(ammpi_stats_t *runningsum, ammpi_stats_t *n
   return AM_OK;
   }
 /* ------------------------------------------------------------------------------------ */
-extern int AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis) {
-  char msg[4096];
+extern const char *AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis) {
+  static char msg[4096];
   int64_t packetssent; 
   int64_t requestsSent = 0; 
   int64_t requestsReceived = 0; 
@@ -1077,8 +1074,8 @@ extern int AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalys
   int64_t dataBytesSent = 0; 
   int category;
 
-  AMMPI_CHECKINIT();
-  if (!fp || !stats) AMMPI_RETURN_ERR(BAD_ARG);
+  AMMPI_assert(ammpi_Initialized);
+  AMMPI_assert(stats != NULL);
 
   for (category = 0; category < ammpi_NumCategories; category++) {
     requestsSent += stats->RequestsSent[category];
@@ -1111,12 +1108,12 @@ extern int AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalys
 
     "Data bytes sent:      %9i bytes\n"
     "Total bytes sent:     %9i bytes (incl. AM overhead)\n"
-    "Bandwidth overhead:   %9.2f %%\n"        
+    "Bandwidth overhead:   %9.2f%%\n"        
     "Average packet size:  %9.3f bytes (incl. AM overhead)\n"
     , 
     (int)requestsSent, (int)requestsReceived,
     (int)repliesSent, (int)repliesReceived,
-    stats->ReturnedMessages,
+    (int)stats->ReturnedMessages,
   #if AMMPI_COLLECT_LATENCY_STATS
     (int)stats->RequestMinLatency,
     (int)stats->RequestMaxLatency,
@@ -1163,13 +1160,13 @@ extern int AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalys
     int64_t packetslost = packetssent - packetsrecvd;
     sprintf(msg+strlen(msg), "Packets unaccounted for: %6i", abs((int)packetslost));
     if (packetslost > 0) {
-      sprintf(msg+strlen(msg), "  (%f %%)\n", (100.0*packetslost)/packetssent);
+      sprintf(msg+strlen(msg), "  (%6.3f%%)\n", (100.0*packetslost)/packetssent);
     }
     else strcat(msg, "\n");
   } 
 
-  fprintf(fp, msg);
-  return AM_OK;
+  if (fp != NULL) fprintf(fp, "%s", msg);
+  return msg;
   }
 /* ------------------------------------------------------------------------------------ */
 

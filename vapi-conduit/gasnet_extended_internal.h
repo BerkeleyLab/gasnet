@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/10/27 13:04:23 $
- * $Revision: 1.8.4.1 $
+ *     $Date: 2004/03/29 17:46:46 $
+ * $Revision: 1.8.4.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,7 @@
 #include <gasnet_internal.h>
 
 /* Tune cut-off between PUTs and AMs for memset, 0 disables PUTs */
-#if GASNET_SEGMENT_FAST
+#if GASNETC_PIN_SEGMENT
   #define GASNETE_MEMSET_PUT_LIMIT        GASNETC_BUFSZ
 #else
   #define GASNETE_MEMSET_PUT_LIMIT        0
@@ -57,7 +57,7 @@ typedef struct _gasnete_eop_t {
   uint8_t type;                   /*  type tag */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
-  gasneti_atomic_t req_oust;
+  gasnetc_counter_t req_oust;
 } gasnete_eop_t;
 
 typedef struct _gasnete_iop_t {
@@ -69,9 +69,9 @@ typedef struct _gasnete_iop_t {
 
   /*  make sure the counters live on a distinct cache line for SMPs */
   uint8_t _pad1[GASNETE_CACHE_LINE_BYTES - 2*sizeof(void *)];
-  gasneti_atomic_t get_req_oust;     /*  count of get ops outstanding */
-  gasneti_atomic_t put_req_oust;     /*  count of put ops outstanding */
-  uint8_t _pad2[GASNETE_CACHE_LINE_BYTES - 2*sizeof(gasneti_atomic_t)];
+  gasnetc_counter_t get_req_oust;     /*  count of get ops outstanding */
+  gasnetc_counter_t put_req_oust;     /*  count of put ops outstanding */
+  uint8_t _pad2[GASNETE_CACHE_LINE_BYTES - 2*sizeof(gasnetc_counter_t)];
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -96,11 +96,34 @@ typedef struct _gasnete_threaddata_t {
 /*  get a new op */
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t *thread);
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
-#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                    \
-      (gasneti_assert(threaddata),                                     \
-       gasneti_assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
-       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                \
+
+#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                      \
+      (gasneti_memcheck(threaddata),                                     \
+       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                  \
+       gasneti_assert((eopaddr).bufferidx < (threaddata)->eop_num_bufs), \
+       gasneti_memcheck((threaddata)->eop_bufs[(eopaddr).bufferidx]),    \
        (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
+
+#if GASNET_DEBUG
+  /* check an in-flight/complete eop */
+  #define gasnete_eop_check(eop) do {                                \
+    gasnete_threaddata_t * _th;                                      \
+    gasneti_assert((eop)->type == gasnete_opExplicit);               \
+    _th = gasnete_threadtable[(eop)->threadidx];                     \
+    gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
+  } while (0)
+  #define gasnete_iop_check(iop) do {                         \
+    gasneti_memcheck(iop);                                    \
+    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next); \
+    gasneti_assert((iop)->type == gasnete_opImplicit);        \
+    gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
+    gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
+  } while (0)
+  extern void _gasnete_iop_check(gasnete_iop_t *iop);
+#else
+  #define gasnete_eop_check(eop)   ((void)0)
+  #define gasnete_iop_check(iop)   ((void)0)
+#endif
 
 /*  1 = scatter newly allocated eops across cache lines to reduce false sharing */
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
@@ -119,8 +142,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
  } while (0)
 
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_barrier_notify_reqh   (GASNETE_HANDLER_BASE+0) 
-#define _hidx_gasnete_barrier_done_reqh     (GASNETE_HANDLER_BASE+1)
+#define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)
 #define _hidx_gasnete_done_reph             (GASNETE_HANDLER_BASE+2)
 #define _hidx_gasnete_getmed_reqh           (GASNETE_HANDLER_BASE+3)
 #define _hidx_gasnete_getmed_reph           (GASNETE_HANDLER_BASE+4)

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.c                  $
- *     $Date: 2004/03/26 00:44:11 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2004/03/29 17:46:38 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -39,13 +39,21 @@ gasnet_seginfo_t *gasnetc_seginfo = NULL;
 #define GASNETC_SCI_FORCE_SCAN_THRESHOLD 200
 int gasnetc_sci_MEF_zero_count = 0;
 volatile int gasnetc_exit_began = 0;
+pthread_mutex_t gasnetc_sci_exit_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t	gasnetc_sci_cb_exit = PTHREAD_MUTEX_INITIALIZER;
+
 
 //function to be called whenever we exit
 void gasnetc_sci_call_exit(unsigned int sig)
 {
-	if(gasnetc_exit_began == 0)
+	int test;
+	pthread_mutex_lock(&gasnetc_sci_cb_exit);
+	test = gasnetc_exit_began;
+	pthread_mutex_unlock(&gasnetc_sci_cb_exit);
+	
+	if(test == 0)
 	{
-		printf(" "); // NEEDED
+		printf("\n"); /* NEEDED for callback pause before call to exit*/
 		gasnetc_exit(sig);
 	}
 }
@@ -306,7 +314,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+  #if GASNET_SEGMENT_FAST
     if (segsize == 0) segbase = NULL; /* no segment */
     else {
       /* (###) add code here to choose and register a segment 
@@ -317,12 +325,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
       gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
-  #else
+  #else /*GASNET_SEGMENT_LARGE*/
     /* GASNET_SEGMENT_EVERYTHING */
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
-	// SCI Conduit does not support GASNET_SEGMENT_EVERYTHING at this time due to SISCI API limitations
+	// SCI Conduit does not support GASNET_SEGMENT_EVERYTHING nor LARGE at this time due to SISCI API limitations
   #endif
 
   /* ------------------------------------------------------------------------------------ */
@@ -331,7 +339,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* (###) add code here to gather the segment assignment info into 
            gasnetc_seginfo on each node (may be possible to use AMShortRequest here)
    */
-   gasnetc_get_SegInfo (gasnetc_seginfo, segsize, segbase); //place all segment information into the table
+   gasnetc_get_SegInfo (gasnetc_seginfo, segsize, segbase); /*place all segment information into the table*/
 
   /* ------------------------------------------------------------------------------------ */
 	//create the environment for DMA transfers in SCI
@@ -381,18 +389,19 @@ extern void gasnetc_exit(int exitcode) {
 	sci_error_t gasnetc_sci_error;
 
 	//used to ensure gasnet_exit is not called by two functions at once
-	if(gasnetc_exit_began == 0)
-	{//go ahead
+	//if(gasnetc_exit_began == 0)
+	//{//go ahead
+	pthread_mutex_lock(&gasnetc_sci_cb_exit);
 	gasnetc_exit_began = 1;
-	
-
+	pthread_mutex_unlock(&gasnetc_sci_cb_exit);
+   
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
-  {  /* ensure only one thread ever continues past this point */
-    static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
-    gasneti_mutex_lock(&exit_lock);
-  }
+   /* ensure only one thread ever continues past this point */
+  pthread_mutex_lock(&gasnetc_sci_exit_lock); /* never unlock */
+ 
+  
 
  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
@@ -461,7 +470,7 @@ extern void gasnetc_exit(int exitcode) {
 
   gasneti_killmyprocess(exitcode);
   abort();
-	}//end if check
+	//}//end if check
 }
 
 /*
@@ -471,7 +480,7 @@ extern void gasnetc_exit(int exitcode) {
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) 
 {
 	GASNETI_CHECKATTACH();
-        gasneti_assert(seginfo_table);
+	gasneti_assert(gasnetc_seginfo && seginfo_table);
         gasneti_memcheck(gasnetc_seginfo);
 	if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
 	memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
@@ -510,27 +519,49 @@ extern int gasnetc_AMPoll()
 	/* (###) add code here to run your AM progress engine */
 	gasnet_node_t sender_id;
 	uint8_t msg_number;
-	void * msg_addr = gasnetc_dequeue_msg(&sender_id, &msg_number);
+	void * msg_addr;
+
+	pthread_mutex_lock(&gasnetc_sci_poll_lock);
+	
+	msg_addr = gasnetc_dequeue_msg(&sender_id, &msg_number);
 
 	// Try to obtain new work to do
 	if (msg_addr == NULL)
 	{
+		bool msg_test;
 		// job queue is currently empty, check global ready bit to see if there is any new message
-		if (gasnetc_sci_msg_flag [gasnetc_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2] == GASNETC_SCI_TRUE)
+		pthread_mutex_lock( &gasnetc_mutex_sci_gmrf);
+		msg_test = gasnetc_sci_msg_flag [gasnetc_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2];
+		pthread_mutex_unlock( &gasnetc_mutex_sci_gmrf);
+
+		if ( msg_test == GASNETC_SCI_TRUE)
 		{
+			pthread_mutex_lock( &gasnetc_mutex_sci_gmrf);
 			gasnetc_sci_msg_flag[gasnetc_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2] = GASNETC_SCI_FALSE;	// reset global ready bit
+			pthread_mutex_unlock( &gasnetc_mutex_sci_gmrf);
+			
 			msg_addr = gasnetc_MRF_scan (&sender_id, &msg_number);
 		}
 		else
 		{
-			if (gasnetc_sci_MEF_zero_count >= GASNETC_SCI_FORCE_SCAN_THRESHOLD)
+			int scan_test;
+			pthread_mutex_lock( &gasnetc_mutex_sci_zero);
+			scan_test = gasnetc_sci_MEF_zero_count;
+			pthread_mutex_unlock( &gasnetc_mutex_sci_zero);
+
+			if (scan_test >= GASNETC_SCI_FORCE_SCAN_THRESHOLD)
 			{
 				msg_addr = gasnetc_MRF_scan (&sender_id, &msg_number);
+
+				pthread_mutex_lock( &gasnetc_mutex_sci_zero);
 				gasnetc_sci_MEF_zero_count = 0;	
+				pthread_mutex_unlock( &gasnetc_mutex_sci_zero);
 			}
 			else
 			{
+				pthread_mutex_lock( &gasnetc_mutex_sci_zero);
 				gasnetc_sci_MEF_zero_count++;
+				pthread_mutex_unlock( &gasnetc_mutex_sci_zero);
 			}
 		}
 	}
@@ -598,6 +629,8 @@ extern int gasnetc_AMPoll()
 			gasnetc_mls_release (sender_id, msg_number - GASNETC_SCI_MAX_REQUEST_MSG);
 		}
 	}
+
+	pthread_mutex_unlock(&gasnetc_sci_poll_lock);
 	return GASNET_OK;
 }
 

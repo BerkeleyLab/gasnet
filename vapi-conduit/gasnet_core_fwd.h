@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/10/27 13:04:23 $
- * $Revision: 1.6.2.1 $
+ *     $Date: 2004/03/29 17:46:45 $
+ * $Revision: 1.6.2.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.2
+#define GASNET_CORE_VERSION      1.3
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         VAPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -38,20 +38,28 @@ typedef uint8_t gasnet_handler_t;
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
         VAL(C, RDMA_PUT_ZEROCP, bytes)            \
+        VAL(C, RDMA_PUT_FH, bytes)                \
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
+        VAL(C, RDMA_GET_FH, bytes)                \
         CNT(C, SYSTEM_REQUEST, cnt)               \
         CNT(C, SYSTEM_REPLY, cnt)                 \
         CNT(C, SYSTEM_REQHANDLER, cnt)            \
         CNT(C, SYSTEM_REPHANDLER, cnt)            \
+        CNT(C, ALLOC_AM_SPARE, cnt)	          \
         CNT(C, GET_AMREQ_CREDIT, cnt)             \
 	TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
+	CNT(C, GET_BBUF, cnt)                     \
+	TIME(C, GET_BBUF_STALL, stalled time)     \
 	CNT(C, GET_SBUF, cnt)                     \
-	TIME(C, GET_SBUF_STALL, stalled time)     \
+	CNT(C, ALLOC_SBUF, cnt)                   \
 	CNT(C, POST_SR, cnt)                      \
-	TIME(C, POST_SR_STALL, stalled time)      \
+	TIME(C, POST_SR_STALL_CQ, stalled time)   \
+	TIME(C, POST_SR_STALL_SQ, stalled time)   \
 	VAL(C, SND_REAP, reaped)                  \
-	VAL(C, RCV_REAP, reaped)
+	VAL(C, RCV_REAP, reaped)                  \
+	VAL(C, DYNAMIC_PIN, pages)                \
+	VAL(C, DYNAMIC_UNPIN, pages)
 
 /*
  * The VAPI conduit has a network progress thread, even for GASNET_SEQ

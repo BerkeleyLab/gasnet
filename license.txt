@@ -34,6 +34,7 @@
  *    mpi-conduit
  *    elan-conduit
  *    smp-conduit
+ *    udp-conduit
  *    extended-ref
  *    template-conduit
  *  Christian Bell <csbell@cs.berkeley.edu>: gm-conduit

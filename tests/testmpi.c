@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2003/09/15 06:31:19 $
- * $Revision: 1.3 $
+ *     $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.3.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #include "testthreads.c"
 
 static char *MPI_ErrorName(int errval) {
-  char *code = NULL;
+  const char *code = NULL;
   char systemErrDesc[MPI_MAX_ERROR_STRING+10];
   int len = MPI_MAX_ERROR_STRING;
   static char msg[MPI_MAX_ERROR_STRING+100];

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/ueth.h                                           $
- *     $Date: 2003/12/17 10:12:24 $
- * $Revision: 1.1 $
+ *     $Date: 2004/03/29 17:46:34 $
+ * $Revision: 1.1.6.1 $
  * Description: UETH interface to ISTORE-specific hardware driver
  * Copyright 2000, Dan Hettena <danielh@cs.berkeley.edu>
  *                 and Dan Bonachea <bonachea@cs.berkeley.edu>

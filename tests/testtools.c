@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testtools.c                                    $
- *     $Date: 2003/10/11 13:10:06 $
- * $Revision: 1.8 $
+ *     $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.8.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,9 +54,9 @@ int main() {
     gasnett_tick_t ticktimemin = GASNETT_TICK_MIN;
     gasnett_tick_t ticktimemax = GASNETT_TICK_MAX;
 
-    if (!(ticktimemin < ticktimemax)) printf("ERROR: !(min < max)");
-    if (!(gasnett_ticks_now() > ticktimemin)) printf("ERROR: !(now > min)");
-    if (!(gasnett_ticks_now() < ticktimemax)) printf("ERROR: !(now < max)");
+    if (!(ticktimemin < ticktimemax)) printf("ERROR: !(min < max)\n");
+    if (!(gasnett_ticks_now() > ticktimemin)) printf("ERROR: !(now > min)\n");
+    if (!(gasnett_ticks_now() < ticktimemax)) printf("ERROR: !(now < max)\n");
 
     for (i=0; i < 3; i++) {
       int time, timeref;

@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.5 2004/03/20 04:31:44 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.5.4.1 2004/03/29 17:46:29 bonachea Exp $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/10/11 14:22:38 $
-# $Revision: 1.18.2.1 $
+#     $Date: 2004/03/29 17:46:16 $
+# $Revision: 1.18.2.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,9 +15,10 @@ SUBDIRS =            \
         gm-conduit   \
         lapi-conduit \
 	mpi-conduit  \
+	sci-conduit  \
 	smp-conduit  \
-	vapi-conduit \
-	sci-conduit
+	udp-conduit  \
+	vapi-conduit
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)
@@ -28,7 +29,6 @@ headers =                  \
         gasnet_basic.h     \
         gasnet_handler.h   \
         gasnet_help.h      \
-        gasnet_internal.h  \
         gasnet_timer.h     \
 	gasnet_tools.h     \
 	gasnet_trace.h     
@@ -46,6 +46,7 @@ EXTRA_DIST =              \
         acconfig.h        \
         acinclude.m4      \
         $(headers)        \
+        gasnet_internal.h \
         gasnet_internal.c \
         gasnet_mmap.c 
 #       tests handled below
@@ -53,53 +54,63 @@ EXTRA_DIST =              \
 include_HEADERS = $(headers)
 
 force:
+
+# echo an arbitrary make/environment variable
+echovar: force
+	@echo $(VARNAME)=\"$($(VARNAME))\"
 	
-TEST_TYPE=tests-seq
+test: tests-seq
+tests: tests-seq
 
-tests: force
+other-tests:
 	@$(MAKE) -C $(top_builddir)/other all tests
-if USE_MPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/mpi-conduit all $(TEST_TYPE)
-endif
-if USE_GM_CONDUIT
-	@$(MAKE) -C $(top_builddir)/gm-conduit all $(TEST_TYPE)
-endif
-if USE_ELAN_CONDUIT
-	@$(MAKE) -C $(top_builddir)/elan-conduit all $(TEST_TYPE)
-endif
-if USE_LAPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/lapi-conduit all $(TEST_TYPE)
-endif
-if USE_SMP_CONDUIT
-	@$(MAKE) -C $(top_builddir)/smp-conduit all $(TEST_TYPE)
-endif
-if USE_VAPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/vapi-conduit all $(TEST_TYPE)
-endif
-if USE_SCI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/sci-conduit all $(TEST_TYPE)
-endif
 
-test: tests
+other-run-tests:
+	@$(MAKE) -C $(top_builddir)/other run-tests
 
-tests-seq: 
-	$(MAKE) -C $(top_builddir) TEST_TYPE=tests-seq tests
+tests-seq: other-tests
+	@for conduit in $(CONDUITS) ; do                                      \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" tests-seq || exit 1; \
+	done
 
-tests-par: 
-	$(MAKE) -C $(top_builddir) TEST_TYPE=tests-par tests
+tests-par: other-tests
+	@for conduit in $(CONDUITS) ; do                                      \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" tests-par || exit 1; \
+	done
 
-tests-parsync: 
-	$(MAKE) -C $(top_builddir) TEST_TYPE=tests-parsync tests
+tests-parsync: other-tests
+	@for conduit in $(CONDUITS) ; do                                          \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" tests-parsync || exit 1; \
+	done
 
-.PHONY: force clean tests test tests-seq tests-par tests-parsync
+run-tests: other-run-tests
+	@for conduit in $(CONDUITS) ; do                                      \
+	  $(MAKE) -C "$(top_builddir)/$$conduit-conduit" run-tests || exit 1; \
+	done
+
+run-tests-seq: tests-seq run-tests
+run-tests-par: tests-par run-tests
+run-tests-parsync: tests-parsync run-tests
+
+.PHONY: force clean tests test                                        \
+        other-tests other-run-tests tests-seq tests-par tests-parsync \
+        run-tests-seq run-tests-par run-tests-parsync
 
 dist-hook:
 	if test -f $(distdir)/docs/Makefile ; then \
           $(MAKE) -C $(distdir)/docs dist-hook ; \
         fi
+	mkdir -p $(distdir)/tests  # need this special hack to handle tests or distcheck will fail
+	fulldistdir=`cd $(distdir) ; pwd` export fulldistdir ; \
+        cd $(srcdir)/tests ; for file in `find . -print` ; do \
+ 	  if test -d $$file -a ! -d $$fulldistdir/tests/$$file ; then \
+	     mkdir -p $$fulldistdir/tests/$$file ; \
+          fi; \
+	  if test -f $$file -a ! -f $$fulldistdir/tests/$$file ; then \
+	     cp -p $$file $$fulldistdir/tests/$$file ; \
+          fi ; \
+        done
 	rm -Rf `find $(distdir) -name CVS -type d -print`
 	rm -f `find $(distdir) -name .#\* -print`
-	mkdir -p $(distdir)/tests  # need this special hack to handle tests or distcheck will fail
-	cp -Rp $(srcdir)/tests $(distdir)
 
 

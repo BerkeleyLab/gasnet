@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2003/10/27 13:04:21 $
- * $Revision: 1.18.2.1 $
+ *     $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.18.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,7 @@
 #define _TEST_H
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
@@ -71,18 +72,28 @@ uint64_t test_checksum(void *p, int numbytes) {
  return result;
 }
 
+static void _MSG(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
+static void _MSG(const char *format, ...) {
+  #define TEST_BUFSZ 1024
+  char output[TEST_BUFSZ];
+  va_list argptr;
+  va_start(argptr, format); /*  pass in last argument */
+    { int sz = vsnprintf(output, TEST_BUFSZ, format, argptr);
+      if (sz >= (TEST_BUFSZ-5) || sz < 0) strcpy(output+(TEST_BUFSZ-5),"...");
+    }
+  va_end(argptr);
+  printf("node %i/%i %s\n", (int)gasnet_mynode(), (int)gasnet_nodes(), output); 
+  fflush(stdout);
+}
 
-#define MSG(s) do {                                                         \
-  printf("node %i/%i %s\n", (int)gasnet_mynode(), (int)gasnet_nodes(), s);  \
-  fflush(stdout);                                                           \
-  } while(0)
+#define MSG GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _MSG
 
 #define BARRIER() do {                                                \
   gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            \
   GASNET_Safe(gasnete_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS)); \
 } while (0)
 
-static void *_test_malloc(size_t sz, char *curloc) {
+static void *_test_malloc(size_t sz, const char *curloc) {
   void *ptr;
   gasnet_hold_interrupts();
   ptr = malloc(sz);
@@ -93,7 +104,14 @@ static void *_test_malloc(size_t sz, char *curloc) {
   }
   return ptr;
 }
+static void *_test_calloc(size_t sz, const char *curloc) {
+  void *retval = _test_malloc(sz, curloc);
+  if (retval) memset(retval, 0, sz);
+  return retval;
+}
 #define test_malloc(sz) _test_malloc((sz), __FILE__ ":" _STRINGIFY(__LINE__))
+#define test_calloc(N,S) _test_calloc((N*S), __FILE__ ":" _STRINGIFY(__LINE__))
+
 static void test_free(void *ptr) {
   gasnet_hold_interrupts();
   free(ptr);
@@ -111,11 +129,22 @@ static void test_free(void *ptr) {
 
 
 #if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
-  #define TEST_MAXTHREADS      256
-  #define TEST_SEGZ_PER_THREAD 64*1024
-  #define TEST_SEGSZ	      (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
+  #ifndef TEST_MAXTHREADS
+    #define TEST_MAXTHREADS      256
+  #endif
+  #ifndef TEST_SEGZ_PER_THREAD
+    #define TEST_SEGZ_PER_THREAD (64*1024)
+  #endif
+  #ifndef TEST_SEGSZ
+    #define TEST_SEGSZ	      (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
+  #endif
+  #if TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
+    #error "TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)"
+  #endif
 #else
-  #define TEST_SEGSZ          (64*1024)
+  #ifndef TEST_SEGSZ
+    #define TEST_SEGSZ          (64*1024)
+  #endif
 #endif
 
 #define TEST_MINHEAPOFFSET  (128*PAGESZ)
@@ -146,5 +175,86 @@ static void test_free(void *ptr) {
 #endif
 
 #define TEST_MYSEG()          (TEST_SEG(gasnet_mynode()))
+
+int _test_rand(int low, int high) {
+  int result;
+  assert(low <= high);
+  result = low+(int)(((double)(high-low+1))*rand()/(RAND_MAX+1.0));
+  assert(result >= low && result <= high);
+  return result;
+}
+#define TEST_RAND(low,high) _test_rand((low), (high))
+#define TEST_RAND_PICK(a,b) (TEST_RAND(0,1)==1?(a):(b))
+#define TEST_SRAND(seed)    srand(seed)
+#define TEST_RAND_ONEIN(p)  (TEST_RAND(1,p) == 1)
+
+#define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
+#define TEST_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+
+/* Functions for obtaining calibrated delays */
+#ifdef TEST_DELAY
+extern void test_delay(int64_t n);	 /* in delay.o */
+
+/* smallest number of delay loops to try in calibration */
+#ifndef TEST_DELAY_LOOP_MIN
+  #define TEST_DELAY_LOOP_MIN        100
+#endif
+/* max number of calibration iterations to wait for convergance */
+#ifndef TEST_DELAY_CALIBRATION_LIMIT
+  #define TEST_DELAY_CALIBRATION_LIMIT 100
+#endif
+
+/* Compute the number of loops needed to get no less that the specified delay
+ * when executing "test_delay(loops)" excatly 'iters' times.
+ *
+ * Returns the number of loops needed and overwrites the argument with the
+ * actual achieved delay for 'iters' calls to "delay(*time_p)".
+ * The 'time_p' is given in microseconds.
+ */
+int64_t test_calibrate_delay(int iters, int64_t *time_p) 
+{
+	int64_t begin, end, time;
+	float target = *time_p;
+	float ratio = 0.0;
+	int i;
+        int64_t loops = 0;
+        int caliters = 0;
+
+	do {
+		if (loops == 0) {
+			loops = TEST_DELAY_LOOP_MIN;	/* first pass */
+		} else {
+			int64_t tmp = loops * ratio;
+
+			if (tmp > loops) {
+				loops = tmp;
+			} else {
+				loops += 1;	/* ensure progress in the face of round-off */
+			}
+                        assert(loops < 1ll<<62);
+		}
+
+		begin = TIME();
+		for (i = 0; i < iters; i++) { test_delay(loops); }
+		end = TIME();
+		time = end - begin;
+                assert(time > 0);
+		ratio = target / (float)time;
+                caliters++;
+                if (caliters > TEST_DELAY_CALIBRATION_LIMIT) {
+                  fprintf(stderr,"ERROR: test_calibrate_delay(%i,%i) failed to converge after %i iterations.\n",
+                          iters, (int)*time_p, iters);
+                  abort();
+                }
+              #if 0
+                printf("loops=%llu\n",(unsigned long long)loops); fflush(stdout);
+                printf("ratio=%f target=%f time=%llu\n",ratio,target,(unsigned long long)time); fflush(stdout);
+              #endif
+	} while (ratio > 1.0);
+
+	*time_p = time;
+	return loops;
+}
+#endif
 
 #endif

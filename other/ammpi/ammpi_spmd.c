@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.c                                     $
- *     $Date: 2003/10/27 13:04:16 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2004/03/29 17:46:32 $
+ * $Revision: 1.11.2.2 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -40,7 +40,7 @@ static volatile int ammpi_frozen = TRUE;
 static void _freezeForDebugger(int depth) {
   if (!depth) _freezeForDebugger(1);
   else {
-    volatile int i;
+    volatile int i = 0;
     while (ammpi_frozen) {
       i++;
       sleep(1);
@@ -78,7 +78,7 @@ static MPI_Comm AMMPI_SPMDMPIComm;
 /* ------------------------------------------------------------------------------------ 
  *  misc helpers
  * ------------------------------------------------------------------------------------ */
-static void flushStreams(char *context) {
+static void flushStreams(const char *context) {
   if (!context) context = "flushStreams()";
 
   if (fflush(stdout)) {
@@ -102,8 +102,8 @@ extern char *AMMPI_enStr(en_t en, char *buf) {
 extern char *AMMPI_tagStr(tag_t tag, char *buf) {
   AMMPI_assert(buf);
   sprintf(buf, "0x%08x%08x", 
-    (uint32_t)(tag >> 32), 
-    (uint32_t)(tag & 0xFFFFFFFF));
+    (unsigned int)(uint32_t)(tag >> 32), 
+    (unsigned int)(uint32_t)(tag & 0xFFFFFFFF));
   return buf;
   }
 /* ------------------------------------------------------------------------------------ 
@@ -137,16 +137,20 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
   if (AMMPI_SPMDStartupCalled) AMMPI_RETURN_ERR(RESOURCE);
   if (!argc || !argv) AMMPI_RETURN_ERR(BAD_ARG);
 
-  /* defaulting */
-  if (networkdepth < 0) AMMPI_RETURN_ERR(BAD_ARG);
-  if (networkdepth == 0) networkdepth = AMMPI_DEFAULT_NETWORKDEPTH;
-
   { /* initialize MPI, if necessary */
     int initialized = 0;
     MPI_SAFE(MPI_Initialized(&initialized));
     if (!initialized) {
       MPI_SAFE(MPI_Init(argc, argv));
     }
+  }
+
+  /* defaulting */
+  if (networkdepth < 0) AMMPI_RETURN_ERR(BAD_ARG);
+  if (networkdepth == 0) {
+    const char *netdepth_str = getenv("AMMPI_NETWORKDEPTH");
+    if (netdepth_str) networkdepth = atoi(netdepth_str);
+    if (networkdepth <= 0) networkdepth = AMMPI_DEFAULT_NETWORKDEPTH;
   }
 
   #if FREEZE_SLAVE
@@ -328,9 +332,9 @@ void (*AMMPI_SPMDkillmyprocess)(int) = &_exit;
 
 static int AMMPI_SPMDShutdown(int exitcode) {
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
-  { static int exitInProgress = FALSE;
-    if (exitInProgress) abort(); 
-    exitInProgress = TRUE;
+  { static int shutdownInProgress = FALSE;
+    if (shutdownInProgress) abort(); 
+    shutdownInProgress = TRUE;
   }
 
   if (AMMPI_SPMDExitCallback) (*AMMPI_SPMDExitCallback)(exitcode);
@@ -338,7 +342,7 @@ static int AMMPI_SPMDShutdown(int exitcode) {
   flushStreams("AMMPI_SPMDExit");
 
   if (fclose(stdin)) {
-    ErrMessage("failed to fclose stdout in AMMPI_SPMDExit()"); 
+    ErrMessage("failed to fclose stdin in AMMPI_SPMDExit()"); 
     perror("fclose");
   }
   if (fclose(stdout)) {

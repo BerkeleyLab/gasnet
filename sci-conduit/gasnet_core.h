@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.h                  $
- *     $Date: 2004/02/02 12:40:15 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2004/03/29 17:46:38 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet header for sci conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -153,9 +153,9 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t) 16)
-#define gasnet_AMMaxMedium()        ((size_t) 940)
-#define gasnet_AMMaxLongRequest()   ((size_t) 524288)
-#define gasnet_AMMaxLongReply()     ((size_t) 524288)
+#define gasnet_AMMaxMedium()        ((size_t) 1024)
+#define gasnet_AMMaxLongRequest()   ((size_t) (512*1024))
+#define gasnet_AMMaxLongReply()     ((size_t) (512*1024))
 
 /* ------------------------------------------------------------------------------------ */
 /*

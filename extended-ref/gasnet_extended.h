@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/10/27 13:04:10 $
- * $Revision: 1.19.4.1 $
+ *     $Date: 2004/03/29 17:46:22 $
+ * $Revision: 1.19.4.2 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -205,7 +205,7 @@ int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   #define gasnete_wait_syncnb(handle) do {                                      \
       gasnet_handle_t _handle = (handle);                                       \
       if_pt (_handle != GASNET_INVALID_HANDLE)                                  \
-        gasnete_waitwhile(gasnete_try_syncnb(_handle) == GASNET_ERR_NOT_READY); \
+        gasneti_waitwhile(gasnete_try_syncnb(_handle) == GASNET_ERR_NOT_READY); \
     } while(0)
 #endif
 
@@ -220,7 +220,7 @@ void gasnet_wait_syncnb(gasnet_handle_t handle) {
   extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
 #else
   #define gasnete_wait_syncnb_some(phandle, numhandles)                                      \
-    gasnete_waitwhile(gasnete_try_syncnb_some(phandle, numhandles) == GASNET_ERR_NOT_READY)
+    gasneti_waitwhile(gasnete_try_syncnb_some(phandle, numhandles) == GASNET_ERR_NOT_READY)
 #endif
 
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnb_some)
@@ -234,7 +234,7 @@ void gasnet_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
   extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles);
 #else
   #define gasnete_wait_syncnb_all(phandle, numhandles)                                      \
-    gasnete_waitwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY)
+    gasneti_waitwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY)
 #endif
 
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnb_all)
@@ -399,7 +399,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE);
 #else
   #define gasnete_wait_syncnbi_gets \
-    gasnete_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
+    gasneti_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
     GASNETE_THREAD_SWALLOW
 #endif
 
@@ -414,7 +414,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE);
 #else
   #define gasnete_wait_syncnbi_puts \
-    gasnete_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
+    gasneti_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
     GASNETE_THREAD_SWALLOW
 #endif
 
@@ -429,8 +429,8 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   extern void gasnete_wait_syncnbi_all(GASNETE_THREAD_FARG_ALONE);
 #else
   #define gasnete_wait_syncnbi_all do {                                                     \
-    gasnete_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
-    gasnete_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
+    gasneti_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
+    gasneti_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
   } while (0) GASNETE_THREAD_SWALLOW
 #endif
 
@@ -758,6 +758,15 @@ extern int gasnete_barrier_try(int id, int flags);
 #define gasnet_barrier_notify  gasnete_barrier_notify
 #define gasnet_barrier_wait    gasnete_barrier_wait
 #define gasnet_barrier_try     gasnete_barrier_try
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Vector, Indexed & Strided:
+  =========================
+*/
+
+/* Vector, Indexed & Strided put/gets declared in separate header */
+#include "gasnet_extended_vis.h"
 
 /* ------------------------------------------------------------------------------------ */
 

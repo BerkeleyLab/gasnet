@@ -1,6 +1,6 @@
 /*   $Archive:: /Ti/AMUDP/socket.h                                         $
- *      $Date: 2004/01/19 12:57:33 $
- *  $Revision: 1.2 $
+ *      $Date: 2004/03/29 17:46:34 $
+ *  $Revision: 1.2.6.1 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */

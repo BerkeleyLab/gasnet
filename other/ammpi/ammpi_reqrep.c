@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_reqrep.c                                   $
- *     $Date: 2003/10/27 13:04:16 $
- * $Revision: 1.11.4.1 $
+ *     $Date: 2004/03/29 17:46:32 $
+ * $Revision: 1.11.4.2 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -725,10 +725,7 @@ extern int AMMPI_RequestVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, h
                          int numargs, va_list argptr) {
   AMMPI_CHECKINIT();
   if_pf (!request_endpoint) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if_pf (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if_pf (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (request_endpoint->depth == -1) AMMPI_RETURN_ERR(NOT_INIT); /* it's an error to call before AM_SetExpectedResources */
   if_pf (reply_endpoint >= request_endpoint->translationsz ||
      !request_endpoint->translation[reply_endpoint].inuse) AMMPI_RETURN_ERR(BAD_ARG);
@@ -757,10 +754,7 @@ extern int AMMPI_RequestIVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, 
                           int numargs, va_list argptr) {
   AMMPI_CHECKINIT();
   if_pf (!request_endpoint) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if_pf (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if_pf (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (request_endpoint->depth == -1) AMMPI_RETURN_ERR(NOT_INIT); /* it's an error to call before AM_SetExpectedResources */
   if_pf (reply_endpoint >= request_endpoint->translationsz ||
      !request_endpoint->translation[reply_endpoint].inuse) AMMPI_RETURN_ERR(BAD_ARG);
@@ -794,10 +788,7 @@ extern int AMMPI_RequestXferVA(ep_t request_endpoint, ammpi_node_t reply_endpoin
                           int numargs, va_list argptr) {
   AMMPI_CHECKINIT();
   if_pf (!request_endpoint) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if_pf (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if_pf (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (request_endpoint->depth == -1) AMMPI_RETURN_ERR(NOT_INIT); /* it's an error to call before AM_SetExpectedResources */
   if_pf (reply_endpoint >= request_endpoint->translationsz ||
      !request_endpoint->translation[reply_endpoint].inuse) AMMPI_RETURN_ERR(BAD_ARG);
@@ -849,10 +840,7 @@ extern int AMMPI_ReplyVA(void *token, handler_t handler,
 
   AMMPI_CHECKINIT();
   if_pf (!token) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if_pf (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if_pf (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
   AMMPI_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);
 
   { /*  semantic checking on reply (are we in a handler, is this the first reply, etc.) */
@@ -889,10 +877,7 @@ extern int AMMPI_ReplyIVA(void *token, handler_t handler,
 
   AMMPI_CHECKINIT();
   if_pf (!token) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if_pf (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if_pf (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (!source_addr) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (nbytes < 0 || nbytes > AMMPI_MAX_MEDIUM) AMMPI_RETURN_ERR(BAD_ARG);
   AMMPI_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);
@@ -957,10 +942,7 @@ extern int AMMPI_ReplyXferVA(void *token, handler_t handler,
 
   AMMPI_CHECKINIT();
   if_pf (!token) AMMPI_RETURN_ERR(BAD_ARG);
-#ifndef __PGI
-  /* work-around a broken pgcc */
-  if_pf (handler >= AMMPI_MAX_NUMHANDLERS) AMMPI_RETURN_ERR(BAD_ARG);
-#endif
+  if_pf (AMMPI_BADHANDLERVAL(handler)) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (!source_addr) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (nbytes < 0 || nbytes > AMMPI_MAX_LONG) AMMPI_RETURN_ERR(BAD_ARG);
   if_pf (dest_offset > AMMPI_MAX_SEGLENGTH) AMMPI_RETURN_ERR(BAD_ARG);
@@ -997,8 +979,8 @@ extern int AMMPI_ReplyXfer(void *token, handler_t handler,
 }
 /* ------------------------------------------------------------------------------------ */
 extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *token) {
-  char *statusStr = "*unknown*";
-  char *opcodeStr = "*unknown*";
+  const char *statusStr = "*unknown*";
+  const char *opcodeStr = "*unknown*";
   ammpi_buf_t *msgbuf = (ammpi_buf_t *)token;
   int numArgs = AMMPI_MSG_NUMARGS(&msgbuf->Msg);
   uint32_t *args = GET_PACKET_ARGS(msgbuf);
@@ -1031,7 +1013,7 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
   argStr[0] = '\0';
   for (i=0; i < numArgs; i++) {
     char tmp[20];
-    sprintf(tmp, "0x%08x  ", args[i]);
+    sprintf(tmp, "0x%08x  ", (unsigned int)args[i]);
     strcat(argStr, tmp);
     }
   { char temp1[80];
@@ -1046,7 +1028,7 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
              "Arguments(%i): %s\n"
              "Aborting...",
              statusStr, opcodeStr, 
-             AMMPI_enStr(msgbuf->status.sourceAddr, temp1), msgbuf->status.sourceId,
+             AMMPI_enStr(msgbuf->status.sourceAddr, temp1), (int)msgbuf->status.sourceId,
              msgbuf->Msg.handlerId, 
              #if AMMPI_USE_AMTAGS
                AMMPI_tagStr(msgbuf->Msg.tag, temp2),

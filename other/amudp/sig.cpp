@@ -1,6 +1,6 @@
 //  $Archive:: /Ti/AMUDP/sig.cpp                                          $
-//     $Date: 2004/03/05 15:02:50 $
-// $Revision: 1.3 $
+//     $Date: 2004/03/29 17:46:34 $
+// $Revision: 1.3.6.1 $
 // Description: signal handling module
 // Copyright 1999, Dan Bonachea
 

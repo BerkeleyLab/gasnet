@@ -44,10 +44,26 @@ option when maintaining several build trees on the same source tree).
   Configure will detect various interesting features about your system and
 compilers, including which GASNet conduits are supported.
 
-* gmake 
-  Build the GASNet libraries. You can also do 'gmake tests' to build various
-test programs for each conduit. Each conduit also has a tests-{seq,par,parsync}
-target to build tests for just that conduit and configuration.
+* gmake all
+  Build the GASNet libraries. A number of other useful makefile targets 
+  are available from the top-level:
+    gmake tests-{seq,par,parsync}  
+      build all the GASNet tests in a given mode
+    gmake run-tests-{seq,par,parsync}  
+      build and run all the GASNet tests in a given mode
+    gmake run-tests
+      run whatever tests are already built in the conduit directories
+  Each conduit also has several useful makefile targets:
+    gmake tests-{seq,par,parsync}  
+      build the conduit tests in a given mode
+    gmake testXXX 
+      build just testXXX, in SEQ mode
+    gmake testXXX-{seq,par,parsync}
+      build just testXXX, in a given mode
+    gmake run-tests-{seq,par,parsync}  
+      build and run the conduit tests in a given mode
+    gmake run-tests
+      run whatever tests are already built in the conduit directories
 
 * gmake install
   Install GASNet to the directory chosen at configure time. This will create an
@@ -86,36 +102,37 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
       OS/Architecture/compiler/ABI: network conduits
       ----------------------------------------------
-    * Linux/x86-Myrinet/gcc/32:      smp, mpi, gm
-    * Linux/x86-Ethernet/gcc/32:     smp, mpi
-    * Linux/x86-Dolphin/gcc/32:      smp, mpi
-    * Linux/x86-Quadrics/gcc/32:     smp, mpi, elan
-    * Linux/x86-Mellanox/gcc/32:     smp, mpi, vapi
-    * Linux/x86/IntelC/32:           smp, mpi, gm
-    * Linux/x86/PortlandGroupC/32:   smp, mpi, gm
-    * Linux/Itanium-Quadrics/gcc/64: smp, mpi, elan
-    * Linux/Itanium/IntelC/64:       smp, mpi
+    * Linux/x86-Myrinet/gcc/32:      smp, mpi, udp, gm
+    * Linux/x86-Ethernet/gcc/32:     smp, mpi, udp
+    * Linux/x86-Dolphin/gcc/32:      smp, mpi, udp
+    * Linux/x86-Quadrics/gcc/32:     smp, mpi, udp, elan
+    * Linux/x86-Mellanox/gcc/32:     smp, mpi, udp, vapi
+    * Linux/x86/IntelC/32:           smp, mpi, udp, gm
+    * Linux/x86/PortlandGroupC/32:   smp, mpi, udp, gm
+    * Linux/Itanium-Quadrics/{gcc,IntelC}/64: smp, mpi, udp, elan
+    * Linux/Itanium-Myrinet/{gcc,IntelC}/64: smp, mpi, udp, gm
 
-    * FreeBSD/x86gcc/32:  smp, mpi
+    * FreeBSD/x86gcc/32:  smp, mpi, udp
 
-    * Tru64/Compaq-AlphaServer/Compaq C: smp, mpi, elan
+    * Tru64/Compaq-AlphaServer/Compaq C: smp, mpi, udp, elan
 
-    * AIX/IBM-SPPower3/VisualAgeC(xlc)/32,64: smp, mpi, lapi
-    * AIX/IBM-SPPower4/VisualAgeC(xlc)/32,64: smp, mpi, lapi
+    * AIX/IBM-SPPower3/VisualAgeC(xlc)/32,64: smp, mpi, udp, lapi
+    * AIX/IBM-SPPower4/VisualAgeC(xlc)/32,64: smp, mpi, udp, lapi
 
-    * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi
+    * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi, udp
 
-    * HPUX/PA-RISC/gcc/32: smp, #
+    * HPUX/PA-RISC/gcc/32: smp, udp, #
+    * HPUX/PA-RISC/HPcc/32: smp, udp, #
  
-    * Solaris/SPARC/gcc,SunProC/32,64: smp, mpi
-    * Solaris/x86/gcc/32: smp, #
+    * Solaris/SPARC/gcc,SunProC/32,64: smp, udp, mpi
+    * Solaris/x86/gcc/32: smp, udp, #
 
-    * MSWindows-Cygwin/x86/gcc/32: smp, #
+    * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT)
 
-    * MacOSX/PowerPC/gcc/32: smp, mpi
+    * MacOSX/PowerPC/gcc/32: smp, udp, mpi
 
-    * Unicos/CrayT3e/CrayC/64: smp, mpi 
-       (Berkeley UPC has a known UPC codegen bug on T3E (bug202) - but GASNet works fine)
+    * Unicos/CrayT3e/CrayC/64: smp, udp, mpi 
+       (Berkeley UPC has known problems on T3E (bug202) - but GASNet works fine)
 
 # = No working MPI implementation available, although we have every reason to
 believe mpi conduit would work if one was available.
@@ -176,6 +193,8 @@ Optional environment variable settings:
      I - informational messages about system status or performance alerts
      C - conduit-specific (low-level) messages
      D - Detailed message data for gets/puts/AMreqrep
+     N - Line number information from client source files
+     H - High-level messages from the client
   default: (all of the above)
 
  GASNET_STATSMASK - specify the types of statistics to collect and report

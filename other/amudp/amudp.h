@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp.h                                          $
- *     $Date: 2004/03/05 15:02:50 $
- * $Revision: 1.8 $
+ *     $Date: 2004/03/29 17:46:34 $
+ * $Revision: 1.8.6.1 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core.c                       $
- *     $Date: 2003/10/27 13:04:15 $
- * $Revision: 1.36.2.1 $
+ *     $Date: 2004/03/29 17:46:28 $
+ * $Revision: 1.36.2.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,6 +66,11 @@ static void gasnetc_check_config() {
   gasneti_assert(GASNET_ERR_RESOURCE == AM_ERR_RESOURCE);
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 }
+
+#define gasnetc_bootstrapBarrier()                                  \
+   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */ \
+   if (!GASNETI_AM_SAFE_NORETURN(AMMPI_SPMDBarrier()))              \
+    gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()")
 
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   GASNETI_AM_SAFE_NORETURN(AMMPI_SPMDAllGather(src, dest, len));
@@ -238,8 +243,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
        if a node calls gasnet_exit() between init/attach, then this allows us
        to process the AMMPI_SPMD control messages required for job shutdown
      */
-    retval = AMMPI_SPMDBarrier();
-    if (retval != AM_OK) INITERR(RESOURCE, "AMMPI_SPMDBarrier() failed");
+    gasnetc_bootstrapBarrier();
 
     /*  check argument sanity */
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -332,8 +336,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* ------------------------------------------------------------------------------------ */
     /*  primary attach complete */
     gasneti_attach_done = 1;
-    retval = AMMPI_SPMDBarrier();
-    if (retval != AM_OK) INITERR(RESOURCE, "AMMPI_SPMDBarrier() failed");
+    gasnetc_bootstrapBarrier();
   AMUNLOCK();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete\n"));
@@ -341,7 +344,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnete_init(); /* init the extended API */
 
   /* ensure extended API is initialized across nodes */
-  GASNETI_AM_SAFE(AMMPI_SPMDBarrier()); 
+  AMLOCK();
+    gasnetc_bootstrapBarrier();
+  AMUNLOCK();
   
   gasneti_assert(retval == GASNET_OK);
   return retval;
@@ -362,7 +367,7 @@ static void gasnetc_traceoutput(int exitcode) {
 
 extern void gasnetc_fatalsignal_callback(int sig) {
   if (gasnetc_exitcalled) {
-  /* if we get a fatal signal during exit, it's almost certainly a signal-safety or MPI shutdown
+  /* if we get a fatal signal during exit, it's almost certainly a signal-safety or network shutdown
      issue and not a client bug, so don't bother reporting it verbosely, 
      just die silently
    */
@@ -404,7 +409,8 @@ extern void gasnetc_exit(int exitcode) {
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
   GASNETI_CHECKATTACH();
   CHECKCALLNIS();
-  gasneti_assert(gasnetc_seginfo && seginfo_table);
+  gasneti_assert(seginfo_table);
+  gasneti_memcheck(gasnetc_seginfo);
   if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
   memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
   memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
@@ -769,7 +775,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
   }
   #endif
 
-  { int retval; 
+  {
     #if GASNETI_STATS_OR_TRACE
       gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
     #endif
@@ -820,7 +826,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   }
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW()-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }

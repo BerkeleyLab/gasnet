@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp_internal.h                                 $
- *     $Date: 2004/01/19 12:57:33 $
- * $Revision: 1.4 $
+ *     $Date: 2004/03/29 17:46:34 $
+ * $Revision: 1.4.6.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

@@ -1,6 +1,6 @@
 #  $Archive:: /Ti/AMUDP/Makefile.titanium.in                             $
-#     $Date: 2004/03/18 12:07:33 $
-# $Revision: 1.5 $
+#     $Date: 2004/03/29 17:46:34 $
+# $Revision: 1.5.4.1 $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

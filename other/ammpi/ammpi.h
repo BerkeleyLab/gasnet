@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi.h                                          $
- *     $Date: 2003/09/15 06:31:18 $
- * $Revision: 1.13 $
+ *     $Date: 2004/03/29 17:46:32 $
+ * $Revision: 1.13.2.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -25,8 +25,8 @@
 
 #ifndef _INTTYPES_DEFINED
 #define _INTTYPES_DEFINED
-#if defined(WIN32)
-  typedef __int8             int8_t;
+#if defined(WIN32) && defined(_MSC_VER)
+  typedef signed __int8      int8_t;
   typedef unsigned __int8   uint8_t;
   typedef __int16           int16_t;
   typedef unsigned __int16 uint16_t;
@@ -37,7 +37,7 @@
 
   typedef unsigned int    uintptr_t; /* unsigned type big enough to hold any pointer offset */
 #elif defined(CRAYT3E)
-  typedef char               int8_t;
+  typedef signed char        int8_t;
   typedef unsigned char     uint8_t;
   typedef short             int16_t; /* This is 32-bits, should be 16 !!! */
   typedef unsigned short   uint16_t; /* This is 32-bits, should be 16 !!! */
@@ -87,7 +87,7 @@
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
 
-#define AMMPI_LIBRARY_VERSION      0.7
+#define AMMPI_LIBRARY_VERSION      0.8
 #define AMMPI_LIBRARY_VERSION_STR  _STRINGIFY(AMMPI_LIBRARY_VERSION)
 
 /* naming policy:
@@ -129,6 +129,8 @@ typedef uint64_t tag_t;
 
 /* Handler index */
 typedef uint8_t handler_t;
+#define AMMPI_BADHANDLERVAL(h) (0)
+/* #define AMMPI_BADHANDLERVAL(h) (h < 0 || h >= AMMPI_MAX_NUMHANDLERS) */
 
 /* Endpoint name */
 typedef struct {
@@ -399,8 +401,9 @@ extern int AMMPI_GetEndpointStatistics(ep_t ep, ammpi_stats_t *stats); /* get ep
 extern int AMMPI_ResetEndpointStatistics(ep_t ep); /* reset ep counters */
 extern int AMMPI_AggregateStatistics(ammpi_stats_t *runningsum, ammpi_stats_t *newvalues); 
   /* aggregate statistics - augment running sum with the given values */
-extern int AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis); 
-  /* output stats to fp in human-readable form.
+extern const char *AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis); 
+  /* output stats to fp (if non-null) in human-readable form.
+   * return a pointer to the same output in an internal static buffer (rewritten on each call)
    * pass globalAnalysis non-zero if stats is a global agreggation across all nodes
    */
 extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counters */
@@ -437,8 +440,8 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
   #define AM_GetTranslationTag    AMMPI_GetTranslationTag
   #define AM_GetTranslationName   AMMPI_GetTranslationName
   #define AM_SetExpectedResources AMMPI_SetExpectedResources
-  #define AM_SetHandler           AMMPI_SetHandler
-  #define AM_SetHandlerAny        AMMPI_SetHandlerAny
+  #define _AM_SetHandler          AMMPI_SetHandler
+  #define _AM_SetHandlerAny       AMMPI_SetHandlerAny
   #define AM_GetEventMask         AMMPI_GetEventMask
   #define AM_SetEventMask         AMMPI_SetEventMask
   #define AM_WaitSema             AMMPI_WaitSema
@@ -446,6 +449,29 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
   #define AM_GetDestEndpoint      AMMPI_GetDestEndpoint
   #define AM_GetMsgTag            AMMPI_GetMsgTag
   #define AM_Poll                 AMMPI_Poll
+#endif
+
+/* standardized AM-2 extensions */
+#ifndef AMMPI
+#define AMMPI 1
+#endif
+
+#define AMX_VerboseErrors         AMMPI_VerboseErrors
+#define AMX_GetEndpointStatistics AMMPI_GetEndpointStatistics
+#define AMX_DumpStatistics        AMMPI_DumpStatistics
+#define AMX_AggregateStatistics   AMMPI_AggregateStatistics
+#define AMX_initial_stats         AMMPI_initial_stats
+#define amx_stats_t               ammpi_stats_t
+#define amx_handler_fn_t          ammpi_handler_fn_t
+
+#ifdef AMMPI_DEBUG
+  #define AMX_DEBUG AMMPI_DEBUG
+#endif
+#ifdef AMMPI_NDEBUG
+  #define AMX_NDEBUG AMMPI_NDEBUG
+#endif
+#ifdef AMMPI_DEBUG_VERBOSE
+  #define AMX_DEBUG_VERBOSE AMMPI_DEBUG_VERBOSE
 #endif
 
 /* System parameters */
@@ -488,8 +514,10 @@ extern int AM_SetNumTranslations(ep_t ep, int ntrans);
 extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_requests);
 
 /* Handler table */
-extern int AM_SetHandler(ep_t ea, handler_t handler, ammpi_handler_fn_t function);
-extern int AM_SetHandlerAny(ep_t ea, handler_t *handler, ammpi_handler_fn_t function);
+extern int _AM_SetHandler(ep_t ea, handler_t handler, ammpi_handler_fn_t function);
+#define AM_SetHandler(ea, handler, function) _AM_SetHandler((ea), (handler), (ammpi_handler_fn_t)(function))
+extern int _AM_SetHandlerAny(ep_t ea, handler_t *handler, ammpi_handler_fn_t function);
+#define AM_SetHandlerAny(ea, handler, function) _AM_SetHandlerAny((ea), (handler), (ammpi_handler_fn_t)(function))
 #define AM_GetNumHandlers(ep, pnhandlers)  \
   ((ep) ? ((*(pnhandlers) = AMMPI_MAX_NUMHANDLERS), AM_OK) : AM_ERR_BAD_ARG) : AM_ERR_BAD_ARG)
 #define AM_SetNumHandlers(ep, nhandlers)  \

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/10/27 13:04:10 $
- * $Revision: 1.8.4.1 $
+ *     $Date: 2004/03/29 17:46:22 $
+ * $Revision: 1.8.4.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -111,11 +111,43 @@ int gasnete_op_isdone(gasnete_op_t *op);
 void gasnete_op_markdone(gasnete_op_t *op, int isget);
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op);
-#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                    \
-      (gasneti_assert(threaddata),                                     \
-       gasneti_assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
-       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                \
+
+#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                      \
+      (gasneti_memcheck(threaddata),                                     \
+       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                  \
+       gasneti_assert((eopaddr).bufferidx < (threaddata)->eop_num_bufs), \
+       gasneti_memcheck((threaddata)->eop_bufs[(eopaddr).bufferidx]),    \
        (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
+
+#if GASNET_DEBUG
+  /* check an in-flight/complete eop */
+  #define gasnete_eop_check(eop) do {                                \
+    gasnete_threaddata_t * _th;                                      \
+    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
+    gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
+                   OPSTATE(eop) == OPSTATE_COMPLETE);                \
+    _th = gasnete_threadtable[(eop)->threadidx];                     \
+    gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
+  } while (0)
+  #define gasnete_iop_check(iop) do {                         \
+    int _temp;                                                \
+    gasneti_memcheck(iop);                                    \
+    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next); \
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
+    gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
+    gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
+    _temp = gasneti_atomic_read(&((iop)->completed_put_cnt)); \
+    if (_temp <= 65000) /* prevent race condition on reset */ \
+      gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
+    _temp = gasneti_atomic_read(&((iop)->completed_get_cnt)); \
+    if (_temp <= 65000) /* prevent race condition on reset */ \
+      gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
+  } while (0)
+  extern void _gasnete_iop_check(gasnete_iop_t *iop);
+#else
+  #define gasnete_eop_check(eop)   ((void)0)
+  #define gasnete_iop_check(iop)   ((void)0)
+#endif
 
 /*  1 = scatter newly allocated eops across cache lines to reduce false sharing */
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
@@ -134,8 +166,8 @@ void gasnete_op_free(gasnete_op_t *op);
  } while (0)
 
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_barrier_notify_reqh   (GASNETE_HANDLER_BASE+0) 
-#define _hidx_gasnete_barrier_done_reqh     (GASNETE_HANDLER_BASE+1)
+#define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)
 #define _hidx_gasnete_get_reqh              (GASNETE_HANDLER_BASE+2)
 #define _hidx_gasnete_get_reph              (GASNETE_HANDLER_BASE+3)
 #define _hidx_gasnete_getlong_reqh          (GASNETE_HANDLER_BASE+4)

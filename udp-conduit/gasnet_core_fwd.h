@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/udp-conduit/gasnet_core_fwd.h                   $
- *     $Date: 2004/01/19 12:57:35 $
- * $Revision: 1.3 $
+ *     $Date: 2004/03/29 17:46:44 $
+ * $Revision: 1.3.6.1 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

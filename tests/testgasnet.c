@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2003/09/15 06:31:19 $
- * $Revision: 1.12 $
+ *     $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.12.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,14 +10,21 @@
 
 #include <test.h>
 
+#define TEST_GASNET 1
+#define SHORT_REQ_BASE 128
+#include <other/amxtests/testam.h>
+
 int main(int argc, char **argv) {
   int *partnerseg = NULL;
   int mynode, partner;
   
+  gasnet_handlerentry_t handlers[] = { ALLAM_HANDLERS() };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
+    TEST_SEGSZ, TEST_MINHEAPOFFSET));
   TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
+  assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
   MSG("running...");
 
@@ -210,6 +217,19 @@ int main(int argc, char **argv) {
       }
     }
     if (success) MSG("*** passed memset test!!");
+  }
+
+  BARRIER();
+
+  { /* all ams test */
+    int i;
+    for (i=0; i < 10; i++) {
+      ALLAM_REQ(partner);
+
+      GASNET_BLOCKUNTIL(NUMREP() == NUMHANDLERS_PER_TYPE*3*(i+1));
+    }
+
+    MSG("*** passed AM test!!");
   }
 
   BARRIER();

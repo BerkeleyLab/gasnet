@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core_internal.h              $
- *     $Date: 2003/08/30 07:16:46 $
- * $Revision: 1.11 $
+ *     $Date: 2004/03/29 17:46:28 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,13 +25,13 @@ extern gasneti_mutex_t gasnetc_AMlock; /*  protect access to AMMPI */
 #define AMLOCK()             gasneti_mutex_lock(&gasnetc_AMlock)
 #define AMUNLOCK()           gasneti_mutex_unlock(&gasnetc_AMlock)
 #define AM_ASSERT_LOCKED()   gasneti_mutex_assertlocked(&gasnetc_AMlock)
-#define AM_ASSERT_UNLOCKED() gasneti_mutex_assertlocked(&gasnetc_AMlock)
+#define AM_ASSERT_UNLOCKED() gasneti_mutex_assertunlocked(&gasnetc_AMlock)
 
 /* ------------------------------------------------------------------------------------
  *  AM Error Handling
  * ------------------------------------------------------------------------------------ */
 GASNET_INLINE_MODIFIER(gasneti_AMErrorName)
-char *gasneti_AMErrorName(int errval) {
+const char *gasneti_AMErrorName(int errval) {
   switch (errval) {
     case AM_OK:           return "AM_OK";      
     case AM_ERR_NOT_INIT: return "AM_ERR_NOT_INIT";      
@@ -92,7 +92,7 @@ int gasneti_checkAMreturn(int retcode, const char *fncallstr,
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-/*#define _hidx_       (GASNETC_HANDLER_BASE+0) */
+#define _hidx_                              (GASNETC_HANDLER_BASE+)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 

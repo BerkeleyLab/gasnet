@@ -3,6 +3,7 @@ README file for vapi-conduit
 Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ TOC: @
+@ Section: Build-time Configuration @
 @ Section: Runtime Configuration @
 @ Section: Core API @
 @ Section: Extended API @
@@ -10,6 +11,36 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: TO DO @
 
 
+@ Section: Build-time Configuration @
+  There are two known bugs in older InfiniHost firmware versions.
+  Normally you shouldn't need to do anything special with regards
+  to them.  However, if you do need to override the defaults this
+  section explains the issues.
+
+  + Thread safety of VAPI_poll_cq()
+    In firmware versions prior to 3.0, the VAPI_poll_cq() call is
+    not thread safe under some conditions.  For this reason,
+    vapi-conduit will check the firmware version at runtime and will
+    use its own mutex around calls to VAPI_poll_cq() if needed.
+
+    If you believe this bug is appearing in firmware 3.0 or later,
+    you can force use of this mutex by configuring GASNet with the
+    flag '--enable-vapi-force-poll-lock'.
+
+  + Performance loss in EVAPI_post_inline_sr()
+    In firmware versions after 1.17 and prior to 3.0, there is a
+    performance anomaly with the call EVAPI_post_inline_sr().
+    By default, vapi-conduit will use this call to perform small
+    puts.  If firware in the range [1.18, 3.0) is detected at
+    runtime, a warning will be printed but the call will still
+    be used.
+
+    If you believe this bug is affecting your performance under
+    other firmware versions, or to silence this warning without
+    updating your firmware, configure GASNet with the flag
+    '--disable-vapi-inline-puts'.  This will disable the use of
+    the EVAPI_post_inline_sr() call, and disable the warning.
+    
 @ Section: Runtime Configuration @
 
   There are a number of parameters in vapi-conduit which can be tuned
@@ -55,15 +86,15 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     can be in-flight simultaneously from each node, with "in-flight"
     defined as in GASNET_OP_OUST_PP.
     This is (potentially) the depth of the send completion queue and the
-    number of 'sbuf' data structures allocated to track in-flight ops.
+    number of 'sreq' data structures allocated to track in-flight ops.
     However, for a given value of GASNET_OP_OUST_PP and N, it might not
     be possible to launch GASNET_OP_OUST_LIMIT operations.  Therefore,
-    the memory consumed for the send completion queue and sbufs scales
+    the memory consumed for the send completion queue and sreqs scales
     as min(GASNET_OP_OUST_LIMIT, GASNET_OP_OUST_PP*(N-1)), on each node.
-    The default value is 1024.  (upto 4MB used for send buffers)
+    The default value is 1024.
     This parameter should be equal across all nodes, and the behavior
     otherwise is undefined.
-   
+
   + GASNET_AM_OUST_PP
     This give the maximum number of outstanding AM Requests which can
     be in-flight simultaneously from a node to each of its peers.  Here
@@ -115,6 +146,18 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     This parameter should be equal across all nodes, and the behavior
     otherwise is undefined.
 
+  + GASNET_BBUF_LIMIT
+    This gives the maximum number of pre-pinned bounce buffers allocated
+    on each node.  These buffers are needed for assembly of AM headers
+    (and the payload of mediums), and for gets and puts with the local
+    address outside the GASNet segment.  The default is 1024, which results
+    in a limit of 4MB (unless GASNETC_BUFSZ is changed at compile time).
+    The actual number of buffers allocated maybe less if the values of
+    GASNET_OP_OUST_PP and GASNET_AP_OUST_LIMIT are such that all
+    GASNET_BBUF_LIMIT buffers could never be consumed.
+    This parameter should be equal across all nodes, and the behavior
+    otherwise is undefined.
+   
 @ Section: Core API @
 
 + Flow-control for AMs.
@@ -133,7 +176,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   available recv buffers, IB has the SENDER's hardware/firmware poll
   for the receiver to become ready again!  That leaves us with a choice
   between configuring a small polling interval and consuming a lot of
-  bandwidth for this polling, or a large interval which leads to more
+  bandwidth for this polling, or a large interval which leads to 
   performance which is degraded more than necessary when IB flow control
   is asserted.
 
@@ -146,7 +189,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   endpoint.  If we want to avoid RNR conditions, then we should start
   with M credits and 2*M preposted recv buffers on each endpoint.  The
   factor of 2 is because we can consume M of the buffers on the peer's
-  endpoint with out REQUESTs and an additional M for REPLYs to her
+  endpoint with our REQUESTs and an additional M for REPLYs to her
   REQUESTS.
 
   It is a simple matter to count the credits when a REPLY is received
@@ -160,63 +203,30 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   To avoid a window of time between when we send a reply (credit) and
   when we post the recv buffer, we must post the replacement recv
-  buffer BEFORE running the AM REQUEST handler.  To do this we keep a
-  pool of unposted recv buffers.  So, when we recv a REQUEST, we grab
-  a free recv buffer from the pool and post it to the endpoint, run
-  the handler, send an implicit reply if the handler didn't send any
-  and finally we take the recv buffer containing the REQUEST and we
-  return it to the unposted pool.  When get recv a REPLY we don't
-  bother with as much complication, and just repost the recv buffer
-  holding the REQUEST, after running the handler.
+  buffer BEFORE running an AM REQUEST handler.  To do this we keep a
+  pool of unposted recv buffers.  So, when we recv an AM, we grab a
+  free recv buffer from the pool and post it to the endpoint, and run
+  the handler.  We send an implicit reply if the AM was a REQUEST and
+  the handler didn't send any REPLY.  Finally we take the recv buffer
+  containing the just-processed AM and we return it to the unposted
+  pool.
 
   There is a corner case we must deal with when there are no spares
-  left in the unposted pool.  In this case we will allow IB's RNR
-  flow control to kick-in in the unlikely event of a race.  When
-  there are no spares remaining, we delay reposting a recv buffer to
-  the endpoint until after the hander has run.  If the recv buffer
-  of which the replacement is delayed triggers a REQUEST handler 
-  then there is a potential race, because the credit update implied
-  by the reply (explicit or implicit) precedes the replacement.
-  Here is what is needed to trigger IB's RNR flow control:
-  1) Assume that all the recv buffers posted to the endpoint have
-     been consumed by AMs
-  2) Assume the current AM is a request
-  3) When the request handler sends a reply, or the system sends a
-     reply after the handler terminates...
-  4) The peer receives the reply and thus receives a credit
-  5) The credit allows the peer to send us another AM request
-  6) This additional request arrives before the current recv buffer
-     is reposted to the endpoint
-  7) The HCA is unable to complete the transfer of the new AM request
-     until the current recv buffer is reposted.
-  8) IB's RNR (Reciever Not Ready) flow-control kicks in, stalling our
-     peer's send queue
-  Fortunately this is not only unlikely, it is also non-fatal.
-  Eventually, the recv buffer will be reposted and the stall will end.
-  However, the point-to-point ordering guarantees of IB ensure that all
-  the transfers queued behind the stalled AM request are also stalled.
+  left in the unposted pool.  In this case we will copy the recevied
+  message into a temporary (non-pinned) buffer before processing it.
+  This allows us to repost the recv buffer immediately.  Since the
+  temporary buffer is not pinned, it cannot be used for receives.
+  Therefore, we free the temporary buffer when the handler is done,
+  rather than placing it in the unposted pool.
   
-  If we reap multiple REQUESTS in a single Poll, then we reuse the
+  If we reap multiple AMs in a single Poll, then we reuse the
   previous buffer as the "spare" for the next one, in place of
   grabbing one from the unposted pool each time.  Thus, we touch the
-  unposted pool at most twice per Poll, once for the first REQUEST we
-  receive and once at the end to put the recv buffer of the final
-  REQUEST back in the unposted pool.  For the dedicated receive thread
-  we do even better, never touching the unposted pool at all by always
+  unposted pool at most twice per Poll, once for the first AM we
+  receive and once at the end to put the recv buffer of the final AM
+  back in the unposted pool.  For the dedicated receive thread we can
+  do even better, never touching the unposted pool at all, by always
   keeping a single thread-local "spare", initially acquired at startup.
-
-  At present there is some incomplete support for allowing system-level
-  AMs to break the request-reply model and go request-reply-request or
-  request-reply-request-reply.  This would be done by having the first
-  request allocate 2 credits and having the second allocate none.  Note
-  that these two patterns are actually the same, due to the implicit
-  reply sent back in the first case to perform the credit update.  We
-  are still missing code to allocate multiple credits without causing
-  wither deadlock or livelock.  Also missing is the actual _need_ for
-  this.  Once the firehose client is implemented I'll determine need to
-  either complete the support for this messaging pattern, or remove the
-  partial support to simplify the code paths.
-  Note that this is independent of allowing handlers to initiate RDMA.
 
 @ Section: Extended API @
 
@@ -477,7 +487,7 @@ The average case is somewhere between these two.
   buffers with non-blocking gets.  This _will_ work, however, for blocking
   value gets.
 
-+ If I can be sure there are not deadlock problems under RNR conditions,
++ If I can be sure there are not deadlock problems,
   the barrier implementation might be improved using a bunch of puts to
   mark the barrier done upon the final notify.  However, the notify
   mechanism will remain AM-based.
@@ -539,7 +549,3 @@ The average case is somewhere between these two.
 
 + Implement a firehose-page client for VAPI to do SEGMENT_EVERYTHING.
   Once that works, I need to implement firehose-region instead.
-
-+ Learn more about VAPI "fast memory regions" and how they differ from
-  normal memory registration.  This may be vital to a decent implementation
-  of the firehose algorithm(s).

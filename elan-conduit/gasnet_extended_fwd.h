@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2003/10/27 13:04:09 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2004/03/29 17:46:21 $
+ * $Revision: 1.11.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.2
+#define GASNET_EXTENDED_VERSION      1.3
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         ELAN
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
@@ -87,11 +87,11 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
 #define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
+        GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
         CNT(C, POLL_CALLBACK_BARRIER, cnt)   \
         CNT(C, POLL_CALLBACK_NOOP, cnt)      \
         CNT(C, EXHAUSTED_ELAN_MEMORY, cnt)
-
 
 #endif
 

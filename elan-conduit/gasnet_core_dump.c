@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core_dump.c                  $
- *     $Date: 2003/10/11 13:09:56 $
- * $Revision: 1.11 $
+ *     $Date: 2004/03/29 17:46:21 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,8 +15,8 @@ extern void gasnetc_dump_base() {
   ELAN_BASE *b = BASE();
 
   GASNETI_STATS_PRINTF(C,("ELAN_BASE: {"));
-  GASNETI_STATS_PRINTF(C,(" init= %i",b->init));
-  { char *dmatype="unknown";
+  GASNETI_STATS_PRINTF(C,(" init= %i",(int)b->init));
+  { const char *dmatype="unknown";
     switch(b->dmaType) {
       case DMA_BYTE:        dmatype = "DMA_BYTE"; break;
       case DMA_HALFWORD:    dmatype = "DMA_HALFWORD"; break;
@@ -30,7 +30,7 @@ extern void gasnetc_dump_base() {
     }
     GASNETI_STATS_PRINTF(C,(" dmaType= %s",dmatype));
   }
-  GASNETI_STATS_PRINTF(C,(" retryCount= %i",b->retryCount));
+  GASNETI_STATS_PRINTF(C,(" retryCount= %i",(int)b->retryCount));
   { char waitType[255];
     switch(b->waitType) {
       case ELAN_POLL_EVENT: strcpy(waitType,"ELAN_POLL_EVENT"); break;
@@ -48,58 +48,58 @@ extern void gasnetc_dump_base() {
     if(b->flags&ELAN_TRAP_UNALIGNED)  strcat(flagstr,"ELAN_TRAP_UNALIGNED,");
     if(b->flags&ELAN_MULTI_CONTEXT)   strcat(flagstr,"ELAN_MULTI_CONTEXT,");
     if (flagstr[0]) flagstr[strlen(flagstr)-1] = '\0';
-    GASNETI_STATS_PRINTF(C,(" flags= %i (%s)",b->flags,flagstr));
+    GASNETI_STATS_PRINTF(C,(" flags= %i (%s)",(int)b->flags,flagstr));
   }
   #endif
-  GASNETI_STATS_PRINTF(C,(" group_rbufsize= %i",b->group_rbufsize));
+  GASNETI_STATS_PRINTF(C,(" group_rbufsize= %i",(int)b->group_rbufsize));
   #if ELAN_VERSION_GE(1,4,8)
-    GASNETI_STATS_PRINTF(C,(" group_cbufsize= %i",b->group_cbufsize));
-    GASNETI_STATS_PRINTF(C,(" group_maxsegs= %i",b->group_maxsegs));
+    GASNETI_STATS_PRINTF(C,(" group_cbufsize= %i",(int)b->group_cbufsize));
+    GASNETI_STATS_PRINTF(C,(" group_maxsegs= %i",(int)b->group_maxsegs));
   #endif
-  GASNETI_STATS_PRINTF(C,(" group_branch= %i",b->group_branch));
+  GASNETI_STATS_PRINTF(C,(" group_branch= %i",(int)b->group_branch));
   #if ELAN_VERSION_GE(1,4,8)
-    GASNETI_STATS_PRINTF(C,(" group_flags= %i%s",b->group_flags,(b->group_flags&ELAN_HWBCAST?" (ELAN_HWBCAST)":"")));
+    GASNETI_STATS_PRINTF(C,(" group_flags= %i%s",(int)b->group_flags,(b->group_flags&ELAN_HWBCAST?" (ELAN_HWBCAST)":"")));
   #else
     GASNETI_STATS_PRINTF(C,(" group_hwbcast= %i",b->group_hwbcast));
   #endif
 
-  GASNETI_STATS_PRINTF(C,(" tport_nslots= %i",b->tport_nslots));
+  GASNETI_STATS_PRINTF(C,(" tport_nslots= %i",(int)b->tport_nslots));
   #if ELAN_VERSION_GE(1,4,8)
-  GASNETI_STATS_PRINTF(C,(" tport_flags= %i",b->tport_flags));
-  GASNETI_STATS_PRINTF(C,(" tport_nqxd= %i",b->tport_nqxd));
+  GASNETI_STATS_PRINTF(C,(" tport_flags= %i",(int)b->tport_flags));
+  GASNETI_STATS_PRINTF(C,(" tport_nqxd= %i",(int)b->tport_nqxd));
   #endif
-  GASNETI_STATS_PRINTF(C,(" tport_smallmsg= %i",b->tport_smallmsg));
-  GASNETI_STATS_PRINTF(C,(" tport_bigmsg= %i",b->tport_bigmsg));
+  GASNETI_STATS_PRINTF(C,(" tport_smallmsg= %i",(int)b->tport_smallmsg));
+  GASNETI_STATS_PRINTF(C,(" tport_bigmsg= %i",(int)b->tport_bigmsg));
   #if ELAN_VERSION_GE(1,3,0)
-  GASNETI_STATS_PRINTF(C,(" tport_fragsize= %i",b->tport_fragsize));
+  GASNETI_STATS_PRINTF(C,(" tport_fragsize= %i",(int)b->tport_fragsize));
   #endif
   #if ELAN_VERSION_GE(1,4,8)
-    GASNETI_STATS_PRINTF(C,(" tport_stripemsg= %i",b->tport_stripemsg));
+    GASNETI_STATS_PRINTF(C,(" tport_stripemsg= %i",(int)b->tport_stripemsg));
   #else
-    GASNETI_STATS_PRINTF(C,(" evict_cache= %i",b->evict_cache));
+    GASNETI_STATS_PRINTF(C,(" evict_cache= %i",(int)b->evict_cache));
   #endif
 
   #if ELAN_VERSION_GE(1,4,8)
-    GASNETI_STATS_PRINTF(C,(" putget_flags= %i",b->putget_flags));
-    GASNETI_STATS_PRINTF(C,(" putget_smallputsize= %i",b->putget_smallputsize));
-    GASNETI_STATS_PRINTF(C,(" putget_stripeputsize= %i",b->putget_stripeputsize));
-    GASNETI_STATS_PRINTF(C,(" putget_stripegetsize= %i",b->putget_stripegetsize));
-    GASNETI_STATS_PRINTF(C,(" putget_throttle= %i",b->putget_throttle));
+    GASNETI_STATS_PRINTF(C,(" putget_flags= %i",(int)b->putget_flags));
+    GASNETI_STATS_PRINTF(C,(" putget_smallputsize= %i",(int)b->putget_smallputsize));
+    GASNETI_STATS_PRINTF(C,(" putget_stripeputsize= %i",(int)b->putget_stripeputsize));
+    GASNETI_STATS_PRINTF(C,(" putget_stripegetsize= %i",(int)b->putget_stripegetsize));
+    GASNETI_STATS_PRINTF(C,(" putget_throttle= %i",(int)b->putget_throttle));
 
-    GASNETI_STATS_PRINTF(C,(" mqueue_flags= %i",b->mqueue_flags));
-    GASNETI_STATS_PRINTF(C,(" mqueue_slotsize= %i",b->mqueue_slotsize));
-    GASNETI_STATS_PRINTF(C,(" mqueue_nslots= %i",b->mqueue_nslots));
+    GASNETI_STATS_PRINTF(C,(" mqueue_flags= %i",(int)b->mqueue_flags));
+    GASNETI_STATS_PRINTF(C,(" mqueue_slotsize= %i",(int)b->mqueue_slotsize));
+    GASNETI_STATS_PRINTF(C,(" mqueue_nslots= %i",(int)b->mqueue_nslots));
 
-    GASNETI_STATS_PRINTF(C,(" lock_flags= %i",b->lock_flags));
+    GASNETI_STATS_PRINTF(C,(" lock_flags= %i",(int)b->lock_flags));
 
-    GASNETI_STATS_PRINTF(C,(" galloc_flags= %i",b->galloc_flags));
-    GASNETI_STATS_PRINTF(C,(" galloc_size= %i",b->galloc_size));
-    GASNETI_STATS_PRINTF(C,(" gallocElan_size= %i",b->gallocElan_size));
+    GASNETI_STATS_PRINTF(C,(" galloc_flags= %i",(int)b->galloc_flags));
+    GASNETI_STATS_PRINTF(C,(" galloc_size= %i",(int)b->galloc_size));
+    GASNETI_STATS_PRINTF(C,(" gallocElan_size= %i",(int)b->gallocElan_size));
 
-    GASNETI_STATS_PRINTF(C,(" shm_flags= %i",b->shm_flags));
+    GASNETI_STATS_PRINTF(C,(" shm_flags= %i",(int)b->shm_flags));
   #else
       GASNETI_STATS_PRINTF(C,(" galloc= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc)));
-      GASNETI_STATS_PRINTF(C,(" galloc_size= %i",b->galloc_size));
+      GASNETI_STATS_PRINTF(C,(" galloc_size= %i",(int)b->galloc_size));
     #if 0
       GASNETI_STATS_PRINTF(C,(" galloc_base= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc_base)));
     #elif defined(ELAN_VER_1_2)
@@ -107,21 +107,21 @@ extern void gasnetc_dump_base() {
       GASNETI_STATS_PRINTF(C,(" galloc_ebase= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->galloc_ebase)));
     #else
       GASNETI_STATS_PRINTF(C,(" gallocElan= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->gallocElan)));
-      GASNETI_STATS_PRINTF(C,(" gallocElan_size= %i",b->gallocElan_size));
+      GASNETI_STATS_PRINTF(C,(" gallocElan_size= %i",(int)b->gallocElan_size));
     #endif
 
-      GASNETI_STATS_PRINTF(C,(" shm_enable= %i",b->shm_enable));
-      GASNETI_STATS_PRINTF(C,(" shm_heapsize= %i",b->shm_heapsize));
+      GASNETI_STATS_PRINTF(C,(" shm_enable= %i",(int)b->shm_enable));
+      GASNETI_STATS_PRINTF(C,(" shm_heapsize= %i",(int)b->shm_heapsize));
       GASNETI_STATS_PRINTF(C,(" gallocShm= "GASNETI_LADDRFMT"",GASNETI_LADDRSTR(b->gallocShm)));
     #if 0
       GASNETI_STATS_PRINTF(C,(" gallocShm_size= %i",b->gallocShm_size));
     #endif
   #endif
 
-  GASNETI_STATS_PRINTF(C,(" shm_key= %i",b->shm_key));
-  GASNETI_STATS_PRINTF(C,(" shm_fragsize= %i",b->shm_fragsize));
-  GASNETI_STATS_PRINTF(C,(" shm_fifodepth= %i",b->shm_fifodepth));
-  GASNETI_STATS_PRINTF(C,(" shm_bigmsg= %i",b->shm_bigmsg));
+  GASNETI_STATS_PRINTF(C,(" shm_key= %i",(int)b->shm_key));
+  GASNETI_STATS_PRINTF(C,(" shm_fragsize= %i",(int)b->shm_fragsize));
+  GASNETI_STATS_PRINTF(C,(" shm_fifodepth= %i",(int)b->shm_fifodepth));
+  GASNETI_STATS_PRINTF(C,(" shm_bigmsg= %i",(int)b->shm_bigmsg));
 
   GASNETI_STATS_PRINTF(C,("}"));
 
@@ -142,17 +142,17 @@ extern void gasnetc_dump_state() {
 #ifdef ELAN_VER_1_2
   GASNETI_STATS_PRINTF(C,(" main_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->main_base)));
   GASNETI_STATS_PRINTF(C,(" elan_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->elan_base)));
-  GASNETI_STATS_PRINTF(C,(" alloc_size= %i", s->alloc_size));
+  GASNETI_STATS_PRINTF(C,(" alloc_size= %i", (int)s->alloc_size));
 #else
   GASNETI_STATS_PRINTF(C,(" alloc_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->alloc_base)));
-  GASNETI_STATS_PRINTF(C,(" alloc_size= %i", s->alloc_size));
+  GASNETI_STATS_PRINTF(C,(" alloc_size= %i", (int)s->alloc_size));
   GASNETI_STATS_PRINTF(C,(" allocElan_base= "GASNETI_LADDRFMT"", GASNETI_LADDRSTR(s->allocElan_base)));
-  GASNETI_STATS_PRINTF(C,(" allocElan_size= %i", s->allocElan_size));
+  GASNETI_STATS_PRINTF(C,(" allocElan_size= %i", (int)s->allocElan_size));
 #endif
 
-  GASNETI_STATS_PRINTF(C,(" debugFlags= %i", s->debugFlags));
-  GASNETI_STATS_PRINTF(C,(" localId= %i", s->localId));
-  GASNETI_STATS_PRINTF(C,(" maxLocalIds= %i", s->maxLocalIds));
+  GASNETI_STATS_PRINTF(C,(" debugFlags= %i", (int)s->debugFlags));
+  GASNETI_STATS_PRINTF(C,(" localId= %i", (int)s->localId));
+  GASNETI_STATS_PRINTF(C,(" maxLocalIds= %i", (int)s->maxLocalIds));
 
   { int i;
     char idstr[1024];
@@ -289,16 +289,16 @@ void gasnetc_dump_tportstats() {
   UNLOCK_ELAN_WEAK();
 
   #define DUMP_STAT(statname, desc) \
-    GASNETI_STATS_PRINTF(C,(" %-20s= %-8lu \t("desc")", "ts_"#statname, (unsigned long)stats.ts_##statname))
+    GASNETI_STATS_PRINTF(C,(" %-20s= %-8lu \t(%s)", "ts_"#statname, (unsigned long)stats.ts_##statname, desc))
 
   GASNETI_STATS_PRINTF(C,("ELAN_TPORTSTATS: {"));
   DUMP_STAT(dRxBytes, "Number of bytes directly received to user buffer");
   DUMP_STAT(bRxBytes, "Number of bytes received via a buffer");
   DUMP_STAT(txBytes, "Number of bytes transmitted");
 #if ELAN_VERSION_GE(1,4,12)
-  if (ts_txrBytes[0])
+  if (stats.ts_txrBytes[0])
     DUMP_STAT(txrBytes[0], "Number of bytes transmitted (rail 0)");
-  if (ts_txrBytes[1])
+  if (stats.ts_txrBytes[1])
     DUMP_STAT(txrBytes[1], "Number of bytes transmitted (rail 1)");
 #endif
   DUMP_STAT(ndRx, "Number of direct receives");

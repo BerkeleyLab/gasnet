@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_help.h                 $
- *     $Date: 2003/10/27 13:04:10 $
- * $Revision: 1.14.2.1 $
+ *     $Date: 2004/03/29 17:46:22 $
+ * $Revision: 1.14.2.2 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,16 +50,6 @@ extern gasnet_seginfo_t *gasnete_seginfo;
   #define gasnete_islocal(nodeid) (nodeid == gasnete_mynode)
 #endif
 #define gasnete_boundscheck(node,ptr,nbytes) gasneti_boundscheck(node,ptr,nbytes,e)
-
-/* busy-waits, with no implicit polling (cnd should include an embedded poll)
-   differs from GASNET_BLOCKUNTIL because it may be waiting for an event
-     caused by the receipt of a non-AM message
- */
-#define gasnete_waituntil(cnd) gasnete_waitwhile(!(cnd)) 
-#define gasnete_waitwhile(cnd) do { /* could add something here */ } while (cnd) 
-
-#define gasnete_polluntil(cnd) gasnete_pollwhile(!(cnd)) 
-#define gasnete_pollwhile(cnd) while (cnd) gasnet_AMPoll() 
 
 /* ------------------------------------------------------------------------------------ */
 #if defined(_CRAYC) || (SIZEOF_SHORT > 2)  /* deal with Cray's crappy lack of 16-bit types */

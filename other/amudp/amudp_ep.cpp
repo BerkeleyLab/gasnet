@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp_ep.cpp                                     $
- *     $Date: 2004/02/13 18:00:18 $
- * $Revision: 1.4 $
+ *     $Date: 2004/03/29 17:46:34 $
+ * $Revision: 1.4.6.1 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

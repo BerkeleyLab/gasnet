@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2003/10/27 13:04:08 $
- * $Revision: 1.19.2.1 $
+ *     $Date: 2004/03/29 17:46:16 $
+ * $Revision: 1.19.2.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* include files that may conflict with macros defined later */
-#if defined(IRIX) || defined(HPUX)
+#if defined(IRIX) || defined(HPUX) || defined(UNICOS)
   #include <sys/param.h>
 #endif
 
@@ -26,7 +26,7 @@
 #if defined(HAVE_INTTYPES_H)
   #include <inttypes.h>
 #elif defined(WIN32) && defined(_MSC_VER)
-  typedef __int8             int8_t;
+  typedef signed __int8      int8_t;
   typedef unsigned __int8   uint8_t;
   typedef __int16           int16_t;
   typedef unsigned __int16 uint16_t;
@@ -38,7 +38,7 @@
   typedef          int     intptr_t; /* signed/unsigned types big enough to hold any pointer offset */
   typedef unsigned int    uintptr_t; 
 #elif defined(CRAYT3E)
-  typedef char               int8_t;
+  typedef signed char        int8_t;
   typedef unsigned char     uint8_t;
   typedef short             int16_t; /* This is 32-bits, should be 16 !!! */
   typedef unsigned short   uint16_t; /* This is 32-bits, should be 16 !!! */
@@ -193,6 +193,8 @@
    #include <unistd.h>
    #define gasneti_sched_yield() sleep(0)
 #endif
+
+#include <stddef.h> /* get standard types, esp size_t */
 
 /* splitting and reassembling 64-bit quantities */
 #define GASNETI_MAKEWORD(hi,lo) ((((uint64_t)(hi)) << 32) | (((uint64_t)(lo)) & 0xFFFFFFFF))

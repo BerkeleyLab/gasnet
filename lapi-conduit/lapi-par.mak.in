@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/lapi-par.mak.in,v 1.14 2003/09/13 16:58:35 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/lapi-par.mak.in,v 1.14.2.1 2004/03/29 17:46:27 bonachea Exp $
 # Description: Makefile fragment for LAPI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,8 +15,8 @@
 #
 # ----------------------------------------------------------------------
 
-GASNET_INCLUDES = -I@INSTALL_PREFIX@/include -I@INSTALL_PREFIX@/include/lapi-conduit
-GASNET_LIBDIRS = -L@INSTALL_PREFIX@/lib
+GASNET_INCLUDES = -I###INSTALL_PREFIX###/include -I###INSTALL_PREFIX###/include/lapi-conduit
+GASNET_LIBDIRS = -L###INSTALL_PREFIX###/lib
 
 # Textual lines containing the string "###NOINSTALL###" are removed by the install process
 # (must be one continuous line) ###NOINSTALL###

@@ -2,6 +2,79 @@ GASNet ChangeLog
 ----------------
 
 ----------------------------------------------------------------------
+11-10-2003 : Release 1.3
+
+* Added Infiniband support in vapi-conduit - currently only SEGMENT_FAST is supported
+
+* elan-conduit: 
+  - updated for the most recent version of libelan
+  - fix a few race conditions
+
+* gm-conduit:
+  - updated for GM 2.0, including RDMA get support
+  - Added 64-bit support
+  - Reworked the spawner to work with mpiexec, gexec, MPICH mpirun and a custom spawner
+
+* lapi-conduit:
+  - Fix bugs related to varying LAPI uhdr payload size across systems - this is
+    now queried automatically at runtime
+
+* GASNet spec: 
+  - gasnet_hold_interrupts() and gasnet_resume_interrupts() calls are now
+    required to be ignored by the implementation within an AM handler context.
+  - Added gasnet_set_waitmode() function
+
+* Add a logGP test program for GASNet conduits
+
+* Add a threaded tester for gasnet threaded clients
+
+* Added a GASNet/MPI test that tests the compatibility of a GASNet conduit with
+  MPI calls made by the GASNet client. 
+
+* All GASNet conduits other than gm are now fully compatible with limited MPI
+  calls from the GASNet client code. In order to prevent deadlock and ensure
+  safety, GASNet and MPI communication should be separated by barriers.
+
+* Factor the firehose page registration system into a new, separate firehose
+  library with a public interface, for use by gm-conduit and vapi-conduit
+ 
+* Use "adaptive" pthreads mutexes on Linux (when available), for better SMP performance
+
+* Added support for new platforms: Solaris-SPARC 64-bit 
+  and new compilers:  Portland Group C, SunPro C and Intel C
+
+* Add SIGCONT as an additional option for unfreezing a GASNet application
+  This is a useful option for debugging GASNet apps which lack debugging symbols
+  (but may still have enough info to give you a stack trace, etc) A GASNet app
+  frozen by GASNET_FREEZE can now be unfrozen by sending: "kill -CONT pid"
+  to each process, or on some systems by typing control-Z on the console to
+  suspend the process and then fg to resume it (sends a SIGCONT for you).
+
+* HSL calls now compile away to nothing when HSL's are unnecessary 
+
+* Merged AMMPI v0.8, includes fixes to rare buffer overflows and small memory leaks
+
+* fixed pthread barrier errors caused by a race condition
+
+* Minor semantic change to no-interrupt sections -
+  gasnet_{hold,resume}_interrupts() are now officially ignored within a GASNet
+  handler context (where interrupts are already suspended anyhow). 
+
+* add new function gasnet_set_waitmode() to control waiting behavior
+
+* Use an atexit handler to make sure we finalize the trace/stats file, even 
+  if the client exits without calling gasnet_exit
+
+* Fixes to gasneti_local_membar(), especially for SMP/UNI Linux kernels and PowerPC
+
+* New significant GASNet conduit programming practices:
+  gasneti_{malloc,calloc,free}, gasneti_assert, GASNETI_CLIENT_THREADS,
+  GASNETI_CONDUIT_THREADS, (N)DEBUG -> GASNET_(N)DEBUG, STATS,TRACE ->
+  GASNET_{STATS,TRACE}
+
+* Many minor fixes
+
+----------------------------------------------------------------------
 06-28-2003 : Release 1.2
 
 * Greatly increased the number of platforms supported - notably, this release

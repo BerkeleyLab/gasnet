@@ -1,8 +1,18 @@
 #include <inttypes.h>
 #include <gasnet_internal.h>	/* gasnet mutex */
+#include <gasnet_handler.h>
 
 /* firehose_internal.h: Internal Header file
  */
+
+/*
+ * The following define is used only when users do not specify
+ * the amount of memory required for the MACVICTIM_M parameter.
+ * A conduit can also provide a default.
+ */
+#ifndef FH_MAXVICTIM_TO_PHYSMEM_RATIO
+#define FH_MAXVICTIM_TO_PHYSMEM_RATIO   0.25
+#endif
 
 /* Some conduits may be able to support running both the completion and remote
  * callbacks from within an AM Handler, in which case there is no need for the
@@ -23,15 +33,68 @@ extern gasnet_node_t	fh_mynode;
  */
 
 extern gasneti_mutex_t		fh_table_lock;
-extern gasneti_mutex_t		fh_pollq_lock;
 
 #define FH_TABLE_LOCK		gasneti_mutex_lock(&fh_table_lock)
 #define FH_TABLE_UNLOCK		gasneti_mutex_unlock(&fh_table_lock)
 #define FH_TABLE_ASSERT_LOCKED	gasneti_mutex_assertlocked(&fh_table_lock)
 #define FH_TABLE_ASSERT_UNLOCKED gasneti_mutex_assertunlocked(&fh_table_lock)
 
-#define FH_POLLQ_LOCK		gasneti_mutex_lock(&fh_pollq_lock)
-#define FH_POLLQ_UNLOCK		gasneti_mutex_unlock(&fh_pollq_lock)
+#ifndef FH_POLL_NOOP /* Don't need a pollq_lock when we don't poll */
+  extern gasneti_mutex_t		fh_pollq_lock;
+
+  #define FH_POLLQ_LOCK		gasneti_mutex_lock(&fh_pollq_lock)
+  #define FH_POLLQ_UNLOCK	gasneti_mutex_unlock(&fh_pollq_lock)
+#else
+  #define FH_POLLQ_LOCK		!!! error - no firehose polling !!!
+  #define FH_POLLQ_UNLOCK	!!! error - no firehose polling !!!
+#endif
+
+/* 
+ * LOCAL COUNTERS
+ *    XXX/PHH: actually counts of private_t's, rather than bucket_t's
+ *
+ * fhc_LocalOnlyBucketsPinned - incrementing counter
+ *     Amount of buckets pinned by the local node or in the FIFO
+ *     (localref > 0 OR remoteref == 0).  This count must be less than
+ *     or equal to fhc_MaxVictimBuckets in order to avoid deadlocks.
+ *
+ * fhc_LocalVictimFifoBuckets - incrementing counter
+ *     Amount of buckets currently contained in the Local Victim FIFO. 
+ *
+ * fhc_MaxVictimBuckets - static count
+ *     Maximum amount of victims that may be pinned other than M.
+ *     fhc_LocalOnlyBucketsPinned <= fhc_MaxVictimBuckets
+ */
+
+extern int	fhc_LocalOnlyBucketsPinned;
+extern int	fhc_LocalVictimFifoBuckets;
+extern int	fhc_MaxVictimBuckets;
+
+#define FHC_MAXVICTIM_BUCKETS_AVAIL 					\
+		(fhc_MaxVictimBuckets - fhc_LocalOnlyBucketsPinned)
+
+/* 
+ * REMOTE COUNTERS
+ *
+ * fhc_RemoteBucketsM - static count
+ *    Amount of per-node firehoses that can be mapped as established by the
+ *    firehose 'M' parameter.
+ *
+ * fhc_MaxRemoteBuckets - static count
+ *     Maximum number of buckets that can be pinned in a single AM call.
+ * 
+ * fhc_RemoteBucketsUsed[0..nodes-1] - Array of incrementing counters
+ *    Amount of buckets currently used by the current node.
+ *
+ * fhc_RemoteVictimFifoBuckets[0..nodes-1] - Array of incrementing counters
+ *     Available amount of remote buckets that can be used without sending
+ *     replacement buckets.
+ *
+ */
+extern int	 fhc_RemoteBucketsM;
+extern int	 fhc_MaxRemoteBuckets;
+extern int	*fhc_RemoteBucketsUsed;
+extern int	*fhc_RemoteVictimFifoBuckets;
 
 #ifndef FH_BUCKET_SIZE
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
@@ -95,30 +158,39 @@ fh_refc_t;
   #define FH_BSTATE_SET(entry, state)
 #endif
 
-#ifdef FIREHOSE_PAGE
-typedef struct _firehose_private_t	fh_bucket_t;
+struct _fh_bucket_t; /* forward decl of type */
 
 struct _firehose_private_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
-	#define FH_KEYMAKE(addr,node)	(addr | node)
-	#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
-	#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
 
 	/* FIFO and refcount */
+	firehose_private_t *fh_tqe_next;	/* -1 when not in FIFO, 
+						   NULL when end of list,
+						   else next pointer in FIFO */
+	firehose_private_t **fh_tqe_prev;	/* refcount when not in FIFO,
+						   prev pointer otherwise    */
+
 	#ifdef DEBUG_BUCKETS
 	fh_bstate_t	fh_state;
 	#endif
 
-	fh_bucket_t	*fh_tqe_next;		/* -1 when not in FIFO, 
-						   NULL when end of list,
-						   else next pointer in FIFO */
-	fh_bucket_t	**fh_tqe_prev;		/* refcount when not in FIFO,
-						   prev pointer otherwise    */
+	/* Region-specific additional fields: */
+	#ifdef FIREHOSE_REGION
+	size_t			len;
+	struct _fh_bucket_t	*bucket;	/* pointer to first bucket */
+
+	#ifdef FIREHOSE_CLIENT_T
+	firehose_client_t	client;
+	#endif /* CLIENT_T */
+	#endif /* REGION */
 };
 
+#define FH_KEYMAKE(addr,node)	(addr | node)
+#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
+#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 #define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
 
 /* Local and Remote buckets can be in various states.
@@ -126,6 +198,8 @@ struct _firehose_private_t {
  * Local buckets can be in either of these two states:
  *   1. in FIFO (fh_tqe_next != FH_USED_TAG)
  *   2. in USE  (fh_tqe_next == FH_USED_TAG)
+ * The NEW state indicates that the bucket is in the process of
+ * being pinned.
  *
  * Remote buckets can be in either of these three states 
  *   1. in USE  (fh_tqe_next == FH_USED_TAG)
@@ -133,7 +207,7 @@ struct _firehose_private_t {
  *      b) NOT PENDING (LOCAL refcount != FH_REMOTE_PENDING_TAG)
  *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
-#define FH_USED_TAG		((fh_bucket_t *) -1)
+#define FH_USED_TAG		((firehose_private_t *) -1)
 #define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
 
 #define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
@@ -150,48 +224,6 @@ struct _firehose_private_t {
 		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
 #define FH_UNSET_REMOTE_PENDING(priv)					\
 		(FH_BUCKET_REFC(priv)->refc_l = 0)
-
-#elif defined(FIREHOSE_REGION)
-
-/* Under firehose-region, the private type requires a client type to be inlined
- * if FIREHOSE_CLIENT_T is defined and the region's length to be specified (the
- * region's base address and destination node may be extracted from the pointer
- * to the first bucket of the region).
- *
- * Although all buckets covering pinned regions are hashed just as in
- * firehose-page, firehose-region additionally hashes the firehose_private_t
- * type.  
- */
-
-typedef
-struct _fh_bucket_t {
-        fh_int_t         fh_key;                 /* cached key for hash table */
-	#define FH_KEYMAKE(addr,node)	(addr | node)
-	#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
-	#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
-
-        void            *fh_next;		 /* linked list in hash table */
-						 /* _must_ be in this order */
-	fh_refc_t	refcounts;
-}
-fh_bucket_t;
-
-struct _firehose_private_t {
-	fh_int_t	fh_key;			/* cached key for hash table */
-	void		*fh_next;		/* linked list in hash table */
-						/* _must_ be in this order */
-
-	size_t		len;
-	fh_bucket_t	*bucket;		/* pointer to first bucket */
-
-	firehose_private_t *fh_tqe_next;	/* NULL when not in FIFO */
-	firehose_private_t **fh_tqe_prev;
-
-	#ifdef FIREHOSE_CLIENT_T
-	firehose_client_t	client;
-	#endif
-};
-#endif
 
 /*
  * Both -page and -region implement these functions.
@@ -214,51 +246,93 @@ void	fh_fini_plugin();
 #define FH_FLAG_PINNED	0x02
 #define FH_FLAG_PENDING 0x04
 
-			/* Allocate a request type                       */
-firehose_request_t *	fh_request_new(firehose_request_t *ureq);
-			/* Return the request type to the freelist       */
-void			fh_request_free(firehose_request_t *req);
-
 /* ##################################################################### */
 /* Firehose Hash Table Utility (COMMON, firehose_hash.c)                 */
-/* The hash table utility functions can be used for hashing buckets (and
- * regions in firehose-region                                            */
+/* The hash table utility functions can be used for hashing buckets and  */
+/* regions (in firehose-region).                                         */
 /* ##################################################################### */
 
 struct _fh_hash_t;
 typedef struct _fh_hash_t fh_hash_t;
 
-extern fh_hash_t	*fh_BucketTable;
-
 fh_hash_t *	fh_hash_create(size_t entries);
 void		fh_hash_destroy(fh_hash_t *hash);
 void *		fh_hash_find(fh_hash_t *hash, fh_int_t key);
 void *		fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval);
+void *		fh_hash_next(fh_hash_t *hash, void *val);
+void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 
 /* ##################################################################### */
-/* Bucket (local and remote) operations (COMMON, firehose.c)             */
+/* FIFO (local and remote) management operations (COMMON, firehose.c)    */
 /* ##################################################################### */
-		/* Initialize the bucket freelist */
-void		fh_bucket_init_freelist(int max_buckets_pinned);
-		/* Returns a descriptor given an existing bucket address */
-fh_bucket_t *	fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr);
-		/* Adds the bucket to the table and returns its desc.    */
-fh_bucket_t *	fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr);
-		/* Removes the bucket from the table                     */
-void		fh_bucket_remove(fh_bucket_t *);
+		/* Return a descriptor given an existing private_t */
+fh_refc_t *	fh_priv_release_local(int local_ref,
+				      firehose_private_t *);
+fh_refc_t *	fh_priv_release_remote(gasnet_node_t node,
+				       firehose_private_t *);
+		/* Acquire and exisiting private_t (increments refcount) */
+fh_refc_t *	fh_priv_acquire_local(int local_ref,
+				      firehose_private_t *);
+fh_refc_t *	fh_priv_acquire_remote(gasnet_node_t node,
+				       firehose_private_t *);
+		/* Wait for local firehoses to release/reuse */
+int		fh_WaitLocalFirehoses(int count, firehose_region_t *region);
+		/* Wait for remote firehoses to release/reuse */
+int		fh_WaitRemoteFirehoses(gasnet_node_t node, int count, 
+					firehose_region_t *region);
+		/* Adjust for possible overcommit and then pin */
+void		fh_AdjustLocalFifoAndPin(gasnet_node_t node,
+					firehose_region_t *reg_pin,
+					size_t pin_num);
 
-/* The following two functions are not common */
-		/* Releases the bucket (decrements the refcount)         */
-fh_refc_t *	fh_bucket_release(gasnet_node_t node, fh_bucket_t *);
-		/* Acquires the bucket (increments the refcount). _ONLY_ 
-		 * valid if the bucket already exists in the table       */
-fh_refc_t *	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
+
+/* ##################################################################### */
+/* fhi_RegionPool_t (COMMON, firehose.c)                                 */
+/* ##################################################################### */
+typedef
+struct _fhi_RegionPool_t {
+	/* 
+	 * Used internally 
+	 */ 
+	size_t		 		len;
+	struct _fhi_RegionPool_t	*fh_tqe_next;
+
+	/* 
+	 * User modifiable fields 
+	 */
+	firehose_region_t	*regions;
+	size_t			 regions_num;
+	size_t			 buckets_num;
+
+	/*
+	 * Pad the struct to inhibit false sharing
+	 */
+	uint8_t			 _pad[FH_CACHE_LINE_BYTES-
+				      3*sizeof(size_t)-2*sizeof(void*)];
+}
+fhi_RegionPool_t;
+
+/* Default size, in regions, of region pool entries */
+#if defined(FIREHOSE_PAGE)
+  /* Used to gather up to one region per page */
+  #define FH_REGIONPOOL_DEFAULT_COUNT	32768
+#elif defined(FIREHOSE_REGION)
+  /* Until page accounting is done, always use 1 region */
+  #define FH_REGIONPOOL_DEFAULT_COUNT	1
+#endif
+
+extern fhi_RegionPool_t * fhi_AllocRegionPool(int count);
+extern void fhi_FreeRegionPool(fhi_RegionPool_t *rpool);
 
 /* ##################################################################### */
 /* Misc functions (specific to page and region)                          */
 /* ##################################################################### */
-int	fh_region_ispinned(gasnet_node_t node, firehose_region_t *region);
-int	fh_region_partial(gasnet_node_t node, firehose_region_t *region);
+int	fh_region_ispinned(gasnet_node_t node, uintptr_t addr, size_t len);
+int	fh_region_partial(gasnet_node_t node, uintptr_t *addr_p, size_t *len_p);
+
+/* ##################################################################### */
+/* Misc functions (COMMON, firehose.c)                                   */
+/* ##################################################################### */
 unsigned long	fh_getenv(const char *var, unsigned long multiplier);
 
 /* Common Queue Macros for Firehose FIFO and Local Bucket FIFO */
@@ -316,9 +390,7 @@ struct name {				\
 	FH_STAILQ_LAST(head1) = FH_STAILQ_LAST(head2);			\
 } while (0)
 
-/* Double remove anywhere in the list.  The membar at the end prevents a
- * reordering bug that occurs on gcc when the optimizer has strict aliasing
- * enabled.  We are on the lookout to see if this happens elsewhere. */
+/* Double remove anywhere in the list */
 #define FH_TAILQ_REMOVE(head, elem) do {				\
 	if (FH_TAILQ_NEXT(elem) != NULL)				\
 		FH_TAILQ_PREV(FH_TAILQ_NEXT(elem)) = 			\
@@ -326,7 +398,6 @@ struct name {				\
 	else								\
 		FH_TAILQ_LAST(head) = FH_TAILQ_PREV(elem);		\
 	*(FH_TAILQ_PREV(elem)) = FH_TAILQ_NEXT(elem);			\
-	gasneti_local_membar();						\
 } while (0)
 
 /* Single remove from head only */
@@ -393,9 +464,7 @@ struct _fh_remote_callback_t {
 	size_t				 pin_list_num;
 	size_t				 reply_len;
 
-	/* Initiator's request_t */
-	firehose_request_t		*request;
-
+	void 				*context;
 }
 fh_remote_callback_t;
 
@@ -409,7 +478,7 @@ struct _fh_completion_callback_t {
 	void			*context;
 }
 fh_completion_callback_t;
-#define FH_COMPLETION_END	((fh_completion_callback_t *) -1)
+#define FH_COMPLETION_END	((fh_completion_callback_t *)(FH_USED_TAG))
 
 fh_completion_callback_t *	fh_alloc_completion_callback();
 void	fh_free_completion_callback(fh_completion_callback_t *rc);
@@ -418,21 +487,44 @@ void	fh_free_completion_callback(fh_completion_callback_t *rc);
 /* Firehose internal pinning functions                                   */
 /* ##################################################################### */
 /* See documentation in firehose_page.c                                  */
-void	fh_acquire_local_region(firehose_region_t *);
-void	fh_commit_try_local_region(firehose_region_t *);
+void	fh_acquire_local_region(firehose_request_t *);
+void	fh_commit_try_local_region(firehose_request_t *);
 void	fh_release_local_region(firehose_request_t *);
 
-firehose_request_t *	fh_acquire_remote_region(gasnet_node_t node, 
-				firehose_region_t *reg, 
+void	fh_acquire_remote_region(firehose_request_t *req,
 				firehose_completed_fn_t callback, 
 				void *context, uint32_t flags,
-		        	firehose_remotecallback_args_t *remote_args,
-				firehose_request_t *ureq);
-void			fh_commit_try_remote_region(gasnet_node_t node, 
-						    firehose_region_t *);
-void			fh_release_remote_region(firehose_request_t *);
+		        	firehose_remotecallback_args_t *remote_args);
+void	fh_commit_try_remote_region(firehose_request_t *);
+void	fh_release_remote_region(firehose_request_t *);
+void	fh_move_request(gasnet_node_t node,
+			firehose_region_t *new_reg, size_t r_new,
+			firehose_region_t *old_reg, size_t r_old,
+			void *context);
+int	fh_find_pending_callbacks(gasnet_node_t node,
+				  firehose_region_t *region,
+				  int nreg, void *context,
+				  fh_pollq_t *PendQ);
 
-void			fh_send_firehose_reply(fh_remote_callback_t *);
+
+/* ##################################################################### */
+/* Firehose AM-related things (page/region independent)                  */
+/* ##################################################################### */
+void fh_send_firehose_reply(fh_remote_callback_t *);
+extern gasnet_handlerentry_t fh_am_handlers[];
+/* Initial value of index for gasnet registration */
+#define _hidx_fh_am_move_reqh                   0
+#define _hidx_fh_am_move_reph                   0
+/* Index into the fh_am_handlers table to obtain the gasnet registered index */
+#define _fh_hidx_fh_am_move_reqh                0
+#define _fh_hidx_fh_am_move_reph                1
+#define fh_handleridx(reqh)     (fh_am_handlers[ _fh_hidx_ ## reqh ].index)
+
+/* ##################################################################### */
+/* FIFO (local and remote) management operations (page/region specific)  */
+/* ##################################################################### */
+int	fh_FreeVictim(int count, firehose_region_t *reg,
+			fh_fifoq_t *fifo_head);
 
 /* How many buffers (of buffers) to allocate to use as bucket descriptors in
  * hash table */
@@ -483,6 +575,11 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 #endif
 
 #if GASNET_TRACE
+/* XXX:
+ * FH_TRACE_BUCKET is currently broken in firehose-region because the
+ * macro FH_NODE is applied to a "private_t", which doesn't have the
+ * necessary node info in the key
+ */
 #define FH_TRACE_BUCKET(bd, bmsg) 					\
 	do {								\
 		char	msg[64];					\
@@ -504,10 +601,11 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 				    rp->refc_r, rp->refc_l);		\
 		}							\
 		GASNETI_TRACE_PRINTF(C,					\
-		    ("Firehose Bucket %s %s node=%d,addr=%p,%s",	\
-		     #bmsg, FH_NODE(bd) == fh_mynode ?	 		\
-		     "Local " : "Remote",				\
-		     FH_NODE(bd), FH_BADDR(bd), msg));			\
+		    ("Firehose Bucket %s %s node=%d,addr="              \
+		     GASNETI_LADDRFMT",%s", #bmsg,                      \
+		     FH_NODE(bd) == fh_mynode ? "Local " : "Remote",	\
+		     (int) FH_NODE(bd),                                 \
+		     GASNETI_LADDRSTR(FH_BADDR(bd)), msg));		\
 	} while (0)
 
 #define FH_NUMPINNED_DECL	int _fh_numpinned = 0

@@ -1,6 +1,6 @@
-/* $Id: testcore1.c,v 1.7.2.1 2003/10/27 13:04:21 bonachea Exp $
- * $Date: 2003/10/27 13:04:21 $
- * $Revision: 1.7.2.1 $
+/* $Id: testcore1.c,v 1.7.2.2 2004/03/29 17:46:42 bonachea Exp $
+ * $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.7.2.2 $
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  *
@@ -20,14 +20,14 @@
  * Steps 2 and 3 are puts for each other node.
  */
 
+#include <gasnet.h>
+#include <gasnet_tools.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <gasnet.h>
-#include <gasnet_tools.h>
 #include "test.h"
 
 #define DEBUG_TRACE

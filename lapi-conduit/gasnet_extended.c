@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/10/27 13:04:13 $
- * $Revision: 1.12.2.1 $
+/*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_extended.c                  $
+ *     $Date: 2004/03/29 17:46:26 $
+ * $Revision: 1.12.2.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,7 +24,7 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 static pthread_key_t gasnete_threaddata; /*  pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { 0xFF, 0xFF };
-
+extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /* ====================================================================
  * LAPI Structures and constants
@@ -77,7 +77,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 extern gasnete_threaddata_t *gasnete_mythread() {
     gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
     GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-    if_pt (threaddata) return threaddata;
+    if_pt (threaddata) {
+      gasneti_memcheck(threaddata);
+      return threaddata;
+    }
 
     /*  first time we've seen this thread - need to set it up */
     { int retval;
@@ -177,7 +180,6 @@ extern void gasnete_init() {
 #else
 	/* register only thread (required) */
 	threaddata = gasnete_new_threaddata();
-	gasnete_threadtable[0] = threaddata;
 #endif
 
 	/* cause the first pool of eops to be allocated (optimization) */
@@ -265,6 +267,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
 	    sleep(5);
 #endif
 
+            gasneti_memcheck(thread->eop_bufs[bufidx]);
 	    memset(seen, 0, 256*sizeof(int));
 	    for (i=0;i<(bufidx==255?255:256);i++) {                                   
 		gasnete_eop_t *eop;                                   
@@ -291,6 +294,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     if_pt (thread->iop_free) {
 	iop = thread->iop_free;
 	thread->iop_free = iop->next;
+        gasneti_memcheck(iop);
 	gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
 	gasneti_assert(iop->threadidx == thread->threadidx);
     } else {
@@ -303,6 +307,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 	iop->initiated_put_cnt = 0;
 	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->get_cntr,0));
 	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->put_cntr,0));
+        gasnete_iop_check(iop);
 	return iop;
 }
 
@@ -313,6 +318,7 @@ int gasnete_op_isdone(gasnete_op_t *op) {
     if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
 	gasnete_eop_t *eop = (gasnete_eop_t*)op;
 	gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
+        gasnete_eop_check(eop);
 	if (eop->initiated_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&cnt));
 	    gasneti_assert(cnt <= eop->initiated_cnt);
@@ -321,9 +327,10 @@ int gasnete_op_isdone(gasnete_op_t *op) {
     } else {
 	/* only call getcntr if we need to */
 	gasnete_iop_t *iop = (gasnete_iop_t*)op;
+        gasnete_iop_check(iop);
 	if (iop->initiated_get_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&iop->get_cntr,&cnt));
-	    gasneti_assert(cnt <= iop->initiated_put_cnt);
+	    gasneti_assert(cnt <= iop->initiated_get_cnt);
 	}
 	if (iop->initiated_get_cnt != cnt)
 	    return 0;
@@ -344,6 +351,7 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 	gasnete_eop_t *eop = (gasnete_eop_t *)op;
 	int cnt = 0;
 	gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
+        gasnete_eop_check(eop);
 	if (eop->initiated_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&cnt));
 	    gasneti_assert(eop->initiated_cnt == cnt);
@@ -362,11 +370,16 @@ void gasnete_op_free(gasnete_op_t *op) {
     if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 	gasnete_eop_t *eop = (gasnete_eop_t *)op;
 	gasnete_eopaddr_t addr = eop->addr;
+        /* DOB: OPSTATE_COMPLETE not currently used by lapi-conduit
+          gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);*/
+        gasnete_eop_check(eop);
 	SET_OPSTATE(eop, OPSTATE_FREE);
 	eop->addr = thread->eop_free;
 	thread->eop_free = addr;
     } else {
 	gasnete_iop_t *iop = (gasnete_iop_t *)op;
+        gasnete_iop_check(iop);
+        gasneti_assert(iop->next == NULL);
 	iop->next = thread->iop_free;
 	thread->iop_free = iop;
     }
@@ -872,6 +885,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src,
     if (mythread->valget_free) {
 	retval = mythread->valget_free;
 	mythread->valget_free = retval->next;
+        gasneti_memcheck(retval);
     } else {
 	retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
 	retval->threadidx = mythread->threadidx;
@@ -1158,10 +1172,27 @@ extern int gasnete_barrier_try(int id, int flags) {
 }
 /* ------------------------------------------------------------------------------------ */
 /*
+  Vector, Indexed & Strided:
+  =========================
+*/
+
+/* use reference implementation of scatter/gather and strided */
+#define GASNETI_GASNET_EXTENDED_VIS_C 1
+#include "gasnet_extended_refvis.c"
+#undef GASNETI_GASNET_EXTENDED_VIS_C
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Handlers:
   =========
 */
 static gasnet_handlerentry_t const gasnete_handlers[] = {
+  #ifdef GASNETE_REFBARRIER_HANDLERS
+    GASNETE_REFBARRIER_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFVIS_HANDLERS
+    GASNETE_REFVIS_HANDLERS(),
+  #endif
     /* ptr-width independent handlers */
 
     /* ptr-width dependent handlers */

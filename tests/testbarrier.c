@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testbarrier.c                             $
- *     $Date: 2002/12/19 18:31:54 $
- * $Revision: 1.5 $
+ *     $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.5.12.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,9 +11,9 @@
 #include <test.h>
 
 int main(int argc, char **argv) {
-  int mynode, iters=0;
+  int mynode, nodes, iters=0;
   int64_t start,total;
-  int i = 0;
+  int j, i = 0;
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
@@ -21,6 +21,7 @@ int main(int argc, char **argv) {
   MSG("running...");
 
   mynode = gasnet_mynode();
+  nodes = gasnet_nodes();
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;
 
@@ -60,6 +61,8 @@ int main(int argc, char **argv) {
         ((float)total)/1000000, ((float)total)/iters);
       fflush(stdout);
   }
+
+  BARRIER();
 
   MSG("done.");
 

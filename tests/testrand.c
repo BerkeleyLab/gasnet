@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testrand.c                                 $
- *     $Date: 2004/02/09 19:40:47 $
- * $Revision: 1.1 $
+ *     $Date: 2004/03/29 17:46:42 $
+ * $Revision: 1.1.6.1 $
  * Description: GASNet get/put performance test
  *   measures measures the total time to write to each page of the
  *   remote test segment, using blocking puts in a random order.

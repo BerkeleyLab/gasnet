@@ -1,6 +1,6 @@
 #  $Archive:: /Ti/AMMPI/Makefile.common                                  $
-#     $Date: 2004/03/18 12:07:32 $
-# $Revision: 1.5 $
+#     $Date: 2004/03/29 17:46:32 $
+# $Revision: 1.5.4.1 $
 # Description: Platform-independent variable init, overridden by pre-baked makefiles
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/10/27 13:04:23 $
- * $Revision: 1.8.2.1 $
+ *     $Date: 2004/03/29 17:46:46 $
+ * $Revision: 1.8.2.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,6 +24,11 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
   static pthread_key_t gasnete_threaddata; /*  pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
+extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
+
+#if !defined(GASNETC_PIN_SEGMENT) && GASNETE_MEMSET_PUT_LIMIT
+  #error "GASNETE_MEMSET_PUT_LIMIT must be zero when GASNETC_PIN_SEGMENT is disabled"
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -61,7 +66,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   extern gasnete_threaddata_t *gasnete_mythread() {
     gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
     GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-    if_pt (threaddata) return threaddata;
+    if_pt (threaddata) {
+      gasneti_memcheck(threaddata);
+      return threaddata;
+    }
 
     /*  first time we've seen this thread - need to set it up */
     { int retval;
@@ -91,7 +99,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(!gasnete_eopaddr_equal(thread->eop_free,head));
     gasneti_assert(eop->threadidx == thread->threadidx);
     gasneti_assert(eop->type == gasnete_opExplicit);
-    gasneti_assert(gasneti_atomic_read(&(eop->req_oust)) == 0);
+    gasneti_assert(gasnetc_counter_done(&(eop->req_oust)));
     return eop;
   } else { /*  free list empty - need more eops */
     int bufidx = thread->eop_num_bufs;
@@ -119,7 +127,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
       buf[i].addr = addr;
       #if 0 /* this can safely be skipped when values are zero */
         buf[i].type = gasnete_opExplicit; 
-        gasneti_atomic_set(&(buf[i].req_oust), 0);
+        gasnetc_atomic_set(&(buf[i].req_oust), 0);
       #endif
     }
      /*  add a list terminator */
@@ -151,13 +159,14 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
         sleep(5);
       #endif
 
+      gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
       for (i=0;i<(bufidx==255?255:256);i++) {                                   
         gasnete_eop_t *eop;                                   
         gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
         eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
         gasneti_assert(eop->type == gasnete_opExplicit);               
-        gasneti_assert(gasneti_atomic_read(&(eop->req_oust)) == 0);
+        gasneti_assert(gasnetc_counter_done(&(eop->req_oust)));
         gasneti_assert(eop->threadidx == threadidx);                  
         gasneti_assert(addr.bufferidx == bufidx);
         gasneti_assert(!seen[addr.eopidx]);/* see if we hit a cycle */
@@ -177,18 +186,20 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   if_pt (thread->iop_free) {
     iop = thread->iop_free;
     thread->iop_free = iop->next;
+    gasneti_memcheck(iop);
     gasneti_assert(iop->type == gasnete_opImplicit);
     gasneti_assert(iop->threadidx == thread->threadidx);
-    gasneti_assert(gasneti_atomic_read(&(iop->get_req_oust)) == 0);
-    gasneti_assert(gasneti_atomic_read(&(iop->put_req_oust)) == 0);
+    gasneti_assert(gasnetc_counter_done(&(iop->get_req_oust)));
+    gasneti_assert(gasnetc_counter_done(&(iop->put_req_oust)));
   } else {
     iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
     iop->type = gasnete_opImplicit;
     iop->threadidx = thread->threadidx;
-    gasneti_atomic_set(&(iop->get_req_oust), 0);
-    gasneti_atomic_set(&(iop->put_req_oust), 0);
+    gasnetc_counter_reset(&(iop->get_req_oust));
+    gasnetc_counter_reset(&(iop->put_req_oust));
   }
   iop->next = NULL;
+  gasnete_iop_check(iop);
   return iop;
 }
 
@@ -197,8 +208,8 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
   gasnete_eopaddr_t addr = eop->addr;
   gasneti_assert(thread == gasnete_mythread());
-  gasneti_assert(eop->type == gasnete_opExplicit);
-  gasneti_assert(gasneti_atomic_read(&(eop->req_oust)) == 0);
+  gasnete_eop_check(eop);
+  gasneti_assert(gasnetc_counter_done(&(eop->req_oust)));
   eop->addr = thread->eop_free;
   thread->eop_free = addr;
 }
@@ -207,9 +218,9 @@ GASNET_INLINE_MODIFIER(gasnete_iop_free)
 void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
-  gasneti_assert(iop->type == gasnete_opImplicit);
-  gasneti_assert(gasneti_atomic_read(&(iop->get_req_oust)) == 0);
-  gasneti_assert(gasneti_atomic_read(&(iop->put_req_oust)) == 0);
+  gasnete_iop_check(iop);
+  gasneti_assert(gasnetc_counter_done(&(iop->get_req_oust)));
+  gasneti_assert(gasnetc_counter_done(&(iop->put_req_oust)));
   iop->next = thread->iop_free;
   thread->iop_free = iop;
 }
@@ -217,15 +228,15 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
 /* query an eop for completeness */
 GASNET_INLINE_MODIFIER(gasnete_eop_test)
 int gasnete_eop_test(gasnete_eop_t *eop) {
-  gasneti_assert(eop->type == gasnete_opExplicit);
-  return gasnetc_counter_test(&eop->req_oust);
+  gasnete_eop_check(eop);
+  return gasnetc_counter_done(&eop->req_oust);
 }
 
 /* query an iop for completeness - this means both puts and gets */
 GASNET_INLINE_MODIFIER(gasnete_iop_test)
 int gasnete_iop_test(gasnete_iop_t *iop) {
-  gasneti_assert(iop->type == gasnete_opImplicit);
-  return (gasnetc_counter_test(&(iop->get_req_oust)) && gasnetc_counter_test(&(iop->put_req_oust)));
+  gasnete_iop_check(iop);
+  return (gasnetc_counter_done(&(iop->get_req_oust)) && gasnetc_counter_done(&(iop->put_req_oust)));
 }
 
 /*  query an op for completeness 
@@ -285,8 +296,8 @@ int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
 /* Reply handler to complete an op - might be replaced w/ IB atomics one day */
 GASNET_INLINE_MODIFIER(gasnete_done_reph_inner)
 void gasnete_done_reph_inner(gasnet_token_t token, void *counter) {
-  gasneti_assert(gasneti_atomic_read((gasneti_atomic_t *)counter) > 0);
-  gasneti_atomic_decrement((gasneti_atomic_t *)counter);
+  gasneti_assert(!gasnetc_counter_done((gasnetc_counter_t *)counter));
+  gasnetc_counter_dec((gasnetc_counter_t *)counter);
 }
 SHORT_HANDLER(gasnete_done_reph,1,2,
               (token, UNPACK(a0)    ),
@@ -367,7 +378,6 @@ extern void gasnete_init() {
     #else
       /* register only thread (required) */
       threaddata = gasnete_new_threaddata();
-      gasnete_threadtable[0] = threaddata;
     #endif
 
     /* cause the first pool of eops to be allocated (optimization) */
@@ -470,7 +480,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
-  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
 
   /* XXX check error returns */
   gasnetc_rdma_put(node, src, dest, nbytes, &mem_oust, &eop->req_oust);
@@ -495,7 +505,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     /* XXX check error returns */
     gasnetc_rdma_memset(node, dest, val, nbytes, &eop->req_oust);
   } else {
-    gasneti_atomic_increment(&eop->req_oust);
+    gasnetc_counter_inc(&eop->req_oust);
     GASNETE_SAFE(
       SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
                    (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
@@ -592,7 +602,7 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t n
   
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
-  gasneti_atomic_t mem_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
 
   /* XXX check error returns */ 
   gasnetc_rdma_put(node, src, dest, nbytes, &mem_oust, &iop->put_req_oust);
@@ -615,7 +625,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
     /* XXX check error returns */
     gasnetc_rdma_memset(node, dest, val, nbytes, &iop->put_req_oust);
   } else {
-    gasneti_atomic_increment(&iop->put_req_oust);
+    gasnetc_counter_inc(&iop->put_req_oust);
     GASNETE_SAFE(
       SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
                    (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
@@ -639,7 +649,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
   #endif
 
-  return gasnetc_counter_test(&iop->get_req_oust) ? GASNET_OK: GASNET_ERR_NOT_READY;
+  return gasnetc_counter_done(&iop->get_req_oust) ? GASNET_OK: GASNET_ERR_NOT_READY;
 }
 
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
@@ -652,7 +662,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
   #endif
 
-  return gasnetc_counter_test(&iop->put_req_oust) ? GASNET_OK: GASNET_ERR_NOT_READY;
+  return gasnetc_counter_done(&iop->put_req_oust) ? GASNET_OK: GASNET_ERR_NOT_READY;
 }
 
 extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
@@ -700,7 +710,7 @@ extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE
 extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
-  GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,gasneti_atomic_read(&iop->get_req_oust) + gasneti_atomic_read(&iop->put_req_oust));
+  GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,gasnetc_counter_val(&iop->get_req_oust) + gasnetc_counter_val(&iop->put_req_oust));
   #if GASNET_DEBUG
     if (iop == mythread->default_iop)
       gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion() outside access region");
@@ -717,27 +727,27 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 
 extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
-  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_get(node, src, dest, nbytes, &req_oust);
   gasnetc_counter_wait(&req_oust, 0);
 }
 
 extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
-  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
   gasnetc_counter_wait(&req_oust, 0);
 }   
 
 extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
 		            size_t nbytes GASNETE_THREAD_FARG) {
-  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
 
   if ((GASNETE_MEMSET_PUT_LIMIT != 0 ) && (nbytes <= GASNETE_MEMSET_PUT_LIMIT)) {
     /* XXX check error returns */
     gasnetc_rdma_memset(node, dest, val, nbytes, &req_oust);
   } else {
-    gasneti_atomic_increment(&req_oust);
+    gasnetc_counter_inc(&req_oust);
     GASNETE_SAFE(
       SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
                    (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
@@ -767,6 +777,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   if (mythread->valget_free) {
     retval = mythread->valget_free;
     mythread->valget_free = retval->next;
+    gasneti_memcheck(retval);
   } else {
     retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
     retval->threadidx = mythread->threadidx;
@@ -801,180 +812,40 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   Barriers:
   =========
 */
-/*  TODO: optimize this */
-/*  a silly, centralized barrier implementation:
-     everybody sends notifies to a single node, where we count them up
-     central node eventually notices the barrier is complete (probably
-     when it calls wait) and then it broadcasts the completion to all the nodes
-    The main problem is the need for the master to call wait before the barrier can
-     make progress - we really need a way for the "last thread" to notify all 
-     the threads when completion is detected, but AM semantics don't provide a 
-     simple way to do this.
-    The centralized nature also makes it non-scalable - we really want to use 
-     a tree-based barrier or pairwise exchange algorithm for scalability
-     (but these impose even greater potential delays due to the lack of attentiveness to
-     barrier progress)
- */
 
-static enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate = OUTSIDE_BARRIER;
-static int volatile barrier_value; /*  local barrier value */
-static int volatile barrier_flags; /*  local barrier flags */
-static int volatile barrier_phase = 0;  /*  2-phase operation to improve pipelining */
-static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete */
-static int volatile barrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
-#if GASNETI_STATS_OR_TRACE
-  static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
-#endif
+/* use reference implementation of barrier */
+#define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#define gasnete_refbarrier_notify  gasnete_barrier_notify
+#define gasnete_refbarrier_wait    gasnete_barrier_wait
+#define gasnete_refbarrier_try     gasnete_barrier_try
+#include "gasnet_extended_refbarrier.c"
+#undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 
-/*  global state on P0 */
-#define GASNETE_BARRIER_MASTER (gasnete_nodes-1)
-static gasnet_hsl_t barrier_lock = GASNET_HSL_INITIALIZER;
-static int volatile barrier_consensus_value[2]; /*  consensus barrier value */
-static int volatile barrier_consensus_value_present[2] = { 0, 0 }; /*  consensus barrier value found */
-static int volatile barrier_consensus_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
-static int volatile barrier_count[2] = { 0, 0 }; /*  count of how many remotes have notified (on P0) */
+/* ------------------------------------------------------------------------------------ */
+/*
+  Vector, Indexed & Strided:
+  =========================
+*/
 
-static void gasnete_barrier_notify_reqh(gasnet_token_t token, 
-  gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  gasneti_assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
+/* use reference implementation of scatter/gather and strided */
+#define GASNETI_GASNET_EXTENDED_VIS_C 1
+#include "gasnet_extended_refvis.c"
+#undef GASNETI_GASNET_EXTENDED_VIS_C
 
-  gasnet_hsl_lock(&barrier_lock);
-  { int count = barrier_count[phase];
-    if (flags == 0 && !barrier_consensus_value_present[phase]) {
-      barrier_consensus_value[phase] = (int)value;
-      barrier_consensus_value_present[phase] = 1;
-    } else if (flags == GASNET_BARRIERFLAG_MISMATCH ||
-               (flags == 0 && barrier_consensus_value[phase] != (int)value)) {
-      barrier_consensus_mismatch[phase] = 1;
-    }
-    count++;
-    if (count == gasnete_nodes) gasneti_memsync(); /* about to signal, ensure we flush state */
-    barrier_count[phase] = count;
-  }
-  gasnet_hsl_unlock(&barrier_lock);
-}
-
-static void gasnete_barrier_done_reqh(gasnet_token_t token, 
-  gasnet_handlerarg_t phase,  gasnet_handlerarg_t mismatch) {
-  gasneti_assert(phase == barrier_phase);
-
-  barrier_response_mismatch[phase] = mismatch;
-  gasneti_memsync();
-  barrier_response_done[phase] = 1;
-}
-
-/*  make some progress on the barrier */
-static void gasnete_barrier_kick() {
-  int phase = barrier_phase;
-  GASNETE_SAFE(gasnet_AMPoll());
-
-  if (gasnete_mynode != GASNETE_BARRIER_MASTER) return;
-
-  /*  master does all the work */
-  if (barrier_count[phase] == gasnete_nodes) {
-    /*  barrier is complete */
-    int i;
-    int mismatch = barrier_consensus_mismatch[phase];
-
-    /*  inform the nodes */
-    for (i=0; i < gasnete_nodes; i++) {
-      GASNETE_SAFE(
-        gasnet_AMRequestShort2(i, gasneti_handleridx(gasnete_barrier_done_reqh), 
-                             phase, mismatch));
-    }
-
-    /*  reset state */
-    barrier_count[phase] = 0;
-    barrier_consensus_mismatch[phase] = 0;
-    barrier_consensus_value_present[phase] = 0;
-  }
-}
-
-extern void gasnete_barrier_notify(int id, int flags) {
-  int phase;
-  if_pf(barrier_splitstate == INSIDE_BARRIER) 
-    gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
-
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if GASNETI_STATS_OR_TRACE
-    barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
-  #endif
-
-  barrier_value = id;
-  barrier_flags = flags;
-  phase = !barrier_phase; /*  enter new phase */
-  barrier_phase = phase;
-
-  if (gasnete_nodes > 1) {
-    /*  send notify msg to 0 */
-    GASNETE_SAFE(
-      gasnet_AMRequestShort3(GASNETE_BARRIER_MASTER, gasneti_handleridx(gasnete_barrier_notify_reqh), 
-                           phase, barrier_value, flags));
-  } else {
-    barrier_response_mismatch[phase] = (flags & GASNET_BARRIERFLAG_MISMATCH);
-    barrier_response_done[phase] = 1;
-  }
-
-  /*  update state */
-  barrier_splitstate = INSIDE_BARRIER;
-  gasneti_memsync(); /* ensure all state changes committed before return */
-}
-
-
-extern int gasnete_barrier_wait(int id, int flags) {
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
-  #endif
-  int phase = barrier_phase;
-  if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
-    gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW()-barrier_notifytime);
-
-  /*  wait for response */
-  while (!barrier_response_done[phase]) {
-    gasnete_barrier_kick();
-  }
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
-
-  /*  update state */
-  barrier_splitstate = OUTSIDE_BARRIER;
-  barrier_response_done[phase] = 0;
-  gasneti_memsync(); /* ensure all state changes committed before return */
-  if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
-        flags != barrier_flags || 
-        barrier_response_mismatch[phase]) {
-        barrier_response_mismatch[phase] = 0;
-        return GASNET_ERR_BARRIER_MISMATCH;
-  }
-  else return GASNET_OK;
-}
-
-extern int gasnete_barrier_try(int id, int flags) {
-  if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
-    gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
-
-  gasnete_barrier_kick();
-
-  if (barrier_response_done[barrier_phase]) {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
-    return gasnete_barrier_wait(id, flags);
-  }
-  else {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,0);
-    return GASNET_ERR_NOT_READY;
-  }
-}
 /* ------------------------------------------------------------------------------------ */
 /*
   Handlers:
   =========
 */
 static gasnet_handlerentry_t const gasnete_handlers[] = {
+  #ifdef GASNETE_REFBARRIER_HANDLERS
+    GASNETE_REFBARRIER_HANDLERS(),
+  #endif
+  #ifdef GASNETE_REFVIS_HANDLERS
+    GASNETE_REFVIS_HANDLERS(),
+  #endif
+
   /* ptr-width independent handlers */
-  gasneti_handler_tableentry_no_bits(gasnete_barrier_notify_reqh),
-  gasneti_handler_tableentry_no_bits(gasnete_barrier_done_reqh),
 
   /* ptr-width dependent handlers */
   gasneti_handler_tableentry_with_bits(gasnete_done_reph),

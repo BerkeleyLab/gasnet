@@ -1,133 +1,88 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v 1.13 2003/08/25 09:52:21 bonachea Exp $
-# Description: Makefile for GASNet MPI conduit
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v 1.13.2.1 2004/03/29 17:46:28 bonachea Exp $
+# Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
 
-thread_defines = @GASNET_THREAD_DEFINES@
+CONDUIT_NAME=mpi
 
-INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir)        \
-           -I$(top_srcdir)/extended-ref -I$(top_srcdir)/other/ammpi 
-	   
+# any conduit-specific subdirectories containing Makefile.am's
+SUBDIRS = contrib
 
-filelist =                   \
+# complete list of files in the conduit directory
+# include all headers, documentation, etc. 
+# and any subdirectories not containing Makefile.am's
+CONDUIT_FILELIST =           \
       gasnet_core.c          \
       gasnet_core.h          \
       gasnet_core_fwd.h      \
       gasnet_core_help.h     \
-      gasnet_core_internal.h 
+      gasnet_core_internal.h \
+      README
 
-othersourcefiles =                             \
-      $(top_srcdir)/gasnet_internal.c          \
+# list of conduit core and extended .c source files 
+# to be compiled into libgasnet on the compiler command line
+CONDUIT_SOURCELIST =          \
+      $(srcdir)/gasnet_core.c \
       $(top_srcdir)/extended-ref/gasnet_extended.c 
 
-EXTRA_DIST = $(filelist) \
-	README
+# additional -I or -D directives needed by this specific conduit
+# other than the standard GASNet includes and flags
+CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi
 
-libgasnet_sources = $(srcdir)/gasnet_core.c     \
-		    $(othersourcefiles)
+# additional conduit header files to install from external, non-standard directories
+CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h 
 
-libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
-                         $(top_srcdir)/*.[ch]             \
-                         $(top_srcdir)/extended-ref/*.h   \
-			 $(top_srcdir)/other/ammpi/*.h
+# additional file dependencies not mentioned elsewhere 
+# that should force libgasnet rebuild on update
+CONDUIT_EXTRADEPS = $(top_builddir)/other/ammpi/libammpi.a
 
-libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o
+$(top_builddir)/other/ammpi/libammpi.a:
+	$(MAKE) -C $(top_builddir)/other/ammpi libammpi.a
+
+# additional object files to be included in libgasnet that need to be compiled 
+# using a special, conduit-specific command. These should also be included as
+# forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
+CONDUIT_SPECIAL_OBJS = 
+
+# the default job spawn command to be used for "make run-tests"
+# The following substitutions are performed:
+#   %P = program executable name
+#   %N = requested node count
+#   %A = program arguments
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N %P %A
+
+# -------- Do not modify anything below this line --------
 
 if HAVE_PTHREAD
-threaded_libraries = libgasnet-mpi-par.a libgasnet-mpi-parsync.a
 libgasnet_mpi_par_a_SOURCES =
 libgasnet_mpi_parsync_a_SOURCES =
+threaded_libraries = libgasnet-mpi-par.a libgasnet-mpi-parsync.a
 endif
-libraries = libgasnet-mpi-seq.a $(threaded_libraries)
 libgasnet_mpi_seq_a_SOURCES =
+libraries = libgasnet-mpi-seq.a $(threaded_libraries)
 
-VPATH=$(srcdir)
-
-LIBCFLAGS = @CFLAGS@ @MISC_CFLAGS@ @BUILDCONFIG_DEFINES@ @GASNET_MACHINE_DEFINES@ $(INCLUDES)
+include $(top_builddir)/other/Makefile-conduit.mak
 
 libgasnet-mpi-seq.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_SEQ -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+	@$(MAKE) do-libgasnet-seq
 
 libgasnet-mpi-par.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_PAR $(thread_defines) -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+	@$(MAKE) do-libgasnet-par
 
 libgasnet-mpi-parsync.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_PARSYNC $(thread_defines) -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+	@$(MAKE) do-libgasnet-parsync
 
-.PHONY: all libs clean-local install-data-local uninstall-local tests force tests-seq tests-par tests-parsync
-
-
-libs: $(libraries)
-	
-if USE_MPI_CONDUIT                           
-lib_LIBRARIES = $(libraries)
-
-all: libs $(makefile_fragments)
-	
-clean-local: 
-	rm -f $(libgasnet_objects) $(libraries) *.o core
-	@$(MAKE) -f $(top_builddir)/tests/Makefile clean     \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="/dev/null"
-
-headers = $(srcdir)/*.h $(top_srcdir)/extended-ref/*.h $(top_srcdir)/other/ammpi/ammpi*.h 
-makefile_fragments = mpi-seq.mak mpi-parsync.mak mpi-par.mak
-
-install-data-local: $(headers)
-	$(mkinstalldirs) $(includedir)/mpi-conduit
-	@list='$(headers)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    filename=`basename $$p`; \
-	    echo " $(INSTALL_DATA) $$p $(includedir)/mpi-conduit/$$filename"; \
-	    $(INSTALL_DATA) $$p $(includedir)/mpi-conduit/$$filename; \
-	  else :; fi; \
-	done
-	@list='$(makefile_fragments)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(includedir)/mpi-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(includedir)/mpi-conduit/$$filename; \
-	  else :; fi; \
-	done
-
-
-uninstall-local:
-	rm -f $(includedir)/mpi-conduit/*.h $(includedir)/mpi-conduit/*.mak
-
+if USE_MPI_CONDUIT  
+lib_LIBRARIES = $(libraries) 
+all: do-all
+clean-local: do-clean-local
+install-data-local: do-install-data-local
+uninstall-local: do-uninstall-local
+else
+$(top_srcdir)/gasnet.h: do-error
 endif
-
-tests:
-	@echo You must specify one of tests-seq, tests-par or tests-parsync
-	@exit 1
-
-tests-seq: force libgasnet-mpi-seq.a mpi-seq.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-seq \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="mpi-seq.mak"
-
-tests-parsync: force libgasnet-mpi-parsync.a mpi-parsync.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="mpi-parsync.mak"
-
-tests-par: force libgasnet-mpi-par.a mpi-par.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="mpi-par.mak"
-
-force:
-	
 
 
