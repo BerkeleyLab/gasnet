@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/24 17:31:23 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2003/06/24 20:48:08 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -458,8 +458,7 @@ void gasnetc_rcv_reap(int limit) {
       if (comp.status == VAPI_SUCCESS) {
         gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp.id;
 	uint32_t flags = comp.imm_data;
-	gasnet_node_t src = GASNETC_MSG_SRCIDX(flags);
-	gasnetc_cep_t *cep = &gasnetc_cep[src];
+	gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
 
         #if GASNETC_AM_FLOWCTRL
           if (GASNETC_MSG_ISREPLY(flags)) {
@@ -475,7 +474,7 @@ void gasnetc_rcv_reap(int limit) {
 
             if (needReply) {
 	      int retval;
-              retval = gasnetc_ReplySystem(src, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
+              retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
 	      assert(retval == GASNET_OK);
             }
 	  }
@@ -895,11 +894,17 @@ extern int gasnetc_RequestSystem(gasnet_node_t dest,
   return retval;
 }
 
-extern int gasnetc_ReplySystem(gasnet_node_t dest,
+extern int gasnetc_ReplySystem(gasnet_token_t token,
                                gasnet_handler_t handler,
                                int numargs, ...) {
+  gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
   int retval;
   va_list argptr;
+  gasnet_node_t dest;
+
+  assert(rbuf);
+
+  dest = GASNETC_MSG_SRCIDX(rbuf->flags);
 
   GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs);
 
