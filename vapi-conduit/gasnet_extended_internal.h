@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/09/06 02:22:34 $
- * $Revision: 1.8 $
+ *     $Date: 2003/10/24 21:27:42 $
+ * $Revision: 1.8.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,7 @@
 #include <gasnet_internal.h>
 
 /* Tune cut-off between PUTs and AMs for memset, 0 disables PUTs */
-#if defined(GASNET_SEGMENT_FAST)
+#if GASNET_SEGMENT_FAST
   #define GASNETE_MEMSET_PUT_LIMIT        GASNETC_BUFSZ
 #else
   #define GASNETE_MEMSET_PUT_LIMIT        0
@@ -96,10 +96,10 @@ typedef struct _gasnete_threaddata_t {
 /*  get a new op */
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t *thread);
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
-#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)            \
-      (assert(threaddata),                                     \
-       assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
-       assert(!gasnete_eopaddr_isnil(eopaddr)),                \
+#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                    \
+      (gasneti_assert(threaddata),                                     \
+       gasneti_assert((eopaddr).bufferidx<(threaddata)->eop_num_bufs), \
+       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                \
        (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
 
 /*  1 = scatter newly allocated eops across cache lines to reduce false sharing */

@@ -114,7 +114,7 @@ extern int	*fhc_RemoteVictimFifoBuckets;
 #define FH_SIZE_ALIGN(addr,len)	(GASNETI_ALIGNUP(addr+len, FH_BUCKET_SIZE)-\
 				 GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE))
 #define FH_NUM_BUCKETS(addr,len)(FH_SIZE_ALIGN(addr,len)>>FH_BUCKET_SHIFT)
-#define FH_ASSERT_BUCKET_ADDR(bucket) (assert((bucket) % FH_BUCKET_SIZE == 0))
+#define FH_ASSERT_BUCKET_ADDR(bucket) (gasneti_assert((bucket) % FH_BUCKET_SIZE == 0))
 
 /* fh_bucket_t
  *
@@ -150,7 +150,7 @@ fh_refc_t;
 #ifdef DEBUG_BUCKETS
   typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused }
   fh_bstate_t;
-  #define FH_BSTATE_ASSERT(entry, state) assert((entry)->fh_state == state)
+  #define FH_BSTATE_ASSERT(entry, state) gasneti_assert((entry)->fh_state == state)
   #define FH_BSTATE_SET(entry, state)	 (entry)->fh_state = state
   #else
   #define FH_BSTATE_ASSERT(entry, state)
@@ -548,7 +548,7 @@ int	fh_FreeVictim(int count, firehose_region_t *reg,
 	} while (0)
 #endif
 
-#ifdef TRACE
+#if GASNET_TRACE
 #define FH_TRACE_BUCKET(bd, bmsg) 					\
 	do {								\
 		char	msg[64];					\

@@ -85,7 +85,7 @@ static gasnet_handlerentry_t fh_am_handlers[];
 GASNET_INLINE_MODIFIER(fh_region_end)
 uintptr_t fh_region_end(const firehose_region_t *region)
 {
-	assert(region != NULL);
+	gasneti_assert(region != NULL);
 	return (region->addr + (region->len - 1));
 }
 
@@ -93,7 +93,7 @@ uintptr_t fh_region_end(const firehose_region_t *region)
 GASNET_INLINE_MODIFIER(fh_req_end)
 uintptr_t fh_req_end(const firehose_request_t *req)
 {
-	assert(req != NULL);
+	gasneti_assert(req != NULL);
 	return (req->addr + (req->len - 1));
 }
 
@@ -101,7 +101,7 @@ uintptr_t fh_req_end(const firehose_request_t *req)
 GASNET_INLINE_MODIFIER(fh_priv_end)
 uintptr_t fh_priv_end(const firehose_private_t *priv)
 {
-	assert(priv != NULL);
+	gasneti_assert(priv != NULL);
 	return (FH_BADDR(priv) + (priv->len - 1));
 }
 
@@ -109,7 +109,7 @@ uintptr_t fh_priv_end(const firehose_private_t *priv)
 GASNET_INLINE_MODIFIER(fh_bucket_end)
 uintptr_t fh_bucket_end(const fh_bucket_t *bucket)
 {
-	assert(bucket != NULL);
+	gasneti_assert(bucket != NULL);
 	return fh_priv_end(bucket->priv);
 }
 
@@ -123,11 +123,11 @@ int fh_bucket_is_better(const fh_bucket_t *a, const fh_bucket_t *b)
 {
   uintptr_t end_a, end_b;
 
-  assert(a != NULL);
-  assert(a->priv != NULL);
-  assert(b != NULL);
-  assert(b->priv != NULL);
-  assert(a->fh_key == b->fh_key);
+  gasneti_assert(a != NULL);
+  gasneti_assert(a->priv != NULL);
+  gasneti_assert(b != NULL);
+  gasneti_assert(b->priv != NULL);
+  gasneti_assert(a->fh_key == b->fh_key);
 
   end_a = fh_bucket_end(a);
   end_b = fh_bucket_end(b);
@@ -183,7 +183,7 @@ fh_bucket_hash(fh_bucket_t *bucket, fh_int_t key)
 	fh_hash_t *hash;
 
         FH_TABLE_ASSERT_LOCKED;
-	assert(bucket != NULL);
+	gasneti_assert(bucket != NULL);
 
 	bucket->fh_key = key;
 	hash = fh_BucketTable1;
@@ -210,7 +210,7 @@ fh_bucket_unhash(fh_bucket_t *bucket)
     fh_int_t key;
 
     FH_TABLE_ASSERT_LOCKED;
-    assert(bucket != NULL);
+    gasneti_assert(bucket != NULL);
 
     key = bucket->fh_key;
 
@@ -284,7 +284,7 @@ fh_destroy_priv(firehose_private_t *priv)
 
     /* Unhash & free all the buckets */
     bucket = priv->bucket;
-    assert(bucket != 0);
+    gasneti_assert(bucket != 0);
     do {
 	fh_bucket_t *next = bucket->next;
         fh_bucket_unhash(bucket);
@@ -306,9 +306,9 @@ fh_commit_region(firehose_request_t *req)
 
     /* We *MUST* be commiting the most recent lookup */
     priv = fhi_lookup_cache;
-    assert(priv != NULL);
-    assert(req->addr >= FH_BADDR(priv));
-    assert(fh_req_end(req) <= fh_priv_end(priv));
+    gasneti_assert(priv != NULL);
+    gasneti_assert(req->addr >= FH_BADDR(priv));
+    gasneti_assert(fh_req_end(req) <= fh_priv_end(priv));
 
     fh_priv_acquire(fh_mynode, priv);
     CP_PRIV_TO_REQ(req, priv);
@@ -328,7 +328,7 @@ fhi_remove_from_fifo(firehose_region_t *reg, firehose_private_t *priv,
 
 /* Look for opportunities to merge adjacent pinned regions.
  */
-int
+void
 fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
 {
     uintptr_t	addr = pin_region->addr;
@@ -344,9 +344,9 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
 	bd = fh_bucket_lookup(node, addr - FH_BUCKET_SIZE);
 	if (bd != NULL) {
 
-	    assert(bd->priv != NULL);
-	    assert(fh_priv_end(bd->priv) >= (addr - 1));
-	    assert(fh_priv_end(bd->priv) < (addr + (len - 1)));
+	    gasneti_assert(bd->priv != NULL);
+	    gasneti_assert(fh_priv_end(bd->priv) >= (addr - 1));
+	    gasneti_assert(fh_priv_end(bd->priv) < (addr + (len - 1)));
 
 	    extend = MIN(addr - FH_BADDR(bd), space_avail);
 	    addr -= extend;
@@ -364,7 +364,7 @@ fhi_merge_regions(gasnet_node_t node, firehose_region_t *pin_region)
 	if (bd != NULL) {
 	    uintptr_t end_addr = fh_priv_end(bd->priv) + 1;
 
-	    assert(end_addr > next_addr);
+	    gasneti_assert(end_addr > next_addr);
 	    extend = end_addr - next_addr;
 
 	    /* only accept complete coverage */
@@ -397,7 +397,7 @@ fh_FreeVictim(int count, firehose_region_t *reg, fh_fifoq_t *fifo_head)
 	FH_TABLE_ASSERT_LOCKED;
 
 	/* XXX/PHH FOR NOW... */
-	assert(count == 1);
+	gasneti_assert(count == 1);
 
 	/* There must be enough buckets in the victim FIFO to unpin.  This
 	 * criteria should always hold true per the constraints on
@@ -407,7 +407,7 @@ fh_FreeVictim(int count, firehose_region_t *reg, fh_fifoq_t *fifo_head)
 
 		fhi_remove_from_fifo(&reg[i], priv, fifo_head);
 	}
-	assert(count == i);
+	gasneti_assert(count == i);
 	return i;
 }
 
@@ -477,11 +477,12 @@ fh_acquire_local_region(firehose_request_t *req)
     firehose_private_t *priv;
     int retval = 0;
 
-    assert(req != NULL);
-    assert(req->node == fh_mynode);
+    gasneti_assert(req != NULL);
+    gasneti_assert(req->node == fh_mynode);
 
     /* Make sure the size of the region respects the local limits */
-    assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_MaxVictimBuckets);
+    gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
+		    				<= fhc_MaxVictimBuckets);
     FH_TABLE_ASSERT_LOCKED;
 
     bd = fh_bucket_lookup(fh_mynode, req->addr);
@@ -506,7 +507,7 @@ fh_acquire_local_region(firehose_request_t *req)
 	fhi_merge_regions(fh_mynode, &pin_region);
 
 	num_unpin = fh_WaitLocalFirehoses(1, &unpin_region);
-	assert ((num_unpin == 0) || (num_unpin == 2));
+	gasneti_assert ((num_unpin == 0) || (num_unpin == 2));
 
 	/* XXX/PHH create in-TRANSIT "priv" here */
 
@@ -537,13 +538,14 @@ fh_acquire_local_region(firehose_request_t *req)
 void
 fh_commit_try_local_region(firehose_request_t *req)
 {
-    assert(req != NULL);
-    assert(req->node == fh_mynode);
+    gasneti_assert(req != NULL);
+    gasneti_assert(req->node == fh_mynode);
 
     FH_TABLE_ASSERT_LOCKED;
 
     /* Make sure the size of the region respects the local limits */
-    assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_MaxVictimBuckets);
+    gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
+		    				<= fhc_MaxVictimBuckets);
 
     fh_commit_region(req);
 }
@@ -552,9 +554,9 @@ void
 fh_release_local_region(firehose_request_t *request)
 {
         FH_TABLE_ASSERT_LOCKED;
-	assert(request != NULL);
-	assert(request->node == fh_mynode);
-	assert(request->internal != NULL);
+	gasneti_assert(request != NULL);
+	gasneti_assert(request->node == fh_mynode);
+	gasneti_assert(request->internal != NULL);
 
 	fh_priv_release(fh_mynode, request->internal);
 	fh_AdjustLocalFifoAndPin(fh_mynode, NULL, 0);
@@ -572,8 +574,8 @@ fh_acquire_remote_region(firehose_request_t *req,
                          uint32_t flags,
                          firehose_remotecallback_args_t *remote_args)
 {
-    assert(req != NULL);
-    assert(req->node != fh_mynode);
+    gasneti_assert(req != NULL);
+    gasneti_assert(req->node != fh_mynode);
 
     FH_TABLE_ASSERT_LOCKED;
 
@@ -584,13 +586,14 @@ fh_acquire_remote_region(firehose_request_t *req,
 void
 fh_commit_try_remote_region(firehose_request_t *req)
 {
-    assert(req != NULL);
-    assert(req->node != fh_mynode);
+    gasneti_assert(req != NULL);
+    gasneti_assert(req->node != fh_mynode);
 
     FH_TABLE_ASSERT_LOCKED;
 
     /* Make sure the size of the region respects the remote limits */
-    assert(FH_NUM_BUCKETS(req->addr, req->len) <= fhc_MaxRemoteBuckets);
+    gasneti_assert(FH_NUM_BUCKETS(req->addr, req->len)
+		    				<= fhc_MaxRemoteBuckets);
 
     fh_commit_region(req);
 }
@@ -599,14 +602,14 @@ void
 fh_release_remote_region(firehose_request_t *request)
 {
         FH_TABLE_ASSERT_LOCKED;
-	assert(request != NULL);
-	assert(request->node != fh_mynode);
-	assert(request->internal != NULL);
-	assert(!FH_IS_REMOTE_PENDING(request->internal));
+	gasneti_assert(request != NULL);
+	gasneti_assert(request->node != fh_mynode);
+	gasneti_assert(request->internal != NULL);
+	gasneti_assert(!FH_IS_REMOTE_PENDING(request->internal));
 
 	fh_priv_release(request->node, request->internal);
 
-        assert(fhc_RemoteVictimFifoBuckets[request->node]
+        gasneti_assert(fhc_RemoteVictimFifoBuckets[request->node]
                         <= fhc_RemoteBucketsM);
 
 	return;
@@ -815,7 +818,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 		    ("Maximum pinnable=%d\tMax allowed=%d", 
 		     (firehoses + param_VR) * param_RS + m_prepinned,
 		     max_pinnable_memory));
-	assert((firehoses + param_VR) * param_RS + m_prepinned <= max_pinnable_memory);
+	gasneti_assert((firehoses + param_VR) * param_RS + m_prepinned
+						<= max_pinnable_memory);
 
 #if 0
 	/* Initialize bucket freelist with the total amount of buckets
