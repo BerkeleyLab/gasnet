@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/28 18:29:41 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2003/04/29 18:22:27 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -398,6 +398,7 @@ SHORT_HANDLER(gasnete_memset_reqh,4,6,
 /* ------------------------------------------------------------------------------------ */
 GASNET_INLINE_MODIFIER(gasnete_memset_reph_inner)
 void gasnete_memset_reph_inner(gasnet_token_t token, void *req_oust) {
+  assert(gasneti_atomic_read((gasneti_atomic_t *)req_oust) > 0);
   gasneti_atomic_decrement((gasneti_atomic_t *)req_oust);
 }
 SHORT_HANDLER(gasnete_memset_reph,1,2,
