@@ -1,0 +1,38 @@
+GASNet mpi-conduit documentation
+Dan Bonachea <bonachea@cs.berkeley.edu>
+
+User Information:
+-----------------
+
+Recognized environment variables:
+---------------------------------
+
+* All the standard GASNet environment variables (see top-level README)
+
+* GASNET_NETWORKDEPTH - depth of network buffers to allocate
+
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
+Known problems:
+---------------
+
+* See the Berkeley UPC Bugzilla server for details on known bugs.
+
+Future work:
+------------
+
+==============================================================================
+
+Design Overview:
+----------------
+
+The core API implementation is a very thin wrapper around the AMMPI
+implementation by Dan Bonachea. See documentation in the other/ammpi directory
+or the AMMPI webpage (http://www.cs.berkeley.edu/~bonachea/ammpi) for details.
+
+The mpi-conduit directly uses the extended-ref implementation for the extended
+API - see the extended-ref directory for details.
+
