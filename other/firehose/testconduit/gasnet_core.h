@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/testconduit/Attic/gasnet_core.h,v $
- * $Date: 2004/08/26 04:53:59 $
- * $Revision: 1.3 $
+ * $Date: 2004/08/31 00:37:56 $
+ * $Revision: 1.3.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

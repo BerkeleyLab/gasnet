@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2004/08/30 06:57:42 $
-# $Revision: 1.23.2.5 $
+#     $Date: 2004/08/31 00:37:52 $
+# $Revision: 1.23.2.6 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -136,7 +136,7 @@ do-vapi:
 .PHONY: force clean tests test                                        \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
         run-tests-seq run-tests-par run-tests-parsync                 \
-        do-elan do-gm do-lapi do-mpi do-sci do-smp do-udp do-vapi
+        do-elan do-gm do-lapi do-mpi do-sci do-shmem do-smp do-udp do-vapi
 
 
 dist-hook:

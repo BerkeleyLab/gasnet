@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/testconduit/Attic/Makefile,v $
-#     $Date: 2004/08/26 04:53:59 $
-# $Revision: 1.3 $
+#     $Date: 2004/08/31 00:37:56 $
+# $Revision: 1.3.2.1 $
 # Description: 
 # Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
