@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/07 18:53:36 $
- * $Revision: 1.2.2.22 $
+ *     $Date: 2003/04/07 19:51:13 $
+ * $Revision: 1.2.2.23 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -477,6 +477,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   #else
     #error Bad segment config
   #endif
+
+  gasneti_setupGlobalEnvironment(gasnetc_nodes, gasnetc_mynode, 
+                                 gasnetc_bootstrapAllgather, gasnetc_bootstrapBroadcast);
 
   gasnetc_init_done = 1;  
 
