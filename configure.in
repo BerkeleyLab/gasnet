@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/07/07 23:15:21 $
-# $Revision: 1.74 $
+#     $Date: 2003/06/29 08:09:40 $
+# $Revision: 1.68 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.74 $)
+AC_REVISION($Revision: 1.68 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -179,7 +179,7 @@ case "$gasnet_cv_cc_family" in
 esac
 
 case "$target_os" in
-    darwin*) MISC_CPPFLAGS="-no-cpp-precomp -Wno-long-double $MISC_CPPFLAGS" ;; 
+  darwin*) MISC_CPPFLAGS="-no-cpp-precomp $MISC_CPPFLAGS" ;; # no 'smart preprocessor'
 esac
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
@@ -311,17 +311,12 @@ case "$target_os" in
 	AC_DEFINE(SOLARIS)
 	GASNET_MACHINE_DEFINES="-DSOLARIS" 
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
-        # on some systems static linking fails with -lpthread, 
-        # but need it or pthread_create will fail at runtime
-        GASNET_THREAD_LIBS="-lpthread" 
+        GASNET_THREAD_LIBS="-lpthread"
         ;;
   linux*) 
 	AC_DEFINE(LINUX)
 	GASNET_MACHINE_DEFINES="-DLINUX"
-        # Defining _GNU_SOURCE gives us accesss to the "adaptive"
-        # implementation of pthread_mutex_t, which is faster then
-        # the default implementation for our purposes.
-	GASNET_THREAD_DEFINES="-D_REENTRANT -D_GNU_SOURCE"
+	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   freebsd*) 
@@ -791,58 +786,6 @@ AC_SUBST(ELAN_LIBS)
 AC_SUBST(ELAN_FLAGS)
 AM_CONDITIONAL(USE_ELAN_CONDUIT, test "$have_elan" = yes)
 
-#--------------------------------------------------------------------------------------------------------
-# VAPI configuration
-
-GASNET_IF_ENABLED(vapi, Enable the VAPI (Mellanox InfiniBand) network conduit, 
-  have_vapi=yes,
-  have_vapi=no)
-
-if test $have_vapi = yes; then
-  GASNET_ENV_DEFAULT(VAPI_INCLUDE, "$MTHOME/include")
-  GASNET_ENV_DEFAULT(VAPI_LIBDIR, "$MTHOME/lib")
-  GASNET_ENV_DEFAULT(VAPI_LIBS, -lvapi -lmtl_common -lmosal -lpthread -lmpga)
-
-  AC_MSG_CHECKING(for working VAPI configuration)
-  if test "$mpi_test_worked" != yes; then
-    if test "$enabled_mpi" = yes; then
-      AC_ERROR([launching VAPI programs requires MPI on your system, but MPI was not sucessfuly configured.]);
-    else
-      AC_ERROR([launching VAPI programs requires MPI on your system, but you have disabled it.]);
-    fi
-  fi
-
-  OLDCFLAGS="$CFLAGS"
-  OLDLIBS="$LIBS"
-  CFLAGS="-I$VAPI_INCLUDE"
-  LIBS="-L$VAPI_LIBDIR $VAPI_LIBS"
-  # try to compile and link a simple VAPI program
-  AC_TRY_LINK( [
-    #include <evapi.h>
-  ], [{
-    int rc;
-    u_int32_t num_of_hcas;
-    VAPI_hca_id_t inst_hca_id;
-
-    rc = EVAPI_list_hcas(1, &num_of_hcas, &inst_hca_id);
-    }], [ vapi_test_worked=yes ], [ vapi_test_worked=no ] )
-  CFLAGS="$OLDCFLAGS"
-  LIBS="$OLDLIBS"
-
-  if test "$vapi_test_worked" = yes; then
-    AC_MSG_RESULT(yes)
-  else
-    AC_MSG_RESULT(no)
-    AC_ERROR(build test failed: I don't know how to build VAPI programs on your system)
-    have_vapi=no
-  fi
-fi
-
-AC_SUBST(VAPI_INCLUDE)
-AC_SUBST(VAPI_LIBDIR)
-AC_SUBST(VAPI_LIBS)
-AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
-
 ########################################################################
 
 # Check for broken asm/atomic.h on Linux
@@ -1145,11 +1088,6 @@ elan-conduit/Makefile
 elan-conduit/elan-seq.mak
 elan-conduit/elan-parsync.mak
 elan-conduit/elan-par.mak
-
-vapi-conduit/Makefile
-vapi-conduit/vapi-seq.mak
-vapi-conduit/vapi-parsync.mak
-vapi-conduit/vapi-par.mak
 
 other/Makefile
 other/ammpi/Makefile

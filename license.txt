@@ -23,9 +23,8 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * ---------------------------------------------------------------------------
  *
- * Please see the license.txt files within the gm-conduit, lapi-conduit and
- * vapi-conduit directories for the licensing terms governing those
- * contributed components.
+ * Please see the license.txt files within the gm-conduit and lapi-conduit 
+ * directories for the licensing terms governing those contributed components.
  *
  * The authors/contributors of GASNet include:
  *
@@ -38,7 +37,6 @@
  *    template-conduit
  *  Christian Bell <csbell@cs.berkeley.edu>: gm-conduit
  *  Mike Welcome <mlwelcome@lbl.gov>: lapi-conduit
- *  Paul H. Hargrove <phhargrove@lbl.gov>: vapi-conduit
  * 
  * For more information about GASNet, visit our home page at:
  *  http://www.cs.berkeley.edu/~bonachea/gasnet

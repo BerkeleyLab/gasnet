@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2003/06/30 21:04:05 $
- * $Revision: 1.12 $
+ *     $Date: 2003/06/16 09:57:38 $
+ * $Revision: 1.11 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,29 @@
 
 #include <gasnet.h>
 
+static char *_ErrorName(int errval) {
+  switch (errval) {
+    case GASNET_OK:           return "GASNET_OK";      
+    case GASNET_ERR_NOT_INIT: return "GASNET_ERR_NOT_INIT";      
+    case GASNET_ERR_BAD_ARG:  return "GASNET_ERR_BAD_ARG";       
+    case GASNET_ERR_RESOURCE: return "GASNET_ERR_RESOURCE";      
+    case GASNET_ERR_BARRIER_MISMATCH: return "GASNET_ERR_BARRIER_MISMATCH";      
+    case GASNET_ERR_NOT_READY: return "GASNET_ERR_NOT_READY";      
+    default: return "*unknown*";
+    }
+  }
+static char *_ErrorDesc(int errval) {
+  switch (errval) {
+    case GASNET_OK:           return "No error";      
+    case GASNET_ERR_NOT_INIT: return "GASNet message layer not initialized"; 
+    case GASNET_ERR_BAD_ARG:  return "Invalid function parameter passed";    
+    case GASNET_ERR_RESOURCE: return "Problem with requested resource";      
+    case GASNET_ERR_BARRIER_MISMATCH: return "Barrier id's mismatched";      
+    case GASNET_ERR_NOT_READY: return "Non-blocking operation not complete";      
+    default: return "no description available";
+    }
+  }
+
 #define GASNET_Safe(fncall) do {                            \
     int retval;                                             \
     if ((retval = fncall) != GASNET_OK) {                   \
@@ -26,8 +49,7 @@
                    " at: %s:%i\n"                           \
                    " error: %s (%s)\n",                     \
                    #fncall, __FILE__, __LINE__,             \
-                   gasnet_ErrorName(retval),                \
-                   gasnet_ErrorDesc(retval));               \
+                   _ErrorName(retval), _ErrorDesc(retval)); \
             fflush(stderr);                                 \
             gasnet_exit(retval);                            \
     }                                                       \

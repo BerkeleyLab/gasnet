@@ -81,7 +81,6 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/x86-Ethernet/gcc/32:     smp, mpi
     * Linux/x86-Dolphin/gcc/32:      smp, mpi
     * Linux/x86-Quadrics/gcc/32:     smp, mpi, elan
-    * Linux/x86-Mellanox/gcc/32:     smp, mpi, vapi
     * Linux/x86/PortlandGroupC/32:   smp, mpi
     * Linux/Itanium-Quadrics/gcc/64: smp, mpi, elan
     * Linux/Itanium/IntelC/64:       smp, mpi

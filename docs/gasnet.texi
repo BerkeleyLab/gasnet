@@ -40,7 +40,7 @@
 @c ------------------------------------------------------------------------------------
 @c Macros:
 
-@set VERSION 1.5pre
+@set VERSION 1.4
 @set RELEASEDATE June 28th, 2003
 
 @ifnottex
@@ -147,9 +147,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2003/07/02 20:02:19 $
+@subtitle $Date: 2003/06/29 08:09:41 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.26 $ 
+@subtitle $Revision: 1.25 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
@@ -187,8 +187,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2003/07/02 20:02:19 $
-@*$Revision: 1.26 $ 
+@*$Date: 2003/06/29 08:09:41 $
+@*$Revision: 1.25 $ 
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @*@uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 @*@uref{http://upc.lbl.gov/}
@@ -683,7 +683,7 @@ remote accesses or Long active messages to locations outside these areas will ha
 @code{gasnet_attach()} may fail with a fatal error and implementation-defined message if 
 the network cannot be successfully initialized. It also may return 
 an error code such as @code{GASNET_ERR_RESOURCE} to indicate there was a problem 
-acquiring network or system resources. Otherwise, it returns @code{GASNET_OK} to indicate success. 
+acquiring nework or system resources. Otherwise, it returns @code{GASNET_OK} to indicate success. 
 
 A successful call acts as a global 
 barrier and blocks until all other nodes which are part of this parallel job 

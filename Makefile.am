@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/07/03 22:21:03 $
-# $Revision: 1.17 $
+#     $Date: 2003/05/04 01:33:44 $
+# $Revision: 1.15 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,14 +9,12 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 SUBDIRS =            \
-	config-aux   \
         other        \
         elan-conduit \
         gm-conduit   \
         lapi-conduit \
 	mpi-conduit  \
-	smp-conduit  \
-	vapi-conduit
+	smp-conduit
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)
@@ -33,12 +31,14 @@ headers =                  \
 	gasnet_trace.h     
 
 EXTRA_DIST =              \
+	config-aux        \
         README            \
 	ChangeLog	  \
 	license.txt       \
 	docs              \
         extended-ref      \
 	template-conduit  \
+        tests             \
         Bootstrap         \
         unBootstrap       \
         configure.in      \
@@ -47,7 +47,6 @@ EXTRA_DIST =              \
         $(headers)        \
         gasnet_internal.c \
         gasnet_mmap.c 
-#       tests handled below
 
 include_HEADERS = $(headers)
 
@@ -71,19 +70,13 @@ endif
 if USE_SMP_CONDUIT
 	@$(MAKE) -C $(top_builddir)/smp-conduit all tests-seq
 endif
-if USE_VAPI_CONDUIT
-	@$(MAKE) -C $(top_builddir)/vapi-conduit all tests-seq
-endif
 
 .PHONY: force clean tests
 
 dist-hook:
 	if test -f $(distdir)/docs/Makefile ; then \
-          $(MAKE) -C $(distdir)/docs dist-hook ; \
+          gmake -C $(distdir)/docs dist-hook ; \
         fi
 	rm -Rf `find $(distdir) -name CVS -type d -print`
 	rm -f `find $(distdir) -name .#\* -print`
-	mkdir -p $(distdir)/tests  # need this special hack to handle tests or distcheck will fail
-	cp -Rp $(srcdir)/tests $(distdir)
-
 
