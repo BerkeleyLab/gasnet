@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/06/15 19:55:35 $
- * $Revision: 1.1.2.45 $
+ *     $Date: 2004/06/15 22:23:31 $
+ * $Revision: 1.1.2.46 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -118,8 +118,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
     *handle = 1;
   }
 
-  GASNET_INLINE_MODIFIER(gasnete_coll_handle_done)
-  int gasnete_coll_handle_done(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
+  extern int gasnete_coll_handle_done(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
     int result = 0;
     gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE);
 
@@ -132,8 +131,11 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
     return result;
   }
+#endif
 
-  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
+#ifndef gasnete_coll_try_sync
+  extern int
+  gasnete_coll_try_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
     gasneti_assert(handle != GASNET_COLL_INVALID_HANDLE); /* caller must check */
 
     gasnet_AMPoll();
@@ -141,8 +143,11 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
     return gasnete_coll_handle_done(handle GASNETE_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
   }
+#endif
 
-  extern int gasnete_coll_try_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+#ifndef gasnete_coll_try_sync_some
+  extern int
+  gasnete_coll_try_sync_some(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
     int empty = 1;
     int result = GASNET_ERR_NOT_READY;
     int i;
@@ -164,8 +169,11 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
     return empty ? GASNET_OK : result;
   }
+#endif
 
-  extern int gasnete_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
+#ifndef gasnete_coll_try_sync_all
+  extern int
+  gasnete_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
     int result = GASNET_OK;
     int i;
 
