@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2004/11/02 07:28:10 $
- * $Revision: 1.21.2.2 $
+ *     $Date: 2004/11/04 14:50:24 $
+ * $Revision: 1.21.2.3 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -164,7 +164,7 @@ static gasnetc_bufdesc_t *gasnetc_tportCheckRx() {
   if (desc && 
     #if HAVE_ELAN_DONE
       /* shaves 0.5 us off do-nothing elan_tportRxDone by avoiding a deviceCheck */
-      elan_done(desc->event, 1) && 
+      elan_done(desc->event, 0) && 
     #endif
       elan_tportRxDone(desc->event)) {
     int sender,tag;
