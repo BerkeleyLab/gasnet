@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_conf.c,v $
- * $Date: 2004/09/19 16:33:00 $
- * $Revision: 1.16 $
+ * $Date: 2004/09/27 09:12:43 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -34,6 +34,29 @@
 		}							\
 	} while (0)
 
+#if 1
+/*
+ * Disable the gethostbyname() hack, as it's too fragile as is and hinders our
+ * ability to reliably support other GASNet spawners.
+ */
+#include <netdb.h>
+
+uint32_t
+gasnetc_parse_addr(char *hostaddr)
+{
+    struct hostent  *he;
+    uint32_t	     ip;
+
+    he = gethostbyname(hostaddr);
+
+    if (he == NULL || he->h_length != 4)
+	return 0;
+    else {
+	memcpy(&ip, he->h_addr, he->h_length);
+	return (uint32_t) ip;
+    }
+}
+#else
 /* 
  * Replace gethostby... functionality
  *
@@ -111,6 +134,7 @@ gasnetc_parse_addr(char *hostaddr)
 	return 0;
     }
 }
+#endif
 
 static
 char *
