@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/16 05:59:51 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2003/04/16 06:54:41 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -24,7 +24,9 @@ VAPI_cq_hndl_t				gasnetc_snd_cq;
  *  File-scoped variables & types                                                       *
  * ------------------------------------------------------------------------------------ */
 static gasnetc_sbuf_t			*gasnetc_sbuf_pool;
-static pthread_mutex_t			gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+#if !defined(GASNET_SEQ)
+  static pthread_mutex_t		gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 typedef struct {
   VAPI_sr_desc_t	sr_desc;		/* send request descriptor */
@@ -47,10 +49,14 @@ void gasnetc_init_sreq(gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
 GASNET_INLINE_MODIFIER(gasnetc_put_sbuf)
 void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   /* Add the list segment to the free list */
-  pthread_mutex_lock(&gasnetc_sbuf_lock);
+  #if !defined(GASNET_SEQ)
+    pthread_mutex_lock(&gasnetc_sbuf_lock);
+  #endif
   tail->next = gasnetc_sbuf_pool;
   gasnetc_sbuf_pool = head;
-  pthread_mutex_unlock(&gasnetc_sbuf_lock);
+  #if !defined(GASNET_SEQ)
+    pthread_mutex_unlock(&gasnetc_sbuf_lock);
+  #endif
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
@@ -113,14 +119,20 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     }
 
     /* try to get an unused sbuf from the free list */
-    pthread_mutex_lock(&gasnetc_sbuf_lock);
+    #if !defined(GASNET_SEQ)
+      pthread_mutex_lock(&gasnetc_sbuf_lock);
+    #endif
     sbuf = gasnetc_sbuf_pool;
     if (sbuf != NULL) {
       gasnetc_sbuf_pool = sbuf->next;
-      pthread_mutex_unlock(&gasnetc_sbuf_lock);
+      #if !defined(GASNET_SEQ)
+        pthread_mutex_unlock(&gasnetc_sbuf_lock);
+      #endif
       break;	/* Have a decsriptor - leave the loop */
     }
-    pthread_mutex_unlock(&gasnetc_sbuf_lock);
+    #if !defined(GASNET_SEQ)
+      pthread_mutex_unlock(&gasnetc_sbuf_lock);
+    #endif
 
     /* be kind */
     sched_yield();
