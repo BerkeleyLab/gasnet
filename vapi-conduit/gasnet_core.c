@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2004/02/04 00:17:50 $
- * $Revision: 1.21.2.18 $
+ *     $Date: 2004/02/05 00:52:20 $
+ * $Revision: 1.21.2.19 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -968,9 +968,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     firehose_init(my_info.memsize, my_info.regions,
 		  prereg, reg_count,
 		  &gasnetc_firehose_info);
-    gasnetc_max_pin = MIN(gasnetc_hca_port.max_msg_sz,
+    gasnetc_fh_maxsz = MIN(gasnetc_hca_port.max_msg_sz,
 			  MIN(gasnetc_firehose_info.max_LocalPinSize,
 			      gasnetc_firehose_info.max_RemotePinSize));
+    gasneti_assert(gasnetc_fh_maxsz >= (GASNETI_PAGESIZE + GASNETC_PUT_INLINE_LIMIT));
 
     /* Ensure the permanently pinned regions stay in the firehose table */
     for (i = 0; i < reg_count; ++i) {
