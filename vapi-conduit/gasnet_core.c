@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/12/18 23:36:20 $
- * $Revision: 1.21.2.11 $
+ *     $Date: 2003/12/19 02:13:37 $
+ * $Revision: 1.21.2.12 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,6 +79,9 @@ VAPI_pd_hndl_t	gasnetc_pd;
   gasnetc_memreg_t	gasnetc_seg_reg;
 #else
   firehose_info_t	gasnetc_firehose_info;
+  #if FIREHOSE_VAPI_USE_FMR
+    EVAPI_fmr_t		gasnetc_fmr_props;
+  #endif
 #endif
 
 /* Used only once, to exchange addresses at connection time */
@@ -536,8 +539,12 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_assert(gasnetc_hca_cap.max_num_ent_cq >= gasnetc_am_oust_limit * 2); /* request + reply == 2 */
   #if GASNET_SEGMENT_FAST
     gasneti_assert(gasnetc_hca_cap.max_num_mr >= 3);			/* rcv bufs, snd bufs, segment */
+  #elif FIREHOSE_USE_FMR
+    gasneti_assert(gasnetc_hca_cap.max_num_mr >= 2);			/* rcv bufs, snd bufs */
+    gasneti_assert(gasnetc_hca_cap.max_num_fmr >= FIREHOSE_CLIENT_MAXREGIONS)
   #else
-    gasneti_assert(gasnetc_hca_cap.max_num_mr >= (2+gasnetc_nodes));	/* rcv bufs, snd bufs, n*fh */
+    gasneti_assert(gasnetc_hca_cap.max_num_mr >=
+		    		(2+FIREHOSE_CLIENT_MAXREGIONS));	/* rcv bufs, snd bufs, fh */
   #endif
   gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
 
@@ -958,18 +965,29 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* Setup prepinned regions list */
     prereg[0].addr          = gasnetc_snd_reg.addr;
     prereg[0].len           = gasnetc_snd_reg.len;
-    prereg[0].client.handle = gasnetc_snd_reg.handle;
+    prereg[0].client.handle = VAPI_INVAL_HNDL;	/* unreg must fail */
     prereg[0].client.lkey   = gasnetc_snd_reg.lkey;
     prereg[0].client.rkey   = gasnetc_snd_reg.rkey;
     reg_count = 1;
     if (gasnetc_nodes > 1) {
 	prereg[1].addr          = gasnetc_rcv_reg.addr;
 	prereg[1].len           = gasnetc_rcv_reg.len;
-	prereg[1].client.handle = gasnetc_rcv_reg.handle;
+	prereg[1].client.handle = VAPI_INVAL_HNDL;	/* unreg must fail */
 	prereg[1].client.lkey   = gasnetc_rcv_reg.lkey;
 	prereg[1].client.rkey   = gasnetc_rcv_reg.rkey;
 	reg_count = 2;
     }
+
+    #if FIREHOSE_VAPI_USE_FMR
+    {
+      /* Prepare FMR properties */
+      gasnetc_fmr_props.pd_hndl = gasnetc_pd;
+      gasnetc_fmr_props.acl = VAPI_EN_LOCAL_WRITE | VAPI_EN_REMOTE_WRITE | VAPI_EN_REMOTE_READ;
+      gasnetc_fmr_props.log2_page_sz = GASNETI_PAGESHIFT;
+      gasnetc_fmr_props.max_outstanding_maps = 1;
+      gasnetc_fmr_props.max_pages = FIREHOSE_CLIENT_MAXREGION_SIZE / GASNETI_PAGESIZE;
+    }
+    #endif
 
     /* Now initialize firehose */
     firehose_init(my_info.memsize, my_info.regions,

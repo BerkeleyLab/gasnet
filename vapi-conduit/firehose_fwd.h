@@ -1,6 +1,6 @@
 /* vapi-conduit/firehose_fwd.h
- * $Date: 2003/10/15 00:57:40 $
- * $Revision: 1.1.2.4 $
+ * $Date: 2003/12/19 02:13:37 $
+ * $Revision: 1.1.2.5 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -11,6 +11,10 @@
 
 #include <vapi_types.h>
 
+/* vapi offers "Fast Memory Regions".
+ * They really are faster, so we use them by default */
+#define FIREHOSE_VAPI_USE_FMR 1
+
 /* vapi-conduit uses firehose-region */
 #define FIREHOSE_REGION
 
@@ -20,7 +24,11 @@
 /* vapi-conduit has a client_t */
 #define FIREHOSE_CLIENT_T
 typedef struct _firehose_client_t {
-    VAPI_mr_hndl_t   handle;	/* used to release the region */
+    #if FIREHOSE_VAPI_USE_FMR
+      EVAPI_fmr_hndl_t handle;	/* used to release the region */
+    #else
+      VAPI_mr_hndl_t   handle;	/* used to release the region */
+    #endif
     VAPI_lkey_t      lkey;	/* used for local access by HCA */
     VAPI_rkey_t      rkey;	/* used for remote access by HCA */
 } firehose_client_t;
