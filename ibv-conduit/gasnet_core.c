@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 00:24:46 $
- * $Revision: 1.2.2.12 $
+ *     $Date: 2003/04/01 00:40:11 $
+ * $Revision: 1.2.2.13 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -344,9 +344,23 @@ static void gasnetc_snd_init(void) {
 
 /* allocate a send descriptor/buffer pair */
 static gasnetc_snd_desc_t *gasnetc_get_snd_desc(void) {
-  gasnetc_snd_desc_t *desc;
+  gasnetc_snd_desc_t *desc = NULL;
 
-  /* ### must reap completed entries from CQ here */
+  /* Try to reap a single completed entry from the send CQ */
+  {
+    VAPI_wc_desc_t comp;
+    VAPI_ret_t vstat;
+
+    vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+    if (vstat == VAPI_OK) {
+      assert(comp.status == VAPI_SUCCESS);
+
+      desc = (gasnetc_snd_desc_t *)(uintptr_t)comp.id;
+      return desc;
+    } else {
+      assert(vstat == VAPI_CQ_EMPTY);
+    }
+  }
 
   pthread_mutex_lock(&gasnetc_snd_desc_lock);
 
@@ -370,8 +384,6 @@ static gasnetc_snd_desc_t *gasnetc_get_snd_desc(void) {
 
 /* free a send descriptor/buffer pair */
 static void gasnetc_put_snd_desc(gasnetc_snd_desc_t *desc) {
-  assert(gasneti_atomic_read(&desc->done));
-
   pthread_mutex_lock(&gasnetc_snd_desc_lock);
 
   desc->next = gasnetc_snd_desc_pool;
@@ -422,7 +434,6 @@ int gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rcv_desc_t *desc) {
 
 GASNET_INLINE_MODIFIER(gasnetc_snd_post)
 int gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_snd_desc_t *desc) {
-  gasneti_atomic_set(&desc->done, 0);
   return (VAPI_OK != VAPI_post_sr(gasnetc_hca, cep->qp_handle, &desc->sr_desc));
 }
 
