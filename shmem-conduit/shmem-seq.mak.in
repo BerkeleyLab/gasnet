@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Attic/shmem-seq.mak.in,v 1.2 2004/03/11 11:19:14 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Attic/shmem-seq.mak.in,v 1.2.2.1 2004/03/11 11:29:45 csbell Exp $
 # Description: Makefile fragment for SHMEM conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

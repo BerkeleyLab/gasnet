@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/03/11 11:19:14 $
- * $Revision: 1.2 $
+ *     $Date: 2004/03/11 11:29:45 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
