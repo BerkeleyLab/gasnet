@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/29 19:35:17 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2003/04/30 16:34:50 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -415,14 +415,14 @@ void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
                        size_t nbytes) {
   gasneti_atomic_t req_oust = gasneti_atomic_init(0);
   gasnetc_rdma_get(node, src, dest, nbytes, &req_oust);
-  gasnetc_rdma_wait(&req_oust);
+  gasnetc_counter_wait(&req_oust);
 }
 GASNET_INLINE_MODIFIER(gasnete_put_bulk)
 void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
                               size_t nbytes) {
   gasneti_atomic_t req_oust = gasneti_atomic_init(0);
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
-  gasnetc_rdma_wait(&req_oust);
+  gasnetc_counter_wait(&req_oust);
 }
 
 GASNET_INLINE_MODIFIER(gasnet_get)
@@ -515,7 +515,7 @@ void gasnet_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t valu
     gasneti_atomic_t req_oust = gasneti_atomic_init(0);
     GASNETI_TRACE_PUT(PUT_VAL,node,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
     gasnetc_rdma_put(node, GASNETE_STARTOFBITS(&value,nbytes), dest, nbytes, NULL, &req_oust);
-    gasnetc_rdma_wait(&req_oust);
+    gasnetc_counter_wait(&req_oust);
   }
 }
 

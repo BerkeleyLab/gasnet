@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/29 18:29:47 $
- * $Revision: 1.1.2.28 $
+ *     $Date: 2003/04/30 16:34:50 $
+ * $Revision: 1.1.2.29 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -320,36 +320,6 @@ void gasnetc_snd_poll(void) {
   if (sbuf) {
     gasnetc_put_sbuf(sbuf, tail);
   }
-}
-
-/*
- * Block until a given counter is marked as done
- */
-extern void gasnetc_rdma_wait(gasneti_atomic_t *oust_counter) {
-  int value = gasneti_atomic_read(oust_counter);
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p has value %d", oust_counter, value));
-
-  if (value != 0) {
-    gasnetc_snd_poll();
-    value = gasneti_atomic_read(oust_counter);
-
-    while (value != 0) {
-      sched_yield();
-      gasnetc_snd_poll();
-      value = gasneti_atomic_read(oust_counter);
-    }
-  }
-
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p is done", oust_counter));
-}
-
-/*
- * Check if a given counter is marked as done
- */
-extern int gasnetc_rdma_test(gasneti_atomic_t *oust_counter) {
-  int value = gasneti_atomic_read(oust_counter);
-  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_test: counter %p has value %d", oust_counter, value));
-  return !value;
 }
 
 /* Perform an RDMA put
