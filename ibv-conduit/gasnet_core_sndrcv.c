@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/03/18 00:38:16 $
- * $Revision: 1.48 $
+ *     $Date: 2004/05/12 10:21:42 $
+ * $Revision: 1.48.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sched.h>
 #include <limits.h>
 
 /* ------------------------------------------------------------------------------------ *
