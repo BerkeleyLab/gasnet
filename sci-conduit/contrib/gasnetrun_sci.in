@@ -160,8 +160,8 @@ fi
 
 if [ $MFILE ]
 then
-	HOSTS=`cat $MFILE | awk 'NF==0 {exit} {print $1}'`
-	SCI_IDS=`cat $MFILE | awk 'NF==0 {exit} {print $2}'`
+	HOSTS=`cat $MFILE | @AWK@ 'NF==0 {exit} {print $1}'`
+	SCI_IDS=`cat $MFILE | @AWK@ 'NF==0 {exit} {print $2}'`
 fi
 
 
@@ -169,8 +169,8 @@ fi
 if [ $JOB_FILE ]
  then
 
-	HOSTS=`cat $JOB_FILE | awk 'NF==0 {exit} {print $1}'`
-	SCI_IDS=`cat $JOB_FILE | awk 'NF==0 {exit} {print $2}'`
+	HOSTS=`cat $JOB_FILE | @AWK@ 'NF==0 {exit} {print $1}'`
+	SCI_IDS=`cat $JOB_FILE | @AWK@ 'NF==0 {exit} {print $2}'`
 fi
 
 #echo "Hosts are :"
@@ -187,8 +187,8 @@ fi
 # top of the file list going to the end
 
 #first get rid of all the \n and \r characters and replace with spaces
-SCI_IDS=`echo "$SCI_IDS" | awk '{ print gensub(/\n/, " ", "g") }'`
-SCI_IDS=`echo "$SCI_IDS" | awk '{ print gensub(/\r/, " ", "g") }'`
+SCI_IDS=`echo "$SCI_IDS" | @AWK@ '{ print gensub(/\n/, " ", "g") }'`
+SCI_IDS=`echo "$SCI_IDS" | @AWK@ '{ print gensub(/\r/, " ", "g") }'`
 
 i=0
 for h in $HOSTS
@@ -253,8 +253,10 @@ case $okay in
 		  ;;
 esac
 
+if [ 0 ] ; then
+# DOB: this code is broken for var values containing spaces
 #grab all the possible GASNET environment variables
-ENV=`env | grep GASNET`
+ENV=`env | grep -e GASNET_ -e UPC_ -e TI_`
 
 #set up the commands for environmental settings
 for i in $ENV
@@ -270,9 +272,16 @@ for i in $ENV
 #replace all "=" with blanks for the C shell
 if [ $CSHELL ]
 then
-	EXPORT=`echo "$EXPORT" | awk '{ print gensub(/=/, " ", "g") }'` 
+	EXPORT=`echo "$EXPORT" | @AWK@ '{ print gensub(/=/, " ", "g") }'` 
+fi
 fi
 
+if [ $CSHELL ]
+then
+EXPORT=`env | grep -e GASNET_ -e UPC_ -e TI_ | @AWK@ -F= 'BEGIN{ORS=""}{print "setenv "$1" '"'"'"$2"'"'"'; "; }'`
+else
+EXPORT=`env | grep -e GASNET_ -e UPC_ -e TI_ | @AWK@ -F= 'BEGIN{ORS=""}{print "export "$1"='"'"'"$2"'"'"'; "; }'`
+fi
 # now with that information, we need to log into every machine and start 
 # the initialization program. 
 
