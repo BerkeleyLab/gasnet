@@ -1,10 +1,12 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/19 17:54:25 $
- * $Revision: 1.2.2.1 $
+ *     $Date: 2003/03/19 22:24:24 $
+ * $Revision: 1.2.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
+
+#define GASNETC_BOOTSTRAP_MPI	1
 
 #include <gasnet.h>
 #include <gasnet_internal.h>
@@ -13,6 +15,10 @@
 
 #include <errno.h>
 #include <unistd.h>
+
+#if GASNETC_BOOTSTRAP_MPI
+#  include <mpi.h>
+#endif
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
@@ -50,14 +56,14 @@ static void gasnetc_check_config() {
 }
 
 static void gasnetc_bootstrapBarrier() {
-  /* (###) add code here to implement an external barrier 
-      this barrier should not rely on AM or the GASNet API because it's used 
-      during bootstrapping before such things are fully functional
-     It need not be particularly efficient, because we only call it a few times
-      and only during bootstrapping - it just has to work correctly
-     If your underlying spawning or batch system provides barrier functionality,
-      that would probably be a good choice for this
-   */
+  #if GASNETC_BOOTSTRAP_MPI
+  {
+    int err;
+
+    err = MPI_Barrier(MPI_COMM_WORLD);
+    assert(err == MPI_SUCCESS);
+  }
+  #endif /* GASNET_BOOTSTRAP_MPI */
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -74,10 +80,34 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
 
-  /* (###) add code here to bootstrap the nodes for your conduit */
+  /* Determine number of nodes and my own node number */
+  #if GASNETC_BOOTSTRAP_MPI
+  {
+    int err, tmp;
 
-  gasnetc_mynode = 0 /* ### */;
-  gasnetc_nodes = 0 /* ### */;
+    err = MPI_Init(argc, argv);
+    assert(err == MPI_SUCCESS);
+
+    err = MPI_Comm_rank(MPI_COMM_WORLD, &tmp);
+    assert(err == MPI_SUCCESS);
+    gasnetc_mynode = tmp;
+    
+    err = MPI_Comm_size(MPI_COMM_WORLD, &tmp);
+    assert(err == MPI_SUCCESS);
+    gasnetc_nodes = tmp;
+  }
+  #endif /* GASNETC_BOOTSTRAP_MPI */
+    
+  /* ### create correct number of endpoints here */
+
+  /* Exchange endpoint info for connecting */
+  #if GASNETC_BOOTSTRAP_MPI
+  {
+    /* ### use matrix transpose code to exchange endpoint info */
+  }
+  #endif /* GASNETC_BOOTSTRAP_MPI */
+
+  /* ### connect endpoints here */
 
   #if DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -304,8 +334,19 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasnetc_exit(int exitcode) {
+  /* XXX: should force termination and same exitcode from all nodes? */
   gasneti_trace_finish();
-  /* (###) add code here to terminate the job across all nodes with exit(exitcode) */
+
+  #if GASNETC_BOOTSTRAP_MPI
+  {
+    int err;
+
+    err = MPI_Finalize();
+    assert(err == MPI_SUCCESS);
+  }
+  #endif /* GASNETC_BOOTSTRAP_MPI */
+
+  exit(exitcode);	
   abort();
 }
 
