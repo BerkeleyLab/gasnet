@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/28 18:29:41 $
- * $Revision: 1.1.2.27 $
+ *     $Date: 2003/04/29 18:29:47 $
+ * $Revision: 1.1.2.28 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -400,10 +400,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
      * then perform the copy locally, thus allowing the caller to proceed.
      */
     gasnetc_sreq_t req;
-    uintptr_t count;
 
-    assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
-	  
     sbuf = gasnetc_get_sbuf();
 
     gasnetc_init_sreq(&req, sbuf);
@@ -413,10 +410,9 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     req.sr_desc.sg_lst_len  = 1;
     
     /* Setup the gather bounce buffer */
-    count = MIN(nbytes, GASNETC_BUFSZ);
-    memcpy(sbuf->buffer, (void *)src, count);
+    memcpy(sbuf->buffer, (void *)src, nbytes);
     req.sr_sg.addr = (uintptr_t)sbuf->buffer;
-    req.sr_sg.len  = count;
+    req.sr_sg.len  = nbytes;
     req.sr_sg.lkey = gasnetc_snd_reg.lkey;
 
     if (req_oust) {
