@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/17 20:57:57 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2004/05/25 00:24:13 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,6 +45,30 @@ typedef struct gasnete_coll_op_t_ gasnete_coll_op_t;
 
 /*---------------------------------------------------------------------------------*/
 
+/* Thread-specific data: */
+typedef struct {
+    gasnete_coll_op_t	*op_freelist;
+    void 		*generic_data_freelist;
+
+    /* Linkage used by the thread-specific active ops list. */
+    #ifdef GASNETE_COLL_LIST_OVERRIDE
+	/* Custom implementation of coll_ops active list */
+	GASNET_COLL_LIST_TD_FIELDS
+    #else
+	/* Default implementation of coll_ops active list */
+	gasnete_coll_op_t	*active_head, **active_tail_p;
+    #endif
+
+    /* XXX: more fields to come */
+
+    /* Macro for conduit-specific extension */
+    #ifdef GASNETE_COLL_THREADDATA_EXTRA
+      GASNETE_COLL_THREADDATA_EXTRA
+    #endif
+} gasnete_coll_threaddata_t;
+
+/*---------------------------------------------------------------------------------*/
+
 /* Handle type for collective teams: */
 #ifndef GASNETE_COLL_TEAMS_OVERRIDE
     struct gasnete_coll_team_t_;
@@ -84,24 +108,15 @@ typedef int (*gasnete_coll_poll_fn)(gasnete_coll_op_t *);
 
 /* Type for collective ops: */
 struct gasnete_coll_op_t_ {
-    /* Linkage used by the ops lookup table.
-     * Access is serialized by gasnete_coll_table_lock: */
-    #ifdef GASNETE_COLL_TABLE_OVERRIDE
-	/* Custom implementation of coll_ops lookup table */
-	GASNET_COLL_TABLE_OP_FIELDS
-    #else
-	/* Default implementation of coll_ops table */
-	gasnete_coll_op_t	*table_next, *table_prev;
-    #endif
+    gasnete_coll_threaddata_t	*threaddata;	/* Data for initiating thread */
 
-    /* Linkage used by the ops active list.
-     * Access is serialized by gasnete_coll_table_lock: */
+    /* Linkage used by the thread-specific active ops list. */
     #ifdef GASNETE_COLL_LIST_OVERRIDE
 	/* Custom implementation of coll_ops active list */
 	GASNET_COLL_LIST_OP_FIELDS
     #else
 	/* Default implementation of coll_ops active list */
-	gasnete_coll_op_t	*list_next, *list_prev;
+	gasnete_coll_op_t	*active_next, **active_prev_p;
     #endif
 
     /* Linkage used by aggregation.
@@ -134,8 +149,9 @@ extern gasnete_coll_team_t gasnete_coll_team_lookup(uint32_t team_id);
 
 extern gasnete_coll_op_t *
 gasnete_coll_op_lookup(gasnete_coll_team_t team, uint32_t sequence);
+
 extern gasnete_coll_op_t *
-gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int flags);
+gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int flags, gasnete_coll_threaddata_t *td);
 extern void
 gasnete_coll_op_destroy(gasnete_coll_op_t *op);
 
@@ -318,6 +334,52 @@ void _gasnet_coll_broadcast(gasnet_team_handle_t team,
 }
 #define gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags) \
        _gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags GASNETE_THREAD_GET)
+
+#ifndef gasnete_coll_broadcastM_nb
+  extern gasnet_coll_handle_t
+  gasnete_coll_broadcastM_nb(gasnet_team_handle_t team,
+			     void *dstlist[],
+                             gasnet_node_t srcnode, void *src,
+                             size_t nbytes, int flags GASNETE_THREAD_FARG);
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_broadcastM_nb)
+gasnet_coll_handle_t
+_gasnet_coll_broadcastM_nb(gasnet_team_handle_t team,
+			   void *dstlist[],
+                           gasnet_node_t srcnode, void *src,
+                           size_t nbytes, int flags GASNETE_THREAD_FARG) {
+  gasnet_coll_handle_t handle;
+  GASNETE_COLL_TRACE_BROADCAST_M(COLL_BROADCASTM,team,dstlist,srcnode,src,nbytes,flags);
+  GASNETE_COLL_VALIDATE_BROADCAST_M(team,dstlist,srcnode,src,nbytes,flags);
+  handle = gasnete_coll_broadcastM_nb(team, dstlist, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
+  gasnete_coll_poll();
+  return handle;
+}
+#define gasnet_coll_broadcastM_nb(team,dstlist,srcnode,src,nbytes,flags) \
+       _gasnet_coll_broadcastM_nb(team,dstlist,srcnode,src,nbytes,flags GASNETE_THREAD_GET)
+
+#ifndef gasnete_coll_broadcastM
+  GASNET_INLINE_MODIFIER(gasnete_coll_broadcastM)
+  void gasnete_coll_broadcastM(gasnet_team_handle_t team,
+                               void *dstlist[],
+                               gasnet_node_t srcnode, void *src,
+                               size_t nbytes, int flags GASNETE_THREAD_FARG) {
+    gasnet_coll_handle_t handle;
+    handle = gasnete_coll_broadcastM_nb(team,dstlist,srcnode,src,nbytes,flags GASNETE_THREAD_PASS);
+    gasnete_coll_wait_sync(handle);
+  }
+#endif
+GASNET_INLINE_MODIFIER(_gasnet_coll_broadcastM)
+void _gasnet_coll_broadcastM(gasnet_team_handle_t team,
+                             void *dstlist[],
+                             gasnet_node_t srcnode, void *src,
+                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
+  GASNETE_COLL_TRACE_BROADCAST(COLL_BROADCASTM_NB,team,dstlist,srcnode,src,nbytes,flags);
+  GASNETE_COLL_VALIDATE_BROADCAST(team,dstlist,srcnode,src,nbytes,flags);
+  gasnete_coll_broadcastM(team, dstlist, srcnode, src, nbytes, flags GASNETE_THREAD_PASS);
+}
+#define gasnet_coll_broadcastM(team,dstlist,srcnode,src,nbytes,flags) \
+       _gasnet_coll_broadcastM(team,dstlist,srcnode,src,nbytes,flags GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 #endif
