@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops.h                               $
- *     $Date: 2003/12/01 01:04:10 $
- * $Revision: 1.24.4.2 $
+ *     $Date: 2004/01/23 23:22:09 $
+ * $Revision: 1.24.4.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,7 @@
 #if defined(SOLARIS) || /* SPARC seems to have no atomic ops */ \
     defined(CRAYT3E) || /* TODO: no atomic ops on T3e? */       \
     defined(HPUX)    || /* HPUX seems to have no atomic ops */  \
+    defined(__crayx1) || /* X1 atomics currently broken */ \
     (defined(__PGI) && defined(BROKEN_LINUX_ASM_ATOMIC_H)) || /* haven't implemented atomics for PGI */ \
     (defined(__MACH__) && defined(__APPLE__)) || /* we careth not about performance on OSX */ \
     (defined(OSF) && !defined(__DECC) && !defined(__GNUC__)) /* only implemented for these compilers */
@@ -126,10 +127,16 @@
     #define gasneti_atomic_decrement_and_test(p) \
                                         (_InterlockedDecrement((volatile int *)&((p)->ctr)) == 0)
   #elif defined(LINUX)
-    #ifdef BROKEN_LINUX_ASM_ATOMIC_H
+    #include <linux/config.h>
+    #if defined(BROKEN_LINUX_ASM_ATOMIC_H) || \
+        (!defined(GASNETI_UNI_BUILD) && !defined(CONFIG_SMP))
       /* some versions of the linux kernel ship with a broken atomic.h
-         this code based on a non-broken version of the header */
-      #if defined(__i386__)
+         this code based on a non-broken version of the header. 
+         Also force using this code if this is a gasnet-smp build and the 
+         linux/config.h settings disagree (due to system config problem or 
+         cross-compiling on a uniprocessor frontend for smp nodes)
+       */
+      #if defined(__i386__) || defined(__x86_64__) /* x86 and Athlon/Opteron */
         #ifdef GASNETI_UNI_BUILD
           #define GASNETI_LOCK ""
         #else
@@ -174,7 +181,7 @@
             } while (0)
         #else
           #define GASNETI_CMPXCHG_BUGCHECK_DECL
-          #define GASNETI_CMPXCHG_BUGCHECK(v)
+          #define GASNETI_CMPXCHG_BUGCHECK(v)  ((void)0)
         #endif
 
         GASNET_INLINE_MODIFIER(gasneti_cmpxchg)
@@ -318,16 +325,38 @@
     #define gasneti_atomic_init(v)      (v)
     #define gasneti_atomic_decrement_and_test(p) \
                                         (add_then_test32((p),(uint32_t)-1) == 0) 
-  #elif defined(UNICOS) /* This works on X1 and T3E */
+  #elif defined(__crayx1) /* This works on X1, but NOT the T3E */
     #include <intrinsics.h>
-    typedef long gasneti_atomic_t;
-    #define gasneti_atomic_increment(p)	(_amo_aadd((p),1))
-    #define gasneti_atomic_decrement(p)	(_amo_aadd((p),(long)-1))
+    typedef volatile long gasneti_atomic_t;
+    /* DOB: man pages for atomic ops claim gsync is required for using atomic ops,
+       but trying to do so leads to crashes. Using atomic ops without gync gives
+       incorrect results (testtools fails)
+     */
+    #if 1
+      #define gasneti_atomic_presync()  ((void)0)
+      #define gasneti_atomic_postsync() ((void)0)
+    #elif 0
+      #define gasneti_atomic_presync()  _gsync(0)
+      #define gasneti_atomic_postsync() _gsync(0)
+    #else
+      #define gasneti_atomic_presync()  _msync_msp(0)
+      #define gasneti_atomic_postsync() _msync_msp(0)
+    #endif
+    #define gasneti_atomic_increment(p)	\
+      (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
+    #define gasneti_atomic_decrement(p)	\
+      (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
     #define gasneti_atomic_read(p)      (*(p))
     #define gasneti_atomic_set(p,v)     (*(p) = (v))
     #define gasneti_atomic_init(v)      (v)
-    #define gasneti_atomic_decrement_and_test(p) \
-                                        (_amo_afadd((p),(long)-1) == 0) 
+    GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
+    int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
+       int retval;
+       gasneti_atomic_presync();
+       retval = _amo_afadd((p),(long)-1) == 0;
+       gasneti_atomic_postsync();
+       return retval;
+    }
   #elif 0 && defined(SOLARIS)
     /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
        to the user... after all, what application would be interested in performance? */
@@ -366,6 +395,8 @@
   #define GASNETI_ASM(mnemonic)  /* TODO: broken - doesn't have inline assembly */
 #elif defined(__SUNPRO_C)
   #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
+#elif defined(HPUX) && !defined(__GNUC__) /* HP C */
+  #define GASNETI_ASM(mnemonic)  _asm(mnemonic)
 #elif defined(__xlC__)  
   #define GASNETI_ASM(mnemonic)  !!! error !!! /* not supported or used */
 #elif defined(_CRAY)  
@@ -432,6 +463,20 @@
      #else
        GASNETI_ASM("lock; addl $0,0(%%esp)");
      #endif
+   }
+ #endif
+#elif defined(__x86_64__) /* Athlon/Opteron */
+ #if defined(GASNETI_UNI_BUILD)
+   /* Prevent compiler from reordering across this point. */
+   GASNET_INLINE_MODIFIER(gasneti_local_membar)
+   void gasneti_local_membar(void) {
+     GASNETI_ASM("");
+   }
+ #else
+   /* Prevent both compiler and the CPU from reordering across this point.  */
+   GASNET_INLINE_MODIFIER(gasneti_local_membar)
+   void gasneti_local_membar(void) {
+     GASNETI_ASM("mfence");
    }
  #endif
 #elif defined(__ia64__) /* Itanium */
