@@ -164,7 +164,7 @@ fh_refc_t;
 /*
  * Bucket and private types
  */
-
+#define DEBUG_BUCKETS
 #ifdef DEBUG_BUCKETS
   typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused }
   fh_bstate_t;
@@ -515,7 +515,7 @@ struct _fh_completion_callback_t {
 }
 fh_completion_callback_t;
 /* This tag cannot be USED_TAG */
-#define FH_COMPLETION_END	((fh_completion_callback_t *)(-3))
+#define FH_COMPLETION_END	((fh_completion_callback_t *)(FH_USED_TAG))
 
 fh_completion_callback_t *	fh_alloc_completion_callback();
 void	fh_free_completion_callback(fh_completion_callback_t *rc);

@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.28 2004/03/18 09:24:18 bonachea Exp $
- * $Date: 2004/03/18 09:24:18 $
- * $Revision: 1.28 $
+/* $Id: gasnet_core_help.h,v 1.28.2.1 2004/05/14 00:24:47 csbell Exp $
+ * $Date: 2004/05/14 00:24:47 $
+ * $Revision: 1.28.2.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -47,7 +47,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #endif
 
 /* Puts changed to gm_put in the GM 2.x API revision */
-#ifdef GASNETC_GM_2
+#if 0 && defined(GASNETC_GM_2)
 #define GASNETC_RDMA_GETS		1
 #define GASNETE_GET_NON_DMA_CUTOFF	0
 #define GASNETC_GM_PUT	gm_put

@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_firehose.c,v 1.34 2004/03/10 00:34:28 phargrov Exp $
- * $Date: 2004/03/10 00:34:28 $
+/* $Id: gasnet_extended_firehose.c,v 1.34.4.1 2004/05/14 00:24:47 csbell Exp $
+ * $Date: 2004/05/14 00:24:47 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,9 +43,9 @@ extern void gasnetc_callback_ambuffer(struct gm_port *, void *, gm_status_t);
 			    FIREHOSE_ ## putget ## _MANY, 	\
 			    GASNETI_STATTIME_NOW_IFENABLED(C)-	\
 			    eop->starttime); break;		\
+		case fh_none: gasneti_fatalerror("eop stats");	\
 		default: break;					\
 	    }							\
-	    eop->fh_stats = fh_none;				\
 	} while (0)
 #else
 #define GASNETE_FIREHOSE_TRACE_PUTGET(eop, putget)
@@ -171,6 +171,10 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 	    ("Firehose directed send(%p): (%d,%p) <- %p (%d bytes)", 
 	     pop, (unsigned) pop->req_remote.node, (void *) pop->dest, 
 	     (void *) pop->src, pop->len));
+	#if GASNETI_STATS_OR_TRACE
+	if (!allLocalHit)
+	    pop->fh_stats = pop->len > 4096 ? fh_many : fh_one;
+	#endif
 
 	GASNETC_GM_PUT(
 	    _gmc.port, (void *) pop->src, (gm_remote_ptr_t) pop->dest,
@@ -195,6 +199,7 @@ gasnete_firehose_put_bulk(gasnet_node_t node, void *dest, void *src,
 	pop->iop = iop;
 	SET_OPMISC(pop, OPMISC_NONAMBUF);
 	#if GASNETI_STATS_OR_TRACE
+	pop->fh_stats  = fh_onesided;
 	pop->starttime = GASNETI_STATTIME_NOW_IFENABLED(C);
 	#endif
 
@@ -260,6 +265,7 @@ gasnete_firehose_put(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 	SET_OPMISC(pop, OPMISC_AMBUF);
 	#if GASNETI_STATS_OR_TRACE
 	pop->starttime = GASNETI_STATTIME_NOW_IFENABLED(C);
+	pop->fh_stats  = fh_onesided;
 	#endif
 	GASNETE_FAST_UNALIGNED_MEMCPY(bufd->buf, src, nbytes);
 
@@ -374,6 +380,7 @@ extern int firehose_remote_callback(gasnet_node_t node,
 		const firehose_region_t *pin_list, size_t num_pinned,
 		firehose_remotecallback_args_t *args)
 {
+#if 1
 	gasneti_mutex_lock(&gasnetc_lock_gm);
 	gasnetc_token_lo_poll();
 
@@ -388,6 +395,10 @@ extern int firehose_remote_callback(gasnet_node_t node,
 	     (int)args->nbytes));
 
 	gasneti_mutex_unlock(&gasnetc_lock_gm);
+
+#else
+	gasneti_fatalerror("can't run remote callback");
+#endif
 
 	return 0;
 }
@@ -415,6 +426,8 @@ gasnete_fh_callback_get(struct gm_port *p, void *context,
 	gasnete_get_fh_done(gop);
 	GASNETE_GM_UNSET_IN_UNKNOWN();
 
+	GASNETE_FIREHOSE_TRACE_PUTGET(gop, GET);
+
 	return;
 }
 
@@ -439,9 +452,14 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req,
 	 * XXX For now, the remote callback using put + AM seems to be broken on
 	 * GM 2.0+
 	 */
-	if (1 || allLocalHit) {
+	if (1){ //allLocalHit) {
 		gasneti_mutex_lock(&gasnetc_lock_gm);
 		gasnetc_token_lo_poll();
+
+		#if GASNETI_STATS_OR_TRACE
+		if (!allLocalHit)
+		    gop->fh_stats = gop->len > 4096 ? fh_many : fh_one;
+		#endif
 	
 		gm_get(_gmc.port, (gm_remote_ptr_t) gop->src,
 		    (void *) gop->dest, (gm_size_t) gop->len, 
@@ -525,17 +543,23 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req, int allLocalHi
 		    (req->node, gasneti_handleridx(gasnete_get_dma_reqh), 
 		     gop->len,
 		     PACK(gop->dest), PACK(gop->src), PACK(gop), PACK(gop)));
+
 	}
 	/* If the request completed with a remote roundtrip, the remote node
 	 * used a DMA put to complete the get request.  Just release and mark
 	 * done. */
 	else {
-		GASNETI_TRACE_PRINTF(C, 
-		    ("Firehose RDMA GET w/ PutRev (%p): %p <- (%d,%p) (%d bytes)", 
-		     gop, (void *) gop->dest, (unsigned) req->node, 
-		     (void *) gop->src, gop->len));
+	    GASNETI_TRACE_PRINTF(C, 
+		("Firehose RDMA GET w/ PutRev (%p): %p <- (%d,%p) (%d bytes)", 
+		gop, (void *) gop->dest, (unsigned) req->node, 
+		(void *) gop->src, gop->len));
 
-		gasnete_get_fh_done(gop);
+	    #if GASNETI_STATS_OR_TRACE
+	    gop->fh_stats = gop->len > 4096 ? fh_many : fh_one;
+	    #endif
+
+	    gasnete_get_fh_done(gop);
+
 	}
 
 	return;
@@ -570,6 +594,7 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	gop->req_local = 
 	    firehose_local_pin((uintptr_t) dest, nbytes, NULL);
 
+#if 1
 	/* Since Put is in reverse direction, the source is the local address
 	 * and the destination is the remote address */
 	args.local_addr  = (uintptr_t) src;
@@ -580,6 +605,13 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	    FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK,
 	    (firehose_request_t *) &(gop->req_remote), &args, 
 	    gasnete_fh_request_get, gop);
+#else
+
+	firehose_remote_pin(node, (uintptr_t) src, nbytes,
+	    0, 
+	    (firehose_request_t *) &(gop->req_remote), NULL,
+	    gasnete_fh_request_get, gop);
+#endif
 
 	return (gasnete_op_t *) gop;
 }

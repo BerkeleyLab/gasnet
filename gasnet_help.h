@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/05/12 10:21:08 $
- * $Revision: 1.22.4.1 $
+ *     $Date: 2004/05/14 00:24:45 $
+ * $Revision: 1.22.4.2 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -197,6 +197,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
       pthread_mutex_t lock;
       uintptr_t owner;
     } gasneti_mutex_t;
+    #define GASNETI_MUTEX_PTHREADREF(mutex) &((mutex)->lock)
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -270,6 +271,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
     typedef pthread_mutex_t           gasneti_mutex_t;
+    #define GASNETI_MUTEX_PTHREADREF(mutex) (mutex)
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
