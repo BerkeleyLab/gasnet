@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/06/17 00:02:07 $
-# $Revision: 1.40.2.5 $
+#     $Date: 2003/06/17 18:22:41 $
+# $Revision: 1.40.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.40.2.5 $)
+AC_REVISION($Revision: 1.40.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -185,19 +185,27 @@ esac
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
   [ CFLAGS="$CCDEBUGFLAGS"
     BUILDCONFIG_DEFINES="-DDEBUG"
-    BUILDCONFIG="debug"],
+    BUILDCONFIG="debug"
+    enabled_debug=yes],
   [ CFLAGS="$CCOPTFLAGS"
     BUILDCONFIG_DEFINES="-DNDEBUG"
-    BUILDCONFIG="optimize"])
+    BUILDCONFIG="optimize"
+    enabled_debug=no])
 
 GASNET_IF_ENABLED(gasnet-verbose, Build GASNet lib with debugging status messages, 
   [ BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DDEBUG_VERBOSE=1"], [])
 
-GASNET_IF_ENABLED(trace, Build GASNet with tracing enabled, 
-  BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DTRACE", )
+GASNET_IF_ENABLED_WITH_AUTO(trace, Build GASNet with tracing enabled (enabled by default with --enable-debug), 
+  enabled_trace=yes, enabled_trace=no, enabled_trace=$enabled_debug)
+  if test "$enabled_trace" = yes; then
+    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DTRACE"
+  fi
 
-GASNET_IF_ENABLED(stats, Build GASNet with statistical collection enabled, 
-  BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DSTATS", )
+GASNET_IF_ENABLED_WITH_AUTO(stats, Build GASNet with statistical collection enabled (enabled by default with --enable-debug), 
+  enabled_stats=yes, enabled_stats=no, enabled_stats=$enabled_debug)
+  if test "$enabled_stats" = yes; then
+    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DSTATS"
+  fi
 
 AC_SUBST(CFLAGS)	      # opt/debug flags
 AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
@@ -862,6 +870,10 @@ case "$target_os" in
     [ AC_MSG_RESULT(broken) 
       AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
     ] )
+    AC_CHECK_HEADERS(/boot/kernel.h)
+    if test "`uname -a | grep -i SMP`" != ""; then
+      AC_DEFINE(LINUX_SMP_KERNEL)
+    fi
     ;;
 esac
 
