@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/11 23:34:51 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2004/05/11 23:56:42 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,7 +75,7 @@ struct gasnete_coll_team_t_ {
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
   /* Handle type for collective ops: */
-  typedef volatile int *gasnet_coll_handle_t;
+  typedef volatile uintptr_t *gasnet_coll_handle_t;
   #define GASNET_COLL_INVALID_HANDLE NULL
 #endif
 

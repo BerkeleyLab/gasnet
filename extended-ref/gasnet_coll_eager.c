@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/11 23:34:51 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2004/05/11 23:56:42 $
+ * $Revision: 1.1.2.11 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,10 +50,24 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 /* Handles */
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
+  gasnet_hsl_t gasnete_coll_handle_lock = GASNET_HSL_INITIALIZER;
+  gasnet_coll_handle_t gasnete_coll_handle_freelist = NULL;
+
   GASNET_INLINE_MODIFIER(gasnete_coll_hand_create)
   gasnet_coll_handle_t gasnete_coll_handle_create(void) {
-    /* XXX: use free list, possibly per thread */
-    gasnet_coll_handle_t result = (gasnet_coll_handle_t)gasneti_malloc(sizeof(int));
+    gasnet_coll_handle_t result;
+
+    gasnet_hsl_lock(&gasnete_coll_handle_lock);
+    if (gasnete_coll_handle_freelist) {
+      result = gasnete_coll_handle_freelist;
+      gasnete_coll_handle_freelist = (gasnet_coll_handle_t)(*result);
+    } else {
+      /* XXX: allocate in large chunks and scatter across cache lines */
+      /* XXX: destroy freelist at exit */
+      result = (gasnet_coll_handle_t)gasneti_malloc(sizeof(*result));
+    }
+    gasnet_hsl_unlock(&gasnete_coll_handle_lock);
+
     *result = 0;
     return result;
   }
@@ -72,7 +86,10 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
     gasnete_coll_poll();
 
     if_pf (*handle != 0) {
-      gasneti_free((void *)handle);
+      gasnet_hsl_lock(&gasnete_coll_handle_lock);
+      *handle = (uintptr_t)gasnete_coll_handle_freelist;
+      gasnete_coll_handle_freelist = handle;
+      gasnet_hsl_unlock(&gasnete_coll_handle_lock);
       result = GASNET_OK;
     }
 
