@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2005/02/09 00:40:41 $
- * $Revision: 1.20.2.6 $
+ *     $Date: 2005/02/09 19:51:25 $
+ * $Revision: 1.20.2.7 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -101,6 +101,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   gasneti_assert(((flags & GASNET_COLL_SINGLE)?1:0) ^ ((flags & GASNET_COLL_LOCAL)?1:0));
 
   /* Bounds check any local portion of dst/dstlist which user claims is in-segment */
+  gasneti_assert(dstlen > 0);
   if ((dstnode == gasnete_mynode) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
     if (!dstisv) {
       gasnete_boundscheck(gasnete_mynode, dst, dstlen);
@@ -114,6 +115,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   }
 
   /* Bounds check any local portion of src/srclist which user claims is in-segment */
+  gasneti_assert(srclen > 0);
   if ((srcnode == gasnete_mynode) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     if (!srcisv) {
       gasnete_boundscheck(gasnete_mynode, src, srclen);
