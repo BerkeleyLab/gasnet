@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/05/14 18:12:08 $
- * $Revision: 1.2.2.38 $
+ *     $Date: 2003/05/20 19:15:54 $
+ * $Revision: 1.2.2.39 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -148,6 +148,8 @@ static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasne
   reg->start	= mr_out.start;
   reg->end	= mr_out.start + (mr_out.size - 1); /* subtract first to avoid overflow */
   reg->size	= mr_out.size;
+  reg->req_addr = addr;
+  reg->req_size = size;
 
   return vstat;
 }
@@ -169,6 +171,13 @@ extern void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_memre
   }
 
   return addr;
+}
+
+extern void gasnetc_free_pinned(gasnetc_memreg_t *reg) {
+  void *addr;
+
+  gasnetc_unpin(reg);
+  gasneti_munmap(reg->req_addr, reg->req_size);
 }
 
 #ifdef LINUX
@@ -704,6 +713,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasnetc_exit(int exitcode) {
+  VAPI_ret_t vstat;
+  int i;
+
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
@@ -726,6 +738,25 @@ extern void gasnetc_exit(int exitcode) {
            with _exit(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
+
+  for (i = 0; i < gasnetc_nodes; ++i) {
+    if (i == gasnetc_mynode) continue;
+
+    /* destroy the QP */
+    vstat = VAPI_destroy_qp(gasnetc_hca, gasnetc_cep[i].qp_handle);
+    assert(vstat == VAPI_OK);
+  }
+
+  gasnetc_snd_fini();
+  gasnetc_rcv_fini();
+  
+  gasnetc_unpin(&gasnetc_seg_reg);
+
+  vstat = VAPI_dealloc_pd(gasnetc_hca, gasnetc_pd);
+  assert(vstat == VAPI_OK);
+
+  vstat = EVAPI_release_hca_hndl(gasnetc_hca);
+  assert(vstat == VAPI_OK);
 
   gasnetc_bootstrapFini();
 
