@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/15 23:42:03 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/04/15 23:59:00 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,6 +170,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle);
 extern int  gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles);
 extern void gasnete_wait_syncnb(gasnet_handle_t handle);
+extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles);
 
 GASNET_INLINE_MODIFIER(gasnet_try_syncnb)
 int  gasnet_try_syncnb(gasnet_handle_t handle) {
@@ -218,7 +219,7 @@ void gasnet_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnb_all)
 void gasnet_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_waitwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY);
+  gasnete_wait_syncnb_all(phandle, numhandles);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_ALL);
 }
 

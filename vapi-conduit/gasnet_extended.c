@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/15 23:42:03 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/04/15 23:59:00 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -516,8 +516,6 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
  * That will go away eventually.
  * */
 extern void gasnete_wait_syncnb(gasnet_handle_t op) {
-  assert(op->threadidx == gasnete_mythread()->threadidx);
-
   GASNETE_SAFE(gasnet_AMPoll());
    
   assert(op->threadidx == gasnete_mythread()->threadidx);
@@ -528,6 +526,21 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
     gasnetc_rdma_wait(&iop->get_counter);
     gasnetc_rdma_wait(&iop->put_counter);
+  }
+
+  gasnete_op_free(op);
+}
+
+extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
+  GASNETE_SAFE(gasnet_AMPoll());
+
+  assert(phandle);
+
+  { int i;
+    for (i = 0; i < numhandles; i++) {
+      gasnete_wait_syncnb_check(phandle[i]);
+      phandle[i] = GASNET_INVALID_HANDLE;
+    }
   }
 }
 
