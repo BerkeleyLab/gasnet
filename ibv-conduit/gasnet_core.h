@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/06/24 20:48:08 $
- * $Revision: 1.2.2.16 $
+ *     $Date: 2003/06/26 22:22:03 $
+ * $Revision: 1.2.2.17 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -507,6 +507,8 @@ extern int gasnetc_ReplySystem(
   RDMA ops
   =====================
  */
+extern void gasnetc_sndrcv_poll(void);
+extern void gasnetc_snd_poll(void);
 extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, uintptr_t nbytes, gasneti_atomic_t *mem_oust, gasneti_atomic_t *req_oust);
 extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *req_oust);
 extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, gasneti_atomic_t *req_oust);
@@ -520,13 +522,17 @@ int gasnetc_counter_test(gasneti_atomic_t *counter) {
 } 
 
 /* Wait until given counter is marked as done.
- * Note that at least one AMPoll will be done.
+ * Note that at least one poll will be done.
  */
 GASNET_INLINE_MODIFIER(gasnetc_counter_wait)
-void gasnetc_counter_wait(gasneti_atomic_t *counter) { 
+void gasnetc_counter_wait(gasneti_atomic_t *counter, int handler_context) { 
   GASNETI_TRACE_PRINTF(C, ("gasnetc_counter_wait: on entry counter %p has value %d", counter, (int)gasneti_atomic_read(counter)));
   do {
-    gasnet_AMPoll();
+    if (handler_context) {
+      gasnetc_snd_poll(); /* must not poll recv queue in handler context */
+    } else {
+      gasnetc_sndrcv_poll();
+    }
   } while (gasneti_atomic_read(counter) != 0);
   GASNETI_TRACE_PRINTF(C, ("gasnetc_counter_wait: counter %p is done", counter));
 } 
