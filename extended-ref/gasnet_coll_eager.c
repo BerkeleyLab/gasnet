@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/04/02 18:53:19 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2004/04/03 00:10:30 $
+ * $Revision: 1.1.2.5 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,7 +24,7 @@
  *	Add a team to the table
  *  void gasnete_coll_team_del(op)
  *	Remove a team from the table
- *  gasnete_coll_team_t *gasnete_coll_team_find(team_id)
+ *  gasnete_coll_team_t gasnete_coll_team_find(team_id)
  *	Lookup a team by its 32-bit id, returning NULL if not found.
  *
  * Serialization done inside the implementation
@@ -32,7 +32,7 @@
 
 #ifndef GASNETE_COLL_TEAMS_OVERRIDE
     /* Called by by AM handlers to lookup the team by id */
-    gasnete_coll_team_t *gasnete_coll_team_lookup(uint32_t team_id) {
+    gasnete_coll_team_t gasnete_coll_team_lookup(uint32_t team_id) {
 	/* XXX: no implementation of teams yet */
         if (team_id != 0) {
 	    gasneti_fatalerror("Non-zero team id passed, but teams are not yet implemented.");
@@ -52,6 +52,8 @@
  * (Duplicates might result otherwise).
  *
  * Operations on the lookup table:
+ *   void gasnete_coll_op_table_init()
+ *   void gasnete_coll_op_table_fini()
  *   gasnete_coll_op_t *gasnete_coll_op_table_find(team, sequence)
  *	Lookup a coll op by its (team, sequence), returning NULL if not found.
  *   void gasnete_coll_op_table_ins(op)
@@ -60,6 +62,8 @@
  *	Delete a coll op from the table.
  *
  * Operations of the active list
+ *   void gasnete_coll_op_active_init()
+ *   void gasnete_coll_op_active_fini()
  *   gasnete_coll_op_t *gasnete_coll_op_active_first()
  *	Return the first coll op in the active list.
  *   gasnete_coll_op_t *gasnete_coll_op_active_next(op)
@@ -78,14 +82,10 @@ uint32_t gasnete_coll_sequence = 0;
 gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 
 #ifndef GASNETE_COLL_TABLE_OVERRIDE
-    /* Default implementation:
-     *
-     * Iteration over the table is based on a doubly linked list.
-     * Iteration starts from the head and new ops are added at the tail.
+    /* Default implementation of the coll_ops lookup table:
      *
      * Lookups are based on a fixed size table with slots used round-robin.
-     * Conflicts, if any, are resolved by chaining with a doubly linked list.
-     * Only the head is kept for these per-slot lists.
+     * Conflicts are resolved by chaining with a circular doubly linked list.
      * A minor change would mix the team pointer with the sequence number.
      * An alternative to that mixing would be separate tables in each team
      * data structure.
@@ -104,101 +104,207 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
 	 (gasneti_assert(T==NULL), ((uint32_t)(S) % GASNETE_COLL_TABLE_SIZE))
     #endif
 
-    static gasnete_coll_op_t *gasnete_coll_table_head = NULL;
-    static gasnete_coll_op_t *gasnete_coll_table_tail = NULL;
-    static gasnete_coll_op_t *gasnete_coll_table[GASNETE_COLL_TABLE_SIZE];
+    static gasnete_coll_op_t gasnete_coll_table[GASNETE_COLL_TABLE_SIZE];
 
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_table_find) */
+    void
+    gasnete_coll_op_table_init(void) {
+      int i;
+      for (i = 0; i < GASNETE_COLL_TABLE_SIZE; ++i) {
+        gasnete_coll_op_t *op = &(gasnete_coll_table[i]);
+        op->table_next = op->table_prev = op;
+      }
+    }
+
+    void
+    gasnete_coll_op_table_fini(void) {
+      /* EMPTY */
+    }
+
     gasnete_coll_op_t *
-    gasnete_coll_op_table_find(gasnete_coll_team_t *team, uint32_t sequence) {
+    gasnete_coll_op_table_find(gasnete_coll_team_t team, uint32_t sequence) {
       unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(team, sequence);
+      const gasnete_coll_op_t *head = &(gasnete_coll_table[slot_nr]);
       gasnete_coll_op_t *op;
 
       /* Search table */
-      op = gasnete_coll_table[slot_nr];
-      while ((op != NULL) && (op->team != team) && (op->sequence != sequence)) {
-        op = op->hash_next;
+      op = head->table_next;
+      while ((op != head) && (op->team != team) && (op->sequence != sequence)) {
+        op = op->table_next;
+      }
+
+      return (op == head) ? NULL : op;
+    }
+
+    void gasnete_coll_op_table_ins(gasnete_coll_op_t *op) {
+      unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(op->team, op->sequence);
+      gasnete_coll_op_t *head = &(gasnete_coll_table[slot_nr]);
+      
+      /* Add to circular doubly linked hash bucket */
+      op->table_next = head;
+      op->table_prev = head->table_prev;
+      head->table_prev->table_next = op;
+      head->table_prev = op;
+    }
+
+    void gasnete_coll_op_table_del(gasnete_coll_op_t *op) {
+      /* Remove from cirular doubly linked hash bucket */
+      op->table_next->table_prev = op->table_prev;
+      op->table_prev->table_next = op->table_next;
+    }
+#endif
+
+#ifndef GASNETE_COLL_LIST_OVERRIDE
+    /* Default implementation of coll_ops active list:
+     *
+     * Iteration over the active list is based on a circular doubly linked list.
+     * Iteration starts from the head and new ops are added at the tail.
+     */
+    static gasnete_coll_op_t gasnete_coll_list_head;
+
+    void
+    gasnete_coll_op_list_init(void) {
+      gasnete_coll_op_t *op = &gasnete_coll_list_head;
+      op->list_next = op->list_prev = op;
+    }
+
+    void
+    gasnete_coll_op_list_fini(void) {
+      /* EMPTY */
+    }
+
+    gasnete_coll_op_t *gasnete_coll_op_active_first(void) {
+      gasnete_coll_op_t *op = gasnete_coll_list_head.list_next;
+      return (op == &gasnete_coll_list_head) ? NULL : op;
+    }
+
+    gasnete_coll_op_t *gasnete_coll_op_active_next(gasnete_coll_op_t *op) {
+      op = op->list_next;
+      return (op == &gasnete_coll_list_head) ? NULL : op;
+    }
+
+    void gasnete_coll_op_active_ins(gasnete_coll_op_t *op) {
+      gasnete_coll_op_t *head = &gasnete_coll_list_head;
+
+      /* Add at tail of cicular doubly linked active list */
+      op->list_next = head;
+      op->list_prev = head->list_prev;
+      head->list_prev->list_next = op;
+      head->list_prev = op;
+    }
+                                                                                                              
+    void gasnete_coll_op_active_del(gasnete_coll_op_t *op) {
+      /* Remove from cicular doubly linked active list */
+      op->list_next->list_prev = op->list_prev;
+      op->list_prev->list_next = op->list_next;
+    }
+#endif
+
+/*---------------------------------------------------------------------------------*/
+/* Aggregation/filtering */
+
+/* interface:
+ *   gasnete_coll_op_t *gasnete_coll_op_submit(op)
+ *	Place coll_op in active list or not, as desired/required.
+ *   void gasnete_coll_op_complete(op, poll_result);
+ *	Mark coll_op done and perform other completion-time tasks.
+ *
+ *  Both are called with the table lock held.
+ */
+
+#ifndef GASNETE_COLL_AGG_OVERRIDE
+    /* Default implementation of aggregation/filtering */
+
+    /* XXX: how will teams interact w/ aggregation? */
+
+    static gasnete_coll_op_t *gasnete_coll_agg_stack = NULL;
+
+    gasnete_coll_op_t *
+    gasnete_coll_op_submit(gasnete_coll_op_t *op) {
+      /* All ops go onto the active list */
+      gasnete_coll_op_active_ins(op);
+
+      op->agg_head = NULL;
+
+      if_pf (op->flags && GASNET_COLL_AGGREGATE) {
+        /* Aggregate members get pushed on a stack */
+        op->agg_prev = gasnete_coll_agg_stack;
+        gasnete_coll_agg_stack = op;
+      } else if_pf (gasnete_coll_agg_stack) {
+        gasnete_coll_op_t *tmp;
+
+        /* End of aggregate, pop the entire stack */
+        op->agg_prev = gasnete_coll_agg_stack;
+        gasnete_coll_agg_stack = NULL;
+
+        /* Build a container to hold the aggregate.
+	 * The team, sequence and flags don't matter since this is just a dummy.
+	 * We build a circular doubly linked list from the stack.
+	 */
+        tmp = gasnete_coll_op_create(op->team, 0, 0);
+        tmp->agg_prev = op;
+	op = tmp;
+        do {
+	  gasnete_coll_op_t *next = op;
+          op = op->agg_prev;
+          op->agg_head = tmp;
+	  op->agg_next = next;
+        } while (op->agg_prev != NULL);
+	op->agg_prev = tmp;
+        tmp->agg_next = op;
+
+	/* The container replaces the real coll_op as the handle */
+	op = tmp;
+
+	/* There is a race in which aggregates coll_ops might have completed
+	 * before we get here.  Since we are serialized with respect to
+	 * completion (by the table lock), we can safely resolve this race
+	 * by examining the 'done' fields now.
+	 * Note that the aggregate will never be empty after this loop since
+	 * at least the most recent coll_op has never been polled.
+	 * XXX: merge this into the pass above?
+	 */
+	tmp = op->agg_next;
+	do {
+	  gasnete_coll_op_t *next = tmp->agg_next;
+	  if (tmp->done) {
+	    tmp->agg_next->agg_prev = tmp->agg_prev;
+	    tmp->agg_prev->agg_next = tmp->agg_next;
+	    gasnete_coll_op_destroy(tmp);
+	  }
+	  tmp = next;
+	} while (tmp != op);
+      } else {
+        /* An isolated coll_op (the normal case) */
       }
 
       return op;
     }
 
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_table_ins) */
-    void gasnete_coll_op_table_ins(gasnete_coll_op_t *op) {
-      unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(op->team, op->sequence);
-      gasnete_coll_op_t **slot = &(gasnete_coll_table[slot_nr]);
-      
-      /* Add to doubly linked hash bucket */
-      op->hash_prev = NULL;
-      op->hash_next = *slot;
-      if (*slot) {
-        (*slot)->hash_prev = op;
-      }
-      *slot = op;
-    }
+    void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result) {
+      if_pf (op->agg_head) {
+	gasnete_coll_op_t *head = op->agg_head;
 
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_table_del) */
-    void gasnete_coll_op_table_del(gasnete_coll_op_t *op) {
-      /* Remove from doubly linked hash bucket */
-      if (op->hash_next) {
-        op->hash_next->hash_prev = op->hash_prev;
-      }
-      if (op->hash_prev) {
-        op->hash_prev->hash_next = op->hash_next;
+	/* Remove this member from the aggregate */
+	op->agg_next->agg_prev = op->agg_prev;
+	op->agg_prev->agg_next = op->agg_next;
+	gasnete_coll_op_destroy(op);
+
+	/* Mark the container op done if it has become empty */
+	if (head->agg_next == head) {
+	  head->done = poll_result;
+	}
       } else {
-        unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(op->team, op->sequence);
-        gasnete_coll_table[slot_nr] = op->hash_next;
+        op->done = poll_result;
       }
     }
 
-
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_active_first) */
-    gasnete_coll_op_t *gasnete_coll_op_active_first(void) {
-      return gasnete_coll_table_head;
-    }
-
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_active_next) */
-    gasnete_coll_op_t *gasnete_coll_op_active_next(gasnete_coll_op_t *op) {
-      return op->list_next;
-    }
-
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_active_ins) */
-    void gasnete_coll_op_active_ins(gasnete_coll_op_t *op) {
-      /* Add at tail of doubly linked active list */
-      op->list_next = NULL;
-      op->list_prev = gasnete_coll_table_tail;
-      if (gasnete_coll_table_tail) {
-        gasnete_coll_table_tail->list_next = op;
-      } else {
-        gasnete_coll_table_head = op;
-      }
-      gasnete_coll_table_tail = op;
-    }
-                                                                                                              
-    /* GASNET_INLINE_MODIFIER(gasnete_coll_op_active_del) */
-    void gasnete_coll_op_active_del(gasnete_coll_op_t *op) {
-      /* Remove from doubly linked active list */
-      if (op->list_next) {
-        op->list_next->list_prev = op->list_prev;
-      } else {
-        gasnete_coll_table_tail = op->list_prev;
-      }
-      if (op->list_prev) {
-        op->list_prev->list_next = op->list_next;
-      } else {
-        gasnete_coll_table_head = op->list_next;
-      }
-    }
-#endif
+#endif 
 
 /*---------------------------------------------------------------------------------*/
-
 gasnete_coll_op_t *
-gasnete_coll_op_create(gasnete_coll_team_t *team, uint32_t sequence, unsigned int flags)
+gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int flags)
 {
   gasnete_coll_op_t *op;
-
-  /* ASSERT: table lock is held */
 
   op = gasneti_malloc(sizeof(*op));	/* XXX: use a free list */
 
@@ -208,19 +314,9 @@ gasnete_coll_op_create(gasnete_coll_team_t *team, uint32_t sequence, unsigned in
   op->done     = 0;
   gasnet_hsl_init(&op->lock);
   op->poll_fn  = (gasnete_coll_poll_fn)NULL;
-                                                                                                              
-  gasnete_coll_op_table_ins(op);
   
-  #if GASNET_DEBUG
-    /* The 'agg_prev' and 'data' fields are setup by the local collective
-       initiation function and thus may remain uninitialized for some time
-       if this coll op is created from an AM.
-       When debugging they are intentionally set to bogus values here to
-       help catch buggy code.
-    */
-    op->agg_prev = (gasnete_coll_op_t *)0xdeadbeef;
-    op->data = (gasnete_coll_op_t *)0xcafef00d;
-  #endif
+  /* The aggregation and and 'data' fields are setup elsewhere */
+  /* The gasnete_coll_op_table_ins(op) is done elsewhere */
 
   return op;
 }
@@ -237,12 +333,12 @@ void gasnete_coll_poll(void) {
 
     while (op != NULL) {
       gasnete_coll_op_t *next;
-      int done = 0;
+      int poll_result = 0;
 
       /* Poll/kick the op, unless another thread (typically an AM) is modifying it */
       if (gasnet_hsl_trylock(&op->lock) == GASNET_OK) {
         if (op->poll_fn != NULL) {
-          done = (*op->poll_fn)(op);
+          poll_result = (*op->poll_fn)(op);
         }
         gasnet_hsl_unlock(&op->lock);
       }
@@ -251,13 +347,13 @@ void gasnete_coll_poll(void) {
          This is the only place items are removed from the active list and table. */
       gasnet_hsl_lock(&gasnete_coll_table_lock);
       next = gasnete_coll_op_active_next(op);
-      if (done) {
+      if (poll_result != 0) {
         /* delete from active list and table */
         gasnete_coll_op_active_del(op);
         gasnete_coll_op_table_del(op);
 
         /* mark the op as completed */
-        op->done = 1;
+        gasnete_coll_op_complete(op, poll_result);
       }
       gasnet_hsl_unlock(&gasnete_coll_table_lock);
 
