@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.c                  $
- *     $Date: 2004/06/17 01:17:04 $
- * $Revision: 1.43.2.2 $
+ *     $Date: 2004/08/30 05:05:22 $
+ * $Revision: 1.43.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -108,7 +108,12 @@ int		gasnetc_am_oust_pp;
 int		gasnetc_am_spares;
 int		gasnetc_bbuf_limit;
 
-static size_t	gasnetc_max_pinnable;
+/* Maximum pinning capabilities of the HCA */
+typedef struct gasnetc_pin_info_t_ {
+    uintptr_t	memory;
+    uint32_t	regions;
+} gasnetc_pin_info_t;
+static gasnetc_pin_info_t gasnetc_pin_info;
 
 gasnetc_handler_fn_t const gasnetc_unused_handler = (gasnetc_handler_fn_t)&abort;
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
@@ -615,8 +620,8 @@ static int gasnetc_init(int *argc, char ***argv) {
       #endif
     #endif
 
-    gasneti_assert(gasnetc_hca_cap.max_num_mr >=  mr_needed);
-    gasneti_assert(gasnetc_hca_cap.max_num_fmr >= fmr_needed);
+    gasneti_assert_always(gasnetc_hca_cap.max_num_mr >=  mr_needed);
+    gasneti_assert_always(gasnetc_hca_cap.max_num_fmr >= fmr_needed);
   }
   #endif
   gasneti_assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
@@ -769,27 +774,75 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
-  gasneti_free(remote_addr);
-  gasneti_free(local_addr);
-
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasnetc_mynode, gasnetc_nodes); fflush(stderr);
   #endif
 
-  /* Find max pinnable size before we start carving up memory w/ mmap()s */
-  gasnetc_max_pinnable = gasnetc_get_max_pinnable();
+  /* Find max pinnable size before we start carving up memory w/ mmap()s.
+   *
+   * Take care that only one process per LID (node) performs the probe.
+   * The result is then divided by the number of processes on the adapter,
+   * which is easily determined from the connection information we exchanged above.
+   *
+   * XXX: The current solution is suboptimal because if mmap() was the limiting factor
+   * (rather than physical memory or HCA resources) then the result is too small.
+   * Doing better will require iteration and internode coordination to search the
+   * interval (max_pinnable/num_local)...max_pinnable.
+   */
+  {
+    gasnet_node_t	num_local;
+    gasnet_node_t	first_local;
+    gasnetc_pin_info_t	*all_info;
+
+    /* Determine the number of local processes and distinguish one */
+    num_local = 1;
+    first_local = gasnetc_mynode;
+    for (i = 0; i < gasnetc_nodes; ++i) {
+      if (remote_addr[i].lid == gasnetc_hca_port.lid) {
+        ++num_local;
+        first_local = MIN(i, first_local);
+      }
+    }
+    gasneti_assert(num_local != 0);
+    gasneti_assert(first_local != gasnetc_nodes);
+
+    /* Query the pinning limits of the HCA */
+    if (first_local == gasnetc_mynode) {
+      gasnetc_pin_info.memory  = GASNETI_ALIGNDOWN(gasnetc_get_max_pinnable() / num_local, GASNET_PAGESIZE);
+    } else {
+      gasnetc_pin_info.memory  = (uintptr_t)(-1);
+    }
+    gasnetc_pin_info.regions = gasnetc_hca_cap.max_num_mr;
+
+    /* Find the local min-of-maxes over the pinning limits */
+    all_info = gasneti_malloc(gasnetc_nodes * sizeof(gasnetc_pin_info_t));
+    gasnetc_bootstrapAllgather(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
+    for (i = 0; i < gasnetc_nodes; i++) {
+      gasnetc_pin_info.memory  = MIN(gasnetc_pin_info.memory,  all_info[i].memory );
+      gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, all_info[i].regions);
+    }
+    gasneti_free(all_info);
+    gasneti_assert(gasnetc_pin_info.memory != 0);
+    gasneti_assert(gasnetc_pin_info.memory != (uintptr_t)(-1));
+    gasneti_assert(gasnetc_pin_info.regions != 0);
+  }
+
+  gasneti_free(remote_addr);
+  gasneti_free(local_addr);
 
   #if GASNET_SEGMENT_FAST
   {
+    /* XXX: This call replicates the mmap search and min-of-max done above */
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
                         &gasnetc_MaxGlobalSegmentSize,
-                        gasnetc_max_pinnable,
+                        gasnetc_pin_info.memory,
                         gasnetc_nodes,
                         &gasnetc_bootstrapAllgather);
   }
   #elif GASNET_SEGMENT_LARGE
   {
+    /* XXX: This call replicates the mmap search done above */
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
                         &gasnetc_MaxGlobalSegmentSize,
                         (uintptr_t)(-1),
@@ -1016,23 +1069,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   #if GASNETC_USE_FIREHOSE
   {
-    struct gasnetc_fh_info {
-      uintptr_t	memsize;
-      size_t    regions;
-    } my_info, *all_info;
     int i, reg_count;
     firehose_region_t prereg[3];
-
-    /* Get global min-of-max physical memory */
-    all_info = gasneti_malloc(gasnetc_nodes * sizeof(*all_info));
-    my_info.memsize = gasnetc_max_pinnable;
-    my_info.regions = gasnetc_hca_cap.max_num_mr;
-    gasnetc_bootstrapAllgather(&my_info, sizeof(*all_info), all_info);
-    for (i = 0; i < gasnetc_nodes; i++) {
-      my_info.memsize = MIN(my_info.memsize, all_info[i].memsize);
-      my_info.regions = MIN(my_info.regions, all_info[i].regions);
-    }
-    gasneti_free(all_info);
 
     /* Setup prepinned regions list */
     prereg[0].addr          = gasnetc_snd_reg.addr;
@@ -1070,7 +1108,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     #endif
 
     /* Now initialize firehose */
-    firehose_init(my_info.memsize, my_info.regions,
+    firehose_init(gasnetc_pin_info.memory, gasnetc_pin_info.regions,
 		  prereg, reg_count,
 		  &gasnetc_firehose_info);
     gasnetc_fh_maxsz = MIN(gasnetc_hca_port.max_msg_sz,
@@ -1123,6 +1161,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 /*
   Exit handling code
 */
+
+#if !GASNETI_HAVE_ATOMIC_SWAP
+  #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
+#endif
 
 gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
 
