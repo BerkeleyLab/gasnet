@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/20 23:34:12 $
- * $Revision: 1.2.2.4 $
+ *     $Date: 2003/03/21 01:14:44 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,6 +106,13 @@ static void gasnetc_bootstrapBarrier(void) {
   assert(err == MPI_SUCCESS);
 }
 
+static void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest) {
+  int err;
+
+  err = MPI_Allgather(src, len, MPI_CHAR, dest, len, MPI_CHAR, MPI_COMM_WORLD);
+  assert(err == MPI_SUCCESS);
+}
+
 static void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest) {
   int err;
 
@@ -117,6 +124,7 @@ extern void gasnetc_bootstrapInit(int *argc, char ***argv);
 extern void gasnetc_bootstrapFini(void);
 extern void gasnetc_bootstrapConf(void);
 extern void gasnetc_bootstrapBarrier(void);
+extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 #endif
 
@@ -320,19 +328,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
-    { 
-      /* (###) Add code here to determine optimistic maximum segment size */
-      gasnetc_MaxLocalSegmentSize = 0 /* ### */;
-
-      /* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes */
-      gasnetc_MaxGlobalSegmentSize = 0 /* ### */;
-
-      /* it may be appropriate to use gasneti_segmentInit() here to set 
-         gasnetc_MaxLocalSegmentSize and gasnetc_MaxGlobalSegmentSize,
-         if your conduit can use memory anywhere in the address space
-         (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
-      */
-    }
+    gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
+                        &gasnetc_MaxGlobalSegmentSize,
+                        (uintptr_t)-1,	/* XXX: tune this limit */
+                        gasnetc_nodes,
+                        &gasnetc_bootstrapAllgather);
   #elif defined(GASNET_SEGMENT_EVERYTHING)
     gasnetc_MaxLocalSegmentSize =  (uintptr_t)-1;
     gasnetc_MaxGlobalSegmentSize = (uintptr_t)-1;
@@ -488,28 +488,18 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_seginfo = (gasnet_seginfo_t *)gasneti_malloc_inhandler(gasnetc_nodes*sizeof(gasnet_seginfo_t));
 
   #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
-    if (segsize == 0) segbase = NULL; /* no segment */
-    else {
-      /* (###) add code here to choose and register a segment 
-         (ensuring alignment across all nodes if this conduit sets GASNET_ALIGNED_SEGMENTS==1) 
-         you can use gasneti_segmentAttach() here if you used gasneti_segmentInit() above
-      */
-      assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-      assert(segsize % GASNET_PAGESIZE == 0);
+    gasneti_segmentAttach(segsize, minheapoffset, gasnetc_seginfo, &gasnetc_bootstrapAllgather);
+  #else /* GASNET_SEGMENT_EVERYTHING */
+    { int i;
+      for (i=0;i<gasnetc_nodes;i++) {
+        gasnetc_seginfo[i].addr = (void *)0;
+        gasnetc_seginfo[i].size = (uintptr_t)-1;
+      }
     }
-  #else
-    /* GASNET_SEGMENT_EVERYTHING */
-    segbase = (void *)0;
-    segsize = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
-
-  /* ------------------------------------------------------------------------------------ */
-  /*  gather segment information */
-
-  /* (###) add code here to gather the segment assignment info into 
-           gasnetc_seginfo on each node (may be possible to use AMShortRequest here)
-   */
+  segbase = gasnetc_seginfo[gasnetc_mynode].addr;
+  segsize = gasnetc_seginfo[gasnetc_mynode].size;
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
