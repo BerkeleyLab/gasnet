@@ -1,6 +1,6 @@
 /* vapi-conduit/firehose_fwd.h
- * $Date: 2003/10/08 18:04:03 $
- * $Revision: 1.1.2.3 $
+ * $Date: 2003/10/15 00:57:40 $
+ * $Revision: 1.1.2.4 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -29,5 +29,14 @@ typedef struct _firehose_client_t {
    XXX: Don't yet have a way to disable this entirely. */
 typedef int firehose_remotecallback_args_t;
 #define FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+
+/* Setup conduit-specific region parameters
+ * Note that these are kept to sane sizes rather than the HCA limit
+ * 128kB is the peak of the bandwidth curve and thus a good size.
+ * With 32k * 128k = 4G we can pin upto 4GB of physical memory with these.
+ * We don't yet deal well with many small regions.
+ */
+#define FIREHOSE_CLIENT_MAXREGIONS	32768
+#define FIREHOSE_CLIENT_MAXREGION_SIZE	131072
 
 #endif
