@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/20 22:21:56 $
- * $Revision: 1.2.2.48 $
+ *     $Date: 2003/06/24 21:53:07 $
+ * $Revision: 1.2.2.49 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,6 +75,10 @@ void gasnetc_checkattach() {
 
 gasnetc_handler_fn_t const gasnetc_unused_handler = (gasnetc_handler_fn_t)&abort;
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+
+static pid_t gasnetc_mypid;
+static void gasnetc_atexit(void);
+static void gasnetc_exit_sighandler(int sig);
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -503,7 +507,13 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_setupGlobalEnvironment(gasnetc_nodes, gasnetc_mynode, 
                                  gasnetc_bootstrapAllgather, gasnetc_bootstrapBroadcast);
 
+  /* Set up for exit handlers */
+  gasnetc_mypid = getpid();
+  gasneti_reghandler(SIGUSR1, gasnetc_exit_sighandler);
+  atexit(gasnetc_atexit);
+
   gasnetc_init_done = 1;  
+  gasnetc_bootstrapBarrier();
 
   return GASNET_OK;
 }
@@ -720,46 +730,133 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 /*
   Exit handling code
 */
-gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);
-gasneti_atomic_t gasnetc_exit_rcvd = gasneti_atomic_init(0);
-gasneti_atomic_t gasnetc_exit_once = gasneti_atomic_init(1);
 
-static void gasnetc_ualarm(int64_t usecs) {
-  struct itimerval it;
+gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
+gasneti_atomic_t gasnetc_exit_rcvd = gasneti_atomic_init(0);	/* count of remote exit requests */
+gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag to show exit coordination done */
 
-  assert (usecs >= 0);
+/* gasnetc_exit_head
+ *
+ * All exit paths pass through here as the first step.
+ * This function ensures that gasnetc_exit_code is written only once
+ * by the first call.
+ * It also lets the handler for remote exit requests know if a local
+ * request has already begun.
+ *
+ * returns non-zero on the first call only
+ * returns zero on all subsequent calls
+ */
+static int gasnetc_exit_head(int exitcode) {
+  static gasneti_atomic_t once = gasneti_atomic_init(1);
+  int retval;
 
-  it.it_interval.tv_sec  = 0;
-  it.it_interval.tv_usec = 0;
+  retval = gasneti_atomic_decrement_and_test(&once);
 
-  it.it_value.tv_sec  = usecs / 1000000;
-  it.it_value.tv_usec = usecs % 1000000;
+  if (retval) {
+    /* Store the exit code for later use */
+    gasneti_atomic_set(&gasnetc_exit_code, exitcode);
+  }
 
-  (void)setitimer(ITIMER_REAL, &it, 0);
+  return retval;
 }
 
-static void gasnetc_exit_sighandler(int sig) {
-  /* This is a last-ditch exit */
+/* gasnetc_exit_now
+ *
+ * First we set the atomic variable gasnetc_exit_done to allow the exit
+ * of any threads which are spinning on it in gasnetc_exit().
+ * Then this function tries hard to actually terminate the calling thread.
+ * If for some unlikely reason the _exit() call returns, we abort().
+ *
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_now(int) GASNET_NORETURN;
+static void gasnetc_exit_now(int exitcode) {
+  /* If anybody is still waiting, let them go */
+  gasneti_atomic_set(&gasnetc_exit_done, 1);
 
-  #if DEBUG_VERBOSE
-    /* note - can't call trace macros here, too late */
-    static const char msg[] = "gasnetc_exit(): signal received durring exit... goodbye\n";
-    write(STDERR_FILENO, msg, sizeof(msg));
-    /* fflush(stderr);  NOT REENTRANT */
-  #endif
-
-  _exit(gasneti_atomic_read(&gasnetc_exit_code));
+  _exit(exitcode);
+  /* NOT REACHED */
 
   gasneti_reghandler(SIGABRT, SIG_DFL);
   abort();
+  /* NOT REACHED */
 }
 
-/* Say a polite goodbye to our peers and then listen for them to say goodby, too.
+/* gasnetc_exit_tail
+ *
+ * This the final exit code for the cases of local or remote requested exits.
+ * It is not used for the return-from-main case.  Nor is this code used if a fatal
+ * signal (including SIGALRM on timeout) is encountered while trying to shutdown.
+ *
+ * This code tries to kill the full process in the presence of threads before
+ * proceeding to gasnetc_exit_now() to actually terminate.
+ *
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_tail(void) GASNET_NORETURN;
+static void gasnetc_exit_tail(void) {
+  int exitcode = gasneti_atomic_read(&gasnetc_exit_code);
+
+  #if DEBUG_VERBOSE
+    fprintf(stderr, "%d> _exit_tail(%d)\n", gasnetc_mynode, exitcode);
+  #endif
+
+  /* We need to be certain that the entire multi-threaded process will exit.
+   * POSIX threads say that exit() ensures this, but is silent (?) on _exit().
+   * At least on some systems _exit() skips the at-exit handler that kills the other threads.
+   * This is an attempt to get the main thread to exit unconditionally.
+   */
+  gasneti_reghandler(SIGUSR1, gasnetc_exit_sighandler);	/* redundant, but just in case */
+  kill(gasnetc_mypid, SIGUSR1);
+
+  /* goodbye... */
+  gasnetc_exit_now(exitcode);
+  /* NOT REACHED */
+}
+
+/* gasnetc_exit_sighandler
+ *
+ * This signal handler is for a last-ditch exit when a signal arrives while
+ * attempting the graceful exit.  That includes SIGALRM if we get wedged.
+ * It is also used, on SIGUSR1, as part of the mechanism for ensuring
+ * that all threads will exit (we hope).
+ *
+ * Just a signal-handler wrapper for gasnetc_exit_now().
+ *
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_sighandler(int sig) {
+  int exitcode = gasneti_atomic_read(&gasnetc_exit_code);
+
+  #if DEBUG_VERBOSE
+  /* note - can't call trace macros here, or even sprintf */
+  if (sig != SIGUSR1) {
+    static const char msg[] = "gasnet_exit(): signal received during exit... goodbye\n";
+    write(STDERR_FILENO, msg, sizeof(msg));
+    /* fflush(stderr);   NOT REENTRANT */
+  }
+  #endif
+
+  gasnetc_exit_now(exitcode);
+  /* NOT REACHED */
+}
+
+/* gasnetc_exit_barrier
+ *
+ * We say a polite goodbye to our peers and then listen for them to say goodby, too.
  * This forms a barrier for graceful shutdown.
+ *
+ * The "goodbyes" are just a system-category AM containing the desired exit code.
+ * The AM helps ensure that on non-collective exits the "other" nodes know to exit.
+ * By unconditionally sending the AM, even if we've received one, we can implement
+ * a simple barrier with a timeout.  If we see a "goodbye" from all of our peers
+ * we know we've managed to coordinate an orderly shutdown.  If not, then in
+ * gasnetc_exit_body() we can ask the bootstrap support to kill the job in a less
+ * graceful way.
  *
  * Takes the exitcode and a timeout in us as arguments
  *
- * Returns 0 on success.
+ * Returns 0 on success, non-zero on any sort of failure including timeout.
  */
 static int gasnetc_exit_barrier(int exitcode, int64_t timeout_us) {
   int i, rc;
@@ -789,46 +886,46 @@ static int gasnetc_exit_barrier(int exitcode, int64_t timeout_us) {
   return 0;
 }
 
-static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
-  assert(args != NULL);
-  assert(numargs == 1);
-
-  /* Indicate reception of an exit request */
-  gasneti_atomic_increment(&gasnetc_exit_rcvd);
-
-  /* Initiate an exit IFF this is the first we've heard of it */
-  if (gasneti_atomic_decrement_and_test(&gasnetc_exit_once)) {
-    /* Store the exit code for later use */
-    gasneti_atomic_set(&gasnetc_exit_code, args[0]);
-
-    /* Start the exit path */
-    raise(SIGQUIT);
-  }
-}
-extern void gasnetc_exit(int exitcode) {
+/* gasnetc_exit_body
+ *
+ * This code is common to all the exit paths and is used to perform a hopefully graceful exit in all cases.
+ * We try call gasnetc_exit_barrier() to try to coordinate all the threads before we proceed to shutdown
+ * the conduit.  If we couldn't coordinate the shutdown, we ask the bootstrap to shut us down agressively.
+ * Otherwise we return to our caller.  Unless our caller is the at-exit handler, we are typically followed
+ * by a call to gasnetc_exit_tail() to perform the actual termination.  Note also that this function will
+ * block all callers other than the first until the shutdown code has been completed.
+ *
+ * XXX: timouts contained here are entirely arbitrary
+ */
+static void gasnetc_exit_body(void) {
   VAPI_ret_t vstat;
-  int i, rc, graceful;
+  int i, rc, graceful, exitcode;
   int64_t timeout_us;
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
-  gasneti_reghandler(SIGQUIT, SIG_IGN);
+  (void)gasneti_reghandler(SIGQUIT, SIG_IGN);
 
-  {  /* ensure only one thread ever continues past this point */
-    /* XXX mutex functions are not safe in signal context */
-    static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
-    gasneti_mutex_lock(&exit_lock);
-  }
-
-  /* Ensure we use the first exitcode to be generated
-   * There is a tiny race in definining "first", but it is not worth worrying about
+  /* Ensure only one thread ever continues past this point.
+   * Others will spin here until time to die.
+   * We can't/shouldn't use mutex code here since it is not signal-safe.
    */
-  if (gasneti_atomic_decrement_and_test(&gasnetc_exit_once)) {
-    /* store exit code for use by last-ditch signal handler */
-    gasneti_atomic_set(&gasnetc_exit_code, exitcode);
-  } else {
-    /* read exit code, presumably stored by gasnetc_exit_reqh() */
-    exitcode = gasneti_atomic_read(&gasnetc_exit_code);
+  #ifdef GASNETI_USE_GENERIC_ATOMICOPS
+    #error "We need real atomic ops with signal-safety for gasnet_exit..."
+  #endif
+  {
+    static gasneti_atomic_t exit_lock = gasneti_atomic_init(1);
+    if (!gasneti_atomic_decrement_and_test(&exit_lock)) {
+      /* poll until it is time to exit */
+      while (!gasneti_atomic_read(&gasnetc_exit_done)) {
+	sleep(1);
+      }
+      gasnetc_exit_tail();
+      /* NOT REACHED */
+    }
   }
+
+  /* read exit code, stored by first caller to gasnetc_exit_head() */
+  exitcode = gasneti_atomic_read(&gasnetc_exit_code);
 
   /* Establish a last-ditch signal handler in case of failure. */
   alarm(0);
@@ -841,19 +938,24 @@ extern void gasnetc_exit(int exitcode) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
-  /* Try to flush out all the output */
-  gasneti_trace_finish();
-  if (fflush(stdout)) 
-    gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-  if (fflush(stderr)) 
-    gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
-  gasneti_sched_yield();
+  /* Try to flush out all the output, allowing upto 30s */
+  alarm(30);
+  {
+    gasneti_trace_finish();
+    if (fflush(stdout)) 
+      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
+    if (fflush(stderr)) 
+      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+    alarm(0);
+    gasneti_sched_yield();
+  }
 
   /* Attempt a coordinated shutdown */
   timeout_us = 2000000 + gasnetc_nodes*250000; /* 2s + 0.25s * nodes */
-  gasnetc_ualarm(timeout_us);
-  graceful = (gasnetc_exit_barrier(exitcode, timeout_us * 0.9) == 0);
-  alarm(0);
+  alarm(1 + timeout_us/1000000);
+  { 
+    graceful = (gasnetc_exit_barrier(exitcode, timeout_us) == 0);
+  }
 
   /* Clean up transport resources, allowing upto 30s */
   alarm(30);
@@ -868,29 +970,158 @@ extern void gasnetc_exit(int exitcode) {
       gasnetc_unpin(&gasnetc_seg_reg);
     }
     (void)VAPI_dealloc_pd(gasnetc_hca, gasnetc_pd);
+#if !GASNETC_RCV_THREAD	/* can't release from inside the RCV thread */
     (void)EVAPI_release_hca_hndl(gasnetc_hca);
+#endif
   }
-  alarm(0);
 
   /* Try again to flush out any recent output, allowing upto 5s */
   alarm(5);
-  if (fflush(stdout)) 
-    gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
-  if (fflush(stderr)) 
-    gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
-  alarm(0);
+  {
+    if (fflush(stdout)) 
+      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
+    if (fflush(stderr)) 
+      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+    if (fclose(stdin)) 
+      gasneti_fatalerror("failed to close stdin in gasnetc_exit: %s", strerror(errno));
+    if (fclose(stdout)) 
+      gasneti_fatalerror("failed to close stdout in gasnetc_exit: %s", strerror(errno));
+    #if !DEBUG_VERBOSE
+      if (fclose(stderr)) 
+          gasneti_fatalerror("failed to close stderr in gasnetc_exit: %s", strerror(errno));
+    #endif
+  }
 
   /* XXX potential problems here if exiting from the "Wrong" thread, or from a signal handler */
   alarm(10);
-  if (graceful) {
-    gasnetc_bootstrapFini();
-  } else {
-    gasnetc_bootstrapAbort(exitcode);
+  {
+    if (graceful) {
+      gasnetc_bootstrapFini();
+    } else {
+      /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
+      gasnetc_bootstrapAbort(exitcode);
+      /* NOT REACHED */
+    }
   }
-  alarm(0);
 
-  _exit(exitcode);
-  abort();
+  alarm(0);
+}
+
+/* gasnetc_exit_reqh
+ *
+ * This is a system-category AM handler and is therefore available as soon as gasnet_init()
+ * returns, even before gasnet_attach().  This handler is responsible for receiving the
+ * remote exit requests from our peers and counting them.  We call gasnetc_exit_head()
+ * with the exitcode seen in the remote exit request.  If this remote request is seen before
+ * any other exit requests (local or remote), then we are also responsible for starting the
+ * exit procedure, via gasnetc_exit_{body,tail}().  However, we are also responsible for
+ * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
+ */
+static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
+  assert(args != NULL);
+  assert(numargs == 1);
+
+  /* Count the exit requests, so gasnetc_exit_barrier() knows when to return */
+  gasneti_atomic_increment(&gasnetc_exit_rcvd);
+
+  /* Initiate an exit IFF this is the first we've heard of it */
+  if (gasnetc_exit_head(args[0])) {
+    gasneti_sighandlerfn_t handler;
+    /* IMPORTANT NOTE
+     * When we reach this point we are in a request handler which will never return.
+     * Care should be taken to ensure this doesn't wedge the AM recv logic in such a
+     * way that the exit barrier will wedge.
+     *
+     * This is currently safe because:
+     * 1) request handlers are run w/ no locks held
+     * 2) we always have an extra thread to recv AM requests
+     */
+
+#if 0
+/* We can skip this step for the simple reason that we know we are handling
+ * what should be the very last AM sent to us by the this peer and credits
+ * and the buffers they count are currently managed point-to-point.
+ *
+ * However, once we implement a pool of buffers shared amoung multiple
+ * end points, we will need to either restore this code, or define the
+ * flow-control semantics of system-category AMs as distinct from other AMs.
+ */
+    #if GASNETC_AM_FLOWCTRL
+      /* send the reply required for flow-control ACK now, since we are not returning */
+      (void)gasnetc_ReplySystem(token, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
+    #endif
+#endif
+
+    /* To try and be reasonably robust, want to avoid performing the shutdown and exit from signal
+     * context if we can avoid it.  However, we must raise SIGQUIT if the user has registered a handler.
+     * Therefore we inspect what is registered before calling raise().
+     *
+     * XXX we don't do this atomically w.r.t the signal
+     * XXX we don't do the right thing w/ SIG_ERR and SIG_HOLD
+     */
+    handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
+    if ((handler != gasneti_defaultSignalHandler) &&
+#ifdef SIG_HOLD
+	(handler != (gasneti_sighandlerfn_t)SIG_HOLD) &&
+#endif
+	(handler != (gasneti_sighandlerfn_t)SIG_ERR) &&
+	(handler != (gasneti_sighandlerfn_t)SIG_IGN) &&
+	(handler != (gasneti_sighandlerfn_t)SIG_DFL)) {
+      (void)gasneti_reghandler(SIGQUIT, handler);
+      #if 1
+        raise(SIGQUIT);
+        /* Note: Both ISO C and POSIX assure us that raise() won't return until after the signal handler
+         * (if any) has executed.  However, if that handler calls gasnetc_exit(), we'll never return here. */
+      #elif 0
+	kill(getpid(),SIGQUIT);
+      #else
+	handler(SIGQUIT);
+      #endif
+    } else {
+      /* No need to restore the handler, since _exit_body will set it to SIG_IGN anyway. */
+    }
+    
+    gasnetc_exit_body();
+    gasnetc_exit_tail();
+    /* NOT REACHED */
+  }
+
+  return;
+}
+
+/* gasnetc_atexit
+ *
+ * This is a simple atexit() handler to achieve a hopefully graceful exit.
+ * We use the functions gasnetc_exit_{head,body}() to coordinate the shutdown.
+ * Note that we don't call gasnetc_exit_tail() since we anticipate the normal
+ * exit() procedures to shutdown the multi-threaded process nicely and also
+ * because we don't have access to the exit code!
+ *
+ * Unfortunately, we don't have access to the exit code to send to the other
+ * nodes in the event this is a non-collective exit.  However, experience with at
+ * lease one MPI suggests that when using MPI for bootstrap a non-zero return from
+ * at least one executable is sufficient to produce that non-zero exit code from
+ * the parallel job.  Therefore, we can "safely" pass 0 to our peers and still
+ * expect to preserve a non-zero exit code for the GASNet job as a whole.  Of course
+ * there is no _guarantee_ this will work with all bootstraps.
+ */
+static void gasnetc_atexit(void) {
+  gasnetc_exit_head(0);	/* real exit code is outside our control */
+  gasnetc_exit_body();
+  return;
+}
+
+/* gasnetc_exit
+ *
+ * This is the start of a locally requested exit from GASNet.
+ * The caller might be the user, some part of the conduit which has detected an error,
+ * or possibly gasneti_defaultSignalHandler() responding to a termination signal.
+ */
+extern void gasnetc_exit(int exitcode) {
+  gasnetc_exit_head(exitcode);
+  gasnetc_exit_body();
+  gasnetc_exit_tail();
+  /* NOT REACHED */
 }
 
 /* ------------------------------------------------------------------------------------ */
