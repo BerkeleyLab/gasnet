@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/01 21:35:24 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/04/01 22:07:36 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -113,6 +113,66 @@ int gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_snd_desc_t *desc) {
   return (VAPI_OK != VAPI_post_sr(gasnetc_hca, cep->qp_handle, &desc->sr_desc));
 }
 
+GASNET_INLINE_MODIFIER(gasnetc_ReqRepGeneric)
+int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
+			  int dest, gasnet_handler_t handler,
+			  void *src_addr, int nbytes, void *dst_addr,
+			  int numargs, gasnetc_snd_desc_t **rdma_desc, va_list argptr) {
+  gasnetc_snd_desc_t *desc;
+  gasnetc_buffer_t *buf;
+  gasnet_handlerarg_t *args;
+  size_t msg_len;
+  int retval, i;
+
+  desc = gasnetc_get_snd_desc();
+  buf = desc->buffer;
+
+  switch (category) {
+  case gasnetc_Short:
+    args = buf->shortmsg.args;
+    msg_len = offsetof(gasnetc_buffer_t, shortmsg.args[numargs]);
+    break;
+
+  case gasnetc_Medium:
+    args = buf->medmsg.args;
+    buf->medmsg.nBytes = nbytes;
+    memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
+    msg_len = GASNETC_MSG_MED_OFFSET(numargs) + nbytes;
+    break;
+
+  case gasnetc_Long:
+    assert(rdma_desc != NULL);
+    *rdma_desc = gasnetc_rdma_put(&gasnetc_cep[dest], (uintptr_t)src_addr, (uintptr_t)dst_addr, nbytes);
+    assert(*rdma_desc != NULL);
+
+    args = buf->longmsg.args;
+    buf->longmsg.destLoc = (uintptr_t)dst_addr;
+    buf->longmsg.nBytes  = nbytes;
+    msg_len = offsetof(gasnetc_buffer_t, longmsg.args[numargs]);
+    break;
+
+  default:
+    assert(0);
+  }
+ 
+  /* copy args */
+  for (i=0; i <numargs; ++i) {
+    args[i] = va_arg(argptr, gasnet_handlerarg_t);
+  }
+
+  /* build send descriptor */
+  desc->sr_sg[0].addr      = (uintptr_t)buf;
+  desc->sr_sg[0].len       = msg_len;
+  desc->sr_sg[0].lkey      = gasnetc_snd_reg.lkey;
+  desc->sr_desc.sg_lst_len = 1;
+  desc->sr_desc.imm_data   = GASNETC_MSG_GENFLAGS(isReq, category, numargs, handler, gasnetc_mynode);
+  desc->sr_desc.opcode     = VAPI_SEND_WITH_IMM;
+
+  retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
+
+  va_end(argptr);
+  GASNETI_RETURN(retval);
+}
 /* ------------------------------------------------------------------------------------ *
  *  Externally visible functions                                                        *
  * ------------------------------------------------------------------------------------ */
@@ -165,12 +225,18 @@ extern void gasnetc_snd_fini(void) {
 
 /* Perform an RDMA put
  * Returns the send descriptor one which one should sync for completion.
+ * May return NULL if the transfer is known to be complete.
  *
  * Current system uses bounce buffers only when source is not pinned
  * and uses zero-copy when source is pinned.
  * Note that if the source is partially pinned, both are used.  However,
  * the bounce buffers might include a small portion of the pinned memory
  * since no optimization is doen to get the exact start of the pinned memory.
+ *
+ * XXX
+ * Later "optimization" would be to use bounce buffers for ALL small transfers,
+ * regardless of pinning, because the copy would cost less than blocking for the
+ * transfer to complete.  This is the return NULL case described above.
  */
 extern gasnetc_snd_desc_t *gasnetc_rdma_put(gasnetc_cep_t *cep, uintptr_t src, uintptr_t dst, size_t nbytes) {
   gasnetc_snd_desc_t *desc;
@@ -272,58 +338,26 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs, gasnetc_snd_desc_t **rdma_desc, va_list argptr) {
-  gasnetc_snd_desc_t *desc;
-  gasnetc_buffer_t *buf;
-  gasnet_handlerarg_t *args;
-  size_t msg_len;
-  int retval, i;
+  return gasnetc_ReqRepGeneric(category, 1, dest, handler,
+                               src_addr, nbytes, dst_addr,
+                               numargs, rdma_desc, argptr);
+}
 
-  desc = gasnetc_get_snd_desc();
-  buf = desc->buffer;
+extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
+				gasnet_token_t token, gasnet_handler_t handler,
+				  void *src_addr, int nbytes, void *dst_addr,
+				  int numargs, gasnetc_snd_desc_t **rdma_desc, va_list argptr) {
+  gasnetc_rcv_desc_t *desc = (gasnetc_rcv_desc_t *)token;
+  int retval;
 
-  switch (category) {
-  case gasnetc_Short:
-    args = buf->shortmsg.args;
-    msg_len = offsetof(gasnetc_buffer_t, shortmsg.args[numargs]);
-    break;
+  assert(desc);
+  assert(!desc->reply_sent);
+  assert(GASNETC_MSG_ISREQUEST(desc->flags));
 
-  case gasnetc_Medium:
-    args = buf->medmsg.args;
-    buf->medmsg.nBytes = nbytes;
-    memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
-    msg_len = GASNETC_MSG_MED_OFFSET(numargs) + nbytes;
-    break;
+  retval = gasnetc_ReqRepGeneric(category, 0, GASNETC_MSG_SRCIDX(desc->flags), handler,
+				 src_addr, nbytes, dst_addr,
+				 numargs, rdma_desc, argptr);
 
-  case gasnetc_Long:
-    assert(rdma_desc != NULL);
-    *rdma_desc = gasnetc_rdma_put(&gasnetc_cep[dest], (uintptr_t)src_addr, (uintptr_t)dst_addr, nbytes);
-    assert(*rdma_desc != NULL);
-
-    args = buf->longmsg.args;
-    buf->longmsg.destLoc = (uintptr_t)dst_addr;
-    buf->longmsg.nBytes  = nbytes;
-    msg_len = offsetof(gasnetc_buffer_t, longmsg.args[numargs]);
-    break;
-
-  default:
-    assert(0);
-  }
- 
-  /* copy args */
-  for (i=0; i <numargs; ++i) {
-    args[i] = va_arg(argptr, gasnet_handlerarg_t);
-  }
-
-  /* build send descriptor */
-  desc->sr_sg[0].addr      = (uintptr_t)buf;
-  desc->sr_sg[0].len       = msg_len;
-  desc->sr_sg[0].lkey      = gasnetc_snd_reg.lkey;
-  desc->sr_desc.sg_lst_len = 1;
-  desc->sr_desc.imm_data   = GASNETC_MSG_GENFLAGS(1, category, numargs, handler, gasnetc_mynode);
-  desc->sr_desc.opcode     = VAPI_SEND_WITH_IMM;
-
-  retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
-
-  va_end(argptr);
-  GASNETI_RETURN(retval);
+  desc->reply_sent = 1;
+  return retval;
 }
