@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/15 21:08:04 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/04/15 23:42:03 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -166,9 +166,10 @@ gasnet_handle_t   _gasnet_memset_nb   (gasnet_node_t node, void *dest, int val, 
   ===========================================================
 */
 
-extern int gasnete_try_syncnb(gasnet_handle_t handle);
-extern int gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
-extern int gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles);
+extern int  gasnete_try_syncnb(gasnet_handle_t handle);
+extern int  gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
+extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles);
+extern void gasnete_wait_syncnb(gasnet_handle_t handle);
 
 GASNET_INLINE_MODIFIER(gasnet_try_syncnb)
 int  gasnet_try_syncnb(gasnet_handle_t handle) {
@@ -193,17 +194,17 @@ int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   return result;
 }
 
-/* non-traced version of sync for internal use */
-#define gasnete_wait_syncnb(handle) do {                                      \
+/* non-traced version of sync for internal use, checks for INVALID_HANDLE */
+#define gasnete_wait_syncnb_check(handle) do {                                      \
     gasnet_handle_t _handle = (handle);                                       \
     if_pt (_handle != GASNET_INVALID_HANDLE)                                  \
-      gasnete_waitwhile(gasnete_try_syncnb(_handle) == GASNET_ERR_NOT_READY); \
+      gasnete_wait_syncnb(_handle);                                           \
   } while(0)
 
 GASNET_INLINE_MODIFIER(gasnet_wait_syncnb)
 void gasnet_wait_syncnb(gasnet_handle_t handle) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_syncnb(handle);
+  gasnete_wait_syncnb_check(handle);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB);
 }
 
@@ -323,6 +324,8 @@ void   _gasnet_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nby
 
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE);
 extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE);
+extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE);
+extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE);
 
 GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_gets)
 int _gasnet_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
@@ -359,28 +362,28 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
 #define gasnet_try_syncnbi_all()   \
        _gasnet_try_syncnbi_all(GASNETE_THREAD_GET_ALONE)
 
-#define gasnet_wait_syncnbi_gets() do {                                                          \
-  GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
-  gasnet_AMPoll(); /* ensure at least one poll */                                                \
-  gasnete_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
-  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_GETS);                                                 \
-  } while (0)
+GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_gets)
+void gasnet_wait_syncnbi_gets(void) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
+  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_GETS);
+}
 
-#define gasnet_wait_syncnbi_puts() do {                                                          \
-  GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
-  gasnet_AMPoll(); /* ensure at least one poll */                                                \
-  gasnete_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
-  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);                                                 \
-  } while (0)
+GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_puts)
+void gasnet_wait_syncnbi_puts(void) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
+  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);
+}
 
-#define gasnet_wait_syncnbi_all() do {                                                           \
-  GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
-  gasnet_AMPoll(); /* ensure at least one poll */                                                \
-  gasnete_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
-  gasnete_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
-  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);                                                 \
-  } while (0)
-        
+GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_all)
+void gasnet_wait_syncnbi_all(void) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
+  gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
+  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_ALL);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Implicit access region synchronization
@@ -401,7 +404,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
 GASNET_INLINE_MODIFIER(gasnete_get_bulk)
 void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
                        size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_wait_syncnb(gasnete_get_nb_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS));
+  gasnete_wait_syncnb_check(gasnete_get_nb_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS));
 }
 GASNET_INLINE_MODIFIER(gasnete_put_bulk)
 void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
@@ -413,7 +416,7 @@ void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 GASNET_INLINE_MODIFIER(gasnete_memset)
 void gasnete_memset(gasnet_node_t node, void *dest, int val,
                            size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_wait_syncnb(gasnete_memset_nb(node, dest, val, nbytes GASNETE_THREAD_PASS));
+  gasnete_wait_syncnb_check(gasnete_memset_nb(node, dest, val, nbytes GASNETE_THREAD_PASS));
 }
 
 GASNET_INLINE_MODIFIER(_gasnet_get)
@@ -589,7 +592,7 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
   else {
     gasnet_register_value_t val = 0;
     GASNETI_TRACE_GET(GET_VAL,NULL,node,src,nbytes);
-    gasnete_wait_syncnb(gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&val,nbytes), node, src, nbytes GASNETE_THREAD_PASS));
+    gasnete_wait_syncnb_check(gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&val,nbytes), node, src, nbytes GASNETE_THREAD_PASS));
     return val;
   }
   abort();

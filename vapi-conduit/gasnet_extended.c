@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/15 22:32:45 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/04/15 23:42:03 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -507,7 +507,29 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 /*
   Synchronization for explicit-handle non-blocking operations:
   ===========================================================
+  
+  Note that these routines do not check for INVALID_HANDLE
 */
+
+/* XXX: Note that the handle might actually be an IMPLICIT one! 
+ * That comes from gasnete_get_nb_bulk calling gasnete_get_nbi_bulk
+ * That will go away eventually.
+ * */
+extern void gasnete_wait_syncnb(gasnet_handle_t op) {
+  assert(op->threadidx == gasnete_mythread()->threadidx);
+
+  GASNETE_SAFE(gasnet_AMPoll());
+   
+  assert(op->threadidx == gasnete_mythread()->threadidx);
+  if_pt (op->type == gasnete_opExplicit) {
+    gasnete_eop_t *eop = (gasnete_eop_t*)op;
+    gasnetc_rdma_wait(&eop->counter);
+  } else {
+    gasnete_iop_t *iop = (gasnete_iop_t*)op;
+    gasnetc_rdma_wait(&iop->get_counter);
+    gasnetc_rdma_wait(&iop->put_counter);
+  }
+}
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   GASNETE_SAFE(gasnet_AMPoll());
@@ -687,6 +709,34 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   return gasnetc_rdma_poll(&iop->put_counter) ? GASNET_OK: GASNET_ERR_NOT_READY;
 }
 
+extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t *iop = mythread->current_iop;
+  assert(iop->threadidx == mythread->threadidx);
+  assert(iop->next == NULL);
+  assert(iop->type == gasnete_opImplicit);
+  #ifdef DEBUG
+    if (iop->next != NULL)
+      gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
+  #endif
+
+  gasnetc_rdma_wait(&iop->get_counter);
+}
+
+extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t *iop = mythread->current_iop;
+  assert(iop->threadidx == mythread->threadidx);
+  assert(iop->next == NULL);
+  assert(iop->type == gasnete_opImplicit);
+  #ifdef DEBUG
+    if (iop->next != NULL)
+      gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
+  #endif
+
+  gasnetc_rdma_wait(&iop->put_counter);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Implicit access region synchronization
@@ -725,7 +775,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   ========================================
 */
 typedef struct _gasnet_valget_op_t {
-  gasnet_handle_t handle;
+  gasnete_eop_t *eop;
   gasnet_register_value_t val;
 
   struct _gasnet_valget_op_t* next; /* for free-list only */
@@ -748,9 +798,9 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   retval->val = 0;
   if (gasnete_islocal(node)) {
     GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->handle = GASNET_INVALID_HANDLE;
+    retval->eop = (gasnete_eop_t *)GASNET_INVALID_HANDLE;
   } else {
-    retval->handle = gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
+    retval->eop = (gasnete_eop_t *)gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
   }
   return retval;
 }
@@ -762,7 +812,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
   thread->valget_free = handle;       /*  safe because this thread is under our control */
 
-  gasnete_wait_syncnb(handle->handle);
+  gasnetc_rdma_wait(&handle->eop->counter);
   val = handle->val;
   return val;
 }
