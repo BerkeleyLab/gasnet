@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/31 21:55:01 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/04/01 00:16:00 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -195,12 +195,15 @@ typedef struct {
   /* ### Need more here ? */
   VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
   VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
+  uint32_t		flags;		/* filled in at recv time */
 } gasnetc_rcv_desc_t;
 
 /* Description of a send buffer */
 typedef struct _gasnetc_snd_desc_t {
   /* ### Need more here ? */
+  gasneti_atomic_t		done;
   struct _gasnetc_snd_desc_t	*next;
+  gasnetc_buffer_t		*buffer;
   VAPI_sr_desc_t		sr_desc;		/* send request descriptor */
   VAPI_sg_lst_entry_t		sr_sg[GASNETC_SND_SG];	/* send request gather list */
 } gasnetc_snd_desc_t;
