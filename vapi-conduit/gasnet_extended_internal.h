@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/05/13 18:01:02 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2003/06/30 18:04:46 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -110,7 +110,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
      gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
         "  while calling: %s\n"                                             \
         "  at %s",                                                          \
-        gasneti_ErrorName(retcode), retcode, #fncall, gasneti_current_loc); \
+        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
    }                                                                        \
  } while (0)
 
