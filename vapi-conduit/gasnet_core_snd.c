@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/02 01:55:04 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/04/02 02:03:24 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -173,6 +173,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       memcpy(dst_addr, src_addr, nbytes);
     }
     gasnetc_rcv_loopback(desc);
+    gasnetc_put_snd_desc(desc, desc);
     retval = GASNET_OK;
   } else {
     retval = gasnetc_snd_post(&gasnetc_cep[dest], desc);
