@@ -1,6 +1,6 @@
 /*   $Archive:: /Ti/AMUDP/socket.h                                         $
- *      $Date: 2004/01/19 12:57:33 $
- *  $Revision: 1.2 $
+ *      $Date: 2004/04/20 17:16:43 $
+ *  $Revision: 1.2.2.1 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */
@@ -51,8 +51,15 @@
                         /*  but it appears to be broken for sockets */
   #include <stropts.h>
   #define _FIONREAD I_NREAD
+#elif defined(SUPERUX) && 0 /* similarly broken on SuperUX, despite the docs - what a disaster */
+  #include <stropts.h>
+  #define _FIONREAD I_NREAD
 #else
   #define _FIONREAD FIONREAD
+#endif
+
+#if defined(SUPERUX)
+  #include <sys/select.h>
 #endif
 
 /*  these constants are useful, but appear to be specific to */
@@ -118,7 +125,7 @@ typedef fd_set FD_SET;
 #endif
 
 #if defined(WIN32) || defined(CYGWIN) || defined(AIX) || \
-    defined(SOLARIS) || defined(LINUX) || defined(OSF)
+    defined(SOLARIS) || defined(LINUX) || defined(OSF) || defined(SUPERUX)
   #define IOCTL_FIONREAD_ARG_T unsigned int
 #elif defined(IRIX)
   #define IOCTL_FIONREAD_ARG_T size_t

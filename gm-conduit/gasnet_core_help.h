@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.26 2004/01/19 11:13:58 bonachea Exp $
- * $Date: 2004/01/19 11:13:58 $
- * $Revision: 1.26 $
+/* $Id: gasnet_core_help.h,v 1.26.2.1 2004/04/20 17:16:33 csbell Exp $
+ * $Date: 2004/04/20 17:16:33 $
+ * $Revision: 1.26.2.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -62,12 +62,6 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD	8192
 
 #define GASNETC_SEGMENT_ALIGN	GASNETI_PAGESIZE
-#define GASNETC_BLOCKUNTIL(cond)	do {				\
-	while (!(cond)) { 						\
-		gasneti_mutex_unlock(&gasnetc_lock_gm);			\
-		gasnetc_AMPoll(); 					\
-		gasneti_mutex_lock(&gasnetc_lock_gm); 			\
-	} } while (0)
 
 /* -------------------------------------------------------------------------- */
 /* These should not be modified */
@@ -88,10 +82,6 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_AM_LONG		0x80
 #define GASNETC_AM_SYSTEM	0xc0
 
-/* Two system messages so far */
-#define GASNETC_SYS_GATHER	0x10
-#define GASNETC_SYS_BROADCAST	0x20
-
 #define	GASNETC_AM_REPLY	0x00
 #define GASNETC_AM_REQUEST	0x01
 
@@ -106,6 +96,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 
 #define GASNETC_AM_SHORT_ARGS_OFF	4
 #define GASNETC_AM_MEDIUM_ARGS_OFF	4
+#define GASNETC_AM_SYSTEM_ARGS_OFF	4
 #define GASNETC_AM_LONG_ARGS_OFF	(8+sizeof(uintptr_t))
 
 #define GASNETC_AM_MEDIUM_HEADER_PAD(numargs) ((((numargs)&0x1)==1) ? 0 : 4)
@@ -123,6 +114,8 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_AM_LONG_HEADER_LEN(numargs)                     \
 			((numargs)*4 + GASNETC_AM_LONG_ARGS_OFF \
 			+ GASNETC_AM_LONG_PAD(numargs))
+/* system is same as AM Medium */
+#define GASNETC_AM_SYSTEM_HEADER_LEN(n) GASNETC_AM_MEDIUM_HEADER_LEN(n)
 
 /* -------------------------------------------------------------------------- */
 /* Maximum sizes for mediums and Longs */
@@ -133,6 +126,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_AM_LONG_REQUEST_MAX (3*GASNETC_AM_LEN - GASNETC_LONG_OFFSET)
 
 #define GASNETC_AM_MAX_NON_DMA_PAYLOAD	((GM_MTU-8)-GASNETC_AM_MEDIUM_MAX)
+#define GASNETC_AM_SYSTEM_MAX GASNETC_AM_MEDIUM_MAX
 /* -------------------------------------------------------------------------- */
 #define GASNETC_AM_NUMARGS(c)   (((c) >> 1) & 0x1f)
 #define GASNETC_AM_TYPE(c)      ((c) & 0xc0)
@@ -172,7 +166,9 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_TRACE_MEDIUM(reqrep, type, dest, token, idx, args, sAddr,len)  \
 		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d args=%d "\
 			"src="GASNETI_LADDRFMT" len=%d", #reqrep, #type, dest,               \
-			GASNETI_LADDRSTR(token), idx, args, GASNETI_LADDRSTR(sAddr), len))
+			GASNETI_LADDRSTR(token), idx, args, GASNETI_LADDRSTR(sAddr), (int)(len)))
+
+#define GASNETC_TRACE_SYSTEM GASNETC_TRACE_MEDIUM
 
 #define GASNETC_TRACE_LONG(reqrep, type, dest, token, idx, args, sAddr, dAddr, \
 		len) GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d "   \
@@ -215,8 +211,8 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETI_TRACE_PRINTF(type,args)
 #define GASNETC_TRACE_SHORT(reqrep, type, dest, token, idx, args)
 #define GASNETC_TRACE_MEDIUM(reqrep, type, dest, token, idx, args, sAddr,len) 
-#define GASNETC_TRACE_LONG(reqrep, type, dest, token, idx, args, sAddr, dAddr, \
-		len)
+#define GASNETC_TRACE_SYSTEM(reqrep, type, dest, token, idx, args, sAddr,len) 
+#define GASNETC_TRACE_LONG(reqrep, type, dest, token, idx, args, sAddr, dAddr, len)
 #define GASNETC_AMTRACE_ReplyShort(str) 
 #define GASNETC_AMTRACE_RequestShort(str) 
 #define GASNETC_AMTRACE_ReplyMedium(str) 
@@ -421,6 +417,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
         _GASNETC_RUN_HANDLER_MEDLONG((gasnetc_HandlerLong)phandlerfn,          \
 				 (void *)token, pArgs, numargs, (void *)pData, \
 				 (int)datalen)
+#define GASNETC_RUN_HANDLER_SYSTEM GASNETC_RUN_HANDLER_MEDIUM
 /* -------------------------------------------------------------------------- */
 
 END_EXTERNC

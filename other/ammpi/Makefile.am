@@ -12,16 +12,18 @@ endif
 
 CC = @MPI_CC@
 CFLAGS = @MPI_CFLAGS@ $(apputils_flags)
+LDFLAGS = @LDFLAGS@
 
 platform_defines = @GASNET_MACHINE_DEFINES@ -DAMMPI_DISABLE_AMTAGS
 platform_libraries = @LIBS@ @MPI_LIBS@
 
 VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
-INCLUDES = -I$(srcdir) ${platform_defines}
-compile = ${CC} ${CFLAGS} ${INCLUDES}
-link = $(CC) ${CFLAGS} ${platform_defines} ${INCLUDES} 
-linkend = ${platform_libraries}
+altincdir = $(srcdir)/..
+INCLUDES = -I$(srcdir) -I$(altincdir) $(platform_defines)
+compile = $(CC) $(CFLAGS) $(INCLUDES)
+link = $(CC) $(CFLAGS) $(LDFLAGS) $(platform_defines) $(INCLUDES) 
+linkend = $(platform_libraries)
 
 if USE_MPI_CONDUIT
 lib_LIBRARIES = libammpi.a
@@ -61,19 +63,20 @@ testprograms =    		\
     testreduce			\
     $(testprograms_ILP32only)
 
-tests: apputils.o ${testprograms}
+tests: apputils.o $(testprograms)
 
-test%.o : $(testdir)/test%.c $(testdir)/*.h ${headers}
-	${compile} -DAMMPI -I$(testdir) -c $< -o $@
+test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
+	$(compile) -DAMMPI -I$(testdir) -c $< -o $@
 
-apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h ${headers}
-	${compile} -DAMMPI -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
+apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
+	$(compile) -DAMMPI -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
 
 test%: test%.o apputils.o libammpi.a 
-	${link} -o $@ $< apputils.o -L. -lammpi ${linkend}
+	$(link) -o $@ $< apputils.o -L. -lammpi $(linkend)
 
 TEST_NODES=2
-TEST_RUNCMD=mpirun -np $(TEST_NODES)
+AMMPI_RUNCMD=mpirun -np $(TEST_NODES)
+TEST_RUNCMD=$(AMMPI_RUNCMD)
 TEST_ITERS=100
 TEST_MODE=P
 TEST_DEPTH=32
@@ -83,7 +86,7 @@ run-tests: tests
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo  Running AMMPI tests...
 	@echo  If this fails to spawn a job, you may need to re-run with a
-	@echo   command like: gmake run-tests TEST_RUNCMD=\"mpirun -np 2\"
+	@echo   command like: gmake run-tests AMMPI_RUNCMD=\"mpirun -np 2\"
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo TESTPING
 	$(TEST_RUNCMD) ./testping $(TEST_ITERS) $(TEST_MODE)
@@ -117,7 +120,7 @@ endif
 	@echo TESTS COMPLETE
 
 %.o: %.c ammpi.h ammpi_spmd.h ammpi_internal.h
-	${compile} -DAMMPI -o $@ -c $<
+	$(compile) -DAMMPI -o $@ -c $<
 
 if USE_MPI_CONDUIT
 clean-local:

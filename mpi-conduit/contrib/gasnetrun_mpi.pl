@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.4 2004/02/18 00:17:27 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v 1.4.2.1 2004/04/20 17:16:39 csbell Exp $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -47,7 +47,11 @@ my $find_exe = 1;	# should we find full path of executable?
     } else {
 	# pass env as "/usr/bin/env A=1 B=2 C=3"
 	# Our nearly universal default
-	chomp(my $envprog = `which env`);
+	my $envprog = "/usr/bin/env";
+        if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
+          $envprog = `which env`;
+  	  chomp $envprog;
+        }
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => 1
 		  );
@@ -180,8 +184,62 @@ sub do_quote
         }
     }
 
+    my @spawncmd;
+    my $tmpdir = undef;
+    my @tmpfiles = ();
+    if ($is_mpich && !$is_mpich_nt) {
+	my @spawners = ('ssh', 'rsh');
+	my $args = join(' ',map { "\"\'$_\'\"" } @envargs);
+	(my $degooped_exename = $exename) =~ s/#/\\#/g;
+	(my $degooped_args = join(' ',map { "\'$_\'" } @envargs)) =~ s/#/\\#/g;
+        $tmpdir = "gasnetrun_mpi-temp-$$";
+        mkdir ($tmpdir, 0777) or die "Cannot create \'$tmpdir\'";
+	foreach my $spawner (@spawners) {
+          my $realprog = `which "$spawner" 2> /dev/null`;
+  	  chomp $realprog;
+	  if (! -x "$realprog") { # Cant find that spawner - Assume we're not using it
+            print "Warning: cannot find \'$spawner\'\n" if ($verbose);
+	    next;
+  	  }
+
+	  my $tmpfile = "$tmpdir/$spawner";
+	  unshift @tmpfiles, "$tmpfile";
+          print "Building $tmpfile\n" if ($verbose);
+	  open (TMPSPAWN, ">$tmpfile") or die "Cannot open $tmpfile";
+	  print TMPSPAWN <<EOF;
+#!/bin/sh
+
+for arg in "\$@" ; do 
+  #echo \$arg
+  shift
+  if test "\$arg" = "$exename" ; then 
+    # prog name appears alone as an argument - prepend our env command
+    set -- "\$@" $args "\'\$arg\'"
+  elif test "\`echo \"\$arg\" | grep \"$exename\" ; exit 0\`"; then
+    # prog name appears embedded in a larger quoted argument (eg mpich_gm/rsh)
+    # keep it as one large arg and insert our env call
+    newarg=`echo \"\$arg\" | sed \"s#$degooped_exename#$degooped_args \'$degooped_exename\'#\"`
+    set -- "\$@" "\$newarg"
+  else
+    set -- "\$@" "\$arg"
+  fi
+done
+
+if test "$verbose" != "0" ; then
+  echo \$0 executing command:
+  echo '$realprog' "\$@"
+fi
+  exec '$realprog' "\$@"
+EOF
+	  close(TMPSPAWN);
+	  chmod 0700, $tmpfile or die "Cannot \'chmod 0700, $tmpfile\'";
+   	}	
+	$ENV{PATH} = "$tmpdir:$ENV{PATH}";
+	@envargs = ();
+     }
+    
 # Exec it
-    my @spawncmd = map { +s/%N/$nnodes/g;
+    @spawncmd = map { +s/%N/$nnodes/g;
                           if (m/^%P$/) {
                               (@envargs, $exename);
                           } elsif (m/^%A$/) {
@@ -194,6 +252,14 @@ sub do_quote
 	if ($verbose);
     exit(0) if ($dryrun);
 
-exec(@spawncmd);
-die "exec failed: $!\n";
+if (defined $tmpdir) {
+  system(@spawncmd);
+  foreach (@tmpfiles) {
+    unlink "$_" or die "Failed to unlink \'$_\'";
+  }
+  rmdir $tmpdir or die "Failed to rmdir \'$tmpdir\'";
+} else {
+  exec(@spawncmd);
+  die "exec failed: $!\n";
+}
 __END__

@@ -27,6 +27,13 @@ Development practices that GASNet developers are expected to follow:
   get added to the Makefile.am file for the enclosing directory (if there is one)
   otherwise your added file won't be included in the public release.
 
+* When in doubt, use a CVS tag. CVS's built-in facilities for retrieving an old,
+  consistent snapshot of the entire system are rather poor, and work most smoothly
+  when there is a system-wide CVS tag at the point of interest. Developers
+  should create a CVS tag with an explanatory name before any major change that
+  is likely to affect system stability (eg merging a large development branch),
+  before rolling back any non-trivial change, and whenever distributing a
+  snapshot of the archive to any user or external party.
 
 GASNet Release Procedure
 ------------------------

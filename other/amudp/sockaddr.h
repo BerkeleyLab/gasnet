@@ -1,6 +1,6 @@
 //  $Archive:: /Ti/AMUDP/sockaddr.h                                       $
-//     $Date: 2003/12/11 20:19:53 $
-// $Revision: 1.1 $
+//     $Date: 2004/04/20 17:16:43 $
+// $Revision: 1.1.2.1 $
 // Description: Objects for encapsulating and hashing SockAddr's
 // Copyright 1998, Dan Bonachea
 
@@ -41,7 +41,7 @@ class SockAddr {
     SockAddr(const char* IPStr, unsigned short portnum, short sin_family=AF_INET) { 
       ((sockaddr_in*)&addr)->sin_family = sin_family;
       ((sockaddr_in*)&addr)->sin_port = htons(portnum); // change to network format port
-      ((sockaddr_in*)&addr)->sin_addr.s_addr = inet_addr(IPStr); // already in network format
+      ((sockaddr_in*)&addr)->sin_addr.s_addr = inet_addr((char*)IPStr); // already in network format
       memset(&((sockaddr_in*)&addr)->sin_zero, '\0', sizeof(((sockaddr_in*)&addr)->sin_zero));
       DEBUGIP(); // makes it easier to see addresses in debugger
       }

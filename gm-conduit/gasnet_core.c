@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.53 2004/02/09 20:59:16 phargrov Exp $
- * $Date: 2004/02/09 20:59:16 $
+/* $Id: gasnet_core.c,v 1.53.2.1 2004/04/20 17:16:33 csbell Exp $
+ * $Date: 2004/04/20 17:16:33 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -14,7 +14,6 @@
 
 #include <errno.h>
 #include <unistd.h>
-#include <sched.h>
 #include <signal.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, 
@@ -71,12 +70,11 @@ gasnetc_init(int *argc, char ***argv)
 	fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
 	#endif
 
+	gasnetc_registerSysHandlers();
 	gasnetc_getconf();
 	gasnetc_AllocPinnedBufs();
+	gasnetc_AllocGatherBufs();
 
-	gasnetc_bootstrapBarrier();
-	gasnetc_bootstrapBarrier();
-	gasnetc_bootstrapBarrier();
 	gasnetc_bootstrapBarrier();
 
 	/* Find the upper bound on pinnable memory for firehose algorithm and
@@ -102,7 +100,6 @@ gasnetc_init(int *argc, char ***argv)
 	#if GASNET_DEBUG_VERBOSE
 	printf("%d> done firehose exchange\n", gasnetc_mynode);
 	#endif
-
 
 	#if defined(GASNET_SEGMENT_FAST) 
 	gasneti_segmentInit(
@@ -422,6 +419,11 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	gasnete_init();
 	gasnetc_bootstrapBarrier();
 
+	/*
+	 * Free up the bootstrap gather buffers.  If they are reused, an AM
+	 * will collectively allocate new memory.
+	 */
+	gasnetc_DestroyGatherBufs();
 	gasnetc_dump_tokens();
 
 	return GASNET_OK;
@@ -438,7 +440,7 @@ gasnet_init(int *argc, char ***argv)
 
 /* ------------------------------------------------------------------------------------ */
 extern void 
-gasnetc_exit(int exitcode)
+gasnetc_exit_old(int exitcode)
 {
 	/* once we start a shutdown, ignore all future SIGQUIT signals or we
 	 * risk reentrancy */
@@ -477,6 +479,633 @@ gasnetc_exit(int exitcode)
 	gm_finalize();
 	_exit(exitcode);
 }
+
+
+/* -------------------------------------------------------------------------- */
+/*
+  Exit handling code (originates from Paul's vapi-conduit)
+*/
+
+gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
+
+static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
+static gasneti_atomic_t gasnetc_exit_reqs = gasneti_atomic_init(0);	/* count of remote exit requests */
+static gasneti_atomic_t gasnetc_exit_reps = gasneti_atomic_init(0);	/* count of remote exit replies */
+static gasneti_atomic_t gasnetc_exit_done = gasneti_atomic_init(0);	/* flag for exit coordination done */
+
+#define GASNETC_ROOT_NODE 0
+
+enum {
+  GASNETC_EXIT_ROLE_UNKNOWN,
+  GASNETC_EXIT_ROLE_MASTER,
+  GASNETC_EXIT_ROLE_SLAVE
+};
+
+static gasneti_atomic_t gasnetc_exit_role = gasneti_atomic_init(GASNETC_EXIT_ROLE_UNKNOWN);
+
+/*
+ * Code to disable user's AM handlers when exiting.  We need this because we must call
+ * AMPoll to run system-level handlers, including ACKs for flow control.
+ *
+ * We do it this way because it adds absolutely nothing the normal execution path.
+ * Thanks to Dan for the suggestion.
+ */
+static void gasnetc_noop(void) { return; }
+
+static void 
+gasnetc_disable_AMs(void) 
+{
+  int i;
+
+  for (i = 0; i < GASNETC_AM_MAX_HANDLERS; ++i) {
+    _gmc.handlers[i] = (gasnetc_handler_fn_t)&gasnetc_noop;
+  }
+}
+
+/*
+ * gasnetc_SysExitRole_reqh()
+ *
+ * This request handler (invoked only on the "root" node) handles the election
+ * of a single exit "master", who will coordinate an orderly shutdown.
+ */
+static void 
+gasnetc_SysExitRole_reqh(gasnet_token_t token, void *nop, size_t nsz)
+{
+  gasnet_node_t src;
+  int local_role, result;
+  int rc;
+
+  /* May only send this request to the root node */
+  gasneti_assert(gasnetc_mynode == GASNETC_ROOT_NODE);	
+  
+  /* What role would the local node get if the requester is made the master? */
+  rc = gasnet_AMGetMsgSource(token, &src);
+  gasneti_assert(rc == GASNET_OK);
+  local_role = (src == GASNETC_ROOT_NODE) 
+	       ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
+
+  /* Try atomically to assume the proper role.  Result determines role of requester */
+  result = gasneti_atomic_swap(
+		&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, local_role)
+           ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
+
+  /* Inform the requester of the outcome. */
+  rc = gasnetc_ReplySystem(token, gasneti_handleridx(gasnetc_SysExitRole_reph),
+			    NULL, 0, 1, (gasnet_handlerarg_t)result);
+  gasneti_assert(rc == GASNET_OK);
+}
+
+/*
+ * gasnetc_SysExitRole_reph()
+ *
+ * This reply handler receives the result of the election of an exit "master".
+ * The reply contains the exit "role" this node should assume.
+ */
+static void 
+gasnetc_SysExitRole_reph(gasnet_token_t token, void *nop, size_t nsz, 
+			 gasnet_handlerarg_t role) 
+{
+  #if GASNET_DEBUG
+  {
+    gasnet_node_t src;
+    int rc;
+
+    rc = gasnet_AMGetMsgSource(token, &src);
+    gasneti_assert(rc == GASNET_OK);
+    /* May only receive this reply from the root node */
+    gasneti_assert(src == GASNETC_ROOT_NODE);	
+  }
+  #endif
+
+  gasneti_assert((role == GASNETC_EXIT_ROLE_MASTER) 
+		 || (role == GASNETC_EXIT_ROLE_SLAVE));
+
+  /* Set the role if not yet set.  Then assert that the assigned role has been
+   * assumed.  This way the assertion is checking that if the role was obtained
+   * by other means (namely by receiving an exit request) it must match the
+   * election result. */
+  gasneti_atomic_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, role);
+  gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role) == role);
+}
+
+/*
+ * gasnetc_get_exit_role()
+ *
+ * This function returns the exit role immediately if known.  Otherwise it
+ * sends an AMRequest to determine its role and then polls the network until
+ * the exit role is determined, either by the reply to that request, or by a
+ * remote exit request.
+ *
+ * Should be called with an alarm timer in-force in case we get hung sending or
+ * the root node is not responsive.
+ *
+ * Note that if we get here as a result of a remote exit request then our role
+ * has already been set to "slave" and we won't touch the network from inside
+ * the request handler.
+ *
+ * XXX gasnetc_get_exit_role is called from a single thread.
+ */
+static int gasnetc_get_exit_role()
+{
+  int role;
+
+  role = gasneti_atomic_read(&gasnetc_exit_role);
+  if (role == GASNETC_EXIT_ROLE_UNKNOWN) {
+    int rc;
+
+    /* Don't know our role yet.  So, send a system-category AM Request to determine our role */
+    rc = gasnetc_RequestSystem(GASNETC_ROOT_NODE, 
+		    	       gasneti_handleridx(gasnetc_SysExitRole_reqh), 
+			       NULL, NULL, 0, 0);
+    gasneti_assert(rc == GASNET_OK);
+
+    /* Now spin until somebody tells us what our role is */
+    do {
+      gasnetc_AMPoll();
+      role = gasneti_atomic_read(&gasnetc_exit_role);
+    } while (role == GASNETC_EXIT_ROLE_UNKNOWN);
+  }
+
+  return role;
+}
+
+/* gasnetc_exit_head
+ *
+ * All exit paths pass through here as the first step.
+ * This function ensures that gasnetc_exit_code is written only once
+ * by the first call.
+ * It also lets the handler for remote exit requests know if a local
+ * request has already begun.
+ *
+ * returns non-zero on the first call only
+ * returns zero on all subsequent calls
+ */
+static int gasnetc_exit_head(int exitcode) {
+  static gasneti_atomic_t once = gasneti_atomic_init(1);
+  int retval;
+
+  gasneti_atomic_set(&gasnetc_exit_running, 1);
+
+  retval = gasneti_atomic_decrement_and_test(&once);
+
+  if (retval) {
+    /* Store the exit code for later use */
+    gasneti_atomic_set(&gasnetc_exit_code, exitcode);
+  }
+
+  return retval;
+}
+
+/* gasnetc_exit_now
+ *
+ * First we set the atomic variable gasnetc_exit_done to allow the exit
+ * of any threads which are spinning on it in gasnetc_exit().
+ * Then this function tries hard to actually terminate the calling thread.
+ * If for some unlikely reason the _exit() call returns, we abort().
+ *
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_now(int) GASNET_NORETURN;
+static void gasnetc_exit_now(int exitcode) {
+  /* If anybody is still waiting, let them go */
+  gasneti_atomic_set(&gasnetc_exit_done, 1);
+
+  #if GASNET_DEBUG_VERBOSE
+    fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n", 
+      gasnetc_mynode, gasnetc_nodes); fflush(stderr);
+  #endif
+  gasneti_killmyprocess(exitcode);
+  /* NOT REACHED */
+
+  gasneti_reghandler(SIGABRT, SIG_DFL);
+  abort();
+  /* NOT REACHED */
+}
+
+/* gasnetc_exit_tail
+ *
+ * This the final exit code for the cases of local or remote requested exits.
+ * It is not used for the return-from-main case.  Nor is this code used if a fatal
+ * signal (including SIGALRM on timeout) is encountered while trying to shutdown.
+ *
+ * Just a wrapper around gasnetc_exit_now() to actually terminate.
+ *
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_tail(void) GASNET_NORETURN;
+static void gasnetc_exit_tail(void) {
+  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code));
+  /* NOT REACHED */
+}
+
+/* gasnetc_exit_sighandler
+ *
+ * This signal handler is for a last-ditch exit when a signal arrives while
+ * attempting the graceful exit.  That includes SIGALRM if we get wedged.
+ *
+ * Just a signal-handler wrapper for gasnetc_exit_now().
+ *
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_sighandler(int sig) {
+  #if GASNET_DEBUG
+  /* note - can't call trace macros here, or even sprintf */
+  {
+    static const char msg1[] = "gasnet_exit(): signal ";
+    static const char msg2[] = " received during exit... goodbye\n";
+    char digit;
+
+    write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
+
+    /* assume sig < 100 */
+    if (sig > 9) {
+      digit = '0' + ((sig / 10) % 10);
+      write(STDERR_FILENO, &digit, 1);
+    }
+    digit = '0' + (sig % 10);
+    write(STDERR_FILENO, &digit, 1);
+    
+    write(STDERR_FILENO, msg2, sizeof(msg2) - 1);
+  }
+  #endif
+
+  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code));
+  /* NOT REACHED */
+}
+
+/* gasnetc_exit_master
+ *
+ * We say a polite goodbye to our peers and then listen for their replies.
+ * This forms the root nodes portion of a barrier for graceful shutdown.
+ *
+ * The "goodbyes" are just a system-category AM containing the desired exit code.
+ * The AM helps ensure that on non-collective exits the "other" nodes know to exit.
+ * If we see a "goodbye" from all of our peers we know we've managed to coordinate
+ * an orderly shutdown.  If not, then in gasnetc_exit_body() we can ask the bootstrap
+ * support to kill the job in a less graceful way.
+ *
+ * Takes the exitcode and a timeout in us as arguments
+ *
+ * Returns 0 on success, non-zero on any sort of failure including timeout.
+ */
+static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
+  int i, rc;
+  int64_t start_time;
+
+  gasneti_assert(timeout_us > 0); 
+
+  start_time = gasneti_getMicrosecondTimeStamp();
+
+  /* Notify phase */
+  for (i = 0; i < gasnetc_nodes; ++i) {
+    if (i == gasnetc_mynode) continue;
+
+    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+
+    /* XXX */
+    rc = gasnetc_RequestSystem(i, gasneti_handleridx(gasnetc_SysExit_reqh),
+			       NULL, NULL, 0, 1, (gasnet_handlerarg_t)exitcode);
+    if (rc != GASNET_OK) return -1;
+  }
+
+  /* Wait phase - wait for replies from our N-1 peers */
+  while (gasneti_atomic_read(&gasnetc_exit_reps) < (gasnetc_nodes - 1)) {
+    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+
+    gasnetc_AMPoll();
+  }
+
+  return 0;
+}
+
+/* gasnetc_exit_slave
+ *
+ * We wait for a polite goodbye from the exit master.
+ *
+ * Takes a timeout in us as arguments
+ *
+ * Returns 0 on success, non-zero on timeout.
+ */
+static int gasnetc_exit_slave(int64_t timeout_us) {
+  int64_t start_time;
+
+  gasneti_assert(timeout_us > 0); 
+
+  start_time = gasneti_getMicrosecondTimeStamp();
+
+  /* wait until the exit request is received from the master */
+  while (gasneti_atomic_read(&gasnetc_exit_reqs) == 0) {
+    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+
+    gasnetc_AMPoll(); /* works even before _attach */
+  }
+
+#if 0
+  /* wait until out reply has been placed on the wire */
+    /* XXX */
+  gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1);
+#endif
+
+  return 0;
+}
+
+/* gasnetc_exit_body
+ *
+ * This code is common to all the exit paths and is used to perform a hopefully graceful exit in
+ * all cases.  To coordinate a graceful shutdown gasnetc_get_exit_role() will select one node as
+ * the "master".  That master node will then send a remote exit request to each of its peers to
+ * ensure they know that it is time to exit.  If we fail to coordinate the shutdown, we ask the
+ * bootstrap to shut us down agressively.  Otherwise we return to our caller.  Unless our caller
+ * is the at-exit handler, we are typically followed by a call to gasnetc_exit_tail() to perform
+ * the actual termination.  Note also that this function will block all calling threads other than
+ * the first until the shutdown code has been completed.
+ *
+ * XXX: timouts contained here are entirely arbitrary
+ */
+static void gasnetc_exit_body(void) {
+  int i, role, exitcode;
+  int graceful = 0;
+  int64_t timeout_us;
+
+  /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
+  (void)gasneti_reghandler(SIGQUIT, SIG_IGN);
+
+  /* Ensure only one thread ever continues past this point.
+   * Others will spin here until time to die.
+   * We can't/shouldn't use mutex code here since it is not signal-safe.
+   */
+  #ifdef GASNETI_USE_GENERIC_ATOMICOPS
+    #error "We need real atomic ops with signal-safety for gasnet_exit..."
+  #endif
+  {
+    static gasneti_atomic_t exit_lock = gasneti_atomic_init(1);
+    if (!gasneti_atomic_decrement_and_test(&exit_lock)) {
+      /* poll until it is time to exit */
+      while (!gasneti_atomic_read(&gasnetc_exit_done)) {
+	sleep(1);
+      }
+      gasnetc_exit_tail();
+      /* NOT REACHED */
+    }
+  }
+
+  /* read exit code, stored by first caller to gasnetc_exit_head() */
+  exitcode = gasneti_atomic_read(&gasnetc_exit_code);
+
+  /* Establish a last-ditch signal handler in case of failure. */
+  alarm(0);
+  gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+  #if GASNET_DEBUG
+    gasneti_reghandler(SIGABRT, SIG_DFL);
+  #else
+    gasneti_reghandler(SIGABRT, gasnetc_exit_sighandler);
+  #endif
+  gasneti_reghandler(SIGILL,  gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGSEGV, gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGFPE,  gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGBUS,  gasnetc_exit_sighandler);
+
+  /* Disable processing of AMs, except system-level ones */
+  gasnetc_disable_AMs();
+
+  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+
+  /* Try to flush out all the output, allowing upto 30s */
+  alarm(30);
+  {
+    gasneti_trace_finish();
+    if (fflush(stdout)) 
+      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
+    if (fflush(stderr)) 
+      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+    alarm(0);
+    gasneti_sched_yield();
+  }
+
+  /* Deterimine our role (master or slave) in the coordination of this shutdown */
+  alarm(10);
+  role = gasnetc_get_exit_role();
+
+  /* Attempt a coordinated shutdown */
+  timeout_us = 2000000 + gasnetc_nodes*250000; /* 2s + 0.25s * nodes */
+  alarm(1 + timeout_us/1000000);
+  switch (role) {
+  case GASNETC_EXIT_ROLE_MASTER:
+    /* send all the remote exit requests and wait for the replies */
+    graceful = (gasnetc_exit_master(exitcode, timeout_us) == 0);
+    break;
+
+  case GASNETC_EXIT_ROLE_SLAVE:
+    /* wait for the exit request and reply before proceeding */
+    graceful = (gasnetc_exit_slave(timeout_us) == 0);
+    /* XXX:
+     * How do we know our reply has actually been sent on the wire before we trash the end point?
+     * For now we rely on a short sleep() to be sufficient.
+     */
+    alarm(0); sleep(1);
+    break;
+
+  default:
+      gasneti_fatalerror("invalid exit role");
+  }
+
+  /* Clean up transport resources, allowing upto 30s */
+  alarm(30);
+  {
+	#if defined(GASNET_SEGMENT_FAST)
+	if (gasneti_attach_done && gm_deregister_memory(_gmc.port, 
+	    (void *) gasnetc_seginfo[gasnetc_mynode].addr,
+	    gasnetc_seginfo[gasnetc_mynode].size) != GM_SUCCESS)
+		fprintf(stderr, 
+		    "%d> Couldn't deregister prepinned segment",
+		    gasnetc_mynode);
+	#endif	
+
+	gasnetc_DestroyPinnedBufs();
+
+	if (fflush(stdout)) 
+		gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", 
+		    strerror(errno));
+	if (fflush(stderr)) 
+		gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", 
+		    strerror(errno));
+
+	if (gasneti_init_done) {
+  		gm_close(_gmc.port);
+		if (gasneti_attach_done)
+			firehose_fini();
+	}
+	gm_finalize();
+  }
+
+  /* Try again to flush out any recent output, allowing upto 5s */
+  alarm(5);
+  {
+    if (fflush(stdout)) 
+      gasneti_fatalerror("failed to flush stdout in gasnetc_exit: %s", strerror(errno));
+    if (fflush(stderr)) 
+      gasneti_fatalerror("failed to flush stderr in gasnetc_exit: %s", strerror(errno));
+    if (fclose(stdin)) 
+      gasneti_fatalerror("failed to close stdin in gasnetc_exit: %s", strerror(errno));
+    if (fclose(stdout)) 
+      gasneti_fatalerror("failed to close stdout in gasnetc_exit: %s", strerror(errno));
+    #if !GASNET_DEBUG_VERBOSE
+      if (fclose(stderr)) 
+          gasneti_fatalerror("failed to close stderr in gasnetc_exit: %s", strerror(errno));
+    #endif
+  }
+
+  /* XXX potential problems here if exiting from the "Wrong" thread, or from a signal handler */
+  alarm(10);
+  {
+    if (graceful) {
+	/* XXX */
+    } else {
+      /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
+      gasneti_reghandler(SIGABRT, SIG_DFL);
+      abort();
+      /* NOT REACHED */
+    }
+  }
+
+  alarm(0);
+}
+
+/* gasnetc_exit_reqh
+ *
+ * This is a system-category AM handler and is therefore available as soon as gasnet_init()
+ * returns, even before gasnet_attach().  This handler is responsible for receiving the
+ * remote exit requests from the master node and replying.  We call gasnetc_exit_head()
+ * with the exitcode seen in the remote exit request.  If this remote request is seen before
+ * any local exit requests (normal or signal), then we are also responsible for starting the
+ * exit procedure, via gasnetc_exit_{body,tail}().  Additionally, we are responsible for
+ * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
+ */
+static void 
+gasnetc_SysExit_reqh(gasnet_token_t token, void *nop, size_t nsz, 
+		     gasnet_handlerarg_t exitcode) 
+{
+  int rc;
+
+  /* The master will send this AM, but should _never_ receive it */
+  gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role) != GASNETC_EXIT_ROLE_MASTER);
+
+  /* We should never receive this AM multiple times */
+  gasneti_assert(gasneti_atomic_read(&gasnetc_exit_reqs) == 0);
+
+  /* Count the exit requests, so gasnetc_exit_wait() knows when to return */
+  gasneti_atomic_increment(&gasnetc_exit_reqs);
+
+  /* If we didn't already know, we are now certain our role is "slave" */
+  (void)gasneti_atomic_swap(&gasnetc_exit_role, 
+			    GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE);
+
+  /* Send a reply so the master knows we are reachable */
+  rc = gasnetc_ReplySystem(token, gasneti_handleridx(gasnetc_SysExit_reph), 
+			   NULL, 0, 0);
+  gasneti_assert(rc == GASNET_OK);
+
+  /* XXX: save the identity of the master here so we can later drain the send queue of the reply? */
+
+  /* Initiate an exit IFF this is the first we've heard of it */
+  if (gasnetc_exit_head(exitcode)) {
+    gasneti_sighandlerfn_t handler;
+    /* IMPORTANT NOTE
+     * When we reach this point we are in a request handler which will never return.
+     * Care should be taken to ensure this doesn't wedge the AM recv logic.
+     *
+     * This is currently safe because:
+     * 1) request handlers are run w/ no locks held
+     * 2) we always have an extra thread to recv AM requests
+     */
+
+    /* To try and be reasonably robust, want to avoid performing the shutdown
+     * and exit from signal context if we can avoid it.  However, we must raise
+     * SIGQUIT if the user has registered a handler.  Therefore we inspect what
+     * is registered before calling raise().
+     *
+     * XXX we don't do this atomically w.r.t the signal
+     * XXX we don't do the right thing w/ SIG_ERR and SIG_HOLD
+     */
+    handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
+    if ((handler != gasneti_defaultSignalHandler) &&
+	#ifdef SIG_HOLD
+	(handler != (gasneti_sighandlerfn_t)SIG_HOLD) &&
+	#endif
+	(handler != (gasneti_sighandlerfn_t)SIG_ERR) &&
+	(handler != (gasneti_sighandlerfn_t)SIG_IGN) &&
+	(handler != (gasneti_sighandlerfn_t)SIG_DFL)) {
+      (void)gasneti_reghandler(SIGQUIT, handler);
+      #if 1
+        raise(SIGQUIT);
+	/* Note: Both ISO C and POSIX assure us that raise() won't return until
+	 * after the signal handler (if any) has executed.  However, if that
+	 * handler calls gasnetc_exit(), we'll never return here. */
+      #elif 0
+	kill(getpid(),SIGQUIT);
+      #else
+	handler(SIGQUIT);
+      #endif
+    } else {
+      /* No need to restore the handler, since _exit_body will set it to
+       * SIG_IGN anyway. */
+    }
+
+    gasnetc_exit_body();
+    gasnetc_exit_tail();
+    /* NOT REACHED */
+  }
+
+  return;
+}
+
+/* gasnetc_SysExit_reph
+ *
+ * Simply count replies
+ */
+static void 
+gasnetc_SysExit_reph(gasnet_token_t token, void *nop, size_t nsz) 
+{
+  gasneti_atomic_increment(&gasnetc_exit_reps);
+}
+  
+/* gasnetc_atexit
+ *
+ * This is a simple atexit() handler to achieve a hopefully graceful exit.
+ * We use the functions gasnetc_exit_{head,body}() to coordinate the shutdown.
+ * Note that we don't call gasnetc_exit_tail() since we anticipate the normal
+ * exit() procedures to shutdown the multi-threaded process nicely and also
+ * because we don't have access to the exit code!
+ *
+ * Unfortunately, we don't have access to the exit code to send to the other
+ * nodes in the event this is a non-collective exit.  However, experience with at
+ * lease one MPI suggests that when using MPI for bootstrap a non-zero return from
+ * at least one executable is sufficient to produce that non-zero exit code from
+ * the parallel job.  Therefore, we can "safely" pass 0 to our peers and still
+ * expect to preserve a non-zero exit code for the GASNet job as a whole.  Of course
+ * there is no _guarantee_ this will work with all bootstraps.
+ */
+static void gasnetc_atexit(void) {
+  /* Check return from _head to avoid reentrance */
+  if (gasnetc_exit_head(0)) { /* real exit code is outside our control */
+    gasnetc_exit_body();
+  }
+  return;
+}
+
+/* gasnetc_exit
+ *
+ * This is the start of a locally requested exit from GASNet.
+ * The caller might be the user, some part of the conduit which has detected an error,
+ * or possibly gasneti_defaultSignalHandler() responding to a termination signal.
+ */
+extern void gasnetc_exit(int exitcode) {
+  gasnetc_exit_head(exitcode);
+  gasnetc_exit_body();
+  gasnetc_exit_tail();
+  /* NOT REACHED */
+}
+
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -521,7 +1150,6 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   gasnet_node_t sourceid;
   gasnetc_bufdesc_t *bufd;
 
-  GASNETI_CHECKINIT();
   if_pf (!token) GASNETI_RETURN_ERRR(BAD_ARG,"bad token");
   if_pf (!srcindex) GASNETI_RETURN_ERRR(BAD_ARG,"bad src ptr");
 
@@ -595,8 +1223,6 @@ extern int gasnetc_AMRequestMediumM(
   if_pf (dest >= gasnetc_nodes)
 	  gasneti_fatalerror("node index too high, dest (%d) >= gasnetc_nodes (%d)\n",
 	    dest, gasnetc_nodes);
-  if_pf (dest >= gasnetc_nodes) GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
-  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
   if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
   GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -894,6 +1520,57 @@ gasnetc_AMRequestLongAsyncM(
 	else GASNETI_RETURN_ERR(RESOURCE);
 }
 
+/*
+ * System-Level AMs, not user-visible
+ */
+extern int gasnetc_RequestSystem( 
+			    gasnet_node_t dest, /* destination ndoe */
+                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+			    int *done, /* integer to increment when done */
+                            void *source_addr, size_t nbytes,   /* data payload */
+                            int numargs, ...) 
+{
+  int retval;
+  va_list argptr;
+  gasnetc_bufdesc_t *bufd;
+  int len;
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+
+  if_pf (nbytes > gasnet_AMMaxMedium()) GASNETI_RETURN_ERRR(BAD_ARG,"nbytes too large");
+  va_start(argptr, numargs); /*  pass in last argument */
+  gasneti_assert(nbytes <= GASNETC_AM_MEDIUM_MAX);
+
+  retval = 1;
+  if (dest == gasnetc_mynode) { /* local handler */
+    void *loopbuf;
+    int argbuf[GASNETC_AM_MAX_ARGS];
+    loopbuf = gasnetc_alloca(nbytes);
+    memcpy(loopbuf, source_addr, nbytes);
+    GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
+    GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[handler], (void *) -1,
+				argbuf, numargs, loopbuf, nbytes);
+    if (done != NULL) {
+	int cur = *done;
+	*done = cur + 1;
+    }
+  }
+  else {
+    bufd = gasnetc_AMRequestPool_block();
+    bufd->done = done;
+    len = gasnetc_write_AMBufferSystem(bufd->buf, handler, numargs, argptr, 
+		 nbytes, source_addr, GASNETC_AM_REQUEST);
+
+    gasneti_mutex_lock(&gasnetc_lock_gm);
+    gasnetc_GMSend_AMSystem(bufd->buf, len, gasnetc_nodeid(dest), 
+			    gasnetc_portid(dest), bufd);
+    gasneti_mutex_unlock(&gasnetc_lock_gm);
+  }
+
+  va_end(argptr);
+  if (retval) return GASNET_OK;
+  else GASNETI_RETURN_ERR(RESOURCE);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Replies */
 /* -------------------------------------------------------------------------- */
@@ -950,10 +1627,11 @@ gasnetc_GMSend_bufd(gasnetc_bufdesc_t *bufd)
 			context = (void *)bufd;
 		}
 
-		GASNETI_TRACE_PRINTF(C, ("gm_send (gm id %d <- %p,%d bytes)",
-		    (unsigned) bufd->gm_id, (void *) send_ptr, len));
+		GASNETI_TRACE_PRINTF(C, ("gm_send (gm id %d <- %p,%d bytes) %s",
+		    (unsigned) bufd->gm_id, (void *) send_ptr, len,
+		    GASNETC_AM_IS_REPLY(*((uint8_t *) send_ptr)) ? "AMReply "
+		    : "AMSystemReply"));
 
-		gasneti_assert(GASNETC_AM_IS_REPLY(*((uint8_t *) send_ptr)));
 		gasneti_assert(len > 0 && len <= GASNETC_AM_PACKET);
 
 		if (_gmc.my_port == bufd->gm_port)
@@ -1307,6 +1985,52 @@ gasnetc_AMReplyLongAsyncM(
 	if (retval) return GASNET_OK;
 	else GASNETI_RETURN_ERR(RESOURCE);
 }
+
+int gasnetc_ReplySystem( 
+	gasnet_token_t token,       /* token provided on handler entry */
+	gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+	void *source_addr, size_t nbytes,   /* data payload */
+	int numargs, ...) 
+{
+  int retval;
+  va_list argptr;
+  gasnetc_bufdesc_t *bufd;
+  va_start(argptr, numargs); /*  pass in last argument */
+
+  gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());
+  gasneti_assert(nbytes <= GASNETC_AM_MEDIUM_MAX);
+
+  retval = 1;
+  if ((void *)token == (void *)-1) { /* local handler */
+    void *loopbuf;
+    int argbuf[GASNETC_AM_MAX_ARGS];
+    loopbuf = gasnetc_alloca(nbytes);
+    memcpy(loopbuf, source_addr, nbytes);
+    GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
+    GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[handler], (void *) token,
+				argbuf, numargs, loopbuf, nbytes);
+  }
+  else {
+    bufd = gasnetc_bufdesc_from_token(token);
+    bufd->len = 
+	    gasnetc_write_AMBufferSystem(bufd->buf, handler, numargs, 
+                    argptr, nbytes, source_addr, GASNETC_AM_REPLY);
+
+    gasneti_mutex_lock(&gasnetc_lock_gm);
+    if (gasnetc_token_hi_acquire()) {
+       gasnetc_GMSend_bufd(bufd); 
+    } else {
+	gasneti_assert(bufd->gm_id > 0);
+       gasnetc_fifo_insert(bufd);
+    }
+    gasneti_mutex_unlock(&gasnetc_lock_gm);
+  }
+  
+  va_end(argptr);
+  if (retval) return GASNET_OK;
+  else GASNETI_RETURN_ERR(RESOURCE);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Core misc. functions                                                       */
 void
@@ -1506,7 +2230,7 @@ gasnetc_GMSend_AMRequest(void *buf, uint32_t len,
 
 void
 gasnetc_GMSend_AMSystem(void *buf, size_t len, 
-			uint16_t id, uint16_t port, void *context)
+			uint16_t id, uint16_t port, gasnetc_bufdesc_t *bufd)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(buf != NULL);
@@ -1520,11 +2244,11 @@ gasnetc_GMSend_AMSystem(void *buf, size_t len,
 	gasneti_assert(GASNETC_AM_IS_SYSTEM(*((uint8_t *) buf)));
 	gm_send_with_callback(_gmc.port, buf, GASNETC_AM_SIZE, len, 
 			GM_LOW_PRIORITY, id, port, gasnetc_callback_system, 
-			context);
+			bufd);
 
 	GASNETI_TRACE_PRINTF(C, 
-	    ("AMSystem Send (id=%d,%d, msg=0x%x, len=%d)", id, port,
-	     GASNETC_SYSHEADER_READ(buf), (int)len));
+	    ("AMSystem Send (node=%d,%d, handler_id=0x%x, len=%d)", id, port,
+	     *(((uint8_t *)buf)+1), (int)len));
 }
 
 
@@ -1579,17 +2303,167 @@ gasnetc_AMRequestPool_block()
  *
  * In the case of a barrier, the data should be NULL and size at 0.
  * In the case of an exchange, the data can be any size.
+ *
+ * The current implementation limits exchanges to 4K, which is not necessarily
+ * very scalable.  
+ *
+ * If the input buffer for the broadcast is <= 4096/nodes
+ *    Use gather(mybuf) -> broadcast_from_zero(allbufs)
+ * 
+ * If the input buffer for the broadcast is > 4096/nodes
+ *    Use broadcast_from_zero(dest_buf_addr) ->
+ *            gather_to_zero(mybuf) ->
+ *                 broadcast_from_zero(allbufs)
+ *
+ * The first version agrees to use the static Gather buffer while the second
+ * requires a dynamic buffer to be allocated, which causes each node to wait
+ * for a broadcast from 0 that contains the address of this buffer.
+ *
+ * Since the Gather/Broadcast is used before gasnet_attach(), it is not meant
+ * to be thread-safe and counter increments assume only one thread is running
+ * AM handlers.
  */
-int	gasnetc_bootstrapGather_phase	     =   0; /* start at even phase */
-uint8_t gasnetc_bootstrapGather_buf[2][4096] = { { 0 } };
-volatile int	gasnetc_bootstrapGather_recvd[2]     = { 0 };
-volatile int	gasnetc_bootstrapBroadcast_recvd[2]  = { 0 };
-volatile int	gasnetc_bootstrapGather_sent	     =   0;
-volatile int	gasnetc_bootstrapBroadcast_sent      =   0;
 
+static int		gasnetc_bootstrapGather_phase	      = 0; 
 static volatile int	gasnetc_bootstrapGatherSendInProgress = 0;
 
-#define GASNETC_BARRIER_MASTER	0
+static void	       *gasnetc_bootstrapGather_buf[2]       = { NULL, NULL };
+static size_t	        gasnetc_bootstrapGather_bufsz[2]     = { 0, 0 };
+static volatile int	gasnetc_bootstrapGather_bufalloc[2]  = { 0, 0 };
+static volatile int	gasnetc_bootstrapGather_allocdone[2] = { 0, 0 };
+static volatile int	gasnetc_bootstrapGather_recvd[2]     = { 0, 0 };
+static volatile int	gasnetc_bootstrapBroadcast_recvd[2]  = { 0, 0 };
+
+#define GASNETC_BROADCASTROOT_NODE   0
+
+#if 0
+#define GASNETC_BOOTTRACE_PRINTF(t,c)	printf c
+#else
+#define GASNETC_BOOTTRACE_PRINTF(t,c)
+#endif
+
+void
+gasnetc_AllocGatherBufs()
+{
+    size_t  allocsz;
+
+    allocsz = MIN(GASNETC_AM_SYSTEM_MAX, 
+		  2*sizeof(gasnet_seginfo_t)*gasnetc_nodes);
+
+    gasnetc_bootstrapGather_buf[0] = gasneti_malloc(allocsz);
+    gasnetc_bootstrapGather_buf[1] = gasneti_malloc(allocsz);
+
+    gasnetc_bootstrapGather_bufsz[0] = allocsz;
+    gasnetc_bootstrapGather_bufsz[1] = allocsz;
+
+}
+
+void
+gasnetc_DestroyGatherBufs()
+{
+    if (gasnetc_bootstrapGather_buf[0] != NULL)
+	    gasneti_free(gasnetc_bootstrapGather_buf[0]);
+    gasnetc_bootstrapGather_bufsz[0] = 0;
+
+    if (gasnetc_bootstrapGather_buf[1] != NULL)
+	    gasneti_free(gasnetc_bootstrapGather_buf[1]);
+    gasnetc_bootstrapGather_bufsz[1] = 0;
+}
+
+
+void 
+gasnetc_SysGather_reqh(gasnet_token_t token, void *addr, size_t nbytes,
+		       gasnet_handlerarg_t phase)
+{
+    gasnet_node_t   node;
+    gasnet_AMGetMsgSource(token, &node);
+
+    /* Only the root runs the request handler */
+    gasneti_assert(gasnetc_mynode == GASNETC_BROADCASTROOT_NODE);
+    /* We only support two phases */
+    gasneti_assert(phase == 0 || phase == 1);
+
+    if (nbytes > 0)
+	memcpy((uint8_t *) gasnetc_bootstrapGather_buf[phase] + node*nbytes, 
+	       addr, nbytes);
+
+    gasnetc_bootstrapGather_recvd[phase]++;
+    GASNETC_BOOTTRACE_PRINTF(C, 
+	("AMSystem Gather Received (node=%d,phase=%d,cnt=%d,nbytes=%d)\n", 
+	 node, phase, gasnetc_bootstrapGather_recvd[phase], nbytes));
+}
+
+/*
+ * At startup, GASNet allocates a static bootstrapGather_buf large enough to
+ * fit sizeof(gasnet_seginfo_t) * gasnet_numnodes().  If the exchange request
+ * is larger than this buffer, node 0 broadcasts the new total size of the
+ * exchange to all nodes.
+ *
+ */
+void 
+gasnetc_SysBroadcast_reqh(gasnet_token_t token, void *addr, size_t nbytes,
+			  gasnet_handlerarg_t phase, gasnet_handlerarg_t exchsz)
+{
+    gasnet_node_t   node;
+    gasnet_AMGetMsgSource(token, &node);
+
+    /* We only support two phases */
+    gasneti_assert(phase == 0 || phase == 1);
+
+    if (nbytes > 0)
+	memcpy((uint8_t *) gasnetc_bootstrapGather_buf[phase] + node*nbytes, 
+	       addr, nbytes);
+
+    gasnetc_bootstrapBroadcast_recvd[phase]++;
+    gasneti_assert(gasnetc_bootstrapBroadcast_recvd[phase] == 1);
+
+    GASNETC_BOOTTRACE_PRINTF(C, 
+	("AMSystem Broadcast Received (node=%d,phase=%d,nbytes=%d)\n", 
+	 gasnetc_mynode, phase, nbytes));
+}
+
+/*
+ * BroadcastAlloc handlers
+ */
+void
+gasnetc_SysBroadcastAlloc_reph(gasnet_token_t token, gasnet_handlerarg_t phase)
+{
+    gasneti_assert(gasnetc_mynode == GASNETC_BROADCASTROOT_NODE);
+    gasneti_assert(phase == 0 || phase == 1);
+
+    gasnetc_bootstrapGather_allocdone[phase]++;
+
+    #ifdef GASNET_TRACE
+	gasnet_node_t   node;
+	gasnet_AMGetMsgSource(token, &node);
+
+	GASNETC_BOOTTRACE_PRINTF(C, 
+	    ("AMSystem BroadcastAlloc Received (node=%d,phase=%d,cnt=%d)\n", 
+	    node, phase, gasnetc_bootstrapGather_allocdone[phase]));
+    #endif
+}
+void
+gasnetc_SysBroadcastAlloc_reqh(gasnet_token_t token, gasnet_handlerarg_t phase, 
+			       gasnet_handlerarg_t exchsz)
+{
+    gasnet_node_t   node;
+    gasnet_AMGetMsgSource(token, &node);
+
+    gasneti_assert(phase == 0 || phase == 1);
+    gasneti_assert(node == GASNETC_BROADCASTROOT_NODE);
+    gasneti_assert(gasnetc_bootstrapGather_bufsz[phase] < exchsz);
+    gasneti_assert(gasnetc_bootstrapGather_bufalloc[phase] == 0);
+
+    if (gasnetc_bootstrapGather_buf[phase] != NULL)
+	gasneti_free(gasnetc_bootstrapGather_buf[phase]);
+
+    gasnetc_bootstrapGather_buf[phase] = gasneti_malloc(exchsz);
+    gasnetc_bootstrapGather_bufsz[phase] = exchsz;
+    gasnetc_bootstrapGather_bufalloc[phase]++;
+
+    gasnetc_ReplySystem(token, gasneti_handleridx(gasnetc_SysBroadcastAlloc_reph),
+	NULL, 0, 1, phase);
+}
 
 void *
 gasnetc_bootstrapGatherSend(void *data, size_t len)
@@ -1597,106 +2471,92 @@ gasnetc_bootstrapGatherSend(void *data, size_t len)
 	uint8_t	 *hdr, *payload;
 	uint16_t *phase_ptr;
 	int	 i, phase;
+	size_t	 exchsz;
+	int	 sent = 0;
 
-	gasnetc_bufdesc_t	*bufd;
-
-	gasneti_mutex_lock(&gasnetc_lock_gm);
 	if (gasnetc_bootstrapGatherSendInProgress)
-		gasneti_fatalerror(
+	    gasneti_fatalerror(
 		    "Cannot issue two successive gasnetc_bootstrapExchange");
-	else
-		gasnetc_bootstrapGatherSendInProgress++;
 
-	if ((len*gasnetc_nodes+4) > GASNETC_AM_PACKET)
-		gasneti_fatalerror(
-		    "bootstrapGatherSend: %i bytes too large\n", (int)len);
+	gasnetc_bootstrapGatherSendInProgress++;
+
+	/* The size to exchange is the per-node payload coalesced into one
+	 * contiguous buffer.  The function assumes that copying per-node
+	 * buffers contiguously based on the given size will not cause any
+	 * alignment problems.
+	 */
+	exchsz = len * gasnetc_nodes;
+
+	if (exchsz > GASNETC_AM_SYSTEM_MAX)
+	    gasneti_fatalerror(
+		"bootstrapGatherSend: %i bytes too large\n", (int)exchsz);
 
 	phase = gasnetc_bootstrapGather_phase;
 	gasnetc_bootstrapGather_phase ^= 1;
-	
-	gasneti_mutex_unlock(&gasnetc_lock_gm);
-	bufd = gasnetc_AMRequestPool_block();
-	gasneti_mutex_lock(&gasnetc_lock_gm);
+	gasnetc_bootstrapBroadcast_recvd[phase] = 0;
 
-	hdr = (uint8_t *) bufd->buf;
-	phase_ptr = (uint16_t *)hdr + 1;
-	payload = hdr + 4;
+	/* First check if existing buffer is large enough */
+	if (gasnetc_bootstrapGather_bufsz[phase] < exchsz) {
 
-	if (gasnetc_mynode == GASNETC_BARRIER_MASTER) {
-
-		GASNETC_SYSHEADER_WRITE(hdr, GASNETC_SYS_BROADCAST);
-		*phase_ptr = phase;
-
-		#if GASNET_DEBUG_VERBOSE
-		printf("%d> waiting in %s phase!\n", 
-		    GASNETC_BARRIER_MASTER, phase ? "odd" : "even");
-		fflush(stdout);
-		#endif
-
-		GASNETC_BLOCKUNTIL(
-		    gasnetc_bootstrapGather_recvd[phase] == gasnetc_nodes-1);
-		gasnetc_bootstrapGather_recvd[phase] = 0;
-
-		#if GASNET_DEBUG_VERBOSE
-		printf("%d> done %s phase!\n", 
-		    GASNETC_BARRIER_MASTER, phase ? "odd" : "even");
-		fflush(stdout);
-		#endif
-
-		if (len > 0 && data != NULL) {
-			gasneti_assert(len < 4096);
-			memcpy(gasnetc_bootstrapGather_buf[phase], data, len);
-			memcpy(payload, gasnetc_bootstrapGather_buf[phase], 
-				    len*gasnetc_nodes);
-		}
-
-		if (gasnetc_nodes == 1)
-			goto barrier_done;
-
-		gasnetc_bootstrapBroadcast_sent = 0;
+	    if (gasnetc_mynode == GASNETC_BROADCASTROOT_NODE) {
+		/* We need to reallocate the Gather buffer */
+		gasnetc_bootstrapGather_allocdone[phase] = 0;
 		for (i = 0; i < gasnetc_nodes; i++) {
-			if (i == GASNETC_BARRIER_MASTER)
-				continue;
-			gasnetc_GMSend_AMSystem(hdr, len*gasnetc_nodes + 4,
-			    _gmc.gm_nodes[i].id, _gmc.gm_nodes[i].port, 
-			    (void *) &gasnetc_bootstrapBroadcast_sent);
+		    gasnetc_RequestSystem(i, 
+			gasneti_handleridx(gasnetc_SysBroadcastAlloc_reqh), NULL,
+			NULL, 0, 2, phase, exchsz);
 		}
-		GASNETC_BLOCKUNTIL(
-			gasnetc_bootstrapBroadcast_sent == gasnetc_nodes-1);
-		gasnetc_bootstrapBroadcast_sent = 0;
-	}
-	else {
+		/* Wait until allocation from all nodes is complete */
+		GASNET_BLOCKUNTIL(
+		    gasnetc_bootstrapGather_allocdone[phase] == gasnetc_nodes);
+		gasnetc_bootstrapGather_allocdone[phase] = 0;
+	    }
 
-		GASNETC_SYSHEADER_WRITE(hdr, GASNETC_SYS_GATHER);
-		*phase_ptr = phase;
-		if (len > 0 && data != NULL)
-			memcpy(payload, data, len);
-	
-		gasnetc_bootstrapGather_sent = 0;
-		gasnetc_GMSend_AMSystem(hdr, len + 4,
-		    _gmc.gm_nodes[GASNETC_BARRIER_MASTER].id, 
-		    _gmc.gm_nodes[GASNETC_BARRIER_MASTER].port, 
-		    (void *) &gasnetc_bootstrapGather_sent);
-	
-		GASNETC_BLOCKUNTIL(gasnetc_bootstrapGather_sent == 1);
-		gasnetc_bootstrapGather_sent = 0;
-
-		/* Once we return from the block, the data is contained in
-		 * gasnetc_bootstrapGather_buf */
-		GASNETC_BLOCKUNTIL(gasnetc_bootstrapBroadcast_recvd[phase] == 1);
-		gasnetc_bootstrapBroadcast_recvd[phase] = 0;
+	    GASNET_BLOCKUNTIL(gasnetc_bootstrapGather_bufalloc[phase] == 1);
+	    /* Make sure the flag is reset for the next iteration */
+	    gasnetc_bootstrapGather_bufalloc[phase] = 0;
 	}
 
-	#if GASNET_DEBUG_VERBOSE
-	printf("%d> done barrier!\n", gasnetc_mynode); fflush(stdout);
-	#endif
+	/*
+	 * By now, we are certain the buffer to gather into is large enough.
+	 * All nodes, including GASNETC_BROADCASTROOT_NODE, send a gather
+	 * request to GASNETC_BROADCASTROOT_NODE with their payload.
+	 */
+
+	sent = 0;
+	gasnetc_RequestSystem(GASNETC_BROADCASTROOT_NODE, 
+	    gasneti_handleridx(gasnetc_SysGather_reqh), &sent, 
+	    data, len, 1, phase);
+
+	if (gasnetc_mynode == GASNETC_BROADCASTROOT_NODE) {
+
+	    GASNET_BLOCKUNTIL(
+	        gasnetc_bootstrapGather_recvd[phase] == gasnetc_nodes);
+	    gasnetc_bootstrapGather_recvd[phase] = 0;
+
+	    if (gasnetc_nodes == 1)
+		goto barrier_done;
+
+	    sent = 0;
+	    /* Once the gather is done, Broadcast to all nodes */ 
+	    for (i = 0; i < gasnetc_nodes; i++) {
+		gasnetc_RequestSystem(i, 
+		    gasneti_handleridx(gasnetc_SysBroadcast_reqh), &sent,
+		    gasnetc_bootstrapGather_buf[phase], exchsz, 1, phase);
+	    }
+
+	    /* Wait until all requests are sent */
+	    GASNET_BLOCKUNTIL(sent == gasnetc_nodes);
+	}
+
+	/* All nodes, including GASNETC_BROADCASTROOT_NODE, wait until the
+	 * broadcast is recevied */
+	GASNET_BLOCKUNTIL(gasnetc_bootstrapBroadcast_recvd[phase] == 1);
+	gasnetc_bootstrapBroadcast_recvd[phase] = 0;
 
 barrier_done:
 
 	gasnetc_bootstrapGatherSendInProgress = 0;
-	gasnetc_provide_AMRequestPool(bufd);
-
-	gasneti_mutex_unlock(&gasnetc_lock_gm);
 	return gasnetc_bootstrapGather_buf[phase];
 }
 
@@ -1705,7 +2565,6 @@ gasnetc_bootstrapBarrier()
 {
 	gasnetc_bootstrapGatherSend(NULL, 0);
 }
-
 
 void
 gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
@@ -1884,8 +2743,10 @@ gasnetc_getconf_conffile()
 	if (status != GM_SUCCESS)
 		gasneti_fatalerror("could not get GM node id!");
 
+	_gmc.port = p;
+
 #ifdef GASNETC_GM_2
-	temp_id = _gmc.my_id;
+	temp_id = thisid;
 
 	/* GM2 only stores local node ids, so a global has to be obtained */
 	if (gm_node_id_to_global_id(_gmc.port, temp_id, &(_gmc.my_id)) 
@@ -2060,6 +2921,30 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
+
+extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+  GASNETI_CHECKATTACH();
+
+  {
+    int locked = (gasneti_mutex_trylock(&(hsl->lock)) == 0);
+
+    GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
+    if (locked) {
+      #if GASNETI_STATS_OR_TRACE
+        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      #endif
+      #if GASNETC_USE_INTERRUPTS
+        /* conduits with interrupt-based handler dispatch need to add code here to 
+           disable handler interrupts on _this_ thread, (if this is the outermost
+           HSL lock acquire and we're not inside an enclosing no-interrupt section)
+         */
+        #error interrupts not implemented
+      #endif
+    }
+
+    return locked ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
+}
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -2077,6 +2962,34 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable() {
   return gasnetc_handlers;
+}
+
+static gasnet_handlerentry_t const gasnetc_syshandlers[] = {
+  /* ptr-width independent handlers */
+  gasneti_handler_tableentry_no_bits(gasnetc_SysBroadcastAlloc_reqh),
+  gasneti_handler_tableentry_no_bits(gasnetc_SysBroadcastAlloc_reph),
+  gasneti_handler_tableentry_no_bits(gasnetc_SysGather_reqh),
+  gasneti_handler_tableentry_no_bits(gasnetc_SysBroadcast_reqh),
+
+  gasneti_handler_tableentry_no_bits(gasnetc_SysExitRole_reqh),
+  gasneti_handler_tableentry_no_bits(gasnetc_SysExitRole_reph),
+  gasneti_handler_tableentry_no_bits(gasnetc_SysExit_reqh),
+  gasneti_handler_tableentry_no_bits(gasnetc_SysExit_reph),
+  /* ptr-width dependent handlers */
+  { 0, NULL }
+};
+
+void
+gasnetc_registerSysHandlers() 
+{
+    int i = 0;
+    gasnet_handlerentry_t *stable = 
+	(gasnet_handlerentry_t *) gasnetc_syshandlers;
+
+    while (stable[i].fnptr != NULL) {
+	_gmc.syshandlers[i] = stable[i].fnptr;
+	i++;
+    }
 }
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v 1.6.2.1 2004/03/12 12:15:32 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v 1.6.2.2 2004/04/20 17:16:50 csbell Exp $
 # Description: Makefile for GASNet udp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -40,12 +40,12 @@ CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/amudp/*.h
 CONDUIT_EXTRADEPS = $(top_builddir)/other/amudp/libamudp.a
 
 $(top_builddir)/other/amudp/libamudp.a:
-	gmake -C $(top_builddir)/other/amudp libamudp.a
+	$(MAKE) -C $(top_builddir)/other/amudp libamudp.a
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS=
+CONDUIT_SPECIAL_OBJS =
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

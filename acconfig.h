@@ -1,6 +1,6 @@
 /*   $Archive:: /Ti/GASNet/acconfig.h                                      $ */
-/*      $Date: 2004/03/11 11:19:11 $ */
-/*  $Revision: 1.24.2.1 $ */
+/*      $Date: 2004/04/20 17:16:27 $ */
+/*  $Revision: 1.24.2.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -24,6 +24,9 @@
 
 /* have mmap() */
 #undef HAVE_MMAP
+
+/* --with-segment-mmap-max value (if given) */
+#undef GASNETI_MMAP_MAX_SIZE
 
 /* has usleep() */
 #undef HAVE_USLEEP
@@ -70,6 +73,7 @@
 #undef AIX
 #undef OSF
 #undef HPUX
+#undef SUPERUX
 #undef IRIX
 #undef CYGWIN
 #undef DARWIN
@@ -91,8 +95,8 @@
 #define __attribute__(flags)
 #endif
 
-#if defined(__GNUC__) && __GNUC__ <= 2 && __GNUC_MINOR__ < 95
-/* malloc attribute missing in egcs-2.91.66 */
+#if defined(__GNUC__) && __GNUC__ <= 2 && __GNUC_MINOR__ <= 95
+/* malloc attribute missing in egcs-2.91.66 and gcc 2.95.2 */
 #define __malloc__
 #endif
 

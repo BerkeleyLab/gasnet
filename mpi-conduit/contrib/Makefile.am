@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/Makefile.am,v 1.2 2003/11/09 04:05:55 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/Makefile.am,v 1.2.6.1 2004/04/20 17:16:39 csbell Exp $
 # Description: Makefile for GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -13,6 +13,9 @@ mybindir = $(bindir)
 
 # Make sure the perl script and shell wrapper are always current locally.
 # This ensures we can run from the build directory if needed.
+$(top_builddir)/other/perlstart: $(top_srcdir)/other/perlstart.in
+	@$(MAKE) -C $(top_builddir)/other perlstart
+$(target): $(top_builddir)/other/perlstart
 all-local: $(builddir)/$(target).pl $(target)
 $(builddir)/$(target).pl: force
 	@if test "`cd $(builddir);pwd`" != "`cd $(srcdir);pwd`"; then \

@@ -56,8 +56,10 @@ compilers, including which GASNet conduits are supported.
   Each conduit also has several useful makefile targets:
     gmake tests-{seq,par,parsync}  
       build the conduit tests in a given mode
-    gmake testXXX [THREAD_MODEL={SEQ,PAR,PARSYNC}]
-      build just testXXX, in a given mode (defaults to SEQ)
+    gmake testXXX 
+      build just testXXX, in SEQ mode
+    gmake testXXX-{seq,par,parsync}
+      build just testXXX, in a given mode
     gmake run-tests-{seq,par,parsync}  
       build and run the conduit tests in a given mode
     gmake run-tests
@@ -127,10 +129,16 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT)
 
-    * MacOSX/PowerPC/gcc/32: smp, udp, mpi
+    * MacOSX/PowerPC/{gcc,xlc}/32: smp, udp, mpi, vapi
 
     * Unicos/CrayT3e/CrayC/64: smp, udp, mpi 
        (Berkeley UPC has known problems on T3E (bug202) - but GASNet works fine)
+ 
+    * Unicos/CrayX1/CrayC/64: smp, udp, mpi 
+       (native conduit under development)
+ 
+    * SuperUX/SX-6/NEC-C/64: smp, udp, mpi
+       (single-threaded only, pthreads broken)
 
 # = No working MPI implementation available, although we have every reason to
 believe mpi conduit would work if one was available.

@@ -87,17 +87,27 @@ some of the highlights and quirks. .
     
 ********************************************************************************
 ** Development CVS tags/branches
-	GM_RENDEZVOUS:	gm-conduit specific tag, which uses a snapshot from Oct
-			2002 and implements rendezvous instead of firehose.
-			This was needed in a firehose paper showing performance
-			characteristics and comparing the algorithm to a
-			rendezvous approach.
+
+   GM_RENDEZVOUS: gm-conduit specific tag, which uses a snapshot from Oct
+		  2002 and implements rendezvous instead of firehose.  This was
+		  needed in a firehose paper showing performance
+		  characteristics and comparing the algorithm to a rendezvous
+		  approach.
 			
-			From a current gasnet checkout, in gm-conduit
-			directory, run
-			% cvs up -PAd -r GM_RENDEZVOUS
-			Note that some minor code changes might be required in
-			order to have this version of the gm-conduit compile.
+		  From a current gasnet checkout, in gm-conduit directory, run
+		  % cvs up -PAd -r GM_RENDEZVOUS
+		  Note that some code changes will be required in order to have
+		  this version of the gm-conduit compile with the latest GASNet
+		  core files.
+
+   GM_EXIT_FIX: gm-conduit *only* tag, which fixes exit behaviour, namely the
+		ability to exit non-collectively.  This fix prompted a redesign
+		of system-level messages (reimplemented as system AMs) and
+		imported most of the exit and signal handling code from
+		vapi-conduit.
+
+		GM_EXIT_FIX-root: CVS Tag (gm-conduit only) before exit fixes
+		GM_EXIT_FIX-fix1: CVS Tag (gm-conduti only) after  exit fixes
 
 ********************************************************************************
 ** Basic Extended API Design for puts/gets

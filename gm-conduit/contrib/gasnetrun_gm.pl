@@ -25,7 +25,13 @@ $pwd = &Cwd::cwd();
 $delay_rexec = 0;
 $np = 1;
 $use_shmem = 1;
-$rexec = "/usr/bin/ssh";
+@extraopts = undef;
+$ssh_exec = "/usr/bin/ssh";
+$extraopts{"ssh"} = "";
+$rsh_exec = "/usr/bin/rsh";
+$extraopts{"rsh"} = "";
+$rexec = "$ssh_exec";
+$rexec_type = "ssh";  
 $rexec_reaper = 1;
 # May have to change the arch
 $arch = "LINUX";
@@ -35,10 +41,10 @@ $kill_time = 0;
 $recv_mode = 'polling';
 
 # GEXEC configuration, preconfigured for millennium.
-$use_gexec     = 0;  # preset to 1 to default to gexec
 $gm_board_info = "/usr/mill/pkg/gm/bin/gm_board_info";
 $gstat         = $ENV{"GASNET_GSTAT_CMD"} || "/usr/bin/gstat -l1";
 $gexec         = $ENV{"GASNET_GEXEC_CMD"} || "/usr/bin/gexec -p none";
+$extraopts{"gexec"} = "";
 $black_listed_hosts = $ENV{"GASNET_GEXEC_BLACKLIST"} || "lime|lemon";
 $domainname    = $ENV{"GASNET_GEXEC_DOMAINNAME"} || ".Millennium.Berkeley.EDU";
 
@@ -66,16 +72,25 @@ $runcmd = "";
 ###################
 
 sub clean_up {
+  print "clean_up\n" if $verbose;
+  if ($rexec_type eq "gexec") { 
+    while (wait != -1) {
+     print "waiting for child processes...\n";
+     sleep 1;
+    }
+    return; 
+  }
+
   # reap remote processes, usefull because ssh is broken and does not
   # clean up remote processes when killed.
-  if (($pid_socket == 0) && ($rexec_reaper) && (!$use_gexec)) {
+  if (($pid_socket == 0) && ($rexec_reaper)) {
     print ("Reap remote processes:\n") if $verbose;
     for ($z=0; $z<$np; $z++) {
       if (defined ($remote_pids[$z])) {
 	$pid_reaper = fork;
 	if ($pid_reaper == 0) {
 	  if ($verbose) {
-	    print ("\t@rexec_flags $hosts[$z] -n kill -9 $remote_pids[$z] 2>/dev/null\n");
+	    print ("\t ".@rexec_flags." $hosts[$z] -n kill -9 $remote_pids[$z] 2>/dev/null\n");
 	  }
 	  exec (@rexec_flags, $hosts[$z], '-n', "kill -9 $remote_pids[$z]", "2>/dev/null");
 	}
@@ -218,6 +233,11 @@ sub usage {
   print (STDERR "        but always good to have an option to force it.\n");
   print (STDERR "   -machinefile <file>   Specifies a machine file, There is no default\n");
   print (STDERR "   --gexec         The spawner is gexec.\n");
+  print (STDERR "   --ssh           The spawner is ssh.\n");
+  print (STDERR "   --rsh           The spawner is rsh.\n");
+  print (STDERR "   --gexec-options <opt> Additional options to pass gexec.\n");
+  print (STDERR "   --ssh-options <opt>   Additional options to pass ssh.\n");
+  print (STDERR "   --rsh-options <opt>   Additional options to pass rsh.\n");
   print (STDERR "   --gm-no-shmem   Disable the shared memory support (enabled by default).\n");
   print (STDERR "   --gm-numa-shmem Enable shared memory only for processes sharing the same Myrinet interface.\n");
   print (STDERR "   --gm-wait <n>   Wait <n> seconds between each spawning step.\n");
@@ -266,8 +286,26 @@ while (@ARGV > 0) {
     usage ("No machine file specified (-machinefile) !") unless @ARGV >= 1;
     $machine_file = $ARGV[0];
   } elsif ($_ eq '--gexec') {
-    $use_gexec = 1;
+    $rexec_type = "gexec";
     $rexec = $gexec;
+  } elsif ($_ eq '--ssh') {
+    $rexec_type = "ssh";
+    $rexec = $ssh_exec;
+  } elsif ($_ eq '--rsh') {
+    $rexec_type = "rsh";
+    $rexec = $rsh_exec;
+  } elsif ($_ eq '--gexec-options') {
+    shift;
+    usage ("no options specified for --gexec-options !") unless @ARGV >= 1;
+    $extraopts{"gexec"} .= $ARGV[0] . " ";
+  } elsif ($_ eq '--ssh-options') {
+    shift;
+    usage ("no options specified for --ssh-options !") unless @ARGV >= 1;
+    $extraopts{"ssh"} .= $ARGV[0] . " ";
+  } elsif ($_ eq '--rsh-options') {
+    shift;
+    usage ("no options specified for --rsh-options !") unless @ARGV >= 1;
+    $extraopts{"rsh"} .= $ARGV[0] . " ";
   } elsif ($_ eq '--gm-no-shmem') {
     $use_shmem = 0;
   } elsif ($_ eq '--gm-numa-shmem') {
@@ -339,11 +377,11 @@ while (@ARGV > 0) {
 # GASNET_GEXEC_CMD is set.
 if (defined $ENV{"GASNET_GEXEC_CMD"}) {
     printf "Using gexec command $ENV{GASNET_GEXEC_CMD}\n" if $verbose;
-    $use_gexec = 1;
     $rexec = $gexec;
+    $rexec_type = "gexec";
 }
 
-@rexec_flags = split(/ /, $rexec);
+@rexec_flags = split(/ /, $rexec . " " . $extraopts{${rexec_type}});
 
 $app_cmd or usage (" Missing program name !");
 
@@ -356,7 +394,7 @@ if (defined ($ENV{"MACHINE_FILE"})) {
 # If the machine file is not defined, use the system-wide one.
 $machine_file = $default_machinefile unless defined ($machine_file);
 
-if (!$machine_file && !$use_gexec) {
+if (!$machine_file && ($rexec_type ne "gexec")) {
     printf "Can't detect a PBS or a GEXEC environment. Consider using a machinefile\n";
     exit 1;
 }
@@ -447,7 +485,7 @@ if (defined ($procgroup_file)) {
       $np++;
     }
   }
-} elsif (!$use_gexec) {
+} elsif ($rexec_type ne "gexec") {
   # Open the machines file, read it and close it.
   open (MACHINE_FILE, "$machine_file")
     or die "Cannot open the machines file $machine_file: $!\n";
@@ -575,7 +613,7 @@ $SIG{'TERM'} = 'cleanup_SIGTERM';
 $SIG{'KILL'} = 'cleanup_SIGKILL';
 $SIG{'QUIT'} = 'cleanup_SIGQUIT';
   
-if ($use_gexec) {
+if ($rexec_type eq "gexec") {
   my %gm_hosts;
   my %gstat_hosts;
   my $gstat_output = "";
@@ -780,6 +818,8 @@ if (!$dry_run) {
     alarm (0);
     print ("Data sent to all processes.\n") if $verbose;
 
+    if ($rexec_type eq "gexec") { exit(0); }
+
     # Keep the first socket opened for abort messages.
     while (1) {
       accept (ABORT_SOCKET, FIRST_SOCKET);
@@ -807,7 +847,7 @@ if (!$dry_run) {
 }
 
 
-if ($use_gexec) {
+if ($rexec_type eq "gexec") {
 
   $runcmd = "$np " . $app_cmd . " ";
   for ($k=0; $k<scalar(@app_flags);$k++) {

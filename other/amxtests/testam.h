@@ -397,13 +397,13 @@ HANDLERS(16)
   SETUP_ALLAM_ID(16);      \
 } while (0)
 
-#define ALLAM_HANDLERS_ID(num)                             \
-  { SHORT_##num##REQ_HANDLER,  short_##num##req_handler }, \
-  { MEDIUM_##num##REQ_HANDLER, medium_##num##req_handler}, \
-  { LONG_##num##REQ_HANDLER,   long_##num##req_handler  }, \
-  { SHORT_##num##REP_HANDLER,  short_##num##rep_handler }, \
-  { MEDIUM_##num##REP_HANDLER, medium_##num##rep_handler}, \
-  { LONG_##num##REP_HANDLER,   long_##num##rep_handler  }  
+#define ALLAM_HANDLERS_ID(num)                                           \
+  { SHORT_##num##REQ_HANDLER,  (handler_fn_t)short_##num##req_handler }, \
+  { MEDIUM_##num##REQ_HANDLER, (handler_fn_t)medium_##num##req_handler}, \
+  { LONG_##num##REQ_HANDLER,   (handler_fn_t)long_##num##req_handler  }, \
+  { SHORT_##num##REP_HANDLER,  (handler_fn_t)short_##num##rep_handler }, \
+  { MEDIUM_##num##REP_HANDLER, (handler_fn_t)medium_##num##rep_handler}, \
+  { LONG_##num##REP_HANDLER,   (handler_fn_t)long_##num##rep_handler  }  
 
 #define ALLAM_HANDLERS() \
   ALLAM_HANDLERS_ID(0),  \

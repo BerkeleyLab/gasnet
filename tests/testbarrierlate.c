@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testbarrierlate.c                         $
- *     $Date: 2004/03/13 13:34:10 $
- * $Revision: 1.2 $
+ *     $Date: 2004/04/20 17:16:48 $
+ * $Revision: 1.2.6.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

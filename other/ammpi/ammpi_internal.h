@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_internal.h                                 $
- *     $Date: 2004/01/05 15:34:34 $
- * $Revision: 1.14 $
+ *     $Date: 2004/04/20 17:16:42 $
+ * $Revision: 1.14.2.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -16,6 +16,18 @@
 #ifdef UNIX
   #include <unistd.h>
   #include <errno.h>
+#endif
+
+#ifdef WIN32
+  #define sched_yield() Sleep(0)
+  #define sleep(x) Sleep(x*1000)
+#elif defined(_CRAYT3E) || defined(_SX)
+  /* these both implement sched_yield() in libpthread only, which we may not want */
+  #include <unistd.h>
+  #define sched_yield() sleep(0)
+#else
+  #include <unistd.h>
+  #include <sched.h>
 #endif
 
 #ifdef __AMMPI_H

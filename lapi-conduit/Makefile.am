@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/Makefile.am,v 1.23.2.1 2004/03/12 12:15:24 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/Makefile.am,v 1.23.2.2 2004/04/20 17:16:36 csbell Exp $
 # Description: Makefile for GASNet lapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -33,11 +33,11 @@ CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_extended.c 
 
-# additional include directives needed by this specific conduit
-# other than the standard GASNet directories
-CONDUIT_EXTRAINCLUDES = 
+# additional -I or -D directives needed by this specific conduit
+# other than the standard GASNet includes and flags
+CONDUIT_EXTRALIBCFLAGS = 
 
-# additional conduit header files to install from directories in CONDUIT_EXTRAINCLUDES
+# additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
 
 # additional file dependencies not mentioned elsewhere 
@@ -47,7 +47,7 @@ CONDUIT_EXTRADEPS =
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS=
+CONDUIT_SPECIAL_OBJS = 
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

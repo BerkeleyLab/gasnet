@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_sg.h                 $
- *     $Date: 2004/03/03 13:47:04 $
- * $Revision: 1.1 $
+ *     $Date: 2004/04/20 17:16:32 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,8 @@
 GASNET_INLINE_MODIFIER(gasnete_memveclist_stats)
 gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_t const *list) {
   gasneti_memveclist_stats_t retval;
-  size_t minsz = (size_t)-1, maxsz = 0, totalsz = 0;
+  size_t minsz = (size_t)-1, maxsz = 0;
+  uintptr_t totalsz = 0;
   char *minaddr = (void *)(uintptr_t)-1;
   char *maxaddr = (void *)0;
   int i;
@@ -214,7 +215,7 @@ typedef struct {
   size_t srcextent; /* the length of the bounding box containing all the src data */
   size_t dstextent; /* the length of the bounding box containing all the dst data */
 
-  size_t totalsz;   /* the total bytes of data in the transfer */
+  uintptr_t totalsz;   /* the total bytes of data in the transfer */
 
   size_t nulldims;  /* number of top-level dimensions with a count of 1 -
                        these dimensions can be ignored for most purposes 
@@ -298,7 +299,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
       } else dstcontigsz *= nextcount;
     }
 
-    result->totalsz = srcsegments*srccontigsz;
+    result->totalsz = ((uintptr_t)srcsegments)*srccontigsz;
     if (result->totalsz == 0) { /* empty xfer */
       gasneti_assert(gasnete_strided_empty(count, stridelevels));
       gasneti_assert(gasnete_strided_datasize(count, stridelevels) == 0);
@@ -601,7 +602,7 @@ gasnet_handle_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], si
 #define gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
        _gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(gasnet_puti_nbi_bulk)
+GASNET_INLINE_MODIFIER(_gasnet_puti_nbi_bulk)
 void _gasnet_puti_nbi_bulk(gasnet_node_t dstnode, 
                            size_t dstcount, void * const dstlist[], size_t dstlen,
                            size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {

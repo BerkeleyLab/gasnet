@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testsmall.c                                 $
- *     $Date: 2004/03/05 21:04:43 $
- * $Revision: 1.16 $
+ *     $Date: 2004/04/20 17:16:49 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -108,8 +108,8 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 
 void put_tests(int iters, int nbytes)
 {GASNET_BEGIN_FUNCTION();
-    int i, loops;
-    int64_t begin, end, delay_time;
+    int i;
+    int64_t begin, end, delay_time, loops;
     stat_struct_t st;
 
 	int iamsender = (myproc % 2 == 0);
@@ -234,8 +234,8 @@ void put_tests(int iters, int nbytes)
 
 void get_tests(int iters, int nbytes)
 {GASNET_BEGIN_FUNCTION();
-    int i, loops;
-    int64_t begin, end, delay_time;
+    int i;
+    int64_t begin, end, delay_time, loops;
     stat_struct_t st;
     float ratio;
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testgasnet.c                              $
- *     $Date: 2004/01/05 05:01:24 $
- * $Revision: 1.4 $
+ *     $Date: 2004/04/20 17:16:49 $
+ * $Revision: 1.4.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -323,7 +323,7 @@ void test_mpi(threaddata_t *tdata) {
       ACTION_PRINTF("tid=%3d> MPI probe AMShortRequest to tid=%3d\n", tdata->tid, peer);
       GASNET_Safe(gasnet_AMRequestShort1(node, hidx_mpi_probehandler, tdata->tid));
 
-      sched_yield();
+      gasnett_sched_yield();
       test_sleep(tdata);
       GASNET_Safe(gasnet_AMPoll());
       mpi_test(&sendhandle); /* occasional testing may be required for progress */

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_core_help.h             $
- *     $Date: 2003/10/24 01:37:34 $
- * $Revision: 1.11 $
+ *     $Date: 2004/04/20 17:16:36 $
+ * $Revision: 1.11.6.1 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,6 +100,13 @@ int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
     return 0;
 }
 #endif
+/* return 0 on success to match pthreads */
+GASNET_INLINE_MODIFIER(gasnetc_spinlock_trylock)
+int gasnetc_spinlock_trylock(gasnetc_spinlock_t *lock) {
+      int avail = 0;
+      int locked = 1;
+      return !compare_and_swap( (atomic_p)lock, &avail, locked );
+}
 
 #else  /* Use pthread mutex for spinlock */
 typedef gasneti_mutex_t gasnetc_spinlock_t;
@@ -108,6 +115,7 @@ typedef gasneti_mutex_t gasnetc_spinlock_t;
 #define gasnetc_spinlock_destroy(lock)  gasneti_mutex_destroy((lock))
 #define gasnetc_spinlock_lock(lock)     gasneti_mutex_lock((lock))
 #define gasnetc_spinlock_unlock(lock)   gasneti_mutex_unlock((lock))
+#define gasnetc_spinlock_trylock(lock)  gasneti_mutex_trylock((lock))
 #endif
 
 

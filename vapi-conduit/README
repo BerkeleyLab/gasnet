@@ -228,19 +228,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   do even better, never touching the unposted pool at all, by always
   keeping a single thread-local "spare", initially acquired at startup.
 
-  At present there is some incomplete support for allowing system-level
-  AMs to break the request-reply model and go request-reply-request or
-  request-reply-request-reply.  This would be done by having the first
-  request allocate 2 credits and having the second allocate none.  Note
-  that these two patterns are actually the same, due to the implicit
-  reply sent back in the first case to perform the credit update.  We
-  are still missing code to allocate multiple credits without causing
-  wither deadlock or livelock.  Also missing is the actual _need_ for
-  this.  Once the firehose client is implemented I'll determine need to
-  either complete the support for this messaging pattern, or remove the
-  partial support to simplify the code paths.
-  Note that this is independent of allowing handlers to initiate RDMA.
-
 @ Section: Extended API @
 
 Notes for myself for extended API:

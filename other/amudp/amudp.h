@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp.h                                          $
- *     $Date: 2004/03/05 15:02:50 $
- * $Revision: 1.8 $
+ *     $Date: 2004/04/20 17:16:43 $
+ * $Revision: 1.8.2.1 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -14,63 +14,7 @@
   #include <socket.h>
 #endif
 
-#ifndef _INTTYPES_DEFINED
-#define _INTTYPES_DEFINED
-#if defined(WIN32) && defined(_MSC_VER)
-  typedef __int8             int8_t;
-  typedef unsigned __int8   uint8_t;
-  typedef __int16           int16_t;
-  typedef unsigned __int16 uint16_t;
-  typedef __int32           int32_t;
-  typedef unsigned __int32 uint32_t;
-  typedef __int64           int64_t;
-  typedef unsigned __int64 uint64_t;
-
-  typedef unsigned int    uintptr_t; /* unsigned type big enough to hold any pointer offset */
-#elif defined(CRAYT3E)
-  typedef char               int8_t;
-  typedef unsigned char     uint8_t;
-  typedef short             int16_t; /* This is 32-bits, should be 16 !!! */
-  typedef unsigned short   uint16_t; /* This is 32-bits, should be 16 !!! */
-  typedef short             int32_t;
-  typedef unsigned short   uint32_t;
-  typedef int               int64_t;
-  typedef unsigned int     uint64_t;
-
-  typedef unsigned int    uintptr_t; /* unsigned type big enough to hold any pointer offset */
-#elif defined(CYGWIN)
-  #include <sys/types.h>
-  #ifndef __int8_t_defined
-  #ifndef __uint8_t_defined
-    typedef u_int8_t     uint8_t;
-  #endif
-  #ifndef __uint16_t_defined
-    typedef u_int16_t   uint16_t;
-  #endif
-  #ifndef __uint32_t_defined
-    typedef u_int32_t   uint32_t;
-  #endif
-  #ifndef __uint64_t_defined
-    typedef u_int64_t   uint64_t;
-  #endif
-
-  #ifndef __intptr_t_defined
-    typedef          int     intptr_t; /* signed/unsigned types big enough to hold any pointer
- offset */
-  #endif
-  #ifndef __uintptr_t_defined
-    typedef unsigned int    uintptr_t;
-  #endif
-  #endif
-#else
-  #include <inttypes.h>
-#endif
-#if defined(HPUX) && defined(__STDC_32_MODE__)
-  /* HPUX inttypes.h stupidly omits these in some cases */
-  typedef          long long  int64_t;
-  typedef unsigned long long uint64_t;
-#endif
-#endif
+#include "portable_inttypes.h"
 
 #include <stdio.h> /* FILE* */
 #include <stdarg.h>

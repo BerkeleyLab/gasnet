@@ -1,6 +1,6 @@
 #  $Archive::                                                            $
-#     $Date: 2004/01/30 07:13:04 $
-# $Revision: 1.2 $
+#     $Date: 2004/04/20 17:16:43 $
+# $Revision: 1.2.2.1 $
 # Description: Cray-T3E Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -16,15 +16,14 @@ testprograms_ILP32only =
 apputils_flags = -DAPPUTILS_OMIT_READWRITE
 
 # Cray cc
-CC := cc 
-ccdebugflags := -O0 -g
-ccoptflags := -O2
-CXX := KCC
-cxxdebugflags := -O0 -g --display_error_number --diag_suppress 236 --diag_suppress 175 --diag_suppress 177
-cxxoptflags := -O2 --display_error_number --diag_suppress 236 --diag_suppress 175 --diag_suppress 177
+CC = cc 
+ccdebugflags = -O0 -g
+ccoptflags = -O2
+CXX = KCC
+cxxdebugflags = -O0 -g --display_error_number --diag_suppress 236 --diag_suppress 175 --diag_suppress 177
+cxxoptflags = -O2 --display_error_number --diag_suppress 236 --diag_suppress 175 --diag_suppress 177
 
 # ------- optional, changed from template ---------
 # additional libraries and/or library directories
-# -lpthread for sched_yield
-platform_libraries = -lpthread
+platform_libraries =
 

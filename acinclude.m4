@@ -187,14 +187,39 @@ AC_DEFUN([GASNET_SAVE_AUTOCONF_ENV],[
   done
 ])
 
-dnl doesn't work properly on newer versions of autoconf - I have no idea why
-dnl _DEFUN(GASNET_OPTION_HELP,[  --$1 substr([                     ],len($1))$2])
-AC_DEFUN([GASNET_OPTION_HELP],[  --$1  $2])
+dnl m4 substr fiasco:
+dnl autoconf 2.13 has a working version of the m4 function 'substr', 
+dnl  but no m4_substr (and no format or m4_format)
+dnl autoconf 2.58 has working versions of m4_substr and m4_format, 
+dnl  but no substr or format
+dnl This incantation ensures m4_substr works regardless
+ifdef([substr],[define([m4_substr], defn([substr]))])
+
+AC_DEFUN([GASNET_OPTION_HELP],[  --$1 ]m4_substr[([                         ],len([$1]))$2])
+
+dnl provide a --with-foo=bar configure option
+dnl action-withval runs for a named value in $withval (or withval=yes if named arg missing)
+dnl action-without runs for --without-foo or --with-foo=no
+dnl action-none runs for no foo arg given
+dnl GASNET_WITH(foo, description, action-withval, [action-without], [action-none])
+AC_DEFUN([GASNET_WITH],[
+AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=value,$2), [
+  case "$withval" in
+    no) :
+        $4 ;;
+    *)  $3 ;;
+  esac
+  ],[
+   :
+   $5
+  ])
+])
 
 AC_DEFUN([GASNET_IF_ENABLED],[
 AC_ARG_ENABLE($1,GASNET_OPTION_HELP(enable-$1,$2))
 case "$enable_[]patsubst([$1], -, _)" in
-  '' | no) $4 ;;
+  '' | no) :
+      $4 ;;
   *)  $3 ;;
 esac
 ])
@@ -202,7 +227,8 @@ esac
 AC_DEFUN([GASNET_IF_DISABLED],[
 AC_ARG_ENABLE($1,GASNET_OPTION_HELP(disable-$1,$2))
 case "$enable_[]patsubst([$1], -, _)" in
-  '' | yes) $4 ;;
+  '' | yes) :
+       $4 ;;
   *)   $3 ;;
 esac
 ])
@@ -438,6 +464,7 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
   if test "$$3" = "unknown"; then
     GASNET_IFDEF(mips, $3=MIPS)
     GASNET_IFDEF(__hpux, $3=HP)
+    GASNET_IFDEF(_SX, $3=NEC)
   fi
 ])
 $2_FAMILY=$$3

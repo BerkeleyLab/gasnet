@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/test.h                                    $
- *     $Date: 2004/03/05 23:48:02 $
- * $Revision: 1.25 $
+ *     $Date: 2004/04/20 17:16:48 $
+ * $Revision: 1.25.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,7 @@
 #include <assert.h>
 
 #include <gasnet.h>
+#include <gasnet_tools.h>
 
 #define GASNET_Safe(fncall) do {                            \
     int retval;                                             \
@@ -57,7 +58,6 @@
   }
   #define TIME() mygetMicrosecondTimeStamp()
 #else
-  #include <gasnet_tools.h>
   #define TIME() gasnett_ticks_to_us(gasnett_ticks_now()) 
 #endif
 
@@ -118,15 +118,8 @@ static void test_free(void *ptr) {
   gasnet_resume_interrupts();
 }
 
-
-#ifdef IRIX
-  #define PAGESZ 16384
-#elif defined(OSF) || defined(__alpha__)
-  #define PAGESZ 8192
-#else
-  #define PAGESZ 4096
-#endif
-
+#define PAGESZ GASNETT_PAGESIZE
+#define alignup(a,b) ((((a)+(b)-1)/(b))*(b))
 
 #if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
   #ifndef TEST_MAXTHREADS
@@ -136,18 +129,24 @@ static void test_free(void *ptr) {
     #define TEST_SEGZ_PER_THREAD (64*1024)
   #endif
   #ifndef TEST_SEGSZ
-    #define TEST_SEGSZ	      (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
+    #define TEST_SEGSZ	      alignup(TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD,PAGESZ)
   #endif
   #if TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)
     #error "TEST_SEGSZ < (TEST_MAXTHREADS*TEST_SEGZ_PER_THREAD)"
   #endif
 #else
   #ifndef TEST_SEGSZ
-    #define TEST_SEGSZ          (64*1024)
+    #define TEST_SEGSZ          alignup(64*1024,PAGESZ)
   #endif
 #endif
+#if (TEST_SEGSZ % PAGESZ) != 0 || TEST_SEGSZ <= 0
+  #error Bad TEST_SEGSZ
+#endif
 
-#define TEST_MINHEAPOFFSET  (128*PAGESZ)
+#define TEST_MINHEAPOFFSET  alignup(128*4096,PAGESZ)
+#if (TEST_MINHEAPOFFSET % PAGESZ) != 0 
+  #error Bad TEST_MINHEAPOFFSET
+#endif
 
 #ifdef GASNET_SEGMENT_EVERYTHING
   uint8_t _hidden_seg[TEST_SEGSZ+PAGESZ];
@@ -193,11 +192,15 @@ int _test_rand(int low, int high) {
 
 /* Functions for obtaining calibrated delays */
 #ifdef TEST_DELAY
-extern void test_delay(int n);	 /* in delay.o */
+extern void test_delay(int64_t n);	 /* in delay.o */
 
 /* smallest number of delay loops to try in calibration */
 #ifndef TEST_DELAY_LOOP_MIN
   #define TEST_DELAY_LOOP_MIN        100
+#endif
+/* max number of calibration iterations to wait for convergance */
+#ifndef TEST_DELAY_CALIBRATION_LIMIT
+  #define TEST_DELAY_CALIBRATION_LIMIT 100
 #endif
 
 /* Compute the number of loops needed to get no less that the specified delay
@@ -207,31 +210,45 @@ extern void test_delay(int n);	 /* in delay.o */
  * actual achieved delay for 'iters' calls to "delay(*time_p)".
  * The 'time_p' is given in microseconds.
  */
-int test_calibrate_delay(int iters, int64_t *time_p) 
+int64_t test_calibrate_delay(int iters, int64_t *time_p) 
 {
 	int64_t begin, end, time;
 	float target = *time_p;
 	float ratio = 0.0;
-	int i, loops = 0;
+	int i;
+        int64_t loops = 0;
+        int caliters = 0;
 
 	do {
 		if (loops == 0) {
 			loops = TEST_DELAY_LOOP_MIN;	/* first pass */
 		} else {
-			int tmp = loops * ratio;
+			int64_t tmp = loops * ratio;
 
 			if (tmp > loops) {
 				loops = tmp;
 			} else {
 				loops += 1;	/* ensure progress in the face of round-off */
 			}
+                        assert(loops < 1ll<<62);
 		}
 
 		begin = TIME();
 		for (i = 0; i < iters; i++) { test_delay(loops); }
 		end = TIME();
 		time = end - begin;
+                assert(time > 0);
 		ratio = target / (float)time;
+                caliters++;
+                if (caliters > TEST_DELAY_CALIBRATION_LIMIT) {
+                  fprintf(stderr,"ERROR: test_calibrate_delay(%i,%i) failed to converge after %i iterations.\n",
+                          iters, (int)*time_p, iters);
+                  abort();
+                }
+              #if 0
+                printf("loops=%llu\n",(unsigned long long)loops); fflush(stdout);
+                printf("ratio=%f target=%f time=%llu\n",ratio,target,(unsigned long long)time); fflush(stdout);
+              #endif
 	} while (ratio > 1.0);
 
 	*time_p = time;

@@ -1,40 +1,41 @@
 #  $Archive:: /Ti/AMUDP/Makefile.titanium.in                             $
-#     $Date: 2004/01/30 07:13:04 $
-# $Revision: 1.4 $
+#     $Date: 2004/04/20 17:16:43 $
+# $Revision: 1.4.2.1 $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
 # variables added here should also go in Makefile.common, and vice-versa
 
 srcdir = . # passed in on command-line
+altincdir = $(srcdir)/..
 testdir = $(srcdir)/../amxtests
 
 # compiler
-CC := @CC@
-CXX := @CXX@
+CC = @CC@
+CXX = @CXX@
 
-#otherflags := ${otherflags} -pg
-#otherflags := ${otherflags} -DFREEZE_SLAVE=1
-#otherflags := ${otherflags} -static
+#otherflags := $(otherflags) -pg
+#otherflags := $(otherflags) -DFREEZE_SLAVE=1
+#otherflags := $(otherflags) -static
 
-ccdebugflags := @TCBUILD_CFLAGS_COMMON@ @TCBUILD_CFLAGS_DEBUG@ ${otherflags}
-ccoptflags := @TCBUILD_CFLAGS_COMMON@ @TCBUILD_CFLAGS_OPTIMIZE@ ${otherflags}
-cxxdebugflags := @GENERIC_CXXFLAGS@ @CXXFLAGSE@ @CXXFLAGSDIAG@ -O0 -g ${otherflags}
-cxxoptflags := -O @GENERIC_CXXFLAGS@ @CXXFLAGSE@ @CXXFLAGSDIAG@ ${otherflags}
+ccdebugflags = @TCBUILD_CFLAGS_COMMON@ @TCBUILD_CFLAGS_DEBUG@ $(otherflags)
+ccoptflags = @TCBUILD_CFLAGS_COMMON@ @TCBUILD_CFLAGS_OPTIMIZE@ $(otherflags)
+cxxdebugflags = @GENERIC_CXXFLAGS@ @CXXFLAGSE@ @CXXFLAGSDIAG@ -O0 -g $(otherflags)
+cxxoptflags = -O @GENERIC_CXXFLAGS@ @CXXFLAGSE@ @CXXFLAGSDIAG@ $(otherflags)
 
 # system utilities
-ranlib := @RANLIB@
-ar := @AR@
+ranlib = @RANLIB@
+ar = @AR@
 
 # paths to platform-dependent helpers
-glunix_includes  := @TIC_GLUNIX_DEFINES@ @TIC_GLUNIX_INCLUDES@
-glunix_libraries := @TIC_GLUNIX_LIBS@
-rexec_includes   := @TIC_REXEC_DEFINES@
-ueth_includes 	 := @TIC_UETH_DEFINES@
+glunix_includes  = @TIC_GLUNIX_DEFINES@ @TIC_GLUNIX_INCLUDES@
+glunix_libraries = @TIC_GLUNIX_LIBS@
+rexec_includes   = @TIC_REXEC_DEFINES@
+ueth_includes 	 = @TIC_UETH_DEFINES@
 
 # stuff normally set by the pre-baked makefiles
-platform_defines := @TIC_MACHINE_DEFINES@ -DUNIX -DAMUDP_ENV_PREFIX=TI
-platform_libraries := @TIC_UDP_LIBS@ @LIBS@
+platform_defines = @TIC_MACHINE_DEFINES@ -DUNIX -DAMUDP_ENV_PREFIX=TI
+platform_libraries = @TIC_UDP_LIBS@ @LIBS@
 
 @PLATFORM_ILP32_FALSE@  testprograms_ILP32only =
 @PLATFORM_ILP32_FALSE@  apputils_flags = -DAPPUTILS_OMIT_READWRITE

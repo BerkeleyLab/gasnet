@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.53 2004/01/05 16:20:01 bonachea Exp $
- * $Date: 2004/01/05 16:20:01 $
- * $Revision: 1.53 $
+/* $Id: gasnet_core_internal.h,v 1.53.2.1 2004/04/20 17:16:33 csbell Exp $
+ * $Date: 2004/04/20 17:16:33 $
+ * $Revision: 1.53.2.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -66,12 +66,20 @@ extern gasneti_mutex_t	gasnetc_lock_amreq;
 /* -------------------------------------------------------------------------- */
 /* Core-specific AMs */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_gasnetc_am_medcopy		(GASNETC_HANDLER_BASE+0) 
-#ifdef GASNETC_FIREHOSE
-#define _hidx_gasnetc_firehose_move_reqh	(GASNETC_HANDLER_BASE+1) 
-#define _hidx_gasnetc_firehose_move_reph	(GASNETC_HANDLER_BASE+2) 
-#endif
-#define _hidx_					(GASNETC_HANDLER_BASE+)
+#define _hidx_gasnetc_am_medcopy	(GASNETC_HANDLER_BASE+0)
+#define _hidx_				(GASNETC_HANDLER_BASE+)
+
+/* -------------------------------------------------------------------------- */
+/* System-level AMs */
+#define GASNETC_SYSHANDLER_BASE  0
+#define _hidx_gasnetc_SysBroadcastAlloc_reqh	(GASNETC_SYSHANDLER_BASE+0)
+#define _hidx_gasnetc_SysBroadcastAlloc_reph	(GASNETC_SYSHANDLER_BASE+1)
+#define _hidx_gasnetc_SysGather_reqh		(GASNETC_SYSHANDLER_BASE+2)
+#define _hidx_gasnetc_SysBroadcast_reqh		(GASNETC_SYSHANDLER_BASE+3)
+#define _hidx_gasnetc_SysExitRole_reqh		(GASNETC_SYSHANDLER_BASE+4)
+#define _hidx_gasnetc_SysExitRole_reph		(GASNETC_SYSHANDLER_BASE+5)
+#define _hidx_gasnetc_SysExit_reqh		(GASNETC_SYSHANDLER_BASE+6)
+#define _hidx_gasnetc_SysExit_reph		(GASNETC_SYSHANDLER_BASE+7)
 
 /* -------------------------------------------------------------------------- */
 typedef struct gasnetc_bufdesc gasnetc_bufdesc_t;
@@ -83,6 +91,9 @@ int	gasnetc_gm_nodes_compare(const void *, const void *);
 
 void	gasnetc_AllocPinnedBufs();
 void	gasnetc_DestroyPinnedBufs();
+
+void	gasnetc_AllocGatherBufs();
+void	gasnetc_DestroyGatherBufs();
 
 int	gasnetc_alloc_nodemap(int);
 int	gasnetc_gmport_allocate(int *board, int *port);
@@ -103,7 +114,7 @@ int	gasnetc_AMReplyLongAsyncM(gasnet_token_t token, gasnet_handler_t handler,
 
 void	gasnetc_GMSend_bufd(gasnetc_bufdesc_t *bufd);
 void	gasnetc_GMSend_AMSystem(void *buf, size_t len, uint16_t id, 
-				uint16_t port, void *context);
+				uint16_t port, gasnetc_bufdesc_t *bufd);
 void	gasnetc_GMSend_AMRequest(void *, uint32_t, uint32_t, uint32_t, 
 		gm_send_completion_callback_t, void *, uintptr_t);
 
@@ -111,6 +122,15 @@ void	gasnetc_dump_tokens();
 
 void	gasnetc_bootstrapBarrier();
 void	gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
+
+/* AMSystems have their own handlers */
+void	gasnetc_registerSysHandlers();
+int	gasnetc_RequestSystem(gasnet_node_t dest, gasnet_handler_t handler, 
+			      int *done, void *source_addr, size_t nbytes,
+                              int numargs, ...);
+int	gasnetc_ReplySystem(gasnet_token_t token, gasnet_handler_t handler, 
+			    void *source_addr, size_t nbytes, 
+                            int numargs, ...);
 
 /* GM Callback functions */
 void	gasnetc_callback_error(gm_status_t status, const char *msg);
@@ -191,6 +211,7 @@ struct gasnetc_bufdesc {
 	off_t		payload_off;	/* payload offset for AMLong */
 	uint32_t	payload_len;	/* payload length for AMLong */
 	uint32_t	len;		/* length for queued sends */
+	int		*done;		/* Used in AM Systems */
 
 	struct	gasnetc_bufdesc	*next;		/* send FIFO queue */
 };
@@ -217,6 +238,7 @@ struct _gasnetc_state {
 	gasnetc_token_t		rtoks;
 
 	gasnetc_handler_fn_t	handlers[GASNETC_AM_MAX_HANDLERS];
+	gasnetc_handler_fn_t	syshandlers[GASNETC_AM_MAX_HANDLERS];
 	gasnetc_gm_nodes_t	*gm_nodes;
 	gasnetc_gm_nodes_rev_t	*gm_nodes_rev;
 
@@ -717,6 +739,141 @@ gasnetc_write_AMBufferBulk(void *dest, void *src, size_t nbytes)
 	GASNETC_AMPAYLOAD_WRITE(dest, src, nbytes);
 	return;
 }
+
+/* 
+ * This writes a System-level header buffer and returns the number of
+ * bytes written in total to the buffer
+ *
+ * |header(1)|handler(1)|len(2)|args(0..64)|pad(0/4)|payload(0..?)
+ *
+ * pad depends on the number of arguments.  If even, the pad will be
+ * 4, or else 0.
+ */
+GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferSystem)
+uint32_t
+gasnetc_write_AMBufferSystem(	void *buf,
+				gasnet_handler_t handler,
+				int numargs, va_list argptr, 
+				size_t nbytes,
+				void *source_addr,
+				int req)
+{
+	uint8_t *pbuf = (uint8_t *)buf;
+	size_t argslen = GASNETC_AM_SYSTEM_HEADER_LEN(numargs);
+
+	GASNETC_AMHEADER_WRITE(pbuf, GASNETC_AM_SYSTEM, numargs, req);
+	GASNETC_AMHANDLER_WRITE(&pbuf[1], handler);
+	GASNETC_AMLENGTH_WRITE(&pbuf[2], (uint16_t) nbytes);
+	GASNETC_ARGS_WRITE(&pbuf[GASNETC_AM_SYSTEM_ARGS_OFF], argptr, numargs);
+	GASNETC_AMPAYLOAD_WRITE(&pbuf[argslen], source_addr, nbytes);
+
+	gasneti_assert(argslen+nbytes <= GASNETC_AM_PACKET);
+	return argslen+nbytes;
+}
+/* ------------------------------------------------------------------------------------ */
+
+/* gasneti_atomic_swap(p, oldval, newval)
+ * Atomic equivalent of:
+ *   If (*p == oldval) {
+ *      *p = newval;
+ *      return NONZERO;
+ *   } else {
+ *      return 0;
+ *   }
+ */
+#ifdef GASNETI_USE_GENERIC_ATOMICOPS
+  GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
+  int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+    int retval;
+
+    gasnet_hsl_lock(&gasneti_atomicop_lock);
+    retval = (p->ctr == oldval);
+    if_pt (retval) {
+      p->ctr = newval;
+    }
+    gasnet_hsl_unlock(&gasneti_atomicop_lock);
+
+    return retval;
+  }
+  #define GASNETI_HAVE_ATOMIC_SWAP 1
+#elif defined(LINUX)
+  #ifdef __i386__
+    #ifndef GASNETI_LOCK
+        #ifdef GASNETI_UNI_BUILD
+          #define GASNETI_LOCK ""
+        #else
+          #define GASNETI_LOCK "lock ; "
+        #endif
+    #endif
+    GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
+    int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+      register unsigned char retval;
+      register uint32_t readval;
+
+      __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1; sete %0"
+				: "=q" (retval), "=m" (p->counter), "=a" (readval)
+				: "r" (newval), "m" (p->counter), "a" (oldval)
+				: "memory");
+      return retval;
+    }
+    #define GASNETI_HAVE_ATOMIC_SWAP 1
+  #elif defined(__ia64__)
+    #ifdef __INTEL_COMPILER
+      GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
+      int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+	return (_InterlockedCompareExchange(
+		(volatile int *) &(p->ctr),(int)newval,(int)oldval) == (int)oldval);
+      }
+    #else
+      GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
+      int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t _oldval, uint32_t newval) {
+	int64_t oldval, readval;
+	oldval = (int64_t) _oldval;
+        __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(oldval));
+        __asm__ __volatile__ ("mf; cmpxchg4.acq %0=[%1],%2,ar.ccv"
+                                  : "=r"(readval) : "r"(&(p->ctr)), "r"(newval) 
+				  : "memory");
+	return (oldval == readval);
+      }
+    #endif
+    #define GASNETI_HAVE_ATOMIC_SWAP 1
+  #else
+    #define GASNETI_HAVE_ATOMIC_SWAP 0
+  #endif
+#elif (defined (_POWERPC) || defined(__POWERPC__)) && defined(__GNUC__)
+  GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
+  int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+    register uint32_t result;
+    register uint32_t temp;
+
+    __asm__ __volatile__ ( 
+	"lwarx    %1,0,%2 \n\t" 	/* load to temp */
+	"cmpw     cr0,%1,%3 \n\t"	/* compare temp to oldval */
+	"bne-     1f \n\t"		/* branch on mismatch */
+	#ifdef __PPC405__ 
+	  "sync \n\t" 
+	#endif 
+	"stwcx.   %4,0,%2 \n"	 	/* store newval */
+	"1:\t"
+	/* convert condition code to int w/ additional branch: */
+	"mfcr     %1 \n\t"		/* move CR to temp */
+	"rlwinm   %0,%1,3,31,31"	/* extract the CR0[EQ] bit from temp */
+	: "=&r"(result), "=&r"(temp)
+	: "r" (p), "r"(oldval), "r"(newval)
+	: "cr0", "memory"); 
+
+      return result; 
+  } 
+  #define GASNETI_HAVE_ATOMIC_SWAP 1
+#else
+  #define GASNETI_HAVE_ATOMIC_SWAP 0
+#endif
+
+#if !GASNETI_HAVE_ATOMIC_SWAP
+  #warning "It would be a good idea to add gasneti_atomic_swap for your arch/OS"
+#endif 
+
+
 /* -------------------------------------------------------------------------- */
 /* Private access to ReplyLongAsync */
 #define gasnetc_AMReplyLongAsync0(token, handler, source_addr, nbytes, token_addr) \

@@ -14,17 +14,19 @@ CC  = @CC@
 CFLAGS = @CFLAGS@ @MISC_CFLAGS@ $(apputils_flags)
 CXX = @CXX@
 CXXFLAGS = @CXXFLAGS@ @MISC_CXXFLAGS@
+LDFLAGS = @LDFLAGS@
 
 platform_defines = @GASNET_MACHINE_DEFINES@ @BUILDCONFIG_DEFINES@ -DAMUDP_ENV_PREFIX=GASNET
 platform_libraries = @LIBS@ @GASNET_UDP_LIBS@
 
 VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
-INCLUDES = -I$(srcdir) ${platform_defines}
-compile = ${CC} ${CFLAGS} ${INCLUDES}
-cxxcompile = ${CXX} ${CXXFLAGS} ${INCLUDES}
-link = $(CXX) ${CXXFLAGS} ${INCLUDES} 
-linkend = ${platform_libraries}
+altincdir = $(srcdir)/..
+INCLUDES = -I$(srcdir) -I$(altincdir) $(platform_defines)
+compile = $(CC) $(CFLAGS) $(INCLUDES)
+cxxcompile = $(CXX) $(CXXFLAGS) $(INCLUDES)
+link = $(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) 
+linkend = $(platform_libraries)
 
 if USE_UDP_CONDUIT
 lib_LIBRARIES = libamudp.a
@@ -77,24 +79,27 @@ testprograms =    		\
     testreduce			\
     $(testprograms_ILP32only)
 
-tests: apputils.o ${testprograms}
+tests: apputils.o $(testprograms)
 
 test%: test%.o apputils.o libamudp.a 
-	${link} -o $@ $< apputils.o -L. -lamudp ${linkend}
+	$(link) -o $@ $< apputils.o -L. -lamudp $(linkend)
 
 
 TEST_NODES=2
 TEST_ITERS=100
-TEST_SPAWNFN=L
+AMUDP_SPAWNFN=L
+TEST_SPAWNFN=$(AMUDP_SPAWNFN)
 TEST_MODE=P
 TEST_DEPTH=32
 TEST_DUPLEX=H
+AMUDP_RUNCMD=
+TEST_RUNCMD=$(AMUDP_RUNCMD)
 AMUDP_NETWORKDEPTH=$(TEST_DEPTH)
 run-tests: tests
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo  Running AMUDP tests...
 	@echo  If this fails to spawn a job, you may need to re-run with a
-	@echo   command like: gmake run-tests TEST_SPAWNFN=S
+	@echo   command like: gmake run-tests AMUDP_SPAWNFN=S
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo TESTPING
 	$(TEST_RUNCMD) ./testping $(TEST_NODES) $(TEST_SPAWNFN)  $(TEST_ITERS) $(TEST_MODE)
@@ -127,17 +132,17 @@ endif
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo TESTS COMPLETE
 
-test%.o : $(testdir)/test%.c $(testdir)/*.h ${headers}
-	${compile} -DAMUDP -I$(testdir) -c $< -o $@
+test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
+	$(compile) -DAMUDP -I$(testdir) -c $< -o $@
 
-apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h ${headers}
-	${compile} -DAMUDP -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
+apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
+	$(compile) -DAMUDP -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
 
 %.o: %.c $(headers)
-	${compile} -o $@ -c $<
+	$(compile) -o $@ -c $<
 
 %.o: %.cpp $(headers)
-	${cxxcompile} -o $@ -c $<
+	$(cxxcompile) -o $@ -c $<
 
 if USE_UDP_CONDUIT
 clean-local:

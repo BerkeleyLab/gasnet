@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.19.2.1 2004/03/12 12:15:34 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.19.2.2 2004/04/20 17:16:51 csbell Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -19,6 +19,15 @@ fh_srcs =                          \
       $(fh_srcdir)/firehose.c      \
       $(fh_srcdir)/firehose_hash.c \
       $(fh_srcdir)/firehose_region.c
+endif
+
+if VAPI_BOOTSTRAP_MPI
+# If using MPI for bootstrap (currently the only option) then we
+# need to compile this one object with MPI_CC.
+# Note that the 'force' ensures we always rebuild w/ the correct thread model
+mpi_objs = gasnet_bootstrap_mpi.o
+gasnet_bootstrap_mpi.o: gasnet_bootstrap_mpi.c force
+	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) -c $<
 endif
 
 # any conduit-specific subdirectories containing Makefile.am's
@@ -51,14 +60,10 @@ CONDUIT_SOURCELIST =                 \
       $(srcdir)/gasnet_extended.c    \
       $(fh_srcs)
 
-if VAPI_BOOTSTRAP_MPI
-# special VAPI-conduit-specific backdoor hack
-CONDUIT_MPISOURCELIST = $(srcdir)/gasnet_bootstrap_mpi.c
-endif
-
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ $(fh_include)
+# VAPI conduit always needs GASNET_THREAD_DEFINES
+CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ $(fh_include) @VAPI_LIBCFLAGS@ @GASNET_THREAD_DEFINES@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
@@ -70,10 +75,7 @@ CONDUIT_EXTRADEPS = $(fh_deps)
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS=gasnet_bootstrap_mpi.o
-
-gasnet_bootstrap_mpi.o: gasnet_bootstrap_mpi.c force
-	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) -c $<
+CONDUIT_SPECIAL_OBJS = $(mpi_objs)
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

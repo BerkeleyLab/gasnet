@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/lapi-conduit/gasnet_extended.c                  $
- *     $Date: 2004/03/03 13:47:07 $
- * $Revision: 1.17 $
+ *     $Date: 2004/04/20 17:16:36 $
+ * $Revision: 1.17.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -187,6 +187,11 @@ extern void gasnete_init() {
 	gasnete_op_markdone((gasnete_op_t *)eop, 0);
 	gasnete_op_free((gasnete_op_t *)eop);
     }
+     
+#if 0
+    /* Initialize barrier resources */
+    gasnete_barrier_init();
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
