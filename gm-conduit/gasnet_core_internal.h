@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.20 2002/08/08 06:53:26 csbell Exp $
- * $Date: 2002/08/08 06:53:26 $
- * $Revision: 1.20 $
+/* $Id: gasnet_core_internal.h,v 1.20.2.1 2002/08/14 06:56:51 csbell Exp $
+ * $Date: 2002/08/14 06:56:51 $
+ * $Revision: 1.20.2.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -158,6 +158,8 @@ struct gasnetc_bufdesc {
 
 	/* AMReply only fields */
 	gm_recv_event_t		*e;		/* GM receive event */
+	uint16_t		gm_id;
+	uint16_t		gm_port;
 	uint32_t		len;		/* length for queued sends */
 	struct	gasnetc_bufdesc	*next;		/* send FIFO queue */
 };
@@ -336,6 +338,8 @@ gasnetc_bufdesc_from_token(gasnet_token_t token)
 	if (bufd->flag & GASNETC_FLAG_AMREQUEST_MEDIUM) {
     		GASNETC_AMMEDIUM_REQUEST_MUTEX_LOCK; 
 		_gmc.AMReplyBuf->e = bufd->e;
+		_gmc.AMReplyBuf->gm_id = bufd->gm_id;
+		_gmc.AMReplyBuf->gm_port = bufd->gm_port;
 		return _gmc.AMReplyBuf;
 	}
 	return bufd;
@@ -361,9 +365,13 @@ void
 gasnetc_provide_AMReply_buffer(void *buf)
 {
 	GASNETC_ASSERT_BUFDESC_PTR(GASNETC_BUFDESC_PTR(buf),buf);
+	GASNETI_TRACE_PRINTF(C, ("provide_receive_buffer_hi = %p", buf));
 	gm_provide_receive_buffer(_gmc.port, buf, GASNETC_AM_SIZE,
 			GM_HIGH_PRIORITY);
 	_gmc.rtoks.hi++;
+	/*
+	GASNETI_TRACE_PRINTF(C, ("rtoks.hi = %d, buf=%p", _gmc.rtoks.hi, buf));
+	*/
 	assert(_gmc.rtoks.hi < _gmc.rtoks.max);
 }
 
@@ -372,9 +380,14 @@ void
 gasnetc_provide_AMRequest_buffer(void *buf)
 {
 	GASNETC_ASSERT_BUFDESC_PTR(GASNETC_BUFDESC_PTR(buf),buf);
+	GASNETI_TRACE_PRINTF(C, ("provide_receive_buffer_lo = %p", buf));
 	gm_provide_receive_buffer(_gmc.port, buf, GASNETC_AM_SIZE,
 			GM_LOW_PRIORITY);
 	_gmc.rtoks.lo++;
+	/*
+	GASNETI_TRACE_PRINTF(C, ("rtoks.lo = %d, bufd = %p", _gmc.rtoks.lo,
+	    buf));
+	 */
 	assert(_gmc.rtoks.lo < _gmc.rtoks.max);
 }
 	
@@ -387,22 +400,24 @@ gasnetc_gm_send_bufd(gasnetc_bufdesc_t *bufd)
 {
 	uintptr_t	send_ptr;
 	uint32_t	len;
+	gm_send_completion_callback_t	callback;
+
 	assert(bufd != NULL);
 	assert(bufd->sendbuf != NULL);
 	assert(bufd->len > 0);
-	assert(bufd->e != NULL);
-	assert(gm_ntoh_u16(bufd->e->recv.sender_node_id) > 0);
+	assert(bufd->gm_id > 0);
 
-	if (bufd->rdma_off > 0) {
+	if (bufd->rdma_len > 0) {
 		send_ptr = (uintptr_t)bufd->sendbuf + (uintptr_t)bufd->rdma_off;
 		len = bufd->rdma_len;
 		bufd->rdma_off = 0;
+		callback = gasnetc_callback_AMReply_NOP;
 	}
 	else {
 		send_ptr = (uintptr_t) bufd->sendbuf;
 		len = bufd->len;
+		callback = gasnetc_callback_AMReply;
 	}
-
 
 	if (bufd->dest_addr > 0) {
 		gm_directed_send_with_callback(_gmc.port, 
@@ -410,11 +425,10 @@ gasnetc_gm_send_bufd(gasnetc_bufdesc_t *bufd)
 			bufd->dest_addr,
 			len,
 			GM_HIGH_PRIORITY,
-			(uint32_t) gm_ntoh_u16(bufd->e->recv.sender_node_id),
-			(uint32_t) gm_ntoh_u8(bufd->e->recv.sender_port_id),
-			gasnetc_callback_AMReply_NOP,
+			(uint32_t) bufd->gm_id,
+			(uint32_t) bufd->gm_port,
+			callback,
 			(void *) bufd);
-		bufd->dest_addr = 0;
 	}
 	else {
 		assert(GASNETC_AM_IS_REPLY(*((uint8_t *) bufd->sendbuf)));
@@ -424,9 +438,9 @@ gasnetc_gm_send_bufd(gasnetc_bufdesc_t *bufd)
 			GASNETC_AM_SIZE,
 			len,
 			GM_HIGH_PRIORITY,
-			(uint32_t) gm_ntoh_u16(bufd->e->recv.sender_node_id),
-			(uint32_t) gm_ntoh_u8(bufd->e->recv.sender_port_id),
-			gasnetc_callback_AMReply,
+			(uint32_t) bufd->gm_id,
+			(uint32_t) bufd->gm_port,
+			callback,
 			(void *) bufd);
 	}
 }
@@ -541,16 +555,6 @@ gasnetc_fifo_remove()
 	assert(_gmc.fifo_bd_head != NULL);
 	assert(_gmc.fifo_bd_tail != NULL);
 
-	/* AMLongReplies queue up a AMShort along with a
-	 * directed_send.  Once the directed send is done,
-	 * we simply leave the descriptor in the queue so
-	 * an AMShort may follow
-	 */
-	if (_gmc.fifo_bd_head->rdma_off > 0) {
-		_gmc.fifo_bd_head->rdma_off = 0;
-		return;
-	}
-
 	if (_gmc.fifo_bd_head == _gmc.fifo_bd_tail)
 		_gmc.fifo_bd_head = _gmc.fifo_bd_tail = NULL;
 	else 
@@ -563,7 +567,7 @@ gasnetc_fifo_insert(gasnetc_bufdesc_t *bufd)
 {
 	/* Insert at end of queue and update head/tail */
 	assert(bufd != NULL);
-	assert(bufd->e != NULL);
+	assert(bufd->gm_id > 0);
 	bufd->next = NULL;
 	if ((_gmc.fifo_bd_head == NULL) || (_gmc.fifo_bd_tail == NULL))
 		_gmc.fifo_bd_head = _gmc.fifo_bd_tail = bufd;
@@ -586,10 +590,21 @@ gasnetc_fifo_progress()
 {
 	while (gasnetc_fifo_head() && GASNETC_TOKEN_HI_AVAILABLE()) {
 		GASNETC_GM_MUTEX_LOCK;
-		if_pt (gasnetc_token_hi_acquire()) {
+		if_pt (gasnetc_token_hi_acquire()) { 
 			gasnetc_bufdesc_t *bufd = gasnetc_fifo_head();
+			assert(bufd->gm_id > 0);
+			GASNETI_TRACE_PRINTF(C, ("queued to token=%p, buf=%p %hd:%hd", 
+			    bufd, bufd->sendbuf, bufd->gm_id, bufd->gm_port));
 			gasnetc_gm_send_bufd(bufd);
-			gasnetc_fifo_remove();
+			if (bufd->rdma_len > 0) {
+				GASNETI_TRACE_PRINTF(C, ("??? sent Reply Payload"));
+				bufd->rdma_len = 0;
+				bufd->dest_addr = 0;
+			}
+			else {
+				GASNETI_TRACE_PRINTF(C, ("??? sent Reply Header"));
+				gasnetc_fifo_remove();
+			}
 		}
 		else 
 			GASNETI_TRACE_PRINTF(C, 

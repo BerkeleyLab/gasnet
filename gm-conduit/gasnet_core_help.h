@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.11 2002/08/08 06:53:26 csbell Exp $
- * $Date: 2002/08/08 06:53:26 $
- * $Revision: 1.11 $
+/* $Id: gasnet_core_help.h,v 1.11.2.1 2002/08/14 06:56:51 csbell Exp $
+ * $Date: 2002/08/14 06:56:51 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -36,8 +36,6 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
  * AM Index stores the handler index and is one byte next to the 
  * Header
  */
-
-#define TRACE
 
 #define GASNETC_AM_SHORT	0x00
 #define GASNETC_AM_MEDIUM	0x01
@@ -104,11 +102,11 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_AM_MEDIUM_ARGS_OFF	4
 #define GASNETC_AM_LONG_ARGS_OFF	(8+sizeof(uintptr_t))
 
-#define GASNETC_AM_MEDIUM_HEADER_PAD(numargs) (((numargs)%2==1) ? 0 : 4)
+#define GASNETC_AM_MEDIUM_HEADER_PAD(numargs) ((((numargs)&0x1)==1) ? 0 : 4)
 #ifdef GASNETI_PTR32
-#define GASNETC_AM_LONG_PAD(numargs) (((numargs)%2==1) ? 0 : 4)
+#define GASNETC_AM_LONG_PAD(numargs) ((((numargs)&0x1)==1) ? 0 : 4)
 #elif GASNETI_PTR64
-#define GASNETC_AM_LONG_PAD(numargs) (((numargs)%2==0) ? 0 : 4)
+#define GASNETC_AM_LONG_PAD(numargs) ((((numargs)&0x1)==0) ? 0 : 4)
 #endif
 
 #define GASNETC_AM_SHORT_HEADER_LEN(numargs)                     \

@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.16 2002/08/08 06:53:26 csbell Exp $
- * $Date: 2002/08/08 06:53:26 $
+/* $Id: gasnet_core.c,v 1.16.2.1 2002/08/14 06:56:51 csbell Exp $
+ * $Date: 2002/08/14 06:56:51 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -47,6 +47,29 @@ void gasnetc_checkattach() {
 }
 
 /* ------------------------------------------------------------------------------------ */
+/*  all this to make sure we get a full stack frame for debugger */
+/*
+static volatile int gm_frozen = TRUE;
+static void _freezeForDebugger(int depth)
+{
+	if (!depth) _freezeForDebugger(1);
+	else {
+		volatile int i;
+		while (gm_frozen) {
+			i++;
+			sleep(1);
+		}
+	}
+}
+static void freezeForDebugger() {
+	  char name[255];
+	    gethostname(name, 255);
+	      fprintf(stderr,"slave frozen for debugger: host=%s  pid=%i\n", 
+			name, getpid()); fflush(stderr);
+	        _freezeForDebugger(0);
+}
+*/
+
 /*
   Initialization
   ==============
@@ -123,6 +146,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   gasnetc_init_done = 1;
 
+  /* freezeForDebugger(); */
   return GASNET_OK;
 }
 
@@ -376,7 +400,6 @@ gasnetc_am_medcopy_inner(gasnet_token_t token, void *addr, size_t nbytes,
 			 void *dest)
 {
 	memcpy(dest, addr, nbytes);
-	printf("am_medcopy (%p, %p, %d)\n", dest, addr, nbytes); fflush(stdout);
 }
 MEDIUM_HANDLER(gasnetc_am_medcopy,1,2,
               (token,addr,nbytes, UNPACK(a0)    ),
@@ -399,10 +422,8 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 	  *srcindex = gasnetc_mynode;
 	  return GASNET_OK;
   }
-  if_pf (!bufd->e) GASNETI_RETURN_ERRR(BAD_ARG, "No GM receive event");
-  sourceid = 
-  	gasnetc_gm_nodes_search(gm_ntoh_u16(bufd->e->recv.sender_node_id),
-	    (uint16_t) gm_ntoh_u8(bufd->e->recv.sender_port_id));
+  if_pf (!bufd->gm_id) GASNETI_RETURN_ERRR(BAD_ARG, "No GM receive event");
+  sourceid = gasnetc_gm_nodes_search(bufd->gm_id, bufd->gm_port);
 
   assert(sourceid < gasnetc_nodes);
   *srcindex = sourceid;
@@ -702,6 +723,7 @@ extern int gasnetc_AMReplyShortM(
        gasnetc_gm_send_bufd(bufd);
     } else {
        /* GASNETC_AMTRACE_ReplyShort(Queued); */
+	assert(bufd->gm_id > 0);
        gasnetc_fifo_insert(bufd);
     }
     GASNETC_GM_MUTEX_UNLOCK;
@@ -748,6 +770,7 @@ extern int gasnetc_AMReplyMediumM(
        gasnetc_gm_send_bufd(bufd); 
     } else {
        /* GASNETC_AMTRACE_ReplyMedium(Queued); */
+	assert(bufd->gm_id > 0);
        gasnetc_fifo_insert(bufd);
     }
     GASNETC_GM_MUTEX_UNLOCK;
@@ -819,13 +842,13 @@ extern int gasnetc_AMReplyLongM(
 			long_len =
 			    gasnetc_write_AMBufferLong(bufd->sendbuf, 
 			        handler, numargs, argptr, nbytes, source_addr, 
-				(uintptr_t) dest_addr, GASNETC_AM_REQUEST);
+				(uintptr_t) dest_addr, GASNETC_AM_REPLY);
 			pbuf = (uintptr_t)bufd->sendbuf + (uintptr_t) long_len;
 			GASNETC_ARGPTR(dest_addr_ptr, (uintptr_t) dest_addr);
 			len = gasnetc_write_AMBufferMedium((void *)pbuf,
-			    gasneti_handleridx(gasnetc_am_medcopy), GASNETC_ARGPTR_NUM,
-			    (va_list) dest_addr_ptr, nbytes, (void *) source_addr, 
-			    GASNETC_AM_REPLY);
+			    gasneti_handleridx(gasnetc_am_medcopy), 
+			    GASNETC_ARGPTR_NUM, (va_list) dest_addr_ptr, nbytes,
+			    (void *) source_addr, GASNETC_AM_REPLY);
 			bufd->len = long_len;
 			bufd->rdma_off = long_len; 
 			bufd->rdma_len = len;
@@ -833,9 +856,9 @@ extern int gasnetc_AMReplyLongM(
 		}
 
 		GASNETC_GM_MUTEX_LOCK;
-	
 		if (gasnetc_token_hi_acquire()) {
-	        	gasnetc_gm_send_bufd(bufd);
+			gasnetc_gm_send_bufd(bufd);
+			bufd->rdma_len = bufd->dest_addr = 0;
 			if (gasnetc_token_hi_acquire()) {
 				GASNETC_AMTRACE_ReplyLong(Send);
 				gasnetc_gm_send_bufd(bufd);
@@ -850,12 +873,75 @@ extern int gasnetc_AMReplyLongM(
 			gasnetc_fifo_insert(bufd);
 		}
 		GASNETC_GM_MUTEX_UNLOCK;
+		GASNETI_TRACE_PRINTF(C, ("after enqueue to token=%p, buf=%p %hd:%hd", 
+			    bufd, bufd->sendbuf, bufd->gm_id, bufd->gm_port));
 	}
 	va_end(argptr);
 	if (retval) return GASNET_OK;
 	else GASNETI_RETURN_ERR(RESOURCE);
 }
 
+/*
+ * This is not officially part of the gasnet spec therefore not exported for the
+ * user.  The extended API uses it in order to do directed sends followed by an
+ * AMReply.  Therefore, there is no boundscheck of any sort.  The extended API
+ * knows how/when to call this function.
+ */
+int 
+gasnetc_AMReplyLongAsyncM( 
+		gasnet_token_t token,       /* token provided on handler entry */
+		gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+		void *source_addr, size_t nbytes,   /* data payload */
+		void *dest_addr,                    /* data destination on destination node */
+		int numargs, ...)
+{
+	int	retval;
+	int	hdr_len;
+	va_list	argptr;
+	unsigned int		len;
+	gasnet_node_t		dest;
+	gasnetc_bufdesc_t 	*bufd;
+
+	retval = gasnet_AMGetMsgSource(token, &dest);
+	if (retval != GASNET_OK) GASNETI_RETURN(retval);
+	if_pf (dest >= gasnetc_nodes) 
+		GASNETI_RETURN_ERRR(BAD_ARG,"node index too high");
+	va_start(argptr, numargs); /*  pass in last argument */
+	GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,
+	    numargs);
+	retval = 1;
+
+	bufd = gasnetc_bufdesc_from_token(token);
+	len =
+	    gasnetc_write_AMBufferLong(bufd->sendbuf, handler, numargs, argptr, 
+	        nbytes, source_addr, (uintptr_t) dest_addr, GASNETC_AM_REPLY);
+	bufd->len = len;
+	bufd->rdma_off = 0;
+	bufd->rdma_len = nbytes;
+	bufd->dest_addr = (uintptr_t) dest_addr;
+
+	GASNETC_GM_MUTEX_LOCK;
+	if (gasnetc_token_hi_acquire()) {
+        	gasnetc_gm_send_bufd(bufd);
+		bufd->rdma_len = bufd->dest_addr = 0;
+		if (gasnetc_token_hi_acquire()) {
+			GASNETC_AMTRACE_ReplyLong(Send);
+			gasnetc_gm_send_bufd(bufd);
+		} 
+		else {
+			GASNETC_AMTRACE_ReplyLong(Queued);
+			gasnetc_fifo_insert(bufd);
+		}
+	} 
+	else {
+		GASNETC_AMTRACE_ReplyLong(Queued);
+		gasnetc_fifo_insert(bufd);
+	}
+	GASNETC_GM_MUTEX_UNLOCK;
+	va_end(argptr);
+	if (retval) return GASNET_OK;
+	else GASNETI_RETURN_ERR(RESOURCE);
+}
 /* ------------------------------------------------------------------------------------ */
 /*
   No-interrupt sections
@@ -969,9 +1055,8 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
 */
 static gasnet_handlerentry_t const gasnetc_handlers[] = {
   /* ptr-width independent handlers */
-
   /* ptr-width dependent handlers */
-
+  gasneti_handler_tableentry_with_bits(gasnetc_am_medcopy),
   { 0, NULL }
 };
 
