@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/10/30 12:33:54 $
- * $Revision: 1.50.2.1 $
+ *     $Date: 2004/11/02 07:28:10 $
+ * $Revision: 1.50.2.2 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -139,7 +139,7 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 /* Ratio of elan pollfn callbacks to true AMPolls while barrier blocking
    must be power of two */
 #ifndef GASNETE_BARRIERBLOCKING_POLLFREQ
-#if ELAN3
+#if GASNETC_ELAN3
   #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
 #else
   #define GASNETE_BARRIERBLOCKING_POLLFREQ 64
@@ -616,12 +616,12 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 #if GASNETE_USE_ELAN_PUTGET
   LOCK_ELAN_WEAK();
   #if GASNET_SEGMENT_EVERYTHING
-    if (!elan_addressable(STATE(),src,nbytes)) {
+    if (!gasnetc_elan_addressable(src,nbytes)) {
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: get source not elan-mapped, using AM instead"));
     } else 
   #endif
-  if (elan_addressable(STATE(),dest,nbytes)) { 
+  if (gasnetc_elan_addressable(dest,nbytes)) { 
     ELAN_EVENT *evt;
     evt = elan_get(STATE(), src, dest, nbytes, node);
     UNLOCK_ELAN_WEAK();
@@ -679,13 +679,13 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 #if GASNETE_USE_ELAN_PUTGET
   LOCK_ELAN_WEAK();
   #if GASNET_SEGMENT_EVERYTHING
-    if (!elan_addressable(STATE(),dest,nbytes)) {
+    if (!gasnetc_elan_addressable(dest,nbytes)) {
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: put destination not elan-mapped, using AM instead"));
     } else 
   #endif
   if (nbytes <= GASNETC_ELAN_SMALLPUTSZ || 
-    (isbulk && elan_addressable(STATE(),src,nbytes))) { 
+    (isbulk && gasnetc_elan_addressable(src,nbytes))) { 
     /* legal to use ordinary elan_put */
     ELAN_EVENT *evt;
       evt = elan_put(STATE(), src, dest, nbytes, node);
@@ -814,7 +814,7 @@ int gasnete_try_syncnb_inner(gasnet_handle_t handle) {
 }
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-#if ELAN4
+#if GASNETC_ELAN4
   /* HACK: AMPoll on elan4 is currently far more expensive than it should be
            so avoid it when not strictly necessary  */
   int val = gasnete_try_syncnb_inner(handle);
@@ -949,12 +949,12 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 #if GASNETE_USE_ELAN_PUTGET
   LOCK_ELAN_WEAK();
   #if GASNET_SEGMENT_EVERYTHING
-    if (!elan_addressable(STATE(),src,nbytes)) {
+    if (!gasnetc_elan_addressable(src,nbytes)) {
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: get source not elan-mapped, using AM instead"));
     } else 
   #endif
-  if (elan_addressable(STATE(),dest,nbytes)) { 
+  if (gasnetc_elan_addressable(dest,nbytes)) { 
     ELAN_EVENT *evt;
     #if GASNETE_USE_PGCTRL_NBI
       if (!iop->elan_pgctrl) 
@@ -1067,13 +1067,13 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 #if GASNETE_USE_ELAN_PUTGET
   LOCK_ELAN_WEAK();
   #if GASNET_SEGMENT_EVERYTHING
-    if (!elan_addressable(STATE(),dest,nbytes)) {
+    if (!gasnetc_elan_addressable(dest,nbytes)) {
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_PRINTF(I,("Warning: put destination not elan-mapped, using AM instead"));
     } else 
   #endif
   if (nbytes <= GASNETC_ELAN_SMALLPUTSZ || 
-    (isbulk && elan_addressable(STATE(),src,nbytes))) { 
+    (isbulk && gasnetc_elan_addressable(src,nbytes))) { 
     /* legal to use ordinary elan_put */
     ELAN_EVENT *evt;
     #if GASNETE_USE_PGCTRL_NBI

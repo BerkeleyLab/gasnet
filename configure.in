@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2004/10/30 12:33:52 $
-# $Revision: 1.208.2.1 $
+#     $Date: 2004/11/02 07:28:08 $
+# $Revision: 1.208.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.208.2.1 $)
+AC_REVISION($Revision: 1.208.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -625,6 +625,13 @@ fi
 if test "$have_pthread" = no ; then
   GASNET_THREAD_DEFINES=""
   GASNET_THREAD_LIBS=""
+else
+  OLDLIBS="$LIBS"   
+  LIBS="$GASNET_THREAD_LIBS"
+  # look for optional pthreads entry points
+  AC_SEARCH_LIBS(pthread_kill_other_threads_np, pthread pthreads, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))
+  GASNET_THREAD_LIBS="$LIBS"
+  LIBS="$OLDLIBS"
 fi
           
 AM_CONDITIONAL(HAVE_PTHREAD, test "$have_pthread" = yes)
@@ -1321,13 +1328,13 @@ if test $enabled_elan = yes; then
   if test -f "$ELAN_HEADERBASE/elan4/library.h" ; then
         AC_MSG_RESULT(elan4)
 	ELANDEVLIB="-lelan4"
-        ELAN_FLAGS="-DELAN4"
+        ELAN_FLAGS="-DGASNETC_ELAN4"
         have_elan=yes
   else
     if test -f "$ELAN_HEADERBASE/elan3/elan3.h" ; then
         AC_MSG_RESULT(elan3)
 	ELANDEVLIB="-lelan3"
-        ELAN_FLAGS="-DELAN3"
+        ELAN_FLAGS="-DGASNETC_ELAN3"
         have_elan=yes
     else
         AC_MSG_RESULT(none found)
@@ -1922,8 +1929,6 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
   }],[AC_DEFINE(HAVE_MMAP)])
   ;;
 esac
-
-AC_SEARCH_LIBS(pthread_kill_other_threads_np, pthread pthreads, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))
 
 AC_SUBST(LIBS)
 
