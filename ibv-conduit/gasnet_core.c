@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/14 16:34:00 $
- * $Revision: 1.21.2.3 $
+ *     $Date: 2003/10/15 00:58:53 $
+ * $Revision: 1.21.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -864,14 +864,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       uintptr_t	memsize;
       size_t    regions;
     } my_info, *all_info;
-    int i;
+    int i, reg_count;
     firehose_region_t prereg[2];
 
     /* Get global min-of-max physical memory */
     all_info = gasneti_malloc(gasnetc_nodes * sizeof(*all_info));
     my_info.memsize = gasnetc_max_pinnable();
     my_info.regions = gasnetc_hca_cap.max_num_mr;
-    gasnetc_bootstrapAllgather(&my_info, sizeof(uintptr_t), all_info);
+    gasnetc_bootstrapAllgather(&my_info, sizeof(*all_info), all_info);
     for (i = 0; i < gasnetc_nodes; i++) {
       my_info.memsize = MIN(my_info.memsize, all_info[i].memsize);
       my_info.regions = MIN(my_info.regions, all_info[i].regions);
@@ -884,15 +884,19 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     prereg[0].client.handle = gasnetc_snd_reg.handle;
     prereg[0].client.lkey   = gasnetc_snd_reg.lkey;
     prereg[0].client.rkey   = gasnetc_snd_reg.rkey;
-    prereg[1].addr          = gasnetc_rcv_reg.addr;
-    prereg[1].len           = gasnetc_rcv_reg.len;
-    prereg[1].client.handle = gasnetc_rcv_reg.handle;
-    prereg[1].client.lkey   = gasnetc_rcv_reg.lkey;
-    prereg[1].client.rkey   = gasnetc_rcv_reg.rkey;
+    reg_count = 1;
+    if (gasnetc_nodes > 1) {
+	prereg[1].addr          = gasnetc_rcv_reg.addr;
+	prereg[1].len           = gasnetc_rcv_reg.len;
+	prereg[1].client.handle = gasnetc_rcv_reg.handle;
+	prereg[1].client.lkey   = gasnetc_rcv_reg.lkey;
+	prereg[1].client.rkey   = gasnetc_rcv_reg.rkey;
+	reg_count = 2;
+    }
 
     /* Now initialize firehose */
     firehose_init(my_info.memsize, my_info.regions,
-		  prereg, sizeof(prereg)/sizeof(prereg[0]),
+		  prereg, reg_count,
 		  &gasnetc_firehose_info);
   }
   #endif
