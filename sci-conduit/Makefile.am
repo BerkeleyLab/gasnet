@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.1 2003/10/11 14:22:39 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.2 2003/10/13 06:31:08 bonachea Exp $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,7 +10,7 @@ thread_defines = @GASNET_THREAD_DEFINES@
 
 INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir)        \
            -I$(top_srcdir)/extended-ref				\
-	   -I@SCI_INCLUDE@
+	   @SCI_INCLUDES@
 
 filelist =                   \
       gasnet_core.c          \

@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/sci-parsync.mak.in,v 1.1.2.1 2003/10/11 14:22:40 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/sci-parsync.mak.in,v 1.1.2.2 2003/10/13 06:31:08 bonachea Exp $
 # Description: Makefile fragment for SCI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,13 +15,13 @@
 #
 # ----------------------------------------------------------------------
 
-GASNET_INCLUDES = -I@INSTALL_PREFIX@/include -I@INSTALL_PREFIX@/include/sci-conduit
-GASNET_LIBDIRS = -L@INSTALL_PREFIX@/lib -L@VAPI_LIBDIR@
+GASNET_INCLUDES = -I@INSTALL_PREFIX@/include -I@INSTALL_PREFIX@/include/sci-conduit @SCI_INCLUDES@
+GASNET_LIBDIRS = -L@INSTALL_PREFIX@/lib
 
 # Textual lines containing the string "###NOINSTALL###" are removed by the install process
 # (must be one continuous line) ###NOINSTALL###
-GASNET_INCLUDES = -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/sci-conduit -I@TOP_SRCDIR@/extended-ref -I@TOP_BUILDDIR@  ###NOINSTALL###
-GASNET_LIBDIRS = -L@TOP_BUILDDIR@/sci-conduit -L@VAPI_LIBDIR@ ###NOINSTALL###
+GASNET_INCLUDES = -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/sci-conduit -I@TOP_SRCDIR@/extended-ref -I@TOP_BUILDDIR@ @SCI_INCLUDES@ ###NOINSTALL###
+GASNET_LIBDIRS = -L@TOP_BUILDDIR@/sci-conduit ###NOINSTALL###
 
 # ----------------------------------------------------------------------
 # Output variables:
@@ -48,7 +48,7 @@ GASNET_LDFLAGS = @CFLAGS@ @LDFLAGS@
 GASNET_LIBS =            \
     $(GASNET_LIBDIRS)    \
     -lgasnet-sci-parsync \
-    -lsisci              \
+    @SCI_LIBS@           \
     @GASNET_THREAD_LIBS@ \
     @LIBGCC@             \
     @LIBS@               \

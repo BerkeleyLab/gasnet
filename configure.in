@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/10/11 14:22:38 $
-# $Revision: 1.83.2.1 $
+#     $Date: 2003/10/13 06:31:07 $
+# $Revision: 1.83.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.83.2.1 $)
+AC_REVISION($Revision: 1.83.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -929,15 +929,15 @@ GASNET_IF_ENABLED(sci, Enable the SCI (Dolphin SISCI) network conduit,
   have_sci=no)
 
 if test $have_sci = yes; then
-  GASNET_ENV_DEFAULT(SCI_INCLUDE, "$SCIHOME/include")
-  GASNET_ENV_DEFAULT(SCI_LIBDIR, "$SCIHOME/lib/api")
+  GASNET_ENV_DEFAULT(SCI_INCLUDES, "-I$SCIHOME/include -I$SCIHOME/lib/api")
+  GASNET_ENV_DEFAULT(SCI_LIBS, "-L$SCIHOME/lib/api -lsisci")
 
   AC_MSG_CHECKING(for working SCI configuration)
 
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
-  CFLAGS="-I$SCI_INCLUDE"
-  LIBS="-L$SCI_LIBDIR -lsisci"
+  CFLAGS="$CFLAGS $SCI_INCLUDES"
+  LIBS="$LIBS $SCI_LIBS"
   # try to compile and link a simple SCI program
   AC_TRY_LINK( [
      #include <sisci_types.h>
@@ -960,8 +960,8 @@ if test $have_sci = yes; then
   fi
 fi
 
-AC_SUBST(SCI_INCLUDE)
-AC_SUBST(SCI_LIBDIR)
+AC_SUBST(SCI_INCLUDES)
+AC_SUBST(SCI_LIBS)
 AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
 
 ########################################################################
