@@ -2,6 +2,26 @@
 #include <firehose_internal.h>
 
 /* ##################################################################### */
+/* LOCKS, FIFOS, ETC.                                                    */
+/* ##################################################################### */
+                                                                                                              
+/* The following lock, referred to as the "table" lock, must be held for every
+ * firehose operation that modifies the state of the firehose table.  It must
+ * be held during most of the firehose operations - adding/removing to the hash
+ * table, adding/removing from the local and victim FIFOs.
+ */
+gasneti_mutex_t         fh_table_lock = GASNETI_MUTEX_INITIALIZER;
+
+#ifndef FH_POLL_NOOP 
+  /* This lock protects the poll FIFO queue, used to enqueue callbacks. */
+  gasneti_mutex_t         fh_pollq_lock = GASNETI_MUTEX_INITIALIZER;
+#endif
+
+/* Firehose FIFOs */
+fh_fifoq_t      fh_LocalFifo = FH_TAILQ_HEAD_INITIALIZER(fh_LocalFifo);
+fh_fifoq_t      *fh_RemoteNodeFifo = NULL;
+
+/* ##################################################################### */
 /* PUBLIC FIREHOSE INTERFACE                                             */
 /* ##################################################################### */
 /* firehose_init()
@@ -33,10 +53,14 @@ gasnet_node_t	fh_mynode = (gasnet_node_t)-1;
 
 extern void
 firehose_init(uintptr_t max_pinnable_memory, size_t max_regions, 
-	      firehose_region_t *prepinned_regions, size_t num_reg,
-	      firehose_info_t *info)
+	      const firehose_region_t *prepinned_regions,
+              size_t num_reg, firehose_info_t *info)
 {
 	int	i;
+
+	/* Make sure the refc field in buckets can also be used as a FIFO
+	 * pointer */
+	assert(sizeof(fh_refc_t) == sizeof(void *));
 
 	FH_TABLE_LOCK;
 
@@ -126,13 +150,11 @@ firehose_poll()
 				fh_completion_callback_t *cc =
 					(fh_completion_callback_t *) fhc;
 				cc->callback(cc->context, cc->request, 0);
+				continue;
 			}
 			#endif
 
 			#ifndef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
-			#ifndef FIREHOSE_COMPLETION_IN_HANDLER
-			else
-			#endif
 			if (fhc->flags & FH_CALLBACK_TYPE_REMOTE) {
 				fh_remote_callback_t *rc =
 					(fh_remote_callback_t *) fhc;
@@ -144,6 +166,7 @@ firehose_poll()
 				fh_send_firehose_reply(rc);
 				gasneti_free(rc->pin_list);
 				gasneti_free(fhc);
+				continue;
 			}
 			#endif
 		}
@@ -446,8 +469,10 @@ fh_request_free(firehose_request_t *req)
 		fh_free_completion_callback(
 		    (fh_completion_callback_t *)req->internal);
 	}
+	/*
 	else
 		assert(req->internal == NULL);
+		*/
 
 	if (req->flags & FH_FLAG_FHREQ) {
 		req->flags = 0;

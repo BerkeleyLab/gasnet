@@ -194,19 +194,8 @@ int	fhi_WaitRemoteFirehosesToUnpin(gasnet_node_t node, int b_num,
 					firehose_region_t *region);
 
 /* ##################################################################### */
-/* LOCKS, BUFFERS AND QUEUES                                             */
+/* BUFFERS AND QUEUES                                                    */
 /* ##################################################################### */
-
-/* The following lock, referred to as the "table" lock, must be held for every
- * firehose operation that modifies the state of the firehose table.  It must
- * be held during most of the firehose operations - adding/removing to the hash
- * table, adding/removing from the local and victim FIFOs.
- */
-gasneti_mutex_t		fh_table_lock = GASNETI_MUTEX_INITIALIZER;
-
-/* This lock protects the poll FIFO queue, used to enqueue callbacks. */
-gasneti_mutex_t		fh_pollq_lock = GASNETI_MUTEX_INITIALIZER;
-
 
 /* 
  * GLOBAL SCRATCH BUFFERS
@@ -226,13 +215,6 @@ gasneti_mutex_t		fh_pollq_lock = GASNETI_MUTEX_INITIALIZER;
 static int		fh_max_regions = 0;
 static uintptr_t *	fh_temp_buckets = NULL;
 static fh_bucket_t **	fh_temp_bucket_ptrs = NULL;
-
-/*
- * Firehose FIFOs
- *
- */
-fh_fifoq_t	fh_LocalFifo = FH_TAILQ_HEAD_INITIALIZER(fh_LocalFifo);
-fh_fifoq_t	*fh_RemoteNodeFifo = NULL;
 
 /*
  * The bucket table
@@ -478,9 +460,12 @@ fh_region_ispinned(gasnet_node_t node, firehose_region_t *region)
  * Both functions return the new reference count for the incremented count.
  *
  */
-fh_refc_t
+
+fh_refc_t *
 fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 {
+	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
 	FH_TABLE_ASSERT_LOCKED;
 	
 	/* 
@@ -506,32 +491,31 @@ fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 			assert(FH_NODE(entry) == fh_mynode);
 			FH_BSTATE_ASSERT(entry, fh_local_fifo);
 
-			FH_REFCSET(FH_REFCOUNT(entry), ref_L, !ref_L);
+			rp->refc_l = ref_L;
+			rp->refc_r = !ref_L;
+
 			fhc_LocalOnlyBucketsPinned -= !ref_L;
 			fhc_LocalVictimFifoBuckets--;
 			FH_BSTATE_SET(entry, fh_used);
 			FH_SET_USED(entry);
 
 			FH_TRACE_BUCKET(entry, ACQFIFO);
-			return 1;
 		}
 		else {
 			FH_SET_USED(entry);
 			FH_BSTATE_ASSERT(entry, fh_used);
 			if (ref_L) {
-				FH_LREFCINC(FH_REFCOUNT(entry));
+				rp->refc_l++;
 				FH_TRACE_BUCKET(entry, ACQUIRE);
-				return FH_LREFC(FH_REFCOUNT(entry));
 			}
 			else {
-				if (FH_RREFC(FH_REFCOUNT(entry)) == 0) {
-					assert(FH_LREFC(
-					    FH_REFCOUNT(entry) > 0));
+				if (rp->refc_r == 0) {
+					assert(rp->refc_l > 0);
 					fhc_LocalOnlyBucketsPinned--;
 				}
-				FH_RREFCINC(FH_REFCOUNT(entry));
+
+				rp->refc_r++;
 				FH_TRACE_BUCKET(entry, ACQUIRE);
-				return FH_RREFC(FH_REFCOUNT(entry));
 			}
 		}
 	}
@@ -548,34 +532,37 @@ fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *entry)
 			FH_BSTATE_ASSERT(entry, fh_remote_fifo);
 
 			fhc_RemoteVictimFifoBuckets[node]--;
-			FH_REFCSET(FH_REFCOUNT(entry), 0, 1);
+			rp->refc_l = 0;
+			rp->refc_r = 1;
+			
 			FH_SET_USED(entry);
 			FH_BSTATE_SET(entry, fh_used);
 			FH_TRACE_BUCKET(entry, ACQFIFO);
-			return 0;
 		}
 		else {
 			/* Pending buckets must be handled separately */
 			assert(!FH_IS_REMOTE_PENDING(entry));
 			FH_BSTATE_ASSERT(entry, fh_used);
 
-			FH_RREFCINC(FH_REFCOUNT(entry));
+			rp->refc_r++;
+			assert(rp->refc_r > 0);
 			FH_TRACE_BUCKET(entry, ACQUIRE);
-			return FH_RREFC(FH_REFCOUNT(entry));
 		}
 	}
+	return rp;
 }
 
-fh_refc_t
+fh_refc_t *
 fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 {
+	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
+
 	FH_TABLE_ASSERT_LOCKED;
 
 	assert(entry != NULL);
 	FH_BSTATE_ASSERT(entry, fh_used);
 
 	if (FH_NODE(entry) == fh_mynode) {
-		fh_refc_t	ret;
 		int		loc = (node == fh_mynode);
 		/*
 		 * 'ref_L' is TRUE if we are acquiring a local bucket for the
@@ -588,15 +575,16 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 		assert(!FH_IS_LOCAL_FIFO(entry));
 
 		if (loc) {
-			FH_LREFCDEC(FH_REFCOUNT(entry));
-			ret = FH_LREFC(FH_REFCOUNT(entry));
+			assert(rp->refc_l > 0);
+			rp->refc_l--;
 		}
 		else {
-			FH_RREFCDEC(FH_REFCOUNT(entry));
-			ret = FH_RREFC(FH_REFCOUNT(entry));
+			assert(rp->refc_r > 0);
+			rp->refc_r--;
 		}
 
-		if (FH_REFC_IS_VICTIM(FH_REFCOUNT(entry))) {
+		/* As a result, the bucket may be unused */
+		if (rp->refc_r == 0 && rp->refc_l == 0) {
 			FH_TAILQ_INSERT_TAIL(&fh_LocalFifo, entry);
 
 			fhc_LocalOnlyBucketsPinned += !loc;
@@ -604,27 +592,28 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 
 			FH_BSTATE_SET(entry, fh_local_fifo);
 			FH_TRACE_BUCKET(entry, ADDFIFO);
-			return 0;
+			return rp;
 		}
 		else {
-			if (FH_RREFC(FH_REFCOUNT(entry)) == 0 && !loc)
+			if (rp->refc_r == 0 && !loc) 
 				fhc_LocalOnlyBucketsPinned++;
 
 			FH_TRACE_BUCKET(entry, RELEASE);
-			return ret;
+			return rp;
 		}
 	}
 	/* The bucket is a remote bucket, and it cannot contain any local
 	 * refcounts.  Also, it should not be pending as pending buckets are
 	 * handled separately */
 	else {
+                fh_refc_t refc;
 		assert(node != fh_mynode);
 		assert(!FH_IS_REMOTE_PENDING(entry));
 
-		FH_RREFCDEC(FH_REFCOUNT(entry));
+		assert(rp->refc_r > 0);
+		rp->refc_r--;
 
-		fh_refc_t refc = FH_RREFC(FH_REFCOUNT(entry));
-		if (refc == 0) {
+		if (rp->refc_r== 0) {
 			FH_TAILQ_INSERT_TAIL(
 			    &fh_RemoteNodeFifo[node], entry);
 
@@ -632,11 +621,11 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 
 			FH_BSTATE_SET(entry, fh_remote_fifo);
 			FH_TRACE_BUCKET(entry, ADDFIFO);
-			return 0;
+			return rp;
 		}
 		else {
 			FH_TRACE_BUCKET(entry, RELEASE);
-			return refc;
+			return rp;
 		}
 	}
 }
@@ -649,7 +638,7 @@ fh_bucket_release(gasnet_node_t node, fh_bucket_t *entry)
 
 void
 fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions, 
-	      firehose_region_t *regions, size_t num_reg,
+	      const firehose_region_t *regions, size_t num_reg,
 	      firehose_info_t *fhinfo)
 {
 	int		i;
@@ -1086,6 +1075,7 @@ fhi_AdjustLocalFifoAndPin(gasnet_node_t node, fhi_RegionPool_t *rpool_pin)
 {
 	int			b_unpin, pin_num;
 	firehose_region_t	*reg_pin;
+	fhi_RegionPool_t	*rpool;
 
 	FH_TABLE_ASSERT_LOCKED;
 
@@ -1103,10 +1093,11 @@ fhi_AdjustLocalFifoAndPin(gasnet_node_t node, fhi_RegionPool_t *rpool_pin)
 	b_unpin = fhc_LocalOnlyBucketsPinned - fhc_MaxVictimBuckets;
 
 	if (b_unpin > 0) {
+                fhi_RegionPool_t *rpool;
 		GASNETI_TRACE_PRINTF(C, 
 		    ("Firehose Overcommitted FIFO by %d buckets", b_unpin));
 
-		fhi_RegionPool_t *rpool = fhi_AllocRegionPool(b_unpin);
+		rpool = fhi_AllocRegionPool(b_unpin);
 		rpool->buckets_num = b_unpin;
 		rpool->regions_num =
 			fhi_FreeVictimLocal(b_unpin, rpool->regions);
@@ -1414,7 +1405,9 @@ fhi_InitLocalRegionsList(gasnet_node_t node, firehose_region_t *region,
 		FH_FOREACH_BUCKET(region[i].addr,end_addr,bucket_addr) {
 			bd = fh_bucket_add(fh_mynode, bucket_addr);
 			FH_BSTATE_SET(bd, fh_used);
-			FH_REFCSET(FH_REFCOUNT(bd), loc, rem);
+
+			FH_BUCKET_REFC(bd)->refc_l = loc;
+			FH_BUCKET_REFC(bd)->refc_r = rem;
 
 			FH_TRACE_BUCKET(bd, INIT);
 		}
@@ -1640,6 +1633,10 @@ fh_commit_try_remote_region(gasnet_node_t node, firehose_region_t *region)
 
 	FH_TABLE_ASSERT_LOCKED;
 
+	/* Make sure the size of the region respects the remote limits */
+	assert(FH_NUM_BUCKETS(region->addr, region->len)
+						<= fhc_MaxRemoteBuckets);
+
  	FH_FOREACH_BUCKET(region->addr, end_addr, bucket_addr) {
 		bd = fh_bucket_lookup(node, bucket_addr);
 		fh_bucket_acquire(node, bd);
@@ -1739,7 +1736,8 @@ fhi_TryAcquireRemoteRegion(gasnet_node_t node, firehose_request_t *req,
 					     (void *) FH_BADDR(bd), FH_NODE(bd), 
 					     req));
 				}
-				FH_RREFCINC(FH_REFCOUNT(bd));
+				FH_BUCKET_REFC(bd)->refc_r++;
+				assert(FH_BUCKET_REFC(bd)->refc_r > 0);
 				FH_TRACE_BUCKET(bd, PENDING);
 			}
 			else

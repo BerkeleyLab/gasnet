@@ -293,7 +293,9 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  * firehose_init.  These regions may lie anywhere in the address space
  * -- in or out of the GASNet segment, in stack-adressable memory,
  * etc.  The client is free to issue additional firehose_local_* and
- * firehose_remote_* calls on these regions.
+ * firehose_remote_* calls on these regions.  The memory for the
+ * regions list is owned by the client and may safely be reused or
+ * freed after firehose_init() returns.
  *
  * Firehose separates pinning resources using two parameters:
  *   1. The 'maximum_pinnable_memory' is the upper bound for the
@@ -317,8 +319,8 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  */
 extern void
 firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
-	      firehose_region_t *prepinned_regions, size_t num_reg,
-	      firehose_info_t *info);
+	      const firehose_region_t *prepinned_regions,
+              size_t num_reg, firehose_info_t *info);
 
 /* Environment variables used in firehose initialization
  *

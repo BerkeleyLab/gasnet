@@ -23,15 +23,21 @@ extern gasnet_node_t	fh_mynode;
  */
 
 extern gasneti_mutex_t		fh_table_lock;
-extern gasneti_mutex_t		fh_pollq_lock;
 
 #define FH_TABLE_LOCK		gasneti_mutex_lock(&fh_table_lock)
 #define FH_TABLE_UNLOCK		gasneti_mutex_unlock(&fh_table_lock)
 #define FH_TABLE_ASSERT_LOCKED	gasneti_mutex_assertlocked(&fh_table_lock)
 #define FH_TABLE_ASSERT_UNLOCKED gasneti_mutex_assertunlocked(&fh_table_lock)
 
-#define FH_POLLQ_LOCK		gasneti_mutex_lock(&fh_pollq_lock)
-#define FH_POLLQ_UNLOCK		gasneti_mutex_unlock(&fh_pollq_lock)
+#ifndef FH_POLL_NOOP /* Don't need a pollq_lock when we don't poll */
+  extern gasneti_mutex_t		fh_pollq_lock;
+
+  #define FH_POLLQ_LOCK		gasneti_mutex_lock(&fh_pollq_lock)
+  #define FH_POLLQ_UNLOCK	gasneti_mutex_unlock(&fh_pollq_lock)
+#else
+  #define FH_POLLQ_LOCK		!!! error - no firehose polling !!!
+  #define FH_POLLQ_UNLOCK	!!! error - no firehose polling !!!
+#endif
 
 #ifndef FH_BUCKET_SIZE
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
@@ -67,91 +73,89 @@ extern gasneti_mutex_t		fh_pollq_lock;
  * table (for both remote and local pins).
  */
 
-/*
- * Reference Count for local and remote reference counts.
- *
- * Packed representation, using top 24 bits for remote refcounts and bottom 8
- * bits for local refcount */
-typedef uint32_t		fh_refc_t;
+#if SIZEOF_VOID_P == 4
+typedef uint16_t	fh_refc_uint_t;
+#else
+typedef uint32_t	fh_refc_uint_t;
+#endif
 
-#define FH_LREFC(refc_t)	((refc_t) & 0x000000ff)
-#define FH_RREFC(refc_t)	(((refc_t) & 0xffffff00)>>8)
-
-#define FH_LREFCINC(refc_t)	((refc_t)++, assert(FH_LREFC(refc_t) < 0xff))
-#define FH_RREFCINC(refc_t)	((refc_t) += 0x00000100), 		\
-					assert(FH_RREFC(refc_t) < 0xffffff)
-		
-#define FH_REFCSET(refc_t,l,r)	((refc_t) = (((r)<<8) & 0xffffff00) | 	\
-					     ((l) & 0x000000ff))
-#define FH_REFCRST(refc_t)	((refc_t) = 0)
-#define FH_LREFCRST(refc_t)	((refc_t) &= 0xffffff00)
-#define FH_RREFCRST(refc_t)	((refc_t) &= 0x000000ff)
-#define FH_LREFCDEC(refc_t)	((refc_t)--, assert(FH_LREFC(refc_t) >= 0))
-#define FH_RREFCDEC(refc_t)	(assert(FH_RREFC(refc_t) > 0),		\
-					(refc_t) -= 0x00000100)
-#define FH_REFC_IS_VICTIM(refc_t)	((refc_t) == 0)
+/* The 'refcount' type is stored as a logical union with the fh_tqe_prev field
+ * and must therefore be the same size as a pointer */
+typedef struct _fh_refc_t {
+	fh_refc_uint_t	refc_l;
+	fh_refc_uint_t	refc_r;
+}
+fh_refc_t;
 
 /*
  * Bucket and private types
  */
 
+#ifdef DEBUG_BUCKETS
+  typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused }
+  fh_bstate_t;
+  #define FH_BSTATE_ASSERT(entry, state) assert((entry)->fh_state == state)
+  #define FH_BSTATE_SET(entry, state)	 (entry)->fh_state = state
+  #else
+  #define FH_BSTATE_ASSERT(entry, state)
+  #define FH_BSTATE_SET(entry, state)
+#endif
+
 #ifdef FIREHOSE_PAGE
 typedef struct _firehose_private_t	fh_bucket_t;
 
-#ifdef DEBUG_BUCKETS
-typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused } 
-fh_bstate_t;
-#define FH_BSTATE_ASSERT(entry, state)	assert((entry)->fh_state == state)
-#define FH_BSTATE_SET(entry, state)	(entry)->fh_state = state
-#else
-#define FH_BSTATE_ASSERT(entry, state)
-#define FH_BSTATE_SET(entry, state)
-#endif
-
 struct _firehose_private_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
-#define FH_KEYMAKE(addr,node)	(addr | node)
-#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)  /* bucket's node */
-#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
+	#define FH_KEYMAKE(addr,node)	(addr | node)
+	#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
+	#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
 
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
 
 	/* FIFO and refcount */
-#ifdef DEBUG_BUCKETS
+	#ifdef DEBUG_BUCKETS
 	fh_bstate_t	fh_state;
-#endif
+	#endif
+
 	fh_bucket_t	*fh_tqe_next;		/* -1 when not in FIFO, 
 						   NULL when end of list,
 						   else next pointer in FIFO */
 	fh_bucket_t	**fh_tqe_prev;		/* refcount when not in FIFO,
 						   prev pointer otherwise    */
 };
-#define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
+
+#define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
 
 /* Local and Remote buckets can be in various states.
  *
  * Local buckets can be in either of these two states:
- *   1. in FIFO (fh_tqe_next != -1)
- *   2. in USE  (fh_tqe_next == -1)
+ *   1. in FIFO (fh_tqe_next != FH_USED_TAG)
+ *   2. in USE  (fh_tqe_next == FH_USED_TAG)
  *
  * Remote buckets can be in either of these three states 
- *   1. in USE  (fh_tqe_next == -1)
- *      a) PENDING (LOCAL reference count == 255)
- *      b) NOT PENDING (LOCAL refcount != 255)
- *   2. in FIFO (fh_tqe_next != -1)
+ *   1. in USE  (fh_tqe_next == FH_USED_TAG)
+ *      a) PENDING (LOCAL reference count == FH_REMOTE_PENDING_TAG)
+ *      b) NOT PENDING (LOCAL refcount != FH_REMOTE_PENDING_TAG)
+ *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
-#define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != (fh_bucket_t *) -1)
-#define FH_IS_REMOTE_FIFO(priv)	((!FH_IS_REMOTE_PENDING(priv) &&	\
-				 (priv)->fh_tqe_next != (fh_bucket_t *) -1))
-#define FH_IS_REMOTE_PENDING(priv)	(FH_LREFC(FH_REFCOUNT(priv)) == 0xff)
+#define FH_USED_TAG		((fh_bucket_t *) -1)
+#define FH_REMOTE_PENDING_TAG	((fh_refc_uint_t) -1)
 
-#define FH_SET_USED(priv)	((priv)->fh_tqe_next = (fh_bucket_t *) -1)
+#define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
+#define FH_IS_REMOTE_FIFO(priv)	(!FH_IS_REMOTE_PENDING(priv) &&		\
+				 (priv)->fh_tqe_next != FH_USED_TAG)
+#define FH_SET_USED(priv)	((priv)->fh_tqe_next = FH_USED_TAG)
+
+/* Remote buckets can be in a 'pending' state */
+#define FH_IS_REMOTE_PENDING(priv)					\
+		(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_TAG)
 #define FH_SET_REMOTE_PENDING(priv)	do { 				\
-		FH_REFCSET(FH_REFCOUNT(priv), 0xff, 1); 		\
-		(priv)->fh_tqe_next = (fh_bucket_t *) -1; }  while (0)
-
-#define FH_UNSET_REMOTE_PENDING(priv)	FH_LREFCRST(FH_REFCOUNT(priv))
+		FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_TAG;	\
+		FH_BUCKET_REFC(priv)->refc_r = 1;			\
+		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
+#define FH_UNSET_REMOTE_PENDING(priv)					\
+		(FH_BUCKET_REFC(priv)->refc_l = 0)
 
 #elif defined(FIREHOSE_REGION)
 
@@ -168,9 +172,10 @@ struct _firehose_private_t {
 typedef
 struct _fh_bucket_t {
         fh_int_t         fh_key;                 /* cached key for hash table */
-#define FH_KEYMAKE(addr,node)	(addr | node)
-#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)  /* bucket's node */
-#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
+	#define FH_KEYMAKE(addr,node)	(addr | node)
+	#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
+	#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
+
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
 	firehose_private_t *priv;		/* holds ref counts, etc */
@@ -185,8 +190,6 @@ struct _firehose_private_t {
 	size_t		len;
 	fh_bucket_t	*bucket;		/* pointer to first bucket */
 
-	fh_refc_t	refcounts;
-
 	firehose_private_t *fh_tqe_next;	/* NULL when not in FIFO */
 	firehose_private_t **fh_tqe_prev;
 
@@ -194,7 +197,7 @@ struct _firehose_private_t {
 	firehose_client_t	client;
 	#endif
 };
-#define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
+#define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
 
 #endif
 
@@ -207,8 +210,8 @@ struct _firehose_private_t {
 /* ##################################################################### */
 
 void	fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions, 
-		       firehose_region_t *prepinned_regions, size_t num_reg,
-		       firehose_info_t *info);
+		       const firehose_region_t *prepinned_regions,
+                       size_t num_reg, firehose_info_t *info);
 void	fh_fini_plugin();
 
 /* ##################################################################### */
@@ -254,10 +257,10 @@ void		fh_bucket_remove(fh_bucket_t *);
 
 /* The following two functions are not common */
 		/* Releases the bucket (decrements the refcount)         */
-fh_refc_t	fh_bucket_release(gasnet_node_t node, fh_bucket_t *);
+fh_refc_t *	fh_bucket_release(gasnet_node_t node, fh_bucket_t *);
 		/* Acquires the bucket (increments the refcount). _ONLY_ 
 		 * valid if the bucket already exists in the table       */
-fh_refc_t	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
+fh_refc_t *	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
 
 /* The following are implementation-specific helpers */
 #if defined(FIREHOSE_PAGE)
@@ -290,7 +293,14 @@ void fhi_bucket_remove(fh_bucket_t *bucket)
 }
 #elif defined(FIREHOSE_REGION)
 /* bucket table operations *don't* map directly to hash ops */
-extern fh_bucket_t *	fhi_bucket_lookup(fh_int_t);
+extern fh_hash_t *fh_BucketTable1;
+extern fh_hash_t *fh_BucketTable2;
+GASNET_INLINE_MODIFIER(fhi_bucket_lookup)
+fh_bucket_t *fhi_bucket_lookup(fh_int_t key)
+{
+	/* Only ever need to lookup in the first table */
+	return (fh_bucket_t *)fh_hash_find(fh_BucketTable1, key);
+}
 extern void 		fhi_bucket_add(fh_bucket_t *);
 extern void		fhi_bucket_remove(fh_bucket_t *);
 #endif
@@ -466,7 +476,7 @@ firehose_request_t *	fh_acquire_remote_region(gasnet_node_t node,
 				void *context, uint32_t flags,
 		        	firehose_remotecallback_args_t *remote_args,
 				firehose_request_t *ureq);
-void			fh_commit_try_remote_region(gasnet_node_t node, 
+void			fh_commit_try_remote_region(gasnet_node_t, 
 						    firehose_region_t *);
 void			fh_release_remote_region(firehose_request_t *);
 
@@ -524,23 +534,22 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 #define FH_TRACE_BUCKET(bd, bmsg) 					\
 	do {								\
 		char	msg[64];					\
+		fh_refc_t *rp = FH_BUCKET_REFC(bd);			\
 		if (FH_NODE(bd) != fh_mynode) {				\
 			if (FH_IS_REMOTE_PENDING(bd)) 			\
 				sprintf(msg, "rrefc=%d PENDING",	\
-			    	    FH_RREFC(FH_REFCOUNT(bd)));		\
+				    rp->refc_r);			\
 			else if (FH_IS_REMOTE_FIFO(bd))			\
 				sprintf(msg, "IN FIFO");		\
 			else						\
-				sprintf(msg, "rrefc=%d",		\
-			    	    FH_RREFC(FH_REFCOUNT(bd)));		\
+				sprintf(msg, "rrefc=%d", rp->refc_r);   \
 		}							\
 		else {							\
 			if (FH_IS_LOCAL_FIFO(bd))			\
 				sprintf(msg, "IN FIFO");		\
 			else						\
 				sprintf(msg, "rrefc=%d lrefc=%d",	\
-			    	    FH_RREFC(FH_REFCOUNT(bd)),		\
-			    	    FH_LREFC(FH_REFCOUNT(bd)));		\
+				    rp->refc_r, rp->refc_l);		\
 		}							\
 		GASNETI_TRACE_PRINTF(C,					\
 		    ("Firehose Bucket %s %s node=%d,addr=%p,%s",	\

@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.5.6.1 2003/10/07 20:48:26 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.5.6.2 2003/10/08 16:11:29 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,8 +15,16 @@ if !GASNET_SEGMENT_FAST
 fh_srcdir = $(top_srcdir)/other/firehose
 fh_include = -I$(fh_srcdir)
 fh_deps = firehose_fwd.h $(fh_srcdir)/firehose.h $(fh_srcdir)/firehose_internal.h
-fh_srcs = $(fh_srcdir)/firehose.c $(fh_srcdir)/firehose_hash.c $(fh_srcdir)/firehose_region.c
-fh_objs = firehose.o firehose_hash.o firehose_region.o
+fh_srcs =                     \
+      $(srcdir)/gasnet_firehose.c   \
+      $(fh_srcdir)/firehose.c       \
+      $(fh_srcdir)/firehose_hash.c  \
+      $(fh_srcdir)/firehose_region.c
+fh_objs =                     \
+      gasnet_firehose.o \
+      firehose.o        \
+      firehose_hash.o   \
+      firehose_region.o
 endif
                                                                                                               
 INCLUDES = -I$(srcdir) -I$(top_srcdir) -I$(top_builddir) -I$(top_srcdir)/extended-ref \
@@ -33,7 +41,10 @@ filelist =                   \
       gasnet_extended.c      \
       gasnet_extended_fwd.h  \
       gasnet_extended_internal.h
-fh_filelist = firehose_fwd.h
+
+fh_filelist =                    \
+      gasnet_firehose.c \
+      firehose_fwd.h
 
 othersourcefiles =                             \
       $(top_srcdir)/gasnet_internal.c
