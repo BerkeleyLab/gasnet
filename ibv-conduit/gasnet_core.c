@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.c                  $
- *     $Date: 2004/08/12 17:12:57 $
- * $Revision: 1.54.2.1 $
+ *     $Date: 2004/08/12 21:42:32 $
+ * $Revision: 1.54.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1162,7 +1162,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   Exit handling code
 */
 
-#if !GASNETI_HAVE_ATOMIC_CAS
+#ifndef GASNETI_HAVE_ATOMIC_CAS
   #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
 #endif
 
