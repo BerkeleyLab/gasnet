@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2005/02/17 13:19:26 $
- * $Revision: 1.4 $
+ *     $Date: 2005/03/22 06:15:28 $
+ * $Revision: 1.4.2.1 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -11,8 +11,6 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-
-#if GASNETC_USE_FIREHOSE /* otherwise file is empty */
 
 extern int
 firehose_move_callback(gasnet_node_t node,
@@ -108,6 +106,8 @@ firehose_move_callback(gasnet_node_t node,
 				   VAPI_MR_CHANGE_TRANS,
 				   &mr_in, &client->handle, &mr_out);
         GASNETC_VAPI_CHECK(vstat, "from VAPI_reregister_mr");
+	GASNETC_STAT_EVENT_VAL(DYNAMIC_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_STAT_EVENT_VAL(DYNAMIC_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
 
 	client->lkey     = mr_out.l_key;
 	client->rkey     = mr_out.r_key;
@@ -125,6 +125,7 @@ firehose_move_callback(gasnet_node_t node,
 
 	    vstat = VAPI_deregister_mr(gasnetc_hca, old_handle);
             GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr");
+	    GASNETC_STAT_EVENT_VAL(DYNAMIC_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
         }
     }
     else if (pin_num) {
@@ -141,6 +142,7 @@ firehose_move_callback(gasnet_node_t node,
     
 	    vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &client->handle, &mr_out);
             GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr");
+	    GASNETC_STAT_EVENT_VAL(DYNAMIC_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
     
 	    client->lkey     = mr_out.l_key;
 	    client->rkey     = mr_out.r_key;
@@ -159,5 +161,3 @@ firehose_remote_callback(gasnet_node_t node,
     gasneti_fatalerror("attempted to call firehose_remote_callback()");
     return -1;
 }
-
-#endif /* GASNETC_USE_FIREHOSE */

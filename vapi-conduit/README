@@ -1,7 +1,7 @@
 README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.17 $
+$Revision: 1.17.2.1 $
 
 @ TOC: @
 @ Section: Bootstrapping @
@@ -242,19 +242,18 @@ $Revision: 1.17 $
   + GASNET_BBUF_LIMIT
     This gives the maximum number of pre-pinned bounce buffers allocated
     on each node.  These buffers are needed for assembly of AM headers
-    (and the payload of mediums), and for gets and puts with the local
+    (and the payload of mediums), and for some puts with the local
     address outside the GASNet segment.  The default is 1024, which results
     in a limit of 4MB (unless GASNETC_BUFSZ is changed at compile time).
     The actual number of buffers allocated maybe less if the values of
     GASNET_OP_OUST_PP and GASNET_AP_OUST_LIMIT are such that all
     GASNET_BBUF_LIMIT buffers could never be consumed.
     Reducing this parameter limits the outstanding number of operations
-    which consume bounce buffers.  This includes all Active Messages, gets
-    with a destination outside the GASNet segment, and puts with a source
-    outside the GASNet segment (excluding those of size less than or equal
-    to GASNETC_PUT_INLINE_LIMIT which is currently 72 bytes).  If you
-    believe that throughput of these operations is too small, you may try
-    increasing this value.
+    which consume bounce buffers.  This includes all Active Messages,
+    and non-bulk non-blocking puts with a source outside the GASNet segment
+    (excluding those of size less than or equal to GASNETC_PUT_INLINE_LIMIT
+    which is currently 72 bytes).  If you believe that throughput of these
+    operations is too small, you may try increasing this value.
    
 @ Section: Core API @
 

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2005/01/22 05:38:52 $
-# $Revision: 1.32 $
+#     $Date: 2005/03/22 06:15:28 $
+# $Revision: 1.32.2.1 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,9 +10,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=vapi
 
-if GASNET_SEGMENT_FAST
-else
-# only use firehose for segment large/everything
+# Firehose files.  Now used in all segment configurations.
 fh_srcdir = $(top_srcdir)/other/firehose
 fh_cflags = -I$(fh_srcdir)
 fh_hdrs = $(fh_srcdir)/*.h
@@ -21,7 +19,6 @@ fh_srcs =                          \
       $(fh_srcdir)/firehose.c      \
       $(fh_srcdir)/firehose_hash.c \
       $(fh_srcdir)/firehose_region.c
-endif
 
 if VAPI_BOOTSTRAP_MPI
 # If using MPI for bootstrap then we must compile this one object with MPI_CC.

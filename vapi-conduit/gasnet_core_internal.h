@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/03/22 00:05:16 $
- * $Revision: 1.69 $
+ *     $Date: 2005/03/22 06:15:28 $
+ * $Revision: 1.69.4.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,9 +12,7 @@
 #include <stddef.h>	/* for offsetof() */
 
 #include <gasnet_internal.h>
-#if GASNETC_USE_FIREHOSE
-  #include <firehose.h>
-#endif
+#include <firehose.h>
 #include <gasnet_bootstrap_internal.h>
 
 #include <vapi.h>
@@ -606,12 +604,10 @@ extern gasnetc_memreg_t		gasnetc_rcv_reg;
   extern uintptr_t		gasnetc_seg_start;
   extern uintptr_t		gasnetc_seg_end;
 #endif
-#if GASNETC_USE_FIREHOSE
-  extern size_t			gasnetc_fh_maxsz;
-  extern firehose_info_t	gasnetc_firehose_info;
-  #if FIREHOSE_VAPI_USE_FMR
-    extern EVAPI_fmr_t		gasnetc_fmr_props;
-  #endif
+extern size_t			gasnetc_fh_maxsz;
+extern firehose_info_t		gasnetc_firehose_info;
+#if FIREHOSE_VAPI_USE_FMR
+  extern EVAPI_fmr_t		gasnetc_fmr_props;
 #endif
 
 extern VAPI_cq_hndl_t	gasnetc_snd_cq;
