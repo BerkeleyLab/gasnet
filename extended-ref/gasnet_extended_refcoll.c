@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/26 00:03:08 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2004/05/26 00:38:03 $
+ * $Revision: 1.1.2.20 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,6 +39,11 @@ gasnete_coll_threaddata_t *gasnete_coll_get_threaddata(gasnete_threaddata_t *thr
 /*---------------------------------------------------------------------------------*/
 
 int gasnete_coll_init_done = 0;
+size_t *gasnete_coll_all_images;
+size_t *gasnete_coll_all_1st_image;
+size_t gasnete_coll_total_images;
+size_t gasnete_coll_my_images;		/* local number of images */
+size_t gasnete_coll_my_1st_image;	/* count of images before my first image */
 
 void gasnete_coll_validate(gasnet_team_handle_t team,
 			   gasnet_node_t dstnode, void *dst, size_t dstlen, int dstisv,
@@ -517,7 +522,12 @@ void gasnete_coll_poll(void) {
   }
 }
 
-extern void gasnete_coll_init(const size_t images[], int init_flags) {
+extern void gasnete_coll_init(const size_t images[],
+                              gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
+                              int init_flags) {
+  size_t image_size = gasnete_nodes * sizeof(size_t);
+  int i;
+
   GASNETI_CHECKATTACH();
   
   /* Sanity checks - performed only for debug builds */
@@ -530,8 +540,27 @@ extern void gasnete_coll_init(const size_t images[], int init_flags) {
     }
   #endif
 
-  /* gasnete_coll_op_table_init(); */
-  /* gasnete_coll_team_init(); */
+  gasnete_coll_all_images = gasneti_malloc(image_size);
+  gasnete_coll_all_1st_image = gasneti_malloc(image_size);
+  if (images != NULL) {
+    memcpy(gasnete_coll_all_images, images, image_size);
+  } else  {
+    for (i = 0; i < gasnete_nodes; ++i) {
+      gasnete_coll_all_images[i] = 1;
+    }
+  }
+  gasnete_coll_total_images = 0;
+  for (i = 0; i < gasnete_nodes; ++i) {
+    gasnete_coll_all_1st_image[i] = gasnete_coll_total_images;
+    gasnete_coll_total_images += gasnete_coll_all_images[i];
+  }
+  gasnete_coll_my_images = gasnete_coll_all_images[gasnete_mynode];
+  gasnete_coll_my_1st_image = gasnete_coll_all_1st_image[gasnete_mynode];
+
+  if (fn_count != 0) {
+    /* XXX: */
+    gasneti_fatalerror("gasnet_coll_init: function registration is not yet supported");
+  }
 
   gasnete_coll_init_done = 1;
   gasnet_barrier_notify((int)gasnete_coll_sequence,0);
@@ -734,10 +763,10 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 
 /*---------------------------------------------------------------------------------*/
 #ifndef GASNETE_COLL_BROADCAST_OVERRIDE
-    /* bcast AG -> All Get algorithm */
-    static int gasnete_coll_pf_bcast_AG(gasnete_coll_op_t *op) {
+    /* bcast Get: all nodes perform uncoordinated gets */
+    static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op) {
       gasnete_coll_generic_data_t *data = op->data;
-      gasnete_coll_broadcast_args_t *args = &(data->args.broadcast);
+      const gasnete_coll_broadcast_args_t *args = &(data->args.broadcast);
       int result = 0;
 
       switch (data->state) {
@@ -767,9 +796,10 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       return result;
     }
 
-    static int gasnete_coll_pf_bcast_RP(gasnete_coll_op_t *op) {
+    /* bcast Put: root node performs carefully ordered gets */
+    static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op) {
       gasnete_coll_generic_data_t *data = op->data;
-      gasnete_coll_broadcast_args_t *args = &(data->args.broadcast);
+      const gasnete_coll_broadcast_args_t *args = &(data->args.broadcast);
       int result = 0;
 
       switch (data->state) {
@@ -779,20 +809,23 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	  }
 
           if (gasnete_mynode == args->srcnode) {
-	    gasnet_node_t i;
 	    void   *src   = args->src;
 	    void   *dst   = args->dst;
 	    size_t nbytes = args->nbytes;
 
 	    /* Queue PUTS in an NBI access region */
 	    gasnet_begin_nbi_accessregion();
-	    /* Put to nodes to the "right" of ourself */
-	    for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
-	      gasnet_put_nbi_bulk(i, dst, src, nbytes);
-	    }
-	    /* Put to nodes to the "left" of ourself */
-	    for (i = 0; i < gasnete_mynode; ++i) {
-	      gasnet_put_nbi_bulk(i, dst, src, nbytes);
+	    {
+	      int i;
+
+	      /* Put to nodes to the "right" of ourself */
+	      for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+	        gasnet_put_nbi_bulk(i, dst, src, nbytes);
+	      }
+	      /* Put to nodes to the "left" of ourself */
+	      for (i = 0; i < gasnete_mynode; ++i) {
+	        gasnet_put_nbi_bulk(i, dst, src, nbytes);
+	      }
 	    }
 	    data->handle = gasnet_end_nbi_accessregion();
 
@@ -846,13 +879,130 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = &gasnete_coll_pf_bcast_AG;
+      poll_fn = &gasnete_coll_pf_bcast_Get;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td);
     }
 #endif
 
 #ifndef GASNETE_COLL_BROADCAST_M_OVERRIDE
+    /* bcastM Get: all nodes perform uncoordinated gets */
+    static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op) {
+      gasnete_coll_generic_data_t *data = op->data;
+      const gasnete_coll_broadcastM_args_t *args = &(data->args.broadcastM);
+      int result = 0;
+
+      switch (data->state) {
+ 	case 0:
+	  if (!gasnete_coll_generic_insync(data)) {
+	    break;
+	  }
+
+	  gasnet_begin_nbi_accessregion();
+	  {
+            int i;
+	    void * const *p = args->dstlist + gasnete_coll_my_1st_image;
+	    for (i = 0; i < gasnete_coll_my_images; ++i, ++p) {
+	      gasnet_get_nbi_bulk(*p, args->srcnode, args->src, args->nbytes);
+	    }
+	  }
+	  data->handle = gasnet_end_nbi_accessregion();
+	  data->state = 1;
+
+	case 1:
+          if (!gasnete_coll_generic_syncnb(data)) {
+	    break;
+	  }
+	  data->state = 2;
+
+	case 2:
+	  if (!gasnete_coll_generic_outsync(data)) {
+	    break;
+	  }
+
+  	  gasnete_coll_generic_free(data);
+	  result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+      }
+
+      return result;
+    }
+
+    /* bcastM Put: root node performs carefully ordered gets */
+    static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op) {
+      gasnete_coll_generic_data_t *data = op->data;
+      const gasnete_coll_broadcastM_args_t *args = &(data->args.broadcastM);
+      int result = 0;
+
+      switch (data->state) {
+ 	case 0:
+	  if (!gasnete_coll_generic_insync(data)) {
+	    break;
+	  }
+
+          if (gasnete_mynode == args->srcnode) {
+	    void   *src   = args->src;
+	    size_t nbytes = args->nbytes;
+	    int i, j, limit;
+	    void * const *p;
+
+	    /* Queue PUTS in an NBI access region */
+	    gasnet_begin_nbi_accessregion();
+	    {
+	      /* Put to nodes to the "right" of ourself */
+	      if (gasnete_mynode < gasnete_nodes - 1) {
+	        p = args->dstlist + gasnete_coll_all_1st_image[gasnete_mynode + 1];
+	        for (i = gasnete_mynode + 1; i < gasnete_nodes; ++i) {
+		  /* XXX: use VIS extensions here */
+		  limit = gasnete_coll_all_images[i];
+		  for (j = 0; j < limit; ++j) {
+	            gasnet_put_nbi_bulk(i, *p, src, nbytes);
+		    ++p;
+		  }
+	        }
+	      }
+	      /* Put to nodes to the "left" of ourself */
+	      if (gasnete_mynode != 0) {
+	        p = args->dstlist + 0;
+	        for (i = 0; i < gasnete_mynode; ++i) {
+		  /* XXX: use VIS extensions here */
+		  limit = gasnete_coll_all_images[i];
+		  for (j = 0; j < limit; ++j) {
+	            gasnet_put_nbi_bulk(i, *p, src, nbytes);
+		    ++p;
+		  }
+	        }
+	      }
+	    }
+	    data->handle = gasnet_end_nbi_accessregion();
+
+	    /* Do local copy LAST, perhaps overlapping with communication */
+	    p = args->dstlist + gasnete_coll_my_1st_image;
+	    limit = gasnete_coll_my_images;
+	    for (j = 0; j < limit; ++j) {
+	      GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes); 
+	      ++p;
+	    }
+	  }
+	  data->state = 1;
+
+	case 1:
+          if ((gasnete_mynode == args->srcnode) && !gasnete_coll_generic_syncnb(data)) {
+	    break;
+	  }
+	  data->state = 2;
+
+	case 2:
+	  if (!gasnete_coll_generic_outsync(data)) {
+	    break;
+	  }
+
+  	  gasnete_coll_generic_free(data);
+	  result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+      }
+
+      return result;
+    }
+
     extern gasnet_coll_handle_t
     gasnete_coll_broadcastM_nb(gasnet_team_handle_t team,
                                void *dstlist[],
@@ -880,8 +1030,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = NULL;
-      gasneti_fatalerror("broadcastM_nb unimplemented");
+      poll_fn = &gasnete_coll_pf_bcastM_Put;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td);
     }

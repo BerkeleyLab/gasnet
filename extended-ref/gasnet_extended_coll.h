@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/05/26 00:31:40 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2004/05/26 00:38:03 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,6 +42,28 @@
 /* Forward type decls and typedefs: */
 struct gasnete_coll_op_t_;
 typedef struct gasnete_coll_op_t_ gasnete_coll_op_t;
+
+/*---------------------------------------------------------------------------------*/
+
+/* Functions for computational collectives */
+
+#ifndef GASNET_COLL_HANDLE_T
+  typedef gasnet_handlerarg_t gasnet_coll_fn_handle_t;
+#endif
+
+typedef enum {
+    GASNET_COLL_FN_KIND_REDUCE,
+    GASNET_COLL_FN_KIND_SORT
+} gasnet_coll_fn_kind_t;
+
+typedef void (*gasnet_coll_fn_t)();
+
+typedef struct {
+    gasnet_coll_fn_handle_t	handle;	/* output only */
+    gasnet_coll_fn_t		fnptr;
+    gasnet_coll_fn_kind_t	kind;
+    unsigned int		flags;
+} gasnet_coll_fn_entry_t;
 
 /*---------------------------------------------------------------------------------*/
 
@@ -245,14 +267,25 @@ extern void gasnete_coll_poll(void);
 
 /*---------------------------------------------------------------------------------*/
 
-/* gasnet_coll_init(const size_t images[], int init_flags)
+/* gasnet_coll_init: Initialize GASNet collectives
  *
- *   images:     Array of gasnet_nodes() elements giving the number of
- *               images present on each node.
- *   init_flags: Presently unused.  Must be 0.
+ *  images:     Array of gasnet_nodes() elements giving the number of
+ *              images present on each node.  This must have the
+ *              same contents on all nodes or the behavior is undefined.
+ *  fn_tbl:     An array of type gasnet_coll_fn_entry_t, specifying
+ *              the functions which can be invoked for the
+ *              computational collectives.  This may safely differ
+ *              in contents (but not size) across nodes.
+ *              Upon return the 'handle' field of each entry is set
+ *              to the value that must be passed to the collective.
+ *  fn_count:   The number of entries in 'fn_tbl'.  Must agree across
+ *              all nodes or the behavior is undefined.
+ *  init_flags: Presently unused.  Must be 0.
  */
 #ifndef gasnet_coll_init
-  extern void gasnete_coll_init(const size_t images[], int init_flags);
+  extern void gasnete_coll_init(const size_t images[],
+		  		gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
+		  		int init_flags);
   #define gasnet_coll_init gasnete_coll_init
 #endif
 
