@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/22 00:14:12 $
- * $Revision: 1.2.2.34 $
+ *     $Date: 2003/04/28 18:29:41 $
+ * $Revision: 1.2.2.35 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -199,7 +199,6 @@ static uintptr_t gasnetc_max_pinnable(void) {
   uintptr_t lo, hi;
   uintptr_t mmap_size, pin_size;
   void *addr;
-  int rc;
 
   /* binary search for largest mmap() region */
   lo = GASNET_PAGESIZE;
@@ -247,11 +246,9 @@ static uintptr_t gasnetc_max_pinnable(void) {
 static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_addr_t	*local_addr;
   gasnetc_addr_t	*remote_addr;
-  VAPI_cqe_num_t	rcv_buf_count;
-  VAPI_cqe_num_t	snd_buf_count;
   IB_port_t		port;
   VAPI_ret_t		vstat;
-  int 			i, rc;
+  int 			i;
 
   /*  check system sanity */
   gasnetc_check_config();
@@ -767,7 +764,6 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 }
 
 extern int gasnetc_AMPoll() {
-  int retval;
   GASNETC_CHECKATTACH();
 
   gasnetc_rcv_poll();
