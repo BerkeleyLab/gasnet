@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/05/20 19:15:54 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2003/06/12 02:04:47 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -40,9 +40,8 @@ int gasnetc_rcv_post(gasnetc_rbuf_t *rbuf) {
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_processPacket)
-void gasnetc_processPacket(gasnetc_rbuf_t *rbuf) {
+void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
   gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
-  uint32_t flags = rbuf->flags;
   gasnet_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
   gasnetc_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
@@ -53,6 +52,8 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf) {
 
   rbuf->replyIssued = 0;
   rbuf->handlerRunning = 1;
+  rbuf->flags = flags;
+
   switch (category) {
     case gasnetc_Short:
       { 
@@ -95,6 +96,7 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf) {
     default:
       assert(0);
   }
+  
   rbuf->handlerRunning = 0;
 }
 
@@ -114,9 +116,27 @@ void gasnetc_rcv_reap(int limit) {
     if (vstat == VAPI_OK) {
       if (comp.status == VAPI_SUCCESS) {
         gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp.id;
-        rbuf->flags = comp.imm_data; 
-        gasnetc_processPacket(rbuf);
+	uint32_t flags = comp.imm_data;
+
+        /* XXX-FC: process any credit recvd
+         * if (GASNETC_MSG_ISREQUEST(flags)) {
+         *   rbuf->cep.credits++;
+         * }
+         */
+
+        gasnetc_processPacket(rbuf, flags);
+
+	/* XXX-FC: check for need to send reply
+	 * replyIssued = rbuf->replyIssued;
+	 */
+
         gasnetc_rcv_post(rbuf);
+
+        /* XXX-FC: send implicit reply if none sent explicitly
+         * if (!replyIssued) {
+         *    gasnetc_AMReplyShortM((gasnet_token_t)rbuf, ?handler?, 0);
+         * }
+         */
       } else {
 #if 1
         fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
@@ -228,8 +248,7 @@ extern void gasnetc_rcv_poll(void) {
 extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags) {
   gasnetc_rbuf_t	rbuf;
 
-  rbuf.flags      = flags;
   rbuf.rr_sg.addr = (uintptr_t)buffer;
 
-  gasnetc_processPacket(&rbuf);
+  gasnetc_processPacket(&rbuf, flags);
 }

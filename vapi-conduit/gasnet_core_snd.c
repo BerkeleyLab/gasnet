@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/05/28 18:59:25 $
- * $Revision: 1.1.2.34 $
+ *     $Date: 2003/06/12 02:04:47 $
+ * $Revision: 1.1.2.35 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -548,6 +548,10 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs, gasneti_atomic_t *mem_oust, va_list argptr) {
+  /* XXX-FC: obtain credit for the send
+   * do { AM_Poll() } until ( get_request_credit() );
+   */
+
   return gasnetc_ReqRepGeneric(category, 1, dest, handler,
                                src_addr, nbytes, dst_addr,
                                numargs, mem_oust, argptr);
