@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/20 21:28:28 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/06/20 21:29:43 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -413,7 +413,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
           pthread_mutex_unlock(&cep->lock);
           break;
         }
-fprintf(stderr, "spin...\n");
         pthread_mutex_unlock(&cep->lock);
         gasnetc_sndrcv_poll();
       } while (1);
