@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/17 20:38:24 $
- * $Revision: 1.1.2.30 $
+ *     $Date: 2003/06/18 00:18:15 $
+ * $Revision: 1.1.2.31 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,19 +82,6 @@ typedef enum {
   gasnetc_Long=2,
   gasnetc_System=3
 } gasnetc_category_t;
-
-#define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx)	\
-  (uint32_t)(  (((srcidx) & 0xffff) << 16)	\
-	     | (((hand)   & 0xff)   << 8 )	\
-	     | (((nargs)  & 0x1f)   << 3 )	\
-	     | ((!(isreq) & 0x1)    << 2 )	\
-	     | (((cat)    & 0x3)         ))
-
-#define GASNETC_MSG_NUMARGS(flags)	(((flags) >> 3) & 0x1f)
-#define GASNETC_MSG_ISREQUEST(flags)	(!((flags) & 0x4))
-#define GASNETC_MSG_CATEGORY(flags)	((gasnetc_category_t)((flags) & 0x3))
-#define GASNETC_MSG_HANDLERID(flags)	((gasnet_handler_t)((flags) >> 8))
-#define GASNETC_MSG_SRCIDX(flags)	((gasnet_node_t)((flags) >> 16))
 
 #define GASNETC_MSG_MED_OFFSET(nargs)	\
 	(offsetof(gasnetc_medmsg_t,args) + 4 * (nargs + ((nargs & 0x1) ^ ((GASNETC_MEDIUM_HDRSZ>>2) & 0x1))))
@@ -179,8 +166,19 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 #define GASNETC_SND_WQE GASNETC_SQ_SIZE /* maximum unreaped entries on a snd work queue */
 #define GASNETC_SND_SG  1               /* maximum number of segments to gather on send */
 
-#define GASNETC_RCV_WQE 2               /* maximum unreaped entries on a rcv work queue */
+#define GASNETC_RCV_WQE 4               /* maximum unreaped entries on a rcv work queue */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
+
+/* Define non-zero to use AM-level flow control.
+ * Otherwise IB-level flow control will be used, which can be sub-optimal.
+ */
+#define GASNETC_AM_FLOWCTRL		1
+
+/* Define non-zero to enable a progress thread for receiving AMs . */
+#define GASNETC_RCV_THREAD		0
+
+/* Define non-zero to enable polling for receiving AMs . */
+#define GASNETC_RCV_POLL		1
 
 /* puts <= this size will be done w/ VAPI-level copy */
 #define GASNETC_PUT_INLINE_LIMIT	72
@@ -188,30 +186,23 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 /* puts <= this size will be done w/ local copies iff sender will wait for local completion */
 #define GASNETC_PUT_COPY_LIMIT		4096
 
-#define GASNETC_SND_REAP_LIMIT	(GASNETC_CQ_SIZE / 4)
+#define GASNETC_SND_REAP_LIMIT	(GASNETC_SQ_SIZE / 4)
 #define GASNETC_RCV_REAP_LIMIT	16
 
 /* Structure for a cep (connection end-point)
  * Include whatever per-node data we need.
  */
 typedef struct {
-  /* ### Need more here */
+  #if GASNETC_AM_FLOWCTRL
+    pthread_mutex_t	lock;
+    gasneti_atomic_t	req_credits;
+  #endif
   VAPI_qp_hndl_t	qp_handle;
   #if defined(GASNET_SEGMENT_FAST)
     /* RKey for the segment, registered at attach time */
     VAPI_rkey_t		rkey;
   #endif
 } gasnetc_cep_t;
-
-/* Description of a receive buffer */
-typedef struct {
-  gasnetc_cep_t		*cep;
-  int			replyIssued;
-  int			handlerRunning;
-  uint32_t		flags;		/* filled in at recv time */
-  VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
-  VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
-} gasnetc_rbuf_t;
 
 /* Description of a registered (pinned) memory region */
 typedef struct {
