@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.9 2003/04/30 16:27:14 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v 1.2.2.10 2003/06/16 23:05:35 phargrov Exp $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -24,7 +24,6 @@ filelist =                   \
       gasnet_core_help.h     \
       gasnet_core_internal.h \
       gasnet_extended.c      \
-      gasnet_extended.h      \
       gasnet_extended_fwd.h  \
       gasnet_extended_internal.h
 
