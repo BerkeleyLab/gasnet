@@ -1,6 +1,6 @@
 GASNet elan-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.3 $
+$Revision: 1.3.8.1 $
 
 User Information:
 -----------------
@@ -37,12 +37,13 @@ Optional compile-time settings:
 Known problems:
 ---------------
 
-* Dual-rail doesn't work due to bugs in elanlib - you should only use only a
- single rail on dual-rail hardware.
+* Dual-rail doesn't work on older versions of elan3/libelan due to bugs in libelan - 
+  If you run into trouble on dual-rail hardware, try disabling dual-rail operation.
 
-* Bugs in elanlib queues can cause AM messages between GASNet nodes sharing an
- elan NIC to deadlock - you should only run a single GASNet process per elan
- NIC (and use pthreads to get concurrency on SMP nodes).
+* On some older versions of libelan/elan3, libelan queues can cause AM messages 
+  between GASNet nodes sharing an elan NIC to deadlock - if you see deadlocks,
+  try running only a single GASNet process per elan NIC (and use pthreads to 
+  get concurrency on SMP nodes).
 
 * See the Berkeley UPC Bugzilla server for details on known bugs.
 

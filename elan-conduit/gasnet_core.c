@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2004/10/30 12:33:54 $
- * $Revision: 1.50.2.1 $
+ *     $Date: 2004/11/04 11:12:57 $
+ * $Revision: 1.50.2.2 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,7 @@
   #if HAVE_RMS_RMSAPI_H
     #include <rms/rmsapi.h> /* for RMS calls in gasnetc_exit */
   #endif
-  #if HAVE_SLURM_SLURM_H
+  #if HAVE_SLURM_SLURM_H && HAVE_SLURM_KILL_JOB
     #include <slurm/slurm.h> /* for slurm calls in gasnetc_exit */
   #endif
   /* signal used to propagate exit notification across job using RMS global signalling */
@@ -663,15 +663,24 @@ static void gasnetc_atexit(void) {
       retval = rms_killResource(resourceid, sig); /* global signal */
       gasneti_fatalerror("rms_killResource(%i) failed twice: %s", resourceid, rms_errorString(retval));
     }
-  #elif HAVE_SLURM_KILL_JOB
+  #elif defined(SLURM_SCANCEL_PATH) || HAVE_SLURM_KILL_JOB
     batchid = gasnet_getenv("SLURM_JOBID");
     if (!batchid) gasneti_fatalerror("failed to getenv(SLURM_JOBID)");
 
     resourceid = atoi(batchid);
     if (resourceid <= 0) gasneti_fatalerror("bad SLURM_JOBID: %s", batchid);
-    retval = slurm_kill_job(resourceid, sig, 0); /* global signal */
-    if (retval) 
-      gasneti_fatalerror("slurm_kill_job(%i) failed: %s", resourceid, slurm_strerror(slurm_get_errno()));
+    #ifdef SLURM_SCANCEL_PATH
+    { /* prefer the scancel system call mechanism, 
+         because slurm_kill_job malfunctions in static executables */
+      char cmd[1024];
+      sprintf(cmd,"%s --signal=%i %s", _STRINGIFY(SLURM_SCANCEL_PATH), sig, batchid);
+      system(cmd);
+    }
+    #else /* HAVE_SLURM_KILL_JOB */
+      retval = slurm_kill_job(resourceid, sig, 0); /* global signal */
+      if (retval) 
+        gasneti_fatalerror("slurm_kill_job(%i) failed: %s", resourceid, slurm_strerror(slurm_get_errno()));
+    #endif
   #else
     #error unknown signalling exit mechanism..
   #endif

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2004/11/02 07:28:08 $
-# $Revision: 1.208.2.2 $
+#     $Date: 2004/11/04 11:12:54 $
+# $Revision: 1.208.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.208.2.2 $)
+AC_REVISION($Revision: 1.208.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1355,7 +1355,16 @@ if test $enabled_elan = yes; then
   AC_CHECK_LIB(rmsapi, rms_killResource, 
      AC_DEFINE(HAVE_RMS_KILLRESOURCE)
      RMSLIBS="$RMSLIBS -lrmsapi")
-  # slurm is used for SLURM signalling exit
+  # look for SLURM scancel
+  AC_MSG_CHECKING(for SLURM scancel)
+  SLURM_SCANCEL_PATH=`which scancel 2> /dev/null`
+  if test "`$SLURM_SCANCEL_PATH -V 2> /dev/null | grep slurm`" != "" ; then
+      AC_DEFINE_UNQUOTED(SLURM_SCANCEL_PATH,$SLURM_SCANCEL_PATH)
+      AC_MSG_RESULT($SLURM_SCANCEL_PATH)
+  else
+      AC_MSG_RESULT(no)
+  fi
+  # slurm API is used for SLURM signalling exit
   AC_CHECK_HEADERS(slurm/slurm.h)
   AC_CHECK_LIB(slurm, slurm_kill_job, 
      AC_DEFINE(HAVE_SLURM_KILL_JOB)
