@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/04/21 19:43:11 $
- * $Revision: 1.2.2.11 $
+ *     $Date: 2003/04/25 00:03:08 $
+ * $Revision: 1.2.2.12 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -496,7 +496,8 @@ extern int gasnetc_AMReplyLongM(
   RDMA ops
   =====================
  */
-extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, uintptr_t nbytes, gasneti_atomic_t *mem_oust, gasneti_atomic_t *req_oust);
+extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, uintptr_t nbytes, gasneti_atomic_t *mem_oust, gasneti_atomic_t *req_oust);
+extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *req_oust);
 extern void gasnetc_rdma_wait(gasneti_atomic_t *req_oust);
 extern int  gasnetc_rdma_test(gasneti_atomic_t *req_oust);
 /* ------------------------------------------------------------------------------------ */
