@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/04/15 22:32:45 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/04/21 19:43:11 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,7 +45,7 @@ typedef struct _gasnete_eop_t {
   uint8_t type;                   /*  type tag */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
-  gasneti_atomic_t counter;
+  gasneti_atomic_t req_oust;
 } gasnete_eop_t;
 
 typedef struct _gasnete_iop_t {
@@ -58,8 +58,8 @@ typedef struct _gasnete_iop_t {
   /*  make sure the counters live on different cache lines for SMP's */
   uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(struct _gasnete_iop_t *) - sizeof(gasneti_atomic_t) - 4];
 
-  gasneti_atomic_t get_counter;     /*  count of get ops outstanding */
-  gasneti_atomic_t put_counter;     /*  count of put ops outstanding */
+  gasneti_atomic_t get_req_oust;     /*  count of get ops outstanding */
+  gasneti_atomic_t put_req_oust;     /*  count of put ops outstanding */
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
