@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/05/13 18:01:02 $
- * $Revision: 1.1.2.21 $
+ *     $Date: 2003/05/20 21:06:29 $
+ * $Revision: 1.1.2.22 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -737,8 +737,8 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
   thread->valget_free = handle;       /*  safe because this thread is under our control */
 
-  gasnetc_counter_wait(&handle->eop->req_oust);
-  gasnete_eop_free(handle->eop);
+  gasnete_wait_syncnb((gasnet_handle_t)handle->eop);
+
   val = handle->val;
   return val;
 }
