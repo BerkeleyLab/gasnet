@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/01 22:07:36 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2003/04/01 22:19:33 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -232,6 +232,7 @@ extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 extern void gasnetc_snd_init(void);
 extern void gasnetc_snd_fini(void);
 extern gasnetc_snd_desc_t *gasnetc_rdma_put(gasnetc_cep_t *cep, uintptr_t src, uintptr_t dst, uintptr_t nbytes);
+extern void gasnetc_snd_wait(gasnetc_snd_desc_t *desc);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,

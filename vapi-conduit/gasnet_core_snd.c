@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/01 22:07:36 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/04/01 22:19:33 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -221,6 +221,18 @@ extern void gasnetc_snd_fini(void) {
    *   gasnetc_snd_reg
    *   comp_eventh for snd_cq
    */
+}
+
+/*
+ * Block until a given send descriptor is completed
+ */
+extern void gasnetc_snd_wait(gasnetc_snd_desc_t *desc) {
+  if (desc != NULL) {
+    /* ### implement this */
+    abort();
+  } else {
+    /* NULL is not an error.  We return immediately. */
+  }
 }
 
 /* Perform an RDMA put
