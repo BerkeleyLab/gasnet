@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/07/03 22:21:04 $
- * $Revision: 1.2 $
+ *     $Date: 2003/08/04 11:06:55 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <sched.h>
 #include <limits.h>
+
 
 /* ------------------------------------------------------------------------------------ *
  *  Global variables                                                                    *
@@ -109,6 +110,22 @@ static gasnetc_mutex_t			gasnetc_rbuf_lock = GASNETC_MUTEX_INITIALIZER;
 	     | ((!(isreq)         ) << 2 )      \
 	     | (((cat)    & 0x3   )      ))
 
+/* Work around apparent thread-safety bug in VAPI_poll_cq (and peek as well?) */
+#if 1
+  static gasnetc_mutex_t gasnetc_cq_poll_lock = GASNETC_MUTEX_INITIALIZER;
+  #define CQ_LOCK	gasnetc_mutex_lock(&gasnetc_cq_poll_lock, GASNETC_ANY_PAR);
+  #define CQ_UNLOCK	gasnetc_mutex_unlock(&gasnetc_cq_poll_lock, GASNETC_ANY_PAR);
+#else
+  #define CQ_LOCK
+  #define CQ_UNLOCK
+#endif
+
+#define gasnetc_poll_cq(CQ, COMP_P)	VAPI_poll_cq(gasnetc_hca, (CQ), (COMP_P))
+#define gasnetc_peek_cq(CQ, N)		EVAPI_peek_cq(gasnetc_hca, (CQ), (N))
+
+#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0)
+#define gasnetc_poll_snd()		gasnetc_do_poll(0,1)
+#define gasnetc_poll_both()		gasnetc_do_poll(1,1)
 
 GASNET_INLINE_MODIFIER(gasnetc_get_rbuf)
 gasnetc_rbuf_t *gasnetc_get_rbuf(void) {
@@ -131,73 +148,6 @@ void gasnetc_put_rbuf(gasnetc_rbuf_t *rbuf) {
     rbuf->next = gasnetc_rbuf_free;
     gasnetc_rbuf_free = rbuf;
     gasnetc_mutex_unlock(&gasnetc_rbuf_lock, GASNETC_CLI_PAR);
-  }
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_pre_snd)
-void gasnetc_pre_snd(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
-  assert(cep);
-  assert(req);
-  assert(sbuf);
-
-  /* check for attempted loopback traffic */
-  assert(cep != &gasnetc_cep[gasnetc_mynode]);
-
-  /* setup some invariant fields */
-  req->sr_desc.id        = (uintptr_t)sbuf;
-  req->sr_desc.comp_type = VAPI_SIGNALED;		/* XXX: is this correct? */
-  req->sr_desc.sg_lst_p  = &req->sr_sg;
-  req->sr_desc.set_se    = FALSE;			/* XXX: is this correct? */
-  sbuf->send_sema = &(cep->send_sema);
-
-  /* loop until space is available on the SQ */
-  { 
-    int first_try = 1;
-    GASNETC_TRACE_WAIT_BEGIN();
-
-    while (!gasnetc_sema_trydown(&(cep->send_sema), GASNETC_ANY_PAR)) {
-      first_try = 0;
-      gasnetc_snd_poll(); /* try to reap the resources we need */
-    }
-    if_pf (!first_try) {
-      GASNETC_TRACE_WAIT_END(POST_SR_STALL);
-    }
-  }
-}
-
-/* Post a work request to the send queue of the given endpoint */
-GASNET_INLINE_MODIFIER(gasnetc_snd_post)
-void gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
-  VAPI_ret_t vstat;
-
-  gasnetc_pre_snd(cep, req, sbuf);
-
-  vstat = VAPI_post_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
-
-  if_pt (vstat == VAPI_OK) {
-    /* SUCCESS, the request is posted */
-  } else if (vstat == VAPI_EINVAL_QP_HNDL) {
-    /* race against disconnect in another thread (harmless) */
-  } else {
-    gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
-  }
-}
-
-/* Post an INLINE work request to the send queue of the given endpoint */
-GASNET_INLINE_MODIFIER(gasnetc_snd_post_inline)
-void gasnetc_snd_post_inline(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
-  VAPI_ret_t vstat;
-
-  gasnetc_pre_snd(cep, req, sbuf);
-
-  vstat = EVAPI_post_inline_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
-
-  if_pt (vstat == VAPI_OK) {
-    /* SUCCESS, the request is posted */
-  } else if (vstat == VAPI_EINVAL_QP_HNDL) {
-    /* race against disconnect in another thread (harmless) */
-  } else {
-    gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
   }
 }
 
@@ -317,32 +267,24 @@ void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
-GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
-gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
-  gasnetc_sbuf_t *head, *tail;
+static int gasnetc_snd_reap(int limit, gasnetc_sbuf_t **tail_p) {
+  VAPI_ret_t vstat;
+  VAPI_wc_desc_t comp;
+  gasnetc_sbuf_t *tail = *tail_p;
   int count;
   
-  head = tail = NULL;
-  for (count = 0; count < GASNETC_SND_REAP_LIMIT; ++count) {
-    VAPI_ret_t vstat;
-    VAPI_wc_desc_t comp;
+  for (count = 0; count < limit; ++count) {
+    CQ_LOCK;
+    vstat = gasnetc_poll_cq(gasnetc_snd_cq, &comp);
+    CQ_UNLOCK;
 
-    #if 1
-    {
-      /* It seems that VAPI_poll_cq() is not thread-safe */
-      static gasnetc_mutex_t poll_lock = GASNETC_MUTEX_INITIALIZER;
-      gasnetc_mutex_lock(&poll_lock, GASNETC_ANY_PAR);
-      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-      gasnetc_mutex_unlock(&poll_lock, GASNETC_ANY_PAR);
-    }
-    #else
-      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-    #endif
-
-    if (vstat == VAPI_OK) {
-      if (comp.status == VAPI_SUCCESS) {
+    if_pt (vstat == VAPI_CQ_EMPTY) {
+      /* CQ empty - we are done */
+      break;
+    } else if_pt (vstat == VAPI_OK) {
+      if_pt (comp.status == VAPI_SUCCESS) {
         gasnetc_sbuf_t *sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
-        if (sbuf) {
+        if_pt (sbuf) {
 	  /* resource accounting */
 	  gasnetc_sema_up(sbuf->send_sema);
 
@@ -365,13 +307,11 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
 	  }
 	  
 	  /* keep a list of reaped sbufs */
-	  if (!tail) {
-	    tail = sbuf;
-	  }
-	  sbuf->next = head;
-	  head = sbuf;
+	  tail->next = sbuf;
+	  tail = sbuf;
         } else {
           fprintf(stderr, "@ %d> snd_reap reaped NULL sbuf\n", gasnetc_mynode);
+          break;
         }
       } else {
 #if 1 
@@ -381,37 +321,43 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
         }
 #endif
         /* ### What needs to be done here? */
+        break;
       }
     } else {
-      assert(vstat == VAPI_CQ_EMPTY);
-      break;
+      assert(0);
     }
   }
 
   if (count)
     GASNETI_TRACE_EVENT_VAL(C,SND_REAP,count);
 
+  tail->next = NULL;
   *tail_p = tail;
-  return head;
+
+  return count;
 }
 
 /* allocate a send buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   int first_try = 1;
-  gasnetc_sbuf_t *sbuf, *tail;
+  gasnetc_sbuf_t *sbuf;
 
   GASNETC_TRACE_WAIT_BEGIN();
   GASNETI_TRACE_EVENT(C,GET_SBUF);
 
   while (1) {
     /* try to get an unused sbuf by reaping the send CQ */
-    sbuf = gasnetc_snd_reap(&tail);
-    if (sbuf) {
-      if (sbuf->next) {
+    gasnetc_sbuf_t dummy, *tail = &dummy;
+    int count;
+
+    count = gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT, &tail);
+    if_pt (count > 0) {
+      sbuf = dummy.next;
+      if (count > 1) {
         gasnetc_put_sbuf(sbuf->next, tail);
       }
-      break;
+      break;	/* Have an sbuf - leave the loop */
     }
 
     /* try to get an unused sbuf from the free list */
@@ -420,7 +366,7 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     if (sbuf != NULL) {
       gasnetc_sbuf_free = sbuf->next;
       gasnetc_mutex_unlock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
-      break;	/* Have a decsriptor - leave the loop */
+      break;	/* Have an sbuf - leave the loop */
     }
     gasnetc_mutex_unlock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
 
@@ -443,6 +389,193 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
 
   return sbuf;
 }
+
+GASNET_INLINE_MODIFIER(gasnetc_rcv_am)
+void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
+  gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp->id;
+  uint32_t flags = comp->imm_data;
+  gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
+  gasnetc_rbuf_t *spare;
+
+  /* If possible, post a replacement buffer right away. */
+  spare = (*spare_p) ? (*spare_p) : gasnetc_get_rbuf();
+  if_pt (spare) {
+    /* This is the normal case, in which we have sufficient resources to post
+     * a replacement buffer before processing the recv'd buffer.  That way
+     * we are certain that a buffer is in-place before the potential reply
+     * sends a credit to our peer, which then could use the buffer
+     */
+    gasnetc_rcv_post(cep, spare, GASNETC_MSG_CREDIT(flags));
+    *spare_p = rbuf;	/* recv'd rbuf becomes the spare for next pass (if any) */
+  } else {
+    /* This is the reduced-performance case.  Because we don't have any "spare" rbuf
+     * available to post, there is the possibility that a "bad" sequence of events could
+     * take place:
+     *   1) Assume that all the rbuf posted to the cep have been consumed by AMs
+     *   2) Assume the current AM is a request
+     *   3) Either the request handler or this function sends a reply
+     *  then     
+     *   4) The peer receives the reply and thus receives a credit
+     *   5) The credit allows the peer to send us another AM request
+     *   6) This additional request arrives before the current rbuf is reposted to the cep
+     *   7) The HCA is unable, until the current rbuf is reposted, to complete the transfer
+     *   8) IB's RNR (Reciever Not Ready) flow-control kicks in, stalling our peer's send queue
+     *  Fortunetely this is not only an unlikely occurance, it is also non-fatal.
+     *  Eventually, the rbuf will be reposted and the stall will end.
+     */
+  }
+
+  /* Now process the packet */
+  gasnetc_processPacket(rbuf, flags);
+
+  /* Finalize flow control */
+  if_pf (rbuf->needReply) {
+    int retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, 1, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
+    assert(retval == GASNET_OK);
+  }
+  if_pf (!spare) {
+    /* This is the fallback (reduced performance) case.
+     * Because no replacement rbuf was posted earlier, we must repost the recv'd rbuf now.
+     */
+    gasnetc_rcv_post(cep, rbuf, GASNETC_MSG_CREDIT(flags));
+  }
+}
+
+static int gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
+  VAPI_ret_t vstat;
+  VAPI_wc_desc_t comp;
+  int count;
+
+  for (count = 0; count < limit; ++count) {
+    CQ_LOCK;
+    vstat = gasnetc_poll_cq(gasnetc_rcv_cq, &comp);
+    CQ_UNLOCK;
+
+    if_pt (vstat == VAPI_CQ_EMPTY) {
+      /* CQ empty - we are done */
+      break;
+    } else if_pt (vstat == VAPI_OK) {
+      if_pt (comp.status == VAPI_SUCCESS) {
+        gasnetc_rcv_am(&comp, spare_p);
+      } else {
+#if 1
+        fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+        while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
+          fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
+        }
+#endif
+        /* ### What needs to be done here? */
+	break;
+        assert(0);
+      }
+    } else {
+      assert(0);
+    }
+  } 
+
+  if (count)
+    GASNETI_TRACE_EVENT_VAL(C,RCV_REAP,count);
+
+  return count;
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_do_poll)
+void gasnetc_do_poll(int poll_rcv, int poll_snd) {
+  if (poll_rcv) {
+    gasnetc_rbuf_t *spare = NULL;
+
+    (void)gasnetc_rcv_reap(GASNETC_RCV_REAP_LIMIT, &spare);
+    gasnetc_put_rbuf(spare);
+  }
+
+  if (poll_snd) {
+    gasnetc_sbuf_t dummy, *tail = &dummy;
+    int count;
+
+    count = gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT, &tail);
+    if (count > 0) {
+        gasnetc_put_sbuf(dummy.next, tail);
+    }
+  }
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_pre_snd)
+void gasnetc_pre_snd(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
+  assert(cep);
+  assert(req);
+  assert(sbuf);
+
+  /* check for attempted loopback traffic */
+  assert(cep != &gasnetc_cep[gasnetc_mynode]);
+
+  /* setup some invariant fields */
+  req->sr_desc.id        = (uintptr_t)sbuf;
+  req->sr_desc.comp_type = VAPI_SIGNALED;		/* XXX: is this correct? */
+  req->sr_desc.sg_lst_p  = &req->sr_sg;
+  req->sr_desc.set_se    = FALSE;			/* XXX: is this correct? */
+  sbuf->send_sema = &(cep->send_sema);
+
+  /* loop until space is available on the SQ */
+  if_pf (!gasnetc_sema_trydown(&cep->send_sema, GASNETC_ANY_PAR)) {
+    GASNETC_TRACE_WAIT_BEGIN();
+    do {
+        gasnetc_poll_snd();
+    } while (!gasnetc_sema_trydown(&cep->send_sema, GASNETC_ANY_PAR));
+    GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
+  }
+}
+
+/* Post a work request to the send queue of the given endpoint */
+GASNET_INLINE_MODIFIER(gasnetc_snd_post)
+void gasnetc_snd_post(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
+  VAPI_ret_t vstat;
+
+  gasnetc_pre_snd(cep, req, sbuf);
+
+  vstat = VAPI_post_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
+
+  if_pt (vstat == VAPI_OK) {
+    /* SUCCESS, the request is posted */
+  } else if (vstat == VAPI_EINVAL_QP_HNDL) {
+    /* race against disconnect in another thread (harmless) */
+  } else {
+    gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
+  }
+}
+
+/* Post an INLINE work request to the send queue of the given endpoint */
+GASNET_INLINE_MODIFIER(gasnetc_snd_post_inline)
+void gasnetc_snd_post_inline(gasnetc_cep_t *cep, gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
+  VAPI_ret_t vstat;
+
+  gasnetc_pre_snd(cep, req, sbuf);
+
+  vstat = EVAPI_post_inline_sr(gasnetc_hca, cep->qp_handle, &req->sr_desc);
+
+  if_pt (vstat == VAPI_OK) {
+    /* SUCCESS, the request is posted */
+  } else if (vstat == VAPI_EINVAL_QP_HNDL) {
+    /* race against disconnect in another thread (harmless) */
+  } else {
+    gasneti_fatalerror("Got unexpected VAPI error %s while posting a send work request.", VAPI_strerror_sym(vstat));
+  }
+}
+
+#if GASNETC_RCV_THREAD
+static gasnetc_rbuf_t *gasnetc_rcv_thread_rbuf = NULL;
+static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
+			       VAPI_cq_hndl_t	cq_hndl,
+			       void		*context) {
+  VAPI_ret_t vstat;
+
+  (void)gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_thread_rbuf);
+
+  vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
+  assert(vstat == VAPI_OK);
+
+  (void)gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_thread_rbuf);
+}
+#endif
 
 GASNET_INLINE_MODIFIER(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
@@ -523,21 +656,17 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
     while (credits_needed) {
       /* Requests require credit for flow control
-       * Since the AM recv thread will never send a Request, it can't run here
        *
        * XXX: Note we should probably get the credit BEFORE we get the sbuf,
        * to avoid blocking the RDMA traffic (which also requires sbuf's).
        */
-      int first_try = 1;
-      GASNETC_TRACE_WAIT_BEGIN();
       GASNETI_TRACE_EVENT(C,GET_AMREQ_CREDIT);
 
-      while (!gasnetc_sema_trydown(&cep->credit_sema, GASNETC_CLI_PAR)) {
-        gasnetc_sndrcv_poll();
-  	first_try = 0;
-      }
-
-      if (!first_try) {
+      if_pf (!gasnetc_sema_trydown(&cep->credit_sema, GASNETC_ANY_PAR)) {
+        GASNETC_TRACE_WAIT_BEGIN();
+	do {
+          gasnetc_poll_rcv();
+	} while (!gasnetc_sema_trydown(&cep->credit_sema, GASNETC_ANY_PAR));
         GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
       }
 
@@ -560,119 +689,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
-
-GASNET_INLINE_MODIFIER(gasnetc_rcv_am)
-void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
-  gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp->id;
-  uint32_t flags = comp->imm_data;
-  gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
-  gasnetc_rbuf_t *spare;
-  int needReply;
-
-  /* If possible, post a replacement buffer right away. */
-  spare = (*spare_p) ? (*spare_p) : gasnetc_get_rbuf();
-  if_pt (spare) {
-    /* This is the normal case, in which we have sufficient resources to post
-     * a replacement buffer before processing the recv'd buffer.  That way
-     * we are certain that a buffer is in-place before the potential reply
-     * sends a credit to our peer, which then could use the buffer
-     */
-    gasnetc_rcv_post(cep, spare, GASNETC_MSG_CREDIT(flags));
-    *spare_p = rbuf;	/* recv'd rbuf becomes the spare for next pass (if any) */
-  } else {
-    /* This is the reduced-performance case.  Because we don't have any "spare" rbuf
-     * available to post, there is the possibility that a "bad" sequence of events could
-     * take place:
-     *   1) Assume that all the rbuf posted to the cep have been consumed by AMs
-     *   2) Assume the current AM is a request
-     *   3) Assume the request handler sends a reply
-     *  then     
-     *   4) The peer receives the reply and thus receives a credit
-     *   5) The credit allows the peer to send us another AM request
-     *   6) This additional request arrives before the current request handler completes
-     *      (which would allow the current rbuf to be reposted to the cep).
-     *   7) The HCA is unable, until the current rbuf is reposted, to complete the transfer
-     *   8) IB's RNR (Reciever Not Ready) flow-control kicks in, stalling our peer's send queue
-     *  Fortunetely this is not only an unlikely occurance, it is also non-fatal.
-     *  Once the current AM request handler completes (which it must do in finite time without
-     *  depending on external events) the rbuf will be reposted and the stall will end.
-     */
-  }
-
-  /* Now process the packet */
-  gasnetc_processPacket(rbuf, flags);
-
-  /* Finalize flow control */
-  needReply = rbuf->needReply;
-  if_pf (!spare) {
-    /* This is the fallback (reduced performance) case.
-     * Because no replacement rbuf was posted earlier, we must repost the recv'd rbuf now.
-     */
-    gasnetc_rcv_post(cep, rbuf, GASNETC_MSG_CREDIT(flags));
-  }
-  if_pf (needReply) {
-    int retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, 1, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
-    assert(retval == GASNET_OK);
-  }
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_rcv_reap)
-void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
-  VAPI_ret_t vstat;
-  int count;
-
-  for (count = 0; count < limit; ++count) {
-    VAPI_wc_desc_t comp;
-
-    #if 1
-    {
-      /* It seems that VAPI_poll_cq() is not thread-safe */
-      static gasnetc_mutex_t poll_lock = GASNETC_MUTEX_INITIALIZER;
-      gasnetc_mutex_lock(&poll_lock, GASNETC_ANY_PAR);
-      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-      gasnetc_mutex_unlock(&poll_lock, GASNETC_ANY_PAR);
-    }
-    #else
-      vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-    #endif
-
-    if (vstat == VAPI_OK) {
-      if (comp.status == VAPI_SUCCESS) {
-        gasnetc_rcv_am(&comp, spare_p);
-      } else {
-#if 1
-        fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
-        while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
-          fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
-        }
-#endif
-        /* ### What needs to be done here? */
-      }
-    } else {
-      assert(vstat == VAPI_CQ_EMPTY);
-      break;
-    }
-  }
-
-  if (count)
-    GASNETI_TRACE_EVENT_VAL(C,RCV_REAP,count);
-}
-
-#if GASNETC_RCV_THREAD
-static gasnetc_rbuf_t *gasnetc_rcv_thread_rbuf = NULL;
-static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
-			       VAPI_cq_hndl_t	cq_hndl,
-			       void		*context) {
-  VAPI_ret_t vstat;
-
-  gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_thread_rbuf);
-
-  vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
-  assert(vstat == VAPI_OK);
-
-  gasnetc_rcv_reap(INT_MAX, &gasnetc_rcv_thread_rbuf);
-}
-#endif
 
 /* ------------------------------------------------------------------------------------ *
  *  Externally visible functions                                                        *
@@ -798,32 +814,20 @@ extern void gasnetc_sndrcv_fini(void) {
 }
 
 extern void gasnetc_sndrcv_poll(void) {
-  #if GASNETC_RCV_POLL
-  {
-    gasnetc_rbuf_t *spare = NULL;
-    gasnetc_rcv_reap(GASNETC_RCV_REAP_LIMIT, &spare);
-    gasnetc_put_rbuf(spare);
-  }
-  #endif
-
-  {
-    gasnetc_sbuf_t *sbuf, *tail;
-
-    sbuf = gasnetc_snd_reap(&tail);
-
-    if (sbuf) {
-      gasnetc_put_sbuf(sbuf, tail);
-    }
-  }
+  gasnetc_poll_both();
 }
 
-extern void gasnetc_snd_poll(void) {
-  gasnetc_sbuf_t *sbuf, *tail;
-
-  sbuf = gasnetc_snd_reap(&tail);
-
-  if (sbuf) {
-    gasnetc_put_sbuf(sbuf, tail);
+extern void gasnetc_counter_wait_aux(gasneti_atomic_t *counter, int handler_context)
+{
+  if (handler_context) {
+    do {
+	/* must not poll rcv queue in hander context */
+        gasnetc_poll_snd();
+    } while (gasneti_atomic_read(counter) != 0);
+  } else {
+    do {
+        gasnetc_poll_both();
+    } while (gasneti_atomic_read(counter) != 0);
   }
 }
 
@@ -861,7 +865,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
       sbuf->req_oust = req_oust;
     }
 
-    if (nbytes <= GASNETC_PUT_INLINE_LIMIT) {
+    if ((GASNETC_PUT_INLINE_LIMIT != 0) && (nbytes <= GASNETC_PUT_INLINE_LIMIT)) {
       /* Use a short-cut for sends that are short enough.
        *
        * Note that we do this based only on the size of the request, without bothering to check whether
@@ -1035,7 +1039,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs, gasneti_atomic_t *mem_oust, va_list argptr) {
-  gasnetc_sndrcv_poll();	/* ensure progress */
+  gasnetc_poll_both();	/* ensure progress */
 
   return gasnetc_ReqRepGeneric(category, 1, /* need */ 1, /* grant */ 0,
 			       dest, handler,
@@ -1071,7 +1075,7 @@ extern int gasnetc_RequestSystem(gasnet_node_t dest,
   int retval;
   va_list argptr;
 
-  gasnetc_sndrcv_poll();	/* ensure progress (should this really be done _here_?) */
+  gasnetc_poll_both();	/* ensure progress (should this really be done _here_?) */
 
   GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
 
@@ -1123,9 +1127,18 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 }
 
 extern int gasnetc_AMPoll() {
+  int work;
+
   GASNETC_CHECKATTACH();
 
-  gasnetc_sndrcv_poll();
+  CQ_LOCK;
+  work = ((gasnetc_peek_cq(gasnetc_rcv_cq, 1) == VAPI_OK) ||
+          (gasnetc_peek_cq(gasnetc_snd_cq, 1) == VAPI_OK));
+  CQ_UNLOCK;
+
+  if_pf (work) {
+    gasnetc_poll_both();
+  }
 
   return GASNET_OK;
 }
