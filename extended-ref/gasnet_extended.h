@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2004/10/22 21:31:24 $
- * $Revision: 1.28.6.2 $
+ *     $Date: 2004/10/22 22:51:20 $
+ * $Revision: 1.28.6.3 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -831,17 +831,17 @@ extern int gasnete_barrier_try(int id, int flags);
 				    gasnet_handle_t handle_array[] GASNETE_THREAD_FARG);
   GASNET_INLINE_MODIFIER(_gasnet_get_nb_bulk_X)
   void _gasnet_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
-		  	     size_t count, count size_t nbytes_array[],
+		  	     size_t count, const size_t nbytes_array[],
 			     gasnet_handle_t handle_array[] GASNETE_THREAD_FARG) {
     if_pf (count == 0) {
-      GASNETI_TRACE_GET(GET_NB_BULK_LOCAL,dest,node,src,0);
+      GASNETI_TRACE_GET(NB_BULK_LOCAL,dest,node,src,0);
     } else if (gasnete_islocal(node)) {
       size_t sum = 0;
       int i;
       for (i = 0; i < count; ++i) {
 	size_t nbytes = nbytes_array[i];
         handle_array[i] = GASNET_INVALID_HANDLE;
-        GASNETI_TRACE_GET(GET_NB_BULK_LOCAL, (void*)(sum + (uintptr_t)dest),
+        GASNETI_TRACE_GET(NB_BULK_LOCAL, (void*)(sum + (uintptr_t)dest),
 			  node, (void*)(sum + (uintptr_t)src), nbytes);
 	sum += nbytes;
       }
@@ -855,7 +855,7 @@ extern int gasnete_barrier_try(int id, int flags);
         int i;
         for (i = 0; i < count; ++i) {
 	  size_t nbytes = nbytes_array[i];
-          GASNETI_TRACE_GET(GET_NB_BULK, (void*)(sum + (uintptr_t)dest),
+          GASNETI_TRACE_GET(NB_BULK, (void*)(sum + (uintptr_t)dest),
 			    node, (void*)(sum + (uintptr_t)src), nbytes);
 	  sum += nbytes;
         }

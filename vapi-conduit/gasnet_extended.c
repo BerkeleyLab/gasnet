@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/10/22 21:39:13 $
- * $Revision: 1.26.2.1 $
+ *     $Date: 2004/10/22 22:51:22 $
+ * $Revision: 1.26.2.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -841,22 +841,31 @@ extern gasnet_handlerentry_t const *gasnete_get_handlertable() {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */
+extern int gasnetc_rdma_get_X(size_t count, int node, void *src_ptr, void *dst_ptr, const size_t nbytes_array[], gasnet_handle_t handle_array[]);
 void gasnete_get_nb_bulk_X(void *dest, gasnet_node_t node, void *src,
                            size_t count, const size_t nbytes_array[],
                            gasnet_handle_t handle_array[] GASNETE_THREAD_FARG)
 {
-    uintptr_t dst_addr = (uintptr_t)dest;
-    uintptr_t src_addr = (uintptr_t)src;
     int i;
                                                                                                               
-    for (i = 0; i < count; ++i) {
-      size_t nbytes = nbytes_array[i];
-      /* Note that we call the version that performs logging and error checking */
-      handle_array[i] = _gasnet_get_nb_bulk((void *)dst_addr, node, (void *)src_addr, nbytes GASNETE_THREAD_PASS);
-      src_addr += nbytes;
-      dst_addr += nbytes;
-    }
-  }
+    #if 0
+    {
+      /* Call the version that performs logging and error checking of args */
+      uintptr_t dst_addr = (uintptr_t)dest;
+      uintptr_t src_addr = (uintptr_t)src;
+      for (i = 0; i < count; ++i) {
+        size_t nbytes = nbytes_array[i];
+        handle_array[i] = _gasnet_get_nb_bulk((void *)dst_addr, node, (void *)src_addr, nbytes GASNETE_THREAD_PASS);
+        src_addr += nbytes;
+        dst_addr += nbytes;
+      }
+    #else
+      for (i = 0; i < count; ++i) {
+	handle_array[i] = (gasnet_handle_t)gasnete_eop_new(GASNETE_MYTHREAD);
+      }
+      gasnetc_rdma_get_X(count, node, src, dest, nbytes_array, handle_array);
+    #endif
+}
 
 
 /* ------------------------------------------------------------------------------------ */
