@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/30 16:34:50 $
- * $Revision: 1.2.2.37 $
+ *     $Date: 2003/05/14 18:12:08 $
+ * $Revision: 1.2.2.38 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,6 +20,7 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
 
+#define GASNETC_QP_PATH_MTU		MTU1024
 #define GASNETC_QP_STATIC_RATE		2
 #define GASNETC_QP_MIN_RNR_TIMER	5
 #define GASNETC_QP_RNR_RETRY		7	/* infinite */
@@ -411,7 +412,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.av.grh_flag      = FALSE;
     qp_attr.av.static_rate   = GASNETC_QP_STATIC_RATE;
     qp_attr.av.src_path_bits = 0;
-    qp_attr.path_mtu         = gasnetc_hca_port.max_mtu;
+    qp_attr.path_mtu         = MIN(GASNETC_QP_PATH_MTU, gasnetc_hca_port.max_mtu);
     qp_attr.qp_ous_rd_atom   = MIN(gasnetc_hca_cap.max_qp_init_rd_atom, gasnetc_hca_cap.max_qp_ous_rd_atom);
     qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
     for (i = 0; i < gasnetc_nodes; ++i) {
