@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/18 19:14:05 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2004/05/18 20:18:23 $
+ * $Revision: 1.1.2.16 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -515,16 +515,21 @@ extern void gasnete_coll_init(const size_t images[], int init_flags) {
 
     int gasnete_coll_consensus_try(gasnete_coll_consensus_t id) {
       uint32_t tmp = id << 1;	/* low bit is used for barrier phase (notify vs wait) */
+#if GASNET_DEBUG
+      const int barrier_flags = 0;
+#else
+      const int barrier_flags = GASNET_BARRIERFLAG_ANONYMOUS;
+#endif
 
       if (tmp == gasnete_coll_consensus_id) {
 	/* Exact match, so we notify and advance */
 	++gasnete_coll_consensus_id;
-	gasnet_barrier_notify(gasnete_coll_consensus_id, 0);
+	gasnet_barrier_notify(gasnete_coll_consensus_id, barrier_flags);
       }
 
       if (gasnete_coll_consensus_id & 1) {
 	/* At a wait stage, so try the barrier */
-	if (gasnet_barrier_try(gasnete_coll_consensus_id, 0) == GASNET_OK) {
+	if (gasnet_barrier_try(gasnete_coll_consensus_id, barrier_flags) == GASNET_OK) {
 	  /* A barrier is complete, advance */
 	  ++gasnete_coll_consensus_id;
 	}
