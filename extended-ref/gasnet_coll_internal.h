@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/07/23 22:36:41 $
- * $Revision: 1.5 $
+ *     $Date: 2004/07/29 04:15:26 $
+ * $Revision: 1.5.2.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
