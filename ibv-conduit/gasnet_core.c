@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/07/03 00:41:08 $
- * $Revision: 1.2.2.54 $
+ *     $Date: 2003/07/03 21:46:26 $
+ * $Revision: 1.2.2.55 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,7 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 #define GASNETC_QP_PATH_MTU		MTU1024
 #define GASNETC_QP_STATIC_RATE		2
 #define GASNETC_QP_MIN_RNR_TIMER	IB_RNR_NAK_TIMER_0_08
-#define GASNETC_QP_RNR_RETRY		0	/* never */
+#define GASNETC_QP_RNR_RETRY		7	/* retry forever, but almost never happens */
 #define GASNETC_QP_TIMEOUT		0x20
 #define GASNETC_QP_RETRY_COUNT		2
 
@@ -865,7 +865,7 @@ static int gasnetc_exit_barrier(int exitcode, int64_t timeout_us) {
 
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    rc = gasnetc_RequestSystem(i, gasneti_handleridx(gasnetc_SYS_exit), 1, (gasnet_handlerarg_t)exitcode);
+    rc = gasnetc_RequestSystem(i, 1, gasneti_handleridx(gasnetc_SYS_exit), 1, (gasnet_handlerarg_t)exitcode);
     if (rc != GASNET_OK) return -1;
   }
 
