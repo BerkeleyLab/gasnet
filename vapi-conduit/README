@@ -11,10 +11,10 @@ Notes for myself for extended API:
   One counter is for awaiting reuse of local memory and is
   only be used for sbufs which are doing zero copy.  This counter
   provides the mechanism for Longs and non-bulk puts to block before
-  they return, and sould be allocated as an automatic variable.
+  they return, and should be allocated as an automatic variable.
 
-  The second counter is for remote completion and should be non-NULL
-  for every sbuf for which remote completion would be checked (all
+  The second counter is for request completion and should be non-NULL
+  for every sbuf for which request completion would be checked (all
   puts, but not the Longs).  For the nb and nbi the counter should
   be waited on at sync-time.  This means that the explicit handle is
   probably just the address of a counter (or a struct containing one).
@@ -24,22 +24,21 @@ Notes for myself for extended API:
 + Similar to the reference implementation's cut-off between Mediums
   (which typically do a source-side copy) and Longs (which may not),
   we have a cut-off size, below which the RDMA-put operation will do
-  source-side copies IFF local completion is desired (Long, put_nb,
+  source-side copies _iff_ local completion is desired (Long, put_nb,
   and put_nbi).
 
   DONE
 
-+ The gets will be done w/ RDMA-reads, and will use the bounce buffers
-  associated with the sbufs if the local memory is not in the segment
-  (or otherwise registered).  The value gets will also go though the
-  bounce buffers.  Clearly there is no bulk/non-bulk distinction in
-  terms of local memory reuse, just the alignment and optimal size
-  distinctions.  So, only the "remote" counter on the sbuf is needed
-  for synchronization in all cases.
++ The gets are done w/ RDMA-reads, and use the sbuf bounce buffers
+  if the local memory is not in the segment (or otherwise registered).
+  The value gets will also though the bounce buffers.  Clearly there
+  is no bulk/non-bulk distinction in terms of local memory reuse, just
+  the alignment and optimal size distinctions.  So, only the outstanding
+  request counter on the sbuf is needed for synchronization in all cases.
 
-+ The memset and barrier routines will continue to be AM-based.
+  DONE
 
-+ Table of when syncronization is needed
++ Table of when synchronization is needed
 	Operation     Local Remote
 	--------------------------
 	LongAsync       X     X
@@ -69,15 +68,52 @@ Notes for myself for extended API:
    I = Needed before (I)nitiating function returns
    S = Needed before (S)ynchronizing function returns
 
-+ Some minor tweeks are possible to avoid allocation of counters in
-  some cases.  There should be a small set of core functions (perhaps
-  just the existing rdma_put, plus an rdma_get) which take pointers to
-  the counters as arguments.
-  - For all the functions which require waiting on a counter in in the
++ Some minor tweaks are used to avoid allocation of counters in
+  some cases.
+  - For all the functions which require waiting on a counter in the
     initiating function, the counter can be allocated on the stack (as
     an automatic variable).
-  - For the implicit-handle forms the remote counter is in
+  - For the implicit-handle forms the request counter is in the
     thread-specific data, possibly in an access-region.
-  - For the explicit handle forms the remote counter must be allocated
-    from some pool, requiring some memory management work.  It may be
-    advantageous to make the pools thread-local to avoid some locks.
+  - For the explicit handle forms the request counter must be allocated
+    from some pool, requiring some memory management work.  This is
+    done with a modification to the code from the the reference
+    implementation, and uses thread-local data to avoid locks.
+
+  DONE
+ 
+
+@ TO DO @
+
++ Value puts currently move as follows:
+  - From argument (possible on stack) to automatic variable
+  - From automatic variable to inline send
+  Look at how this might be improved slightly, for instance by taking
+  the address of the argument?  Should a value-put be added to
+  gasnet_core_snd.c?
+ 
++ Value gets move as follows:
+  - From network to bounce buffer
+  - From bounce buffer to _gasnet_valget_op_t or automatic variable
+  - From memory to return from function
+  The bounce buffer is a little harder to eliminate than for the puts,
+  unless we can allocate the _gasnet_valget_op_t in pinned memory.  One
+  way to do this might be for the _gasnet_valget_op_t to be placed IN
+  the bounce buffer, but that creates a problem with long-lived bounce
+  buffers with non-blocking gets.  This _will_ work, however, for blocking
+  value gets.
+ 
++ There is the possibility that for sufficiently small sizes, the memsets
+  can be more efficiently implemented as a _local_ memset followed by a 
+  RDMA put.
+
++ If I can be sure there are not deadlock problems under RNR conditions,
+  the barrier implementation might be improved using a bunch of puts to
+  mark the barrier done upon the final notify.  However, the notify
+  mechanism will remain AM-based.
+  This would involve the notify passing an address (and perhaps rkey) to
+  which this put would be done.
+  The question remains as to where this memory would come from.  Since we
+  only need a small amount, perhaps we can carve it out of the segment?
+  Perhaps we just allow the extended ref to allocate pinned memory at
+  initialization time and pass the rkey with the address.
