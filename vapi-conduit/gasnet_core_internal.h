@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/03/25 06:08:36 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/03/28 19:27:16 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,8 +170,9 @@ typedef enum {
 
 #define GASNETC_HCA_ID  "InfiniHost0"
 #define GASNETC_CQ_SIZE 65535   	/* maximum entries in a CQ */
+#define GASNETC_SQ_SIZE 1024	   	/* maximum send entries to queue */
 
-#define GASNETC_SND_WQE GASNETC_CQ_SIZE /* maximum unreaped entries on a snd work queue */
+#define GASNETC_SND_WQE GASNETC_SQ_SIZE /* maximum unreaped entries on a snd work queue */
 #define GASNETC_SND_SG  2               /* maximum number of segments to gather on send */
 
 #define GASNETC_RCV_WQE 2               /* maximum unreaped entries on a rcv work queue */
