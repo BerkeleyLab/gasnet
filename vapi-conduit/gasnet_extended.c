@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/25 18:04:20 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2003/04/25 19:52:40 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -645,6 +645,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   thread->valget_free = handle;       /*  safe because this thread is under our control */
 
   gasnetc_rdma_wait(&handle->eop->req_oust);
+  gasnete_op_free(handle->eop);
   val = handle->val;
   return val;
 }
