@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2004/01/28 20:00:29 $
- * $Revision: 1.21.2.16 $
+ *     $Date: 2004/02/03 00:06:43 $
+ * $Revision: 1.21.2.17 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,6 +56,8 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
   #define GASNETC_DEFAULT_AM_SPARES	1	/* just a single client thread */
 #endif
 
+/* Limit on prepinned send bounce buffers */
+#define GASNETC_DEFAULT_BBUF_LIMIT	1024	/* Max bounce buffers prepinned */
 
 /*
   These calues cannot yet be overridden by environment variables.
@@ -108,6 +110,7 @@ int		gasnetc_op_oust_pp;
 int		gasnetc_am_oust_limit;
 int		gasnetc_am_oust_pp;
 int		gasnetc_am_spares;
+int		gasnetc_bbuf_limit;
 
 static size_t	gasnetc_max_pinnable;
 
@@ -381,6 +384,16 @@ static int gasnetc_load_settings(void) {
     }
   } else {
     gasnetc_am_spares = GASNETC_DEFAULT_AM_SPARES;
+  }
+
+  tmp = gasneti_getenv("GASNET_BBUF_LIMIT");
+  if (tmp) {
+    gasnetc_bbuf_limit = atoi(tmp);
+    if (gasnetc_bbuf_limit < 1) {
+      GASNETI_RETURN_ERRR(BAD_ARG, "(GASNET_BBUF_LIMIT < 1) in environment");
+    }
+  } else {
+    gasnetc_bbuf_limit = GASNETC_DEFAULT_BBUF_LIMIT;
   }
 
   return GASNET_OK;
