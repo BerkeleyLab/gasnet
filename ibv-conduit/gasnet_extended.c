@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/16 06:30:31 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/04/16 18:11:54 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -321,62 +321,6 @@ void gasnete_op_free(gasnete_op_t *op) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
- * Design/Approach for gets/puts in Extended Reference API in terms of Core
- * ========================================================================
- *
- * The extended API implements gasnet_put and gasnet_put_nbi differently, 
- * all in terms of 'nbytes', the number of bytes to be transferred as 
- * payload.
- *
- * The core usually implements AMSmall and AMMedium as host-side copies and
- * AMLongs are implemented according to the implementation.  Some conduits 
- * may optimize AMLongRequest/AMLongRequestAsync/AMLongReply with DMA
- * operations.
- *
- * gasnet_put(_bulk) is translated to a gasnete_put_nb(_bulk) + sync
- * gasnet_get(_bulk) is translated to a gasnete_get_nb(_bulk) + sync
- *
- * gasnete_put_nb(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMMedium(payload)
- *    else if nbytes < AMMaxLongRequest
- *      AMLongRequest(payload)
- *    else
- *      gasnete_put_nbi(_bulk)(payload)
- *
- * gasnete_get_nb(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMSmall request + AMMedium(payload) reply
- *    else
- *      gasnete_get_nbi(_bulk)()
- *
- * gasnete_put_nbi(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMMedium(payload)
- *    else if nbytes < AMMaxLongRequest
- *      AMLongRequest(payload)
- *    else
- *      chunks of AMMaxLongRequest with AMLongRequest()
- *      AMLongRequestAsync is used instead of AMLongRequest for put_bulk
- *
- * gasnete_get_nbi(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMSmall request + AMMedium(payload) reply
- *    else
- *      chunks of AMMaxMedium with AMSmall request + AMMedium() reply
- *
- * The current implementation uses AMLongs for large puts because the 
- * destination is guaranteed to fall within the registered GASNet segment.
- * The spec allows gets to be received anywhere into the virtual memory space,
- * so we can only use AMLong when the destination happens to fall within the 
- * segment - GASNETE_USE_LONG_GETS indicates whether or not we should try to do this.
- * (conduits which can support AMLongs to areas outside the segment
- * could improve on this through the use of this conduit-specific information).
- * 
- */
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Non-blocking memory-to-memory transfers (explicit handle)
   ==========================================================
 */
@@ -589,11 +533,6 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 /*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
-  each message sends an ack - we count the number of implicit ops launched and compare
-    with the number acknowledged
-  Another possible design would be to eliminate some of the acks (at least for puts) 
-    by piggybacking them on other messages (like get replies) or simply aggregating them
-    the target until the source tries to synchronize
 */
 
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
