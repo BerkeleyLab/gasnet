@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/26 23:29:02 $
- * $Revision: 1.1.2.23 $
+ *     $Date: 2004/05/26 23:55:45 $
+ * $Revision: 1.1.2.24 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1041,10 +1041,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
-
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_broadcast(dst, srcnode, src, nbytes, td);
 
@@ -1195,10 +1191,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
-
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_broadcastM(dstlist, srcnode, src, nbytes, td);
 
@@ -1222,10 +1214,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
-
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_scatter(dst, srcnode, src, nbytes, td);
@@ -1252,10 +1240,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
-
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_scatterM(dstlist, srcnode, src, nbytes, td);
 
@@ -1280,10 +1264,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
-
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_gather(dstnode, dst, src, nbytes, td);
@@ -1310,10 +1290,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
-
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_gatherM(dstnode, dst, srclist, nbytes, td);
 
@@ -1337,10 +1313,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
-
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_gather_all(dst, src, nbytes, td);
@@ -1366,10 +1338,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
-
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_gather_allM(dstlist, srclist, nbytes, td);
 
@@ -1394,10 +1362,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
 
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
-
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_exchange(dst, src, nbytes, td);
 
@@ -1421,10 +1385,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       gasnete_coll_threaddata_t *td = gasnete_coll_get_threaddata(GASNETE_MYTHREAD);
       gasnete_coll_generic_data_t *data;
       gasnete_coll_poll_fn poll_fn;
-
-      /* Present implementation is limited: */
-      gasneti_assert(team == GASNET_TEAM_ALL);
-      gasneti_assert(flags & GASNET_COLL_SINGLE);
 
       /* Unconditionally allocate and initialize op-specific data */
       data = gasnete_coll_generic_exchangeM(dstlist, srclist, nbytes, td);
