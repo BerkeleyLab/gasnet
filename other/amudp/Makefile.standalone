@@ -1,0 +1,112 @@
+#  $Archive:: /Ti/AMUDP/Makefile                                         $
+#     $Date: 2004/01/28 11:43:53 $
+# $Revision: 1.6 $
+# Description: Makefile for AMUDP
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# Set host system to the appropriate value to get the right prebaked Makefile
+
+HOSTSYSTEM=${OSTYPE}.${MACHTYPE}
+include Makefile.${HOSTSYSTEM} 
+
+# Uncomment one set of lines below to get debug or release configuration 
+
+#ccflags = -DAMUDP_DEBUG=1 ${ccdebugflags} 
+#cxxflags = -DAMUDP_DEBUG=1 ${cxxdebugflags}
+
+ccflags = -DAMUDP_NDEBUG=1 ${ccoptflags}
+cxxflags = -DAMUDP_NDEBUG=1 ${cxxoptflags}
+
+#-------------------------------------------------------------------------------------
+# You should never need to change things below this line
+
+VPATH = $(srcdir)
+includes = -I$(srcdir) ${glunix_includes} ${rexec_includes} ${ueth_includes}
+libraries = ${glunix_libraries} ${ueth_libraries} ${platform_libraries}
+Ccompile = $(CC) -c ${ccflags} ${platform_defines} ${includes}
+CXXcompile = $(CXX) -c ${cxxflags} ${platform_defines} ${includes}
+link = $(CXX) ${cxxflags} ${platform_defines} ${includes} 
+linkend = ${libraries}
+
+# all the test executables
+testprograms = testam testgetput testreadwrite testping testbulk testbounce testreduce testlatency testlatencyM
+
+# all the library objects and headers
+objects=amudp_ep.o amudp_reqrep.o amudp_spmd.o amudp_spawn.o exc.o sig.o socklist.o sockutil.o
+headers=Makefile* amudp.h amudp_internal.h amudp_spmd.h socket.h exc.h sig.h sockaddr.h socklist.h sockutil.h
+
+.PHONY: all tests clean veryclean dist
+
+all: libamudp.a
+
+# ---------- AMUDP library -------------
+libamudp.a: ${objects}
+	${ar} cru $@ ${objects}
+	${ranlib} $@
+
+# ---------- build targets -------------
+# main target
+tests: apputils.o ${testprograms}
+	@csh -c 'if ("`hostname`" == "whomp") \
+    eval "echo placing whomp-shared binaries... ; /bin/cp -f ${testprograms} /export/home/${USER} ; cd /export/home/${USER} ; chmod a+rx ${testprograms}"'
+
+# method to convert .cpp to .o (more reliable than ".cpp.o" method)
+test%.o : $(testdir)/test%.c ${headers}
+	${Ccompile} -DAMUDP -I$(testdir) $< -o $@
+	
+apputils.o : $(testdir)/apputils.c ${headers}
+	${Ccompile} -DAMUDP -I$(testdir) $(testdir)/apputils.c -o apputils.o
+	
+%.o : %.c ${headers}
+	${Ccompile} $< -o $@
+
+%.o : %.cpp ${headers}
+	${CXXcompile} $< -o $@
+
+# delete compiling byproducts
+clean:
+	rm -f *.o core gmon.out
+
+veryclean: clean 
+	rm -f ${testprograms} libamudp.a
+	@csh -c 'if ("`hostname`" == "whomp") \
+    eval "echo removing whomp-shared binaries... ; cd /export/home/${USER} ; rm -f ${testprograms}"'
+	@echo Done verycleaning.
+
+# make a distribution
+amxdist:
+	@sh -x -c ' \
+         VERSION=`grep "#define AMUDP_LIBRARY_VERSION" $(srcdir)/amudp.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
+         export VERSION ; \
+         echo "+++ Building distribution for AMUDP version $$(VERSION) +++" && \
+	 rm -Rf amudp$${VERSION}.tar.gz amudp$${VERSION} && \
+         mkdir amudp$${VERSION} && \
+         cp $(srcdir)/Makefile* $(srcdir)/*.[ch]* $(testdir)/*.[ch]* amudp$${VERSION} && \
+         rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
+         tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \
+         rm -Rf amudp$${VERSION} && \
+         echo "+++ amudp$${VERSION}.tar.gz is ready for distribution +++" \
+        '
+
+# ---------- test programs -------------
+test% : test%.o apputils.o libamudp.a ${ueth_libraries}
+	${link} -o $@ $< apputils.o -L. -lamudp ${linkend}
+
+TEST_NODES=2
+TEST_ITERS=100
+TEST_SPAWNFN=L
+TEST_MODE=P
+TEST_DEPTH=32
+TEST_DUPLEX=H
+AMUDP_NETWORKDEPTH=$(TEST_DEPTH)
+run-tests: tests
+	./testping $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) $(TEST_MODE) 
+	./testlatency $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) $(TEST_MODE)
+	./testlatencyM $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) $(TEST_MODE) 64
+	./testbulk $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) 1048576 $(TEST_MODE) $(TEST_DUPLEX)
+	./testam $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) $(TEST_MODE)
+	./testbounce $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) $(TEST_MODE)
+	./testreduce $(TEST_NODES) $(TEST_SPAWNFN)
+	if test -x ./testgetput ; then ./testgetput $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) ; fi
+	if test -x ./testreadwrite ; then ./testreadwrite $(TEST_NODES) $(TEST_SPAWNFN) $(TEST_ITERS) ; fi
+

@@ -1,0 +1,23 @@
+#  $Archive::                                                            $
+#     $Date: 2003/12/17 10:12:23 $
+# $Revision: 1.3 $
+# Description: IBM SP2 Makefile fragment
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# Get default settings for everything
+include Makefile.common
+
+# additional defines
+# must include, minimally, a define to identify the platform
+platform_defines = -DUNIX -DAIX -DRS6000
+
+# ------- optional, changed from template ---------
+# additional libraries and/or library directories
+platform_libraries = 
+
+# this calls xlc internally 
+CC := mpcc
+ccdebugflags := -O0 -g
+#ccoptflags := -O3 -qstrict -qmaxmem=8192
+ccoptflags := -O3 -qstrict -qarch=pwr3 -qtune=pwr3 -qsmp=noauto -qmaxmem=8192
+

@@ -1,0 +1,20 @@
+#  $Archive::                                                            $
+#     $Date: 2003/12/17 10:12:24 $
+# $Revision: 1.1 $
+# Description: Cygwin Makefile fragment
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# Get default settings for everything
+include Makefile.common
+
+# additional defines
+# must include, minimally, a define to identify the platform
+platform_defines = -DCYGWIN -DI386
+platform_defines := ${platform_defines} -DUETH
+
+# ------- optional, changed from template ---------
+# additional libraries and/or library directories
+#   socket: most socket funcs
+#   nsl: gethostbyname, inet_addr
+platform_libraries = 
+
