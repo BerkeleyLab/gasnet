@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/16 06:30:31 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/04/16 08:56:48 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -100,31 +100,38 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf) {
 
 /* return non-zero if one or more entries reaped */
 GASNET_INLINE_MODIFIER(gasnetc_rcv_reap)
-int gasnetc_rcv_reap(void) {
+void gasnetc_rcv_reap(int limit) {
+  static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
   VAPI_ret_t vstat;
-  VAPI_wc_desc_t comp;
 
-  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-  if (vstat == VAPI_OK) {
-    if (comp.status == VAPI_SUCCESS) {
-      gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp.id;
-      rbuf->flags = comp.imm_data; 
-      gasnetc_processPacket(rbuf);
-      gasnetc_rcv_post(rbuf);
-    } else {
+  while (--limit) {
+    VAPI_wc_desc_t comp;
+
+    /* It seems that VAPI_poll_cq() is not thread-safe */
+    pthread_mutex_lock(&poll_lock);
+    vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
+    pthread_mutex_unlock(&poll_lock);
+
+    if (vstat == VAPI_OK) {
+      if (comp.status == VAPI_SUCCESS) {
+        gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp.id;
+        rbuf->flags = comp.imm_data; 
+        gasnetc_processPacket(rbuf);
+        gasnetc_rcv_post(rbuf);
+      } else {
 #if 1
-      fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
-      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
-        fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
-      }
+        fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+        while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp)) == VAPI_OK) {
+          fprintf(stderr, "@ %d> - snd comp.status=%d\n", gasnetc_mynode, comp.status);
+        }
 #endif
-      /* ### What needs to be done here? */
+        /* ### What needs to be done here? */
+      }
+    } else {
+      assert(vstat == VAPI_CQ_EMPTY);
+      break;
     }
-  } else {
-    assert(vstat == VAPI_CQ_EMPTY);
   }
-  
-  return (vstat == VAPI_OK);
 }
 
 static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
@@ -132,10 +139,8 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
 			       void		*context) {
   VAPI_ret_t vstat;
 
-  while (gasnetc_rcv_reap()) {
-    /* loop */
-  }
-  
+  gasnetc_rcv_reap(0);
+
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
   assert(vstat == VAPI_OK);
 }
@@ -203,11 +208,7 @@ extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep) {
 }
 
 extern void gasnetc_rcv_poll(void) {
-  int count;
-
-  for (count = 0; (count < GASNETC_RCV_REAP_LIMIT) && gasnetc_rcv_reap(); ++count) {
-    /* loop */
-  }
+  gasnetc_rcv_reap(GASNETC_RCV_REAP_LIMIT);
 }
 
 extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags) {
