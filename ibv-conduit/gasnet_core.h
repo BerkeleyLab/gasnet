@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.h                  $
- *     $Date: 2003/04/30 16:34:50 $
- * $Revision: 1.2.2.14 $
+ *     $Date: 2003/06/20 21:28:28 $
+ * $Revision: 1.2.2.15 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -215,6 +215,17 @@ extern int gasnetc_AMReplyLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...);
 
+/* ------------------------------------------------------------------------------------ */
+
+extern int gasnetc_RequestSystem( 
+                            gasnet_node_t dest,       /* destination node */
+                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            int numargs, ...);
+
+extern int gasnetc_ReplySystem( 
+                            gasnet_node_t dest,       /* destination node */
+                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            int numargs, ...);
 
 /* ------------------------------------------------------------------------------------ */
 /*

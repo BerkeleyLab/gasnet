@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/20 00:15:04 $
- * $Revision: 1.2.2.46 $
+ *     $Date: 2003/06/20 21:28:28 $
+ * $Revision: 1.2.2.47 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -720,6 +720,20 @@ gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);
 gasneti_atomic_t gasnetc_exit_rcvd = gasneti_atomic_init(0);
 gasneti_atomic_t gasnetc_exit_once = gasneti_atomic_init(1);
 
+static void gasnetc_ualarm(int64_t usecs) {
+  struct itimerval it;
+
+  assert (usecs >= 0);
+
+  it.it_interval.tv_sec  = 0;
+  it.it_interval.tv_usec = 0;
+
+  it.it_value.tv_sec  = usecs / 1000000;
+  it.it_value.tv_usec = usecs % 1000000;
+
+  (void)setitimer(ITIMER_REAL, &it, 0);
+}
+
 static void gasnetc_exit_sighandler(int sig) {
   /* This is a last-ditch exit */
 
@@ -757,8 +771,7 @@ static int gasnetc_exit_barrier(int exitcode, int64_t timeout_us) {
 
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    rc = gasnet_AMRequestShort1(i, gasneti_handleridx(gasnetc_exit_reqh), (gasnet_handlerarg_t)exitcode);
-
+    rc = gasnetc_RequestSystem(i, gasneti_handleridx(gasnetc_SYS_exit), 1, (gasnet_handlerarg_t)exitcode);
     if (rc != GASNET_OK) return -1;
   }
 
@@ -766,20 +779,23 @@ static int gasnetc_exit_barrier(int exitcode, int64_t timeout_us) {
   while (gasneti_atomic_read(&gasnetc_exit_rcvd) < (gasnetc_nodes - 1)) {
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    gasnetc_AMPoll();
+    gasnetc_sndrcv_poll(); /* works even before _attach */
   }
 
   return 0;
 }
 
-static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t exitcode) {
+static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
+  assert(args != NULL);
+  assert(numargs == 1);
+
   /* Indicate reception of an exit request */
   gasneti_atomic_increment(&gasnetc_exit_rcvd);
 
   /* Initiate an exit IFF this is the first we've heard of it */
   if (gasneti_atomic_decrement_and_test(&gasnetc_exit_once)) {
     /* Store the exit code for later use */
-    gasneti_atomic_set(&gasnetc_exit_code, exitcode);
+    gasneti_atomic_set(&gasnetc_exit_code, args[0]);
 
     /* Start the exit path */
     raise(SIGQUIT);
@@ -788,6 +804,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t exitcode
 extern void gasnetc_exit(int exitcode) {
   VAPI_ret_t vstat;
   int i, rc, graceful;
+  int64_t timeout_us;
 
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -829,26 +846,10 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_sched_yield();
 
   /* Attempt a coordinated shutdown */
-  graceful = 0;	/* assume failure */
-  if (!gasnetc_attach_done) {
-    /* we probably don't have AMs working, so can't do this neatly
-     * So, we hope the bootstrap code can take care of the orphans
-     */
-    /* XXX should fix this by using non-AM communication here */
-  } else {
-    /* We need to be prepared for the messaging system to be totally hosed.
-     * Therefore we want a timeout, scaled with the number of nodes.
-     *
-     * 2s + 0.25s per node, just a dumb guestimate
-     */
-    int64_t timeout_us = 2000000 + gasnetc_nodes*250000;
-
-    alarm(timeout_us/1000000 + 2);
-    if (gasnetc_exit_barrier(exitcode, timeout_us) == 0) {
-      graceful = 1;
-    }
-    alarm(0);
-  }
+  timeout_us = 2000000 + gasnetc_nodes*250000; /* 2s + 0.25s * nodes */
+  gasnetc_ualarm(timeout_us);
+  graceful = (gasnetc_exit_barrier(exitcode, timeout_us * 0.9) == 0);
+  alarm(0);
 
   /* Clean up transport resources, allowing upto 30s */
   alarm(30);
@@ -1142,7 +1143,6 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
 */
 static gasnet_handlerentry_t const gasnetc_handlers[] = {
   /* ptr-width independent handlers */
-  gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh),
 
   /* ptr-width dependent handlers */
 
@@ -1153,4 +1153,15 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable() {
   return gasnetc_handlers;
 }
 
+/*
+  System handlers, available even between _init and _attach
+*/
+
+const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS] = {
+  NULL,	/* ACK: NULL -> do nothing */
+  gasnetc_exit_reqh,
+
+  NULL,
+};
+  
 /* ------------------------------------------------------------------------------------ */
