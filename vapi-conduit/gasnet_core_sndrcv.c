@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/07/03 00:41:08 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2003/07/03 21:46:26 $
+ * $Revision: 1.1.2.21 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -36,7 +36,6 @@ typedef struct _gasnetc_rbuf_t {
 
   /* Intialized at recv time: */
   int                   	needReply;
-  int                   	prePosted;
   int                   	handlerRunning;
   uint32_t              	flags;
 
@@ -446,7 +445,8 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_ReqRepGeneric)
-int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq, int  credit,
+int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
+			  int credits_needed, int credits_granted,
 			  int dest, gasnet_handler_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
 			  int numargs, gasneti_atomic_t *mem_oust, va_list argptr) {
@@ -456,6 +456,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq, int  credit,
   uint32_t flags;
   size_t msg_len;
   int retval, i;
+
+  assert((credits_granted == 0) || (credits_granted == 1));
 
   sbuf = gasnetc_get_sbuf();
   buf = sbuf->buffer;
@@ -503,7 +505,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq, int  credit,
   }
 
   /* generate flags */
-  flags = GASNETC_MSG_GENFLAGS(isReq, category, numargs, handler, gasnetc_mynode, credit);
+  flags = GASNETC_MSG_GENFLAGS(isReq, category, numargs, handler, gasnetc_mynode, credits_granted);
 
   if (dest == gasnetc_mynode) {
     /* process loopback AM */
@@ -519,7 +521,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq, int  credit,
     gasnetc_sreq_t req;
     gasnetc_cep_t *cep = &gasnetc_cep[dest];
 
-    if (isReq) {
+    while (credits_needed) {
       /* Requests require credit for flow control
        * Since the AM recv thread will never send a Request, it can't run here
        *
@@ -538,6 +540,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq, int  credit,
       if (!first_try) {
         GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
       }
+
+      credits_needed--;
     }
 
     req.sr_desc.opcode     = VAPI_SEND_WITH_IMM;
@@ -565,39 +569,49 @@ void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t *spare;
   int needReply;
 
-  /* If possible, post a replacement buffer right away.  We wish to do this now since
-   * we can neither grant nor accept credits until a replacement rbuf is posted.
-   */ 
+  /* If possible, post a replacement buffer right away. */
   spare = (*spare_p) ? (*spare_p) : gasnetc_get_rbuf();
-  rbuf->prePosted = (spare != NULL);
-  if_pt (rbuf->prePosted) {
+  if_pt (spare) {
+    /* This is the normal case, in which we have sufficient resources to post
+     * a replacement buffer before processing the recv'd buffer.  That way
+     * we are certain that a buffer is in-place before the potential reply
+     * sends a credit to our peer, which then could use the buffer
+     */
     gasnetc_rcv_post(cep, spare, GASNETC_MSG_CREDIT(flags));
+    *spare_p = rbuf;	/* recv'd rbuf becomes the spare for next pass (if any) */
+  } else {
+    /* This is the reduced-performance case.  Because we don't have any "spare" rbuf
+     * available to post, there is the possibility that a "bad" sequence of events could
+     * take place:
+     *   1) Assume that all the rbuf posted to the cep have been consumed by AMs
+     *   2) Assume the current AM is a request
+     *   3) Assume the request handler sends a reply
+     *  then     
+     *   4) The peer receives the reply and thus receives a credit
+     *   5) The credit allows the peer to send us another AM request
+     *   6) This additional request arrives before the current request handler completes
+     *      (which would allow the current rbuf to be reposted to the cep).
+     *   7) The HCA is unable, until the current rbuf is reposted, to complete the transfer
+     *   8) IB's RNR (Reciever Not Ready) flow-control kicks in, stalling our peer's send queue
+     *  Fortunetely this is not only an unlikely occurance, it is also non-fatal.
+     *  Once the current AM request handler completes (which it must do in finite time without
+     *  depending on external events) the rbuf will be reposted and the stall will end.
+     */
   }
 
   /* Now process the packet */
   gasnetc_processPacket(rbuf, flags);
 
   /* Finalize flow control */
-  if_pt (spare) {
-    /* Normal case:
-     *
-     * A spare rbuf was posted earlier and the recv'd rbuf becomes the new spare.
-     * We need to send an implicit reply only if this was a request and none was sent explicitly.
-     */
-    *spare_p = rbuf;
-    needReply = rbuf->needReply;
-  } else {
-    /* Fallback (reduced performance) case:
-     *
-     * No rbuf was posted earlier, so we must post the recv'd rbuf now.
-     * We might also need to process a received credit.
-     * We need to send an implicit reply if this was a request.
+  needReply = rbuf->needReply;
+  if_pf (!spare) {
+    /* This is the fallback (reduced performance) case.
+     * Because no replacement rbuf was posted earlier, we must repost the recv'd rbuf now.
      */
     gasnetc_rcv_post(cep, rbuf, GASNETC_MSG_CREDIT(flags));
-    needReply = GASNETC_MSG_ISREQUEST(flags);
   }
   if_pf (needReply) {
-    int retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
+    int retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, 1, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
     assert(retval == GASNET_OK);
   }
 }
@@ -1023,7 +1037,8 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int numargs, gasneti_atomic_t *mem_oust, va_list argptr) {
   gasnetc_sndrcv_poll();	/* ensure progress */
 
-  return gasnetc_ReqRepGeneric(category, 1, 0, dest, handler,
+  return gasnetc_ReqRepGeneric(category, 1, /* need */ 1, /* grant */ 0,
+			       dest, handler,
                                src_addr, nbytes, dst_addr,
                                numargs, mem_oust, argptr);
 }
@@ -1040,7 +1055,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   assert(GASNETC_MSG_ISREQUEST(rbuf->flags));
   assert(rbuf->needReply);
 
-  retval = gasnetc_ReqRepGeneric(category, 0, rbuf->prePosted,
+  retval = gasnetc_ReqRepGeneric(category, 0, /* need */ 0, /* grant */ 1,
 		                 GASNETC_MSG_SRCIDX(rbuf->flags), handler,
 				 src_addr, nbytes, dst_addr,
 				 numargs, mem_oust, argptr);
@@ -1050,6 +1065,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 }
 
 extern int gasnetc_RequestSystem(gasnet_node_t dest,
+				 int credits_needed,
                                  gasnet_handler_t handler,
                                  int numargs, ...) {
   int retval;
@@ -1060,13 +1076,14 @@ extern int gasnetc_RequestSystem(gasnet_node_t dest,
   GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
 
   va_start(argptr, numargs);
-  retval = gasnetc_ReqRepGeneric(gasnetc_System, 1, 0, dest, handler,
-		  		 NULL, 0, NULL, numargs, NULL, argptr);
+  retval = gasnetc_ReqRepGeneric(gasnetc_System, 1, credits_needed, /* grant */ 0,
+		  		 dest, handler, NULL, 0, NULL, numargs, NULL, argptr);
   va_end(argptr);
   return retval;
 }
 
 extern int gasnetc_ReplySystem(gasnet_token_t token,
+			       int credits_granted,
                                gasnet_handler_t handler,
                                int numargs, ...) {
   gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
@@ -1081,8 +1098,8 @@ extern int gasnetc_ReplySystem(gasnet_token_t token,
   GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs);
 
   va_start(argptr, numargs);
-  retval = gasnetc_ReqRepGeneric(gasnetc_System, 0, 1, dest, handler,
-		  		 NULL, 0, NULL, numargs, NULL, argptr);
+  retval = gasnetc_ReqRepGeneric(gasnetc_System, 0, /* need */ 0, credits_granted,
+		  		 dest, handler, NULL, 0, NULL, numargs, NULL, argptr);
   va_end(argptr);
   return retval;
 }
