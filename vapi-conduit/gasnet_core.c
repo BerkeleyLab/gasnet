@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/21 19:43:10 $
- * $Revision: 1.2.2.33 $
+ *     $Date: 2003/04/22 00:14:12 $
+ * $Revision: 1.2.2.34 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -327,7 +327,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #else
     assert(gasnetc_hca_cap.max_num_mr >= (3+gasnetc_nodes));	/* rcv bufs, snd bufs, segment, n*fh */
   #endif
-
+  assert(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
 
 
   /* get a pd for the QPs and memory registration */
@@ -448,6 +448,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       assert(vstat == VAPI_OK);
+      assert(qp_cap.max_inline_data_sq >= GASNETC_PUT_INLINE_LIMIT);
     }
   }
 
