@@ -272,6 +272,7 @@ GASNET_INLINE_MODIFIER(fhi_bucket_add)
 void fhi_bucket_add(fh_bucket_t *bucket)
 {
 	assert(bucket != NULL);
+        bucket->fh_tqe_next = (fh_bucket_t *) -1;
 	fh_hash_insert(fh_BucketTable, bucket->fh_key, bucket);
 	assert(fhi_bucket_lookup(bucket->fh_key) == bucket);
 }
@@ -281,6 +282,9 @@ void fhi_bucket_remove(fh_bucket_t *bucket)
 	void * _tmp;
 
 	assert(bucket != NULL);
+#if 0	/* overwritten by memset() as soon as we return */
+        bucket->fh_tqe_next = (fh_bucket_t *) -1;
+#endif
 	_tmp = fh_hash_insert(fh_BucketTable, bucket->fh_key, NULL);
 	assert(_tmp == (void *)bucket);
 }

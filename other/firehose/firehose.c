@@ -561,7 +561,6 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 	}
 
 	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
-	entry->fh_tqe_next = (fh_bucket_t *) -1;
 
 	fhi_bucket_add(entry);
 
@@ -573,10 +572,6 @@ fh_bucket_remove(fh_bucket_t *bucket)
 {
 	FH_TABLE_ASSERT_LOCKED;
 
-#if 0
- 	/* PHH: this is overwritten by the memset() below */
-	bucket->fh_tqe_next = (fh_bucket_t *) -1;
-#endif
 	fhi_bucket_remove(bucket);
 	memset(bucket, 0, sizeof(fh_bucket_t));
 	bucket->fh_next = fh_buckets_freehead;

@@ -253,7 +253,7 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 
 /* Given an (non-NULL) entry, find the next one with the same key */
 void *
-fh_hash_next(void *val)
+fh_hash_next(fh_hash_t *hash, void *val)
 {
 	fh_int_t	key = ((fh_dummy_entry_t *) val)->hash_key;
 
