@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/30 16:34:50 $
- * $Revision: 1.1.2.29 $
+ *     $Date: 2003/05/01 21:13:37 $
+ * $Revision: 1.1.2.30 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -57,7 +57,6 @@ void gasnetc_init_sreq(gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
   req->sr_desc.comp_type = VAPI_SIGNALED;		/* XXX: is this correct? */
   req->sr_desc.sg_lst_p  = &req->sr_sg;
   req->sr_desc.set_se    = FALSE;			/* XXX: is this correct? */
-  req->sr_desc.fence     = TRUE;
 }
 
 /* free a list of send buffers */
@@ -256,9 +255,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     gasnetc_sreq_t req;
 
     gasnetc_init_sreq(&req, sbuf);
+    req.sr_desc.opcode     = VAPI_SEND_WITH_IMM;
     req.sr_desc.sg_lst_len = 1;
     req.sr_desc.imm_data   = flags;
-    req.sr_desc.opcode     = VAPI_SEND_WITH_IMM;
+    req.sr_desc.fence      = TRUE;
     req.sr_sg.addr         = (uintptr_t)buf;
     req.sr_sg.len          = msg_len;
     req.sr_sg.lkey         = gasnetc_snd_reg.lkey;
@@ -352,9 +352,10 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
     gasnetc_init_sreq(&req, sbuf);
     req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+    req.sr_desc.sg_lst_len  = 1;
+    req.sr_desc.fence       = TRUE;
     req.sr_desc.remote_addr = dst;
     req.sr_desc.r_key       = cep->rkey;	/* XXX: change for non-FAST */
-    req.sr_desc.sg_lst_len  = 1;
     req.sr_sg.addr          = src;
     req.sr_sg.len           = nbytes;
     
@@ -375,9 +376,10 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
     gasnetc_init_sreq(&req, sbuf);
     req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+    req.sr_desc.sg_lst_len  = 1;
+    req.sr_desc.fence       = TRUE;
     req.sr_desc.remote_addr = dst;
     req.sr_desc.r_key       = cep->rkey;	/* XXX: change for non-FAST */
-    req.sr_desc.sg_lst_len  = 1;
     
     /* Setup the gather bounce buffer */
     memcpy(sbuf->buffer, (void *)src, nbytes);
@@ -413,9 +415,10 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
       gasnetc_init_sreq(&req, sbuf);
       req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+      req.sr_desc.sg_lst_len  = 1;
+      req.sr_desc.fence       = TRUE;
       req.sr_desc.remote_addr = dst;
       req.sr_desc.r_key       = rkey;
-      req.sr_desc.sg_lst_len  = 1;
 
       reg = gasnetc_local_reg(src);
       if (reg) {
@@ -496,9 +499,10 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
 
       gasnetc_init_sreq(&req, sbuf);
       req.sr_desc.opcode      = VAPI_RDMA_READ;
+      req.sr_desc.sg_lst_len  = 1;
+      req.sr_desc.fence       = FALSE;
       req.sr_desc.remote_addr = src;
       req.sr_desc.r_key       = rkey;
-      req.sr_desc.sg_lst_len  = 1;
 
       reg = gasnetc_local_reg(dst);
       if (reg) {
@@ -557,9 +561,10 @@ extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, 
 
     gasnetc_init_sreq(&req, sbuf);
     req.sr_desc.opcode      = VAPI_RDMA_WRITE;
+    req.sr_desc.sg_lst_len  = 1;
+    req.sr_desc.fence       = TRUE;
     req.sr_desc.remote_addr = dst;
     req.sr_desc.r_key       = cep->rkey;	/* XXX: change for non-FAST */
-    req.sr_desc.sg_lst_len  = 1;
     req.sr_sg.addr = (uintptr_t)sbuf->buffer;
     req.sr_sg.len  = count;
     req.sr_sg.lkey = gasnetc_snd_reg.lkey;
