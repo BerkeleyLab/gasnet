@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.h                  $
- *     $Date: 2003/10/11 13:10:07 $
- * $Revision: 1.7 $
+ *     $Date: 2003/10/27 13:04:23 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -90,7 +90,7 @@ char *gasnet_getenv(const char *s) {
 typedef struct _gasnet_hsl_t {
   gasneti_mutex_t lock;
 
-  #if defined(STATS) || defined(TRACE)
+  #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t acquiretime;
   #endif
 
@@ -100,7 +100,7 @@ typedef struct _gasnet_hsl_t {
   #endif
 } gasnet_hsl_t;
 
-#if defined(STATS) || defined(TRACE)
+#if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
 #else
   #define GASNETC_LOCK_STAT_INIT  
@@ -120,9 +120,11 @@ typedef struct _gasnet_hsl_t {
   }
 
 /* decide whether we have "real" HSL's */
-#if defined(GASNETI_THREADS) || GASNETC_USE_INTERRUPTS || /* need for safety */ \
-    defined(DEBUG) || defined(STATS) || defined(TRACE)    /* or debug/tracing */
-  #define GASNETC_NULL_HSL 0
+#if GASNETI_THREADS || GASNETC_USE_INTERRUPTS || /* need for safety */ \
+    GASNET_DEBUG || GASNETI_STATS_OR_TRACE       /* or debug/tracing */
+  #ifdef GASNETC_NULL_HSL 
+    #error bad defn of GASNETC_NULL_HSL
+  #endif
 #else
   #define GASNETC_NULL_HSL 1
 #endif
