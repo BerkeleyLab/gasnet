@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2004/09/04 08:05:16 $
- * $Revision: 1.2.2.9 $
+ *     $Date: 2004/09/08 23:42:24 $
+ * $Revision: 1.2.2.10 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,7 +36,6 @@ gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 uintptr_t gasnetc_MaxLocalSegmentSize = 0;
 uintptr_t gasnetc_MaxGlobalSegmentSize = 0;
 
-intptr_t		*gasnetc_segment_shptr_off;
 gasnet_seginfo_t	 gasnetc_seginfo_init;
 int			 gasnetc_seginfo_allocated = 0;
 gasnet_seginfo_t	*gasnetc_seginfo = NULL;
@@ -370,7 +369,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	    {
 		static long	pSync[_SHMEM_COLLECT_SYNC_SIZE];
 		intptr_t	*shm_collect;
-		uintptr_t	pemask;
+		uintptr_t	pemask, shmoff;
 		long		lastnode;
 
 		for (i=0; i < _SHMEM_COLLECT_SYNC_SIZE; i++)
@@ -383,20 +382,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 		shmem_fcollect64
 		    ((void *)shm_collect,&segbase,1,0,0,gasnetc_nodes,pSync);
 		gasneti_assert(shm_collect[gasnetc_mynode] == (intptr_t)segbase);
-		gasnetc_segment_shptr_off = (intptr_t *) 
-		    gasneti_malloc(sizeof(intptr_t) * gasnetc_nodes);
 
 		for (i=0;i<gasnetc_nodes;i++) {
 		    gasnetc_seginfo[i].addr = (void *) shm_collect[i];
 		    gasnetc_seginfo[i].size = segsize;
-		    gasnetc_segment_shptr_off[i] = 
-			    (intptr_t) shm_collect[i] - (intptr_t) segbase;
+		    shmoff = (intptr_t) shm_collect[i] - (intptr_t) segbase;
 
 		    if (0) {
 			printf("%d> seg %2d: %p12,%9lu => off = %16lx\n",
 			    gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
 			    (unsigned long) gasnetc_seginfo[i].size, 
-			    (unsigned long) gasnetc_segment_shptr_off[i]);
+			    (unsigned long) shmoff);
 			fflush(stdout);
 		    }
 		}
@@ -415,8 +411,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	    #elif defined(SGI_SHMEM)
 	    {
 		gasnetc_sgi_segbase = (uintptr_t) segbase;
-		gasnetc_segment_shptr_off = (intptr_t *) 
-		    gasneti_malloc(sizeof(intptr_t) * gasnetc_nodes);
 
 		for (i=0; i<gasnetc_nodes; i++) {
 
@@ -429,13 +423,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 		    #endif
 
 		    gasnetc_seginfo[i].size = segsize;
-		    gasnetc_segment_shptr_off[i] = i*segsize;
 
 		    #if 0
-		    printf("%d> seg %2d: %p,%9lu => off = %lu\n",
+		    printf("%d> seg %2d: %p,%9lu\n",
 			    gasnetc_mynode, i, gasnetc_seginfo[i].addr, 
-			    (unsigned long) gasnetc_seginfo[i].size, 
-			    (unsigned long) gasnetc_segment_shptr_off[i]);
+			    (unsigned long) gasnetc_seginfo[i].size);
 		    fflush(stdout);
 		    #endif
 		}
@@ -938,7 +930,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueRequest(dest);
 
-#if defined(GASNETC_GLOBAL_ADDRESS) 
+#if defined(GASNETC_GLOBAL_ADDRESS) && !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else
   shmem_putmem(dest_addr, source_addr, nbytes, dest);
@@ -1097,7 +1089,8 @@ extern int gasnetc_AMReplyLongM(
   /* Get a slot in shared AMQueue */
   myidx = gasnetc_AMQueueReply(dest);
 
-#if defined(GASNETC_GLOBAL_ADDRESS) 
+//#if defined(GASNETC_GLOBAL_ADDRESS) 
+#if defined(GASNETC_GLOBAL_ADDRESS) && !defined(GASNET_SEGMENT_EVERYTHING)
   //&& !defined(GASNET_SEGMENT_EVERYTHING)
   memcpy(dest_addr, source_addr, nbytes);
 #else

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/09/04 08:05:16 $
- * $Revision: 1.2.2.10 $
+ *     $Date: 2004/09/08 23:42:24 $
+ * $Revision: 1.2.2.11 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,6 +25,17 @@
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         SHMEM
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
+
+/*
+ * Defining GASNETE_NBISYNC_ALWAYS_QUIET causes a quiet to be generated at
+ * every nbi sync operation instead of only NBIs that contain puts.  This
+ * allows puts to be be completed as 1-store instead of 2-stores.
+ */
+#ifdef CRAYX1
+#define GASNETE_NBISYNC_ALWAYS_QUIET	1
+#else
+#define GASNETE_NBISYNC_ALWAYS_QUIET	0
+#endif
 
 #define _GASNET_HANDLE_T
 typedef int *gasnet_handle_t;
@@ -76,8 +87,6 @@ typedef uintptr_t gasnet_register_value_t;
   #endif
 
 #elif defined(SGI_SHMEM)
-  extern intptr_t   *gasnetc_segment_shptr_off;
-
   #ifdef GASNET_SEGMENT_EVERYTHING
     #define GASNETE_SHMPTR(addr,pe) shmem_ptr(addr,pe)
     #define GASNETE_SHMPTR_AM(addr,pe) shmem_ptr(addr,pe)
@@ -89,40 +98,58 @@ typedef uintptr_t gasnet_register_value_t;
   #define GASNETE_PRAGMA_IVDEP	  /* no ivdep is useful here */
 #endif
 
-#if 0
-/*
- * A generic approach for load/store based puts and gets.  We define thresholds
- * for which to prefer 
- */
-#define GASNETE_GET_BCOPY_THRESH_uint64_t   80
-#define GASNETE_GET_BCOPY_THRESH_uint8_t    16
-#define GASNETE_GET_BCOPY_THRESH_void	    0
-
-#define GASNETE_PUT_BCOPY_THRESH_uint64_t   80
-#define GASNETE_PUT_BCOPY_THRESH_uint8_t    16
-#define GASNETE_PUT_BCOPY_THRESH_void	    0
-
-#define gasnete_inline_ldst_generic(PG,TYPE,TRG,SRC,LEN,PE)	    \
-	do {							    \
-	    void *ptr = (void *)SRC;				    \
-	    ptrdiff_t i;					    \
-	    size_t size = LEN;					    \
-	    if (size <= GASNETE_ ## PG ## _BCOPY_THRESH_ ## TYPE) { \
-		GASNETE_PRAGMA_IVDEP 				    \
-		for (i=0; i<size; i++)				    \
-		    ((TYPE * )TRG)[i] = ((TYPE * )ptr)[i];	    \
-	    }							    \
-	    else						    \
-               bcopy((void *)ptr, TRG, size * sizeof(TYPE));	    \
-	} while (0)
-
-#define gasnete_inline_ldst_put(TYPE,TRG,SRC,LEN,PE)	    \
-	    gasnete_inline_ldst_generic(PUT,TYPE,TRG,SRC,LEN,PE)
-
-#define gasnete_inline_ldst_get(TYPE,TRG,SRC,LEN,PE)	    \
-	    gasnete_inline_ldst_generic(GET,TYPE,TRG,SRC,LEN,PE)
+#if GASNETE_NBISYNC_ALWAYS_QUIET
+#define GASNETE_NBISYNC_HAS_PUT
+#else
+#define GASNETE_NBISYNC_HAS_PUT	(gasnete_nbi_sync = 1)
 #endif
 
+/*
+ * On X1, we attempt to vectorize for certain sizes
+ * XXX this is not yet enabled
+ */
+#ifdef CRAYX1
+  #define GASNETE_VECTOR_THRESHOLD    80
+
+  #ifdef GASNETE_ENABLE_8_BYTE_VECTOR
+    #define _GASNETE_DESTSRC_ALIGNED_8_BULK(dest,src,nbytes)			  \
+	    (!(((uintptr_t)dest)&0x7) && !(((uintptr_t)src)&0x7) && !(nbytes&0x7))
+    #define _GASNETE_DESTSRC_ALIGNED_8_NONBULK(dest,src,nbytes)			  \
+	    (gasneti_assert(!(((uintptr_t)dest)&0x7) && !(((uintptr_t)src)&0x7)), \
+	     !(nbytes&0x7))
+  #else
+    #define _GASNETE_DESTSRC_ALIGNED_8_BULK(dest,src) 0
+    #define _GASNETE_DESTSRC_ALIGNED_8_NONBULK(dest,src) 0
+  #endif
+
+  #define _GASNETE_DESTSRC_ALIGNED_4_BULK(dest,src,nbytes)			\
+	  (!(((uintptr_t)dest)&0x3) && !(((uintptr_t)src)&0x3) && !(nbytes&0x3))
+  #define _GASNETE_DESTSRC_ALIGNED_4_NONBULK(dest,src,nbytes)			\
+	  (gasneti_assert(!(((uintptr_t)dest)&0x3) && !(((uintptr_t)src)&0x3)), \
+	  !(nbytes&0x3))
+
+  #define _GASNET_INLINE_VECTOR_LOOP(dest,src,nbytes,shift,type)    \
+	do {							    \
+	    unsigned i, sz = ((unsigned)nbytes)>>shift;		    \
+	    GASNETE_PRAGMA_IVDEP				    \
+	    for (i=0; i<sz; i++) 				    \
+		((type *)dest)[i] = ((type *)src)[i];		    \
+	} while (0)
+
+  #define _GASNETE_INLINE_VECTOR_LDST(dest,src,nbytes,bulk)	    \
+	if (_GASNETE_DESTSRC_ALIGNED_8_ ## bulk(dest,src) &&	    \
+	    nbytes <= GASNETE_VECTOR_THRESHOLD)			    \
+	    _GASNET_INLINE_VECTOR_LOOP(dest,src,nbytes,3,uint64_t); \
+	else if (_GASNETE_DESTSRC_ALIGNED_4_ ## bulk(dest,src) &&   \
+	    nbytes <= GASNETE_VECTOR_THRESHOLD)			    \
+	    _GASNET_INLINE_VECTOR_LOOP(dest,src,nbytes,2,uint32_t); \
+	else							    \
+	    bcopy(src,dest,nbytes)
+#else
+  #define _GASNETE_INLINE_VECTOR_LDST(dest,src,nbytes,bulk)	    \
+	    memcpy(dest,src,nbytes)
+#endif
+	    
 #define _gasnete_global_ldst(dest,src,nbytes)			    \
 	do {							    \
 	    switch(nbytes) {					    \
@@ -144,10 +171,54 @@ typedef uintptr_t gasnet_register_value_t;
 	    }							    \
 	} while (0)
 
+#ifdef CRAYX1
+  /*
+   * X1 is more picky about alignment.  Size of the dereference must 
+   * match it's alignment boundary.
+   */
+  #define _gasnete_x1_global_ldst_bulk(dest,src,nbytes)				\
+	do {									\
+	    switch(nbytes) {							\
+		case 8:								\
+		    if (!(((uintptr_t)dest)&0x7) && !(((uintptr_t)src)&0x7))  	\
+			*((uint64_t *)dest) = *((uint64_t *)src);		\
+		    else							\
+			memcpy(dest,src,nbytes);				\
+		    break;							\
+		case 4:								\
+		    if (!(((uintptr_t)dest)&0x3) && !(((uintptr_t)src)&0x3)) 	\
+			*((uint32_t *)dest) = *((uint32_t *)src);		\
+		    else							\
+			memcpy(dest,src,nbytes);				\
+		    break;							\
+		case 2:								\
+		    if (!(((uintptr_t)dest)&0x1) && !(((uintptr_t)src)&0x1))  	\
+			*((uint16_t *)dest) = *((uint16_t *)src);		\
+		    else							\
+			memcpy(dest,src,nbytes);				\
+		    break;							\
+		case 1:								\
+		    *((uint8_t *)dest) = *((uint8_t *)src);			\
+		    break;							\
+		default:							\
+		    memcpy(dest, src, nbytes);					\
+		    break;							\
+	    }									\
+	} while (0)
+
+  #define _gasnete_global_ldst_bulk _gasnete_x1_global_ldst_bulk
+#else
+  #define _gasnete_global_ldst_bulk _gasnete_global_ldst
+#endif
+
 #define gasnete_global_get(dest,src,nbytes,pe)			    \
 	    _gasnete_global_ldst(dest,GASNETE_SHMPTR(src,pe),nbytes)
+#define gasnete_global_get_bulk(dest,src,nbytes,pe)		    \
+	    _gasnete_global_ldst_bulk(dest,GASNETE_SHMPTR(src,pe),nbytes)
 #define gasnete_global_put(dest,src,nbytes,pe)			    \
 	    _gasnete_global_ldst(GASNETE_SHMPTR(dest,pe),src,nbytes)
+#define gasnete_global_put_bulk(dest,src,nbytes,pe)		    \
+	    _gasnete_global_ldst_bulk(GASNETE_SHMPTR(dest,pe),src,nbytes)
 
 /* 
  * Blocking operations map directly to shmem functions
@@ -159,10 +230,19 @@ typedef uintptr_t gasnet_register_value_t;
 #define gasnete_get(dest,pe,src,nbytes) shmem_getmem(dest,src,nbytes,pe)
 #endif
 
-#define gasnete_get_bulk	    gasnete_get
+#ifdef GASNETE_GLOBAL_ADDRESS
+#define gasnete_get_bulk(dest,pe,src,nbytes) gasnete_global_get_bulk(dest,src,nbytes,pe)
+#else
+#define gasnete_get_bulk(dest,pe,src,nbytes) shmem_getmem(dest,src,nbytes,pe)
+#endif
 
 #define gasnete_putTI gasnete_put
+
+#ifdef GASNETE_GLOBAL_ADDRESS
+#define gasnete_put_bulk(pe,dest,src,nbytes) gasnete_global_put_bulk(dest,src,nbytes,pe)
+#else
 #define gasnete_put_bulk gasnete_put
+#endif
 
 /*
  * Implicit ops also map directly to shmem functions.
@@ -177,19 +257,28 @@ extern int	    gasnete_handleno_phase;
 
 #ifdef GASNETE_GLOBAL_ADDRESS
 #define gasnete_put_nbi(pe,dest,src,nbytes)		 \
-	    gasnete_global_put(dest,src,nbytes,pe)
+	    do { gasnete_global_put(dest,src,nbytes,pe); \
+		 GASNETE_NBISYNC_HAS_PUT;		 \
+	    } while (0)
 #else
 #define gasnete_put_nbi(pe,dest,src,nbytes)		 \
 	    do { shmem_putmem(dest,src,nbytes,pe);	 \
-		 gasnete_nbi_sync = 1;			 \
+		 GASNETE_NBISYNC_HAS_PUT;		 \
 	    } while (0)
 #endif
 
+#ifdef GASNETE_GLOBAL_ADDRESS
+#define gasnete_put_nbi_bulk(pe,dest,src,nbytes)		\
+	    do { gasnete_global_put_bulk(dest,src,nbytes,pe);	\
+		 GASNETE_NBISYNC_HAS_PUT;			\
+	    } while (0)
+#else
 #define gasnete_put_nbi_bulk gasnete_put_nbi
+#endif
 
 #ifdef GASNETE_GLOBAL_ADDRESS
 #define gasnete_get_nbi_bulk(dest,pe,src,nbytes)	\
-	    gasnete_global_get(dest,src,nbytes,pe)
+	    gasnete_global_get_bulk(dest,src,nbytes,pe)
 #else
 #define gasnete_get_nbi_bulk(dest,pe,src,nbytes)	\
 	    shmem_getmem(dest,src,nbytes,pe)
@@ -205,7 +294,7 @@ gasnet_handle_t
 _gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, 
 		    size_t nbytes) 
 {
-    memcpy(GASNETE_SHMPTR(dest,node), src, nbytes);
+    gasnete_global_put_bulk(dest,src,nbytes,node);
     gasnete_handles[gasnete_handleno_phase] = GASNETE_HANDLE_NB_QUIET;
     return &gasnete_handles[gasnete_handleno_phase];
 }

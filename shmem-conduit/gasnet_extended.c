@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2004/09/07 08:20:15 $
- * $Revision: 1.2.2.9 $
+ *     $Date: 2004/09/08 23:42:24 $
+ * $Revision: 1.2.2.10 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,10 +17,6 @@
  */
 #define GASNETE_MAX_HANDLES	    4096
 #define GASNETE_HANDLES_MASK	    4095
-
-#ifdef GASNETE_CRAYX1_BARRIER
-static void gasnete_barrier_init();
-#endif
 
 /*
  * NBs use up to GASNETE_MAX_HANDLES handles, and can have two states:
@@ -68,19 +64,6 @@ uintptr_t gasnete_addr_bits_mask = 0;
 gasnete_threaddata_t	gasnete_threaddata;
 #define gasnete_mythread() (&gasnete_threaddata)
 
-/* make a GASNet call - if it fails, print error message and abort */
-#if 0
-#define GASNETE_SAFE(fncall) do {                                           \
-   int retcode = (fncall);                                                  \
-   if_pf (retcode != GASNET_OK) {                                           \
-     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
-        "  while calling: %s\n"                                             \
-        "  at %s",                                                          \
-        gasnet_ErrorName(retcode),(int)retcode, #fncall, gasneti_current_loc);  \
-   }                                                                        \
- } while (0)
-#endif
-
 #define GASNETE_HANDLE_INC() do {					      \
     gasnete_handleno_cur = (gasnete_handleno_cur + 1) & GASNETE_HANDLES_MASK; \
     if_pf (gasnete_handles[gasnete_handleno_cur] != GASNETE_HANDLE_DONE)      \
@@ -113,10 +96,6 @@ gasnete_init()
 
     for (i = 0; i < GASNETE_MAX_HANDLES; i++)
 	gasnete_handles[i] = GASNETE_HANDLE_DONE;
-
-    #ifdef GASNETE_CRAYX1_BARRIER
-      gasnete_barrier_init();
-    #endif
 }
 
 extern gasnet_handle_t 
@@ -211,7 +190,7 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	case GASNETE_HANDLE_NBI:
 	    gasneti_assert(handle == &gasnete_nbi_handle);
 	    /* Quiet iff at least one put */
-	    if (gasnete_nbi_sync) {
+	    if (gasnete_nbi_sync || GASNETE_NBISYNC_ALWAYS_QUIET) {
 		shmem_quiet();
 		gasnete_nbi_sync = 0;
 	    }
@@ -234,12 +213,12 @@ gasnete_try_syncnb_inner(gasnet_handle_t handle)
 	    break;
 
 	default:
-	    gasneti_fatalerror("Invalid handle %p", (void*)handle);
+	    gasneti_fatalerror("Invalid handle value %d", (int)*handle);
 	    break;
     }
 
     /* XXX can't reach */
-    abort();
+    gasneti_fatalerror("can't reach in syncnb_inner");
     return GASNET_OK;
 }
 
@@ -357,11 +336,14 @@ gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG)
 	gasneti_fatalerror(
 	    "VIOLATION: tried to initiate a recursive NBI access region");
     #endif
-    if (!allowrecursion || gasnete_nbi_handle == GASNETE_HANDLE_DONE) {
+
+    gasnete_nbi_region_phase = 1;
+
+    /* Only reset the nbi handle if previous ops were sync'd */
+    if (gasnete_nbi_handle == GASNETE_HANDLE_DONE) {
 	gasnete_nbi_handle = GASNETE_HANDLE_NBI;
 	gasnete_nbi_sync = 0;
 	gasnete_nbi_am_ctr = 0;
-	gasnete_nbi_region_phase = 1;
     }
 }
 
@@ -386,7 +368,7 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
   Barrier adapted to shmem from elan-conduit
 */
 
-#ifndef GASNETE_CRAYX1_BARRIER
+#ifndef GASNETE_SHMEM_BARRIER
   /* use reference implementation of barrier */
   #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
   #define gasnete_refbarrier_notify  gasnete_barrier_notify
@@ -395,7 +377,7 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
   #include "gasnet_extended_refbarrier.c"
   #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 /* ------------------------------------------------------------------------------------ */
-#else /* GASNETE_CRAYX1_BARRIER */
+#else /* GASNETE_SHMEM_BARRIER */
 
 /*
  * This barrier is optimized for nc-NUMA on the X1. In the notify phase, all
@@ -416,24 +398,20 @@ struct {
 } 
 gasnete_barrier_state_t;
 
-static long			    gasnete_barrier_pSync[_SHMEM_BCAST_SYNC_SIZE];
-static gasnete_barrier_state_t	    barrier_state = { 0, 0 };
-static int volatile		    barrier_blocking = 0;
+#define BARRIER_INITVAL 0x1234567800000000
+
+static long barrier_value[2] = { BARRIER_INITVAL, BARRIER_INITVAL };
+static int  barrier_mismatch[2] = { 0, 0 };
+static int  barrier_phase = 0;
+
+static long volatile		    barrier_done[2] = { 0, 0 };
 static long volatile		    barrier_notify_ctr[2] = { 0, 0 };
-static int			    barrier_phase = 0;
-
-void
-gasnete_barrier_init()
-{
-    int i;
-
-    for (i=0; i < _SHMEM_BCAST_SYNC_SIZE; i++)
-	gasnete_barrier_pSync[i] = _SHMEM_SYNC_VALUE;
-}
+static gasnete_barrier_state_t	    barrier_state[2];
 
 extern void
 gasnete_barrier_notify(int id, int flags)
 {
+    int i;
     if_pf (barrier_splitstate == INSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
@@ -442,80 +420,58 @@ gasnete_barrier_notify(int id, int flags)
       barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
     #endif
 
-    barrier_state.barrier_value = id;
-    barrier_state.barrier_flags = flags;
     barrier_phase = !barrier_phase;
+    barrier_state[barrier_phase].barrier_value = id;
+    barrier_state[barrier_phase].barrier_flags = flags;
 
-    if (gasnete_nodes > 1) {
-
-	if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
-	    long volatile *rphase = (long volatile *) 
-		GASNETE_TRANSLATE_X1(&barrier_notify_ctr[barrier_phase], 0);
-
-	    /* Make sure everyone sees the mismatch if such is the case */
-	    if_pf (flags == GASNET_BARRIERFLAG_MISMATCH) {
-		int i;
-		#pragma _CRI ivdep
-		for (i = 0; i < gasnete_nodes; i++) {
-		    long volatile *rflags = (long volatile *) 
-			    GASNETE_TRANSLATE_X1(&barrier_state.barrier_flags, i);
-		    *rflags = barrier_state.barrier_flags;
-		}
-		shmem_quiet();	/* XXX gsync??? */
-	    }
-	    _amo_afadd(rphase, 1);
+    /*
+     * If a mismatch is detected, make sure to set the mismatch flag for this
+     * barrier at all nodes
+     */
+    if (flags & GASNET_BARRIERFLAG_MISMATCH) {
+	for (i=0; i < gasnete_nodes; i++) {
+	    int *miss = shmem_ptr(&barrier_mismatch[barrier_phase], i);
+	    *miss = 1;
 	}
-	else {
-	    
-	    #if 0
-	    if (gasnete_mynode == 0) {
-		#pragma _CRI ivdep
-		for (i = 1; i < gasnete_nodes; i++) {
-		    long *val = (long *) GASNETE_TRANSLATE_X1(&barrier_state, i);
-		    long *flags = val+1;
+    }
+    else if (!(flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
+	long curval;
 
-		    val   = barrier_state.value;
-		    flags = barrier_state.flags;
-		}
-	    }
-	    #endif
+	curval = shmem_long_cswap(&barrier_value[barrier_phase], 
+		    BARRIER_INITVAL, (long) id, 0);
 
-	    /* Have zero broadcast its value to all other processes */
-	    #ifdef GASNETI_PTR32
-	    shmem_broadcast32
-	    #else
-	    shmem_broadcast64
-	    #endif
-			    ((void *) &barrier_state, (void *) &barrier_state,
-			    2, 0, 0, 0, gasnete_nodes, gasnete_barrier_pSync);
-
-	    /* Check for possible mismatch */
-	    if_pf (flags != barrier_state.barrier_flags 
-		   || (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
-		          barrier_state.barrier_value != id) 
-		   || flags == GASNET_BARRIERFLAG_MISMATCH) {
-		    int i;
-		    #pragma _CRI ivdep
-		    for (i = 0; i < gasnete_nodes; i++) {
-			long volatile *flags = (long volatile *) 
-			  GASNETE_TRANSLATE_X1(&barrier_state.barrier_flags, i);
-			*flags = barrier_state.barrier_flags;
-		    }
-		    shmem_quiet();
+	if_pf (curval != BARRIER_INITVAL && curval != id) {
+	    /* declare mismatch */
+	    for (i=0; i < gasnete_nodes; i++) {
+		int *miss = shmem_ptr(&barrier_mismatch[barrier_phase], i);
+		*miss = 1;
 	    }
 	}
     }
+	
+    /* Atomic increment at node 0 */
+    shmem_long_finc((long*)&barrier_notify_ctr[barrier_phase], 0);
 
     barrier_splitstate = INSIDE_BARRIER;
     gasneti_sync_writes();
 }
 
+#ifdef SGI_SHMEM
+#define GASNETE_BARRIER_READ_NOTIFYCTR	1
+#else
+#define GASNETE_BARRIER_READ_NOTIFYCTR	0
+#endif
+
 extern int
 gasnete_barrier_wait(int id, int flags)
 {
+    int  i, local_mismatch = 0;
+    long volatile *done_ctr = &barrier_done[barrier_phase];
+
   #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
+    gasneti_sync_reads();
 
     if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror(
@@ -529,51 +485,65 @@ gasnete_barrier_wait(int id, int flags)
     barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_sync_writes();
 
-    if (gasnete_nodes > 1 && (flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
-	    long volatile *ctr = &barrier_notify_ctr[barrier_phase];
+    /*
+     * First check for local mismatches
+     *
+     * XXX should we skip this ?
+     */
+    if_pf (flags & GASNET_BARRIERFLAG_MISMATCH ||
+	   flags != barrier_state[barrier_phase].barrier_flags ||
+	   (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) &&
+	     id != barrier_state[barrier_phase].barrier_value)) {
+	local_mismatch = 1;
+    }
 
-	    if (gasnete_mynode == 0) {
-		int i;
+    if (gasnete_mynode == 0) {
+	long volatile *not_ctr = &barrier_notify_ctr[barrier_phase];
 
-		while (*ctr != (long volatile) gasnete_nodes)
-		    gasnetc_AMPoll();
+	/* Wait until all nodes have updated value */
+	GASNET_BLOCKUNTIL(*not_ctr == (long volatile) gasnete_nodes);
+	*not_ctr = 0;
 
-		*ctr = 0;
+	/*
+	 * Broadcast the return value for global mismatches
+	 */
+	#ifdef CRAYX1 /* benefit from vectorized broadcast */
+	    #pragma _CRI ivdep
+	    for (i=0; i < gasnete_nodes; i++)
+		*((long *) GASNETE_TRANSLATE_X1(done_ctr, i)) = 1;
+	#elif GASNETE_BARRIER_READ_NOTIFYCTR
+	    /* Set a local counter */
+	    barrier_done[!barrier_phase] = 0;
+	    *done_ctr = 1;
+	#else
+	    for (i=0; i < gasnete_nodes; i++) 
+		shmem_long_p((long *)done_ctr, 1, i);
+	#endif
 
-		#pragma _CRI ivdep
-		for (i = 1; i < gasnete_nodes; i++) {
-			/*
-		    shmem_long_p((long *) &barrier_notify_ctr[barrier_phase], 1, i);
-			*/
-		    long volatile *rctr = 
-			GASNETE_TRANSLATE_X1(&barrier_notify_ctr[barrier_phase], i);
-		    *rctr = 1;
-		}
-		_gsync(0x1);
-	    }
-	    else {
-		while (!*ctr)
-		    gasnetc_AMPoll();
-		*ctr = 0;
-	    }
-
-	    if_pf (barrier_state.barrier_flags == GASNET_ERR_BARRIER_MISMATCH)
-		return GASNET_ERR_BARRIER_MISMATCH;
-	    else {
-		return GASNET_OK;
-	    }
+	barrier_value[barrier_phase] = BARRIER_INITVAL;
     }
     else {
-	if_pf(barrier_state.barrier_flags == GASNET_ERR_BARRIER_MISMATCH 
-		|| flags != barrier_state.barrier_flags 
-		|| (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) 
-	    && id != barrier_state.barrier_value)) 
-		return GASNET_ERR_BARRIER_MISMATCH;
-	else {
-	    gasnetc_AMPoll();
-	    return GASNET_OK;
-	}
+
+	#if GASNETE_BARRIER_READ_NOTIFYCTR
+	    done_ctr = shmem_ptr((void *)done_ctr, 0);
+	    /* Wait for notification from node 0 */
+	    GASNET_BLOCKUNTIL(*done_ctr != 0);
+	#else
+	    /* Spin on a local counter and reset it is set by node 0 */
+	    GASNET_BLOCKUNTIL(*done_ctr != 0);
+	    *done_ctr = 0;
+	#endif
+
     }
+
+    gasneti_sync_writes();
+
+    if (local_mismatch || barrier_mismatch[barrier_phase]) {
+	barrier_mismatch[barrier_phase] = 0;
+	return GASNET_ERR_BARRIER_MISMATCH;
+    }
+    else
+	return GASNET_OK;
 }
 
 extern int 

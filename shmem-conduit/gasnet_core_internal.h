@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/09/04 08:05:16 $
- * $Revision: 1.2.2.3 $
+ *     $Date: 2004/09/08 23:42:24 $
+ * $Revision: 1.2.2.4 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@ extern intptr_t		*gasnetc_segment_shptr_off;
  */
 #elif defined(CRAY_SHMEM) 
 #define GASNETC_VECTORIZE		_Pragma("_CRI ivdep")
-#define GASNETE_CRAYX1_BARRIER
+#define GASNETE_SHMEM_BARRIER
 
 /* 
  * SGI does not implement shmem_int_mswap (even though it exists in the header
@@ -69,6 +69,7 @@ extern intptr_t		*gasnetc_segment_shptr_off;
  */
 #elif defined(SGI_SHMEM)
 #define GASNETC_VECTORIZE
+#define GASNETE_SHMEM_BARRIER
 #endif
 
 /* -------------------------------------------------------------------- */

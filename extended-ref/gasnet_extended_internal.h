@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_internal.h,v $
- *     $Date: 2004/08/30 05:04:44 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2004/09/08 23:42:22 $
+ * $Revision: 1.11.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -161,7 +161,7 @@ void gasnete_op_free(gasnete_op_t *op);
 /* make a GASNet call - if it fails, print error message and abort */
 #define GASNETE_SAFE(fncall) do {                                           \
    int retcode = (fncall);                                                  \
-   if_pf (retcode != GASNET_OK) {                                           \
+   if_pf (retcode != (int)GASNET_OK) {                                      \
      gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
         "  while calling: %s\n"                                             \
         "  at %s",                                                          \
