@@ -25,34 +25,30 @@ typedef struct _firehose_private_t	firehose_private_t;
  * page boundary and the length ('len' field) is always a multiple of
  * page size.
  *
- * Request types are allocated on a per-pin request basis, and are
- * freed once the request is released by the client.  Once returned to
- * the client, this type is read-only.  Copies of this type are never
- * kept around in hash tables.  On all the firehose_*_pin functions,
- * clients can pass a pointer to their own allocated request_t.  If
- * this pointer is non-null and the firehose library requires storage
- * in a request_t, the client request_t is used.  If the pointer is
- * null and the firehose library requires storage in a request_t, it
- * is allocated.
+ * Once returned to the client, this type is read-only.  Copies of
+ * this type are never kept around in hash tables.  On all the
+ * firehose_*_pin functions, clients can pass a pointer to their own
+ * allocated request_t or NULL which causes firehose to use its own
+ * request_t allocation.  If a request_t is to be returned and the
+ * client passed a non-null request_t pointer, firehose guarentees
+ * that the returned pointer will equal the one the client passed.
  */
+
 typedef
 struct _firehose_request_t {
-	uint16_t	flags;	/* internal flags -- opaque */
+	uint16_t	flags;	/* internal -- opaque to client */
 
-	gasnet_node_t	node;	/* ignored in the bucket table */
+	gasnet_node_t	node;
 	uintptr_t	addr;
 	size_t		len;
 
-	/* For internal use by firehose library, defined in
-	 * firehose_internal.h hold such things as the reference count
-	 * and linked list pointers */
+	/* internal -- opaque to client */
 	struct _firehose_private_t	*internal;
 
         #ifdef FIREHOSE_CLIENT_T
-	  /* For CLIENT use, defined in firehose_fwd.h
-	   * Useful for keys/handles and similar transport-specific data
-	   * Note that this is included inline, not as a reference.
-	   */
+	/* For CLIENT use, defined in firehose_fwd.h Useful for
+	 * keys/handles and similar transport-specific data Note that
+	 * this is included inline, not as a reference. */
 	firehose_client_t	client;
         #endif
 }
@@ -64,12 +60,11 @@ firehose_request_t;
  * internally by the firehose algorithm to disconnect old firehoses
  * and reconnect new ones.
  *
- * The address field is always aligned on a page boundary and the
- * length field is a multiple of page size.
+ * The address field is aligned on a page boundary and the length
+ * field is a multiple of page size.
  *
  * If the network requires client data to be attached to each pinning
  * operation, the client field should be filled in.
- *
  */
 typedef
 struct _firehose_region_t {
@@ -94,6 +89,7 @@ firehose_region_t;
  *       GASNET_FIREHOSE_ environment variables below).
  *    4. gasnet_AMMaxMedium() as implemented by the underlying gasnet
  *       core API.
+ *    5. THe size of firehose_remotecallback_args_t.
  *
  * The values returned by firehose_info_t are established at
  * initialization.  Typically, a client will use these limits in order
@@ -116,47 +112,75 @@ struct _firehose_info_t {
 }
 firehose_info_t;
 
-/* firehose_completed_fn_t
+/********************************************************************/
+/* CLIENT-SUPPLIED CALLBACKS                                        */
+/********************************************************************/
+/* The following callbacks are to be implemented by the client.
  *
- * Type for function called after firehose placement is acknowledged.
- * The callback is never run within an AM handler context which means
- * the client is free to initiate any communication operation.
+ * Each of the callbacks should return 0 on success and non-zero on
+ * failure.  Firehose will exit with a fatal error if the callback
+ * returns non-zero.
+ * 
+ ***************************
+ * FIREHOSE REMOTE CALLBACK
+ ***************************
+ * This callback can be invoked when the firehose library has
+ * completed a firehose move on the requested node.  Remote pin
+ * operations that require firehose moves can allow the client to run
+ * a callback after the completion of the move operation and before
+ * the firehose reply.
  *
- * The callback is thread-safe and firehose makes no guarentees as to
- * what thread the callback is run on.  Clients that require ordering
- * in the completion of RDMA operations will have to implement their
- * own locking mechanism in order to ensure that RDMA operations are
- * completed sequentially.
+ * When enabled for a move request, the callback is never run within
+ * an AM handler context unless the client defines
+ * FIREHOSE_REMOTE_CALLBACK_IN_HANDLER in which case the remote
+ * callback will be executed as soon as the firehose request handler
+ * runs.  In either case, the callback must be thread-safe.
+ *
+ * A client enables the remote callback for a move operation by
+ * setting the FIREHOSE_FLAG_ENABLE_INHANDLER_CALLBACK bit in the
+ * remote pin flags parameter.  See firehose_remote_pin() and
+ * firehose_try_remote_pin() functions.
+ *
+ * AM-handler context: Never runs within AM handler (unless client
+ *                     defines FIREHOSE_REMOTE_CALLBACK_IN_HANDLER).
+ *
+ * Returns: 0 on success, non-zero on failure.
  */
-typedef void (*firehose_completed_fn_t)(void *context, firehose_request_t *req);
+extern int 
+firehose_remote_callback(gasnet_node_t node, 
+		const firehose_region_t *pin_list, size_t num_pinned,
+		firehose_remotecallback_args_t *args);
 
-/* This prototype is for a callback implemented by the CLIENT
- *
- * firehose_move_callback(node, unpin_list, unpin_num, pin_list, pin_num)
- *
+/*************************
+ * FIREHOSE MOVE CALLBACK
+ *************************
  * This callback is invoked when the firehose library has determined
  * the need to pin and/or unpin one or many regions.  If there are
  * regions to be unpinned, the unpin call should be executed prior to
  * the pin call.  For some networks, it may be possible to use a repin
  * operation, allowing pinning resources to be used more effectively.
  *
- * This is a synchronous (blocking) operation and is always called
- * from within an AM handler.
+ * This is a synchronous (blocking) operation and may or may not be
+ * called from within an AM handler.
  *
  * If the client has defined FIREHOSE_CLIENT_T, the function should
- * fill-in any neccesary data in the 'client' field, which will be
- * copied back to the node owning the firehose (could be the local
- * node) in an AMReplyMedium().  Changes to the client type in the
- * region type will be reflected in the request type once the move
- * callback completes.
+ * fill-in any neccesary data in the 'client' field of the 'pin_list'
+ * of firehose regions, which will be copied back to the node owning
+ * the firehose (could be the local node) in an AMReplyMedium().
+ * Changes to the client type in the region type will be reflected in
+ * the request type once the move callback completes.
+ *
+ * AM-handler context: Never runs within AM handler (unless client
+ *                     defines FIREHOSE_REMOTE_CALLBACK_IN_HANDLER).
  *
  * Returns: 0 on success, non-zero on failure.
  */
-extern int firehose_move_callback(gasnet_node_t node,
-				  firehose_region_t *unpin_list, 
-				  size_t unpin_num, 
-				  firehose_region_t *pin_list, 
-				  size_t pin_num);
+extern int 
+firehose_move_callback(gasnet_node_t node,
+		       const firehose_region_t *unpin_list, 
+		       size_t unpin_num, 
+		       firehose_region_t *pin_list, 
+		       size_t pin_num);
 
 #ifdef FIREHOSE_BIND_CALLBACK
 /* This prototype is for a callback implemented by the CLIENT iff the
@@ -168,10 +192,12 @@ extern int firehose_move_callback(gasnet_node_t node,
  * (possibly by way of a firehose_client_t) that any metadata required
  * to bind to a remote region is part of the region type.
  *
+ * AM-handler context: Runs only within AMReply handler
  */
-extern int firehose_bind_callback(gasnet_node_t node,
-				  firehose_region_t *pin_list,
-				  size_t pin_num);
+extern int 
+firehose_bind_callback(gasnet_node_t node,
+		       firehose_region_t *bind_list,
+		       size_t bind_num);
 #endif
 
 #ifdef FIREHOSE_UNBIND_CALLBACK 
@@ -183,10 +209,13 @@ extern int firehose_bind_callback(gasnet_node_t node,
  * (possibly by way of a firehose_client_t) that any metadata required
  * to unbind a local node to a remote region is part of the region
  * type.
+ *
+ * AM-handler context: Runs only within AMRequest handler
  */
-extern int firehose_unbind_callback(gasnet_node_t node,
-				    firehose_region_t *unpin_list,
-				    size_t unpin_num);
+extern int 
+firehose_unbind_callback(gasnet_node_t node,
+		         const firehose_region_t *unbind_list,
+		         size_t unbind_num);
 #endif
 
 #ifdef FIREHOSE_EXPORT_CALLBACK
@@ -198,10 +227,13 @@ extern int firehose_unbind_callback(gasnet_node_t node,
  * sure (possibly by way of a firehose_client_t) that any metadata
  * required to export a region to a remote node is part of the region
  * type.
+ *
+ * AM-handler context: Runs only within AMRequest handler
  */
-extern int firehose_export_callback(gasnet_node_t node,
-				    firehose_region_t *pin_list,
-				    size_t pin_num);
+extern int 
+firehose_export_callback(gasnet_node_t node,
+		         firehose_region_t *export_list,
+		         size_t export_num);
 #endif
 
 #ifdef FIREHOSE_UNEXPORT_CALLBACK
@@ -213,23 +245,25 @@ extern int firehose_export_callback(gasnet_node_t node,
  * sure (possibly by way of a firehose_client_t) that any metadata
  * required to export a region to a remote node is part of the region
  * type.
+ *
+ * AM-handler context: Runs only within AMRequest handler
  */
-extern int firehose_unexport_callback(gasnet_node_t node,
-				      firehose_region_t *pin_list,
-				      size_t pin_num);
+extern int 
+firehose_unexport_callback(gasnet_node_t node,
+			   const firehose_region_t *unexport_list,
+			   size_t unexport_num);
 #endif
 
-/* ################################################################ */
-/* Firehose initialization and runtime functions
- *
- * The following functions must be used at initialization and
+/********************************************************************/
+/* FIREHOSE INITIALIZATION AND RUNTIME                              */
+/********************************************************************/
+/* The following functions must be used at initialization and
  * termination of the firehose interface, as well as at runtime for
  * the firehose progress engine (firehose_poll()).
- */
-/* ################################################################ */
-
-/* firehose_get_handlertable()
  *
+ ***********************************
+ * Firehose AM Handler registration
+ ***********************************
  * This function must be called by the client prior to initializing
  * the firehose interface in order to register firehose AM handlers.
  * The function returns an array of gasnet_handlerentry_t terminated
@@ -244,32 +278,36 @@ extern int firehose_unexport_callback(gasnet_node_t node,
  */
 extern gasnet_handlerentry_t * firehose_get_handlertable();
 
-/* firehose_init(maximum_pinnable_memory, maximum_regions, info_type)
- *
+/**************************
+ * Firehose Initialization
+ **************************
  * Called to setup the firehose tables and data structures.  This call
- * must be executed once gasnet has been registered the segment and
- * all core and extended AM handlers.  Typically, the firehose init
- * call is done as part of the last step before gasnet_attach's final
+ * must be executed once gasnet has registered the segment and all
+ * core and extended AM handlers.  Typically, the firehose init call
+ * is done as part of the last step before gasnet_attach's final
  * bootstrap barrier.  Additionally, the client must have registered
  * firehose AM handlers by querying firehose_gethandlers() prior to
  * calling firehose_init().
  *
  * Firehose separates pinning resources using two parameters:
  *   1. The 'maximum_pinnable_memory' is the upper bound for the
- *      firehose 'M' parameter and must be a global minimum of 
- *      the largest amount of memory that can be pinned by each node.
- *      This value should be a fraction of the amount of physical
- *      memory a single process can pin and it is up to the client to
- *      implement a network specific exchange operation to find the
- *      global minimum.
+ *      firehose 'M' parameter and must be the largest global minimum
+ *      of the largest amount of memory that can be pinned by each
+ *      node.  This value should be a fraction of the amount of
+ *      physical memory a single process can pin and it is up to the
+ *      client to implement a network specific exchange operation to
+ *      find the global minimum.
  *   2. The 'maximum_regions' is the upper bound for the firehose
- *      'M-region' parameter and must be a global minimum of the
- *      largest amount of regions that can be allocated by each node.
+ *      'M-region' parameter and must be the largest global minimum of
+ *      the largest amount of regions that can be allocated by each
+ *      node.
  *
- *   Setting either value to zero removes the constraints associated
- *   to the count.  In other words, the firehose algorithm can consider
- *   there to be no contraints on the amount of pinned memory or
- *   maximum regions if either value is set to 0.
+ *   Along with the global minimum requirement, each thread is
+ *   required to pass the same value to the function.  Setting either
+ *   value to zero removes the constraints associated to the count.
+ *   In other words, the firehose algorithm can consider there to be
+ *   no contraints on the amount of pinned memory or maximum regions
+ *   if either value is set to 0.
  */
 
 extern void
@@ -323,7 +361,9 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
  * initialization. 
  */
 
-/* firehose_fini()
+/************************
+ * Firehose Finalization
+ ************************
  *
  * Called to cleanup and terminate firehose.  This call is
  * non-collective and should be called as part of gasnet_exit().
@@ -332,54 +372,55 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 extern void
 firehose_fini(void);
 
-/* firehose_poll()
+/*******************
+ * Firehose Polling
+ *******************
  *
- * Called to make progress on the outstanding DMA requests.  This call
- * is thread-safe and may be called concurrently on different threads
- * (see the comment in the firehose_completed_fn_t discussion about
- * maintaining ordered DMA completions).
+ * Called to make progress on the outstanding firehose messages.  This
+ * call is thread-safe and may be called concurrently on different
+ * threads outside a handler context.
  *
  * Implementors should remember to call firehose_poll() after
  * servicing AMReply handlers.
+ *
+ * AM-handler context: Cannot be run in a handler. 
  */
 extern void
 firehose_poll(void);
 
-/* ################################################################ */
-/* Firehose pinning functions
- *
- * All the firehose pinning functions below, denoted as
+/********************************************************************/
+/* FIREHOSE LOCAL PINNING FUNCTIONS                                 */
+/********************************************************************/
+/* All the firehose pinning functions below, denoted as
  * firehose_*_pin, cannot be called from within an AM handler context.
- */
-/* ################################################################ */
-
-/* firehose_local_pin(addr, len, request_t)
  *
- * Called to request local pinning of a specified region.
- * This is a synchronous (blocking) operation.
+ *********************
+ * Firehose Local Pin
+ *********************
+ * Called to request local pinning of a specified region.  This is a
+ * synchronous (blocking) operation and is guarenteed to succeed if it
+ * returns a value.
  * 
  * The return value will be non-null on success and may describe a
  * region that is a superset of the one requested, namely the start
  * address can be lower and the length of the region can be larger.
- * The returned request_t pointer can use storage given through a 
+ * The returned request_t pointer must use storage given through a
  * valid, non-null pointer in the function call or be allocated if 
  * the passed request_t is null.
  *
- * The return value will be non-null on success and describe a region
- * which may be larger than requested, but never smaller.
- *
- * On failure, returns NULL.
- *
  * This call increments the ref count on the region and therefore must
  * be balanced by a call to firehose_release_*().
+ *
+ * AM-handler context: Cannot be run in a handler. 
  */
 extern const firehose_request_t *
 firehose_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
 
-/* firehose_try_local_pin(addr, len)
- *
- * Called to attempt a local pinning of a specified region.
- * This is a non-blocking operation.
+/*************************
+ * Firehose Try Local Pin
+ *************************
+ * Called to attempt a local pinning of a specified region.  This is a
+ * non-blocking operation.
  *
  * If it is known that the region is already pinned, the region's
  * reference count is incremented and the region's request descriptor
@@ -391,81 +432,135 @@ firehose_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
  *
  * If the region covered by (addr, addr+len) is not pinned, the
  * function returns NULL.
+ *
+ * AM-handler context: Cannot be run in a handler. 
  */
 extern const firehose_request_t *
 firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
 
 
-typedef void (*firehose_remote_callback_fn_t)();
-
-/* firehose_remote_pin(node, addr, len, callback, context,
- * 		       ret_ifpinned, request_t)
+/********************************************************************/
+/* FIREHOSE REMOTE PINNING FUNCTIONS                                */
+/********************************************************************/
+/* Remote pin functions may or may not require a network roundtrip.
+ * In the case where a roundtrip is required to move firehoses, a
+ * completion callback is used to acknowledge placement of new
+ * firehoses.
  *
+ * It is invalid to request a remote pin with the local node number as
+ * a destination node.
+ *
+ *******************
+ * Remote Pin flags
+ *******************
+ * Remote pin request behaviour may be additionally controlled through
+ * options set through the remote pin 'flags' parameter.  The flags
+ * are described below as
+ *
+ * FIREHOSE_FLAG_RETURN_IF_PINNED
+ * If set, causes firehose_remote_pin() to return a valid
+ * request_t pointer to the caller if the region is pinned 
+ *
+ * FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK
+ * If set, executes a callback on the remote node once the firehose
+ * move is completed.
+ */
+
+#define FIREHOSE_FLAG_RETURN_IF_PINNED		0x01
+#define FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK	0x02
+
+/**************************
+ * firehose_completed_fn_t
+ **************************
+ * Type for function called after firehose placement is acknowledged
+ * on the node initiating the firehose move.
+ *
+ * The callback is never run within an AM handler context unless the
+ * client defines FIREHOSE_COMPLETION_IN_HANDLER in which case the
+ * completion callback will be executed from within the firehose reply
+ * handler.  In either case, the callback must be thread-safe and
+ * firehose makes no guarentees as to what thread the callback is run
+ * on (which means the callback can run a thread different from the
+ * thread that initiated the operation).
+ *
+ * The callback is run with a context pointer passed into one of the
+ * remote pin functions and the request_t describes the remote region
+ * that was successfully pinned.  The 'allLocalHit' parameter is set
+ * to non-zero if the remote pin operation could be successfully
+ * completed without requiring any firehose moves (network roundtrips).
+ *
+ * AM-handler context: Never runs within AM handler (unless client
+ *                     defines FIREHOSE_COMPLETION_IN_HANDLER).
+ */
+typedef void (*firehose_completed_fn_t)
+	     (void *context, firehose_request_t *req, int allLocalHit);
+
+/**********************
+ * Firehose Remote Pin
+ **********************
  * Called to request remote pinning of a specified region.  This call
  * always causes an asynchronous callback on the local node except
- * when 'return_if_pinned' is non-null, in which case the call is
- * allowed to return with a descriptor representing the already pinned
- * region if it is known that the region is already pinned.  If the
- * region is not pinned, the call returns 0 and a remote pin request
- * is enqueued.  It is invalid to call this function with the local
- * node number as a destination node.
+ * when FIREHOSE_FLAG_RETURN_IF_PINNED is set, in which case the call
+ * is allowed to return with a descriptor representing the already
+ * pinned region if it is known that the region is already pinned.  If
+ * the region is not pinned, the call returns 0 and a remote pin
+ * request is enqueued.  It is invalid to call this function with the
+ * local node number as a destination node.
  *
- * If 'return_if_pinned' is zero, the supplied callback will always be
- * invoked on the local node with the supplied context pointer once
- * the region is pinned on the remote host.  In the event the
- * requested region is already pinned the supplied callback is still
- * called by the firehose library.  However, it is undefined whether
- * that call is made before this call returns, or in what thread it
- * executes (it may be in an AM handler context).
+ * If FIREHOSE_FLAG_RETURN_IF_PINNED is not set, the supplied
+ * completion callback will always be invoked on the local node with
+ * the supplied context pointer.  In the event the requested region is
+ * already pinned the supplied callback is still called by the
+ * firehose library.  However, it is undefined whether that call is
+ * made before this call returns, or in what thread it executes.
  *
- * The returned request_t pointer can use storage given through a 
- * valid, non-null pointer in the function call or be allocated if 
- * the passed request_t is null.
+ * The request_t pointer can use storage given through a valid,
+ * non-null pointer in the function call or be allocated if the passed
+ * request_t is null.
+ *
+ * If FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK is set, the client must a
+ * valid pointer to a remotecallback_args_t type as defined in
+ * firehose_fwd.h.   The contents of this type is copied over in the
+ * firehose move and passed to the remote callback when
+ * firehose_remote_callback() is invoked. 
  *
  * The library increments the ref count on the region before invoking
- * the local callback.  Therefore the callback is responsible for a
- * call to firehose_release_*(), or ensuring one will be made
+ * the local callback.  Therefore the local callback is responsible
+ * for a call to firehose_release_*(), or ensuring one will be made
  * eventually.  The returned region may be a superset of the one
  * requested, namely the start address can be lower and the length of
  * the region can be larger.
+ *
+ * AM-handler context: Cannot be run in a handler. 
  */
 extern const firehose_request_t *
 firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
-		    firehose_completed_fn_t callback, void *context,
-		    int return_if_pinned, firehose_request_t *req);
+		    uint32_t flags, firehose_request_t *req,
+		    firehose_remotecallback_args_t *remote_args,
+		    firehose_completed_fn_t callback, void *context);
 
-/* firehose_try_remote_pin(node, addr, len, request_t)
- *
+/**************************
+ * Firehose Remote Try Pin
+ **************************
  * Called to request a conditional remote pinning operation in a
  * non-blocking fashion.  The call only returns with a valid request
  * type if the remote region is already pinned.  In any other case,
- * the call returns NULL.  It is invalid to call this function with
- * the local node number as a destination node.
+ * the call returns NULL.  
  *
- * The returned request_t pointer can use storage given through a 
+ * The returned request_t pointer must use storage given through a 
  * valid, non-null pointer in the function call or be allocated if 
- * the passed request_t is null.
- *
- * The returned region may be a superset of the one requested, namely
- * the start address can be lower and the length of the region can be
+ * the passed request_t is null.  The returned region may be a
+ * superset of the one requested, namely the start address can be
+ * lower and the length of the region can be
  * larger.
+ *
+ * AM-handler context: Cannot be run in a handler. 
  */
 extern const firehose_request_t *
 firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
-			firehose_request_t *req);
+			uint32_t flags, firehose_request_t *req);
 
-/* firehose_release(requests, num_requests)
- *
- * Called to indicate that use of the indicated 'num_requests'
- * requests for RDMA has completed.  This is a synchronous (blocking)
- * operation.
- *
- * The supplied regions can be local or remote.
- *
- */
-extern void
-firehose_release(const firehose_request_t **reqs, int numreqs);
-
+/* XXX to be completed */
 /*
  * firehose_partial_remote_pin(node, addr, len)
  *
@@ -499,10 +594,27 @@ firehose_release(const firehose_request_t **reqs, int numreqs);
  *    region.  Else proceed to step 5, keeping only the regions which
  *    tied for the maximum in step 3.
  * 5) Return the largest region from the remaining candidates.
+ *
+ * AM-handler context: Cannot be run in a handler. 
  */
 
 extern const firehose_request_t *
 firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, 
 			    size_t len, firehose_request_t *req);
+
+/********************************************************************/
+/* FIREHOSE RELEASE                                                 */
+/********************************************************************/
+/* Both local and remote pin requests must be balanced with a call to
+ * firehose release.  It indicates that the use of the indicated
+ * 'num_requests' requests for RDMA has completed.  This is a
+ * synchronous (blocking) operation.
+ *
+ * The supplied regions can be local or remote.
+ *
+ * AM-handler context: Can be called from within an AM handler.
+ */
+extern void
+firehose_release(firehose_request_t const **reqs, int numreqs);
 
 #endif

@@ -1,20 +1,16 @@
-/* $Id: gasnet_core_receive.c,v 1.28.2.1 2003/08/04 11:06:51 csbell Exp $
- * $Date: 2003/08/04 11:06:51 $
- * $Revision: 1.28.2.1 $
+/* $Id: gasnet_core_receive.c,v 1.28.2.2 2003/08/09 08:03:56 csbell Exp $
+ * $Date: 2003/08/09 08:03:56 $
+ * $Revision: 1.28.2.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 #include <gasnet_core_internal.h>
+#include <firehose.h>
 
 extern int gasnetc_init_done;
 extern int gasnetc_attach_done;
-#if defined(GASNETC_FIREHOSE) || defined(GASNETC_TURKEY)
-extern void gasnete_fifo_progress();
-#else
-#define gasnete_fifo_progress()
-#endif
 
 /* Three processing functions called from gasnetc_poll() */
 void		 gasnetc_process_AMRequest(uint8_t *, gm_recv_event_t *);
@@ -46,7 +42,6 @@ gasnetc_AMPoll()
 	gasnetc_fifo_progress();
 
 	gasneti_mutex_lock(&gasnetc_lock_gm);
-	gasnete_fifo_progress();	/* Entry for extended API */
 	e = gm_receive(_gmc.port);
 
 	switch (gm_ntohc(e->recv.type)) {
@@ -99,6 +94,8 @@ gasnetc_AMPoll()
 			gm_unknown(_gmc.port, e);
 	}
 	gasneti_mutex_unlock(&gasnetc_lock_gm);
+
+	firehose_poll();
 
 	gasnetc_fifo_progress();
 	return GASNET_OK;
@@ -650,8 +647,8 @@ gasnetc_callback_hi_rdma(struct gm_port *p, void *ctx,
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	assert(bufd->node < gasnetc_nodes);
 	assert(bufd->payload_len > 0);
-	assert(bufd->req_local == NULL);
-	assert(bufd->req_remote != NULL);
+	assert(bufd->local_req == NULL);
+	assert(bufd->remote_req != NULL);
 
 	if_pf (status != GM_SUCCESS)
 		gasnetc_callback_error(status, ctx);

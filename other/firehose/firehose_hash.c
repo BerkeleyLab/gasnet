@@ -133,6 +133,8 @@ fh_hash_create(size_t entries)
 		hash->fh_used = 0;
 		hash->fh_collisions = 0;
 	#endif
+	
+	return hash;
 }
 
 void

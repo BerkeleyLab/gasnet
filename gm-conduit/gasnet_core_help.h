@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.20.10.2 2003/08/05 22:46:06 csbell Exp $
- * $Date: 2003/08/05 22:46:06 $
- * $Revision: 1.20.10.2 $
+/* $Id: gasnet_core_help.h,v 1.20.10.3 2003/08/09 08:03:56 csbell Exp $
+ * $Date: 2003/08/09 08:03:56 $
+ * $Revision: 1.20.10.3 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -17,6 +17,7 @@
 BEGIN_EXTERNC
 
 #include <gasnet_help.h>
+#include <gm.h>
 
 extern gasnet_node_t 		gasnetc_mynode;
 extern gasnet_node_t 		gasnetc_nodes;
@@ -36,6 +37,11 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #define GASNETC_RROBIN_BUFFERS	1
 #define GASNETC_GM_MAXPORTS	8
 #define GASNETC_GM_MAXBOARDS	3
+
+#if defined(GM_API_VERSION_2_0) && GM_API_VERSION > GM_API_VERSION_2_0
+#warning using GM 2 GM_API_VERSION
+#define GASNETC_GM_2
+#endif
 
 /* Puts changed to gm_put in the GM 2.x API revision */
 #ifdef GASNETC_GM_2

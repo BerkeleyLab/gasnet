@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.39.2.1 2003/08/04 11:06:51 csbell Exp $
- * $Date: 2003/08/04 11:06:51 $
+/* $Id: gasnet_core.c,v 1.39.2.2 2003/08/09 08:03:56 csbell Exp $
+ * $Date: 2003/08/09 08:03:56 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -38,13 +38,6 @@ gasnetc_state_t _gmc;
 gasnet_handlerentry_t const		*gasnetc_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable();
-
-extern gasnet_handlerentry_t const	*gasnetc_get_rdma_handlertable();
-
-extern void	gasnetc_rdma_init(uintptr_t segbase, uintptr_t segsize, 
-				  uintptr_t global_physmem);
-extern void	gasnetc_rdma_finalize();
-
 
 void gasnetc_checkinit() {
   if (!gasnetc_init_done)
@@ -256,24 +249,17 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	{ /*  core API handlers */
 		gasnet_handlerentry_t *ctable = 
 		    (gasnet_handlerentry_t *) gasnetc_get_handlertable();
-		gasnet_handlerentry_t *cdtable = 
-		    (gasnet_handlerentry_t *)gasnetc_get_rdma_handlertable();
-		int c_len = 0, cd_len = 0;
-		int c_numreg = 0, cd_numreg = 0;
 
-		assert(ctable && cdtable);
+		int c_len = 0;
+		int c_numreg = 0;
+
+		assert(ctable);
 		while (ctable[c_len].fnptr) c_len++; /* calc len */
-		while (cdtable[cd_len].fnptr) cd_len++; /* calc len */
 		if (gasnetc_reghandlers(ctable, c_len, 1, 63, 0, &c_numreg)
 		    != GASNET_OK)
 			GASNETI_RETURN_ERRR(RESOURCE,
 			    "Error registering core API handlers");
 		assert(c_numreg == c_len);
-		if (gasnetc_reghandlers(cdtable, cd_len, 1+c_len, 63, 0, 
-		    &cd_numreg) != GASNET_OK)
-			GASNETI_RETURN_ERRR(RESOURCE,
-			    "Error registering core RDMA API handlers");
-		assert(cd_numreg == cd_len);
 	}
 	{ /*  extended API handlers */
 		gasnet_handlerentry_t *ertable = 
@@ -314,7 +300,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 		    != GASNET_OK)
 			GASNETI_RETURN_ERRR(RESOURCE,
 			    "Error registering firehose handlers");
-		assert(f_numreg == r_len);
+		assert(f_numreg == f_len);
 	}
 
 	if (table) { /*  client handlers */
@@ -761,7 +747,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t node,        /* destination nod
 			const firehose_request_t	*req;
 			
 			req = firehose_try_remote_pin(node, 
-				(uintptr_t) dest_addr, nbytes, NULL);
+				(uintptr_t) dest_addr, nbytes, 0, NULL);
 
 			if (req != NULL)
 				gasnetc_AMRequestLongM_DMA_inner(node, handler, 
@@ -819,7 +805,7 @@ gasnetc_AMRequestLongAsyncM(
 	 * AMMedium payloads */
 	if (nbytes == 0 || 
 	    !(reqr = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
-	    nbytes, NULL)))
+	    nbytes, 0, NULL)))
 		gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
 		    nbytes, dest_addr, numargs, argptr);
 
@@ -1126,7 +1112,7 @@ extern int gasnetc_AMReplyLongM(
 
 		if (nbytes > 0 &&
 		   (req = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
-	    	            nbytes, NULL)) != NULL) {
+	    	            nbytes, 0,  NULL)) != NULL) {
 
 			pbuf = (uintptr_t) bufd->sendbuf + 
 			    (uintptr_t) GASNETC_LONG_OFFSET;

@@ -22,19 +22,18 @@
  *     calls fh_release_local_region() or fh_release_remote_region()
  */
 
+fh_hash_t	*fh_BucketTable;
+#ifdef FIREHOSE_REGION
+fh_hash_t	*fh_RegionTable;
+#endif
+
 extern void
 firehose_init(uintptr_t max_pinnable_memory, size_t max_regions, 
 	      firehose_info_t *info)
 {
 	int	i;
 
-	/* XXX to be completed */
-
-	/* initialize firehose and bucket tables */
-	/* set firehose maxima according to max_pinnable_memory/max_regions and
-	 * environement variables:
-	 *  - find firehose 'M' parameter
-	 */
+	FH_TABLE_LOCK;
 
 	/* Allocate the per-node firehose FIFO queue */
 	fh_RemoteNodeFifo = (fh_fifoq_t *) 
@@ -53,14 +52,18 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 	fh_RegionTable = fh_hash_create((1<<16));
 	#endif
 
-
-
 	/* hit the request_t freelist for first allocation */
-	(void) fh_request_new();
+	{
+		firehose_request_t *req = fh_request_new();
+		fh_request_free(req);
+	}
 
 	/* Initialize -page OR -region specific data. _MUST_ be the last thing
 	 * called before return */
 	fh_init_plugin(max_pinnable_memory, max_regions, info);
+
+	FH_TABLE_UNLOCK;
+
 	return;
 }
 
@@ -106,12 +109,20 @@ firehose_fini()
  *
  * XXX should make fh_callback_t allocated from freelists.
  */
+
+#ifdef FH_POLL_NOOP
+void
+firehose_poll()
+{
+	return;
+}
+#else
 void
 firehose_poll()
 {
 	fh_callback_t	*fhc;
 
-	if (!FH_STAILQ_EMPTY(&fh_CallbackFifo)) {
+	while (!FH_STAILQ_EMPTY(&fh_CallbackFifo)) {
 		FH_POLLQ_LOCK;
 
 		if (!FH_STAILQ_EMPTY(&fh_CallbackFifo)) {
@@ -119,13 +130,27 @@ firehose_poll()
 			FH_STAILQ_REMOVE_HEAD(&fh_CallbackFifo);
 			FH_POLLQ_UNLOCK;
 
-			if (fhc->flags & FH_FLAG_COMPLETION) {
-				fh_completion_callback_t *fhcc =
+			#ifndef FIREHOSE_COMPLETION_IN_HANDLER
+			if (fhc->flags & FH_CALLBACK_TYPE_COMPLETION) {
+				fh_completion_callback_t *cc =
 					(fh_completion_callback_t *) fhc;
-				fhcc->callback(fhcc->context, fhcc->request);
+				cc->callback(cc->context, cc->request, 0);
 			}
+			#endif
 
-			/* XXX Add support for remote completion callbacks */
+			#ifndef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+			else if (fhc->flags & FH_CALLBACK_TYPE_REMOTE) {
+				fh_remote_callback_t *rc =
+					(fh_remote_callback_t *) fhc;
+				firehose_remote_callback(rc->node, rc->pin_list, 
+					rc->pin_list_num, &(rc->args));
+
+				/* Send an AMRequest to the reply handler */
+				fh_send_firehose_reply(rc);
+				gasneti_free(rc->pin_list);
+			}
+			#endif
+
 			gasneti_free(fhc);
 		}
 		else
@@ -134,6 +159,7 @@ firehose_poll()
 
 	return;
 }
+#endif
 
 /*
  * Inlined fh_local_pin
@@ -146,6 +172,8 @@ fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 {
 	firehose_region_t	region;
 
+	FH_FILL_REGION(&region, addr, nbytes);
+
 	if (req == NULL) {
 		req = fh_request_new();
 		req->flags = FH_FLAG_FHREQ;
@@ -154,13 +182,9 @@ fh_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *req)
 		req->flags = 0;
 
 	req->node = gasnet_mynode();
-	FH_FILL_REGION(&region, addr, nbytes);
 
-	FH_TABLE_LOCK;
 	req->internal =
 		fh_acquire_local_region(&region);
-
-	FH_TABLE_UNLOCK;
 
 	FH_COPY_REGION_TO_REQUEST(req, &region);
 
@@ -185,9 +209,9 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 	FH_TABLE_LOCK;
 
 	addr = FH_ADDR_ALIGN(addr);
-	len  = FH_SIZE_LEN(addr,len);
+	len  = FH_SIZE_ALIGN(addr,len);
 
-	if (fh_region_ispinned(gasnet_mynode(), addr, len) != NULL)
+	if (fh_region_ispinned(gasnet_mynode(), addr, len))
 		req = fh_local_pin(addr, len, ureq);
 
 	FH_TABLE_UNLOCK;
@@ -197,16 +221,17 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 
 extern const firehose_request_t *
 firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
-		    firehose_completed_fn_t callback, void *context,
-		    int return_if_pinned, firehose_request_t *ureq) 
+		    uint32_t flags, firehose_request_t *ureq,
+		    firehose_remotecallback_args_t *remote_args,
+		    firehose_completed_fn_t callback, void *context)
 {
 	firehose_private_t	*priv;
 	firehose_region_t	region;
 	firehose_request_t	*req = NULL;
 
 	FH_TABLE_LOCK;
-	priv = fh_acquire_remote_region(node, &region, callback, context);
-	FH_TABLE_UNLOCK;
+	priv = fh_acquire_remote_region(node, &region, callback, context,
+			flags, remote_args);
 
 	if (priv != FH_REGION_UNPINNED) {
 		if (ureq == NULL) {
@@ -217,6 +242,8 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 			req = ureq;
 			req->flags = 0;
 		}
+
+		FH_TABLE_UNLOCK;
 	
 		req->internal = priv;
 		req->node     = node;
@@ -228,23 +255,26 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		 * callback will be subsequently called from within the
 		 * firehose library */
 
-		if (!return_if_pinned)
-			callback(context, req);
+		if (!(flags & FIREHOSE_FLAG_RETURN_IF_PINNED))
+			callback(context, req, 1);
 	}
+	else
+		FH_TABLE_UNLOCK;
 
 	return req;
 }
 
 extern const firehose_request_t *
 firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
-			firehose_request_t *ureq)
+			uint32_t flags, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
 
 	FH_TABLE_LOCK;
 
-	if (fh_region_ispinned(node, addr, len) != NULL) {
+	if (fh_region_ispinned(node, addr, len)) {
 		uintptr_t	bucket_addr, end_addr;
+		fh_bucket_t	*bd;
 
 		if (ureq == NULL) {
 			req = fh_request_new();
@@ -260,8 +290,10 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		req->len  = FH_SIZE_ALIGN(addr, addr+len);
 		end_addr  = req->addr + (uintptr_t) req->len - 1;
 
+		/* XXX this should be moved to private */
  		FH_FOREACH_BUCKET(req->addr, end_addr, bucket_addr) {
-			fhi_bucket_acquire(node, bucket_addr);
+			bd = fh_bucket_lookup(node, bucket_addr);
+			fh_bucket_acquire(node, bd);
 		}
 	}
 	FH_TABLE_UNLOCK;
@@ -273,8 +305,7 @@ extern const firehose_request_t *
 firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 			    firehose_request_t *ureq)
 {
-	/* Unimplemented, just use a try pin for now */
-	return firehose_try_remote_pin(node, addr, len, ureq);
+	return NULL;
 }
 
 extern void
@@ -285,7 +316,7 @@ firehose_release(const firehose_request_t **reqs, int numreqs)
 	FH_TABLE_LOCK;
 
 	for (i = 0; i < numreqs; i++) {
-		if (fhi_node(reqs[i]->internal) == gasnet_mynode()) 
+		if (fh_node(reqs[i]->internal) == gasnet_mynode()) 
 			fh_release_local_region(
 				(firehose_request_t *) reqs[i]);
 		else
@@ -320,7 +351,7 @@ fh_request_new()
 {
 	firehose_request_t	*req;
 
-	FH_TABLE_LOCK;
+	FH_TABLE_ASSERT_LOCKED;
 
 	if (fh_request_freehead != NULL) {
 		req = fh_request_freehead;
@@ -356,20 +387,16 @@ fh_request_new()
 	req->internal = NULL;
 	req->flags = 0;
 			    
-	FH_TABLE_UNLOCK;
-
 	return req;
 }
 
 void
 fh_request_free(firehose_request_t *req)
 {
-	FH_TABLE_LOCK;
+	FH_TABLE_ASSERT_LOCKED;
 
 	req->internal = (firehose_private_t *) fh_request_freehead;
 	fh_request_freehead = req;
-
-	FH_TABLE_UNLOCK;
 
 	return;
 }
@@ -440,7 +467,7 @@ fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
 
 	entry = (fh_bucket_t *)
-		fh_hash_find(fh_BucketTable, fhi_key_make(bucket_addr, node));
+		fh_hash_find(fh_BucketTable, fh_keymake(bucket_addr, node));
 
 	return entry;
 }
@@ -486,7 +513,7 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 		fh_buckets_freehead = &alloc[1];
 	}
 
-	entry->fh_key = fhi_key_make(bucket_addr, node);
+	entry->fh_key = fh_keymake(bucket_addr, node);
 	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
 
 	return entry;

@@ -1,9 +1,10 @@
+#include <inttypes.h>
+#include <stdlib.h>
+
 /* firehose_fwd.h: Firehose forward declarations */
 /* At least one of the next two firehose impementations must be defined */
-/* #define FIREHOSE_REGION */
+#undef  FIREHOSE_REGION
 #define FIREHOSE_PAGE
-
-
 
 #ifdef FIREHOSE_REGION
 /* Define the next preprocessor directive to allow firehose clients to
@@ -19,6 +20,19 @@ firehose_client_t;
 #endif
 
 #endif
+
+/* Remote callback arguments type
+ *
+ * Firehose normally replies to a firehose request immediately after
+ * the request to move one or many firehoses is satisfied.  However, 
+ *
+ * */
+typedef struct _firehose_remotecallback_args_t {
+	uintptr_t	local_addr;
+	uintptr_t	remote_addr;
+	size_t		nbytes;
+}
+firehose_remotecallback_args_t;
 
 /* Connection-oriented pinning networks
  *
