@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2004/10/22 20:56:32 $
- * $Revision: 1.52 $
+ *     $Date: 2004/11/23 23:40:21 $
+ * $Revision: 1.52.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -288,6 +288,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_RCV_REAP_LIMIT	16
 #endif
 
+/* Define non-zero if we want to allow the mlock rlimit to bound the
+ * amount of memory we will pin. */
+#ifndef GASNETC_HONOR_RLIMIT_MEMLOCK
+  #define GASNETC_HONOR_RLIMIT_MEMLOCK 0
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -359,6 +364,16 @@ void gasnetc_sema_destroy(gasnetc_sema_t *s) {
   #ifndef GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_destroy(&(s->lock));
   #endif
+}
+
+/* gasnetc_sema_read
+ *
+ * Returns current value of the semaphore
+ */
+GASNET_INLINE_MODIFIER(gasnetc_sema_read)
+uint32_t gasnetc_sema_read(gasnetc_sema_t *s) {
+  /* no locking needed here */
+  return gasneti_atomic_read(&(s->count));
 }
 
 /* gasnetc_sema_up
@@ -582,7 +597,7 @@ void *gasneti_freelist_next(void *elem) {
  * Include whatever per-node data we need.
  */
 typedef struct {
-  gasnetc_sema_t	op_sema;	/* control in-flight RDMA ops */
+  gasnetc_sema_t	sq_sema;	/* control in-flight RDMA ops (send queue slots) */
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
   #if GASNETC_PIN_SEGMENT
