@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/08/03 23:49:26 $
- * $Revision: 1.47 $
+ *     $Date: 2004/08/12 17:12:57 $
+ * $Revision: 1.47.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -310,94 +310,6 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
-/* gasneti_atomic_swap(p, oldval, newval)
- * Atomic equivalent of:
- *   If (*p == oldval) {
- *      *p = newval;
- *      return NONZERO;
- *   } else {
- *      return 0;
- *   }
- */
-#ifdef GASNETI_USE_GENERIC_ATOMICOPS
-  GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-  int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-    int retval;
-
-    #if GASNETC_ANY_PAR
-      gasnet_hsl_lock(&gasneti_atomicop_lock);
-    #endif
-    retval = (p->ctr == oldval);
-    if_pt (retval) {
-      p->ctr = newval;
-    }
-    #if GASNETC_ANY_PAR
-      gasnet_hsl_unlock(&gasneti_atomicop_lock);
-    #endif
-
-    return retval;
-  }
-  #define GASNETI_HAVE_ATOMIC_SWAP 1
-#elif defined(LINUX)
-  #if defined(__i386__) || defined(__x86_64__)
-    GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-    int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-      register unsigned char retval;
-      register uint32_t readval;
-
-      __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1; sete %0"
-				: "=q" (retval), "=m" (p->counter), "=a" (readval)
-				: "r" (newval), "m" (p->counter), "a" (oldval)
-				: "memory");
-      return retval;
-    }
-    #define GASNETI_HAVE_ATOMIC_SWAP 1
-  #endif
-#elif (defined (__ppc__) || defined(_POWERPC)) 
-  #if defined(__xlC__)
-    #define GASNETI_HAVE_ATOMIC_SWAP 1
-    static int32_t gasneti_atomic_swap_not_32(volatile int32_t *v, int32_t oldval, int32_t newval);
-    #pragma mc_func gasneti_atomic_swap_not_32 {\
-	/* ARGS: r3 = p, r4=oldval, r5=newval   LOCAL: r2 = tmp */ \
-	"7c401828"	/* 0: lwarx	r2,0,r3		*/ \
-	"7c422279"	/*    xor.	r2,r2,r4	*/ \
-	"40820010"	/*    bne	1f		*/ \
-	"7ca0192d"	/*    stwcx.	r5,0,r3		*/ \
-	"40a2fff0"	/*    bne-	0b		*/ \
-	"4c00012c"	/*    isync			*/ \
-	"7c431378"	/* 1: mr	r3,r2		*/ \
-	/* RETURN in r3 = 0 iff swap took place */ \
-    }
-    #define gasneti_atomic_swap(p, oldval, newval) \
-	(gasneti_atomic_swap_not_32(&((p)->ctr),(oldval),(newval)) == 0)
-  #elif defined(__GNUC__)
-    GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-    int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-      register uint32_t result;
-      __asm__ __volatile__ (
-	"0:\t"
-	"lwarx    %0,0,%1 \n\t"         /* load to result */
-	"xor.     %0,%0,%2 \n\t"        /* xor result w/ oldval */
-	"bne      1f \n\t"              /* branch on mismatch */
-	"stwcx.   %3,0,%1 \n\t"         /* store newval */
-	"bne-     0b \n\t"              /* retry on conflict */
-	"isync \n"
-	"1:\t"
-	: "=&r"(result)
-	: "r" (p), "r"(oldval), "r"(newval)
-	: "cr0", "memory");
-
-      return (result == 0);
-    } 
-    #define GASNETI_HAVE_ATOMIC_SWAP 1
-  #endif
-#endif
-#ifndef GASNETI_HAVE_ATOMIC_SWAP
-  #define GASNETI_HAVE_ATOMIC_SWAP 0
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-
 /* Lock ops that depend on the level of concurrency */
 #define gasnetc_mutex_t                      gasneti_mutex_t
 #define GASNETC_MUTEX_INITIALIZER            GASNETI_MUTEX_INITIALIZER
@@ -417,13 +329,13 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  * some resource of known multiplicity.
  */
 typedef struct {
-  #if !GASNETI_HAVE_ATOMIC_SWAP
+  #if !GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_t	lock;
   #endif
   gasneti_atomic_t	count;
 } gasnetc_sema_t;
 
-#if GASNETI_HAVE_ATOMIC_SWAP
+#if GASNETI_HAVE_ATOMIC_CAS
   #define GASNETC_SEMA_INITIALIZER(N) {gasneti_atomic_init(N)}
 #else
   #define GASNETC_SEMA_INITIALIZER(N) {GASNETC_MUTEX_INITIALIZER, gasneti_atomic_init(N)}
@@ -432,7 +344,7 @@ typedef struct {
 /* gasnetc_sema_init */
 GASNET_INLINE_MODIFIER(gasnetc_sema_init)
 void gasnetc_sema_init(gasnetc_sema_t *s, int n) {
-  #if !GASNETI_HAVE_ATOMIC_SWAP
+  #if !GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_init(&(s->lock));
   #endif
   gasneti_atomic_set(&(s->count), n);
@@ -441,7 +353,7 @@ void gasnetc_sema_init(gasnetc_sema_t *s, int n) {
 /* gasnetc_sema_destroy */
 GASNET_INLINE_MODIFIER(gasnetc_sema_destroy)
 void gasnetc_sema_destroy(gasnetc_sema_t *s) {
-  #if !GASNETI_HAVE_ATOMIC_SWAP
+  #if !GASNETI_HAVE_ATOMIC_CAS
     gasnetc_mutex_destroy(&(s->lock));
   #endif
 }
@@ -469,9 +381,9 @@ GASNET_INLINE_MODIFIER(gasnetc_sema_trydown)
 int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
   int retval;
 
-  #if GASNETI_HAVE_ATOMIC_SWAP
+  #if GASNETI_HAVE_ATOMIC_CAS
     uint32_t old = gasneti_atomic_read(&(s->count));
-    retval = (old > 0) && gasneti_atomic_swap(&(s->count), old, old - 1);
+    retval = (old > 0) && gasneti_atomic_compare_and_swap(&(s->count), old, old - 1);
     if (retval) gasneti_sync_reads();
   #else
     gasnetc_mutex_lock(&(s->lock), concurrent);
