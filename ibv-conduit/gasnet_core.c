@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/06/27 00:23:51 $
- * $Revision: 1.2.2.52 $
+ *     $Date: 2003/06/30 23:18:32 $
+ * $Revision: 1.2.2.53 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -337,7 +337,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     assert(gasnetc_hca_cap.max_ee_ous_rd_atom >= 1);		/* RDMA Read support required */
   #endif
   assert(gasnetc_hca_cap.max_num_cq >= 2);
-  assert(gasnetc_hca_cap.max_num_ent_cq >= GASNETC_CQ_SIZE);
+  assert(gasnetc_hca_cap.max_num_ent_cq >= GASNETC_SND_CQ_SIZE);
+  assert(gasnetc_hca_cap.max_num_ent_cq >= GASNETC_RCV_CQ_SIZE);
   #if defined(GASNET_SEGMENT_FAST)
     assert(gasnetc_hca_cap.max_num_mr >= 3);			/* rcv bufs, snd bufs, segment */
   #else
