@@ -347,7 +347,7 @@ if (defined ($ENV{"MACHINE_FILE"})) {
 # If the machine file is not defined, use the system-wide one.
 $machine_file = $default_machinefile unless defined ($machine_file);
 
-if (!$machine_file) {
+if (!$machine_file && !$use_gexec) {
     printf "Can't detect a PBS or a GEXEC environment. Consider using a machinefile\n";
     exit 1;
 }

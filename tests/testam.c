@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testmisc.c                             $
- *     $Date: 2003/10/11 13:10:06 $
- * $Revision: 1.7 $
+ *     $Date: 2003/11/13 12:02:04 $
+ * $Revision: 1.7.4.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
           int64_t start = TIME();
           flag = -1;
           for (i=0; i < iters; i++) {
-            GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_ping_medhandler, myseg, 0));
+            GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_ping_medhandler, myseg, sz));
             GASNET_BLOCKUNTIL(flag == i);
           }
           report(msg,TIME() - start, iters);
@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
         if (sender) {
           int64_t start = TIME();
           for (i=0; i < iters; i++) {
-            GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_fpong_medhandler, myseg, 0));
+            GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_fpong_medhandler, myseg, sz));
           }
           if (peer == mynode) GASNET_BLOCKUNTIL(flag == iters);
           BARRIER();
@@ -302,7 +302,7 @@ int main(int argc, char **argv) {
           int64_t start = TIME();
           flag = 0;
           for (i=0; i < iters; i++) {
-            GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_fping_medhandler, myseg, 0));
+            GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_fping_medhandler, myseg, sz));
           }
           GASNET_BLOCKUNTIL(flag == iters);
           report(msg,TIME() - start, iters);
@@ -336,7 +336,7 @@ int main(int argc, char **argv) {
           int64_t start = TIME();
           flag = -1;
           for (i=0; i < iters; i++) {
-            GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_ping_longhandler, myseg, 0, peerseg));
+            GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_ping_longhandler, myseg, sz, peerseg));
             GASNET_BLOCKUNTIL(flag == i);
           }
           report(msg,TIME() - start, iters);
@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
         if (sender) {
           int64_t start = TIME();
           for (i=0; i < iters; i++) {
-            GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_fpong_longhandler, myseg, 0, peerseg));
+            GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_fpong_longhandler, myseg, sz, peerseg));
           }
           if (peer == mynode) GASNET_BLOCKUNTIL(flag == iters);
           BARRIER();
@@ -411,7 +411,7 @@ int main(int argc, char **argv) {
           int64_t start = TIME();
           flag = 0;
           for (i=0; i < iters; i++) {
-            GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_fping_longhandler, myseg, 0, peerseg));
+            GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_fping_longhandler, myseg, sz, peerseg));
           }
           GASNET_BLOCKUNTIL(flag == iters);
           report(msg,TIME() - start, iters);
