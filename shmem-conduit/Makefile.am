@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.3 2003/11/17 12:14:55 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.1.2.4 2003/11/23 12:58:49 csbell Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -32,12 +32,13 @@ libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/extended-ref/*.h       
 libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o
 
-if HAVE_PTHREAD
-threaded_libraries = libgasnet-shmem-par.a libgasnet-shmem-parsync.a
-libgasnet_shmem_par_a_SOURCES =
-libgasnet_shmem_parsync_a_SOURCES =
-endif
-libraries = libgasnet-shmem-seq.a $(threaded_libraries)
+#if HAVE_PTHREAD
+#threaded_libraries = libgasnet-shmem-par.a libgasnet-shmem-parsync.a
+#libgasnet_shmem_par_a_SOURCES =
+#libgasnet_shmem_parsync_a_SOURCES =
+#endif
+#libraries = libgasnet-shmem-seq.a $(threaded_libraries)
+libraries = libgasnet-shmem-seq.a 
 libgasnet_shmem_seq_a_SOURCES =
 
 VPATH=$(srcdir)
@@ -50,17 +51,17 @@ libgasnet-shmem-seq.a: $(libgasnet_dependencies)
 	$(RANLIB) $@
 	rm -f $(libgasnet_objects)
 
-libgasnet-shmem-par.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_PAR $(thread_defines) -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
-
-libgasnet-shmem-parsync.a: $(libgasnet_dependencies)
-	$(CC) $(LIBCFLAGS) -DGASNET_PARSYNC $(thread_defines) -c $(libgasnet_sources)
-	$(AR) cru $@ $(libgasnet_objects)
-	$(RANLIB) $@
-	rm -f $(libgasnet_objects)
+#libgasnet-shmem-par.a: $(libgasnet_dependencies)
+#	$(CC) $(LIBCFLAGS) -DGASNET_PAR $(thread_defines) -c $(libgasnet_sources)
+#	$(AR) cru $@ $(libgasnet_objects)
+#	$(RANLIB) $@
+#	rm -f $(libgasnet_objects)
+#
+#libgasnet-shmem-parsync.a: $(libgasnet_dependencies)
+#	$(CC) $(LIBCFLAGS) -DGASNET_PARSYNC $(thread_defines) -c $(libgasnet_sources)
+#	$(AR) cru $@ $(libgasnet_objects)
+#	$(RANLIB) $@
+#	rm -f $(libgasnet_objects)
 
 .PHONY: all libs clean-local install-data-local uninstall-local tests force tests-seq tests-par tests-parsync
 
@@ -82,7 +83,7 @@ headers = $(srcdir)/*.h $(top_srcdir)/extended-ref/*.h
 
 # Disable shmem-par for now.
 #makefile_fragments = shmem-seq.mak shmem-parsync.mak shmem-par.mak
-makefile_fragments = shmem-seq.mak shmem-parsync.mak 
+makefile_fragments = shmem-seq.mak 
 
 install-data-local: $(headers)
 	$(mkinstalldirs) $(DESTDIR)$(includedir)/shmem-conduit
@@ -115,15 +116,15 @@ tests-seq: force libgasnet-shmem-seq.a shmem-seq.mak
 	  srcdir="$(top_srcdir)/tests"			     \
 	  configfile="shmem-seq.mak"
 
-tests-parsync: force libgasnet-shmem-parsync.a shmem-parsync.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="shmem-parsync.mak"
-
-tests-par: force libgasnet-shmem-par.a shmem-par.mak
-	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
-	  srcdir="$(top_srcdir)/tests"			     \
-	  configfile="shmem-par.mak"
+#tests-parsync: force libgasnet-shmem-parsync.a shmem-parsync.mak
+#	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
+#	  srcdir="$(top_srcdir)/tests"			     \
+#	  configfile="shmem-parsync.mak"
+#
+#tests-par: force libgasnet-shmem-par.a shmem-par.mak
+#	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
+#	  srcdir="$(top_srcdir)/tests"			     \
+#	  configfile="shmem-par.mak"
 
 force:
 	

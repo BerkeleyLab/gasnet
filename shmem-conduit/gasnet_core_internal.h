@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/11/18 00:53:05 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/11/23 12:58:49 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -51,8 +51,11 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 #ifdef QUADRICS_SHMEM
 #define GASNETC_AMQUEUE_REQUEST_FINC	0
 #define GASNETC_AMQUEUE_REQUEST_RANDOM	1
+
 #define GASNETC_AMQUEUE_RELEASE_MSWAP	0
 #define GASNETC_AMQUEUE_RELEASE_PUT	1
+#define GASNETC_VECTORIZE
+
 /*
  * Cray does very well with the mswap operation, which essentially allows us to
  * reduce the unsuccessful AMPoll case to a single word read (if queue <= 64).
@@ -60,8 +63,12 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 #elif defined(CRAY_SHMEM) 
 #define GASNETC_AMQUEUE_REQUEST_FINC	1
 #define GASNETC_AMQUEUE_REQUEST_RANDOM	0
-#define GASNETC_AMQUEUE_RELEASE_MSWAP	0
-#define GASNETC_AMQUEUE_RELEASE_PUT	1
+
+#define GASNETC_AMQUEUE_RELEASE_MSWAP	1
+#define GASNETC_AMQUEUE_RELEASE_PUT	0
+#define GASNETC_VECTORIZE		_Pragma("_CRI ivdep")
+#define GASNETE_CRAYX1_BARRIER
+
 /* 
  * SGI does not implement shmem_int_mswap (even though it exists in the header
  * file!).  We use the put-based mechanism instead.
@@ -69,8 +76,10 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 #elif defined(SGI_SHMEM)
 #define GASNETC_AMQUEUE_REQUEST_FINC	1
 #define GASNETC_AMQUEUE_REQUEST_RANDOM	0
+
 #define GASNETC_AMQUEUE_RELEASE_MSWAP	0
 #define GASNETC_AMQUEUE_RELEASE_PUT	1
+#define GASNETC_VECTORIZE
 #endif
 
 /* -------------------------------------------------------------------- */
@@ -139,7 +148,8 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 /*
  * AMQUEUE DEPTH and maximum sizes
  */
-#define GASNETC_AMQUEUE_MAX_DEPTH	512
+#define GASNETC_AMQUEUE_MAX_DEPTH	256
+#define GASNETC_AMQUEUE_MAX_FIELDS	(GASNETC_AMQUEUE_MAX_DEPTH/sizeof(uintptr_t))
 #define GASNETC_AMQUEUE_FREE_S		0
 #define GASNETC_AMQUEUE_USED_S		1
 #define GASNETC_AMQUEUE_DONE_S		2
@@ -147,7 +157,6 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 #define GASNETC_POW_2(n)		(!((n)&((n)-1)))
 #define GASNETC_AMQUEUE_SIZE_VALID(q)	(GASNETC_POW_2(q) && (q)>1 && \
 					    (q)<=GASNETC_AMQUEUE_MAX_DEPTH)
-
 
 /*
  * Each queue slot requires some payload area to store AM arguments and
@@ -207,16 +216,9 @@ extern int  gasnetc_amq_mask;
 
 extern gasnetc_am_packet_t  gasnetc_amq_reqs[GASNETC_AMQUEUE_MAX_DEPTH];
 
-#ifdef GASNETC_AMQUEUE_RELEASE_MSWAP
-    #if SIZEOF_LONG == 8
-    #define GASNETC_AMQUEUE_VEC_MAX_ID	8
-    #define GASNETC_AMQUEUE_VEC_MASK	0x1e0
-    #define GASNETC_AMQUEUE_VEC_LOWBITS	5
-    #define GASNETC_AMQUEUE_MAX_DEPTH	512
-    #elif SIZEOF_LONG == 4
-	#error Not implemented yet
-    #endif
-extern long gasnetc_amq_donevec[GASNETC_AMQUEUE_VEC_MAX_ID];
+#ifdef CRAY_SHMEM
+extern volatile long	gasnetc_amq_reqfields[GASNETC_AMQUEUE_MAX_FIELDS];
+extern long		gasnetc_amq_numfields;
 #endif
 
 GASNET_INLINE_MODIFIER(gasnetc_AMQueueRequest)
@@ -238,9 +240,6 @@ int gasnetc_AMQueueRequest(gasnet_node_t pe)
 	    GASNETC_AMQUEUE_FREE_S, GASNETC_AMQUEUE_USED_S, (int) pe) 
 	    != GASNETC_AMQUEUE_FREE_S)
 	gasnetc_AMPoll();
-#if 0
-    printf("%d> SLOT idx %d from %d\n", gasnetc_mynode, idx, pe); fflush(stdout);
-#endif
 
     return idx;
 }
@@ -253,16 +252,13 @@ int gasnetc_AMQueueReply(gasnet_node_t pe)
 {
     int	idx;
 
-    #if GASNETC_AMQUEUE_REQUEST_FINC
-        idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe) & gasnetc_amq_mask;
-    #elif GASNETC_AMQUEUE_REQUEST_RANDOM
-        idx = random() & gasnetc_amq_mask;
-    #else
-        #error No GASNETC_AMQUEUE_REQUEST mechansims defined
+    #ifdef QUADRICS_SHMEM
+    idx = random() & gasnetc_amq_mask;
+    #else /* ! QUADRICS_SHMEM */
+    idx = shmem_int_finc(&gasnetc_amq_idx, (int) pe) & gasnetc_amq_mask;
     #endif
 
     /* Once we have the ID, cswap until the selected slot is free  */
-
     while (shmem_int_cswap(&gasnetc_amq_reqs[idx].state, 
 	    GASNETC_AMQUEUE_FREE_S, GASNETC_AMQUEUE_USED_S, (int) pe) 
 	    != GASNETC_AMQUEUE_FREE_S)
@@ -275,49 +271,41 @@ int gasnetc_AMQueueReply(gasnet_node_t pe)
 GASNET_INLINE_MODIFIER(gasnetc_AMQueueRelease)
 void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
 {
-    #if GASNETC_AMQUEUE_RELEASE_MSWAP
-	#ifdef _CRAYC
-	    #include <intrinsics.h>
-	    /*
-	     * We are trying to find to which id in the bitvector the current
-	     * idx will map to.  For a long of 64 bits, bits map to bit vector
-	     * indeces as follows:
-	     *   0- 63 => bit vector id 0
-	     *  64-127 => bit vector id 1
-	     *  . .
-	     *
-	     * The intuition is to get the number of leading zeros in idx,
-	     * which should be at the least (64-9=55) for indexes between 256
-	     * and 511 and 64 if the index is 0.  
-	     *
-	     * If we subtract the number of leading zeros from 64, the value is
-	     * between 0 and 9.  Since we really want a value between 0 and 4,
-	     * we simply make sure that the smallest idx passed into _leadz has
-	     * its sixth bit set.
-	     *
-	     */
-	    int vec_idx = 64 - _leadz64(idx | 0x20) - 6;
+    #ifdef CRAY_SHMEM
+    /*
+     * We are trying to find to which id in the bitvector the current idx will
+     * map to.  For a long of 64 bits, bits map to bit vector indeces as
+     * follows:
+     *   0- 63 => bit vector id 0
+     *  64-127 => bit vector id 1
+     *  . .
+     *
+     * The intuition is to get the number of leading zeros in idx, which should
+     * be at the least (64-9=55) for indexes between 256 and 511 and 64 if the
+     * index is 0.  
+     *
+     * If we subtract the number of leading zeros from 64, the value is between
+     * 0 and 9.  Since we really want a value between 0 and 4, we simply make
+     * sure that the smallest idx passed into _leadz has its sixth bit set.
+     *
+     */
+    int  field_no; 
+    long field_mask;
 
-	    gasneti_assert(idx >= 0 && idx < gasnetc_amq_depth);
-	    gasneti_assert(vec_idx >= 0 && 
-			   vec_idx <= GASNETC_AMQUEUE_VEC_MAX_ID);
+    field_no = (unsigned long) idx >> 6;
+    field_mask = 0x8000000000000000ul >> (idx & 63);
 
-	    shmem_long_mswap(&gasnetc_amq_donevec[vec_idx], 
-			    (1<<idx), (1<<idx), pe);
-	#else
-	    /* TODO general bitfield vector function.  Possibly using ffs(). In
-	     * the meantime, assume max queue depth is sizeof(long) */
-	    gasneti_assert(idx >= 0 && idx < sizeof(long));
-	    shmem_int_mswap(&gasnetc_amq_donevec[0], 
-			    (1<<idx), (1<<idx), (int) pe);
-	#endif
-    #elif GASNETC_AMQUEUE_RELEASE_PUT
-	    gasneti_assert(idx >= 0 && idx < gasnetc_amq_depth);
-	    gasneti_assert(sizeof(int) == sizeof(uint32_t));
-	    shmem_int_p(&(gasnetc_amq_reqs[idx].state), 
-			GASNETC_AMQUEUE_DONE_S, (int) pe);
-    #else
-	#error No GASNETC_AMQUEUE_RELEASE mechansims defined
+    gasneti_assert(idx >= 0 && idx < gasnetc_amq_depth);
+    gasneti_assert(field_no >= 0 && field_no < GASNETC_AMQUEUE_MAX_FIELDS);
+
+    shmem_long_mswap((long *) &gasnetc_amq_reqfields[field_no], 
+		     field_mask, field_mask, pe);
+
+    #else /* ! CRAY_SHMEM */
+    gasneti_assert(idx >= 0 && idx < gasnetc_amq_depth);
+    gasneti_assert(sizeof(int) == sizeof(uint32_t));
+    shmem_int_p(&(gasnetc_amq_reqs[idx].state), 
+		GASNETC_AMQUEUE_DONE_S, (int) pe);
     #endif
 
     return;

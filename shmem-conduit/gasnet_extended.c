@@ -1,6 +1,6 @@
 /*  $Archive:: $
- *     $Date: 2003/11/18 00:53:05 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2003/11/23 12:58:50 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,6 +53,12 @@ gasnet_node_t	    gasnete_nodes = 0;
 gasnet_seginfo_t *  gasnete_seginfo = NULL;
 intptr_t	    gasnete_segment_base = 0;
 
+#ifdef CRAY_SHMEM
+uintptr_t gasnete_pe_bits_shift = 0;
+uintptr_t gasnete_addr_bits_mask = 0;
+#endif
+
+
 /* make a GASNet call - if it fails, print error message and abort */
 #define GASNETE_SAFE(fncall) do {                                           \
    int retcode = (fncall);                                                  \
@@ -74,10 +80,6 @@ intptr_t	    gasnete_segment_base = 0;
 	    gasnete_handleno_phase = gasnete_handleno_cur;  \
 	    GASNETE_HANDLE_INC();			    \
 	} while (0)
-
-#define GASNETE_SHPTR_PE(myptr,pe)				\
-	 (void *)(((intptr_t)(myptr)+gasnetc_segment_shptr_off[pe]))
-
 
 extern void 
 gasnete_init() 
@@ -123,7 +125,7 @@ gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src,
 		    size_t nbytes GASNETE_THREAD_FARG)
 {
     int	*handle = &gasnete_handles[gasnete_handleno_cur];
-    shmem_getmem(dest, src, nbytes, node);
+    gasnete_inline_get(dest,node,src,nbytes);
 
     *handle = GASNETE_HANDLE_DONE;
     GASNETE_HANDLE_INC_PHASE();
@@ -133,14 +135,17 @@ gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src,
 /*
  * Non-blocking memset
  */
-#ifdef GASNETE_SHMALLOC_SEGMENT
+#if 0 
+//def GASNETE_SHMALLOC_SEGMENT
 extern gasnet_handle_t
 gasnete_memset_nb(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
+    void *ptr = GASNETE_SHMPTR(dest, node);
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
 
-    memset(dest, val, nbytes);
+    printf("memset to %d,%p should send to %p shmptr = %p\n", node, dest, GASNETE_SHMPTR(dest,node), shmem_ptr(dest,node));
+    memset(ptr, val, nbytes);
     gasneti_memsync();	/* XXX _gsync on Cray? */
 
     *handle = GASNETE_HANDLE_DONE;
@@ -153,7 +158,7 @@ gasnete_memset_nb(gasnet_node_t node, void *dest, int val,
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
     int  *handle = &gasnete_handles[gasnete_handleno_cur];
-    int	 *ptr = GASNETE_SHPTR_PE(dest,node);
+    int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
 
     *handle = GASNETE_HANDLE_NB_POLL;
 
@@ -176,9 +181,6 @@ GASNET_INLINE_MODIFIER(gasnete_try_syncnb_inner)
 int
 gasnete_try_syncnb_inner(gasnet_handle_t handle)
 {
-    /* Top-level gasnet is suppose to check this */
-    gasneti_assert(handle != GASNET_INVALID_HANDLE);
-
     switch (*handle) {
 	case GASNETE_HANDLE_DONE:
 	    return GASNET_OK;
@@ -246,8 +248,11 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 
     gasneti_assert(phandle != NULL);
 
-    for (i = 0; i < numhandles; i++)
+    for (i = 0; i < numhandles; i++) {
+	if_pf (phandle[i] == GASNET_INVALID_HANDLE)
+	    continue;
 	gasnete_try_syncnb_inner(phandle[i]);
+    }
 
     return GASNET_OK;
 }
@@ -262,32 +267,6 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
   ==========================================================
 */
 
-#if 0
-extern void gasnete_get_nbi_bulk(void *dest, gasnet_node_t node, void *src, 
-				  size_t nbytes GASNETE_THREAD_FARG) 
-{
-    shmem_getmem(dest, src, nbytes, node);
-    gasnete_handle_nbi = GASNETE_HANDLE_FREE;
-    return;
-}
-
-extern void gasnete_put_nbi(gasnet_node_t node, void *dest, void *src, 
-			    size_t nbytes GASNETE_THREAD_FARG) 
-{
-    shmem_putmem(dest, src, nbytes, node);
-    gasnete_handle_nbi = GASNETE_HANDLE_FREE;
-    return;
-}
-
-extern void gasnete_put_nbi_bulk(gasnet_node_t node, void *dest, void *src, 
-				 size_t nbytes GASNETE_THREAD_FARG) 
-{
-    shmem_putmem(dest, src, nbytes, node);
-    gasnete_handle_nbi = GASNETE_HANDLE_FREE;
-    return;
-}
-#endif
-
 /* TODO: Find a way to detect the Altix 3000 at configure time, so it can be
  * set as a shmalloc segment
  */
@@ -296,7 +275,10 @@ extern void
 gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, 
 		    size_t nbytes GASNETE_THREAD_FARG) 
 {
-    memset(dest, val, nbytes);
+    void *ptr = GASNETE_SHMPTR(dest,node);
+    printf("memset to %d,%p should send to %p\n", node, dest, GASNETE_SHMPTR(dest,node));
+    memset(ptr, val, nbytes);
+    shmem_quiet();
     gasneti_memsync();
     return;
 }
@@ -308,7 +290,7 @@ gasnete_memset_nbi(gasnet_node_t node, void *dest, int val,
     GASNETE_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(GASNETE_SHPTR_PE(dest,node)), PACK(&gasnete_nbi_handle))));
+		      PACK(GASNETE_SHMPTR(dest,node)), PACK(&gasnete_nbi_handle))));
 
     gasnete_nbi_am_ctr++;
     return;
@@ -348,11 +330,14 @@ gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
     gasnete_try_syncnb_inner(&gasnete_nbi_handle);
     return GASNET_OK;
 
+    shmem_quiet();
+
     /* Some AMs may still be outstanding, we don't wait for those yet */
     if (gasnete_nbi_am_ctr > 0)
 	    gasnete_nbi_handle = GASNETE_HANDLE_NBI_POLL;
+    else
+	    gasnete_nbi_handle = GASNETE_HANDLE_DONE;
 
-    shmem_quiet();
     return GASNET_OK;
 }
 
@@ -428,22 +413,52 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 #define GASNET_SHMEM_PUT_2  shmem_short_p
 #endif
 
+static uint64_t		_gasnete_getval_temp64;
+static uint32_t		_gasnete_getval_temp32;
+static uint16_t		_gasnete_getval_temp16;
+static uint8_t		_gasnete_getval_temp8;
+static gasnet_register_value_t _gasnete_getval_tempA;
+
 extern gasnet_valget_handle_t 
 gasnete_get_nb_val(gasnet_node_t node, void *src, 
 		   size_t nbytes GASNETE_THREAD_FARG) 
 {
-    static gasnet_register_value_t    val_temp;
-
     switch (nbytes) {
-    #ifdef GASNET_SHMEM_GET_8
-	case 8:	return (gasnet_valget_handle_t) GASNET_SHMEM_GET_8(src, node);
-    #endif
-    #ifdef GASNET_SHMEM_GET_4
-	case 4: return (gasnet_valget_handle_t) GASNET_SHMEM_GET_4(src, node);
-    #endif
-    #ifdef GASNET_SHMEM_GET_2
-	case 2: return (gasnet_valget_handle_t) GASNET_SHMEM_GET_2(src, node);
-    #endif
+	case 8:	
+	    #ifdef GASNET_SHMEM_GET_8
+		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_8(src, node);
+	    #else
+		shmem_getmem((void *) &_gasnete_getval_temp64,src,8,node);
+		return (gasnet_valget_handle_t) _gasnete_getval_temp64;
+	    #endif
+
+	case 4: 
+	    #ifdef GASNET_SHMEM_GET_4
+		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_4(src, node);
+	    #else
+		shmem_getmem((void *) &_gasnete_getval_temp32,src,4,node);
+		return (gasnet_valget_handle_t) _gasnete_getval_temp32;
+	    #endif
+
+	case 2: 
+	    #ifdef GASNET_SHMEM_GET_2
+		return (gasnet_valget_handle_t) GASNET_SHMEM_GET_2(src, node);
+	    #else
+		shmem_getmem((void *) &_gasnete_getval_temp16,src,2,node);
+		return (gasnet_valget_handle_t) _gasnete_getval_temp16;
+	    #endif
+	case 1:
+		{
+			uint8_t	val;
+			printf("%d> ptr is %p shmem_ptr says %p, i say %p\n", gasnete_mynode, src, shmem_ptr(src,node), GASNETE_SHMPTR(src,node));
+			val = *((uint8_t *) shmem_ptr(src,node));
+			return (gasnet_valget_handle_t) val;
+		}
+#if 0
+		shmem_getmem((void *) &_gasnete_getval_temp8,src,1,node);
+		return (gasnet_valget_handle_t) _gasnete_getval_temp8;
+#endif
+
 	case 0: return 0;
 	default:
 	    #if GASNET_DEBUG
@@ -451,8 +466,8 @@ gasnete_get_nb_val(gasnet_node_t node, void *src,
 		      gasneti_fatalerror(
 			"VIOLATION: Unsupported size %d in valget", nbytes);
 	    #endif
-	    shmem_getmem((void *) &val_temp, src, nbytes, node);
-	    return (gasnet_valget_handle_t) val_temp;
+	    shmem_getmem((void *) &_gasnete_getval_tempA, src, nbytes, node);
+	    return (gasnet_valget_handle_t) _gasnete_getval_tempA;
     }
 }
 
@@ -480,13 +495,13 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
 
     switch (nbytes) {
     #ifdef GASNET_SHMEM_PUT_8
-	case 8:	return GASNET_SHMEM_PUT_8(dest, value, node);
+	case 8:	GASNET_SHMEM_PUT_8(dest, value, node); return;
     #endif
     #ifdef GASNET_SHMEM_PUT_4
-	case 4: return GASNET_SHMEM_PUT_4(dest, value, node);
+	case 4: GASNET_SHMEM_PUT_4(dest, value, node); return;
     #endif
     #ifdef GASNET_SHMEM_PUT_2
-	case 2: return GASNET_SHMEM_PUT_2(dest, value, node);
+	case 2: GASNET_SHMEM_PUT_2(dest, value, node); return;
     #endif
 	case 0: return;
 	default:
@@ -542,7 +557,12 @@ static
 enum { OUTSIDE_BARRIER, INSIDE_BARRIER } 
 barrier_splitstate = OUTSIDE_BARRIER;
 
-#ifdef GASNETE_USE_CRAY_TEST_EVENT_BARRIER
+#ifdef GASNETE_CRAYX1_BARRIER
+
+/*
+ * This barrier is optimized for nc-NUMA on the X1. In the notify phase, all
+ * processors send a fetchinc to processor 0
+ */
 typedef 
 struct {
     long volatile barrier_value;
@@ -553,6 +573,8 @@ gasnete_barrier_state_t;
 static long			    gasnete_barrier_pSync[_SHMEM_BCAST_SYNC_SIZE];
 static gasnete_barrier_state_t	    barrier_state = { 0, 0 };
 static int volatile		    barrier_blocking = 0;
+static long volatile		    barrier_notify_ctr[2] = { 0, 0 };
+static int			    barrier_phase = 0;
 
 void
 gasnete_barrier_init()
@@ -576,23 +598,42 @@ gasnete_barrier_notify(int id, int flags)
 
     barrier_state.barrier_value = id;
     barrier_state.barrier_flags = flags;
+    barrier_phase = !barrier_phase;
 
     if (gasnete_nodes > 1) {
-	
+
 	if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
+	    long volatile *rphase = (long volatile *) 
+		GASNETE_SHMPTR(&barrier_notify_ctr[barrier_phase], 0);
+
 	    /* Make sure everyone sees the mismatch if such is the case */
 	    if_pf (flags == GASNET_BARRIERFLAG_MISMATCH) {
 		int i;
+		#pragma _CRI ivdep
 		for (i = 0; i < gasnete_nodes; i++) {
-		    shmem_long_put((long *) &barrier_state.barrier_flags,
-				   (long *) &barrier_state.barrier_flags,
-				   1, i);
+		    long volatile *rflags = (long volatile *) 
+			    GASNETE_SHMPTR(&barrier_state.barrier_flags, i);
+		    *rflags = barrier_state.barrier_flags;
 		}
-		shmem_quiet();
+		shmem_quiet();	/* XXX gsync??? */
 	    }
-	    shmem_barrier_all();
+	    _amo_afadd(rphase, 1);
 	}
 	else {
+	    
+	    #if 0
+	    if (gasnete_mynode == 0) {
+		#pragma _CRI ivdep
+		for (i = 1; i < gasnete_nodes; i++) {
+		    long *val = (long *) GASNETE_SHMPTR(&barrier_state, i);
+		    long *flags = val+1;
+
+		    val   = barrier_state.value;
+		    flags = barrier_state.flags;
+		}
+	    }
+	    #endif
+
 	    /* Have zero broadcast its value to all other processes */
 	    #ifdef GASNETI_PTR32
 	    shmem_broadcast32
@@ -608,14 +649,14 @@ gasnete_barrier_notify(int id, int flags)
 		          barrier_state.barrier_value != id) 
 		   || flags == GASNET_BARRIERFLAG_MISMATCH) {
 		    int i;
+		    #pragma _CRI ivdep
 		    for (i = 0; i < gasnete_nodes; i++) {
-			shmem_long_put((long *) &barrier_state.barrier_flags,
-				       (long *) &barrier_state.barrier_flags,
-				       1, i);
+			long volatile *flags = (long volatile *) 
+			    GASNETE_SHMPTR(&barrier_state.barrier_flags, i);
+			*flags = barrier_state.barrier_flags;
 		    }
 		    shmem_quiet();
 	    }
-	    shmem_barrier_all();
 	}
     }
 
@@ -642,13 +683,52 @@ gasnete_barrier_wait(int id, int flags)
     barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_memsync();
 
-    if_pf(barrier_state.barrier_flags == GASNET_ERR_BARRIER_MISMATCH 
-      || flags != barrier_state.barrier_flags 
-      || (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) 
-	 && id != barrier_state.barrier_value)) 
-	return GASNET_ERR_BARRIER_MISMATCH;
-    else 
-	return GASNET_OK;
+    if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
+	    long volatile *ctr = &barrier_notify_ctr[barrier_phase];
+
+	    if (gasnete_mynode == 0) {
+		int i;
+
+		while (*ctr != (long volatile) gasnete_nodes)
+		    gasnetc_AMPoll();
+
+		*ctr = 0;
+
+		#pragma _CRI ivdep
+		for (i = 1; i < gasnete_nodes; i++) {
+			/*
+		    shmem_long_p((long *) &barrier_notify_ctr[barrier_phase], 1, i);
+			*/
+		    long volatile *rctr = 
+			GASNETE_SHMPTR(&barrier_notify_ctr[barrier_phase], i);
+		    *rctr = 1;
+		}
+		//_gsync(0);
+		shmem_quiet();
+	    }
+	    else {
+		while (!*ctr)
+		    gasnetc_AMPoll();
+		*ctr = 0;
+	    }
+
+	    if_pf (barrier_state.barrier_flags == GASNET_ERR_BARRIER_MISMATCH)
+		return GASNET_ERR_BARRIER_MISMATCH;
+	    else {
+		return GASNET_OK;
+	    }
+    }
+    else {
+	if_pf(barrier_state.barrier_flags == GASNET_ERR_BARRIER_MISMATCH 
+		|| flags != barrier_state.barrier_flags 
+		|| (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) 
+	    && id != barrier_state.barrier_value)) 
+		return GASNET_ERR_BARRIER_MISMATCH;
+	else {
+	    gasnetc_AMPoll();
+	    return GASNET_OK;
+	}
+    }
 }
 
 extern int 
@@ -838,13 +918,10 @@ gasnete_markdone_reph_inner(gasnet_token_t token, void *h)
     int	*handle  = (int *) h;
 
     if (handle == &gasnete_nbi_handle)		/* NBI */ {
-	    printf("%d> NBI counter = %d\n", gasnete_mynode, gasnete_nbi_am_ctr);
-	    fflush(stdout);
 	    gasnete_nbi_am_ctr--;
     }
     else					/* NB */ {
 	    *handle = GASNETE_HANDLE_DONE;
-	    printf("%d> NB completion handle = %p\n", gasnete_mynode, handle); fflush(stdout);
     }
     return;
 }
@@ -859,7 +936,7 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 static gasnet_handlerentry_t const 
 gasnete_handlers[] = {
   /* ptr-width independent handlers */
-#ifndef GASNETE_USE_CRAY_TEST_EVENT_BARRIER
+#ifndef GASNETE_CRAYX1_BARRIER
     gasneti_handler_tableentry_no_bits(gasnete_barrier_notify_reqh),
     gasneti_handler_tableentry_no_bits(gasnete_barrier_done_reqh),
 #endif

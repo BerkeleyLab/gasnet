@@ -9,6 +9,10 @@ Recognized environment variables:
 
 * All the standard GASNet environment variables (see top-level README)
 
+* GASNET_SHMEM_QDEPTH
+  Can be set to a any power of 2, smaller or equal to 256 and constitutes the
+  queue depth set aside for GASNet core AM operations.
+
 Optional compile-time settings:
 ------------------------------
 
