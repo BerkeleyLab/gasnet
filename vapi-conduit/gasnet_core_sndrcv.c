@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2004/10/22 22:51:22 $
- * $Revision: 1.57.2.1 $
+ *     $Date: 2004/10/26 01:35:04 $
+ * $Revision: 1.57.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -833,6 +833,7 @@ void gasnetc_snd_post_list(int count, VAPI_sr_desc_t *sr_desc) {
 
     count -= space;
     sr_desc += space;
+    sreq = (gasnetc_sreq_t *)(uintptr_t)(sr_desc->id);
   } while (count);
 }
 #endif
