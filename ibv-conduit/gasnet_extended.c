@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/25 20:33:32 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2003/04/25 21:57:18 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -438,11 +438,16 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
 
-  gasneti_atomic_increment(&eop->req_oust);
-  GASNETE_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
-                 PACK(dest), PACK(&eop->req_oust))));
+  if (nbytes <= GASNETE_MEMSET_PUT_LIMIT) {
+    /* XXX check error returns */
+    gasnetc_rdma_memset(node, dest, val, nbytes, &eop->req_oust);
+  } else {
+    gasneti_atomic_increment(&eop->req_oust);
+    GASNETE_SAFE(
+      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                   PACK(dest), PACK(&eop->req_oust))));
+  } 
 
   return (gasnet_handle_t)eop;
 }
@@ -554,11 +559,16 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
 
-  gasneti_atomic_increment(&iop->put_req_oust);
-  GASNETE_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
-                 PACK(dest), PACK(&iop->put_req_oust))));
+  if (nbytes <= GASNETE_MEMSET_PUT_LIMIT) {
+    /* XXX check error returns */
+    gasnetc_rdma_memset(node, dest, val, nbytes, &iop->put_req_oust);
+  } else {
+    gasneti_atomic_increment(&iop->put_req_oust);
+    GASNETE_SAFE(
+      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                   PACK(dest), PACK(&iop->put_req_oust))));
+  } 
 }
 
 /* ------------------------------------------------------------------------------------ */
