@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/25 22:35:15 $
- * $Revision: 1.1.2.25 $
+ *     $Date: 2003/04/28 18:26:36 $
+ * $Revision: 1.1.2.26 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -45,9 +45,7 @@ typedef struct {
 } gasnetc_sreq_t;
 
 static gasnetc_sbuf_t			*gasnetc_sbuf_pool;
-#if !defined(GASNET_SEQ)
-  static pthread_mutex_t		gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
-#endif
+static pthread_mutex_t		gasnetc_sbuf_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions                                                               *
@@ -66,19 +64,16 @@ void gasnetc_init_sreq(gasnetc_sreq_t *req, gasnetc_sbuf_t *sbuf) {
 GASNET_INLINE_MODIFIER(gasnetc_put_sbuf)
 void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   /* Add the list segment to the free list */
-  #if !defined(GASNET_SEQ)
-    pthread_mutex_lock(&gasnetc_sbuf_lock);
-  #endif
+  pthread_mutex_lock(&gasnetc_sbuf_lock);
   tail->next = gasnetc_sbuf_pool;
   gasnetc_sbuf_pool = head;
-  #if !defined(GASNET_SEQ)
-    pthread_mutex_unlock(&gasnetc_sbuf_lock);
-  #endif
+  pthread_mutex_unlock(&gasnetc_sbuf_lock);
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
 GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
 gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
+  static pthread_mutex_t poll_lock = PTHREAD_MUTEX_INITIALIZER;
   gasnetc_sbuf_t *head, *tail;
   int count;
   
@@ -87,7 +82,11 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
     VAPI_ret_t vstat;
     VAPI_wc_desc_t comp;
 
+    /* It seems that VAPI_poll_cq() is not thread-safe */
+    pthread_mutex_lock(&poll_lock);
     vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+    pthread_mutex_unlock(&poll_lock);
+
     if (vstat == VAPI_OK) {
       if (comp.status == VAPI_SUCCESS) {
         gasnetc_sbuf_t *sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
@@ -102,9 +101,11 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
 	  
 	  /* decrement any outstanding counters */
           if (sbuf->mem_oust) {
+	    assert((int)gasneti_atomic_read(sbuf->mem_oust) > 0);
 	    gasneti_atomic_decrement(sbuf->mem_oust);
 	  }
           if (sbuf->req_oust){
+	    assert((int)gasneti_atomic_read(sbuf->req_oust) > 0);
             gasneti_atomic_decrement(sbuf->req_oust);
 	  }
 	  
@@ -152,20 +153,14 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     }
 
     /* try to get an unused sbuf from the free list */
-    #if !defined(GASNET_SEQ)
-      pthread_mutex_lock(&gasnetc_sbuf_lock);
-    #endif
+    pthread_mutex_lock(&gasnetc_sbuf_lock);
     sbuf = gasnetc_sbuf_pool;
     if (sbuf != NULL) {
       gasnetc_sbuf_pool = sbuf->next;
-      #if !defined(GASNET_SEQ)
-        pthread_mutex_unlock(&gasnetc_sbuf_lock);
-      #endif
+      pthread_mutex_unlock(&gasnetc_sbuf_lock);
       break;	/* Have a decsriptor - leave the loop */
     }
-    #if !defined(GASNET_SEQ)
-      pthread_mutex_unlock(&gasnetc_sbuf_lock);
-    #endif
+    pthread_mutex_unlock(&gasnetc_sbuf_lock);
 
     /* be kind */
     sched_yield();
