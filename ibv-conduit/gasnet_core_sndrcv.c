@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2004/10/22 21:02:17 $
- * $Revision: 1.57 $
+ *     $Date: 2004/10/22 22:51:22 $
+ * $Revision: 1.57.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -697,20 +697,23 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc) {
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_snd_post_list_common)
-void gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc, uint32_t count) {
+int gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t sr_desc[], uint32_t count) {
   gasnetc_sema_t *op_sema;
   uint32_t tmp;
   int i;
 
   /* loop until space is available on the CQ */
-  if_pf (!gasnetc_sema_trydown(&gasnetc_op_sema, GASNETC_ANY_PAR)) {
+  tmp = gasnetc_sema_trydown_n(&gasnetc_op_sema, GASNETC_ANY_PAR, count);
+  if_pf (!tmp) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
       gasnetc_poll_snd();
-    } while (!gasnetc_sema_trydown(&gasnetc_op_sema, GASNETC_ANY_PAR));
+      tmp = gasnetc_sema_trydown_n(&gasnetc_op_sema, GASNETC_ANY_PAR, count);
+    } while (!tmp);
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
   }
+  count = tmp;
 
   /* loop until space is available on the SQ for at least 1 new entry */
   op_sema = &sreq->cep->op_sema;
@@ -725,21 +728,20 @@ void gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc,
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
   }
 
+  /* "Replace" any CQ slots in excess of the available SQ slots */
+  if_pf (tmp < count) {
+    gasnetc_sema_up_n(&gasnetc_op_sema, count - tmp);
+  }
+
   /* setup some invariant fields */
-  sreq->count = tmp;
-  tmp -= 1;
   for (i = 0; i < tmp; ++i) {
-    #if GASNET_DEBUG	/* unused otherwise */
-      sr_desc[i].id      = 0;
-    #endif
-    sr_desc[i].comp_type = VAPI_UNSIGNALED;
+    /* sr_desc[i].id     = Set by caller */
+    sr_desc[i].comp_type = VAPI_SIGNALED;
     sr_desc[i].set_se    = FALSE;
     sr_desc[i].fence     = FALSE;
   }
-  sr_desc[tmp].id        = (uintptr_t)sreq;
-  sr_desc[tmp].comp_type = VAPI_SIGNALED;
-  sr_desc[tmp].set_se    = FALSE;
-  sr_desc[tmp].fence     = FALSE;
+
+  return tmp;
 }
 
 /* Post a work request to the send queue of the given endpoint */
@@ -799,34 +801,25 @@ void gasnetc_snd_post_inline(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc) {
 #if GASNETC_PIN_SEGMENT
 /* Post multiple work requests to the send queue of the given endpoint */
 GASNET_INLINE_MODIFIER(gasnetc_snd_post_list)
-void gasnetc_snd_post_list(gasnetc_sreq_t *sreq, int count, VAPI_sr_desc_t *sr_desc) {
-
-  /* Can't handle bounce buffers or AMs (yet or ever?) */
-  gasneti_assert(sreq->buffer = NULL);
+void gasnetc_snd_post_list(int count, VAPI_sr_desc_t *sr_desc) {
+  gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)(sr_desc->id);
 
   GASNETC_STAT_EVENT_VAL(SND_POST_LIST,count);
 
   do {
-    gasnetc_sreq_t *next = NULL;
     VAPI_ret_t vstat;
+    int space;
 
-    gasnetc_snd_post_list_common(sreq, sr_desc, count);
-    gasneti_assert(sreq->count >= 1);
+    space = gasnetc_snd_post_list_common(sreq, sr_desc, count);
+    gasneti_assert(space >= 1);
+    gasneti_assert(space <= count);
 
-    if_pf (sreq->count < count) {
-      /* If there is not enough SQ space, so we split the request list */
-      next = gasnetc_get_sreq(0);
-      next->cep = sreq->cep;
-      next->mem_oust = sreq->mem_oust;  sreq->mem_oust = NULL;
-      next->req_oust = sreq->req_oust;  sreq->req_oust = NULL;
-    }
-
-    GASNETC_STAT_EVENT_VAL(POST_SR_LIST,sreq->count);
+    GASNETC_STAT_EVENT_VAL(POST_SR_LIST, space);
     #if GASNET_TRACE || GASNET_DEBUG
-      gasnetc_snd_validate(sreq, sr_desc, count, "POST_ST_LIST");
+      /*gasnetc_snd_validate(sreq, sr_desc, space, "POST_ST_LIST"); BROKEN on VM_WORK branch? */
     #endif
 
-    vstat = EVAPI_post_sr_list(gasnetc_hca, sreq->cep->qp_handle, sreq->count, sr_desc);
+    vstat = EVAPI_post_sr_list(gasnetc_hca, sreq->cep->qp_handle, space, sr_desc);
 
     if_pt (vstat == VAPI_OK) {
       /* SUCCESS, the requests are posted */
@@ -838,10 +831,9 @@ void gasnetc_snd_post_list(gasnetc_sreq_t *sreq, int count, VAPI_sr_desc_t *sr_d
       GASNETC_VAPI_CHECK(vstat, "while posting multiple send work requests");
     }
 
-    count -= sreq->count;
-    sr_desc += sreq->count;
-    sreq = next;
-  } while (sreq != NULL);
+    count -= space;
+    sr_desc += space;
+  } while (count);
 }
 #endif
 
@@ -1596,6 +1588,79 @@ extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, 
     dst += count;
     nbytes -= count;
   } while (nbytes);
+
+  return 0;
+}
+
+typedef struct _gasnete_eop_t {
+  uint8_t type;
+  uint8_t threadidx;
+  uint16_t addr;
+  gasnetc_counter_t req_oust;
+} gasnete_eop_t;
+
+#define GET_X_CHUNK 16
+
+extern int gasnetc_rdma_get_X(size_t count, int node, void *src_ptr, void *dst_ptr, const size_t nbytes_array[], gasnet_handle_t handle_array[]) {
+  const size_t *nbytes_ptr = &(nbytes_array[0]);
+  gasnet_handle_t *handle_ptr = &(handle_array[0]);
+  VAPI_sr_desc_t sr_desc_array[GET_X_CHUNK];
+  VAPI_sg_lst_entry_t sr_sg_array[GET_X_CHUNK];
+  gasnetc_sreq_t *sreq_array[GET_X_CHUNK];
+  gasnetc_cep_t *cep = &gasnetc_cep[node];
+  VAPI_rkey_t rkey = cep->rkey;
+  VAPI_lkey_t lkey = gasnetc_seg_reg.lkey;
+  uintptr_t src = (uintptr_t)src_ptr;
+  uintptr_t dst = (uintptr_t)dst_ptr;
+  size_t remain = count;
+
+  gasneti_assert(count != 0);
+
+  do {
+    size_t chunk = MIN(GET_X_CHUNK, remain);
+    int i;
+
+    for (i = 0; i < chunk; ++i) {
+      size_t nbytes = nbytes_ptr[i];
+      gasnetc_sreq_t *sreq = sreq_array[i] = gasnetc_get_sreq(0);
+      VAPI_sr_desc_t *sr_desc = sr_desc_array + i;
+      sr_desc->sg_lst_p = sr_sg_array + i;
+      sr_desc->id = (uintptr_t)sreq;
+      gasnetc_counter_t *req_oust = &(((gasnete_eop_t *)handle_ptr[i])->req_oust);
+
+      gasneti_assert(nbytes != 0);
+
+      sreq->cep = cep;
+      if (req_oust) {
+        gasnetc_counter_inc(req_oust);
+        sreq->req_oust = req_oust;
+      }
+
+      if_pf (!gasnetc_in_segment(dst, &nbytes)) {
+        /* Destination in segment - use zero copy RDMA read */
+        gasneti_fatalerror("get_X implementation currently limited to in-segment destinations");
+      }
+      gasneti_assert(nbytes == nbytes_ptr[i]); /* pieces can't cross segment edge */
+      gasneti_assert(nbytes <= gasnetc_hca_port.max_msg_sz); /* size limit */
+
+      sr_desc->opcode      = VAPI_RDMA_READ;
+      sr_desc->remote_addr = src;
+      sr_desc->r_key       = rkey;
+
+      sr_desc->sg_lst_len = 1;
+      sr_desc->sg_lst_p[0].addr = dst;
+      sr_desc->sg_lst_p[0].len  = nbytes;
+      sr_desc->sg_lst_p[0].lkey = lkey;
+
+      src += nbytes;
+      dst += nbytes;
+    }
+
+    gasnetc_snd_post_list(chunk, &(sr_desc_array[0]));
+    nbytes_ptr += chunk;
+    handle_ptr += chunk;
+    remain -= chunk;
+  } while (remain);
 
   return 0;
 }
