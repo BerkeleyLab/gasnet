@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2005/02/04 20:24:26 $
- * $Revision: 1.20.2.2 $
+ *     $Date: 2005/02/05 01:10:57 $
+ * $Revision: 1.20.2.3 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -868,9 +868,10 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 	  p2p->pipe_seg_size = 1024; 
 	  p2p->copied_bytes = 0; 
 	  p2p->sent_bytes = 0; 
-	  p2p->num_child = 0; 
-	  p2p->parent = -1; 
-	  p2p->child_lst = NULL; 
+	  p2p->tree.parent = (gasnet_node_t)-1; 
+	  p2p->tree.child_count = 0; 
+	  p2p->tree.child_list = NULL; 
+	  p2p->tree.child_id = (gasnet_node_t)-1; 
 	#endif
 	#ifdef GASNETE_P2P_EXTRA_INIT
 	  GASNETE_P2P_EXTRA_INIT(p2p)
@@ -894,8 +895,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       p2p->p2p_prev->p2p_next = p2p->p2p_next;
       p2p->p2p_next->p2p_prev = p2p->p2p_prev;
       #if GASNETE_COLL_TREES
-	if (p2p->child_lst) {
-	  gasneti_free(p2p->child_lst);
+	if (p2p->tree.child_list) {
+	  gasneti_free(p2p->tree.child_list);
 	}
       #endif
       #ifdef GASNETE_P2P_EXTRA_FREE
@@ -908,27 +909,42 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasnet_hsl_unlock(&gasnete_coll_p2p_table_lock);
     }
 
-    static void gasnete_coll_p2p_put_reqh(gasnet_token_t token, void *buf, size_t nbytes,
-					  gasnet_handlerarg_t team_id,
-					  gasnet_handlerarg_t sequence,
-					  gasnet_handlerarg_t offset,
-					  gasnet_handlerarg_t state) {
+    /* Delivers a long payload and updates 1 or more states
+       count: number of states to update
+       offset: index of first state to update
+       state: value to assign to states [offset, offset+count)
+     */
+    static void gasnete_coll_p2p_long_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+					   gasnet_handlerarg_t team_id,
+					   gasnet_handlerarg_t sequence,
+					   gasnet_handlerarg_t count,
+					   gasnet_handlerarg_t offset,
+					   gasnet_handlerarg_t state) {
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
+      int i;
 
       if (nbytes) {
 	gasneti_sync_writes();
       }
 
-      p2p->state[offset] = state;
+      for (i = 0; i < count; ++i, ++offset) {
+        p2p->state[offset] = state;
+      }
     }
 
-    static void gasnete_coll_p2p_eager_reqh(gasnet_token_t token, void *buf, size_t nbytes,
-					    gasnet_handlerarg_t team_id,
-					    gasnet_handlerarg_t sequence,
-					    gasnet_handlerarg_t count,
-					    gasnet_handlerarg_t size,
-					    gasnet_handlerarg_t offset,
-					    gasnet_handlerarg_t state) {
+    /* Delivers a medium payload to the eager buffer space and updates 1 or more states
+       count: number of states to update
+       offset: index of first state to update
+       state: value to assign to states [offset, offset+count)
+       size: eager element size; payload is copied to (p2p->data + offset*size)
+     */
+    static void gasnete_coll_p2p_med_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+					  gasnet_handlerarg_t team_id,
+					  gasnet_handlerarg_t sequence,
+					  gasnet_handlerarg_t count,
+					  gasnet_handlerarg_t offset,
+					  gasnet_handlerarg_t state,
+					  gasnet_handlerarg_t size) {
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
       int i;
 
@@ -942,33 +958,33 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       }
     }
 
-    static void gasnete_coll_p2p_eager_state_reqh(gasnet_token_t token, 
+    /* No payload to deliver, just updates 1 or more states
+       count: number of states to update
+       offset: index of first state to update
+       state: value to assign to states [offset, offset+count)
+     */
+    static void gasnete_coll_p2p_short_reqh(gasnet_token_t token, 
 						  gasnet_handlerarg_t team_id,
 						  gasnet_handlerarg_t sequence,
 						  gasnet_handlerarg_t count,
-						  gasnet_handlerarg_t size,
 						  gasnet_handlerarg_t offset,
 						  gasnet_handlerarg_t state) {
-#if GASNETE_COLL_TREES
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
       int i;
 
       for (i = 0; i < count; ++i, ++offset) {
         p2p->state[offset] = state;
       }
-#else
-      gasneti_fatalerror("Unexpected call to gasnete_coll_p2p_eager_state_reqh");
-#endif
     }
 
     /* XXX: Assigning from 127 down here is a total kludge!!! */
-    #define _hidx_gasnete_coll_p2p_eager_state_reqh	125
-    #define _hidx_gasnete_coll_p2p_put_reqh		126
-    #define _hidx_gasnete_coll_p2p_eager_reqh		127
+    #define _hidx_gasnete_coll_p2p_short_reqh	125
+    #define _hidx_gasnete_coll_p2p_med_reqh	126
+    #define _hidx_gasnete_coll_p2p_long_reqh	127
     #define GASNETE_COLL_P2P_HANDLERS \
-	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_eager_state_reqh), \
-	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_reqh), \
-	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_eager_reqh)
+	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_short_reqh), \
+	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_reqh),   \
+	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_long_reqh)
 
     /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
     /* Returns as soon as local buffer is reusable */
@@ -979,8 +995,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
 
       GASNETE_SAFE(
-	LONG_REQ(4,4,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_reqh),
-		      src, nbytes, dst, team_id, op->sequence, offset, state)));
+	LONG_REQ(5,5,(dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+		      src, nbytes, dst, team_id, op->sequence, 1, offset, state)));
     }
 
     /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
@@ -992,8 +1008,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
 
       GASNETE_SAFE(
-	LONGASYNC_REQ(4,4,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_reqh),
-			   src, nbytes, dst, team_id, op->sequence, offset, state)));
+	LONGASYNC_REQ(5,5,(dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
+			   src, nbytes, dst, team_id, op->sequence, 1, offset, state)));
     }
 
     /* Send data to be buffered by the recipient */
@@ -1009,8 +1025,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 
 	do {
           GASNETE_SAFE(
-	    MEDIUM_REQ(6,6,(dstnode, gasneti_handleridx(gasnete_coll_p2p_eager_reqh),
-			    src, nbytes, team_id, op->sequence, limit, size, offset, state)));
+	    MEDIUM_REQ(6,6,(dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+			    src, nbytes, team_id, op->sequence, limit, offset, state, size)));
 	  offset += limit;
 	  src = (void *)((uintptr_t)src + nbytes);
 	  count -= limit;
@@ -1018,8 +1034,18 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       }
 
       GASNETE_SAFE(
-	MEDIUM_REQ(6,6,(dstnode, gasneti_handleridx(gasnete_coll_p2p_eager_reqh),
-			src, count * size, team_id, op->sequence, count, size, offset, state)));
+	MEDIUM_REQ(6,6,(dstnode, gasneti_handleridx(gasnete_coll_p2p_med_reqh),
+			src, count * size, team_id, op->sequence, count, offset, state, size)));
+    }
+
+    /* Update one or more states w/o delivering any data */
+    void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+				        uint32_t count, uint32_t offset, uint32_t state) {
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+                                                                                                              
+      GASNETE_SAFE(
+        SHORT_REQ(5,5,(dstnode, gasneti_handleridx(gasnete_coll_p2p_short_reqh),
+                       team_id, op->sequence, count, offset, state)));
     }
 #endif
 
@@ -3780,3 +3806,9 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
 #endif
 #define GASNETE_REFCOLL_HANDLERS()                                 \
   GASNETE_COLL_P2P_HANDLERS
+
+/*---------------------------------------------------------------------------------*/
+/* XXX: this will go away as the code migrates to this file */
+#if GASNETE_COLL_TREES
+  #include "gasnet_extended_treecoll.c"
+#endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_coll.h,v $
- *     $Date: 2005/02/02 22:12:58 $
- * $Revision: 1.16.2.1 $
+ *     $Date: 2005/02/05 01:10:57 $
+ * $Revision: 1.16.2.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,8 @@
 
 #ifndef _GASNET_EXTENDED_COLL_H
 #define _GASNET_EXTENDED_COLL_H
+
+#define GASNETE_COLL_TREES 1	/* XXX: should have this conditional */
 
 /*---------------------------------------------------------------------------------*/
 /* Flag values: */
@@ -67,7 +69,9 @@ typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
 
 #ifndef GASNETE_COLL_IMAGE_OVERRIDE
   /* gasnet_image_t must be large enough to index all threads that participate
-   * in collectives.  A conduit may override this if a larger type is needed.
+   * in collectives.  A conduit may override this if a smaller type will suffice.
+   * However, types larger than 32-bits won't pass as AM handler args.  So, for
+   * a larger type, many default things will require overrides.
    */
   typedef uint32_t gasnet_image_t;
   #if GASNET_SEQ
@@ -196,6 +200,14 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 #endif
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
+    /* Local view of the topology of a tree */
+    typedef struct gasnete_coll_tree_info_t_ {
+	gasnet_node_t	parent;
+	gasnet_node_t	child_count;
+	gasnet_node_t	*child_list;
+	gasnet_node_t	child_id;	/* I am which element of parent's child_list? */
+    } gasnete_coll_tree_info_t;
+
     struct gasnete_coll_p2p_t_ {
 	/* Linkage and bookkeeping */
 	gasnete_coll_p2p_t	*p2p_next;
@@ -214,9 +226,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 	  uint32_t pipe_seg_size; 
 	  uint32_t copied_bytes; 
 	  uint32_t sent_bytes; 
-	  int *child_lst; 
-	  int num_child; 
-	  int parent;
+	  gasnete_coll_tree_info_t tree;	/* XXX: should be pointer to reusable instance */
 	#endif
 
 	#ifdef GASNETE_COLL_P2P_EXTRA_FIELDS
@@ -233,6 +243,8 @@ extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t
                                             void *src, size_t nbytes, uint32_t pos, uint32_t state);
 extern void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
 						 void *src, size_t nbytes, uint32_t pos, uint32_t state);
+extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+						 uint32_t count, uint32_t offset, uint32_t state);
 
 /* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
  * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
@@ -332,6 +344,12 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
       gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
     }
   }
+#endif
+
+/* Shorthand for gasnete_coll_p2p_change_state w/ count == 1 */
+#ifndef gasnete_coll_p2p_change_state
+  #define gasnete_coll_p2p_change_state(op, dstnode, offset, state) \
+    gasnete_coll_p2p_change_states(op, dstnode, 1, offset, state)
 #endif
 
 /*---------------------------------------------------------------------------------*/
