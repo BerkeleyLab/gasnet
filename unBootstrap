@@ -18,6 +18,7 @@ rm -f Makefile.in              \
       lapi-conduit/Makefile.in \
       mpi-conduit/Makefile.in  \
       smp-conduit/Makefile.in  \
+      sci-conduit/Makefile.in  \
       other/Makefile.in        \
       other/ammpi/Makefile.in  \
       tests/Makefile
