@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/12/19 02:13:37 $
- * $Revision: 1.19.6.8 $
+ *     $Date: 2004/01/06 23:24:15 $
+ * $Revision: 1.19.6.9 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,14 +13,18 @@
 
 #include <gasnet.h>
 #include <gasnet_internal.h>
-#if !GASNET_SEGMENT_FAST
-  #include <firehose.h>
-#endif
 
 #include <vapi.h>
 #include <evapi.h>
 #include <vapi_common.h>
 
+#if defined(GASNET_SEGMENT_LARGE) || defined(GASNET_SEGMENT_EVERYTHING)
+  #define GASNETC_USE_FIREHOSE 1
+  #include <firehose.h>
+#endif
+#if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #define GASNETC_PIN_SEGMENT 1
+#endif
 
 extern gasnet_seginfo_t *gasnetc_seginfo;
 
@@ -234,7 +238,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  * Only 1 makes sense right now for normal use.
  * Additional SG space in the SND WQ is used for inline puts
  */
-#define GASNETC_SND_SG  14               /* maximum number of segments to gather on send */
+#define GASNETC_SND_SG  1               /* maximum number of segments to gather on send */
 #define GASNETC_RCV_SG  1               /* maximum number of segments to scatter on rcv */
 
 /* Define non-zero to enable a progress thread for receiving AMs . */
@@ -245,14 +249,14 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 #if GASNETC_VAPI_ENABLE_INLINE_PUTS
   /* AM req/rep <= this size will be done w/ VAPI-level copy, 0 disables */
-  #define GASNETC_AM_INLINE_LIMIT	370
+  #define GASNETC_AM_INLINE_LIMIT	72
 #else
   #define GASNETC_AM_INLINE_LIMIT	0
 #endif
 
 #if GASNETC_VAPI_ENABLE_INLINE_PUTS
   /* puts <= this size will be done w/ VAPI-level copy, 0 disables */
-  #define GASNETC_PUT_INLINE_LIMIT	370
+  #define GASNETC_PUT_INLINE_LIMIT	72
 #else
   #define GASNETC_PUT_INLINE_LIMIT	0
 #endif
@@ -548,7 +552,7 @@ typedef struct {
   gasnetc_sema_t	op_sema;	/* control in-flight RDMA ops */
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;
-  #if GASNET_SEGMENT_FAST
+  #if GASNETC_PIN_SEGMENT
     /* RKey for the segment, registered at attach time */
     VAPI_rkey_t		rkey;
   #else
@@ -616,9 +620,10 @@ extern VAPI_hca_port_t	gasnetc_hca_port;
 extern VAPI_pd_hndl_t	gasnetc_pd;
 extern gasnetc_memreg_t		gasnetc_snd_reg;
 extern gasnetc_memreg_t		gasnetc_rcv_reg;
-#if GASNET_SEGMENT_FAST
+#if GASNETC_PIN_SEGMENT
   extern gasnetc_memreg_t	gasnetc_seg_reg;
-#else
+#endif
+#if GASNETC_USE_FIREHOSE
   extern firehose_info_t	gasnetc_firehose_info;
   #if FIREHOSE_VAPI_USE_FMR
     extern EVAPI_fmr_t		gasnetc_fmr_props;
