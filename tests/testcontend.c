@@ -1,4 +1,6 @@
-/* $Id: testcontend.c,v 1.4.2.1 2004/08/30 05:05:18 csbell Exp $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcontend.c,v $
+ *     $Date: 2004/09/01 20:23:04 $
+ * $Revision: 1.4.2.2 $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  

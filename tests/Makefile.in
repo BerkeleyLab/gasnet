@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2004/08/30 05:05:18 $
-# $Revision: 1.17.2.4 $
+#     $Date: 2004/09/01 20:23:04 $
+# $Revision: 1.17.2.5 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

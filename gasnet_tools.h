@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2004/08/30 06:57:42 $
- * $Revision: 1.10.2.3 $
+ *     $Date: 2004/09/01 20:23:02 $
+ * $Revision: 1.10.2.4 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,6 +81,8 @@
 /* ------------------------------------------------------------------------------------ */
 
 /* misc internal GASNet things we wish to expose when available */
+BEGIN_EXTERNC
+
 #if defined(_INCLUDED_GASNET_H) && defined(GASNET_TRACE)
   #define GASNETT_TRACE_SETSOURCELINE GASNETI_TRACE_SETSOURCELINE
   #define GASNETT_TRACE_GETSOURCELINE GASNETI_TRACE_GETSOURCELINE
@@ -107,11 +109,21 @@
 #endif
 
 #if defined(_INCLUDED_GASNET_H) 
+  /* these tools ONLY available when linking a libgasnet.a */
   extern int gasneti_cpu_count();
   #define gasnett_cpu_count() gasneti_cpu_count()
+  #ifdef HAVE_MMAP
+    extern void *gasneti_mmap(uintptr_t segsize);
+    #define gasnett_mmap(sz) gasneti_mmap(sz)
+  #else
+    #define gasnett_mmap(sz) abort()
+  #endif
 #else
   #define gasnett_cpu_count() abort()
+  #define gasnett_mmap(sz) abort()
 #endif
+
+END_EXTERNC
 
 #undef _IN_GASNET_TOOLS_H
 #endif

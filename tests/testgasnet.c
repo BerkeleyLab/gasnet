@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2004/08/30 05:05:18 $
- * $Revision: 1.13.2.1 $
+ *     $Date: 2004/09/01 20:23:04 $
+ * $Revision: 1.13.2.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,11 +14,79 @@
 #define SHORT_REQ_BASE 128
 #include <other/amxtests/testam.h>
 
+void doit(int partner, int *partnerseg);
+
+#if GASNET_SEGMENT_EVERYTHING
+  typedef struct {
+    void *static_seg;
+    void *common_seg;
+    void *malloc_seg;
+    void *sbrk_seg;
+    void *mmap_seg;
+    void *stack_seg;
+  } test_everything_seginfo_t;
+  test_everything_seginfo_t myinfo;
+  test_everything_seginfo_t partnerinfo;
+  int done = 0;
+  void seg_everything_reqh(gasnet_token_t token) {
+    GASNET_Safe(gasnet_AMReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t)));
+  }
+  void seg_everything_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+    assert(nbytes == sizeof(test_everything_seginfo_t));
+    memcpy(&partnerinfo, buf, nbytes);
+    gasnett_local_wmb();
+    done = 1;
+  }
+  #define EVERYTHING_SEG_HANDLERS() \
+    { 250, (void (*)())seg_everything_reqh }, \
+    { 251, (void (*)())seg_everything_reph },
+
+  char _static_seg[TEST_SEGSZ+PAGESZ] = {1};
+  char _common_seg[TEST_SEGSZ+PAGESZ];
+  void everything_tests(int partner) {
+    char _stack_seg[TEST_SEGSZ+PAGESZ];
+
+    if (gasnet_mynode() == 0) MSG("*** gathering data segment info for SEGMENT_EVERYTHING tests...");
+    BARRIER();
+    myinfo.static_seg = alignup_ptr(&_static_seg, PAGESZ);
+    myinfo.common_seg = alignup_ptr(&_common_seg, PAGESZ);
+    myinfo.malloc_seg = alignup_ptr(test_malloc(TEST_SEGSZ+PAGESZ), PAGESZ);
+    myinfo.sbrk_seg = alignup_ptr(sbrk(TEST_SEGSZ+PAGESZ), PAGESZ);
+    #ifdef HAVE_MMAP
+      myinfo.mmap_seg = alignup_ptr(gasnett_mmap(TEST_SEGSZ+PAGESZ), PAGESZ);
+    #endif
+    myinfo.stack_seg = alignup_ptr(&_stack_seg, PAGESZ);
+    BARRIER();
+    /* fetch partner's addresses into partnerinfo */
+    GASNET_Safe(gasnet_AMRequestShort0((gasnet_node_t)partner, 250));
+    GASNET_BLOCKUNTIL(done);
+    BARRIER();
+
+    /* test that remote access works will all the various data areas */
+    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ static data area ---");
+    doit(partner, (int*)partnerinfo.static_seg);
+    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ common block data area ---");
+    doit(partner, (int*)partnerinfo.common_seg);
+    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ malloc data area ---");
+    doit(partner, (int*)partnerinfo.malloc_seg);
+    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ sbrk data area ---");
+    doit(partner, (int*)partnerinfo.sbrk_seg);
+    #ifdef HAVE_MMAP
+      if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ mmap'd data area ---");
+      doit(partner, (int*)partnerinfo.mmap_seg);
+    #endif
+    if (gasnet_mynode() == 0) MSG(" --- testgasnet w/ stack data area ---");
+    doit(partner, (int*)partnerinfo.stack_seg);
+    BARRIER();
+  }
+#else
+  #define EVERYTHING_SEG_HANDLERS()
+#endif
+
 int main(int argc, char **argv) {
-  int *partnerseg = NULL;
-  int mynode, partner;
+  int partner;
   
-  gasnet_handlerentry_t handlers[] = { ALLAM_HANDLERS() };
+  gasnet_handlerentry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
@@ -35,11 +103,23 @@ int main(int argc, char **argv) {
     }
     printf("]\n"); fflush(stdout);
   }
-
-  mynode = gasnet_mynode();
   partner = (gasnet_mynode() + 1) % gasnet_nodes();
-  partnerseg = (int *)TEST_SEG(partner);
+  #if GASNET_SEGMENT_EVERYTHING
+    everything_tests(partner);
+  #else
+    doit(partner, (int *)TEST_SEG(partner));
+  #endif
 
+  MSG("done.");
+
+  gasnet_exit(0);
+  return 0;
+}
+
+void doit(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+
+  BARRIER();
   /*  blocking test */
   { int val1=0, val2=0;
     val1 = mynode + 100;
@@ -224,19 +304,17 @@ int main(int argc, char **argv) {
 
   { /* all ams test */
     int i;
+    static int base = 0;
     for (i=0; i < 10; i++) {
       ALLAM_REQ(partner);
 
-      GASNET_BLOCKUNTIL(ALLAM_DONE(i+1));
+      GASNET_BLOCKUNTIL(ALLAM_DONE(base+i+1));
     }
+    base += i;
 
     MSG("*** passed AM test!!");
   }
 
   BARRIER();
 
-  MSG("done.");
-
-  gasnet_exit(0);
-  return 0;
 }

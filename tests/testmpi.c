@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmpi.c,v $
- *     $Date: 2004/08/30 05:05:18 $
- * $Revision: 1.4.2.2 $
+ *     $Date: 2004/09/01 20:23:04 $
+ * $Revision: 1.4.2.3 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
