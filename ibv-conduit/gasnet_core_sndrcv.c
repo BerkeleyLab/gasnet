@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/06/24 20:48:08 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2003/06/25 00:10:40 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -293,6 +293,9 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
 /* allocate a send buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
+  #if defined(TRACE) || defined(STATS)
+    int avail = 1;
+  #endif
   gasnetc_sbuf_t *sbuf, *tail;
 
   GASNETI_TRACE_WAIT_BEGIN();
@@ -318,8 +321,20 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
 
     /* be kind */
     gasneti_sched_yield();
+
+    #if defined(TRACE) || defined(STATS)
+      avail = 0;
+    #endif
   }
   GASNETI_TRACE_WAIT_END(GET_SBUF);
+
+  #if defined(TRACE) || defined(STATS)
+    if (avail) {
+      GASNETI_TRACE_EVENT(C,SBUF_AVAIL);
+    } else {
+      GASNETI_TRACE_EVENT(C,SBUF_STALL);
+    }
+  #endif
 
   assert(sbuf != NULL);
 
@@ -408,6 +423,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 #if GASNETC_AM_FLOWCTRL
     /* Requests require credit for flow control */
     if (isReq) {
+      #if defined(TRACE) || defined(STATS)
+	int avail = 1;
+      #endif
       GASNETI_TRACE_WAIT_BEGIN();
       do {
         pthread_mutex_lock(&cep->lock);
@@ -418,8 +436,18 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         }
         pthread_mutex_unlock(&cep->lock);
         gasnetc_sndrcv_poll();
+        #if defined(TRACE) || defined(STATS)
+  	  avail = 0;
+        #endif
       } while (1);
       GASNETI_TRACE_WAIT_END(GET_AMREQ_CREDIT);
+      #if defined(TRACE) || defined(STATS)
+        if (avail) {
+          GASNETI_TRACE_EVENT(C,AMREQ_CREDIT_AVAIL);
+        } else {
+          GASNETI_TRACE_EVENT(C,AMREQ_CREDIT_STALL);
+        }
+      #endif
     }
 #endif
 
@@ -464,24 +492,30 @@ void gasnetc_rcv_reap(int limit) {
           if (GASNETC_MSG_ISREPLY(flags)) {
             gasneti_atomic_increment(&cep->req_credits);
           }
+	#endif
 
-          gasnetc_processPacket(rbuf, flags);
+        gasnetc_processPacket(rbuf, flags);
 
-	  {
-	    int needReply = rbuf->needReply;
-
-            gasnetc_rcv_post(cep, rbuf);
-
-            if (needReply) {
+        #if GASNETC_AM_FLOWCTRL
+	  /* Sending our reply before we post the buffer leaves a small window of time
+	   * where the credit count and the posted buffer count could get out of sync.
+	   * However, that window also exists when the request handler generates the
+	   * reply.  It does seem worth trying to close that window by delaying the
+	   * actual reply.  So we go ahead and send our "implicit" replys ASAP.  In
+	   * the normal case this decision will reduce the latency of receiving the
+	   * credit at the other end but is highly unlikely to trigger a RNR NAK.
+	   *
+	   * XXX: The real solution to closing the small RNR NAK window will be to post
+	   * a "spare" rbuf BEFORE calling ProcessPacket().  See README for details.
+	   */
+          if (rbuf->needReply) {
 	      int retval;
               retval = gasnetc_ReplySystem((gasnet_token_t)rbuf, gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */);
 	      assert(retval == GASNET_OK);
-            }
 	  }
-	#else
-          gasnetc_processPacket(rbuf, flags);
-          gasnetc_rcv_post(cep, rbuf);
 	#endif
+
+        gasnetc_rcv_post(cep, rbuf);
       } else {
 #if 1
         fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
