@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_mmap.c                   $
- *     $Date: 2003/11/13 08:06:09 $
- * $Revision: 1.17.4.1 $
+ *     $Date: 2004/01/23 23:22:09 $
+ * $Revision: 1.17.4.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,10 +35,10 @@
 #if defined(IRIX)
   #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_SGI_ANYADDR | MAP_AUTORESRV)
   #define GASNETI_MMAP_FILE "/dev/zero"
-#elif defined(CRAYX1)
+#elif defined(__crayx1)
   #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
   #define GASNETI_MMAP_FILE "/dev/zero"
-#elif defined(CRAYT3E)
+#elif defined(_CRAYT3E)
   #error mmap not supported on Cray-T3E
 #elif defined(CYGWIN)
   #error mmap not supported on Cygwin - it doesnt work properly
@@ -395,6 +395,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   gasneti_assert(seginfo);
   gasneti_assert(exchangefn);
   gasneti_assert(gasneti_segexch);
+  gasneti_memcheck(gasneti_segexch);
 
   #ifdef HAVE_MMAP
   { /* TODO: this assumes heap grows up */
@@ -459,7 +460,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         maxsegsz = (uintptr_t)endofseg - (uintptr_t)segbase;
         if (segsize > maxsegsz) {
           GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested segsize (%lu=>%lu) to accomodate minheapoffset",
-            segsize, maxsegsz));
+            (unsigned long)segsize, (unsigned long)maxsegsz));
           segsize = maxsegsz;
         }
       }
@@ -475,11 +476,11 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   }
   #else /* !HAVE_MMAP */
     /* for the T3E, and other platforms which don't support mmap */
-    segbase = gasneti_malloc(segsize);
+    segbase = gasneti_malloc_allowfail(segsize);
     while (!segbase) {
       segsize = GASNETI_PAGE_ALIGNDOWN(segsize/2);
       if (segsize == 0) break; 
-      segbase = gasneti_malloc(segsize + GASNET_PAGESIZE);
+      segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE);
     }
     if (segbase) segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
   #endif

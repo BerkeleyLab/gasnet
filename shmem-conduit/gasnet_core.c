@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/shmem-conduit/gasnet_core.c                  $
- *     $Date: 2004/01/05 05:04:47 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2004/01/23 23:22:25 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

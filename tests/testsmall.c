@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testsmall.c                                 $
- *     $Date: 2003/11/06 00:25:44 $
- * $Revision: 1.7 $
+ *     $Date: 2004/01/23 23:22:29 $
+ * $Revision: 1.7.4.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -9,13 +9,13 @@
  * Terms of use are as specified in license.txt
  */
 
+#include "gasnet.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "gasnet.h"
 #include "test.h"
 
 
@@ -49,20 +49,27 @@ char _ackbuf[PAGESZ];
 char *msgbuf;
 char *ackbuf;
 
-void init_stat(stat_struct_t *st, int sz)
+#define init_stat \
+  GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _init_stat
+#define update_stat \
+  GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _update_stat
+#define print_stat \
+  GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _print_stat
+
+void _init_stat(stat_struct_t *st, int sz)
 {
 	st->iters = 0;
 	st->datasize = sz;
 	st->time = 0;
 }
 
-void update_stat(stat_struct_t *st, uint64_t temptime, int iters)
+void _update_stat(stat_struct_t *st, uint64_t temptime, int iters)
 {
 	st->iters += iters;
 	st->time += temptime;
 } 
 
-void print_stat(int myproc, stat_struct_t *st, char *name, int operation)
+void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 {
 	switch (operation) {
 	case PRINT_LATENCY:
@@ -465,7 +472,7 @@ int main(int argc, char **argv)
         insegment = 0;
         ++arg;
     }
-    if (argc != arg+1) {
+    if (argc > arg+1) {
         printf("Usage: %s [-in|-out] (iters) \n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "  memory is in the GASNet segment or not (default it not).\n",
@@ -473,7 +480,7 @@ int main(int argc, char **argv)
         gasnet_exit(1);
     }
 
-    if (argc > 1) iters = atoi(argv[arg]);
+    if (argc > arg) iters = atoi(argv[arg]);
     if (!iters) iters = 1;
 
     /* get SPMD info */

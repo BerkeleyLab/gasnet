@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.24 2003/11/03 19:45:31 csbell Exp $
- * $Date: 2003/11/03 19:45:31 $
- * $Revision: 1.24 $
+/* $Id: gasnet_core_help.h,v 1.24.4.1 2004/01/23 23:22:16 csbell Exp $
+ * $Date: 2004/01/23 23:22:16 $
+ * $Revision: 1.24.4.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -166,19 +166,19 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #if GASNET_TRACE
 /* Generic Trace debug for AM handlers (gasnet_core) or elsewhere */
 #define GASNETC_TRACE_SHORT(reqrep, type, dest, token, idx, args)	       \
-		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token=0x%x index=%d args=%d",\
-			#reqrep, #type, dest, (uintptr_t) token, idx, args)) 
+		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d args=%d",\
+			#reqrep, #type, dest, GASNETI_LADDRSTR(token), idx, args)) 
 
 #define GASNETC_TRACE_MEDIUM(reqrep, type, dest, token, idx, args, sAddr,len)  \
-		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token=0x%x index=%d args=%d "\
-			"src=0x%x len=%d", #reqrep, #type, dest,               \
-			(uintptr_t) token, idx, args, (uintptr_t) sAddr, len))
+		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d args=%d "\
+			"src="GASNETI_LADDRFMT" len=%d", #reqrep, #type, dest,               \
+			GASNETI_LADDRSTR(token), idx, args, GASNETI_LADDRSTR(sAddr), len))
 
 #define GASNETC_TRACE_LONG(reqrep, type, dest, token, idx, args, sAddr, dAddr, \
-		len) GASNETI_TRACE_PRINTF(C,("%s%s\t%d token=0x%x index=%d "   \
-			"args=%d src=0x%x dst=0x%x len=%d", #reqrep, #type,    \
-			dest, (uintptr_t) token, idx, args, (uintptr_t) sAddr, \
-			(uintptr_t) dAddr, len))
+		len) GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d "   \
+			"args=%d src="GASNETI_LADDRFMT" dst="GASNETI_LADDRFMT" len=%d", #reqrep, #type,    \
+			dest, GASNETI_LADDRSTR(token), idx, args, GASNETI_LADDRSTR(sAddr), \
+			GASNETI_LADDRSTR(dAddr), (int)(len)))
 
 /* Formats AM-only debug tracing for _GASNET_TRACE functions, can only be
  * called from gasnet_AM...M() functions from gasnet_core.c
@@ -233,7 +233,7 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #if	GASNET_DEBUG
 #define GASNETC_DPRINTF(x)	printf x
 #else
-#define GASNETC_DPRINTF(x)
+#define GASNETC_DPRINTF(x)      ((void)0)
 #endif
 
 /* -------------------------------------------------------------------------- */

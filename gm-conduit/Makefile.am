@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v 1.29 2003/10/29 00:46:38 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v 1.29.4.1 2004/01/23 23:22:16 csbell Exp $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -46,6 +46,8 @@ libgasnet_sources = $(srcdir)/gasnet_core.c $(srcdir)/gasnet_core_receive.c \
 		    $(srcdir)/gasnet_extended_firehose.c $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch] \
+                         $(top_srcdir)/extended-ref/gasnet_extended_refbarrier.c \
+                         $(top_srcdir)/extended-ref/*.h \
                          $(fh_srcdir)/firehose.h $(fh_srcdir)/firehose_internal.h
 libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o \
 		    gasnet_core_receive.o gasnet_core_conf.o gasnet_extended_op.o \
@@ -116,14 +118,19 @@ install-data-local: $(headers)
 	@list='$(makefile_fragments)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/gm-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/gm-conduit/$$filename; \
+	    echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/gm-conduit/$$filename"; \
+	    @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/gm-conduit/$$filename; \
 	  else :; fi; \
 	done
 
 uninstall-local:
 	rm -f $(includedir)/gm-conduit/*.h $(includedir)/gm-conduit/*.mak
 
+else
+$(top_srcdir)/gasnet.h: force
+	@echo "ERROR: gm-conduit support was not detected at configure time"
+	@echo "       try re-running configure with --enable-gm"
+	@exit 1
 endif
 
 tests:

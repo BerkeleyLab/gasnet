@@ -1,15 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <ammpi.h>
-#include <ammpi_spmd.h>
-
 #include "apputils.h"
 
-
-
-#define VERBOSE 0
 
 #define BULK_REQ_HANDLER 1
 #define BULK_REP_HANDLER 2
@@ -36,7 +26,7 @@ static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
   assert(buf == ((uint8_t *)VMseg) + 100);
   /* assert(done < 2*nummsgs); */
 
-  #ifdef AMMPI_DEBUG
+  #if DEBUG
     /*  verify the result */
     { int i;
       for (i = 0; i < nbytes/4; i++) {
@@ -79,7 +69,7 @@ int main(int argc, char **argv) {
   uint32_t *srcmem;
   int iters = 0;
 
-  AMMPI_VerboseErrors = 1;
+  AMX_VerboseErrors = 1;
 
   if (argc < 2) {
     printf("Usage: %s iters (bulkmsgsize) (Poll/Block) (netdepth) (Half/Full)\n", argv[0]);
@@ -90,7 +80,7 @@ int main(int argc, char **argv) {
   if (!depth) depth = 4;
 
   /* call startup */
-  AM_Safe(AMMPI_SPMDStartup(&argc, &argv, 
+  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
                             depth, &networkpid, &eb, &ep));
 
   /* setup handlers */
@@ -100,8 +90,8 @@ int main(int argc, char **argv) {
   setupUtilHandlers(ep, eb);
 
   /* get SPMD info */
-  myproc = AMMPI_SPMDMyProc();
-  numprocs = AMMPI_SPMDNumProcs();
+  myproc = AMX_SPMDMyProc();
+  numprocs = AMX_SPMDNumProcs();
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 1;
@@ -111,18 +101,18 @@ int main(int argc, char **argv) {
     switch(argv[3][0]) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
-      default: printf("polling must be 'P' or 'B'..\n"); AMMPI_SPMDExit(1);
+      default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
       }
     }
   if (argc > 5) {
     switch(argv[5][0]) {
       case 'h': case 'H': fullduplex = 0; break;
       case 'f': case 'F': fullduplex = 1; break;
-      default: printf("duplex must be H or F..\n"); AMMPI_SPMDExit(1);
+      default: printf("duplex must be H or F..\n"); AMX_SPMDExit(1);
       }
     }
   if (!fullduplex && numprocs % 2 != 0) {
-     printf("half duplex requires an even number of processors\n"); AMMPI_SPMDExit(1);
+     printf("half duplex requires an even number of processors\n"); AMX_SPMDExit(1);
     }
   msg_size = (size > AM_MaxLong() ? AM_MaxLong() : size);
   nummsgs = (size % AM_MaxLong() == 0 ? size / AM_MaxLong() : (size / AM_MaxLong())+1);
@@ -140,7 +130,7 @@ int main(int argc, char **argv) {
     for (i=0; i < numints; i++) srcmem[i] = i;
     }
 
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
 
 
   if (myproc == 0) printf("Running %s bulk test sz=%i...\n", (fullduplex?"full-duplex":"half-duplex"), size);
@@ -186,12 +176,12 @@ int main(int argc, char **argv) {
   fflush(stdout);
 
   /* dump stats */
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
   printGlobalStats();
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
 
   /* exit */
-  AM_Safe(AMMPI_SPMDExit(0));
+  AM_Safe(AMX_SPMDExit(0));
 
   return 0;
   }

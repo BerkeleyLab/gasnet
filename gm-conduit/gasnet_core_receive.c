@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_receive.c,v 1.33 2003/11/03 19:45:31 csbell Exp $
- * $Date: 2003/11/03 19:45:31 $
- * $Revision: 1.33 $
+/* $Id: gasnet_core_receive.c,v 1.33.4.1 2004/01/23 23:22:16 csbell Exp $
+ * $Date: 2004/01/23 23:22:16 $
+ * $Revision: 1.33.4.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -338,7 +338,7 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 			
 			GASNETI_TRACE_PRINTF(C, 
 			    ("AMSystem Gather Received (node=%d,msg=0x%x,"
-			     "paylen=%d)", bufd->node, msg, paylen));
+			     "paylen=%d)", bufd->node, msg, (int)paylen));
 			break;
 
 		case GASNETC_SYS_BROADCAST:
@@ -357,7 +357,7 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 			#endif
 			GASNETI_TRACE_PRINTF(C, 
 			    ("AMSystem Broadcast Received (node=%d,msg=0x%x,"
-			     "paylen=%d)", bufd->node, msg, paylen));
+			     "paylen=%d)", bufd->node, msg, (int)paylen));
 			break;
 
 		default:
@@ -380,7 +380,7 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
  * mpich code
  */
 void
-gasnetc_callback_error(gm_status_t status, char *dest_msg)
+gasnetc_callback_error(gm_status_t status, const char *dest_msg)
 {
 	char reason[128];
 

@@ -1,12 +1,10 @@
 /*  $Archive:: /Ti/AMMPI/apputils.c                                       $
- *     $Date: 2003/11/09 03:32:53 $
- * $Revision: 1.5 $
+ *     $Date: 2004/01/23 23:22:22 $
+ * $Revision: 1.5.4.1 $
  * Description: Application utilities on AMMPI
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <ammpi.h>
-#include <ammpi_spmd.h>
 #include "apputils.h"
 #include <time.h>
 #include <unistd.h>
@@ -38,19 +36,19 @@ static eb_t eb = NULL;
 /*  statistics dump */
 /* ------------------------------------------------------------------------------------ */
 static int statscalls = 0;
-static ammpi_stats_t globalStats;
+static amx_stats_t globalStats;
 static void stats_request_handler(void *token, void *buf, int nbytes, int32_t procnum) {
-  assert(nbytes == sizeof(ammpi_stats_t));
-  AM_Safe(AMMPI_AggregateStatistics(&globalStats, (ammpi_stats_t *)buf));
+  assert(nbytes == sizeof(amx_stats_t));
+  AM_Safe(AMX_AggregateStatistics(&globalStats, (amx_stats_t *)buf));
   statscalls++;
   }
 
 void printGlobalStats() {
-  ammpi_stats_t stats;
+  amx_stats_t stats;
   statscalls = 0; 
-  globalStats = AMMPI_initial_stats;
+  globalStats = AMX_initial_stats;
 
-  AM_Safe(AMMPI_SPMDBarrier()); /* make sure we're done sending msgs for now */
+  AM_Safe(AMX_SPMDBarrier()); /* make sure we're done sending msgs for now */
 
   { /* problem - we use messages to implement above barrier -
      * make sure P0 gets all the barrier replies, or above counts won't match up
@@ -62,15 +60,15 @@ void printGlobalStats() {
     }
   }
 
-  AM_Safe(AMMPI_GetEndpointStatistics(ep, &stats)); /* get statistics */
-  AM_Safe(AMMPI_SPMDBarrier()); /* don't let stats msgs interfere */
+  AM_Safe(AMX_GetEndpointStatistics(ep, &stats)); /* get statistics */
+  AM_Safe(AMX_SPMDBarrier()); /* don't let stats msgs interfere */
 
-  assert(sizeof(ammpi_stats_t) < AM_MaxMedium());
-  AM_Safe(AM_RequestI1(ep, 0, STATS_REQ_HANDLER, &stats, sizeof(ammpi_stats_t), AMMPI_SPMDMyProc())); /* send to zero */
+  assert(sizeof(amx_stats_t) < AM_MaxMedium());
+  AM_Safe(AM_RequestI1(ep, 0, STATS_REQ_HANDLER, &stats, sizeof(amx_stats_t), AMX_SPMDMyProc())); /* send to zero */
 
-  if (AMMPI_SPMDMyProc() == 0) {
+  if (AMX_SPMDMyProc() == 0) {
     uint32_t timeoutusec = 100;
-    while (statscalls < AMMPI_SPMDNumProcs()) {
+    while (statscalls < AMX_SPMDNumProcs()) {
       #if USE_BLOCKING_SPMD_BARRIER
         AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY));
         AM_Safe(AM_WaitSema(eb));
@@ -87,13 +85,13 @@ void printGlobalStats() {
       }
     fprintf(stderr, "--------------------------------------------------\n"
                     "Global stats:\n");
-    AM_Safe(AMMPI_DumpStatistics(stderr, &globalStats, 1));
+    AMX_DumpStatistics(stderr, &globalStats, 1);
     fprintf(stderr, "--------------------------------------------------\n");
     fflush(stderr);
     sleep(1); /* HACK: give a little time for this output to reach master */
     }
 
-  AM_Safe(AMMPI_SPMDBarrier()); /* just to keep things clean */
+  AM_Safe(AMX_SPMDBarrier()); /* just to keep things clean */
 
   }
 /* ------------------------------------------------------------------------------------ */
@@ -164,7 +162,7 @@ extern void outputTimerStats() {
     abort(); \
   }} while(0)
 /* ------------------------------------------------------------------------------------ */
-#ifndef AMMPI_OMIT_READWRITE
+#ifndef APPUTILS_OMIT_READWRITE
 /*  synchronous gets and puts */
 static void get_reply_handler(void *token, int ctr, int dest, int val) {
   uint32_t *pctr;
@@ -298,7 +296,7 @@ void writeSync() {
 /* ------------------------------------------------------------------------------------ */
 void free_resource_handler(int sig) {
   sleep(2);
-  AMMPI_SPMDExit(-1);
+  AMX_SPMDExit(-1);
 }
 /* ------------------------------------------------------------------------------------ */
 void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
@@ -308,7 +306,7 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
 
   AM_Safe(AM_SetHandler(ep, STATS_REQ_HANDLER, stats_request_handler));
 
-#ifndef AMMPI_OMIT_READWRITE
+#ifndef APPUTILS_OMIT_READWRITE
   AM_Safe(AM_SetHandler(ep, GET_REQ_HANDLER, get_request_handler));
   AM_Safe(AM_SetHandler(ep, GET_REP_HANDLER, get_reply_handler));
   AM_Safe(AM_SetHandler(ep, PUT_REQ_HANDLER, put_request_handler));

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/11/13 08:06:09 $
-# $Revision: 1.18.6.2 $
+#     $Date: 2004/01/23 23:22:09 $
+# $Revision: 1.18.6.3 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,9 +15,10 @@ SUBDIRS =            \
         gm-conduit   \
         lapi-conduit \
 	mpi-conduit  \
+	shmem-conduit\
 	smp-conduit  \
-	vapi-conduit \
-	shmem-conduit
+	udp-conduit  \
+	vapi-conduit
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)
@@ -61,6 +62,9 @@ tests: force
 if USE_MPI_CONDUIT
 	@$(MAKE) -C $(top_builddir)/mpi-conduit all $(TEST_TYPE)
 endif
+if USE_UDP_CONDUIT
+	@$(MAKE) -C $(top_builddir)/udp-conduit all $(TEST_TYPE)
+endif
 if USE_GM_CONDUIT
 	@$(MAKE) -C $(top_builddir)/gm-conduit all $(TEST_TYPE)
 endif
@@ -97,9 +101,9 @@ dist-hook:
 	if test -f $(distdir)/docs/Makefile ; then \
           $(MAKE) -C $(distdir)/docs dist-hook ; \
         fi
-	rm -Rf `find $(distdir) -name CVS -type d -print`
-	rm -f `find $(distdir) -name .#\* -print`
 	mkdir -p $(distdir)/tests  # need this special hack to handle tests or distcheck will fail
 	cp -Rp $(srcdir)/tests $(distdir)
+	rm -Rf `find $(distdir) -name CVS -type d -print`
+	rm -f `find $(distdir) -name .#\* -print`
 
 

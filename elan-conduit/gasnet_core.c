@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/elan-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/24 01:37:29 $
- * $Revision: 1.33 $
+ *     $Date: 2004/01/23 23:22:13 $
+ * $Revision: 1.33.4.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -133,7 +133,7 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   /* we may be able to use an elan_reduce here, but the documentation is so poor 
      that I can't figure out how to use it (this is not performance critical anyhow) 
   */
-  GASNETI_TRACE_PRINTF(D,("gasnetc_bootstrapExchange(%i bytes)",len));
+  GASNETI_TRACE_PRINTF(D,("gasnetc_bootstrapExchange(%i bytes)",(int)len));
 
   #ifdef ELAN_VER_1_2
     temp = elan_gallocMain(BASE()->galloc, GROUP(), 64, gasnetc_nodes*len);
@@ -848,7 +848,8 @@ extern void gasnetc_trace_finish() {
 */
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
   GASNETI_CHECKATTACH();
-  gasneti_assert(gasnetc_seginfo && seginfo_table);
+  gasneti_assert(seginfo_table);
+  gasneti_memcheck(gasnetc_seginfo);
   if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
   memset(seginfo_table, 0, numentries*sizeof(gasnet_seginfo_t));
   memcpy(seginfo_table, gasnetc_seginfo, numentries*sizeof(gasnet_seginfo_t));
@@ -1155,7 +1156,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW()-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }

@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_internal.h,v 1.51 2003/11/03 19:45:31 csbell Exp $
- * $Date: 2003/11/03 19:45:31 $
- * $Revision: 1.51 $
+/* $Id: gasnet_core_internal.h,v 1.51.4.1 2004/01/23 23:22:16 csbell Exp $
+ * $Date: 2004/01/23 23:22:16 $
+ * $Revision: 1.51.4.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -113,7 +113,7 @@ void	gasnetc_bootstrapBarrier();
 void	gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 
 /* GM Callback functions */
-void	gasnetc_callback_error(gm_status_t status, char *msg);
+void	gasnetc_callback_error(gm_status_t status, const char *msg);
 
 void	gasnetc_callback_system      (struct gm_port *, void *, gm_status_t);
 void	gasnetc_callback_ambuffer    (struct gm_port *, void *, gm_status_t);
@@ -639,6 +639,39 @@ gasnetc_write_AMBufferMedium(	void *buf,
 	GASNETC_AMHANDLER_WRITE(&pbuf[1], handler);
 	GASNETC_AMLENGTH_WRITE(&pbuf[2], (uint16_t) nbytes);
 	GASNETC_ARGS_WRITE(&pbuf[GASNETC_AM_MEDIUM_ARGS_OFF], argptr, numargs);
+	GASNETC_AMPAYLOAD_WRITE(&pbuf[GASNETC_AM_MEDIUM_HEADER_LEN(numargs)], 
+	    source_addr, nbytes);
+
+	gasneti_assert(GASNETC_AM_MEDIUM_HEADER_LEN(numargs)+nbytes <= 
+			GASNETC_AM_PACKET);
+	return GASNETC_AM_MEDIUM_HEADER_LEN(numargs)+nbytes;
+}
+
+/* 
+ * This writes a Medium sized Medcopy-header into a buffer (typically
+ * a large buffer).  It handles both 32-bit and 64-bit pointers differently
+ * as we are packing the 'destination' pointer in 1 or 2 AM args.
+ */
+GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferMediumMedcopy)
+uint32_t
+gasnetc_write_AMBufferMediumMedcopy(	
+		void *buf,
+		void *source_addr,
+		size_t nbytes,
+		void *dest_addr,
+		int req)
+{
+	uint8_t *pbuf = (uint8_t *)buf;
+	gasnet_handler_t handler = gasneti_handleridx(gasnetc_am_medcopy);
+	size_t numargs = GASNETC_ARGPTR_NUM;
+
+	GASNETC_ASSERT_AMMEDIUM(buf, GASNETC_AM_MEDIUM, handler, numargs, req,
+		nbytes, source_addr);
+
+	GASNETC_AMHEADER_WRITE(pbuf, GASNETC_AM_MEDIUM, numargs, req);
+	GASNETC_AMHANDLER_WRITE(&pbuf[1], handler);
+	GASNETC_AMLENGTH_WRITE(&pbuf[2], (uint16_t) nbytes);
+	GASNETC_ARGPTR(&pbuf[GASNETC_AM_MEDIUM_ARGS_OFF], dest_addr);
 	GASNETC_AMPAYLOAD_WRITE(&pbuf[GASNETC_AM_MEDIUM_HEADER_LEN(numargs)], 
 	    source_addr, nbytes);
 

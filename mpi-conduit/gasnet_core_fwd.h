@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/mpi-conduit/gasnet_core_fwd.h                   $
- *     $Date: 2003/11/10 10:06:29 $
- * $Revision: 1.15 $
+ *     $Date: 2004/01/23 23:22:20 $
+ * $Revision: 1.15.4.1 $
  * Description: GASNet header for MPI conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,7 +60,7 @@
 #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 
   /* this can be used to add conduit-specific 
-     statistical collection values (see gasnet_help.h) */
+     statistical collection values (see gasnet_trace.h) */
 #define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)

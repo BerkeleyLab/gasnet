@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_reqrep.c                                   $
- *     $Date: 2003/11/09 03:32:53 $
- * $Revision: 1.13 $
+ *     $Date: 2004/01/23 23:22:22 $
+ * $Revision: 1.13.4.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -979,8 +979,8 @@ extern int AMMPI_ReplyXfer(void *token, handler_t handler,
 }
 /* ------------------------------------------------------------------------------------ */
 extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *token) {
-  char *statusStr = "*unknown*";
-  char *opcodeStr = "*unknown*";
+  const char *statusStr = "*unknown*";
+  const char *opcodeStr = "*unknown*";
   ammpi_buf_t *msgbuf = (ammpi_buf_t *)token;
   int numArgs = AMMPI_MSG_NUMARGS(&msgbuf->Msg);
   uint32_t *args = GET_PACKET_ARGS(msgbuf);

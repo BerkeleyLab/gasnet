@@ -1,9 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <ammpi.h>
-#include <ammpi_spmd.h>
-
 #include "apputils.h"
 
 #define MAX_PROCS 255
@@ -24,18 +18,18 @@ int main(int argc, char **argv) {
     exit(1);
     }
 
-  AMMPI_VerboseErrors = 1;
+  AMX_VerboseErrors = 1;
 
   /* call startup */
-  AM_Safe(AMMPI_SPMDStartup(&argc, &argv, 
+  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
                             0, &networkpid, &eb, &ep));
 
   /* setup handlers */
   setupUtilHandlers(ep, eb);
 
   /* get SPMD info */
-  myproc = AMMPI_SPMDMyProc();
-  numprocs = AMMPI_SPMDNumProcs();
+  myproc = AMX_SPMDMyProc();
+  numprocs = AMX_SPMDNumProcs();
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 1;
@@ -54,7 +48,7 @@ int main(int argc, char **argv) {
      writeSync();
      }
 
-    AM_Safe(AMMPI_SPMDBarrier()); /* barrier */
+    AM_Safe(AMX_SPMDBarrier()); /* barrier */
 
     { /* read right neighbor's array  */
       int i;
@@ -72,7 +66,7 @@ int main(int argc, char **argv) {
           break;
           }
         }
-      #ifdef AMMPI_DEBUG
+      #if DEBUG
         if (i != MAX_PROCS) {
           printf("Proc %i verified.\n", myproc);
           fflush(stdout);
@@ -80,17 +74,17 @@ int main(int argc, char **argv) {
       #endif
       }
 
-    AM_Safe(AMMPI_SPMDBarrier()); /* barrier */
+    AM_Safe(AMX_SPMDBarrier()); /* barrier */
 
     }
 
   /* dump stats */
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
   printGlobalStats();
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
 
   /* exit */
-  AM_Safe(AMMPI_SPMDExit(0));
+  AM_Safe(AMX_SPMDExit(0));
 
   return 0;
   }

@@ -1,13 +1,13 @@
 dnl -*- m4 -*-
 
 #  $Archive:: /Ti/AMMPI/Makefile                                         $
-#     $Date: 2003/12/01 01:04:10 $
-# $Revision: 1.92.4.4 $
+#     $Date: 2004/01/23 23:22:09 $
+# $Revision: 1.92.4.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_REVISION($Revision: 1.92.4.4 $)
+AC_REVISION($Revision: 1.92.4.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -23,16 +23,14 @@ AC_CANONICAL_SYSTEM
 AC_VALIDATE_CACHED_SYSTEM_TUPLE
 AM_INIT_AUTOMAKE(GASNet, 1.3, no-define)
 
-AC_PREFIX_DEFAULT(/usr/local/gasnet)
+AC_PREFIX_DEFAULT(/usr/local)
 AM_CONFIG_HEADER(gasnet_config.h)
 
 # Save useful directory names
 TOP_SRCDIR=`cd ${srcdir} && pwd`
 TOP_BUILDDIR=`pwd`
-INSTALL_PREFIX=${prefix}
 AC_SUBST(TOP_SRCDIR)
 AC_SUBST(TOP_BUILDDIR)
-AC_SUBST(INSTALL_PREFIX)
 
 GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR RANLIB REXEC AWK])
 AC_PROG_AWK
@@ -105,29 +103,35 @@ GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc 2.96 compiler, [
 ])
 ])
 
-if test "$ac_cv_c_bigendian" = 'yes'; then
-  ENDIANNESS="-DBIG_ENDIAN"
-  # avoid warnings from re-defining BIG_ENDIAN
-  GASNET_TRY_CACHE_CHECK(for BIG_ENDIAN in sys/types.h, cc_bigend_systypes,
-    [#include <sys/types.h>
-     #ifndef BIG_ENDIAN
-       #error not defined
-     #endif
-    ], [], 
-    ENDIANNESS="")
-else
-  ENDIANNESS="-DLITTLE_ENDIAN=1234"
-  # avoid warnings from re-defining LITTLE_ENDIAN
-  GASNET_TRY_CACHE_CHECK(for LITTLE_ENDIAN in stdlib.h, cc_littleend_stdlib,
-    [#include <stdlib.h>
-     #ifndef LITTLE_ENDIAN
-       #error not defined
-     #endif
-    ], [], 
-    ENDIANNESS="")
-fi
-AC_SUBST(ENDIANNESS)
 AC_SUBST(CC)
+
+## DOB: this is more trouble than it's worth because so many OS's define
+## LITTLE_ENDIAN or BIG_ENDIAN in random and sultry header files
+## Code with access to gasnet_config.h should use #if defined(WORDS_BIGENDIAN)
+## If we ever decide we need this (to support other code) then we 
+## can reintroduce this define with a fresh prefix
+dnl if test "$ac_cv_c_bigendian" = 'yes'; then
+dnl   ENDIANNESS="-DBIG_ENDIAN"
+dnl   # avoid warnings from re-defining BIG_ENDIAN
+dnl   GASNET_TRY_CACHE_CHECK(for BIG_ENDIAN in sys/types.h, cc_bigend_systypes,
+dnl     [#include <sys/types.h>
+dnl      #ifndef BIG_ENDIAN
+dnl        #error not defined
+dnl      #endif
+dnl     ], [], 
+dnl     ENDIANNESS="")
+dnl else
+dnl   ENDIANNESS="-DLITTLE_ENDIAN=1234"
+dnl   # avoid warnings from re-defining LITTLE_ENDIAN
+dnl   GASNET_TRY_CACHE_CHECK(for LITTLE_ENDIAN in stdlib.h, cc_littleend_stdlib,
+dnl     [#include <stdlib.h>
+dnl      #ifndef LITTLE_ENDIAN
+dnl        #error not defined
+dnl      #endif
+dnl     ], [], 
+dnl     ENDIANNESS="")
+dnl fi
+dnl AC_SUBST(ENDIANNESS)
 
 ## specific compiler families
 
@@ -144,10 +148,33 @@ fi
 #
 
 case "$gasnet_cv_cc_family" in
-  GNU)  CCOPTFLAGS="-O3 -Winline" 
+  GNU)  oldCFLAGS="$CFLAGS"
+        CFLAGS="-O3"
         # -finline-limit not available on gcc 2.95
         GASNET_TRY_CFLAG([-finline-limit=10000],
-                         [CCOPTFLAGS="$CCOPTFLAGS -finline-limit=10000"])
+                         [CFLAGS="$CFLAGS -finline-limit=10000"])
+        # We'd like to use -Winline to detect call sites where the optimizer
+        # ignores our inline function modifier (usually due to technical limitations)
+  	# However, some versions of gcc issue spurious warnings with -Winline
+        # for inlining operations which the user did not request.
+        # Detect that gcc bug and avoid -Winline for those versions
+        GASNET_TRY_CFLAG([-Winline],[
+          oldCFLAGS2="$CFLAGS"
+          CFLAGS="$CFLAGS -Winline"
+          AC_MSG_CHECKING(for buggy -Winline)
+          GASNET_TRY_CCOMPILE_WITHWARN([
+           int foo() { return 0; }
+           int bar() { return foo() + bar(); }
+          ], [ 
+           int x = bar(); 
+          ], [ AC_MSG_RESULT(ok) # keep -Winline
+          ], [ AC_MSG_RESULT(buggy)
+               CFLAGS="$oldCFLAGS2" # remove -Winline
+          ], [ AC_MSG_ERROR(failure when detecting buggy -Winline)])
+        ])
+
+        CCOPTFLAGS="$CFLAGS"
+        CFLAGS="$oldCFLAGS"
   ;;
   Sun)  CCOPTFLAGS="-xO5" ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
@@ -160,10 +187,37 @@ case "$gasnet_cv_cc_family" in
   *)    CCOPTFLAGS="-O" ;;
 esac
 
+dnl GASNET_GET_GNUWARNINGFLAGS(type)  type=C or CXX
+AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
+        [$1]FLAGS="-g3"
+        ]GASNET_TRY_[$1]FLAG[([-Wall],[[$1]FLAGS="$[$1]FLAGS -Wall"])
+        ]GASNET_TRY_[$1]FLAG[([-Wno-unused],[[$1]FLAGS="$[$1]FLAGS -Wno-unused"])
+        ]GASNET_TRY_[$1]FLAG[([-Wpointer-arith],[[$1]FLAGS="$[$1]FLAGS -Wpointer-arith"])
+        ]GASNET_TRY_[$1]FLAG[([-Wnested-externs],[[$1]FLAGS="$[$1]FLAGS -Wnested-externs"])
+        ]GASNET_TRY_[$1]FLAG[([-Wwrite-strings],[[$1]FLAGS="$[$1]FLAGS -Wwrite-strings"])
+        ]GASNET_TRY_[$1]FLAG[([-Wmissing-format-attribute],[[$1]FLAGS="$[$1]FLAGS -Wmissing-format-attribute"])
+        # some crappy pthread mutex implementations generate warnings without -Wno-missing-braces
+	AC_MSG_CHECKING(for buggy pthread.h mutex initializers)
+        ]GASNET_TRY_[$1]COMPILE_WITHWARN[([#include <pthread.h>],
+          [pthread_mutex_t fastmutex = PTHREAD_MUTEX_INITIALIZER;],
+          [AC_MSG_RESULT(ok)], [AC_MSG_RESULT(buggy)
+          ]GASNET_TRY_[$1]FLAG[([-Wno-missing-braces],[[$1]FLAGS="$[$1]FLAGS -Wno-missing-braces"],
+          [AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)])
+        ])
+        case "$target_os" in 
+          solaris*) # hide pragma warnings in system header files included by absolute path
+            ]GASNET_TRY_[$1]FLAG[([-Wno-unknown-pragmas],[[$1]FLAGS="$[$1]FLAGS -Wno-unknown-pragmas"])
+        esac
+        #]GASNET_TRY_[$1]FLAG[([-ansi -U__STRICT_ANSI__],[[$1]FLAGS="$[$1]FLAGS -ansi -U__STRICT_ANSI__"])
+])
+
 case "$gasnet_cv_cc_family" in
-  GNU)  CCDEBUGFLAGS="-g3 -Wall -Wno-unused -Wpointer-arith -Wnested-externs -Wno-missing-braces" 
-        #CCDEBUGFLAGS="$CCDEBUGFLAGS -ansi -U__STRICT_ANSI__"
+  GNU)  oldCFLAGS="$CFLAGS"
+        GASNET_GET_GNUWARNINGFLAGS(C)
+        CCDEBUGFLAGS="$CFLAGS"
+        CFLAGS="$oldCFLAGS"
   ;;
+  HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
@@ -173,11 +227,13 @@ case "$gasnet_cv_cc_family" in
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
   Intel) MISC_CFLAGS="-wd279" ;;
   PGI) MISC_CFLAGS="-Masmkeyword" ;;
+  Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
   *)    MISC_CFLAGS="" ;;
 esac
 
 case "$gasnet_cv_cc_family" in
   XLC) MISC_CPPFLAGS="-qcpluscmt" ;; # tell preprocessor to allow C++-style comments
+  Sun) MISC_CPPFLAGS="-xCC" ;; # C++ comments
   *)    MISC_CPPFLAGS="" ;;
 esac
 
@@ -356,7 +412,7 @@ case "$target_os" in
 	AC_DEFINE(FREEBSD)
 	GASNET_MACHINE_DEFINES="-DFREEBSD"
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
-        GASNET_THREAD_LIBS="-pthread"
+        GASNET_THREAD_LIBS="-pthread -lc_r"
 	;;
   cygwin*) 
 	AC_DEFINE(CYGWIN)
@@ -425,6 +481,11 @@ esac
 
 GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DUNIX"
 
+AC_SUBST(GASNET_MACHINE_DEFINES)
+AC_SUBST(GASNET_THREAD_DEFINES)
+AC_SUBST(GASNET_THREAD_LIBS)
+AC_SUBST(GASNET_REXEC_DEFINES)
+
 # Find the appropriate OS suffix for executables
 case "$target_os" in
   cygwin*)    EXESUFFIX='.exe' ;;
@@ -442,7 +503,7 @@ AC_SUBST(EXESUFFIX)
 #             
 OLDLIBS="$LIBS"   
 LIBS="$LIBS $GASNET_THREAD_LIBS"
-AC_SEARCH_LIBS(pthread_create, [pthread pthreads], have_pthread=yes, have_pthread=no)
+AC_SEARCH_LIBS(pthread_create, [pthread pthreads c_r], have_pthread=yes, have_pthread=no)
 case "$target_os" in
   hpux*) have_pthread=yes ;; # test fails on HPUX due to signature mismatch
 esac        
@@ -500,27 +561,93 @@ if test "$uni_build" = yes; then
 fi
 
 #---------------------------------------------------------------------------------------------------------------
+# Hack-around to prevent a bogus autoconf 2.58 bug when AC_PROG_CXX is called conditionally below
+am__fastdepCXX_TRUE='#'
+am__fastdepCXX_FALSE=
 # Configure AMUDP
-case "$target_os" in
-  unicos*) # AMUDP not currently supported on Cray systems (due to 64-bit nature)
-    supported_amudp=no 
-    ;; 
-  *)
-    supported_amudp=yes 
-    ;;
-esac
+GASNET_IF_ENABLED_WITH_AUTO(udp, Enable the portable UDP network conduit (on by default),
+  [enabled_udp=yes;force_udp=yes],
+  enabled_udp=no,
+  enabled_udp=yes)
+if test $enabled_udp = yes; then
 
-if test $supported_amudp = yes; then
-  # detect libraries necessary for udp-* backends
-  OLDLIBS="$LIBS"
-    LIBS=""
-    AC_SEARCH_LIBS(socket, socket, have_udp=yes, have_udp=no)
-    AC_SEARCH_LIBS(gethostbyname, nsl, , have_udp=no)
-    GASNET_UDP_LIBS="$LIBS"
-  LIBS="$OLDLIBS"
+  # Do C++ configuration
+  AC_LANG_SAVE
+
+  AC_PROG_CXX
+  AC_PROG_CXXCPP
+
+  AC_LANG_CPLUSPLUS
+  GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
+  CXXDEBUGFLAGS="-g"
+  CXXOPTFLAGS="-O2"
+  case "$gasnet_cv_cxx_family" in
+    GNU) 
+       oldCXXFLAGS="$CXXFLAGS"  
+       GASNET_GET_GNUWARNINGFLAGS(CXX)
+       MISC_CXXFLAGS="$CXXFLAGS" 
+       CXXFLAGS="$oldCXXFLAGS"
+    ;;
+    PGI)   MISC_CXXFLAGS="-w" ;; # apparently has no way to indep control warnings
+    KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
+    MIPS)  MISC_CXXFLAGS="-diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
+    Intel) MISC_CXXFLAGS="-wd654 -wd1125 -wd279" ;;
+    Cray)  # Cray CC v3.3.0.2 fails to accept "-htaskprivate", but accepts "-htask private"
+     MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init -htask private $LIBCM" ;;
+  esac  
+  if test "$BUILDCONFIG" = "optimize" ; then
+    CXXFLAGS="$CXXOPTFLAGS"
+  else
+    CXXFLAGS="$CXXDEBUGFLAGS"
+  fi
+  AC_SUBST(CXX)
+  AC_SUBST(CXXFLAGS)
+  AC_SUBST(MISC_CXXFLAGS)
+
+  AC_LANG_RESTORE
+
+  supported_amudp=yes 
+  if test "$force_udp$supported_udp" = yesno ; then
+    AC_MSG_ERROR(User requested --enable-udp but AMUDP is not supported on your system)
+  fi
+
+  if test $supported_amudp = yes; then
+    # detect libraries necessary for udp-* backends
+    OLDLIBS="$LIBS"
+      LIBS=""
+      AC_SEARCH_LIBS(socket, socket, have_udp=yes, have_udp=no)
+      AC_SEARCH_LIBS(gethostbyname, nsl, , have_udp=no)
+      GASNET_UDP_LIBS="$LIBS"
+
+      if test "$have_udp" = yes ; then
+	AC_MSG_CHECKING(for working UDP configuration)
+	# TODO: add a basic test of the UDP configuration to make sure it works
+	# this is a mess because every OS has different headers required
+	udp_test_worked=yes
+      
+	if test "$udp_test_worked" = yes ; then
+	    AC_MSG_RESULT(yes)
+	else
+	    AC_MSG_RESULT(no)
+	    AC_MSG_WARN(build test failed: I don't know how to build UDP programs on your system)
+	    have_udp=no
+	fi
+      fi
+
+      if test "$force_udp$have_udp" = yesno ; then
+	AC_MSG_ERROR(User requested --enable-udp but I don't know how to build UDP programs for your system)
+      fi
+
+    LIBS="$OLDLIBS"
+  fi
 fi
 AC_SUBST(GASNET_UDP_LIBS)
-AM_CONDITIONAL(USE_AMUDP, test "$supported_amudp$have_udp" = yesyes)
+AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
+
+GASNET_ENV_DEFAULT(GASNET_CSPAWN_CMD, "$TI_CSPAWN_CMD")
+if test "$GASNET_CSPAWN_CMD" != "" ; then
+  AC_DEFINE_UNQUOTED(GASNET_CSPAWN_CMD, "$GASNET_CSPAWN_CMD")
+fi
 
 #---------------------------------------------------------------------------------------------------------------
 # Configure AMMPI 
@@ -703,11 +830,6 @@ AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 #--------------------------------------------------------------------------------------------------------
 
-AC_SUBST(GASNET_MACHINE_DEFINES)
-AC_SUBST(GASNET_THREAD_DEFINES)
-AC_SUBST(GASNET_THREAD_LIBS)
-AC_SUBST(GASNET_REXEC_DEFINES)
-
 #-----------------------------------------------------------------------------------------------
 # SMP configuration
 
@@ -838,6 +960,14 @@ if test $have_elan = yes; then
     ;;
   esac
 
+  ELAN_HEADERLOC="${ELAN_INCLUDE}/elan"
+  # Don't actually place -I/usr/include on the compile line, because this
+  # breaks IA64 Intel C, which relies on preceding /usr/include with its own
+  # include directory that overrides some system headers (eg asm/*)
+  if test `cd ${ELAN_INCLUDE}; pwd` == "/usr/include"; then
+    ELAN_INCLUDE=.
+  fi
+
   AC_MSG_CHECKING(for working ELAN configuration)
   OLDCFLAGS="$CFLAGS"
   OLDLIBS="$LIBS"
@@ -864,18 +994,21 @@ if test $have_elan = yes; then
   if test "$elan_test_worked" = yes; then
     AC_MSG_RESULT(yes)
     AC_MSG_CHECKING(for ELAN version)
-    if test -e ${ELAN_INCLUDE}/elan/version.h; then
-      verstr=`grep QSNETLIBS_VERSION_STRING ${ELAN_INCLUDE}/elan/version.h`
+    if test -e ${ELAN_HEADERLOC}/version.h; then
+      verstr=`grep QSNETLIBS_VERSION_STRING ${ELAN_HEADERLOC}/version.h`
       [majorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $4 }'`]
       [minorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $5 }'`]
       [subver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $6 }'`]
     else
-      verstr=`grep 'ELAN_VERSION' ${ELAN_INCLUDE}/elan/misc.h`
+      verstr=`grep 'ELAN_VERSION' ${ELAN_HEADERLOC}/misc.h`
       [majorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $5 }'`]
       [minorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $6 }'`]
       subver=0
     fi
     AC_MSG_RESULT("${majorver}.${minorver}.${subver}")
+    if test "$majorver" == "" -o "$minorver" == "" -o "$subver" == "" ; then
+      AC_MSG_ERROR("unable to determine libelan version")
+    fi
     ELAN_FLAGS="-DELAN_VERSION_MAJOR=${majorver} -DELAN_VERSION_MINOR=${minorver} -DELAN_VERSION_SUB=${subver}"
   else
     AC_MSG_RESULT(no)
@@ -1107,7 +1240,7 @@ AC_SUBST(LIBM)
 
 LIBS="$OLDLIBS"
 
-AC_CHECK_FUNCS(setenv putenv)
+AC_CHECK_FUNCS(setenv unsetenv putenv)
 
 ########################################################################
 
@@ -1225,17 +1358,25 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
   #include <fcntl.h>
   #include <stdio.h>
   char junk[[16384]];
-  char filename[[255]];
+  int testfd(int);
   int main() {
-    void *ptr,*ptr2;
-    int fd;
+    int fd, retval;
     #if 0
-      tmpnam(filename);
+      char filename[[255]];
+      tmpnam(filename); /* unsafe */
       fd = open(filename, O_RDWR | O_CREAT);
     #else
+      char filename[[255]];
       strcpy(filename,"/tmp/gasnet-conftemp-XXXXXX");
-      fd = mkstemp(filename);
+      fd = mkstemp(filename); /* leaves crap laying around */
     #endif
+    retval = testfd(fd);
+    close(fd);
+    remove(filename);
+    return retval; 
+  }
+  int testfd(int fd) {
+    void *ptr,*ptr2;
     if (fd == -1) return 1;
     if (write(fd, junk, 16384) == -1) return 2;
     ptr = mmap(0, 16384, (PROT_READ|PROT_WRITE), 
@@ -1245,6 +1386,7 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
     ptr2 = mmap(ptr, 16384, (PROT_READ|PROT_WRITE), 
 	(MAP_PRIVATE | MAP_FIXED), fd, 0);
     if (ptr2 == MAP_FAILED || ptr2 == NULL || ptr2 != ptr) return 5;
+    if (munmap(ptr,16384) != 0) return 6;
     return 0;
   }],[AC_DEFINE(HAVE_MMAP)])
   ;;
@@ -1343,6 +1485,9 @@ AC_SUBST(LDFLAGS)
 PERLSTART=$TOP_SRCDIR/other/perlstart
 AC_SUBST_FILE(PERLSTART)
 
+# Figure out how to install config files
+GASNET_SET_INSTALL_CMD
+
 ########################################################################
 ##
 ##  Final Output
@@ -1365,6 +1510,11 @@ mpi-conduit/mpi-parsync.mak
 mpi-conduit/mpi-par.mak
 mpi-conduit/contrib/Makefile
 mpi-conduit/contrib/gasnetrun_mpi
+
+udp-conduit/Makefile
+udp-conduit/udp-seq.mak
+udp-conduit/udp-parsync.mak
+udp-conduit/udp-par.mak
 
 gm-conduit/Makefile
 gm-conduit/gm-seq.mak
@@ -1400,6 +1550,7 @@ shmem-conduit/shmem-seq.mak
 
 other/Makefile
 other/ammpi/Makefile
+other/amudp/Makefile
 tests/Makefile
 config-aux/Makefile
 ,

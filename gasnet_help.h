@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2003/10/31 12:21:03 $
- * $Revision: 1.18 $
+ *     $Date: 2004/01/23 23:22:09 $
+ * $Revision: 1.18.4.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,8 +25,12 @@
 
 BEGIN_EXTERNC
 
-extern void gasneti_fatalerror(char *msg, ...) GASNET_NORETURN;
+extern void gasneti_fatalerror(const char *msg, ...) GASNET_NORETURN __attribute__((__format__ (__printf__, 1, 2)));
 extern char *gasneti_getenv(const char *keyname);
+
+/* set/unset an environment variable, for the local process ONLY */
+extern void gasneti_setenv(const char *key, const char *value);
+extern void gasneti_unsetenv(const char *key);
 
 #if defined(__GNUC__) || defined(__FUNCTION__)
   #define GASNETI_CURRENT_FUNCTION __FUNCTION__
@@ -51,10 +55,12 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
                            _node, gasnet##T##_nodes, gasneti_current_loc);                                         \
       if_pf (_ptr < (uintptr_t)gasnet##T##_seginfo[_node].addr ||                                                  \
              (_ptr + _nbytes) > (((uintptr_t)gasnet##T##_seginfo[_node].addr) + gasnet##T##_seginfo[_node].size))  \
-        gasneti_fatalerror("Remote address out of range (node=%i ptr=0x%08x nbytes=%i "                            \
-                           "segment=(0x%08x...0x%08x)) at %s",                                                     \
-                           _node, _ptr, _nbytes, gasnet##T##_seginfo[_node].addr,                                  \
-                           ((uint8_t*)gasnet##T##_seginfo[_node].addr) + gasnet##T##_seginfo[_node].size,          \
+        gasneti_fatalerror("Remote address out of range (node=%i ptr="GASNETI_LADDRFMT" nbytes=%i "                \
+                           "segment=("GASNETI_LADDRFMT"..."GASNETI_LADDRFMT")) at %s",                             \
+                           _node, GASNETI_LADDRSTR(_ptr), (int)_nbytes,                                            \
+                           GASNETI_LADDRSTR(gasnet##T##_seginfo[_node].addr),                                      \
+                           GASNETI_LADDRSTR(((uint8_t*)gasnet##T##_seginfo[_node].addr) +                          \
+                                            gasnet##T##_seginfo[_node].size),                                      \
                            gasneti_current_loc);                                                                   \
     } while(0)
 #endif

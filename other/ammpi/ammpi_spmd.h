@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.h                                     $
- *     $Date: 2003/09/13 17:17:54 $
- * $Revision: 1.7 $
+ *     $Date: 2004/01/23 23:22:22 $
+ * $Revision: 1.7.6.1 $
  * Description: AMMPI Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -69,6 +69,21 @@ extern int AMMPI_SPMDBroadcast(void *buf, size_t len, int rootid);
    may only be used after startup - beware, these functions block without polling
 */
 
+/* ------------------------------------------------------------------------------------ */
+/* standardized AM-2 extensions */
+
+#define AMX_SPMDgetenvMaster      AMMPI_SPMDgetenvMaster
+#define AMX_SPMDBarrier           AMMPI_SPMDBarrier
+#define AMX_SPMDNumProcs          AMMPI_SPMDNumProcs
+#define AMX_SPMDMyProc            AMMPI_SPMDMyProc
+#define AMX_SPMDExit              AMMPI_SPMDExit
+#define AMX_SPMDSetExitCallback   AMMPI_SPMDSetExitCallback          
+#define AMX_SPMDkillmyprocess     AMMPI_SPMDkillmyprocess
+#define AMX_SPMDIsWorker          AMMPI_SPMDIsWorker
+#define AMX_SPMDAllGather         AMMPI_SPMDAllGather
+
+/* TODO */
+#define AMX_SPMDStartup           AMMPI_SPMDStartup
 
 END_EXTERNC
 

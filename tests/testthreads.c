@@ -1,4 +1,4 @@
-/* $Id: testthreads.c,v 1.10 2003/09/15 06:31:19 bonachea Exp $
+/* $Id: testthreads.c,v 1.10.6.1 2004/01/23 23:22:29 csbell Exp $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -10,6 +10,8 @@
  * Terms of use are as specified in license.txt
  */
 
+#include "gasnet.h"
+#include "gasnet_tools.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,8 +20,6 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-#include "gasnet.h"
-#include "gasnet_tools.h"
 #include "test.h"
 
 #define CACHE_LINE_BYTES	(128)
@@ -53,7 +53,9 @@ int	amiters_max = 50;
 int     verbose = 0;
 int     amtrace = 0;
 
-#define ACTION_PRINTF  if (verbose) printf
+
+#define ACTION_PRINTF \
+  if (GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), verbose) MSG
 
 int	sizes[] = { 0, /* gasnet_AMMaxMedium()-1      */
                     0, /* gasnet_AMMaxMedium()        */
@@ -179,7 +181,7 @@ main(int argc, char **argv)
 	int 		threads = 1;
 	int		i;
 	pthread_t	*tids;
-        char *getopt_str;
+        const char *getopt_str;
         int opt_p=0, opt_g=0, opt_a=0, opt_m=0;
 
         #if TEST_MPI
@@ -223,7 +225,7 @@ main(int argc, char **argv)
 
 	/* Assume all test functions if no option is passed */
 	if (functions_num  == 0) {
-		printf(" running all functions!\n");
+		MSG("running all functions!");
 		
 		memcpy(test_functions, test_functions_all, 
 				sizeof(test_functions_all));
@@ -268,8 +270,7 @@ main(int argc, char **argv)
 		int 	i;
 		void	*ret;
 
-		printf("%d> Forking %d gasnet threads\n", (int)gasnet_mynode(), 
-				threads);
+		MSG("Forking %d gasnet threads", threads);
 		for (i = 0; i < threads; i++) {
                         pthread_attr_t attr;
                         pthread_attr_init(&attr);
@@ -293,7 +294,7 @@ main(int argc, char **argv)
 
 	free_thread_data();
 
-	printf("%d> Tests complete\n", (int)gasnet_mynode());
+	MSG("Tests complete");
 
         BARRIER();
 
@@ -314,7 +315,7 @@ threadmain(void *args)
 
 	thread_barrier();
 
-	printf("tid=%3d> starting.\n", td->tid);
+	MSG("tid=%3d> starting.", td->tid);
 
 	for (i = 0; i < iters; i++) {
 		idx = rand() % functions_num;
@@ -325,7 +326,7 @@ threadmain(void *args)
 	}
 
 	thread_barrier();
-	printf("tid=%3d> done.\n", td->tid);
+	MSG("tid=%3d> done.", td->tid);
 
 	return NULL;
 }
@@ -411,7 +412,8 @@ thread_barrier() {
 
 /****************************************************************/
 /* AM Handlers */
-#define PRINT_AM(x)	if (amtrace) ACTION_PRINTF x
+#define PRINT_AM(x) \
+  if (GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), amtrace) ACTION_PRINTF x
 
 void 
 ping_shorthandler(gasnet_token_t token, harg_t idx) 
@@ -419,7 +421,7 @@ ping_shorthandler(gasnet_token_t token, harg_t idx)
 	gasnet_node_t	node;
 	gasnet_AMGetMsgSource(token, &node);
 
-	PRINT_AM(("node=%2d> AMShort Request for (%d,%d)\n", 
+	PRINT_AM(("node=%2d> AMShort Request for (%d,%d)", 
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
@@ -430,7 +432,7 @@ void
 pong_shorthandler(gasnet_token_t token, harg_t idx) 
 {
 	int	tid = tt_thread_data[idx].tid;
-	PRINT_AM(("node=%2d> AMShort Reply for tid=%d, (%d,%d)\n", 
+	PRINT_AM(("node=%2d> AMShort Reply for tid=%d, (%d,%d)", 
 			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(tid >= 0 && tid < threads_num*gasnet_nodes());
@@ -443,7 +445,7 @@ ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx)
 	gasnet_node_t	node;
 	gasnet_AMGetMsgSource(token, &node);
 
-	PRINT_AM(("node=%2d> AMMedium Request for (%d,%d)\n", 
+	PRINT_AM(("node=%2d> AMMedium Request for (%d,%d)", 
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
@@ -460,7 +462,7 @@ pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes,
 {
 	int	tid = tt_thread_data[idx].tid;
 
-	PRINT_AM(("node=%2d> AMMedium Reply for tid=%d, (%d,%d)\n", 
+	PRINT_AM(("node=%2d> AMMedium Reply for tid=%d, (%d,%d)", 
 			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(tid >= 0 && tid < threads_num*gasnet_nodes());
@@ -481,7 +483,7 @@ ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx, har
 	tid = node * threads_num + idx;
 	paddr = tt_addr_map[tid];
 
-	PRINT_AM(("node=%2d> AMLong Request for (%d,%d)\n", 
+	PRINT_AM(("node=%2d> AMLong Request for (%d,%d)", 
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
@@ -497,7 +499,7 @@ void
 pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx) {
 	int	tid = tt_thread_data[idx].tid;
 
-	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)\n", 
+	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)", 
 			(int)gasnet_mynode(), tid, (int)gasnet_mynode(), (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(tid >= 0 && tid < threads_num*gasnet_nodes());
@@ -515,12 +517,12 @@ test_sleep(threaddata_t *tdata)
 {
 	unsigned	usecs = (unsigned) sleep_min_us + 
 				(rand() % (sleep_max_us - sleep_min_us));
-	ACTION_PRINTF("tid=%3d> sleeping %.3f millisecs\n", tdata->tid, usecs/1000.0);
+	ACTION_PRINTF("tid=%3d> sleeping %.3f millisecs", tdata->tid, usecs/1000.0);
         { uint64_t goal = gasnett_ticks_to_us(gasnett_ticks_now()) + usecs;
           while (gasnett_ticks_to_us(gasnett_ticks_now()) < goal) 
             gasnett_sched_yield();
         }
-	ACTION_PRINTF("tid=%3d> awaking\n", tdata->tid);
+	ACTION_PRINTF("tid=%3d> awaking", tdata->tid);
 }
 
 void
@@ -535,7 +537,7 @@ test_put(threaddata_t *tdata)
 		len = RANDOM_SIZE();
 	} while (len > TEST_SEGZ_PER_THREAD);
 
-	ACTION_PRINTF("tid=%3d> put (%p,%8d) -> tid=%3d,node=%d,addr=%p\n",
+	ACTION_PRINTF("tid=%3d> put (%p,%8d) -> tid=%3d,node=%d,addr=%p",
 			tdata->tid, laddr, len, peer, node, raddr);
 
 	gasnet_put(node, raddr, laddr, len);
@@ -553,7 +555,7 @@ test_get(threaddata_t *tdata)
 		len = RANDOM_SIZE();
 	} while (len > TEST_SEGZ_PER_THREAD);
 
-	ACTION_PRINTF("tid=%3d> get (%p,%8d) <- tid=%3d,node=%d,addr=%p\n",
+	ACTION_PRINTF("tid=%3d> get (%p,%8d) <- tid=%3d,node=%d,addr=%p",
 			tdata->tid, laddr, len, peer, node, raddr);
 
 	gasnet_get(laddr, node, raddr, len);
@@ -571,7 +573,7 @@ test_amshort(threaddata_t *tdata)
 	int 	 	peer = RANDOM_PEER(tdata);
 	int		node = tt_thread_map[peer];
 
-	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d\n", tdata->tid, peer);
+	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d", tdata->tid, peer);
 	tdata->flag = -1;
         gasnett_local_membar();
 	GASNET_Safe(gasnet_AMRequestShort1(node, 
@@ -579,7 +581,7 @@ test_amshort(threaddata_t *tdata)
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
-	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d complete.\n", tdata->tid, peer);
+	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d complete.", tdata->tid, peer);
 }
 
 void
@@ -594,7 +596,7 @@ test_ammedium(threaddata_t *tdata)
 		len = RANDOM_SIZE();
 	} while (len > gasnet_AMMaxMedium());
 		
-	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d\n", tdata->tid, (int)len, peer);
+	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
         gasnett_local_membar();
 	GASNET_Safe(gasnet_AMRequestMedium1(node, 
@@ -603,7 +605,7 @@ test_ammedium(threaddata_t *tdata)
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
-	ACTION_PRINTF("tid=%3d> AMMediumRequest to tid=%3d complete.\n", tdata->tid, peer);
+	ACTION_PRINTF("tid=%3d> AMMediumRequest to tid=%3d complete.", tdata->tid, peer);
 }
 
 
@@ -623,7 +625,7 @@ test_amlong(threaddata_t *tdata)
 		
 	tdata->flag = -1;
         gasnett_local_membar();
-	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d\n", tdata->tid, (int)len, peer);
+	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 
 	GASNET_Safe(gasnet_AMRequestLong2(node, 
 		    hidx_ping_longhandler, laddr, len, raddr, 
@@ -631,6 +633,6 @@ test_amlong(threaddata_t *tdata)
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
-	ACTION_PRINTF("tid=%3d> AMLongRequest to tid=%3d complete.\n", tdata->tid, peer);
+	ACTION_PRINTF("tid=%3d> AMLongRequest to tid=%3d complete.", tdata->tid, peer);
 }
 

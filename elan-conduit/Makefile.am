@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v 1.14 2003/10/29 00:46:36 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v 1.14.4.1 2004/01/23 23:22:13 csbell Exp $
 # Description: Makefile for GASNet elan conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt 
@@ -40,6 +40,7 @@ libgasnet_sources =                  \
 
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
+                         $(top_srcdir)/extended-ref/gasnet_extended_refbarrier.c \
                          $(top_srcdir)/extended-ref/*.h      
 			  
 libgasnet_objects =      \
@@ -113,14 +114,19 @@ install-data-local: $(headers)
 	@list='$(makefile_fragments)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/elan-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/elan-conduit/$$filename; \
+	    echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/elan-conduit/$$filename"; \
+	    @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/elan-conduit/$$filename; \
 	  else :; fi; \
 	done
 
 uninstall-local:
 	rm -f $(DESTDIR)$(includedir)/elan-conduit/*.h $(DESTDIR)$(includedir)/elan-conduit/*.mak
 
+else
+$(top_srcdir)/gasnet.h: force
+	@echo "ERROR: elan-conduit support was not detected at configure time"
+	@echo "       try re-running configure with --enable-elan"
+	@exit 1
 endif
 
 tests:

@@ -62,6 +62,7 @@ GASNet Release Procedure
    Linux-Myrinet: mpi, gm
    Linux-Quadrics: mpi, elan
    Linux-Ethernet: mpi
+   Linux-InfiniBand: mpi, vapi
    Origin 2000: mpi - 32 & 64 bit
    Cray T3E: mpi
 

@@ -7,17 +7,17 @@ AUTOMAKE_OPTIONS = foreign 1.4 no-dependencies
 if PLATFORM_ILP32
   apputils_flags =
 else
-  apputils_flags = -DAMMPI_OMIT_READWRITE
+  apputils_flags = -DAPPUTILS_OMIT_READWRITE
 endif
 
 CC = @MPI_CC@
 CFLAGS = @MPI_CFLAGS@ $(apputils_flags)
 
-endianness = @ENDIANNESS@
 platform_defines = @GASNET_MACHINE_DEFINES@ -DAMMPI_DISABLE_AMTAGS
 platform_libraries = @LIBS@ @MPI_LIBS@
 
-INCLUDES = -I$(srcdir) ${platform_defines} $(endianness)
+INCLUDES = -I$(srcdir) ${platform_defines}
+compile = ${CC} ${CFLAGS} ${INCLUDES}
 link = $(CC) ${CFLAGS} ${platform_defines} ${INCLUDES} 
 linkend = ${platform_libraries}
 
@@ -31,6 +31,8 @@ libammpi_a_SOURCES = \
     ammpi.h          \
     ammpi_internal.h \
     ammpi_spmd.h
+
+libammpi_a_DEPENDENCIES = $(libammpi_a_SOURCES:%.c=%.o)
 
 EXTRA_DIST =        \
     apputils.c      \
@@ -60,18 +62,22 @@ testprograms =    		\
     testbounce    		\
     testbulk      		\
     testlatency   		\
+    testlatency2   		\
     testping      		\
     testreduce			\
     $(testprograms_ILP32only)
 
-tests: ${testprograms}
+tests: apputils.o ${testprograms}
 
-test% : test%.o apputils.o libammpi.a 
+test%: test%.o apputils.o libammpi.a 
 	${link} -o $@ $< apputils.o -L. -lammpi ${linkend}
+
+%.o: %.c apputils.h ammpi.h ammpi_spmd.h ammpi_internal.h
+	${compile} -DAMMPI -o $@ -c $<
 
 if USE_MPI_CONDUIT
 clean-local:
-	rm -f libammpi.a $(testprograms) *.o core
+	rm -f libammpi.a $(testprograms:%=%$(EXESUFFIX)) *.o core
 endif
 
 force:

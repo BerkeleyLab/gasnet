@@ -86,31 +86,32 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
       OS/Architecture/compiler/ABI: network conduits
       ----------------------------------------------
-    * Linux/x86-Myrinet/gcc/32:      smp, mpi, gm
-    * Linux/x86-Ethernet/gcc/32:     smp, mpi
-    * Linux/x86-Dolphin/gcc/32:      smp, mpi
-    * Linux/x86-Quadrics/gcc/32:     smp, mpi, elan
-    * Linux/x86-Mellanox/gcc/32:     smp, mpi, vapi
+    * Linux/x86-Myrinet/gcc/32:      smp, mpi, udp, gm
+    * Linux/x86-Ethernet/gcc/32:     smp, mpi, udp
+    * Linux/x86-Dolphin/gcc/32:      smp, mpi, udp
+    * Linux/x86-Quadrics/gcc/32:     smp, mpi, udp, elan
+    * Linux/x86-Mellanox/gcc/32:     smp, mpi, udp, vapi
     * Linux/x86/IntelC/32:           smp, mpi, gm
     * Linux/x86/PortlandGroupC/32:   smp, mpi, gm
     * Linux/Itanium-Quadrics/{gcc,IntelC}/64: smp, mpi, elan
     * Linux/Itanium-Myrinet/{gcc,IntelC}/64: smp, mpi, gm
 
-    * FreeBSD/x86gcc/32:  smp, mpi
+    * FreeBSD/x86gcc/32:  smp, mpi, udp
 
     * Tru64/Compaq-AlphaServer/Compaq C: smp, mpi, elan
 
-    * AIX/IBM-SPPower3/VisualAgeC(xlc)/32,64: smp, mpi, lapi
-    * AIX/IBM-SPPower4/VisualAgeC(xlc)/32,64: smp, mpi, lapi
+    * AIX/IBM-SPPower3/VisualAgeC(xlc)/32,64: smp, mpi, udp(32-bit only), lapi
+    * AIX/IBM-SPPower4/VisualAgeC(xlc)/32,64: smp, mpi, udp(32-bit only), lapi
 
-    * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi
+    * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi, udp(32-bit only) 
 
-    * HPUX/PA-RISC/gcc/32: smp, #
+    * HPUX/PA-RISC/gcc/32: smp, udp, #
+    * HPUX/PA-RISC/HPcc/32: smp, udp, #
  
-    * Solaris/SPARC/gcc,SunProC/32,64: smp, mpi
+    * Solaris/SPARC/gcc,SunProC/32,64: smp, udp(32-bit only), mpi
     * Solaris/x86/gcc/32: smp, #
 
-    * MSWindows-Cygwin/x86/gcc/32/: smp, mpi (MPICH.NT)
+    * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT)
 
     * MacOSX/PowerPC/gcc/32: smp, mpi
 
@@ -176,6 +177,7 @@ Optional environment variable settings:
      I - informational messages about system status or performance alerts
      C - conduit-specific (low-level) messages
      D - Detailed message data for gets/puts/AMreqrep
+     N - Line number information from client source files
   default: (all of the above)
 
  GASNET_STATSMASK - specify the types of statistics to collect and report

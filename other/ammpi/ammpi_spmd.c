@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMMPI/ammpi_spmd.c                                     $
- *     $Date: 2003/10/24 01:37:37 $
- * $Revision: 1.12 $
+ *     $Date: 2004/01/23 23:22:22 $
+ * $Revision: 1.12.4.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -40,7 +40,7 @@ static volatile int ammpi_frozen = TRUE;
 static void _freezeForDebugger(int depth) {
   if (!depth) _freezeForDebugger(1);
   else {
-    volatile int i;
+    volatile int i = 0;
     while (ammpi_frozen) {
       i++;
       sleep(1);
@@ -78,7 +78,7 @@ static MPI_Comm AMMPI_SPMDMPIComm;
 /* ------------------------------------------------------------------------------------ 
  *  misc helpers
  * ------------------------------------------------------------------------------------ */
-static void flushStreams(char *context) {
+static void flushStreams(const char *context) {
   if (!context) context = "flushStreams()";
 
   if (fflush(stdout)) {
@@ -328,9 +328,9 @@ void (*AMMPI_SPMDkillmyprocess)(int) = &_exit;
 
 static int AMMPI_SPMDShutdown(int exitcode) {
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
-  { static int exitInProgress = FALSE;
-    if (exitInProgress) abort(); 
-    exitInProgress = TRUE;
+  { static int shutdownInProgress = FALSE;
+    if (shutdownInProgress) abort(); 
+    shutdownInProgress = TRUE;
   }
 
   if (AMMPI_SPMDExitCallback) (*AMMPI_SPMDExitCallback)(exitcode);

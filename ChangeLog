@@ -19,6 +19,11 @@ GASNet ChangeLog
   - Fix bugs related to varying LAPI uhdr payload size across systems - this is
     now queried automatically at runtime
 
+* GASNet spec: 
+  - gasnet_hold_interrupts() and gasnet_resume_interrupts() calls are now
+    required to be ignored by the implementation within an AM handler context.
+  - Added gasnet_set_waitmode() function
+
 * Add a logGP test program for GASNet conduits
 
 * Add a threaded tester for gasnet threaded clients

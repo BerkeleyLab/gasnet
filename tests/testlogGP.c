@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testsmall.c                                 $
- *     $Date: 2003/08/28 06:23:46 $
- * $Revision: 1.10 $
+ *     $Date: 2004/01/23 23:22:29 $
+ * $Revision: 1.10.6.1 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -9,6 +9,7 @@
  * Terms of use are as specified in license.txt
  */
 
+#include "gasnet.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -17,7 +18,6 @@
 #include <time.h>
 #include <float.h>
                                                                                 
-#include "gasnet.h"
 #include "test.h"
 
 #define GASNET_HEADNODE 0
@@ -84,20 +84,27 @@ int calibrate_delay(int iters, int64_t *time_p)
 	return loops;
 }
 
-void init_stat(stat_struct_t *st, int sz)
+#define init_stat \
+  GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _init_stat
+#define update_stat \
+  GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _update_stat
+#define print_stat \
+  GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _print_stat
+
+void _init_stat(stat_struct_t *st, int sz)
 {
 	st->iters = 0;
 	st->datasize = sz;
 	st->time = 0;
 }
 
-void update_stat(stat_struct_t *st, int64_t temptime, int iters)
+void _update_stat(stat_struct_t *st, int64_t temptime, int iters)
 {
 	st->iters += iters;
 	st->time += temptime;
 } 
 
-void print_stat(int myproc, stat_struct_t *st, char *name, int operation)
+void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 {
 	switch (operation) {
 	case PRINT_EEL:
@@ -195,7 +202,46 @@ void put_tests(int iters, int nbytes)
 	}
 
 	BARRIER();
-	
+
+	/* target-side overhead takes more work: */
+	if (iamsender) {
+		for (i = 0; i < iters; i++) {
+			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
+			gasnet_wait_syncnb(h);
+		}
+	} else {
+		init_stat(&st, nbytes);
+		begin = TIME();
+	}
+	BARRIER();
+	if (iamsender) {
+		/* DO NOTHING */
+	} else {
+		end = TIME();
+	 	update_stat(&st, (end - begin), iters);
+
+		delay_time = 1.2 * st.time;
+		loops = calibrate_delay(iters, &delay_time);
+	}
+	BARRIER();
+	if (iamsender) {
+		for (i = 0; i < iters; i++) {
+			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
+			gasnet_wait_syncnb(h);
+		}
+	} else {
+		init_stat(&st, nbytes);
+		begin = TIME();
+		for (i = 0; i < iters; i++) {
+			delay(loops);
+		}
+		end = TIME();
+	 	update_stat(&st, (end - begin) - delay_time, iters);
+		print_stat(myproc, &st, "put: o_t - put_nb_bulk", PRINT_OVERHEAD);
+	}
+
+	BARRIER();
+
 	if (iamsender) {
 		/* measure the throughput of nonblocking implicit put */
 		init_stat(&st, nbytes);
@@ -280,6 +326,45 @@ void get_tests(int iters, int nbytes)
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
 		print_stat(myproc, &st, "get: o_i - get_nb_bulk", PRINT_OVERHEAD);
+	}
+
+	BARRIER();
+
+	/* target-side overhead takes more work: */
+	if (iamsender) {
+		for (i = 0; i < iters; i++) {
+			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
+			gasnet_wait_syncnb(h);
+		}
+	} else {
+		init_stat(&st, nbytes);
+		begin = TIME();
+	}
+	BARRIER();
+	if (iamsender) {
+		/* DO NOTHING */
+	} else {
+		end = TIME();
+	 	update_stat(&st, (end - begin), iters);
+
+		delay_time = 1.2 * st.time;
+		loops = calibrate_delay(iters, &delay_time);
+	}
+	BARRIER();
+	if (iamsender) {
+		for (i = 0; i < iters; i++) {
+			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
+			gasnet_wait_syncnb(h);
+		}
+	} else {
+		init_stat(&st, nbytes);
+		begin = TIME();
+		for (i = 0; i < iters; i++) {
+			delay(loops);
+		}
+		end = TIME();
+	 	update_stat(&st, (end - begin) - delay_time, iters);
+		print_stat(myproc, &st, "get: o_t - get_nb_bulk", PRINT_OVERHEAD);
 	}
 
 	BARRIER();

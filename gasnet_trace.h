@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2003/10/24 01:37:28 $
- * $Revision: 1.10 $
+ *     $Date: 2004/01/23 23:22:09 $
+ * $Revision: 1.10.4.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,7 +76,7 @@ BEGIN_EXTERNC
       GASNETI_STATS_PRINTF((type), ("%s",(string)))
 
   /* print a formatted string of statistical output on the trace 
-     Ex: GASNETI_TRACE_PRINTF(C, ("%i buffers free", numbufs))
+     Ex: GASNETI_STATS_PRINTF(C, ("%i buffers free", numbufs))
       (note the extra parentheses around arg)
   */
   #define GASNETI_STATS_PRINTF(type, args) do { \
@@ -99,6 +99,30 @@ BEGIN_EXTERNC
 #define GASNETI_STATS_ECHOED_TO_TRACEFILE 1
 #endif
 
+#if GASNET_TRACE
+  /* GASNETI_TRACE_SETSOURCELINE(filename, linenum): 
+     set the current "high-level" source file and line for the current thread
+     to the given value. This information is used to dump out current line information
+     into the tracefile along with each trace message.
+     Passing a NULL filename implies no change to the current filename
+   */
+  #if GASNETI_CLIENT_THREADS
+    extern void gasneti_trace_setsourceline(const char *filename, unsigned int linenum);
+  #else
+    extern const char *gasneti_srcfilename;
+    extern unsigned int gasneti_srclinenum;
+    GASNET_INLINE_MODIFIER(gasneti_trace_setsourceline)
+    void gasneti_trace_setsourceline(const char *filename, unsigned int linenum) {
+      if_pt (filename) gasneti_srcfilename = filename;
+      gasneti_srclinenum = linenum;
+    }
+  #endif
+    #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) \
+      (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_setsourceline(filename, linenum) : ((void)0))
+#else
+  #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) ((void)0)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* misc helpers for specific tracing scenarios */
 #ifdef GASNETI_PTR32 
@@ -113,23 +137,23 @@ BEGIN_EXTERNC
   #define GASNETI_RADDRSTR(node,ptr) ((int)(node)),GASNETI_LADDRSTR(ptr)
 #endif
 
-#define GASNETI_TRACE_GET(name,dest,node,src,nbytes) do {                                     \
-  GASNETI_TRACE_EVENT_VAL(G,name,(nbytes));                                                   \
-  GASNETI_TRACE_PRINTF(D,(#name ": "GASNETI_LADDRFMT" <- "GASNETI_RADDRFMT" (%i bytes)",      \
-                          GASNETI_LADDRSTR(dest), GASNETI_RADDRSTR((node),(src)), (nbytes))); \
+#define GASNETI_TRACE_GET(name,dest,node,src,nbytes) do {                                          \
+  GASNETI_TRACE_EVENT_VAL(G,name,(nbytes));                                                        \
+  GASNETI_TRACE_PRINTF(D,(#name ": "GASNETI_LADDRFMT" <- "GASNETI_RADDRFMT" (%i bytes)",           \
+                          GASNETI_LADDRSTR(dest), GASNETI_RADDRSTR((node),(src)), (int)(nbytes))); \
 } while (0)
 
-#define GASNETI_TRACE_PUT(name,node,dest,src,nbytes) do {                                    \
-  GASNETI_TRACE_EVENT_VAL(P,name,(nbytes));                                                  \
-  GASNETI_TRACE_PRINTF(D,(#name ": "GASNETI_RADDRFMT" <- "GASNETI_LADDRFMT" (%i bytes): %s", \
-                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(src), (nbytes),  \
-                          gasneti_formatdata((src),(nbytes))));                              \
+#define GASNETI_TRACE_PUT(name,node,dest,src,nbytes) do {                                        \
+  GASNETI_TRACE_EVENT_VAL(P,name,(nbytes));                                                      \
+  GASNETI_TRACE_PRINTF(D,(#name ": "GASNETI_RADDRFMT" <- "GASNETI_LADDRFMT" (%i bytes): %s",     \
+                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(src), (int)(nbytes), \
+                          gasneti_formatdata((src),(nbytes))));                                  \
 } while (0)
 
-#define GASNETI_TRACE_MEMSET(name,node,dest,val,nbytes) do {                  \
-  GASNETI_TRACE_EVENT_VAL(P,name,(nbytes));                                   \
-  GASNETI_TRACE_PRINTF(D,(#name": "GASNETI_RADDRFMT" val=%i nbytes=%i",       \
-                          GASNETI_RADDRSTR((node),(dest)), (val), (nbytes))); \
+#define GASNETI_TRACE_MEMSET(name,node,dest,val,nbytes) do {                       \
+  GASNETI_TRACE_EVENT_VAL(P,name,(nbytes));                                        \
+  GASNETI_TRACE_PRINTF(D,(#name": "GASNETI_RADDRFMT" val=%i nbytes=%i",            \
+                          GASNETI_RADDRSTR((node),(dest)), (val), (int)(nbytes))); \
 } while (0)
 /*------------------------------------------------------------------------------------*/
 #define GASNETI_TRACE_TRYSYNC(name,success) \
@@ -144,7 +168,7 @@ BEGIN_EXTERNC
 #endif
 
 #define GASNETI_TRACE_WAITSYNC_END(name) \
-  GASNETI_TRACE_EVENT_TIME(S,name,GASNETI_STATTIME_NOW() - _waitstart)
+  GASNETI_TRACE_EVENT_TIME(S,name,GASNETI_STATTIME_NOW_IFENABLED(S) - _waitstart)
 /*------------------------------------------------------------------------------------*/
 /* AM Request/Reply tracing helpers */
 #define _GASNETI_TRACE_GATHERARGS(numargs)                          \
@@ -173,7 +197,7 @@ BEGIN_EXTERNC
   _GASNETI_TRACE_GATHERARGS(numargs);                                                                   \
   _GASNETI_STAT_EVENT(A,name);                                                                          \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr="GASNETI_LADDRFMT" nbytes=%i args:%s", \
-    dest,handler,GASNETI_LADDRSTR(source_addr),nbytes,argstr));                                         \
+    dest,handler,GASNETI_LADDRSTR(source_addr),(int)nbytes,argstr));                                    \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));          \
 } while(0)
 
@@ -181,7 +205,7 @@ BEGIN_EXTERNC
   _GASNETI_TRACE_GATHERARGS(numargs);                                                                                                \
   _GASNETI_STAT_EVENT(A,name);                                                                                                       \
   GASNETI_TRACE_PRINTF(A,(#name": dest=%i handler=%i source_addr="GASNETI_LADDRFMT" nbytes=%i dest_addr="GASNETI_LADDRFMT" args:%s", \
-    dest,handler,GASNETI_LADDRSTR(source_addr),nbytes,GASNETI_LADDRSTR(dest_addr),argstr));                                          \
+    dest,handler,GASNETI_LADDRSTR(source_addr),(int)nbytes,GASNETI_LADDRSTR(dest_addr),argstr));                                     \
   GASNETI_TRACE_PRINTF(D,(#name": payload data: %s", gasneti_formatdata(source_addr,nbytes)));                                       \
 } while(0)
 
@@ -339,7 +363,7 @@ extern void gasneti_trace_init();
 extern void gasneti_trace_finish();
 
 /* defines all the types */
-#define GASNETI_ALLTYPES "GPSBLAICD"
+#define GASNETI_ALLTYPES "GPSBLAICDN"
 
 
 /* GASNETI_ALL_STATS lists all the statistics values we gather, 
@@ -456,10 +480,10 @@ extern void gasneti_trace_finish();
 
   extern FILE *gasneti_tracefile;
   extern FILE *gasneti_statsfile;
-  extern char *gasneti_dynsprintf(char *,...);
+  extern char *gasneti_dynsprintf(const char *format,...) __attribute__((__format__ (__printf__, 1, 2)));
   extern char *gasneti_formatdata(void *p, int nbytes);
-  extern void gasneti_trace_output(char *type, char *msg, int traceheader);
-  extern void gasneti_stats_output(char *type, char *msg, int traceheader);
+  extern void gasneti_trace_output(const char *type, const char *msg, int traceheader);
+  extern void gasneti_stats_output(const char *type, const char *msg, int traceheader);
 
   extern char gasneti_tracetypes[];
   extern char gasneti_statstypes[];

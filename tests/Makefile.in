@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.10 2003/09/13 16:58:36 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.10.6.1 2004/01/23 23:22:29 csbell Exp $
 # Description: Makefile for GASNet tests
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -26,6 +26,7 @@ testprograms_seq =  \
         testlogGP   \
 	testmisc    \
         testsmall   \
+        testalign   \
 	testtools
 
 testprograms_parsync =  \

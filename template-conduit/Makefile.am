@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v 1.15 2003/10/29 00:46:43 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v 1.15.4.1 2004/01/23 23:22:28 csbell Exp $
 # Description: Makefile for GASNet <conduitname> conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -31,6 +31,7 @@ EXTRA_DIST = $(filelist) \
 libgasnet_sources = $(srcdir)/gasnet_core.c $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
+                         $(top_srcdir)/extended-ref/gasnet_extended_refbarrier.c \
                          $(top_srcdir)/extended-ref/*.h       
 libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o
 
@@ -95,14 +96,19 @@ install-data-local: $(headers)
 	@list='$(makefile_fragments)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/<conduitname>-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/<conduitname>-conduit/$$filename; \
+	    echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/template-conduit/$$filename"; \
+	    @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/template-conduit/$$filename; \
 	  else :; fi; \
 	done
 
 uninstall-local:
 	rm -f $(DESTDIR)$(includedir)/<conduitname>-conduit/*.h $(DESTDIR)$(includedir)/<conduitname>-conduit/*.mak
 
+else
+$(top_srcdir)/gasnet.h: force
+	@echo "ERROR: <conduitname>-conduit support was not detected at configure time"
+	@echo "       try re-running configure with --enable-<conduitname>"
+	@exit 1
 endif
 
 tests:

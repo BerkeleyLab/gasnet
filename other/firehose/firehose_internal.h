@@ -504,10 +504,10 @@ void			fh_send_firehose_reply(fh_remote_callback_t *);
 				    rp->refc_r, rp->refc_l);		\
 		}							\
 		GASNETI_TRACE_PRINTF(C,					\
-		    ("Firehose Bucket %s %s node=%d,addr=%p,%s",	\
+		    ("Firehose Bucket %s %s node=%d,addr="GASNETI_LADDRFMT",%s",	\
 		     #bmsg, FH_NODE(bd) == fh_mynode ?	 		\
 		     "Local " : "Remote",				\
-		     FH_NODE(bd), FH_BADDR(bd), msg));			\
+		     (int)FH_NODE(bd), GASNETI_LADDRSTR(FH_BADDR(bd)), msg));		\
 	} while (0)
 
 #define FH_NUMPINNED_DECL	int _fh_numpinned = 0

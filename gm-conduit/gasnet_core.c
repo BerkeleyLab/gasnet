@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.47 2003/11/03 19:45:31 csbell Exp $
- * $Date: 2003/11/03 19:45:31 $
+/* $Id: gasnet_core.c,v 1.47.4.1 2004/01/23 23:22:16 csbell Exp $
+ * $Date: 2004/01/23 23:22:16 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -393,6 +393,11 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			gasneti_segmentAttach(segsize, minheapoffset, 
 			    gasnetc_seginfo, &gasnetc_bootstrapExchange);
 		}
+		#else
+		    for (i=0;i<gasnetc_nodes;i++) {
+			gasnetc_seginfo[i].addr = (void *)0;
+			gasnetc_seginfo[i].size = (uintptr_t)-1;
+		    }
 		#endif
 
 		firehose_init(_gmc.pinnable_global, 0, NULL, 0,
@@ -402,8 +407,8 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 
         #if GASNET_TRACE
 	for (i = 0; i < gasnetc_nodes; i++)
-		GASNETI_TRACE_PRINTF(C, ("SEGINFO at %4d (0x%x, %d)", i,
-		    (uintptr_t) gasnetc_seginfo[i].addr, 
+		GASNETI_TRACE_PRINTF(C, ("SEGINFO at %4d ("GASNETI_LADDRFMT", %d)", i,
+		    GASNETI_LADDRSTR(gasnetc_seginfo[i].addr), 
 		    (unsigned int) gasnetc_seginfo[i].size) );
 	#endif
 
@@ -481,7 +486,8 @@ gasnetc_exit(int exitcode)
 extern int 
 gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
 	GASNETI_CHECKINIT();
-	gasneti_assert(gasnetc_seginfo && seginfo_table);
+        gasneti_assert(seginfo_table);
+        gasneti_memcheck(gasnetc_seginfo);
 
 	if (!gasneti_attach_done) GASNETI_RETURN_ERR(NOT_INIT);
 	if (numentries < gasnetc_nodes) GASNETI_RETURN_ERR(BAD_ARG);
@@ -696,7 +702,6 @@ gasnetc_AMRequestLongM_inner(gasnet_node_t node, gasnet_handler_t handler,
 
 	int	bytes_left = nbytes;
 	int	port, id, len, long_len;
-	int32_t	dest_addr_ptr[2];
 	uint8_t	*psrc, *pdest;
 	gasnetc_bufdesc_t	*bufd;
 
@@ -709,11 +714,9 @@ gasnetc_AMRequestLongM_inner(gasnet_node_t node, gasnet_handler_t handler,
 	 * send AM Mediums until that threshold is reached */
 	while (bytes_left >GASNETC_AM_LEN-GASNETC_LONG_OFFSET) {
 		bufd = gasnetc_AMRequestPool_block();
-		GASNETC_ARGPTR(dest_addr_ptr, (uintptr_t) pdest);
-		len = gasnetc_write_AMBufferMedium(bufd->buf,
-		    gasneti_handleridx(gasnetc_am_medcopy), 
-			GASNETC_ARGPTR_NUM, (va_list) dest_addr_ptr, 
-			gasnet_AMMaxMedium(), (void *) psrc, GASNETC_AM_REQUEST);
+		len = gasnetc_write_AMBufferMediumMedcopy(bufd->buf,
+			(void *) psrc, gasnet_AMMaxMedium(), (void *) pdest, 
+			GASNETC_AM_REQUEST);
 		gasnetc_GMSend_AMRequest(bufd->buf, len, id, 
 		    port, gasnetc_callback_lo, (void *) bufd, 0);
 		psrc += gasnet_AMMaxMedium();
@@ -729,11 +732,11 @@ gasnetc_AMRequestLongM_inner(gasnet_node_t node, gasnet_handler_t handler,
 	if (bytes_left > 0) {
 		uintptr_t	pbuf;
 		pbuf = (uintptr_t) bufd->buf + (uintptr_t) long_len;
-		GASNETC_ARGPTR(dest_addr_ptr, (uintptr_t) pdest);
-		len = gasnetc_write_AMBufferMedium((void *)pbuf,
-	    	    gasneti_handleridx(gasnetc_am_medcopy), 
-		    GASNETC_ARGPTR_NUM, (va_list) dest_addr_ptr, 
-		    bytes_left, (void *) psrc, GASNETC_AM_REQUEST);
+
+		len = gasnetc_write_AMBufferMediumMedcopy((void *)pbuf,
+			(void *) psrc, bytes_left, (void *) pdest, 
+			GASNETC_AM_REQUEST);
+
 		gasnetc_GMSend_AMRequest((void *)pbuf, len, id, port,
 		    gasnetc_callback_lo, NULL, 0);
 	}
@@ -1170,7 +1173,6 @@ extern int gasnetc_AMReplyLongM(
     			BUFD_SET(bufd, BUFD_PAYLOAD | BUFD_DMA);
 		}
 		else {
-			int32_t	dest_addr_ptr[2];
 			size_t	header_len;
 	
 			/* The AMLong Reply doesn't use DMA */
@@ -1181,16 +1183,12 @@ extern int gasnetc_AMReplyLongM(
 			    gasnetc_write_AMBufferLong(bufd->buf, 
 			        handler, numargs, argptr, nbytes, source_addr, 
 				(uintptr_t) dest_addr, GASNETC_AM_REPLY);
-			pbuf = (uintptr_t)bufd->buf 
-				+ (uintptr_t) header_len;
-			GASNETC_ARGPTR(dest_addr_ptr, (uintptr_t) dest_addr);
+			pbuf = (uintptr_t)bufd->buf + (uintptr_t) header_len;
 
 			if_pt (nbytes > 0) { /* Handle zero-length messages */
-				len = gasnetc_write_AMBufferMedium((void *)pbuf,
-				    gasneti_handleridx(gasnetc_am_medcopy), 
-				    GASNETC_ARGPTR_NUM, (va_list) dest_addr_ptr, 
-				    nbytes, (void *) source_addr, 
-				    GASNETC_AM_REPLY);
+				len = gasnetc_write_AMBufferMediumMedcopy(
+					(void *)pbuf, (void *)source_addr, nbytes,
+					(void *)dest_addr, GASNETC_AM_REPLY);
 
 				BUFD_SET(bufd, BUFD_PAYLOAD);
 
@@ -1347,7 +1345,7 @@ gasnetc_AllocPinnedBufs()
 	/* Allocate and register DMA buffers */ 
 	_gmc.dma_bufs = gm_alloc_pages(buflen);
 	if_pf (_gmc.dma_bufs == NULL)
-		gasneti_fatalerror("gm_alloc_pages(%d) %s", buflen,
+		gasneti_fatalerror("gm_alloc_pages(%d) %s", (int)buflen,
 		   gasneti_current_loc);
 
 	if (gm_register_memory(_gmc.port, _gmc.dma_bufs, buflen) != GM_SUCCESS)
@@ -1526,7 +1524,7 @@ gasnetc_GMSend_AMSystem(void *buf, size_t len,
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("AMSystem Send (id=%d,%d, msg=0x%x, len=%d)", id, port,
-	     GASNETC_SYSHEADER_READ(buf), len));
+	     GASNETC_SYSHEADER_READ(buf), (int)len));
 }
 
 
@@ -1611,7 +1609,7 @@ gasnetc_bootstrapGatherSend(void *data, size_t len)
 
 	if ((len*gasnetc_nodes+4) > GASNETC_AM_PACKET)
 		gasneti_fatalerror(
-		    "bootstrapGatherSend: %i bytes too large\n", len);
+		    "bootstrapGatherSend: %i bytes too large\n", (int)len);
 
 	phase = gasnetc_bootstrapGather_phase;
 	gasnetc_bootstrapGather_phase ^= 1;
@@ -2058,7 +2056,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW()-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }

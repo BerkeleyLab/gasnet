@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gm-seq.mak.in,v 1.11 2003/05/11 01:19:26 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gm-seq.mak.in,v 1.11.10.1 2004/01/23 23:22:16 csbell Exp $
 # Description: Makefile fragment for GM conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,9 +15,9 @@
 #
 # ----------------------------------------------------------------------
 
-GASNET_INCLUDES = -I@INSTALL_PREFIX@/include -I@INSTALL_PREFIX@/include/gm-conduit -I@GM_INCLUDE@
+GASNET_INCLUDES = -I###INSTALL_PREFIX###/include -I###INSTALL_PREFIX###/include/gm-conduit -I@GM_INCLUDE@
 
-GASNET_LIBDIRS = -L@INSTALL_PREFIX@/lib -L@GM_LIB@
+GASNET_LIBDIRS = -L###INSTALL_PREFIX###/lib -L@GM_LIB@
 
 # Textual lines containing the string "###NOINSTALL###" are removed by the install process
 # (must be one continuous line) ###NOINSTALL###

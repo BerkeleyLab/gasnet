@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v 1.15 2003/11/09 00:53:42 phargrov Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v 1.15.4.1 2004/01/23 23:22:20 csbell Exp $
 # Description: Makefile for GASNet MPI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -33,6 +33,7 @@ libgasnet_sources = $(srcdir)/gasnet_core.c     \
 
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
+                         $(top_srcdir)/extended-ref/gasnet_extended_refbarrier.c \
                          $(top_srcdir)/extended-ref/*.h   \
 			 $(top_srcdir)/other/ammpi/*.h
 
@@ -99,8 +100,8 @@ install-data-local: $(headers)
 	@list='$(makefile_fragments)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
-	    echo " grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/mpi-conduit/$$filename"; \
-	    grep -v "###NOINSTALL###" $$p > $(DESTDIR)$(includedir)/mpi-conduit/$$filename; \
+	    echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/mpi-conduit/$$filename"; \
+	    @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/mpi-conduit/$$filename; \
 	  else :; fi; \
 	done
 
@@ -108,6 +109,11 @@ install-data-local: $(headers)
 uninstall-local:
 	rm -f $(DESTDIR)$(includedir)/mpi-conduit/*.h $(DESTDIR)$(includedir)/mpi-conduit/*.mak
 
+else
+$(top_srcdir)/gasnet.h: force
+	@echo "ERROR: mpi-conduit support was not detected at configure time"
+	@echo "       try re-running configure with --enable-mpi"
+	@exit 1
 endif
 
 tests:

@@ -1,6 +1,6 @@
-/*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/10/24 01:37:32 $
- * $Revision: 1.20 $
+/*  $Archive:: /Ti/GASNet/gm-conduit/gasnet_extended.c                  $
+ *     $Date: 2004/01/23 23:22:16 $
+ * $Revision: 1.20.4.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,7 +93,10 @@ gasnete_mythread()
 {
 	gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
 	GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-	if_pt (threaddata) return threaddata;
+        if_pt (threaddata) {
+          gasneti_memcheck(threaddata);
+          return threaddata;
+        }
 
 	/*	first time we've seen this thread - need to set it up */
 	{ 
@@ -384,6 +387,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   if (mythread->valget_free) {
     retval = mythread->valget_free;
     mythread->valget_free = retval->next;
+    gasneti_memcheck(retval);
   } else {
     retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
     retval->threadidx = mythread->threadidx;

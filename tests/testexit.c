@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testbarrier.c                             $
- *     $Date: 2003/06/24 18:55:07 $
- * $Revision: 1.4 $
+ *     $Date: 2004/01/23 23:22:29 $
+ * $Revision: 1.4.8.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@ int mynode, nodes;
    Those with non-collective exit should cause the SIGQUIT handler to 
     fire on the non-exiting nodes.
 */
-char *testdesc[] = {
+const char *testdesc[] = {
   "simultaneous collective gasnet_exit(1)",
   "simultaneous return from main()... exit_code 2",
   "non-collective gasnet_exit(3), others in barrier",
@@ -30,8 +30,19 @@ char *testdesc[] = {
   "non-collective gasnet_exit(7) between init()/attach()",
   "non-collective return(8) from main(), others in barrier",
   "non-collective return(9) from main(), others in spin-loop",
+  "collective gasnet_exit(10) from AM handlers on all nodes",
+  "non-collective gasnet_exit(11) from AM handler on one node",
+  "non-collective gasnet_exit(12) from AM handler on one node (loopback)",
+  "non-collective gasnet_exit(13) from AM handler on one node (N requests)",
 };
 #define MAXTEST (sizeof(testdesc)/sizeof(char*))
+
+                                                                                                              
+#define hidx_exit_handler		201
+
+void test_exit_handler(gasnet_token_t token, gasnet_handlerarg_t exitcode) {
+  gasnet_exit((int)exitcode);
+}
 
 typedef void (*test_sighandlerfn_t)(int);
 void testSignalHandler(int sig) {
@@ -46,12 +57,21 @@ void testSignalHandler(int sig) {
 
 int main(int argc, char **argv) {
   int testid = 0;
+  int peer = -1;
+  gasnet_handlerentry_t htable[] =
+  	{ { hidx_exit_handler, test_exit_handler } };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
 
+  peer = mynode ^ 1;
+  if (peer == nodes) {
+    /* w/ odd # of nodes, last one talks to self */
+    peer = mynode;
+  }
+	  
   MSG("running...");
 
   if (argc > 1) testid = atoi(argv[1]);
@@ -77,7 +97,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(htable,  sizeof(htable)/sizeof(gasnet_handlerentry_t),
+	      TEST_SEGSZ, TEST_MINHEAPOFFSET));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
   { test_sighandlerfn_t fpret = (test_sighandlerfn_t)signal(SIGQUIT, testSignalHandler); 
@@ -116,12 +137,32 @@ int main(int argc, char **argv) {
       else while(1);
       break;
     case 8: 
-      if (mynode == nodes-1) { sleep(1); return 8; }
+      if (mynode == nodes-1) { sleep(1); return testid; }
       else BARRIER();
       break;
     case 9: 
-      if (mynode == nodes-1) { sleep(1); return 9; }
+      if (mynode == nodes-1) { sleep(1); return testid; }
       else while(1);
+      break;
+    case 10:
+      GASNET_Safe(gasnet_AMRequestShort1(peer, hidx_exit_handler, testid));
+      while(1) GASNET_Safe(gasnet_AMPoll());
+      break;
+    case 11:
+      if (mynode == 0) { 
+        GASNET_Safe(gasnet_AMRequestShort1(nodes-1, hidx_exit_handler, testid));
+      }
+      while(1) GASNET_Safe(gasnet_AMPoll());
+      break;
+    case 12:
+      if (mynode == nodes-1) { 
+        GASNET_Safe(gasnet_AMRequestShort1(mynode, hidx_exit_handler, testid));
+      }
+      while(1) GASNET_Safe(gasnet_AMPoll());
+      break;
+    case 13:
+      GASNET_Safe(gasnet_AMRequestShort1(nodes-1, hidx_exit_handler, testid));
+      while(1) GASNET_Safe(gasnet_AMPoll());
       break;
 
     default:

@@ -1,12 +1,18 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <ammpi.h>
-#include <ammpi_spmd.h>
-
 #include "apputils.h"
 
-#define ABASE 0x69690000
+typedef int handlerarg_t;
+typedef void *token_t;
+typedef int bufsize_t;
+#define INCREQ() numreq++
+#define INCREP() numrep++
+#define RequestShort(num,args)   AM_Request##num args
+#define RequestMedium(num,args)  AM_RequestI##num args
+#define RequestLong(num,args)    AM_RequestXfer##num args
+#define ReplyShort(num,args)     AM_Reply##num args
+#define ReplyMedium(num,args)    AM_ReplyI##num args
+#define ReplyLong(num,args)      AM_ReplyXfer##num args
+
+#define ABASE 0xBABE7000
 
 #define A1  (ABASE + 1)
 #define A2  (ABASE + 2)
@@ -16,170 +22,318 @@
 #define A6  (ABASE + 6)
 #define A7  (ABASE + 7)
 #define A8  (ABASE + 8)
+#define A9  (ABASE + 9)
+#define A10 (ABASE + 10)
+#define A11 (ABASE + 11)
+#define A12 (ABASE + 12)
+#define A13 (ABASE + 13)
+#define A14 (ABASE + 14)
+#define A15 (ABASE + 15)
+#define A16 (ABASE + 16)
 
+#define FA0
+#define FA1  FA0 , handlerarg_t a1
+#define FA2  FA1 , handlerarg_t a2
+#define FA3  FA2 , handlerarg_t a3
+#define FA4  FA3 , handlerarg_t a4
+#define FA5  FA4 , handlerarg_t a5
+#define FA6  FA5 , handlerarg_t a6
+#define FA7  FA6 , handlerarg_t a7
+#define FA8  FA7 , handlerarg_t a8
+#define FA9  FA8 , handlerarg_t a9
+#define FA10 FA9 , handlerarg_t a10
+#define FA11 FA10, handlerarg_t a11
+#define FA12 FA11, handlerarg_t a12
+#define FA13 FA12, handlerarg_t a13
+#define FA14 FA13, handlerarg_t a14
+#define FA15 FA14, handlerarg_t a15
+#define FA16 FA15, handlerarg_t a16
 
-#define SHORT_0REQ_HANDLER  10
-#define SHORT_1REQ_HANDLER  11
-#define SHORT_2REQ_HANDLER  12
-#define SHORT_3REQ_HANDLER  13
-#define SHORT_4REQ_HANDLER  14
-#define SHORT_5REQ_HANDLER  15
-#define SHORT_6REQ_HANDLER  16
-#define SHORT_7REQ_HANDLER  17
-#define SHORT_8REQ_HANDLER  18
+#define aa0
+#define aa1  aa0 , a1
+#define aa2  aa1 , a2
+#define aa3  aa2 , a3
+#define aa4  aa3 , a4
+#define aa5  aa4 , a5
+#define aa6  aa5 , a6
+#define aa7  aa6 , a7
+#define aa8  aa7 , a8
+#define aa9  aa8 , a9
+#define aa10 aa9 , a10
+#define aa11 aa10, a11
+#define aa12 aa11, a12
+#define aa13 aa12, a13
+#define aa14 aa13, a14
+#define aa15 aa14, a15
+#define aa16 aa15, a16
 
-#define SHORT_0REP_HANDLER  20
-#define SHORT_1REP_HANDLER  21
-#define SHORT_2REP_HANDLER  22
-#define SHORT_3REP_HANDLER  23
-#define SHORT_4REP_HANDLER  24
-#define SHORT_5REP_HANDLER  25
-#define SHORT_6REP_HANDLER  26
-#define SHORT_7REP_HANDLER  27
-#define SHORT_8REP_HANDLER  28
+#define AA0  
+#define AA1  AA0 , A1
+#define AA2  AA1 , A2
+#define AA3  AA2 , A3
+#define AA4  AA3 , A4
+#define AA5  AA4 , A5
+#define AA6  AA5 , A6
+#define AA7  AA6 , A7
+#define AA8  AA7 , A8
+#define AA9  AA8 , A9
+#define AA10 AA9 , A10
+#define AA11 AA10, A11
+#define AA12 AA11, A12
+#define AA13 AA12, A13
+#define AA14 AA13, A14
+#define AA15 AA14, A15
+#define AA16 AA15, A16
+
+#define CA0  0
+#define CA1  CA0 || a1!=A1
+#define CA2  CA1 || a2!=A2
+#define CA3  CA2 || a3!=A3
+#define CA4  CA3 || a4!=A4
+#define CA5  CA4 || a5!=A5
+#define CA6  CA5 || a6!=A6
+#define CA7  CA6 || a7!=A7
+#define CA8  CA7 || a8!=A8
+#define CA9  CA8 || a9!=A9
+#define CA10 CA9 || a10!=A10
+#define CA11 CA10|| a11!=A11
+#define CA12 CA11|| a12!=A12
+#define CA13 CA12|| a13!=A13
+#define CA14 CA13|| a14!=A14
+#define CA15 CA14|| a15!=A15
+#define CA16 CA15|| a16!=A16
+
+/* we use handlers [SHORT_REQ_BASE...(SHORT_REQ_BASE+120)] */
+#define SHORT_REQ_BASE      100
+#define SHORT_0REQ_HANDLER  (SHORT_REQ_BASE+0)
+#define SHORT_1REQ_HANDLER  (SHORT_REQ_BASE+1)
+#define SHORT_2REQ_HANDLER  (SHORT_REQ_BASE+2)
+#define SHORT_3REQ_HANDLER  (SHORT_REQ_BASE+3)
+#define SHORT_4REQ_HANDLER  (SHORT_REQ_BASE+4)
+#define SHORT_5REQ_HANDLER  (SHORT_REQ_BASE+5)
+#define SHORT_6REQ_HANDLER  (SHORT_REQ_BASE+6)
+#define SHORT_7REQ_HANDLER  (SHORT_REQ_BASE+7)
+#define SHORT_8REQ_HANDLER  (SHORT_REQ_BASE+8)
+#define SHORT_9REQ_HANDLER  (SHORT_REQ_BASE+9)
+#define SHORT_10REQ_HANDLER (SHORT_REQ_BASE+10)
+#define SHORT_11REQ_HANDLER (SHORT_REQ_BASE+11)
+#define SHORT_12REQ_HANDLER (SHORT_REQ_BASE+12)
+#define SHORT_13REQ_HANDLER (SHORT_REQ_BASE+13)
+#define SHORT_14REQ_HANDLER (SHORT_REQ_BASE+14)
+#define SHORT_15REQ_HANDLER (SHORT_REQ_BASE+15)
+#define SHORT_16REQ_HANDLER (SHORT_REQ_BASE+16)
+
+#define SHORT_REP_BASE      (SHORT_REQ_BASE+20)
+#define SHORT_0REP_HANDLER  (SHORT_REP_BASE+0)
+#define SHORT_1REP_HANDLER  (SHORT_REP_BASE+1)
+#define SHORT_2REP_HANDLER  (SHORT_REP_BASE+2)
+#define SHORT_3REP_HANDLER  (SHORT_REP_BASE+3)
+#define SHORT_4REP_HANDLER  (SHORT_REP_BASE+4)
+#define SHORT_5REP_HANDLER  (SHORT_REP_BASE+5)
+#define SHORT_6REP_HANDLER  (SHORT_REP_BASE+6)
+#define SHORT_7REP_HANDLER  (SHORT_REP_BASE+7)
+#define SHORT_8REP_HANDLER  (SHORT_REP_BASE+8)
+#define SHORT_9REP_HANDLER  (SHORT_REP_BASE+9)
+#define SHORT_10REP_HANDLER (SHORT_REP_BASE+10)
+#define SHORT_11REP_HANDLER (SHORT_REP_BASE+11)
+#define SHORT_12REP_HANDLER (SHORT_REP_BASE+12)
+#define SHORT_13REP_HANDLER (SHORT_REP_BASE+13)
+#define SHORT_14REP_HANDLER (SHORT_REP_BASE+14)
+#define SHORT_15REP_HANDLER (SHORT_REP_BASE+15)
+#define SHORT_16REP_HANDLER (SHORT_REP_BASE+16)
+
+#define MEDIUM_REQ_BASE      (SHORT_REQ_BASE+40)
+#define MEDIUM_0REQ_HANDLER  (MEDIUM_REQ_BASE+0)
+#define MEDIUM_1REQ_HANDLER  (MEDIUM_REQ_BASE+1)
+#define MEDIUM_2REQ_HANDLER  (MEDIUM_REQ_BASE+2)
+#define MEDIUM_3REQ_HANDLER  (MEDIUM_REQ_BASE+3)
+#define MEDIUM_4REQ_HANDLER  (MEDIUM_REQ_BASE+4)
+#define MEDIUM_5REQ_HANDLER  (MEDIUM_REQ_BASE+5)
+#define MEDIUM_6REQ_HANDLER  (MEDIUM_REQ_BASE+6)
+#define MEDIUM_7REQ_HANDLER  (MEDIUM_REQ_BASE+7)
+#define MEDIUM_8REQ_HANDLER  (MEDIUM_REQ_BASE+8)
+#define MEDIUM_9REQ_HANDLER  (MEDIUM_REQ_BASE+9)
+#define MEDIUM_10REQ_HANDLER (MEDIUM_REQ_BASE+10)
+#define MEDIUM_11REQ_HANDLER (MEDIUM_REQ_BASE+11)
+#define MEDIUM_12REQ_HANDLER (MEDIUM_REQ_BASE+12)
+#define MEDIUM_13REQ_HANDLER (MEDIUM_REQ_BASE+13)
+#define MEDIUM_14REQ_HANDLER (MEDIUM_REQ_BASE+14)
+#define MEDIUM_15REQ_HANDLER (MEDIUM_REQ_BASE+15)
+#define MEDIUM_16REQ_HANDLER (MEDIUM_REQ_BASE+16)
+
+#define MEDIUM_REP_BASE      (MEDIUM_REQ_BASE+20)
+#define MEDIUM_0REP_HANDLER  (MEDIUM_REP_BASE+0)
+#define MEDIUM_1REP_HANDLER  (MEDIUM_REP_BASE+1)
+#define MEDIUM_2REP_HANDLER  (MEDIUM_REP_BASE+2)
+#define MEDIUM_3REP_HANDLER  (MEDIUM_REP_BASE+3)
+#define MEDIUM_4REP_HANDLER  (MEDIUM_REP_BASE+4)
+#define MEDIUM_5REP_HANDLER  (MEDIUM_REP_BASE+5)
+#define MEDIUM_6REP_HANDLER  (MEDIUM_REP_BASE+6)
+#define MEDIUM_7REP_HANDLER  (MEDIUM_REP_BASE+7)
+#define MEDIUM_8REP_HANDLER  (MEDIUM_REP_BASE+8)
+#define MEDIUM_9REP_HANDLER  (MEDIUM_REP_BASE+9)
+#define MEDIUM_10REP_HANDLER (MEDIUM_REP_BASE+10)
+#define MEDIUM_11REP_HANDLER (MEDIUM_REP_BASE+11)
+#define MEDIUM_12REP_HANDLER (MEDIUM_REP_BASE+12)
+#define MEDIUM_13REP_HANDLER (MEDIUM_REP_BASE+13)
+#define MEDIUM_14REP_HANDLER (MEDIUM_REP_BASE+14)
+#define MEDIUM_15REP_HANDLER (MEDIUM_REP_BASE+15)
+#define MEDIUM_16REP_HANDLER (MEDIUM_REP_BASE+16)
+
+#define LONG_REQ_BASE      (MEDIUM_REQ_BASE+40)
+#define LONG_0REQ_HANDLER  (LONG_REQ_BASE+0)
+#define LONG_1REQ_HANDLER  (LONG_REQ_BASE+1)
+#define LONG_2REQ_HANDLER  (LONG_REQ_BASE+2)
+#define LONG_3REQ_HANDLER  (LONG_REQ_BASE+3)
+#define LONG_4REQ_HANDLER  (LONG_REQ_BASE+4)
+#define LONG_5REQ_HANDLER  (LONG_REQ_BASE+5)
+#define LONG_6REQ_HANDLER  (LONG_REQ_BASE+6)
+#define LONG_7REQ_HANDLER  (LONG_REQ_BASE+7)
+#define LONG_8REQ_HANDLER  (LONG_REQ_BASE+8)
+#define LONG_9REQ_HANDLER  (LONG_REQ_BASE+9)
+#define LONG_10REQ_HANDLER (LONG_REQ_BASE+10)
+#define LONG_11REQ_HANDLER (LONG_REQ_BASE+11)
+#define LONG_12REQ_HANDLER (LONG_REQ_BASE+12)
+#define LONG_13REQ_HANDLER (LONG_REQ_BASE+13)
+#define LONG_14REQ_HANDLER (LONG_REQ_BASE+14)
+#define LONG_15REQ_HANDLER (LONG_REQ_BASE+15)
+#define LONG_16REQ_HANDLER (LONG_REQ_BASE+16)
+
+#define LONG_REP_BASE      (LONG_REQ_BASE+20)
+#define LONG_0REP_HANDLER  (LONG_REP_BASE+0)
+#define LONG_1REP_HANDLER  (LONG_REP_BASE+1)
+#define LONG_2REP_HANDLER  (LONG_REP_BASE+2)
+#define LONG_3REP_HANDLER  (LONG_REP_BASE+3)
+#define LONG_4REP_HANDLER  (LONG_REP_BASE+4)
+#define LONG_5REP_HANDLER  (LONG_REP_BASE+5)
+#define LONG_6REP_HANDLER  (LONG_REP_BASE+6)
+#define LONG_7REP_HANDLER  (LONG_REP_BASE+7)
+#define LONG_8REP_HANDLER  (LONG_REP_BASE+8)
+#define LONG_9REP_HANDLER  (LONG_REP_BASE+9)
+#define LONG_10REP_HANDLER (LONG_REP_BASE+10)
+#define LONG_11REP_HANDLER (LONG_REP_BASE+11)
+#define LONG_12REP_HANDLER (LONG_REP_BASE+12)
+#define LONG_13REP_HANDLER (LONG_REP_BASE+13)
+#define LONG_14REP_HANDLER (LONG_REP_BASE+14)
+#define LONG_15REP_HANDLER (LONG_REP_BASE+15)
+#define LONG_16REP_HANDLER (LONG_REP_BASE+16)
 
 int numreq = 0;
 int numrep = 0;
 int myproc;
 int numprocs;
+int maxargs;
+void *VMseg;
+int VMsegsz;
+
 /* ------------------------------------------------------------------------------------ */
-void short_0req_handler(void *token) {
-  numreq++;
-   AM_Reply0(token, SHORT_0REP_HANDLER);
+#define SHORTHANDLERS(num)                                                           \
+  void short_##num##req_handler(token_t token FA##num) {                             \
+    if (CA##num) {                                                                   \
+      fprintf(stderr, "Arg mismatch in short_%sreq_handler on P%i\n", #num, myproc); \
+      fflush(stderr);                                                                \
+      abort();                                                                       \
+    }                                                                                \
+    INCREQ();                                                                        \
+    ReplyShort(num,(token, SHORT_##num##REP_HANDLER aa##num));                       \
+  }                                                                                  \
+  void short_##num##rep_handler(token_t token FA##num) {                             \
+    if (CA##num) {                                                                   \
+      fprintf(stderr, "Arg mismatch in short_%srep_handler on P%i\n", #num, myproc); \
+      fflush(stderr);                                                                \
+      abort();                                                                       \
+    }                                                                                \
+    INCREP();                                                                        \
   }
-void short_1req_handler(void *token, int a1) {
-  if (a1!=A1) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply1(token, SHORT_1REP_HANDLER, a1);
-  }
-void short_2req_handler(void *token, int a1, int a2) {
-  if (a1!=A1||a2!=A2) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply2(token, SHORT_2REP_HANDLER, a1, a2);
-  }
-void short_3req_handler(void *token, int a1, int a2, int a3) {
-  if (a1!=A1||a2!=A2||a3!=A3) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply3(token, SHORT_3REP_HANDLER, a1, a2, a3);
-  }
-void short_4req_handler(void *token, int a1, int a2, int a3, int a4) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply4(token, SHORT_4REP_HANDLER, a1, a2, a3, a4);
-  }
-void short_5req_handler(void *token, int a1, int a2, int a3, int a4, int a5) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply5(token, SHORT_5REP_HANDLER, a1, a2, a3, a4, a5);
-  }
-void short_6req_handler(void *token, int a1, int a2, int a3, int a4, int a5, int a6) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5||a6!=A6) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply6(token, SHORT_6REP_HANDLER, a1, a2, a3, a4, a5, a6);
-  }
-void short_7req_handler(void *token, int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5||a6!=A6||a7!=A7) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply7(token, SHORT_7REP_HANDLER, a1, a2, a3, a4, a5, a6, a7);
-  }
-void short_8req_handler(void *token, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5||a6!=A6||a7!=A7||a8!=A8) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numreq++;
-   AM_Reply8(token, SHORT_8REP_HANDLER, a1, a2, a3, a4, a5, a6, a7, a8);
-  }
-/* ------------------------------------------------------------------------------------ */
-void short_0rep_handler(void *token) {
-  numrep++;
 
+#define MEDIUMHANDLERS(num)                                                               \
+  void medium_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {    \
+    if (CA##num) {                                                                        \
+      fprintf(stderr, "Arg mismatch in medium_%sreq_handler on P%i\n", #num, myproc);     \
+      fflush(stderr);                                                                     \
+      abort();                                                                            \
+    }                                                                                     \
+    if (nbytes != sizeof(int) || *(int*)buf != num) {                                     \
+      fprintf(stderr, "buf mismatch in medium_%sreq_handler on P%i: nbytes=%i, buf=%i\n", \
+                       #num, myproc, nbytes, *(int*)buf);                                 \
+      fflush(stderr);                                                                     \
+      abort();                                                                            \
+    }                                                                                     \
+    INCREQ();                                                                             \
+    *(int*)buf = -(*(int*)buf);                                                           \
+    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));             \
+  }                                                                                       \
+  void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {    \
+    if (CA##num) {                                                                        \
+      fprintf(stderr, "Arg mismatch in medium_%srep_handler on P%i\n", #num, myproc);     \
+      fflush(stderr);                                                                     \
+      abort();                                                                            \
+    }                                                                                     \
+    if (nbytes != sizeof(int) || *(int*)buf != -num) {                                    \
+      fprintf(stderr, "buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n", \
+                       #num, myproc, nbytes, *(int*)buf);                                 \
+      fflush(stderr);                                                                     \
+      abort();                                                                            \
+    }                                                                                     \
+    INCREP();                                                                             \
   }
-void short_1rep_handler(void *token, int a1) {
-  if (a1!=A1) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
 
+#define LONGHANDLERS(num)                                                                                       \
+  void long_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {                            \
+    int mybuf;                                                                                                  \
+    if (CA##num) {                                                                                              \
+      fprintf(stderr, "Arg mismatch in long_%sreq_handler on P%i\n", #num, myproc);                             \
+      fflush(stderr);                                                                                           \
+      abort();                                                                                                  \
+    }                                                                                                           \
+    if (nbytes != sizeof(int) || buf != ((int*)VMseg)+num || *(int*)buf != num) {                               \
+      fprintf(stderr, "buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n",                       \
+                       #num, myproc, nbytes, *(int*)buf);                                                       \
+      fflush(stderr);                                                                                           \
+      abort();                                                                                                  \
+    }                                                                                                           \
+    mybuf = -*(int*)buf;                                                                                        \
+    INCREQ();                                                                                                   \
+    ReplyLong(num,(token, (maxargs+num)*sizeof(int), LONG_##num##REP_HANDLER, &mybuf, nbytes aa##num));   \
+  }                                                                                                             \
+  void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {                            \
+    if (CA##num) {                                                                                              \
+      fprintf(stderr, "Arg mismatch in long_%srep_handler on P%i\n", #num, myproc);                             \
+      fflush(stderr);                                                                                           \
+      abort();                                                                                                  \
+    }                                                                                                           \
+    if (nbytes != sizeof(int) || buf != ((int*)VMseg)+maxargs+num || *(int*)buf != -(int)num) {           \
+      fprintf(stderr, "buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n",                       \
+                       #num, myproc, nbytes, *(int*)buf);                                                       \
+      fflush(stderr);                                                                                           \
+      abort();                                                                                                  \
+    }                                                                                                           \
+    INCREP();                                                                                                   \
   }
-void short_2rep_handler(void *token, int a1, int a2) {
-  if (a1!=A1||a2!=A2) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
 
-  }
-void short_3rep_handler(void *token, int a1, int a2, int a3) {
-  if (a1!=A1||a2!=A2||a3!=A3) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
+#define HANDLERS(num) \
+  SHORTHANDLERS(num)  \
+  MEDIUMHANDLERS(num) \
+  LONGHANDLERS(num)   
 
-  }
-void short_4rep_handler(void *token, int a1, int a2, int a3, int a4) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
+HANDLERS(0)
+HANDLERS(1)
+HANDLERS(2)
+HANDLERS(3)
+HANDLERS(4)
+HANDLERS(5)
+HANDLERS(6)
+HANDLERS(7)
+HANDLERS(8)
+HANDLERS(9)
+HANDLERS(10)
+HANDLERS(11)
+HANDLERS(12)
+HANDLERS(13)
+HANDLERS(14)
+HANDLERS(15)
+HANDLERS(16)
 
-  }
-void short_5rep_handler(void *token, int a1, int a2, int a3, int a4, int a5) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
-
-  }
-void short_6rep_handler(void *token, int a1, int a2, int a3, int a4, int a5, int a6) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5||a6!=A6) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
-
-  }
-void short_7rep_handler(void *token, int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5||a6!=A6||a7!=A7) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
-
-  }
-void short_8rep_handler(void *token, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8) {
-  if (a1!=A1||a2!=A2||a3!=A3||a4!=A4||a5!=A5||a6!=A6||a7!=A7||a8!=A8) {
-    fprintf(stderr, "Arg mismatch on P%i\n", myproc);
-    abort();
-  }
-  numrep++;
-
-  }
 /* ------------------------------------------------------------------------------------ */
 int main(int argc, char **argv) {
   eb_t eb;
@@ -187,8 +341,9 @@ int main(int argc, char **argv) {
   uint64_t networkpid;
   int partner;
   int iters=0, depth=0, polling = 1, i;
+  int buf[1];
 
-  AMMPI_VerboseErrors = 1;
+  AMX_VerboseErrors = 1;
 
   if (argc < 3) {
     printf("Usage: %s (iters) (Poll/Block) (netdepth)\n", argv[0]);
@@ -199,7 +354,7 @@ int main(int argc, char **argv) {
   if (!depth) depth = 4;
 
   /* call startup */
-  AM_Safe(AMMPI_SPMDStartup(&argc, &argv, 
+  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
                             depth, &networkpid, &eb, &ep));
 
   if (argc > 1) iters = atoi(argv[1]);
@@ -209,58 +364,88 @@ int main(int argc, char **argv) {
     switch(argv[2][0]) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
-      default: printf("polling must be 'P' or 'B'..\n"); AMMPI_SPMDExit(1);
+      default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
       }
     }
 
-  /* setup handlers */
-  AM_Safe(AM_SetHandler(ep, SHORT_0REQ_HANDLER, short_0req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_1REQ_HANDLER, short_1req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_2REQ_HANDLER, short_2req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_3REQ_HANDLER, short_3req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_4REQ_HANDLER, short_4req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_5REQ_HANDLER, short_5req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_6REQ_HANDLER, short_6req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_7REQ_HANDLER, short_7req_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_8REQ_HANDLER, short_8req_handler));
+  maxargs = AM_MaxShort()+1;
 
-  AM_Safe(AM_SetHandler(ep, SHORT_0REP_HANDLER, short_0rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_1REP_HANDLER, short_1rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_2REP_HANDLER, short_2rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_3REP_HANDLER, short_3rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_4REP_HANDLER, short_4rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_5REP_HANDLER, short_5rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_6REP_HANDLER, short_6rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_7REP_HANDLER, short_7rep_handler));
-  AM_Safe(AM_SetHandler(ep, SHORT_8REP_HANDLER, short_8rep_handler));
+  /* setup handlers */
+  #define SETUP(num) do {                                                             \
+    AM_Safe(AM_SetHandler(ep, SHORT_##num##REQ_HANDLER,  short_##num##req_handler));  \
+    AM_Safe(AM_SetHandler(ep, MEDIUM_##num##REQ_HANDLER, medium_##num##req_handler)); \
+    AM_Safe(AM_SetHandler(ep, LONG_##num##REQ_HANDLER,   long_##num##req_handler));   \
+    AM_Safe(AM_SetHandler(ep, SHORT_##num##REP_HANDLER,  short_##num##rep_handler));  \
+    AM_Safe(AM_SetHandler(ep, MEDIUM_##num##REP_HANDLER, medium_##num##rep_handler)); \
+    AM_Safe(AM_SetHandler(ep, LONG_##num##REP_HANDLER,   long_##num##rep_handler));   \
+    } while(0)
+  SETUP(0);
+  SETUP(1);
+  SETUP(2);
+  SETUP(3);
+  SETUP(4);
+  SETUP(5);
+  SETUP(6);
+  SETUP(7);
+  SETUP(8);
+  SETUP(9);
+  SETUP(10);
+  SETUP(11);
+  SETUP(12);
+  SETUP(13);
+  SETUP(14);
+  SETUP(15);
+  SETUP(16);
+
   setupUtilHandlers(ep, eb);
   
   numreq = 0;
   numrep = 0;
 
+  VMsegsz = 2*sizeof(int)*maxargs;
+  VMseg = malloc(VMsegsz);
+  memset(VMseg, 0, VMsegsz);
+  AM_Safe(AM_SetSeg(ep, VMseg, VMsegsz));
+
   /* barrier */
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
 
   /* get SPMD info */
-  myproc = AMMPI_SPMDMyProc();
-  numprocs = AMMPI_SPMDNumProcs();
+  myproc = AMX_SPMDMyProc();
+  numprocs = AMX_SPMDNumProcs();
 
   partner = (myproc + 1)%numprocs;
 
   /* compute */
 
   for (i=0; i < iters; i++) {
-    AM_Safe(AM_Request0(ep, partner, SHORT_0REQ_HANDLER));
-    AM_Safe(AM_Request1(ep, partner, SHORT_1REQ_HANDLER, A1));
-    AM_Safe(AM_Request2(ep, partner, SHORT_2REQ_HANDLER, A1, A2));
-    AM_Safe(AM_Request3(ep, partner, SHORT_3REQ_HANDLER, A1, A2, A3));
-    AM_Safe(AM_Request4(ep, partner, SHORT_4REQ_HANDLER, A1, A2, A3, A4));
-    AM_Safe(AM_Request5(ep, partner, SHORT_5REQ_HANDLER, A1, A2, A3, A4, A5));
-    AM_Safe(AM_Request6(ep, partner, SHORT_6REQ_HANDLER, A1, A2, A3, A4, A5, A6));
-    AM_Safe(AM_Request7(ep, partner, SHORT_7REQ_HANDLER, A1, A2, A3, A4, A5, A6, A7));
-    AM_Safe(AM_Request8(ep, partner, SHORT_8REQ_HANDLER, A1, A2, A3, A4, A5, A6, A7, A8));
 
-    while (numrep < 9*(i+1)) {
+  #define REQ(num)  do {                                                                                         \
+    AM_Safe(RequestShort(num,(ep, partner,  SHORT_##num##REQ_HANDLER AA##num)));                                 \
+    buf[0] = num;                                                                                                \
+    AM_Safe(RequestMedium(num,(ep, partner, MEDIUM_##num##REQ_HANDLER, buf, sizeof(int) AA##num)));              \
+    AM_Safe(RequestLong(num,(ep, partner, sizeof(int)*num, LONG_##num##REQ_HANDLER, buf, sizeof(int) AA##num))); \
+  } while (0)
+
+    REQ(0);
+    REQ(1);
+    REQ(2);
+    REQ(3);
+    REQ(4);
+    REQ(5);
+    REQ(6);
+    REQ(7);
+    REQ(8);
+    REQ(9);
+    REQ(10);
+    REQ(11);
+    REQ(12);
+    REQ(13);
+    REQ(14);
+    REQ(15);
+    REQ(16);
+
+    while (numrep < maxargs*3*(i+1)) {
       if (polling) {
         AM_Safe(AM_Poll(eb));
         } 
@@ -273,14 +458,14 @@ int main(int argc, char **argv) {
     }
 
   /* barrier */
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
 
   printGlobalStats();
 
-  AM_Safe(AMMPI_SPMDBarrier());
+  AM_Safe(AMX_SPMDBarrier());
 
   /* exit */
-  AM_Safe(AMMPI_SPMDExit(0));
+  AM_Safe(AMX_SPMDExit(0));
 
   return 0;
   }

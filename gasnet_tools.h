@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_tools.h                                   $
- *     $Date: 2003/08/10 09:42:51 $
- * $Revision: 1.8 $
+ *     $Date: 2004/01/23 23:22:09 $
+ * $Revision: 1.8.6.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,6 +71,15 @@
   #define GASNETT_PAGESHIFT GASNETI_PAGESHIFT
 #endif
 
+
+/* ------------------------------------------------------------------------------------ */
+
+/* misc internal GASNet things we wish to expose when available */
+#ifdef _INCLUDED_GASNET_H
+  #define GASNETT_TRACE_SETSOURCELINE GASNETI_TRACE_SETSOURCELINE
+#else
+  #define GASNETT_TRACE_SETSOURCELINE 
+#endif
 
 #undef _IN_GASNET_TOOLS_H
 #endif
