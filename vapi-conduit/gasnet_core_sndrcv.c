@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/02/05 23:51:37 $
- * $Revision: 1.23.6.15 $
+ *     $Date: 2004/02/09 20:04:01 $
+ * $Revision: 1.23.6.16 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -326,9 +326,9 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
         if_pt (sreq) {
 	  /* resource accounting */
 	  gasnetc_sema_up(&sreq->cep->op_sema);
-	  GASNETC_SEMA_CHECK(&sreq->cep->op_sema, gasnetc_op_oust_pp);
+          GASNETC_SEMA_CHECK(&sreq->cep->op_sema, gasnetc_op_oust_pp);
 	  gasnetc_sema_up(&gasnetc_op_sema);
-	  GASNETC_SEMA_CHECK(&gasnetc_op_sema, gasnetc_op_oust_limit);
+          GASNETC_SEMA_CHECK(&gasnetc_op_sema, gasnetc_op_oust_limit);
 
 	  /* complete bounced RMDA read, if any */
 	  if (sreq->addr) {
@@ -343,7 +343,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
 	    gasneti_assert(!gasnetc_counter_done(sreq->mem_oust));
 	    gasnetc_counter_dec(sreq->mem_oust);
 	  }
-          if (sreq->req_oust){
+          if (sreq->req_oust) {
 	    gasneti_assert(!gasnetc_counter_done(sreq->req_oust));
             gasnetc_counter_dec(sreq->req_oust);
 	  }
@@ -1291,8 +1291,8 @@ extern void gasnetc_sndrcv_fini(void) {
 
     gasnetc_free_pinned(&gasnetc_snd_reg);
     
-    /* XXX: can only free the "big" piece here, loosing any singltons
-     * we may have allocated :-(
+    /* XXX: can only free the "big" piece here.
+     * So we  leak any singletons we may have allocated
      */
     gasneti_free(gasnetc_sreq_alloc);
   }
