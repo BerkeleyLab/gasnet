@@ -1,0 +1,178 @@
+# This Makefile fragment is used to build GASNet conduits 
+# it is not meant to be used directly 
+
+.PHONY: do-all do-error libs force                              \
+        do-clean-local do-install-data-local do-uninstall-local \
+        do-libgasnet-seq do-libgasnet-par do-libgasnet-parsync  \
+	test tests tests-seq tests-par tests-parsync
+
+thread_defines = @GASNET_THREAD_DEFINES@
+
+# header files to be installed
+# Conduit-specific headers will overwrite any conflicts in extended-ref
+headers = $(top_srcdir)/extended-ref/*.h $(srcdir)/*.h $(CONDUIT_EXTRAHEADERS)
+
+makefile_fragments =                \
+        $(CONDUIT_NAME)-seq.mak     \
+        $(CONDUIT_NAME)-parsync.mak \
+	$(CONDUIT_NAME)-par.mak
+
+@GASNET_SEGMENT_FAST_TRUE@GASNET_SEGMENT_STR="FAST"
+@GASNET_SEGMENT_LARGE_TRUE@GASNET_SEGMENT_STR="LARGE"
+@GASNET_SEGMENT_EVERYTHING_TRUE@GASNET_SEGMENT_STR="EVERYTHING"
+
+VPATH=$(srcdir)
+
+INCLUDES =                \
+        -I$(srcdir)       \
+        -I$(top_srcdir)   \
+        -I$(top_builddir) \
+        -I$(top_srcdir)/extended-ref  
+
+LIBCFLAGS =                       \
+        @CFLAGS@                  \
+        @MISC_CFLAGS@             \
+        @BUILDCONFIG_DEFINES@     \
+        @GASNET_MACHINE_DEFINES@  \
+        $(CONDUIT_EXTRALIBCFLAGS) \
+	$(INCLUDES)
+
+MPI_LIBCFLAGS = @MPI_CFLAGS@ $(INCLUDES)
+
+libgasnet_sources =           \
+        $(CONDUIT_SOURCELIST) \
+	$(top_srcdir)/gasnet_internal.c	  
+
+libgasnet_objects = \
+	`for file in $(libgasnet_sources) $(CONDUIT_MPISOURCELIST) ; do echo \`basename $$file .c\`.o ; done`
+
+libgasnet_dependencies =                  \
+        $(srcdir)/*.[ch]                  \
+        $(top_srcdir)/*.[ch]              \
+        $(top_srcdir)/extended-ref/*.[ch] \
+        $(CONDUIT_SOURCELIST)             \
+	$(CONDUIT_MPISOURCELIST)	  \
+	$(CONDUIT_EXTRAHEADERS)           \
+	$(CONDUIT_EXTRADEPS)
+
+EXTRA_DIST = $(CONDUIT_FILELIST)
+
+# library targets 
+
+do-libgasnet-seq: $(libgasnet_dependencies) $(CONDUIT_SEQ_HOOK)
+	$(CC) $(LIBCFLAGS) -DGASNET_SEQ -c $(libgasnet_sources)
+	@if test "$(CONDUIT_MPISOURCELIST)" ; then                                  \
+	  libgasnet_mpi_srcs="$(CONDUIT_MPISOURCELIST)" export libgasnet_mpi_srcs ; \
+	  for file in $$libgasnet_mpi_srcs; do                                      \
+	    echo @MPI_CC@ $(MPI_LIBCFLAGS) -DGASNET_SEQ -c $$file ;                 \
+	    @MPI_CC@ $(MPI_LIBCFLAGS) -DGASNET_SEQ -c $$file ;                      \
+	  done ; fi                                                 
+	@echo $(AR) cru libgasnet-$(CONDUIT_NAME)-seq.a $(libgasnet_objects)
+	@$(AR) cru libgasnet-$(CONDUIT_NAME)-seq.a $(libgasnet_objects)
+	$(RANLIB) libgasnet-$(CONDUIT_NAME)-seq.a
+	@echo rm -f $(libgasnet_objects)
+	@rm -f $(libgasnet_objects)
+
+do-libgasnet-par: $(libgasnet_dependencies) $(CONDUIT_PAR_HOOK)
+	$(CC) $(LIBCFLAGS) -DGASNET_PAR $(thread_defines) -c $(libgasnet_sources)
+	@if test "$(CONDUIT_MPISOURCELIST)" ; then                                  \
+	  libgasnet_mpi_srcs="$(CONDUIT_MPISOURCELIST)" export libgasnet_mpi_srcs ; \
+	  for file in $$libgasnet_mpi_srcs; do                                      \
+	    echo @MPI_CC@ $(MPI_LIBCFLAGS) -DGASNET_PAR -c $$file ;                 \
+	    @MPI_CC@ $(MPI_LIBCFLAGS) -DGASNET_PAR -c $$file ;                      \
+	  done ; fi                                                 
+	@echo $(AR) cru libgasnet-$(CONDUIT_NAME)-par.a $(libgasnet_objects)
+	@$(AR) cru libgasnet-$(CONDUIT_NAME)-par.a $(libgasnet_objects)
+	$(RANLIB) libgasnet-$(CONDUIT_NAME)-par.a
+	@echo rm -f $(libgasnet_objects)
+	@rm -f $(libgasnet_objects)
+
+do-libgasnet-parsync: $(libgasnet_dependencies) $(CONDUIT_PARSYNC_HOOK)
+	$(CC) $(LIBCFLAGS) -DGASNET_PARSYNC $(thread_defines) -c $(libgasnet_sources)
+	@if test "$(CONDUIT_MPISOURCELIST)" ; then                                  \
+	  libgasnet_mpi_srcs="$(CONDUIT_MPISOURCELIST)" export libgasnet_mpi_srcs ; \
+	  for file in $$libgasnet_mpi_srcs; do                                      \
+	    echo @MPI_CC@ $(MPI_LIBCFLAGS) -DGASNET_PARSYNC -c $$file ;             \
+	    @MPI_CC@ $(MPI_LIBCFLAGS) -DGASNET_PARSYNC -c $$file ;                  \
+	  done ; fi                                                 
+	@echo $(AR) cru libgasnet-$(CONDUIT_NAME)-parsync.a $(libgasnet_objects)
+	@$(AR) cru libgasnet-$(CONDUIT_NAME)-parsync.a $(libgasnet_objects)
+	$(RANLIB) libgasnet-$(CONDUIT_NAME)-parsync.a
+	@echo rm -f $(libgasnet_objects)
+	@rm -f $(libgasnet_objects)
+
+# test targets 
+
+tests: force
+	@echo You must specify one of tests-seq, tests-par or tests-parsync
+	@exit 1
+
+test: tests
+
+tests-seq: force libgasnet-$(CONDUIT_NAME)-seq.a $(CONDUIT_NAME)-seq.mak $(CONDUIT_SEQ_HOOK)
+	@echo "*** Building all GASNet tests in SEQ/$(GASNET_SEGMENT_STR) mode ***"
+	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-seq \
+	  srcdir="$(top_srcdir)/tests"                       \
+	  configfile="$(CONDUIT_NAME)-seq.mak"
+
+tests-parsync: force libgasnet-$(CONDUIT_NAME)-parsync.a $(CONDUIT_NAME)-parsync.mak $(CONDUIT_PARSYNC_HOOK)
+	@echo "*** Building all GASNet tests in PARSYNC/$(GASNET_SEGMENT_STR) mode ***"
+	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-parsync \
+	  srcdir="$(top_srcdir)/tests"                       \
+	  configfile="$(CONDUIT_NAME)-parsync.mak"
+
+tests-par: force libgasnet-$(CONDUIT_NAME)-par.a $(CONDUIT_NAME)-par.mak $(CONDUIT_PAR_HOOK)
+	@echo "*** Building all GASNet tests in PAR/$(GASNET_SEGMENT_STR) mode ***"
+	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-par \
+	  srcdir="$(top_srcdir)/tests"                       \
+	  configfile="$(CONDUIT_NAME)-par.mak"
+
+test%: force libgasnet-$(CONDUIT_NAME)-seq.a $(CONDUIT_NAME)-seq.mak
+	@echo "*** Building $@ in SEQ/$(GASNET_SEGMENT_STR) mode ***"
+	@$(MAKE) -f $(top_builddir)/tests/Makefile $@   \
+	  srcdir="$(top_srcdir)/tests"                  \
+	  configfile="$(CONDUIT_NAME)-seq.mak"
+
+force:
+
+do-all: $(libraries) $(makefile_fragments)
+
+do-clean-local: 
+	@echo rm -f $(libgasnet_objects) $(libraries) *.o core
+	@rm -f $(libgasnet_objects) $(libraries) *.o core
+	@$(MAKE) -f $(top_builddir)/tests/Makefile clean     \
+	  srcdir="$(top_srcdir)/tests"			     \
+	  configfile="/dev/null"
+
+
+do-install-data-local: force $(headers)
+	$(mkinstalldirs) $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit
+	@list='$(headers)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    filename=`basename $$p`; \
+            if test "$$filename" = "`basename $$p _internal.h`" ; then \
+	    echo " $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/$$filename"; \
+	    $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/$$filename; \
+	    else :; fi; \
+	  else :; fi; \
+	done
+	@list='$(makefile_fragments)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    filename=`basename $$p`; \
+	    echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/$$filename"; \
+	    @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/$$filename; \
+	  else :; fi; \
+	done
+
+do-uninstall-local:
+	rm -f $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/*.h $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/*.mak
+
+do-error: 
+	@echo "ERROR: $(CONDUIT_NAME)-conduit support was not detected at configure time"
+	@echo "       try re-running configure with --enable-$(CONDUIT_NAME)"
+	@exit 1
+
+$(top_builddir)/other/Makefile-conduit.mak: $(top_srcdir)/other/Makefile-conduit.mak.in
+	gmake -C $(top_builddir)/other Makefile-conduit.mak
+
+Makefile: $(srcdir)/Makefile.am $(top_builddir)/other/Makefile-conduit.mak
