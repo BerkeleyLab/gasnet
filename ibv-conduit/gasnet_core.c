@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2004/10/22 20:56:32 $
- * $Revision: 1.61 $
+ *     $Date: 2004/11/03 00:43:40 $
+ * $Revision: 1.61.4.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -663,6 +663,8 @@ static int gasnetc_init(int *argc, char ***argv) {
       GASNETC_VAPI_CHECK(vstat, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
+      gasneti_assert(qp_prop.cap.max_sg_size_rq >= GASNETC_RCV_SG);
+      gasneti_assert(qp_prop.cap.max_sg_size_sq >= GASNETC_SND_SG);
 
       local_addr[i].lid = gasnetc_hca_port.lid;
       local_addr[i].qp_num = qp_prop.qp_num;
