@@ -246,3 +246,69 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 	}
 }
 
+#ifdef FIREHOSE_REGION
+/* Additional functionality required for FIREHOSE_REGION, which
+ * can have multiple hash entries with identical key.
+ */
+
+/* Given an (non-NULL) entry, find the next one with the same key */
+void *
+fh_hash_next(void *val)
+{
+	fh_int_t	key = ((fh_dummy_entry_t *) val)->hash_key;
+
+	do {
+		val = ((fh_dummy_entry_t *) val)->hash_next;
+	} while (val != NULL && key != ((fh_dummy_entry_t *) val)->hash_key);
+
+	return val;
+}
+
+/* Given a (non-NULL) entry, by address not by key, replace
+ * it with another entry, or delete if replacement is NULL
+ */
+void
+fh_hash_replace(fh_hash_t *hash, void *val, void *newval)
+{
+	fh_int_t         keyhash;
+	fh_dummy_entry_t *cur;
+
+	keyhash = inthash(((fh_dummy_entry_t *)val)->hash_key) & hash->fh_mask;
+	cur = (fh_dummy_entry_t *)(hash->fh_table[keyhash]);
+
+	/* Handle head of list case first */
+	if (cur == ((fh_dummy_entry_t *) val)) {
+		if (newval == NULL) {
+			/* Delete */
+			hash->fh_table[keyhash] = cur->hash_next;
+		}
+		else {
+			/* Replace */
+			((fh_dummy_entry_t *) newval)->hash_next =
+							 cur->hash_next;
+			hash->fh_table[keyhash] = newval;
+		}
+		return;
+	}
+
+	/* Now handle non-head case */
+	while (cur != NULL) {
+		fh_dummy_entry_t *next = cur->hash_next;
+
+		if (next == ((fh_dummy_entry_t *) val)) {
+			if (newval == NULL) {
+				/* Delete */
+				cur->hash_next = next->hash_next;
+			}
+			else {
+				/* Replace */
+				cur->hash_next = newval;
+				((fh_dummy_entry_t *) newval)->hash_next = next->hash_next;
+			}
+			return;
+		}
+
+		cur = next;
+	}
+}
+#endif /* defined(FIREHOSE_REGION) */

@@ -234,6 +234,11 @@ static fh_bucket_t **	fh_temp_bucket_ptrs = NULL;
 fh_fifoq_t	fh_LocalFifo = FH_TAILQ_HEAD_INITIALIZER(fh_LocalFifo);
 fh_fifoq_t	*fh_RemoteNodeFifo = NULL;
 
+/*
+ * The bucket table
+ */
+fh_hash_t	*fh_BucketTable;
+
 /* ##################################################################### */
 /* COUNTERS                                                              */
 /* ##################################################################### */
@@ -651,6 +656,9 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	unsigned long	M, maxvictim, firehoses, m_prepinned = 0;
 	size_t		b_prepinned = 0;
 
+        /* Initialize the Bucket table to 128k lists */
+	fh_BucketTable = fh_hash_create((1<<17));
+
 	assert(FH_MAXVICTIM_TO_PHYSMEM_RATIO >= 0 && 
 	       FH_MAXVICTIM_TO_PHYSMEM_RATIO <= 1);
 
@@ -859,6 +867,8 @@ void
 fh_fini_plugin()
 {
 	fhi_RegionPool_t	*rpool;
+
+	fh_hash_destroy(fh_BucketTable);
 
 	while (!FH_STAILQ_EMPTY(&fhi_regpool_list)) {
 		rpool = FH_STAILQ_FIRST(&fhi_regpool_list);

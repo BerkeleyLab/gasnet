@@ -31,11 +31,6 @@
 
 gasnet_node_t	fh_mynode = (gasnet_node_t)-1;
 
-fh_hash_t	*fh_BucketTable;
-#ifdef FIREHOSE_REGION
-fh_hash_t	*fh_RegionTable;
-#endif
-
 extern void
 firehose_init(uintptr_t max_pinnable_memory, size_t max_regions, 
 	      firehose_region_t *prepinned_regions, size_t num_reg,
@@ -55,14 +50,6 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 
 	/* Initialize the local firehose FIFO queue */
 	FH_TAILQ_INIT(&fh_LocalFifo);
-
-	/* Initialize the Bucket table to 128k lists */
-	fh_BucketTable = fh_hash_create((1<<17));
-
-	#ifdef FIREHOSE_REGION
-	/* XXX ??? */
-	fh_RegionTable = fh_hash_create((1<<16));
-	#endif
 
 	/* hit the request_t freelist for first allocation */
 	{
@@ -107,8 +94,6 @@ firehose_fini()
 			break;
 		gasneti_free(fh_buckets_bufs[i]);
 	}
-
-	fh_hash_destroy(fh_BucketTable);
 
 	fh_fini_plugin();
 	return;
@@ -477,8 +462,8 @@ fh_request_free(firehose_request_t *req)
  *   Adding: fh_bucket_t are added once a bucket is pinned locally or a
  *           firehose maps to a remote bucket.
  *   Removing: Local fh_bucket_t are removed once a bucket is unpinned locally.
- *             Remote firehoses to fh_bucket_t are removed once an AM move is
- *             completed and that bucket had been selected as a replacement
+ *             Remote firehoses to fh_bucket_t are removed when an AM move is
+ *             required and that bucket had been selected as a replacement
  *             bucket.
  *
  * Local Victim Fifo list of fh_bucket_t (oldest at head, newest at tail)
@@ -495,15 +480,6 @@ fh_request_free(firehose_request_t *req)
  *
  *   Pushing: Firehoses for which fh_bucket_t reaches a refcount of zero are
  *            added to the per-node firehose victim FIFO.
- */
-
-/* Metadata that can be used while holding the FH_TABLE_LOCK.
- *
- * Temporary arrays:
- *
- * 1. fh_bucket_t **fh_bucket_temp (of size max_RemotePinSize << FH_BUCKET_SIZE)
- *    This array can be used to construct a temporary array of pointers to
- *    fh_bucket_t.
  */
 
 /* ##################################################################### */
@@ -537,10 +513,7 @@ fh_bucket_lookup(gasnet_node_t node, uintptr_t bucket_addr)
 
 	FH_ASSERT_BUCKET_ADDR(bucket_addr);
 
-	entry = (fh_bucket_t *)
-		fh_hash_find(fh_BucketTable, FH_KEYMAKE(bucket_addr, node));
-
-	return entry;
+	return fhi_bucket_lookup(FH_KEYMAKE(bucket_addr, node));
 }
 
 fh_bucket_t *
@@ -590,25 +563,26 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 	entry->fh_key = FH_KEYMAKE(bucket_addr, node);
 	entry->fh_tqe_next = (fh_bucket_t *) -1;
 
-	fh_hash_insert(fh_BucketTable, entry->fh_key, entry);
-	assert(fh_bucket_lookup(node, bucket_addr) == entry);
+	fhi_bucket_add(entry);
 
 	return entry;
 }
 
 void
-fh_bucket_remove(fh_bucket_t *entry)
+fh_bucket_remove(fh_bucket_t *bucket)
 {
-	fh_bucket_t *bucket;
-
 	FH_TABLE_ASSERT_LOCKED;
-	entry->fh_tqe_next = (fh_bucket_t *) -1;
-	bucket = fh_hash_insert(fh_BucketTable, entry->fh_key, NULL);
-	assert(entry == bucket);
+
+#if 0
+ 	/* PHH: this is overwritten by the memset() below */
+	bucket->fh_tqe_next = (fh_bucket_t *) -1;
+#endif
+	fhi_bucket_remove(bucket);
 	memset(bucket, 0, sizeof(fh_bucket_t));
 	bucket->fh_next = fh_buckets_freehead;
 	fh_buckets_freehead = bucket;
 }
+
 /* 
  * fh_getenv()
  *

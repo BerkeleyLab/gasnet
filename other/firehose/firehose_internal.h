@@ -173,7 +173,7 @@ struct _fh_bucket_t {
 #define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK) /* bucket address */
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
-	fh_refc_t	refcounts;
+	firehose_private_t *priv;		/* holds ref counts, etc */
 }
 fh_bucket_t;
 
@@ -185,6 +185,8 @@ struct _firehose_private_t {
 	size_t		len;
 	fh_bucket_t	*bucket;		/* pointer to first bucket */
 
+	fh_refc_t	refcounts;
+
 	firehose_private_t *fh_tqe_next;	/* NULL when not in FIFO */
 	firehose_private_t **fh_tqe_prev;
 
@@ -193,6 +195,7 @@ struct _firehose_private_t {
 	#endif
 };
 #define FH_REFCOUNT(priv) ((fh_refc_t) ((priv)->fh_tqe_prev))
+
 #endif
 
 /*
@@ -223,19 +226,19 @@ void			fh_request_free(firehose_request_t *req);
 
 /* ##################################################################### */
 /* Firehose Hash Table Utility (COMMON, firehose_hash.c)                 */
-/* The hash table utility functions can be used for hashing buckets (and
- * regions in firehose-region                                            */
+/* The hash table utility functions can be used for hashing buckets (and */
+/* regions in firehose-region                                            */
 /* ##################################################################### */
 
 struct _fh_hash_t;
 typedef struct _fh_hash_t fh_hash_t;
 
-extern fh_hash_t	*fh_BucketTable;
-
 fh_hash_t *	fh_hash_create(size_t entries);
 void		fh_hash_destroy(fh_hash_t *hash);
 void *		fh_hash_find(fh_hash_t *hash, fh_int_t key);
 void *		fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval);
+void *		fh_hash_next(fh_hash_t *hash, void *val);
+void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 
 /* ##################################################################### */
 /* Bucket (local and remote) operations (COMMON, firehose.c)             */
@@ -255,6 +258,38 @@ fh_refc_t	fh_bucket_release(gasnet_node_t node, fh_bucket_t *);
 		/* Acquires the bucket (increments the refcount). _ONLY_ 
 		 * valid if the bucket already exists in the table       */
 fh_refc_t	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
+
+/* The following are implementation-specific helpers */
+#if defined(FIREHOSE_PAGE)
+/* bucket table operations map directly to hash ops */
+extern fh_hash_t *fh_BucketTable;
+GASNET_INLINE_MODIFIER(fhi_bucket_lookup)
+fh_bucket_t *fhi_bucket_lookup(fh_int_t key)
+{
+	return (fh_bucket_t *)fh_hash_find(fh_BucketTable, key);
+}
+GASNET_INLINE_MODIFIER(fhi_bucket_add)
+void fhi_bucket_add(fh_bucket_t *bucket)
+{
+	assert(bucket != NULL);
+	fh_hash_insert(fh_BucketTable, bucket->fh_key, bucket);
+	assert(fhi_bucket_lookup(bucket->fh_key) == bucket);
+}
+GASNET_INLINE_MODIFIER(fhi_bucket_remove)
+void fhi_bucket_remove(fh_bucket_t *bucket)
+{
+	void * _tmp;
+
+	assert(bucket != NULL);
+	_tmp = fh_hash_insert(fh_BucketTable, bucket->fh_key, NULL);
+	assert(_tmp == (void *)bucket);
+}
+#elif defined(FIREHOSE_REGION)
+/* bucket table operations *don't* map directly to hash ops */
+extern fh_bucket_t *	fhi_bucket_lookup(fh_int_t);
+extern void 		fhi_bucket_add(fh_bucket_t *);
+extern void		fhi_bucket_remove(fh_bucket_t *);
+#endif
 
 /* ##################################################################### */
 /* Misc functions (specific to page and region)                          */
