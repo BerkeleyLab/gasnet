@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_atomicops_internal.h                               $
- *     $Date: 2004/08/12 17:12:55 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2004/08/12 19:53:39 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for semi-portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,10 +33,6 @@
 
     GASNETI_HAVE_ATOMIC_CAS will be defined non-zero on platforms supporting this operation.
     
-TODO: We are inconsistent (when compared to other atomics) with respect to including any
-required rmb() calls in these implementations.  Presently the Alpha and PPC (the only two
-platforms with real rmb()s) include the rmb() in the CAS.  Ideally the callers should
-insert them only where the operation has acquire semantics.
  */
 
 #if defined(SOLARIS) || /* SPARC seems to have no atomic ops */ \
@@ -172,21 +168,14 @@ insert them only where the operation has acquire semantics.
   #elif defined(AIX)
     GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
     int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, int oldval, int newval) {
-      int retval;
-
-      retval = compare_and_swap( (atomic_p)p, &oldval, newval );
-      if (retval)
-        gasneti_local_rmb();
-      return retval;
+      return compare_and_swap( (atomic_p)p, &oldval, newval );
     } 
     #define GASNETI_HAVE_ATOMIC_CAS 1
   #elif defined(OSF)
    #ifdef __DECC
      /* OSF atomics are compiler built-ins */
-     #define gasneti_atomic_compare_and_swap(p,oval,nval) do { \
-	__CMP_STORE_LONG(&((p)->ctr),ocal,nval,&((p)->ctr));   \
-	__MB();                                                \
-     } while (0)
+     #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+	__CMP_STORE_LONG(&((p)->ctr),ocal,nval,&((p)->ctr))
      #define GASNETI_HAVE_ATOMIC_CAS 1
    #elif defined(__GNUC__)
      GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
@@ -200,7 +189,7 @@ insert them only where the operation has acquire semantics.
 		"	mov	%3,%0"		/* copy newval to ret */
 		"	stl_c	%0,%1\n"	/* Store-conditional of newval (success/fail in ret) */
 		"	beq	%0,1b\n"	/* Retry on stl_c failure */
-		"2:	mb"			/* memory flush */
+		"2:	"
        		: "=&r"(ret), "=m"(*p)
 		: "r"(oldval), "r"(newval)
 		: "memory");
@@ -228,7 +217,6 @@ insert them only where the operation has acquire semantics.
 	"40820010"	/*    bne	1f		*/ \
 	"7ca0192d"	/*    stwcx.	r5,0,r3		*/ \
 	"40a2fff0"	/*    bne-	0b		*/ \
-	"4c00012c"	/*    isync			*/ \
 	"7c431378"	/* 1: mr	r3,r2		*/ \
 	/* RETURN in r3 = 0 iff swap took place */ \
       }
@@ -247,8 +235,7 @@ insert them only where the operation has acquire semantics.
 	  "bne      1f \n\t"              /* branch on mismatch */
 	  "stwcx.   %3,0,%1 \n\t"         /* store newval */
 	  "bne-     0b \n\t"              /* retry on conflict */
-	  "isync\n"
-	  "1:\t"
+	  "1:	"
 	  : "=&r"(result)
 	  : "r" (p), "r"(oldval), "r"(newval)
 	  : "cr0", "memory");
