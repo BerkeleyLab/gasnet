@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/01 22:26:31 $
- * $Revision: 1.2.2.19 $
+ *     $Date: 2003/04/02 01:40:31 $
+ * $Revision: 1.2.2.20 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,10 +29,6 @@ VAPI_pd_hndl_t	gasnetc_pd;
 #if defined(GASNET_SEGMENT_FAST)
   gasnetc_memreg_t	gasnetc_seg_reg;
 #endif
-
-/* Recv resources */
-gasnetc_memreg_t	gasnetc_rcv_reg;
-VAPI_cq_hndl_t		gasnetc_rcv_cq;
 
 
 /* Used only once, to exchange addresses at connection time */
@@ -242,45 +238,6 @@ static uintptr_t gasnetc_max_pinnable(void) {
   return pin_size;
 }
 
-static gasnetc_rcv_desc_t *gasnetc_rcv_init(void) {
-  VAPI_cqe_num_t	act_size;
-  VAPI_ret_t		vstat;
-  gasnetc_buffer_t	*buf;
-  gasnetc_rcv_desc_t	*desc;
-  int 			count, i;
-
-  count = GASNETC_RCV_WQE * gasnetc_nodes;
-
-  buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
-			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
-  assert(buf != NULL);
-
-  desc = calloc(count, sizeof(gasnetc_rcv_desc_t));
-  assert(desc != NULL);
-
-  for (i = 0; i < count; ++i) {
-    desc[i].rr_desc.id         = (uintptr_t)&desc[i];	/* CQE will point back to this request */
-    desc[i].rr_desc.opcode     = VAPI_RECEIVE;
-    desc[i].rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
-    desc[i].rr_desc.sg_lst_len = 1;
-    desc[i].rr_desc.sg_lst_p   = &desc[i].rr_sg;
-    desc[i].rr_sg.len          = GASNETC_BUFSZ;
-    desc[i].rr_sg.addr         = (uintptr_t)&buf[i];
-    desc[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
-  }
-
-  vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
-  assert(vstat == VAPI_OK);
-  assert(act_size >= count);
-
-  return desc;
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_rcv_post)
-int gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rcv_desc_t *desc) {
-  return (VAPI_OK != VAPI_post_rr(gasnetc_hca, cep->qp_handle, &desc->rr_desc));
-}
-
 static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_addr_t	*local_addr;
   gasnetc_addr_t	*remote_addr;
@@ -289,7 +246,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   IB_port_t		port;
   VAPI_ret_t		vstat;
   int 			i, rc;
-  gasnetc_rcv_desc_t	*rcv_desc_ptr;
 
   /*  check system sanity */
   gasnetc_check_config();
@@ -371,8 +327,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   assert(vstat == VAPI_OK);
 
   /* allocate/initialize receiver resources */
-  rcv_desc_ptr = gasnetc_rcv_init();
-  assert(rcv_desc_ptr != NULL);
+  gasnetc_rcv_init();
  
   /* allocate/initialize sender resources */
   gasnetc_snd_init();
@@ -429,13 +384,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       assert(vstat == VAPI_OK);
 	
-      /* post 1st rcv descriptor */
-      rc = gasnetc_rcv_post(&gasnetc_cep[i], rcv_desc_ptr++); 
-      assert(rc == 0);
-	
-      /* post 2nd rcv descriptor */
-      rc = gasnetc_rcv_post(&gasnetc_cep[i], rcv_desc_ptr++); 
-      assert(rc == 0);
+      gasnetc_rcv_init_cep(&gasnetc_cep[i]);
     }
 
     /* advance INIT -> RTR */
