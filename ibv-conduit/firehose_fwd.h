@@ -1,6 +1,6 @@
 /* vapi-conduit/firehose_fwd.h
- * $Date: 2003/10/07 20:48:26 $
- * $Revision: 1.1.2.1 $
+ * $Date: 2003/10/08 16:11:29 $
+ * $Revision: 1.1.2.2 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -25,3 +25,4 @@ typedef struct _firehose_client_t {
 /* vapi-conduit does not presently use remote callback.
    XXX: Don't yet have a way to disable this entirely. */
 typedef int firehose_remotecallback_args_t;
+#define FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
