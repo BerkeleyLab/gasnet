@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2004/05/12 10:21:42 $
- * $Revision: 1.48.2.1 $
+ *     $Date: 2004/07/08 16:59:24 $
+ * $Revision: 1.48.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -562,6 +562,8 @@ gasnetc_sreq_t *gasnetc_get_sreq(int need_bbuf) {
       sreq = gasneti_malloc(MAX(sizeof(gasnetc_sreq_t), sizeof(gasneti_freelist_ptr_t)));
       GASNETC_STAT_EVENT(ALLOC_SBUF);
       GASNETI_TRACE_PRINTF(C,("ALLOC_SBUF\n"));
+      /* Set any invariant fields */
+      sreq->sr_desc.fence = FALSE;
     }
   } else {
     gasneti_assert(count == 1);
@@ -573,6 +575,8 @@ gasnetc_sreq_t *gasnetc_get_sreq(int need_bbuf) {
     /* invalidate some fields which should always be set by caller */
     sreq->cep = NULL;
     sreq->sr_desc.opcode = (VAPI_wr_opcode_t)(-1);
+    /* validate invariant fields */
+    gasneti_assert(sreq->sr_desc.fence == FALSE);
   #endif
   sreq->buffer = bbuf;
   sreq->mem_oust = NULL;
@@ -857,7 +861,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
     sreq->sr_desc.opcode     = VAPI_SEND_WITH_IMM;
     sreq->sr_desc.sg_lst_len = 1;
     sreq->sr_desc.imm_data   = flags;
-    sreq->sr_desc.fence      = TRUE;
     sreq->sr_sg[0].addr      = (uintptr_t)buf;
     sreq->sr_sg[0].len       = msg_len;
     sreq->sr_sg[0].lkey      = gasnetc_snd_reg.lkey;
@@ -897,7 +900,6 @@ static void gasnetc_do_put_inline(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   sreq->cep                 = cep;
   sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
   sreq->sr_desc.sg_lst_len  = 1;
-  sreq->sr_desc.fence       = TRUE;
   sreq->sr_desc.remote_addr = dst;
   sreq->sr_desc.r_key       = rkey;
   sreq->sr_sg[0].addr       = src;
@@ -929,7 +931,6 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
     sreq->cep                 = cep;
     sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
     sreq->sr_desc.sg_lst_len  = 1;
-    sreq->sr_desc.fence       = TRUE;
     sreq->sr_desc.remote_addr = dst;
     sreq->sr_desc.r_key       = rkey;
 
@@ -953,7 +954,6 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   sreq->cep                 = cep;
   sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
   sreq->sr_desc.sg_lst_len  = 1;
-  sreq->sr_desc.fence       = TRUE;
   sreq->sr_desc.remote_addr = dst;
   sreq->sr_desc.r_key       = rkey;
 
@@ -988,7 +988,6 @@ static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
       sreq->cep                 = cep;
       sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
       sreq->sr_desc.sg_lst_len  = 1;
-      sreq->sr_desc.fence       = TRUE;
       sreq->sr_desc.remote_addr = dst;
       sreq->sr_desc.r_key       = rkey;
 
@@ -1012,7 +1011,6 @@ static void gasnetc_do_put_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
   sreq->cep                 = cep;
   sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
   sreq->sr_desc.sg_lst_len  = 1;
-  sreq->sr_desc.fence       = TRUE;
   sreq->sr_desc.remote_addr = dst;
   sreq->sr_desc.r_key       = rkey;
 
@@ -1052,7 +1050,6 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 
     sreq->sr_desc.opcode      = VAPI_RDMA_READ;
     sreq->sr_desc.sg_lst_len  = 1;
-    sreq->sr_desc.fence       = FALSE;
     sreq->sr_desc.remote_addr = src;
     sreq->sr_desc.r_key       = rkey;
 
@@ -1078,7 +1075,6 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 
   sreq->sr_desc.opcode      = VAPI_RDMA_READ;
   sreq->sr_desc.sg_lst_len  = 1;
-  sreq->sr_desc.fence       = FALSE;
   sreq->sr_desc.remote_addr = src;
   sreq->sr_desc.r_key       = rkey;
 
@@ -1113,7 +1109,6 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
       sreq->cep                 = cep;
       sreq->sr_desc.opcode      = VAPI_RDMA_READ;
       sreq->sr_desc.sg_lst_len  = 1;
-      sreq->sr_desc.fence       = FALSE;
       sreq->sr_desc.remote_addr = src;
       sreq->sr_desc.r_key       = rkey;
 
@@ -1137,7 +1132,6 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_lkey_t lkey, VAPI_rke
   sreq->cep                 = cep;
   sreq->sr_desc.opcode      = VAPI_RDMA_READ;
   sreq->sr_desc.sg_lst_len  = 1;
-  sreq->sr_desc.fence       = FALSE;
   sreq->sr_desc.remote_addr = src;
   sreq->sr_desc.r_key       = rkey;
 
@@ -1474,7 +1468,6 @@ extern int gasnetc_rdma_memset(int node, void *dst_ptr, int val, size_t nbytes, 
     sreq->cep                 = cep;
     sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
     sreq->sr_desc.sg_lst_len  = 1;
-    sreq->sr_desc.fence       = TRUE;
     sreq->sr_desc.remote_addr = dst;
     sreq->sr_desc.r_key       = cep->rkey;
 
@@ -1642,7 +1635,6 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     sreq->cep                 = cep;
     sreq->sr_desc.opcode      = VAPI_RDMA_WRITE;
     sreq->sr_desc.sg_lst_len  = 1;
-    sreq->sr_desc.fence       = TRUE;
  
     /* We must set counters on all chunks since order of completion is uncertain */
     if (mem_oust) {
@@ -1681,7 +1673,6 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     sreq->cep                 = cep;
     sreq->sr_desc.opcode      = VAPI_RDMA_READ;
     sreq->sr_desc.sg_lst_len  = 1;
-    sreq->sr_desc.fence       = FALSE;
  
     /* We must set counters on all chunks since order of completion is uncertain */
     if (req_oust) {
