@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/30 18:04:46 $
- * $Revision: 1.1.2.38 $
+ *     $Date: 2003/06/30 19:50:17 $
+ * $Revision: 1.1.2.39 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -210,26 +210,26 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Lock ops that apply even for GASNET_SEQ */
+/* Lock ops that apply even for GASNET_PARSYNC and GASNET_SEQ */
 #define GASNETC_MUTEX_T			pthread_mutex_t
 #define GASNETC_MUTEX_INITIALIZER	PTHREAD_MUTEX_INITIALIZER
 #define GASNETC_MUTEX_INIT(X)		pthread_mutex_init(X,NULL)
 #define GASNETC_MUTEX_LOCK(X)		pthread_mutex_lock(X)
 #define GASNETC_MUTEX_UNLOCK(X)		pthread_mutex_unlock(X)
 
-/* Lock ops that apply unless building for GASNET_SEQ */
-#if GASNET_SEQ
-  #define GASNETC_NONSEQ_T		char
-  #define GASNETC_NONSEQ_INITIALIZER	'\0'
-  #define GASNETC_NONSEQ_INIT(X)	do { } while (0)
-  #define GASNETC_NONSEQ_LOCK(X)	do { } while (0)
-  #define GASNETC_NONSEQ_UNLOCK(X)	do { } while (0)
+/* Lock ops that apply only to GASNET_PAR */
+#if GASNET_PAR
+  #define GASNETC_PARLOCK_T		GASNETC_MUTEX_T
+  #define GASNETC_PARLOCK_INITIALIZER	GASNETC_MUTEX_INITIALIZER	
+  #define GASNETC_PARLOCK_INIT		GASNETC_MUTEX_INIT
+  #define GASNETC_PARLOCK_LOCK		GASNETC_MUTEX_LOCK
+  #define GASNETC_PARLOCK_UNLOCK	GASNETC_MUTEX_UNLOCK
 #else
-  #define GASNETC_NONSEQ_T		GASNETC_MUTEX_T
-  #define GASNETC_NONSEQ_INITIALIZER	GASNETC_MUTEX_INITIALIZER	
-  #define GASNETC_NONSEQ_INIT		GASNETC_MUTEX_INIT
-  #define GASNETC_NONSEQ_LOCK		GASNETC_MUTEX_LOCK
-  #define GASNETC_NONSEQ_UNLOCK		GASNETC_MUTEX_UNLOCK
+  #define GASNETC_PARLOCK_T		char *
+  #define GASNETC_PARLOCK_INITIALIZER	NULL
+  #define GASNETC_PARLOCK_INIT(X)	
+  #define GASNETC_PARLOCK_LOCK(X)	
+  #define GASNETC_PARLOCK_UNLOCK(X)	
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -269,8 +269,8 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  */
 typedef struct {
   #if GASNETC_AM_FLOWCTRL
-    #if !GASNET_SEQ
-      GASNETC_NONSEQ_T	lock;
+    #if GASNET_PAR
+      GASNETC_PARLOCK_T	lock;
     #endif
     gasneti_atomic_t	req_credits;
   #endif
