@@ -1178,7 +1178,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 			gasneti_fatalerror("Too many bytes in initial"
 			    " pinned regions list (%d) for current "
 			    "GASNET_FIREHOSE_M parameter (%ld)", 
-			    b_prepinned, param_M);
+			    m_prepinned, param_M);
 
 		if_pf (param_R < R_min)
 			gasneti_fatalerror("GASNET_FIREHOSE_R is less"
