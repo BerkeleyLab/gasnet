@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.2 2003/10/13 06:31:08 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.3 2003/10/16 07:40:35 bonachea Exp $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -22,16 +22,16 @@ filelist =                   \
 
 othersourcefiles =                             \
       $(top_srcdir)/gasnet_internal.c          \
-      $(top_srcdir)/extended-ref/gasnet_extended.c 
+      $(top_srcdir)/extended-ref/gasnet_extended.c
 
 EXTRA_DIST = $(filelist) \
       README
 
-libgasnet_sources = $(srcdir)/gasnet_core.c $(othersourcefiles)
+libgasnet_sources = $(srcdir)/gasnet_core_internal.c $(srcdir)/gasnet_core.c $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
                          $(top_srcdir)/extended-ref/*.h       
-libgasnet_objects = gasnet_core.o gasnet_internal.o gasnet_extended.o
+libgasnet_objects = gasnet_core_internal.o gasnet_core.o gasnet_internal.o gasnet_extended.o 
 
 if HAVE_PTHREAD
 threaded_libraries = libgasnet-sci-par.a libgasnet-sci-parsync.a
@@ -43,7 +43,8 @@ libgasnet_sci_seq_a_SOURCES =
 
 VPATH=$(srcdir)
 
-LIBCFLAGS = @CFLAGS@ @MISC_CFLAGS@ @BUILDCONFIG_DEFINES@ @GASNET_MACHINE_DEFINES@ $(INCLUDES)
+# Always need -D_REENTRANT for SCI callbacks
+LIBCFLAGS = @CFLAGS@ -D_REENTRANT @MISC_CFLAGS@ @BUILDCONFIG_DEFINES@ @GASNET_MACHINE_DEFINES@ $(INCLUDES)
 
 libgasnet-sci-seq.a: $(libgasnet_dependencies)
 	$(CC) $(LIBCFLAGS) -DGASNET_SEQ -c $(libgasnet_sources)

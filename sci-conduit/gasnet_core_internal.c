@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_internal.c         $
- *     $Date: 2003/10/11 14:22:40 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/10/16 07:40:35 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -35,16 +35,16 @@
 /********************************************************
 					Global Variables
 ********************************************************/
-sci_desc_t			*gasnetc_sci_sd, *gasnetc_sci_gb_sd;				//SCI virtual device descriptors
-sci_desc_t			*gasnetc_sci_sd_remote, *gasnetc_sci_sd_long;	
-sci_desc_t			gasnetc_sci_gas_seg;
+sci_desc_t				*gasnetc_sci_sd, *gasnetc_sci_gb_sd;				//SCI virtual device descriptors
+sci_desc_t				*gasnetc_sci_sd_remote, *gasnetc_sci_sd_long;	
+sci_desc_t				gasnetc_sci_gas_seg;
 sci_local_segment_t		*gasnetc_sci_localSegment;							//Handlers to local memory segment
-sci_remote_segment_t		*gasnetc_sci_remoteSegment;							//Handlers to remote memory segment
-sci_remote_segment_t		*gasnetc_sci_remoteSegment_gb;
-sci_remote_segment_t		*gasnetc_sci_remoteSegment_long;
-sci_map_t			*gasnetc_sci_localMap;								//Handlers to locally mapped segment
-sci_map_t			*gasnetc_sci_remoteMap;								//Handlers to remotely mapped segment
-sci_map_t			*gasnetc_sci_remoteMap_gb;							//Handlers to remotely mapped segment for global bytes
+sci_remote_segment_t	*gasnetc_sci_remoteSegment;							//Handlers to remote memory segment
+sci_remote_segment_t	*gasnetc_sci_remoteSegment_gb;
+sci_remote_segment_t	*gasnetc_sci_remoteSegment_long;
+sci_map_t				*gasnetc_sci_localMap;								//Handlers to locally mapped segment
+sci_map_t				*gasnetc_sci_remoteMap;								//Handlers to remotely mapped segment
+sci_map_t				*gasnetc_sci_remoteMap_gb;							//Handlers to remotely mapped segment for global bytes
 sci_query_adapter_t		gasnetc_sci_SCIAdapter;								//Handler to find out current node's SCI ID
 unsigned int			gasnetc_sci_localAdapterNo = 0;
 unsigned int			gasnetc_sci_localSCIId;
@@ -56,42 +56,97 @@ unsigned int			gasnetc_sci_offset = 0;								//default offset within the segmen
 unsigned int			gasnetc_sci_max_local_seg =0;						//the values of the maximum segment sizes in system
 unsigned int			gasnetc_sci_max_global_seg =0;						//across all systems
 unsigned int			*gasnetc_sci_SCI_Ids;
-void 				**gasnetc_sci_local_mem;							//an array of void pointers to each local segment
-void 				**gasnetc_sci_remote_mem;							//an array of void pointers to each remote segment
-void 				**gasnetc_sci_global_ready;
-bool 				*gasnetc_sci_msg_flag;
-sci_map_t			*gasnetc_sci_local_dma_map;
+void 					**gasnetc_sci_local_mem;							//an array of void pointers to each local segment
+void 					**gasnetc_sci_remote_mem;							//an array of void pointers to each remote segment
+void 					**gasnetc_sci_global_ready;
+bool 					*gasnetc_sci_msg_flag;
+sci_map_t				*gasnetc_sci_local_dma_map;
 sci_local_segment_t		*gasnetc_sci_local_dma_segment;
 sci_dma_queue_t			*gasnetc_sci_local_dma_queue;
-sci_desc_t			*gasnetc_sci_local_dma_sd;
-void				**gasnetc_sci_local_dma_addr;
-void				*gasnetc_sci_handler_table[256];					// array of handler information with the index = handler ID 
+sci_desc_t				*gasnetc_sci_local_dma_sd;
+void					**gasnetc_sci_local_dma_addr;
+void					*gasnetc_sci_handler_table[256];					// array of handler information with the index = handler ID 
 																		// and handler_table[index] = function ptr for the handler
-int				gasnetc_sci_current_index = 0;	
-uint16_t			gasnetc_sci_temp_seg_count = 0;						// # of temporary segment created, used for dynamic linking to remote DMA segments
-uint8_t				*gasnetc_sci_msg_loc_status;	
+int						gasnetc_sci_current_index = 0;	
+uint16_t				gasnetc_sci_temp_seg_count = 0;						// # of temporary segment created, used for dynamic linking to remote DMA segments
+uint16_t				gasnetc_sci_barrier_count = 0;
+uint8_t					*gasnetc_sci_msg_loc_status;	
 static gasneti_mutex_t		gasnetc_sci_msg_loc_mutex = GASNETI_MUTEX_INITIALIZER;	// MUTEX variable for the MLS
-void				*gasnetc_sci_first = NULL;
-void				*gasnetc_sci_last = NULL;
+void					*gasnetc_sci_first = NULL;
+void					*gasnetc_sci_last = NULL;
 static gasneti_mutex_t		gasnetc_sci_wq_lock = GASNETI_MUTEX_INITIALIZER;	// MUTEX variable for the work queue
-uint8_t				gasnetc_sci_dma_count = 0;							// Determine the next dma queue to use
+uint8_t					gasnetc_sci_dma_count = 0;							// Determine the next dma queue to use
 
 /********************************************************
-					SCI SETUP FUNCTIONS				
+				 Segment ID Calculation
 ********************************************************/
+
+// Return the next available temporary segment id for the local node
+unsigned int gasnetc_get_temp_seg_id ()
+{
+	if (gasnetc_sci_temp_seg_count > gasnetc_nodes + GASNETC_SCI_NUM_DMA_QUEUE)
+	{
+		gasnetc_sci_temp_seg_count = gasnetc_nodes + 1;		// reset it so the seg_id = seg_id of global ready segment
+	}
+	if (gasnetc_sci_temp_seg_count == 0)	// exhaust all temp id, recycle
+	{
+		gasnetc_sci_temp_seg_count = gasnetc_nodes + 1;		// reset it so the seg_id = seg_id of global ready segment
+	}
+	gasnetc_sci_temp_seg_count++;
+	return ((((uint32_t) gasnetc_mynode) << 16) | ((uint32_t) gasnetc_sci_temp_seg_count));
+}
+
 //similar to gasnetc_get_temp_id, but only returns the 
 // number to be appended to the end, not the actual segment
 // id.
 unsigned int gasnetc_get_barrier_id()
 {
-	if (gasnetc_sci_temp_seg_count == 0)	// exhaust all temp id, recycle
+	if (gasnetc_sci_barrier_count > (gasnetc_nodes + GASNETC_SCI_NUM_DMA_QUEUE + GASNETC_SCI_MAX_BARRIER))
 	{
-		gasnetc_sci_temp_seg_count = gasnetc_nodes + 2;
+		gasnetc_sci_barrier_count = gasnetc_nodes + GASNETC_SCI_NUM_DMA_QUEUE + 1;
 	}
-	gasnetc_sci_temp_seg_count++;
+	if (gasnetc_sci_barrier_count == 0)	// exhaust all temp id, recycle
+	{
+		gasnetc_sci_barrier_count = gasnetc_nodes + GASNETC_SCI_NUM_DMA_QUEUE + 1;
+	}
+	gasnetc_sci_barrier_count++;
 
-	return gasnetc_sci_temp_seg_count;
+	return gasnetc_sci_barrier_count;
 }
+
+/********************************************************
+					SCI CALLBACK FUNCTIONS				
+********************************************************/
+
+sci_callback_action_t gasnetc_sci_remote_callback(void * arg,  sci_remote_segment_t seg,
+									sci_segment_cb_reason_t reason,
+									sci_error_t status)
+{
+	switch(reason)
+	{
+		case SCI_CB_CONNECT: //just a notice that somebody connected
+			return SCI_CALLBACK_CONTINUE;
+			break;
+		case SCI_CB_DISCONNECT: //we lost somebody, kill the show
+			gasnetc_sci_call_exit(1);
+			return SCI_CALLBACK_CANCEL;
+			break;
+		case SCI_CB_LOST:
+			gasnetc_sci_call_exit(1);//we lost somebody, kill the show
+			return SCI_CALLBACK_CANCEL;
+			break;
+		default:
+			return SCI_CALLBACK_CONTINUE; //it's not a terminal call, so continue
+			break;
+	}
+
+	return SCI_CALLBACK_CONTINUE;
+}
+
+
+/********************************************************
+					SCI SETUP FUNCTIONS				
+********************************************************/
 
 // BARRIER FUNCTION
 // Creates a temporary segment and connects to all other nodes' 
@@ -100,7 +155,7 @@ unsigned int gasnetc_get_barrier_id()
 // destroys the segment and continues.
 void gasnetc_sci_internal_Barrier()
 {
-	int count,counter, index;
+	int count, counter, index;
 	unsigned int ID, seg_ID, remote_seg_ID;
 	bool* gb_local, *gr_add,**gb_remote;
 	sci_desc_t				barrier_sd, *remote_sd;
@@ -115,7 +170,7 @@ void gasnetc_sci_internal_Barrier()
 			gasneti_fatalerror("Barrier SCIOpen failed - Error code: 0x%x\n",gasnetc_sci_error);
 		}
 	
-	remote_sd = (sci_desc_t*)malloc(sizeof(sci_desc_t) * gasnetc_nodes);
+	remote_sd = (sci_desc_t*)gasneti_malloc(sizeof(sci_desc_t) * gasnetc_nodes);
 
 	for (index = 0; index < gasnetc_nodes ; index++ )
 	{
@@ -156,8 +211,8 @@ void gasnetc_sci_internal_Barrier()
 		}
 	
 	/*Now we need to connect to everybody else's barrier region*/
-	barrier_remote = (sci_remote_segment_t*)malloc(gasnetc_nodes * sizeof(sci_remote_segment_t));
-	barrier_map_remote = (sci_map_t*)malloc(gasnetc_nodes * sizeof(sci_map_t));
+	barrier_remote = (sci_remote_segment_t*)gasneti_malloc(gasnetc_nodes * sizeof(sci_remote_segment_t));
+	barrier_map_remote = (sci_map_t*)gasneti_malloc(gasnetc_nodes * sizeof(sci_map_t));
 	for (index = 0; index < gasnetc_nodes ; index++ )
 	{
 		remote_seg_ID = (index << 16) | ID;
@@ -165,12 +220,12 @@ void gasnetc_sci_internal_Barrier()
 		counter = 0;
 		do { 
 			SCIConnectSegment(remote_sd[index], &barrier_remote[index],gasnetc_sci_SCI_Ids[index],
-				remote_seg_ID,gasnetc_sci_localAdapterNo,GASNETC_SCI_NO_CALLBACK,NULL,SCI_INFINITE_TIMEOUT,
-				GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
+				remote_seg_ID,gasnetc_sci_localAdapterNo,gasnetc_sci_remote_callback,NULL,SCI_INFINITE_TIMEOUT,
+				SCI_FLAG_USE_CALLBACK,&gasnetc_sci_error);
 			if(gasnetc_sci_error != SCI_ERR_OK)
 				sleep(1);//connections may not be ready yet, wait a second then try again
 			counter++;
-		} while (gasnetc_sci_error != SCI_ERR_OK && (counter < 240));//*Stop after 4 minutes of trying*
+		} while (gasnetc_sci_error != SCI_ERR_OK && (counter < 20));//*Stop after 20 timeouts of trying*
 	
 		if(gasnetc_sci_error != SCI_ERR_OK)//if this is true, counter is 240 so don't test
 		{
@@ -178,7 +233,7 @@ void gasnetc_sci_internal_Barrier()
 		}
 	}
 
-	gb_remote = (bool**)malloc( gasnetc_nodes * sizeof(bool*) );
+	gb_remote = (bool**)gasneti_malloc( gasnetc_nodes * sizeof(bool*) );
 
 	for (index = 0; index < gasnetc_nodes ; index ++ )
 	{
@@ -239,7 +294,6 @@ void gasnetc_sci_internal_Barrier()
 	gasneti_free(gb_remote);
 } //end barrier
 
-
 // Parses all the SCI Ids and places them in gasnetc_sci_SCI_Ids.
 // The corresponding GASNet node ID is the index of the location of the SCI id in the
 // array.
@@ -261,7 +315,6 @@ int gasnetc_parseSCIIds(FILE *node_info, const int number)
 	}
 	return 1;
 }
-
 
 // Returns the Max_local_Segment size in bytes based on available 
 // free mem on the system and writes the size to a global file
@@ -312,7 +365,6 @@ int gasnetc_get_free_mem()
 	gasnetc_sci_max_local_seg = size;
 	return size;
 }
-
 
 // Returns the maximum global segment size. This is the minimum of the segment
 // sizes available over the whole cluster. Return -1 if not all node information
@@ -381,7 +433,6 @@ int gasnetc_getSCIglobal_seg(int number)
 	return min;
 }
 
-
 // This uses the number given to it to create the segments needed by the command
 // region. It will leave an open spot for the gasnet segment space to be
 // the next to last segment. It will be created in GASNet Attach.
@@ -432,7 +483,7 @@ gasnet_node_t gasnetc_SCI_Create_Connections(int number)
 	{
 		gasnetc_sci_localSegmentId[index] = (gasnetc_mynode << 16) | index; //set proper ID, mynodeID is the leading 16 bits
 		SCICreateSegment(gasnetc_sci_sd[index], &gasnetc_sci_localSegment[index], gasnetc_sci_localSegmentId[index], 
-						 GASNETC_SCI_COMMAND_MESSAGE_SIZE * GASNETC_SCI_MAX_REQUEST_MSG * 2, GASNETC_SCI_NO_CALLBACK, NULL, 
+						 GASNETC_SCI_COMMAND_MESSAGE_SIZE * GASNETC_SCI_MAX_REQUEST_MSG * 2, NULL/*callback*/, NULL, 
 						 GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
 		if (gasnetc_sci_error != SCI_ERR_OK) 
 		{
@@ -443,7 +494,7 @@ gasnet_node_t gasnetc_SCI_Create_Connections(int number)
 	/*Now create the global ready byte region, leaving the num + 1 region still uncreated*/
 	gasnetc_sci_localSegmentId[number+1] = (gasnetc_mynode << 16) | (number+1);
 	SCICreateSegment(gasnetc_sci_sd[index], &gasnetc_sci_localSegment[number+1], gasnetc_sci_localSegmentId[number+1], 
-		             (number * (GASNETC_SCI_MAX_REQUEST_MSG *2))+1, GASNETC_SCI_NO_CALLBACK, NULL, GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
+		             (number * (GASNETC_SCI_MAX_REQUEST_MSG *2))+1, NULL/*callback*/, NULL, GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
 		if (gasnetc_sci_error != SCI_ERR_OK) 
 		{
 			gasneti_fatalerror("Global Ready bytes failed, SCICreateSegment failed 1 - Error code: 0x%x\n",gasnetc_sci_error);
@@ -525,7 +576,6 @@ gasnet_node_t gasnetc_SCI_Create_Connections(int number)
 	return gasnetc_mynode;
 }
 
-
 // Connects all the command regions and then all the global ready bytes
 // across all nodes.
 int gasnetc_SCI_connect_cmd(int number)
@@ -552,15 +602,15 @@ int gasnetc_SCI_connect_cmd(int number)
 		counter = 0;
 		do { 
 			SCIConnectSegment(gasnetc_sci_sd_remote[index],&gasnetc_sci_remoteSegment[index],gasnetc_sci_SCI_Ids[index],
-				gasnetc_sci_remoteSegmentId[index],gasnetc_sci_localAdapterNo,GASNETC_SCI_NO_CALLBACK,NULL,SCI_INFINITE_TIMEOUT,GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
+				gasnetc_sci_remoteSegmentId[index],gasnetc_sci_localAdapterNo,gasnetc_sci_remote_callback,NULL,SCI_INFINITE_TIMEOUT,SCI_FLAG_USE_CALLBACK,&gasnetc_sci_error);
 			if(gasnetc_sci_error != SCI_ERR_OK)
 				sleep(1);//connections may not be ready yet, wait a second then try again
 			counter++;
-		} while (gasnetc_sci_error != SCI_ERR_OK && (counter < 120));//*Stop after 2 minutes of trying*
+		} while (gasnetc_sci_error != SCI_ERR_OK && (counter < 20));//*Stop after 20 timeouts of trying*
 	
-		if(gasnetc_sci_error != SCI_ERR_OK)//if this is true, counter is 120 so don't test
+		if(gasnetc_sci_error != SCI_ERR_OK)//if this is true, counter is 90 so don't test
 		{
-			gasneti_fatalerror("Could not make all node connections\n");//leave gasnet, something is wrong
+			gasneti_fatalerror("Could not make all sci node connections\n");//leave gasnet, something is wrong
 		}
 	}
 
@@ -597,11 +647,11 @@ int gasnetc_SCI_connect_cmd(int number)
 		counter = 0;
 		do { 
 			SCIConnectSegment(gasnetc_sci_gb_sd[index],&gasnetc_sci_remoteSegment_gb[index],gasnetc_sci_SCI_Ids[index],
-				gb_ID,gasnetc_sci_localAdapterNo,GASNETC_SCI_NO_CALLBACK,NULL,SCI_INFINITE_TIMEOUT,GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
+				gb_ID,gasnetc_sci_localAdapterNo,gasnetc_sci_remote_callback,NULL,SCI_INFINITE_TIMEOUT,SCI_FLAG_USE_CALLBACK,&gasnetc_sci_error);
 			if (gasnetc_sci_error != SCI_ERR_OK)
 				sleep(1);//may not be ready yet, wait 1 second then try again
 			counter++;
-		} while (gasnetc_sci_error != SCI_ERR_OK &&(counter < 120));//wait two minutes then end trying to connect
+		} while (gasnetc_sci_error != SCI_ERR_OK &&(counter < 20));//wait 2 timeouts then end trying to connect
 		if(gasnetc_sci_error != SCI_ERR_OK)
 		{
 			gasneti_fatalerror("Could not make proper node connections to global ready byte region.\n");
@@ -627,7 +677,6 @@ int gasnetc_SCI_connect_cmd(int number)
 	//EVERYTHING, gb too, is connected and mapped
 	return 1;
 }
-
 
 // This function finds the total number of nodes that will run GASNet as well as 
 // assign GASNet Node IDS to each SCI ID. Additionally, the total amount of free
@@ -663,12 +712,12 @@ unsigned int gasnetc_SCIInit(gasnet_node_t * my_node)
 	gasnetc_sci_sd = gasneti_malloc( sizeof(sci_desc_t) * (number + 2) );
 	
 	/*we know how many there should be, so allocate the space and hop to it*/
-	gasnetc_sci_localSegmentId = (unsigned int *) malloc( sizeof(unsigned int) * (number +2) );
-	gasnetc_sci_localSegment = (sci_local_segment_t *) malloc( sizeof(sci_local_segment_t) * (number +2)); 
-    gasnetc_sci_remoteSegment = (sci_remote_segment_t *) malloc( (sizeof(sci_remote_segment_t)) * (number + 2));
-    gasnetc_sci_remoteSegmentId = (unsigned int *) malloc( sizeof(unsigned int) * (number + 2));
-	gasnetc_sci_localMap = (sci_map_t *) malloc(sizeof(sci_map_t) * (number +2) );
-	gasnetc_sci_remoteMap = (sci_map_t *) malloc(sizeof(sci_map_t) * (number +2) );
+	gasnetc_sci_localSegmentId = (unsigned int *) gasneti_malloc( sizeof(unsigned int) * (number +2) );
+	gasnetc_sci_localSegment = (sci_local_segment_t *) gasneti_malloc( sizeof(sci_local_segment_t) * (number +2)); 
+    gasnetc_sci_remoteSegment = (sci_remote_segment_t *) gasneti_malloc( (sizeof(sci_remote_segment_t)) * (number + 2));
+    gasnetc_sci_remoteSegmentId = (unsigned int *) gasneti_malloc( sizeof(unsigned int) * (number + 2));
+	gasnetc_sci_localMap = (sci_map_t *) gasneti_malloc(sizeof(sci_map_t) * (number +2) );
+	gasnetc_sci_remoteMap = (sci_map_t *) gasneti_malloc(sizeof(sci_map_t) * (number +2) );
 
 	/*create,prepare, map, and export all command regions and global ready byte 
 	  returnd the gasnet ID to current system*/
@@ -705,7 +754,7 @@ void* gasnetc_create_gasnetc_sci_seg(uintptr_t *segsize, int index)
 	//index -- the number of nodes, the next to last index in the array, where payload region is located
 	gasnetc_sci_localSegmentId[index] = (gasnetc_mynode << 16) | index;
 	SCICreateSegment(gasnetc_sci_gas_seg, &gasnetc_sci_localSegment[index], gasnetc_sci_localSegmentId[index], 
-					 Size, GASNETC_SCI_NO_CALLBACK, NULL, GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
+					 Size, NULL, NULL, GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
 	if (gasnetc_sci_error != SCI_ERR_OK) 
 	{
 		gasneti_fatalerror("Node %d failed in creating GASNET segment, SCICreateSegment failed 1 - Error code: 0x%x\n",gasnetc_mynode,gasnetc_sci_error);
@@ -753,11 +802,11 @@ void* gasnetc_create_gasnetc_sci_seg(uintptr_t *segsize, int index)
 		unsigned int gasnetc_sci_remoteDMAID = (index << 16) | number;
 		do { 
 			SCIConnectSegment(gasnetc_sci_sd_long[index],&gasnetc_sci_remoteSegment_long[index],gasnetc_sci_SCI_Ids[index],
-				gasnetc_sci_remoteDMAID,gasnetc_sci_localAdapterNo,GASNETC_SCI_NO_CALLBACK,NULL,SCI_INFINITE_TIMEOUT,GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
+				gasnetc_sci_remoteDMAID,gasnetc_sci_localAdapterNo,gasnetc_sci_remote_callback,NULL,SCI_INFINITE_TIMEOUT,SCI_FLAG_USE_CALLBACK,&gasnetc_sci_error);
 			if(gasnetc_sci_error != SCI_ERR_OK)
 				sleep(1);//maybe not ready yet, wait 1 second then try again
 			counter++;
-		} while (gasnetc_sci_error != SCI_ERR_OK && (counter<120)); //wait for 2 minutes after timing out
+		} while (gasnetc_sci_error != SCI_ERR_OK && (counter< 20)); //wait for 2 tries after timing out
 		if(gasnetc_sci_error != SCI_ERR_OK)
 			gasneti_fatalerror("Could not connect all GASNET segments.\n");
 	}
@@ -765,7 +814,6 @@ void* gasnetc_create_gasnetc_sci_seg(uintptr_t *segsize, int index)
 	return gasnetc_sci_local_mem[index]; //return the address of the pointer to our GASNET 
 										 //segment in our local memory space
 }
-
 
 // This waits for all nodes to write their segment sizes and addresses to the
 // mailboxes. Then gets all the segment info and places int the segment array
@@ -825,6 +873,7 @@ void gasnetc_get_SegInfo( gasnet_seginfo_t * SEG_INFO, uintptr_t segsize,  void 
 /********************************************************
 				   Segment Info Table
 ********************************************************/
+
 // Return the starting address of a segment with a given Input node ID
 GASNET_INLINE_MODIFIER (gasnetc_sit_get_base_addr);
 void * gasnetc_sit_get_base_addr (gasnet_node_t InputID)
@@ -837,20 +886,6 @@ GASNET_INLINE_MODIFIER (gasnetc_sit_get_size);
 size_t gasnetc_sit_get_size (gasnet_node_t InputID)
 {
 	return gasnetc_seginfo [InputID].size;
-}
-
-/********************************************************
-				 Segment ID Calculation
-********************************************************/
-// Return the next available temporary segment id for the local node
-unsigned int gasnetc_get_temp_seg_id ()
-{
-	if (gasnetc_sci_temp_seg_count == 0)	// exhaust all temp id, recycle
-	{
-		gasnetc_sci_temp_seg_count = gasnetc_nodes + 1;
-	}
-	gasnetc_sci_temp_seg_count++;	
-	return ((((uint32_t) gasnetc_mynode) << 16) | ((uint32_t) gasnetc_sci_temp_seg_count));
 }
 
 /********************************************************
@@ -896,7 +931,7 @@ sci_remote_segment_t gasnetc_rs_get_seg (gasnet_node_t RemoteID)
 int gasnetc_rs_get_offset (gasnet_node_t RemoteID, void * dest_addr)
 {
 	void * dest_base_addr = gasnetc_sit_get_base_addr (RemoteID);
-	int offset = dest_addr - dest_base_addr;
+	int offset = (int) ((uint8_t *) dest_addr - (uint8_t *) dest_base_addr);
 	if ((offset >= 0) && (offset <= gasnetc_sit_get_size (RemoteID)))
 	{
 		return offset;
@@ -918,17 +953,10 @@ void gasnetc_mls_init ()
 {
 	int i;
 	gasnetc_sci_msg_loc_status = (uint8_t *) gasneti_malloc ((sizeof (uint8_t)) * (GASNETC_SCI_MAX_REQUEST_MSG * gasnetc_nodes * 2));
-	if (!gasnetc_sci_msg_loc_status)
+	// Initialize mls array
+	for (i = 0; i < (GASNETC_SCI_MAX_REQUEST_MSG * gasnetc_nodes * 2); i++)
 	{
-		gasneti_fatalerror ("Unable to allocation memory for message location status array\n");
-	}
-	else
-	{
-		// Initialize mls array
-		for (i = 0; i < (GASNETC_SCI_MAX_REQUEST_MSG * gasnetc_nodes * 2); i++)
-		{
-			gasnetc_sci_msg_loc_status[i] = GASNETC_SCI_FALSE;
-		}
+		gasnetc_sci_msg_loc_status[i] = GASNETC_SCI_FALSE;
 	}
 }
 
@@ -1011,7 +1039,7 @@ void * gasnetc_ht_get_handler (gasnet_handler_t input)
 
 // Runs the short message handler
 void gasnetc_run_handler_short (gasnet_token_t token, void* func_ptr, int numargs, gasnet_handlerarg_t *args)
-{
+{ 
 	if (func_ptr != NULL)
 	{
 		switch (numargs)
@@ -1068,10 +1096,11 @@ void gasnetc_run_handler_mediumlong (gasnet_token_t token, void* func_ptr, int n
 /********************************************************
 					  Work Queue
 ********************************************************/
+
 // Adds the given message to the work queue
 int gasnetc_enqueue_msg (gasnet_node_t node_id, uint8_t msg_number)
 {
-	gasnetc_command_receiver_t * msg_ptr = (gasnetc_command_receiver_t *) (gasnetc_sci_local_mem[node_id] + GASNETC_SCI_COMMAND_MESSAGE_SIZE * msg_number);
+	gasnetc_command_receiver_t * msg_ptr = (gasnetc_command_receiver_t *) (((uint8_t *) gasnetc_sci_local_mem[node_id]) + GASNETC_SCI_COMMAND_MESSAGE_SIZE * msg_number);
 	int msg_AM_type = gasnetc_get_AM_type (msg_ptr->header);
 	if ((msg_AM_type == GASNETC_SCI_SHORT) || (msg_AM_type == GASNETC_SCI_MEDIUM))
 	{
@@ -1093,7 +1122,7 @@ int gasnetc_enqueue_msg (gasnet_node_t node_id, uint8_t msg_number)
 		msg_ptr->token.msg_number = msg_number;
 		msg_ptr->next = NULL;
 	}
-	gasneti_mutex_lock(&gasnetc_sci_wq_lock);
+	
 	if (gasnetc_sci_first == NULL)
 	{
 		gasnetc_sci_first = msg_ptr;
@@ -1121,15 +1150,18 @@ int gasnetc_enqueue_msg (gasnet_node_t node_id, uint8_t msg_number)
 		}	
 		gasnetc_sci_last = msg_ptr;
 	}	
-	gasneti_mutex_unlock(&gasnetc_sci_wq_lock);
-	return 1;
+	return GASNET_OK;
 }
 
 // Removes the first element of the work queue
 void * gasnetc_dequeue_msg (gasnet_node_t *sender_id, uint8_t *msg_number)
 {	
+	gasneti_mutex_lock(&gasnetc_sci_wq_lock);
 	if (gasnetc_sci_first == NULL)
 	{
+		*sender_id = -1;
+		*msg_number = -1;
+		gasneti_mutex_unlock(&gasnetc_sci_wq_lock);
 		return NULL;
 	}
 	else
@@ -1137,7 +1169,7 @@ void * gasnetc_dequeue_msg (gasnet_node_t *sender_id, uint8_t *msg_number)
 		gasnetc_command_receiver_t *temp_ptr = (gasnetc_command_receiver_t *) gasnetc_sci_first;
 		int temp_AM_type = gasnetc_get_AM_type (temp_ptr->header);
 
-		gasneti_mutex_lock(&gasnetc_sci_wq_lock);
+		
 		if ((temp_AM_type == GASNETC_SCI_SHORT) || (temp_AM_type == GASNETC_SCI_MEDIUM))
 		{
 			gasnetc_ShortMedium_command_receiver_t *temp_SM_msg = (gasnetc_ShortMedium_command_receiver_t *) temp_ptr;
@@ -1167,6 +1199,7 @@ void * gasnetc_dequeue_msg (gasnet_node_t *sender_id, uint8_t *msg_number)
 // Scans the MRFs to enqueue new messages
 void * gasnetc_MRF_scan (gasnet_node_t *sender_id, uint8_t *msg_number)
 {
+	gasneti_mutex_lock(&gasnetc_sci_wq_lock);
 	int i, j;
 	for (i = 0; i < gasnetc_nodes; i++)
 	{
@@ -1180,6 +1213,7 @@ void * gasnetc_MRF_scan (gasnet_node_t *sender_id, uint8_t *msg_number)
 			}
 		}
 	}
+	gasneti_mutex_unlock(&gasnetc_sci_wq_lock);
 	// check work queue for new job
 	return gasnetc_dequeue_msg(sender_id, msg_number);
 }
@@ -1187,6 +1221,7 @@ void * gasnetc_MRF_scan (gasnet_node_t *sender_id, uint8_t *msg_number)
 /********************************************************
 			Command Segment Related Functions
 ********************************************************/
+
 // Return the Handler # for the given message
 GASNET_INLINE_MODIFIER (gasnetc_get_msg_handler);
 gasnet_handler_t gasnetc_get_msg_handler (uint16_t header)
@@ -1222,9 +1257,10 @@ void gasnetc_construct_Control_command (gasnetc_command_t *temp)
 }
 
 // Generate Short / Medium Message Header
-void gasnetc_construct_ShortMedium_command (gasnetc_ShortMedium_command_t *temp, gasnet_handler_t handler, 
+void gasnetc_construct_ShortMedium_command (void *input_addr, gasnet_handler_t handler, 
 											uint8_t msg_type, uint8_t AM_type, size_t size, uint8_t num_args, gasnet_handlerarg_t args[])
 {
+	gasnetc_ShortMedium_command_t *temp = (gasnetc_ShortMedium_command_t *) input_addr;
 	int i;
 	temp->header.header = (((((handler<<1) | msg_type)<<2) | AM_type)<<5) | num_args;
 	temp->payload_size = (uint16_t) size;
@@ -1235,9 +1271,10 @@ void gasnetc_construct_ShortMedium_command (gasnetc_ShortMedium_command_t *temp,
 }
 
 // Generate Long Message Header
-void gasnetc_construct_Long_command (gasnetc_Long_command_t *temp, gasnet_handler_t handler, 
+void gasnetc_construct_Long_command (void *input_addr, gasnet_handler_t handler, 
 								uint8_t msg_type, void *payload, size_t size, uint8_t num_args, gasnet_handlerarg_t args[])
 {
+	gasnetc_Long_command_t *temp = (gasnetc_Long_command_t *) input_addr;
 	uint8_t AM_type = 2;	// Long AM
 	int i;
 	temp->header.header = (((((handler<<1) | msg_type)<<2) | AM_type)<<5) | num_args;
@@ -1283,7 +1320,6 @@ int gasnetc_SM_transfer (gasnet_node_t dest, uint8_t msg_number, uint8_t msg_typ
 						int numargs, gasnet_handlerarg_t args[], void *medium_payload, size_t segment_size, 
 						bool *remote_msg_flag_addr, void *long_payload)
 {
-
 	void *command;
 	sci_error_t error;
 	sci_sequence_t sequence;
@@ -1325,9 +1361,20 @@ int gasnetc_SM_transfer (gasnet_node_t dest, uint8_t msg_number, uint8_t msg_typ
 		SCIStartSequence(sequence, GASNETC_SCI_NO_FLAGS, &error);
 		SCIMemCpy(sequence, command, current_remote_map , offset, header_size, GASNETC_SCI_NO_FLAGS, &error);	// transfer command package
 
-		if (AM_type == GASNETC_SCI_MEDIUM)
+		if ((AM_type == GASNETC_SCI_MEDIUM) && (segment_size > 0))
 		{
-			SCIMemCpy(sequence, medium_payload, current_remote_map , (offset + sizeof(gasnetc_Long_command_receiver_t)), segment_size, GASNETC_SCI_NO_FLAGS, &error);
+			int align_offset = segment_size % 4;
+			int transfer_size = segment_size - align_offset;
+			uint8_t * dest_ptr = (uint8_t *) gasnetc_rs_get_addr (dest);
+			uint8_t * source_ptr = (uint8_t *) medium_payload;
+			// transfer data in multiple of 4 bytes
+			SCIMemCpy(sequence, medium_payload, current_remote_map, (offset + sizeof(gasnetc_Long_command_receiver_t)), transfer_size, GASNETC_SCI_NO_FLAGS, &error);
+			int k;
+			for (k = 0; k < align_offset; k++)
+			{
+				// transfer any left over data
+				dest_ptr[offset + sizeof(gasnetc_Long_command_receiver_t) + transfer_size + k] = source_ptr [transfer_size + k];
+			}
 		}
 
 		SCICheckSequence(sequence, GASNETC_SCI_NO_FLAGS, &error);
@@ -1448,28 +1495,28 @@ int gasnetc_remove_dma_queues ()
 	return GASNET_OK;
 }
 
-// Transfer the Long message using the DMA transfer method
+// Improved version of DMA write
 int gasnetc_DMA_write (gasnet_node_t dest, void *source_addr, size_t nbytes, void *dest_addr)
 {
 	int i;
 	sci_error_t error;
-	sci_dma_queue_state_t dma_queue_state;	
+	sci_dma_queue_state_t dma_queue_state;
 	sci_remote_segment_t remote_segment = gasnetc_sci_remoteSegment_long[dest];
 	uint8_t *target_addr = (uint8_t *) gasnetc_sci_local_dma_addr[gasnetc_sci_dma_count];
 	uint8_t *buf_addr = (uint8_t *) source_addr;
-	int remote_offset = gasnetc_rs_get_offset (dest, dest_addr);			// Obtain the offset that is needed from the designated remote segment base on input destination
+	int remote_offset = gasnetc_rs_get_offset (dest, dest_addr);   // Obtain the offset that is needed from the designated remote segment base on input destination
 	int alignment_size = 8;
 
 	int ro_align = remote_offset % alignment_size;
-	
+
 	if ((ro_align) != 0)
 	{
 		// segments are not aligned properly, adjust by copying the data from dma queue offset
-		remote_offset = remote_offset - ro_align;	// move offset to be before the destination address
-		target_addr = target_addr + ro_align;		// set so data is copy to an offset of the queue
-		nbytes = nbytes + ro_align;					// re-adjust the size that needs to be send over
+		remote_offset = remote_offset - ro_align; // move offset to be before the destination address
+		target_addr = target_addr + ro_align;  // set so data is copy to an offset of the queue
+		nbytes = nbytes + ro_align;     // re-adjust the size that needs to be send over
 	}
-	
+
 	memmove (target_addr, buf_addr, nbytes);
 
 	// make sure the size of transfer is of appropriate size, need to be multiple of 8 bytes
@@ -1478,24 +1525,15 @@ int gasnetc_DMA_write (gasnet_node_t dest, void *source_addr, size_t nbytes, voi
 		nbytes = nbytes + (alignment_size - (nbytes % alignment_size));
 	}
 
-    do
-	{
-		SCIEnqueueDMATransfer(gasnetc_sci_local_dma_queue[gasnetc_sci_dma_count], gasnetc_sci_local_dma_segment[gasnetc_sci_dma_count], remote_segment, 0, remote_offset, nbytes, GASNETC_SCI_NO_FLAGS, &error);
-    } while (error != SCI_ERR_OK);
-
 	do
 	{
-		SCIPostDMAQueue(gasnetc_sci_local_dma_queue[gasnetc_sci_dma_count], GASNETC_SCI_NO_CALLBACK, NULL, GASNETC_SCI_NO_FLAGS, &error);
-	} while (error != SCI_ERR_OK);
-
-	do
-	{
-		dma_queue_state = SCIWaitForDMAQueue(gasnetc_sci_local_dma_queue[gasnetc_sci_dma_count], SCI_INFINITE_TIMEOUT, GASNETC_SCI_NO_FLAGS, &error);
-	} while (error != SCI_ERR_OK);
-
-	do  
-	{
-		SCIResetDMAQueue(gasnetc_sci_local_dma_queue[gasnetc_sci_dma_count], GASNETC_SCI_NO_FLAGS, &error);
+		SCIEnqueueDMATransfer(gasnetc_sci_local_dma_queue[gasnetc_sci_dma_count],
+		gasnetc_sci_local_dma_segment[gasnetc_sci_dma_count], remote_segment, 0,
+		remote_offset, nbytes, 
+		SCI_FLAG_DMA_POST | 
+		SCI_FLAG_DMA_WAIT | 
+		SCI_FLAG_DMA_RESET,
+		&error);
 	} while (error != SCI_ERR_OK);
 
 	gasnetc_sci_dma_count++;
@@ -1503,12 +1541,14 @@ int gasnetc_DMA_write (gasnet_node_t dest, void *source_addr, size_t nbytes, voi
 	{
 		gasnetc_sci_dma_count = 0;
 	}
+
 	return GASNET_OK;
 }
 
 /********************************************************
 		Environment Setup/Remove Functions
 ********************************************************/
+
 // Initialize necessary system variables
 void gasnetc_setup_env ()
 { 
@@ -1521,19 +1561,21 @@ void gasnetc_setup_env ()
 // Remove system variables
 void gasnetc_free_env ()
 { 
-	gasneti_mutex_destroy(&gasnetc_sci_msg_loc_mutex);
-	gasneti_mutex_destroy(&gasnetc_sci_wq_lock);
+	if(gasneti_attach_done == 1)
+	{
+		gasnetc_remove_dma_queues();
+		gasneti_mutex_destroy(&gasnetc_sci_msg_loc_mutex);
+		gasneti_mutex_destroy(&gasnetc_sci_wq_lock);
+		gasneti_free(gasnetc_sci_remoteSegment_long);
+		gasneti_free(gasnetc_sci_sd_long);
+	}
 
-	gasneti_free(gasnetc_sci_msg_loc_status);
-	gasneti_free(gasnetc_seginfo);
 	gasneti_free(gasnetc_sci_sd);
 	gasneti_free(gasnetc_sci_gb_sd);
 	gasneti_free(gasnetc_sci_sd_remote);
-	gasneti_free(gasnetc_sci_sd_long);
 	gasneti_free(gasnetc_sci_localSegment);
 	gasneti_free(gasnetc_sci_remoteSegment);
 	gasneti_free(gasnetc_sci_remoteSegment_gb);
-	gasneti_free(gasnetc_sci_remoteSegment_long);
 	gasneti_free(gasnetc_sci_localMap);
 	gasneti_free(gasnetc_sci_remoteMap);
 	gasneti_free(gasnetc_sci_remoteMap_gb);
@@ -1545,7 +1587,6 @@ void gasnetc_free_env ()
 	gasneti_free(gasnetc_sci_local_mem);
 	gasneti_free(gasnetc_sci_remote_mem);
 	gasneti_free(gasnetc_sci_global_ready);	
-
 	remove(GASNETC_SCI_FILE);
 }
 

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/10/11 14:22:40 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/10/16 07:40:35 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -40,7 +40,7 @@ typedef struct
 {
 	gasnet_node_t source_id;
 	uint8_t msg_number;
-} gasnet_token_t;
+} gasnetc_sci_token_t;
 
 typedef struct
 {
@@ -54,7 +54,7 @@ typedef struct
 	uint16_t header;	// handler (8 bits) + msg type (1 bit, request/reply) + AM type (2 bits) + num_arg (4 bits)
 						// msg type: 0 = request; 1 = reply;
 						// AM type: 0 = short; 1 = medium; 2 = long; 3 = control (basic return msg to free mls);
-	gasnet_token_t token;
+	gasnetc_sci_token_t token;
 	void * next;
 } gasnetc_command_receiver_t;
 
@@ -70,7 +70,7 @@ typedef struct
 	gasnetc_command_t header;
 	uint16_t payload_size;
 	gasnet_handlerarg_t args[16];
-	gasnet_token_t token;	
+	gasnetc_sci_token_t token;	
 	void * next;
 } gasnetc_ShortMedium_command_receiver_t;
 
@@ -88,7 +88,7 @@ typedef struct
 	uint16_t payload_size;
 	void * payload;
 	gasnet_handlerarg_t args[16];
-	gasnet_token_t token;
+	gasnetc_sci_token_t token;
 	void * next;
 } gasnetc_Long_command_receiver_t;
 
@@ -124,66 +124,71 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 #define GASNETC_SCI_NO_CALLBACK         		NULL
 #define GASNETC_SCI_NO_FLAGS            		0
 #define GASNETC_SCI_DATA_TRANSFER_READY 		8
-#define GASNETC_SCI_FILE 				"gasnet_nodes.sci"
-#define	GASNETC_SCI_FAST_SEG				262144	//256KB seg size for fast implementation
-#define	GASNETC_SCI_PERCENT				10		//divide the memory into tenths
-#define GASNETC_SCI_TRUE				1
-#define GASNETC_SCI_FALSE				0
-#define GASNETC_SCI_MAX_REQUEST_MSG			2
+#define GASNETC_SCI_FILE 						"gasnet_nodes.sci"
+#define	GASNETC_SCI_FAST_SEG					262144	//256KB seg size for fast implementation
+#define	GASNETC_SCI_PERCENT						10		//divide the memory into tenths
+#define GASNETC_SCI_TRUE						1
+#define GASNETC_SCI_FALSE						0
+#define GASNETC_SCI_MAX_REQUEST_MSG				2
 #define GASNETC_SCI_MAX_HANDLER_NUMBER			256
 #define GASNETC_SCI_COMMAND_MESSAGE_SIZE		1024
-#define GASNETC_SCI_NUM_DMA_QUEUE			1
+#define GASNETC_SCI_NUM_DMA_QUEUE				1
 #define GASNETC_SCI_MAX_LONG_PAYLOAD_SIZE		500000
 #define GASNETC_SCI_MAX_DMA_QUEUE_USAGE			1
-#define GASNETC_SCI_REQUEST				0
-#define GASNETC_SCI_REPLY				1
-#define GASNETC_SCI_SHORT				0
-#define GASNETC_SCI_MEDIUM				1
-#define GASNETC_SCI_LONG				2
-#define GASNETC_SCI_CONTROL				3
-#define GASNETC_ONE_MB					1048576 //define 1 MB
+#define GASNETC_SCI_MAX_BARRIER					10
+#define GASNETC_SCI_REQUEST						0
+#define GASNETC_SCI_REPLY						1
+#define GASNETC_SCI_SHORT						0
+#define GASNETC_SCI_MEDIUM						1
+#define GASNETC_SCI_LONG						2
+#define GASNETC_SCI_CONTROL						3
+#define GASNETC_ONE_MB							1048576 //define 1 MB
 
 /********************************************************
 					Global Variables
 ********************************************************/
 
 // SCI conduit specific Global Variables
-extern sci_desc_t		*gasnetc_sci_sd, *gasnetc_sci_gb_sd;				//SCI virtual device descriptors
-extern sci_desc_t		*gasnetc_sci_sd_remote, *gasnetc_sci_sd_long;	
-extern sci_desc_t		gasnetc_sci_gas_seg;
+extern gasnet_seginfo_t		*gasnetc_seginfo;
+extern sci_desc_t			*gasnetc_sci_sd, *gasnetc_sci_gb_sd;				//SCI virtual device descriptors
+extern sci_desc_t			*gasnetc_sci_sd_remote, *gasnetc_sci_sd_long;	
+extern sci_desc_t			gasnetc_sci_gas_seg;
 extern sci_local_segment_t	*gasnetc_sci_localSegment;							//Handlers to local memory segment
 extern sci_remote_segment_t	*gasnetc_sci_remoteSegment;							//Handlers to remote memory segment
 extern sci_remote_segment_t	*gasnetc_sci_remoteSegment_gb;
 extern sci_remote_segment_t	*gasnetc_sci_remoteSegment_long;
-extern sci_map_t		*gasnetc_sci_localMap;								//Handlers to locally mapped segment
-extern sci_map_t		*gasnetc_sci_remoteMap;								//Handlers to remotely mapped segment
-extern sci_map_t		*gasnetc_sci_remoteMap_gb;							//Handlers to remotely mapped segment for global bytes
-extern unsigned int		gasnetc_sci_localAdapterNo;
-extern unsigned int		gasnetc_sci_localSCIId;
-extern unsigned int		*gasnetc_sci_remoteNodeId;
-extern unsigned int		*gasnetc_sci_localSegmentId;						//host-wide unique segment identifier
-extern unsigned int		*gasnetc_sci_remoteSegmentId;
-extern unsigned int		*gasnetc_sci_remoteSegmentId_gb;
-extern unsigned int		gasnetc_sci_offset;									//default offset within the segment
-extern unsigned int		gasnetc_sci_max_local_seg;							//the values of the maximum segment sizes in system
-extern unsigned int		gasnetc_sci_max_global_seg;							//across all systems
-extern unsigned int		*gasnetc_sci_SCI_Ids;
-extern void 			**gasnetc_sci_local_mem;							//an array of void pointers to each local segment
-extern void 			**gasnetc_sci_remote_mem;							//an array of void pointers to each remote segment
-extern void 			**gasnetc_sci_global_ready;
-extern bool 			*gasnetc_sci_msg_flag;
-extern sci_map_t		*gasnetc_sci_local_dma_map;
+extern sci_map_t			*gasnetc_sci_localMap;								//Handlers to locally mapped segment
+extern sci_map_t			*gasnetc_sci_remoteMap;								//Handlers to remotely mapped segment
+extern sci_map_t			*gasnetc_sci_remoteMap_gb;							//Handlers to remotely mapped segment for global bytes
+extern unsigned int			gasnetc_sci_localAdapterNo;
+extern unsigned int			gasnetc_sci_localSCIId;
+extern unsigned int			*gasnetc_sci_remoteNodeId;
+extern unsigned int			*gasnetc_sci_localSegmentId;						//host-wide unique segment identifier
+extern unsigned int			*gasnetc_sci_remoteSegmentId;
+extern unsigned int			*gasnetc_sci_remoteSegmentId_gb;
+extern unsigned int			gasnetc_sci_offset;									//default offset within the segment
+extern unsigned int			gasnetc_sci_max_local_seg;							//the values of the maximum segment sizes in system
+extern unsigned int			gasnetc_sci_max_global_seg;							//across all systems
+extern unsigned int			*gasnetc_sci_SCI_Ids;
+extern void 				**gasnetc_sci_local_mem;							//an array of void pointers to each local segment
+extern void 				**gasnetc_sci_remote_mem;							//an array of void pointers to each remote segment
+extern void 				**gasnetc_sci_global_ready;
+extern bool 				*gasnetc_sci_msg_flag;
+extern sci_map_t			*gasnetc_sci_local_dma_map;
 extern sci_local_segment_t	*gasnetc_sci_local_dma_segment;
 extern sci_dma_queue_t		*gasnetc_sci_local_dma_queue;
-extern sci_desc_t		*gasnetc_sci_local_dma_sd;
-extern void			**gasnetc_sci_local_dma_addr;
+extern sci_desc_t			*gasnetc_sci_local_dma_sd;
+extern void					**gasnetc_sci_local_dma_addr;
 
-extern void			*gasnetc_sci_handler_table[256];
-extern uint8_t			*gasnetc_sci_msg_loc_status;
+extern void					*gasnetc_sci_handler_table[256];
+extern uint8_t				*gasnetc_sci_msg_loc_status;
 
 /********************************************************
 					SCI SETUP FUNCTIONS					
 ********************************************************/
+
+//the first step to exiting
+void gasnetc_sci_call_exit(unsigned int sig);
 
 // BARRIER FUNCTION
 // Creates a temporary segment and connects to all other nodes' 
@@ -238,13 +243,6 @@ extern void * gasnetc_sit_get_base_addr (gasnet_node_t InputID);
 
 // Return the size of a segment with a given Input node ID
 extern size_t gasnetc_sit_get_size (gasnet_node_t InputID);
-
-/********************************************************
-				 Segment ID Calculation
-********************************************************/
-
-// Return the next available temporary segment id for the local node
-extern unsigned int gasnetc_get_temp_seg_id ();
 
 /********************************************************
 				Local/Remote segment Info
@@ -343,11 +341,11 @@ extern uint8_t gasnetc_get_msg_num_arg (uint16_t header);
 extern void gasnetc_construct_Control_command (gasnetc_command_t *temp);
 
 // Generate Short / Medium Message Header
-extern void gasnetc_construct_ShortMedium_command (gasnetc_ShortMedium_command_t *temp, gasnet_handler_t handler, 
+extern void gasnetc_construct_ShortMedium_command (void *input_addr, gasnet_handler_t handler, 
 											uint8_t msg_type, uint8_t AM_type, size_t size, uint8_t num_args, gasnet_handlerarg_t args[]);
 
 // Generate Long Message Header
-extern void gasnetc_construct_Long_command (gasnetc_Long_command_t *temp, gasnet_handler_t handler, 
+extern void gasnetc_construct_Long_command (void *input_addr, gasnet_handler_t handler, 
 								uint8_t msg_type, void *payload, size_t size, uint8_t num_args, gasnet_handlerarg_t args[]);
 
 /********************************************************

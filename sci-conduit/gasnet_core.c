@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/sci-conduit/gasnet_core.c                  $
- *     $Date: 2003/10/11 14:22:39 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2003/10/16 07:40:35 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -38,6 +38,17 @@ gasnet_seginfo_t *gasnetc_seginfo = NULL;
 // New variables for SCI Conduit
 #define GASNETC_SCI_FORCE_SCAN_THRESHOLD 200
 int gasnetc_sci_MEF_zero_count = 0;
+volatile int gasnetc_exit_began = 0;
+
+//function to be called whenever we exit
+void gasnetc_sci_call_exit(unsigned int sig)
+{
+	if(gasnetc_exit_began == 0)
+	{
+		printf(" "); // NEEDED
+		gasnetc_exit(sig);
+	}
+}
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -84,8 +95,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 	SCIInitialize(GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error); //Initialize SISCI library
     if (gasnetc_sci_error != SCI_ERR_OK) 
 	{
-        fprintf(stderr,"SCIInitialize failed - Error code: 0x%x\n",gasnetc_sci_error);
-        gasneti_fatalerror("Could not get SCI initialized gasnetc_sci_error\n");
+        gasneti_fatalerror("Could not get SCI initialized 0x%x\n",gasnetc_sci_error);
     }
 
 	/* Now call a function to read node information and set up the node
@@ -192,14 +202,12 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
       sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
-	  gasneti_fatalerror("Bad argument for handler #s.\n");
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
     /* discover duplicates */
     if (checkuniqhandler[newindex] != 0) 
       GASNETI_RETURN_ERRR(BAD_ARG, "handler index not unique");
-		gasneti_fatalerror("Handler indx not unique.\n");
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
@@ -272,12 +280,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /*  first pass - assign all fixed-index handlers */
     if (gasnetc_reghandlers(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
-	gasneti_fatalerror("Bad index 1st pass handler registries.\n");
 
     /*  second pass - fill in dontcare-index handlers */
     if (gasnetc_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
-	gasneti_fatalerror("Bad index 2nd pass handler registries.\n");
 
     assert(numreg1 + numreg2 == numentries);
   }
@@ -291,6 +297,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  (###) register any custom signal handlers required by your conduit 
    *        (e.g. to support interrupt-based messaging)
    */
+   gasnetc_ht_add_handler(gasnetc_sci_call_exit, 63);
 
   atexit(gasnetc_atexit);
 
@@ -328,11 +335,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
 	//create the environment for DMA transfers in SCI
-   check = gasnetc_create_dma_queues();
-	if(check != GASNETC_SCI_TRUE) //TRUE
-	{
-		gasneti_fatalerror("Problems creating the DMA queues.\n");
-	}
+  gasnetc_create_dma_queues();
 
   /*  primary attach complete */
   gasneti_attach_done = 1;
@@ -377,6 +380,12 @@ extern void gasnetc_exit(int exitcode) {
 	static int done = 0;
 	sci_error_t gasnetc_sci_error;
 
+	//used to ensure gasnet_exit is not called by two functions at once
+	if(gasnetc_exit_began == 0)
+	{//go ahead
+	gasnetc_exit_began = 1;
+	
+
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
@@ -398,21 +407,21 @@ extern void gasnetc_exit(int exitcode) {
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */  
-	
-  //disconnect from everybody
+  
+  //disconnect from everybody -- triggers a callback function on everybody's node
   for (i = 0; i < (gasnetc_nodes+2) ; i++)
   {
 	  SCISetSegmentUnavailable(gasnetc_sci_localSegment[i], gasnetc_sci_localAdapterNo,SCI_FLAG_FORCE_DISCONNECT ,&gasnetc_sci_error);
   }
-  
-  //disconnect everything
-  for (i = 0; i <  gasnetc_nodes; i++)
-  {
-	  SCIDisconnectSegment(gasnetc_sci_remoteSegment[i],GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
-	  SCIDisconnectSegment(gasnetc_sci_remoteSegment_long[i],GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
-	  SCIDisconnectSegment(gasnetc_sci_remoteSegment_gb[i],GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
-	  SCIRemoveSegment(gasnetc_sci_localSegment[i],GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
-  }
+
+  if(gasneti_attach_done == 1)
+	{
+	  for (i =0 ; i < gasnetc_nodes ; i++)
+	  {
+		  	  SCIDisconnectSegment(gasnetc_sci_remoteSegment_long[i],GASNETC_SCI_NO_FLAGS,&gasnetc_sci_error);
+	  }
+	}
+		
   //unmap all segments
   for (i = 0; i < gasnetc_nodes; i++ )
   {
@@ -427,22 +436,33 @@ extern void gasnetc_exit(int exitcode) {
 	  {
 		  SCIClose(gasnetc_sci_sd_remote[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
 		  SCIClose(gasnetc_sci_gb_sd[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
-		  SCIClose(gasnetc_sci_sd_long[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
 	  }
 	  SCIClose(gasnetc_sci_sd[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
   }
+
+	if(gasneti_attach_done == 1)
+	{
+	  for (i =0 ; i < gasnetc_nodes ; i++)
+	  {
+		  	SCIClose(gasnetc_sci_sd_long[i], GASNETC_SCI_NO_FLAGS, &gasnetc_sci_error);
+	  }
+	}
+
+
   //free all SCI related resources
   SCITerminate();
 
 	//free all allocated memory
 	//need to replace with gasneti_free()
 
-  gasnetc_remove_dma_queues();
-  gasnetc_free_env ();
+   gasnetc_free_env ();
 
+	done =1;
+
+  gasneti_killmyprocess(exitcode);
   abort();
+	}//end if check
 }
-
 
 /*
   Job Environment Queries
@@ -472,7 +492,8 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   if (!srcindex) GASNETI_RETURN_ERRR(BAD_ARG,"bad src ptr");
 
   /* (###) add code here to write the source index into sourceid */
-  sourceid = token.source_id;
+  gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
+  sourceid = curr_token->source_id;
 
   assert(sourceid < gasnetc_nodes);
   *srcindex = sourceid;
@@ -489,7 +510,7 @@ extern int gasnetc_AMPoll()
 	gasnet_node_t sender_id;
 	uint8_t msg_number;
 	void * msg_addr = gasnetc_dequeue_msg(&sender_id, &msg_number);
-	
+
 	// Try to obtain new work to do
 	if (msg_addr == NULL)
 	{
@@ -512,14 +533,15 @@ extern int gasnetc_AMPoll()
 			}
 		}
 	}
-	uint8_t msg_msg_type = -1;
+
+	uint8_t msg_msg_type;
 	if (msg_addr != NULL)
 	{
 		// Handle new message
 		gasnetc_command_t *msg = (gasnetc_command_t *) msg_addr;
 		msg_msg_type = gasnetc_get_msg_type (msg->header);
 		uint8_t msg_AM_type = gasnetc_get_AM_type (msg->header);
-		gasnet_token_t reply_token;
+		gasnetc_sci_token_t reply_token;
 
 		if (msg_AM_type == GASNETC_SCI_CONTROL)
 		{
@@ -532,37 +554,37 @@ extern int gasnetc_AMPoll()
 			void *func_ptr = gasnetc_ht_get_handler (msg_handler);
 			reply_token.source_id = sender_id;
 			reply_token.msg_number = msg_number;
+			gasnet_token_t handler_token = &reply_token;
 
 			if (msg_AM_type == GASNETC_SCI_SHORT)
 			{
 				gasnetc_ShortMedium_command_t *Short_msg = (gasnetc_ShortMedium_command_t *) msg_addr;
-				gasnetc_run_handler_short (reply_token, func_ptr, msg_numargs, Short_msg->args);		
+				gasnetc_run_handler_short (handler_token, func_ptr, msg_numargs, Short_msg->args);	
 			}
 			else 
 			{
 				if (msg_AM_type == GASNETC_SCI_MEDIUM)
 				{
 					gasnetc_ShortMedium_command_t *Medium_msg = (gasnetc_ShortMedium_command_t *) msg_addr;
-					void *msg_payload = msg_addr + sizeof (gasnetc_Long_command_receiver_t);
-					gasnetc_run_handler_mediumlong (reply_token, func_ptr, msg_numargs, Medium_msg->args, msg_payload, Medium_msg->payload_size);
+					void *msg_payload = ((uint8_t *) msg_addr) + sizeof (gasnetc_Long_command_receiver_t);
+					gasnetc_run_handler_mediumlong (handler_token, func_ptr, msg_numargs, Medium_msg->args, msg_payload, Medium_msg->payload_size);
 				}
 				else if (msg_AM_type == GASNETC_SCI_LONG)
 				{
-					gasnetc_Long_command_t *Long_msg = (gasnetc_Long_command_t *) msg_addr;		
-					gasnetc_run_handler_mediumlong (reply_token, func_ptr, msg_numargs, Long_msg->args, Long_msg->payload, Long_msg->payload_size);
+					gasnetc_Long_command_t *Long_msg = (gasnetc_Long_command_t *) msg_addr;	
+					gasnetc_run_handler_mediumlong (handler_token, func_ptr, msg_numargs, Long_msg->args, Long_msg->payload, Long_msg->payload_size);
 				}
 			}
-			
 			// Check if reply was generated, if not, generates a control reply
 			if ((gasnetc_mls_chk_free (sender_id, GASNETC_SCI_MAX_REQUEST_MSG + msg_number) == GASNETC_SCI_FALSE) && (msg_msg_type == GASNETC_SCI_REQUEST))
 			{
 				// No reply message has been generated, so generate a control reply that frees up the request slot of the sender
 				void * gr_addr = gasnetc_gr_get_addr (sender_id);
-				int Status = 0;
+				int Status;
 				do
 				{
-					Status = gasnetc_SM_transfer (sender_id, GASNETC_SCI_MAX_REQUEST_MSG + msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_CONTROL, 218, 0, NULL, NULL, 0, gr_addr, NULL);
-				} while (Status == 0);
+					Status = gasnetc_SM_transfer (sender_id, GASNETC_SCI_MAX_REQUEST_MSG + msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_CONTROL, 0, 0, NULL, NULL, 0, gr_addr, NULL);
+				} while (Status != GASNET_OK);
 			}
 			gasnetc_mls_release (sender_id, GASNETC_SCI_MAX_REQUEST_MSG + msg_number);		// Free up the reply slot of current node
 		}
@@ -570,7 +592,10 @@ extern int gasnetc_AMPoll()
 	if (msg_msg_type == GASNETC_SCI_REPLY)
 	{
 		// clear mls for appropriate request
-		gasnetc_mls_release (sender_id, msg_number - GASNETC_SCI_MAX_REQUEST_MSG);
+		if (((sender_id >= 0) && (sender_id < gasnetc_nodes)) && ((msg_number >= GASNETC_SCI_MAX_REQUEST_MSG) && (msg_number < GASNETC_SCI_MAX_REQUEST_MSG * 2)))
+		{
+			gasnetc_mls_release (sender_id, msg_number - GASNETC_SCI_MAX_REQUEST_MSG);
+		}
 	}
 	return GASNET_OK;
 }
@@ -681,7 +706,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	}
 
 	// payload transfer
-	gasnetc_DMA_write (dest, source_addr, nbytes, dest_addr);
+	if (nbytes > 0)
+	{
+		gasnetc_DMA_write (dest, source_addr, nbytes, dest_addr);
+	}
 
 	// command transfer	
 	void * gr_addr =  gasnetc_gr_get_addr (dest);
@@ -698,7 +726,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             int numargs, ...) 
 {
 	// This is implemented exactly like gasnetc_AMRequestLongM ()
-
 	int retval;
 	va_list argptr;
 
@@ -727,11 +754,15 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	}
 
 	// payload transfer
-	gasnetc_DMA_write (dest, source_addr, nbytes, dest_addr);
+	if (nbytes > 0)
+	{
+		gasnetc_DMA_write (dest, source_addr, nbytes, dest_addr);
+	}
 
 	// command transfer	
 	void * gr_addr =  gasnetc_gr_get_addr (dest);
 	retval = gasnetc_SM_request (dest, GASNETC_SCI_LONG, handler, numargs, args, NULL, nbytes, gr_addr, dest_addr);
+
 
 	va_end(argptr);
 	GASNETI_RETURN(retval);
@@ -759,9 +790,10 @@ extern int gasnetc_AMReplyShortM(
 	{
 		args[i] = va_arg (argptr, gasnet_handlerarg_t);
 	}
-	
-	void * gr_addr =  gasnetc_gr_get_addr (token.source_id);
-	retval = gasnetc_SM_transfer (token.source_id, GASNETC_SCI_MAX_REQUEST_MSG + token.msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_SHORT, handler, numargs, args, NULL, 0, gr_addr, NULL);
+
+	gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
+	void * gr_addr =  gasnetc_gr_get_addr (curr_token->source_id);	
+	retval = gasnetc_SM_transfer (curr_token->source_id, GASNETC_SCI_MAX_REQUEST_MSG + curr_token->msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_SHORT, handler, numargs, args, NULL, 0, gr_addr, NULL);
 
 	va_end(argptr);
 	GASNETI_RETURN(retval);
@@ -791,9 +823,10 @@ extern int gasnetc_AMReplyMediumM(
 	{
 		args[i] = va_arg (argptr, gasnet_handlerarg_t);
 	}
-	
-	void * gr_addr =  gasnetc_gr_get_addr (token.source_id);
-	retval = gasnetc_SM_transfer (token.source_id, GASNETC_SCI_MAX_REQUEST_MSG + token.msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_MEDIUM, handler, numargs, args, source_addr, nbytes, gr_addr, NULL);
+
+	gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
+	void * gr_addr =  gasnetc_gr_get_addr (curr_token->source_id);
+	retval = gasnetc_SM_transfer (curr_token->source_id, GASNETC_SCI_MAX_REQUEST_MSG + curr_token->msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_MEDIUM, handler, numargs, args, source_addr, nbytes, gr_addr, NULL);
 
 	va_end(argptr);
 	GASNETI_RETURN(retval);
@@ -835,12 +868,18 @@ extern int gasnetc_AMReplyLongM(
 		args[i] = va_arg (argptr, gasnet_handlerarg_t);
 	}
 
+	gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
+
 	// payload transfer
-	gasnetc_DMA_write (token.source_id, source_addr, nbytes, dest_addr);
+	if (nbytes > 0)
+	{
+		gasnetc_DMA_write (curr_token->source_id, source_addr, nbytes, dest_addr);
+	}
 
 	// command transfer	
-	void * gr_addr =  gasnetc_gr_get_addr (token.source_id);
-	retval = gasnetc_SM_transfer (token.source_id, GASNETC_SCI_MAX_REQUEST_MSG + token.msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_LONG, handler, numargs, args, NULL, nbytes, gr_addr, dest_addr);
+	
+	void * gr_addr =  gasnetc_gr_get_addr (curr_token->source_id);	
+	retval = gasnetc_SM_transfer (curr_token->source_id, GASNETC_SCI_MAX_REQUEST_MSG + curr_token->msg_number, GASNETC_SCI_REPLY, GASNETC_SCI_LONG, handler, numargs, args, NULL, nbytes, gr_addr, dest_addr);
 
 	va_end(argptr);
 	GASNETI_RETURN(retval);
