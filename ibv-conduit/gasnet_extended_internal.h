@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/04/21 19:43:11 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2003/04/25 00:03:08 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -113,12 +113,8 @@ void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_barrier_notify_reqh   (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_barrier_done_reqh     (GASNETE_HANDLER_BASE+1)
-#define _hidx_gasnete_get_reqh              (GASNETE_HANDLER_BASE+2)
-#define _hidx_gasnete_get_reph              (GASNETE_HANDLER_BASE+3)
-#define _hidx_gasnete_getlong_reqh          (GASNETE_HANDLER_BASE+4)
-#define _hidx_gasnete_getlong_reph          (GASNETE_HANDLER_BASE+5)
-#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+6)
-#define _hidx_gasnete_memset_reph           (GASNETE_HANDLER_BASE+7)
+#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_memset_reph           (GASNETE_HANDLER_BASE+3)
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif
