@@ -29,7 +29,6 @@ gasnet_node_t gasnetc_mynode;
 gasnet_node_t gasnetc_nodes;
 gasnet_node_t gasnete_mynode;
 gasnet_node_t gasnete_nodes;
-int	      gasnete_mythread;
 
 typedef struct _gasnetc_sockmap {
     gasnet_node_t   node;
@@ -78,6 +77,16 @@ uintptr_t       gasnetc_MaxGlobalSegmentSize = 0;
 static gasneti_mutex_t gasnetc_socklock = GASNETI_MUTEX_INITIALIZER;
 #define SOCK_LOCK   gasneti_mutex_lock(&gasnetc_socklock)
 #define SOCK_UNLOCK gasneti_mutex_unlock(&gasnetc_socklock)
+#define SOCK_ASSERT_LOCKED gasneti_mutex_assertlocked(&gasnetc_socklock)
+
+void	gasnetc_barrier();
+void	gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
+void	gasnetc_init();
+void	gasnetc_exit();
+int	gasnetc_AMPoll();
+size_t	gasnetc_readsocket(int fd, void *buf, size_t len, gasnetc_sockdata_t *sd);
+void	gasnetc_writesocket(int destfd, char *msg, int len);
+int	gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *node);
 
 gasnetc_handler_fn_t	gasnetc_handlers[256];
 
@@ -208,10 +217,14 @@ gasnetc_AMRequestShortM(
 	gasnetc_sockmap_t smap;
 	smap.node = dest;
 	smap.fd = -42;
+	SOCK_LOCK;
 	RUN_HANDLER_SHORT(gasnetc_handlers[handler], (void *) &smap, pArg, numargs);
+	SOCK_UNLOCK;
     }
     else {
+	SOCK_LOCK;
 	gasnetc_writesocket(gasnetc_IdMapFd[dest].fd, buf, nbytes);
+	SOCK_UNLOCK;
     }
 
     va_end(argptr);
@@ -263,7 +276,9 @@ gasnetc_AMReplyShortM(
 	RUN_HANDLER_SHORT(gasnetc_handlers[handler], (void *) &smap, pArg, numargs);
     }
     else {
+	SOCK_LOCK;
 	gasnetc_writesocket(fd, buf, nbytes);
+	SOCK_UNLOCK;
     }
 
     va_end(argptr);
@@ -316,8 +331,10 @@ gasnetc_AMRequestMediumM(
 	gasnetc_sockmap_t smap;
 	smap.node = dest;
 	smap.fd = -42;
+	SOCK_LOCK;
 	RUN_HANDLER_MEDLONG(gasnetc_handlers[handler], (void *) &smap, 
 			    pArg, numargs, source_addr, nbytes);
+	SOCK_UNLOCK;
     }
     else {
 	/* Copy payload */
@@ -325,7 +342,9 @@ gasnetc_AMRequestMediumM(
 	fd = gasnetc_IdMapFd[dest].fd;
 
 	//printf("%d> ************ %d => %s\n", gasnetc_mynode, dest, gasneti_formatdata(source_addr,nbytes));
+	SOCK_LOCK;
 	gasnetc_writesocket(fd, buf, nbytes + payoff);
+	SOCK_UNLOCK;
     }
 
     /* On write completion, free the buffer */
@@ -709,34 +728,32 @@ gasnetc_hsl_unlock(gasnet_hsl_t *hsl)
 #include "gasnet_extended_refbarrier.c"
 #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 
-static	volatile int gasnete_medping_count = 0;
+static	volatile int gasnete_medping_count[GASNETE_MAXTHREADS] = { 0 };
 
 void
 gasnete_am_medping(gasnet_token_t token, void *p, size_t len, 
-		   gasnet_handlerarg_t iter)
+		   gasnet_handlerarg_t tid)
 {
     gasnet_node_t   node;
 
     gasnetc_AMGetMsgSource(token, &node);
 
-    fprintf(stderr, "%d> Received Ping %d from %d\n", gasnetc_mynode, iter, node);
-
-    gasnete_medping_count++;
+    //fprintf(stderr, "%d> Received Ping from thread %d on node %d\n", gasnetc_mynode, tid, node);
 
     gasnet_AMReplyMedium1(token, gasneti_handleridx(gasnete_am_medpong),
-	    p, len, iter);
+	    p, len, tid);
 }
 
 void
-gasnete_am_medpong(gasnet_token_t token, void *p, size_t len, gasnet_handlerarg_t iter)
+gasnete_am_medpong(gasnet_token_t token, void *p, size_t len, gasnet_handlerarg_t tid)
 {
     gasnet_node_t   node;
 
     gasnetc_AMGetMsgSource(token, &node);
 
-    fprintf(stderr, "%d> Received Pong %d from %d\n", gasnetc_mynode, iter, node);
+    fprintf(stderr, "%d> Received Pong from thread %d on node %d\n", gasnetc_mynode, tid, node);
 
-    gasnete_medping_count++;
+    gasnete_medping_count[tid]++;
 }
 
 #define GASNETE_EXCHANGE_MASTER	(gasnetc_nodes-1)
@@ -829,10 +846,62 @@ user_main(void *arg)
 			    ? gasnetc_mynode + 1 : 0;
 
     gasnet_AMRequestMedium1(dest,
-	gasneti_handleridx(gasnete_am_medping), buf, 128, iter);
+	gasneti_handleridx(gasnete_am_medping), buf, 128, 0);
 
-    while (gasnete_medping_count != 2)
+    while (gasnete_medping_count[0] != 1)
 	gasnetc_AMPoll();
+}
+
+void *
+user_threadmain(void *arg)
+{
+    char    buf[128];
+    int	    local_tid = (int) arg;
+    int	    global_tid = local_tid + gasnete_mynode*gasnetc_threadspernode;
+
+    gasnet_node_t dest = gasnetc_threads + 1 < gasnetc_threads
+	 	         ? gasnetc_threads + 1 : 0;
+
+
+    gasnet_AMRequestMedium1(dest,
+	gasneti_handleridx(gasnete_am_medping), buf, 128, local_tid);
+
+    while (gasnete_medping_count[local_tid] != 1)
+	gasnetc_AMPoll();
+
+    gasnete_medping_count[local_tid] = 0;
+
+    gasnetc_barrier();
+
+    printf("I am local tid %d out of %d\n", local_tid, global_tid);
+
+    gasnet_AMRequestMedium1(dest,
+	gasneti_handleridx(gasnete_am_medping), buf, 128, local_tid);
+
+    while (gasnete_medping_count[local_tid] != 1)
+	gasnetc_AMPoll();
+
+    gasnete_medping_count[local_tid] = 0;
+}
+
+pthread_mutex_t	gasnetc_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t	gasnetc_barrier_cond = PTHREAD_COND_INITIALIZER;
+static int	gasnetc_barrier_count;
+static int	gasnetc_barrier_threads;
+
+void
+gasnetc_barrier() 
+{
+	pthread_mutex_lock(&gasnetc_barrier_mutex);
+	gasnetc_barrier_count++;
+	if (gasnetc_barrier_count < gasnetc_barrier_threads)
+		pthread_cond_wait(&gasnetc_barrier_cond, &gasnetc_barrier_mutex);
+	else { /* single thread does the barrier */
+		GASNETC_NODE_BARRIER;
+		gasnetc_barrier_count = 0;
+		pthread_cond_broadcast(&gasnetc_barrier_cond);
+	}
+	pthread_mutex_unlock(&gasnetc_barrier_mutex);
 }
 
 int
@@ -841,7 +910,7 @@ main(int argc, char **argv)
     int i, j, tid;
     uintptr_t	segsize;
 
-    pthread_t *client_thread_ids;
+    pthread_t	*pt_tids;
 
     /*
      * testconduit <mynode> <numnodes> [numthreads]
@@ -859,11 +928,14 @@ main(int argc, char **argv)
     if (argc > 3 && argv[3] != NULL)
 	gasnetc_threadspernode = atoi(argv[3]);
 
-    if (gasnetc_nodes < 1) {
-	fprintf(stderr, "Must have at least 1 GASNet node\n");
-	exit(EXIT_FAILURE);
-    }
+    if (gasnetc_nodes < 1) 
+	gasneti_fatalerror("Must have at least 1 GASNet node");
+    
+    if (gasnetc_threadspernode > GASNETE_MAXTHREADS)
+	gasneti_fatalerror("Too many local threads: %d", GASNETE_MAXTHREADS);
 
+    pt_tids = (pthread_t *) 
+	    gasneti_malloc(sizeof(pthread_t) * gasnetc_threadspernode);
     gasnetc_threads = gasnetc_nodes * gasnetc_threadspernode;
 
     gasnetc_sockfds = (int *) gasneti_malloc(sizeof(int) * gasnetc_nodes);
@@ -914,6 +986,7 @@ main(int argc, char **argv)
 	    gidx++;
 	}
     }
+
     {
 	char *env = getenv("GASNET_SEGMENT_SIZE");
 
@@ -930,13 +1003,13 @@ main(int argc, char **argv)
 
     gasneti_trace_init();
 
-    GASNETC_BARRIER;
+    GASNETC_NODE_BARRIER;
 
     gasneti_segmentInit(
 	&gasnetc_MaxLocalSegmentSize, &gasnetc_MaxGlobalSegmentSize,
 	(uintptr_t) -1, gasnetc_nodes, &gasnetc_bootstrapExchange);
 
-    GASNETC_BARRIER;
+    GASNETC_NODE_BARRIER;
 
     printf("local = %ld and global = %ld\n",
 		    gasnetc_MaxLocalSegmentSize, gasnetc_MaxGlobalSegmentSize);
@@ -950,13 +1023,21 @@ main(int argc, char **argv)
 	segsize, 250*1024*1024, 
 	gasnetc_seginfo, &gasnetc_bootstrapExchange);
 
-    GASNETC_BARRIER;
+    GASNETC_NODE_BARRIER;
 
-    printf("i am %d of %d\n", gasnetc_mynode, gasnetc_nodes);
+    /* Spawn threads */
 
-    user_main();
+    for (i = 0; i < gasnetc_threadspernode; i++) {
+	tid = gasnetc_threadspernode*gasnetc_mynode + i;
+	pthread_create(&pt_tids[i], NULL, user_threadmain, (void *) i);
+    }
 
-    GASNETC_BARRIER;
+    for (i = 0; i < gasnetc_threadspernode; i++)
+	pthread_join(pt_tids[i], (void **) NULL);
+
+    //user_main();
+
+    GASNETC_NODE_BARRIER;
 
     gasnetc_finalize();
 

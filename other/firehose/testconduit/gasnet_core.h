@@ -1,6 +1,6 @@
-/* $Id: gasnet_core.h,v 1.1.2.3 2004/05/08 07:13:45 csbell Exp $
- * $Date: 2004/05/08 07:13:45 $
- * $Revision: 1.1.2.3 $
+/* $Id: gasnet_core.h,v 1.1.2.4 2004/05/08 09:01:49 csbell Exp $
+ * $Date: 2004/05/08 09:01:49 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -51,15 +51,16 @@ char *gasnet_getenv(const char *s) {
 #define AM_PAYOFF   (AM_HDRLEN + AM_ARGSLEN)
 #define AM_MAXPAYLEN   (AM_BUFSZ-AM_PAYOFF) /* max payload */
 
-
 #define AM_REQUEST  0xa0
 #define AM_REPLY    0xb0
 #define AM_SHORT    0x01
 #define AM_MEDIUM   0x02
 
+#define GASNETE_MAXTHREADS  64
+
 #define gasnet_AMMaxMedium()	AM_MAXPAYLEN
 
-#define GASNETC_BARRIER	do {						    \
+#define GASNETC_NODE_BARRIER	do {					    \
 	    gasnete_ambarrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);	    \
 	    gasnete_ambarrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS);	    \
 	} while (0)
