@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/28 18:26:36 $
- * $Revision: 1.1.2.26 $
+ *     $Date: 2003/04/28 18:29:41 $
+ * $Revision: 1.1.2.27 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -401,7 +401,6 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
      */
     gasnetc_sreq_t req;
     uintptr_t count;
-    int i;
 
     assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
 	  

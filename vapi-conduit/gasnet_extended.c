@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/25 21:57:18 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2003/04/28 18:29:41 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -273,7 +273,6 @@ int gasnete_op_try_free(gasnet_handle_t handle) {
  *  returns 0 or 1 */
 int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
   gasnete_op_t *op = (gasnete_op_t *)(*handle_p);
-  int retval;
 
   assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (op->type == gasnete_opExplicit) {
