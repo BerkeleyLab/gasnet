@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_sndrcv.c                  $
- *     $Date: 2003/07/02 00:17:17 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2003/07/02 20:53:57 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -296,10 +296,10 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
 GASNET_INLINE_MODIFIER(gasnetc_put_sbuf)
 void gasnetc_put_sbuf(gasnetc_sbuf_t *head, gasnetc_sbuf_t *tail) {
   /* Add the list segment to the free list */
-  gasnetc_mutex_lock(&gasnetc_sbuf_lock, 1);
+  gasnetc_mutex_lock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
   tail->next = gasnetc_sbuf_free;
   gasnetc_sbuf_free = head;
-  gasnetc_mutex_unlock(&gasnetc_sbuf_lock, 1);
+  gasnetc_mutex_unlock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
 }
 
 /* Try to pull completed entries from the send CQ (if any). */
@@ -317,9 +317,9 @@ gasnetc_sbuf_t *gasnetc_snd_reap(gasnetc_sbuf_t **tail_p) {
     {
       /* It seems that VAPI_poll_cq() is not thread-safe */
       static gasnetc_mutex_t poll_lock = GASNETC_MUTEX_INITIALIZER;
-      gasnetc_mutex_lock(&poll_lock, 1);
+      gasnetc_mutex_lock(&poll_lock, GASNETC_ANY_PAR);
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-      gasnetc_mutex_unlock(&poll_lock, 1);
+      gasnetc_mutex_unlock(&poll_lock, GASNETC_ANY_PAR);
     }
     #else
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
@@ -401,14 +401,14 @@ gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
     }
 
     /* try to get an unused sbuf from the free list */
-    gasnetc_mutex_lock(&gasnetc_sbuf_lock, 1);
+    gasnetc_mutex_lock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
     sbuf = gasnetc_sbuf_free;
     if (sbuf != NULL) {
       gasnetc_sbuf_free = sbuf->next;
-      gasnetc_mutex_unlock(&gasnetc_sbuf_lock, 1);
+      gasnetc_mutex_unlock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
       break;	/* Have a decsriptor - leave the loop */
     }
-    gasnetc_mutex_unlock(&gasnetc_sbuf_lock, 1);
+    gasnetc_mutex_unlock(&gasnetc_sbuf_lock, GASNETC_ANY_PAR);
 
     /* be kind */
     gasneti_sched_yield();
@@ -583,9 +583,9 @@ void gasnetc_rcv_reap(int limit, gasnetc_rbuf_t **spare_p) {
     {
       /* It seems that VAPI_poll_cq() is not thread-safe */
       static gasnetc_mutex_t poll_lock = GASNETC_MUTEX_INITIALIZER;
-      gasnetc_mutex_lock(&poll_lock, 1);
+      gasnetc_mutex_lock(&poll_lock, GASNETC_ANY_PAR);
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
-      gasnetc_mutex_unlock(&poll_lock, 1);
+      gasnetc_mutex_unlock(&poll_lock, GASNETC_ANY_PAR);
     }
     #else
       vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp);
