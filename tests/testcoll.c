@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testcoll.c                                 $
- *     $Date: 2004/06/02 18:36:49 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2004/06/25 17:47:24 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -348,9 +348,6 @@ int main(int argc, char **argv)
       ALL_ALL_test(iters, i);
       NO_NO_test(iters, i);
     }
-#else
-      ALL_ALL_test(iters, 8);
-      NO_NO_test(iters, 8);
 #endif
 
     BARRIER();

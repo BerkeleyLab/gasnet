@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_trace.h                                   $
- *     $Date: 2004/06/02 00:47:50 $
- * $Revision: 1.20.2.4 $
+ *     $Date: 2004/06/25 17:47:22 $
+ * $Revision: 1.20.2.5 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -343,8 +343,8 @@ BEGIN_EXTERNC
 #if GASNETI_STATS_OR_TRACE
   #define _GASNETI_TRACE_PUTVGETV(name,type,node,dstcount,dstlist,srccount,srclist) do {                   \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                        \
-      char * dstlist_str = gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));               \
-      char * srclist_str = gasneti_extern_malloc(gasneti_format_memveclist_bufsz(srccount));               \
+      char * dstlist_str = (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(dstcount));       \
+      char * srclist_str = (char *)gasneti_extern_malloc(gasneti_format_memveclist_bufsz(srccount));       \
       gasneti_memveclist_stats_t dststats = gasneti_format_memveclist(dstlist_str, (dstcount), (dstlist)); \
       gasneti_memveclist_stats_t srcstats = gasneti_format_memveclist(srclist_str, (srccount), (srclist)); \
       GASNETI_TRACE_EVENT_VAL(type,name,dststats.totalsz);                                                 \
@@ -354,13 +354,13 @@ BEGIN_EXTERNC
                               dstlist_str, srclist_str));                                                  \
       gasneti_extern_free(dstlist_str);                                                                    \
       gasneti_extern_free(srclist_str);                                                                    \
-    } else GASNETI_TRACE_EVENT_VAL(type,name, gasnete_memveclist_stats(dstcount,dstlist).totalsz);                                                \
+    } else GASNETI_TRACE_EVENT_VAL(type,name, gasnete_memveclist_stats(dstcount,dstlist).totalsz);         \
   } while (0)
 
   #define _GASNETI_TRACE_PUTIGETI(name,type,node,dstcount,dstlist,dstlen,srccount,srclist,srclen) do {           \
     if (GASNETI_TRACE_ENABLED(D)) {                                                                              \
-      char * dstlist_str = gasneti_extern_malloc(gasneti_format_addrlist_bufsz(dstcount));                       \
-      char * srclist_str = gasneti_extern_malloc(gasneti_format_addrlist_bufsz(srccount));                       \
+      char * dstlist_str = (char *)gasneti_extern_malloc(gasneti_format_addrlist_bufsz(dstcount));               \
+      char * srclist_str = (char *)gasneti_extern_malloc(gasneti_format_addrlist_bufsz(srccount));               \
       gasneti_addrlist_stats_t dststats = gasneti_format_addrlist(dstlist_str, (dstcount), (dstlist), (dstlen)); \
       gasneti_addrlist_stats_t srcstats = gasneti_format_addrlist(srclist_str, (srccount), (srclist), (srclen)); \
       uintptr_t totalsz = ((uintptr_t)(dstcount))*(dstlen);                                                      \
