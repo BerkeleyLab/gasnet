@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/14 21:22:58 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2003/04/14 23:02:50 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -51,40 +51,6 @@ void gasnetc_put_sbuf(gasnetc_sbuf_t *sbuf) {
   sbuf->tail->next = gasnetc_sbuf_pool;
   gasnetc_sbuf_pool = sbuf;
   pthread_mutex_unlock(&gasnetc_sbuf_lock);
-}
-
-/*
- * Try to pull one completed entry from the send CQ (if any).
- */
-GASNET_INLINE_MODIFIER(gasnetc_snd_poll)
-void gasnetc_snd_poll(void) {
-  gasnetc_sbuf_t *sbuf = NULL;
-  VAPI_wc_desc_t comp;
-  VAPI_ret_t vstat;
-
-  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-  if (vstat == VAPI_OK) {
-    if (comp.status == VAPI_SUCCESS) {
-      sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
-      if (sbuf) {
-        if (sbuf->local_counter) gasneti_atomic_decrement(sbuf->local_counter);
-        if (sbuf->remote_counter) gasneti_atomic_decrement(sbuf->remote_counter);
-        gasnetc_put_sbuf(sbuf);
-      } else {
-        fprintf(stderr, "@ %d> snd_poll reaped NULL sbuf\n");
-      }
-    } else {
-#if 1 
-      fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
-      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
-        fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
-      }
-#endif
-      /* ### What needs to be done here? */
-    }
-  } else {
-    assert(vstat == VAPI_CQ_EMPTY);
-  }
 }
 
 /* allocate a send buffer pair */
@@ -235,6 +201,39 @@ extern void gasnetc_snd_fini(void) {
    *   gasnetc_sbuf_pool (sbufs and actual buffers)
    *   gasnetc_snd_reg
    */
+}
+
+/*
+ * Try to pull one completed entry from the send CQ (if any).
+ */
+extern void gasnetc_snd_poll(void) {
+  gasnetc_sbuf_t *sbuf = NULL;
+  VAPI_wc_desc_t comp;
+  VAPI_ret_t vstat;
+
+  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+  if (vstat == VAPI_OK) {
+    if (comp.status == VAPI_SUCCESS) {
+      sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
+      if (sbuf) {
+        if (sbuf->local_counter) gasneti_atomic_decrement(sbuf->local_counter);
+        if (sbuf->remote_counter) gasneti_atomic_decrement(sbuf->remote_counter);
+        gasnetc_put_sbuf(sbuf);
+      } else {
+        fprintf(stderr, "@ %d> snd_poll reaped NULL sbuf\n");
+      }
+    } else {
+#if 1 
+      fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
+        fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+      }
+#endif
+      /* ### What needs to be done here? */
+    }
+  } else {
+    assert(vstat == VAPI_CQ_EMPTY);
+  }
 }
 
 /*
