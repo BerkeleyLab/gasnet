@@ -973,8 +973,8 @@ user_threadmain(void *arg)
     wt(global_tid);
 }
 
-pthread_mutex_t	gasnetc_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t	gasnetc_barrier_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t	gasnetc_barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t	gasnetc_barrier_cond = PTHREAD_COND_INITIALIZER;
 static int	gasnetc_barrier_count;
 static int	gasnetc_barrier_threads;
 

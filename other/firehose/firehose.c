@@ -338,7 +338,7 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		}
 		else {
 			GASNETI_TRACE_PRINTF(C, 
-			    ("Firehoses pinned, callback"));
+			    ("Firehose callback req=%p", req));
 			callback(context, req, 1);
 		}
 	}
@@ -726,14 +726,13 @@ fh_priv_acquire_local(int local_ref, firehose_private_t *entry)
 		/* We must dec LOnly if entering state "E" */
 		fhc_LocalOnlyBucketsPinned -= !local_ref;
 		fhc_LocalVictimFifoBuckets--;
+		FH_SET_LOCAL_INUSE(entry);
 		FH_BSTATE_SET(entry, fh_used);
-		FH_SET_USED(entry);
 
 		FH_TRACE_BUCKET(entry, ACQFIFO);
 	}
 	else {
 		/* Bucket started in state "C", "D" or "E" */
-		FH_SET_USED(entry);
 		FH_BSTATE_ASSERT(entry, fh_used);
 		if (local_ref) {
 			/* Bucket is entering state "C" or "D".  We
@@ -768,26 +767,21 @@ fh_priv_acquire_remote(gasnet_node_t node, firehose_private_t *entry)
 	gasneti_assert(node != fh_mynode);
 
 	if (FH_IS_REMOTE_FIFO(entry)) {
-		FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
+	    FH_BSTATE_ASSERT(entry, fh_remote_fifo);
+	    FH_TAILQ_REMOVE(&fh_RemoteNodeFifo[node], entry);
 
-		FH_BSTATE_ASSERT(entry, fh_remote_fifo);
-
-		fhc_RemoteVictimFifoBuckets[node]--;
-		rp->refc_l = 0;
-		rp->refc_r = 1;
+	    fhc_RemoteVictimFifoBuckets[node]--;
+	    rp->refc_r = 1;
 			
-		FH_SET_USED(entry);
-		FH_BSTATE_SET(entry, fh_used);
-		FH_TRACE_BUCKET(entry, ACQFIFO);
+	    FH_SET_REMOTE_INUSE(entry);
+	    FH_BSTATE_SET(entry, fh_used);
+	    FH_TRACE_BUCKET(entry, ACQFIFO);
 	}
 	else {
-		/* Pending buckets must be handled separately */
-		gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
-		FH_BSTATE_ASSERT(entry, fh_used);
-
-		rp->refc_r++;
-		gasneti_assert(rp->refc_r > 0);
-		FH_TRACE_BUCKET(entry, ACQUIRE);
+	    gasneti_assert(!FH_IS_REMOTE_PENDING_UNCOMMITTED(entry));
+	    gasneti_assert(rp->refc_r > 0);
+	    rp->refc_r++;
+	    FH_TRACE_BUCKET(entry, ACQUIRE);
 	}
 
 	return rp;
@@ -833,6 +827,7 @@ fh_priv_release_local(int local_ref, firehose_private_t *entry)
 		fhc_LocalVictimFifoBuckets++;
 
 		FH_BSTATE_SET(entry, fh_local_fifo);
+		gasneti_assert(FH_IS_LOCAL_FIFO(entry));
 		FH_TRACE_BUCKET(entry, ADDFIFO);
 	}
 	else {
@@ -859,9 +854,9 @@ fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
 	 * refcounts.  Also, it should not be pending as pending buckets are
 	 * handled separately */
 	gasneti_assert(node != fh_mynode);
-	gasneti_assert(!FH_IS_REMOTE_PENDING(entry));
-
+	gasneti_assert(FH_IS_REMOTE_INUSE(entry));
 	gasneti_assert(rp->refc_r > 0);
+
 	rp->refc_r--;
 
 	if (rp->refc_r == 0) {

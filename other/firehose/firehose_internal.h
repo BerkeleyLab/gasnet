@@ -166,10 +166,11 @@ fh_refc_t;
  */
 #define DEBUG_BUCKETS
 #ifdef DEBUG_BUCKETS
-  typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_used, fh_unused }
+  typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_pending_commit, fh_used, fh_unused }
   fh_bstate_t;
   #define FH_BSTATE_ASSERT(entry, state) gasneti_assert((entry)->fh_state == state)
   #define FH_BSTATE_SET(entry, state)	 (entry)->fh_state = state
+  #define FH_BSTATE(entry)		 (entry)->fh_state
   #else
   #define FH_BSTATE_ASSERT(entry, state)
   #define FH_BSTATE_SET(entry, state)
@@ -220,46 +221,62 @@ struct _firehose_private_t {
  *
  * Remote buckets can be in either of these three states 
  *   1. in USE  (fh_tqe_next == FH_USED_TAG)
- *      a) PENDING (LOCAL reference count == FH_REMOTE_PENDING_TAG)
- *      b) NOT PENDING (LOCAL refcount != FH_REMOTE_PENDING_TAG)
+ *      a) COMMITTED (refcounts represent a real value)
+ *      b) PENDING (LOCAL reference count == FH_REMOTE_PENDING_TAG)
+ *      c) ** For SMP-page only:
+ *         PENDING COMMIT (LOCAL reference count ==
+ *                               FH_REMOTE_PENDING_UNCOMMITTED_TAG)
  *   2. in FIFO (fh_tqe_next != FH_USED_TAG)
  */
-#define FH_USED_TAG			  ((firehose_private_t *) -1)
-#define FH_LOCAL_PENDING_TAG			((fh_refc_uint_t) -1)
+
+/*
+ * Local firehose states
+ * This assumes that the remote reference count will never exceed the tag
+ *
+ * Tags used for FH_LOCAL_STATE()
+ */
+#define FH_LOCAL_PENDING_TAG		((firehose_private_t *) -1)
+#define FH_LOCAL_INUSE_TAG		((firehose_private_t *) -2)
+#define FH_LOCAL_FIFO_TAG		((firehose_private_t *) -3)
+#define FH_COMPLETION_END_TAG		((firehose_private_t *) -4)
+
+#define FH_HAS_COMPLETION_CALLBACK(priv) ((priv)->fh_tqe_next != NULL && \
+		                   (priv)->fh_tqe_next <= FH_COMPLETION_END_TAG)
+
+#define FH_LOCAL_STATE(priv) ((priv)->fh_tqe_next < FH_LOCAL_INUSE_TAG \
+			     ? FH_LOCAL_FIFO_TAG : (priv)->fh_tqe_next)
+
+#define FH_IS_LOCAL_FIFO(priv)    ((priv)->fh_tqe_next < FH_LOCAL_INUSE_TAG)
+#define FH_IS_LOCAL_PENDING(priv) ((priv)->fh_tqe_next == FH_LOCAL_PENDING_TAG)
+#define FH_IS_LOCAL_INUSE(priv)   ((priv)->fh_tqe_next == FH_LOCAL_INUSE_TAG)
+
+#define FH_SET_LOCAL_FIFO(priv)  (FH_LOCAL_STATE(priv) = \
+	  FH_LOCAL_STATE(priv) >= FH_LOCAL_INUSE_TAG ? NULL : FH_LOCAL_STATE(priv))
+#define FH_SET_LOCAL_PENDING(priv) (priv)->fh_tqe_next = FH_LOCAL_PENDING_TAG
+#define FH_SET_LOCAL_INUSE(priv)   (priv)->fh_tqe_next = FH_LOCAL_INUSE_TAG
+
+/*
+ * Remote firehose states
+ *
+ * WARNING: These states unfortunately make the code very fragile
+ */
+#define FH_REMOTE_INUSE_TAG			((firehose_private_t *) -1)
 #define FH_REMOTE_PENDING_TAG			((fh_refc_uint_t) -1)
 #define FH_REMOTE_PENDING_UNCOMMITTED_TAG	((fh_refc_uint_t) -2)
 
-#define FH_IS_LOCAL_FIFO(priv)	((priv)->fh_tqe_next != FH_USED_TAG)
-#define FH_IS_REMOTE_FIFO(priv)	(!FH_IS_REMOTE_PENDING(priv) &&		\
-				 (priv)->fh_tqe_next != FH_USED_TAG)
-#define FH_SET_USED(priv)	((priv)->fh_tqe_next = FH_USED_TAG)
+#define FH_IS_REMOTE_FIFO(priv)	   ((priv)->fh_tqe_next != FH_REMOTE_INUSE_TAG && \
+		                     FH_BUCKET_REFC(priv)->refc_l < FH_REMOTE_PENDING_UNCOMMITTED_TAG)
+#define FH_IS_REMOTE_INUSE(priv)   ((priv)->fh_tqe_next == FH_REMOTE_INUSE_TAG && \
+		                     FH_BUCKET_REFC(priv)->refc_l == 0)
+#define FH_IS_REMOTE_PENDING(priv) (FH_BUCKET_REFC(priv)->refc_l==FH_REMOTE_PENDING_TAG)
+#define FH_IS_REMOTE_PENDING_UNCOMMITTED(priv)				          \
+                    (FH_BUCKET_REFC(priv)->refc_l==FH_REMOTE_PENDING_UNCOMMITTED_TAG)
 
-/* Remote buckets can be in a 'pending' state, either not committed or
- * committed. */
-#define FH_IS_LOCAL_PENDING(priv)					\
-		(FH_BUCKET_REFC(priv)->refc_l == FH_LOCAL_PENDING_TAG)
-#define FH_IS_REMOTE_PENDING(priv)					\
-		(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_TAG)
-#define FH_IS_REMOTE_PENDING_UNCOMMITTED(priv)				\
-	(FH_BUCKET_REFC(priv)->refc_l == FH_REMOTE_PENDING_UNCOMMITTED_TAG)
-
-#define FH_SET_LOCAL_PENDING(priv)      do {				\
-		FH_BUCKET_REFC(priv)->refc_l = FH_LOCAL_PENDING_TAG;	\
-		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
-#define FH_UNSET_LOCAL_PENDING(priv)					\
-		(FH_BUCKET_REFC(priv)->refc_l = 0)
-
-#define FH_SET_REMOTE_PENDING(priv)	do { 				\
-		FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_TAG;	\
-		FH_BUCKET_REFC(priv)->refc_r = 1;			\
-		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
-#define FH_SET_REMOTE_PENDING_UNCOMMITTED(priv)	do { 			\
-		FH_BUCKET_REFC(priv)->refc_l =				\
-				FH_REMOTE_PENDING_UNCOMMITTED_TAG;	\
-		FH_BUCKET_REFC(priv)->refc_r = 1;			\
-		(priv)->fh_tqe_next = FH_USED_TAG; }  while (0)
-#define FH_UNSET_REMOTE_PENDING(priv)					\
-		(FH_BUCKET_REFC(priv)->refc_l = 0)
+#define FH_SET_REMOTE_INUSE(priv) do { (priv)->fh_tqe_next = FH_REMOTE_INUSE_TAG; \
+	                                FH_BUCKET_REFC(priv)->refc_l = 0; } while (0)
+#define FH_SET_REMOTE_PENDING(priv) FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_TAG
+#define FH_SET_REMOTE_PENDING_UNCOMMITTED(priv)	 			        \
+			FH_BUCKET_REFC(priv)->refc_l = FH_REMOTE_PENDING_UNCOMMITTED_TAG
 
 /*
  * Both -page and -region implement these functions.
@@ -514,8 +531,7 @@ struct _fh_completion_callback_t {
 	void			*context;
 }
 fh_completion_callback_t;
-/* This tag cannot be USED_TAG */
-#define FH_COMPLETION_END	((fh_completion_callback_t *)(FH_USED_TAG))
+#define FH_COMPLETION_END  ((fh_completion_callback_t *)(FH_COMPLETION_END_TAG))
 
 fh_completion_callback_t *	fh_alloc_completion_callback();
 void	fh_free_completion_callback(fh_completion_callback_t *rc);
@@ -603,7 +619,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 	    for (bucket_addr = pool->regions[i].addr,			\
 		 bucket_end = pool->regions[i].addr +			\
 		              pool->regions[i].len - 1;			\
-		 bucket_addr < bucket_end; bucket_addr += FH_BUCKET_SIZE)
+		 bucket_addr <= bucket_end; bucket_addr += FH_BUCKET_SIZE)
 
 /*
  * Macros to copy client_t to and from region/request
