@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/sci-parsync.mak.in,v 1.1.2.2 2003/10/13 06:31:08 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/sci-parsync.mak.in,v 1.1.2.4 2003/11/22 11:55:20 bonachea Exp $
 # Description: Makefile fragment for SCI conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,8 +15,8 @@
 #
 # ----------------------------------------------------------------------
 
-GASNET_INCLUDES = -I@INSTALL_PREFIX@/include -I@INSTALL_PREFIX@/include/sci-conduit @SCI_INCLUDES@
-GASNET_LIBDIRS = -L@INSTALL_PREFIX@/lib
+GASNET_INCLUDES = -I###INSTALL_PREFIX###/include -I###INSTALL_PREFIX###/include/sci-conduit @SCI_INCLUDES@
+GASNET_LIBDIRS = -L###INSTALL_PREFIX###/lib
 
 # Textual lines containing the string "###NOINSTALL###" are removed by the install process
 # (must be one continuous line) ###NOINSTALL###
