@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/04/07 19:51:13 $
- * $Revision: 1.2.2.23 $
+ *     $Date: 2003/04/09 00:06:38 $
+ * $Revision: 1.2.2.24 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,12 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
+
+#define GASNETC_QP_STATIC_RATE		2
+#define GASNETC_QP_MIN_RNR_TIMER	5
+#define GASNETC_QP_RNR_RETRY		7	/* infinite */
+#define GASNETC_QP_TIMEOUT		0x20
+#define GASNETC_QP_RETRY_COUNT		2
 
 /* HCA-level resources */
 gasnetc_cep_t	*gasnetc_cep;
@@ -308,8 +314,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   assert(gasnetc_hca_cap.max_num_sg_ent >= GASNETC_RCV_SG);
   assert(gasnetc_hca_cap.max_num_sg_ent_rd >= 1);		/* RDMA Read support required */
   #if 1 /* QP end points */
+    assert(gasnetc_hca_cap.max_qp_init_rd_atom >= 1);		/* RDMA Read support required */
     assert(gasnetc_hca_cap.max_qp_ous_rd_atom >= 1);		/* RDMA Read support required */
   #else
+    assert(gasnetc_hca_cap.max_ee_init_rd_atom >= 1);		/* RDMA Read support required */
     assert(gasnetc_hca_cap.max_ee_ous_rd_atom >= 1);		/* RDMA Read support required */
   #endif
   assert(gasnetc_hca_cap.max_num_cq >= 2);
@@ -399,15 +407,15 @@ static int gasnetc_init(int *argc, char ***argv) {
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RQ_PSN);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_OUS_RD_ATOM);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_DEST_QP_NUM);
-    QP_ATTR_MASK_SET(qp_mask,QP_ATTR_MIN_RNR_TIMER);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_MIN_RNR_TIMER);
     qp_attr.qp_state         = VAPI_RTR;
     qp_attr.av.sl            = 0;
     qp_attr.av.grh_flag      = FALSE;
-    qp_attr.av.static_rate   = 2;	/* XXX: 1x? */
+    qp_attr.av.static_rate   = GASNETC_QP_STATIC_RATE;
     qp_attr.av.src_path_bits = 0;
     qp_attr.path_mtu         = gasnetc_hca_port.max_mtu;
-    qp_attr.qp_ous_rd_atom   = 4;	/* XXX: get max from HCA */
-    qp_attr.min_rnr_timer    = 0;
+    qp_attr.qp_ous_rd_atom   = MIN(gasnetc_hca_cap.max_qp_init_rd_atom, gasnetc_hca_cap.max_qp_ous_rd_atom);
+    qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
     for (i = 0; i < gasnetc_nodes; ++i) {
       if (i == gasnetc_mynode) continue;
 
@@ -431,10 +439,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_OUS_DST_RD_ATOM);
     qp_attr.qp_state         = VAPI_RTS;
     qp_attr.sq_psn           = gasnetc_mynode;
-    qp_attr.timeout          = 0x20;
-    qp_attr.retry_count      = 1;
-    qp_attr.rnr_retry        = 1;
-    qp_attr.ous_dst_rd_atom  = 4; 	/* XXX get max from HCA*/
+    qp_attr.timeout          = GASNETC_QP_TIMEOUT;
+    qp_attr.retry_count      = GASNETC_QP_RETRY_COUNT;
+    qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
+    qp_attr.ous_dst_rd_atom  = MIN(gasnetc_hca_cap.max_qp_init_rd_atom, gasnetc_hca_cap.max_qp_ous_rd_atom);
     for (i = 0; i < gasnetc_nodes; ++i) {
       if (i == gasnetc_mynode) continue;
 
