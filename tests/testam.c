@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testmisc.c                             $
- *     $Date: 2004/06/27 18:31:00 $
- * $Revision: 1.7.2.3 $
+ *     $Date: 2004/07/04 22:53:18 $
+ * $Revision: 1.7.2.4 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -139,7 +139,11 @@ int main(int argc, char **argv) {
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;
 
-  peer = (mynode + 1) % gasnet_nodes();
+  peer = mynode ^ 1;
+  if (peer == gasnet_nodes()) {
+    /* w/ odd # of nodes, last one talks to self */
+    peer = mynode;
+  }
   sender = mynode % 2 == 0;
 
   peerseg = TEST_SEG(peer);

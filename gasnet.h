@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet.h                                        $
- *     $Date: 2004/06/27 18:30:28 $
- * $Revision: 1.17.2.4 $
+ *     $Date: 2004/07/04 22:53:06 $
+ * $Revision: 1.17.2.5 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,15 +20,6 @@
    see the GASNet specification for details on how to use the GASNet interface
    clients should #define GASNET_NDEBUG when compiling this implementation for production use
      or #define GASNET_DEBUG for extra debugging safety checks
-*/
-
-/* Conventions:
-* All entry points required by GASNet spec are lower-case identifiers with the prefix gasnet_ 
-* All constants required by GASNet spec are upper-case and preceded with the prefix GASNET_
-* All private symbols in the reference extended API implementation are prefixed with gasnete_ (or GASNETE_ for macros)
-* All private symbols in a core API implementation are prefixed with gasnetc_ (or GASNETC_ for macros)
-* All private symbols shared throughout GASNet are prefixed with gasneti_ (or GASNETI_ for macros)
-* All GASNET_ or GASNETI_ configuration selection macros are either #defined to 1 or #undef'd
 */
 
 /* ------------------------------------------------------------------------------------ */

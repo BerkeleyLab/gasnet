@@ -1,5 +1,5 @@
-/* $Id: gasnet_core.c,v 1.45.2.4 2004/06/27 18:30:36 bonachea Exp $
- * $Date: 2004/06/27 18:30:36 $
+/* $Id: gasnet_core.c,v 1.45.2.5 2004/07/04 22:53:10 bonachea Exp $
+ * $Date: 2004/07/04 22:53:10 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -38,6 +38,8 @@ gasnetc_state_t _gmc;
 gasnet_handlerentry_t const		*gasnetc_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable();
+
+static void gasnetc_atexit(void);
 
 /*
   Initialization
@@ -125,6 +127,9 @@ gasnetc_init(int *argc, char ***argv)
 	#else
 		#error Bad segment config
 	#endif
+
+	/* Handler for non-collective returns from main() */
+	atexit(gasnetc_atexit);
 
 	gasneti_init_done = 1;
 	gasneti_trace_init(*argc, *argv);
@@ -299,12 +304,23 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			    "Error registering extended reference API handlers");
 	    	gasneti_assert(er_numreg == er_len);
 	
+#if 0
 		if (gasnetc_reghandlers(etable, e_len, 64+er_len, 127, 0, 
 		    &e_numreg) != GASNET_OK)
 			GASNETI_RETURN_ERRR(RESOURCE,
 			    "Error registering extended API handlers");
 	    	gasneti_assert(e_numreg == e_len);
-		fidx = 64+er_len+e_len;
+		fidx = 64+er_len_e_len;
+#else
+		/* This deals with the non-contiguous allocation of handlers by the ref collectives.
+		 * XXX: a better solution is needed */
+		if (gasnetc_reghandlers(etable, e_len, 1+ertable[er_len-1].index, 127, 0, 
+		    &e_numreg) != GASNET_OK)
+			GASNETI_RETURN_ERRR(RESOURCE,
+			    "Error registering extended API handlers");
+	    	gasneti_assert(e_numreg == e_len);
+		fidx = 1+etable[e_len-1].index;
+#endif
 	}
 	{ /* firehose handlers */
 		gasnet_handlerentry_t *ftable = firehose_get_handlertable();
