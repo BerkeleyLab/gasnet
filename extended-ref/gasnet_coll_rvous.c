@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_refcoll.c $
- *     $Date: 2004/05/26 00:38:03 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2004/05/26 05:20:59 $
+ * $Revision: 1.1.2.21 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -239,7 +239,7 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
     void gasnete_coll_op_table_ins(gasnete_coll_op_t *op) {
       unsigned int slot_nr = GASNETE_COLL_TABLE_SLOT(op->team, op->sequence);
       gasnete_coll_op_t *head = &(gasnete_coll_table[slot_nr]);
-      
+
       /* Add to circular doubly linked hash bucket */
       op->table_next = head;
       op->table_prev = head->table_prev;
@@ -266,7 +266,7 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
       /* EMPTY */
     }
 #endif
-#endif 
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* The list of active collective ops (coll ops) */
@@ -318,7 +318,7 @@ gasnet_hsl_t gasnete_coll_table_lock = GASNET_HSL_INITIALIZER;
       op->active_prev_p = td->active_tail_p;
       td->active_tail_p = &(op->active_next);
     }
-                                                                                                              
+
     void gasnete_coll_active_del(gasnete_coll_op_t *op) {
       gasnete_coll_op_t *next = op->active_next;
       *(op->active_prev_p) = next;
@@ -363,7 +363,7 @@ static gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
     /* Default implementation of aggregation/filtering */
 
     /* XXX: how will teams interact w/ aggregation? */
-    
+
     static gasnete_coll_op_t *gasnete_coll_agg = NULL;
 
     gasnet_coll_handle_t
@@ -461,7 +461,7 @@ static gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
         gasnete_coll_op_destroy(op);
       }
     }
-#endif 
+#endif
 
 /*---------------------------------------------------------------------------------*/
 gasnete_coll_op_t *
@@ -485,7 +485,7 @@ gasnete_coll_op_create(gasnete_coll_team_t team, uint32_t sequence, unsigned int
   op->handle   = GASNET_COLL_INVALID_HANDLE;
   gasnet_hsl_init(&op->lock);
   op->poll_fn  = (gasnete_coll_poll_fn)NULL;
-  
+
   /* The aggregation and 'data' fields are setup elsewhere */
 
   return op;
@@ -516,7 +516,7 @@ void gasnete_coll_poll(void) {
     if (poll_result != 0) {
       gasnete_coll_op_complete(op, poll_result);
     }
-    
+
     /* Next... */
     op = next;
   }
@@ -529,7 +529,7 @@ extern void gasnete_coll_init(const size_t images[],
   int i;
 
   GASNETI_CHECKATTACH();
-  
+
   /* Sanity checks - performed only for debug builds */
   #if GASNET_DEBUG
     if (gasnete_coll_init_done) {
@@ -735,7 +735,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       if (data->out.enable) {
         data->out.barrier = gasnete_coll_consensus_create();
       }
-      
+
       /* Conditionally allocate a handle */
       if_pt (!(flags & GASNET_COLL_AGGREGATE)) {
         handle = gasnete_coll_handle_create();
@@ -830,7 +830,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	    data->handle = gasnet_end_nbi_accessregion();
 
 	    /* Do local copy LAST, perhaps overlapping with communication */
-	    GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes); 
+	    GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
 	  }
 	  data->state = 1;
 
@@ -898,21 +898,29 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	    break;
 	  }
 
-	  gasnet_begin_nbi_accessregion();
-	  {
-            int i;
-	    void * const *p = args->dstlist + gasnete_coll_my_1st_image;
-	    for (i = 0; i < gasnete_coll_my_images; ++i, ++p) {
-	      gasnet_get_nbi_bulk(*p, args->srcnode, args->src, args->nbytes);
-	    }
-	  }
-	  data->handle = gasnet_end_nbi_accessregion();
-	  data->state = 1;
+          /* Get only the 1st local image */
+          data->handle = gasnet_get_nb_bulk(args->dstlist[gasnete_coll_my_1st_image],
+                                            args->srcnode, args->src, args->nbytes);
+          data->state = 1;
 
-	case 1:
+        case 1:
           if (!gasnete_coll_generic_syncnb(data)) {
-	    break;
-	  }
+            break;
+          }
+
+          /* Copy our 1st image to any additional images */
+          if (gasnete_coll_my_images > 1) {
+            size_t nbytes = args->nbytes;
+            void *p0 = args->dstlist[gasnete_coll_my_1st_image];
+            void * const *p = args->dstlist + gasnete_coll_my_1st_image + 1;
+            int i;
+
+            /* XXX: for large sizes we should segment this in-memory broadcast */
+            for (i = 1; i < gasnete_coll_my_images; ++i, ++p) {
+              GASNETE_FAST_UNALIGNED_MEMCPY(*p, p0, nbytes);
+            }
+          }
+
 	  data->state = 2;
 
 	case 2:
@@ -979,7 +987,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
 	    p = args->dstlist + gasnete_coll_my_1st_image;
 	    limit = gasnete_coll_my_images;
 	    for (j = 0; j < limit; ++j) {
-	      GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes); 
+	      GASNETE_FAST_UNALIGNED_MEMCPY(*p, src, nbytes);
 	      ++p;
 	    }
 	  }
@@ -1030,7 +1038,7 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, unsigned int flags,
       data->out.enable  = (GASNETE_COLL_OUT_MODE(flags) != GASNET_COLL_OUT_NOSYNC);
 
       /* XXX: multiple choice here */
-      poll_fn = &gasnete_coll_pf_bcastM_Put;
+      poll_fn = &gasnete_coll_pf_bcastM_Get;
 
       return gasnete_coll_op_generic_init(team, flags, data, poll_fn, 0, td);
     }
