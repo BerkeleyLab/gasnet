@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2004/03/09 02:20:51 $
- * $Revision: 1.39 $
+ *     $Date: 2004/04/20 17:16:51 $
+ * $Revision: 1.39.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -333,40 +333,52 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
       return retval;
     }
     #define GASNETI_HAVE_ATOMIC_SWAP 1
-  #else
-    #define GASNETI_HAVE_ATOMIC_SWAP 0
   #endif
-#elif (defined (_POWERPC) || defined(__POWERPC__)) && defined(__GNUC__)
-  GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
-  int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
-    register uint32_t result;
-    register uint32_t temp;
-
-    __asm__ __volatile__ ( 
-	"lwarx    %1,0,%2 \n\t" 	/* load to temp */
-	"cmpw     cr0,%1,%3 \n\t"	/* compare temp to oldval */
-	"bne-     1f \n\t"		/* branch on mismatch */
-	#ifdef __PPC405__ 
-	  "sync \n\t" 
-	#endif 
-	"stwcx.   %4,0,%2 \n"	 	/* store newval */
+#elif (defined (__ppc__) || defined(_POWERPC)) 
+  #if defined(__xlC__)
+    #define GASNETI_HAVE_ATOMIC_SWAP 1
+    static int32_t gasneti_atomic_swap_not_32(volatile int32_t *v, int32_t oldval, int32_t newval);
+    #pragma mc_func gasneti_atomic_swap_not_32 {\
+	/* ARGS: r3 = p, r4=oldval, r5=newval   LOCAL: r2 = tmp */ \
+	"7c401828"	/* 0: lwarx	r2,0,r3		*/ \
+	"7c422279"	/*    xor.	r2,r2,r4	*/ \
+	"40820010"	/*    bne	1f		*/ \
+	"7ca0192d"	/*    stwcx.	r5,0,r3		*/ \
+	"40a2fff0"	/*    bne-	0b		*/ \
+	"4c00012c"	/*    isync			*/ \
+	"7c431378"	/* 1: mr	r3,r2		*/ \
+	/* RETURN in r3 = 0 iff swap took place */ \
+    }
+    #define gasneti_atomic_swap(p, oldval, newval) \
+	(gasneti_atomic_swap_not_32(&((p)->ctr),(oldval),(newval)) == 0)
+  #elif defined(__GNUC__)
+    GASNET_INLINE_MODIFIER(gasneti_atomic_swap)
+    int gasneti_atomic_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+      register uint32_t result;
+      __asm__ __volatile__ (
+	"0:\t"
+	"lwarx    %0,0,%1 \n\t"         /* load to result */
+	"xor.     %0,%0,%2 \n\t"        /* xor result w/ oldval */
+	"bne      1f \n\t"              /* branch on mismatch */
+	"stwcx.   %3,0,%1 \n\t"         /* store newval */
+	"bne-     0b \n\t"              /* retry on conflict */
+	"isync \n"
 	"1:\t"
-	/* convert condition code to int w/ additional branch: */
-	"mfcr     %1 \n\t"		/* move CR to temp */
-	"rlwinm   %0,%1,3,31,31"	/* extract the CR0[EQ] bit from temp */
-	: "=&r"(result), "=&r"(temp)
+	: "=&r"(result)
 	: "r" (p), "r"(oldval), "r"(newval)
-	: "cr0", "memory"); 
+	: "cr0", "memory");
 
-      return result; 
-  } 
-  #define GASNETI_HAVE_ATOMIC_SWAP 1
-#else
+      return (result == 0);
+    } 
+    #define GASNETI_HAVE_ATOMIC_SWAP 1
+  #endif
+#endif
+#ifndef GASNETI_HAVE_ATOMIC_SWAP
   #define GASNETI_HAVE_ATOMIC_SWAP 0
 #endif
 
 #if !GASNETI_HAVE_ATOMIC_SWAP
-  #warning "It would be a good idea to add gasneti_atomic_swap for your arch/OS"
+  #warning "It would be a good idea to add gasneti_atomic_swap for your arch/OS/compiler"
 #endif 
 
 /* ------------------------------------------------------------------------------------ */
