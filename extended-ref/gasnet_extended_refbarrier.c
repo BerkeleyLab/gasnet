@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2004/08/30 05:04:44 $
- * $Revision: 1.8.2.2 $
+ *     $Date: 2004/09/12 03:55:23 $
+ * $Revision: 1.8.2.3 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -84,11 +84,13 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
      * In subsequent steps we check for mismatch of received values.
      * The local value is compared in the kick function.
      */
-    if (flags == 0 && !ambarrier_recv_value_present[phase]) {
+    if (!(flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
+        !ambarrier_recv_value_present[phase]) {
       ambarrier_recv_value_present[phase] = 1;
       ambarrier_recv_value[phase] = (int)value;
-    } else if (flags == GASNET_BARRIERFLAG_MISMATCH ||
-               (flags == 0 && ambarrier_recv_value[phase] != (int)value)) {
+    } else if ((flags & GASNET_BARRIERFLAG_MISMATCH) ||
+               (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+                 ambarrier_recv_value[phase] != (int)value)) {
       ambarrier_mismatch[phase] = 1;
     }
     
@@ -147,7 +149,7 @@ static void gasnete_ambarrier_kick() {
 	  gasneti_assert(peer < gasnete_nodes);
 	}
 
-	if ((ambarrier_flags == GASNET_BARRIERFLAG_ANONYMOUS) &&
+	if ((ambarrier_flags & GASNET_BARRIERFLAG_ANONYMOUS) &&
 	    ambarrier_recv_value_present[phase]) {
 	  /* If we are on an node with an anonymous barrier invocation we
 	   * may have received a barrier name from another node.  If so we
@@ -320,11 +322,13 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
 
   gasnet_hsl_lock(&ambarrier_lock);
   { int count = ambarrier_count[phase];
-    if (flags == 0 && !ambarrier_consensus_value_present[phase]) {
+    if (!(flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
+        !ambarrier_consensus_value_present[phase]) {
       ambarrier_consensus_value[phase] = (int)value;
       ambarrier_consensus_value_present[phase] = 1;
-    } else if (flags == GASNET_BARRIERFLAG_MISMATCH ||
-               (flags == 0 && ambarrier_consensus_value[phase] != (int)value)) {
+    } else if ((flags & GASNET_BARRIERFLAG_MISMATCH) ||
+               (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+                ambarrier_consensus_value[phase] != (int)value)) {
       ambarrier_consensus_mismatch[phase] = 1;
     }
     count++;

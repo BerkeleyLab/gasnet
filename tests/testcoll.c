@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2004/09/01 20:23:04 $
- * $Revision: 1.4.2.2 $
+ *     $Date: 2004/09/12 03:55:31 $
+ * $Revision: 1.4.2.3 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,10 +19,6 @@
 
 #define PRINT_LATENCY 0
 #define PRINT_THROUGHPUT 1
-
-#ifndef GASNET_ALIGNED_SEGMENTS
- #error "This test requires aligned segments"
-#endif
 
 int myproc;
 int numprocs;
@@ -280,15 +276,22 @@ int main(int argc, char **argv)
     GASNET_Safe(gasnet_init(&argc, &argv));
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
 
+    /* get SPMD info */
+    myproc = gasnet_mynode();
+    numprocs = gasnet_nodes();
+
+#if GASNET_ALIGNED_SEGMENTS != 1
+    if (myproc == 0) {
+	printf("This test currently requires aligned segments - exiting w/o running the test\n");
+    }
+#else
+
     if (argc > 1) {
       iters = atoi(argv[1]);
     }
     if (iters < 1) {
       iters = 1000;
     }
-    /* get SPMD info */
-    myproc = gasnet_mynode();
-    numprocs = gasnet_nodes();
     
     if (myproc == 0) {
 	printf("Running coll test(s) with %d iterations.\n", iters);
@@ -353,6 +356,7 @@ int main(int argc, char **argv)
     BARRIER();
 
     MSG("done.");
+#endif	/* Aligned segments */
 
     gasnet_exit(0);
 

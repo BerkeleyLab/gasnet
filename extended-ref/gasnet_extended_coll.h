@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_coll.h,v $
- *     $Date: 2004/09/07 23:15:37 $
- * $Revision: 1.7.2.2 $
+ *     $Date: 2004/09/12 03:55:23 $
+ * $Revision: 1.7.2.3 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -383,7 +383,7 @@ _gasnete_coll_get_threaddata(void *thread) {
 	void				*reserved_for_core;
 	gasnete_coll_threaddata_t	*reserved_for_coll;
 	/* We don't care about the rest */
-    } *thread_local = thread;
+    } *thread_local = (struct _prefix_of_gasnete_threaddata *)thread;
     gasnete_coll_threaddata_t *result = thread_local->reserved_for_coll;
 
     if_pf (result == NULL)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/08/30 06:57:54 $
- * $Revision: 1.17.2.4 $
+ *     $Date: 2004/09/12 03:55:25 $
+ * $Revision: 1.17.2.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1164,11 +1164,13 @@ void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 	 */
 	{
 	    int count = barrier_count[phase];
-	    if (u->flags == 0 && !barrier_consensus_value_present[phase]) {
+	    if (!(u->flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
+                !barrier_consensus_value_present[phase]) {
 		barrier_consensus_value[phase] = (int)value;
 		barrier_consensus_value_present[phase] = 1;
-	    } else if (u->flags == GASNET_BARRIERFLAG_MISMATCH ||
-		       (u->flags == 0 && barrier_consensus_value[phase] != (int)value)) {
+	    } else if ((u->flags & GASNET_BARRIERFLAG_MISMATCH) ||
+		       (!(u->flags & GASNET_BARRIERFLAG_ANONYMOUS) 
+                        && barrier_consensus_value[phase] != (int)value)) {
 		barrier_consensus_mismatch[phase] = 1;
 	    }
 	    barrier_count[phase] = count+1;

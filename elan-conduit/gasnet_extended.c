@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2004/08/30 06:57:46 $
- * $Revision: 1.32.2.4 $
+ *     $Date: 2004/09/12 03:55:21 $
+ * $Revision: 1.32.2.5 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1436,6 +1436,7 @@ typedef struct {
 } gasnete_barrier_state_t;
 static gasnete_barrier_state_t *barrier_state = NULL;
 static int volatile barrier_blocking = 0;
+static int barrier_phase = 0;
 int gasnete_barrier_poll(void *handle, unsigned int *ready) {
   if_pf (barrier_blocking && !GASNETC_EXITINPROGRESS()) {
     UNLOCK_ELAN_WEAK();
@@ -1463,14 +1464,16 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
 
 extern void gasnete_barrier_init() {
   #ifdef ELAN_VER_1_2
-    barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, sizeof(gasnete_barrier_state_t));
+    barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, 2*sizeof(gasnete_barrier_state_t));
   #else
-    barrier_state = elan_gallocMain(BASE(), GROUP(), 64, sizeof(gasnete_barrier_state_t));
+    barrier_state = elan_gallocMain(BASE(), GROUP(), 64, 2*sizeof(gasnete_barrier_state_t));
   #endif
   if_pf(barrier_state == NULL) 
     gasneti_fatalerror("error allocating barrier_state buffer in gasnete_barrier_init()");
-  barrier_state->barrier_value = 0;
-  barrier_state->barrier_flags = 0;
+  barrier_state[0].barrier_value = 0;
+  barrier_state[0].barrier_flags = 0;
+  barrier_state[1].barrier_value = 0;
+  barrier_state[1].barrier_flags = 0;
 
   #if ELAN_VERSION_GE(1,4,8)
     elan_addProgressFn(STATE(), (ELAN_PROGFN)gasnete_barrier_poll, NULL);
@@ -1480,17 +1483,19 @@ extern void gasnete_barrier_init() {
 }
 
 extern void gasnete_barrier_notify(int id, int flags) {
+  int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == INSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
+  phase = barrier_phase;
 
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
   #if GASNETI_STATS_OR_TRACE
     barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
 
-  barrier_state->barrier_value = id;
-  barrier_state->barrier_flags = flags;
+  barrier_state[phase].barrier_value = id;
+  barrier_state[phase].barrier_flags = flags;
 
   if (gasnete_nodes > 1) {
     LOCK_ELAN_WEAK();
@@ -1502,12 +1507,12 @@ extern void gasnete_barrier_notify(int id, int flags) {
       */
     #if GASNETE_FAST_ELAN_BARRIER
       if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
-        if_pf(flags == GASNET_BARRIERFLAG_MISMATCH) {
+        if_pf(flags & GASNET_BARRIERFLAG_MISMATCH) {
           int i;
           barrier_state->barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
           for (i=0; i < gasnete_nodes; i++) {
-            elan_wait(elan_put(STATE(), (int *)&(barrier_state->barrier_flags), 
-                                        (int *)&(barrier_state->barrier_flags),
+            elan_wait(elan_put(STATE(), (int *)&(barrier_state[phase].barrier_flags), 
+                                        (int *)&(barrier_state[phase].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);
           }
         }
@@ -1515,15 +1520,16 @@ extern void gasnete_barrier_notify(int id, int flags) {
       } else
     #endif
       {
-        elan_hbcast(GROUP(), barrier_state, sizeof(gasnete_barrier_state_t), 0, 1);
-        if_pf (flags != barrier_state->barrier_flags || 
-           (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && barrier_state->barrier_value != id) || 
-            flags == GASNET_BARRIERFLAG_MISMATCH) { /* detected a mismatch - tell everybody */
+        elan_hbcast(GROUP(), &(barrier_state[phase]), sizeof(gasnete_barrier_state_t), 0, 1);
+        if_pf (flags != barrier_state[phase].barrier_flags || 
+           (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+             barrier_state[phase].barrier_value != id) || 
+            (flags & GASNET_BARRIERFLAG_MISMATCH)) { /* detected a mismatch - tell everybody */
           int i;
-          barrier_state->barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
+          barrier_state[phase].barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
           for (i=0; i < gasnete_nodes; i++) {
-            elan_wait(elan_put(STATE(), (int *)&(barrier_state->barrier_flags), 
-                                        (int *)&(barrier_state->barrier_flags),
+            elan_wait(elan_put(STATE(), (int *)&(barrier_state[phase].barrier_flags), 
+                                        (int *)&(barrier_state[phase].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);
           }
         }
@@ -1539,12 +1545,15 @@ extern void gasnete_barrier_notify(int id, int flags) {
 }
 
 extern int gasnete_barrier_wait(int id, int flags) {
+  int phase;
   #if GASNETI_STATS_OR_TRACE
     gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
   #endif
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
+  phase = barrier_phase;
+  barrier_phase = !phase;
 
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW()-barrier_notifytime);
 
@@ -1553,9 +1562,10 @@ extern int gasnete_barrier_wait(int id, int flags) {
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
   gasneti_sync_writes(); /* ensure all state changes committed before return */
-  if_pf(barrier_state->barrier_flags == GASNET_ERR_BARRIER_MISMATCH ||
-        flags != barrier_state->barrier_flags ||
-        (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_state->barrier_value)) 
+  if_pf((barrier_state[phase].barrier_flags & GASNET_BARRIERFLAG_MISMATCH) ||
+        flags != barrier_state[phase].barrier_flags ||
+        (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+          id != barrier_state[phase].barrier_value)) 
     return GASNET_ERR_BARRIER_MISMATCH;
   else 
     return GASNET_OK;

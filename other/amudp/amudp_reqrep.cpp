@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2004/08/30 05:05:00 $
- * $Revision: 1.9.2.2 $
+ *     $Date: 2004/09/12 03:55:27 $
+ * $Revision: 1.9.2.3 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -78,7 +78,7 @@ static int sendPacket(ep_t ep, amudp_buf_t *packet, int packetlength, en_t desta
          /* Linux intermittently gets EPERM failures here at startup for no apparent reason -
             so allow a retry */
         #if AMUDP_DEBUG_VERBOSE
-           fprintf(stderr, "Got a '%s' on sendto(), retrying...\n", strerror(errno)); fflush(stderr);
+           WarnMessage("Got a '%s' on sendto(), retrying...\n", strerror(errno)); 
         #endif
         if (sendto(ep->s, (char *)packet, packetlength,
                0, (struct sockaddr *)&destaddress, sizeof(en_t)) != SOCKET_ERROR) goto success;
@@ -291,7 +291,7 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
         if (((ep->rxFreeIdx + 1) % ep->rxNumBufs) == ep->rxReadyIdx) { 
           /* out of buffers - postpone draining */
           #if AMUDP_DEBUG
-            ErrMessage("Receive buffer full - unable to drain network (this is usually caused by retransmissions)");
+            WarnMessage("Receive buffer full - unable to drain network (this is usually caused by retransmissions)");
           #endif
           break;
           }
@@ -817,7 +817,7 @@ static int AMUDP_ServiceIncomingMessages(ep_t ep) {
             {
               int retval;
               #if AMUDP_DEBUG_VERBOSE
-                ErrMessage("Got a duplicate request - resending previous reply.");
+                WarnMessage("Got a duplicate request - resending previous reply.");
               #endif
               retval = sendPacket(ep, replybuf, GET_PACKET_LENGTH(replybuf),
                 ep->perProcInfo[status->sourceId].remoteName, RETRANSMISSION_PACKET);
@@ -833,7 +833,7 @@ static int AMUDP_ServiceIncomingMessages(ep_t ep) {
           amudp_bufdesc_t *desc = GET_REQ_DESC(ep, status->sourceId, instance);
           if (seqnum != desc->seqNum) { /*  duplicate reply, we already ran handler - ignore it */
             #if AMUDP_DEBUG_VERBOSE
-              ErrMessage("Ignoring a duplicate reply.");
+              WarnMessage("Ignoring a duplicate reply.");
             #endif
             goto donewithmessage;
             }

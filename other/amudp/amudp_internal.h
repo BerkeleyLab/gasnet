@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2004/08/30 05:05:00 $
- * $Revision: 1.4.2.2 $
+ *     $Date: 2004/09/12 03:55:27 $
+ * $Revision: 1.4.2.3 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -209,7 +209,23 @@ static int ErrMessage(const char *msg, ...) {
 
   va_end(argptr);
   return retval; // this MUST be only return in this function
-  }
+}
+
+static int WarnMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
+static int WarnMessage(const char *msg, ...) {
+  static va_list argptr;
+  char *expandedmsg = (char *)malloc(strlen(msg)+50);
+  int retval;
+
+  va_start(argptr, msg); // pass in last argument
+  sprintf(expandedmsg, "*** AMUDP WARNING: %s\n", msg);
+  retval = vfprintf(stderr, expandedmsg, argptr);
+  fflush(stderr);
+  free(expandedmsg);
+
+  va_end(argptr);
+  return retval; // this MUST be only return in this function
+}
 
 #include <assert.h>
 #undef assert
@@ -389,32 +405,41 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
  
 
 #if USE_ASYNC_TCP_CONTROL
+  #if AMUDP_DEBUG
+   #define ASYNC_CHECK(enabled) do { \
+      int flags = fcntl(AMUDP_SPMDControlSocket, F_GETFL, 0);\
+      if ((enabled && (flags & (O_ASYNC|O_NONBLOCK)) != (O_ASYNC|O_NONBLOCK)) || \
+         (!enabled && (flags & (O_ASYNC|O_NONBLOCK)) != 0)) {\
+        ErrMessage("Failed to modify O_ASYNC|O_NONBLOCK flags in fcntl - try disabling USE_ASYNC_TCP_CONTROL");\
+        abort();\
+      }\
+    } while (0)
+  #else
+   #define ASYNC_CHECK(enabled) ((void)0)
+  #endif
   #define ASYNC_TCP_ENABLE() do { \
     if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, O_ASYNC|O_NONBLOCK)) { \
       perror("fcntl(F_SETFL, O_ASYNC|O_NONBLOCK)");\
       ErrMessage("Failed to fcntl(F_SETFL, O_ASYNC|O_NONBLOCK) on TCP control socket - try disabling USE_ASYNC_TCP_CONTROL");\
       abort();\
-      }\
+    } else ASYNC_CHECK(1); \
     if (inputWaiting(AMUDP_SPMDControlSocket)) /* check for arrived messages */ \
       AMUDP_SPMDIsActiveControlSocket = 1;                                      \
     } while(0)
 
-  #define ASYNC_TCP_DISABLE()  do {  \
-    if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, 0)) { \
+  #define _ASYNC_TCP_DISABLE(ignoreerr)  do {  \
+    if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, 0) && !ignoreerr) { \
       perror("fcntl(F_SETFL, 0)");  \
       ErrMessage("Failed to fcntl(F_SETFL, 0) on TCP control socket - try disabling USE_ASYNC_TCP_CONTROL");\
       abort();\
-      }\
-    { int flags = fcntl(AMUDP_SPMDControlSocket, F_GETFL, 0);\
-      if (flags & (O_ASYNC|O_NONBLOCK)) {\
-        ErrMessage("Failed to disable O_ASYNC|O_NONBLOCK flags in fcntl - try disabling USE_ASYNC_TCP_CONTROL");\
-        abort();\
-        }\
-      }\
+    } else if (!ignoreerr) ASYNC_CHECK(0); \
     } while(0)
+  #define ASYNC_TCP_DISABLE()            _ASYNC_TCP_DISABLE(0)
+  #define ASYNC_TCP_DISABLE_IGNOREERR()  _ASYNC_TCP_DISABLE(1)
 #else
-  #define ASYNC_TCP_ENABLE()    do {} while(0)
-  #define ASYNC_TCP_DISABLE() do {} while(0)
+  #define ASYNC_TCP_ENABLE()             ((void)0)
+  #define ASYNC_TCP_DISABLE()            ((void)0)
+  #define ASYNC_TCP_DISABLE_IGNOREERR()  ((void)0)
 #endif
 //------------------------------------------------------------------------------------
 /* *** TIMING *** */

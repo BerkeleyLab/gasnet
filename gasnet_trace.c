@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2004/09/05 01:08:24 $
- * $Revision: 1.50.2.4 $
+ *     $Date: 2004/09/12 03:55:19 $
+ * $Revision: 1.50.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -725,6 +725,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
     typedef struct {
       const char *filename;
       unsigned int linenum;
+      unsigned int frozen;
     } gasneti_srclineinfo_t;
     GASNET_INLINE_MODIFIER(gasneti_mysrclineinfo)
     gasneti_srclineinfo_t *gasneti_mysrclineinfo() {
@@ -741,6 +742,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
     }
     void gasneti_trace_setsourceline(const char *filename, unsigned int linenum) {
       gasneti_srclineinfo_t *sli = gasneti_mysrclineinfo();
+      if_pf (sli->frozen > 0) return;
       if_pt (filename) sli->filename = filename;
       sli->linenum = linenum;
     }
@@ -749,9 +751,19 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
       *pfilename = sli->filename;
       *plinenum = sli->linenum;
     }
+    extern void gasneti_trace_freezesourceline() {
+      gasneti_srclineinfo_t *sli = gasneti_mysrclineinfo();
+      sli->frozen++;
+    }
+    extern void gasneti_trace_unfreezesourceline() {
+      gasneti_srclineinfo_t *sli = gasneti_mysrclineinfo();
+      gasneti_assert(sli->frozen > 0);
+      sli->frozen--;
+    }
   #else
     const char *gasneti_srcfilename = NULL;
     unsigned int gasneti_srclinenum = 0;
+    unsigned int gasneti_srcfreeze = 0;
   #endif
 
   static char *gasneti_getbuf() {
@@ -845,11 +857,9 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
     return retval;
   }
 
-  #define GASNETI_TRACEFILE_FLUSH(fp) do {               \
-    static int autoflush = -1;                           \
-    if_pf (autoflush == -1)                              \
-      autoflush = !!gasnet_getenv("GASNET_TRACEFLUSH");  \
-    if (autoflush) fflush(fp);                           \
+  static int gasneti_autoflush = 0;
+  #define GASNETI_TRACEFILE_FLUSH(fp) do {  \
+    if (gasneti_autoflush) fflush(fp);      \
   } while (0)
 
   /* private helper for gasneti_trace/stats_output */
@@ -1031,6 +1041,8 @@ extern void gasneti_trace_init(int argc, char **argv) {
       types++;
     }
   }
+
+  gasneti_autoflush = !!gasnet_getenv("GASNET_TRACEFLUSH");
 
   { /* setup tracefile */
     char *tracefilename = gasnet_getenv("GASNET_TRACEFILE");

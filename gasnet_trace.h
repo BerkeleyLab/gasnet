@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2004/08/30 06:57:42 $
- * $Revision: 1.18.2.4 $
+ *     $Date: 2004/09/12 03:55:19 $
+ * $Revision: 1.18.2.5 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -112,11 +112,15 @@ BEGIN_EXTERNC
   #if GASNETI_CLIENT_THREADS
     extern void gasneti_trace_setsourceline(const char *filename, unsigned int linenum);
     extern void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum);
+    extern void gasneti_trace_freezesourceline();
+    extern void gasneti_trace_unfreezesourceline();
   #else
     extern const char *gasneti_srcfilename;
     extern unsigned int gasneti_srclinenum;
+    extern unsigned int gasneti_srcfreeze;
     GASNET_INLINE_MODIFIER(gasneti_trace_setsourceline)
     void gasneti_trace_setsourceline(const char *filename, unsigned int linenum) {
+      if_pf (gasneti_srcfreeze > 0) return;
       if_pt (filename != NULL) gasneti_srcfilename = filename;
       gasneti_srclinenum = linenum;
     }
@@ -125,14 +129,29 @@ BEGIN_EXTERNC
       *pfilename = gasneti_srcfilename;
       *plinenum = gasneti_srclinenum;
     }
+    GASNET_INLINE_MODIFIER(gasneti_trace_freezesourceline)
+    void gasneti_trace_freezesourceline() {
+      gasneti_srcfreeze++;
+    }
+    GASNET_INLINE_MODIFIER(gasneti_trace_unfreezesourceline)
+    void gasneti_trace_unfreezesourceline() {
+      gasneti_assert(gasneti_srcfreeze > 0);
+      gasneti_srcfreeze--;
+    }
   #endif
-    #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) \
+  #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) \
       (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_setsourceline(filename, linenum) : ((void)0))
-    #define GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum) \
+  #define GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum) \
       (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_getsourceline(pfilename, plinenum) : ((void)0))
+  #define GASNETI_TRACE_FREEZESOURCELINE() \
+      (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_freezesourceline() : ((void)0))
+  #define GASNETI_TRACE_UNFREEZESOURCELINE() \
+      (GASNETI_TRACE_ENABLED(N) ? gasneti_trace_unfreezesourceline() : ((void)0))
 #else
   #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) ((void)0)
   #define GASNETI_TRACE_GETSOURCELINE(pfilename, plinenum) ((void)0)
+  #define GASNETI_TRACE_FREEZESOURCELINE() 
+  #define GASNETI_TRACE_UNFREEZESOURCELINE()
 #endif
 
 /* ------------------------------------------------------------------------------------ */

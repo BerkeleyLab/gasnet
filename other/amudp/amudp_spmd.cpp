@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2004/08/30 05:05:00 $
- * $Revision: 1.5.2.3 $
+ *     $Date: 2004/09/12 03:55:27 $
+ * $Revision: 1.5.2.4 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -1325,7 +1325,7 @@ extern "C" {
 
 /* shutdown this process */
 static int AMUDP_SPMDShutdown(int exitcode) {
-  ASYNC_TCP_DISABLE();
+  ASYNC_TCP_DISABLE_IGNOREERR(); /* (bug 765) prevent race where master has already reset async control socket */
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
   { static int shutdownInProgress = FALSE;
     if (shutdownInProgress) abort(); 
@@ -1344,19 +1344,19 @@ static int AMUDP_SPMDShutdown(int exitcode) {
 
   if (fclose(stdin)) {
   #if AMUDP_DEBUG_VERBOSE
-    ErrMessage("failed to fclose stdin in AMUDP_SPMDExit()"); 
+    WarnMessage("failed to fclose stdin in AMUDP_SPMDExit()"); 
     perror("fclose");
   #endif
   }
   if (fclose(stdout)) {
   #if AMUDP_DEBUG_VERBOSE
-    ErrMessage("failed to fclose stdout in AMUDP_SPMDExit()"); 
+    WarnMessage("failed to fclose stdout in AMUDP_SPMDExit()"); 
     perror("fclose");
   #endif
   }
   if (fclose(stderr)) {
   #if AMUDP_DEBUG_VERBOSE
-    ErrMessage("failed to fclose stderr in AMUDP_SPMDExit()"); 
+    WarnMessage("failed to fclose stderr in AMUDP_SPMDExit()"); 
     perror("fclose");
   #endif
   }
@@ -1394,7 +1394,7 @@ extern int AMUDP_SPMDExit(int exitcode) {
   DEBUG_SLAVE("AMUDP_SPMDExit");
   if (!AMUDP_SPMDStartupCalled) AMUDP_RETURN_ERR(NOT_INIT);
 
-  ASYNC_TCP_DISABLE();
+  ASYNC_TCP_DISABLE_IGNOREERR(); /* (bug 765) prevent race where master has already reset async control socket */
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
   { static int exitInProgress = FALSE;
     if (exitInProgress) abort(); 
