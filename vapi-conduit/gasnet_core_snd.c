@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_snd.c                  $
- *     $Date: 2003/04/14 23:02:50 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2003/04/15 21:08:04 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet vapi conduit implementation, send side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -53,16 +53,51 @@ void gasnetc_put_sbuf(gasnetc_sbuf_t *sbuf) {
   pthread_mutex_unlock(&gasnetc_sbuf_lock);
 }
 
+/* Try to pull completed entries from the send CQ (if any). */
+GASNET_INLINE_MODIFIER(gasnetc_snd_reap)
+void gasnetc_snd_reap(void) {
+  int count;
+  
+  for (count = 0; count < GASNETC_SND_REAP_LIMIT; ++count) {
+    VAPI_ret_t vstat;
+    VAPI_wc_desc_t comp;
+
+    vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
+    if (vstat == VAPI_OK) {
+      if (comp.status == VAPI_SUCCESS) {
+        gasnetc_sbuf_t *sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
+        if (sbuf) {
+          if (sbuf->local_counter) gasneti_atomic_decrement(sbuf->local_counter);
+          if (sbuf->remote_counter) gasneti_atomic_decrement(sbuf->remote_counter);
+          gasnetc_put_sbuf(sbuf);
+        } else {
+          fprintf(stderr, "@ %d> snd_reap reaped NULL sbuf\n", gasnetc_mynode);
+        }
+      } else {
+#if 1 
+        fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
+        while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
+          fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
+        }
+#endif
+        /* ### What needs to be done here? */
+      }
+    } else {
+      assert(vstat == VAPI_CQ_EMPTY);
+      break;
+    }
+  }
+}
+
 /* allocate a send buffer pair */
 GASNET_INLINE_MODIFIER(gasnetc_get_sbuf)
 gasnetc_sbuf_t *gasnetc_get_sbuf(void) {
   gasnetc_sbuf_t *sbuf;
 
   while (1) {
-    /* Try to reap an sbuf from the send CQ.  */
-    gasnetc_snd_poll();
+    gasnetc_snd_reap();
 
-    /* Now try to get an unused sbuf from the free list */
+    /* try to get an unused sbuf from the free list */
     pthread_mutex_lock(&gasnetc_sbuf_lock);
     sbuf = gasnetc_sbuf_pool;
     if (sbuf != NULL) {
@@ -122,7 +157,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
   case gasnetc_Long:
     /* XXX check for error returns */
-    (void)gasnetc_rdma_put(dest, (uintptr_t)src_addr, (uintptr_t)dst_addr, nbytes, local_counter, NULL);
+    (void)gasnetc_rdma_put(dest, src_addr, dst_addr, nbytes, local_counter, NULL);
     args = buf->longmsg.args;
     buf->longmsg.destLoc = (uintptr_t)dst_addr;
     buf->longmsg.nBytes  = nbytes;
@@ -204,49 +239,25 @@ extern void gasnetc_snd_fini(void) {
 }
 
 /*
- * Try to pull one completed entry from the send CQ (if any).
- */
-extern void gasnetc_snd_poll(void) {
-  gasnetc_sbuf_t *sbuf = NULL;
-  VAPI_wc_desc_t comp;
-  VAPI_ret_t vstat;
-
-  vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_snd_cq, &comp);
-  if (vstat == VAPI_OK) {
-    if (comp.status == VAPI_SUCCESS) {
-      sbuf = (gasnetc_sbuf_t *)(uintptr_t)comp.id;
-      if (sbuf) {
-        if (sbuf->local_counter) gasneti_atomic_decrement(sbuf->local_counter);
-        if (sbuf->remote_counter) gasneti_atomic_decrement(sbuf->remote_counter);
-        gasnetc_put_sbuf(sbuf);
-      } else {
-        fprintf(stderr, "@ %d> snd_poll reaped NULL sbuf\n");
-      }
-    } else {
-#if 1 
-      fprintf(stderr, "@ %d> snd comp.status=%d\n", gasnetc_mynode, comp.status);
-      while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
-        fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasnetc_mynode, comp.status);
-      }
-#endif
-      /* ### What needs to be done here? */
-    }
-  } else {
-    assert(vstat == VAPI_CQ_EMPTY);
-  }
-}
-
-/*
  * Block until a given counter is marked as done
  */
 extern void gasnetc_rdma_wait(gasneti_atomic_t *counter) {
-  if (gasneti_atomic_read(counter) != 0) {
-    gasnetc_snd_poll();
-    while (gasneti_atomic_read(counter) != 0) {
-      sched_yield();
-      gasnetc_snd_poll();
-    }
+  gasnetc_snd_reap();
+  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p has value %d", counter, (int)gasneti_atomic_read(counter)));
+  while (gasneti_atomic_read(counter) != 0) {
+    sched_yield();
+    gasnetc_snd_reap();
   }
+  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_wait: counter %p is done", counter));
+}
+
+/*
+ * Check if a given counter is marked as done
+ */
+extern int gasnetc_rdma_poll(gasneti_atomic_t *counter) {
+  gasnetc_snd_reap();
+  GASNETI_TRACE_PRINTF(C, ("gasnetc_rdma_poll: counter %p has value %d", counter, (int)gasneti_atomic_read(counter)));
+  return !gasneti_atomic_read(counter);
 }
 
 /* Perform an RDMA put
@@ -254,20 +265,24 @@ extern void gasnetc_rdma_wait(gasneti_atomic_t *counter) {
  * Uses bounce buffers when the source is not pinned, or is "small enough" and the caller is
  * planning to wait for local completion.  Otherwise zero-copy is used when the source is pinned.
  */
-extern int gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, size_t nbytes, gasneti_atomic_t *local_counter, gasneti_atomic_t *remote_counter) {
+extern int gasnetc_rdma_put(int dest, void *src_ptr, void *dst_ptr, size_t nbytes, gasneti_atomic_t *local_counter, gasneti_atomic_t *remote_counter) {
   gasnetc_cep_t *cep = &gasnetc_cep[dest];
   gasnetc_sbuf_t *sbuf;
+  uintptr_t src, dst;
   int force_copy;
   int rc;
 
   if (dest == gasnetc_mynode) {
-    memcpy((void *)dst, (void *)src, nbytes);
+    memcpy(dst_ptr, src_ptr, nbytes);
     return 0;
   }
 
   /* If the caller will wait on local completion, then for small transfers it is best to just
    * perform the copy locally and allow the caller to proceed */
   force_copy = ((local_counter != NULL) && (nbytes <= GASNETC_PUT_COPY_LIMIT));
+
+  src = (uintptr_t)src_ptr;
+  dst = (uintptr_t)dst_ptr;
 
   #if defined(GASNET_SEGMENT_FAST)
   { 
