@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.6 2004/01/05 05:04:10 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.7 2004/02/19 08:53:04 bonachea Exp $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -30,7 +30,8 @@ EXTRA_DIST = $(filelist) \
 libgasnet_sources = $(srcdir)/gasnet_core_internal.c $(srcdir)/gasnet_core.c $(othersourcefiles)
 libgasnet_dependencies = $(filelist) $(libgasnet_sources) \
                          $(top_srcdir)/*.[ch]             \
-                         $(top_srcdir)/extended-ref/*.h       
+                         $(top_srcdir)/extended-ref/*.[ch] 
+
 libgasnet_objects = gasnet_core_internal.o gasnet_core.o gasnet_internal.o gasnet_extended.o 
 
 if HAVE_PTHREAD
@@ -88,8 +89,10 @@ install-data-local: $(headers)
 	@list='$(headers)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
+            if test "$$filename" = "`basename $$p _internal.h`" ; then \
 	    echo " $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/sci-conduit/$$filename"; \
 	    $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/sci-conduit/$$filename; \
+	    else :; fi; \
 	  else :; fi; \
 	done
 	@list='$(makefile_fragments)'; for p in $$list; do \
