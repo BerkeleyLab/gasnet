@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/09/02 09:27:06 $
- * $Revision: 1.2.2.8 $
+ *     $Date: 2004/09/03 23:39:02 $
+ * $Revision: 1.2.2.9 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,14 +69,22 @@ typedef uintptr_t gasnet_register_value_t;
 
   #define GASNETE_SHMPTR_AM(addr,pe) GASNETE_TRANSLATE_X1(addr,pe)
 
+  #ifdef GASNET_SEGMENT_EVERYTHING
+    #define GASNETE_SHMPTR(addr,pe) GASNETE_TRANSLATE_X1(addr,pe)
+  #else
+    #define GASNETE_SHMPTR(addr,pe) (addr)
+  #endif
+
 #elif defined(SGI_SHMEM)
   extern intptr_t   *gasnetc_segment_shptr_off;
 
   #define GASNETE_SHMPTR_AM(addr,pe) (addr)
+  #define GASNETE_SHMPTR(addr,pe) (addr)
 
   #define GASNETE_PRAGMA_IVDEP	  /* no ivdep is useful here */
 #endif
 
+#if 0
 /*
  * A generic approach for load/store based puts and gets.  We define thresholds
  * for which to prefer 
@@ -103,7 +111,14 @@ typedef uintptr_t gasnet_register_value_t;
                bcopy((void *)ptr, TRG, size * sizeof(TYPE));	    \
 	} while (0)
 
-#define gasnete_global_put(dest,src,nbytes)			    \
+#define gasnete_inline_ldst_put(TYPE,TRG,SRC,LEN,PE)	    \
+	    gasnete_inline_ldst_generic(PUT,TYPE,TRG,SRC,LEN,PE)
+
+#define gasnete_inline_ldst_get(TYPE,TRG,SRC,LEN,PE)	    \
+	    gasnete_inline_ldst_generic(GET,TYPE,TRG,SRC,LEN,PE)
+#endif
+
+#define _gasnete_global_ldst(dest,src,nbytes)			    \
 	do {							    \
 	    switch(nbytes) {					    \
 		case 8:						    \
@@ -124,20 +139,17 @@ typedef uintptr_t gasnet_register_value_t;
 	    }							    \
 	} while (0)
 
-#define gasnete_global_get(dest,src,nbytes) gasnete_global_put(dest,src,nbytes)
-
-#define gasnete_inline_ldst_put(TYPE,TRG,SRC,LEN,PE)	    \
-	    gasnete_inline_ldst_generic(PUT,TYPE,TRG,SRC,LEN,PE)
-
-#define gasnete_inline_ldst_get(TYPE,TRG,SRC,LEN,PE)	    \
-	    gasnete_inline_ldst_generic(GET,TYPE,TRG,SRC,LEN,PE)
+#define gasnete_global_get(dest,src,nbytes,pe)			    \
+	    _gasnete_global_ldst(dest,GASNETE_SHMPTR(src,pe),nbytes)
+#define gasnete_global_put(dest,src,nbytes,pe)			    \
+	    _gasnete_global_ldst(GASNETE_SHMPTR(dest,pe),src,nbytes)
 
 /* 
  * Blocking operations map directly to shmem functions
  *
  */
 #ifdef GASNETE_GLOBAL_ADDRESS
-#define gasnete_get(dest,pe,src,nbytes)	gasnete_global_put(dest,src,nbytes)
+#define gasnete_get(dest,pe,src,nbytes)	gasnete_global_get(dest,src,nbytes,pe)
 #else
 #define gasnete_get(dest,pe,src,nbytes) shmem_getmem(dest,src,nbytes,pe)
 #endif
@@ -160,7 +172,7 @@ extern int	    gasnete_handleno_phase;
 
 #ifdef GASNETE_GLOBAL_ADDRESS
 #define gasnete_put_nbi(pe,dest,src,nbytes)		 \
-	    gasnete_global_put(dest,src,nbytes)
+	    gasnete_global_put(dest,src,nbytes,pe)
 #else
 #define gasnete_put_nbi(pe,dest,src,nbytes)		 \
 	    do { shmem_putmem(dest,src,nbytes,pe);	 \
@@ -172,7 +184,7 @@ extern int	    gasnete_handleno_phase;
 
 #ifdef GASNETE_GLOBAL_ADDRESS
 #define gasnete_get_nbi_bulk(dest,pe,src,nbytes)	\
-	    gasnete_global_put(dest,src,nbytes)
+	    gasnete_global_get(dest,src,nbytes,pe)
 #else
 #define gasnete_get_nbi_bulk(dest,pe,src,nbytes)	\
 	    shmem_getmem(dest,src,nbytes,pe)
@@ -181,14 +193,14 @@ extern int	    gasnete_handleno_phase;
 /* get_nbi is already defined as get_nbi_bulk */
 
 #ifdef GASNETE_GLOBAL_ADDRESS
-#define gasnete_put(pe,dest,src,nbytes)	gasnete_global_put(dest,src,nbytes)
+#define gasnete_put(pe,dest,src,nbytes)	gasnete_global_put(dest,src,nbytes,pe)
 
 GASNET_INLINE_MODIFIER(_gasnete_put_nb_bulk)
 gasnet_handle_t 
 _gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, 
 		    size_t nbytes) 
 {
-    memcpy(dest, src, nbytes);
+    memcpy(GASNETE_SHMPTR(dest,node), src, nbytes);
     gasnete_handles[gasnete_handleno_phase] = GASNETE_HANDLE_NB_QUIET;
     return &gasnete_handles[gasnete_handleno_phase];
 }
@@ -209,11 +221,13 @@ _gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src,
 #ifdef GASNETE_GLOBAL_ADDRESS
   extern gasnet_handle_t
          gasnete_global_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes);
-  #define gasnete_memset_nb gasnete_global_memset_nb
+  #define gasnete_memset_nb(node,dest,val,nbytes) \
+	    gasnete_global_memset_nb(node,GASNETE_SHMPTR(dest,node),val,nbytes)
 
   extern void 
   gasnete_global_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes);
-  #define gasnete_memset_nbi gasnete_global_memset_nbi
+  #define gasnete_memset_nbi(node,dest,val,nbytes) \
+	    gasnete_global_memset_nbi(node,GASNETE_SHMPTR(dest,node),val,nbytes)
 #else
   extern gasnet_handle_t
          gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes);
@@ -233,7 +247,7 @@ _gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src,
   gasnet_handle_t 
   _gasnete_get_nb(void *dest, gasnet_node_t node, void *src, size_t nbytes)
   {
-    gasnete_global_get(dest,src,nbytes);
+    gasnete_global_get(dest,src,nbytes,node);
     return (gasnet_handle_t) 0;
   }
 
@@ -241,7 +255,7 @@ _gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src,
   gasnet_handle_t 
   _gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t nbytes)
   {
-    gasnete_global_put(dest,src,nbytes);
+    gasnete_global_put(dest,src,nbytes,node);
     return (gasnet_handle_t) 0;
   }
   #define gasnete_get_nb	_gasnete_get_nb
@@ -307,13 +321,17 @@ _gasnete_get_nb_val(gasnet_node_t node, void *src,
 {
     switch (nbytes) {
 	case 8:
-	    return (gasnet_valget_handle_t) *((uint64_t *) src);
+	    return (gasnet_valget_handle_t) 
+		    *((uint64_t *) GASNETE_SHMPTR(src,node));
 	case 4:
-	    return (gasnet_valget_handle_t) *((uint32_t *) src);
+	    return (gasnet_valget_handle_t) 
+		    *((uint32_t *) GASNETE_SHMPTR(src,node));
 	case 2:
-	    return (gasnet_valget_handle_t) *((uint16_t *) src);
+	    return (gasnet_valget_handle_t) 
+		    *((uint16_t *) GASNETE_SHMPTR(src,node));
 	case 1:
-	    return (gasnet_valget_handle_t) *((uint8_t *) src);
+	    return (gasnet_valget_handle_t) 
+		    *((uint8_t *) GASNETE_SHMPTR(src,node));
 	default:
 	    return (gasnet_valget_handle_t) 0;
 	    #if 0
@@ -422,16 +440,16 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
 {
     switch (nbytes) {
 	case 8:
-	    *((uint64_t *)dest) = (uint64_t)value;
+	    *((uint64_t *)GASNETE_SHMPTR(dest,node)) = (uint64_t)value;
 	    return;
 	case 4:
-	    *((uint32_t *)dest) = (uint32_t)value;
+	    *((uint32_t *)GASNETE_SHMPTR(dest,node)) = (uint32_t)value;
 	    return;
 	case 2:
-	    *((uint16_t *)dest) = (uint16_t)value;
+	    *((uint16_t *)GASNETE_SHMPTR(dest,node)) = (uint16_t)value;
 	    return;
 	case 1:
-	    *((uint8_t *)dest) = (uint8_t)value;
+	    *((uint8_t *)GASNETE_SHMPTR(dest,node)) = (uint8_t)value;
 	    return;
 	default:
 	    #if 0
