@@ -1,0 +1,75 @@
+GASNet ChangeLog
+----------------
+
+----------------------------------------------------------------------
+06-28-2003 : Release 1.2
+
+* Greatly increased the number of platforms supported - notably, this release
+  adds support for FreeBSD, IRIX, HPUX, Solaris, MSWindows-Cygwin and Mac OSX,
+  as well as the SunPro, MIPSPro, Portland Group and Intel C compilers. See the
+  top-level README for the complete list of supported platforms.
+
+* Added the smp-conduit, which implements pure loopback to support GASNet
+  clients on platforms lacking a network.
+
+* Remove 256-node scalability limit - mpi, elan and lapi conduits now
+  theoretically scale to 2^31 nodes. gm conduit scales to 2^16 nodes.
+
+* Merge v0.7 of AMMPI - improved latency performance, better scalability, and
+  fixes for LAM/MPI
+
+* Fix bug 120 - gasnet_exit now reliably kills the entire job on all conduits
+  in various collective and non-collective invocation situations.
+
+* New switches GASNETE_PUTGET_ALWAYSLOCAL and GASNETE_PUTGET_ALWAYSREMOTE which
+  optimize away the locality check for put/gets implemented by
+  gasnete_islocal() 
+
+* Updates to the tracing system - separate statistics from tracing to allow
+  finer user control controlled by new environment variables - GASNET_STATSMASK
+  and GASNET_STATSFILE
+
+* Major cleanup to the gm-conduit bootstrap code
+
+* Internal structural changes to gasnet_extended.h to provide more flexibility
+  for conduit overrides
+
+* Minor wording clarifications to the GASNet spec
+
+* Many minor bug fixes
+
+----------------------------------------------------------------------
+04-17-2003 : Release 1.1
+
+* Added lots of conduit user and design documentation
+* Fix bugs with gasnet_register_value_t functionality, in some cases garbage 
+  was returned by gasnet_get_val() in the upper bytes
+* Fix bug 51 - endianness bugs on gasnet_*_val()
+* Tweak the gcc optimizer settings to ensure that we get full inlining
+* Ensure gasnet_exit() or fatal signals always correctly shut down the global 
+  job (mpi and elan conduits - gm and lapi still have known problems)
+* Add strong configure warnings about using gcc 2.96 - users are highly 
+  recommended to avoid this broken compiler
+* Ensure configure caching is always on
+* Basic infrastructure cleanups to the conduit Makefile fragments
+* Fix a shutdown-time crash when tracing
+* Add GASNET_CONFIG_STRING to spec & implementation and embed it in library
+* Add a number of minor clarifications to the GASNet spec
+* Clean up licensing issues
+
+* elan-conduit: 
+ - fixups for better handling of elan memory exhaustion
+ - preallocate AMLong bounce buffers
+
+* gm-conduit:
+ - various stability fixes
+ - add spawning scripts for gexec and pbs
+
+* mpi-conduit:
+ - add global environment variable exchange to ensure consistent
+   gasnet_getenv() results across nodes
+ - merge AMMPI release 0.6
+
+----------------------------------------------------------------------
+01-29-2003 : Initial Release (1.0)
+
