@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/04/07 23:49:25 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2004/04/09 00:30:36 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -153,8 +153,10 @@ extern void gasnete_coll_poll(void);
   #define gasnet_coll_try_sync	gasnete_coll_try_sync
 #endif
 #ifndef gasnet_coll_wait_sync
-  #define gasnet_coll_wait_sync(handle) \
-    gasneti_waitwhile(gasnet_coll_try_sync(handle) != GASNET_OK)
+  GASNET_INLINE_MODIFIER(gasnet_coll_wait_sync)
+  void gasnet_coll_wait_sync(gasnet_coll_handle_t handle) {
+    gasneti_waitwhile(gasnet_coll_try_sync(handle) != GASNET_OK);
+  }
 #endif
 
 #ifndef gasnet_coll_broadcast_nb
