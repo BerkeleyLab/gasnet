@@ -203,6 +203,7 @@ firehose_poll()
 				fh_completion_callback_t *cc =
 					(fh_completion_callback_t *) fhc;
 				cc->callback(cc->context, cc->request, 0);
+				fh_free_completion_callback(cc);
 				continue;
 			}
 			#endif
@@ -447,7 +448,7 @@ fh_alloc_completion_callback()
 void
 fh_free_completion_callback(fh_completion_callback_t *cc)
 {
-	FH_TABLE_ASSERT_LOCKED;
+	/* XXX: OK to free w/o the LOCK */
 
 	gasneti_free(cc);
 	return;
@@ -1258,9 +1259,11 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 
 		ccb = (fh_completion_callback_t *)FH_STAILQ_FIRST(&pendCallbacks);
 		while (ccb != NULL) {
+			gasneti_assert(ccb != FH_COMPLETION_END);
 			ccb2 = FH_STAILQ_NEXT(ccb);
 			gasneti_assert(!(ccb->request->flags & FH_FLAG_PENDING));
 			ccb->callback(ccb->context, ccb->request, 0);
+			fh_free_completion_callback(ccb);
 			ccb = ccb2;
 		}
 		#else
