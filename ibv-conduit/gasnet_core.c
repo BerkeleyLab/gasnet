@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/vapi-conduit/gasnet_core.c                  $
- *     $Date: 2004/03/06 14:24:00 $
- * $Revision: 1.43 $
+ *     $Date: 2004/04/20 17:16:51 $
+ * $Revision: 1.43.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sched.h>
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -237,8 +236,6 @@ static unsigned long gasnetc_get_physpages()
 #endif
 
 /* Some stuff not exported from gasnet_mmap.c: */
-#define GASNETI_MMAP_MAX_SIZE   ((((size_t)2)<<30) - GASNET_PAGESIZE)  /* ~2 GB */
-#define GASNETI_MMAP_GRANULARITY  (((size_t)2)<<21)  /* 4 MB */
 extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
 
 /* Search for largest region we can allocate and pin */
@@ -258,15 +255,15 @@ static uintptr_t gasnetc_get_max_pinnable(void) {
    */
   pages = 2 * (gasnetc_get_physpages() / 3);
   pages = MIN(pages, gasnetc_hca_cap.max_mr_size / GASNET_PAGESIZE);
-#ifdef RLIMIT_MEMLOCK
+  #ifdef RLIMIT_MEMLOCK
   {
     struct rlimit r;
     if ((getrlimit(RLIMIT_MEMLOCK, &r) == 0) && (r.rlim_cur != RLIM_INFINITY)) {
       pages = MIN(pages, r.rlim_cur / GASNET_PAGESIZE);
     }
   }
-#endif
-  si = gasneti_mmap_segment_search(MIN(pages*GASNET_PAGESIZE, GASNETI_MMAP_MAX_SIZE));
+  #endif
+  si = gasneti_mmap_segment_search(MIN(pages*GASNET_PAGESIZE, GASNETI_MMAP_LIMIT));
 
   if (si.addr == NULL) return 0;
 
@@ -274,6 +271,10 @@ static uintptr_t gasnetc_get_max_pinnable(void) {
   addr = si.addr;
   lo = 0;
   hi = GASNETI_ALIGNDOWN(si.size, GASNETI_MMAP_GRANULARITY);
+  #if defined(__APPLE__)
+    /* work around bug #532: Pin requests >= 1GB kill Cluster X nodes */
+    hi = MIN(hi, 0x40000000 - GASNETI_MMAP_GRANULARITY);
+  #endif
 
 #if 0 /* Binary search */
   size = hi;
@@ -1092,7 +1093,7 @@ static void gasnetc_exit_role_reqh(gasnet_token_t token, gasnet_handlerarg_t *ar
                 ? GASNETC_EXIT_ROLE_MASTER : GASNETC_EXIT_ROLE_SLAVE;
 
   /* Inform the requester of the outcome. */
-  rc = gasnetc_ReplySystem(token, 1, NULL, gasneti_handleridx(gasnetc_SYS_exit_role_rep),
+  rc = gasnetc_ReplySystem(token, NULL, gasneti_handleridx(gasnetc_SYS_exit_role_rep),
 			   1, (gasnet_handlerarg_t)result);
   gasneti_assert(rc == GASNET_OK);
 }
@@ -1152,7 +1153,7 @@ static int gasnetc_get_exit_role()
     int rc;
 
     /* Don't know our role yet.  So, send a system-category AM Request to determine our role */
-    rc = gasnetc_RequestSystem(GASNETC_ROOT_NODE, 1, NULL,
+    rc = gasnetc_RequestSystem(GASNETC_ROOT_NODE, NULL,
 		    	       gasneti_handleridx(gasnetc_SYS_exit_role_req), 0);
     gasneti_assert(rc == GASNET_OK);
 
@@ -1299,7 +1300,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
 
     if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
 
-    rc = gasnetc_RequestSystem(i, 1, NULL,
+    rc = gasnetc_RequestSystem(i, NULL,
 		    	       gasneti_handleridx(gasnetc_SYS_exit_req),
 			       1, (gasnet_handlerarg_t)exitcode);
     if (rc != GASNET_OK) return -1;
@@ -1558,7 +1559,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   (void)gasneti_atomic_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE);
 
   /* Send a reply so the master knows we are reachable */
-  rc = gasnetc_ReplySystem(token, 1, &gasnetc_exit_repl_oust,
+  rc = gasnetc_ReplySystem(token, &gasnetc_exit_repl_oust,
 		  	   gasneti_handleridx(gasnetc_SYS_exit_rep), /* no args */ 0);
   gasneti_assert(rc == GASNET_OK);
 
@@ -1961,6 +1962,30 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
+}
+
+extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+  GASNETI_CHECKATTACH();
+
+  {
+    int locked = (gasneti_mutex_trylock(&(hsl->lock)) == 0);
+
+    GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
+    if (locked) {
+      #if GASNETI_STATS_OR_TRACE
+        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      #endif
+      #if GASNETC_USE_INTERRUPTS
+        /* conduits with interrupt-based handler dispatch need to add code here to 
+           disable handler interrupts on _this_ thread, (if this is the outermost
+           HSL lock acquire and we're not inside an enclosing no-interrupt section)
+         */
+        #error interrupts not implemented
+      #endif
+    }
+
+    return locked ? GASNET_OK : GASNET_ERR_NOT_READY;
+  }
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
