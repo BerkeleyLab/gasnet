@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/vapi-conduit/gasnet_bootstrap_mpi.c                  $
- *     $Date: 2003/06/20 00:15:04 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2003/06/24 17:35:17 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet vapi conduit implementation, mpi bootstrap code
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -18,7 +18,9 @@ void gasnetc_bootstrapInit(int *argc, char ***argv) {
 }
 
 void gasnetc_bootstrapFini(void) {
+#if 0	/* Finalize will prevent exit code from reaching the caller!! */
   (void) MPI_Finalize();
+#endif
 }
 
 void gasnetc_bootstrapAbort(int exitcode) {
