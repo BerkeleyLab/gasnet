@@ -489,6 +489,10 @@ fhi_remove_from_fifo(firehose_region_t *reg, firehose_private_t *priv,
  * The hash table is such that any region completely covered by
  * the new region will no longer get any hits.  So, such regions will
  * eventually end up being recycled from the FIFO.
+ *
+ * XXX: Dan has noted that if we tracked which pages were *ever* pinned then
+ * we could enlarge regions even more agressively, to cover pages that were
+ * once used but not recently enough to be in the table.
  */
 GASNET_INLINE_MODIFIER(fhi_merge_regions)
 void
@@ -502,50 +506,53 @@ fhi_merge_regions(firehose_region_t *pin_region)
 
     gasneti_assert(len <= fhi_MaxRegionSize);
 
-    /* Because we prioritize lookups by "forward extent", our best
-     * chance of fully replacing a region comes from merging with one
-     * which preceeds the new one, even if we can't fully cover it. */
-    if_pt (addr != 0) { /* avoid wrap around */
-	bd = fh_bucket_lookup(fh_mynode, addr - FH_BUCKET_SIZE);
-	if (bd != NULL) {
-
-	    gasneti_assert(bd->priv != NULL);
-	    gasneti_assert(fh_priv_end(bd->priv) >= (addr - 1));
-	    gasneti_assert(fh_priv_end(bd->priv) < (addr + (len - 1)));
-
-	    extend = MIN(addr - FH_BADDR(bd->priv), space_avail);
-	    addr -= extend;
-	    len += extend;
-	    space_avail -= extend;
-	}
-	gasneti_assert(len <= fhi_MaxRegionSize);
-    }
-
-    /* Now try to extend forward as well.
-     * Not as worth while if we can't fully cover the other region.
-     */
-    if_pt (addr + len != 0) { /* avoid wrap around */
+    /* Look to merge w/ successor */
+    if_pt (space_avail && (addr + len != 0) /* avoid wrap around */) {
 	uintptr_t next_addr = addr + len;
 	bd = fh_bucket_lookup(fh_mynode, next_addr);
 	if (bd != NULL) {
 	    uintptr_t end_addr = fh_priv_end(bd->priv) + 1;
-
 	    gasneti_assert(end_addr > next_addr);
-	    extend = end_addr - next_addr;
 
+#if 1
+	    extend = end_addr - next_addr;
 	    if (extend <= space_avail) {
 	        /* We cover the other region fully */
 		len += extend;
 		space_avail -= extend;
 	    }
+#else
+	    extend = MIN(end_addr - next_addr, space_avail);
+	    len += extend;
+	    space_avail -= extend;
+#endif
+	}
+	gasneti_assert(len <= fhi_MaxRegionSize);
+    }
+
+    /* Look to merge w/ predecessor */
+    if_pt (space_avail && (addr != 0) /* avoid wrap around */) {
+	bd = fh_bucket_lookup(fh_mynode, addr - FH_BUCKET_SIZE);
+	if (bd != NULL) {
+	    const firehose_private_t *priv = bd->priv;
+
+	    gasneti_assert(priv != NULL);
+	    gasneti_assert(fh_priv_end(priv) >= (addr - 1));
+	    gasneti_assert(fh_priv_end(priv) < (addr + (len - 1)));
+
 #if 1
-	    else if (bd !=
-		     fh_bucket_lookup(fh_mynode, next_addr + space_avail)) {
-		/* We can't cover the entire region.
-		 * However, somebody else already covers the rest. */
-		len += space_avail;
-		space_avail -= space_avail;
+	    extend = addr - FH_BADDR(priv);
+	    if (extend <= space_avail) {
+	        /* We cover the other region fully */
+	        addr -= extend;
+	        len += extend;
+	        space_avail -= extend;
 	    }
+#else
+	    extend = MIN(addr - FH_BADDR(priv), space_avail);
+	    addr -= extend;
+	    len += extend;
+	    space_avail -= extend;
 #endif
 	}
 	gasneti_assert(len <= fhi_MaxRegionSize);
