@@ -63,6 +63,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   bother with as much complication, and just repost the recv holding
   the REQUEST, after running the handler.
 
+  If we reap multiple REQUESTS in a single Poll, then we reuse the
+  previous buffer as the "spare" for the next one, in place of
+  grabbing one from the unposted pool each time.  Thus, we touch the
+  lock on the unposted pool at most twice per Poll, once for the
+  first REQUEST we recieve and once at the end to put the recv buffer
+  of the final REQUEST back in the unposted pool.  For the dedicated
+  receive thread we do even better, never touching the unposted pool
+  at all by keeping a single thread-local "spare" at all times.
 
 @ Section: Extended API @
 
