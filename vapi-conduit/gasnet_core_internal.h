@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/04/07 19:51:13 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2003/04/09 21:09:02 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -184,13 +184,13 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* gasnetc_sync_t
  *
- * How a given send descriptor will be synchronized:
+ * How a given sbuf will be synchronized:
  * + gasnetc_syncNone
  * 	No synchronization will be performed.
- * 	The descriptor is eligible for reuse as soon at it's reaped from the completion queue.
+ * 	The buf is eligible for reuse as soon at it's reaped from the completion queue.
  * + gasnetc_syncWait
- * 	An explicit wait will be performed on this descriptor by some thread.
- * 	The descriptor is eligible for reuse only after it has been waited on.
+ * 	An explicit wait will be performed on this buf by some thread.
+ * 	The buf is eligible for reuse only after it has been waited on.
  *
  * XXX Others will be needed for the extended API implementation.
  */
@@ -213,26 +213,22 @@ typedef struct {
 
 /* Description of a receive buffer */
 typedef struct {
-  /* ### Need more here ? */
   gasnetc_cep_t		*cep;
-  VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
-  VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
-  uint32_t		flags;		/* filled in at recv time */
   int			replyIssued;
   int			handlerRunning;
-} gasnetc_rcv_desc_t;
+  uint32_t		flags;		/* filled in at recv time */
+  VAPI_rr_desc_t	rr_desc;	/* recv request descriptor */
+  VAPI_sg_lst_entry_t	rr_sg;		/* single-entry scatter list */
+} gasnetc_rbuf_t;
 
 /* Description of a send buffer */
-typedef struct _gasnetc_snd_desc_t {
-  /* ### Need more here ? */
+typedef struct _gasnetc_sbuf_t {
   gasneti_atomic_t		done;
   gasnetc_sync_t		syncType;
-  struct _gasnetc_snd_desc_t	*next;
-  struct _gasnetc_snd_desc_t	*tail;
+  struct _gasnetc_sbuf_t	*next;
+  struct _gasnetc_sbuf_t	*tail;
   gasnetc_buffer_t		*buffer;
-  VAPI_sr_desc_t		sr_desc;		/* send request descriptor */
-  VAPI_sg_lst_entry_t		sr_sg[GASNETC_SND_SG];	/* send request gather list */
-} gasnetc_snd_desc_t;
+} gasnetc_sbuf_t;
 
 /* Description of a registered (pinned) memory region */
 typedef struct {
@@ -256,21 +252,21 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
 /* Recv routines in gasnet_core_rcv.c */
 extern void gasnetc_rcv_init(void);
 extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep);
-extern void gasnetc_rcv_loopback(gasnetc_snd_desc_t *desc);
+extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags);
 
 /* Send routines in gasnet_core_snd.c */
 extern void gasnetc_snd_init(void);
 extern void gasnetc_snd_fini(void);
-extern gasnetc_snd_desc_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, int is_async);
-extern void gasnetc_snd_wait(gasnetc_snd_desc_t *desc);
+extern gasnetc_sbuf_t *gasnetc_rdma_put(int dest, uintptr_t src, uintptr_t dst, uintptr_t nbytes, int is_async);
+extern void gasnetc_snd_wait(gasnetc_sbuf_t *sbuf);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasnetc_snd_desc_t **rdma_desc, va_list argptr);
+				  int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnet_token_t token, gasnet_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs, gasnetc_snd_desc_t **rdma_desc, va_list argptr);
+				int numargs, gasnetc_sbuf_t **rdma_sbuf, va_list argptr);
 
 /* General routines in gasnet_core.c */
 extern gasnetc_memreg_t *gasnetc_local_reg(uintptr_t start);

@@ -1,6 +1,6 @@
 /*  $Archive:: gasnet/gasnet-conduit/gasnet_core_rcv.c                  $
- *     $Date: 2003/04/08 23:50:26 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/04/09 21:09:02 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet vapi conduit implementation, receive side logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -25,8 +25,8 @@ VAPI_cq_hndl_t                          gasnetc_rcv_cq;
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped variables & types                                                       *
  * ------------------------------------------------------------------------------------ */
-static gasnetc_rcv_desc_t		*gasnetc_rcv_desc_head;
-static gasnetc_rcv_desc_t		*gasnetc_rcv_desc_tail;
+static gasnetc_rbuf_t			*gasnetc_rbuf_head;
+static gasnetc_rbuf_t			*gasnetc_rbuf_tail;
 static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
 
 /* ------------------------------------------------------------------------------------ *
@@ -35,14 +35,14 @@ static EVAPI_compl_handler_hndl_t	gasnetc_rcv_handler;
 
 
 GASNET_INLINE_MODIFIER(gasnetc_rcv_post)
-int gasnetc_rcv_post(gasnetc_rcv_desc_t *desc) {
-  return (VAPI_OK != VAPI_post_rr(gasnetc_hca, desc->cep->qp_handle, &desc->rr_desc));
+int gasnetc_rcv_post(gasnetc_rbuf_t *rbuf) {
+  return (VAPI_OK != VAPI_post_rr(gasnetc_hca, rbuf->cep->qp_handle, &rbuf->rr_desc));
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_processPacket)
-void gasnetc_processPacket(gasnetc_rcv_desc_t *desc) {
-  gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(desc->rr_sg.addr);
-  uint32_t flags = desc->flags;
+void gasnetc_processPacket(gasnetc_rbuf_t *rbuf) {
+  gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
+  uint32_t flags = rbuf->flags;
   gasnet_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
   gasnetc_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
@@ -51,17 +51,17 @@ void gasnetc_processPacket(gasnetc_rcv_desc_t *desc) {
   size_t nbytes;
   void *data;
 
-  desc->replyIssued = 0;
-  desc->handlerRunning = 1;
+  rbuf->replyIssued = 0;
+  rbuf->handlerRunning = 1;
   switch (category) {
     case gasnetc_Short:
       { 
 	args = buf->shortmsg.args;
         if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETI_TRACE_AMSHORT_REQHANDLER(handler_id, desc, numargs, args);
+          GASNETI_TRACE_AMSHORT_REQHANDLER(handler_id, rbuf, numargs, args);
         else
-          GASNETI_TRACE_AMSHORT_REPHANDLER(handler_id, desc, numargs, args);
-        RUN_HANDLER_SHORT(handler_fn,desc,args,numargs);
+          GASNETI_TRACE_AMSHORT_REPHANDLER(handler_id, rbuf, numargs, args);
+        RUN_HANDLER_SHORT(handler_fn,rbuf,args,numargs);
       }
       break;
 
@@ -72,10 +72,10 @@ void gasnetc_processPacket(gasnetc_rcv_desc_t *desc) {
 	args = buf->medmsg.args;
 
         if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETI_TRACE_AMMEDIUM_REQHANDLER(handler_id, desc, data, nbytes, numargs, args);
+          GASNETI_TRACE_AMMEDIUM_REQHANDLER(handler_id, rbuf, data, nbytes, numargs, args);
         else
-          GASNETI_TRACE_AMMEDIUM_REPHANDLER(handler_id, desc, data, nbytes, numargs, args);
-        RUN_HANDLER_MEDIUM(handler_fn,desc,args,numargs,data,nbytes);
+          GASNETI_TRACE_AMMEDIUM_REPHANDLER(handler_id, rbuf, data, nbytes, numargs, args);
+        RUN_HANDLER_MEDIUM(handler_fn,rbuf,args,numargs,data,nbytes);
       }
       break;
 
@@ -85,17 +85,17 @@ void gasnetc_processPacket(gasnetc_rcv_desc_t *desc) {
         data = (void *)(buf->longmsg.destLoc);
 	args = buf->longmsg.args;
         if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETI_TRACE_AMLONG_REQHANDLER(handler_id, desc, data, nbytes, numargs, args);
+          GASNETI_TRACE_AMLONG_REQHANDLER(handler_id, rbuf, data, nbytes, numargs, args);
         else
-          GASNETI_TRACE_AMLONG_REPHANDLER(handler_id, desc, data, nbytes, numargs, args);
-        RUN_HANDLER_LONG(handler_fn,desc,args,numargs,data,nbytes);
+          GASNETI_TRACE_AMLONG_REPHANDLER(handler_id, rbuf, data, nbytes, numargs, args);
+        RUN_HANDLER_LONG(handler_fn,rbuf,args,numargs,data,nbytes);
       }
       break;
 
     default:
       assert(0);
   }
-  desc->handlerRunning = 0;
+  rbuf->handlerRunning = 0;
 }
 
 static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
@@ -103,15 +103,15 @@ static void gasnetc_rcv_thread(VAPI_hca_hndl_t	hca_hndl,
 			       void		*context) {
   VAPI_ret_t		vstat;
   VAPI_wc_desc_t	comp;
-  gasnetc_rcv_desc_t	*desc;
+  gasnetc_rbuf_t	*rbuf;
 
   while (VAPI_OK == (vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp))) {
-    desc = (gasnetc_rcv_desc_t *)(uintptr_t)comp.id;
-    desc->flags = comp.imm_data; 
+    rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp.id;
+    rbuf->flags = comp.imm_data; 
 
     if (comp.status == VAPI_SUCCESS) {
-      gasnetc_processPacket(desc);
-      gasnetc_rcv_post(desc);
+      gasnetc_processPacket(rbuf);
+      gasnetc_rcv_post(rbuf);
     } else {
 #if 1
       fprintf(stderr, "@ %d> rcv comp.status=%d\n", gasnetc_mynode, comp.status);
@@ -135,7 +135,7 @@ extern void gasnetc_rcv_init(void) {
   VAPI_cqe_num_t	act_size;
   VAPI_ret_t		vstat;
   gasnetc_buffer_t	*buf;
-  gasnetc_rcv_desc_t	*desc;
+  gasnetc_rbuf_t	*rbuf;
   int 			count, i;
 
   if (gasnetc_nodes == 1) {
@@ -149,18 +149,18 @@ extern void gasnetc_rcv_init(void) {
 			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
   assert(buf != NULL);
 
-  desc = calloc(count, sizeof(gasnetc_rcv_desc_t));
-  assert(desc != NULL);
+  rbuf = calloc(count, sizeof(gasnetc_rbuf_t));
+  assert(rbuf != NULL);
 
   for (i = 0; i < count; ++i) {
-    desc[i].rr_desc.id         = (uintptr_t)&desc[i];	/* CQE will point back to this request */
-    desc[i].rr_desc.opcode     = VAPI_RECEIVE;
-    desc[i].rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
-    desc[i].rr_desc.sg_lst_len = 1;
-    desc[i].rr_desc.sg_lst_p   = &desc[i].rr_sg;
-    desc[i].rr_sg.len          = GASNETC_BUFSZ;
-    desc[i].rr_sg.addr         = (uintptr_t)&buf[i];
-    desc[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
+    rbuf[i].rr_desc.id         = (uintptr_t)&rbuf[i];	/* CQE will point back to this request */
+    rbuf[i].rr_desc.opcode     = VAPI_RECEIVE;
+    rbuf[i].rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
+    rbuf[i].rr_desc.sg_lst_len = 1;
+    rbuf[i].rr_desc.sg_lst_p   = &rbuf[i].rr_sg;
+    rbuf[i].rr_sg.len          = GASNETC_BUFSZ;
+    rbuf[i].rr_sg.addr         = (uintptr_t)&buf[i];
+    rbuf[i].rr_sg.lkey         = gasnetc_rcv_reg.lkey;
   }
 
   vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
@@ -173,27 +173,27 @@ extern void gasnetc_rcv_init(void) {
   vstat = VAPI_req_comp_notif(gasnetc_hca, gasnetc_rcv_cq, VAPI_NEXT_COMP);
   assert(vstat == VAPI_OK);
 
-  gasnetc_rcv_desc_head = gasnetc_rcv_desc_tail = desc;
+  gasnetc_rbuf_head = gasnetc_rbuf_tail = rbuf;
 }
 
 extern void gasnetc_rcv_init_cep(gasnetc_cep_t *cep) {
   int i, rc;
   
   for (i = 0; i < GASNETC_RCV_WQE; ++i) {
-    gasnetc_rcv_desc_tail->cep = cep;
-    rc = gasnetc_rcv_post(gasnetc_rcv_desc_tail);
+    gasnetc_rbuf_tail->cep = cep;
+    rc = gasnetc_rcv_post(gasnetc_rbuf_tail);
     assert(rc == 0);
 
-    gasnetc_rcv_desc_tail++;
-    assert((gasnetc_rcv_desc_tail - gasnetc_rcv_desc_head) <= (GASNETC_RCV_WQE * (gasnetc_nodes - 1)));
+    gasnetc_rbuf_tail++;
+    assert((gasnetc_rbuf_tail - gasnetc_rbuf_head) <= (GASNETC_RCV_WQE * (gasnetc_nodes - 1)));
   }
 }
 
-extern void gasnetc_rcv_loopback(gasnetc_snd_desc_t *snd_desc) {
-  gasnetc_rcv_desc_t	rcv_desc;
+extern void gasnetc_rcv_loopback(gasnetc_buffer_t *buffer, uint32_t flags) {
+  gasnetc_rbuf_t	rbuf;
 
-  rcv_desc.flags      = snd_desc->sr_desc.imm_data;
-  rcv_desc.rr_sg.addr = (uintptr_t)snd_desc->buffer;
+  rbuf.flags      = flags;
+  rbuf.rr_sg.addr = (uintptr_t)buffer;
 
-  gasnetc_processPacket(&rcv_desc);
+  gasnetc_processPacket(&rbuf);
 }
