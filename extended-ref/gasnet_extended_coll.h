@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_coll.h                 $
- *     $Date: 2004/04/07 18:05:29 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2004/04/07 23:49:25 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,7 +28,10 @@
 
 #define GASNET_COLL_AGGREGATE	(1<<6)
 
-/* XXX: incomplete, in/out of segment and others missing */
+#define GASNET_COLL_DST_IN_SEGMENT	(1<<7)
+#define GASNET_COLL_SRC_IN_SEGMENT	(1<<8)
+
+/* XXX: incomplete? */
 
 #define GASNETE_COLL_OP_COMPLETE	0x1
 #define GASNETE_COLL_OP_INACTIVE	0x2
@@ -38,13 +41,16 @@
 /* Forward type decls and typedefs: */
 struct gasnete_coll_op_t_;
 typedef struct gasnete_coll_op_t_ gasnete_coll_op_t;
-struct gasnete_coll_team_t_;
-typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
 
 /*---------------------------------------------------------------------------------*/
 
 /* Handle type for collective teams: */
-typedef gasnete_coll_team_t gasnet_team_handle_t;	/* XXX: or _coll_team_ ? */
+#ifndef GASNETE_COLL_TEAMS_OVERRIDE
+    struct gasnete_coll_team_t_;
+    typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
+    typedef gasnete_coll_team_t gasnet_team_handle_t;
+    #define GASNET_TEAM_ALL	NULL
+#endif
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
@@ -137,7 +143,32 @@ extern gasnet_coll_handle_t
 gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle);
 extern void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result);
 
+extern void gasnete_coll_init(void);
 extern void gasnete_coll_poll(void);
+
+/*---------------------------------------------------------------------------------*/
+
+#ifndef gasnet_coll_try_sync
+  extern int gasnete_coll_try_sync(gasnet_coll_handle_t handle);
+  #define gasnet_coll_try_sync	gasnete_coll_try_sync
+#endif
+#ifndef gasnet_coll_wait_sync
+  #define gasnet_coll_wait_sync(handle) \
+    gasneti_waitwhile(gasnet_coll_try_sync(handle) != GASNET_OK)
+#endif
+
+#ifndef gasnet_coll_broadcast_nb
+extern gasnet_coll_handle_t
+  gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
+			   void *dst,
+                           gasnet_node_t srcnode, void *src,
+                           size_t nbytes, int flags);
+#endif
+#ifndef gasnet_coll_broadcast
+  #define gasnet_coll_broadcast(team,dst,srcnode,src,nbytes,flags) \
+	gasnet_coll_wait_sync(gasnet_coll_broadcast_nb(team,dst,srcnode,src,nbytes,flags))
+#endif
+
 
 /*---------------------------------------------------------------------------------*/
 #endif
