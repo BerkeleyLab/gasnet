@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/30 16:34:50 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2003/05/01 19:56:00 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -457,21 +457,23 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
   Synchronization for explicit-handle non-blocking operations:
   ===========================================================
   
-  Note that these routines do not check for INVALID_HANDLE
+  Note that, other than gasnete_wait_syncnb, these routines do not check for INVALID_HANDLE
 */
 
 /* Note that the handle might actually be an IMPLICIT one! */
 extern void gasnete_wait_syncnb(gasnet_handle_t op) {
-  assert(op->threadidx == gasnete_mythread()->threadidx);
-  if_pt (op->type == gasnete_opExplicit) {
-    gasnete_eop_t *eop = (gasnete_eop_t*)op;
-    gasnetc_counter_wait(&eop->req_oust);
-    gasnete_eop_free(eop);
-  } else {
-    gasnete_iop_t *iop = (gasnete_iop_t*)op;
-    gasnetc_counter_wait(&iop->get_req_oust);
-    gasnetc_counter_wait(&iop->put_req_oust);
-    gasnete_iop_free(iop);
+  if_pt (op != GASNET_INVALID_HANDLE) {
+    assert(op->threadidx == gasnete_mythread()->threadidx);
+    if_pt (op->type == gasnete_opExplicit) {
+      gasnete_eop_t *eop = (gasnete_eop_t*)op;
+      gasnetc_counter_wait(&eop->req_oust);
+      gasnete_eop_free(eop);
+    } else {
+      gasnete_iop_t *iop = (gasnete_iop_t*)op;
+      gasnetc_counter_wait(&iop->get_req_oust);
+      gasnetc_counter_wait(&iop->put_req_oust);
+      gasnete_iop_free(iop);
+    }
   }
 }
 
@@ -631,7 +633,7 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   Implicit access region synchronization
   ======================================
 */
-extern void            gasnete_begin_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
+extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = gasnete_iop_new(mythread);
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
@@ -659,7 +661,23 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   Blocking memory-to-memory transfers
   ===================================
 */
-extern void gasnete_memset (gasnet_node_t node, void *dest, int val, size_t nbytes) {
+
+extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
+			      size_t nbytes GASNETE_THREAD_FARG) {
+  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_rdma_get(node, src, dest, nbytes, &req_oust);
+  gasnetc_counter_wait(&req_oust);
+}
+
+extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
+			      size_t nbytes GASNETE_THREAD_FARG) {
+  gasneti_atomic_t req_oust = gasneti_atomic_init(0);
+  gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
+  gasnetc_counter_wait(&req_oust);
+}   
+
+extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
+		            size_t nbytes GASNETE_THREAD_FARG) {
   gasneti_atomic_t req_oust = gasneti_atomic_init(0);
 
   if (nbytes <= GASNETE_MEMSET_PUT_LIMIT) {
