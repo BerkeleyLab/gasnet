@@ -8,25 +8,40 @@
 
 #ifdef FIREHOSE_REGION
 /* Define the next preprocessor directive to allow firehose clients to
- * attach a client type in opaque firehose_region_t */
+ * attach a client type in opaque firehose_region_t.  It can only be
+ * defined within the context of FIREHOSE_REGION. */
 #define FIREHOSE_CLIENT_T
 
 #ifdef FIREHOSE_CLIENT_T
 typedef
 struct _firehose_client_t {
-	int	conduit_key;		/* conduit-specific */
+	int	example_conduit_key;	/* conduit-specific */
 }
 firehose_client_t;
 #endif
 
 #endif
 
+/* Remote and completion callbacks
+ *
+ * Define the next preprocessor directive to allow firehose completion
+ * handlers to run within an AM Handler context */
+#undef FIREHOSE_COMPLETION_IN_HANDLER
+
+/* Define the next preprocessor directive to allow remote firehose
+ * callbacks to run within an AM Handler context */
+#undef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+
 /* Remote callback arguments type
  *
- * Firehose normally replies to a firehose request immediately after
- * the request to move one or many firehoses is satisfied.  However, 
+ * This type is passed to the callback that can be optionally invoked
+ * on the remote node when the firehose library has completed a
+ * firehose move on the requested node (see 'Firehose Remote Pin'
+ * documentation in firehose.h).
  *
- * */
+ * This type must be defined, even if it is not used by the client.
+ *
+ */
 typedef struct _firehose_remotecallback_args_t {
 	uintptr_t	local_addr;
 	uintptr_t	remote_addr;

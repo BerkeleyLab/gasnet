@@ -124,11 +124,11 @@ firehose_info_t;
  ***************************
  * FIREHOSE REMOTE CALLBACK
  ***************************
- * This callback can be invoked when the firehose library has
- * completed a firehose move on the requested node.  Remote pin
- * operations that require firehose moves can allow the client to run
- * a callback after the completion of the move operation and before
- * the firehose reply.
+ * This callback can be invoked on the remote node when the firehose
+ * library has completed a firehose move on the requested node.
+ * Remote pin operations that require firehose moves can allow the
+ * client to run a callback after the completion of the move operation
+ * and before the firehose reply.
  *
  * When enabled for a move request, the callback is never run within
  * an AM handler context unless the client defines
