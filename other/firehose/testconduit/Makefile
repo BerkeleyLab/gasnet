@@ -1,8 +1,8 @@
 fh_dir = ..
 gasnet_dir = ../../..
 
-CC     = gcc
-CFLAGS = -g3 -I. -I$(fh_dir) -I$(gasnet_dir) -I$(gasnet_dir)/extended-ref -DGASNET_PAR -DGASNET_DEBUG
+CC     = gcc -pthread
+CFLAGS = -g3 -I. -I$(fh_dir) -I$(gasnet_dir) -I$(gasnet_dir)/extended-ref -DGASNET_PAR -DGASNET_DEBUG -DGASNET_STATS -DGASNET_TRACE
 
 .PHONY: clean
 

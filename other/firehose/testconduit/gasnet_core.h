@@ -1,6 +1,6 @@
-/* $Id: gasnet_core.h,v 1.1.2.1 2004/03/21 21:28:09 csbell Exp $
- * $Date: 2004/03/21 21:28:09 $
- * $Revision: 1.1.2.1 $
+/* $Id: gasnet_core.h,v 1.1.2.2 2004/05/06 20:54:38 csbell Exp $
+ * $Date: 2004/05/06 20:54:38 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -49,12 +49,33 @@ char *gasnet_getenv(const char *s) {
 #define AM_HDRLEN   8
 #define AM_ARGSLEN  (4*16)  /* max 16 args */
 #define AM_PAYOFF   (AM_HDRLEN + AM_ARGSLEN)
-#define AM_MAXLEN   (AM_BUFSZ-AM_PAYOFF) /* max payload */
+#define AM_MAXPAYLEN   (AM_BUFSZ-AM_PAYOFF) /* max payload */
 
-#define AM_REQUEST  0xaa
-#define AM_REPLY    0xbb
 
-#define gasnet_AMMaxMedium()	AM_MAXLEN
+#define AM_REQUEST  0xa0
+#define AM_REPLY    0xb0
+#define AM_SHORT    0x01
+#define AM_MEDIUM   0x02
+
+#define gasnet_AMMaxMedium()	AM_MAXPAYLEN
+
+#define BARRIER	do {							    \
+	    gasnete_ambarrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);	    \
+	    gasnete_ambarrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS);	    \
+	} while (0)
+
+
+/* make a GASNet call - if it fails, print error message and abort */
+#define GASNETE_SAFE(fncall) do {                                           \
+   int retcode = (fncall);                                                  \
+   if_pf (retcode != GASNET_OK) {                                           \
+     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
+        "  while calling: %s\n"                                             \
+        "  at %s",                                                          \
+        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
+   }                                                                        \
+ } while (0)
+
 
 #define _GASNETC_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs,        \
 		pData, datalen) do {					       \
@@ -114,7 +135,67 @@ char *gasnet_getenv(const char *s) {
 	   }								       \
 	 } while (0)
 
-#define RUN_HANDLER _GASNETC_RUN_HANDLER_MEDLONG
+typedef void (*gasnetc_HandlerShort) (void *token, ...);
+
+#define _GASNETC_RUN_HANDLER_SHORT(pfn, token, pArgs, numargs) do { 	       \
+	gasneti_assert(pfn);						       \
+  	if (numargs == 0) (*(gasnetc_HandlerShort)pfn)((void *)token); 	       \
+	else {								       \
+    		uint32_t *args = (uint32_t *)(pArgs); /* eval only once */     \
+    		switch (numargs) {					       \
+		case 1: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0]);  \
+			break;						       \
+		case 2: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1]); break;	       			       \
+		case 3: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2]); break; 			       \
+		case 4: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3]); break; 		       \
+	     	case 5: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4]); break;   	       \
+	     	case 6: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2],  args[3], args[4], args[5]); break;  \
+	     	case 7: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6]); \
+			break;	       					       \
+	     	case 8: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7]); break;   				       \
+	     	case 9: (*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8]); break; 			       \
+	     	case 10:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9]); break; 		       \
+	     	case 11:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9], args[10]); break; 	       \
+	     	case 12:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9], args[10], args[11]); break; \
+	     	case 13:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9], args[10], args[11],         \
+			args[12]); break; 				       \
+	     	case 14:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9], args[10], args[11],         \
+			args[12], args[13]); break; 			       \
+	     	case 15:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9], args[10], args[11],         \
+			args[12], args[13], args[14]); break; 		       \
+	     	case 16:(*(gasnetc_HandlerShort)pfn)((void *)token, args[0],   \
+			args[1], args[2], args[3], args[4], args[5], args[6],  \
+			args[7], args[8], args[9], args[10], args[11],         \
+			args[12], args[13], args[14], args[15]); break;        \
+	     	default: abort();  					       \
+	     }								       \
+	   }								       \
+	 } while (0)
+
+#define RUN_HANDLER_MEDLONG _GASNETC_RUN_HANDLER_MEDLONG
+#define RUN_HANDLER_SHORT   _GASNETC_RUN_HANDLER_SHORT
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -186,6 +267,83 @@ typedef struct _gasnet_hsl_t {
   =====================
 */
 /*  yes, this is ugly, but it works... */
+
+/* ------------------------------------------------------------------------------------ */
+#define gasnet_AMRequestShort0(dest, handler) \
+       gasnetc_AMRequestShortM(dest, handler, 0)
+#define gasnet_AMRequestShort1(dest, handler, a0) \
+       gasnetc_AMRequestShortM(dest, handler, 1, (gasnet_handlerarg_t)a0)
+#define gasnet_AMRequestShort2(dest, handler, a0, a1) \
+       gasnetc_AMRequestShortM(dest, handler, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnet_AMRequestShort3(dest, handler, a0, a1, a2) \
+       gasnetc_AMRequestShortM(dest, handler, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnet_AMRequestShort4(dest, handler, a0, a1, a2, a3) \
+       gasnetc_AMRequestShortM(dest, handler, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnet_AMRequestShort5(dest, handler, a0, a1, a2, a3, a4) \
+       gasnetc_AMRequestShortM(dest, handler, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnet_AMRequestShort6(dest, handler, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMRequestShortM(dest, handler, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnet_AMRequestShort7(dest, handler, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMRequestShortM(dest, handler, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnet_AMRequestShort8(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMRequestShortM(dest, handler, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnet_AMRequestShort9( dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMRequestShortM(dest, handler,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnet_AMRequestShort10(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMRequestShortM(dest, handler, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnet_AMRequestShort11(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMRequestShortM(dest, handler, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnet_AMRequestShort12(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMRequestShortM(dest, handler, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnet_AMRequestShort13(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMRequestShortM(dest, handler, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnet_AMRequestShort14(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMRequestShortM(dest, handler, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnet_AMRequestShort15(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMRequestShortM(dest, handler, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnet_AMRequestShort16(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMRequestShortM(dest, handler, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+/* ------------------------------------------------------------------------------------ */
+#define gasnet_AMReplyShort0(token, handler) \
+       gasnetc_AMReplyShortM(token, handler, 0)
+#define gasnet_AMReplyShort1(token, handler, a0) \
+       gasnetc_AMReplyShortM(token, handler, 1, (gasnet_handlerarg_t)a0)
+#define gasnet_AMReplyShort2(token, handler, a0, a1) \
+       gasnetc_AMReplyShortM(token, handler, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnet_AMReplyShort3(token, handler, a0, a1, a2) \
+       gasnetc_AMReplyShortM(token, handler, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnet_AMReplyShort4(token, handler, a0, a1, a2, a3) \
+       gasnetc_AMReplyShortM(token, handler, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnet_AMReplyShort5(token, handler, a0, a1, a2, a3, a4) \
+       gasnetc_AMReplyShortM(token, handler, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnet_AMReplyShort6(token, handler, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMReplyShortM(token, handler, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnet_AMReplyShort7(token, handler, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMReplyShortM(token, handler, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnet_AMReplyShort8(token, handler, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMReplyShortM(token, handler, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnet_AMReplyShort9( token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMReplyShortM(token, handler,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnet_AMReplyShort10(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMReplyShortM(token, handler, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnet_AMReplyShort11(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMReplyShortM(token, handler, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnet_AMReplyShort12(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMReplyShortM(token, handler, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnet_AMReplyShort13(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMReplyShortM(token, handler, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnet_AMReplyShort14(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMReplyShortM(token, handler, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnet_AMReplyShort15(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMReplyShortM(token, handler, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnet_AMReplyShort16(token, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMReplyShortM(token, handler, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
 /* ------------------------------------------------------------------------------------ */
 #define gasnet_AMRequestMedium0(dest, handler, source_addr, nbytes) \
        gasnetc_AMRequestMediumM(dest, handler, source_addr, nbytes, 0)
