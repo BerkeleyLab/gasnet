@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/19 17:47:54 $
- * $Revision: 1.2 $
+ *     $Date: 2003/03/19 17:54:25 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,8 +76,8 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* (###) add code here to bootstrap the nodes for your conduit */
 
-  gasnetc_mynode = ###;
-  gasnetc_nodes = ###;
+  gasnetc_mynode = 0 /* ### */;
+  gasnetc_nodes = 0 /* ### */;
 
   #if DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -87,10 +87,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
     { 
       /* (###) Add code here to determine optimistic maximum segment size */
-      gasnetc_MaxLocalSegmentSize = ###;
+      gasnetc_MaxLocalSegmentSize = 0 /* ### */;
 
       /* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes */
-      gasnetc_MaxGlobalSegmentSize = ###;
+      gasnetc_MaxGlobalSegmentSize = 0 /* ### */;
 
       /* it may be appropriate to use gasneti_segmentInit() here to set 
          gasnetc_MaxLocalSegmentSize and gasnetc_MaxGlobalSegmentSize,
@@ -336,7 +336,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   if (!srcindex) GASNETI_RETURN_ERRR(BAD_ARG,"bad src ptr");
 
   /* (###) add code here to write the source index into sourceid */
-  sourceid = ###;
+  sourceid = 0 /* ### */;
 
   assert(sourceid < gasnetc_nodes);
   *srcindex = sourceid;
@@ -373,7 +373,7 @@ extern int gasnetc_AMRequestShortM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -394,7 +394,7 @@ extern int gasnetc_AMRequestMediumM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -422,7 +422,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -450,7 +450,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -468,7 +468,7 @@ extern int gasnetc_AMReplyShortM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -487,7 +487,7 @@ extern int gasnetc_AMReplyMediumM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -518,7 +518,7 @@ extern int gasnetc_AMReplyLongM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = 0 /* ### */;
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -529,7 +529,7 @@ extern int gasnetc_AMReplyLongM(
   ==================
 */
 
-extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_init(gasnet_hsl_t *hsl) {
   GASNETC_CHECKATTACH();
 
   { int retval = pthread_mutex_init(&(hsl->lock), NULL);
@@ -547,7 +547,7 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
   }
 }
 
-extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_lock(gasnet_hsl_t *hsl) {
   GASNETC_CHECKATTACH();
 
   { int retval; 
