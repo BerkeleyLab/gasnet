@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.h                  $
- *     $Date: 2003/04/16 05:59:51 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2003/04/16 06:30:31 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -335,7 +335,6 @@ GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_gets)
 int _gasnet_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   int retval;
   gasnet_AMPoll();
-  gasnetc_snd_poll();
   retval = gasnete_try_syncnbi_gets(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_GETS,retval);
   return retval;
@@ -347,7 +346,6 @@ GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_puts)
 int _gasnet_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   int retval;
   gasnet_AMPoll();
-  gasnetc_snd_poll();
   retval = gasnete_try_syncnbi_puts(GASNETE_THREAD_PASS_ALONE);
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNBI_PUTS,retval);
   return retval;
@@ -359,7 +357,6 @@ GASNET_INLINE_MODIFIER(_gasnet_try_syncnbi_all)
 int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   int retval;
   gasnet_AMPoll();
-  gasnetc_snd_poll();
   retval = gasnete_try_syncnbi_gets(GASNETE_THREAD_PASS_ALONE);
   if (retval == GASNET_OK)
       retval = gasnete_try_syncnbi_puts(GASNETE_THREAD_PASS_ALONE);
@@ -373,7 +370,6 @@ GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_gets)
 void gasnet_wait_syncnbi_gets(void) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
   gasnet_AMPoll();
-  gasnetc_snd_poll();
   gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_GETS);
 }
@@ -382,7 +378,6 @@ GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_puts)
 void gasnet_wait_syncnbi_puts(void) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
   gasnet_AMPoll();
-  gasnetc_snd_poll();
   gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);
 }
@@ -391,7 +386,6 @@ GASNET_INLINE_MODIFIER(gasnet_wait_syncnbi_all)
 void gasnet_wait_syncnbi_all(void) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
   gasnet_AMPoll();
-  gasnetc_snd_poll();
   gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
   gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_ALL);

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended.c                  $
- *     $Date: 2003/04/16 05:59:51 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2003/04/16 06:30:31 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -514,7 +514,6 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 /* Note that the handle might actually be an IMPLICIT one! */
 extern void gasnete_wait_syncnb(gasnet_handle_t op) {
   GASNETE_SAFE(gasnet_AMPoll());
-  gasnetc_snd_poll();
 
   assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (op->type == gasnete_opExplicit) {
@@ -531,7 +530,6 @@ extern void gasnete_wait_syncnb(gasnet_handle_t op) {
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   GASNETE_SAFE(gasnet_AMPoll());
-  gasnetc_snd_poll();
 
   if (gasnete_op_isdone(handle)) {
     gasnete_op_free(handle);
@@ -545,7 +543,6 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
   int empty = 1;
 
   GASNETE_SAFE(gasnet_AMPoll());
-  gasnetc_snd_poll();
 
   assert(phandle);
 
@@ -570,7 +567,6 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
   int success = 1;
 
   GASNETE_SAFE(gasnet_AMPoll());
-  gasnetc_snd_poll();
 
   assert(phandle);
 
@@ -888,9 +884,6 @@ static void gasnete_barrier_done_reqh(gasnet_token_t token,
 static void gasnete_barrier_kick() {
   int phase = barrier_phase;
   GASNETE_SAFE(gasnet_AMPoll());
-  #if 0
-    gasnetc_snd_poll();	/* if this is allowed then we spin such that rcv thread get very slow */
-  #endif
 
   if (gasnete_mynode != GASNETE_BARRIER_MASTER) return;
 
