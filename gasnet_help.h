@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_help.h                                   $
- *     $Date: 2004/07/08 16:58:44 $
- * $Revision: 1.22.4.3 $
+ *     $Date: 2004/07/15 02:01:09 $
+ * $Revision: 1.22.4.4 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -355,14 +355,21 @@ extern int gasneti_wait_mode; /* current waitmode hint */
     release gasneti_mutex_t pl (which must be held) and block WITHOUT POLLING 
     until gasneti_cond_t pc is signalled by another thread, or until the system
     decides to wake this thread for no good reason (which it may or may not do).
+    Upon wakeup for any reason, the mutex will be reacquired before returning.
+
     It's an error to wait if there is only one thread, and can easily lead to 
     deadlock if the last thread goes to sleep. No thread may call wait unless it
     can guarantee that (A) some other thread is still polling and (B) some other
     thread will eventually signal it to wake up. The system may or may not also 
     randomly signal threads to wake up for no good reason, so upon awaking the thread
     MUST verify using its own means that the condition it was waiting for 
-    has actually been signalled.
-    Upon wakeup for any reason, the mutex will be reacquired before returning.
+    has actually been signalled (ie that the client-level "outer" condition has been set).
+
+    In order to prevent races leading to missed signals and deadlock, signaling
+    threads must always hold the associated mutex while signaling, and ensure the
+    outer condition is set *before* releasing the mutex. Additionally, all waiters
+    must check the outer condition *after* acquiring the same mutex and *before*
+    calling wait (which atomically releases the lock and puts the thread to sleep).
 */
 
 #if GASNETI_USE_TRUE_MUTEXES

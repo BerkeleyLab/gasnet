@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/tests/testalign.c                                 $
- *     $Date: 2004/07/08 16:59:20 $
- * $Revision: 1.4.2.1 $
+ *     $Date: 2004/07/15 02:01:35 $
+ * $Revision: 1.4.2.2 $
  * Description: GASNet get/put alignment-sensitivity test
  *   measures flood throughput of GASNet gets and puts
  *   over varying payload alignments and fixed payload size

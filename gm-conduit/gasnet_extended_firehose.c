@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_firehose.c,v 1.34.4.2 2004/07/08 16:58:52 csbell Exp $
- * $Date: 2004/07/08 16:58:52 $
+/* $Id: gasnet_extended_firehose.c,v 1.34.4.3 2004/07/15 02:01:17 csbell Exp $
+ * $Date: 2004/07/15 02:01:17 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -130,8 +130,6 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 		fhreqs[1] = pop->req_local;
 		numreqs++;
 	}
-
-	/* printf("%d> fh_callback_put: _gmc.port = %p\n", gasnetc_mynode, _gmc.port); */
 
 	GASNETE_GM_SET_IN_UNKNOWN();
 	firehose_release(fhreqs, numreqs);
@@ -382,7 +380,6 @@ extern int firehose_remote_callback(gasnet_node_t node,
 		const firehose_region_t *pin_list, size_t num_pinned,
 		firehose_remotecallback_args_t *args)
 {
-#if 1
 	gasneti_mutex_lock(&gasnetc_lock_gm);
 	gasnetc_token_lo_poll();
 
@@ -397,10 +394,6 @@ extern int firehose_remote_callback(gasnet_node_t node,
 	     (int)args->nbytes));
 
 	gasneti_mutex_unlock(&gasnetc_lock_gm);
-
-#else
-	gasneti_fatalerror("can't run remote callback");
-#endif
 
 	return 0;
 }
@@ -450,19 +443,10 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req,
 	 * remote node has sent a one-sided put in place of an initatior RDMA
 	 * get */
 
-	/* 
-	 * XXX For now, the remote callback using put + AM seems to be broken on
-	 * GM 2.0+
-	 */
-	if (1){ //allLocalHit) {
+	if (allLocalHit) {
 		gasneti_mutex_lock(&gasnetc_lock_gm);
 		gasnetc_token_lo_poll();
 
-		#if GASNETI_STATS_OR_TRACE
-		if (!allLocalHit)
-		    gop->fh_stats = gop->len > 4096 ? fh_many : fh_one;
-		#endif
-	
 		gm_get(_gmc.port, (gm_remote_ptr_t) gop->src,
 		    (void *) gop->dest, (gm_size_t) gop->len, 
 		    GM_LOW_PRIORITY, 
@@ -477,6 +461,10 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req,
 		gasneti_mutex_unlock(&gasnetc_lock_gm);
 	}
 	else {
+		#if GASNETI_STATS_OR_TRACE
+		gop->fh_stats = gop->len > 4096 ? fh_many : fh_one;
+		#endif
+
 		/* The callback is called after the remote node has DMAd a put
 		 * into the local memory.  The get can be be released and marked
 		 * as done */
@@ -561,7 +549,6 @@ gasnete_fh_request_get(void *_gop, const firehose_request_t *req, int allLocalHi
 	    #endif
 
 	    gasnete_get_fh_done(gop);
-
 	}
 
 	return;
@@ -596,7 +583,6 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	gop->req_local = 
 	    firehose_local_pin((uintptr_t) dest, nbytes, NULL);
 
-#if 1
 	/* Since Put is in reverse direction, the source is the local address
 	 * and the destination is the remote address */
 	args.local_addr  = (uintptr_t) src;
@@ -607,13 +593,6 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	    FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK,
 	    (firehose_request_t *) &(gop->req_remote), &args, 
 	    gasnete_fh_request_get, gop);
-#else
-
-	firehose_remote_pin(node, (uintptr_t) src, nbytes,
-	    0, 
-	    (firehose_request_t *) &(gop->req_remote), NULL,
-	    gasnete_fh_request_get, gop);
-#endif
 
 	return (gasnete_op_t *) gop;
 }

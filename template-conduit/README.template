@@ -61,10 +61,4 @@ changes to the code or makefile framework inherited from template-conduit
 identifiers, etc.) as this makes it more difficult to patch your conduit if 
 a bug is discovered in template-conduit or a GASNet-wide change is required.
 
-All GASNet developers are required to follow the GASNet coding standards outlined 
-in the top-level README. Please take a moment to read and understand these NOW.
-It's especially important that you do NOT make trivial and/or non-meaningful 
-changes to the code or makefile framework inherited from template-conduit 
-(e.g. re-indenting lines, moving code into different files, renaming existing 
-identifiers, etc.) as this makes it more difficult to patch your conduit if 
-a bug is discovered in template-conduit or a GASNet-wide change is required.
+

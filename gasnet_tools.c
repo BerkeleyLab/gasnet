@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_internal.c                               $
- *     $Date: 2004/07/08 16:58:44 $
- * $Revision: 1.50.4.2 $
+ *     $Date: 2004/07/15 02:01:09 $
+ * $Revision: 1.50.4.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

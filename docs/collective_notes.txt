@@ -1,4 +1,4 @@
-=============================================================================
+//===========================================================================
 * Goals of the design:
 
 ** 1) Must be asynchronous, with distinct initiation and finalization
@@ -72,7 +72,7 @@ collectives in the future.
 
 *** 15) Should allow extension to team-based collectives in the future.
 
-=============================================================================
+//===========================================================================
 * Collectives and barriers
 
 At present it is not legal for GASNet collectives and barriers to be
@@ -84,14 +84,14 @@ call must also be synced before it.
 We may relax this constraint in a future specification.
 
 
-=============================================================================
+//===========================================================================
 * Collectives and handlers
 
 GASNet collectives may not be initiated or synchronized from within AM
 handlers.  This constraint will NOT be relaxed.
 
 
-=============================================================================
+//===========================================================================
 * Handles
 
 All GASNet collective initiation functions will have blocking and
@@ -118,7 +118,7 @@ handle, including:
   + A handle is "dead" once it has been successfully synced and may
     not be used in future synchronization operations.
 
-=============================================================================
+//===========================================================================
 * Synchronization modes
 
 In order to efficiently implement the UPC collectives, the GASNet
@@ -173,7 +173,7 @@ to GASNet than the UPC names (where the prefix is TBD):
                               collective (barrier included)
 
 
-=============================================================================
+//===========================================================================
 * Bulk vs. non-bulk data reuse
 
 Consistent with the VIS (Vector, Indexed and Strided) interface, the
@@ -194,7 +194,7 @@ collective operation is synchronized on the same node.
 synchronized on all participating nodes.
 
 
-=============================================================================
+//===========================================================================
 * Bulk vs. non-bulk alignment
 
 The GASNet collectives for data movement do not assume any data
@@ -204,7 +204,7 @@ The computational collectives (reduce, prefix_reduce and sort)
 requires alignment correct for the operation's data type.
 
 
-=============================================================================
+//===========================================================================
 * Synchronization calls
 
 We'll support the same family of explicit handle try and wait calls as
@@ -227,7 +227,7 @@ to the collective initiation function.  Specifically, synchronization
 calls need not occur in the same order on all nodes. 
 
 
-=============================================================================
+//===========================================================================
 * Metadata lifetime
 
 Where arguments are passed by reference to the collective initiation
@@ -239,7 +239,7 @@ the meta-data, especially since a remote node may sync before the local
 node has finished with the meta-data.
 
 
-=============================================================================
+//===========================================================================
 * Progress
 
 We expect the non-blocking collectives to make progress in
@@ -249,7 +249,7 @@ implementation to make progress in gasnet_AMPoll() or asynchronously
 when possible.
 
 
-=============================================================================
+//===========================================================================
 * Collectives and threads
 
 Collectives must be initiated in the same order on all participating nodes.  To
@@ -278,7 +278,7 @@ handle_t for the operation, which it independently synchronizes in any
 order with respect to other outstanding collectives. Handles may not
 be passed across nodes.
 
-=============================================================================
+//===========================================================================
 * Data segment
 
 For the present we want to implement only cases where the source and
@@ -303,7 +303,7 @@ the GASNet segment.  This restriction should be relaxed in some future
 revision.
 
 
-=============================================================================
+//===========================================================================
 * "Single-valued" arguments
 
 To implement things like Titanium's Exchange operation, we want a
@@ -343,7 +343,7 @@ synchronization mode must agree across all nodes regardless of the
 _LOCAL, _SINGLE flag.
 
 
-=============================================================================
+//===========================================================================
 * Number outstanding
 
 There exists some concern that implementing synchronization using PUTS
@@ -366,7 +366,7 @@ However, internally completing the collectives in order is acceptable
 when it's necessary. That still provides significantly more flexibility
 to the client than forcing the syncs to be collective.
 
-=============================================================================
+//===========================================================================
 * Multiple Addresses
 
 To support a non-pthread UPC client with aligned segments requires the
@@ -393,7 +393,7 @@ The current proposal allows for all of these cases by offering two
 types of interface - one taking scalar address arguments and one
 taking lists of addresses.
 
-=============================================================================
+//===========================================================================
 * Teams:
 
 Note that the major issues with adding teams to UPC are related to
@@ -437,10 +437,10 @@ collectives (because the collective ordering property does not apply across
 disjoint teams, so different nodes may invert the call ordering between
 independent teams).
 
-=============================================================================
+//===========================================================================
 END OF NORMATIVE STUFF (MOSTLY AGREED TO)
 START OF OPEN ISSUES
-=============================================================================
+//===========================================================================
 
 * OPEN ISSUE: Variable contributions
 
@@ -888,10 +888,10 @@ the image vector representation and a bitmap (and the image->rank
 mapping array if desired).
 
 
-=============================================================================
+//===========================================================================
 END OF OPEN ISSUES
 START OF CURRENT PROPOSAL
-=============================================================================
+//===========================================================================
 
 There are two flavors of interface to each collective.  The simple
 addressing case moves an equal amount of contiguous data to or from
@@ -1431,10 +1431,10 @@ void gasnet_coll_prefix_reducem(
 	size_t elem_size, size_t elem_count,
 	int func, int func_arg, int flags);	
 
-=============================================================================
+//===========================================================================
 END OF CURRENT PROPOSAL
 START OF IMPLEMENTATION NOTES
-=============================================================================
+//===========================================================================
 * Thoughts on progress of implementation:
 
 While not part of the GASNet spec for users, it is important that we
@@ -1609,7 +1609,7 @@ unclear interface, and the code duplicated between #2 and #3 is too
 small to justify such a design.
 
 
-=============================================================================
+//===========================================================================
 * Proposal for gasneti_cond_t:
 
 In order to permit a conduit to block waiting for something that might
@@ -1662,7 +1662,7 @@ gasneti_cond_wait_mutex(gasneti_cond_t *cond, gasneti_mutex_t *lock)
 }
 
 
-=============================================================================
+//===========================================================================
 * Notes on (non-)commutative (prefix) reduction operators.
 
 Imagine X # Y # Z, where # is some operator implemented by f(.,.).
@@ -1698,11 +1698,11 @@ implementation between commutative and non-commutative operators.  For
 the case of pure-cyclic the difference is the most extreme.
 
 
-=============================================================================
+//===========================================================================
 * Notes on algorithms 
 
 Broadcast:
-==========
+----------
 
 In [Karp93] we learn how to construct an optimal schedule for
 broadcast.  The tree can be built knowing only the ratio
@@ -1746,7 +1746,7 @@ can see doing it two ways:
 
 
 Scatter:
-========
+--------
 
 The LogGP paper [Alexandrov95] describes an algorithm for constructing
 the optimal scatter, analogous the the broadcast scahedule of [Karp93].
@@ -1755,7 +1755,7 @@ the messages when a tree is used to forward data.
 
 
 Gather:
-=======
+-------
 
 The Gather is exactly the same as scatter with all the data moving in
 the opposite direction.  Therefore whatever I decide for Scatter will
@@ -1763,7 +1763,7 @@ also be used to implement Gather.
 
 
 Exchange:
-=========
+---------
 
 The final data placement is equivalent to doing P scatters, one with
 each node as the root.  In a simple LogP model where we can only send
@@ -1775,7 +1775,7 @@ mod P),... ((p+P-1) mod P).
 
 
 Gather_All:
-===========
+-----------
 
 The final data placement is equivalent to doing P broadcasts.  In the
 LogP model with single-item sends the optimal [Karp93] is the same as
@@ -1811,14 +1811,14 @@ ELL to wait for the needed data to arrive.
 
 
 Permute:
-========
+--------
 
 Other than implementing the UPC synchronization, there is no obvious
 mechanism by which GASNet can do any better than the use of Puts.
 
 
 Reduce:
-=======
+-------
 
 As noted in [Karp93], the optimal communication pattern for reduction
 in the LogP model is the same tree as for Broadcast.  The order and
@@ -1842,7 +1842,7 @@ operator.
 
 
 PrefixReduce:
-=============
+-------------
 
 The interface which is developing for this addresses how to express
 the unequal contribution from the nodes.  I've whiteboarded some ideas
@@ -1900,7 +1900,7 @@ two values one can finally perform the prefix reduction.
 
 
 Sort:
-=====
+-----
 
 I've no bright ideas here.  The most naive method would seem to be
 Gather, Sort on one node, Scatter.  However, the Gather and Scatter
@@ -1913,7 +1913,7 @@ problem, and there are methods much better than the Gather+Scatter
 described above.
 
 
-=============================================================================
+//===========================================================================
 
 Notes on MPI Collectives:
 
@@ -1990,7 +1990,7 @@ that are relevant to our future work:
     is not true for important, non-invertable operators like MIN/MAX). We should 
     consider providing both (and implement inclusive using the exclusive one)
 
-=============================================================================
+//===========================================================================
 
 Bibliography:
 

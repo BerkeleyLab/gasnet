@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gm-conduit/gasnet_extended.c                  $
- *     $Date: 2004/07/08 16:58:52 $
- * $Revision: 1.23.4.3 $
+ *     $Date: 2004/07/15 02:01:17 $
+ * $Revision: 1.23.4.4 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,7 +92,7 @@ extern gasnete_threaddata_t *
 gasnete_mythread() 
 {
 	gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
-	//GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
+	GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
         if_pt (threaddata) {
           gasneti_memcheck(threaddata);
           return threaddata;

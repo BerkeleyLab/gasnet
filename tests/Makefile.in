@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25.2.1 2004/07/08 16:59:20 csbell Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v 1.25.2.2 2004/07/15 02:01:35 csbell Exp $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -28,7 +28,6 @@ testprograms_seq =      \
         testgasnet      \
         testsmall       \
         testlarge       \
-	testfh		\
         testam          \
         testcore1       \
         testbarrier     \
@@ -139,7 +138,7 @@ run-tests: force
 		   "in $$threadmode/$(GASNET_SEGMENT_STR) mode ***" ;                   \
 	      awk_cmdbuild='{ gsub("%C","%P %A");                                       \
                               gsub("%P","./'$$file'");                                  \
-			      gsub("%E","DUMMY");                                       \
+			      gsub("%L","DUMMY");                                       \
 			      gsub("%V ","");                                           \
 			      gsub("%N","'$$nodes'");                                   \
 			      gsub("%A","'"$$args"'"); print $0 }' ;                    \

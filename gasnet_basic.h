@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/gasnet_basic.h                                  $
- *     $Date: 2004/07/08 16:58:44 $
- * $Revision: 1.24.4.2 $
+ *     $Date: 2004/07/15 02:01:09 $
+ * $Revision: 1.24.4.3 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,9 @@
 
 #define GASNETI_PRAGMA(x) _Pragma ( #x )
 
-#if defined(STATIC_INLINE_WORKS)
+#if defined(__cplusplus)
+  #define GASNET_INLINE_MODIFIER(fnname) inline
+#elif defined(STATIC_INLINE_WORKS)
   #define GASNET_INLINE_MODIFIER(fnname) static CC_INLINE_MODIFIER
 #elif defined(CC_INLINE_MODIFIER)
   #define GASNET_INLINE_MODIFIER(fnname) CC_INLINE_MODIFIER

@@ -512,7 +512,7 @@ AC_DEFUN([GASNET_PROG_CPP], [
   AC_LANG_C
   gasnet_progcpp_extrainfo=
   dnl deal with preprocessors who foolishly return success exit code even when they saw #error
-  if test -n "`$CPP -version 2>&1 | grep MIPSpro`" ; then
+  if test -n "`$CPP -version 2>&1 < /dev/null | grep MIPSpro`" ; then
     dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
@@ -540,7 +540,7 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
   AC_LANG_CPLUSPLUS
   gasnet_progcxxcpp_extrainfo=
   dnl deal with preprocessors who foolishly return success exit code even when they saw #error
-  if test -n "`$CXXCPP -version 2>&1 | grep MIPSpro`" ; then
+  if test -n "`$CXXCPP -version 2>&1 < /dev/null | grep MIPSpro`" ; then
     dnl The MIPSPro compiler has a broken preprocessor exit code by default, fix it
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcxxcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"

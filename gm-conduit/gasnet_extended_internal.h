@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2004/07/08 16:58:52 $
- * $Revision: 1.17.4.1 $
+ *     $Date: 2004/07/15 02:01:17 $
+ * $Revision: 1.17.4.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

@@ -1,5 +1,5 @@
-/* $Id: gasnet_core_conf.c,v 1.9.8.1 2004/07/08 16:58:52 csbell Exp $
- * $Date: 2004/07/08 16:58:52 $
+/* $Id: gasnet_core_conf.c,v 1.9.8.2 2004/07/15 02:01:17 csbell Exp $
+ * $Date: 2004/07/15 02:01:17 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

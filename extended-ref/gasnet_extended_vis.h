@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_sg.h                 $
- *     $Date: 2004/07/08 16:58:50 $
- * $Revision: 1.1.4.2 $
+ *     $Date: 2004/07/15 02:01:15 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

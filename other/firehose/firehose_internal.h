@@ -295,9 +295,10 @@ void	fh_fini_plugin();
 /* Request type freelists (COMMON)                                       */
 /* ##################################################################### */
 /* Flags */
-#define FH_FLAG_FHREQ	0x01	/* firehose supplied the request_t */
-#define FH_FLAG_PINNED	0x02
-#define FH_FLAG_PENDING 0x04	/* Used in -PAGE only */
+#define FH_FLAG_FHREQ	 0x01	/* firehose supplied the request_t */
+#define FH_FLAG_PINNED	 0x02
+#define FH_FLAG_PENDING  0x04	/* Used in -PAGE only */
+#define FH_FLAG_INFLIGHT 0x08
 
 /* ##################################################################### */
 /* Firehose Hash Table Utility (COMMON, firehose_hash.c)                 */

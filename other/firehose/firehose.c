@@ -175,8 +175,6 @@ firehose_fini()
 		gasneti_free(fh_request_bufs[i]);
 	}
 
-	//printf("Deadlock declared %d times.\n", fh_dacount);
-
 	return;
 }
 
@@ -206,7 +204,11 @@ firehose_poll()
 			if (fhc->flags & FH_CALLBACK_TYPE_COMPLETION) {
 				fh_completion_callback_t *cc =
 					(fh_completion_callback_t *) fhc;
-				cc->callback(cc->context, cc->request, 0);
+				/* we flag a local hit if this completion was
+				 * not from an in-flight request */
+				int localhit = 
+				    !(cc->request->flags & FH_FLAG_INFLIGHT);
+				cc->callback(cc->context, cc->request, localhit);
 				fh_free_completion_callback(cc);
 			}
 			#endif
@@ -1208,7 +1210,7 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 	    }
 	    #endif
 	}
-	#endif
+	#endif /* REMOTE_CALLBACK_IN_HANDLER */
 
 	else {
 		MEDIUM_REP(2,3,
@@ -1258,13 +1260,18 @@ fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 	if (numpend > 0) {
 		#ifdef FIREHOSE_COMPLETION_IN_HANDLER
 		fh_completion_callback_t	*ccb, *ccb2;
+		int				 hitlocal;
 
 		ccb = (fh_completion_callback_t *)FH_STAILQ_FIRST(&pendCallbacks);
 		while (ccb != NULL) {
 			gasneti_assert(ccb != FH_COMPLETION_END);
 			ccb2 = FH_STAILQ_NEXT(ccb);
 			gasneti_assert(!(ccb->request->flags & FH_FLAG_PENDING));
-			ccb->callback(ccb->context, ccb->request, 0);
+			/* If this request was not in flight, the referenced
+			 * pages are now pinned and the callback is called as
+			 * if we have a hit */
+			hitlocal = !(ccb->request->flags & FH_FLAG_INFLIGHT);
+			ccb->callback(ccb->context, ccb->request, hitlocal);
 			fh_free_completion_callback(ccb);
 			ccb = ccb2;
 		}

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/AMUDP/amudp_spmd.cpp                                   $
- *     $Date: 2004/07/08 16:59:06 $
- * $Revision: 1.5.4.2 $
+ *     $Date: 2004/07/15 02:01:27 $
+ * $Revision: 1.5.4.3 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

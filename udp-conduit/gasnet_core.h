@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/udp-conduit/gasnet_core.h                  $
- *     $Date: 2004/07/08 16:59:22 $
- * $Revision: 1.2.4.2 $
+ *     $Date: 2004/07/15 02:01:37 $
+ * $Revision: 1.2.4.3 $
  * Description: GASNet header for UDP conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

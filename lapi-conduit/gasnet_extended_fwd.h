@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended/gasnet_extended_fwd.h                  $
- *     $Date: 2004/07/08 16:58:56 $
- * $Revision: 1.12.4.1 $
+ *     $Date: 2004/07/15 02:01:19 $
+ * $Revision: 1.12.4.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
