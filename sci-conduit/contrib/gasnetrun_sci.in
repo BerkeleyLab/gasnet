@@ -1,4 +1,4 @@
-#! /bin/sh
+#!@BOURNE_SHELL@
 #
 # Burt Gordon, High-performance Computing & Simulation (HCS) Lab
 # June 2003
@@ -13,14 +13,14 @@ PrintHelp()
 {
 
  echo "Usage:"
- echo "	./scistart [options] <program_name> [program_args]"
+ echo "	gasnetrun_sci [options] <program_name> [program_args]"
  echo ""		
  echo "	<program_name>	: Program to be run on each node. Assumed to be "
  echo "			 a globally accessible location. If not fully "
  echo "			 qualified, assumed to be in the current directory."
  echo ""
  echo "Options:"
- echo "	-n <number>		: number of nodes to use."
+ echo "	-n <number>		: number of nodes to use. (Also accept -np)"
  echo "			If number exceeds the total number of nodes listed in the machines file,"
  echo "			then program_name is started once on each of the nodes in the file. If "
  echo "			-n option is not used, only one copy of program_name will be started."
@@ -32,6 +32,8 @@ PrintHelp()
  echo "				  -machines and machines.sci if they are defined."
  echo ""
  echo "	-spawn <[rsh, ssh]>	: choose either rsh or ssh as the spawner, default is rsh"
+ echo ""
+ echo "	-v			: verbose operation"
  echo ""
  echo "	-help			: this message"
  echo ""
@@ -46,6 +48,10 @@ do
 	NUMBER_NODES=$2
 	shift 2
 	;;
+    -np) 
+	NUMBER_NODES=$2
+	shift 2
+	;;
     -machines) 
 	MFILE=$2
 	shift 2
@@ -57,6 +63,10 @@ do
     -spawn)
 	RSH=$2
 	shift 2
+	;;
+    -v)
+	VERBOSE=1
+	shift 1
 	;;
     -help | -h) 
 	PrintHelp
@@ -316,7 +326,9 @@ for h in $TEMP_HOSTS
 #need to fix this so node 0 goes last and the script waits for it to terminate 
 #  the program
 
-echo "Beginning program on host(s)"
+if [ $VERBOSE ] ; then
+  echo "Beginning program on host(s)"
+fi
 
 # EXIT before any actual execution, used for testing how things work above
 #exit
@@ -327,18 +339,24 @@ for h in $HOSTS
 	if (( $i < $NUMBER_NODES ))
 	 then
 		$RSH $h "cd $DIR; $EXPORT; $PROG $ARGS ; exit;"&
-		echo "$RSH $h -- cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+	        if [ $VERBOSE ] ; then
+		  echo "$RSH $h -- cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+		fi
 		i=`expr $i + 1`
-		echo "i equal to $i"
+		#echo "i equal to $i"
 	 else
 		break	
 	fi
  done
-echo "Finished with rsh"
+if [ $VERBOSE ] ; then
+  echo "Finished with rsh"
+  echo "Now going to the first host"
+fi
 
-echo "Now going to the first host"
 #start the program on this host
-echo "$RSH $FIRST -- cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+if [ $VERBOSE ] ; then
+  echo "$RSH $FIRST -- cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
+fi
 $RSH $FIRST "cd $DIR; $EXPORT; $PROG $ARGS ; exit;"
 
 

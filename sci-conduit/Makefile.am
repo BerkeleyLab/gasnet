@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.10 2004/06/28 09:40:11 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v 1.1.2.11 2004/06/29 13:40:26 bonachea Exp $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,7 +9,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 CONDUIT_NAME=sci
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = 
+SUBDIRS = contrib
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -55,7 +55,7 @@ CONDUIT_SPECIAL_OBJS =
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
-CONDUIT_RUNCMD = $(srcdir)/sh_start -n %N -spawn ssh -machines $(srcdir)/machines.sci %P %A
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/sci-conduit/contrib/gasnetrun_sci -n %N -spawn ssh -machines $(srcdir)/contrib/machines.sci %P %A
 
 # -------- Do not modify anything below this line --------
 
