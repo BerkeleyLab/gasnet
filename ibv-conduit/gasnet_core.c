@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core.c                  $
- *     $Date: 2003/03/21 01:14:44 $
- * $Revision: 1.2.2.5 $
+ *     $Date: 2003/03/25 06:08:36 $
+ * $Revision: 1.2.2.6 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,19 +23,17 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
-gasnetc_cep_t	*gasnetc_cep;
+gasnetc_cep_t		*gasnetc_cep;
+gasnetc_snd_desc_t	*gasnetc_snd_desc_pool;
+
 VAPI_hca_hndl_t	gasnetc_hca;
 VAPI_pd_hndl_t	gasnetc_pd;
 VAPI_cq_hndl_t	gasnetc_rcv_cq;
 VAPI_cq_hndl_t	gasnetc_snd_cq;
 
-#define GASNETC_HCA_ID	"InfiniHost0"
+gasnetc_regmem_t	gasnetc_rcv_reg;
+gasnetc_regmem_t	gasnetc_snd_reg;
 
-#define GASNETC_SND_WQE	65535	/* maximum unreaped entries on a snd queue */
-#define GASNETC_SND_SG	4	/* maximum number of segments to gather on send */ 
-
-#define GASNETC_RCV_WQE	2	/* maximum unreaped entries on a rcv queue */
-#define GASNETC_RCV_SG	1	/* maximum number of segments to scatter on rcv */ 
 
 /* Used only once, to exchange addresses at connection time */
 typedef struct _gasnetc_addr_t {
@@ -71,6 +69,9 @@ void gasnetc_checkattach() {
 */
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
+  assert(sizeof(gasnetc_medmsg_t) == (GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS));
+  assert((GASNET_MAXNODES * GASNETC_RCV_WQE) <= GASNETC_CQ_SIZE);
+
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
 }
@@ -128,14 +129,115 @@ extern void gasnetc_bootstrapAllgather(void *src, size_t len, void *dest);
 extern void gasnetc_bootstrapAlltoall(void *src, size_t len, void *dest);
 #endif
 
+static VAPI_ret_t gasnetc_pin(void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
+  VAPI_mr_t	req_mr;
+
+  req_mr.type    = VAPI_MR;
+  req_mr.start   = (uintptr_t)addr;
+  req_mr.size    = size;
+  req_mr.pd_hndl = gasnetc_pd;
+  req_mr.acl     = acl;
+
+  return VAPI_register_mr(gasnetc_hca, &req_mr, &reg->handle, &reg->props);
+}
+
+static void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_regmem_t *reg) {
+  VAPI_ret_t vstat;
+  void *addr;
+
+  addr = gasneti_mmap(size);
+  if (addr) {
+    vstat = gasnetc_pin(addr, size, acl, reg);
+    if (vstat != VAPI_OK) {
+      gasneti_munmap(addr, size);
+      addr = NULL;
+    }
+  }
+
+  return addr;
+}
+
+static void gasnetc_snd_init(void) {
+  VAPI_cqe_num_t	act_size;
+  VAPI_ret_t		vstat;
+  gasnetc_buffer_t	*buf;
+  gasnetc_snd_desc_t	*desc;
+  int 			count, i;
+
+  count = MIN(GASNETC_CQ_SIZE, GASNETC_SND_WQE * gasnetc_nodes);
+
+  buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t), 0, &gasnetc_snd_reg);
+  assert(buf != NULL);
+
+  desc = calloc(count, sizeof(gasnetc_snd_desc_t));
+  assert(desc != NULL);
+
+  gasnetc_snd_desc_pool = desc;
+  for (i = 0; i < count; ++i, ++desc) {
+    desc->sr_desc.id        = (uintptr_t)desc;		/* CQE will point back to this request */
+    desc->sr_desc.comp_type = VAPI_SIGNALED;		/* XXX: is this correct? */
+    desc->sr_desc.sg_lst_p  = desc->sr_sg;
+    desc->sr_desc.set_se    = FALSE;			/* XXX: is this correct? */
+    /* REST OF sr_desc SET AT SEND TIME */
+    desc->next = desc + 1;
+  }
+  desc->next = NULL;
+
+  vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_snd_cq, &act_size);
+  assert(vstat == VAPI_OK);
+  assert(act_size >= count);
+}
+
+static gasnetc_rcv_desc_t *gasnetc_rcv_init(void) {
+  VAPI_cqe_num_t	act_size;
+  VAPI_ret_t		vstat;
+  gasnetc_buffer_t	*buf;
+  gasnetc_rcv_desc_t	*desc;
+  int 			count, i;
+
+  count = GASNETC_RCV_WQE * gasnetc_nodes;
+
+  buf = gasnetc_alloc_pinned(count * sizeof(gasnetc_buffer_t),
+			     VAPI_EN_LOCAL_WRITE, &gasnetc_rcv_reg);
+  assert(buf != NULL);
+
+  desc = calloc(count, sizeof(gasnetc_rcv_desc_t));
+  assert(desc != NULL);
+
+  for (i = 0; i < count; ++i) {
+    desc[i].rr_desc.id         = (uintptr_t)&desc[i];	/* CQE will point back to this request */
+    desc[i].rr_desc.opcode     = VAPI_RECEIVE;
+    desc[i].rr_desc.comp_type  = VAPI_SIGNALED;	/* XXX: is this right? */
+    desc[i].rr_desc.sg_lst_len = 1;
+    desc[i].rr_desc.sg_lst_p   = &desc[i].rr_sg;
+    desc[i].rr_sg.len          = GASNETC_BUFSZ;
+    desc[i].rr_sg.addr         = (uintptr_t)&buf[i];
+    desc[i].rr_sg.lkey         = gasnetc_rcv_reg.props.l_key;
+  }
+
+  vstat = VAPI_create_cq(gasnetc_hca, count, &gasnetc_rcv_cq, &act_size);
+  assert(vstat == VAPI_OK);
+  assert(act_size >= count);
+
+  return desc;
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_rcv_post)
+int gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rcv_desc_t *desc) {
+  return (VAPI_OK != VAPI_post_rr(gasnetc_hca, cep->qp_handle, &desc->rr_desc));
+}
+
 static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_addr_t	*local_addr;
   gasnetc_addr_t	*remote_addr;
   VAPI_hca_cap_t	hca_cap;
   VAPI_hca_port_t	hca_port;
+  VAPI_cqe_num_t	rcv_buf_count;
+  VAPI_cqe_num_t	snd_buf_count;
   IB_port_t		port;
   VAPI_ret_t		vstat;
-  int i;
+  int 			i, rc;
+  gasnetc_rcv_desc_t	*rcv_desc_ptr;
 
   /*  check system sanity */
   gasnetc_check_config();
@@ -156,7 +258,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Determine number of nodes and my own node number */
   gasnetc_bootstrapConf();
     
-  /* allocate arrays */
+  /* allocate resources */
   gasnetc_cep = calloc(gasnetc_nodes, sizeof(gasnetc_cep_t));
   assert(gasnetc_cep != NULL);
   local_addr = calloc(gasnetc_nodes, sizeof(gasnetc_addr_t));
@@ -164,8 +266,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   remote_addr = calloc(gasnetc_nodes, sizeof(gasnetc_addr_t));
   assert(remote_addr != NULL);
 
-  /* open the hca */
-  /* XXX: should also check args/env for non-default HCA ID */
+  /* open the hca and get port & lid values */
+  /* XXX: should also check args/env for non-default HCA and port */
   {
     VAPI_hca_vendor_t hca_vendor;
 
@@ -176,12 +278,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     assert(vstat == VAPI_OK && "Unable to open the HCA");
 
     vstat = VAPI_query_hca_cap(gasnetc_hca, &hca_vendor, &hca_cap);
-    assert(vstat == VAPI_OK);
-  }
+    assert(vstat == VAPI_OK && "Unable to query HCA capabilities");
 
-  /* get the port number and the corresponding lid */
-  /* XXX: should first check args/env for non-default port number */
-  {
     for (port = 1; port <= hca_cap.phys_port_num; ++port) {
       vstat = VAPI_query_hca_port_prop(gasnetc_hca, port, &hca_port);
       assert(vstat == VAPI_OK);
@@ -194,27 +292,38 @@ static int gasnetc_init(int *argc, char ***argv) {
     assert(port <= hca_cap.phys_port_num && "No ACTIVE ports found");
   }
 
-  /* create the CQs */
-  {
-    VAPI_cqe_num_t req_size;	/* requested */
-    VAPI_cqe_num_t act_size;	/* actual */
+  /* check hca and port properties */
+  assert(hca_cap.max_num_qp >= gasnetc_nodes);
+  assert(hca_cap.max_qp_ous_wr >= GASNETC_SND_WQE);
+  assert(hca_cap.max_qp_ous_wr >= GASNETC_RCV_WQE);
+  assert(hca_cap.max_num_sg_ent >= GASNETC_SND_SG);
+  assert(hca_cap.max_num_sg_ent >= GASNETC_RCV_SG);
+  assert(hca_cap.max_num_sg_ent_rd >= 1);		/* RDMA Read support required */
+  #if 1 /* QP end points */
+    assert(hca_cap.max_qp_ous_rd_atom >= 1);		/* RDMA Read support required */
+  #else
+    assert(hca_cap.max_ee_ous_rd_atom >= 1);		/* RDMA Read support required */
+  #endif
+  assert(hca_cap.max_num_cq >= 2);
+  assert(hca_cap.max_num_ent_cq >= GASNETC_CQ_SIZE);
+  #if defined(GASNET_SEGMENT_FAST)
+    assert(hca_cap.max_num_mr >= 3);			/* rcv bufs, snd bufs, segment */
+  #else
+    assert(hca_cap.max_num_mr >= (3+gasnetc_nodes));	/* rcv bufs, snd bufs, segment, n*fh */
+  #endif
 
-    req_size = MIN(65535, GASNETC_RCV_WQE * gasnetc_nodes);	/* XXX: may need to throttle or split? */
-    vstat = VAPI_create_cq(gasnetc_hca, req_size, &gasnetc_rcv_cq, &act_size);
-    assert(vstat == VAPI_OK);
-    assert(act_size >= req_size);
 
-    req_size = 65535;	/* XXX: may need to split? */
-    vstat = VAPI_create_cq(gasnetc_hca, req_size, &gasnetc_snd_cq, &act_size);
-    assert(vstat == VAPI_OK);
-    assert(act_size >= req_size);
-  }
 
-  /* get a pd for the QPs */
+  /* get a pd for the QPs and memory registration */
   vstat =  VAPI_alloc_pd(gasnetc_hca, &gasnetc_pd);
   assert(vstat == VAPI_OK);
 
-  /* ### allocate and register recv buffers */
+  /* allocate/initialize receiver resources */
+  rcv_desc_ptr = gasnetc_rcv_init();
+  assert(rcv_desc_ptr != NULL);
+ 
+  /* allocate/initialize sender resources */
+  gasnetc_snd_init();
 
   /* create all the endpoints */
   {
@@ -267,8 +376,14 @@ static int gasnetc_init(int *argc, char ***argv) {
     for (i = 0; i < gasnetc_nodes; ++i) {
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       assert(vstat == VAPI_OK);
-
-      /* ### post recv buffers */
+	
+      /* post 1st rcv descriptor */
+      rc = gasnetc_rcv_post(&gasnetc_cep[i], rcv_desc_ptr++); 
+      assert(rc == 0);
+	
+      /* post 2nd rcv descriptor */
+      rc = gasnetc_rcv_post(&gasnetc_cep[i], rcv_desc_ptr++); 
+      assert(rc == 0);
     }
 
     /* advance INIT -> RTR */
@@ -327,10 +442,19 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasnetc_mynode, gasnetc_nodes); fflush(stderr);
   #endif
 
-  #if defined(GASNET_SEGMENT_FAST) || defined(GASNET_SEGMENT_LARGE)
+  #if defined(GASNET_SEGMENT_FAST)
+    /* XXX: should also examine how much O/S will allow pinned? */
     gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
                         &gasnetc_MaxGlobalSegmentSize,
-                        (uintptr_t)-1,	/* XXX: tune this limit */
+                        (uintptr_t)hca_cap.max_mr_size,
+                        gasnetc_nodes,
+                        &gasnetc_bootstrapAllgather);
+  #elif defined(GASNET_SEGMENT_LARGE)
+    /* XXX: Should use max mmap size and pin in multiple ranges
+	Currently just using max region size */
+    gasneti_segmentInit(&gasnetc_MaxLocalSegmentSize,
+                        &gasnetc_MaxGlobalSegmentSize,
+                        (uintptr_t)hca_cap.max_mr_size,	/* XXX: should be -1, see note above */
                         gasnetc_nodes,
                         &gasnetc_bootstrapAllgather);
   #elif defined(GASNET_SEGMENT_EVERYTHING)
