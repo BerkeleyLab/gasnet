@@ -12,11 +12,15 @@ typedef intptr_t	fh_int_t;
  */
 
 extern gasneti_mutex_t		fh_table_lock;
+extern gasneti_mutex_t		fh_pollq_lock;
 
 #define FH_TABLE_LOCK		gasneti_mutex_lock(&fh_table_lock)
 #define FH_TABLE_UNLOCK		gasneti_mutex_unlock(&fh_table_lock)
 #define FH_TABLE_ASSERT_LOCKED	gasneti_mutex_assertlocked(&fh_table_lock)
 #define FH_TABLE_ASSERT_UNLOCKED gasneti_mutex_assertunlocked(&fh_table_lock)
+
+#define FH_POLLQ_LOCK		gasneti_mutex_lock(&fh_pollq_lock)
+#define FH_POLLQ_UNLOCK		gasneti_mutex_unlock(&fh_pollq_lock)
 
 #ifndef FH_BUCKET_SIZE
 #define FH_BUCKET_SIZE	GASNETI_PAGESIZE
@@ -236,36 +240,95 @@ fh_refc_t	fh_bucket_acquire(gasnet_node_t node, fh_bucket_t *);
 		/* Return a matching private if the region is pinned     */
 int	fh_region_ispinned(gasnet_node_t node, uintptr_t addr, size_t len);
 
-typedef
-struct _fh_fifoq_t {
-	firehose_private_t	*fh_tqh_first;
-	firehose_private_t	**fh_tqh_last;
+/* Common Queue Macros for Firehose FIFO and Local Bucket FIFO */
+#define FH_TAILQ_HEAD(name, type)	\
+struct name {				\
+	struct type	*fh_tqh_first;	\
+	struct type	**fh_tqh_last;	\
 }
-fh_fifoq_t;
+#define FH_STAILQ_HEAD(name,type)	FH_TAILQ_HEAD
+
+/* Create a fh_fifoq_t type for local and remote fifos */
+FH_TAILQ_HEAD(_fh_fifoq_t, _firehose_private_t);
+typedef struct _fh_fifoq_t	fh_fifoq_t;
+
+/* Create a fh_pollq_t type to hold firehose callbacks queued 
+ * from within an AM Reply handler */
+FH_TAILQ_HEAD(_fh_pollq_t, _fh_callback_t);
+typedef struct _fh_pollq_t	fh_pollq_t;
 
 /* Each node has a FirehoseFifo */
 static fh_fifoq_t	*fh_RemoteNodeFifo;
 static fh_fifoq_t	fh_LocalFifo;
 
-/* Common Queue Macros for Firehose FIFO and Local Bucket FIFO */
+/* There is also a pollqueue which is drained by firehose_poll */
+static fh_pollq_t	fh_CallbackFifo;
+
+typedef
+struct _fh_callback_t {
+	uint8_t		 	flags;
+	struct _fh_callback_t	*fh_tqe_next;
+}
+fh_callback_t;
+
+#define FH_FLAG_REMOTE_CALLBACK	0x01
+#define FH_FLAG_COMPLETION	0x02
+
+typedef
+struct _fh_remote_callback_t {
+	uint8_t		flags;
+
+	struct _fh_remote_callback_t	*fh_tqe_next;
+
+	firehose_remote_callback_fn_t	callback;
+	gasnet_handlerarg_t		args[16];
+}
+fh_remote_callback_t;
+
+typedef
+struct _fh_completion_callback_t {
+	uint8_t		flags;
+
+	struct _fh_completion_callback_t	*fh_tqe_next;
+
+	firehose_completed_fn_t	callback;
+	firehose_request_t	*request;
+	void			*context;
+}
+fh_completion_callback_t;
+
 #define FH_TAILQ_FIRST(head)	((head)->fh_tqh_first)
 #define FH_TAILQ_LAST(head)	((head)->fh_tqh_last)
 #define FH_TAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
 #define FH_TAILQ_NEXT(elem)	((elem)->fh_tqe_next)
 #define FH_TAILQ_PREV(elem)	((elem)->fh_tqe_prev)
 
+#define FH_STAILQ_FIRST(head)	((head)->fh_tqh_first)
+#define FH_STAILQ_LAST(head)	((head)->fh_tqh_last)
+#define FH_STAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
+#define FH_STAILQ_NEXT(elem)	((elem)->fh_tqe_next)
+
+/* Doubles/single list initialization */
 #define FH_TAILQ_INIT(head)	do {				\
 	FH_TAILQ_FIRST((head)) = NULL;				\
 	FH_TAILQ_LAST(head) = &FH_TAILQ_FIRST((head));		\
 } while (0)
+#define FH_STAILQ_INIT(head)	FH_TAILQ_INIT(head)
 
+/* Double/singe list tail addition */
 #define FH_TAILQ_INSERT_TAIL(head, elem) do {				\
 	FH_TAILQ_NEXT(elem) = NULL;					\
 	FH_TAILQ_PREV(elem) = FH_TAILQ_LAST(head);			\
 	*(FH_TAILQ_LAST(head)) = (elem);				\
 	FH_TAILQ_LAST(head) = &FH_TAILQ_NEXT(elem);			\
 } while (0)
+#define	FH_STAILQ_INSERT_TAIL(head, elem) do {				\
+	FH_STAILQ_NEXT(elem) = NULL;					\
+	*(FH_STAILQ_LAST(head)) = (elem);				\
+	FH_STAILQ_LAST(head) = &FH_STAILQ_NEXT(elem);			\
+} while (0)
 
+/* Double remove anywhere in the list */
 #define FH_TAILQ_REMOVE(head, elem) do {				\
 	if (FH_TAILQ_NEXT(elem) != NULL)				\
 		FH_TAILQ_PREV(FH_TAILQ_NEXT(elem)) = 			\
@@ -275,22 +338,33 @@ static fh_fifoq_t	fh_LocalFifo;
 	*(FH_TAILQ_PREV(elem)) = FH_TAILQ_NEXT(elem);			\
 } while (0)
 
+/* Single remove from head only */
+#define	FH_STAILQ_REMOVE_HEAD(head) do {				\
+	if ((FH_STAILQ_FIRST((head)) =					\
+	     FH_STAILQ_NEXT(FH_STAILQ_FIRST((head)))) == NULL)		\
+		FH_STAILQ_LAST(head) = &FH_STAILQ_FIRST(head);		\
+} while (0)
+
+/* Double/single foreach over the list */
 #define FH_TAILQ_FOREACH(head, var)					\
 	for ((var) = FH_TAILQ_FIRST(head); (var) != NULL;		\
 	     (var) = TAILQ_NEXT(var))
+#define FH_STAILQ_FOREACH(head, var)					\
+	for ((var) = FH_STAILQ_FIRST(head); (var) != NULL;		\
+	     (var) = STAILQ_NEXT(var))
 		
 /* ##################################################################### */
 /* Firehose internal pinning functions                                   */
 /* ##################################################################### */
 /* See documentation in firehose_page.c                                  */
-firehose_private_t *	fh_acquire_local_region(firehose_region_t *region);
-void			fh_release_local_region(firehose_request_t *req);
+firehose_private_t *	fh_acquire_local_region(firehose_region_t *);
+void			fh_release_local_region(firehose_request_t *);
 
 firehose_private_t *	fh_acquire_remote_region(gasnet_node_t node, 
 				firehose_region_t *reg, 
 				firehose_completed_fn_t callback, 
 				void *context);
-void			fh_release_remote_region(firehose_request_t *req);
+void			fh_release_remote_region(firehose_request_t *);
 
 /* values for firehose_private_t * */
 #define FH_REGION_UNPINNED	((firehose_private_t *) 0)

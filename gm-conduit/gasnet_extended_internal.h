@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/extended-ref/gasnet_extended_internal.h         $
- *     $Date: 2003/08/04 11:06:51 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2003/08/05 22:46:06 $
+ * $Revision: 1.11.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -240,11 +240,8 @@ int gasnete_extref_barrier_try(int id, int flags);
 #define _hidx_gasnete_extref_putlong_reqh		(GASNETE_HANDLER_BASE+7)
 #define _hidx_gasnete_extref_memset_reqh		(GASNETE_HANDLER_BASE+8)
 #define _hidx_gasnete_extref_markdone_reph		(GASNETE_HANDLER_BASE+9)
-#ifdef GASNETC_FIREHOSE
-#define _hidx_gasnete_firehose_move_reph		(GASNETE_HANDLER_BASE+10)
-#define _hidx_gasnete_firehose_get_dma_reqh		(GASNETE_HANDLER_BASE+11)
-#define _hidx_gasnete_firehose_get_dma_reph		(GASNETE_HANDLER_BASE+12)
-#elif defined(GASNETC_TURKEY)
-#error not implemented yet
-#endif
+
+#define _hidx_gasnete_get_dma_reqh			(GASNETE_HANDLER_BASE+10)
+#define _hidx_gasnete_get_dma_reph			(GASNETE_HANDLER_BASE+11)
+
 #endif

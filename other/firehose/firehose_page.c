@@ -1,5 +1,6 @@
 #include <firehose.h>
 #include <firehose_internal.h>
+#include <gasnet_handler.h>
 
 #ifdef FIREHOSE_PAGE
 
@@ -54,6 +55,9 @@ void	fhi_InitRegionsList(gasnet_node_t, firehose_region_t *, int numreg);
  * local and victim FIFOs.
  */
 gasneti_mutex_t		fh_table_lock = GASNETI_MUTEX_INITIALIZER;
+
+/* This lock protects the poll FIFO queue, used to enqueue callbacks. */
+gasneti_mutex_t		fh_pollq_lock = GASNETI_MUTEX_INITIALIZER;
 
 /* The following two buffers are two temporary regions/buckets buffers that can
  * be used while holding the table lock.  There contents remains valid while
@@ -123,6 +127,18 @@ int	*fhc_RemoteBucketsUsed;
  *     Available amount of remote buckets that can be used without sending
  *     replacement buckets.  */
 int	*fhc_RemoteVictimFifoBuckets;
+
+/* ACTIVE MESSAGES DECL                                                   */ 
+static gasnet_handlerentry_t fh_am_handlers[];
+/* Initial value of index for gasnet registration */
+#define _hidx_fh_am_move_reqh			0
+#define _hidx_fh_am_move_reph			0
+
+/* Index into the fh_am_handlers table to obtain the gasnet registered index */
+#define _fh_hidx_fh_am_move_reqh		0
+#define _fh_hidx_fh_am_move_reph		1
+
+#define fh_handleridx(reqh)	(fh_am_handlers[ _fh_hidx_ ## reqh ].index)
 
 /* ##################################################################### */
 /* UTILITY FUNCTIONS FOR REGIONS AND BUCKETS                             */
@@ -709,6 +725,8 @@ fhi_InitRegionsList(gasnet_node_t node, firehose_region_t *region, int numreg)
 	fh_bucket_t	*bd;
 	int		i, loc, rem;
 
+	FH_TABLE_ASSERT_LOCKED;
+
 	if (node == gasnet_mynode())
 		loc = 1, rem = 0;
 	else
@@ -897,9 +915,9 @@ fh_acquire_remote_region(gasnet_node_t node, firehose_region_t *reg,
 		#endif
 
                 MEDIUM_REQ(4, 6, 
-                   (node, gasneti_handleridx(fh_am_move_reqh),
-                    (void *) reg_alloc_new, new_r+old_r,
-		    new_r, old_r, PACK(callback), PACK(context)))
+                   (node, fh_handleridx(fh_am_move_reqh),
+                    (void *) reg_alloc_new, (size_t) (new_r+old_r),
+		    new_r, old_r, PACK(callback), PACK(context)));
 
 		return FH_REGION_UNPINNED;
 	}
@@ -946,7 +964,7 @@ fh_release_remote_region(firehose_request_t *request)
 
 	return;
 }
-	
+
 /* ##################################################################### */
 /* ACTIVE MESSAGES                                                       */ 
 /* ##################################################################### */
@@ -996,9 +1014,6 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 	firehose_move_callback(node, rbuild_o.regions_out, rbuild_o.out,
 		rbuild_n.regions_out, rbuild_n.out);
 
-	/* Add the new buckets to the table */
-	fhi_InitRegionsList(node, rbuild_n.regions_out, rbuild_n.out);
-
 	FH_TABLE_UNLOCK;
 
 	#ifdef FIREHOSE_EXPORT_CALLBACK
@@ -1012,19 +1027,19 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr,
 	 * the client requested.
 	 * */
 	#ifdef FIREHOSE_BIND_CALLBACK
-		MEDIUM_REP(2,4,(token,
-		    gasneti_handleridx(fh_am_move_reph),
+		MEDIUM_REP(3,6,(token,
+		    fh_handleridx(fh_am_move_reph),
 		    rbuild_n.regions_in, rbuild_n.in, 
 		    PACK(callback), PACK(context), PACK(request_type)));
 	#else
-		MEDIUM_REP(2,4,(token,
-		    gasneti_handleridx(fh_am_move_reph), NULL, 0, 
+		MEDIUM_REP(3,6,(token,
+		    fh_handleridx(fh_am_move_reph), NULL, 0, 
 		    PACK(callback), PACK(context), PACK(request_type)));
 	#endif
 
 	return;
 }
-MEDIUM_HANDLER(fh_am_move_reqh,4,6,
+MEDIUM_HANDLER(fh_am_move_reqh,5,8,
               (token,addr,nbytes, a0, a1, UNPACK(a2),      UNPACK(a3),
 					  UNPACK(a4)                     ),
               (token,addr,nbytes, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5),
@@ -1033,41 +1048,60 @@ MEDIUM_HANDLER(fh_am_move_reqh,4,6,
 /*
  * Firehose AM Reply
  *
- * Since firehose-page does not carry a firehose type, we can safely ignore the
- * bind and unbind callbacks as well as the export/unexport callbacks.
- *
  */
 GASNET_INLINE_MODIFIER(fh_am_move_reph_inner)
 void
 fh_am_move_reph_inner(gasnet_token_t token, void *addr,
 		      size_t nbytes,
-		      gasnet_handlerarg_t num_regions,
+		      gasnet_handlerarg_t new_num,
+		      gasnet_handlerarg_t old_num,
 		      void *callback,
 		      void *context,
 		      void *request_type)
 {
 	firehose_request_t *req = (firehose_request_t *) request_type;
-	firehose_completed_fn_t *func = (firehose_completed_fn_t *) callback;
+	firehose_completed_fn_t func = (firehose_completed_fn_t) callback;
+	firehose_region_t *regions = (firehose_region_t *) addr;
+	gasnet_node_t	node;
+
+	gasnet_AMGetMsgSource(token, &node);
 
 	#ifdef FIREHOSE_BIND_CALLBACK
-	{
-		gasnet_node_t	node;
-		gasnet_AMGetMsgSource(token, &node);
-		if (num_regions > 0)
-			firehose_bind_callback(node, (firehose_region_t *) addr,
-					       num_regions);
-	}
+	if (num_regions > 0)
+		firehose_bind_callback(node, (firehose_region_t *) addr,
+				       num_regions);
 	#endif
-	func(context, req);
-}
-MEDIUM_HANDLER(fh_am_move_reph,4,6,
-              (token,addr,nbytes, a0, UNPACK(a1),      UNPACK(a2),
-				      UNPACK(a3)                     ),
-              (token,addr,nbytes, a0, UNPACK2(a1, a2), UNPACK2(a3, a4),
-				      UNPACK2(a5, a6)                ));
 
+	/* Add the new buckets to the table */
+	FH_TABLE_LOCK;
+	fhi_InitRegionsList(node, regions, new_num);
+	FH_TABLE_UNLOCK;
+
+	if (callback != NULL) {
+		fh_completion_callback_t *fcc = (fh_completion_callback_t *)
+			gasneti_malloc(sizeof(fh_completion_callback_t));
+		assert(fcc != NULL);
+
+		fcc->flags = FH_FLAG_COMPLETION;
+		fcc->callback = callback;
+		fcc->context = context;
+		fcc->request = req;
+
+		FH_POLLQ_LOCK;
+		FH_STAILQ_INSERT_TAIL(&fh_CallbackFifo, 
+				      (fh_callback_t *) callback);
+		FH_POLLQ_UNLOCK;
+	}
+}
+MEDIUM_HANDLER(fh_am_move_reph,5,8,
+              (token,addr,nbytes, a0, a1, UNPACK(a2),      UNPACK(a3),
+					  UNPACK(a4)                     ),
+              (token,addr,nbytes, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5),
+					  UNPACK2(a6, a7)                ));
+
+/* indexes for firehose AM handlers */
 static 
-gasnet_handlerentry_t const fh_am_handlers[] = {
+gasnet_handlerentry_t fh_am_handlers[] = {
 	/* ptr-width dependent handlers */
 	gasneti_handler_tableentry_with_bits(fh_am_move_reqh),
 	gasneti_handler_tableentry_with_bits(fh_am_move_reph),

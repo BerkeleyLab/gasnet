@@ -1,6 +1,6 @@
-/* $Id: gasnet_core_help.h,v 1.20.10.1 2003/08/04 11:06:51 csbell Exp $
- * $Date: 2003/08/04 11:06:51 $
- * $Revision: 1.20.10.1 $
+/* $Id: gasnet_core_help.h,v 1.20.10.2 2003/08/05 22:46:06 csbell Exp $
+ * $Date: 2003/08/05 22:46:06 $
+ * $Revision: 1.20.10.2 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -43,6 +43,8 @@ typedef void (*gasnetc_HandlerLong)  (void *token, void *buf, int nbytes, ...);
 #else
 #define GASNETC_GM_PUT	gm_directed_send_with_callback
 #endif
+
+#define GASNETC_SEGMENT_ALIGN	GASNETI_PAGESIZE
 
 /* -------------------------------------------------------------------------- */
 /* These should not be modified */

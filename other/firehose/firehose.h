@@ -395,17 +395,8 @@ firehose_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
 extern const firehose_request_t *
 firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
 
-#if 0 /* temporary remote callback type */
-typedef
-struct firehose_remote_callback_t {
-	void	(*firehose_remote_pin_callback_fn)(gasnet_node_t node, 
-		uintptr_t local, uintptr_t remote, size_t nbytes);
-	uintptr_t	local_addr;
-	uintptr_t	remote_addr;
-	size_t		nbytes;
-}
-firehose_remote_callback_t;
-#endif
+
+typedef void (*firehose_remote_callback_fn_t)();
 
 /* firehose_remote_pin(node, addr, len, callback, context,
  * 		       ret_ifpinned, request_t)

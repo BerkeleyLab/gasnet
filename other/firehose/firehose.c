@@ -99,6 +99,42 @@ firehose_fini()
 	return;
 }
 
+
+/* firehose_poll()
+ *
+ * Empties the Callback Fifo Queue.
+ *
+ * XXX should make fh_callback_t allocated from freelists.
+ */
+void
+firehose_poll()
+{
+	fh_callback_t	*fhc;
+
+	if (!FH_STAILQ_EMPTY(&fh_CallbackFifo)) {
+		FH_POLLQ_LOCK;
+
+		if (!FH_STAILQ_EMPTY(&fh_CallbackFifo)) {
+			fhc = FH_STAILQ_FIRST(&fh_CallbackFifo);
+			FH_STAILQ_REMOVE_HEAD(&fh_CallbackFifo);
+			FH_POLLQ_UNLOCK;
+
+			if (fhc->flags & FH_FLAG_COMPLETION) {
+				fh_completion_callback_t *fhcc =
+					(fh_completion_callback_t *) fhc;
+				fhcc->callback(fhcc->context, fhcc->request);
+			}
+
+			/* XXX Add support for remote completion callbacks */
+			gasneti_free(fhc);
+		}
+		else
+			FH_POLLQ_UNLOCK;
+	}
+
+	return;
+}
+
 /*
  * Inlined fh_local_pin
  *
@@ -242,7 +278,7 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 }
 
 extern void
-firehose_release(firehose_request_t **reqs, int numreqs)
+firehose_release(const firehose_request_t **reqs, int numreqs)
 {
 	int			i;
 
@@ -250,12 +286,14 @@ firehose_release(firehose_request_t **reqs, int numreqs)
 
 	for (i = 0; i < numreqs; i++) {
 		if (fhi_node(reqs[i]->internal) == gasnet_mynode()) 
-			fh_release_local_region(reqs[i]);
+			fh_release_local_region(
+				(firehose_request_t *) reqs[i]);
 		else
-			fh_release_remote_region(reqs[i]);
+			fh_release_remote_region(
+				(firehose_request_t *) reqs[i]);
 
 		if (reqs[i]->flags & FH_FLAG_FHREQ)
-			fh_request_free(reqs[i]);
+			fh_request_free((firehose_request_t *) reqs[i]);
 	}
 
 	FH_TABLE_UNLOCK;
@@ -464,7 +502,6 @@ fh_bucket_remove(fh_bucket_t *entry)
 	bucket->fh_next = fh_buckets_freehead;
 	fh_buckets_freehead = bucket;
 }
-
 /* 
  * fh_getenv()
  *

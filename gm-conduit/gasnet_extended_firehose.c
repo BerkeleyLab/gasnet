@@ -1,5 +1,5 @@
-/* $Id: gasnet_extended_firehose.c,v 1.21.8.1 2003/08/04 11:06:51 csbell Exp $
- * $Date: 2003/08/04 11:06:51 $
+/* $Id: gasnet_extended_firehose.c,v 1.21.8.2 2003/08/05 22:46:06 csbell Exp $
+ * $Date: 2003/08/05 22:46:06 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -428,7 +428,7 @@ LONG_HANDLER(gasnete_get_dma_reph,1,2,
 
 /* In GM 1.x, we can send a request for a ReplyLongAsync which essentially
  * translates to doing a put in the reverse direction */
-GASNET_INLINE_MODIFIER(gasnete_firehose_get_dma_reqh_inner)
+GASNET_INLINE_MODIFIER(gasnete_get_dma_reqh_inner)
 void
 gasnete_get_dma_reqh_inner(gasnet_token_t token, 
 				    gasnet_handlerarg_t nbytes, 
