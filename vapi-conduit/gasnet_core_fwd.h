@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_fwd.h              $
- *     $Date: 2003/05/28 18:59:25 $
- * $Revision: 1.2.2.4 $
+ *     $Date: 2003/06/20 21:28:28 $
+ * $Revision: 1.2.2.5 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,8 +19,10 @@
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_VAPI      1
 
-/* Explicitly set some types/sizes because we depend on the sizes when encoding them */
+/* This is the limit on the LID space... */
 #define GASNET_MAXNODES	16384
+
+/* Explicitly set some types because we depend on their sizes when encoding them */
 #define _GASNET_NODE_T
 typedef uint16_t gasnet_node_t;
 #define _GASNET_HANDLER_T
@@ -32,7 +34,11 @@ typedef uint8_t gasnet_handler_t;
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define CONDUIT_CORE_STATS(CNT,VAL,TIME)          \
+        CNT(C, SYSTEM_REQUEST, cnt)               \
+        CNT(C, SYSTEM_REPLY, cnt)                 \
+        CNT(C, SYSTEM_REQHANDLER, cnt)            \
+        CNT(C, SYSTEM_REPHANDLER, cnt)         
 
 /*
  * The VAPI conduit requires real HSLs, even for GASNET_SYNC, because there is a network progress thread.

@@ -1,6 +1,6 @@
 /*  $Archive:: /Ti/GASNet/template-conduit/gasnet_core_internal.h         $
- *     $Date: 2003/06/20 00:15:04 $
- * $Revision: 1.1.2.32 $
+ *     $Date: 2003/06/20 21:28:28 $
+ * $Revision: 1.1.2.33 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,11 @@ extern gasnet_seginfo_t *gasnetc_seginfo;
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
-#define _hidx_gasnetc_exit_reqh             (GASNETC_HANDLER_BASE+0)
+#define _hidx_             (GASNETC_HANDLER_BASE+)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
+
+#define _hidx_gasnetc_SYS_ack             0
+#define _hidx_gasnetc_SYS_exit            1
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -158,6 +161,43 @@ typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
+typedef void (*gasnetc_sys_handler_fn_t)(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs);
+extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS];
+
+#define RUN_HANDLER_SYSTEM(phandlerfn, token, args, numargs) \
+    if (phandlerfn != NULL) (*phandlerfn)(token, args, numargs)
+
+#ifdef TRACE
+  #define _GASNETI_TRACE_SYSTEM(name,dest,handler,numargs) do {                        \
+    _GASNETI_TRACE_GATHERARGS(numargs);                                                \
+    _GASNETI_STAT_EVENT(C,name);                                                       \
+    GASNETI_TRACE_PRINTF(C,(#name": dest=%i handler=%i args:%s",dest,handler,argstr)); \
+  } while(0)
+  #define GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs) \
+          _GASNETI_TRACE_SYSTEM(SYSTEM_REQUEST,dest,handler,numargs)
+  #define GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs) \
+          _GASNETI_TRACE_SYSTEM(SYSTEM_REPLY,dest,handler,numargs)
+
+  #define _GASNETI_TRACE_SYSTEM_HANDLER(name, handlerid, src, token, numargs, arghandle) do { \
+    _GASNETI_TRACE_GATHERHANDLERARGS(numargs, arghandle);                                 \
+    _GASNETI_STAT_EVENT(C,name);                                                          \
+    GASNETI_TRACE_PRINTF(C,(#name": src=%i handler=%i args:%s",                           \
+      (int)src,(int)(handlerid),argstr));                                                 \
+    GASNETI_TRACE_PRINTF(C,(#name": token: %s",                                           \
+                      gasneti_formatdata(&token, sizeof(token))));                        \
+    } while(0)
+  #define GASNETI_TRACE_SYSTEM_REQHANDLER(handlerid, src, token, numargs, arghandle) \
+         _GASNETI_TRACE_SYSTEM_HANDLER(SYSTEM_REQHANDLER, handlerid, src, token, numargs, arghandle)
+  #define GASNETI_TRACE_SYSTEM_REPHANDLER(handlerid, src, token, numargs, arghandle) \
+         _GASNETI_TRACE_SYSTEM_HANDLER(SYSTEM_REPHANDLER, handlerid, src, token, numargs, arghandle)
+#else
+  #define GASNETI_TRACE_SYSTEM_REQUEST(dest,handler,numargs)
+  #define GASNETI_TRACE_SYSTEM_REPLY(dest,handler,numargs)
+  #define GASNETI_TRACE_SYSTEM_REQHANDLER(handlerid, src, token, numargs, arghandle) 
+  #define GASNETI_TRACE_SYSTEM_REPHANDLER(handlerid, src, token, numargs, arghandle) 
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 
 #define GASNETC_HCA_ID  "InfiniHost0"
 #define GASNETC_CQ_SIZE 65535   	/* maximum entries in a CQ */
@@ -175,7 +215,7 @@ extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 #define GASNETC_AM_FLOWCTRL		1
 
 /* Define non-zero to enable a progress thread for receiving AMs . */
-#define GASNETC_RCV_THREAD		0
+#define GASNETC_RCV_THREAD		1
 
 /* Define non-zero to enable polling for receiving AMs . */
 #define GASNETC_RCV_POLL		1
