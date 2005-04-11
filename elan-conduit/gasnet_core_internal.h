@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/11 14:43:38 $
- * $Revision: 1.24.2.5 $
+ *     $Date: 2005/04/11 14:58:05 $
+ * $Revision: 1.24.2.6 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -383,7 +383,7 @@ extern gasneti_mutex_t gasnetc_sendfifoLock;
     /* elan library v1.4+ thread-safe - no weak locking required */
     #define LOCK_ELAN_WEAK()   gasneti_suspend_spinpollers()
     #define UNLOCK_ELAN_WEAK() gasneti_resume_spinpollers()
-    #define ASSERT_ELAN_LOCKED_WEAK()
+    #define ASSERT_ELAN_LOCKED_WEAK() ((void)0)
   #endif
 #else
   /* doesn't actually lock anything - just preserves debug checking */
