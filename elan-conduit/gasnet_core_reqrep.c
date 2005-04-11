@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2005/04/04 03:32:43 $
- * $Revision: 1.21.2.5 $
+ *     $Date: 2005/04/11 14:43:38 $
+ * $Revision: 1.21.2.6 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,9 +41,6 @@
 
 #define GASNETC_MEDHEADER_PADARG(numargs) \
         ((numargs & 0x1) ^ ((GASNETC_MED_HEADERSZ>>2) & 0x1))
-
-/* round up a size to a given power of 2 */
-#define ROUNDUP_TO_ALIGN(sz, align) ( ((sz) + (align)-1) & ~((align)-1) )
 
 /* ------------------------------------------------------------------------------------ */
 static ELAN_QUEUE *gasnetc_queue = NULL;
@@ -298,7 +295,7 @@ extern void gasnetc_initbufs() {
   { /* setup buffers */
     gasnetc_bufdesc_t *txdesc = elan_allocMain(STATE(), 8, gasnetc_queuesz*sizeof(gasnetc_bufdesc_t));
     gasnetc_bufdesc_t *rxdesc = elan_allocMain(STATE(), 8, gasnetc_queuesz*sizeof(gasnetc_bufdesc_t));
-    int bufsize = ROUNDUP_TO_ALIGN(sizeof(gasnetc_buf_t),64);
+    int bufsize = GASNETI_ALIGNUP(sizeof(gasnetc_buf_t), 64);
     uint8_t *txbuf = elan_allocMain(STATE(), 64, gasnetc_queuesz*bufsize);
     uint8_t *rxbuf = elan_allocMain(STATE(), 64, gasnetc_queuesz*bufsize);
     int i;
@@ -535,7 +532,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         if (nbytes < GASNETC_ELAN_SMALLPUTSZ ||
             gasnetc_elan_addressable(source_addr, nbytes)) {
           /* safe to put directly from source */
-          putevt = elan_put(STATE(), source_addr, dest_ptr, nbytes, dest);
+          putevt = gasnete_elan_put(source_addr, dest_ptr, nbytes, dest);
           UNLOCKRELOCK_ELAN_WEAK_IFTRACE(GASNETI_TRACE_EVENT_VAL(C,AMLONG_DIRECT,nbytes));
         } else { /* need to use a bounce buffer */
           /* TODO: this may fail for unmapped segment under GASNET_SEGMENT_EVERYTHING */
@@ -551,7 +548,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                 nbytes);
           #endif
           memcpy(bouncebuf, source_addr, nbytes);
-          putevt = elan_put(STATE(), bouncebuf, dest_ptr, nbytes, dest);
+          putevt = gasnete_elan_put(bouncebuf, dest_ptr, nbytes, dest);
           UNLOCKRELOCK_ELAN_WEAK_IFTRACE(GASNETI_TRACE_EVENT_VAL(C,AMLONG_BUFFERED,nbytes));
         }
         /* loop until put is complete (required to ensure ordering semantics) 

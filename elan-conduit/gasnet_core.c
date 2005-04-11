@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/04/11 04:22:39 $
- * $Revision: 1.50.2.4 $
+ *     $Date: 2005/04/11 14:43:38 $
+ * $Revision: 1.50.2.5 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,17 +100,26 @@ static void gasnetc_check_config() {
   /* add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
   { char *ver = elan_version();
-    int major,minor,result;
+    int gotit = 0;
+    int major,minor,rev=0;
     if (!elan_checkVersion(ver)) 
       gasneti_fatalerror("elan library version mismatch. linked version: %s", elan_version());
-    result = sscanf(ver,"libelan %i.%i", &major, &minor);
-    if (result != 2) result = sscanf(ver,"%i.%i.%*i", &major, &minor);
-    if (result != 2 || 
+    if (sscanf(ver,"libelan %i.%i", &major, &minor) == 2) gotit = 1;
+    else if (sscanf(ver,"%i.%i.%i", &major, &minor, &rev) == 3) gotit = 1;
+    if (!gotit || 
         (!GASNETC_ALLOW_ELAN_VERSION_MISMATCH &&
          (major != ELAN_VERSION_MAJOR || minor != ELAN_VERSION_MINOR)))
       gasneti_fatalerror("unexpected elan library version.\n"
                          " Expected: libelan %i.%i\n"
                          " Actual  : %s", ELAN_VERSION_MAJOR, ELAN_VERSION_MINOR, ver);
+    #ifdef GASNETC_ELAN4
+      if (major == 1 && minor <= 8 && rev < 7 && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) 
+        fprintf(stderr, 
+          "PERFORMANCE WARNING: Using Elan4 driver version '%s':\n"
+          " elan4 drivers prior to v1.8.7 contain a performance bug that seriously affects GASNet performance.\n"
+          " You should download the latest Elan4 libraries from www.quadrics.com and add them to LD_LIBRARY_PATH.",
+          ver);
+    #endif
   }
 
   gasneti_assert_always(sizeof(gasnetc_shortmsg_t) == GASNETC_SHORT_HEADERSZ);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/04 03:32:43 $
- * $Revision: 1.24.2.4 $
+ *     $Date: 2005/04/11 14:43:38 $
+ * $Revision: 1.24.2.5 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -90,6 +90,27 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #define GASNETC_PREALLOC_AMLONG_BOUNCEBUF 1
 #endif
 
+/* libelan's tuning knobs for multi-rail NIC striping (TODO: are these good vals?) */
+#ifndef GASNETC_PGCTRL_SPLITPUTSZ
+#define GASNETC_PGCTRL_SPLITPUTSZ GASNETC_ELAN_SMALLPUTSZ
+#endif
+#ifndef GASNETC_PGCTRL_SPLITGETSZ
+#define GASNETC_PGCTRL_SPLITGETSZ GASNETC_ELAN_SMALLPUTSZ
+#endif
+#ifndef GASNETC_PGCTRL_RAIL
+  #ifdef ELAN_RAIL_ALL
+    #define GASNETC_PGCTRL_RAIL ELAN_RAIL_ALL
+  #else
+    #define GASNETC_PGCTRL_RAIL 0
+  #endif
+#endif
+
+/* max concurrent puts that can be issued to a pgctrl without software throttling 
+   libelan currently requires this to be <= 64  */
+#ifndef GASNETC_PGCTRL_THROTTLE
+#define GASNETC_PGCTRL_THROTTLE 64
+#endif
+
 #ifndef GASNETC_ALLOW_ELAN_VERSION_MISMATCH
   #ifdef GASNETC_ELAN4
     /* elan4 reports libelan version mismatches, not sure why... */
@@ -169,6 +190,66 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #ifndef LIBELAN_QUEUEREUSEBUF
 #define LIBELAN_QUEUEREUSEBUF 0x10000 
 #endif
+
+/* whether or not to stripe elan puts across multiple PGCTRL objects,
+   to avoid software backpressure from libelan throttling during 
+   message injection
+*/
+#ifndef GASNETE_MULTI_PGCTRL
+  #ifdef ELAN_VER_1_2
+    #define GASNETE_MULTI_PGCTRL 0 /* pgctrl not available on 1.2 */
+  #else
+    #define GASNETE_MULTI_PGCTRL 1
+  #endif
+#endif
+
+#if GASNETE_MULTI_PGCTRL
+  /* distribute puts round-robin onto different pgctrls to provide 
+     a deeper effective put queue before software backpressure is applied
+     this algorithm works probablistically under the assumption that put
+     sizes are randomply distributed and drain fairly from all pgctrls - 
+     for degenerate access patterns with multiple different put sizes 
+     or unfair queue drainage, we might hit a full pgctrl queue backpressure 
+     when some pgctrls still have available slots - a smarter algorithm 
+     would try to query or predict the available slots and choose the 
+     least loaded pgctrl
+   */
+  #ifndef GASNETE_NUMPGCTRL_CNTMAX
+  #define GASNETE_NUMPGCTRL_CNTMAX  1024
+  #endif
+  extern int gasnete_elan_pgctrl_cnt;
+  extern int _gasnete_elan_pgctrl_cur;
+  extern ELAN_PGCTRL *gasnete_elan_pgctrl[GASNETE_NUMPGCTRL_CNTMAX];
+  /* there's a race here for PAR mode, but it's benign - 
+     this is a probabalistic heuristic anyhow 
+     TODO: does assigning per-thread ELAN_PGCTRL's reduce locking contention in libelan?
+   */
+  #define GASNETE_GETPGCTRL() (                                          \
+    gasneti_assert(gasnete_elan_pgctrl_cnt &&                            \
+                   gasnete_elan_pgctrl_cnt < GASNETE_NUMPGCTRL_CNTMAX && \
+                   _gasnete_elan_pgctrl_cur < gasnete_elan_pgctrl_cnt),  \
+    ( ++_gasnete_elan_pgctrl_cur == gasnete_elan_pgctrl_cnt ?            \
+      (void)(_gasnete_elan_pgctrl_cur = 0) : (void)0),                   \
+    gasnete_elan_pgctrl[_gasnete_elan_pgctrl_cur])
+
+  #define gasnete_elan_put(src, dest, nbytes, node) ( \
+          ASSERT_ELAN_LOCKED_WEAK(),                  \
+          elan_doput(GASNETE_GETPGCTRL(), src, dest, 0, nbytes, node, GASNETC_PGCTRL_RAIL))
+  /* elan gets are not software-throttled, so currently always 
+     assign them to the default PGCTRL, to avoid interference with puts
+   */
+  #define gasnete_elan_get(src, dest, nbytes, node) ( \
+          ASSERT_ELAN_LOCKED_WEAK(),                  \
+          elan_get(STATE(), src, dest, nbytes, node))
+#else
+  #define gasnete_elan_put(src, dest, nbytes, node) ( \
+          ASSERT_ELAN_LOCKED_WEAK(),                  \
+          elan_put(STATE(), src, dest, nbytes, node))
+  #define gasnete_elan_get(src, dest, nbytes, node) ( \
+          ASSERT_ELAN_LOCKED_WEAK(),                  \
+          elan_get(STATE(), src, dest, nbytes, node))
+#endif
+
 
 /* message flags */
  /* 0-1: category

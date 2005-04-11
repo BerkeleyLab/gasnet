@@ -1,6 +1,6 @@
 GASNet elan-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.3.8.1 $
+$Revision: 1.3.8.2 $
 
 User Information:
 -----------------
@@ -10,8 +10,14 @@ Recognized environment variables:
 
 * All the standard GASNet environment variables (see top-level README)
 
+* GASNET_NETWORKDEPTH - depth of libelan put queues to allocate
+  Use larger values to prevent stalls in put_nb(i) initiation operations
+  when queueing up many non-blocking puts in a short period of time.
+  Note that larger values increase memory consumption on the elan NIC, 
+  and specifying a value which is too large can lead to elan memory exhaustion.
+
 * GASNET_NBI_THROTTLE - max number of outstanding nbi operations to issue before
- attempting to reap some completions
+  stalling to reap some completions. Defaults to GASNET_NETWORKDEPTH.
 
 Optional compile-time settings:
 ------------------------------
@@ -55,15 +61,13 @@ Future work:
 * Implement GASNet split-phase barriers entirely on the elan NIC thread
  processor
 
-* Add support for elan4 once it's available
-
 ===============================================================================
 
 Design Overview:
 ----------------
 
 elan-conduit targets the Quadrics libelan software, a low-level interface which
-is implemented on top of the hardware-level elan3 library, and is intended to
+is implemented on top of the hardware-level elan3/4 library, and is intended to
 provide portability to new versions of the elan hardware.
 
 The core API is implemented using the elan queue abstraction in elanlib (for
