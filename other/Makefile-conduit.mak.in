@@ -160,7 +160,14 @@ tests-clean:
 	@$(MAKE) -f $(top_builddir)/tests/Makefile clean \
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
-run-tests do-run-testexit:
+check-run-tests-deps: force
+	@if test "$(SUBDIRS)" != "" ; then 	\
+	   for dir in ""$(SUBDIRS) ; do 	\
+	   	$(MAKE) -C $$dir ;  		\
+	   done ;				\
+	 fi
+
+run-tests do-run-testexit: check-run-tests-deps
 	@$(MAKE) -f $(top_builddir)/tests/Makefile $@ \
 	  CONDUIT_NAME=$(CONDUIT_NAME) \
 	  CONDUIT_RUNCMD="$(CONDUIT_RUNCMD)" \
@@ -176,6 +183,34 @@ run-testexit: force
 	  $(MAKE) testexit-par ; \
 	fi
 	@$(MAKE) do-run-testexit	
+
+@GNU_NM_TRUE@check-exports: $(libraries)
+@GNU_NM_TRUE@	@echo Checking libgasnet exports...
+@GNU_NM_TRUE@	@for lib in $(libraries) ; do                                               \
+@GNU_NM_TRUE@	  failed=0 ;                                                                \
+@GNU_NM_TRUE@	  echo ;                                                                    \
+@GNU_NM_TRUE@	  echo $$lib: ;                                                             \
+@GNU_NM_TRUE@	  @NM@ --defined-only $$lib |                                               \
+@GNU_NM_TRUE@	    grep -v -e ' [\._]*gasnetc_' -e ' [\._]*gasneti_' -e ' [\._]*gasnete_'  \
+@GNU_NM_TRUE@		    -e ' [\._]*gasnet_' -e ' [\._]*gasnett_'                        \
+@GNU_NM_TRUE@		    -e ' [\._]*fh_' -e ' [\._]*firehose_'                           \
+@GNU_NM_TRUE@		    -e ' [\._]*fhi_' -e ' [\._]*fhc_' -e ' [\._]*fhsmp_' -e ' [\._]*fhuni_' \
+@GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e debug_info_seg |      \
+@GNU_NM_TRUE@	    @AWK@ ' /^[0-9a-fA-F]+ [[:upper:]]/ { print $$0 }' > .$$lib.exp;        \
+@GNU_NM_TRUE@	  if test -s .$$lib.exp ; then                                              \
+@GNU_NM_TRUE@	    cat .$$lib.exp ;                                                        \
+@GNU_NM_TRUE@	    echo FAILED ;                                                           \
+@GNU_NM_TRUE@	    failed=1 ;                                                              \
+@GNU_NM_TRUE@	  else                                                                      \
+@GNU_NM_TRUE@	    echo PASSED ;                                                           \
+@GNU_NM_TRUE@	  fi ;                                                                      \
+@GNU_NM_TRUE@	  rm -f .$$lib.exp ;                                                        \
+@GNU_NM_TRUE@	done ; exit $$failed
+
+@GNU_NM_FALSE@check-exports: $(libraries)
+@GNU_NM_FALSE@	@echo check-exports test SKIPPED
+
+check: check-exports tests-par
 
 force:
 

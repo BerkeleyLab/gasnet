@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/04/04 03:32:43 $
- * $Revision: 1.50.2.4 $
+ *     $Date: 2005/04/11 04:22:39 $
+ * $Revision: 1.50.2.5 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -507,6 +507,29 @@ void gasnete_op_free(gasnete_op_t *op) {
   Non-blocking memory-to-memory transfers (explicit handle)
   ==========================================================
 */
+
+static int gasnete_warned_addr_AM = 0;
+static int gasnete_warned_addr_BB = 0;
+static int gasnete_warned_mem_AM = 0;
+#define _GASNETE_WARN_NOTADDRESSABLE(varname,problem, alternative) do { \
+  if_pf (!gasnete_warned_##varname) {                                   \
+    char msg[255];                                                      \
+    gasnete_warned_##varname = 1;                                       \
+    sprintf(msg, "PERFORMANCE WARNING: %s, compensating with %s.",      \
+            problem, alternative);                                      \
+    GASNETI_TRACE_PRINTF(I, ("%s", msg));                               \
+    if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {          \
+      fprintf(stderr, "%s\n", msg); fflush(stderr);                     \
+    }                                                                   \
+  }                                                                     \
+} while (0)
+#define GASNETE_WARN_NOTADDRESSABLE_BB() \
+  _GASNETE_WARN_NOTADDRESSABLE(addr_BB, "Executed some put/gets on non-elan-addressable areas of memory", "bounce-buffer copies")
+#define GASNETE_WARN_NOTADDRESSABLE_AM() \
+  _GASNETE_WARN_NOTADDRESSABLE(addr_AM, "Executed some put/gets on non-elan-addressable areas of memory", "active messages")
+#define GASNETE_WARN_OUTOFMEM_AM() \
+  _GASNETE_WARN_NOTADDRESSABLE(mem_AM, "Exhausted the libelan main memory heap trying to get a bounce buffer", "active messages")
+
 /* ------------------------------------------------------------------------------------ */
 GASNET_INLINE_MODIFIER(gasnete_get_reqh_inner)
 void gasnete_get_reqh_inner(gasnet_token_t token, 
@@ -612,6 +635,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   #if GASNET_SEGMENT_EVERYTHING
     if (!gasnetc_elan_addressable(src,nbytes)) {
       UNLOCK_ELAN_WEAK();
+      GASNETE_WARN_NOTADDRESSABLE_AM();
       GASNETI_TRACE_PRINTF(I,("Warning: get source not elan-mapped, using AM instead"));
     } else 
   #else
@@ -633,6 +657,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
       gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       evt = elan_get(STATE(), src, bouncebuf+1, nbytes, node);
       UNLOCK_ELAN_WEAK();
+      GASNETE_WARN_NOTADDRESSABLE_BB();
       GASNETI_TRACE_EVENT_VAL(C,GET_BUFFERED,nbytes);
       eop = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_ELANGETBB);
       bouncebuf->evt = evt;
@@ -646,9 +671,12 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     } else {
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_EVENT(C, EXHAUSTED_ELAN_MEMORY);
-      GASNETI_TRACE_PRINTF(I,("Warning: Elan conduit exhausted the main memory heap trying to get a bounce buffer, using AM instead"));
+      GASNETE_WARN_OUTOFMEM_AM();
     }
-  } else UNLOCK_ELAN_WEAK();
+  } else {
+    UNLOCK_ELAN_WEAK();
+    GASNETE_WARN_NOTADDRESSABLE_AM();
+  }
 #endif
 
   /* use AM */
@@ -677,6 +705,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
   #if GASNET_SEGMENT_EVERYTHING
     if (!gasnetc_elan_addressable(dest,nbytes)) {
       UNLOCK_ELAN_WEAK();
+      GASNETE_WARN_NOTADDRESSABLE_AM();
       GASNETI_TRACE_PRINTF(I,("Warning: put destination not elan-mapped, using AM instead"));
     } else 
   #else
@@ -706,8 +735,10 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       /* TODO: this gets a "not-addressable" elan exception on dual-rail runs - why? */
       evt = elan_put(STATE(), bouncebuf+1, dest, nbytes, node);
       UNLOCK_ELAN_WEAK();
-      if (isbulk) GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_BUFFERED,nbytes);
-      else        GASNETI_TRACE_EVENT_VAL(C,PUT_BUFFERED,nbytes);
+      if (isbulk) {
+        GASNETE_WARN_NOTADDRESSABLE_BB();
+        GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_BUFFERED,nbytes);
+      } else GASNETI_TRACE_EVENT_VAL(C,PUT_BUFFERED,nbytes);
       eop = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_ELANPUTBB);
       bouncebuf->evt = evt;
       #if GASNET_DEBUG
@@ -720,9 +751,12 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     } else {
       UNLOCK_ELAN_WEAK();
       GASNETI_TRACE_EVENT(C, EXHAUSTED_ELAN_MEMORY);
-      GASNETI_TRACE_PRINTF(I,("Warning: Elan conduit exhausted the main memory heap trying to get a bounce buffer, using AM instead"));
+      GASNETE_WARN_OUTOFMEM_AM();
     }
-  } else UNLOCK_ELAN_WEAK();
+  } else {
+    UNLOCK_ELAN_WEAK();
+    GASNETE_WARN_NOTADDRESSABLE_AM();
+  }
 #endif
 
   /* use AM */
@@ -955,6 +989,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   #if GASNET_SEGMENT_EVERYTHING
     if (!gasnetc_elan_addressable(src,nbytes)) {
       UNLOCK_ELAN_WEAK();
+      GASNETE_WARN_NOTADDRESSABLE_AM();
       GASNETI_TRACE_PRINTF(I,("Warning: get source not elan-mapped, using AM instead"));
     } else 
   #else
@@ -985,6 +1020,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
       gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       evt = elan_get(STATE(), src, bouncebuf+1, nbytes, node);
       UNLOCK_ELAN_WEAK();
+      GASNETE_WARN_NOTADDRESSABLE_BB();
       GASNETI_TRACE_EVENT_VAL(C,GET_BUFFERED,nbytes);
       eop = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_ELANGETBB);
       bouncebuf->evt = evt;
@@ -1009,9 +1045,12 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
         }
       #endif
       UNLOCK_ELAN_WEAK();
-      GASNETI_TRACE_PRINTF(I,("Warning: Elan conduit exhausted the main memory heap trying to get a bounce buffer, using AM instead"));
+      GASNETE_WARN_OUTOFMEM_AM();
     }
-  } else UNLOCK_ELAN_WEAK();
+  } else {
+    UNLOCK_ELAN_WEAK();
+    GASNETE_WARN_NOTADDRESSABLE_AM();
+  }
 #endif
 
   /* use AM */
@@ -1071,6 +1110,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   #if GASNET_SEGMENT_EVERYTHING
     if (!gasnetc_elan_addressable(dest,nbytes)) {
       UNLOCK_ELAN_WEAK();
+      GASNETE_WARN_NOTADDRESSABLE_AM();
       GASNETI_TRACE_PRINTF(I,("Warning: put destination not elan-mapped, using AM instead"));
     } else 
   #else
@@ -1105,8 +1145,10 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       gasneti_assert(gasnetc_elan_addressable(bouncebuf,sizeof(gasnete_bouncebuf_t)+nbytes));
       evt = elan_put(STATE(), bouncebuf+1, dest, nbytes, node);
       UNLOCK_ELAN_WEAK();
-      if (isbulk) GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_BUFFERED,nbytes);
-      else        GASNETI_TRACE_EVENT_VAL(C,PUT_BUFFERED,nbytes);
+      if (isbulk) {
+        GASNETE_WARN_NOTADDRESSABLE_BB();
+        GASNETI_TRACE_EVENT_VAL(C,PUT_BULK_BUFFERED,nbytes);
+      } else GASNETI_TRACE_EVENT_VAL(C,PUT_BUFFERED,nbytes);
       eop = gasnete_eop_new(GASNETE_MYTHREAD, OPCAT_ELANPUTBB);
       bouncebuf->evt = evt;
       #if GASNET_DEBUG
@@ -1132,9 +1174,12 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
         }
       #endif
       UNLOCK_ELAN_WEAK();
-      GASNETI_TRACE_PRINTF(I,("Warning: Elan conduit exhausted the main memory heap trying to get a bounce buffer, using AM instead"));
+      GASNETE_WARN_OUTOFMEM_AM();
     }
-  } else UNLOCK_ELAN_WEAK();
+  } else {
+    UNLOCK_ELAN_WEAK();
+    GASNETE_WARN_NOTADDRESSABLE_AM();
+  }
 #endif
 
   /* use AM */

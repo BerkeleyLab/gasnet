@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/04/04 03:32:47 $
- * $Revision: 1.21.2.1 $
+ *     $Date: 2005/04/11 04:22:43 $
+ * $Revision: 1.21.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -46,6 +46,7 @@ typedef union _gasnete_eopaddr_t {
 
 #define gasnete_eopaddr_equal(addr1,addr2) ((addr1).fulladdr == (addr2).fulladdr)
 #define gasnete_eopaddr_isnil(addr) ((addr).fulladdr == EOPADDR_NIL.fulladdr)
+#define EOPADDR_NIL gasnete_EOPADDR_NIL
 
 /* -------------------------------------------------------------------------- */
 /* Explicit ops, used when operations are known to require only one send in

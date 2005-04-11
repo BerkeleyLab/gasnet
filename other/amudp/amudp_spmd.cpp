@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2005/04/04 03:33:01 $
- * $Revision: 1.18.2.1 $
+ *     $Date: 2005/04/11 04:22:53 $
+ * $Revision: 1.18.2.2 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -74,6 +74,7 @@ static void freezeForDebugger() {
 #endif
 
 #define AMUDP_SPMDSLAVE_FLAG "__AMUDP_SLAVE_PROCESS__"
+#define AMUDP_SPMDSLAVE_FLAG_VERBOSE "__AMUDP_SLAVE_PROCESS_VERBOSE__"
 
 static int AMUDP_SPMDShutdown(int exitcode);
 
@@ -278,7 +279,8 @@ extern int AMUDP_SPMDIsWorker(char **argv) {
   if (AMUDP_SPMDStartupCalled) return 1; 
   else {
     AMUDP_assert(argv != NULL);
-    return (argv[1] && !strcmp(argv[1], AMUDP_SPMDSLAVE_FLAG));
+    return (argv[1] && 
+       (!strcmp(argv[1], AMUDP_SPMDSLAVE_FLAG) || !strcmp(argv[1], AMUDP_SPMDSLAVE_FLAG_VERBOSE) ));
     }
   }
 /* ------------------------------------------------------------------------------------ */
@@ -297,9 +299,16 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
   /* ------------------------------------------------------------------------------------ 
    *  I'm a master 
    * ------------------------------------------------------------------------------------ */
-  if ((*argc) < 2 || strcmp((*argv)[1], AMUDP_SPMDSLAVE_FLAG)) { 
+  if ((*argc) < 2 || 
+    (strcmp((*argv)[1], AMUDP_SPMDSLAVE_FLAG) && strcmp((*argv)[1], AMUDP_SPMDSLAVE_FLAG_VERBOSE))) { 
     int usingdefaultdegree = 0;
     if (nproc < 0 || nproc > AMUDP_MAX_SPMDPROCS) AMUDP_RETURN_ERR(BAD_ARG);
+
+    #if AMUDP_DEBUG_VERBOSE
+      AMUDP_SilentMode = 0;
+    #else
+      AMUDP_SilentMode = !AMUDP_getenv_prefixed("VERBOSEENV");
+    #endif
 
     /* defaulting */
     if (networkdepth < 0) AMUDP_RETURN_ERR(BAD_ARG);
@@ -398,9 +407,8 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       }
 
     const char *masterHostname = getMyHostName();
-    #if AMUDP_DEBUG_VERBOSE
+    if (!AMUDP_SilentMode) 
       printf("master host name: %s\n", masterHostname); fflush(stdout);
-    #endif
 
     // TCP socket lists
     SocketList allList(AMUDP_SPMDNUMPROCS*4+10); // a list of all active sockets
@@ -468,7 +476,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
     const char **slaveargv = (const char**)AMUDP_malloc(sizeof(const char*)*((*argc)+3));
     int slaveargc = (*argc)+2;
     slaveargv[0] = (*argv)[0];
-    slaveargv[1] = AMUDP_SPMDSLAVE_FLAG;
+    slaveargv[1] = (AMUDP_SilentMode?AMUDP_SPMDSLAVE_FLAG:AMUDP_SPMDSLAVE_FLAG_VERBOSE);
     SockAddr masterAddr = getsockname(AMUDP_SPMDListenSocket);
     #if USE_NUMERIC_MASTER_ADDR
       slaveargv[2] = masterAddr.FTPStr();
@@ -584,7 +592,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                 sendAll(AMUDP_SPMDSlaveSocket[i], AMUDP_SPMDTranslationTable, bootstrapinfo.translationtablesz);
                 sendAll(AMUDP_SPMDSlaveSocket[i], AMUDP_SPMDMasterEnvironment, bootstrapinfo.environtablesz);
                 }
-              #if AMUDP_DEBUG_VERBOSE
+              if (!AMUDP_SilentMode) {
                 printf("Endpoint table (nproc=%i):\n", AMUDP_SPMDNUMPROCS);
                 for (int j=0; j < AMUDP_SPMDNUMPROCS; j++) {
                   char temp[80];
@@ -592,7 +600,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                   printf("\ttag: %s\n", AMUDP_tagStr(AMUDP_SPMDTranslationTable[j].tag, temp));
                 }
                 fflush(stdout);
-              #endif
+              }
               }
             }
           else ErrMessage("master detected some unrecognized activity on AMUDP_SPMDListenSocket");
@@ -712,12 +720,12 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                   sendAll(coordList[i], &olden, sizeof(en_t));
                   sendAll(coordList[i], &newen, sizeof(en_t));
                 }
-                #if AMUDP_DEBUG_VERBOSE
+                if (!AMUDP_SilentMode) {
                   char temp[80];
                   printf("master: processed NIC failover on slave %i: ", j);
                   printf("%s ->", AMUDP_enStr(olden, temp));
                   printf(" %s\n", AMUDP_enStr(newen, temp));
-                #endif
+                }
                 break;
                 }
 
@@ -757,10 +765,10 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                   close_socket(coordList[i]);
                   }
                 if (!socklibend()) ErrMessage("master failed to socklibend()");
-                #if AMUDP_DEBUG_VERBOSE
+                if (!AMUDP_SilentMode) {
                   printf("Exiting after AMUDP_SPMDExit(%i)...\n", exitCode);
                   fflush(stdout);
-                #endif
+                }
                 exit(exitCode);
                 break;
                 }
@@ -791,6 +799,9 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
    * ------------------------------------------------------------------------------------ */
   else {  
     int temp;
+
+    /* propagate verbosity setting from master */
+    AMUDP_SilentMode = !strcmp((*argv)[1], AMUDP_SPMDSLAVE_FLAG);
 
     #if FREEZE_SLAVE
       freezeForDebugger();
@@ -839,10 +850,10 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       }
 
     try {
-      #if AMUDP_DEBUG_VERBOSE
+      if (!AMUDP_SilentMode) {
         fprintf(stderr, "slave connecting to %s:%i\n", masterAddr.IPStr(), masterAddr.port());
         fflush(stderr);
-      #endif
+      }
 
       AMUDP_SPMDControlSocket = connect_socket(masterAddr);
 
@@ -1021,15 +1032,14 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
         }
     #endif
 
-    #if AMUDP_DEBUG_VERBOSE
-    { char temp[80];
+    if (!AMUDP_SilentMode) {
+      char temp[80];
       tag_t tag;
       AM_GetTag(AMUDP_SPMDEndpoint, &tag);
       fprintf(stderr, "Slave %i/%i starting (tag=%s)...\n", 
         AMUDP_SPMDMyProc(), AMUDP_SPMDNumProcs(), AMUDP_tagStr(tag, temp));
       fflush(stderr);
-      }
-    #endif
+    }
 
     return AM_OK;
     }
@@ -1168,12 +1178,12 @@ extern int AMUDP_SPMDHandleControlTraffic(int *controlMessagesServiced) {
             #endif
             }
           DEBUG_SLAVE("Update complete.");
-          #if AMUDP_DEBUG_VERBOSE
+          if (!AMUDP_SilentMode) {
             char temp[80];
             printf("slave: handled NIC failover: ");
             printf("%s ->", AMUDP_enStr(olden, temp));
             printf(" %s\n", AMUDP_enStr(newen, temp));
-          #endif
+          }
 
           try { // send acknowledgement to master
             sendAll(s, "A");
@@ -1211,10 +1221,10 @@ extern int AMUDP_SPMDHandleControlTraffic(int *controlMessagesServiced) {
           catch (xSocket& exn) {
             ErrMessage("got exn while reading exit code: %s", exn.why());
             }
-          #if AMUDP_DEBUG_VERBOSE
+          if (!AMUDP_SilentMode) {
             printf("Exiting after exit signal from master (%i)...\n", exitCode);
             fflush(stdout);
-          #endif
+          }
           AMUDP_SPMDShutdown(exitCode);
           break;
           }

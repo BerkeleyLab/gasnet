@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2005/04/04 03:32:55 $
-# $Revision: 1.14.2.2 $
+#     $Date: 2005/04/11 04:22:47 $
+# $Revision: 1.14.2.3 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -34,7 +34,7 @@ my $exename = undef;
 my $find_exe = 1;	# should we find full path of executable?
 my $tmpdir = undef;
 my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
-my @tmpfiles = ();
+my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
 
 # Define how to pass the environment vars
 # 5 parameters to set: val, pre, inter, post and join
@@ -368,15 +368,20 @@ EOF
 			} split(" ", $spawncmd);
     print("gasnetrun: running: ", join(' ', @spawncmd), "\n") if ($verbose);
 
-    if (defined $tmpdir) {
-	system(@spawncmd) if (!$dryrun);
+    if ($dryrun) {
+	# Do nothing
+    } elsif (@tmpfiles || defined($tmpdir)) {
+	system(@spawncmd);
 	if (!$keep) {
           foreach (@tmpfiles) {
+	    print("gasnetrun: unlinking ", join(' ', @tmpfiles), "\n") if ($verbose);
 	    unlink "$_" or die "gasnetrun: failed to unlink \'$_\'";
 	  }
-	  rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
+	  if (defined($tmpdir)) {
+	    rmdir $tmpdir or die "gasnetrun: failed to rmdir \'$tmpdir\'";
+	  }
  	}
-    } elsif (!$dryrun) {
+    } else {
 	exec(@spawncmd);
 	die "gasnetrun: exec failed: $!\n";
     }

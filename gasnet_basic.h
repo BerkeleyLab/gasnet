@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2005/04/04 03:32:39 $
- * $Revision: 1.32.2.1 $
+ *     $Date: 2005/04/11 04:22:37 $
+ * $Revision: 1.32.2.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -107,10 +107,10 @@
 /* GASNETI_IDENT() takes a unique identifier and a textual string and embeds the textual
    string in the executable file
  */
-#define _GASNETI_IDENT(identName, identText)                   \
-  extern char volatile identName[];                            \
-  char volatile identName[] = identText;                       \
-  extern char *_get_##identName() { return (char*)identName; } \
+#define _GASNETI_IDENT(identName, identText)                         \
+  extern char volatile identName[];                                  \
+  char volatile identName[] = identText;                             \
+  extern char *_##identName##_identfn() { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if defined(_CRAYC)
   #define GASNETI_IDENT(identName, identText) \

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2005/04/04 03:32:47 $
- * $Revision: 1.45.2.1 $
+ * $Date: 2005/04/11 04:22:43 $
+ * $Revision: 1.45.2.2 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,6 +79,7 @@ firehose_move_callback(gasnet_node_t node,
 {
 	int	 i;
 	int	locked = GASNETE_GM_IN_UNKNOWN();
+	gm_status_t status;
 
 	if (!locked)
 		gasneti_mutex_lock(&gasnetc_lock_gm);
@@ -86,16 +87,30 @@ firehose_move_callback(gasnet_node_t node,
 	for (i = 0; i < unpin_num; i++) {
 		gasneti_assert(unpin_list[i].addr % GASNET_PAGESIZE == 0);
 		gasneti_assert(unpin_list[i].len % GASNET_PAGESIZE == 0);
-		gm_deregister_memory(_gmc.port, (void *) unpin_list[i].addr, 
-				   unpin_list[i].len);
+		status = gm_deregister_memory(_gmc.port, 
+			  (void *) unpin_list[i].addr, unpin_list[i].len);
+		if (status != GM_SUCCESS) 
+		    gasneti_fatalerror("gm_deregister_memory() failed for "
+		       "page located at %p (%s)", (void*)unpin_list[i].addr, 
+		       gm_strerror(status));
+		GASNETI_TRACE_PRINTF(C,
+		  ("Firehose unpinlocal = %p, %d", (void *) unpin_list[i].addr,
+			unpin_list[i].len));
 	}
 	GASNETI_TRACE_EVENT_VAL(C, FIREHOSE_LOCALUNPIN_PAGES, unpin_num);
 
 	for (i = 0; i < pin_num; i++) {
 		gasneti_assert(pin_list[i].addr % GASNET_PAGESIZE == 0);
 		gasneti_assert(pin_list[i].len % GASNET_PAGESIZE == 0);
-		gm_register_memory(_gmc.port, (void *) pin_list[i].addr, 
-				   pin_list[i].len);
+		status = gm_register_memory(_gmc.port, (void *)
+				pin_list[i].addr, pin_list[i].len);
+		if (status != GM_SUCCESS) 
+		    gasneti_fatalerror("gm_register_memory() failed for "
+		       "page located at %p (%s)", (void*)pin_list[i].addr, 
+		       gm_strerror(status));
+		GASNETI_TRACE_PRINTF(C,
+		  ("Firehose pinlocal = %p, %d", (void *) pin_list[i].addr,
+			pin_list[i].len));
 	}
 	GASNETI_TRACE_EVENT_VAL(C, FIREHOSE_LOCALPIN_PAGES, pin_num);
 
@@ -176,6 +191,7 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 			int allLocalHit)
 {
 	gasnete_eop_t	*pop = (gasnete_eop_t *) _pop;
+	gm_status_t	status;
 	gasnet_node_t	node;
 
 	gasneti_assert(pop != NULL);
@@ -189,9 +205,10 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 	gasnetc_token_lo_poll();
 
 	GASNETI_TRACE_PRINTF(C, 
-	    ("Firehose directed send(%p): (%d,%p) <- %p (%d bytes)", 
+	    ("Firehose directed send(%p): (%d,%p) <- (%p,%d)", 
 	     (void *) pop, (unsigned) node, (void *) pop->dest, 
 	     (void *) pop->src, pop->len));
+
 	#if GASNETI_STATS_OR_TRACE
 	if (!allLocalHit)
 	    pop->fh_stats = pop->len > 4096 ? fh_many : fh_one;

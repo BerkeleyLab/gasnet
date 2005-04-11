@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2005/04/04 03:32:59 $
- * $Revision: 1.18.2.1 $
+ *     $Date: 2005/04/11 04:22:51 $
+ * $Revision: 1.18.2.2 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -338,8 +338,8 @@ static int ErrMessage(const char *msg, ...) {
                         __FILE__, __LINE__, #expr))
 #endif
 
-extern int enEqual(en_t en1, en_t en2);
-extern int64_t getMicrosecondTimeStamp();
+extern int AMMPI_enEqual(en_t en1, en_t en2);
+extern int64_t AMMPI_getMicrosecondTimeStamp();
 /* ------------------------------------------------------------------------------------ */
 /*  global data */
 extern int AMMPI_numBundles;
@@ -388,7 +388,7 @@ extern int AMMPI_AcquireSendBuffer(ep_t ep, int numBytes, int isrequest,
 #define _AMMPI_IDENT(identName, identText)  \
   extern char volatile identName[];         \
   char volatile identName[] = identText;    \
-  extern char *_get_##identName() { return (char*)identName; } \
+  extern char *_##identName##_identfn() { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if defined(_CRAYC)
   #define AMMPI_IDENT(identName, identText) \

@@ -198,7 +198,7 @@ double pingpongtest(int iters, int msgsz) {
   if (iamreceiver) {
     /* prepost a recv */
     MPI_SAFE(MPI_Irecv(recvMsgbuffer, msgsz, MPI_BYTE, 
-              MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, 
+              peerid, MPI_ANY_TAG, MPI_COMM_WORLD, 
               &recvMsgHandle));
   }
 
@@ -211,7 +211,7 @@ double pingpongtest(int iters, int msgsz) {
     if (iamsender) {
       /* prepost a recv for acknowledgement */
       MPI_SAFE(MPI_Irecv(recvAckbuffer, 1, MPI_BYTE, 
-                MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, 
+                peerid, MPI_ANY_TAG, MPI_COMM_WORLD, 
                 &recvAckHandle));
 
       /* send message */
@@ -228,7 +228,7 @@ double pingpongtest(int iters, int msgsz) {
 
       /* pre-post recv for next message */
       MPI_SAFE(MPI_Irecv(recvMsgbuffer, msgsz, MPI_BYTE, 
-                MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, 
+                peerid, MPI_ANY_TAG, MPI_COMM_WORLD, 
                 &recvMsgHandle));
 
       /* send acknowledgement */
@@ -303,7 +303,7 @@ double floodtest(int iters, int msgsz) {
       recvHandle[numrecvposted] = MPI_REQUEST_NULL;
       /* prepost recvs */
       MPI_SAFE(MPI_Irecv(BUFFER_CALC(recvbuffer,msgsz*numrecvposted), msgsz, MPI_BYTE, 
-                MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, 
+                peerid, MPI_ANY_TAG, MPI_COMM_WORLD, 
                 &recvHandle[numrecvposted]));
       assert(recvHandle[numrecvposted] != MPI_REQUEST_NULL);
       numrecvposted++;
@@ -340,7 +340,7 @@ double floodtest(int iters, int msgsz) {
         assert(recvHandle[idx] == MPI_REQUEST_NULL);
         if (numrecvposted < iters) { /* not done yet - recv another */
           MPI_SAFE(MPI_Irecv(buf, msgsz, MPI_BYTE, 
-                    MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, 
+                    peerid, MPI_ANY_TAG, MPI_COMM_WORLD, 
                     &recvHandle[idx]));
           assert(recvHandle[idx] != MPI_REQUEST_NULL);
           numrecvposted++;

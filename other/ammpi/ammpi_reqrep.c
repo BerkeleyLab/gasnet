@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2004/09/16 21:38:05 $
- * $Revision: 1.18 $
+ *     $Date: 2005/04/11 04:22:51 $
+ * $Revision: 1.18.4.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -39,7 +39,7 @@ static int intpow(int val, int exp) {
   }
 /* ------------------------------------------------------------------------------------ */
 #ifdef WIN32
-  extern int64_t getMicrosecondTimeStamp() {
+  extern int64_t AMMPI_getMicrosecondTimeStamp() {
     static int status = -1;
     static double multiplier;
     if (status == -1) { /*  first time run */
@@ -68,7 +68,7 @@ static int intpow(int val, int exp) {
  */
 
 #else /* unknown processor - use generic UNIX call */
-  extern int64_t getMicrosecondTimeStamp() {
+  extern int64_t AMMPI_getMicrosecondTimeStamp() {
     int64_t retval;
     struct timeval tv;
     if (gettimeofday(&tv, NULL)) {
@@ -132,12 +132,12 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   
   /* try the common case where mapping ids match MPI rank */
   if (sourceAddr.mpirank < ep->totalP &&
-      enEqual(ep->perProcInfo[sourceAddr.mpirank].remoteName, sourceAddr)) 
+      AMMPI_enEqual(ep->perProcInfo[sourceAddr.mpirank].remoteName, sourceAddr)) 
     return sourceAddr.mpirank;
 
   /* failed - use linear search */
   for (i = 0; i < ep->totalP; i++) {
-    if (enEqual(ep->perProcInfo[i].remoteName, sourceAddr))
+    if (AMMPI_enEqual(ep->perProcInfo[i].remoteName, sourceAddr))
       return i;
     }
   return -1;
@@ -445,7 +445,7 @@ extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *nu
         #if AMMPI_COLLECT_LATENCY_STATS
           if (!isrequest) { 
             /* gather some latency statistics */
-            uint64_t now = getMicrosecondTimeStamp();
+            uint64_t now = AMMPI_getMicrosecondTimeStamp();
             uint64_t latency = (now - desc->firstSendTime);
             ep->stats.RequestSumLatency += latency;
             if (latency < ep->stats.RequestMinLatency) ep->stats.RequestMinLatency = latency;
@@ -644,7 +644,7 @@ static int AMMPI_RequestGeneric(ammpi_category_t category,
     }
 
   #if AMMPI_COLLECT_LATENCY_STATS
-    { uint64_t now = getMicrosecondTimeStamp();
+    { uint64_t now = AMMPI_getMicrosecondTimeStamp();
       outgoingdesc->firstSendTime = now;
     }
   #endif

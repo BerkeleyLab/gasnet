@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testrand.c,v $
- *     $Date: 2005/04/04 03:33:27 $
- * $Revision: 1.5.2.1 $
+ *     $Date: 2005/04/11 04:22:59 $
+ * $Revision: 1.5.2.2 $
  * Description: GASNet get/put performance test
  *   measures measures the total time to write to each page of the
  *   remote test segment, using blocking puts in a random order.
@@ -21,9 +21,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(GASNET_SEQ)
-  #define TEST_SEGSZ (1024*1024)
+uintptr_t maxsz = 0;
+#ifndef TEST_SEGSZ
+  #define TEST_SEGSZ_EXPR ((uintptr_t)maxsz)
 #endif
+
 #include "test.h"
 
 int myproc;
@@ -40,7 +42,7 @@ void do_test(void) {GASNET_BEGIN_FUNCTION();
     int64_t begin, end;
     int iamsender = (myproc % 2 == 0);
     int pagesz = MAX(PAGESZ, nbytes);
-    int pages = TEST_SEGSZ / pagesz;
+    int pages = maxsz / pagesz;
     void **loc_addr = test_malloc(pages * sizeof(void *));
     void **rem_addr = test_malloc(pages * sizeof(void *));
     
@@ -87,21 +89,30 @@ int main(int argc, char **argv)
 {
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
+
+    /* parse arguments */
+    if ((argc < 2) || (argc > 4)) {
+	printf("Usage: %s nbytes (segsz) (seed)\n", argv[0]);
+	gasnet_exit(1);
+    }
+    nbytes = atoi(argv[1]);
+    if (argc > 2) {
+      maxsz = atol(argv[2]);
+      maxsz = MAX(maxsz, nbytes);
+      maxsz = alignup(maxsz, PAGESZ);
+    } else maxsz = 1024*1024;
+    if (argc > 3) seed = atoi(argv[3]);
+    if (!seed) seed = (int)TIME();
+    TEST_SRAND(seed);
+
+    #ifdef GASNET_SEGMENT_EVERYTHING
+      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
+    #endif
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     if (!gasnet_mynode())
 	print_testname("testrand", gasnet_nodes());
     TEST_DEBUGPERFORMANCE_WARNING();
     TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
-
-    /* parse arguments (we could do better) */
-    if ((argc < 2) || (argc > 3)) {
-	printf("Usage: %s nbytes (seed)\n", argv[0]);
-	gasnet_exit(1);
-    }
-    nbytes = atoi(argv[1]);
-    if (argc > 2) seed = atoi(argv[2]);
-    if (!seed) seed = 0;
-    TEST_SRAND(seed);
 
     /* get SPMD info */
     myproc = gasnet_mynode();

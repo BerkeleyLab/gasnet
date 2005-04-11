@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2005/04/04 03:32:47 $
- * $Revision: 1.63.2.1 $
+ * $Date: 2005/04/11 04:22:43 $
+ * $Revision: 1.63.2.2 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -44,6 +44,9 @@
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
+
+/* an abbreviation used globally */
+#define _gmc gasneti_gmc
 
 /* -------------------------------------------------------------------------- */
 /* Core locks */

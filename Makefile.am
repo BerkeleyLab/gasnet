@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2005/04/04 03:32:39 $
-# $Revision: 1.35.2.1 $
+#     $Date: 2005/04/11 04:22:37 $
+# $Revision: 1.35.2.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -109,6 +109,8 @@ all-local:
 	@$(MAKE) DO_WHAT=all `for conduit in $(CONDUITS) ; do echo do-$$conduit; done`
 clean-local:
 	@$(MAKE) DO_WHAT=clean `for conduit in $(CONDUITS) ; do echo do-$$conduit; done`
+check:
+	@$(MAKE) DO_WHAT=check `for conduit in $(CONDUITS) ; do echo do-$$conduit; done`
 install-data-local:
 	@$(MAKE) DO_WHAT=install-data `for conduit in $(CONDUITS) ; do echo do-$$conduit; done`
 	$(mkinstalldirs) $(DESTDIR)$(docdir)

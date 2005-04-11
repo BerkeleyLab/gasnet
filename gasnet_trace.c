@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2005/04/04 03:32:39 $
- * $Revision: 1.82.2.3 $
+ *     $Date: 2005/04/11 04:22:37 $
+ * $Revision: 1.82.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -250,6 +250,7 @@ extern void gasneti_flush_streams() {
   gasneti_sched_yield();
 }
 extern void gasneti_close_streams() {
+  gasneti_reghandler(SIGPIPE, SIG_IGN); /* In case we still try to generate output */
   if (fclose(stdin)) 
     gasneti_fatalerror("failed to fclose(stdin) in gasnetc_exit: %s", strerror(errno));
   if (fclose(stdout)) 
@@ -742,7 +743,7 @@ char gasneti_statstypes[256];
 int gasneti_trace_suppresslocal;
 FILE *gasneti_tracefile = NULL;
 FILE *gasneti_statsfile = NULL;
-gasneti_stattime_t starttime;
+static gasneti_stattime_t starttime;
 
 #if GASNET_STATS
   gasnett_stats_callback_t gasnett_stats_callback = NULL;

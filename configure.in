@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2005/04/04 03:32:39 $
-# $Revision: 1.208.2.5 $
+#     $Date: 2005/04/11 04:22:37 $
+# $Revision: 1.208.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.208.2.5 $)
+AC_REVISION($Revision: 1.208.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -60,6 +60,17 @@ else
   AC_MSG_WARN([cannot find a version of GNU make - if you encounter make problems, install GNU make and/or set \$GMAKE to indicate where it's located])
 fi
 AC_SUBST(GMAKE)
+
+# we do not require nm
+AC_PATH_PROG(NM, $NM nm, nm utility)
+AC_MSG_CHECKING(for GNU nm)
+if test "`${NM:-nm} --version 2>&1 | grep GNU`" = "" ; then
+  gnu_nm=no
+else
+  gnu_nm=yes
+fi
+AC_MSG_RESULT($gnu_nm)
+AM_CONDITIONAL(GNU_NM, test "$gnu_nm" = "yes")
 
 ########################################################################
 ##
@@ -1158,11 +1169,12 @@ if test $enabled_gm = yes; then
     # of our reuse of memory storage in firehose.  We disable strict aliasing
     # altogether as the problem appears and disappears across gcc3 minor
     # versions.
-    if test "$gasnet_cv_cc_family" = "GNU"; then
-        GM_NO_ALIAS="-fno-strict-aliasing"
-    else
-        GM_NO_ALIAS=""
-    fi
+    # This is a firehose problem, and bug #1052 showed xlc to be affected as well.
+    case "$gasnet_cv_cc_family" in
+      GNU) GM_NO_ALIAS="-fno-strict-aliasing";;
+      XLC) GM_NO_ALIAS="-qnoansialias -qalias=addr";;
+        *) GM_NO_ALIAS="";;
+    esac
 
     # Only test if working GM config
     if test $have_gm = yes; then
@@ -1240,6 +1252,10 @@ AC_SUBST(GM_NO_ALIAS)
 AC_SUBST(GM_MPI_COMPAT)
 AM_CONDITIONAL(USE_GM_CONDUIT, test "$enabled_gm$have_gm" = yesyes)
 AM_CONDITIONAL(GM_MPI_ENABLE_COMPAT, test "$want_gm_mpi_compat" = yes)
+GASNET_IF_ENABLED_WITH_AUTO(gm-rodata-workaround, 
+        [Enable/disable work-around for GM's inability to register read-only program data segments],
+	[gm_rodata_workaround=yes], [gm_rodata_workaround=no], [gm_rodata_workaround=yes])
+AM_CONDITIONAL(GM_RODATA_WORKAROUND, test "$gm_rodata_workaround" = yes)
 if test "$enabled_gm$have_gm" = yesyes ; then
   CONDUITS="$CONDUITS gm"
   CONDUIT_REPORT(ON)
@@ -1588,12 +1604,15 @@ if test "$enabled_vapi" = yes; then
     ])
   fi
 
-  if test "$gasnet_cv_cc_family" = "GNU"; then
-    # Since we are using firehose we need to disable certain gcc optimizations.
-    # See bug #350 for an example of why firehose needs this.
-    # See bug #596 or #1031 for evidence that VAPI is affected by this.
-    VAPI_LIBCFLAGS="$VAPI_LIBCFLAGS -fno-strict-aliasing"
-  fi
+  # Since we are using firehose we need to disable certain optimizations.
+  # See bug #350 for an example of why firehose needs this.
+  # See bug #596 or #1031 for evidence that VAPI is affected by this.
+  # See bug #1052 for evidence that xlc is affected.
+  case "$gasnet_cv_cc_family" in
+    GNU) VAPI_NO_ALIAS="-fno-strict-aliasing";;
+    XLC) VAPI_NO_ALIAS="-qnoansialias -qalias=addr";;
+      *) VAPI_NO_ALIAS="";;
+  esac
 
   # Try to compile and link a basic VAPI program
   AC_MSG_CHECKING(for working VAPI configuration)
@@ -1663,28 +1682,20 @@ if test "$enabled_vapi" = yes; then
       fi
 
     # Configure corrrect flags/vars (inc. CC and LD) based on bootstrap choice
-    if test "$with_vapi_bootstrap_ssh" = yes; then
-      VAPI_BOOT_SSH=''
-    else
-      VAPI_BOOT_SSH='#'
-    fi
     if test "$with_vapi_bootstrap_mpi" = yes; then
       VAPI_LIBS="$MPI_LIBS $VAPI_LIBS"
-      VAPI_BOOT_MPI=''
-    else
-      VAPI_BOOT_MPI='#'
     fi
   fi
 fi
-AC_SUBST(VAPI_BOOT_SSH)
-AC_SUBST(VAPI_BOOT_MPI)
 AC_SUBST(VAPI_INCLUDE)
 AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AC_SUBST(VAPI_LIBCFLAGS)
+AC_SUBST(VAPI_NO_ALIAS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
 AM_CONDITIONAL(VAPI_BOOTSTRAP_SSH,test "$with_vapi_bootstrap_ssh" = yes)
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI,test "$with_vapi_bootstrap_mpi" = yes)
+AM_CONDITIONAL(VAPI_RCV_THREAD,test "$enabled_vapi_rcv_thread" = yes)
 if test "$have_vapi" = yes ; then
   CONDUITS="$CONDUITS vapi"
   CONDUIT_REPORT(ON)
@@ -2175,6 +2186,7 @@ AC_PATH_PROGS(ENVCMD, $ENVCMD env, , /usr/bin/:${PATH})
 
 AC_SUBST(BOURNE_SHELL)
 AC_SUBST(AR)
+AC_SUBST(NM)
 AC_SUBST(RANLIB)
 AC_SUBST(BASENAME)
 AC_SUBST(DIRNAME)

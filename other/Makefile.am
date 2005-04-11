@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2005/04/04 03:32:57 $
-# $Revision: 1.14.8.1 $
+#     $Date: 2005/04/11 04:22:49 $
+# $Revision: 1.14.8.2 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -33,14 +33,9 @@ if USE_MPI_CONDUIT
 endif
 testdirs= $(UDP_dir) $(MPI_dir)
 
-tests: 
+tests run-tests check-exports: 
 	@list='$(testdirs)'; for dir in $$list ; do \
-	  $(MAKE) -C "$$dir" tests || exit $?;      \
-	done
-
-run-tests: 
-	@list='$(testdirs)'; for dir in $$list ; do \
-	  $(MAKE) -C "$$dir" run-tests || exit $?;  \
+	  $(MAKE) -C "$$dir" $@ || exit $?;  \
 	done
 
 all-local: Makefile-conduit.mak perlstart

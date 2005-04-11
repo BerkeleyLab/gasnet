@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2005/04/04 03:33:27 $
-# $Revision: 1.45.2.1 $
+#     $Date: 2005/04/11 04:22:59 $
+# $Revision: 1.45.2.2 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -27,6 +27,8 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 
 # tests that can be built in any mode
 # in order of most useful execution
+# NOTE: if you add a test here that is expected to pass on all conduits,
+#   please also add it to upcr/upc-tests/gasnet-tests/harness.conf
 testprograms_seq =      \
         testgasnet      \
         testenv         \
@@ -47,6 +49,7 @@ testprograms_seq =      \
         testtools       \
         testcoll        \
         testneighbour   \
+	testqueue	\
         $(CONDUIT_TESTS) \
         $(MPI_TESTS)
   
@@ -84,17 +87,18 @@ TEST_ENV=$(DEBUG_MALLOC)
 
 # default node count
 TEST_NODES=2
-# provide args and node counts for specific tests, user overrides from EXTRA_PARAMS
-TEST_PARAMS=                    \
-   testcore1_args="1000";       \
-   testrand_args="1024";        \
-   testlogGP_args="1000 8 65536";\
-   testthreads_args="-a 2";	\
-   testmisc_nodes="1";		\
-   testbarrierconf_nodes="3";	\
-   testmpiperf_args="BPF";	\
+# provide args and node counts for specific tests, user can override with MANUAL_TESTPARAMS
+TEST_PARAMS=                    					\
+   testcore1_args="1000";       					\
+   testrand_args="1024";        					\
+   testlogGP_args="1000 8 65536";					\
+   testthreads_args="-a 2";						\
+   testmisc_nodes="1";							\
+   testbarrierconf_nodes="3";						\
+   testmpiperf_args="BPF";						\
+   testqueue_args="1 256 262144"; 					\
    testenv_args='GASNet is \"Global Address Space Networking\"';	\
-   $(CONDUIT_TESTPARAMS) dummy=1 ; \
+   $(CONDUIT_TESTPARAMS) dummy=1 ; 					\
    $(MANUAL_TESTPARAMS) dummy=1 ;
 
 # omit tests that are supposed to fail or known to cause failures

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2005/04/04 03:33:31 $
-# $Revision: 1.28.2.1 $
+#     $Date: 2005/04/11 04:23:03 $
+# $Revision: 1.28.2.2 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,33 +10,52 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=vapi
 
-# Firehose files.  Now used in all segment configurations.
+##
+## Firehose
+##
 fh_srcdir = $(top_srcdir)/other/firehose
-fh_cflags = -I$(fh_srcdir)
-fh_hdrs = $(fh_srcdir)/*.h
-fh_srcs =                          \
-      $(srcdir)/gasnet_firehose.c  \
-      $(fh_srcdir)/firehose.c      \
-      $(fh_srcdir)/firehose_hash.c \
-      $(fh_srcdir)/firehose_region.c
+# Some Firehose source files need extra CFLAGS do disable strict/ANSI aliasing
+# optimizations.  By building them separately we can avoid disabling these
+# useful optimizations for the entire conduit.
+fh_special_objs =                                 \
+      $(builddir)/firehose-$(THREAD_MODEL).o      \
+      $(builddir)/firehose_region-$(THREAD_MODEL).o
+$(builddir)/firehose-$(THREAD_MODEL).o: force
+	@CC@ $(LIBCFLAGS) $(VAPI_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose.c
+$(builddir)/firehose_region-$(THREAD_MODEL).o: force
+	@CC@ $(LIBCFLAGS) $(VAPI_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose_region.c
 
+##
+## MPI bootstrap support (optional)
+##
 if VAPI_BOOTSTRAP_MPI
-# If using MPI for bootstrap then we must compile this one object with MPI_CC.
 mpi_srcdir = $(top_srcdir)/other/mpi-spawner
-mpi_cflags = -I$(mpi_srcdir)
-mpi_srcs = $(mpi_srcdir)/gasnet_bootstrap_mpi.c
-mpi_hdrs = $(mpi_srcdir)/gasnet_bootstrap_fwd.h
-mpi_objs = $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o
-$(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o: $(mpi_srcs) $(mpi_hdrs)
-	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) -o $@ -c $(mpi_srcs)
+mpi_includes = -I$(mpi_srcdir)
+mpi_hdrs = $(mpi_srcdir)/*.h
 mpi_subdirs = contrib
+# We must compile this one object with MPI_CC.
+mpi_special_objs = $(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o
+$(builddir)/gasnet_bootstrap_mpi-$(THREAD_MODEL).o: force
+	@MPI_CC@ @MPI_CFLAGS@ $(LIBDEFINES) $(CONDUIT_EXTRALIBCFLAGS) $(LIBINCLUDES) \
+		-o $@ -c $(mpi_srcdir)/gasnet_bootstrap_mpi.c
 endif
 
+##
+## SSH bootstrap support (optional)
+##
 if VAPI_BOOTSTRAP_SSH
 ssh_srcdir = $(top_srcdir)/other/ssh-spawner
-ssh_cflags = -I$(ssh_srcdir)
+ssh_includes = -I$(ssh_srcdir)
+ssh_hdrs = $(ssh_srcdir)/*.h
 ssh_srcs = $(ssh_srcdir)/gasnet_bootstrap_ssh.c
-ssh_hdrs = $(ssh_srcdir)/gasnet_bootstrap_fwd.h
+endif
+
+##
+## VAPI AM receiver thead support (optional)
+##
+if VAPI_RCV_THREAD
+# VAPI conduit needs GASNET_THREAD_DEFINES even for SEQ mode
+rcv_thread_defines = @GASNET_THREAD_DEFINES@
 endif
 
 # any conduit-specific subdirectories containing Makefile.am's
@@ -65,25 +84,26 @@ CONDUIT_SOURCELIST =                 \
       $(srcdir)/gasnet_core.c        \
       $(srcdir)/gasnet_core_sndrcv.c \
       $(srcdir)/gasnet_extended.c    \
-      $(fh_srcs) $(ssh_srcs)
+      $(srcdir)/gasnet_firehose.c    \
+      $(fh_srcdir)/firehose_hash.c   \
+      $(ssh_srcs)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-# VAPI conduit always needs GASNET_THREAD_DEFINES
-CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ $(fh_cflags) $(ssh_cflags) $(mpi_cflags)\
-			 @VAPI_LIBCFLAGS@ @GASNET_THREAD_DEFINES@
+CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(ssh_includes) $(mpi_includes)\
+			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(mpi_hdrs) $(ssh_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_hdrs) $(mpi_hdrs) $(ssh_hdrs)
+CONDUIT_EXTRADEPS = $(fh_srcdir)/*.h $(mpi_hdrs) $(ssh_hdrs)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS = $(mpi_objs)
+CONDUIT_SPECIAL_OBJS = $(mpi_special_objs) $(fh_special_objs)
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

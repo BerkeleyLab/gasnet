@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spawn.cpp,v $
- *     $Date: 2005/04/04 03:33:01 $
- * $Revision: 1.9.2.1 $
+ *     $Date: 2005/04/11 04:22:53 $
+ * $Revision: 1.9.2.2 $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -206,9 +206,8 @@ int AMUDP_SPMDRexecSpawn(int nproc, int argc, char **argv) {
       return TRUE;  
       }
     else {  /*  this is the child - exec the new process */
-      #if AMUDP_DEBUG_VERBOSE
-       printf("system(%s)\n", cmd2); fflush(stdout);
-      #endif
+      if (!AMUDP_SilentMode) 
+        printf("system(%s)\n", cmd2); fflush(stdout);
       if (system(cmd2) == -1) {
          printf("Failed to call system() to spawn rexec");
          abort();
@@ -366,9 +365,8 @@ int AMUDP_SPMDSshSpawn(int nproc, int argc, char **argv) {
     #endif
      );
 
-   #if AMUDP_DEBUG_VERBOSE
+   if (!AMUDP_SilentMode) 
      printf("system(%s)\n", cmd2); fflush(stdout);
-   #endif
    if (system(cmd2) == -1) {
      printf("Failed to call system() to spawn");
      return FALSE;
@@ -522,9 +520,8 @@ AMUDP_SPMDRedirectStdsockets = spawn_route_output;
     else 
 #endif
     {  /*  this is the child - exec the new process */
-      #if AMUDP_DEBUG_VERBOSE
-       printf("system(%s)\n", cmd); fflush(stdout);
-      #endif
+      if (!AMUDP_SilentMode) 
+        printf("system(%s)\n", cmd); fflush(stdout);
       if (system(cmd) == -1) {
          printf("Failed while calling system() with custom spawn command:\n%s", cmd);
          abort();

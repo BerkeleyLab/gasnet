@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlarge.c,v $
- *     $Date: 2005/04/04 03:33:27 $
- * $Revision: 1.23.2.1 $
+ *     $Date: 2005/04/11 04:22:59 $
+ * $Revision: 1.23.2.2 $
  * Description: GASNet bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet bulk gets and puts
@@ -265,33 +265,38 @@ int main(int argc, char **argv)
     void *myseg;
     void *alloc;
     int firstlastmode = 0;
+    int fullduplexmode = 0;
     int help = 0;   
 
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
 
-    /* parse arguments (we could do better) */
+    /* parse arguments */
     arg = 1;
-    if (argc > arg && !strcmp(argv[arg], "-in")) {
+    while (argc > arg) {
+      if (!strcmp(argv[arg], "-in")) {
         insegment = 1;
         ++arg;
-    }
-    if (argc > arg && !strcmp(argv[arg], "-out")) {
+      } else if (!strcmp(argv[arg], "-out")) {
         insegment = 0;
         ++arg;
-    }
-    if (argc > arg && !strcmp(argv[arg], "-f")) {
+      } else if (!strcmp(argv[arg], "-f")) {
         firstlastmode = 1;
         ++arg;
-    }
-    if (argc > arg && argv[arg][0] == '-') {
+      } else if (!strcmp(argv[arg], "-a")) {
+        fullduplexmode = 1;
+        ++arg;
+      } else if (argv[arg][0] == '-') {
         help = 1;
         ++arg;
+      } else break;
     }
+    if (fullduplexmode && firstlastmode) help = 1;
     if (help || argc > arg+2) {
         printf("Usage: %s [-in|-out] (iters) (maxsz)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "  memory is in the GASNet segment or not (default it not).\n"
+               "  The -a option enables full-duplex mode, where all nodes send.\n"
                "  The -f option enables 'first/last' mode, where the first/last\n"
                "  nodes communicate with each other, while all other nodes sit idle.\n",
                argv[0]);
@@ -335,7 +340,7 @@ int main(int argc, char **argv)
       iamsender = 1;
     } else { 
       peerproc = (myproc % 2) ? (myproc - 1) : (myproc + 1);
-      iamsender = (myproc % 2 == 0);
+      iamsender = (fullduplexmode || myproc % 2 == 0);
     }
 
     #ifdef GASNET_SEGMENT_EVERYTHING
@@ -357,7 +362,7 @@ int main(int argc, char **argv)
         if (myproc == 0) 
           MSG("Running %i iterations of %sbulk put/get with local addresses %sside the segment for sizes: %i...%i\n", 
           iters, 
-          firstlastmode ? "first/last " : "",
+          firstlastmode ? "first/last " : (fullduplexmode ? "full-duplex ": ""),
           insegment ? "in" : "out", 
           min_payload, max_payload);
         BARRIER();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2005/04/04 03:33:29 $
- * $Revision: 1.16.2.1 $
+ *     $Date: 2005/04/11 04:23:01 $
+ * $Revision: 1.16.2.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,7 +38,7 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 #else /* AMUDP implicit ssh startup */
   #define GASNETC_DEFAULT_SPAWNFN S
 #endif
-GASNETI_IDENT(AMUDP_DEFAULT_SPAWNFN_IDENT_STRING, "$GASNetDefaultSpawnFunction: " _STRINGIFY(GASNETC_DEFAULT_SPAWNFN) " $");
+GASNETI_IDENT(gasnetc_IdentString_DefaultSpawnFn, "$GASNetDefaultSpawnFunction: " _STRINGIFY(GASNETC_DEFAULT_SPAWNFN) " $");
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -174,9 +174,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_freezeForDebugger();
 
     AMUDP_VerboseErrors = gasneti_VerboseErrors;
-    #if !GASNET_DEBUG_VERBOSE
-      AMUDP_SilentMode = 1;
-    #endif
     AMUDP_SPMDkillmyprocess = gasneti_killmyprocess;
 
     /*  perform job spawn */

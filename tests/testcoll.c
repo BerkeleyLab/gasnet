@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2005/04/04 03:33:27 $
- * $Revision: 1.6.2.1 $
+ *     $Date: 2005/04/11 04:22:59 $
+ * $Revision: 1.6.2.2 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -245,7 +245,7 @@ void PREFIX##_ALLALL(int iters, gasnet_node_t root) {                        \
 	gasnet_put(peer, REMOTE(B,peer), &tmp, sizeof(int));                 \
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get(LOCAL(D), root, REMOTE(C,root), numprocs*sizeof(int));    \
+	gasnet_get_bulk(LOCAL(D), root, REMOTE(C,root), numprocs*sizeof(int));\
 	for (i = 0; i < numprocs; ++i) {                                     \
 	    if (LOCAL(D)[i] != i) {                                          \
 		MSG("ERROR: %s gather validation failed", name);             \
@@ -267,7 +267,7 @@ void PREFIX##_ALLALL(int iters, gasnet_node_t root) {                        \
 	gasnet_put(peer, REMOTE(B,peer), &tmp, sizeof(int));                 \
 	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get(LOCAL(D), peer, REMOTE(C,peer), numprocs*sizeof(int));    \
+	gasnet_get_bulk(LOCAL(D), peer, REMOTE(C,peer), numprocs*sizeof(int));\
 	for (i = 0; i < numprocs; ++i) {                                     \
 	    if (LOCAL(D)[i] != i*r - 1) {                                    \
 		MSG("ERROR: %s gather_all validation failed", name);         \
@@ -278,10 +278,10 @@ void PREFIX##_ALLALL(int iters, gasnet_node_t root) {                        \
 	for (i = 0; i < numprocs; ++i) {                                     \
 	    LOCAL(C)[i] += peer;                                             \
 	}                                                                    \
-	gasnet_put(peer, REMOTE(D,peer), LOCAL(C), numprocs*sizeof(int));    \
+	gasnet_put_bulk(peer, REMOTE(D,peer), LOCAL(C), numprocs*sizeof(int));\
 	CALL(exchange##SUFFIX, ALL(C), ALL(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get(LOCAL(D), peer, REMOTE(C,peer), numprocs*sizeof(int));          \
+	gasnet_get_bulk(LOCAL(D), peer, REMOTE(C,peer), numprocs*sizeof(int));\
 	for (i = 0; i < numprocs; ++i) {                                     \
 	    if (LOCAL(D)[i] != i + peer*r - 1) {                             \
 		MSG("ERROR: %s exchange validation failed", name);           \
