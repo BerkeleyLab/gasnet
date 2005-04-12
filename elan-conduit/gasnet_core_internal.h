@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/11 14:58:05 $
- * $Revision: 1.24.2.6 $
+ *     $Date: 2005/04/12 11:03:57 $
+ * $Revision: 1.24.2.7 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -180,7 +180,12 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 
 #ifndef GASNETC_USE_MAINQUEUE
   #if HAVE_ELAN_QUEUETXINIT
-    #define GASNETC_USE_MAINQUEUE 0
+    #if GASNET_PAR
+      /* ELAN_QUEUE_TX/RX are apparently not thread-safe, at least not as of 1.8.13 */
+      #define GASNETC_USE_MAINQUEUE 1
+    #else
+      #define GASNETC_USE_MAINQUEUE 0
+    #endif
   #else
     #define GASNETC_USE_MAINQUEUE 1
   #endif
@@ -224,17 +229,22 @@ extern ELAN_TPORT *gasnetc_elan_tport;
      this is a probabalistic heuristic anyhow 
      TODO: does assigning per-thread ELAN_PGCTRL's reduce locking contention in libelan?
    */
-  #define GASNETE_GETPGCTRL() (                                          \
-    gasneti_assert(gasnete_elan_pgctrl_cnt &&                            \
-                   gasnete_elan_pgctrl_cnt < GASNETE_NUMPGCTRL_CNTMAX && \
-                   _gasnete_elan_pgctrl_cur < gasnete_elan_pgctrl_cnt),  \
-    ( ++_gasnete_elan_pgctrl_cur == gasnete_elan_pgctrl_cnt ?            \
-      (void)(_gasnete_elan_pgctrl_cur = 0) : (void)0),                   \
-    gasnete_elan_pgctrl[_gasnete_elan_pgctrl_cur])
+  GASNET_INLINE_MODIFIER(gasnetc_next_PGCTRL)
+  ELAN_PGCTRL *gasnetc_next_PGCTRL() {
+    int myidx = _gasnete_elan_pgctrl_cur;
+    int newidx = myidx+1;
+    gasneti_assert(gasnete_elan_pgctrl_cnt);
+    gasneti_assert(gasnete_elan_pgctrl_cnt < GASNETE_NUMPGCTRL_CNTMAX);
+    gasneti_assert(myidx < gasnete_elan_pgctrl_cnt);
+    gasneti_assert(gasnete_elan_pgctrl[myidx]);
+    if (newidx == gasnete_elan_pgctrl_cnt) newidx = 0;
+    _gasnete_elan_pgctrl_cur = newidx;
+    return gasnete_elan_pgctrl[myidx];
+  }
 
   #define gasnete_elan_put(src, dest, nbytes, node) ( \
           ASSERT_ELAN_LOCKED_WEAK(),                  \
-          elan_doput(GASNETE_GETPGCTRL(), src, dest, 0, nbytes, node, GASNETC_PGCTRL_RAIL))
+          elan_doput(gasnetc_next_PGCTRL(), src, dest, 0, nbytes, node, GASNETC_PGCTRL_RAIL))
   /* elan gets are not software-throttled, so currently always 
      assign them to the default PGCTRL, to avoid interference with puts
    */

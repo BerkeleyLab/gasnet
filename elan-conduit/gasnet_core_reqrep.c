@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2005/04/11 14:43:38 $
- * $Revision: 1.21.2.6 $
+ *     $Date: 2005/04/12 11:03:57 $
+ * $Revision: 1.21.2.7 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -570,7 +570,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       #else
         { ELAN_EVENT *evt; 
           evt = elan_queueTx(gasnetc_queuetx, dest, &(buf->msg), msgsz, ELAN_RAIL_ALL);
-          elan_wait(evt, ELAN_POLL_EVENT);/* TODO: this could deadlock due to lack of polling */
+          while (!elan_poll(evt, 5)) { /* TODO - postpone completing this event using an evtbin */
+            UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
+          }
         }
       #endif
       }
