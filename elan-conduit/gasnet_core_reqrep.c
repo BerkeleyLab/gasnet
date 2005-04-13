@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2005/04/13 02:04:00 $
- * $Revision: 1.21.2.8 $
+ *     $Date: 2005/04/13 10:48:12 $
+ * $Revision: 1.21.2.9 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,6 +49,13 @@ static ELAN_QUEUE *gasnetc_queue = NULL;
 #else
   static ELAN_QUEUE_TX *gasnetc_queuetx = NULL;
   static ELAN_QUEUE_RX *gasnetc_queuerx = NULL;
+  #if GASNETC_OVERLAP_AMQUEUE
+    static gasnete_evtbin_t gasnetc_am_evtbin;
+    static int gasnetc_am_throttle = 0;
+    #ifndef GASNETC_DEFAULT_AM_THROTTLE
+    #define GASNETC_DEFAULT_AM_THROTTLE 8
+    #endif
+  #endif
 #endif
 static int gasnetc_queuesz = 0; /* queue size for main queue and tport bufs */
 
@@ -260,6 +267,7 @@ extern void gasnetc_initbufs() {
     #endif
                                       );
 
+  /* TODO: is this a good size? */
   gasnetc_queuesz = BASE()->tport_nslots;
 
   /* setup main queue */
@@ -282,9 +290,23 @@ extern void gasnetc_initbufs() {
     /* TODO: try removing LIBELAN_QUEUEREUSEBUF and doing our own buffer mgt
              to avoid a mandatory memcpy on entry to elan_queueTx */
     gasnetc_queuetx = elan_queueTxInit(STATE(), gasnetc_queue,
-                                       ELAN_RAIL_ALL, LIBELAN_QUEUEREUSEBUF);
+                                       ELAN_RAIL_ALL, 
+                                    #if GASNETC_OVERLAP_AMQUEUE
+                                       LIBELAN_QUEUEREUSEBUF
+                                    #else 
+                                       0
+                                    #endif
+                                       );
     if_pf(gasnetc_queuetx == NULL) 
       gasneti_fatalerror("error on elan_queueTxInit in gasnetc_initbufs()");
+
+    #if GASNETC_OVERLAP_AMQUEUE
+      gasnetc_am_throttle = atoi(
+        gasneti_getenv_withdefault("GASNET_AM_THROTTLE", _STRINGIFY(GASNETC_DEFAULT_AM_THROTTLE)));
+      if (gasnetc_am_throttle < 1) gasnetc_am_throttle = GASNETC_DEFAULT_AM_THROTTLE;
+      gasnete_evtbin_init(&gasnetc_am_evtbin, gasnetc_am_throttle, gasneti_malloc(gasnetc_am_throttle*sizeof(ELAN_EVENT*)));
+    #endif
+
     gasnetc_queuerx = elan_queueRxInit(STATE(), gasnetc_queue,
                                        gasnetc_queuesz, GASNETC_ELAN_MAX_QUEUEMSG,
                                        ELAN_RAIL_ALL, 0);
@@ -555,7 +577,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
            could make this totally asynchronous with lots more work, 
            but this isn't that bad because the put DMA is totally one-sided
          */
-        while (!elan_poll(putevt, 5)) {
+        while (!elan_poll(putevt, GASNETC_ELAN_POLLITERS_AM)) {
           UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
         }
         #if !GASNETC_PREALLOC_AMLONG_BOUNCEBUF
@@ -570,9 +592,17 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       #else
         { ELAN_EVENT *evt; 
           evt = elan_queueTx(gasnetc_queuetx, dest, &(buf->msg), msgsz, ELAN_RAIL_ALL);
-          while (!elan_poll(evt, 5)) { /* TODO - postpone completing this event using an evtbin */
-            UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
+        #if GASNETC_OVERLAP_AMQUEUE && !GASNET_PAR
+          /* TODO - add per-thread AM evtbins? */
+          if (!elan_poll(evt, GASNETC_ELAN_POLLITERS_AM)) 
+            gasnete_evtbin_save(&gasnetc_am_evtbin, evt);
+        #else
+          { /* poll-block for elan_queueTx completion */
+            while (!elan_poll(evt, GASNETC_ELAN_POLLITERS_AM)) { 
+              UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
+            }
           }
+        #endif
         }
       #endif
       }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/04/11 14:43:38 $
- * $Revision: 1.16.8.2 $
+ *     $Date: 2005/04/13 10:48:12 $
+ * $Revision: 1.16.8.3 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -57,11 +57,6 @@ typedef struct _gasnete_eop_t {
   /* for in-flight ELANPUTBB/GETBB where a copy is required */
   gasnete_bouncebuf_t *bouncebuf; 
 } gasnete_eop_t;
-
-typedef struct {
-  ELAN_EVENT  **evt_lst; 
-  int          evt_cnt;
-} gasnete_evtbin_t;
 
 typedef struct _gasnete_iop_t {
   uint8_t flags;                  /*  state flags */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/13 02:04:00 $
- * $Revision: 1.24.2.8 $
+ *     $Date: 2005/04/13 10:48:12 $
+ * $Revision: 1.24.2.9 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,6 +79,16 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #define GASNETC_ELAN_MAX_QUEUEMSG   320   /* max message in a mainqueue */
 #endif
 #define GASNETC_ELAN_SMALLPUTSZ      64   /* max put that elan_put copies to an elan buffer */
+
+/* number of iterations to use when testing a put/get elan event with elan_poll */
+#ifndef GASNETC_ELAN_POLLITERS
+  /* TODO: using 0 should be faster, but testsmall shows it reduces put/get performance */
+#define GASNETC_ELAN_POLLITERS 1 
+#endif
+/* number of iterations to use when testing an AM-related elan event with elan_poll */
+#ifndef GASNETC_ELAN_POLLITERS_AM
+#define GASNETC_ELAN_POLLITERS_AM 0
+#endif
 
 #ifdef ELAN_GLOBAL_DEST
   #define GASNETC_ELAN_GLOBAL_DEST ELAN_GLOBAL_DEST
@@ -195,6 +205,32 @@ extern ELAN_TPORT *gasnetc_elan_tport;
     #define GASNETC_USE_MAINQUEUE 1
   #endif
 #endif
+
+#ifndef GASNETC_OVERLAP_AMQUEUE
+  #if GASNETC_USE_MAINQUEUE
+    #define GASNETC_OVERLAP_AMQUEUE 0
+  #else
+    /* define to 1 to enable overlap of elan_queuetx for AM's */
+    #define GASNETC_OVERLAP_AMQUEUE 1
+  #endif
+#elif GASNETC_OVERLAP_AMQUEUE && GASNETC_USE_MAINQUEUE
+  #error cannot overlap AM's when using main queue
+#endif
+
+typedef struct {
+  ELAN_EVENT  **evt_lst; 
+  uint16_t      evt_cnt;
+  uint16_t      evt_sz;
+} gasnete_evtbin_t;
+extern int gasnete_evtbin_done(gasnete_evtbin_t *bin);
+extern void gasnete_evtbin_save(gasnete_evtbin_t *bin, ELAN_EVENT *evt);
+/* init evtbin with space of sizeof(ELAN_EVENT *)*sz */
+GASNET_INLINE_MODIFIER(gasnete_evtbin_init)
+void gasnete_evtbin_init(gasnete_evtbin_t *bin, uint16_t sz, ELAN_EVENT **space) {
+  bin->evt_cnt = 0;
+  bin->evt_sz = sz;
+  bin->evt_lst = space;
+}
 
 /* add a define that was missing from many versions of elan4 */
 #ifndef LIBELAN_QUEUEREUSEBUF

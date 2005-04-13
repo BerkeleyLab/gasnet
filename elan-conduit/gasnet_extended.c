@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/04/13 04:54:31 $
- * $Revision: 1.50.2.8 $
+ *     $Date: 2005/04/13 10:48:12 $
+ * $Revision: 1.50.2.9 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -134,12 +134,13 @@ static int gasnete_nbi_throttle = 0;
 #endif
 
 /* Ratio of elan pollfn callbacks to true AMPolls while barrier blocking
-   must be power of two */
+   must be power of two : BEWARE - raising this value hurts attentiveness at barriers
+*/
 #ifndef GASNETE_BARRIERBLOCKING_POLLFREQ
 #if GASNETC_ELAN3
   #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
 #else
-  #define GASNETE_BARRIERBLOCKING_POLLFREQ 64
+  #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
 #endif
 #endif
 
@@ -411,6 +412,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
 
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   gasnete_iop_t *iop;
+  ELAN_EVENT **evtbin_data;
   gasneti_assert(gasnete_nbi_throttle > 0);
   if_pt (thread->iop_free) {
     iop = thread->iop_free;
@@ -432,10 +434,10 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
   gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
 
-  iop->putbin.evt_cnt = 0;
-  iop->putbin.evt_lst = (ELAN_EVENT *)(iop+1);
-  iop->getbin.evt_cnt = 0;
-  iop->getbin.evt_lst = iop->putbin.evt_lst + gasnete_nbi_throttle;
+  evtbin_data = (ELAN_EVENT **)(iop+1);
+  gasnete_evtbin_init(&(iop->putbin), gasnete_nbi_throttle, evtbin_data);
+  evtbin_data += gasnete_nbi_throttle;
+  gasnete_evtbin_init(&(iop->getbin), gasnete_nbi_throttle, evtbin_data);
 
   iop->elan_putbb_list = NULL;
   iop->elan_getbb_list = NULL;
@@ -467,7 +469,7 @@ int gasnete_op_isdone(gasnete_op_t *op, int have_elanLock) {
         int result;
         gasnete_bouncebuf_t *bb = ((gasnete_eop_t *)op)->bouncebuf;
         if (!have_elanLock) LOCK_ELAN_WEAK();
-          result = elan_poll(bb->evt, 1);
+          result = elan_poll(bb->evt, GASNETC_ELAN_POLLITERS);
           if (result) {
             if (cat == OPCAT_ELANGETBB) {
               gasneti_assert(bb->get_dest);
@@ -877,7 +879,7 @@ int gasnete_try_syncnb_inner(gasnet_handle_t handle) {
     ELAN_EVENT *evt = GASNETE_HANDLE_TO_ELANEVENT(handle);
     int result;
     LOCK_ELAN_WEAK();
-      result = elan_poll(evt, 1);
+      result = elan_poll(evt, GASNETC_ELAN_POLLITERS);
     UNLOCK_ELAN_WEAK();
 
     if (result) return GASNET_OK;
@@ -966,12 +968,13 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
     the target until the source tries to synchronize
 */
 /* return true iff a evtbin has completed all ops - assumes elan lock held */
-static int gasnete_evtbin_done(gasnete_evtbin_t *bin) {
+extern int gasnete_evtbin_done(gasnete_evtbin_t *bin) {
   int i;
   ASSERT_ELAN_LOCKED_WEAK();
-  gasneti_assert(bin && bin->evt_cnt >= 0);
+  gasneti_assert(bin);
+  gasneti_assert(bin->evt_sz > 0 && bin->evt_cnt <= bin->evt_sz);
   for (i = 0; i < bin->evt_cnt; i++) {
-    if (elan_poll(bin->evt_lst[i], 1)) {
+    if (elan_poll(bin->evt_lst[i], GASNETC_ELAN_POLLITERS)) {
       bin->evt_cnt--;
       bin->evt_lst[i] = bin->evt_lst[bin->evt_cnt];
       i--;
@@ -981,22 +984,23 @@ static int gasnete_evtbin_done(gasnete_evtbin_t *bin) {
 }
 
 /* add a put or get to the control - assumes elan lock held */
-static void gasnete_evtbin_save(gasnete_evtbin_t *bin, ELAN_EVENT *evt) {
+extern void gasnete_evtbin_save(gasnete_evtbin_t *bin, ELAN_EVENT *evt) {
   ELAN_EVENT ** evt_lst;
+  const int sz = bin->evt_sz;
   ASSERT_ELAN_LOCKED_WEAK();
-  gasneti_assert(gasnete_nbi_throttle > 0);
-  gasneti_assert(bin && evt && bin->evt_cnt <= gasnete_nbi_throttle);
+  gasneti_assert(bin && evt);
+  gasneti_assert(bin->evt_sz > 0 && bin->evt_cnt <= bin->evt_sz);
   evt_lst = bin->evt_lst;
-  while (bin->evt_cnt == gasnete_nbi_throttle) {
+  while (bin->evt_cnt == sz) {
     int i;
     for (i=0; i < bin->evt_cnt; i++) {
-      if (elan_poll(evt_lst[i], 1)) {
+      if (elan_poll(evt_lst[i], GASNETC_ELAN_POLLITERS)) {
         bin->evt_cnt--;
         evt_lst[i] = evt_lst[bin->evt_cnt];
         i--;
       }
     }
-    if (bin->evt_cnt == gasnete_nbi_throttle) {
+    if (bin->evt_cnt == sz) {
       UNLOCKRELOCK_ELAN_WEAK(gasneti_AMPoll());
     }
   }
