@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2005/04/04 03:33:03 $
- * $Revision: 1.9.8.1 $
+ *     $Date: 2005/04/13 04:54:37 $
+ * $Revision: 1.9.8.2 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -317,6 +317,7 @@ typedef struct {
     INCREQ();                                                                              \
     payload->idx = -payload->idx;                                                          \
     ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));              \
+    memset(buf, 0xBB, sizeof(testam_payload_t));                                           \
   }                                                                                        \
   void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {     \
     testam_payload_t *payload = (testam_payload_t *)buf;                                   \
@@ -363,6 +364,7 @@ typedef struct {
                    LONG_##num##REP_HANDLER, &mybuf, nbytes aa##num),                          \
                   (token, LONG_##num##REP_HANDLER, &mybuf, nbytes,                            \
                    ((testam_payload_t*)TEST_SEG(partner))+NUMHANDLERS_PER_TYPE+num aa##num)); \
+    memset(&mybuf, 0xBB, sizeof(testam_payload_t));                                           \
   }                                                                                           \
   void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
     testam_payload_t *payload = (testam_payload_t *)buf;                                      \
@@ -462,18 +464,28 @@ HANDLERS(16)
   ALLAM_HANDLERS_ID(15), \
   ALLAM_HANDLERS_ID(16)
 
-#define ALLAM_REQ_ID(num, partner)  do {                                                                                                            \
-  static testam_payload_t buf; /* must be static to satisfy data lifetime reqt for RequestLongAsync */                                              \
-  buf.doublevar = TESTAM_DOUBLEVAR_VAL;                                                                                                             \
-  buf.int64var = TESTAM_INT64VAR_VAL;                                                                                                               \
-  buf.idx = num;                                                                                                                                    \
-  RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER AA##num));                                                                          \
-  RequestMedium(num,(ENDPOINT partner, MEDIUM_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t) AA##num));                                         \
-  RequestLong(num,(ENDPOINT partner, sizeof(testam_payload_t)*num, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t) AA##num),                 \
-                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t), ((testam_payload_t*)TEST_SEG(partner))+num AA##num)); \
-  RequestLongAsync(num,(ENDPOINT partner, sizeof(testam_payload_t)*num, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t) AA##num),            \
-                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, &buf, sizeof(testam_payload_t), ((testam_payload_t*)TEST_SEG(partner))+num AA##num));  \
-} while (0)
+#define ALLAM_REQ_ID(num, partner)  do {                                                           \
+  static testam_payload_t asyncbuf; /* static buf for data lifetime reqt of RequestLongAsync */    \
+  static testam_payload_t medbuf, longbuf;                                                         \
+  asyncbuf.doublevar = TESTAM_DOUBLEVAR_VAL;                                                       \
+  asyncbuf.int64var = TESTAM_INT64VAR_VAL;                                                         \
+  asyncbuf.idx = num;                                                                              \
+  RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER AA##num));                         \
+  memcpy(&medbuf, &asyncbuf, sizeof(testam_payload_t));                                            \
+  RequestMedium(num,(ENDPOINT partner, MEDIUM_##num##REQ_HANDLER,                                  \
+                     &medbuf, sizeof(testam_payload_t) AA##num));                                  \
+  memset(&medbuf, 0xBB, sizeof(testam_payload_t)); /* ensure we can overwrite srcmem */            \
+  memcpy(&longbuf, &asyncbuf, sizeof(testam_payload_t));                                           \
+  RequestLong(num,(ENDPOINT partner, sizeof(testam_payload_t)*num,                                 \
+                   LONG_##num##REQ_HANDLER, &longbuf, sizeof(testam_payload_t) AA##num),           \
+                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, &longbuf, sizeof(testam_payload_t),  \
+                   ((testam_payload_t*)TEST_SEG(partner))+num AA##num));                           \
+  memset(&longbuf, 0xBB, sizeof(testam_payload_t)); /* ensure we can overwrite srcmem */           \
+  RequestLongAsync(num,(ENDPOINT partner, sizeof(testam_payload_t)*num,                            \
+                   LONG_##num##REQ_HANDLER, &asyncbuf, sizeof(testam_payload_t) AA##num),          \
+                  (ENDPOINT partner, LONG_##num##REQ_HANDLER, &asyncbuf, sizeof(testam_payload_t), \
+                   ((testam_payload_t*)TEST_SEG(partner))+num AA##num));                           \
+} while (0)                                                                                        \
 
 #define ALLAM_REQ(partner)  do { \
   ALLAM_REQ_ID(0, partner);      \

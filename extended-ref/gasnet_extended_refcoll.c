@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2005/04/04 03:32:45 $
- * $Revision: 1.14.2.1 $
+ *     $Date: 2005/04/13 04:54:33 $
+ * $Revision: 1.14.2.2 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2607,7 +2607,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
 				   void *private_data GASNETE_THREAD_FARG) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, broadcastM);
-    data->args.broadcastM.dstlist    = dstlist;
+    data->args.broadcastM.dstlist    = (void * const *)dstlist;
     #if !GASNET_SEQ
       data->args.broadcastM.srcimage = srcimage;
     #endif
@@ -3358,7 +3358,7 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
 				 void *private_data GASNETE_THREAD_FARG) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, scatterM);
-    data->args.scatterM.dstlist    = dstlist;
+    data->args.scatterM.dstlist    = (void * const *)dstlist;
     #if !GASNET_SEQ
       data->args.scatterM.srcimage = srcimage;
     #endif
@@ -4121,7 +4121,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
     #endif
     data->args.gatherM.dstnode    = gasnete_coll_image_node(dstimage);
     data->args.gatherM.dst        = dst;
-    data->args.gatherM.srclist    = srclist;
+    data->args.gatherM.srclist    = (void * const *)srclist;
     data->args.gatherM.nbytes     = nbytes;
     data->options = options;
     data->private_data = private_data;
@@ -4381,8 +4381,8 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
 				    void *private_data GASNETE_THREAD_FARG) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, gather_allM);
-    data->args.gather_allM.dstlist = dstlist;
-    data->args.gather_allM.srclist = srclist;
+    data->args.gather_allM.dstlist = (void * const *)dstlist;
+    data->args.gather_allM.srclist = (void * const *)srclist;
     data->args.gather_allM.nbytes  = nbytes;
     data->options = options;
     data->private_data = private_data;
@@ -4639,8 +4639,8 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
 				  void *private_data GASNETE_THREAD_FARG) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, exchangeM);
-    data->args.exchangeM.dstlist = dstlist;
-    data->args.exchangeM.srclist = srclist;
+    data->args.exchangeM.dstlist = (void * const *)dstlist;
+    data->args.exchangeM.srclist = (void * const *)srclist;
     data->args.exchangeM.nbytes  = nbytes;
     data->options = options;
     data->private_data = private_data;

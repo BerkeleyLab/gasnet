@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/04/13 02:04:00 $
- * $Revision: 1.50.2.7 $
+ *     $Date: 2005/04/13 04:54:31 $
+ * $Revision: 1.50.2.8 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -547,6 +547,7 @@ void gasnete_op_free(gasnete_op_t *op) {
 static int gasnete_warned_addr_AM = 0;
 static int gasnete_warned_addr_BB = 0;
 static int gasnete_warned_mem_AM = 0;
+static int gasnete_warned_nbp_AM = 0;
 #define _GASNETE_WARN_NOTADDRESSABLE(varname,problem, alternative) do { \
   if_pf (!gasnete_warned_##varname) {                                   \
     char msg[255];                                                      \
@@ -563,6 +564,8 @@ static int gasnete_warned_mem_AM = 0;
   _GASNETE_WARN_NOTADDRESSABLE(addr_BB, "Executed some put/gets on non-elan-addressable areas of memory", "bounce-buffer copies")
 #define GASNETE_WARN_NOTADDRESSABLE_AM() \
   _GASNETE_WARN_NOTADDRESSABLE(addr_AM, "Executed some put/gets on non-elan-addressable areas of memory", "active messages")
+#define GASNETE_WARN_BIGNONBULKPUT_AM() \
+  _GASNETE_WARN_NOTADDRESSABLE(nbp_AM, "Executed some large non-bulk puts", "active messages")
 #define GASNETE_WARN_OUTOFMEM_AM() \
   _GASNETE_WARN_NOTADDRESSABLE(mem_AM, "Exhausted the libelan main memory heap trying to get a bounce buffer", "active messages")
 
@@ -792,6 +795,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
   } else {
     UNLOCK_ELAN_WEAK();
     if (isbulk) GASNETE_WARN_NOTADDRESSABLE_AM();
+    else GASNETE_WARN_BIGNONBULKPUT_AM();
   }
 #endif
 
@@ -1198,6 +1202,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   } else {
     UNLOCK_ELAN_WEAK();
     if (isbulk) GASNETE_WARN_NOTADDRESSABLE_AM();
+    else GASNETE_WARN_BIGNONBULKPUT_AM();
   }
 #endif
 

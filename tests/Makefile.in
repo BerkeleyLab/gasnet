@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2005/04/11 04:22:59 $
-# $Revision: 1.45.2.2 $
+#     $Date: 2005/04/13 04:54:41 $
+# $Revision: 1.45.2.3 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -22,7 +22,7 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 	cd @TOP_BUILDDIR@ ; \
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS = testmpiperf
+@USE_MPI_CONDUIT_TRUE@ MPI_TESTS = testmpiperf testmpineighbour
 @USE_MPI_CONDUIT_TRUE@ MPI_TESTS_PAR = testmpi
 
 # tests that can be built in any mode
@@ -92,7 +92,7 @@ TEST_PARAMS=                    					\
    testcore1_args="1000";       					\
    testrand_args="1024";        					\
    testlogGP_args="1000 8 65536";					\
-   testthreads_args="-a 2";						\
+   testthreads_args="2";						\
    testmisc_nodes="1";							\
    testbarrierconf_nodes="3";						\
    testmpiperf_args="BPF";						\
@@ -260,10 +260,11 @@ testmpi: force
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
 	rm -f $@.o	
 
-# testmpiperf is just an MPI program
-testmpiperf: force
+# the following are just plain MPI programs
+# testmpineighbour requires libm
+testmpiperf testmpineighbour: force
 	@MPI_CC@ $(GASNET_CPPFLAGS) @MPI_CFLAGS@ $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
-	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ 
+	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ @LIBM@
 	rm -f $@.o	
 
 # testcxx tests support for compiling a C++-based GASNet client 

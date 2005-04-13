@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2005/04/04 03:33:27 $
- * $Revision: 1.22.2.1 $
+ *     $Date: 2005/04/13 04:54:41 $
+ * $Revision: 1.22.2.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -306,6 +306,79 @@ void doit(int partner, int *partnerseg) {
       }
     }
     if (success) MSG("*** passed memset test!!");
+  }
+
+  BARRIER();
+
+  /*  put/overwrite/get test */
+  #define MAXVALS (1024)
+  #define MAXSZ (MAXVALS*8)
+  #define SEGSZ (MAXSZ*4)
+  #define VAL(sz, iter) \
+    (((uint64_t)(sz) << 32) | ((uint64_t)(100 + mynode) << 16) | ((iter) & 0xFF))
+  assert(TEST_SEGSZ >= 2*SEGSZ);
+  { GASNET_BEGIN_FUNCTION();
+    uint64_t *localvals=(uint64_t *)test_malloc(SEGSZ);
+    int success = 1;
+    int i, sz;
+    for (i = 0; i < MAX(1,iters/10); i++) {
+      uint64_t *localpos=localvals;
+      uint64_t *segpos=(uint64_t *)TEST_MYSEG();
+      uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
+      for (sz = 1; sz <= MAXSZ; sz*=2) {
+        gasnet_handle_t handle;
+        int elems = sz/8;
+        int j;
+        uint64_t val = VAL(sz, i); /* setup known src value */
+        if (sz < 8) {
+          elems = 1;
+          memset(localpos, (val & 0xFF), sz);
+          memset(segpos, (val & 0xFF), sz);
+          memset(&val, (val & 0xFF), sz);
+        } else {
+          for (j=0; j < elems; j++) {
+            localpos[j] = val;
+            segpos[j] = val;
+          }
+        }
+        handle = gasnet_put_nb_bulk(partner, rsegpos, localpos, sz);
+        gasnet_wait_syncnb(handle);
+
+        handle = gasnet_put_nb(partner, rsegpos+elems, localpos, sz);
+        memset(localpos, 0xCC, sz); /* clear */
+        gasnet_wait_syncnb(handle);
+
+        handle = gasnet_put_nb_bulk(partner, rsegpos+2*elems, segpos, sz);
+        gasnet_wait_syncnb(handle);
+
+        handle = gasnet_put_nb(partner, rsegpos+3*elems, segpos, sz);
+        memset(segpos, 0xCC, sz); /* clear */
+        gasnet_wait_syncnb(handle);
+
+        gasnet_wait_syncnb(gasnet_get_nb(localpos, partner, rsegpos, sz));
+        gasnet_wait_syncnb(gasnet_get_nb_bulk(localpos+elems, partner, rsegpos+elems, sz));
+        gasnet_wait_syncnb(gasnet_get_nb(segpos, partner, rsegpos+2*elems, sz));
+        gasnet_wait_syncnb(gasnet_get_nb_bulk(segpos+elems, partner, rsegpos+3*elems, sz));
+
+        for (j=0; j < elems*2; j++) {
+          int ok;
+          ok = localpos[j] == val;
+          if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
+          if (!ok) {
+              MSG("*** ERROR - FAILED OUT-OF-SEG PUT/OVERWRITE TEST!!! sz=%i", (sz));
+              success = 0;
+          }
+          ok = segpos[j] == val;
+          if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
+          if (!ok) {
+              MSG("*** ERROR - FAILED IN-SEG PUT/OVERWRITE TEST!!! sz=%i", (sz));
+              success = 0;
+          }
+        }
+      }
+    }
+    test_free(localvals);
+    if (success) MSG("*** passed put/overwrite test!!");
   }
 
   BARRIER();

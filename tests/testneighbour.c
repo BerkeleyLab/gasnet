@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Attic/testneighbour.c,v $
- *     $Date: 2005/03/16 12:01:04 $
- * $Revision: 1.5 $
+ *     $Date: 2005/04/13 04:54:41 $
+ * $Revision: 1.5.2.2 $
  * Description: MG-like neighbour exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -307,7 +307,7 @@ void _print_stat(nbour_t *nb, int myproc, stat_struct_t *st, const char *name)
 			continue;
 		    procavg = ((double)nb->stats0[i].time)/nb->stats0[i].iters;
 		    devmean = (double)cattimes[c] - procavg;
-		    sumsq += devmean*devmean; /*pow((double)cattimes[c] - procavg, 2.0);*/
+		    sumsq += devmean*devmean; 
 		}
 		divm = sumsq / (catcount[c]-1);
 		stdev[c] = sqrt(divm);
@@ -359,8 +359,9 @@ usage()
 	return;
 
     printf("\ntestneighbour Neighbour-to-Neighbour microbenchmark\n\n");
-    printf("testneighbour [-f] [iters] [level]\n\n");
+    printf("testneighbour [-f] [-m] [iters] [level]\n\n");
     printf("-f      run full neighbour exchange (NAS MG) instead of per axis\n");
+    printf("-m      run UPC version of GASNet MG test only\n");
     printf("[iters] How many iterations per exchange (default = 150)\n");
     printf("[level] select level of dimensions (default level = 0)\n");
     printf("   level=0 dims=<16,32,48,64,80,96,112,128>\n");
@@ -376,6 +377,7 @@ main(int argc, char **argv)
 {
     int	level = 0, i;
     int alldimensions = 1;
+    int upctestonly = 0;
     char *nbourf;
     uintptr_t insegsz, outsegsz;
     int iters = 150;
@@ -394,26 +396,27 @@ main(int argc, char **argv)
     nprocs = gasnet_nodes();
 
     /* XXX parse args: iters min max */
+    while (argc > argn && *argv[argn] == '-') {
+	char c = argv[argn][1];
+
+	if (c == 'f')
+	    alldimensions = 0;
+	else if (c == 'm')
+	    upctestonly = 1;
+	else 
+	    usage();
+	argn++;
+    }
+
     if (argc > argn) {
-	if (*argv[argn] == '-') {
-	    if (argv[argn][1] == 'f') 
-		alldimensions = 0;
-	    else {
-		usage();
-		gasnet_exit(1);
-	    }
-	    argn++;
-	}
-	if (argc > argn) {
-	    iters = atoi(argv[argn++]);
-	    if (!iters)
-		usage();
-	}
-	if (argc > argn) {
-	    level = atoi(argv[argn++]);
-	    if (!(level >= 0 && level < 4))
-		usage();
-	}
+	iters = atoi(argv[argn++]);
+	if (!iters)
+	    usage();
+    }
+    if (argc > argn) {
+	level = atoi(argv[argn++]);
+	if (!(level >= 0 && level < 4))
+	    usage();
     }
 
     for (i = 0; i < level_dims[level][i]; i++) 
@@ -505,6 +508,9 @@ main(int argc, char **argv)
 	    }
 	    BARRIER();
 
+	    if (upctestonly)
+		continue;
+
 	    for (i = 0; level_dims[level][i] != 0; i++) {
 		dim = level_dims[level][i];
 		setupGrid(&Nbour, dim);
@@ -542,23 +548,25 @@ main(int argc, char **argv)
 	}
 	BARRIER();
 
-	for (i = 0; level_dims[level][i] != 0; i++) {
-	    dim = level_dims[level][i];
-	    setupGrid(&Nbour, dim);
-	    allocMultiGrid(&Nbour);
+	if (!upctestonly) {
+	    for (i = 0; level_dims[level][i] != 0; i++) {
+	        dim = level_dims[level][i];
+	        setupGrid(&Nbour, dim);
+	        allocMultiGrid(&Nbour);
+	        BARRIER();
+	        ghostExchGASNetNonBlock(&Nbour, 1, axis, 1); /* Dry run */
+	        ghostExchGASNetNonBlock(&Nbour, iters, axis, 1);
+	    }
 	    BARRIER();
-	    ghostExchGASNetNonBlock(&Nbour, 1, axis, 1); /* Dry run */
-	    ghostExchGASNetNonBlock(&Nbour, iters, axis, 1);
-	}
-	BARRIER();
 
-	for (i = 0; level_dims[level][i] != 0; i++) {
-	    dim = level_dims[level][i];
-	    setupGrid(&Nbour, dim);
-	    allocMultiGrid(&Nbour);
-	    BARRIER();
-	    ghostExchAMLong(&Nbour, 1, axis); /* Dry run */
-	    ghostExchAMLong(&Nbour, iters, axis);
+	    for (i = 0; level_dims[level][i] != 0; i++) {
+	        dim = level_dims[level][i];
+	        setupGrid(&Nbour, dim);
+	        allocMultiGrid(&Nbour);
+	        BARRIER();
+	        ghostExchAMLong(&Nbour, 1, axis); /* Dry run */
+	        ghostExchAMLong(&Nbour, iters, axis);
+	    }
 	}
     }
 
@@ -681,9 +689,9 @@ setupGrid(nbour_t *nb, int dimsz)
 	    nb->idGridLower[0], nb->idGridUpper[0],
 	    nb->idGridLower[1], nb->idGridUpper[1],
 	    nb->idGridLower[2], nb->idGridUpper[2],
-	    nb->nodeidLower[0], nb->nodeidUpper[0],
-	    nb->nodeidLower[1], nb->nodeidUpper[1],
-	    nb->nodeidLower[2], nb->nodeidUpper[2]);
+	    (int)(nb->nodeidLower[0]), (int)(nb->nodeidUpper[0]),
+	    (int)(nb->nodeidLower[1]), (int)(nb->nodeidUpper[1]),
+	    (int)(nb->nodeidLower[2]), (int)(nb->nodeidUpper[2]));
 
     }
 }
@@ -830,16 +838,11 @@ ge_unpack(nbour_t *nb, double *src, size_t destp, int axis)
     return;
 }
 
-
 /*
- * Parry uses UPC-level shared directories to propagate the location of
- * per-thread communication buffers.
- *
  * if (axis == AALL), do all axis (full ghost exchange)
- *
  */
 void 
-ghostExchUPCMG(nbour_t *nb, int iters, int axis_in, int pairwise_sync)
+ghostExchUPCMGOrig(nbour_t *nb, int iters, int axis_in, int pairwise_sync)
 {
     int i, j, axis, dest;
     int axis_tot;
@@ -895,6 +898,73 @@ ghostExchUPCMG(nbour_t *nb, int iters, int axis_in, int pairwise_sync)
 
     return;
 }
+
+/*
+ * if (axis == AALL), do all axis (full ghost exchange)
+ */
+void 
+ghostExchUPCMG(nbour_t *nb, int iters, int axis_in, int pairwise_sync)
+{
+    int i, j, axis, dest;
+    int axis_tot;
+
+    uint64_t	    begin, end;
+    stat_struct_t   stcomm3;
+    int		    axes[3];
+    gasnet_handle_t hput1, hput2, hnotify_up, hnotify_down;
+
+    if (axis_in == AALL) {
+	axes[0] = 0; axes[1] = 1; axes[2] = 2;
+	axis_tot = 3;
+	init_stat(nb, &stcomm3, axis_in, nb->dimsz, (PX_SZ+PY_SZ+PZ_SZ)*sizeof(double)*2);
+    }
+    else {
+	axes[0] = axis_in;
+	axis_tot = 1;
+	init_stat(nb, &stcomm3, axis_in, nb->dimsz, nb->facesz[axis_in]*sizeof(double)*2);
+    }
+
+    BARRIER();
+
+    for (i = 0; i < iters; i++) {
+	begin = TIME();
+	for (j = 0; j < axis_tot; j++) {
+	    axis = axes[j];
+
+	    /* Send data to upper and lower neighbour, in turn */
+	    hput1 = ge_put(nb, GHOST_TYPE_PUT, GHOST_DIR_UPPER, axis, NULL);
+	    hput2 = ge_put(nb, GHOST_TYPE_PUT, GHOST_DIR_LOWER, axis, NULL);
+
+	    if (hput1 != GASNET_INVALID_HANDLE) {
+		gasnet_wait_syncnb(hput1);
+		gasnet_wait_syncnb( ge_notify(nb, GHOST_DIR_UPPER, axis) );
+	    }
+
+	    if (hput2 != GASNET_INVALID_HANDLE) {
+		gasnet_wait_syncnb(hput2);
+		gasnet_wait_syncnb( ge_notify(nb, GHOST_DIR_LOWER, axis) );
+	    }
+
+	    if (hput1 != GASNET_INVALID_HANDLE) 
+		ge_wait(nb, GHOST_DIR_UPPER, axis);
+
+	    if (hput2 != GASNET_INVALID_HANDLE) 
+		ge_wait(nb, GHOST_DIR_LOWER, axis);
+	}
+	end = TIME();
+	BARRIER(); /* don't include the barrier time */
+	update_stat(&stcomm3, (end-begin), 1);
+    }
+
+    if (iters > 1) {
+	print_stat(nb, myproc, &stcomm3, "UPC-MG");
+    }
+
+    BARRIER();
+
+    return;
+}
+
 
 /*
  * Parry uses UPC-level shared directories to propagate the location of

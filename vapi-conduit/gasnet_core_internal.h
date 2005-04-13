@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/04 03:33:31 $
- * $Revision: 1.52.2.3 $
+ *     $Date: 2005/04/13 04:54:43 $
+ * $Revision: 1.52.2.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -198,7 +198,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* puts <= this size will be done w/ local copies iff sender will wait for local completion */
 #ifndef GASNETC_PUT_COPY_LIMIT
-  #define GASNETC_PUT_COPY_LIMIT	4096
+  #define GASNETC_PUT_COPY_LIMIT	(64*1024)
 #endif
 
 /* maximum number of ops reaped from the send CQ per poll */

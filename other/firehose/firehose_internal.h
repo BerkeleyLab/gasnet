@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2005/04/04 03:33:07 $
- * $Revision: 1.18.8.1 $
+ *     $Date: 2005/04/13 04:54:39 $
+ * $Revision: 1.18.8.2 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -292,7 +292,7 @@ struct _firehose_private_t {
 void	fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions, 
 		       const firehose_region_t *prepinned_regions,
                        size_t num_reg, firehose_info_t *info);
-void	fh_fini_plugin();
+void	fh_fini_plugin(void);
 
 /* ##################################################################### */
 /* Request type freelists (COMMON)                                       */
@@ -496,7 +496,7 @@ FH_TAILQ_HEAD(_fh_locpendq_t, _fh_remote_callback_t);
 typedef struct _fh_locpendq_t	fh_locpendq_t;
 
 extern fh_locpendq_t	fhsmp_LocalPendingList;
-extern void		fhsmp_ServiceLocalPendingList();
+extern void		fhsmp_ServiceLocalPendingList(void);
 #endif
 
 /* Each node has a FirehoseFifo */
@@ -549,7 +549,7 @@ struct _fh_completion_callback_t {
 fh_completion_callback_t;
 #define FH_COMPLETION_END  ((fh_completion_callback_t *)(FH_COMPLETION_END_TAG))
 
-fh_completion_callback_t *	fh_alloc_completion_callback();
+fh_completion_callback_t *	fh_alloc_completion_callback(void);
 void	fh_free_completion_callback(fh_completion_callback_t *rc);
 
 /* ##################################################################### */

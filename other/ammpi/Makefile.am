@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.am,v $
-#     $Date: 2005/04/11 04:22:51 $
-# $Revision: 1.23.2.2 $
+#     $Date: 2005/04/13 04:54:35 $
+# $Revision: 1.23.2.3 $
 # Description: Makefile for AMMPI/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -86,8 +86,9 @@ test%: test%.o apputils.o libammpi.a
 	$(link) -o $@ $< apputils.o -L. -lammpi $(linkend)
 
 TEST_NODES=2
-AMMPI_RUNCMD=`echo "@MPIRUN_CMD@" | sed 's/%N/$(TEST_NODES)/;s/%C//;s/%P//;s/%A//'`
-TEST_RUNCMD=$(AMMPI_RUNCMD)
+AMMPI_RUNCMD='@MPIRUN_CMD@'
+AMMPI_RUNCMD_EXP=`echo $(AMMPI_RUNCMD) | sed 's/%N/$(TEST_NODES)/;s/%C//;s/%P//;s/%A//;s/%V//'`
+TEST_RUNCMD=$(AMMPI_RUNCMD_EXP)
 TEST_ITERS=100
 TEST_MODE=P
 TEST_DEPTH=32
@@ -97,7 +98,7 @@ run-tests: tests
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo  Running AMMPI tests...
 	@echo  If this fails to spawn a job, you may need to re-run with a
-	@echo   command like: gmake run-tests AMMPI_RUNCMD=\"mpirun -np 2\"
+	@echo   command like: gmake run-tests AMMPI_RUNCMD=\"$(AMMPI_RUNCMD)\"
 	@echo +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	@echo TESTPING
 	$(TEST_RUNCMD) ./testping $(TEST_ITERS) $(TEST_MODE)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Attic/testmpineighbour.c,v $
- *     $Date: 2005/04/11 12:00:13 $
- * $Revision: 1.2 $
+ *     $Date: 2005/04/13 04:54:41 $
+ * $Revision: 1.2.2.1 $
  * Description: MG-like neighbour exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

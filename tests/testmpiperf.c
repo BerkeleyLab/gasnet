@@ -544,7 +544,7 @@ int main(int argc, char **argv) {
     barrier();
 
     { int msgsz;
-      for (msgsz = FIRSTSZ(); !DONESZ(msgsz/nproc); msgsz = NEXTSZ(msgsz)) {
+      for (msgsz = FIRSTSZ(); !DONESZ(msgsz*nproc); msgsz = NEXTSZ(msgsz)) {
         double totaltime;
 
 	exchangetest(1, msgsz); /* "warm-up" run */
