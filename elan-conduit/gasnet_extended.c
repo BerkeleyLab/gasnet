@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/04/11 14:43:38 $
- * $Revision: 1.50.2.6 $
+ *     $Date: 2005/04/13 02:04:00 $
+ * $Revision: 1.50.2.7 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -258,8 +258,11 @@ extern void gasnete_init() {
       depth = gasnete_elan_pgctrl_cnt*GASNETC_PGCTRL_THROTTLE;
       sprintf(default_nbi_throttle, "%i", depth);
       for (i = 0; i < gasnete_elan_pgctrl_cnt; i++) {
-        #if ELAN_VERSION_GE(1,4,8)
-          void *qMem = elan_gallocElan(BASE(), GROUP(), 64, elan_pgvGlobalMemSize(STATE()));
+        void *qMem = NULL;
+        #if ELAN_VERSION_GE(1,4,8) && GASNETE_PGCTRL_PGVSUPPORT
+          size_t pgvsz = elan_pgvGlobalMemSize(STATE());
+          qMem = elan_gallocElan(BASE(), GROUP(), 64, pgvsz);
+          GASNETI_TRACE(C,("elan_gallocElan() allocated %i bytes for elan_putgetInit", pgvsz));
           gasneti_assert_always(qMem);
         #endif
         gasnete_elan_pgctrl[i] = 
@@ -273,7 +276,7 @@ extern void gasnete_init() {
             #endif
                           , GASNETC_PGCTRL_THROTTLE
             #if ELAN_VERSION_GE(1,4,8)
-                          , 0
+                          , BASE()->putget_flags
             #endif
                           );
         gasneti_assert_always(gasnete_elan_pgctrl[i]);
@@ -744,7 +747,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
   #else
     gasneti_assert(gasnetc_elan_addressable(dest, nbytes));
   #endif
-  if (nbytes <= GASNETC_ELAN_SMALLPUTSZ || 
+  if (GASNETC_IS_SMALLPUT(nbytes) || 
     (isbulk && gasnetc_elan_addressable(src,nbytes))) { 
     /* legal to use ordinary elan_put */
     ELAN_EVENT *evt;
@@ -1141,7 +1144,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   #else
     gasneti_assert(gasnetc_elan_addressable(dest, nbytes));
   #endif
-  if (nbytes <= GASNETC_ELAN_SMALLPUTSZ || 
+  if (GASNETC_IS_SMALLPUT(nbytes) || 
     (isbulk && gasnetc_elan_addressable(src,nbytes))) { 
     /* legal to use ordinary elan_put */
     ELAN_EVENT *evt;

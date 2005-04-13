@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/12 11:03:57 $
- * $Revision: 1.24.2.7 $
+ *     $Date: 2005/04/13 02:04:00 $
+ * $Revision: 1.24.2.8 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -90,12 +90,17 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #define GASNETC_PREALLOC_AMLONG_BOUNCEBUF 1
 #endif
 
+/* whether our PGCTRL pool supports non-contiguous put/gets */
+#ifndef GASNETE_PGCTRL_PGVSUPPORT
+#define GASNETE_PGCTRL_PGVSUPPORT 0
+#endif
+
 /* libelan's tuning knobs for multi-rail NIC striping (TODO: are these good vals?) */
 #ifndef GASNETC_PGCTRL_SPLITPUTSZ
-#define GASNETC_PGCTRL_SPLITPUTSZ GASNETC_ELAN_SMALLPUTSZ
+#define GASNETC_PGCTRL_SPLITPUTSZ BASE()->putget_stripeputsize
 #endif
 #ifndef GASNETC_PGCTRL_SPLITGETSZ
-#define GASNETC_PGCTRL_SPLITGETSZ GASNETC_ELAN_SMALLPUTSZ
+#define GASNETC_PGCTRL_SPLITGETSZ BASE()->putget_stripegetsize
 #endif
 #ifndef GASNETC_PGCTRL_RAIL
   #ifdef ELAN_RAIL_ALL
@@ -179,7 +184,7 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #endif
 
 #ifndef GASNETC_USE_MAINQUEUE
-  #if HAVE_ELAN_QUEUETXINIT
+  #if HAVE_ELAN_QUEUETXINIT && defined(GASNETC_ELAN4) /* lemieux has elan_queuetxinit, but it doesn't work */
     #if GASNET_PAR
       /* ELAN_QUEUE_TX/RX are apparently not thread-safe, at least not as of 1.8.13 */
       #define GASNETC_USE_MAINQUEUE 1
@@ -251,6 +256,8 @@ extern ELAN_TPORT *gasnetc_elan_tport;
   #define gasnete_elan_get(src, dest, nbytes, node) ( \
           ASSERT_ELAN_LOCKED_WEAK(),                  \
           elan_get(STATE(), src, dest, nbytes, node))
+
+  #define GASNETC_IS_SMALLPUT(sz) (sz <= GASNETC_ELAN_SMALLPUTSZ)
 #else
   #define gasnete_elan_put(src, dest, nbytes, node) ( \
           ASSERT_ELAN_LOCKED_WEAK(),                  \
@@ -258,6 +265,8 @@ extern ELAN_TPORT *gasnetc_elan_tport;
   #define gasnete_elan_get(src, dest, nbytes, node) ( \
           ASSERT_ELAN_LOCKED_WEAK(),                  \
           elan_get(STATE(), src, dest, nbytes, node))
+
+  #define GASNETC_IS_SMALLPUT(sz) (sz <= BASE()->putget_smallputsize)
 #endif
 
 

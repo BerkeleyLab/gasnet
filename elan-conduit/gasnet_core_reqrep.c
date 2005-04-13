@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2005/04/12 11:03:57 $
- * $Revision: 1.21.2.7 $
+ *     $Date: 2005/04/13 02:04:00 $
+ * $Revision: 1.21.2.8 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -256,7 +256,7 @@ extern void gasnetc_initbufs() {
                                       BASE()->shm_fragsize
     #endif
     #if ELAN_VERSION_GE(1,4,8)
-                                    , 0 /* flags */
+                                    , BASE()->tport_flags
     #endif
                                       );
 
@@ -273,7 +273,7 @@ extern void gasnetc_initbufs() {
   #if GASNETC_USE_MAINQUEUE
     gasnetc_mainqueue = elan_mainQueueInit(STATE(), gasnetc_queue, gasnetc_queuesz, GASNETC_ELAN_MAX_QUEUEMSG
       #if ELAN_VERSION_GE(1,4,8)
-                                        , 0 /* flags */
+                                        , BASE()->mqueue_flags
       #endif
       );
     if_pf(gasnetc_mainqueue == NULL) 
@@ -529,7 +529,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         ELAN_EVENT *putevt;
         void *bouncebuf = NULL;
 
-        if (nbytes < GASNETC_ELAN_SMALLPUTSZ ||
+        if (GASNETC_IS_SMALLPUT(nbytes) ||
             gasnetc_elan_addressable(source_addr, nbytes)) {
           /* safe to put directly from source */
           putevt = gasnete_elan_put(source_addr, dest_ptr, nbytes, dest);
