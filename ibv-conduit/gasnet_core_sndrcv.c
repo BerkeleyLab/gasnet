@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/04/13 22:25:12 $
- * $Revision: 1.91 $
+ *     $Date: 2005/04/14 01:15:10 $
+ * $Revision: 1.91.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -121,6 +121,7 @@ typedef struct {
       size_t			fh_len;
       uintptr_t			fh_loc_addr;
       uintptr_t			fh_rem_addr;
+      gasnetc_buffer_t		*fh_bbuf;
       gasneti_atomic_t		fh_ready;	/* 0 when loc and rem both ready */
       gasnetc_counter_t		*fh_oust;	/* fh transactions outstanding */
     } fh;
@@ -133,6 +134,7 @@ typedef struct {
   #define fh_len	u.fh.fh_len
   #define fh_loc_addr	u.fh.fh_loc_addr
   #define fh_rem_addr	u.fh.fh_rem_addr
+  #define fh_bbuf	u.fh.fh_bbuf
   #define fh_ready	u.fh.fh_ready
   #define fh_oust	u.fh.fh_oust
   #define am_buff	u.am.am_buff
@@ -394,7 +396,12 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
             if (sreq->req_oust) {
               gasnetc_counter_dec(sreq->req_oust);
 	    }
-            #if GASNETC_PIN_SEGMENT
+            #if !GASNETC_PIN_SEGMENT
+	    if_pf (sreq->fh_bbuf != NULL) {
+	      /* Bounce buffer PUT */
+	      gasneti_freelist_put(&gasnetc_bbuf_freelist, sreq->fh_bbuf);
+	    }
+	    #else
 	    if_pf (sreq->fh_count < 0) {
 	      /* Bounce buffer PUT */
 	      gasneti_assert(sreq->bb_buff != NULL);
@@ -1525,8 +1532,8 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
 #else
 GASNET_INLINE_MODIFIER(gasnetc_fh_put_inline)
 void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq, const firehose_request_t *fh_rem, size_t len) {
-  gasnetc_counter_t *mem_oust;
   GASNETC_DECL_SR_DESC(sr_desc, 1, 1);
+  gasnetc_counter_t *mem_oust;
 
   gasneti_assert(sreq->fh_rem_addr >= fh_rem->addr);
   gasneti_assert(sreq->fh_rem_addr + (len - 1) <= fh_rem->addr + (fh_rem->len - 1));
@@ -1553,6 +1560,71 @@ void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq, const firehose_request_t *fh_re
   if (mem_oust) {
     /* Because the inline put already copied it */
     gasnetc_counter_dec(mem_oust);
+  }
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_fh_put_bounce)
+void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq, const firehose_request_t *fh_rem, size_t nbytes) {
+  GASNETC_DECL_SR_DESC(sr_desc, 1, 1);
+  gasnetc_cep_t *cep = orig_sreq->cep;
+  uintptr_t src = orig_sreq->fh_loc_addr;
+  uintptr_t dst = orig_sreq->fh_rem_addr;
+  VAPI_rkey_t rkey = fh_rem->client.rkey;
+  gasnetc_counter_t *mem_oust;
+
+  gasneti_assert(nbytes != 0);
+  gasneti_assert(orig_sreq->mem_oust != NULL);
+  gasneti_assert(orig_sreq->fh_rem_addr >= fh_rem->addr);
+  gasneti_assert(orig_sreq->fh_rem_addr + (nbytes - 1) <= fh_rem->addr + (fh_rem->len - 1));
+
+  GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BOUNCE, nbytes);
+
+  /* Use full bounce buffers until just one buffer worth of data remains */
+  while (nbytes > GASNETC_BUFSZ) {
+    gasnetc_sreq_t *sreq = gasnetc_get_sreq();
+    sreq->fh_bbuf = gasnetc_get_bbuf(1);
+    memcpy(sreq->fh_bbuf, (void *)src, GASNETC_BUFSZ);
+    sreq->cep  = cep;
+    sreq->fh_count = 0;
+
+    sr_desc->opcode      = VAPI_RDMA_WRITE;
+    sr_desc->remote_addr = dst;
+    sr_desc->r_key       = rkey;
+    sr_desc->sg_lst_len  = 1;
+    sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->fh_bbuf;
+    sr_desc->sg_lst_p[0].len  = GASNETC_BUFSZ;
+    sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
+
+    gasnetc_snd_post(sreq, sr_desc);
+
+    src += GASNETC_BUFSZ;
+    dst += GASNETC_BUFSZ;
+    nbytes -= GASNETC_BUFSZ;
+  }
+
+  /* Send out the last buffer w/ the original resource */
+  gasneti_assert(nbytes <= GASNETC_BUFSZ);
+
+  mem_oust = orig_sreq->mem_oust;
+  orig_sreq->mem_oust = NULL;
+  orig_sreq->fh_count = 1;
+
+  orig_sreq->fh_bbuf = gasnetc_get_bbuf(1);
+  memcpy(orig_sreq->fh_bbuf, (void *)src, nbytes);
+  gasnetc_counter_dec(mem_oust);
+
+  sr_desc->opcode      = VAPI_RDMA_WRITE;
+  sr_desc->remote_addr = dst;
+  sr_desc->sg_lst_len  = 1;
+  sr_desc->r_key       = rkey;
+  sr_desc->sg_lst_p[0].addr = (uintptr_t)orig_sreq->fh_bbuf;
+  sr_desc->sg_lst_p[0].len  = nbytes;
+  sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
+
+  gasnetc_snd_post(orig_sreq, sr_desc);
+
+  if (orig_sreq->fh_oust) {
+    gasnetc_counter_dec(orig_sreq->fh_oust);
   }
 }
 
@@ -1691,7 +1763,11 @@ int gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
     len = MIN(len, (fh_rem->addr + fh_rem->len - rem_addr));
 
     if ((GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) {
+      /* Inline when small enough */
       gasnetc_fh_put_inline(sreq, fh_rem, len);
+    } else if ((len <= GASNETC_PUT_COPY_LIMIT) && (sreq->mem_oust != NULL)) {
+      /* Bounce buffer use for non-bulk puts */
+      gasnetc_fh_put_bounce(sreq, fh_rem, len);
     } else {
       len = gasnetc_get_local_fh(sreq, loc_addr, len);
       gasnetc_fh_post(sreq, VAPI_RDMA_WRITE);
@@ -2039,6 +2115,7 @@ extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nb
     size_t count;
 
     sreq->cep   = cep;
+    sreq->fh_bbuf = NULL;
  
     /* We must set counters on all chunks since order of completion is uncertain */
     if (mem_oust) {
