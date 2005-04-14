@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/13 10:48:12 $
- * $Revision: 1.24.2.9 $
+ *     $Date: 2005/04/14 01:34:39 $
+ * $Revision: 1.24.2.10 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -302,7 +302,11 @@ void gasnete_evtbin_init(gasnete_evtbin_t *bin, uint16_t sz, ELAN_EVENT **space)
           ASSERT_ELAN_LOCKED_WEAK(),                  \
           elan_get(STATE(), src, dest, nbytes, node))
 
-  #define GASNETC_IS_SMALLPUT(sz) (sz <= BASE()->putget_smallputsize)
+  #if ELAN_VERSION_GE(1,4,8)
+    #define GASNETC_IS_SMALLPUT(sz) (sz <= BASE()->putget_smallputsize)
+  #else
+    #define GASNETC_IS_SMALLPUT(sz) (sz <= GASNETC_ELAN_SMALLPUTSZ)
+  #endif
 #endif
 
 
