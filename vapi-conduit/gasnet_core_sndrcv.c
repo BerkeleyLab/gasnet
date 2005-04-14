@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/04/14 01:15:10 $
- * $Revision: 1.91.2.1 $
+ *     $Date: 2005/04/14 03:34:44 $
+ * $Revision: 1.91.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -636,6 +636,7 @@ gasnetc_sreq_t *gasnetc_get_sreq(void) {
     /* invalidate field(s) which should always be set by caller */
     sreq->cep = NULL;
     sreq->fh_count = GASNETC_MAX_FH + 1;
+    sreq->fh_len = ~0;
   #endif
 
   /* Assume no counters */
@@ -1538,8 +1539,6 @@ void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq, const firehose_request_t *fh_re
   gasneti_assert(sreq->fh_rem_addr >= fh_rem->addr);
   gasneti_assert(sreq->fh_rem_addr + (len - 1) <= fh_rem->addr + (fh_rem->len - 1));
 
-  GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_INLINE, len);
-
   sreq->fh_count = 1;
 
   sr_desc->opcode      = VAPI_RDMA_WRITE;
@@ -1554,9 +1553,6 @@ void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq, const firehose_request_t *fh_re
 
   gasnetc_snd_post_inline(sreq, sr_desc);
 
-  if (sreq->fh_oust) {
-    gasnetc_counter_dec(sreq->fh_oust);
-  }
   if (mem_oust) {
     /* Because the inline put already copied it */
     gasnetc_counter_dec(mem_oust);
@@ -1576,8 +1572,6 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq, const firehose_request_t *
   gasneti_assert(orig_sreq->mem_oust != NULL);
   gasneti_assert(orig_sreq->fh_rem_addr >= fh_rem->addr);
   gasneti_assert(orig_sreq->fh_rem_addr + (nbytes - 1) <= fh_rem->addr + (fh_rem->len - 1));
-
-  GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BOUNCE, nbytes);
 
   /* Use full bounce buffers until just one buffer worth of data remains */
   while (nbytes > GASNETC_BUFSZ) {
@@ -1622,10 +1616,6 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq, const firehose_request_t *
   sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
 
   gasnetc_snd_post(orig_sreq, sr_desc);
-
-  if (orig_sreq->fh_oust) {
-    gasnetc_counter_dec(orig_sreq->fh_oust);
-  }
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_fh_post)
@@ -1666,13 +1656,23 @@ void gasnetc_fh_post(gasnetc_sreq_t *sreq, VAPI_wr_opcode_t op) {
   }
   gasneti_assert(remain == 0);
 
-  if (op == VAPI_RDMA_WRITE) {
-    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, sreq->fh_len);
-  } else {
-    GASNETI_TRACE_EVENT_VAL(C, RDMA_GET_ZEROCP, sreq->fh_len);
-  }
-
   gasnetc_snd_post(sreq, sr_desc);
+}
+
+static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq, const firehose_request_t *fh_rem, size_t nbytes) {
+  if ((GASNETC_PUT_INLINE_LIMIT != 0) && (nbytes <= GASNETC_PUT_INLINE_LIMIT)) {
+    /* Inline when small enough */
+    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_INLINE, nbytes);
+    gasnetc_fh_put_inline(sreq, fh_rem, nbytes);
+  } else if ((nbytes <= GASNETC_PUT_COPY_LIMIT) && (sreq->mem_oust != NULL)) {
+    /* Bounce buffer use for non-bulk puts (upto a limit) */
+    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BOUNCE, nbytes);
+    gasnetc_fh_put_bounce(sreq, fh_rem, nbytes);
+  } else {
+    /* Use the local firehose(s) obtained earlier */
+    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, nbytes);
+    gasnetc_fh_post(sreq, VAPI_RDMA_WRITE);
+  }
 
   if (sreq->fh_oust) {
     gasnetc_counter_dec(sreq->fh_oust);
@@ -1694,8 +1694,13 @@ static void gasnetc_fh_put_cb(void *context, const firehose_request_t *fh_rem, i
 
   sreq->fh_ptr[0] = fh_rem;
   if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
-    gasnetc_fh_post(sreq, VAPI_RDMA_WRITE);
+    gasnetc_fh_do_put(sreq, fh_rem, sreq->fh_len);
   }
+}
+
+static void gasnetc_fh_do_get(gasnetc_sreq_t *sreq) {
+  GASNETI_TRACE_EVENT_VAL(C, RDMA_GET_ZEROCP, sreq->fh_len);
+  gasnetc_fh_post(sreq, VAPI_RDMA_READ);
 }
 
 static void gasnetc_fh_get_cb(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
@@ -1703,7 +1708,11 @@ static void gasnetc_fh_get_cb(void *context, const firehose_request_t *fh_rem, i
 
   sreq->fh_ptr[0] = fh_rem;
   if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
-    gasnetc_fh_post(sreq, VAPI_RDMA_READ);
+    gasnetc_fh_do_get(sreq);
+  }
+
+  if (sreq->fh_oust) {
+    gasnetc_counter_dec(sreq->fh_oust);
   }
 }
 
@@ -1735,7 +1744,6 @@ size_t gasnetc_get_local_fh(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len
     sreq->fh_count = 2;
   }
 
-  sreq->fh_len = len;
   return len;
 }
 
@@ -1755,34 +1763,31 @@ int gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
    */
   fh_rem = firehose_try_remote_pin(node, rem_addr, 1, 0, NULL);
 
-  if_pt (fh_rem) {
+  if_pt (fh_rem != NULL) {
     /* HIT in remote firehose table - some initial part of the region is pinned */
     sreq->fh_ptr[0] = fh_rem;
     gasneti_assert(rem_addr >= fh_rem->addr);
     gasneti_assert(rem_addr <= (fh_rem->addr + fh_rem->len - 1));
     len = MIN(len, (fh_rem->addr + fh_rem->len - rem_addr));
-
-    if ((GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) {
-      /* Inline when small enough */
-      gasnetc_fh_put_inline(sreq, fh_rem, len);
-    } else if ((len <= GASNETC_PUT_COPY_LIMIT) && (sreq->mem_oust != NULL)) {
-      /* Bounce buffer use for non-bulk puts */
-      gasnetc_fh_put_bounce(sreq, fh_rem, len);
-    } else {
-      len = gasnetc_get_local_fh(sreq, loc_addr, len);
-      gasnetc_fh_post(sreq, VAPI_RDMA_WRITE);
-    }
   } else {
-    /* Some initial part (or all) of the region is unpinned */
-    /* XXX: this is where we could piggyback a put on the AM (bug #1057) */
+    /* MISS - Some initial part (or all) of the region is unpinned */
     gasneti_atomic_set(&sreq->fh_ready, 2);
     len = MIN(len, (gasnetc_fh_maxsz - (rem_addr & (FH_BUCKET_SIZE - 1))));
     (void)firehose_remote_pin(node, rem_addr, len, 0, NULL,
 			      NULL, &gasnetc_fh_put_cb, sreq);
+  }
+
+  /* Get local firehose(s) IFF inline and bounce-buffers are not to be used.
+   * We do this here to overlap with the in-flight AM if applicable.
+   */
+  if (!((GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) &&
+      !((len <= GASNETC_PUT_COPY_LIMIT) && (sreq->mem_oust != NULL))) {
     len = gasnetc_get_local_fh(sreq, loc_addr, len);
-    if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
-      gasnetc_fh_post(sreq, VAPI_RDMA_WRITE);
-    }
+  }
+  sreq->fh_len = len;
+
+  if ((fh_rem != NULL) || gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
+    gasnetc_fh_do_put(sreq, fh_rem, len);
   }
 
   return len;
@@ -1804,24 +1809,25 @@ int gasnetc_fh_get_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
    */
   fh_rem = firehose_try_remote_pin(node, rem_addr, 1, 0, NULL);
 
-  if_pt (fh_rem) {
+  if_pt (fh_rem != NULL) {
     /* HIT in remote firehose table - some initial part of the region is pinned */
     sreq->fh_ptr[0] = fh_rem;
     gasneti_assert(rem_addr >= fh_rem->addr);
     gasneti_assert(rem_addr <= (fh_rem->addr + fh_rem->len - 1));
     len = MIN(len, (fh_rem->addr + fh_rem->len - rem_addr));
-    len = gasnetc_get_local_fh(sreq, loc_addr, len);
-    gasnetc_fh_post(sreq, VAPI_RDMA_READ);
   } else {
     /* MISS: Some initial part (or all) of the region is unpinned */
     gasneti_atomic_set(&sreq->fh_ready, 2);
     len = MIN(len, (gasnetc_fh_maxsz - (rem_addr & (FH_BUCKET_SIZE - 1))));
     (void)firehose_remote_pin(node, rem_addr, len, 0, NULL,
 			      NULL, &gasnetc_fh_get_cb, sreq);
-    len = gasnetc_get_local_fh(sreq, loc_addr, len);
-    if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
-      gasnetc_fh_post(sreq, VAPI_RDMA_READ);
-    }
+  }
+
+  len = gasnetc_get_local_fh(sreq, loc_addr, len);
+  sreq->fh_len = len;
+
+  if ((fh_rem != NULL) || gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
+    gasnetc_fh_do_get(sreq);
   }
 
   return len;
