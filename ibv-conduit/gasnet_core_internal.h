@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2005/04/13 04:54:43 $
- * $Revision: 1.52.2.4 $
+ *     $Date: 2005/04/17 15:44:38 $
+ * $Revision: 1.52.2.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,11 @@
 
 #include <gasnet_internal.h>
 #include <firehose.h>
-#include <gasnet_bootstrap_internal.h>
+
+#include <ssh-spawner/gasnet_bootstrap_internal.h>
+#if HAVE_MPI_SPAWNER
+  #include <mpi-spawner/gasnet_bootstrap_internal.h>
+#endif
 
 #include <vapi.h>
 #include <evapi.h>
@@ -178,27 +182,6 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* Defined non-zero in gasnet_config.h to enable a progress thread for receiving AMs . */
 #ifndef GASNETC_VAPI_RCV_THREAD
   #define GASNETC_VAPI_RCV_THREAD	0
-#endif
-
-#if GASNETC_VAPI_ENABLE_INLINE_PUTS
-  /* AM req/rep <= this size will be done w/ VAPI-level copy, 0 disables */
-  #ifndef GASNETC_AM_INLINE_LIMIT
-    #define GASNETC_AM_INLINE_LIMIT	72
-  #endif
-  /* puts <= this size will be done w/ VAPI-level copy, 0 disables */
-  #ifndef GASNETC_PUT_INLINE_LIMIT
-    #define GASNETC_PUT_INLINE_LIMIT	72
-  #endif
-#else
-  #undef GASNETC_AM_INLINE_LIMIT
-  #define GASNETC_AM_INLINE_LIMIT	0
-  #undef GASNETC_PUT_INLINE_LIMIT
-  #define GASNETC_PUT_INLINE_LIMIT	0
-#endif
-
-/* puts <= this size will be done w/ local copies iff sender will wait for local completion */
-#ifndef GASNETC_PUT_COPY_LIMIT
-  #define GASNETC_PUT_COPY_LIMIT	(64*1024)
 #endif
 
 /* maximum number of ops reaped from the send CQ per poll */
@@ -601,6 +584,8 @@ extern firehose_info_t		gasnetc_firehose_info;
 #if FIREHOSE_VAPI_USE_FMR
   extern EVAPI_fmr_t		gasnetc_fmr_props;
 #endif
+extern size_t			gasnetc_inline_limit;
+extern size_t			gasnetc_bounce_limit;
 
 extern VAPI_cq_hndl_t	gasnetc_snd_cq;
 extern VAPI_cq_hndl_t	gasnetc_rcv_cq;
