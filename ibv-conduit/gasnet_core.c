@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2005/04/04 03:33:31 $
- * $Revision: 1.61.2.2 $
+ *     $Date: 2005/04/17 15:44:38 $
+ * $Revision: 1.61.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,6 +23,10 @@ extern unsigned long fh_getenv(const char *var, unsigned long multiplier);
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
+GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
+#if HAVE_MPI_SPAWNER
+  GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -57,6 +61,10 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 #elif GASNETC_DEFAULT_RCV_THREAD && !GASNETC_VAPI_RCV_THREAD
   #error "GASNETC_DEFAULT_RCV_THREAD and GASNETC_VAPI_RCV_THREAD conflict"
 #endif
+
+/* Protocol switch points */
+#define GASNETC_DEFAULT_INLINE_LIMIT	72
+#define GASNETC_DEFAULT_BOUNCE_LIMIT	(64*1024)
 
 /*
   These calues cannot yet be overridden by environment variables.
@@ -129,7 +137,6 @@ static void gasnetc_check_config() {
 
   gasneti_assert(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
-  gasneti_assert(GASNETC_PUT_COPY_LIMIT <= GASNETC_BUFSZ);
 }
 
 static void gasnetc_unpin(gasnetc_memreg_t *reg) {
@@ -350,6 +357,8 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_oust_limit, GASNET_AM_OUST_LIMIT, GASNETC_DEFAULT_AM_OUST_LIMIT, 1);
   GASNETC_ENVINT(gasnetc_am_oust_pp, GASNET_AM_OUST_PP, GASNETC_DEFAULT_AM_OUST_PP, 1);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_LIMIT, GASNETC_DEFAULT_BBUF_LIMIT, 1);
+  GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINE_LIMIT, GASNETC_DEFAULT_INLINE_LIMIT, 0);
+  GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_BOUNCE_LIMIT, GASNETC_DEFAULT_BOUNCE_LIMIT, 0);
   #if GASNETC_PIN_SEGMENT
   { char *val;
     long tmp;
@@ -387,19 +396,6 @@ static int gasnetc_load_settings(void) {
 #else
   GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            probe for buggy firmware (default)"));
 #endif
-#if GASNETC_VAPI_ENABLE_INLINE_PUTS
-  GASNETI_TRACE_PRINTF(C,("  Use of EVAPI inline sends      enabled (default)"));
-  GASNETI_TRACE_PRINTF(C,("    max. size for gasnet puts      %d bytes (GASNETC_PUT_INLINE_LIMIT)",
-			  	GASNETC_PUT_INLINE_LIMIT));
-  GASNETI_TRACE_PRINTF(C,("    max. size for AMs              %d bytes (GASNETC_AM_INLINE_LIMIT)",
-			  	GASNETC_AM_INLINE_LIMIT));
-#else
-  GASNETI_TRACE_PRINTF(C,("  Use of EVAPI inline sends      disabled (--disable-vapi-inline-puts)"));
-  GASNETI_TRACE_PRINTF(C,("    max. size for gasnet puts      N/A (GASNETC_PUT_INLINE_LIMIT)"));
-  GASNETI_TRACE_PRINTF(C,("    max. size for AMs              N/A (GASNETC_AM_INLINE_LIMIT)"));
-#endif
-  GASNETI_TRACE_PRINTF(C,("  Max. size for non-bulk copy    %d bytes (GASNETC_PUT_COPY_LIMIT)",
-				GASNETC_PUT_COPY_LIMIT));
   GASNETI_TRACE_PRINTF(C,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
 				GASNETC_SND_REAP_LIMIT));
   GASNETI_TRACE_PRINTF(C,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",
@@ -425,6 +421,8 @@ static int gasnetc_load_settings(void) {
 #if GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ     = %lu", gasnetc_pin_maxsz));
 #endif
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_INLINE_LIMIT  = %u", (unsigned int)gasnetc_inline_limit));
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
 #if GASNETC_VAPI_RCV_THREAD
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD    = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
@@ -434,6 +432,43 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("}"));
 
   return GASNET_OK;
+}
+
+static void (*gasneti_bootstrapFini_p)(void);
+static void (*gasneti_bootstrapAbort_p)(int exitcode);
+static void (*gasneti_bootstrapBarrier_p)(void);
+static void (*gasneti_bootstrapExchange_p)(void *src, size_t len, void *dest);
+static void (*gasneti_bootstrapAlltoall_p)(void *src, size_t len, void *dest);
+static void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, int rootnode);
+#define gasneti_bootstrapFini		(*gasneti_bootstrapFini_p)	
+#define gasneti_bootstrapAbort		(*gasneti_bootstrapAbort_p)	
+#define gasneti_bootstrapBarrier	(*gasneti_bootstrapBarrier_p)	
+#define gasneti_bootstrapExchange	(*gasneti_bootstrapExchange_p)	
+#define gasneti_bootstrapAlltoall	(*gasneti_bootstrapAlltoall_p)	
+#define gasneti_bootstrapBroadcast	(*gasneti_bootstrapBroadcast_p)	
+
+static void gasneti_bootstrapInit(int *argc_p, char ***argv_p,
+				  gasnet_node_t *nodes_p, gasnet_node_t *mynode_p) {
+#if HAVE_MPI_SPAWNER
+  if ((*argc_p < 2) || strncmp((*argv_p)[1], "-GASNET-SPAWN-", 14)) {
+    gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
+    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_mpi;
+    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_mpi;
+    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_mpi;
+    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_mpi;
+    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_mpi;
+    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_mpi;
+  } else
+#endif
+  {
+    gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p);
+    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_ssh;
+    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_ssh;
+    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_ssh;
+    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_ssh;
+    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_ssh;
+    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_ssh;
+  }
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -629,7 +664,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
   GASNETI_TRACE_PRINTF(C,("  max_msg_sz               = %u", (unsigned int)gasnetc_hca_port.max_msg_sz));
-  gasneti_assert_always(gasnetc_hca_port.max_msg_sz >= GASNETC_PUT_COPY_LIMIT);
   #if GASNETC_PIN_SEGMENT
     gasneti_assert_always(gasnetc_hca_port.max_msg_sz >= gasnetc_pin_maxsz);
   #endif
@@ -650,21 +684,19 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   /* For some firmware there is a performance bug with EVAPI_post_inline_sr(). */
-  #if GASNETC_VAPI_ENABLE_INLINE_PUTS
   {  /* (1.18 <= fw_ver < 3.0) is known bad */
     int defect = ((hca_vendor.fw_ver >= (uint64_t)(0x100180000LL)) &&
 		  (hca_vendor.fw_ver <  (uint64_t)(0x300000000LL)));
-    if (defect) {
+    if (defect && gasnetc_inline_limit) {
 	fprintf(stderr,
 		"WARNING: Your HCA firmware is suspected to include a performance defect\n"
 		"when using EVAPI_post_inline_sr().  You may wish to either upgrade your\n"
-		"firmware, or configure GASNet with '--disable-vapi-inline-puts'.\n");
+		"firmware, or set GASNET_INLINE_LIMIT=0 in your environment.\n");
     }
   
     GASNETI_TRACE_PRINTF(C,("  Inline perfomance defect : %ssuspected in this firmware",
 			    defect ? "" : "not "));
   }
-  #endif
 
   GASNETI_TRACE_PRINTF(C,("}")); /* end of HCA report */
 
@@ -786,9 +818,15 @@ static int gasnetc_init(int *argc, char ***argv) {
 
       vstat = VAPI_modify_qp(gasnetc_hca, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTS)");
-      gasneti_assert(qp_cap.max_inline_data_sq >= GASNETC_PUT_INLINE_LIMIT);
+      if (qp_cap.max_inline_data_sq < gasnetc_inline_limit) {
+	fprintf(stderr,
+		"WARNING: Requested GASNET_INLINE_LIMIT %d reduced to HCA limit %d\n",
+		(int)gasnetc_inline_limit, (int)qp_cap.max_inline_data_sq);
+        gasnetc_inline_limit = qp_cap.max_inline_data_sq;
+      }
     }
   }
+  gasnetc_bounce_limit = MIN(gasnetc_hca_port.max_msg_sz, gasnetc_bounce_limit);
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -1087,7 +1125,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   #else	/* just allocate the segment but don't pin it */
   {
     /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasneti_bootstrapExchange);
+    gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, gasneti_bootstrapExchange);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
   }
@@ -1139,7 +1177,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnetc_fh_maxsz = MIN(gasnetc_hca_port.max_msg_sz,
 			  MIN(gasnetc_firehose_info.max_LocalPinSize,
 			      gasnetc_firehose_info.max_RemotePinSize));
-    gasneti_assert(gasnetc_fh_maxsz >= (GASNET_PAGESIZE + GASNETC_PUT_INLINE_LIMIT));
+    gasneti_assert_always(gasnetc_fh_maxsz >= (GASNET_PAGESIZE + gasnetc_inline_limit));
 
     /* Ensure the permanently pinned regions stay in the firehose table */
     for (i = 0; i < reg_count; ++i) {
