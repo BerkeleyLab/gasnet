@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/17 15:43:46 $
- * $Revision: 1.24.2.11 $
+ *     $Date: 2005/04/17 16:40:31 $
+ * $Revision: 1.24.2.12 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,8 +82,12 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 
 /* number of iterations to use when testing a put/get elan event with elan_poll */
 #ifndef GASNETC_ELAN_POLLITERS
-  /* TODO: using 0 should be faster, but testsmall shows it reduces put/get performance */
-#define GASNETC_ELAN_POLLITERS 1
+  #ifdef GASNETC_ELAN4
+    /* TODO: using 0 should be faster, but testsmall shows it reduces put/get performance */
+    #define GASNETC_ELAN_POLLITERS 1
+  #else
+    #define GASNETC_ELAN_POLLITERS 0
+  #endif
 #endif
 /* number of iterations to use when testing an AM-related elan event with elan_poll */
 #ifndef GASNETC_ELAN_POLLITERS_AM

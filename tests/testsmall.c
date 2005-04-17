@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2005/04/11 04:22:59 $
- * $Revision: 1.20.2.2 $
+ *     $Date: 2005/04/17 16:40:33 $
+ * $Revision: 1.20.2.3 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -537,6 +537,23 @@ int main(int argc, char **argv)
           firstlastmode ? "first/last " : (fullduplexmode ? "full-duplex ": ""),
           insegment ? "in" : "out", 
           min_payload, max_payload);
+        BARRIER();
+
+        if (iamsender) { /* pay some warm-up costs */
+           int i;
+           gasnet_handle_t *h = test_malloc(sizeof(gasnet_handle_t)*iters);
+           for (i = 0; i < iters; i++) {
+              gasnet_put(peerproc, tgtmem, msgbuf, 8);
+              gasnet_get(msgbuf, peerproc, tgtmem, 8);
+              h[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, 8);
+              h[i] = gasnet_get_nb(msgbuf, peerproc, tgtmem, 8);
+           }
+           gasnet_put(peerproc, tgtmem, msgbuf, max_payload);
+           gasnet_get(msgbuf, peerproc, tgtmem, max_payload);
+           gasnet_wait_syncnb_all(h, iters);
+           test_free(h);
+        }
+
         BARRIER();
 
 	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
