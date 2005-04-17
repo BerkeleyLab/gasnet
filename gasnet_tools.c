@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2005/04/11 04:22:37 $
- * $Revision: 1.82.2.4 $
+ *     $Date: 2005/04/17 15:43:43 $
+ * $Revision: 1.82.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -601,13 +601,15 @@ extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t
 
 }
 
+gasneti_getenv_fn_t *gasneti_conduit_getenv = NULL;
+
 extern char *gasneti_getenv(const char *keyname) {
   char *retval = NULL;
 
-  #ifdef GASNETI_CONDUIT_GETENV
+  if (keyname && gasneti_conduit_getenv) {
     /* highest priority given to conduit-specific getenv */
-    retval = GASNETI_CONDUIT_GETENV(keyname);
-  #endif
+    retval = (*gasneti_conduit_getenv)(keyname);
+  }
 
   if (keyname && !retval && gasneti_globalEnv) { 
     /* global environment takes precedence 

@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2005/04/04 03:32:39 $
-dnl $Revision: 1.50.2.2 $
+dnl     $Date: 2005/04/17 15:43:43 $
+dnl $Revision: 1.50.2.3 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -125,7 +125,7 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
   pushdef([lowername],patsubst(patsubst(patsubst([$1], [/], [_]), [\.], [_]), [-], [_]))
   pushdef([uppername],translit(lowername,'a-z','A-Z'))
  if test "$ac_cv_header_[]lowername" = "yes"; then
-  HAVE_[]uppername=$ac_cv_header_[]lowername
+  HAVE_[]uppername=1
   GASNET_TRY_CACHE_RUN([for a complete $1],[COMPLETE_[]uppername],[
     #include <$1>
     int main() {

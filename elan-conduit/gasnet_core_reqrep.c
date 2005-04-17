@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2005/04/13 10:48:12 $
- * $Revision: 1.21.2.9 $
+ *     $Date: 2005/04/17 15:43:46 $
+ * $Revision: 1.21.2.10 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -77,6 +77,7 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf(int addToFifo) {
   LOCK_SENDFIFO();
   while (!desc) {
     if (gasnetc_tportTxFree) { /* free list contains some bufs */
+      GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf returned a tportTx buf from the free list"));
       desc = gasnetc_tportTxFree;
       gasnetc_tportTxFree = desc->next;
       gasneti_assert(desc->event == NULL);
@@ -86,6 +87,7 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf(int addToFifo) {
           gasnetc_tportTxFIFOHead->event &&
           elan_tportTxDone(gasnetc_tportTxFIFOHead->event)) {
         /* common case - oldest tx is complete */
+        GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf obtained a tportTx buf by completing the TxFIFO head"));
         desc = gasnetc_tportTxFIFOHead;
         #if 0
           /* according to undocumented info from quadrics, 
@@ -93,16 +95,23 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf(int addToFifo) {
           elan_tportTxWait(desc->event); 
         #endif
         gasnetc_tportTxFIFOHead = gasnetc_tportTxFIFOHead->next;
-        if (gasnetc_tportTxFIFOHead == NULL) gasnetc_tportTxFIFOTail = NULL;
+        if (gasnetc_tportTxFIFOHead == NULL) {
+          GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf emptied the TxFIFO"));
+          gasnetc_tportTxFIFOTail = NULL;
+        }
       } else { /* poop - head busy, need to scan for tx */
         if (gasnetc_tportTxFIFOHead) {
           gasnetc_bufdesc_t *lastdesc = gasnetc_tportTxFIFOHead;
           while (lastdesc->next) {
             gasnetc_bufdesc_t *tmp = lastdesc->next;
             if (tmp->event && elan_tportTxDone(tmp->event)) { /* found one */
-              lastdesc->next = tmp->next;
-              if (lastdesc->next == NULL) gasnetc_tportTxFIFOTail = lastdesc;
+              GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf obtained a tportTx buf by completing the non-head of TxFIFO"));
               desc = tmp;
+              lastdesc->next = tmp->next;
+              if (lastdesc->next == NULL) {
+                GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf emptied the TxFIFO"));
+                gasnetc_tportTxFIFOTail = lastdesc;
+              }
               #if 0
                 /* according to undocumented info from quadrics, 
                    it's illegal to call TxWait after successful TxDone */
@@ -113,8 +122,11 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf(int addToFifo) {
             lastdesc = lastdesc->next;
           }
           gasneti_assert(desc || lastdesc == gasnetc_tportTxFIFOTail);
+        } else {
+          GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf encountered an empty TxFIFO when looking for a tportTx buf"));
         }
         if (!desc) { /* nothing available now - poll */
+          GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf failed to obtain a tportTx buf, polling..."));
           UNLOCK_ELAN_WEAK();
           UNLOCK_SENDFIFO();
           gasneti_AMPoll();
@@ -137,6 +149,7 @@ static gasnetc_bufdesc_t *gasnetc_tportGetTxBuf(int addToFifo) {
       gasnetc_tportTxFIFOTail->next = desc;
       gasnetc_tportTxFIFOTail = desc;
     } else {
+      GASNETI_TRACE_PRINTF(C,("gasnetc_tportGetTxBuf pushed the first element onto an empty TxFIFO"));
       gasneti_assert(!gasnetc_tportTxFIFOHead);
       gasnetc_tportTxFIFOHead = desc;
       gasnetc_tportTxFIFOTail = desc;
@@ -175,11 +188,16 @@ static gasnetc_bufdesc_t *gasnetc_tportCheckRx() {
     ELAN_SIZE_T size;
 
     gasnetc_buf_t *buf = elan_tportRxWait(desc->event, &sender, &tag, &size);
+    if (buf != desc->buf_owned)
+      GASNETI_TRACE_PRINTF(C,("elan_tportRxWait recieved a tport message in a system buffer"));
     desc->buf = buf;
     desc->event = NULL;
     gasnetc_tportRxFIFOHead = desc->next;
     desc->next = NULL;
-    if_pf (gasnetc_tportRxFIFOHead == NULL) gasnetc_tportRxFIFOTail = NULL;
+    if_pf (gasnetc_tportRxFIFOHead == NULL) {
+      GASNETI_TRACE_PRINTF(C,("gasnetc_tportCheckRx returned the last tportRx buffer, leaving an empty tportRx FIFO"));
+      gasnetc_tportRxFIFOTail = NULL;
+    }
     return desc;
   } 
   else return NULL;
@@ -192,6 +210,7 @@ static void gasnetc_tportAddRxBuf(gasnetc_bufdesc_t *desc) {
   ASSERT_ELAN_LOCKED();
 
   if (desc->buf != desc->buf_owned) {/* free a system buffer, if neccessary */
+    GASNETI_TRACE_PRINTF(C,("gasnetc_tportAddRxBuf returned a system buffer using elan_tportBufFree"));
     elan_tportBufFree(TPORT(),desc->buf);
     desc->buf = desc->buf_owned;
   }
@@ -211,6 +230,7 @@ static void gasnetc_tportAddRxBuf(gasnetc_bufdesc_t *desc) {
     gasnetc_tportRxFIFOTail->next = desc;
     gasnetc_tportRxFIFOTail = desc;
   } else { /* list empty (rare case..) */
+    GASNETI_TRACE_PRINTF(C,("gasnetc_tportAddRxBuf pushed an Rx buffer onto an empty tportRx FIFO"));
     gasneti_assert(gasnetc_tportRxFIFOHead == NULL);
     gasnetc_tportRxFIFOHead = desc;
     gasnetc_tportRxFIFOTail = desc;
@@ -379,33 +399,21 @@ static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
   switch (category) {
     case gasnetc_Short:
       { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->msg)+1);
-        if (GASNETC_MSG_ISREQUEST(msg))
-          GASNETI_TRACE_AMSHORT_REQHANDLER(msg->handlerId, desc, numargs, pargs);
-        else
-          GASNETI_TRACE_AMSHORT_REPHANDLER(msg->handlerId, desc, numargs, pargs);
-        GASNETI_RUN_HANDLER_SHORT(handler,desc,pargs,numargs);
+        GASNETI_RUN_HANDLER_SHORT(GASNETC_MSG_ISREQUEST(msg),msg->handlerId,handler,desc,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
       { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->medmsg)+1);
         int nbytes = buf->medmsg.nBytes;
         void *pdata = (pargs + numargs + GASNETC_MEDHEADER_PADARG(numargs));
-        if (GASNETC_MSG_ISREQUEST(msg))
-          GASNETI_TRACE_AMMEDIUM_REQHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
-        else
-          GASNETI_TRACE_AMMEDIUM_REPHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
-        GASNETI_RUN_HANDLER_MEDIUM(handler,desc,pargs,numargs,pdata,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(GASNETC_MSG_ISREQUEST(msg),msg->handlerId,handler,desc,pargs,numargs,pdata,nbytes);
       }
     break;
     case gasnetc_Long:
       { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->longmsg)+1);
         int nbytes = buf->longmsg.nBytes;
         void *pdata = (void *)(buf->longmsg.destLoc);
-        if (GASNETC_MSG_ISREQUEST(msg))
-          GASNETI_TRACE_AMLONG_REQHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
-        else
-          GASNETI_TRACE_AMLONG_REPHANDLER(msg->handlerId, desc, pdata, nbytes, numargs, pargs);
-        GASNETI_RUN_HANDLER_LONG(handler,desc,pargs,numargs,pdata,nbytes);
+        GASNETI_RUN_HANDLER_LONG(GASNETC_MSG_ISREQUEST(msg),msg->handlerId,handler,desc,pargs,numargs,pdata,nbytes);
       }
     break;
     default: abort();

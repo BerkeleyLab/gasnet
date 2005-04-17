@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/04/04 03:32:39 $
- * $Revision: 1.40.2.1 $
+ *     $Date: 2005/04/17 15:43:43 $
+ * $Revision: 1.40.2.2 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,6 +33,12 @@ extern void gasneti_fatalerror(const char *msg, ...) GASNET_NORETURN __attribute
  * the conduit has not yet established the contents of the environment
  */
 extern char *gasneti_getenv(const char *keyname);
+
+/* Conduit-specific supplement to gasneti_getenv
+ * If non-NULL this has precedence over gasneti_globalEnv.
+ */
+typedef char *(gasneti_getenv_fn_t)(const char *keyname);
+extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
 
 /* internal conduit query for a system string parameter
    if user has set value the return value indicates their selection

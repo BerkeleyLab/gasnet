@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2005/04/13 04:54:41 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2005/04/17 15:44:32 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -70,7 +70,9 @@ int main(int argc, char **argv) {
     int help = 0;   
     int do_puts = 0, do_gets = 0, do_amshort = 0, do_ammedium = 0, do_amlong = 0;
     int numflavors = 0;
+    int numsync = 0;
     int do_bulk = 0, do_nonbulk = 0;
+    int do_implicit = 0, do_explicit = 0, do_blocking = 0;
 
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
@@ -111,6 +113,15 @@ int main(int argc, char **argv) {
       } else if (!strcmp(argv[arg], "-n")) {
         do_nonbulk = 1; 
         ++arg;
+      } else if (!strcmp(argv[arg], "-i")) {
+        do_implicit = 1; numsync++;
+        ++arg;
+      } else if (!strcmp(argv[arg], "-e")) {
+        do_explicit = 1; numsync++;
+        ++arg;
+      } else if (!strcmp(argv[arg], "-k")) {
+        do_blocking = 1; numsync++;
+        ++arg;
       } else if (argv[arg][0] == '-') {
         help = 1;
         ++arg;
@@ -132,6 +143,9 @@ int main(int argc, char **argv) {
                "   -l : AMLong\n"
                "   -n : Test non-bulk put/gets\n"
                "   -b : Test bulk put/gets\n"
+               "   -i : Test implicit-handle put/gets\n"
+               "   -e : Test explicit-handle put/gets\n"
+               "   -k : Test blocking put/gets\n"
                ,
                argv[0]);
         gasnet_exit(1);
@@ -154,9 +168,20 @@ int main(int argc, char **argv) {
       do_ammedium = 1;
       do_amlong = 1;
     }
+    if (numsync == 0) { /* default to all */
+      do_implicit = 1;
+      do_explicit = 1;
+      do_blocking = 1;
+    }
     if (!do_bulk && !do_nonbulk) {
       do_bulk = 1;
       do_nonbulk = 1;
+    }
+
+    if (!do_implicit && !do_explicit && !do_blocking) {
+      do_implicit = 1;
+      do_explicit = 1;
+      do_blocking = 1;
     }
 
     if (max_payload < min_payload) {
@@ -306,52 +331,76 @@ int main(int argc, char **argv) {
       }                                                                     \
     } while (0)
 
-    if (do_puts && do_bulk) {
+    if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gasnet_put_nb_bulk", 
                  handles[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, payload), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
-    if (do_gets && do_bulk) {
+    if (do_gets && do_bulk && do_explicit) {
       QUEUE_TEST("gasnet_get_nb_bulk", 
                  handles[i] = gasnet_get_nb_bulk(msgbuf, peerproc, tgtmem, payload), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
-    if (do_puts && do_bulk) {
+    if (do_puts && do_bulk && do_implicit) {
       QUEUE_TEST("gasnet_put_nbi_bulk", 
                  gasnet_put_nbi_bulk(peerproc, tgtmem, msgbuf, payload), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 
-    if (do_gets && do_bulk) {
+    if (do_gets && do_bulk && do_implicit) {
       QUEUE_TEST("gasnet_get_nbi_bulk", 
                  gasnet_get_nbi_bulk(msgbuf, peerproc, tgtmem, payload), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 
-    if (do_puts && do_nonbulk) {
+    if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gasnet_put_nb", 
                  handles[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, payload), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
-    if (do_gets && do_nonbulk) {
+    if (do_gets && do_nonbulk && do_explicit) {
       QUEUE_TEST("gasnet_get_nb", 
                  handles[i] = gasnet_get_nb(msgbuf, peerproc, tgtmem, payload), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
-    if (do_puts && do_nonbulk) {
+    if (do_puts && do_nonbulk && do_implicit) {
       QUEUE_TEST("gasnet_put_nbi", 
                  gasnet_put_nbi(peerproc, tgtmem, msgbuf, payload), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 
-    if (do_gets && do_nonbulk) {
+    if (do_gets && do_nonbulk && do_implicit) {
       QUEUE_TEST("gasnet_get_nbi", 
                  gasnet_get_nbi(msgbuf, peerproc, tgtmem, payload), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
+    }
+
+    if (do_puts && do_nonbulk && do_blocking) {
+      QUEUE_TEST("gasnet_put (BLOCKING - represents round-trip latency)", 
+                 gasnet_put(peerproc, tgtmem, msgbuf, payload), 
+                 (void)0, (void)0, 0);
+    }
+
+    if (do_gets && do_nonbulk && do_blocking) {
+      QUEUE_TEST("gasnet_get (BLOCKING - represents round-trip latency)", 
+                 gasnet_get(msgbuf, peerproc, tgtmem, payload), 
+                 (void)0, (void)0, 0);
+    }
+
+    if (do_puts && do_bulk && do_blocking) {
+      QUEUE_TEST("gasnet_put_bulk (BLOCKING - represents round-trip latency)", 
+                 gasnet_put_bulk(peerproc, tgtmem, msgbuf, payload), 
+                 (void)0, (void)0, 0);
+    }
+
+    if (do_gets && do_bulk && do_blocking) {
+      QUEUE_TEST("gasnet_get_bulk (BLOCKING - represents round-trip latency)", 
+                 gasnet_get_bulk(msgbuf, peerproc, tgtmem, payload), 
+                 (void)0, (void)0, 0);
     }
 
     if (do_amshort) {

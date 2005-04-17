@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.c,v $
- *     $Date: 2005/04/04 03:33:17 $
- * $Revision: 1.7.10.1 $
+ *     $Date: 2005/04/17 15:44:19 $
+ * $Revision: 1.7.10.2 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -66,7 +66,6 @@ sci_desc_t				*gasnetc_sci_local_dma_sd;
 void					**gasnetc_sci_local_dma_addr;
 void					*gasnetc_sci_handler_table[256];			/*  array of handler information with the index = handler ID */
                                                                                                 /*  and handler_table[index] = function ptr for the handler */
-int					gasnetc_sci_current_index = 0;
 uint16_t				gasnetc_sci_dmaqueue_count = 0;				/*  # of temporary segment created, used for dynamic linking to remote DMA segments */
 bool				        *gasnetc_sci_msg_loc_status;
 sci_desc_t                              gasnetc_sci_local_barrier_sd;
@@ -1013,16 +1012,6 @@ void gasnetc_ht_init()
 	}
 }
 
-/*  Add a new handler to the table using a given index */
-void gasnetc_ht_add_handler (void * func_ptr, int index)
-{
-        gasnetc_sci_handler_table[index] = func_ptr;
-        if (index > gasnetc_sci_current_index)
-        {
-                gasnetc_sci_current_index = index;
-        }
-}
-
 void gasnetc_sci_handle_msg (gasnet_node_t sender_id, uint8_t msg_number, uint8_t msg_AM_type)
 {
       gasnetc_sci_token_t reply_token;
@@ -1034,26 +1023,30 @@ void gasnetc_sci_handle_msg (gasnet_node_t sender_id, uint8_t msg_number, uint8_
         case GASNETC_SCI_SHORT: {
           gasnetc_ShortMedium_header_t *Short_msg = (gasnetc_ShortMedium_header_t *)(((uint8_t *) gasnetc_sci_local_mem[sender_id]) + GASNETC_SCI_COMMAND_MESSAGE_SIZE * msg_number);
           int msg_numargs = gasnetc_get_msg_num_arg (Short_msg->header);
-          void *func_ptr = gasnetc_ht_get_handler (gasnetc_get_msg_handler (Short_msg->header));
+          int hidx = gasnetc_get_msg_handler (Short_msg->header);
+          void *func_ptr = gasnetc_sci_handler_table[hidx];
 
-          GASNETI_RUN_HANDLER_SHORT(func_ptr, handler_token, Short_msg->args, msg_numargs);
+          /* TODO: don't actually know if this is a request or reply, so trace them all as requests */
+          GASNETI_RUN_HANDLER_SHORT(1, hidx, func_ptr, handler_token, Short_msg->args, msg_numargs);
           break;
         }
         case GASNETC_SCI_MEDIUM: {
           gasnetc_ShortMedium_header_t *Medium_msg = (gasnetc_ShortMedium_header_t *) (((uint8_t *) gasnetc_sci_local_mem[sender_id]) + GASNETC_SCI_COMMAND_MESSAGE_SIZE * msg_number);
           int msg_numargs = gasnetc_get_msg_num_arg (Medium_msg->header);
-          void *func_ptr = gasnetc_ht_get_handler (gasnetc_get_msg_handler (Medium_msg->header));
+          int hidx = gasnetc_get_msg_handler (Medium_msg->header);
+          void *func_ptr = gasnetc_sci_handler_table[hidx];
           /*  payload starts right after the largest sized header */
           // void *msg_payload = ((uint8_t *) Medium_msg) + sizeof (gasnetc_Long_header_t);
           void *msg_payload = ((uint8_t *) Medium_msg) + Medium_msg->header_size;
 
-          GASNETI_RUN_HANDLER_MEDIUM(func_ptr, handler_token, Medium_msg->args, msg_numargs, msg_payload, Medium_msg->payload_size);
+          GASNETI_RUN_HANDLER_MEDIUM(1, hidx, func_ptr, handler_token, Medium_msg->args, msg_numargs, msg_payload, Medium_msg->payload_size);
           break;
         }
         case GASNETC_SCI_LONG: {
           gasnetc_Long_header_t *Long_msg = (gasnetc_Long_header_t *) (((uint8_t *) gasnetc_sci_local_mem[sender_id]) + GASNETC_SCI_COMMAND_MESSAGE_SIZE * msg_number);
           int msg_numargs = gasnetc_get_msg_num_arg (Long_msg->header);
-          void *func_ptr = gasnetc_ht_get_handler (gasnetc_get_msg_handler (Long_msg->header));
+          int hidx = gasnetc_get_msg_handler (Long_msg->header);
+          void *func_ptr = gasnetc_sci_handler_table[hidx];
 
           /*  handle the unaligned data */
           if (Long_msg->payload_size <= gasnet_AMMaxMedium())
@@ -1083,7 +1076,7 @@ void gasnetc_sci_handle_msg (gasnet_node_t sender_id, uint8_t msg_number, uint8_
                 }
           }
 
-          GASNETI_RUN_HANDLER_LONG(func_ptr, handler_token, Long_msg->args, msg_numargs, Long_msg->payload, Long_msg->payload_size);
+          GASNETI_RUN_HANDLER_LONG(1, hidx, func_ptr, handler_token, Long_msg->args, msg_numargs, Long_msg->payload, Long_msg->payload_size);
           break;
       }
       default:

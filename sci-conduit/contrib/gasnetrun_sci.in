@@ -1,7 +1,7 @@
 #!@BOURNE_SHELL@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/contrib/Attic/gasnetrun_sci.in,v $
-#     $Date: 2005/04/04 03:33:19 $
-# $Revision: 1.6.2.1 $
+#     $Date: 2005/04/17 15:44:23 $
+# $Revision: 1.6.2.2 $
 # Terms of use are as specified in license.txt
 #
 # Burt Gordon, High-performance Computing & Simulation (HCS) Lab
@@ -52,10 +52,10 @@ USERENV=
 NUMBER_NODES=
 
 #go through each of the arguments to the script
-while [ $1 ]
+while [ "$1" ]
 do
 	# case is used to determine the proper actions to be taken
-    case $1 in
+    case "$1" in
     -n) 
 	NUMBER_NODES=$2
 	shift 2
@@ -90,11 +90,11 @@ do
 	;;
      # everything else is a program name followed by its arguments
      *) 
-	PROG=$1
+	PROG="$1"
 	shift
-	while [ $1 ]
+	while [ "$1" ]
 	do
-	 ARGS="$ARGS $1"
+	 ARGS="$ARGS '$1'"
 	 shift
 	done
      esac
@@ -107,10 +107,10 @@ fi
 
 #Need to get the directory info from the program name
 
-if [ $PROG ]
+if [ "$PROG" ]
  then
-	DIR=${PROG%/*}
-	PROG=${PROG##*/}
+	DIR="${PROG%/*}"
+	PROG="${PROG##*/}"
  else
 	echo "ERROR: Program name is not specified. Exiting..."
 	echo ""
@@ -122,7 +122,7 @@ fi
 #if there was no / in the program variable, DIR==PROG, so use the
 # current working directory as the absolute path to the program
 
-if [ $PROG == $DIR ]
+if [ "$PROG" == "$DIR" ]
 then
 	DIR=$PWD
 fi
@@ -364,9 +364,9 @@ for h in $HOSTS
  do
 	if (( $i < $NUMBER_NODES ))
 	 then
-		$RSH $h "cd $PWD; $EXPORT $DIR/$PROG $ARGS ; exit;"&
+		$RSH $h "cd $PWD; $EXPORT '$DIR/$PROG' $ARGS ; exit;"&
 	        if [ $VERBOSE ] ; then
-		  echo "$RSH $h -- cd $PWD; $EXPORT $DIR/$PROG $ARGS ; exit;"
+		  echo "$RSH $h -- cd $PWD; $EXPORT '$DIR/$PROG' $ARGS ; exit;"
 		fi
 		i=`expr $i + 1`
 		#echo "i equal to $i"
@@ -381,8 +381,8 @@ fi
 
 #start the program on this host
 if [ $VERBOSE ] ; then
-  echo "$RSH $FIRST -- cd $PWD; $EXPORT $DIR/$PROG $ARGS ; exit;"
+  echo "$RSH $FIRST -- cd $PWD; $EXPORT '$DIR/$PROG' $ARGS ; exit;"
 fi
-$RSH $FIRST "cd $PWD; $EXPORT $DIR/$PROG $ARGS ; exit;"
+$RSH $FIRST "cd $PWD; $EXPORT '$DIR/$PROG' $ARGS ; exit;"
 
 

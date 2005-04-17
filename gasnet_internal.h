@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2005/04/04 03:32:39 $
- * $Revision: 1.61.2.2 $
+ *     $Date: 2005/04/17 15:43:43 $
+ * $Revision: 1.61.2.3 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -408,12 +408,14 @@ typedef void (*gasneti_HandlerMedium)(gasnet_token_t token, void *buf, size_t nb
 typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nbytes, ...);
 
 /* ------------------------------------------------------------------------------------ */
-#define GASNETI_RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {               \
-  gasneti_assert(phandlerfn);                                                           \
-  if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token);         \
-  else {                                                                                \
-    gasnet_handlerarg_t *_args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */   \
-    switch (numargs) {                                                                  \
+#define GASNETI_RUN_HANDLER_SHORT(isReq, hid, phandlerfn, token, pArgs, numargs) do { \
+  gasneti_assert(phandlerfn);                                                         \
+  if (isReq) GASNETI_TRACE_AMSHORT_REQHANDLER(hid, token, numargs, pArgs);            \
+  else       GASNETI_TRACE_AMSHORT_REPHANDLER(hid, token, numargs, pArgs);            \
+  if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token);       \
+  else {                                                                              \
+    gasnet_handlerarg_t *_args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */ \
+    switch (numargs) {                                                                \
       case 1:  (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0]); break; \
       case 2:  (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1]); break;\
       case 3:  (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2]); break; \
@@ -430,9 +432,10 @@ typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
       case 14: (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13]); break; \
       case 15: (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14]); break; \
       case 16: (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14], _args[15]); break; \
-      default: abort();                                                                 \
-      }                                                                                 \
-    }                                                                                   \
+      default: abort();                                                                                    \
+      }                                                                                                    \
+    }                                                                                                      \
+    GASNETI_TRACE_PRINTF(A,("AM%s_SHORT_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
   } while (0)
 /* ------------------------------------------------------------------------------------ */
 #define _GASNETI_RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do { \
@@ -468,12 +471,21 @@ typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
 #define GASNETI_MEDBUF_ALIGNMENT 8
 #endif
 
-#define GASNETI_RUN_HANDLER_MEDIUM(phandlerfn, token, pArgs, numargs, pData, datalen) do {                                               \
-    gasneti_assert(((uintptr_t)pData) % GASNETI_MEDBUF_ALIGNMENT == 0);                                                                  \
-    _GASNETI_RUN_HANDLER_MEDLONG((gasneti_HandlerMedium)phandlerfn, (gasnet_token_t)token, pArgs, numargs, (void *)pData, (int)datalen); \
+#define GASNETI_RUN_HANDLER_MEDIUM(isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
+    gasneti_assert(((uintptr_t)pData) % GASNETI_MEDBUF_ALIGNMENT == 0);                                     \
+    if (isReq) GASNETI_TRACE_AMMEDIUM_REQHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
+    else       GASNETI_TRACE_AMMEDIUM_REPHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
+    _GASNETI_RUN_HANDLER_MEDLONG((gasneti_HandlerMedium)phandlerfn, (gasnet_token_t)token,                  \
+                                 pArgs, numargs, (void *)pData, (int)datalen);                              \
+    GASNETI_TRACE_PRINTF(A,("AM%s_MEDIUM_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
   } while (0)
-#define GASNETI_RUN_HANDLER_LONG(phandlerfn, token, pArgs, numargs, pData, datalen) \
-  _GASNETI_RUN_HANDLER_MEDLONG((gasneti_HandlerLong)phandlerfn, (gasnet_token_t)token, pArgs, numargs, (void *)pData, (int)datalen)
+#define GASNETI_RUN_HANDLER_LONG(isReq, hid, phandlerfn, token, pArgs, numargs, pData, datalen) do {      \
+    if (isReq) GASNETI_TRACE_AMLONG_REQHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
+    else       GASNETI_TRACE_AMLONG_REPHANDLER(hid, token, pData, datalen, numargs, pArgs);               \
+    _GASNETI_RUN_HANDLER_MEDLONG((gasneti_HandlerLong)phandlerfn, (gasnet_token_t)token,                  \
+                                 pArgs, numargs, (void *)pData, (int)datalen);                            \
+    GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
+  } while (0)
 /* ------------------------------------------------------------------------------------ */
 
 END_EXTERNC

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_help.h,v $
- * $Date: 2005/04/04 03:32:47 $
- * $Revision: 1.37.2.1 $
+ * $Date: 2005/04/17 15:43:49 $
+ * $Revision: 1.37.2.2 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -212,69 +212,14 @@ BEGIN_EXTERNC
 /* -------------------------------------------------------------------------- */
 /* Debug, tracing */
 #if GASNET_TRACE
-/* Generic Trace debug for AM handlers (gasnet_core) or elsewhere */
-#define GASNETC_TRACE_SHORT(reqrep, type, dest, token, idx, args)	       \
-		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d args=%d",\
-			#reqrep, #type, dest, GASNETI_LADDRSTR(token), idx, args)) 
-
-#define GASNETC_TRACE_MEDIUM(reqrep, type, dest, token, idx, args, sAddr,len)  \
-		GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d args=%d "\
-			"src="GASNETI_LADDRFMT" len=%d", #reqrep, #type, dest,               \
-			GASNETI_LADDRSTR(token), idx, args, GASNETI_LADDRSTR(sAddr), (int)(len)))
-
-#define GASNETC_TRACE_SYSTEM GASNETC_TRACE_MEDIUM
-
-#define GASNETC_TRACE_LONG(reqrep, type, dest, token, idx, args, sAddr, dAddr, \
-		len) GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d "   \
-			"args=%d src="GASNETI_LADDRFMT" dst="GASNETI_LADDRFMT" len=%d", #reqrep, #type,    \
-			dest, GASNETI_LADDRSTR(token), idx, args, GASNETI_LADDRSTR(sAddr), \
-			GASNETI_LADDRSTR(dAddr), (int)(len)))
-
-/* Formats AM-only debug tracing for _GASNET_TRACE functions, can only be
- * called from gasnet_AM...M() functions from gasnet_core.c
- */
-#define _GASNETC_AMTRACE_SHORT(reqrep, type, dest, token) 		       \
-		GASNETC_TRACE_SHORT(reqrep, type, dest, token, handler, numargs)
-#define _GASNETC_AMTRACE_MEDIUM(reqrep, type, dest, token) 		       \
-		GASNETC_TRACE_MEDIUM(reqrep, type, dest, token, handler,       \
-		numargs, source_addr, nbytes)
-#define _GASNETC_AMTRACE_LONG(reqrep, type, dest, token) 		       \
-		GASNETC_TRACE_LONG(reqrep, type, dest, token, handler, numargs,\
-		source_addr, dest_addr, nbytes)
-
-#define GASNETC_AMTRACE_ReplyShort(str) _GASNETC_AMTRACE_SHORT(str,            \
-		AMReplyShort, bufd->node, token)
-#define GASNETC_AMTRACE_RequestShort(str) _GASNETC_AMTRACE_SHORT(str,          \
-		AMRequestShort, dest, 0)
-
-#define GASNETC_AMTRACE_ReplyMedium(str) _GASNETC_AMTRACE_MEDIUM(str,          \
-		AMReplyMedium, bufd->node, token)
-#define GASNETC_AMTRACE_RequestMedium(str) _GASNETC_AMTRACE_MEDIUM(str,        \
-		AMReplyMedium, dest, 0)
-
-#define GASNETC_AMTRACE_ReplyLong(str) _GASNETC_AMTRACE_LONG(str, AMReplyLong, \
-		bufd->node, token)
-#define GASNETC_AMTRACE_RequestLong(str) _GASNETC_AMTRACE_LONG(str,	       \
-		AMReplyLong, dest, 0)
-
-#define GASNETC_AMTRACE_ReplyLongAsyncM GASNETC_AMTRACE_ReplyLongM
-#define GASNETC_AMTRACE_RequestLongAsyncM GASNETC_AMTRACE_RequestLongM
-
+  #define GASNETC_AMTRACE_ReplyLong(str) \
+     GASNETI_TRACE_PRINTF(C,("%s%s\t%d token="GASNETI_LADDRFMT" index=%d "   \
+        "args=%d src="GASNETI_LADDRFMT" dst="GASNETI_LADDRFMT" len=%d", #str, "AMReplyLong",    \
+        dest, GASNETI_LADDRSTR(token), handler, numargs, GASNETI_LADDRSTR(source_addr), \
+        GASNETI_LADDRSTR(dest_addr), (int)(nbytes)))
 #else
 /* NO tracing enabled */
-#define GASNETI_TRACE_PRINTF(type,args)
-#define GASNETC_TRACE_SHORT(reqrep, type, dest, token, idx, args)
-#define GASNETC_TRACE_MEDIUM(reqrep, type, dest, token, idx, args, sAddr,len) 
-#define GASNETC_TRACE_SYSTEM(reqrep, type, dest, token, idx, args, sAddr,len) 
-#define GASNETC_TRACE_LONG(reqrep, type, dest, token, idx, args, sAddr, dAddr, len)
-#define GASNETC_AMTRACE_ReplyShort(str) 
-#define GASNETC_AMTRACE_RequestShort(str) 
-#define GASNETC_AMTRACE_ReplyMedium(str) 
-#define GASNETC_AMTRACE_RequestMedium(str) 
-#define GASNETC_AMTRACE_ReplyLong(str) 
-#define GASNETC_AMTRACE_RequestLong(str) 
-#define GASNETC_AMTRACE_ReplyLongAsyncM
-#define GASNETC_AMTRACE_RequestLongAsyncM
+  #define GASNETC_AMTRACE_ReplyLong(str) 
 #endif
 
 /* Need GASNETC_DPRINTF for init functions since gasnet tracing
@@ -342,7 +287,6 @@ BEGIN_EXTERNC
 	   } while (0)
 #endif
 
-#define GASNETC_RUN_HANDLER_SYSTEM GASNETI_RUN_HANDLER_MEDIUM
 /* -------------------------------------------------------------------------- */
 
 END_EXTERNC

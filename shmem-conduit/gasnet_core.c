@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2005/04/04 03:33:21 $
- * $Revision: 1.5.2.1 $
+ *     $Date: 2005/04/17 15:44:26 $
+ * $Revision: 1.5.2.2 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -616,13 +616,8 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 	    case GASNETC_AMSHORT_T:
 		{   gasnet_handlerarg_t *pargs =
 			(gasnet_handlerarg_t *) &args[1];
-		    if (GASNETC_AMHEADER_ISREQUEST(hdr->reqrep))
-			GASNETI_TRACE_AMSHORT_REQHANDLER(
-			    hdr->handler,token,numargs,pargs);
-		    else
-			GASNETI_TRACE_AMSHORT_REPHANDLER(
-			    hdr->handler,token,numargs,pargs);
-		    GASNETI_RUN_HANDLER_SHORT(handler,token,pargs,numargs);
+		    GASNETI_RUN_HANDLER_SHORT(GASNETC_AMHEADER_ISREQUEST(hdr->reqrep),hdr->handler,
+                                              handler,token,pargs,numargs);
 		}
 		break;
 	    case GASNETC_AMMED_T:
@@ -631,13 +626,8 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 		    int nbytes = args[1];
 		    void *pdata = (pargs + numargs + 
 				    GASNETC_MEDHEADER_PADARG(numargs));
-		    if (GASNETC_AMHEADER_ISREQUEST(hdr->reqrep))
-			GASNETI_TRACE_AMMEDIUM_REQHANDLER(
-			    hdr->handler,token,pdata,nbytes,numargs,pargs);
-		    else
-			GASNETI_TRACE_AMMEDIUM_REPHANDLER(
-			    hdr->handler,token,pdata,nbytes,numargs,pargs);
-		    GASNETI_RUN_HANDLER_MEDIUM(handler,token,pargs,numargs,
+		    GASNETI_RUN_HANDLER_MEDIUM(GASNETC_AMHEADER_ISREQUEST(hdr->reqrep),hdr->handler,
+                                               handler,token,pargs,numargs,
 					       pdata, nbytes);
 		}
 		break;
@@ -646,14 +636,8 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 			(gasnet_handlerarg_t *) &args[4];
 		    int nbytes = args[1];
 		    void *pdata = (void *) GASNETI_MAKEWORD(args[2],args[3]);
-
-		    if (GASNETC_AMHEADER_ISREQUEST(hdr->reqrep))
-			GASNETI_TRACE_AMLONG_REQHANDLER(
-			    hdr->handler,token,pdata,nbytes,numargs,pargs);
-		    else
-			GASNETI_TRACE_AMLONG_REPHANDLER(
-			    hdr->handler,token,pdata,nbytes,numargs,pargs);
-		    GASNETI_RUN_HANDLER_LONG(handler,token,pargs,numargs,
+		    GASNETI_RUN_HANDLER_LONG(GASNETC_AMHEADER_ISREQUEST(hdr->reqrep),hdr->handler,
+                                             handler,token,pargs,numargs,
 					     pdata,nbytes);
 		}
 		break;

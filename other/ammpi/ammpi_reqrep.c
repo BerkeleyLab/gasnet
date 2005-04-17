@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2005/04/11 04:22:51 $
- * $Revision: 1.18.4.1 $
+ *     $Date: 2005/04/17 15:44:01 $
+ * $Revision: 1.18.4.2 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -456,7 +456,6 @@ extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *nu
         { /*  run the handler */
           status->replyIssued = FALSE;
           status->handlerRunning = TRUE;
-          if (ep->preHandlerCallback) ep->preHandlerCallback();
           if_pf (issystemmsg) { /* an AMMPI system message */
             ammpi_system_messagetype_t type = ((ammpi_system_messagetype_t)(msg->systemMessageType & 0xF));
             switch (type) {
@@ -479,28 +478,39 @@ extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *nu
           else { /* a user message */
             switch (cat) {
               case ammpi_Short: 
+                if (ep->preHandlerCallback) 
+                  ep->preHandlerCallback(ammpi_Short, isrequest, msg->handlerId, buf, 
+                                         NULL, 0, numargs, GET_PACKET_ARGS(buf));
                 RUN_HANDLER_SHORT(ep->handler[msg->handlerId], buf, 
                                   GET_PACKET_ARGS(buf), numargs);
+                if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
                 break;
               case ammpi_Medium: 
+                if (ep->preHandlerCallback) 
+                  ep->preHandlerCallback(ammpi_Medium, isrequest, msg->handlerId, buf, 
+                                         GET_PACKET_DATA(buf), msg->nBytes, numargs, GET_PACKET_ARGS(buf));
                 RUN_HANDLER_MEDIUM(ep->handler[msg->handlerId], buf, 
                                    GET_PACKET_ARGS(buf), numargs, 
                                    GET_PACKET_DATA(buf), msg->nBytes);
+                if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
                 break;
               case ammpi_Long: {
                 int8_t *pData = ((int8_t *)ep->segAddr) + msg->destOffset;
                 /*  a single-message bulk transfer. do the copy */
                 memcpy(pData, GET_PACKET_DATA(buf), msg->nBytes);
+                if (ep->preHandlerCallback) 
+                  ep->preHandlerCallback(ammpi_Long, isrequest, msg->handlerId, buf, 
+                                         pData, msg->nBytes, numargs, GET_PACKET_ARGS(buf));
                 RUN_HANDLER_LONG(ep->handler[msg->handlerId], buf, 
                                    GET_PACKET_ARGS(buf), numargs, 
                                    pData, msg->nBytes);
+                if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
                 break;
                 }
               default:
                 abort();
               }
             }
-          if (ep->postHandlerCallback) ep->postHandlerCallback();
           status->handlerRunning = FALSE;
           (*numUserHandlersRun)++;
 

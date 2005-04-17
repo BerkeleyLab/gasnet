@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/Makefile.am,v $
-#     $Date: 2004/08/26 04:53:44 $
-# $Revision: 1.7 $
+#     $Date: 2005/04/17 15:43:58 $
+# $Revision: 1.7.8.1 $
 # Description: Makefile for GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -35,7 +35,7 @@ EXTRA_DIST = $(target).pl
 
 # Conditionally install the .pl and its wrapper
 if USE_MPI_CONDUIT
-scripts = $(target) $(target).pl
+scripts = $(target)
 data = $(target).pl
 else
 scripts =

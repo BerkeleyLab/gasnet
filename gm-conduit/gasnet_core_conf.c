@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_conf.c,v $
- * $Date: 2005/04/04 03:32:47 $
- * $Revision: 1.18.2.1 $
+ * $Date: 2005/04/17 15:43:49 $
+ * $Revision: 1.18.2.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -537,7 +537,7 @@ gasnetc_getconf_bootmpi(int *argc, char ***argv)
     unsigned int    *global_idport;
     int		    i;
 
-    gasneti_bootstrapInit(argc, argv, &gasneti_nodes, &gasneti_mynode);
+    gasneti_bootstrapInit_mpi(argc, argv, &gasneti_nodes, &gasneti_mynode);
 
     if (!gasnetc_gmport_allocate((int*)&board_id, (int*)&port_id))
 	gasneti_fatalerror("%d: Can't obtain GM port", gasneti_mynode);
@@ -566,7 +566,7 @@ gasnetc_getconf_bootmpi(int *argc, char ***argv)
     /* exchange port, id information */
     my_idport[0] = _gmc.my_id;
     my_idport[1] = _gmc.my_port;
-    gasneti_bootstrapExchange(&my_idport, sizeof(unsigned int)*2, global_idport);
+    gasneti_bootstrapExchange_mpi(&my_idport, sizeof(unsigned int)*2, global_idport);
 
     for (i = 0; i < gasneti_nodes; i++) {
 

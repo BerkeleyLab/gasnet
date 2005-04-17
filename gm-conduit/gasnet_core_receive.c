@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2005/04/04 03:32:47 $
- * $Revision: 1.37.8.1 $
+ * $Date: 2005/04/17 15:43:49 $
+ * $Revision: 1.37.8.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -203,36 +203,27 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 
 	switch (GASNETC_AM_TYPE(*ptr)) {
 		case GASNETC_AM_SHORT:
-			GASNETC_TRACE_SHORT(AMRecv, RequestShort, bufd->node,
-			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr));
 			argptr = (int32_t *) &ptr[GASNETC_AM_SHORT_ARGS_OFF];
-			GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler_idx],
-			    (void *) bufd, argptr, numargs);
+			GASNETI_RUN_HANDLER_SHORT(1, handler_idx, _gmc.handlers[handler_idx],
+			     bufd, argptr, numargs);
 			break;
 
 		case GASNETC_AM_MEDIUM:
-			GASNETC_TRACE_MEDIUM(AMRecv, RequestMedium, bufd->node,
-			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr), 
-			    ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs), 
-			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs));
 			argptr = (int32_t *) &ptr[GASNETC_AM_MEDIUM_ARGS_OFF];
 
 			BUFD_SET(bufd, BUFD_REQMEDIUM);
-			GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler_idx],
-			    (void *) bufd, argptr, numargs, 
+			GASNETI_RUN_HANDLER_MEDIUM(1, handler_idx, _gmc.handlers[handler_idx],
+			    bufd, argptr, numargs, 
 			    (void *) (ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs)), 
 			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs));
 			break;
 
 		case GASNETC_AM_LONG:
 			dest_addr = *((uintptr_t *) &ptr[8]);
-			GASNETC_TRACE_LONG(AMRecv, RequestLong, bufd->node,
-			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr), 0, 
-			    dest_addr, len-GASNETC_AM_LONG_HEADER_LEN(numargs));
 			argptr = (int32_t *) &ptr[GASNETC_AM_LONG_ARGS_OFF];
 			len = *((uint32_t *) &ptr[4]);
-			GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler_idx],
-			    (void *) bufd, argptr, numargs, dest_addr, len);
+			GASNETI_RUN_HANDLER_LONG(1, handler_idx, _gmc.handlers[handler_idx],
+			    bufd, argptr, numargs, (void*)dest_addr, len);
 			break;
 
 		default:
@@ -264,21 +255,15 @@ gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd)
 
 	switch (GASNETC_AM_TYPE(*ptr)) {
 		case GASNETC_AM_SHORT:
-			GASNETC_TRACE_SHORT(AMRecv, ReplyShort, bufd->node,
-			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr));
 			argptr = (int32_t *) &ptr[GASNETC_AM_SHORT_ARGS_OFF];
-			GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler_idx],
-			    (void *) bufd, argptr, numargs);
+			GASNETI_RUN_HANDLER_SHORT(0, handler_idx, _gmc.handlers[handler_idx],
+			    bufd, argptr, numargs);
 			break;
 
 		case GASNETC_AM_MEDIUM:
-			GASNETC_TRACE_MEDIUM(AMRecv, ReplyMedium, bufd->node, 
-			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr),
-			    ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs), 
-			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs)); 
 			argptr = (int32_t *) &ptr[GASNETC_AM_MEDIUM_ARGS_OFF];
-			GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler_idx],
-			    (void *) bufd, argptr, numargs,
+			GASNETI_RUN_HANDLER_MEDIUM(0, handler_idx, _gmc.handlers[handler_idx],
+			    bufd, argptr, numargs,
 			    (void *)(ptr + GASNETC_AM_MEDIUM_HEADER_LEN(numargs)), 
 			    len - GASNETC_AM_MEDIUM_HEADER_LEN(numargs)); 
 			break;
@@ -286,12 +271,9 @@ gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd)
 		case GASNETC_AM_LONG:
 			dest_addr = *((uintptr_t *) &ptr[8]);
 			len = *((uint32_t *) &ptr[4]);
-			GASNETC_TRACE_LONG(AMRecv, ReplyLong, bufd->node,
-			    bufd, handler_idx, GASNETC_AM_NUMARGS(*ptr), 0, 
-			    dest_addr, len);
 			argptr = (int32_t *) &ptr[GASNETC_AM_LONG_ARGS_OFF];
-			GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler_idx],
-			    (void *) bufd, argptr, numargs, dest_addr, len);
+			GASNETI_RUN_HANDLER_LONG(0, handler_idx, _gmc.handlers[handler_idx],
+			    bufd, argptr, numargs, (void *)dest_addr, len);
 			break;
 
 		default:
@@ -324,19 +306,12 @@ gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 	gasneti_assert(numargs <= GASNETC_AM_MAX_ARGS); /* maximum AM args */
 
 	if (*ptr & GASNETC_AM_REQUEST) {
-	    GASNETC_TRACE_SYSTEM(AMSystem, Request, 
-		bufd->node, bufd, h_idx, numargs, payptr, paylen);
-
 	    /* Medium request buffers are reused to compose replies */
 	    BUFD_SET(bufd, BUFD_REQMEDIUM);
 	}
-	else {	 
-	    GASNETC_TRACE_SYSTEM(AMSystem, Reply, 
-	        bufd->node, bufd, h_idx, numargs, payptr, paylen);
-	}
 
-	GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[h_idx],
-	    (void *) bufd, argptr, numargs, payptr, paylen);
+	GASNETI_RUN_HANDLER_MEDIUM((*ptr & GASNETC_AM_REQUEST), h_idx, _gmc.syshandlers[h_idx],
+	     bufd, argptr, numargs, payptr, paylen);
 
 	return;
 }

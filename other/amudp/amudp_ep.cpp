@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2005/04/11 04:22:53 $
- * $Revision: 1.7.2.2 $
+ *     $Date: 2005/04/17 15:44:04 $
+ * $Revision: 1.7.2.3 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -850,6 +850,15 @@ extern int AM_GetMsgTag(void *token, tag_t *tagp) {
   else *tagp = ((amudp_buf_t *)token)->Msg.tag;
   return AM_OK;
   }
+/* ------------------------------------------------------------------------------------ */
+extern int AMUDP_SetHandlerCallbacks(ep_t ep, AMUDP_preHandlerCallback_t preHandlerCallback, 
+                                              AMUDP_postHandlerCallback_t postHandlerCallback) {
+  AMUDP_CHECKINIT();
+  if (!ep) AMUDP_RETURN_ERR(BAD_ARG);
+  ep->preHandlerCallback = preHandlerCallback;
+  ep->postHandlerCallback = postHandlerCallback;
+  return AM_OK;
+}
 /*------------------------------------------------------------------------------------
  * Statistics API
  *------------------------------------------------------------------------------------ */

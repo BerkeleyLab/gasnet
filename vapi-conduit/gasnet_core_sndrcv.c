@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/04/11 04:23:03 $
- * $Revision: 1.58.2.4 $
+ *     $Date: 2005/04/17 15:44:38 $
+ * $Revision: 1.58.2.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -35,6 +35,8 @@ gasnetc_memreg_t			gasnetc_snd_reg;
 VAPI_cq_hndl_t                          gasnetc_rcv_cq;
 VAPI_cq_hndl_t				gasnetc_snd_cq;
 size_t					gasnetc_fh_maxsz;
+size_t                   		gasnetc_inline_limit;
+size_t                   		gasnetc_bounce_limit;
 int					gasnetc_use_rcv_thread = GASNETC_VAPI_RCV_THREAD;
 int					gasnetc_use_firehose = 1;
 
@@ -118,10 +120,10 @@ typedef struct {
     struct {
       int			fh_count;
       const firehose_request_t	*fh_ptr[GASNETC_MAX_FH];
-      VAPI_wr_opcode_t		fh_op;
       size_t			fh_len;
       uintptr_t			fh_loc_addr;
       uintptr_t			fh_rem_addr;
+      gasnetc_buffer_t		*fh_bbuf;
       gasneti_atomic_t		fh_ready;	/* 0 when loc and rem both ready */
       gasnetc_counter_t		*fh_oust;	/* fh transactions outstanding */
     } fh;
@@ -131,10 +133,10 @@ typedef struct {
   } u;
   #define fh_count	u.fh.fh_count
   #define fh_ptr	u.fh.fh_ptr
-  #define fh_op		u.fh.fh_op
   #define fh_len	u.fh.fh_len
   #define fh_loc_addr	u.fh.fh_loc_addr
   #define fh_rem_addr	u.fh.fh_rem_addr
+  #define fh_bbuf	u.fh.fh_bbuf
   #define fh_ready	u.fh.fh_ready
   #define fh_oust	u.fh.fh_oust
   #define am_buff	u.am.am_buff
@@ -285,11 +287,7 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
     case gasnetc_Short:
       { 
 	args = buf->shortmsg.args;
-        if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETI_TRACE_AMSHORT_REQHANDLER(handler_id, rbuf, numargs, args);
-        else
-          GASNETI_TRACE_AMSHORT_REPHANDLER(handler_id, rbuf, numargs, args);
-        GASNETI_RUN_HANDLER_SHORT(handler_fn,rbuf,args,numargs);
+        GASNETI_RUN_HANDLER_SHORT(GASNETC_MSG_ISREQUEST(flags),handler_id,handler_fn,rbuf,args,numargs);
       }
       break;
 
@@ -298,12 +296,7 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
         nbytes = buf->medmsg.nBytes;
         data = GASNETC_MSG_MED_DATA(buf, numargs);
 	args = buf->medmsg.args;
-
-        if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETI_TRACE_AMMEDIUM_REQHANDLER(handler_id, rbuf, data, (int)nbytes, numargs, args);
-        else
-          GASNETI_TRACE_AMMEDIUM_REPHANDLER(handler_id, rbuf, data, (int)nbytes, numargs, args);
-        GASNETI_RUN_HANDLER_MEDIUM(handler_fn,rbuf,args,numargs,data,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(GASNETC_MSG_ISREQUEST(flags),handler_id,handler_fn,rbuf,args,numargs,data,nbytes);
       }
       break;
 
@@ -312,18 +305,15 @@ void gasnetc_processPacket(gasnetc_rbuf_t *rbuf, uint32_t flags) {
         nbytes = buf->longmsg.nBytes;
         data = (void *)(buf->longmsg.destLoc);
 	args = buf->longmsg.args;
-        if (GASNETC_MSG_ISREQUEST(flags)) {
-          GASNETI_TRACE_AMLONG_REQHANDLER(handler_id, rbuf, data, (int)nbytes, numargs, args);
-        } else {
+        if (!GASNETC_MSG_ISREQUEST(flags)) {
 	  #if !GASNETC_PIN_SEGMENT
 	    if (GASNETC_MSG_SRCIDX(flags) != gasneti_mynode) {
 	      /* No RDMA for ReplyLong.  So, must relocate the payload. */
 	      memcpy(data, GASNETC_MSG_LONG_DATA(buf, numargs), nbytes);
 	    }
 	  #endif
-          GASNETI_TRACE_AMLONG_REPHANDLER(handler_id, rbuf, data, (int)nbytes, numargs, args);
 	}
-        GASNETI_RUN_HANDLER_LONG(handler_fn,rbuf,args,numargs,data,nbytes);
+        GASNETI_RUN_HANDLER_LONG(GASNETC_MSG_ISREQUEST(flags),handler_id,handler_fn,rbuf,args,numargs,data,nbytes);
       }
       break;
 
@@ -396,7 +386,12 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
             if (sreq->req_oust) {
               gasnetc_counter_dec(sreq->req_oust);
 	    }
-            #if GASNETC_PIN_SEGMENT
+            #if !GASNETC_PIN_SEGMENT
+	    if_pf (sreq->fh_bbuf != NULL) {
+	      /* Bounce buffer PUT */
+	      gasneti_freelist_put(&gasnetc_bbuf_freelist, sreq->fh_bbuf);
+	    }
+	    #else
 	    if_pf (sreq->fh_count < 0) {
 	      /* Bounce buffer PUT */
 	      gasneti_assert(sreq->bb_buff != NULL);
@@ -631,6 +626,9 @@ gasnetc_sreq_t *gasnetc_get_sreq(void) {
     /* invalidate field(s) which should always be set by caller */
     sreq->cep = NULL;
     sreq->fh_count = GASNETC_MAX_FH + 1;
+    #if !GASNETC_PIN_SEGMENT
+    sreq->fh_len = ~0;
+    #endif
   #endif
 
   /* Assume no counters */
@@ -992,7 +990,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
   uint32_t flags;
   size_t msg_len;
   int retval, i;
-  int use_inline = 0;
 
   /* FIRST, if using firehose then Long requests may need AMs for moves.
    * Thus we MUST do any RDMA before getting credits.  It can't hurt to queue
@@ -1078,9 +1075,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     args = buf->shortmsg.args;
     msg_len = offsetof(gasnetc_buffer_t, shortmsg.args[numargs]);
     if (!msg_len) msg_len = 1; /* Mellanox bug (zero-length sends) work-around */
-    use_inline = (GASNETC_AM_INLINE_LIMIT != 0) &&
-	    	  ((sizeof(gasnetc_shortmsg_t) <= GASNETC_AM_INLINE_LIMIT) ||
-	    	   (msg_len <= GASNETC_AM_INLINE_LIMIT));
     break;
 
   case gasnetc_Medium:
@@ -1088,7 +1082,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     buf->medmsg.nBytes = nbytes;
     memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
     msg_len = GASNETC_MSG_MED_OFFSET(numargs) + nbytes;
-    use_inline = ((GASNETC_AM_INLINE_LIMIT != 0) && (msg_len <= GASNETC_AM_INLINE_LIMIT));
     break;
 
   case gasnetc_Long:
@@ -1099,12 +1092,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       /* No RDMA for Long Reply's when using firehose, since we can't send the AM request(s) */
       memcpy(GASNETC_MSG_LONG_DATA(buf, numargs), src_addr, nbytes);
       msg_len = GASNETC_MSG_LONG_OFFSET(numargs) + nbytes;
-      use_inline = (GASNETC_AM_INLINE_LIMIT != 0) && (msg_len <= GASNETC_AM_INLINE_LIMIT);
     } else {
       msg_len = offsetof(gasnetc_buffer_t, longmsg.args[numargs]);
-      use_inline = (GASNETC_AM_INLINE_LIMIT != 0) &&
-	    	    ((sizeof(gasnetc_longmsg_t) <= GASNETC_AM_INLINE_LIMIT) ||
-	    	     (msg_len <= GASNETC_AM_INLINE_LIMIT));
     }
     break;
 
@@ -1151,7 +1140,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       sreq->req_oust = req_oust;
     }
 
-    if_pt (use_inline) {
+    if_pt (msg_len <= gasnetc_inline_limit) {
       gasnetc_snd_post_inline(sreq, sr_desc);
     } else {
       gasnetc_snd_post(sreq, sr_desc);
@@ -1275,7 +1264,7 @@ static void gasnetc_do_put_inline(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_INLINE, nbytes);
 
   gasneti_assert(nbytes != 0);
-  gasneti_assert(nbytes <= GASNETC_PUT_INLINE_LIMIT);
+  gasneti_assert(nbytes <= gasnetc_inline_limit);
 
   sreq = gasnetc_get_sreq();
   sreq->cep = cep;
@@ -1525,16 +1514,14 @@ static void gasnetc_do_get_zerocp(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   gasneti_assert(seg_count == 0);
 }
 #else
-static void gasnetc_fh_put_inline(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
+GASNET_INLINE_MODIFIER(gasnetc_fh_put_inline)
+void gasnetc_fh_put_inline(gasnetc_sreq_t *sreq, const firehose_request_t *fh_rem, size_t len) {
   GASNETC_DECL_SR_DESC(sr_desc, 1, 1);
-  gasnetc_sreq_t *sreq = context;
+  gasnetc_counter_t *mem_oust;
 
   gasneti_assert(sreq->fh_rem_addr >= fh_rem->addr);
-  gasneti_assert(sreq->fh_rem_addr + (sreq->fh_len - 1) <= fh_rem->addr + (fh_rem->len - 1));
+  gasneti_assert(sreq->fh_rem_addr + (len - 1) <= fh_rem->addr + (fh_rem->len - 1));
 
-  GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_INLINE, sreq->fh_len);
-
-  sreq->fh_ptr[0] = fh_rem;
   sreq->fh_count = 1;
 
   sr_desc->opcode      = VAPI_RDMA_WRITE;
@@ -1542,17 +1529,80 @@ static void gasnetc_fh_put_inline(void *context, const firehose_request_t *fh_re
   sr_desc->r_key       = fh_rem->client.rkey;
   sr_desc->sg_lst_len  = 1;
   sr_desc->sg_lst_p[0].addr = sreq->fh_loc_addr;
-  sr_desc->sg_lst_p[0].len = sreq->fh_len;
+  sr_desc->sg_lst_p[0].len = len;
+
+  mem_oust = sreq->mem_oust;
+  sreq->mem_oust = NULL;
 
   gasnetc_snd_post_inline(sreq, sr_desc);
 
-  if (sreq->fh_oust) {
-    gasnetc_counter_dec(sreq->fh_oust);
+  if (mem_oust) {
+    /* Because the inline put already copied it */
+    gasnetc_counter_dec(mem_oust);
   }
 }
 
+GASNET_INLINE_MODIFIER(gasnetc_fh_put_bounce)
+void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq, const firehose_request_t *fh_rem, size_t nbytes) {
+  GASNETC_DECL_SR_DESC(sr_desc, 1, 1);
+  gasnetc_cep_t *cep = orig_sreq->cep;
+  uintptr_t src = orig_sreq->fh_loc_addr;
+  uintptr_t dst = orig_sreq->fh_rem_addr;
+  VAPI_rkey_t rkey = fh_rem->client.rkey;
+  gasnetc_counter_t *mem_oust;
+
+  gasneti_assert(nbytes != 0);
+  gasneti_assert(orig_sreq->mem_oust != NULL);
+  gasneti_assert(orig_sreq->fh_rem_addr >= fh_rem->addr);
+  gasneti_assert(orig_sreq->fh_rem_addr + (nbytes - 1) <= fh_rem->addr + (fh_rem->len - 1));
+
+  /* Use full bounce buffers until just one buffer worth of data remains */
+  while (nbytes > GASNETC_BUFSZ) {
+    gasnetc_sreq_t *sreq = gasnetc_get_sreq();
+    sreq->fh_bbuf = gasnetc_get_bbuf(1);
+    memcpy(sreq->fh_bbuf, (void *)src, GASNETC_BUFSZ);
+    sreq->cep  = cep;
+    sreq->fh_count = 0;
+
+    sr_desc->opcode      = VAPI_RDMA_WRITE;
+    sr_desc->remote_addr = dst;
+    sr_desc->r_key       = rkey;
+    sr_desc->sg_lst_len  = 1;
+    sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->fh_bbuf;
+    sr_desc->sg_lst_p[0].len  = GASNETC_BUFSZ;
+    sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
+
+    gasnetc_snd_post(sreq, sr_desc);
+
+    src += GASNETC_BUFSZ;
+    dst += GASNETC_BUFSZ;
+    nbytes -= GASNETC_BUFSZ;
+  }
+
+  /* Send out the last buffer w/ the original resource */
+  gasneti_assert(nbytes <= GASNETC_BUFSZ);
+
+  mem_oust = orig_sreq->mem_oust;
+  orig_sreq->mem_oust = NULL;
+  orig_sreq->fh_count = 1;
+
+  orig_sreq->fh_bbuf = gasnetc_get_bbuf(1);
+  memcpy(orig_sreq->fh_bbuf, (void *)src, nbytes);
+  gasnetc_counter_dec(mem_oust);
+
+  sr_desc->opcode      = VAPI_RDMA_WRITE;
+  sr_desc->remote_addr = dst;
+  sr_desc->sg_lst_len  = 1;
+  sr_desc->r_key       = rkey;
+  sr_desc->sg_lst_p[0].addr = (uintptr_t)orig_sreq->fh_bbuf;
+  sr_desc->sg_lst_p[0].len  = nbytes;
+  sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
+
+  gasnetc_snd_post(orig_sreq, sr_desc);
+}
+
 GASNET_INLINE_MODIFIER(gasnetc_fh_post)
-void gasnetc_fh_post(gasnetc_sreq_t *sreq) {
+void gasnetc_fh_post(gasnetc_sreq_t *sreq, VAPI_wr_opcode_t op) {
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG, 1);
   VAPI_sg_lst_entry_t *sg_entry;
   uintptr_t loc_addr;
@@ -1564,7 +1614,7 @@ void gasnetc_fh_post(gasnetc_sreq_t *sreq) {
   gasneti_assert(sreq->fh_ptr[0] != NULL);
   gasneti_assert(sreq->fh_ptr[1] != NULL);
 
-  sr_desc->opcode = sreq->fh_op;
+  sr_desc->opcode = op;
   sr_desc->remote_addr = sreq->fh_rem_addr;
   sr_desc->r_key = sreq->fh_ptr[0]->client.rkey;
   sr_desc->sg_lst_len = sreq->fh_count - 1;
@@ -1589,25 +1639,63 @@ void gasnetc_fh_post(gasnetc_sreq_t *sreq) {
   }
   gasneti_assert(remain == 0);
 
-  if (sr_desc->opcode == VAPI_RDMA_WRITE) {
-    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, sreq->fh_len);
-  } else {
-    GASNETI_TRACE_EVENT_VAL(C, RDMA_GET_ZEROCP, sreq->fh_len);
-  }
-
   gasnetc_snd_post(sreq, sr_desc);
+}
+
+static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq, const firehose_request_t *fh_rem, size_t nbytes) {
+  if (nbytes <= gasnetc_inline_limit) {
+    /* Inline when small enough */
+    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_INLINE, nbytes);
+    gasnetc_fh_put_inline(sreq, fh_rem, nbytes);
+  } else if ((nbytes <= gasnetc_bounce_limit) && (sreq->mem_oust != NULL)) {
+    /* Bounce buffer use for non-bulk puts (upto a limit) */
+    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_BOUNCE, nbytes);
+    gasnetc_fh_put_bounce(sreq, fh_rem, nbytes);
+  } else {
+    /* Use the local firehose(s) obtained earlier */
+    GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, nbytes);
+    gasnetc_fh_post(sreq, VAPI_RDMA_WRITE);
+  }
 
   if (sreq->fh_oust) {
     gasnetc_counter_dec(sreq->fh_oust);
   }
 }
 
-static void gasnetc_fh_getput(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
+static void gasnetc_fh_put_cb(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
+  gasnetc_sreq_t *sreq = context;
+
+  #if 0
+  /* XXX when implementing a piggybacked Put for bug #1057, we must check allLocalHit
+     to determine is any AM was sent or not. */
+  if (!allLocalHit) {
+    /* We *did* send an AM */
+    sreq->fh_skip = ...
+    /* everything else happens in gasnetc_fh_post, when everything is ready */
+  }
+  #endif
+
+  sreq->fh_ptr[0] = fh_rem;
+  if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
+    gasnetc_fh_do_put(sreq, fh_rem, sreq->fh_len);
+  }
+}
+
+static void gasnetc_fh_do_get(gasnetc_sreq_t *sreq) {
+  GASNETI_TRACE_EVENT_VAL(C, RDMA_GET_ZEROCP, sreq->fh_len);
+  gasnetc_fh_post(sreq, VAPI_RDMA_READ);
+}
+
+static void gasnetc_fh_get_cb(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
   gasnetc_sreq_t *sreq = context;
 
   sreq->fh_ptr[0] = fh_rem;
   if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
-    gasnetc_fh_post(sreq);
+    gasnetc_fh_do_get(sreq);
+  }
+
+  if (sreq->fh_oust) {
+    gasnetc_counter_dec(sreq->fh_oust);
   }
 }
 
@@ -1639,75 +1727,90 @@ size_t gasnetc_get_local_fh(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len
     sreq->fh_count = 2;
   }
 
+  return len;
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_fh_put_helper)
+int gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
+		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
+  const firehose_request_t *fh_rem;
+
+  sreq->fh_rem_addr = rem_addr;
+  sreq->fh_loc_addr = loc_addr;
+
+  /* See how much (if any) is already pinned.  A call to firehose_partial_remote_pin()
+   * might acquire a firehose for a region starting above rem_addr.  By instead calling
+   * firehose_try_remote_pin() with len==1, we get a *contiguous* firehose if available.
+   * We count on the implementation of firehose region giving out the largest region
+   * that covers our request.
+   */
+  fh_rem = firehose_try_remote_pin(node, rem_addr, 1, 0, NULL);
+
+  if_pt (fh_rem != NULL) {
+    /* HIT in remote firehose table - some initial part of the region is pinned */
+    sreq->fh_ptr[0] = fh_rem;
+    gasneti_assert(rem_addr >= fh_rem->addr);
+    gasneti_assert(rem_addr <= (fh_rem->addr + fh_rem->len - 1));
+    len = MIN(len, (fh_rem->addr + fh_rem->len - rem_addr));
+  } else {
+    /* MISS - Some initial part (or all) of the region is unpinned */
+    gasneti_atomic_set(&sreq->fh_ready, 2);
+    len = MIN(len, (gasnetc_fh_maxsz - (rem_addr & (FH_BUCKET_SIZE - 1))));
+    (void)firehose_remote_pin(node, rem_addr, len, 0, NULL,
+			      NULL, &gasnetc_fh_put_cb, sreq);
+  }
+
+  /* Get local firehose(s) IFF inline and bounce-buffers are not to be used.
+   * We do this here to overlap with the in-flight AM if applicable.
+   */
+  if (!(len <= gasnetc_inline_limit) &&
+      !((len <= gasnetc_bounce_limit) && (sreq->mem_oust != NULL))) {
+    len = gasnetc_get_local_fh(sreq, loc_addr, len);
+  }
   sreq->fh_len = len;
-  return len;
-}
 
-/* We get here when we have a hit on the remote firehose table.
- * We initiate exactly one RDMA, returning the number of bytes it contains.
- */
-GASNET_INLINE_MODIFIER(gasnetc_fh_hit)
-size_t gasnetc_fh_hit(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len) {
-  gasneti_assert(sreq->fh_rem_addr >= sreq->fh_ptr[0]->addr);
-  gasneti_assert(sreq->fh_rem_addr + (len - 1) <= sreq->fh_ptr[0]->addr + (sreq->fh_ptr[0]->len - 1));
-
-  len = gasnetc_get_local_fh(sreq, loc_addr, len);
-
-  gasnetc_fh_post(sreq);
-
-  return len;
-}
-
-/* We get here when we have a miss on the remote firehose table.
- * We initiate exactly one RDMA, returning the number of bytes it contains.
- */
-GASNET_INLINE_MODIFIER(gasnetc_fh_miss)
-size_t gasnetc_fh_miss(gasnet_node_t node, gasnetc_sreq_t *sreq,
-		       uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
-  gasneti_atomic_set(&sreq->fh_ready, 2);
-
-  /* Both remote (mis)alignment could limit how much we can pin */
-  len = MIN(len, (gasnetc_fh_maxsz - (rem_addr & (FH_BUCKET_SIZE - 1))));
-
-  (void)firehose_remote_pin(node, rem_addr, len, 0, NULL,
-			    NULL, &gasnetc_fh_getput, sreq);
-
-  len = gasnetc_get_local_fh(sreq, loc_addr, len);
-  
-  if (gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
-    gasnetc_fh_post(sreq);
+  if ((fh_rem != NULL) || gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
+    gasnetc_fh_do_put(sreq, fh_rem, len);
   }
 
   return len;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_fh_helper)
-int gasnetc_fh_helper(int is_put, gasnet_node_t node, gasnetc_sreq_t *sreq,
-		      uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
+GASNET_INLINE_MODIFIER(gasnetc_fh_get_helper)
+int gasnetc_fh_get_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
+		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
+  const firehose_request_t *fh_rem;
+
   sreq->fh_rem_addr = rem_addr;
   sreq->fh_loc_addr = loc_addr;
 
-  if (is_put && (GASNETC_PUT_INLINE_LIMIT != 0) && (len <= GASNETC_PUT_INLINE_LIMIT)) {
-    sreq->fh_len = len;
-    (void)firehose_remote_pin(node, rem_addr, len, 0, NULL,
-			      NULL, &gasnetc_fh_put_inline, sreq);
-  } else {
-    /* See how much (if any) is already pinned.  A call to firehose_partial_remote_pin()
-     * might acquire a firehose for a region starting above rem_addr.  By instead calling
-     * firehose_try_remote_pin() with len==1, we get a *contiguous* firehose if available.
-     * We count on the implementation of firehose region giving out the largest region
-     * that covers our request.
-     */
-    const firehose_request_t *fh_rem = firehose_try_remote_pin(node, rem_addr, 1, 0, NULL);
+  /* See how much (if any) is already pinned.  A call to firehose_partial_remote_pin()
+   * might acquire a firehose for a region starting above rem_addr.  By instead calling
+   * firehose_try_remote_pin() with len==1, we get a *contiguous* firehose if available.
+   * We count on the implementation of firehose region giving out the largest region
+   * that covers our request.
+   */
+  fh_rem = firehose_try_remote_pin(node, rem_addr, 1, 0, NULL);
 
-    if_pt (fh_rem) {
-      /* HIT in remote firehose table - some initial part of the region is pinned */
-      sreq->fh_ptr[0] = fh_rem;
-      len = gasnetc_fh_hit(sreq, loc_addr, MIN(len, (fh_rem->addr + fh_rem->len - rem_addr)));
-    } else {
-      /* Some initial part (or all) of the region is unpinned */
-      len = gasnetc_fh_miss(node, sreq, loc_addr, rem_addr, len);
-    }
+  if_pt (fh_rem != NULL) {
+    /* HIT in remote firehose table - some initial part of the region is pinned */
+    sreq->fh_ptr[0] = fh_rem;
+    gasneti_assert(rem_addr >= fh_rem->addr);
+    gasneti_assert(rem_addr <= (fh_rem->addr + fh_rem->len - 1));
+    len = MIN(len, (fh_rem->addr + fh_rem->len - rem_addr));
+  } else {
+    /* MISS: Some initial part (or all) of the region is unpinned */
+    gasneti_atomic_set(&sreq->fh_ready, 2);
+    len = MIN(len, (gasnetc_fh_maxsz - (rem_addr & (FH_BUCKET_SIZE - 1))));
+    (void)firehose_remote_pin(node, rem_addr, len, 0, NULL,
+			      NULL, &gasnetc_fh_get_cb, sreq);
+  }
+
+  len = gasnetc_get_local_fh(sreq, loc_addr, len);
+  sreq->fh_len = len;
+
+  if ((fh_rem != NULL) || gasneti_atomic_decrement_and_test(&sreq->fh_ready)) {
+    gasnetc_fh_do_get(sreq);
   }
 
   return len;
@@ -1917,7 +2020,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     VAPI_rkey_t rkey;
     gasnetc_get_rkey(cep, dst, &count, &rkey);
 
-    if ((GASNETC_PUT_INLINE_LIMIT != 0) && (count <= GASNETC_PUT_INLINE_LIMIT)) {
+    if (count <= gasnetc_inline_limit) {
       /* Use a short-cut for sends that are short enough.
        *
        * Note that we do this based only on the size of the request, without bothering to check whether
@@ -1928,7 +2031,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     } else if_pf (!gasnetc_use_firehose && gasnetc_unpinned(src, &count)) {
       /* Firehose disabled.  Use bounce buffers since src is out-of-segment */
       gasnetc_do_put_bounce(cep, rkey, src, dst, count, req_oust);
-    } else if ((count <= GASNETC_PUT_COPY_LIMIT) && (mem_oust != NULL)) {
+    } else if ((count <= gasnetc_bounce_limit) && (mem_oust != NULL)) {
       /* Because VAPI lacks any indication of "local" completion, the only ways to
        * implement non-bulk puts (mem_oust != NULL) are as fully blocking puts, or
        * with bounce buffers.  So, if a non-bulk put is "not too large" use bounce
@@ -2001,7 +2104,7 @@ extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nb
     size_t count;
 
     sreq->cep   = cep;
-    sreq->fh_op = VAPI_RDMA_WRITE;
+    sreq->fh_bbuf = NULL;
  
     /* We must set counters on all chunks since order of completion is uncertain */
     if (mem_oust) {
@@ -2017,7 +2120,7 @@ extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nb
       sreq->fh_oust = am_oust;
     }
 
-    count = gasnetc_fh_helper(1, node, sreq, src, dst, nbytes);
+    count = gasnetc_fh_put_helper(node, sreq, src, dst, nbytes);
 
     src += count;
     dst += count;
@@ -2041,13 +2144,12 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     size_t count;
 
     sreq->cep   = cep;
-    sreq->fh_op = VAPI_RDMA_READ;
  
     /* We must set counters on all chunks since order of completion is uncertain */
     sreq->req_oust = req_oust;
     gasnetc_counter_inc(req_oust);
 
-    count = gasnetc_fh_helper(0, node, sreq, dst, src, nbytes);
+    count = gasnetc_fh_get_helper(node, sreq, dst, src, nbytes);
 
     src += count;
     dst += count;

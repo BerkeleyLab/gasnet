@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2005/04/11 04:22:53 $
- * $Revision: 1.21.2.2 $
+ *     $Date: 2005/04/17 15:44:04 $
+ * $Revision: 1.21.2.3 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -945,21 +945,33 @@ static int AMUDP_ServiceIncomingMessages(ep_t ep) {
           else { /* a user message */
             switch (cat) {
               case amudp_Short: 
+                if (ep->preHandlerCallback) 
+                  ep->preHandlerCallback(amudp_Short, isrequest, msg->handlerId, basicbuf, 
+                                         NULL, 0, numargs, GET_PACKET_ARGS(buf));
                 RUN_HANDLER_SHORT(ep->handler[msg->handlerId], basicbuf, 
                                   GET_PACKET_ARGS(buf), numargs);
+                if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
                 break;
               case amudp_Medium: 
+                if (ep->preHandlerCallback) 
+                  ep->preHandlerCallback(amudp_Medium, isrequest, msg->handlerId, basicbuf, 
+                                         GET_PACKET_DATA(buf), msg->nBytes, numargs, GET_PACKET_ARGS(buf));
                 RUN_HANDLER_MEDIUM(ep->handler[msg->handlerId], basicbuf, 
                                    GET_PACKET_ARGS(buf), numargs, 
                                    GET_PACKET_DATA(buf), msg->nBytes);
+                if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
                 break;
               case amudp_Long: {
                 int8_t *pData = ((int8_t *)ep->segAddr) + msg->destOffset;
                 /*  a single-message bulk transfer. do the copy */
                 memcpy(pData, GET_PACKET_DATA(buf), msg->nBytes);
+                if (ep->preHandlerCallback) 
+                  ep->preHandlerCallback(amudp_Long, isrequest, msg->handlerId, basicbuf, 
+                                         pData, msg->nBytes, numargs, GET_PACKET_ARGS(buf));
                 RUN_HANDLER_LONG(ep->handler[msg->handlerId], basicbuf, 
                                    GET_PACKET_ARGS(buf), numargs, 
                                    pData, msg->nBytes);
+                if (ep->postHandlerCallback) ep->postHandlerCallback(cat, isrequest);
                 break;
                 }
               default:

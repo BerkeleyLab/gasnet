@@ -1,12 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2004/10/09 14:44:05 $
- * $Revision: 1.27 $
+ *     $Date: 2005/04/17 15:44:01 $
+ * $Revision: 1.27.2.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
 #ifndef __AMMPI_H
 #define __AMMPI_H
+
+#include "portable_inttypes.h"
 
 #if defined(AMMPI_INTERNAL) || defined(HAVE_MPI)
   /* clients of this interface need not include MPI headers
@@ -22,8 +24,6 @@
 #endif
 
 #include <stdarg.h>
-
-#include "portable_inttypes.h"
 
 #include <stdio.h> /* FILE* */
 
@@ -188,6 +188,10 @@ typedef struct { /* gives us a compacted version of the translation table */
   en_t      remoteName;  
   } ammpi_perproc_info_t;
 
+typedef void (*AMMPI_preHandlerCallback_t)(ammpi_category_t cat, int isReq, int handlerId, void *token, 
+                                         void *buf, size_t nbytes, int numargs, uint32_t *args);
+typedef void (*AMMPI_postHandlerCallback_t)(ammpi_category_t cat, int isReq);
+
 typedef struct {
   MPI_Request* txHandle; /* send buffer handles */
   ammpi_buf_t** txBuf;   /* send buffer ptrs */
@@ -235,8 +239,8 @@ typedef struct ammpi_ep {
 
   ammpi_stats_t stats;  /* statistical collection */
 
-  void (*preHandlerCallback)(); /* client hooks for statistical/debugging usage */
-  void (*postHandlerCallback)();
+  AMMPI_preHandlerCallback_t preHandlerCallback; /* client hooks for statistical/debugging usage */
+  AMMPI_postHandlerCallback_t postHandlerCallback;
 
   /* recv buffer tables */
   ammpi_buf_t* rxBuf;    /* recv buffers */
@@ -338,7 +342,8 @@ extern int AMMPI_SetEndpointCommunicator(MPI_Comm *comm);
    (callback fns may _NOT_ make any AMMPI calls, directly or indirectly)
    set to NULL for none
 */
-extern int AMMPI_SetHandlerCallbacks(ep_t ep, void (*preHandlerCallback)(), void (*postHandlerCallback)());
+extern int AMMPI_SetHandlerCallbacks(ep_t ep, AMMPI_preHandlerCallback_t preHandlerCallback, 
+                                              AMMPI_postHandlerCallback_t postHandlerCallback);
 
 /* statistical collection */
 extern int AMMPI_GetEndpointStatistics(ep_t ep, ammpi_stats_t *stats); /* get ep counters */

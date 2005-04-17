@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2005/04/04 03:33:01 $
- * $Revision: 1.21.2.1 $
+ *     $Date: 2005/04/17 15:44:04 $
+ * $Revision: 1.21.2.2 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -224,6 +224,10 @@ typedef struct {
   bulkslot_t inboundBulkSlot[16]; /* slots for maintaining inbound bulk transfer status */
   } amudp_perproc_info_t;
 
+typedef void (*AMUDP_preHandlerCallback_t)(amudp_category_t cat, int isReq, int handlerId, void *token, 
+                                         void *buf, size_t nbytes, int numargs, uint32_t *args);
+typedef void (*AMUDP_postHandlerCallback_t)(amudp_category_t cat, int isReq);
+
 /* Endpoint bundle object */
 typedef struct amudp_eb {
   struct amudp_ep **endpoints;   /* dynamically-grown array of endpoints in bundle */
@@ -279,6 +283,9 @@ typedef struct amudp_ep {
     uint32_t rxReadyIdx; /* oldest unserviced, received message */
     uint32_t rxFreeIdx;  /* beginning of free list */
   #endif
+
+  AMUDP_preHandlerCallback_t preHandlerCallback; /* client hooks for statistical/debugging usage */
+  AMUDP_postHandlerCallback_t postHandlerCallback;
 
   amudp_stats_t stats;  /* statistical collection */
 
@@ -379,6 +386,14 @@ extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int glob
    */
 
 extern const amudp_stats_t AMUDP_initial_stats; /* the "empty" values for counters */
+
+/* set the client callback fns to run before/after handler execution 
+   (callback fns may _NOT_ make any AMMPI calls, directly or indirectly)
+   set to NULL for none
+*/
+extern int AMUDP_SetHandlerCallbacks(ep_t ep, AMUDP_preHandlerCallback_t preHandlerCallback, 
+                                              AMUDP_postHandlerCallback_t postHandlerCallback);
+
 /* ------------------------------------------------------------------------------------ */
 /* AM-2 Entry Points */
 

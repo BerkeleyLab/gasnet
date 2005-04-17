@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2005/04/04 03:33:23 $
- * $Revision: 1.25.2.1 $
+ *     $Date: 2005/04/17 15:44:29 $
+ * $Revision: 1.25.2.2 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -398,11 +398,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   switch (category) {
     case gasnetc_Short:
       { 
-        if (isReq)
-          GASNETI_TRACE_AMSHORT_REQHANDLER(handler, desc, numargs, pargs);
-        else
-          GASNETI_TRACE_AMSHORT_REPHANDLER(handler, desc, numargs, pargs);
-        GASNETI_RUN_HANDLER_SHORT(gasnetc_handler[handler],desc,pargs,numargs);
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
@@ -419,22 +415,14 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
         memcpy(buf, source_addr, nbytes);
 
-        if (isReq)
-          GASNETI_TRACE_AMMEDIUM_REQHANDLER(handler, desc, buf, nbytes, numargs, pargs);
-        else
-          GASNETI_TRACE_AMMEDIUM_REPHANDLER(handler, desc, buf, nbytes, numargs, pargs);
-        GASNETI_RUN_HANDLER_MEDIUM(gasnetc_handler[handler],desc,pargs,numargs,buf,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,buf,nbytes);
       }
     break;
     case gasnetc_Long:
       { 
-        memmove(dest_ptr, source_addr, nbytes);
+        if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
 
-        if (isReq)
-          GASNETI_TRACE_AMLONG_REQHANDLER(handler, desc, dest_ptr, nbytes, numargs, pargs);
-        else
-          GASNETI_TRACE_AMLONG_REPHANDLER(handler, desc, dest_ptr, nbytes, numargs, pargs);
-        GASNETI_RUN_HANDLER_LONG(gasnetc_handler[handler],desc,pargs,numargs,dest_ptr,nbytes);
+        GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,dest_ptr,nbytes);
       }
     break;
     default: abort();

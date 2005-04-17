@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2005/04/04 03:32:39 $ */
-/*  $Revision: 1.41.2.4 $ */
+/*      $Date: 2005/04/17 15:43:43 $ */
+/*  $Revision: 1.41.2.5 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -126,7 +126,6 @@
 
 /* GASNet vapi-conduit features and bug work-arounds */
 #undef HAVE_VAPI_FMR
-#undef GASNETC_VAPI_ENABLE_INLINE_PUTS
 #undef GASNETC_VAPI_FORCE_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
 

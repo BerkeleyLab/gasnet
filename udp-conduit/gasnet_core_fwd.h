@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/04/04 03:33:29 $
- * $Revision: 1.8.2.2 $
+ *     $Date: 2005/04/17 15:44:35 $
+ * $Revision: 1.8.2.3 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,8 +69,5 @@ extern void gasnetc_trace_finish();
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int sig);
-
-#define GASNETI_CONDUIT_GETENV(keyname) \
-  (gasneti_init_done ? (char *)AMUDP_SPMDgetenvMaster(keyname) : NULL)
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/04/04 03:33:17 $
- * $Revision: 1.9.2.1 $
+ *     $Date: 2005/04/17 15:44:19 $
+ * $Revision: 1.9.2.2 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -196,7 +196,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /* register the handler */
     /* (###) add code here to register table[i].fnptr
              on index (gasnet_handler_t)newindex */
-	gasnetc_ht_add_handler (table[i].fnptr, (gasnet_handler_t) newindex);
+      gasnetc_sci_handler_table[(gasnet_handler_t) newindex] = table[i].fnptr;
 
     if (dontcare) table[i].index = newindex;
     (*numregistered)++;
@@ -280,7 +280,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  (###) register any custom signal handlers required by your conduit
    *        (e.g. to support interrupt-based messaging)
    */
-   gasnetc_ht_add_handler(gasnetc_sci_call_exit, 63);
+   gasnetc_sci_handler_table[63] = gasnetc_sci_call_exit;
 
   atexit(gasnetc_atexit);
 

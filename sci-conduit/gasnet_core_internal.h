@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/04 03:33:17 $
- * $Revision: 1.5.10.1 $
+ *     $Date: 2005/04/17 15:44:19 $
+ * $Revision: 1.5.10.2 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -274,20 +274,6 @@ void gasnetc_mls_set (gasnet_node_t RemoteID, uint8_t msg_number)
 
 /*  Obtain a free request message location */
 int gasnetc_mls_get_loc (gasnet_node_t dest_node_id);
-
-/********************************************************
-					  Handler Table
-********************************************************/
-
-/*  Add a new handler to the table using a given index */
-void gasnetc_ht_add_handler (void * func_ptr, int index);
-
-/* / Return the function pointer base of a given handler */
-GASNET_INLINE_MODIFIER(gasnetc_ht_get_handler)
-void * gasnetc_ht_get_handler (gasnet_handler_t input)
-{
-        return gasnetc_sci_handler_table[input];
-}
 
 /********************************************************
 				  MSG Flag Management

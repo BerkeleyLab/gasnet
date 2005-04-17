@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/04/13 10:48:12 $
- * $Revision: 1.50.2.9 $
+ *     $Date: 2005/04/17 15:43:46 $
+ * $Revision: 1.50.2.10 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1522,6 +1522,9 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
         gasneti_AMPoll(); 
         barrier_blocking = 1;
       LOCK_ELAN_WEAK();
+      /* ensure libelan doesnt goto sleep forever, ignoring tport message arrival - 
+         fixes testam hangs on lemieux */
+      return 1; 
     }
   } 
   else 

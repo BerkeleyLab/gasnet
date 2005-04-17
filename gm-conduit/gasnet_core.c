@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2005/04/11 04:22:43 $
- * $Revision: 1.75.2.2 $
+ * $Date: 2005/04/17 15:43:49 $
+ * $Revision: 1.75.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1022,11 +1022,11 @@ static void gasnetc_exit_body(void) {
     if (graceful) {
 	#ifdef GASNETC_GM_MPI_COMPAT
 	if (!(getenv("GASNET_GASNETRUN_GM")))
-	  gasneti_bootstrapFini();
+	  gasneti_bootstrapFini_mpi();
 	#endif
     } else {
 	#ifdef GASNETC_GM_MPI_COMPAT
-	  gasneti_bootstrapAbort(exitcode);
+	  gasneti_bootstrapAbort_mpi(exitcode);
 	#else
 	  /* We couldn't reach our peers, so hope the bootstrap code can kill the entire job */
 	  gasneti_reghandler(SIGABRT, SIG_DFL);
@@ -1237,8 +1237,9 @@ gasnetc_AMRequestShortM(gasnet_node_t dest, gasnet_handler_t handler,
 
 	if (dest == gasneti_mynode) { /* local handler */
 		int argbuf[GASNETC_AM_MAX_ARGS];
+                gasnet_token_t token = (void *) -1;
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler], (void *) -1, 
+		GASNETI_RUN_HANDLER_SHORT(1, handler, _gmc.handlers[handler], token, 
 					  argbuf, numargs);
 	}
 	else {
@@ -1278,11 +1279,12 @@ extern int gasnetc_AMRequestMediumM(
   if (dest == gasneti_mynode) { /* local handler */
     void *loopbuf;
     int argbuf[GASNETC_AM_MAX_ARGS];
+    gasnet_token_t token = (void *) -1;
     loopbuf = gasnetc_alloca(nbytes+GASNETI_MEDBUF_ALIGNMENT);
     loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-    GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) -1,
+    GASNETI_RUN_HANDLER_MEDIUM(1, handler, _gmc.handlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
   }
   else {
@@ -1444,10 +1446,11 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
 	if (dest == gasneti_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
+                gasnet_token_t token = (void *) -1;
 
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
-		GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *) -1, 
+		if_pt(dest_addr != source_addr) GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
+		GASNETI_RUN_HANDLER_LONG(1, handler, _gmc.handlers[handler], token, 
 		    argbuf, numargs, dest_addr, nbytes);
 	}
 	else {
@@ -1509,10 +1512,10 @@ gasnetc_AMRequestLongAsyncM(
 
 	if (dest == gasneti_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
-
+                gasnet_token_t token = (void *) -1;
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
-		GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *) -1, 
+		if_pt(dest_addr != source_addr) GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
+		GASNETI_RUN_HANDLER_LONG(1, handler, _gmc.handlers[handler], token, 
 		    argbuf, numargs, dest_addr, nbytes);
 
 		va_end(argptr);
@@ -1593,11 +1596,12 @@ extern int gasnetc_RequestSystem(
   if (dest == gasneti_mynode) { /* local handler */
     void *loopbuf;
     int argbuf[GASNETC_AM_MAX_ARGS];
+    gasnet_token_t token = (void *) -1;
     loopbuf = gasnetc_alloca(nbytes+GASNETI_MEDBUF_ALIGNMENT);
     loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-    GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[handler], (void *) -1,
+    GASNETI_RUN_HANDLER_MEDIUM(1, handler, _gmc.syshandlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
     if (done != NULL) {
 	int cur = *done;
@@ -1762,8 +1766,8 @@ gasnetc_AMReplyShortM(gasnet_token_t token, gasnet_handler_t handler,
 	if ((void *)token == (void*)-1) { /* local handler */
 		int argbuf[GASNETC_AM_MAX_ARGS];
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETI_RUN_HANDLER_SHORT(_gmc.handlers[handler], 
-				(void *) token, argbuf, numargs);
+		GASNETI_RUN_HANDLER_SHORT(0, handler, _gmc.handlers[handler], 
+				          token, argbuf, numargs);
 	}
 	else {
 		bufd = gasnetc_bufdesc_from_token(token);
@@ -1807,7 +1811,7 @@ extern int gasnetc_AMReplyMediumM(
     loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-    GASNETI_RUN_HANDLER_MEDIUM(_gmc.handlers[handler], (void *) token,
+    GASNETI_RUN_HANDLER_MEDIUM(0, handler, _gmc.handlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
   }
   else {
@@ -1860,10 +1864,9 @@ extern int gasnetc_AMReplyLongM(
 	gasneti_assert(nbytes <= GASNETC_AM_LONG_REPLY_MAX);
 	if ((void *)token == (void *)-1) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
-		GASNETC_AMTRACE_ReplyLong(Loopbk);
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-		GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
-		GASNETI_RUN_HANDLER_LONG(_gmc.handlers[handler], (void *)token, 
+		if_pt(dest_addr != source_addr) GASNETC_AMPAYLOAD_WRITE(dest_addr, source_addr, nbytes);
+		GASNETI_RUN_HANDLER_LONG(0, handler, _gmc.handlers[handler], token, 
 		    argbuf, numargs, dest_addr, nbytes);
 	}
 	else {
@@ -2057,7 +2060,7 @@ int gasnetc_ReplySystem(
     loopbuf = (void *)GASNETI_ALIGNUP(loopbuf, GASNETI_MEDBUF_ALIGNMENT);
     memcpy(loopbuf, source_addr, nbytes);
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
-    GASNETC_RUN_HANDLER_SYSTEM(_gmc.syshandlers[handler], (void *) token,
+    GASNETI_RUN_HANDLER_MEDIUM(0, handler, _gmc.syshandlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
   }
   else {

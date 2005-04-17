@@ -14,8 +14,6 @@
 
 CONDUIT_LIBDIRS = -L@VAPI_LIBDIR@
 CONDUIT_LIBS = @VAPI_LIBS@
-@VAPI_BOOTSTRAP_MPI_TRUE@CONDUIT_INCLUDES = -I@TOP_SRCDIR@/other/mpi-spawner ###NOINSTALL###
-@VAPI_BOOTSTRAP_SSH_TRUE@CONDUIT_INCLUDES = -I@TOP_SRCDIR@/other/ssh-spawner ###NOINSTALL###
 
 # If vapi-conduit has internal conduit threads, then it needs 
 # threading flags and libs - even in GASNET_SEQ mode

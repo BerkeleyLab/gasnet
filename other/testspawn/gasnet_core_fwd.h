@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/gasnet_core_fwd.h,v $
- *     $Date: 2005/04/04 03:33:15 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2005/04/17 15:44:16 $
+ * $Revision: 1.1.2.2 $
  * Description: 
  * Copyright 2005, Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -20,8 +20,6 @@
 
 #define _GASNET_NODE_T
 typedef uint16_t gasnet_node_t;
-                                                                                                              
-#include <gasnet_bootstrap_fwd.h>   
 
 #define GASNET_ALIGNED_SEGMENTS	1
 

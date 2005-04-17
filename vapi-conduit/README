@@ -1,10 +1,10 @@
 README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.13.8.1 $
+$Revision: 1.13.8.2 $
 
 @ TOC: @
-@ Section: Bootstrapping @
+@ Section: Job Spawning @
 @ Section: Build-time Configuration @
 @ Section: Runtime Configuration @
 @ Section: Core API @
@@ -13,23 +13,51 @@ $Revision: 1.13.8.1 $
 @ Section: TO DO @
 
 
-@ Section: Bootstrapping @
+@ Section: Job Spawning @
   
-  There are two options for bootstrapping a GASNet application when
-  using vapi-conduit.  You can choose by passing
-      --with-vapi-bootstrap=ssh
-  or  --with-vapi-bootstrap=mpi
-  where mpi is the default.
+  If MPI support was NOT enabled when GASNet was configured, then
+  only SSH based spawning will be supported and the following paragraph
+  may be ignored.
 
+  If MPI support was enabled when GASNet was configured, then there
+  are two options for spawning a GASNet vapi-conduit application:
+  MPI or SSH.  The default can be set at configure time with
+      --with-vapi-spawner=ssh
+  or  --with-vapi-spawner=mpi
+  where mpi is the default.  At runtime the environment variable
+  GASNET_VAPI_SPAWNER (set to "mpi" or "ssh") can override the
+  value set at configuration time.
 
-  If ssh is chosen, then the following apply:
+  If using UPC or Titanium, the language-specific commands should be used
+  to launch applications.  Otherwise, applications can be launched using
+  the gasnetrun_vapi utility:
   + usage summary:
-      your_app [-v] N[:M] [args ...]
-    where N is the number of processes to run, and M is the number of
-    nodes/hosts over which the processes will be distributed.  If only
-    N is given, then M=N by default.
-    If running a UPC or Titanium application, then language-specific
-    commands should be used instead.
+    gasnetrun_vapi -n <n> [options] [--] prog [program args]
+    options:
+      -n <n>                number of processes to run (required)
+      -N <N>                number of nodes to run on (not supported by all MPIs)
+      -E <VAR1[,VAR2...]>   list of environment vars to propagate
+      -v                    be verbose about what is happening
+      -t                    test only, don't execute anything (implies -v)
+      -k                    keep any temporary files created (implies -v)
+      -spawner=(ssh|mpi)    force use of MPI or SSH for spawning (if available)
+
+  If spawning using MPI, then the following apply:
+  + In order to bootstrap vapi-conduit, a working MPI must be installed
+    and configured on your system.  See mpi-conduit/README for
+    information on configuring GASNet for a particular MPI.  Note that
+    you must compile mpi-conduit as well (even if you never plan to use
+    it).
+  + MPI is only used in gasnet_init(), gasnet_attach() and gasnet_exit()
+    and not for any GASNet cals between attach and exit.  Therefore it is
+    acceptable to use a TCP/IP based MPI such as MPICH or LAM/MPI.
+  + The environment variable MPIRUN_CMD can be used to configure how to
+    invoke mpirun.  See mpi-conduit/README (or README-mpi) for more
+    information.
+
+  If spawning using SSH, the following apply:
+  + The -E option is not necessary, as the full environment is always
+    propagated to the application processes.
   + A list of hosts is specified using either the GASNET_SSH_NODEFILE
     or GASNET_SSH_SERVERS environment variables.
     If set, the variable GASNET_SSH_NODEFILE specifies a file with one
@@ -38,8 +66,6 @@ $Revision: 1.13.8.1 $
     If set, the variable GASNET_SSH_SERVERS itself contains a list of
     hostnames, delimited by commas or whitespace.
     If both are set, GASNET_SSH_NODEFILE takes precedence.
-    Note that if starting a job via upcrun or tirun, these variables
-    may be set for you from other sources.
   + The environment variable GASNET_SSH_CMD can be set to specify a
     specific remote shell (perhaps rsh).  The default is "ssh", and
     a search of $PATH resolves the full path.
@@ -62,24 +88,6 @@ $Revision: 1.13.8.1 $
     and among compute nodes.
   + Resolution for all given hostnames must be possible from both the
     master node and the compute nodes.
-  + THE SSH SPAWNER MAY NOT WORK WITH SOME OLDER VAPI VERSIONS WHICH
-    DON'T ALLOW A VAPI APPLICATION TO CALL fork().
-
-
-  If MPI is chosen, then the following apply:
-  + usage summary:
-      mpirun -np N your_app [args ...]
-    where N is the number of processes to run.
-    If running a UPC or Titanium application, then language-specific
-    commands should be used instead.
-  + In order to bootstrap vapi-conduit, a working MPI must be installed
-    and configured on your system.  See mpi-conduit/README for
-    information on configuring GASNet for a particular MPI.  Note that
-    you must compile mpi-conduit as well (even if you never plan to use
-    it).
-  + MPI is only used in gasnet_init(), gasnet_attach() and gasnet_exit()
-    and not for any GASNet cals between attach and exit.  Therefore it is
-    acceptable to use a TCP/IP based MPI such as MPICH or LAM/MPI.
 
 @ Section: Build-time Configuration @
 
@@ -94,35 +102,14 @@ $Revision: 1.13.8.1 $
   reduction in latencies by allowing some locking operations to
   compile away.
 
-  There are two known bugs in older InfiniHost firmware versions.
-  Normally you shouldn't need to do anything special with regards
-  to them.  However, if you do need to override the defaults the
-  remainder of this section explains the issues.
+  In firmware versions prior to 3.0, the VAPI_poll_cq() call is
+  not thread safe under some conditions.  For this reason,
+  vapi-conduit will check the firmware version at runtime and will
+  use its own mutex around calls to VAPI_poll_cq() if needed.  If
+  you believe this bug is appearing in firmware 3.0 or later, you
+  can force use of this mutex by configuring GASNet with the flag
+  '--enable-vapi-force-poll-lock'.
 
-  + Thread safety of VAPI_poll_cq()
-    In firmware versions prior to 3.0, the VAPI_poll_cq() call is
-    not thread safe under some conditions.  For this reason,
-    vapi-conduit will check the firmware version at runtime and will
-    use its own mutex around calls to VAPI_poll_cq() if needed.
-
-    If you believe this bug is appearing in firmware 3.0 or later,
-    you can force use of this mutex by configuring GASNet with the
-    flag '--enable-vapi-force-poll-lock'.
-
-  + Performance loss in EVAPI_post_inline_sr()
-    In firmware versions after 1.17 and prior to 3.0, there is a
-    performance anomaly with the call EVAPI_post_inline_sr().
-    By default, vapi-conduit will use this call to perform small
-    puts.  If firmware in the range [1.18, 3.0) is detected at
-    runtime, a warning will be printed but the call will still
-    be used.
-
-    If you believe this bug is affecting your performance under
-    other firmware versions, or to silence this warning without
-    updating your firmware, configure GASNet with the flag
-    '--disable-vapi-inline-puts'.  This will disable the use of
-    the EVAPI_post_inline_sr() call, and disable the warning.
-    
 @ Section: Runtime Configuration @
 
   There are a number of parameters in vapi-conduit which can be tuned
@@ -200,6 +187,36 @@ $Revision: 1.13.8.1 $
     the GASNet segment is not preregistred and use of firehose is required.
     Thus it is an error to disable firehose in such a configuration.
 
+  Protocol configuration:
+  The following environment variables control the selection of protocols
+  for performing certain transfers.
+
+  These parameters must be equal across all nodes, and the behavior
+  otherwise is undefined.
+
+  + GASNET_INLINE_LIMIT
+    VAPI includes an "inline" put operation that transfers the data to
+    the HCA at the same time it transfers the request.  This normally
+    provides a measurable performance improvement, but is only available
+    up to an firmware-dependent maximum size.  Therefore, the default of
+    72 is normally correct.
+   
+    In firmware versions after 1.17 and prior to 3.0, there is a
+    performance anomaly with the call EVAPI_post_inline_sr().
+    By default, vapi-conduit will use this call to perform small
+    puts.  If firmware in the range [1.18, 3.0) is detected at
+    runtime, a warning will be printed but the call will still
+    be used.  In this case (or if you believe that the same anomaly
+    is affecting some other version) you should try setting this
+    variable to 0.
+
+  + GASNET_BOUNCE_LIMIT
+    To perform a non-bulk PUT, vapi-conduit must either copy the date into
+    bounce buffers, or block until remote completion is signalled by the
+    HCA.  For non-bulk PUT, transfers upto and including this size are
+    performed using bounce buffers and larger transfers are transfered
+    using blocking PUTs.
+    
   Resource usage parameters:
   The following environment variables control how much memory is
   preallocated at startup time to serve various functions.  Because these
