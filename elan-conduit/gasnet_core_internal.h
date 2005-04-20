@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/17 16:40:31 $
- * $Revision: 1.24.2.12 $
+ *     $Date: 2005/04/20 10:04:37 $
+ * $Revision: 1.24.2.13 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -218,7 +218,7 @@ extern ELAN_TPORT *gasnetc_elan_tport;
     #define GASNETC_OVERLAP_AMQUEUE 1
   #endif
 #elif GASNETC_OVERLAP_AMQUEUE && GASNETC_USE_MAINQUEUE
-  #error cannot overlap AM's when using main queue
+  #error cannot overlap AMs when using main queue
 #endif
 
 typedef struct {
