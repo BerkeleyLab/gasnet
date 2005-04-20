@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2005/04/17 15:44:35 $
- * $Revision: 1.16.2.3 $
+ *     $Date: 2005/04/20 10:10:30 $
+ * $Revision: 1.16.2.4 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,7 +37,7 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 
 #if defined(GASNET_CSPAWN_CMD)
   #define GASNETC_DEFAULT_SPAWNFN C
-  GASNETI_IDENT(AMUDP_DEFAULT_CSPAWNCMD_IDENT_STRING, "$GASNetCSpawnCommand: " GASNET_CSPAWN_CMD " $");
+  GASNETI_IDENT(gasnetc_IdentString_Default_CSpawnCommand, "$GASNetCSpawnCommand: " GASNET_CSPAWN_CMD " $");
 #elif defined(REXEC)
   #define GASNETC_DEFAULT_SPAWNFN R
 #else /* AMUDP implicit ssh startup */
