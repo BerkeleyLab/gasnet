@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/04/11 14:43:38 $
- * $Revision: 1.50.2.5 $
+ *     $Date: 2005/04/21 04:37:08 $
+ * $Revision: 1.50.2.6 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -117,8 +117,8 @@ static void gasnetc_check_config() {
         fprintf(stderr, 
           "PERFORMANCE WARNING: Using Elan4 driver version '%s':\n"
           " elan4 drivers prior to v1.8.7 contain a performance bug that seriously affects GASNet performance.\n"
-          " You should download the latest Elan4 libraries from www.quadrics.com and add them to LD_LIBRARY_PATH.",
-          ver);
+          " You should download the latest Elan4 libraries from www.quadrics.com and add them to LD_LIBRARY_PATH.\n",
+          ver); fflush(stderr);
     #endif
   }
 
