@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/04/17 15:44:38 $
- * $Revision: 1.58.2.5 $
+ *     $Date: 2005/04/28 02:08:51 $
+ * $Revision: 1.58.2.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -429,7 +429,8 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
 	break;	/* can't exit since we can be called in exit path */
       } else {
 #if 1 
-        fprintf(stderr, "@ %d> snd comp.status=%d comp.opcode=%d\n", gasneti_mynode, comp.status, comp.opcode);
+        gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp.id;
+        fprintf(stderr, "@ %d> snd comp.status=%d comp.opcode=%d dst_node=%d\n", gasneti_mynode, comp.status, comp.opcode, (int)(sreq->cep - &gasnetc_cep[0]));
         while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
 	  if (comp.status != VAPI_WR_FLUSH_ERR) {
             fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasneti_mynode, comp.status);
