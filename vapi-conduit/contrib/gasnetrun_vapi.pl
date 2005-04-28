@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/contrib/Attic/gasnetrun_vapi.pl,v $
-#     $Date: 2005/04/17 15:44:42 $
-# $Revision: 1.2.2.1 $
+#     $Date: 2005/04/28 02:08:53 $
+# $Revision: 1.2.2.2 $
 # Description: GASNet VAPI spawner
 # Terms of use are as specified in license.txt
 
@@ -83,11 +83,11 @@ sub usage
 	} elsif (m/^-/) {
 	    usage ("unrecognized option '$_'\n");
 	} else {
+	    pop @mpi_args; # pop off program name
 	    last;
 	}
 	shift;
     }
-    pop @mpi_args; # pop off program name
     push @mpi_args, @ARGV;
     $spawner = uc($spawner);
 
@@ -143,7 +143,11 @@ sub usage
         print("gasnetrun: forwarding to mpi-based spawner\n") if ($verbose);
         @ARGV = @mpi_args;
         (my $mpi = $0) =~ s/\.pl$/-mpi.pl/;
-        do $mpi or die "cannot run $mpi\n";
+        die "cannot find $mpi: $!" unless -f $mpi;
+        my $err = do $mpi; # use 'do' to load another perl file (reduce forks, etc)
+        if ($@ || $err) {
+          die "error running $mpi:\n $@ $err\n";
+        }
     } elsif ($spawner eq 'SSH') {
 	my @cmd = grep { defined($_); } ($exename, '-GASNET-SPAWN-master',
 					 $verbose ? '-v' : undef,

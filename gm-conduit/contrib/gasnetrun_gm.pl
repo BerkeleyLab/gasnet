@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/contrib/Attic/gasnetrun_gm.pl,v $
-#     $Date: 2005/04/04 03:32:49 $
-# $Revision: 1.19.2.1 $
+#     $Date: 2005/04/28 02:08:31 $
+# $Revision: 1.19.2.2 $
 #
 # Included here as a contrib/ from the mpich 1.2.5..10 mpirun script,
 # since this is the closest thing myricom ships to a spawner interface.
@@ -47,7 +47,7 @@ $recv_mode = 'polling';
 $exit_code = 0;
 
 # GEXEC configuration, preconfigured for millennium.
-$gm_board_info = "/usr/mill/pkg/gm/bin/gm_board_info";
+$gm_board_info = `which gm_board_info` || "/usr/mill/pkg/gm/bin/gm_board_info";
 $gstat         = $ENV{"GASNET_GSTAT_CMD"} || "/usr/bin/gstat -l1";
 $gexec         = $ENV{"GASNET_GEXEC_CMD"} || "/usr/bin/gexec -p none";
 $extraopts{"gexec"} = "";

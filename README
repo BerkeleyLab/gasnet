@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.44.2.1 $
+$Revision: 1.44.2.2 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -10,6 +10,11 @@ in the conduit directory. For GASNet licensing and usage terms, see license.txt.
 Building and Installing GASNet
 ==============================
 Here are the steps to build GASNet:
+
+* If the full path to your source and/or build directory contains a space
+  character or other special character, things just won't work.  Use a
+  different location.  This is expecially of note to Cygwin users who may
+  have $HOME = "/home/Firstname Lastname".
 
 * ./Bootstrap  
   Runs the autoconf tools to build a configure script (this can be done on any

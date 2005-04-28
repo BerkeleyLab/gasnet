@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_help.h,v $
- * $Date: 2005/04/17 15:43:49 $
- * $Revision: 1.37.2.2 $
+ * $Date: 2005/04/28 02:08:29 $
+ * $Revision: 1.37.2.3 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -281,9 +281,9 @@ BEGIN_EXTERNC
 #define GASNETC_ARGPTR(ptr, addr)	(*((int32_t *)(ptr)) = (int32_t) addr)
 #elif defined(GASNETI_PTR64)
 #define GASNETC_ARGPTR_NUM	2
-#define GASNETC_ARGPTR(ptr, addr)					    \
-	do { (int32_t) *((int32_t *)ptr) = (int32_t) GASNETI_HIWORD(addr);  \
-	     (int32_t) *((int32_t *)ptr+1) = (int32_t) GASNETI_LOWORD(addr);\
+#define GASNETC_ARGPTR(ptr, addr)				    \
+	do { *((int32_t *)(ptr)) = (int32_t) GASNETI_HIWORD(addr);  \
+	     *((int32_t *)(ptr)+1) = (int32_t) GASNETI_LOWORD(addr);\
 	   } while (0)
 #endif
 

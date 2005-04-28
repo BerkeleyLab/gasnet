@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/contrib/Attic/Makefile.am,v $
-#     $Date: 2004/08/26 04:53:38 $
-# $Revision: 1.13 $
+#     $Date: 2005/04/28 02:08:31 $
+# $Revision: 1.13.8.1 $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -22,12 +22,12 @@ $(top_builddir)/other/perlstart: $(top_srcdir)/other/perlstart.in
 $(target): $(top_builddir)/other/perlstart
 all-local: $(builddir)/$(target).pl $(target)
 $(builddir)/$(target).pl: force
-	@if test "`cd $(builddir);@PWD_PROG@`" != "`cd $(srcdir);@PWD_PROG@`"; then \
+	@if test "@BUILD_IS_SRC@" = no; then \
 	    echo cp -f $(srcdir)/$(target).pl $(builddir); \
 	    cp -f $(srcdir)/$(target).pl $(builddir); \
 	 fi
 distclean-local:
-	@if test "`cd $(builddir);@PWD_PROG@`" != "`cd $(srcdir);@PWD_PROG@`"; then \
+	@if test "@BUILD_IS_SRC@" = no; then \
 	    echo rm -f $(builddir)/$(target).pl; \
 	    rm -f $(builddir)/$(target).pl; \
 	 fi

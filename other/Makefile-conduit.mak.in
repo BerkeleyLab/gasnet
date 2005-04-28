@@ -196,7 +196,7 @@ run-testexit: force
 @GNU_NM_TRUE@		    -e ' [\._]*fh_' -e ' [\._]*firehose_'                           \
 @GNU_NM_TRUE@		    -e ' [\._]*fhi_' -e ' [\._]*fhc_' -e ' [\._]*fhsmp_' -e ' [\._]*fhuni_' \
 @GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e debug_info_seg |      \
-@GNU_NM_TRUE@	    @AWK@ ' /^[0-9a-fA-F]+ [[:upper:]]/ { print $$0 }' > .$$lib.exp;        \
+@GNU_NM_TRUE@	    @PERL@ -n -e 'print if /^[0-9a-fA-F]+\s+[A-Z]\s+/' > .$$lib.exp;        \
 @GNU_NM_TRUE@	  if test -s .$$lib.exp ; then                                              \
 @GNU_NM_TRUE@	    cat .$$lib.exp ;                                                        \
 @GNU_NM_TRUE@	    echo FAILED ;                                                           \

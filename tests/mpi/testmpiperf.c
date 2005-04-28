@@ -247,17 +247,17 @@ double pingpongtest(int iters, int msgsz) {
 
   endtime = getMicrosecondTimeStamp();
 
-  if (iamreceiver) { /* last recv must be cancelled (not included in timing) */
-    #if 0
-      MPI_SAFE(MPI_Cancel(&recvMsgHandle));
-    #else
+  /* last recv must be cancelled (not included in timing) */
+  #if 0
+      if (iamreceiver) MPI_SAFE(MPI_Cancel(&recvMsgHandle));
+  #else
       /* apparently some MPI impls don't implement cancel at all.. (grr..) */
-      /* use loopback instead to get the same effect */
-      MPI_SAFE(MPI_Send(sendMsgbuffer, msgsz, MPI_BYTE, rank, mympitag, MPI_COMM_WORLD));
-    #endif
+      /* use an extra send instead to get the same effect */
+      if (iamsender) 
+        MPI_SAFE(MPI_Send(sendMsgbuffer, msgsz, MPI_BYTE, peerid, peermpitag, MPI_COMM_WORLD));
+  #endif
 
-    MPI_SAFE(MPI_Wait(&recvMsgHandle, &status));
-  }
+  if (iamreceiver) MPI_SAFE(MPI_Wait(&recvMsgHandle, &status));
 
   free(sendMsgbuffer);
   free(sendAckbuffer);
@@ -285,6 +285,11 @@ double floodtest(int iters, int msgsz) {
   char *recvbuffer = NULL;
   int *indextmp = malloc(sizeof(int)*queuedepth);
   MPI_Status *statustmp = malloc(sizeof(MPI_Status)*queuedepth);
+
+  if (iters < queuedepth) { 
+    fprintf(stderr, "ERROR: iters must be >= queuedepth\n");
+    abort();
+  }
 
   if (iamsender) {
     int i;

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v $
-#     $Date: 2005/04/17 15:43:49 $
-# $Revision: 1.46.2.3 $
+#     $Date: 2005/04/28 02:08:29 $
+# $Revision: 1.46.2.4 $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -48,7 +48,7 @@ CONDUIT_SOURCELIST =                       \
       $(fh_srcdir)/firehose_hash.c         \
       $(fh_srcdir)/firehose_page.c
 
-if GM_MPI_ENABLE_COMPAT
+if GM_MPI_COMPAT
 # If using MPI for bootstrap then we must compile this object with MPI_CC
 mpi_srcdir = $(top_srcdir)/other/mpi-spawner
 mpi_cflags = -I$(mpi_srcdir)

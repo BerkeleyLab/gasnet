@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/testspawn.c,v $
- *     $Date: 2005/04/04 03:33:15 $
- * $Revision: 1.6.2.1 $
+ *     $Date: 2005/04/28 02:08:47 $
+ * $Revision: 1.6.2.2 $
  * Description: 
  * Copyright 2005, Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -10,6 +10,14 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+
+#define gasneti_bootstrapInit		_CONCAT(gasneti_bootstrapInit_,SPAWNER)
+#define gasneti_bootstrapFini		_CONCAT(gasneti_bootstrapFini_,SPAWNER)
+#define gasneti_bootstrapAbort		_CONCAT(gasneti_bootstrapAbort_,SPAWNER)
+#define gasneti_bootstrapBarrier	_CONCAT(gasneti_bootstrapBarrier_,SPAWNER)
+#define gasneti_bootstrapExchange	_CONCAT(gasneti_bootstrapExchange_,SPAWNER)
+#define gasneti_bootstrapAlltoall	_CONCAT(gasneti_bootstrapAlltoall_,SPAWNER)
+#define gasneti_bootstrapBroadcast	_CONCAT(gasneti_bootstrapBroadcast_,SPAWNER)
 
 int main(int argc, char **argv) {
   gasnet_node_t *array1, *array2;

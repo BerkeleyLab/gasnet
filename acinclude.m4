@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2005/04/17 15:43:43 $
-dnl $Revision: 1.50.2.3 $
+dnl     $Date: 2005/04/28 02:08:27 $
+dnl $Revision: 1.50.2.4 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -260,8 +260,9 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 
   envval_src_[$1]="cached"
   AC_CACHE_VAL(cv_prefix[]envvar_$1, [
-      case "$[$1]" in
-	'') if test "$with_[]lowerscorename" != ""; then
+      case "${[$1]-__NOT_SET__}" in
+	__NOT_SET__) 
+            if test "$with_[]lowerscorename" != ""; then
 	      cv_prefix[]envvar_$1="$with_[]lowerscorename"
 	      envval_src_[$1]=given
 	    else
@@ -307,6 +308,22 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   TOP_BUILDDIR=`${PWD_PROG}`
   AC_MSG_RESULT( TOP_BUILDDIR:   $TOP_BUILDDIR)
   AC_SUBST(TOP_BUILDDIR)
+  dnl check against bug 1083 (spaces in directory name break things)
+  if `echo $TOP_SRCDIR | grep ' ' >/dev/null 2>/dev/null`; then
+    AC_MSG_ERROR(TOP_SRCDIR contains space characters - please unpack the source in a different directory.)
+  fi
+  if `echo $TOP_BUILDDIR | grep ' ' >/dev/null 2>/dev/null`; then
+    AC_MSG_ERROR(TOP_BUILDDIR contains space characters - please build in a different directory.)
+  fi
+  dnl set AM_CONDITIONAL BUILD_IS_SRC for ease of use in generated Makefiles
+  AM_CONDITIONAL(BUILD_IS_SRC, test "$TOP_BUILDDIR" = "$TOP_SRCDIR")
+  dnl set AC_SUBST variable BUILD_IS_SRC for ease of use in generated scripts
+  if test "$TOP_BUILDDIR" = "$TOP_SRCDIR"; then
+    BUILD_IS_SRC=yes
+  else
+    BUILD_IS_SRC=no
+  fi
+  AC_SUBST(BUILD_IS_SRC)
   SYSTEM_NAME="`hostname`"
   AC_SUBST(SYSTEM_NAME)
   SYSTEM_TUPLE="$host"

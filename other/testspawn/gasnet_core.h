@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/gasnet_core.h,v $
- *     $Date: 2005/04/04 03:33:15 $
- * $Revision: 1.2.2.1 $
+ *     $Date: 2005/04/28 02:08:47 $
+ * $Revision: 1.2.2.2 $
  * Description:
  * Copyright 2005, Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -29,8 +29,6 @@
 #define GASNET_BLOCKUNTIL(cond)		gasneti_polluntil(cond)
 #define gasnet_hold_interrupts()	do {} while (0)
 #define gasnet_resume_interrupts()	do {} while (0)
-#define gasnet_nodes()			gasneti_nodes
-#define gasnet_mynode()			gasneti_mynode
 #define gasnet_AMMaxArgs()		16
 #define gasnet_AMMaxMedium()		512
 #define gasnet_AMMaxLongRequest()	512

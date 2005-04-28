@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2005/04/17 15:44:32 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2005/04/28 02:08:49 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -60,20 +60,25 @@ gasnet_handlerentry_t htable[] = {
   { hidx_ping_longhandler,   ping_longhandler   }
 };
 
-int main(int argc, char **argv) {
-    int iters = 0;
-    int arg;
-    void *myseg;
-    void *alloc;
-    int firstlastmode = 0;
-    int fullduplexmode = 0;
-    int help = 0;   
-    int do_puts = 0, do_gets = 0, do_amshort = 0, do_ammedium = 0, do_amlong = 0;
-    int numflavors = 0;
-    int numsync = 0;
-    int do_bulk = 0, do_nonbulk = 0;
-    int do_implicit = 0, do_explicit = 0, do_blocking = 0;
+int iters = 0;
+int arg;
+void *myseg;
+void *alloc;
+int firstlastmode = 0;
+int fullduplexmode = 0;
+int help = 0;   
+int do_puts = 0, do_gets = 0, do_amshort = 0, do_ammedium = 0, do_amlong = 0;
+int numflavors = 0;
+int numsync = 0;
+int do_bulk = 0, do_nonbulk = 0;
+int do_implicit = 0, do_explicit = 0, do_blocking = 0;
 
+void do_bulkputgets();
+void do_nonbulkputgets();
+void do_blockingputgets();
+void do_amtests();
+
+int main(int argc, char **argv) {
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
 
@@ -251,6 +256,23 @@ int main(int argc, char **argv) {
 
     handles = (gasnet_handle_t *) test_malloc(sizeof(gasnet_handle_t) * maxdepth);
 
+    do_bulkputgets();
+    do_nonbulkputgets();
+    do_blockingputgets();
+    do_amtests();
+
+    BARRIER();
+    test_free(handles);
+    if (!insegment) {
+	test_free(alloc);
+    }
+
+    gasnet_exit(0);
+
+    return 0;
+
+}
+
     #define QUEUE_TEST(OPDESC, OP, SYNC, RECVRSYNC, PAYLOAD_LIMIT) do {     \
       int depth, payload, last_payload;                                     \
       BARRIER();                                                            \
@@ -331,6 +353,7 @@ int main(int argc, char **argv) {
       }                                                                     \
     } while (0)
 
+void do_bulkputgets() {
     if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gasnet_put_nb_bulk", 
                  handles[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, payload), 
@@ -354,7 +377,8 @@ int main(int argc, char **argv) {
                  gasnet_get_nbi_bulk(msgbuf, peerproc, tgtmem, payload), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
-
+}
+void do_nonbulkputgets() {
     if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gasnet_put_nb", 
                  handles[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, payload), 
@@ -378,7 +402,8 @@ int main(int argc, char **argv) {
                  gasnet_get_nbi(msgbuf, peerproc, tgtmem, payload), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
-
+}
+void do_blockingputgets() {
     if (do_puts && do_nonbulk && do_blocking) {
       QUEUE_TEST("gasnet_put (BLOCKING - represents round-trip latency)", 
                  gasnet_put(peerproc, tgtmem, msgbuf, payload), 
@@ -402,7 +427,8 @@ int main(int argc, char **argv) {
                  gasnet_get_bulk(msgbuf, peerproc, tgtmem, payload), 
                  (void)0, (void)0, 0);
     }
-
+}
+void do_amtests() {
     if (do_amshort) {
       gasnett_atomic_set(&amcount, 0);
       QUEUE_TEST("gasnet_AMRequestShort0", 
@@ -432,18 +458,8 @@ int main(int argc, char **argv) {
                   gasnett_atomic_set(&amcount, 0); }, 
                  gasnet_AMMaxLongRequest());
     }
-
-    BARRIER();
-    test_free(handles);
-    if (!insegment) {
-	test_free(alloc);
-    }
-
-    gasnet_exit(0);
-
-    return 0;
-
 }
+
 
 
 /* ------------------------------------------------------------------------------------ */

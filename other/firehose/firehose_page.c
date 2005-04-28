@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_page.c,v $
- *     $Date: 2004/10/06 09:25:26 $
- * $Revision: 1.38 $
+ *     $Date: 2005/04/28 02:08:43 $
+ * $Revision: 1.38.2.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -541,7 +541,7 @@ firehose_get_params(uintptr_t max_pinnable_memory,
      * Validate firehose parameters parameters 
      */ 
     {
-        uintptr_t M_min = FH_BUCKET_SIZE * gasnet_nodes() * 1024;
+        uintptr_t M_min = FH_BUCKET_SIZE * gasnet_nodes() * 32;
         uintptr_t maxvictim_min = FH_BUCKET_SIZE * 4096;
 
         if_pf (nM < M_min)

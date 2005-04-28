@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
-#     $Date: 2005/04/11 04:22:37 $
-# $Revision: 1.10.8.2 $
+#     $Date: 2005/04/28 02:08:27 $
+# $Revision: 1.10.8.3 $
 # Description: GASNet developer Bootstrap script
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -83,14 +83,22 @@ set -x
 (
     autoconf
 
+    # Perform some postprocessing to fix bugs in the configure script:
+    # 1) caching:
     # Our configure script requires caching, and autoconf 2.5 stupidly disables
-    # caching by default. Caching may open some dangers of stale values, but 
-    # the alternative is worse - automake reconfiguring in the absence of 
-    # precious environment variables leads to silent incorrect behavior that 
+    # caching by default. Caching may open some dangers of stale values, but
+    # the alternative is worse - automake reconfiguring in the absence of
+    # precious environment variables leads to silent incorrect behavior that
     # can't be detected or fixed because there's no cache!
     # Restore ./config.cache as the default cache
+    # 2) recursive configure:
+    # When $top_builddir contains a space, the configure script tries to cd
+    # back to $top_builddir w/o quoting it.
+    # Add quotes around the offending command.
     mv configure .configure-orig
-    sed 's/^cache_file=\/dev\/null$/cache_file=.\/config.cache/' .configure-orig > configure
+    sed -e 's/^cache_file=\/dev\/null$/cache_file=.\/config.cache/' \
+        -e 's/cd $ac_popdir/cd "$ac_popdir"/' \
+        .configure-orig > configure
     chmod +x configure
     rm -f .configure-orig
     

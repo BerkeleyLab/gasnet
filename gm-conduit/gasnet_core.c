@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2005/04/17 15:43:49 $
- * $Revision: 1.75.2.3 $
+ * $Date: 2005/04/28 02:08:29 $
+ * $Revision: 1.75.2.4 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -2852,16 +2852,28 @@ gasnetc_getPhysMem()
 {
 	FILE		*fp;
 	char		line[128];
+	int		found = 0;
 	unsigned long	mem = 0;
 
 	if ((fp = fopen("/proc/meminfo", "r")) == NULL)
 		gasneti_fatalerror("Can't open /proc/meminfo");
 
 	while (fgets(line, 128, fp)) {
-		if (sscanf(line, "Mem: %lu", &mem) > 0)
+		/* MemTotal: on 2.4 and 2.6 kernels */
+		if (sscanf(line, "MemTotal: %lu kB", &mem) > 0) {
+			mem *= 1024;
+			found++;
 			break;
+		}
+		/* Mem: only on 2.4 kernels */
+		else if (sscanf(line, "Mem: %lu", &mem) > 0) {
+			found++;
+			break;
+		}
 	}
 	fclose(fp);
+	if (!found)
+	    gasneti_fatalerror("Cannot find physical memory size from /proc/meminfo");
 	return (uintptr_t) mem;
 }
 #elif defined(FREEBSD)
