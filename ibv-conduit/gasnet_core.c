@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2005/04/17 15:44:38 $
- * $Revision: 1.61.2.3 $
+ *     $Date: 2005/04/28 02:08:51 $
+ * $Revision: 1.61.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -220,6 +220,10 @@ static unsigned long gasnetc_get_physpages()
   }
 
   while (fgets(line, _BUFSZ, fp)) {
+    if (sscanf(line, "MemTotal: %lu kB", &mem) > 0) {
+      mem *= 1024;
+      break;
+    }
     if (sscanf(line, "Mem: %lu", &mem) > 0) {
       break;
     }
@@ -249,8 +253,11 @@ static unsigned long gasnetc_get_physpages()
 /* Some stuff not exported from gasnet_mmap.c: */
 extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
 
-/* Search for largest region we can allocate and pin */
-static uintptr_t gasnetc_get_max_pinnable(void) {
+/* Search for largest region we can allocate and pin.
+ * If "fake_it" is non-zero we do just the mmap search to
+ * ensure compatible VM spaces, but return (uintptr_t)(~0)
+ */
+static uintptr_t gasnetc_get_max_pinnable(int fake_it) {
   gasnet_seginfo_t si;
   uintptr_t lo, hi;
   uintptr_t size;
@@ -298,6 +305,12 @@ static uintptr_t gasnetc_get_max_pinnable(void) {
   if (hi < GASNETI_MMAP_GRANULARITY) {
     gasneti_munmap(si.addr, si.size);
     gasneti_fatalerror("Found the maximum pinnable memory to be less than %lu", (unsigned long)GASNETI_MMAP_GRANULARITY);
+  }
+
+  if (fake_it) {
+    /* We only wanted the mmap search portion */
+    gasneti_munmap(si.addr, si.size);
+    return (uintptr_t)(~0ULL);
   }
 
 #if 0 /* Binary search */
@@ -862,11 +875,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(first_local != gasneti_nodes);
 
     /* Query the pinning limits of the HCA */
-    if (first_local == gasneti_mynode) {
-      gasnetc_pin_info.memory  = GASNETI_ALIGNDOWN(gasnetc_get_max_pinnable() / num_local, GASNET_PAGESIZE);
-    } else {
-      gasnetc_pin_info.memory  = (uintptr_t)(-1);
-    }
+    gasnetc_pin_info.memory  = gasnetc_get_max_pinnable(gasneti_mynode != first_local);
     gasnetc_pin_info.regions = gasnetc_hca_cap.max_num_mr;
 
     /* Find the local min-of-maxes over the pinning limits */
