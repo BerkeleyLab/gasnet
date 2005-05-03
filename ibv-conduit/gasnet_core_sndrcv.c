@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/05/03 21:36:12 $
- * $Revision: 1.100 $
+ *     $Date: 2005/05/03 23:25:12 $
+ * $Revision: 1.100.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -99,18 +99,22 @@ typedef struct {
     } fh;
     struct { /* Bounce buffer data */
       gasnetc_buffer_t		*bb_buff;
+      const firehose_request_t	*bb_fh;
       void			*bb_addr;	/* local address for bounced GETs */
       size_t			bb_len;		/* length for bounced GETs */
     } bb;
     struct { /* AM buffer */
       gasnetc_buffer_t		*am_buff;
+      const firehose_request_t	*am_fh;
     } am;
   } u;
   #define fh_ptr	u.fh.fh_ptr
   #define bb_buff	u.bb.bb_buff
+  #define bb_fh		u.bb.bb_fh
   #define bb_addr	u.bb.bb_addr
   #define bb_len	u.bb.bb_len
   #define am_buff	u.am.am_buff
+  #define am_fh		u.am.am_fh
 #else
   /* Firehose, and AMs are mutually exclusive.
    * + AMs are distingished by an opcode of SEND_WITH_IMM.
@@ -129,6 +133,7 @@ typedef struct {
     } fh;
     struct { /* AM buffer */
       gasnetc_buffer_t		*am_buff;
+      const firehose_request_t	*am_fh;
     } am;
   } u;
   #define fh_count	u.fh.fh_count
@@ -140,6 +145,7 @@ typedef struct {
   #define fh_ready	u.fh.fh_ready
   #define fh_oust	u.fh.fh_oust
   #define am_buff	u.am.am_buff
+  #define am_fh		u.am.am_fh
 #endif
 } gasnetc_sreq_t;
 
@@ -365,6 +371,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
 	      if (GASNETC_ANY_PAR || sreq->req_oust) {
                 gasnetc_counter_dec(sreq->req_oust);
 	      }
+	      //XXX: firehose_release(&sreq->bb_fh, 1);
 	      gasneti_freelist_put(&gasnetc_bbuf_freelist, sreq->bb_buff);
 	    } else
 	    #endif
@@ -395,6 +402,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
 	    if_pf (sreq->fh_count < 0) {
 	      /* Bounce buffer PUT */
 	      gasneti_assert(sreq->bb_buff != NULL);
+	      //XXX: firehose_release(&sreq->bb_fh, 1);
 	      gasneti_freelist_put(&gasnetc_bbuf_freelist, sreq->bb_buff);
 	    } else
 	    #endif
@@ -410,6 +418,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
               gasnetc_counter_dec(sreq->req_oust);
 	    }
 	    if_pf (sreq->am_buff != NULL) {
+	      //XXX: firehose_release(&sreq->am_fh, 1);
 	      gasneti_freelist_put(&gasnetc_bbuf_freelist, sreq->am_buff);
 	    }
 	    break;
