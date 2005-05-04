@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/05/04 01:22:03 $
- * $Revision: 1.100.2.2 $
+ *     $Date: 2005/05/04 01:58:46 $
+ * $Revision: 1.100.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -31,9 +31,6 @@
  *  Global variables                                                                    *
  * ------------------------------------------------------------------------------------ */
 gasnetc_memreg_t                        gasnetc_rcv_reg;
-#if QQQ
-gasnetc_memreg_t			gasnetc_snd_reg;
-#endif
 VAPI_cq_hndl_t                          gasnetc_rcv_cq;
 VAPI_cq_hndl_t				gasnetc_snd_cq;
 size_t					gasnetc_fh_maxsz;
@@ -1177,11 +1174,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     sr_desc->sg_lst_len = 1;
     sr_desc->sg_lst_p[0].addr      = (uintptr_t)buf;
     sr_desc->sg_lst_p[0].len       = msg_len;
-#if QQQ
-    sr_desc->sg_lst_p[0].lkey      = gasnetc_snd_reg.lkey;
-#else
-    sr_desc->sg_lst_p[0].lkey      = sreq->am_fhptr->client.lkey;
-#endif
 
     sreq->cep = &gasnetc_cep[dest];
     if_pf (req_oust) {
@@ -1192,6 +1184,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     if_pt (sreq->am_buff == NULL) {
       gasnetc_snd_post_inline(sreq, sr_desc);
     } else {
+      sr_desc->sg_lst_p[0].lkey = sreq->am_fhptr->client.lkey;
       gasnetc_snd_post(sreq, sr_desc);
     }
 
@@ -1358,11 +1351,7 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
     sr_desc->sg_lst_len  = 1;
     sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->bb_buff;
     sr_desc->sg_lst_p[0].len  = GASNETC_BUFSZ;
-#if QQQ
-    sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
-#else
     sr_desc->sg_lst_p[0].lkey = sreq->bb_fhptr->client.lkey;
-#endif
 
     gasnetc_snd_post(sreq, sr_desc);
 
@@ -1390,11 +1379,7 @@ static void gasnetc_do_put_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   sr_desc->sg_lst_len  = 1;
   sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->bb_buff;
   sr_desc->sg_lst_p[0].len  = nbytes;
-#if QQQ
-  sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
-#else
   sr_desc->sg_lst_p[0].lkey = sreq->bb_fhptr->client.lkey;
-#endif
 
   gasnetc_snd_post(sreq, sr_desc);
 }
@@ -1490,11 +1475,7 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
     sr_desc->sg_lst_len  = 1;
     sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->bb_buff;
     sr_desc->sg_lst_p[0].len  = GASNETC_BUFSZ;
-#if QQQ
-    sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
-#else
     sr_desc->sg_lst_p[0].lkey = sreq->bb_fhptr->client.lkey;
-#endif
 
     gasnetc_snd_post(sreq, sr_desc);
 
@@ -1521,11 +1502,7 @@ static void gasnetc_do_get_bounce(gasnetc_cep_t *cep, VAPI_rkey_t rkey,
   sr_desc->sg_lst_len  = 1;
   sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->bb_buff;
   sr_desc->sg_lst_p[0].len  = nbytes;
-#if QQQ
-  sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
-#else
   sr_desc->sg_lst_p[0].lkey = sreq->bb_fhptr->client.lkey;
-#endif
 
   gasnetc_snd_post(sreq, sr_desc);
 }
@@ -1635,11 +1612,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq, const firehose_request_t *
     sr_desc->sg_lst_len  = 1;
     sr_desc->sg_lst_p[0].addr = (uintptr_t)sreq->fh_bbuf;
     sr_desc->sg_lst_p[0].len  = GASNETC_BUFSZ;
-#if QQQ
-    sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
-#else
     sr_desc->sg_lst_p[0].lkey = sreq->fh_ptr[0]->client.lkey;
-#endif
 
     gasnetc_snd_post(sreq, sr_desc);
 
@@ -1665,11 +1638,7 @@ void gasnetc_fh_put_bounce(gasnetc_sreq_t *orig_sreq, const firehose_request_t *
   sr_desc->r_key       = rkey;
   sr_desc->sg_lst_p[0].addr = (uintptr_t)orig_sreq->fh_bbuf;
   sr_desc->sg_lst_p[0].len  = nbytes;
-#if QQQ
-  sr_desc->sg_lst_p[0].lkey = gasnetc_snd_reg.lkey;
-#else
   sr_desc->sg_lst_p[0].lkey = orig_sreq->fh_ptr[1]->client.lkey;
-#endif
 
   gasnetc_snd_post(orig_sreq, sr_desc);
 }
@@ -2008,12 +1977,7 @@ extern int gasnetc_sndrcv_init(void) {
   gasneti_assert(act_size >= gasnetc_op_oust_limit);
 
   /* Allocated pinned memory for AMs and bounce buffers */
-#if QQQ
-  buf = gasnetc_alloc_pinned(gasnetc_bbuf_limit * sizeof(gasnetc_buffer_t),
-			     VAPI_EN_LOCAL_WRITE, &gasnetc_snd_reg);
-#else
   buf = gasneti_mmap(gasnetc_bbuf_limit * sizeof(gasnetc_buffer_t));
-#endif
   if_pf (buf == NULL) {
     if (gasneti_nodes > 1) {
       if (gasnetc_use_rcv_thread) {
@@ -2077,10 +2041,6 @@ extern void gasnetc_sndrcv_fini(void) {
     gasnetc_free_pinned(&gasnetc_rcv_reg);
     gasneti_free(gasnetc_rbuf_alloc);
 
-#if QQQ
-    gasnetc_free_pinned(&gasnetc_snd_reg);
-#endif
-    
     /* XXX: can only free the "big" piece here.
      * So we leak any singletons we may have allocated
      */

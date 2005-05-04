@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/05/04 01:22:03 $
- * $Revision: 1.98.2.1 $
+ *     $Date: 2005/05/04 01:58:46 $
+ * $Revision: 1.98.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1180,16 +1180,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     firehose_region_t prereg[2];
 
     /* Setup prepinned regions list */
-#if QQQ
-    prereg[0].addr          = gasnetc_snd_reg.addr;
-    prereg[0].len           = gasnetc_snd_reg.len;
-    prereg[0].client.handle = VAPI_INVAL_HNDL;	/* unreg must fail */
-    prereg[0].client.lkey   = gasnetc_snd_reg.lkey;
-    prereg[0].client.rkey   = gasnetc_snd_reg.rkey;
-    reg_count = 1;
-#else
     reg_count = 0;
-#endif
     if (gasneti_nodes > 1) {
 	prereg[reg_count].addr          = gasnetc_rcv_reg.addr;
 	prereg[reg_count].len           = gasnetc_rcv_reg.len;
