@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2005/05/02 20:43:11 $
- * $Revision: 1.79 $
+ *     $Date: 2005/05/06 01:22:28 $
+ * $Revision: 1.79.4.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -198,6 +198,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
  * amount of memory we will pin. */
 #ifndef GASNETC_HONOR_RLIMIT_MEMLOCK
   #define GASNETC_HONOR_RLIMIT_MEMLOCK 0
+#endif
+
+/* Number of qps to stripe over */
+#ifndef GASNETC_CEPS
+  #define GASNETC_CEPS 2
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -501,22 +506,26 @@ void *gasneti_freelist_next(void *elem) {
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Structure for a cep (connection end-point)
- * Include whatever per-node data we need.
- */
+/* Structure for a cep (connection end-point) */
 typedef struct {
   gasnetc_sema_t	sq_sema;	/* control in-flight RDMA ops (send queue slots) */
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
+} gasnetc_cep_t;
+
+/* Structure for a peer */
+typedef struct {
   #if GASNETC_PIN_SEGMENT
     /* Bounds and RKey(s) for the segment, registered at attach time */
     uintptr_t		end;	/* Cached inclusive ending address of the remote segment */
     VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
-    char		_pad[GASNETC_CACHE_PAD(2*sizeof(gasnetc_sema_t)+sizeof(VAPI_qp_hndl_t)+sizeof(uintptr_t)+sizeof(void*))];
+    char		_pad[GASNETC_CACHE_PAD(GASNETC_CEPS*sizeof(gasnetc_cep_t)+sizeof(uintptr_t)+sizeof(void*))];
   #else
-    char		_pad[GASNETC_CACHE_PAD(2*sizeof(gasnetc_sema_t)+sizeof(VAPI_qp_hndl_t))];
+    char		_pad[GASNETC_CACHE_PAD(GASNETC_CEPS*sizeof(gasnetc_cep_t))];
   #endif
-} gasnetc_cep_t;
+} gasnetc_peer_t;
+
+#define GASNETC_CEP(I,J) &(gasnetc_cep[GASNETC_CEPS*(I)+(J)])
 
 /* Description of a pre-pinned memory region */
 typedef struct {
@@ -535,8 +544,8 @@ typedef struct {
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
-extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep);
-extern void gasnetc_sndrcv_fini_cep(gasnetc_cep_t *cep);
+extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
+extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_poll(void);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
@@ -565,6 +574,7 @@ extern int		gasnetc_use_firehose;
 
 /* Global variables */
 extern gasnetc_cep_t	*gasnetc_cep;
+extern gasnetc_peer_t	*gasnetc_peer;
 extern VAPI_hca_hndl_t	gasnetc_hca;
 extern VAPI_hca_cap_t	gasnetc_hca_cap;
 extern VAPI_hca_port_t	gasnetc_hca_port;
