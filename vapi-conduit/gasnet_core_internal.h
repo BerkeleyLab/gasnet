@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/05/06 01:22:28 $
- * $Revision: 1.79.4.1 $
+ *     $Date: 2005/05/06 05:30:29 $
+ * $Revision: 1.79.4.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -515,17 +515,16 @@ typedef struct {
 
 /* Structure for a peer */
 typedef struct {
+  gasnetc_cep_t		*cep;
   #if GASNETC_PIN_SEGMENT
     /* Bounds and RKey(s) for the segment, registered at attach time */
     uintptr_t		end;	/* Cached inclusive ending address of the remote segment */
     VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
-    char		_pad[GASNETC_CACHE_PAD(GASNETC_CEPS*sizeof(gasnetc_cep_t)+sizeof(uintptr_t)+sizeof(void*))];
+    char		_pad[GASNETC_CACHE_PAD(sizeof(gasnetc_cep_t *)+sizeof(uintptr_t)+sizeof(void*))];
   #else
-    char		_pad[GASNETC_CACHE_PAD(GASNETC_CEPS*sizeof(gasnetc_cep_t))];
+    char		_pad[GASNETC_CACHE_PAD(sizeof(gasnetc_cep_t *))];
   #endif
 } gasnetc_peer_t;
-
-#define GASNETC_CEP(I,J) &(gasnetc_cep[GASNETC_CEPS*(I)+(J)])
 
 /* Description of a pre-pinned memory region */
 typedef struct {
