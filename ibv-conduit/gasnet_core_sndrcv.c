@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/05/03 21:36:12 $
- * $Revision: 1.100 $
+ *     $Date: 2005/05/06 01:22:28 $
+ * $Revision: 1.100.4.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -240,7 +240,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   gasneti_assert(rbuf);
 
   /* check for attempted loopback traffic */
-  gasneti_assert(cep != &gasnetc_cep[gasneti_mynode]);
+  gasneti_assert((cep - gasnetc_cep)/GASNETC_CEPS != gasneti_mynode);
   
   vstat = VAPI_post_rr(gasnetc_hca, cep->qp_handle, &rbuf->rr_desc);
 
@@ -431,7 +431,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
       } else {
 #if 1 
         gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp.id;
-        fprintf(stderr, "@ %d> snd comp.status=%d comp.opcode=%d dst_node=%d\n", gasneti_mynode, comp.status, comp.opcode, (int)(sreq->cep - &gasnetc_cep[0]));
+        fprintf(stderr, "@ %d> snd comp.status=%d comp.opcode=%d dst_node=%d dst_qp=%d\n", gasneti_mynode, comp.status, comp.opcode, (int)(sreq->cep - gasnetc_cep)/GASNETC_CEPS, (int)(sreq->cep - gasnetc_cep)%GASNETC_CEPS);
         while((vstat = VAPI_poll_cq(gasnetc_hca, gasnetc_rcv_cq, &comp)) == VAPI_OK) {
 	  if (comp.status != VAPI_WR_FLUSH_ERR) {
             fprintf(stderr, "@ %d> - rcv comp.status=%d\n", gasneti_mynode, comp.status);
@@ -466,7 +466,7 @@ void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t emergency_spare;
   gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp->id;
   uint32_t flags = comp->imm_data;
-  gasnetc_cep_t *cep = &gasnetc_cep[GASNETC_MSG_SRCIDX(flags)];
+  gasnetc_cep_t *cep = GASNETC_CEP(GASNETC_MSG_SRCIDX(flags), 0);
   gasnetc_rbuf_t *spare;
 
   if (GASNETC_MSG_ISREPLY(flags)) {
@@ -680,7 +680,7 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc, int cou
 
   gasneti_assert(sreq);
   gasneti_assert(sreq->cep);
-  gasneti_assert(sreq->cep != &gasnetc_cep[gasneti_mynode]); /* detects loopback */
+  gasneti_assert((sreq->cep - gasnetc_cep)/GASNETC_CEPS != gasneti_mynode); /* detects loopback */
   gasneti_assert(sr_desc);
   gasneti_assert(sr_desc->sg_lst_len >= 1);
   gasneti_assert(sr_desc->sg_lst_len <= GASNETC_SND_SG);
@@ -1060,7 +1060,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
    * while spinning on the rcv queue waiting for credits.
    */
   if (!token && (dest != gasneti_mynode)) {
-    gasnetc_cep_t *cep = &gasnetc_cep[dest];
+    gasnetc_cep_t *cep = GASNETC_CEP(dest, 0);
     GASNETC_STAT_EVENT(GET_AMREQ_CREDIT);
 
     /* Get the p2p credit needed */
@@ -1164,7 +1164,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     sr_desc->sg_lst_p[0].len       = msg_len;
     sr_desc->sg_lst_p[0].lkey      = gasnetc_snd_reg.lkey;
 
-    sreq->cep = &gasnetc_cep[dest];
+    sreq->cep = GASNETC_CEP(dest, 0);
     if_pf (req_oust) {
       gasnetc_counter_inc(req_oust);
       sreq->req_oust = req_oust;
@@ -1261,20 +1261,20 @@ size_t gasnetc_get_lkey(uintptr_t start, size_t len, gasnetc_sreq_t *sreq, VAPI_
 
 /* Relies on GASNET_ALIGNED_SEGMENTS to use a single global segment base here */
 GASNET_INLINE_MODIFIER(gasnetc_get_rkey)
-void gasnetc_get_rkey(gasnetc_cep_t *cep, uintptr_t start, size_t *len_p, VAPI_rkey_t *rkey) {
+void gasnetc_get_rkey(gasnetc_peer_t *peer, uintptr_t start, size_t *len_p, VAPI_rkey_t *rkey) {
   size_t len = *len_p;
   uintptr_t end = start + (len - 1);
   uintptr_t tmp;
   int i;
 
   gasneti_assert(start >= gasnetc_seg_start);
-  gasneti_assert(end <= cep->end);
+  gasneti_assert(end <= peer->end);
 
   i = (start - gasnetc_seg_start) >> gasnetc_pin_maxsz_shift;
   gasneti_assert(i >= 0);
   gasneti_assert(i < gasnetc_seg_reg_count);
 
-  *rkey = cep->rkeys[i];
+  *rkey = peer->rkeys[i];
 
   /* if in last region might still run past end, but that should be caught elsewhere */
   tmp = (gasnetc_seg_start - 1) + ((i+1) << gasnetc_pin_maxsz_shift);
@@ -2000,11 +2000,13 @@ extern int gasnetc_sndrcv_init(void) {
   return GASNET_OK;
 }
 
-extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
+extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
   int i;
   
-  if (cep != &gasnetc_cep[gasneti_mynode]) {
+  if (node != gasneti_mynode) {
     /* Prepost one for each possible incomming request */
+    gasnetc_cep_t *cep = GASNETC_CEP(node, 0);
+
     for (i = 0; i < gasnetc_am_oust_pp; ++i) {
       gasnetc_rcv_post(cep, gasneti_freelist_get(&gasnetc_rbuf_freelist));
     }
@@ -2013,6 +2015,7 @@ extern void gasnetc_sndrcv_init_cep(gasnetc_cep_t *cep) {
     gasnetc_sema_init(&cep->sq_sema, gasnetc_op_oust_pp);
   } else {
     /* Should never use these for loopback */
+    gasnetc_cep_t *cep = GASNETC_CEP(node, 0);
     gasnetc_sema_init(&cep->am_sema, 0);
     gasnetc_sema_init(&cep->sq_sema, 0);
   }
@@ -2045,12 +2048,16 @@ extern void gasnetc_sndrcv_fini(void) {
   GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_cq(snd_cq)");
 }
 
-extern void gasnetc_sndrcv_fini_cep(gasnetc_cep_t *cep) {
+extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node) {
   VAPI_ret_t vstat;
+  int i;
 
-  if (cep != &gasnetc_cep[gasneti_mynode]) {
-    vstat = VAPI_destroy_qp(gasnetc_hca, cep->qp_handle);
-    GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_qp()");
+  if (node != gasneti_mynode) {
+    for (i = 0; i < GASNETC_CEPS; ++i) {
+      gasnetc_cep_t *cep = GASNETC_CEP(node, i);
+      vstat = VAPI_destroy_qp(gasnetc_hca, cep->qp_handle);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_qp()");
+    }
   }
 }
 
@@ -2088,7 +2095,8 @@ extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_con
  * If firehose is disabled, then bounce buffers are used for unpinned sources.
  */
 extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust) {
-  gasnetc_cep_t *cep = &gasnetc_cep[node];
+  gasnetc_peer_t *peer = &gasnetc_peer[node];
+  gasnetc_cep_t *cep = GASNETC_CEP(node, 0);
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 
@@ -2098,7 +2106,7 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     /* Loop over contiguous pinned regions on remote end */
     size_t count = nbytes;
     VAPI_rkey_t rkey;
-    gasnetc_get_rkey(cep, dst, &count, &rkey);
+    gasnetc_get_rkey(peer, dst, &count, &rkey);
 
     if (count <= gasnetc_inline_limit) {
       /* Use a short-cut for sends that are short enough.
@@ -2137,7 +2145,8 @@ extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbyte
  * If firehose is disabled, then bounce buffers are used for unpinned destinations.
  */
 extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *req_oust) {
-  gasnetc_cep_t *cep = &gasnetc_cep[node];
+  gasnetc_peer_t *peer = &gasnetc_peer[node];
+  gasnetc_cep_t *cep = GASNETC_CEP(node, 0);
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 
@@ -2149,7 +2158,7 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
     size_t count = nbytes;
     VAPI_rkey_t rkey;
 
-    gasnetc_get_rkey(cep, src, &count, &rkey);
+    gasnetc_get_rkey(peer, src, &count, &rkey);
 
     if_pf (!gasnetc_use_firehose && gasnetc_unpinned(dst, &count)) {
       /* Firehose disabled.  Use bounce buffers since dst is out-of-segment */
@@ -2173,7 +2182,7 @@ extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbyte
  */
 /* RDMA put */
 extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust, gasnetc_counter_t *am_oust) {
-  gasnetc_cep_t *cep = &gasnetc_cep[node];
+  gasnetc_cep_t *cep = GASNETC_CEP(node, 0);
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 
@@ -2212,7 +2221,7 @@ extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nb
 
 /* Perform an RDMA get */
 extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *req_oust) {
-  gasnetc_cep_t *cep = &gasnetc_cep[node];
+  gasnetc_cep_t *cep = GASNETC_CEP(node, 0);
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 
