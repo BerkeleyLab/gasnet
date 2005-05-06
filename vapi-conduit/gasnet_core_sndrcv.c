@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/05/06 05:30:29 $
- * $Revision: 1.100.4.2 $
+ *     $Date: 2005/05/06 18:55:00 $
+ * $Revision: 1.100.4.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -163,23 +163,28 @@ static gasnetc_sema_t			gasnetc_cq_sema;
 
 #define gasnetc_epid2node(D)    ((D)&0xffff)
 #define gasnetc_epid2qpi(D)     ((D)>>16)
-#define gasnetc_epid(N,Q)	((N)|((Q)<<16))
+#define gasnetc_epid(N,Q)	((N)|(((Q)+1)<<16))
 
 GASNET_INLINE_MODIFIER(gasnetc_epid2cep)
 gasnetc_cep_t *gasnetc_epid2cep(gasnetc_epid_t epid) {
   int qpi = gasnetc_epid2qpi(epid);
+  int node = gasnetc_epid2node(epid);
   gasnetc_cep_t *result;
 
+#if GASNETC_CEPS > 1
   if_pt (!qpi) {
     /* XXX: add REAL load-balancing here */
     static gasneti_atomic_t cntr = gasneti_atomic_init(0);
     unsigned int index;
     gasneti_atomic_increment(&cntr);
     index = ((unsigned int)gasneti_atomic_read(&cntr)) % GASNETC_CEPS;
-    result = &gasnetc_peer[epid].cep[index];
+    result = &gasnetc_peer[node].cep[index];
   } else {
-    result = &gasnetc_peer[gasnetc_epid2node(epid)].cep[qpi-1];
+    result = &gasnetc_peer[node].cep[qpi-1];
   }
+#else
+  result = gasnetc_peer[node].cep;
+#endif
 
   return result;
 }
@@ -786,20 +791,17 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc, int cou
 
 GASNET_INLINE_MODIFIER(gasnetc_snd_post_common)
 void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc) {
-  gasnetc_sema_t *sq_sema;
-
-  /* Choose the end point to post to */
-  sreq->ep = gasnetc_epid2cep(sreq->epid);
 
   /* Loop until space is available on the SQ for 1 new entry.
    * If we hold the last one then threads sending to the same node will stall. */
-  sq_sema = &sreq->ep->sq_sema;
-  if_pf (!gasnetc_sema_trydown(sq_sema, GASNETC_ANY_PAR)) {
+  sreq->ep = gasnetc_epid2cep(sreq->epid);
+  if_pf (!gasnetc_sema_trydown(&sreq->ep->sq_sema, GASNETC_ANY_PAR)) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
       gasnetc_poll_snd();
-    } while (!gasnetc_sema_trydown(sq_sema, GASNETC_ANY_PAR));
+      sreq->ep = gasnetc_epid2cep(sreq->epid);	/* try new load-balancing assignment */
+    } while (!gasnetc_sema_trydown(&sreq->ep->sq_sema, GASNETC_ANY_PAR));
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
   }
 
@@ -1020,7 +1022,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
   uint32_t flags;
   size_t msg_len;
   int retval, i;
-  gasnetc_epid_t epid = gasnetc_epid(dest, token ? 2 : 1);
+  gasnetc_epid_t epid = gasnetc_epid(dest, token ? (GASNETC_CEPS-1) : 0);
   union {         
     gasnetc_shortmsg_t    shortmsg;
     gasnetc_medmsg_t      medmsg;
@@ -1118,7 +1120,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           } while (rbuf == NULL);
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
         }
-        gasnetc_rcv_post(cep+1, rbuf);
+        gasnetc_rcv_post(cep+(GASNETC_CEPS-1), rbuf);
     }
   }
 
