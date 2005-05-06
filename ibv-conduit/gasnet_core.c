@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2005/05/06 05:30:29 $
- * $Revision: 1.99.2.2 $
+ *     $Date: 2005/05/06 18:55:00 $
+ * $Revision: 1.99.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -508,7 +508,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_addr_t	*local_addr;
   gasnetc_addr_t	*remote_addr;
   VAPI_ret_t		vstat;
-  int			ceps;
+  int			ceps, am_wr_rq;
   int 			i;
 
   /*  check system sanity */
@@ -733,7 +733,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     (void)EVAPI_release_hca_hndl(gasnetc_hca);
     GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds HCA capabilities");
   }
-  if_pf (gasnetc_am_oust_pp > gasnetc_hca_cap.max_qp_ous_wr) {
+  am_wr_rq = (GASNETC_CEPS > 1) ? gasnetc_am_oust_pp : (2 * gasnetc_am_oust_pp);
+  if_pf (am_wr_rq > gasnetc_hca_cap.max_qp_ous_wr) {
     (void)EVAPI_release_hca_hndl(gasnetc_hca);
     GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_PP exceeds HCA capabilities");
   }
@@ -765,7 +766,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     VAPI_qp_init_attr_t	qp_init_attr;
     VAPI_qp_prop_t	qp_prop;
 
-    qp_init_attr.cap.max_oust_wr_rq = gasnetc_am_oust_pp;
+    qp_init_attr.cap.max_oust_wr_rq = am_wr_rq;
     qp_init_attr.cap.max_oust_wr_sq = gasnetc_op_oust_pp;
     qp_init_attr.cap.max_sg_size_rq = 1;
     qp_init_attr.cap.max_sg_size_sq = GASNETC_SND_SG;
@@ -783,7 +784,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       /* create the QP */
       vstat = VAPI_create_qp(gasnetc_hca, &qp_init_attr, &gasnetc_cep[i].qp_handle, &qp_prop);
       GASNETC_VAPI_CHECK(vstat, "from VAPI_create_qp()");
-      gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp);
+      gasneti_assert(qp_prop.cap.max_oust_wr_rq >= am_wr_rq);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
 
       local_addr[i].lid = gasnetc_hca_port.lid;
