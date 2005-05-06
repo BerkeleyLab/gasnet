@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/05/06 05:30:29 $
- * $Revision: 1.79.4.2 $
+ *     $Date: 2005/05/06 20:14:37 $
+ * $Revision: 1.79.4.3 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -202,7 +202,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* Number of qps to stripe over */
 #ifndef GASNETC_CEPS
-  #define GASNETC_CEPS 2
+  #define GASNETC_CEPS 1
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -511,6 +511,8 @@ typedef struct {
   gasnetc_sema_t	sq_sema;	/* control in-flight RDMA ops (send queue slots) */
   gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
   VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
+  gasnetc_epid_t	epid;
+  char			_pad[GASNETC_CACHE_PAD(2*sizeof(gasnetc_sema_t)+sizeof(VAPI_qp_hndl_t)+sizeof(gasnetc_epid_t))];
 } gasnetc_cep_t;
 
 /* Structure for a peer */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2005/05/06 18:55:00 $
- * $Revision: 1.100.4.3 $
+ *     $Date: 2005/05/06 20:14:37 $
+ * $Revision: 1.100.4.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -61,6 +61,9 @@ typedef struct {
       uint32_t              	flags;
     }				am;
   } u;
+
+  /* Field that changes each time the rbuf is reposted */
+  gasnetc_epid_t		epid;
 
   /* Fields fixed for life of the rbuf as it is reused */
   VAPI_rr_desc_t        	rr_desc;        /* recv request descriptor */
@@ -165,28 +168,34 @@ static gasnetc_sema_t			gasnetc_cq_sema;
 #define gasnetc_epid2qpi(D)     ((D)>>16)
 #define gasnetc_epid(N,Q)	((N)|(((Q)+1)<<16))
 
-GASNET_INLINE_MODIFIER(gasnetc_epid2cep)
-gasnetc_cep_t *gasnetc_epid2cep(gasnetc_epid_t epid) {
-  int qpi = gasnetc_epid2qpi(epid);
-  int node = gasnetc_epid2node(epid);
-  gasnetc_cep_t *result;
-
+/* Given an epid return a non-zero qpi */
+GASNET_INLINE_MODIFIER(gasnetc_epid_select_qpi)
+gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_epid_t epid) {
 #if GASNETC_CEPS > 1
+  gasnetc_epid_t qpi = gasnetc_epid2qpi(epid);
   if_pt (!qpi) {
     /* XXX: add REAL load-balancing here */
     static gasneti_atomic_t cntr = gasneti_atomic_init(0);
-    unsigned int index;
     gasneti_atomic_increment(&cntr);
-    index = ((unsigned int)gasneti_atomic_read(&cntr)) % GASNETC_CEPS;
-    result = &gasnetc_peer[node].cep[index];
+    qpi = ((unsigned int)gasneti_atomic_read(&cntr)) % GASNETC_CEPS;
   } else {
-    result = &gasnetc_peer[node].cep[qpi-1];
+    qpi -= 1;
   }
+  return qpi;
 #else
-  result = gasnetc_peer[node].cep;
+  return 0;
 #endif
+}
 
-  return result;
+GASNET_INLINE_MODIFIER(gasnetc_epid_select_cep)
+gasnetc_cep_t *gasnetc_epid_select_cep(gasnetc_epid_t epid) {
+  return &gasnetc_peer[gasnetc_epid2node(epid)].cep[gasnetc_epid_select_qpi(epid)];
+}
+
+GASNET_INLINE_MODIFIER(gasnetc_epid2cep)
+gasnetc_cep_t *gasnetc_epid2cep(gasnetc_epid_t epid) {
+  gasneti_assert(gasnetc_epid2qpi(epid) != 0);
+  return &gasnetc_peer[gasnetc_epid2node(epid)].cep[gasnetc_epid2qpi(epid)-1];
 }
 
 GASNET_INLINE_MODIFIER(gasnetc_sr_desc_init)
@@ -271,6 +280,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   /* check for attempted loopback traffic */
   gasneti_assert((cep - gasnetc_cep)/GASNETC_CEPS != gasneti_mynode);
   
+  rbuf->epid = cep->epid;
   vstat = VAPI_post_rr(gasnetc_hca, cep->qp_handle, &rbuf->rr_desc);
 
   if_pt (vstat == VAPI_OK) {
@@ -374,7 +384,7 @@ static int gasnetc_snd_reap(int limit, gasnetc_sreq_t **head_p, gasnetc_sreq_t *
         gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp.id;
         if_pt (sreq) {
 	  gasnetc_sema_up_n(&sreq->ep->sq_sema, sreq->count);
-          GASNETC_SEMA_CHECK(&sreq->ep->sq_sema, gasnetc_op_oust_pp);
+          GASNETC_SEMA_CHECK(&sreq->ep->sq_sema, gasnetc_op_oust_pp / GASNETC_CEPS);
 	  gasnetc_sema_up(&gasnetc_cq_sema);
           GASNETC_SEMA_CHECK(&gasnetc_cq_sema, gasnetc_op_oust_limit);
 
@@ -495,7 +505,8 @@ void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t emergency_spare;
   gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp->id;
   uint32_t flags = comp->imm_data;
-  gasnetc_cep_t *cep = &gasnetc_peer[GASNETC_MSG_SRCIDX(flags)].cep[0];
+  gasnetc_epid_t epid = rbuf->epid;
+  gasnetc_cep_t *cep = gasnetc_epid2cep(epid);
   gasnetc_rbuf_t *spare;
 
   if (GASNETC_MSG_ISREPLY(flags)) {
@@ -506,7 +517,7 @@ void gasnetc_rcv_am(const VAPI_wc_desc_t *comp, gasnetc_rbuf_t **spare_p) {
 
     /* Process the implicitly received flow control credit */
     gasnetc_sema_up(&cep->am_sema);
-    GASNETC_SEMA_CHECK(&(cep->am_sema), gasnetc_am_oust_pp);
+    GASNETC_SEMA_CHECK(&(cep->am_sema), gasnetc_am_oust_pp / GASNETC_CEPS);
 
     /* Now process the packet */
     gasnetc_processPacket(rbuf, flags);
@@ -794,13 +805,13 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc) {
 
   /* Loop until space is available on the SQ for 1 new entry.
    * If we hold the last one then threads sending to the same node will stall. */
-  sreq->ep = gasnetc_epid2cep(sreq->epid);
+  sreq->ep = gasnetc_epid_select_cep(sreq->epid);
   if_pf (!gasnetc_sema_trydown(&sreq->ep->sq_sema, GASNETC_ANY_PAR)) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
       gasnetc_poll_snd();
-      sreq->ep = gasnetc_epid2cep(sreq->epid);	/* try new load-balancing assignment */
+      sreq->ep = gasnetc_epid_select_cep(sreq->epid);	/* try new load-balancing assignment */
     } while (!gasnetc_sema_trydown(&sreq->ep->sq_sema, GASNETC_ANY_PAR));
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
   }
@@ -1022,7 +1033,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
   uint32_t flags;
   size_t msg_len;
   int retval, i;
-  gasnetc_epid_t epid = gasnetc_epid(dest, token ? (GASNETC_CEPS-1) : 0);
+  gasnetc_epid_t epid;
   union {         
     gasnetc_shortmsg_t    shortmsg;
     gasnetc_medmsg_t      medmsg;
@@ -1030,6 +1041,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     uint8_t		  raw[72];	/* could be gasnetc_inline_limit if we had VLA */
   } tmp_buf;
 
+  /* For a Reply, we must go back via the same qp that the Request came in on.
+   * For a Request, we bind to a qp now to be sure everything goes on one qp.
+   */
+  epid = token ? token->epid : gasnetc_epid(dest, gasnetc_epid_select_qpi(dest));
 
   /* FIRST, figure out msg_len so we know if we can use inline or not.
    * Also, if using firehose then Long requests may need AMs for moves.
@@ -1091,13 +1106,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
    * while spinning on the rcv queue waiting for credits.
    */
   if (!token && (dest != gasneti_mynode)) {
-    gasnetc_cep_t *cep = &gasnetc_peer[dest].cep[0];
+    gasnetc_cep_t *cep = gasnetc_epid2cep(epid);
     GASNETC_STAT_EVENT(GET_AMREQ_CREDIT);
 
     /* Get the p2p credit needed */
     {
-        gasnetc_sema_t *sema = &(cep->am_sema);
-
+	gasnetc_sema_t *sema = &(cep->am_sema);
         if_pf (!gasnetc_sema_trydown(sema, GASNETC_ANY_PAR)) {
           GASNETC_TRACE_WAIT_BEGIN();
           do {
@@ -1120,7 +1134,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           } while (rbuf == NULL);
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
         }
-        gasnetc_rcv_post(cep+(GASNETC_CEPS-1), rbuf);
+        gasnetc_rcv_post(cep, rbuf);
     }
   }
 
@@ -1887,15 +1901,18 @@ extern int gasnetc_sndrcv_init(void) {
   gasnetc_sreq_t	*sreq;
   int 			padded_size, rcv_count, i;
 
+  /* Round down _pp bounds to spread equally over available QPs */
+  gasnetc_op_oust_pp = GASNETC_CEPS * (gasnetc_op_oust_pp / GASNETC_CEPS);
+  gasnetc_am_oust_pp = GASNETC_CEPS * (gasnetc_am_oust_pp / GASNETC_CEPS);
+
   /*
    * Check/compute limits before allocating anything
    */
 
-
   if (gasnetc_op_oust_limit == 0) { /* 0 = automatic limit computation */
     gasnetc_op_oust_limit = gasnetc_hca_cap.max_num_ent_cq;
   }
-  gasnetc_op_oust_limit = MIN(gasnetc_op_oust_limit, GASNETC_CEPS * gasnetc_op_oust_pp * (gasneti_nodes - 1));
+  gasnetc_op_oust_limit = MIN(gasnetc_op_oust_limit, gasnetc_op_oust_pp * (gasneti_nodes - 1));
   GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
   if (gasnetc_op_oust_limit > gasnetc_hca_cap.max_num_ent_cq) {
     GASNETI_RETURN_ERRR(RESOURCE, "GASNET_NETWORKDEPTH_{PP,TOTAL} exceed HCA capabilities");
@@ -2031,24 +2048,26 @@ extern int gasnetc_sndrcv_init(void) {
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
   gasnetc_peer_t *peer = &gasnetc_peer[node];
   gasnetc_cep_t *cep;
-  int i;
+  int i, j;
   
   cep = peer->cep = &(gasnetc_cep[node * GASNETC_CEPS]);
 
   if (node != gasneti_mynode) {
-    /* Prepost one rcv buffer for each possible incomming request */
-    for (i = 0; i < gasnetc_am_oust_pp; ++i) {
-      gasnetc_rcv_post(&cep[0], gasneti_freelist_get(&gasnetc_rbuf_freelist));
-    }
-    gasnetc_sema_init(&cep[0].am_sema, gasnetc_am_oust_pp);
-    
     for (i = 0; i < GASNETC_CEPS; ++i) {
-      gasnetc_sema_init(&cep[i].sq_sema, gasnetc_op_oust_pp);
+      cep[i].epid = gasnetc_epid(node, i);
+
+      /* Prepost one rcv buffer for each possible incomming request */
+      for (j = 0; j < gasnetc_am_oust_pp / GASNETC_CEPS; ++j) {
+        gasnetc_rcv_post(&cep[i], gasneti_freelist_get(&gasnetc_rbuf_freelist));
+      }
+      gasnetc_sema_init(&cep[i].am_sema, gasnetc_am_oust_pp / GASNETC_CEPS);
+      gasnetc_sema_init(&cep[i].sq_sema, gasnetc_op_oust_pp / GASNETC_CEPS);
     }
   } else {
     /* Should never use these for loopback */
-    gasnetc_sema_init(&cep[0].am_sema, 0);
     for (i = 0; i < GASNETC_CEPS; ++i) {
+      cep[i].epid = gasnetc_epid(node, i);
+      gasnetc_sema_init(&cep[i].am_sema, 0);
       gasnetc_sema_init(&cep[i].sq_sema, 0);
     }
   }
