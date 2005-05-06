@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.h,v $
- *     $Date: 2005/04/28 17:43:41 $
- * $Revision: 1.33 $
+ *     $Date: 2005/05/06 05:30:29 $
+ * $Revision: 1.33.4.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -214,17 +214,24 @@ extern int gasnetc_ReplySystem(
   =====================
  */
 
+/*
+ * gasnetc_epid_d is node and qp encoded together
+ * qpi = 0 means wildcard, any other value is the index+1
+ * Thus passing a node (the default) means any qp to that node
+ */
+typedef uint32_t gasnetc_epid_t;
+
 /* RDMA initiation operations */
 #if GASNETC_PIN_SEGMENT
-  extern int gasnetc_rdma_put(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
+  extern int gasnetc_rdma_put(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
 #else
-  extern int gasnetc_rdma_put_fh(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust, gasnetc_counter_t *am_oust);
-  #define gasnetc_rdma_put(node,src_ptr,dst_ptr,nbytes,mem_oust,req_oust) \
-	gasnetc_rdma_put_fh(node,src_ptr,dst_ptr,nbytes,mem_oust,req_oust,NULL)
+  extern int gasnetc_rdma_put_fh(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust, gasnetc_counter_t *am_oust);
+  #define gasnetc_rdma_put(epid,src_ptr,dst_ptr,nbytes,mem_oust,req_oust) \
+	gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,mem_oust,req_oust,NULL)
 #endif
-extern int gasnetc_rdma_get(int node, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *req_oust);
-extern int gasnetc_rdma_putv(int node, size_t srccount, gasnet_memvec_t const srclist[], void *dst_ptr, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
-extern int gasnetc_rdma_getv(int node, void *src_ptr, size_t dstcount, gasnet_memvec_t const dstlist[], gasnetc_counter_t *req_oust);
+extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_counter_t *req_oust);
+extern int gasnetc_rdma_putv(gasnetc_epid_t epid, size_t srccount, gasnet_memvec_t const srclist[], void *dst_ptr, gasnetc_counter_t *mem_oust, gasnetc_counter_t *req_oust);
+extern int gasnetc_rdma_getv(gasnetc_epid_t epid, void *src_ptr, size_t dstcount, gasnet_memvec_t const dstlist[], gasnetc_counter_t *req_oust);
 
 /* ------------------------------------------------------------------------------------ */
 
