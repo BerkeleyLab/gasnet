@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_firehose.c,v $
- *     $Date: 2005/04/02 00:55:56 $
- * $Revision: 1.6 $
+ *     $Date: 2005/06/10 14:55:43 $
+ * $Revision: 1.6.8.1 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -11,6 +11,22 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
+
+#if GASNETI_STATS_OR_TRACE
+  #define GASNETC_TRACE_MR(_event, _verb, _region) do {                  \
+	const firehose_region_t *_reg = (_region);                       \
+	int _pages = (int)(_reg->len/GASNET_PAGESIZE);                   \
+	GASNETI_TRACE_PRINTF(D, ("FIREHOSE_MOVE: " _STRINGIFY(_verb)     \
+				 " %d page(s) at " GASNETI_LADDRFMT,     \
+				 _pages, GASNETI_LADDRSTR(_reg->addr))); \
+	GASNETC_STAT_EVENT_VAL(_event, _pages);                          \
+  } while(0)
+  #define GASNETC_TRACE_PIN(_region)	GASNETC_TRACE_MR(FIREHOSE_PIN, pin, (_region))
+  #define GASNETC_TRACE_UNPIN(_region)	GASNETC_TRACE_MR(FIREHOSE_UNPIN, unpin, (_region))
+#else
+  #define GASNETC_TRACE_PIN(_region) 	((void)0)
+  #define GASNETC_TRACE_UNPIN(_region) 	((void)0)
+#endif
 
 extern int
 firehose_move_callback(gasnet_node_t node,
@@ -33,7 +49,7 @@ firehose_move_callback(gasnet_node_t node,
     if (unpin_num) {
       handles = alloca(unpin_num * sizeof(EVAPI_fmr_hndl_t));
       for (i = 0; i < unpin_num; ++i) {
-	GASNETC_STAT_EVENT_VAL(FIREHOSE_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_TRACE_UNPIN(&unpin_list[i]);
 	handles[i] = unpin_list[i].client.handle;
       }
       vstat = EVAPI_unmap_fmr(gasnetc_hca, unpin_num, handles);
@@ -71,7 +87,7 @@ firehose_move_callback(gasnet_node_t node,
         vstat = EVAPI_map_fmr(gasnetc_hca, region->client.handle, &map,
 			      &(region->client.lkey), &(region->client.rkey));
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_map_fmr");
-	GASNETC_STAT_EVENT_VAL(FIREHOSE_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_TRACE_PIN(&pin_list[i]);
     }
 
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
@@ -109,8 +125,8 @@ firehose_move_callback(gasnet_node_t node,
 				   VAPI_MR_CHANGE_TRANS,
 				   &mr_in, &client->handle, &mr_out);
         GASNETC_VAPI_CHECK(vstat, "from VAPI_reregister_mr");
-	GASNETC_STAT_EVENT_VAL(FIREHOSE_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
-	GASNETC_STAT_EVENT_VAL(FIREHOSE_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
+	GASNETC_TRACE_UNPIN(&unpin_list[i]);
+	GASNETC_TRACE_PIN(&pin_list[i]);
 
 	client->lkey     = mr_out.l_key;
 	client->rkey     = mr_out.r_key;
@@ -128,7 +144,7 @@ firehose_move_callback(gasnet_node_t node,
 
 	    vstat = VAPI_deregister_mr(gasnetc_hca, old_handle);
             GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr");
-	    GASNETC_STAT_EVENT_VAL(FIREHOSE_UNPIN, (int)unpin_list[i].len/GASNET_PAGESIZE);
+	    GASNETC_TRACE_UNPIN(&unpin_list[i]);
         }
     }
     else if (pin_num) {
@@ -145,7 +161,7 @@ firehose_move_callback(gasnet_node_t node,
     
 	    vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &client->handle, &mr_out);
             GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr");
-	    GASNETC_STAT_EVENT_VAL(FIREHOSE_PIN, (int)pin_list[i].len/GASNET_PAGESIZE);
+	    GASNETC_TRACE_PIN(&pin_list[i]);
     
 	    client->lkey     = mr_out.l_key;
 	    client->rkey     = mr_out.r_key;
