@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_help.h,v $
- *     $Date: 2005/03/22 19:19:30 $
- * $Revision: 1.10 $
+ *     $Date: 2005/06/10 14:55:43 $
+ * $Revision: 1.10.8.1 $
  * Description: GASNet vapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,13 @@
 BEGIN_EXTERNC
 
 #include <gasnet_help.h>
+
+#if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
+  #if !defined(PTHREAD_MUTEX_INITIALIZER)
+    #error "Pthread support missing or broken"
+  #endif
+  extern int gasnetc_pthread_create(gasneti_pthread_create_fn_t *, pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
+#endif
 
 #if defined(GASNET_SEGMENT_FAST)
   #define GASNETC_PIN_SEGMENT 1
