@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/05/17 20:42:38 $
- * $Revision: 1.27 $
+ *     $Date: 2005/06/10 14:55:43 $
+ * $Revision: 1.27.2.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,5 +87,10 @@ typedef uint8_t gasnet_handler_t;
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
+
+#if defined(__APPLE__) && defined(__MACH__) && !GASNET_SEQ
+  #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
+	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
+#endif
 
 #endif
