@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/06/01 03:52:52 $
- * $Revision: 1.55 $
+ *     $Date: 2005/06/10 14:55:39 $
+ * $Revision: 1.55.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -955,6 +955,24 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   extern void **gasneti_seginfo_client_ub;
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+/* Bits for conduits which want/need to override pthread_create() */
+#if defined(PTHREAD_MUTEX_INITIALIZER) /* only if pthread.h available */ && !GASNET_SEQ
+  /* gasneti_pthread_create() available on all non-SEQ builds w/ pthreads */
+  typedef int (gasneti_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
+  extern int gasneti_pthread_create(gasneti_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+
+  #if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
+    /* Capture existing defn, which could be another library's override */
+    static int gasneti_pthread_create_system(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
+      return pthread_create(thread,attr,start_routine,arg);
+    }
+    /* Install our override */
+    #undef pthread_create
+    #define pthread_create(thr, attr, fn, arg) \
+        gasneti_pthread_create(&gasneti_pthread_create_system, (thr), (attr), (fn), (arg))
+  #endif
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 END_EXTERNC

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/05/26 20:13:57 $
- * $Revision: 1.113 $
+ *     $Date: 2005/06/10 14:55:43 $
+ * $Revision: 1.113.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2251,4 +2251,130 @@ const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS] = {
   NULL,
 };
   
+/* ------------------------------------------------------------------------------------ */
+
+/* 
+  Pthread_create wrapper:
+  ======================
+  On Darwin we see that if the stacks of pthreads become dynamically pinned,
+  then bad things are happening when they are later unmapped.  To deal with
+  this we are wrapping pthread_create() to provide our own stacks, which will
+  not be unmapped automatically, and additionally we are passing the flag
+  FIREHOSE_INIT_FLAG_UNPIN_ON_FINI to unpin all memory before it gets unmapped.
+  XXX: Eventually we should be able to firehose_local_invalidate() the stacks
+  we create and unmap them rather than leaking them as we do now.
+ */
+
+#if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
+  /* Configuration */
+  #if defined(__APPLE__) && defined(__MACH__)
+    #include <sys/mman.h>	/* For mprotect */
+    #define GASNETC_DEFAULT_PTHREAD_STACKSZ (512*1024)
+    #define GASNETC_PTHREAD_STACK_DIR (-1)
+  #else
+    #error "Override of pthread_create() attempted on unsupported platform"
+  #endif
+
+  struct gasnetc_pthread_args {
+    void			*real_arg;
+    void			*(*real_fn)(void *);
+    void			*stackaddr;	/* exclusive of guard pages */
+    size_t			stacksize;	/* exclusive of guard pages */
+    struct gasnetc_pthread_args	*next;		/* once stacks are unused */
+  };
+
+  static struct {
+    gasneti_mutex_t		lock;
+    struct gasnetc_pthread_args	*list;
+  } gasnetc_pthread_dead_stacks = {GASNETI_MUTEX_INITIALIZER, NULL};
+
+  static void gasnetc_pthread_cleanup_fn(void *arg)
+  {
+    /* Here we form a linked list of the "dead" stacks.
+     * However, we can't reuse them until the threads are join()ed since
+     * the threads are STILL RUNNING (this very function) when linked in.
+     * XXX: Resolve this by overriding pthread_join() and linking there?
+     */
+    struct gasnetc_pthread_args *args = arg;
+
+    gasneti_mutex_lock(&gasnetc_pthread_dead_stacks.lock);
+    args->next = gasnetc_pthread_dead_stacks.list;
+    gasnetc_pthread_dead_stacks.list = args;
+    gasneti_mutex_unlock(&gasnetc_pthread_dead_stacks.lock);
+  }
+
+  static void *gasnetc_pthread_start_fn(void *arg)
+  {
+    struct gasnetc_pthread_args *args = arg;
+    void *retval = NULL;
+
+    pthread_cleanup_push(&gasnetc_pthread_cleanup_fn, arg);
+    retval = (*args->real_fn)(args->real_arg);
+    pthread_cleanup_pop(1);
+
+    return retval;
+  }
+
+  extern int gasnetc_pthread_create(gasneti_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) {
+    pthread_attr_t my_attr = *attr; /* Copy it to maintain 'const' */
+    struct gasnetc_pthread_args *args;
+    size_t stacksize;
+    void *stackaddr;
+
+    /* Get caller's stack size and address */
+    gasneti_assert_zeroret(pthread_attr_getstackaddr(&my_attr, &stackaddr));
+    gasneti_assert_zeroret(pthread_attr_getstacksize(&my_attr, &stacksize));
+
+    /* Use system's default stacksize if caller passed zero */
+    if (!stacksize) {
+      #ifdef GASNETC_DEFAULT_PTHREAD_STACKSZ
+        stacksize = GASNETC_DEFAULT_PTHREAD_STACKSZ;
+      #else
+        pthread_attr_t tmp_attr;
+        pthread_attr_init(&tmp_attr);
+        pthread_attr_getstacksize(&tmp_attr, &stacksize);
+        pthread_attr_destroy(&tmp_attr);
+        if (!stacksize) {
+          gasneti_fatalerror("Failed to determine stack size in gasnetc_pthread_create()");
+        }
+      #endif
+    }
+
+    if (stackaddr) {
+      /* XXX: should we just assume they know what they are doing? */
+      gasneti_fatalerror("gasnetc_pthread_create() does not support caller provided stack address");
+    } else {
+      /* Allocate memory w/ room for guard pages at both ends.
+       * Note that these are not just for debugging/protection.
+       * They also ensure no coalescing with adjacent pinned regions.
+       * XXX: Coalescing doesn't matter yet, since we aren't doing
+       * a firehose_local_invalidate() on them (we leak them instead).
+       */
+      stackaddr = gasneti_mmap(stacksize + 2 * GASNET_PAGESIZE);
+      gasneti_assert_zeroret(mprotect(stackaddr, GASNET_PAGESIZE, PROT_NONE));
+      gasneti_assert_zeroret(mprotect((void *)((uintptr_t)stackaddr + stacksize + GASNET_PAGESIZE), GASNET_PAGESIZE, PROT_NONE));
+      #if (GASNETC_PTHREAD_STACK_DIR < 0)	/* stack grows down */
+        stackaddr = (void *)((uintptr_t)stackaddr + stacksize + GASNET_PAGESIZE);
+      #elif (GASNETC_PTHREAD_STACK_DIR > 0)	/* stack grows up */
+        stackaddr = (void *)((uintptr_t)stackaddr + GASNET_PAGESIZE);
+      #else
+	#error "Don't know which way stacks grow"
+      #endif
+    }
+
+    /* Set stack size/addr */
+    gasneti_assert_zeroret(pthread_attr_setstackaddr(&my_attr, stackaddr));
+    gasneti_assert_zeroret(pthread_attr_setstacksize(&my_attr, stacksize));
+
+    /* Build args structure (leaked by design) */;
+    args = gasneti_malloc(sizeof(*args));
+    args->real_fn = fn;
+    args->real_arg = arg;
+    args->stackaddr = stackaddr;
+    args->stacksize = stacksize;
+    args->next = NULL;
+
+    return (*create_fn)(thread, &my_attr, &gasnetc_pthread_start_fn, args);
+  }
+#endif /* defined(GASNETC_PTHREAD_CREATE_OVERRIDE) */
 /* ------------------------------------------------------------------------------------ */
