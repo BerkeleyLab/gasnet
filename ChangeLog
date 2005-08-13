@@ -1,7 +1,72 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.7 $
+$Revision: 1.7.12.1 $
 
+----------------------------------------------------------------------
+08-15-2005 : Release 1.6
+
+* New conduits added:
+  - shmem-conduit: High-performance conduit using the shmem communication
+    interface on Cray X1 and SGI Altix. May support targetting other shmem 
+    implementations in the future.
+
+* New platform support:
+    - Add cross-compilation support, specifically including the Cray X-1
+    - Experimental support for the Cray XT3 and IBM Blue Gene/L (contact us
+      for details)
+    - Other new ports: Linux/PowerPC, Cray MTA, NetBSD/x86, Linux/Alpha, 
+        FreeBSD/Alpha, HPUX/Itanium, PathScale & Portland Group compilers
+    - Linux 2.6 kernel support for gm, vapi, shmem
+    
+* General performance improvements:
+    - Replace default barrier implementation on gm, vapi, sci, mpi, udp with a 
+      more scalable barrier implementation.
+    - System-wide performance improvements to AM's
+    - Improve the performance and functionality of gasnet_trace
+                          
+* Misc changes:  
+    - Output improvements to gasnet tests
+    - Added MPI performance tests to the GASNet tests for ease of comparison
+    - Many robustness improvements to job spawning on various conduits and systems
+    - New environment variable GASNET_VERBOSEENV turns on global reporting of 
+      all environment variables in use      
+    - Improve the robustness and quality of GASNet's automatic heap corruption detection 
+    - Many, many bug fixes, for both specific conduits and general platform
+      portability. See http://upc-bugs.lbl.gov for complete details.    
+      
+* Myrinet/GM:
+    - gm-conduit now provides interoperability with MPI.
+    - add support for spawning with mpiexec
+    - several robustness and stability improvements
+    
+* InfiniBand/VAPI:
+    - Use firehose to manage local pinning in SEG_FAST, for performance
+    - Add a stand-alone ssh-based spawner, and MPI is no longer 
+      required to build vapi-conduit.
+    - Numerous performance improvements, especially for AM's, non-bulk puts
+      and large put/gets (>128KB)
+    - Improve firehose region efficiency, improving performance on LARGE/EVERYTHING
+    - Add support for striping and multiplexing communication over multiple 
+      queue pairs
+    - Add options for controlling the vapi progress thread
+    
+* IBM SP/LAPI:
+    - Change the default GASNET_LAPI_MODE to POLLING, which vastly 
+      outperforms INTERRUPT on Power4/Federation
+    - Significant performance improvements to barrier
+    
+* Quadrics/ELAN:
+    - Elan4 functionality and tuning work
+    - add support for SLURM spawner
+    - Improve queue depth, allowing more non-blocking put/gets to be posted without stalling
+    
+* CrayX1 & SGI Altix/SHMEM:
+    - Significant performance improvements to AM's
+    - Many correctness fixes to put/gets and AM's
+    
+* Ethernet/UDP:
+    - Improve the performance of loopback AM's
+    
 ----------------------------------------------------------------------
 08-27-2004 : Release 1.4
 

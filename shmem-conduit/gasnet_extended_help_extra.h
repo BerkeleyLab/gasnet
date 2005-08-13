@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_help_extra.h,v $
- *     $Date: 2005/08/02 11:08:24 $
- * $Revision: 1.2 $
+ *     $Date: 2005/08/13 10:55:56 $
+ * $Revision: 1.2.2.1 $
  * Description: GASNet Extended Shmem-specific Header 
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -445,8 +445,7 @@ _gasnete_try_syncnb(gasnet_handle_t handle)
 #define gasnete_try_syncnb(handle)	_gasnete_try_syncnb(handle)
 
 GASNET_INLINE_MODIFIER(_gasnete_try_syncnb_some)
-_gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) 
-{
+int _gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
     int success = 0;
     int empty = 1;
     int doquiet = 0;
@@ -541,7 +540,7 @@ _gasnete_get_nb_val(gasnet_node_t node, void *src,
 	    #ifdef GASNET_DEBUG
 	    gasneti_fatalerror(
 		"VIOLATION: Unsupported size %d in valget", 
-		nbytes);
+		(int)nbytes);
 	    #endif
 	    return (gasnet_valget_handle_t) 0;
 	    break;
