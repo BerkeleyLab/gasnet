@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2005/07/23 01:39:32 $
- * $Revision: 1.30 $
+ *     $Date: 2005/08/15 06:30:51 $
+ * $Revision: 1.30.2.1 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -1767,7 +1767,7 @@ extern void AMUDP_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
   argStr[0] = '\0';
   for (i=0; i < numArgs; i++) {
     char tmp[20];
-    sprintf(tmp, "0x%08x  ", args[i]);
+    sprintf(tmp, "0x%08x  ", (int)args[i]);
     strcat(argStr, tmp);
     }
   { char temp1[80];

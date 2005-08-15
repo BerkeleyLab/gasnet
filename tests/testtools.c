@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2005/06/01 21:54:29 $
- * $Revision: 1.29 $
+ *     $Date: 2005/08/15 06:30:57 $
+ * $Revision: 1.29.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -444,9 +444,9 @@ void * thread_fn(void *arg) {
       THREAD_BARRIER();
       oldval = gasneti_atomic_read(&counter2);
       if (oldval != (NUM_THREADS * iters)) 
-        ERR("failed compare-and-swap test: counter=%i expecting=%i", oldval, (NUM_THREADS * iters));
+        ERR("failed compare-and-swap test: counter=%i expecting=%i", (int)oldval, (int)(NUM_THREADS * iters));
       if (woncnt != iters) 
-        ERR("failed compare-and-swap test: woncnt=%i iters=%i", woncnt, iters);
+        ERR("failed compare-and-swap test: woncnt=%i iters=%i", (int)woncnt, (int)iters);
     }
   #endif
 

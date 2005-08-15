@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testbulk.c,v $
- *     $Date: 2005/06/28 08:40:54 $
- * $Revision: 1.8 $
+ *     $Date: 2005/08/15 06:30:53 $
+ * $Revision: 1.8.2.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,7 +38,7 @@ static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
     { int i;
       for (i = 0; i < nbytes/4; i++) {
         if (recvdbuf[i] != (uint32_t)i) {
-          printf("%i: ERROR: mismatched data recvdbuf[%i]=%i\n", myproc, i, recvdbuf[i]);
+          printf("%i: ERROR: mismatched data recvdbuf[%i]=%i\n", myproc, i, (int)recvdbuf[i]);
           fflush(stdout);
           abort();
           }

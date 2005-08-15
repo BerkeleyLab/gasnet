@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2005/07/23 01:39:32 $
- * $Revision: 1.22 $
+ *     $Date: 2005/08/15 06:30:51 $
+ * $Revision: 1.22.2.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -189,8 +189,8 @@ extern char *AMUDP_enStr(en_t en, char *buf) {
 extern char *AMUDP_tagStr(tag_t tag, char *buf) {
   AMUDP_assert(buf != NULL);
   sprintf(buf, "0x%08x%08x", 
-    (uint32_t)(tag >> 32), 
-    (uint32_t)(tag & 0xFFFFFFFF));
+    (int)(uint32_t)(tag >> 32), 
+    (int)(uint32_t)(tag & 0xFFFFFFFF));
   return buf;
   }
 extern const char *sockErrDesc() {

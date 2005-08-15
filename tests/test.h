@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2005/08/12 04:07:48 $
- * $Revision: 1.60 $
+ *     $Date: 2005/08/15 06:30:57 $
+ * $Revision: 1.60.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -707,7 +707,7 @@ static void _test_init(const char *testname, int reports_performance, int early)
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
     }
     MSG0("=====> %s nprocs=%d config=%s",
-        testname, gasnet_nodes(), GASNET_CONFIG_STRING);
+        testname, (int)gasnet_nodes(), GASNET_CONFIG_STRING);
     if (!early) {
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
