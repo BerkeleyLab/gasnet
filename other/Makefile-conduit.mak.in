@@ -81,7 +81,7 @@ do-libgasnet: $(CONDUIT_SPECIAL_OBJS)
 	rm -f $$libgasnet_objects" ; \
 	echo " --- BUILDING libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a --- " ; \
         echo $$cmd ; cd .$(THREAD_MODEL) ; eval $$cmd
-	@rmdir .$(THREAD_MODEL)
+	@rm -Rf .$(THREAD_MODEL)
 
 do-libgasnet-seq: $(libgasnet_dependencies) $(CONDUIT_SEQ_HOOK)
 	@$(MAKE) THREAD_MODEL=SEQ LIBGASNET_THREAD_DEFINES= \
