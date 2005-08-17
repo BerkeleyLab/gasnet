@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2005/07/23 01:39:01 $
- * $Revision: 1.72 $
+ *     $Date: 2005/08/17 01:53:22 $
+ * $Revision: 1.72.2.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -178,8 +178,19 @@
 #elif defined(__x86_64__) /* Athlon/Opteron */
    GASNET_INLINE_MODIFIER(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
+     /* XXX: sfence probably sufficient - test after release */
      GASNETI_ASM("mfence");
    }
+   GASNET_INLINE_MODIFIER(_gasneti_local_rmb)
+   void _gasneti_local_rmb(void) {
+     GASNETI_ASM("lfence");
+   }
+   #define gasneti_local_rmb() _gasneti_local_rmb()
+   GASNET_INLINE_MODIFIER(_gasneti_local_mb)
+   void _gasneti_local_mb(void) {
+     GASNETI_ASM("mfence");
+   }
+   #define gasneti_local_mb() _gasneti_local_mb()
 #elif defined(__ia64__) || defined(__ia64) /* Itanium */
    #ifdef __INTEL_COMPILER
       /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
