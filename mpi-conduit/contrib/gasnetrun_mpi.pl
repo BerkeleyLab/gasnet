@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2005/07/23 01:39:18 $
-# $Revision: 1.30 $
+#     $Date: 2005/08/18 18:33:19 $
+# $Revision: 1.30.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -55,6 +55,7 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     my $mpirun_help = `$mpirun_cmd 2>&1`;
     #print "probe result: $mpirun_help\n";
     my $is_lam      = ($mpirun_help =~ m|LAM/MPI|);
+    my $is_ompi     = ($mpirun_help =~ m|OpenRTE|);
     my $is_mpiexec  = ($mpirun_help =~ m|mpiexec|);
     my $is_mpich_nt = ($mpirun_help =~ m|MPIRun|);
     my $is_mpich    = ($mpirun_help =~ m|ch_p4|);
@@ -70,8 +71,8 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     }
     my $spawner_desc = undef;
 
-    if ($is_lam) {
-	$spawner_desc = "LAM/MPI";
+    if ($is_lam || $is_ompi) {
+	$spawner_desc = "LAM/MPI or OpenMPI";
 	# pass env as "-x A,B,C"
 	%envfmt = ( 'pre' => '-x',
 		    'join' => ','
