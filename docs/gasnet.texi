@@ -1,11 +1,5 @@
 \input texinfo   @c -*-texinfo-*-
 @c %**start of header
-@c   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/gasnet.texi,v $
-@c     $Date: 2005/07/15 18:06:34 $
-@c $Revision: 1.38 $
-@c Description: GASNet specification
-@c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
-@c Terms of use are as specified in license.txt
 @setfilename gasnet.info
 @settitle GASNet Specification
 @syncodeindex tp fn
@@ -46,7 +40,7 @@
 @c ------------------------------------------------------------------------------------
 @c Macros:
 
-@set VERSION 1.7draft
+@set VERSION 1.6
 @set RELEASEDATE August 19th, 2004
 
 @ifnottex
@@ -164,11 +158,11 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2005/07/15 18:06:34 $
+@subtitle $Date: 2005/08/18 21:44:33 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.38 $ 
+@subtitle $Revision: 1.38.2.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
-@uref{http://gasnet.cs.berkeley.edu/}
+@uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
 
 @c  The following two commands
 @c  start the copyright page.
@@ -204,8 +198,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2005/07/15 18:06:34 $
-@*$Revision: 1.38 $ 
+@*$Date: 2005/08/18 21:44:33 $
+@*$Revision: 1.38.2.1 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -490,7 +484,7 @@ scanned for within a binary executable which is statically linked with GASNet.
 
 @item GASNET_MAXNODES
 an integer representing the maximum number of nodes supported in a single 
-GASNet job. This value must be representable as a @code{gasnet_node_t}.
+GASNet job
 
 @item GASNET_ALIGNED_SEGMENTS
 defined by the GASNet implementation to the value 1 if @code{gasnet_attach()} 
@@ -1088,8 +1082,7 @@ modified once the function returns. The active message is logically
 delivered after the data transfer finishes. 
 
 Upon receipt, the receiver invokes the appropriate request handler function 
-with a pointer to temporary storage containing the data payload 
-(in a buffer which is suitably aligned to hold any datatype), the number 
+with a pointer to temporary storage containing the data payload, the number 
 of data bytes transferred, and the M integer arguments. The dynamic scope of 
 the storage is the same as the dynamic scope of the handler. The data should 
 be copied if it is needed beyond this scope. 
