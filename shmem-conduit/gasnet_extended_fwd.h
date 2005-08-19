@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2005/07/29 01:19:32 $
- * $Revision: 1.7 $
+ *     $Date: 2005/08/19 00:25:58 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,5 +43,13 @@ typedef uintptr_t gasnet_register_value_t;
 #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
 
 #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H
+
+#ifdef GASNETE_GLOBAL_ADDRESS
+  /* tweaks required for bounds checking on clients who lie about node number*/
+  extern int _gasneti_in_segment_bc(gasnet_node_t node, const void *ptr, size_t nbytes);
+  #define gasneti_in_segment_bc _gasneti_in_segment_bc
+  #define gasneti_in_nodes_bc(node) (node == (gasnet_node_t)-1 || node < gasneti_nodes)
+  #define gasneti_in_segment_allowoutofseg_bc gasneti_in_segment_bc
+#endif
 
 #endif

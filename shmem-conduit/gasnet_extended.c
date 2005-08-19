@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2005/07/30 12:15:38 $
- * $Revision: 1.11 $
+ *     $Date: 2005/08/19 00:25:58 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,6 +37,19 @@ extern void gasnete_init() {
     gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
     gasnete_segment_base = (intptr_t) gasneti_seginfo[gasneti_mynode].addr;
 }
+
+#ifdef GASNETE_GLOBAL_ADDRESS
+  /* tweaks required for bounds checking on clients who lie about node number*/
+  extern int _gasneti_in_segment_bc(gasnet_node_t node, const void *ptr, size_t nbytes) {
+    if (node != (gasnet_node_t)-1) return gasneti_in_segment(node,ptr,nbytes);
+    else { /* check that it matches the segment of *some* node */
+      gasnet_node_t i;
+      for (i = 0; i < gasneti_nodes; i++) 
+        if (gasneti_in_segment(i,ptr,nbytes)) return 1;
+      return 0;
+    }
+  }
+#endif
 
 /* ------------------------------------------------------------------------ */
 /*

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/08/11 10:06:58 $
- * $Revision: 1.62 $
+ *     $Date: 2005/08/19 00:25:56 $
+ * $Revision: 1.62.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -186,11 +186,11 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
-#define _gasneti_boundscheck(node,ptr,nbytes,segtest) do {                     \
+#define _gasneti_boundscheck(node,ptr,nbytes,nodetest,segtest) do {            \
     gasnet_node_t _node = (node);                                              \
     const void *_ptr = (const void *)(ptr);                                    \
     size_t _nbytes = (size_t)(nbytes);                                         \
-    if_pf (_node >= gasneti_nodes)                                             \
+    if_pf (!nodetest(_node))                                                   \
       gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
                          (unsigned long)_node, (unsigned long)gasneti_nodes,   \
                          gasneti_current_loc);                                 \
@@ -208,14 +208,27 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
          );                                                                    \
   } while(0)
 
+/* in-segment queries for the sole purpose of generating bounds checking errors 
+   allow overrides for clients that allow bending the rules (shmem)
+ */
+#ifndef gasneti_in_segment_bc
+#define gasneti_in_segment_bc gasneti_in_segment
+#endif
+#ifndef gasneti_in_segment_allowoutofseg_bc
+#define gasneti_in_segment_allowoutofseg_bc gasneti_in_segment_allowoutseg
+#endif
+#ifndef gasneti_in_nodes_bc
+#define gasneti_in_nodes_bc(node) (node < gasneti_nodes)
+#endif
+
 #if GASNET_NDEBUG
   #define gasneti_boundscheck(node,ptr,nbytes) 
   #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes)
 #else
   #define gasneti_boundscheck(node,ptr,nbytes) \
-         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_segment)
+         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
   #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes) \
-         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_segment_allowoutseg)
+         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
 #endif
 
 /* gasneti_assert_always():
