@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socket.h,v $
- *      $Date: 2005/01/22 15:11:48 $
- *  $Revision: 1.9 $
+ *      $Date: 2005/08/19 04:56:42 $
+ *  $Revision: 1.9.4.1 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */
@@ -124,6 +124,15 @@ typedef unsigned int SOCKET;
 typedef fd_set FD_SET;
 #endif
 
+#ifdef __cplusplus
+  #define BEGIN_EXTERNC extern "C" {
+  #define END_EXTERNC }
+  #define EXTERNC extern "C"
+#else
+  #define BEGIN_EXTERNC 
+  #define END_EXTERNC 
+  #define EXTERNC
+#endif
 
 /*  resolve disagreements about types of arguments to misc. functions */
 #if defined(LINUX) || defined(FREEBSD) || defined(NETBSD) || defined(SOLARIS) || (defined(AIX) && defined(_AIX51))
@@ -147,6 +156,39 @@ typedef fd_set FD_SET;
   #define IOCTL_FIONREAD_ARG_T size_t
 #else
   #define IOCTL_FIONREAD_ARG_T unsigned long
+#endif
+
+// addr-length argument type fiasco..
+#if defined(LINUX) || defined(FREEBSD) || defined(AIX) || \
+    defined(SOLARIS) || defined(NETBSD)
+#  define LENGTH_PARAM socklen_t
+#elif defined(OSF1)
+#  define LENGTH_PARAM unsigned long
+#else
+#  define LENGTH_PARAM int
+#endif
+
+#if defined(AMUDP_DEBUG) || defined(AMUDP_NDEBUG) || \
+    defined(GASNET_DEBUG) || defined(GASNET_NDEBUG)
+  #define SOCK_USE_C_BYPASS 1 /* Use C-mode bypass for system calls with non-portable signatures */
+#endif
+
+#if SOCK_USE_C_BYPASS
+  BEGIN_EXTERNC
+  extern int SOCK_getsockopt(int  s, int level, int optname, void *optval, GETSOCKOPT_LENGTH_T *optlen);
+  extern int SOCK_getsockname(int s, struct sockaddr *name, GETSOCKNAME_LENGTH_T *namelen);
+  extern int SOCK_getpeername(int s, struct sockaddr *name, GETSOCKNAME_LENGTH_T *namelen);
+  extern int SOCK_ioctlsocket(int d, int request, IOCTL_FIONREAD_ARG_T *val);
+  extern int SOCK_accept(SOCKET listener, struct sockaddr* calleraddr, LENGTH_PARAM *sz);
+  extern int SOCK_recvfrom(SOCKET s, char * buf, int len, int flags, struct sockaddr *from, LENGTH_PARAM *sz);
+  END_EXTERNC
+#else
+  #define SOCK_getsockopt   getsockopt
+  #define SOCK_getsockname  getsockname
+  #define SOCK_getpeername  getpeername
+  #define SOCK_ioctlsocket  ioctlsocket
+  #define SOCK_accept       accept
+  #define SOCK_recvfrom     recvfrom
 #endif
 
 #endif /*  __SOCKET_H */

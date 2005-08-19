@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2005/08/15 06:30:51 $
- * $Revision: 1.30.2.1 $
+ *     $Date: 2005/08/19 04:56:42 $
+ * $Revision: 1.30.2.2 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -254,7 +254,7 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
     int totalBytesDrained = 0;
     while (1) {
       IOCTL_FIONREAD_ARG_T bytesAvail = 0;
-      if_pf (ioctlsocket(ep->s, _FIONREAD, &bytesAvail) == SOCKET_ERROR)
+      if_pf (SOCK_ioctlsocket(ep->s, _FIONREAD, &bytesAvail) == SOCKET_ERROR)
         AMUDP_RETURN_ERRFR(RESOURCE, "ioctlsocket()", sockErrDesc());
       if (bytesAvail == 0) break; 
 

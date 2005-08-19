@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2005/07/03 23:30:36 $
- * $Revision: 1.25 $
+ *     $Date: 2005/08/19 04:56:42 $
+ * $Revision: 1.25.2.1 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -352,15 +352,6 @@ typedef int op_t;
 #define AM_REPLY_XFER_M   6
 
 /* ------------------------------------------------------------------------------------ */
-#ifdef __cplusplus
-  #define BEGIN_EXTERNC extern "C" {
-  #define END_EXTERNC }
-  #define EXTERNC extern "C"
-#else
-  #define BEGIN_EXTERNC 
-  #define END_EXTERNC 
-  #define EXTERNC
-#endif
 
 BEGIN_EXTERNC
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2005/07/23 01:39:01 $
- * $Revision: 1.76 $
+ *     $Date: 2005/08/19 04:56:40 $
+ * $Revision: 1.76.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -203,6 +203,7 @@
   /* ------------------------------------------------------------------------------------
    * Prefer OS-provided atomics, which should be CPU-independent and
    * which should work regardless of the compiler's inline assembly support
+   * The exception is the sometimes broken Linux asm/atomic.h
    * ------------------------------------------------------------------------------------ */
   #if defined(AIX)
       #include <sys/atomic_op.h>
@@ -266,47 +267,6 @@
       #define gasneti_atomic_compare_and_swap(p,oval,nval) \
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-  #elif defined(__linux__) && !defined(BROKEN_LINUX_ASM_ATOMIC_H) && \
-      (defined(CONFIG_SMP) || defined(GASNETI_UNI_BUILD))
-      /* some versions of the linux kernel ship with a broken atomic.h
-         Disable using this code if this is a gasnet-smp build and the 
-         linux/config.h settings disagree (due to system config problem or 
-         cross-compiling on a uniprocessor frontend for smp nodes)
-       */
-      #ifdef __alpha__
-        /* work-around for a puzzling header bug in alpha Linux */
-        #define extern static
-      #endif
-      #ifdef __cplusplus
-        /* work around a really stupid C++ header bug observed in HP Linux */
-        #define new new_
-      #endif
-      #include <asm/bitops.h>
-      #include <asm/system.h>
-      #include <asm/atomic.h>
-      #ifdef __alpha__
-        #undef extern
-      #endif
-      #ifdef __cplusplus
-        #undef new
-      #endif
-      typedef atomic_t gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) atomic_inc(p)
-      #define gasneti_atomic_decrement(p) atomic_dec(p)
-      #define gasneti_atomic_read(p)      atomic_read(p)
-      #define gasneti_atomic_set(p,v)     atomic_set(p,v)
-      #define gasneti_atomic_init(v)      ATOMIC_INIT(v)
-      #define gasneti_atomic_decrement_and_test(p) \
-                                          atomic_dec_and_test(p)
-      #ifdef cmpxchg
-        /* we must violate the Linux atomic_t abstraction below and pass
-           cmpxchg a pointer to the struct field, otherwise cmpxchg will
-           stupidly attempt to cast its result to a struct type and fail
-         */
-        #define gasneti_atomic_compare_and_swap(p,oval,nval) \
-             (cmpxchg(&((p)->counter),oval,nval) == (oval))
-        #define GASNETI_HAVE_ATOMIC_CAS 1
-      #endif
   /* ------------------------------------------------------------------------------------
    * No OS-provided atomics, so try to provide our own, based on the CPU and compiler 
    * support for inline assembly code
@@ -971,6 +931,52 @@
     #else
       #error Unrecognized PowerPC - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
+  /* ------------------------------------------------------------------------------------
+   * Linux provides an asm/atomic.h that is sometimes just useless
+   * and other times supplies all but compare-and-swap (even when
+   * it is implemented).  Therefore we use it only as the last resort.
+   * ------------------------------------------------------------------------------------ */
+  #elif defined(__linux__) && !defined(BROKEN_LINUX_ASM_ATOMIC_H) && \
+      (defined(CONFIG_SMP) || defined(GASNETI_UNI_BUILD))
+      /* some versions of the linux kernel ship with a broken atomic.h
+         Disable using this code if this is a gasnet-smp build and the 
+         linux/config.h settings disagree (due to system config problem or 
+         cross-compiling on a uniprocessor frontend for smp nodes)
+       */
+      #ifdef __alpha__
+        /* work-around for a puzzling header bug in alpha Linux */
+        #define extern static
+      #endif
+      #ifdef __cplusplus
+        /* work around a really stupid C++ header bug observed in HP Linux */
+        #define new new_
+      #endif
+      #include <asm/bitops.h>
+      #include <asm/system.h>
+      #include <asm/atomic.h>
+      #ifdef __alpha__
+        #undef extern
+      #endif
+      #ifdef __cplusplus
+        #undef new
+      #endif
+      typedef atomic_t gasneti_atomic_t;
+      #define gasneti_atomic_increment(p) atomic_inc(p)
+      #define gasneti_atomic_decrement(p) atomic_dec(p)
+      #define gasneti_atomic_read(p)      atomic_read(p)
+      #define gasneti_atomic_set(p,v)     atomic_set(p,v)
+      #define gasneti_atomic_init(v)      ATOMIC_INIT(v)
+      #define gasneti_atomic_decrement_and_test(p) \
+                                          atomic_dec_and_test(p)
+      #ifdef cmpxchg
+        /* we must violate the Linux atomic_t abstraction below and pass
+           cmpxchg a pointer to the struct field, otherwise cmpxchg will
+           stupidly attempt to cast its result to a struct type and fail
+         */
+        #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+             (cmpxchg(&((p)->counter),oval,nval) == (oval))
+        #define GASNETI_HAVE_ATOMIC_CAS 1
+      #endif
   #else
     #error Unrecognized platform - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
   #endif

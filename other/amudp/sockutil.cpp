@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.cpp,v $
-//     $Date: 2005/01/22 15:11:48 $
-// $Revision: 1.11 $
+//     $Date: 2005/08/19 04:56:42 $
+// $Revision: 1.11.4.1 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -64,21 +64,12 @@ SOCKET listen_socket(struct sockaddr* saddr, bool allowshared) {
   return s;
   }
 //------------------------------------------------------------------------------------
-// addr-length argument type fiasco..
-#if defined(LINUX) || defined(FREEBSD) || defined(AIX) || \
-    defined(SOLARIS) || defined(NETBSD)
-#  define LENGTH_PARAM socklen_t
-#elif defined(OSF1)
-#  define LENGTH_PARAM unsigned long
-#else
-#  define LENGTH_PARAM int
-#endif
 
 SOCKET accept_socket(SOCKET listener, struct sockaddr* calleraddr) {
   LENGTH_PARAM sz = (calleraddr?sizeof(struct sockaddr_in):0);
   while (1) {
     SOCKET newsock;
-    if ((newsock = accept(listener, calleraddr, &sz)) == INVALID_SOCKET) {
+    if ((newsock = SOCK_accept(listener, calleraddr, &sz)) == INVALID_SOCKET) {
       #ifndef WINSOCK
         if (errno == EINTR) continue; // ignore signal interruptions - keep blocking
       #endif
@@ -247,8 +238,8 @@ int recvLine(SOCKET s, char* buf, int bufsiz) {
   }
 //------------------------------------------------------------------------------------
 void getSockName(SOCKET s, sockaddr_in &addr) {
-  LENGTH_PARAM namelen = sizeof(sockaddr_in);    
-  if (getsockname(s, (sockaddr*)&addr, &namelen) == SOCKET_ERROR) {
+  GETSOCKNAME_LENGTH_T namelen = sizeof(sockaddr_in);    
+  if (SOCK_getsockname(s, (sockaddr*)&addr, &namelen) == SOCKET_ERROR) {
     xsocket(s, "getsockname");
     }
   }
@@ -266,8 +257,8 @@ int getLocalPort(SOCKET s) {
   }
 //------------------------------------------------------------------------------------
 void getSockPeer(SOCKET s, sockaddr_in &addr) {
-  LENGTH_PARAM namelen = sizeof(sockaddr_in);     
-  if (getpeername(s, (sockaddr*)&addr, &namelen) == SOCKET_ERROR) {
+  GETSOCKNAME_LENGTH_T namelen = sizeof(sockaddr_in);     
+  if (SOCK_getpeername(s, (sockaddr*)&addr, &namelen) == SOCKET_ERROR) {
     xsocket(s, "getpeername");
     }
   }
@@ -315,17 +306,17 @@ char recvch(SOCKET s) { // get one character
   }
 //-------------------------------------------------------------------------------------
 SockAddr getsockname(SOCKET s) {
-  LENGTH_PARAM sz = sizeof(struct sockaddr);
+  GETSOCKNAME_LENGTH_T sz = sizeof(struct sockaddr);
   SockAddr saddr;
-  if (getsockname(s, (struct sockaddr *)saddr, &sz) == SOCKET_ERROR) 
+  if (SOCK_getsockname(s, (struct sockaddr *)saddr, &sz) == SOCKET_ERROR) 
     xsocket(s, "getsockname");
   return saddr;
   }
 //-------------------------------------------------------------------------------------
 SockAddr getpeername(SOCKET s) {
-  LENGTH_PARAM sz = sizeof(struct sockaddr);
+  GETSOCKNAME_LENGTH_T sz = sizeof(struct sockaddr);
   SockAddr saddr;
-  if (getpeername(s, (struct sockaddr *)saddr, &sz) == SOCKET_ERROR) 
+  if (SOCK_getpeername(s, (struct sockaddr *)saddr, &sz) == SOCKET_ERROR) 
     xsocket(s, "getpeername");
   return saddr;
   }
@@ -369,7 +360,7 @@ bool inputWaiting(SOCKET s) { // returns true if input or close conn is waiting
 //-------------------------------------------------------------------------------------
 int numBytesWaiting(SOCKET s) { // returns number of bytes waiting to be received
   IOCTL_FIONREAD_ARG_T arg = 0;
-  if (ioctlsocket(s, _FIONREAD, &arg) == SOCKET_ERROR) 
+  if (SOCK_ioctlsocket(s, _FIONREAD, &arg) == SOCKET_ERROR) 
     xsocket(s, "numBytesWaiting");
   return (int)arg;
   }
@@ -625,7 +616,7 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
     LENGTH_PARAM *psz = &sz;
     if (fromlen) sz = *fromlen;
     else psz = NULL;
-    int retval = recvfrom(s, buf, len, flags, from, psz);
+    int retval = SOCK_recvfrom(s, buf, len, flags, from, psz);
     if (fromlen) *fromlen = (int)sz;
 
     #ifdef WINSOCK

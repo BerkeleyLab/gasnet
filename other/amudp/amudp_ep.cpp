@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2005/08/15 06:30:51 $
- * $Revision: 1.14.2.1 $
+ *     $Date: 2005/08/19 04:56:42 $
+ * $Revision: 1.14.2.2 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -150,7 +150,7 @@ extern int AMUDP_SetUDPInterface(uint32_t IPAddress) {
 extern void AMUDP_growSocketRecvBufferSize(ep_t ep, int targetsize) {
   int initialsize; /* original socket recv size */
   GETSOCKOPT_LENGTH_T junk = sizeof(int);
-  if (getsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&initialsize, &junk) == SOCKET_ERROR) {
+  if (SOCK_getsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&initialsize, &junk) == SOCKET_ERROR) {
     #if AMUDP_DEBUG
       perror("getsockopt");
       ErrMessage("getsockopt(SOL_SOCKET, SO_RCVBUF) on UDP socket failed");
@@ -190,7 +190,7 @@ extern void AMUDP_growSocketRecvBufferSize(ep_t ep, int targetsize) {
     else {
       int temp = targetsize;
       junk = sizeof(int);
-      if (getsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&temp, &junk) == SOCKET_ERROR) {
+      if (SOCK_getsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&temp, &junk) == SOCKET_ERROR) {
         #if AMUDP_DEBUG
           perror("getsockopt");
           ErrMessage("getsockopt(SOL_SOCKET, SO_RCVBUF) on UDP socket failed");
@@ -234,8 +234,8 @@ static int AMUDP_AllocateEndpointResource(ep_t ep) {
     #ifdef WINSOCK
     { /* check transport message size - UNIX doesn't seem to have a way for doing this */
       unsigned int maxmsg;
-      int sz = sizeof(unsigned int);
-      if (getsockopt(ep->s, SOL_SOCKET, SO_MAX_MSG_SIZE, (char*)&maxmsg, &sz) == SOCKET_ERROR)
+      GETSOCKOPT_LENGTH_T sz = sizeof(unsigned int);
+      if (SOCK_getsockopt(ep->s, SOL_SOCKET, SO_MAX_MSG_SIZE, (char*)&maxmsg, &sz) == SOCKET_ERROR)
         AMUDP_RETURN_ERRFR(RESOURCE, getsockopt, sockErrDesc());
       if (maxmsg < AMUDP_MAX_NETWORK_MSG) 
         AMUDP_RETURN_ERRFR(RESOURCE, AMUDP_AllocateEndpointResource, "max datagram size of UDP provider is too small");
@@ -254,7 +254,7 @@ static int AMUDP_AllocateEndpointResource(ep_t ep) {
     {
       /*  danger: this might fail on multi-homed hosts if AMUDP_currentUDPInterface was not set*/
       GETSOCKNAME_LENGTH_T sz = sizeof(en_t);
-      if (getsockname(ep->s, (struct sockaddr*)&ep->name, &sz) == SOCKET_ERROR) {
+      if (SOCK_getsockname(ep->s, (struct sockaddr*)&ep->name, &sz) == SOCKET_ERROR) {
         closesocket(ep->s);
         return FALSE;
         }
