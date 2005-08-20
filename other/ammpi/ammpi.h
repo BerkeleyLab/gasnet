@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2005/07/03 23:30:34 $
- * $Revision: 1.29 $
+ *     $Date: 2005/08/20 11:02:50 $
+ * $Revision: 1.29.2.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -31,7 +31,7 @@
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
 
-#define AMMPI_LIBRARY_VERSION      0.9
+#define AMMPI_LIBRARY_VERSION      1.0
 #define AMMPI_LIBRARY_VERSION_STR  _STRINGIFY(AMMPI_LIBRARY_VERSION)
 
 /* naming policy:
