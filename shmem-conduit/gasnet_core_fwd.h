@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/08/04 13:51:25 $
- * $Revision: 1.8 $
+ *     $Date: 2005/08/20 10:53:30 $
+ * $Revision: 1.8.2.1 $
  * Description: GASNet header for shmem conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      0.8
+#define GASNET_CORE_VERSION      1.6
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         SHMEM
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)

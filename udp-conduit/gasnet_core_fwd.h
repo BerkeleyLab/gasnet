@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/04/14 17:29:19 $
- * $Revision: 1.11 $
+ *     $Date: 2005/08/20 10:53:34 $
+ * $Revision: 1.11.4.1 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.4
+#define GASNET_CORE_VERSION      1.6
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         UDP
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
