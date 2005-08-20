@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2005/08/17 01:53:22 $
- * $Revision: 1.72.2.1 $
+ *     $Date: 2005/08/20 06:51:50 $
+ * $Revision: 1.72.2.2 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -317,14 +317,28 @@
    #define gasneti_local_mb() _memory_barrier()
    #define gasneti_compiler_fence() do { int volatile x = 0; } while (0)
 #elif defined(__crayx1)
-   /* Many memory barrier intrinsics on the X1, but none seem to match what we
-    * need in a local (scalar-scalar) membar */
-   GASNET_INLINE_MODIFIER(gasneti_local_wmb)
-   void gasneti_local_wmb(void) {
-     static int volatile x;
-     x = 1;
-   }
-   #define gasneti_compiler_fence gasneti_local_wmb
+  GASNET_INLINE_MODIFIER(_gasneti_compiler_fence)
+  void _gasneti_compiler_fence(void) {
+    static int volatile x;
+    x = 1;
+  }
+  #define gasneti_compiler_fence _gasneti_compiler_fence
+  #pragma _CRI suppress _gasneti_compiler_fence
+  #ifdef GASNET_X1_SHMEM_MB 
+    /* using shmem for memory barriers seems effective, but the performance
+       and usability impact is unclear */
+    #include <mpp/shmem.h>
+    GASNET_INLINE_MODIFIER(gasneti_local_wmb)
+    void gasneti_local_wmb(void) {
+      shmem_quiet(); /* bug 1195: this is the only option that appears to be effective */
+    }
+    #define gasneti_local_rmb gasneti_local_wmb
+    #define gasneti_local_mb  gasneti_local_wmb
+  #else
+    /* Many memory barrier intrinsics on the X1, but none seem to actually
+     * deliver what we need in a local (scalar-scalar) membar */
+     #define gasneti_local_wmb gasneti_compiler_fence
+  #endif
 #elif defined(__MTA__)
    #if 0 /* causes warnings */
      #define gasneti_compiler_fence() (_Pragma("mta fence"))
