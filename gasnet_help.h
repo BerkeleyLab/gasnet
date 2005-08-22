@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/08/19 00:25:56 $
- * $Revision: 1.62.2.1 $
+ *     $Date: 2005/08/22 08:50:32 $
+ * $Revision: 1.62.2.2 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -504,6 +504,17 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define GASNETI_USE_TRUE_MUTEXES 0
 #endif
 
+#if defined(__CYGWIN__) || defined(GASNETI_FORCE_MUTEX_INITCLEAR)
+  /* we're sometimes unable to call pthread_mutex_destroy when freeing a mutex
+     some pthread implementations will fail to re-init a mutex
+     (eg after a free and realloc of the associated mem) unless
+     the contents are first cleared to zero
+   */
+  #define GASNETI_MUTEX_INITCLEAR(pm) memset(pm,0,sizeof(*(pm)))
+#else
+  #define GASNETI_MUTEX_INITCLEAR(pm) ((void)0)
+#endif
+
 #if GASNET_DEBUG
   #define GASNETI_MUTEX_NOOWNER         ((uintptr_t)-1)
   #ifndef GASNETI_THREADIDQUERY
@@ -551,6 +562,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
               gasneti_assert_zeroret(pthread_mutex_unlock(&((pl)->lock))); \
             } while (0)
     #define gasneti_mutex_init(pl) do {                                       \
+              GASNETI_MUTEX_INITCLEAR(&((pl)->lock));                         \
               gasneti_assert_zeroret(pthread_mutex_init(&((pl)->lock),NULL)); \
               (pl)->owner = GASNETI_MUTEX_NOOWNER;                            \
             } while (0)
@@ -597,7 +609,8 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
     #define gasneti_mutex_lock(pl)      pthread_mutex_lock(pl)
     #define gasneti_mutex_trylock(pl)   pthread_mutex_trylock(pl)
     #define gasneti_mutex_unlock(pl)    pthread_mutex_unlock(pl)
-    #define gasneti_mutex_init(pl)      pthread_mutex_init((pl),NULL)
+    #define gasneti_mutex_init(pl)      (GASNETI_MUTEX_INITCLEAR(pl),  \
+                                         pthread_mutex_init((pl),NULL))
     #define gasneti_mutex_destroy(pl)   pthread_mutex_destroy(pl)
   #else
     typedef char           gasneti_mutex_t;
