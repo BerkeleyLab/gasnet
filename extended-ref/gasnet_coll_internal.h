@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2005/09/20 02:26:18 $
- * $Revision: 1.22.8.2 $
+ *     $Date: 2005/09/21 18:56:16 $
+ * $Revision: 1.22.8.3 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1470,18 +1470,10 @@ enum {
 		: GASNETE_COLL_ALL_THREADS_ONLY)
   int _gasnete_coll_all_threads_getlock(GASNETE_THREAD_FARG_ALONE);
   void gasnete_coll_all_threads_unlock(int lock_flags);
-  #define gasnete_coll_all_threads_insert(op) \
-	_gasnete_coll_all_threads_insert(op GASNETE_THREAD_PASS)
-  void _gasnete_coll_all_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-  #define gasnete_coll_all_threads_delete(op) \
-	_gasnete_coll_all_threads_delete(op GASNETE_THREAD_PASS)
-  void _gasnete_coll_all_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-  #define gasnete_coll_all_threads_find(flags ) \
-	_gasnete_coll_all_threads_find(flags GASNETE_THREAD_PASS)
-  gasnete_coll_op_t *_gasnete_coll_all_threads_find(int flags GASNETE_THREAD_FARG);
-  #define gasnete_coll_all_threads_handle(op ) \
-	_gasnete_coll_all_threads_handle(op GASNETE_THREAD_PASS)
-  gasnet_coll_handle_t _gasnete_coll_all_threads_handle(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
+  void gasnete_coll_all_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
+  void gasnete_coll_all_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
+  gasnete_coll_op_t *gasnete_coll_all_threads_find(int flags GASNETE_THREAD_FARG);
+  gasnet_coll_handle_t gasnete_coll_all_threads_handle(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
   GASNET_INLINE_MODIFIER(gasnete_coll_generic_all_threads)
   int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
     gasneti_assert(data != NULL);
