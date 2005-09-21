@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2005/09/21 18:56:16 $
- * $Revision: 1.22.8.3 $
+ *     $Date: 2005/09/21 23:40:17 $
+ * $Revision: 1.22.8.4 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -101,6 +101,7 @@ typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
     typedef volatile uintptr_t *gasnet_coll_handle_t;
   #endif
   #define GASNET_COLL_INVALID_HANDLE NULL
+  #define GASNETE_COLL_NO_HANDLE ((void*)(intptr_t)(~0))	/* Internal use only */
 #endif
 
 extern gasnet_coll_handle_t gasnete_coll_handle_create(GASNETE_THREAD_FARG_ALONE);
@@ -420,8 +421,11 @@ typedef struct {
 	/* Default implementation of coll_ops active list */
     #endif
 
-    /* Sequence number for ALL_THREADS calls */
-    uint32_t				all_threads_sequence;
+    /* Fields for ALL_THREADS calls */
+    struct {
+	uint32_t				sequence;
+	int					hold_lock;
+    } all_threads;
 
     /* XXX: more fields to come */
 
@@ -1411,7 +1415,10 @@ struct gasnete_coll_generic_data_t_ {
 
     /* Data for GASNET_COLL_ALL_THREADS: */
     #if GASNET_PAR
-	gasnet_image_t			threads_remain;
+      struct {
+	gasnet_image_t			remaining;
+	gasnet_coll_handle_t		(*thread_fn)(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
+      } all_threads;
     #endif
 
     /* Hook for conduit-specific extension */
@@ -1438,6 +1445,7 @@ struct gasnete_coll_generic_data_t_ {
 	#endif
     }					args;
 };
+#define GASNETE_COLL_GENERIC_DATA(op) ((gasnete_coll_generic_data_t *)((op)->data))
 
 /* Extract pointer to correct member of args union
  * Also does some consistency checking when debugging is enabled
@@ -1456,41 +1464,23 @@ extern gasnet_coll_handle_t gasnete_coll_op_generic_init(gasnete_coll_team_t tea
 							 GASNETE_THREAD_FARG);
 extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data GASNETE_THREAD_FARG);
 
-/* Bits for generic GASNET_COLL_ALL_THREADS support */
-enum {
-  GASNETE_COLL_ALL_THREADS_LATE = 0,	/* Not the first arrival */
-  GASNETE_COLL_ALL_THREADS_LOCKED,	/* First and holds lock */
-  GASNETE_COLL_ALL_THREADS_ONLY		/* First (and only) - not holding lock */
-};
 #if GASNET_PAR
-
-  #define gasnete_coll_all_threads_getlock(flags)                              \
-	(((flags) & GASNET_COLL_ALL_THREADS)                                   \
-		? _gasnete_coll_all_threads_getlock(GASNETE_THREAD_PASS_ALONE) \
-		: GASNETE_COLL_ALL_THREADS_ONLY)
-  int _gasnete_coll_all_threads_getlock(GASNETE_THREAD_FARG_ALONE);
-  void gasnete_coll_all_threads_unlock(int lock_flags);
+  gasnet_coll_handle_t gasnete_coll_all_threads_get_handle(int flags GASNETE_THREAD_FARG);
+  void gasnete_coll_all_threads_unlock(GASNETE_THREAD_FARG_ALONE);
   void gasnete_coll_all_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
   void gasnete_coll_all_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-  gasnete_coll_op_t *gasnete_coll_all_threads_find(int flags GASNETE_THREAD_FARG);
-  gasnet_coll_handle_t gasnete_coll_all_threads_handle(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
   GASNET_INLINE_MODIFIER(gasnete_coll_generic_all_threads)
   int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
     gasneti_assert(data != NULL);
     return (!(data->options & GASNETE_COLL_GENERIC_OPT_ALL_THREADS) ||
-  	    !(data->threads_remain));
+  	    !(data->all_threads.remaining));
   }
 #else
-  #define GASNETE_COLL_ALL_THREADS_LATE			0
-  #define gasnete_coll_all_threads_getlock(flags)	GASNETE_COLL_ALL_THREADS_ONLY
-  #define gasnete_coll_all_threads_unlock(lock_flags)	do { } while (0)
+  #define gasnete_coll_all_threads_get_handle(flags)	GASNETE_COLL_NO_HANDLE
+  #define gasnete_coll_all_threads_unlock(thrarg)	do { } while (0)
   #define gasnete_coll_all_threads_insert(op)		\
 	gasneti_fatalerror("Call to gasnete_coll_all_threads_insert() in non-PAR build")
   #define gasnete_coll_all_threads_delete(op)		do { } while (0)
-  #define gasnete_coll_all_threads_find(flags)		\
-	(gasneti_fatalerror("Call to gasnete_coll_all_threads_find() in non-PAR build"), NULL)
-  #define gasnete_coll_all_threads_handle(op)		\
-	(gasneti_fatalerror("Call to gasnete_coll_all_threads_handle() in non-PAR build"), GASNET_COLL_INVALID_HANDLE)
   #define gasnete_coll_generic_all_threads(data)	(1)
 #endif
 
