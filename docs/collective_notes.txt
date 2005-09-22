@@ -1,6 +1,6 @@
 GASNet collectives design notes
 ===============================
-* $Revision: 1.31 $
+* $Revision: 1.31.8.1 $
 * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> and Paul Hargrove <PHHargrove@lbl.gov>
 * Terms of use are as specified in license.txt
 
@@ -217,7 +217,7 @@ synchronized on all participating nodes.
 The GASNet collectives for data movement do not assume any data
 alignment (consistent with UPC and with the GASNet-VIS interface).
 
-The computational collectives (reduce, prefix_reduce and sort)
+The computational collectives (reduce and prefix_reduce)
 requires alignment correct for the operation's data type.
 
 
@@ -516,7 +516,7 @@ CAF permits team syncs and team collectives.  We need to look at that
 when trying to extend GASNet for teams.
 
 
-* OPEN ISSUE: Computational collectives (reduce, prefix reduce and sort).
+* OPEN ISSUE: Computational collectives (reduce and prefix reduce).
 
 ** Data lifetime and alignment
 
@@ -539,7 +539,7 @@ be increased on a given platform having stronger requirements.
 GASNet computational collectives use an untyped interface in which the
 client provides the number and size of elements, but not a data type.
 GASNet has no built-in reductions for particular data types or
-operations, nor built-in sorts.
+operations.
 
 GASNet does not assume a single-image environment and thus the address
 of the same function may differ across nodes.  Therefore the GASNet
@@ -787,8 +787,7 @@ but allows for a different starting offset (affinity and phase).  I
 propose to give gasnet the additional generality of different block
 sizes.  Once indefinite layout is accounted for (below), this will
 allow prefix_reduce+gather and scatter+prefix_reduce to become single
-prefix reductions.  I expect to support this reblocking in the sort as
-well.
+prefix reductions. [ Note: UPC no longer allows this generality. ]
 
 To allow for reblocking indefinite layout is something we need to
 express cleanly.  As in UPC, we can use blk_sz=0 to express the fact
@@ -837,10 +836,8 @@ Once registered on a given node, the same handle can be used by any
 thread on that node and can be safely passed between nodes.
 
 The same handle table is used for the functions passed to reduction,
-prefix reduction and (when implemented) sort collectives.  The
-reduction and prefix reduction take functions with the same signature,
-while sort does not.  Use of a function handle in the "wrong type" of
-collective call has undefined results.
+and prefix reduction collectives.  This is possible because the
+reduction and prefix reduction take functions with the same signature.
 
 Some functions are safe to call from an AM handler context while
 others are not.  Some reduction functions are commutative while others
@@ -848,8 +845,7 @@ may not be.  Both of these properties are considered to be features of
 the functions, rather than the collective calls in which they
 are used.  Therefore there are flags to the registration of a function.
 The corresponding flags are GASNET_COLL_AMSAFE and
-GASNET_COLL_NONCOMM.  The affect of specifying the NONCOMM flag for
-a sort function is undefined.
+GASNET_COLL_NONCOMM.
 
 Unlike the registration of AM handlers, we are not permitting the
 client to specify independent handle values.  The handles are simply the position
@@ -1374,7 +1370,7 @@ void gasnet_coll_exchangem(
  *	image/node.  For GASNET_COLL_SINGLE the value of this argument
  *	must be equal across all callers or the behavior is undefined.
  *
- * Destination arguments for Prefix Reduction
+ * Destination arguments for Scan (Prefix Reduction)
  *   The result of a prefix reduction is an array of 'elem_count'
  *   elements, each of the size given by the 'elem_size' argument.
  * dst, dst_blksz, dst_offset: Destination (prefix_reduce)
@@ -1475,6 +1471,7 @@ void gasnet_coll_exchangem(
  *	of flags which determine how the operation will be performed
  *	Flags are identical to those defined above for the data
  *	movement collectives.
+ * [NOTE: need to revise to include inclusive/exclusive flag]
  *
  * There are important interactions to be aware of between the flags
  * GASNET_COLL_LOCAL and GASNET_COLL_ALL_THREADS:
@@ -1496,50 +1493,50 @@ gasnet_coll_handle_t gasnet_coll_reduce_nb(
 	gasnet_image_t dstimage, void *dst,
 	void *src, size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	int func, int func_arg, int flags);	
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);	
 gasnet_coll_handle_t gasnet_coll_reducem_nb(
 	gasnet_team_handle_t team,
 	gasnet_image_t dstimage, void *dst,
 	void * const srclist[], size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	int func, int func_arg, int flags);
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);
 void gasnet_coll_reduce(
 	gasnet_team_handle_t team,
 	gasnet_image_t dstimage, void *dst,
 	void *src, size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	gasnet_int func, int func_arg, int flags);	
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);	
 void gasnet_coll_reducem(
 	gasnet_team_handle_t team,
 	gasnet_image_t dstimage, void *dst,
 	void * const srclist[], size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	gasnet_int func, int func_arg, int flags);
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);
 
-gasnet_coll_handle_t gasnet_coll_prefix_reduce_nb(
+gasnet_coll_handle_t gasnet_coll_scan_nb(
 	gasnet_team_handle_t team,
 	void *dst, size_t dst_blksz, size_t dst_offset,
 	void *src, size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	int func, int func_arg, int flags);	
-gasnet_coll_handle_t gasnet_coll_prefix_reducem_nb(
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);	
+gasnet_coll_handle_t gasnet_coll_scanm_nb(
 	gasnet_team_handle_t team,
 	void * const dstlist[], size_t dst_blksz, size_t dst_offset,
 	void * const srclist[], size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	int func, int func_arg, int flags);	
-void gasnet_coll_prefix_reduce(
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);	
+void gasnet_coll_scan(
 	gasnet_team_handle_t team,
 	void *dst, size_t dst_blksz, size_t dst_offset,
 	void *src, size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	int func, int func_arg, int flags);	
-void gasnet_coll_prefix_reducem(
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);	
+void gasnet_coll_scanm(
 	gasnet_team_handle_t team,
 	void * const dstlist[], size_t dst_blksz, size_t dst_offset,
 	void * const srclist[], size_t src_blksz, size_t src_offset,
 	size_t elem_size, size_t elem_count,
-	int func, int func_arg, int flags);	
+	gasnet_coll_fn_handle_t func, int func_arg, int flags);	
 
 //===========================================================================
 END OF CURRENT PROPOSAL
@@ -1717,59 +1714,6 @@ cleanly with the condition variable unless the hsl used to trigger the
 hooks was exposed for use in the waiting thread.  I dislike that as an
 unclear interface, and the code duplicated between #2 and #3 is too
 small to justify such a design.
-
-
-//===========================================================================
-* Proposal for gasneti_cond_t:
-
-In order to permit a conduit to block waiting for something that might
-happen in another thread, particularly in a handler executed in
-another thread, we want something like pthread_cond_t, but which takes
-an hsl in place of a pthread_mutex_t.  Note that these are for use
-INTERNALLY, and we don't want to add them to the GASNet spec where
-client code might use them.  (At least *I* don't want to do so)
-
-Here is an attempt (not run through the compiler) to implement
-pthread_cond_t in terms of our "reference" hsl, which is just a struct
-holding a gasneti_mutex_t:
-
-typedef
-struct _gasneti_cond_t {
-  pthread_cond_t cond;
-} gasneti_cond_t;
-
-#define GASNETI_COND_INITIALIZER { PTHREAD_COND_INITIALIZER }
-
-#define gasneti_cond_init(P) pthread_cond_init(&((P)->cond))
-#define gasneti_cond_destroy(P) pthread_cond_destroy(&((P)->cond))
-#define gasneti_cond_signal(P) pthread_cond_signal(&((P)->cond))
-
-#define gasneti_cond_wait(P,H) gasneti_cond_wait_mutex(P, &((H)->lock))
-
-extern void gasneti_cond_wait_mutex(gasneti_cond_t *cond,
-                                    gasneti_mutex_t *lock);
-
-
-
-void
-gasneti_cond_wait_mutex(gasneti_cond_t *cond, gasneti_mutex_t *lock)
-{
-  #if !GASNETI_USE_TRUE_MUTEXES
-    gasneti_fatalerror("There's only one thread: waiting on condition variable => deadlock");
-  #endif
-
-  #if GASNET_DEBUG
-    gasneti_assert(lock->owner == GASNETI_THREADIDQUERY());
-    lock->owner = (uintptr_t)GASNETI_MUTEX_NOOWNER;
-
-    pthread_cond_wait(&(cond->cond), &(lock->lock));
-
-    gasneti_assert(lock->owner == (uintptr_t)GASNETI_MUTEX_NOOWNER);
-    lock->owner = GASNETI_THREADIDQUERY();
-  #else
-    pthread_cond_wait(&(cond->cond), lock);
-  #endif
-}
 
 
 //===========================================================================
@@ -2007,20 +1951,6 @@ At this point each node has the partial reductions it needs, one per
 elements 2 and 3 in one "row" and elements 6 and 7 in another, then
 step 3 has generated SUM(a[0]..a[1]) and SUM(a[2]..a[5]).  Using these
 two values one can finally perform the prefix reduction.
-
-
-Sort:
------
-
-I've no bright ideas here.  The most naive method would seem to be
-Gather, Sort on one node, Scatter.  However, the Gather and Scatter
-want equal contribution from each node, and Sort does not require it.
-This might be another case for implementing collectives with
-variable-sized contributions.
-
-I have not yet finished searching for literature specific to this
-problem, and there are methods much better than the Gather+Scatter
-described above.
 
 
 //===========================================================================

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/08/25 10:36:25 $
- * $Revision: 1.65 $
+ *     $Date: 2005/09/22 20:49:04 $
+ * $Revision: 1.65.4.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -367,7 +367,15 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
         VAL(W, COLL_EXCHANGE, sz)             \
         VAL(W, COLL_EXCHANGE_NB, sz)          \
         VAL(W, COLL_EXCHANGE_M, sz)           \
-        VAL(W, COLL_EXCHANGE_M_NB, sz)
+        VAL(W, COLL_EXCHANGE_M_NB, sz)        \
+        VAL(W, COLL_REDUCE, cnt)              \
+        VAL(W, COLL_REDUCE_NB, cnt)           \
+        VAL(W, COLL_REDUCE_M, cnt)            \
+        VAL(W, COLL_REDUCE_M_NB, cnt)         \
+        VAL(W, COLL_SCAN, cnt)                \
+        VAL(W, COLL_SCAN_NB, cnt)             \
+        VAL(W, COLL_SCAN_M, cnt)              \
+        VAL(W, COLL_SCAN_M_NB, cnt)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

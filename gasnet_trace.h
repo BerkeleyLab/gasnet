@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2005/08/09 12:06:15 $
- * $Revision: 1.42 $
+ *     $Date: 2005/09/22 20:49:04 $
+ * $Revision: 1.42.6.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -609,6 +609,22 @@ BEGIN_EXTERNC
 	GASNETI_TRACE_COLL_GATHER_ALL(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE_M(name,team,dstlist,srclist,nbytes,flags) \
 	GASNETI_TRACE_COLL_GATHER_ALL_M(name,team,dstlist,srclist,nbytes,flags)
+  #define GASNETI_TRACE_COLL_REDUCE(name,team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) do { \
+    GASNETI_TRACE_EVENT_VAL(W,name,elem_count);                                                            \
+    /* XXX: No detail implemented */                                                                       \
+  } while (0)
+  #define GASNETI_TRACE_COLL_REDUCE_M(name,team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) do { \
+    GASNETI_TRACE_EVENT_VAL(W,name,elem_count);                                                            \
+    /* XXX: No detail implemented */                                                                       \
+  } while (0)
+  #define GASNETI_TRACE_COLL_SCAN(name,team,dst,dst_blksz,dst_offset,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) do { \
+    GASNETI_TRACE_EVENT_VAL(W,name,elem_count);                                                            \
+    /* XXX: No detail implemented */                                                                       \
+  } while (0)
+  #define GASNETI_TRACE_COLL_SCAN_M(name,team,dstlist,dst_blksz,dst_offset,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags) do { \
+    GASNETI_TRACE_EVENT_VAL(W,name,elem_count);                                                            \
+    /* XXX: No detail implemented */                                                                       \
+  } while (0)
   #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
 	        gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(X)
 #else
@@ -622,6 +638,10 @@ BEGIN_EXTERNC
   #define GASNETI_TRACE_COLL_GATHER_ALL_M(name,team,dstlist,srclist,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE(name,team,dst,src,nbytes,flags)
   #define GASNETI_TRACE_COLL_EXCHANGE_M(name,team,dstlist,srclist,nbytes,flags)
+  #define GASNETI_TRACE_COLL_REDUCE(name,team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags)
+  #define GASNETI_TRACE_COLL_REDUCE_M(name,team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags)
+  #define GASNETI_TRACE_COLL_SCAN(name,team,dst,dst_blksz,dst_offset,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags)
+  #define GASNETI_TRACE_COLL_SCAN_M(name,team,dstlist,dst_blksz,dst_offset,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags)
   #define GASNETI_TRACE_COLL_WAITSYNC_BEGIN() \
 		static char _dummy_COLL_WAITSYNC = (char)sizeof(_dummy_COLL_WAITSYNC)
 #endif
