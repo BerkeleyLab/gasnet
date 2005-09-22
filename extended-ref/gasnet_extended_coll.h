@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_coll.h,v $
- *     $Date: 2005/09/21 23:40:17 $
- * $Revision: 1.22.8.4 $
+ *     $Date: 2005/09/22 00:13:05 $
+ * $Revision: 1.22.8.5 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1372,7 +1372,12 @@ typedef struct  {
 #define GASNETE_COLL_GENERIC_OPT_INSYNC_IF(COND)	((COND) ? GASNETE_COLL_GENERIC_OPT_INSYNC : 0)
 #define GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(COND)	((COND) ? GASNETE_COLL_GENERIC_OPT_OUTSYNC : 0)
 #define GASNETE_COLL_GENERIC_OPT_P2P_IF(COND)		((COND) ? GASNETE_COLL_GENERIC_OPT_P2P : 0)
-#define GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(COND)	((COND) ? GASNETE_COLL_GENERIC_OPT_ALL_THREADS : 0)
+#if GASNET_PAR
+  #define GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(COND)	((COND) ? GASNETE_COLL_GENERIC_OPT_ALL_THREADS : 0)
+#else
+  /* Will never matter, so help the compiler know */
+  #define GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(COND)	0
+#endif
 
 struct gasnete_coll_generic_data_t_ {
     #if GASNETI_USE_TRUE_MUTEXES || GASNET_DEBUG
@@ -1472,8 +1477,7 @@ extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data GASNETE
   GASNET_INLINE_MODIFIER(gasnete_coll_generic_all_threads)
   int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
     gasneti_assert(data != NULL);
-    return (!(data->options & GASNETE_COLL_GENERIC_OPT_ALL_THREADS) ||
-  	    !(data->all_threads.remaining));
+    return (data->all_threads.remaining == 0);
   }
 #else
   #define gasnete_coll_all_threads_get_handle(flags)	GASNETE_COLL_NO_HANDLE

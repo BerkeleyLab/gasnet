@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2005/09/21 23:40:17 $
- * $Revision: 1.29.8.4 $
+ *     $Date: 2005/09/22 00:13:05 $
+ * $Revision: 1.29.8.5 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,6 +33,9 @@ gasnet_image_t gasnete_coll_my_images;	/* count of local images */
 gasnet_image_t gasnete_coll_my_offset;	/* count of images before my first image */
 #if !GASNET_SEQ
   gasnet_node_t *gasnete_coll_image_to_node = NULL;
+#endif
+#if GASNET_PAR
+  int gasnete_coll_multi_images;	/* count of local images > 1 */
 #endif
 
 #define GASNETE_COLL_1ST_IMAGE(LIST,NODE) \
@@ -385,7 +388,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
       gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
       gasnet_coll_handle_t handle = GASNETE_COLL_NO_HANDLE;
 
-      if_pt (!(flags & GASNET_COLL_ALL_THREADS) || (gasnete_coll_my_images == 1)) {
+      if_pt (!(flags & GASNET_COLL_ALL_THREADS) || !gasnete_coll_multi_images) {
 	/* I am only thread (and thus trivally the first) and therefore don't need the lock */
 	gasneti_assert(td->all_threads.hold_lock == 0);
       } else {
@@ -443,10 +446,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
     void gasnete_coll_all_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
 
-      if (gasnete_coll_my_images == 1) {
-	return;
-      }
-
+      gasneti_assert(gasnete_coll_multi_images);
       gasneti_mutex_assertlocked(&gasnete_coll_all_threads_lock);
 
       op->all_threads.sequence = td->all_threads.sequence - 1;
@@ -822,6 +822,10 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     }
     gasnete_coll_my_images = gasnete_coll_all_images[gasneti_mynode];
     gasnete_coll_my_offset = gasnete_coll_all_offset[gasneti_mynode];
+    #if GASNET_PAR
+      gasnete_coll_multi_images = (gasnete_coll_my_images != 1);
+    #endif
+
 
     #if !GASNET_SEQ
     {
@@ -1282,11 +1286,6 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, int flags,
       gasneti_assert(team == GASNET_TEAM_ALL);
       gasneti_assert(data != NULL);
 
-      /* XXX: should be a per-op choice */
-      #if GASNET_PAR
-        data->options |= GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS);
-      #endif
-
       /* Set owner */
       GASNETE_COLL_SET_OWNER(data);
 
@@ -1322,13 +1321,17 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, int flags,
 
       #if GASNET_PAR
       /* Conditionally place on the all_threads list */
-      if (data->options & GASNETE_COLL_GENERIC_OPT_ALL_THREADS) {
-        data->all_threads.remaining = (flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_IN_MYSYNC ))
-			? gasnete_coll_my_images - 1 : 0;
-	if ((data->all_threads.thread_fn != NULL) ||
-	    (flags & (GASNET_COLL_IN_ALLSYNC  | GASNET_COLL_IN_MYSYNC |
-		      GASNET_COLL_OUT_ALLSYNC | GASNET_COLL_OUT_MYSYNC))) {
+      if ((data->options & GASNETE_COLL_GENERIC_OPT_ALL_THREADS) && gasnete_coll_multi_images) {
+	if_pf (data->all_threads.thread_fn != NULL) {
+	  /* The all_threads fields have been set to op-specific values */
 	  gasnete_coll_all_threads_insert(op GASNETE_THREAD_PASS);
+	} else {
+	  /* Setup for the default behavior */
+          data->all_threads.remaining = (flags & GASNET_COLL_IN_NOSYNC) ? 0 : (gasnete_coll_my_images - 1);
+	  if (flags & (GASNET_COLL_IN_ALLSYNC  | GASNET_COLL_IN_MYSYNC |
+		       GASNET_COLL_OUT_ALLSYNC | GASNET_COLL_OUT_MYSYNC)) {
+	    gasnete_coll_all_threads_insert(op GASNETE_THREAD_PASS);
+	  }
 	}
         gasnete_coll_all_threads_unlock(GASNETE_THREAD_PASS_ALONE);
       } else {
@@ -1807,7 +1810,8 @@ gasnete_coll_bcast_Get(gasnet_team_handle_t team,
 		       gasnet_image_t srcimage, void *src,
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   gasneti_assert(flags & GASNET_COLL_SINGLE);
@@ -1886,7 +1890,8 @@ gasnete_coll_bcast_Put(gasnet_team_handle_t team,
 		       gasnet_image_t srcimage, void *src,
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   gasneti_assert(flags & GASNET_COLL_SINGLE);
@@ -1941,7 +1946,8 @@ gasnete_coll_bcast_Eager(gasnet_team_handle_t team,
 			 gasnet_image_t srcimage, void *src,
 			 size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -2004,7 +2010,8 @@ gasnete_coll_bcast_RVGet(gasnet_team_handle_t team,
 			 gasnet_image_t srcimage, void *src,
 			 size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -2098,7 +2105,8 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 			   gasnete_coll_tree_kind_t kind
 			   GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_IN_NOSYNC))  |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_IN_NOSYNC))  |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -2207,7 +2215,8 @@ gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
 			   gasnete_coll_tree_kind_t kind
 			   GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
@@ -2278,7 +2287,8 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
 			     gasnete_coll_tree_kind_t kind
 			     GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -2602,7 +2612,8 @@ gasnete_coll_bcastM_Get(gasnet_team_handle_t team,
 			gasnet_image_t srcimage, void *src,
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
@@ -2697,7 +2708,8 @@ gasnete_coll_bcastM_Put(gasnet_team_handle_t team,
 			gasnet_image_t srcimage, void *src,
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
@@ -2754,7 +2766,8 @@ gasnete_coll_bcastM_Eager(gasnet_team_handle_t team,
 			  gasnet_image_t srcimage, void *src,
 			  size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -2823,7 +2836,8 @@ gasnete_coll_bcastM_RVGet(gasnet_team_handle_t team,
 			  gasnet_image_t srcimage, void *src,
 			  size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)   |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)   |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC))|
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -2959,7 +2973,8 @@ gasnete_coll_scat_Get(gasnet_team_handle_t team,
 		      gasnet_image_t srcimage, void *src,
 		      size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, flags,
@@ -3042,7 +3057,8 @@ gasnete_coll_scat_Put(gasnet_team_handle_t team,
 		      gasnet_image_t srcimage, void *src,
 		      size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, flags,
@@ -3097,7 +3113,8 @@ gasnete_coll_scat_Eager(gasnet_team_handle_t team,
 			gasnet_image_t srcimage, void *src,
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -3162,7 +3179,8 @@ gasnete_coll_scat_RVGet(gasnet_team_handle_t team,
 			gasnet_image_t srcimage, void *src,
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -3301,7 +3319,8 @@ gasnete_coll_scatM_Get(gasnet_team_handle_t team,
 		       gasnet_image_t srcimage, void *src,
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, flags,
@@ -3414,7 +3433,8 @@ gasnete_coll_scatM_Put(gasnet_team_handle_t team,
 		       gasnet_image_t srcimage, void *src,
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, flags,
@@ -3521,7 +3541,8 @@ gasnete_coll_scatM_Eager(gasnet_team_handle_t team,
 			  gasnet_image_t srcimage, void *src,
 			  size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -3590,7 +3611,8 @@ gasnete_coll_scatM_RVGet(gasnet_team_handle_t team,
 			  gasnet_image_t srcimage, void *src,
 			  size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
@@ -3744,7 +3766,8 @@ gasnete_coll_gath_Get(gasnet_team_handle_t team,
 		      void *src,
 		      size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, flags,
@@ -3805,7 +3828,8 @@ gasnete_coll_gath_Put(gasnet_team_handle_t team,
 		      void *src,
 		      size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, flags,
@@ -3889,7 +3913,8 @@ gasnete_coll_gath_Eager(gasnet_team_handle_t team,
 			void *src,
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(gasnete_coll_image_is_local(dstimage));
 
@@ -3953,7 +3978,8 @@ gasnete_coll_gath_RVPut(gasnet_team_handle_t team,
 			 void *src,
 			 size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(dstimage));
 
@@ -4135,7 +4161,8 @@ gasnete_coll_gathM_Get(gasnet_team_handle_t team,
 		       void * const srclist[],
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, flags,
@@ -4200,7 +4227,8 @@ gasnete_coll_gathM_Put(gasnet_team_handle_t team,
 		       void * const srclist[],
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, flags,
@@ -4297,7 +4325,8 @@ gasnete_coll_gathM_Eager(gasnet_team_handle_t team,
 			 void * const srclist[],
 			 size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(gasnete_coll_image_is_local(dstimage));
 
@@ -4364,7 +4393,8 @@ gasnete_coll_gathM_RVPut(gasnet_team_handle_t team,
 			 void * const srclist[],
 			 size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(dstimage));
 
@@ -4511,7 +4541,8 @@ gasnete_coll_gall_Gath(gasnet_team_handle_t team,
 		       void *dst, void *src,
 		       size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   /* XXX: until gather deals w/ out-of-segment data */
@@ -4635,7 +4666,8 @@ gasnete_coll_gallM_Gath(gasnet_team_handle_t team,
 			void * const dstlist[], void * const srclist[],
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   /* XXX: until gatherM deals w/ out-of-segment data */
@@ -4751,7 +4783,8 @@ gasnete_coll_exchg_Gath(gasnet_team_handle_t team,
 			void *dst, void *src,
 			size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
 
@@ -4903,7 +4936,8 @@ gasnete_coll_exchgM_Gath(gasnet_team_handle_t team,
 			 void * const dstlist[], void * const srclist[],
 			 size_t nbytes, int flags GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  int options = GASNETE_COLL_GENERIC_OPT_ALL_THREADS_IF(flags & GASNET_COLL_ALL_THREADS) |
+		GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
 
   /* XXX: until gatherM deals w/ out-of-segment data */
