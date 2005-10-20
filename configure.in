@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2005/08/20 10:53:18 $
-# $Revision: 1.285.2.1 $
+#     $Date: 2005/10/20 08:56:01 $
+# $Revision: 1.285.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.285.2.1 $)
+AC_REVISION($Revision: 1.285.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -382,11 +382,11 @@ GASNET_WITH(segment-mmap-max,
    [case "$withval" in
       [[1-9]]*G*) 
         AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
-            [((uint64_t)(`expr "${withval}" : "\([[0-9]]\+\)"`ull << 30))]) 
+            [((uint64_t)(`expr "${withval}" : "\([[1-9]][[0-9]]*\)"`ull << 30))]) 
         ;;
       [[1-9]]*M*) 
         AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
-            [((uint64_t)(`expr "${withval}" : "\([[0-9]]\+\)"`ull << 20))]) 
+            [((uint64_t)(`expr "${withval}" : "\([[1-9]][[0-9]]*\)"`ull << 20))]) 
         ;;
       [[1-9]][[0-9]]*) 
         AC_DEFINE_UNQUOTED(GASNETI_MMAP_MAX_SIZE, 
