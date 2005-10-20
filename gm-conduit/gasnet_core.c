@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2005/08/09 12:06:28 $
- * $Revision: 1.96 $
+ * $Date: 2005/10/20 08:53:11 $
+ * $Revision: 1.96.2.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -520,7 +520,8 @@ gasnetc_exit_old(int exitcode)
         }
 
 	#if defined(GASNET_SEGMENT_FAST)
-	if (gasneti_attach_done && gm_deregister_memory(_gmc.port, 
+	if (gasneti_attach_done && gasneti_seginfo[gasneti_mynode].size > 0 &&
+            gm_deregister_memory(_gmc.port, 
 	    (void *) gasneti_seginfo[gasneti_mynode].addr,
 	    gasneti_seginfo[gasneti_mynode].size) != GM_SUCCESS)
 		fprintf(stderr, 
@@ -981,7 +982,8 @@ static void gasnetc_exit_body(void) {
   alarm(30);
   {
 	#if defined(GASNET_SEGMENT_FAST)
-	if (gasneti_attach_done && gm_deregister_memory(_gmc.port, 
+	if (gasneti_attach_done && gasneti_seginfo[gasneti_mynode].size > 0 &&
+            gm_deregister_memory(_gmc.port, 
 	    (void *) gasneti_seginfo[gasneti_mynode].addr,
 	    gasneti_seginfo[gasneti_mynode].size) != GM_SUCCESS)
 		fprintf(stderr, 
