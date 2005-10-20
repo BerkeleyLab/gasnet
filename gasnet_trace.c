@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2005/08/10 22:50:51 $
- * $Revision: 1.115 $
+ *     $Date: 2005/10/20 07:36:46 $
+ * $Revision: 1.115.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,20 +60,28 @@ static gasneti_stattime_t starttime;
 #endif
 
 #if GASNET_TRACE
+  #define TMPBUFSZ 1024
+  #define _GASNETT_TRACE_PRINTF_DOIT(cat) do {                                 \
+    char output[TMPBUFSZ];                                                     \
+    if (GASNETI_TRACE_ENABLED(cat)) { /* skip some varargs overhead */         \
+      va_list argptr;                                                          \
+      va_start(argptr, format); /*  pass in last argument */                   \
+        { int sz = vsnprintf(output, TMPBUFSZ, format, argptr);                \
+          if (sz >= (TMPBUFSZ-5) || sz < 0) strcpy(output+(TMPBUFSZ-5),"..."); \
+        }                                                                      \
+      va_end(argptr);                                                          \
+      GASNETI_TRACE_MSG(cat, output);                                            \
+    }                                                                          \
+  } while (0)
+
   extern void _gasnett_trace_printf(const char *format, ...) {
-    #define TMPBUFSZ 1024
-    char output[TMPBUFSZ];
-    if (GASNETI_TRACE_ENABLED(H)) { /* skip some varargs/vsnprintf overhead */
-      va_list argptr;
-      va_start(argptr, format); /*  pass in last argument */
-        { int sz = vsnprintf(output, TMPBUFSZ, format, argptr);
-          if (sz >= (TMPBUFSZ-5) || sz < 0) strcpy(output+(TMPBUFSZ-5),"...");
-        }
-      va_end(argptr);
-      GASNETI_TRACE_MSG(H, output);
-    }
-    #undef TMPBUFSZ
+    _GASNETT_TRACE_PRINTF_DOIT(H);
   }
+  extern void _gasnett_trace_printf_force(const char *format, ...) {
+    _GASNETT_TRACE_PRINTF_DOIT(U);
+  }
+  #undef _GASNETT_TRACE_PRINTF_DOIT
+  #undef TMPBUFSZ
 #endif
 
 /* these are legal even without STATS/TRACE */
@@ -493,6 +501,8 @@ extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *t
       if (types[(int)*p]) *(newmaskstr++) = *p;
     }
     *newmaskstr = '\0';
+    types['U'] = 1; /* category U is not in GASNETI_ALLTYPES, but is always enabled */
+    typesall['U'] = 1;
 
     { /* ensure tracemask change messages always makes it into the trace */
       char tmpi = gasneti_tracetypes[(int)'I'];

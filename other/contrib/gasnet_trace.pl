@@ -2,8 +2,8 @@
 
 #############################################################
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/gasnet_trace.pl,v $
-#     $Date: 2005/07/24 23:22:13 $
-# $Revision: 1.33 $
+#     $Date: 2005/10/20 07:36:48 $
+# $Revision: 1.33.2.1 $
 #
 # All files in this directory (except where otherwise noted) are subject to the
 #following licensing terms:
@@ -54,7 +54,7 @@ use Getopt::Long;
 # Global Variables
 ########################
 
-my $version = "1.3";
+my $version = "1.4";
 
 my ($opt_sort, $opt_output, $opt_help, $opt_report);
 my ($opt_internal, $opt_full, $opt_thread, $opt_filter);
@@ -207,8 +207,18 @@ sub parse_threadinfo
  
     LINE:
     while (<TRACEFILE>) {
-        if (/MAGIC/) {
-            m/^(\S+).*?I am thread (\d+) of (\d+).*?on node (\d+) of (\d+).*?in job <([^>]+)>.*$/;
+        if (/GASNET_TRACEMASK: (\S+)/) {
+ 	  my $initial_mask = $1; # note that mask may change during execution
+          unless ($initial_mask =~ m/[N]/) {
+            print STDERR "WARNING: '$filename' was created with the N tracing category disabled.\n".
+                         "WARNING: Line number information may be missing or incomplete.\n";
+          }
+          #unless ($initial_mask =~ m/[H]/) {
+          #  die "ERROR: '$filename' was created with the H tracing category disabled.\n" .
+          #      "ERROR: ${tool_prefix}_trace currently requires GASNET_TRACEMASK to include 'H'.\n";
+          #}
+        } elsif (/GASNET_TRACE_MAGIC/ && 
+            m/^(\S+).*?I am thread (\d+) of (\d+).*?on node (\d+) of (\d+).*?in job <([^>]+)>.*$/) {
   	    my $job_id = $6;
             $threads{$1} = $2;
             $nodes{$1} = $4;
@@ -246,6 +256,9 @@ sub parse_threadinfo
 	    $node_seen{$1} = 1;   # remember we saw this node's trace output in this file
 	}
     }
+
+    die "ERROR: '$filename' does not appear to be a valid GASNet trace file!\n" 
+       unless (keys %node_magic_seen);
 	
     # remember the number of threads per node
     foreach my $key (keys %node_threads_seen) {
@@ -274,9 +287,10 @@ sub parse_tracefile
     
     # Flag for internal region
     my $inRegion;
+    my $sawmagic;
     my %arraycopy_not_nb; # flag for nb copy failure detection
     while (<TRACEFILE>) {
-    	if ($opt_internal) {
+    	unless ($opt_internal) {
     	    # If in region, skip unless we have a leaveregion
 	    if (/GASNET_TRACE_LEAVEREGION/) {
 	        $inRegion = 0;
@@ -289,6 +303,7 @@ sub parse_tracefile
 	        next;
 	    }
 	}
+	$sawmagic = 1 if (/GASNET_TRACE_MAGIC/);
 	    
 	# Actual info
 	my ($thread, $src, $pgb, $type, $sz);
@@ -301,7 +316,7 @@ sub parse_tracefile
 	    print STDERR "\b\b$percentage%";
 	    $counter = 0;
 	}
-        if (/^(\S+) \S+ \[([^\]]+)\] \([HPGB]\) (PUT|GET|BARRIER|TI_ARRAY_COPY)([^:]*):\D+(\d+)?/) { 
+        if (/^(\S+) \S+ (\[[^\]]+\] )?\([HPGB]\) (PUT|GET|BARRIER|TI_ARRAY_COPY)([^:]*):\D+(\d+)?/) { 
             ($thread, $src, $pgb, $type, $sz) = ($1, $2, $3, $4, $5);
             # filter out lines that are not going to be in the report
             next unless $reports{$pgb};
@@ -338,6 +353,11 @@ sub parse_tracefile
                 next if $filters{$type};
 		$type .= "|$desc";
             }
+
+            if ($src =~ m/\[([^\]]+)\]/) { $src = $1; }
+            elsif (!$sawmagic) { $src = "_STARTUP:0"; } # anything before the first magic is internal
+            else { $src = "UNKNOWN:0"; } # a user operation with missing line number
+
             push @{$data{$pgb}{$src}{$type}{$thread}}, $sz;	
 	}
     }
@@ -544,16 +564,14 @@ EOF
     
     # Setting up variables;
     my ($src_num, $source, $lnum, $type, $min, $max, $avg, $total, $calls, $extra);
-    my ($threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls);
+    my ($threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls, $got_one);
 
-    if (!$report{$pgb}) {
-        print "NONE\n";
-    }
     foreach my $entry (@{$report{$pgb}}) { 
         ($src_num, $type, $max, $min, $avg, $total, $calls) = @{$entry};
         ($source, $lnum) = src_line($src_num);
         # Skip internal events (having lnum==0) if not specified.
-        next unless ($lnum || $opt_internal);
+        next unless ($lnum || $opt_internal || $source eq "UNKNOWN");
+        $got_one = 1;
         
         
         $max = shorten($max, $pgb);
@@ -613,6 +631,9 @@ EOF
     	    }
     	}
         
+    }
+    if (!$got_one) {
+        print "NONE\n";
     }
     
 # formats

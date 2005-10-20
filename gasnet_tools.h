@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2005/08/19 05:00:17 $
- * $Revision: 1.40.2.1 $
+ *     $Date: 2005/10/20 07:36:46 $
+ * $Revision: 1.40.2.2 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -153,8 +153,10 @@ BEGIN_EXTERNC
   #define GASNETT_TRACE_FREEZESOURCELINE   GASNETI_TRACE_FREEZESOURCELINE
   #define GASNETT_TRACE_UNFREEZESOURCELINE GASNETI_TRACE_UNFREEZESOURCELINE
   #define GASNETT_TRACE_ENABLED  GASNETI_TRACE_ENABLED(H)
-  #define GASNETT_TRACE_PRINTF  _gasnett_trace_printf
+  #define GASNETT_TRACE_PRINTF        _gasnett_trace_printf
+  #define GASNETT_TRACE_PRINTF_FORCE  _gasnett_trace_printf_force
   extern void _gasnett_trace_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
+  extern void _gasnett_trace_printf_force(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
   #define GASNETT_TRACE_GETMASK()     GASNETI_TRACE_GETMASK()
   #define GASNETT_TRACE_SETMASK(mask) GASNETI_TRACE_SETMASK(mask)
   #define GASNETT_TRACE_GET_TRACELOCAL()        GASNETI_TRACE_GET_TRACELOCAL()
@@ -165,7 +167,8 @@ BEGIN_EXTERNC
   #define GASNETT_TRACE_FREEZESOURCELINE()          ((void)0)
   #define GASNETT_TRACE_UNFREEZESOURCELINE()        ((void)0)
   #define GASNETT_TRACE_ENABLED  0
-  #define GASNETT_TRACE_PRINTF  _gasnett_trace_printf
+  #define GASNETT_TRACE_PRINTF        _gasnett_trace_printf
+  #define GASNETT_TRACE_PRINTF_FORCE  _gasnett_trace_printf
   /*GASNET_INLINE_MODIFIER(_gasnett_trace_printf) 
    * causes many warnings because vararg fns cannot be inlined */
   static void _gasnett_trace_printf(const char *_format, ...) { 
