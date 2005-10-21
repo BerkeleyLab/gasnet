@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/08/22 08:50:32 $
- * $Revision: 1.62.2.2 $
+ *     $Date: 2005/10/21 20:30:48 $
+ * $Revision: 1.62.2.3 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -380,7 +380,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 #ifndef gasneti_sync_writes
   #if !GASNETI_THREADS
-    #define gasneti_sync_writes() /* NO-OP */
+    #define gasneti_sync_writes() ((void)0)
   #elif GASNETI_UNI_BUILD
     #define gasneti_sync_writes() gasneti_compiler_fence()
   #else
@@ -390,7 +390,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 #ifndef gasneti_sync_reads
   #if !GASNETI_THREADS
-    #define gasneti_sync_reads() /* NO-OP */
+    #define gasneti_sync_reads() ((void)0)
   #elif GASNETI_UNI_BUILD
     #define gasneti_sync_reads() gasneti_compiler_fence()
   #else
@@ -400,7 +400,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 
 #ifndef gasneti_sync_mem
   #if !GASNETI_THREADS
-    #define gasneti_sync_mem() /* NO-OP */
+    #define gasneti_sync_mem() ((void)0)
   #elif GASNETI_UNI_BUILD
     #define gasneti_sync_mem() gasneti_compiler_fence()
   #else
