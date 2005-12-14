@@ -1,0 +1,115 @@
+Update strategy
+===============
+RDMA support for LAPI conduit is currently implemented with #ifdef
+regions providing the required functionality.  Jason yesterday added
+the --enable-lapi-rdma configure option that adds GASNETC_LAPI_RDMA
+to the compilation environment.
+
+Setup (mostly in gasnet_core.c:gasnetc_attach())
+================================================
+
+In this routine we take the regular segment (SEGMENT_FAST only)
+and split it up into a number of 32MB regions, each with its
+own PVO (LAPI_Util with LAPI_XLATE_ADDRESS).  These PVOs are
+then exchanged (loop of LAPI_Address_init64() calls).  In addition
+lapi_remote_ctxt_t objects are obtained (LAPI_Util with
+LAPI_RDMA_ACQUIRE).  At this point a node has enough to identify
+and manipulate data in the shared segment on any other node.
+
+Finally, target notification callbacks are registed for ensuring
+GASNet semantics for completion of PUT operations (see subsequent
+discussion)
+
+GET Operations
+==============
+
+Shared segment to shared segment
+--------------------------------
+
+The only issue here is decomposing the transfer so that each RDMA
+operation does not cross PVO boundaries.  The strategy taken here
+is to loop over source regions, splitting the transfer into one
+or two, depending on whether the source region crosses a PVO boundary
+at the target.
+
+[Alternative: Investigate interchanging loop order]
+
+Out of shared segment to shared segment
+---------------------------------------
+
+The regions are lined up, i.e. the source PVO boundaries are matched
+to target PVO boundaries.  The source regions are then pinned using 
+this
+decomposition and the LAPI_Xfer() calls are made.
+
+Completion
+----------
+
+Here the origin counter is sufficient.  Upon completion all the source
+out of segment registrations are freed.
+
+[Improvements (probably mandatory for any kind of performance):
+Use firehose to manage source pinning
+Use pre-pinned bounce buffers for smaller operations, etc.]
+
+PUT Operations
+==============
+
+The decomposition strategy is similar to GETs.  The only wrinkle here
+is that the origin counter only indicates local completion.  For
+remote completion we use the following strategy:
+
+At setup each node decides on a number of tags, the number of
+concurrent transfers it would like to handle.  Each node also
+registers a remote callback for each tag (a single function pointer,
+with a different sinfo for each tag).  Each tag is associated with a
+word at the initiator.  For PUT operations the initiator gets a free
+word from an array indexed by tag.  This location in the array is
+atomically set to OCCUPIED.  This tag is then placed in the rdma_tag
+field of the HwXfer struct.  Of course, at setup time, the pointers to
+the arrays at the initiators are exchanged using LAPI_Address_Init64()
+calls.  When the remote node receives the chunk of the put, the
+callback is executed with (source, tag) as arguments.  This lets it
+look up the pointer associated with the initiator and tag, then
+changes the initiator entry to DONE.  Initiators "reap" these done
+flags to ensure remote completion.
+
+[Alternative: Use LAPI_Fence() to ensure completion.  However, this 
+completes
+everything from the node which is probably too big of a hammer when we 
+have
+Pthreads.  We could get separate LAPI handles for each Pthread to 
+solve this,
+though.]
+
+[Alternative: Have the notification handler update a table local to
+the target.  The initiator can pull this table periodically (some
+intelligence is needed here).  This has the advantage of aggregating
+not just the chunks of a single transfer, but multiple transfers as
+well.  More investigation definitely needed]
+
+
+Managing GASNet Handles
+=======================
+
+For GETs, as mentioned earlier, only the origin counter and
+list of locally pinned regions are needed.
+For PUTs, the origin counter only helps us with source completion.
+For target completion we also need to know when all the initiator's
+words have been modified by the target.  We either need to keep the
+list of words or have another counter be atomically updated when
+the words are "reaped".
+It's probably easiest to add a target counter and pointer to list of
+PVOs to the eops/iops.  The list of PVOs will soon go.
+
+
+TODO List Once We Have a Machine
+================================
+
+- Get timings for pin/unpin
+- Perform some empirical studies to help us choose
+  among design alternatives, particularly for PUTs
+- Local firehose (improved FAST & LARGE)
+- Remote firehose (EVERYTHING)
+- Revisit current AM implementation
+
