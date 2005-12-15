@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/12/15 06:21:31 $
- * $Revision: 1.13.12.1 $
+ *     $Date: 2005/12/15 07:28:06 $
+ * $Revision: 1.13.12.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,11 +9,8 @@
 #ifndef _GASNET_EXTENDED_INTERNAL_H
 #define _GASNET_EXTENDED_INTERNAL_H
 
-#include <gasnet.h>
-#include <gasnet_handler.h>
 #include <gasnet_internal.h>
-
-
+#include <gasnet_handler.h>
 
 /* =====================================================================
  * LAPI specific structures
@@ -39,18 +36,38 @@ typedef struct {
 
 /* LAPI header handler argument for barrier operations */
 typedef struct {
-    int phase;
     int value;
-    int flags;
-    int mismatch;
-    int is_notify;
-    int src;
+    uint8_t wireflags;
 } gasnete_barrier_uhdr_t;
 
-/* ------------------------------------------------------------------------------------ */
-/*  reasonable upper-bound on L2 cache line size (don't make this too big) */
-#define GASNETE_CACHE_LINE_BYTES  (128)
+#define GASNETE_WIREFLAGS_FLAGS(wf)    ((wf) & 0x3)
+#define GASNETE_WIREFLAGS_PHASE(wf)    (((wf) & 0x4) >> 2)
+#define GASNETE_WIREFLAGS_ISNOTIFY(wf) ((wf) & 0x8)
 
+#define GASNETE_WIREFLAGS_SET(flags, phase, isnotify) \
+    (  ((flags) & 0x3)       |                        \
+      (((phase) & 0x1) << 2) |                        \
+      (((isnotify) & 0x1) << 3) )
+
+#define GASNETE_WIREFLAGS_SANITYCHECK() do {                                                    \
+    gasneti_assert_always((GASNET_BARRIERFLAG_MISMATCH | GASNET_BARRIERFLAG_ANONYMOUS) == 0x3); \
+  } while (0)
+
+/* bypass LAPI for sending loopback AMSend messages in barrier
+   saves some LAPI overhead, adds some of our own locking overhead
+ */
+#ifndef GASNETE_BARRIER_BYPASS_LOOPBACK_AMSEND
+#define GASNETE_BARRIER_BYPASS_LOOPBACK_AMSEND 1
+#endif
+
+/* implement barrier synchronization using LAPI Gfence
+   makes barrier_notify entirely blocking
+ */
+#ifndef GASNETE_BARRIER_USE_GFENCE
+#define GASNETE_BARRIER_USE_GFENCE 1
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 typedef uint8_t gasnete_threadidx_t;
 
 /* gasnet_handle_t is a void* pointer to a gasnete_op_t, 
@@ -62,13 +79,18 @@ typedef struct _gasnete_op_t {
 } gasnete_op_t;
 
 /* for compactness, eops address each other in the free list using a gasnete_eopaddr_t */ 
-typedef struct _gasnete_eopaddr_t {
-    uint8_t bufferidx;
-    uint8_t eopidx;
+typedef union _gasnete_eopaddr_t {
+  struct {
+    uint8_t _bufferidx;
+    uint8_t _eopidx;
+  } compaddr;
+  uint16_t fulladdr;
 } gasnete_eopaddr_t;
+#define bufferidx compaddr._bufferidx
+#define eopidx compaddr._eopidx
 
-#define gasnete_eopaddr_equal(addr1,addr2) (*(uint16_t*)&(addr1) == *(uint16_t*)&(addr2))
-#define gasnete_eopaddr_isnil(addr) (*(uint16_t*)&(addr) == *(uint16_t*)&(EOPADDR_NIL))
+#define gasnete_eopaddr_equal(addr1,addr2) ((addr1).fulladdr == (addr2).fulladdr)
+#define gasnete_eopaddr_isnil(addr) ((addr).fulladdr == EOPADDR_NIL.fulladdr)
 
 typedef struct _gasnete_eop_t {
     uint8_t flags;                  /*  state flags */
@@ -94,7 +116,7 @@ typedef struct _gasnete_iop_t {
     struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
     /*  make sure the counters live on different cache lines for SMP's */
-    uint8_t pad[GASNETE_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)]; 
+    uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
 
     lapi_cntr_t      get_cntr;
     lapi_cntr_t      put_cntr;
@@ -192,18 +214,6 @@ void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
 
 /* ------------------------------------------------------------------------------------ */
-
-/* make a GASNet call - if it fails, print error message and abort */
-#define GASNETE_SAFE(fncall) do {                                           \
-   int retcode = (fncall);                                                  \
-   if_pf (retcode != GASNET_OK) {                                           \
-     gasneti_fatalerror("\nGASNet encountered an error: %s(%i)\n"           \
-        "  while calling: %s\n"                                             \
-        "  at %s",                                                          \
-        gasnet_ErrorName(retcode), retcode, #fncall, gasneti_current_loc);  \
-   }                                                                        \
- } while (0)
-
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
