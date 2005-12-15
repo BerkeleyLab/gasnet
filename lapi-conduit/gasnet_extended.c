@@ -1,26 +1,29 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/02/17 13:18:59 $
- * $Revision: 1.42 $
+ *     $Date: 2005/12/15 06:21:31 $
+ * $Revision: 1.42.12.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet_internal.h>
+#include <gasnet.h>
 #include <gasnet_extended_internal.h>
+#include <gasnet_internal.h>
 #include <gasnet_handler.h>
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
 
+gasnet_node_t gasnete_mynode = (gasnet_node_t)-1;
+gasnet_node_t gasnete_nodes = 0;
+gasnet_seginfo_t *gasnete_seginfo = NULL;
 static gasnete_threaddata_t *gasnete_threadtable[256] = { 0 };
 static int gasnete_numthreads = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
-  /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  static gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
+static pthread_key_t gasnete_threaddata; /*  pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
 #endif
-static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
+static const gasnete_eopaddr_t EOPADDR_NIL = { 0xFF, 0xFF };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /* ====================================================================
@@ -71,8 +74,8 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 /* PURE function (returns same value for a given thread every time) 
  */
 #if GASNETI_CLIENT_THREADS
-  extern gasnete_threaddata_t *gasnete_mythread() {
-    gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
+extern gasnete_threaddata_t *gasnete_mythread() {
+    gasnete_threaddata_t *threaddata = pthread_getspecific(gasnete_threaddata);
     GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
     if_pt (threaddata) {
       gasneti_memcheck(threaddata);
@@ -81,11 +84,11 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 
     /* first time we've seen this thread - need to set it up */
     threaddata = gasnete_new_threaddata();
-    gasneti_threadkey_set(gasnete_threaddata, threaddata);
+    gasneti_assert_zeroret(pthread_setspecific(gasnete_threaddata, threaddata));
     return threaddata;
-  }
+}
 #else
-  #define gasnete_mythread() (gasnete_threadtable[0])
+#define gasnete_mythread() (gasnete_threadtable[0])
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -97,26 +100,32 @@ static void gasnete_check_config() {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
-  GASNETE_WIREFLAGS_SANITYCHECK();
 }
 
 extern void gasnete_init() {
-    static int firstcall = 1;
     GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
-    gasneti_assert(firstcall); /*  make sure we haven't been called before */
-    firstcall = 0;
+    gasneti_assert(gasnete_nodes == 0); /*  make sure we haven't been called before */
 
     gasnete_check_config(); /*  check for sanity */
 
-    gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
+    #if GASNETI_CLIENT_THREADS
+      /*  TODO: we could provide a non-NULL destructor and reap data structures from exiting threads */
+      gasneti_assert_zeroret(pthread_key_create(&gasnete_threaddata, NULL));
+    #endif
+
+    gasnete_mynode = gasnet_mynode();
+    gasnete_nodes = gasnet_nodes();
+    gasneti_assert(gasnete_nodes >= 1 && gasnete_mynode < gasnete_nodes);
+    gasnete_seginfo = (gasnet_seginfo_t*)gasneti_malloc(sizeof(gasnet_seginfo_t)*gasnete_nodes);
+    gasnet_getSegmentInfo(gasnete_seginfo, gasnete_nodes);
 
     /* Exchange LAPI addresses here */
-    gasnete_remote_memset_hh = (void**)gasneti_malloc(gasneti_nodes*sizeof(void*));
+    gasnete_remote_memset_hh = (void**)gasneti_malloc(gasnete_nodes*sizeof(void*));
     GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context,
 				     (void*)&gasnete_lapi_memset_hh,
 				     gasnete_remote_memset_hh));
 
-    gasnete_remote_barrier_hh = (void**)gasneti_malloc(gasneti_nodes*sizeof(void*));
+    gasnete_remote_barrier_hh = (void**)gasneti_malloc(gasnete_nodes*sizeof(void*));
     GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context,
 				     (void*)&gasnete_lapi_barrier_hh,
 				     gasnete_remote_barrier_hh));
@@ -216,9 +225,9 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
 	    gasnete_eopaddr_t addr = thread->eop_free;
 
 #if 0
-	    if (gasneti_mynode == 0)
+	    if (gasnete_mynode == 0)
 		for (i=0;i<256;i++) {                                   
-		    fprintf(stderr,"%i:  %i: next=%i\n",gasneti_mynode,i,buf[i].addr.eopidx);
+		    fprintf(stderr,"%i:  %i: next=%i\n",gasnete_mynode,i,buf[i].addr.eopidx);
 		    fflush(stderr);
 		}
 	    sleep(5);
@@ -276,13 +285,37 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 	gasnete_eop_t *eop = (gasnete_eop_t*)op;
 	gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
         gasnete_eop_check(eop);
+#ifdef GASNETC_LAPI_RDMA
+	if(eop->get_p) {
+	  GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->origin_counter,&cnt));
+          if(eop->num_transfers == cnt) {
+            /* Free the pinned region */
+            gasnetc_lapi_release_pvo_list(eop->pvo_list);
+	    return (1);
+          } else {
+	    return (0);
+          }
+	} else {
+	  if(eop->num_transfers == eop->completion_counter) {
+	    /* Free pinned region */
+            gasnetc_lapi_release_pvo_list(eop->pvo_list);
+            return(1);
+          } else {
+	    return(0);
+          }
+	}
+#else
 	if (eop->initiated_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&cnt));
 	    gasneti_assert(cnt <= eop->initiated_cnt);
 	}
 	return (eop->initiated_cnt == cnt);
+#endif
     } else {
 	/* only call getcntr if we need to */
+#ifdef GASNETC_LAPI_RDMA
+      /* TODO TODO */
+#else
 	gasnete_iop_t *iop = (gasnete_iop_t*)op;
         gasnete_iop_check(iop);
 	if (iop->initiated_get_cnt > 0) {
@@ -297,6 +330,7 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 	    gasneti_assert(cnt <= iop->initiated_put_cnt);
 	}
 	return (iop->initiated_put_cnt == cnt);
+#endif
     }
 }
 
@@ -385,6 +419,298 @@ void* gasnete_lapi_memset_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
   ===================================
 */
 /* ------------------------------------------------------------------------------------ */
+
+#if GASNETC_LAPI_RDMA
+/* 
+ * Try to resuse as much code as possible
+ */
+
+
+/* Pin like there's no tomorrow! */
+lapi_user_pvo_t gasnetc_lapi_get_local_pvo(lapi_long_t addr, size_t len)
+{
+	lapi_get_pvo_t new_pvo;
+	new_pvo.Util_type = LAPI_XLATE_ADDRESS;
+	new_pvo.length = len
+	new_pvo.user_pvo = 0;
+	new_pvo.address = (void *) addr;
+	new_pvo.operation = LAPI_RDMA_ACQUIRE;
+	/* Keep track of the PVOs and release the ones that have been around too long */
+	GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context,(lapi_util_t *) &new_pvo));
+	return(new_pvo.user_pvo);
+}
+
+gasnetc_lapi_pvo *gasnetc_lapi_new_pvo()
+{
+   gasnetc_lapi_pvo *current = gasnetc_lapi_pvo_free_list[gasnete_mythread()];
+   gasnetc_lapi_pvo_free_list[gasnete_mythread()] = current->next;
+   current->next = NULL;  /* To save potential trouble */
+   return(current);
+}
+
+void gasnetc_lapi_free_pvo(gasnetc_lapi_pvo *current)
+{
+  // Add current to the free list
+  current->next = gasnetc_lapi_pvo_free_list[gasnete_mythread()];
+  gasnetc_lapi_pvo_free_list[gasnete_mythread()] = current;
+}
+
+void gasnetc_lapi_add_to_pvo_list(gasnetc_lapi_pvo ***head_ptr, lapi_user_pvo_t in_pvo)
+{
+  gasnetc_lapi_pvo *current = gasnetc_lapi_new_pvo();
+  current->pvo = in_pvo;
+  current->next = *head_ptr;
+  *head_ptr = current;
+}
+
+void gasnetc_lapi_release_pvo_list(gasnetc_lapi_pvo *head)
+{
+  gasnetc_lapi_pvo *current = head;
+  gasnetc_lapi_pvo *next = NULL;
+  lapi_get_pvo_t new_pvo;
+  while(current != NULL) {
+    /* Unpin */
+   new_pvo.Util_type = LAPI_XLATE_ADDRESS;
+   new_pvo.length = 0;
+   new_pvo.user_pvo = current->pvo;
+   new_pvo.address = 0;
+   new_pvo.operation = LAPI_RDMA_RELEASE;
+   GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_contest, (lapi_util_t *) &new_pvo)); 
+   /* Return this guy to the free list */
+   next = current->next;
+   gasnetc_lapi_free_pvo(current);
+   current = next;
+  }
+}
+
+/* 
+ * TODO TODO TODO
+ * ==============
+ * 
+ * Use bounce buffers if source is too small, misaligned
+ * Add local firehose for better local pinning behaviour
+ * Add remote firehose (for segment everything)
+ * 
+ */
+
+/* BAD, BAD, BAD.  This guy spins until it finds a tag 
+ * Should also not pay the atomic op price if running without threads */
+
+int gasnetc_lapi_last_polled = 0;
+void gasnetc_lapi_poll_tag_table(int numrounds)
+{
+  int i;
+  for(i=0;i < numrounds;i = (i == (GASNET_LAPI_MAX_TAGS-1) ? 0 : i+1)) {
+    
+    if(compare_and_swap((atomic_p) (gasnetc_lapi_local_target_counters + i),
+		     &gasnetc_lapi_done, gasnetc_lapi_empty)) {
+      /* Increment the completion counter for this guy */
+      fetch_and_add(gasnetc_lapi_completion_ptrs[i],1);
+    }
+  }
+  fetch_and_add(&gasnetc_lapi_last_polled, numrounds);
+}
+
+int gasnetc_lapi_get_unallocated_tag()
+{
+  int i = 0;
+  while(1) {
+    /* Try to reap any you find */
+	
+    if(compare_and_swap((atomic_p) (gasnetc_lapi_local_target_counters + i),
+		     &gasnetc_lapi_done, gasnetc_lapi_empty)) {
+      /* Increment the completion counter for this guy */
+      fetch_and_add(gasnetc_lapi_completion_ptrs[i],1);
+    }
+	
+    /* Compare and swap gasnetc_lapi_occupied != gasnetc_lapi_empty */
+	
+    if(compare_and_swap((atomic_p) (gasnetc_lapi_local_target_counters + i),
+			&gasnetc_lapi_empty, gasnetc_lapi_occupied)) {
+      return(i);
+    } else {
+      i = (i == (GASNET_LAPI_MAX_TAGS-1)) ? 0 : i+1;
+    }
+  }
+
+}
+
+gasnet_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origin, size_t nbytes, int op,
+				   lapt_ctr_t * origin_counter, gasnet_iop_t *iop GASNETE_THREAD_FARG)
+{
+  lapi_long_t dest_to_long = (lapi_long_t) dest;
+  lapi_remote_ctxt_t rctx = gasnetc_remote_ctxts[node];
+  lapi_xfer_t xfer_struct;	/* From the LAPI docs */
+  int total_transfers = 0;
+  size_t nbytes_transferred = 0;
+  int first_call;
+  int transfer_len;
+  lapi_long_t origin_to_long = (lapi_long_t) origin;
+  lapi_user_pvo_t remove_pvo, source_pvo;
+  int allocated_tag;
+  gasnetc_lapi_pvo *pvo_list = NULL;
+  int *cptr;
+
+  bzero (&xfer_struct, sizeof (xfer_struct));
+  
+  if(iop == NULL) {
+    gasnet_eop_t *new_eop = gasnete_eop_new(GASNETE_MYTHREAD);
+    new_eop->get_p = (op == LAPI_RDMA_GET);
+    if(origin_counter != NULL) {
+      new_eop->origin_counter = origin_counter;
+    } else {
+      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &(new_op->cntr), 0));
+      new_eop->origin_counter = &(new_eop->cntr);
+    }
+    new_eop->completion_counter = 0;
+    cptr = &(new_eop->completion_counter);
+  } else {
+    /* TODO TODO TODO */
+  }
+  /* Do something special if the origin is within the pinned segment */
+  if ((origin_to_long >= gasnetc_segbase_table[gasnetc_mynode])
+      && (origin_to_long < gasnetc_segbase_table[gasnetc_mynode] + gasnetc_seginfo[gasnetc_mynode].size)) {
+    /* No need to pin origin, but you need to deal with misalignment 
+     * of the pinned regions of the origin and destination */
+    while(n_bytes_transferred < nbytes) {
+      /* The number of bytes to either the end of the current PVO region
+       * or the end of the data */
+      int length_to_boundary, length_to_remote_boundary, chunk_remaining, source_offset, remote_offset;
+      length_to_boundary = (int) MIN(GASNET_LAPI_EXTENT - 
+				     ((origin_to_long + nbytes_transferred) % GASNET_LAPI_EXTENT),
+				     nbytes - nbytes_transferred);
+      
+      /* Try to transfer this chunk of bytes.  It will either take
+       * one or two RDMA calls depending on whether or not it is entirely
+       * within a single PVO region at the target */
+      
+      chunk_remaining = length_to_boundary;
+      source_offset = GASNET_LAPI_EXTENT - length_to_boundary;		
+      source_pvo = gasnetc_pvo_table[(origin_to_long + nbytes_transferred - 
+				     gasnetc_segbase_table[gasnetc_mynode])/GASNET_LAPI_EXTENT][gasnetc_mynode];  
+      
+      do {
+	remote_pvo = gasnetc_pvo_table[(dest_to_long + nbytes_transferred -
+				       gasnetc_segbase_table[node]) / GASNET_LAPI_EXTENT][node];
+	length_to_remote_boundary = MIN(GASNET_LAPI_EXTENT - ((dest_to_long + nbytes_transferred) 
+							      % GASNET_LAPI_EXTENT),chunk_remaining);
+	remote_offset = GASNET_LAPI_EXTENT - length_to_remote_boundary;
+	
+	/* Send this off now */
+	xfer_struct.HwXfer.src_pvo = source_pvo;
+	xfer_struct.HwXfer.src_offset = source_offset;
+	
+	xfer_struct.HwXfer.tgt_pvo = remote_pvo;
+	xfer_struct.HwXfer.tgt_offset = remote_offset;
+	
+	
+	xfer_struct.HwXfer.Xfer_type = LAPI_RDMA_XFER;
+	xfer_struct.HwXfer.tgt = node;
+	xfer_struct.HwXfer.op = op;
+	if(op == LAPI_RDMA_GET) {
+	  xfer_struct.HwXfer.rdma_tag = GASNET_LAPI_RDMA_GET_TAG;
+	} else {
+	  xfer_struct.HwXfer.op |= LAPI_RCALLBACK;
+	  xfer_struct.HwXfer.rdma_tag = gasnetc_lapi_get_unallocated_tag();
+	  /* Add the pointer to the completion counter here */
+	  gasnetc_lapi_completion_ptrs[xfer_struct.HwXfer.rdma_tag] = cptr;
+	}
+	xfer_struct.HwXfer.remote_cxt = rctxt;
+	xfer_struct.HwXfer.len = length_to_remote_boundary;
+	xfer_struct.HwXfer.shdlr = (scompl_hndlr_t *) NULL;
+	xfer_struct.HwXfer.sinfo = (void *) NULL;
+	xfer_struct.HwXfer.org_cntr = eop->origin_counter;
+	GASNETC_LCHECK (LAPI_Xfer (gasnetc_lapi_context, &xfer_desc));
+	total_transfers++;
+	n_bytes_transferred += length_to_remote_boundary;
+	chunk_remaining -= length_to_remote_boundary;
+	source_offset += length_to_remote_boundary;
+      } while (chunk_remaining > 0);
+      
+    }
+             
+  } else {
+    first_call = 1;
+    while (nbytes_transferred < nbytes) {
+      /* Compute the number of bytes to be transferred in this step.  Try
+       * to align the local and remote sides so that the maximum amount of data
+       * is transferred with each call */
+      
+      if (first_call) {
+	/* Transfer only up to the next PVO boundary on the remote side */
+	remote_offset = dest_to_long % GASNET_LAPI_EXTENT;
+	source_offset = 0;
+	transfer_len = MIN (nbytes - nbytes_transferred, GASNET_LAPI_EXTENT - remote_offset);
+	xfer_struct.HwXfer.src_pvo =
+	  getnet_lapi_get_local_pvo (((lapi_long_t) origin) +
+				     nbytes_transferred, transfer_len,
+				     &source_offset, pvo_list_head);
+	gasnetc_lapi_add_to_pvo_list(&pvo_list,xfer_struct.HwXfer.src_pvo);
+	xfer_struct.HwXfer.tgt_pvo =
+	  gasnetc_pvo_table[(dest_to_long + nbytes_transferred -
+			    gasnetc_segbase_table[node]) /
+			   GASNET_LAPI_EXTENT][node];
+	xfer_struct.HwXfer.tgt_offset = remote_offset;
+	xfer_struct.HwXfer.src_offset = source_offset;
+      } else {
+	/* Can now transfer in chunks of size GASNET_LAPI_EXTENT */
+	transfer_len = MIN (GASNET_LAPI_EXTENT, nbytes - nbytes_transferred);
+	xfer_struct.HwXfer.src_pvo = getnet_lapi_get_local_pvo (origin_to_long +
+								nbytes_transferred, transfer_len, &source_offset, pvo_list_head);
+	gasnetc_lapi_add_to_pvo_list(&pvo_list,xfer_struct.HwXfer.src_pvo);
+	xfer_struct.HwXfer.tgt_pvo = gasnetc_pvo_table[(dest_to_long + nbytes_transferred -
+						       gasnetc_segbase_table[node]) / GASNET_LAPI_EXTENT][node];
+	xfer_struct.HwXfer.tgt_offset = 0;
+	xfer_struct.HwXfer.src_offset = 0;
+      }
+
+      first_call = 0;
+      xfer_struct.HwXfer.Xfer_type = LAPI_RDMA_XFER;
+      xfer_struct.HwXfer.tgt = node;
+      xfer_struct.HwXfer.op = op;
+      if(op == LAPI_RDMA_GET) {
+	xfer_struct.HwXfer.rdma_tag = GASNET_LAPI_RDMA_GET_TAG;
+      } else {
+	xfer_struct.HwXfer.op |= LAPI_RCALLBACK;
+	xfer_struct.HwXfer.rdma_tag = gasnetc_lapi_get_unallocated_tag();
+	/* Add the pointer to the completion counter here */
+	gasnetc_lapi_completion_ptrs[xfer_struct.HwXfer.rdma_tag] = cptr;
+      }
+      xfer_struct.HwXfer.remote_cxt = rctxt;
+      xfer_struct.HwXfer.len = transfer_len;
+      xfer_struct.HwXfer.shdlr = (scompl_hndlr_t *) NULL;
+      xfer_struct.HwXfer.sinfo = (void *) NULL;
+      xfer_struct.HwXfer.org_cntr = eop->origin_counter;
+      
+      /* Do the transfer */
+      GASNETC_LCHECK (LAPI_Xfer (gasnetc_lapi_context, &xfer_desc));
+      total_transfers++;
+      nbytes_transferred += transfer_len;
+    }
+  }
+
+  /* Return the following information 
+   * - number of transfers we're waiting for
+   * - list of local pvos to release once the transfer is complete
+   * - origin counter
+   * - list (array?) of counters that remote completion callbacks flip
+   */
+  if(iop == NULL) {
+    new_eop->num_transfers = total_transfers;
+    new_eop->pvo_list = pvo_list; 
+    new_eop->completion_counter = 0;
+    return(new_eop);
+  } else {
+    /* TODO TODO TODO */
+    return((gasnet_eop_t *) NULL);
+  }
+}
+
+
+
+#endif
+
+void 
 extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG)
 {
@@ -392,6 +718,16 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
     int num_get = 0;
     int cur_cntr;
 
+#if GASNETC_LAPI_RDMA
+    gasnete_eop_t *eop;
+    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
+    gasneti_suspend_spinpollers();
+    eop = gasnete_lapi_rdma_do_rdma(dest,node,src,nbytes,LAPI_RDMA_GET, &c_cntr,NULL);
+    gasneti_resume_spinpollers();
+    /* Wait on this eop */
+    gasnete_wait_syncnb((gasnet_handle_t) eop);
+    gasnet_op_free(eop);
+#else
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
 
     /* Issue as many gets as required.
@@ -410,6 +746,8 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
     /* block until all gets complete */
     GASNETC_WAITCNTR(&c_cntr,num_get,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
+#endif
+    
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -419,7 +757,17 @@ extern void gasnete_put_bulk (gasnet_node_t node, void *dest, void *src,
     lapi_cntr_t  c_cntr;
     int num_put = 0;
     int cur_cntr;
-
+#if GASNETC_LAPI_RDMA
+    gasnetc_lapi_rdma_desc *transfer_desc;
+    gasnete_eop_t *eop;
+    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
+    gasneti_suspend_spinpollers();
+    eop = gasnete_lapi_do_rdma(dest,node,src,nbytes,LAPI_RDMA_PUT, &c_cntr,NULL);
+    gasneti_resume_spinpollers();
+    /* Wait on this eop */
+    gasnete_wait_syncnb((gasnet_handle_t) eop);
+    gasnet_op_free(eop);
+#else
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
 
     /* Issue as many puts as required.
@@ -441,6 +789,8 @@ extern void gasnete_put_bulk (gasnet_node_t node, void *dest, void *src,
     /* block until all complete */
     GASNETC_WAITCNTR_FBW(&c_cntr,num_put,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
+#endif
+    
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -483,6 +833,14 @@ extern void gasnete_memset(gasnet_node_t node, void *dest, int val,
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src,
 					    size_t nbytes GASNETE_THREAD_FARG)
 {
+#ifdef GASNETC_LAPI_RDMA
+    /* Need to clean up the calling sequence here */
+    gasnete_eop_t *eop;
+    gasneti_suspend_spinpollers();
+    eop = gasnete_lapi_do_rdma(dest,node,src,nbytes,LAPI_RDMA_GET, NULL, NULL);
+    gasneti_resume_spinpollers();
+    return((gasnet_handle_t) eop);
+#else
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
     /* Issue as many gets as required.
@@ -499,12 +857,21 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     }
     gasneti_resume_spinpollers();
     return (gasnet_handle_t)op;
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src,
 					    size_t nbytes GASNETE_THREAD_FARG)
 {
+#ifdef GASNETC_LAPI_RDMA
+    gasnete_eop_t *eop;
+    gasneti_suspend_spinpollers();
+    eop = gasnete_lapi_do_rdma(dest,node,src,nbytes,LAPI_RDMA_PUT, NULL, NULL);
+    gasneti_resume_spinpollers();
+    /* Don't wait for source completion */
+    return((gasnet_handle_t) eop);
+#else
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
     /* Issue as many puts as required.
@@ -528,12 +895,24 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 #else
     return (gasnet_handle_t)op;
 #endif
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
 extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src,
 				       size_t nbytes GASNETE_THREAD_FARG)
 {
+#ifdef GASNETC_LAPI_RDMA
+    gasnete_eop_t *eop;
+    int cur_cntr;
+    gasneti_suspend_spinpollers();
+    eop = gasnete_lapi_do_rdma(dest,node,src,nbytes,LAPI_RDMA_PUT, NULL, NULL);
+    gasneti_resume_spinpollers();
+    /* Wait for the origin counter to indicate local completion */
+    GASNETC_WAITCNTR(eop->origin_counter,eop->num_transfers,&cur_cntr);
+    gasneti_assert(cur_cntr == 0);
+    return((gasnet_handle_t) eop);
+#else
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
     lapi_cntr_t  o_cntr;
     int num_put = 0;
@@ -568,6 +947,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
     return GASNET_INVALID_HANDLE;
 #else
     return (gasnet_handle_t)op;
+#endif
 #endif
 }
 
@@ -616,7 +996,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-    GASNETI_SAFE(gasneti_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     if (handle == GASNET_INVALID_HANDLE)
 	return GASNET_OK;
@@ -632,7 +1012,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 0;
     int empty = 1;
-    GASNETI_SAFE(gasneti_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     gasneti_assert(phandle);
 
@@ -657,7 +1037,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 1;
-    GASNETI_SAFE(gasneti_AMPoll());
+    GASNETE_SAFE(gasneti_AMPoll());
 
     gasneti_assert(phandle);
 
@@ -1009,7 +1389,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src,
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnet_valget_handle_t retval;
     gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-    gasneti_boundscheck(node, src, nbytes);
+    gasnete_boundscheck(node, src, nbytes);
     if (mythread->valget_free) {
 	retval = mythread->valget_free;
 	mythread->valget_free = retval->next;
@@ -1073,37 +1453,33 @@ static enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate = OUTSIDE_BAR
 static int volatile barrier_value; /*  local barrier value */
 static int volatile barrier_flags; /*  local barrier flags */
 static int volatile barrier_phase = 0;  /*  2-phase operation to improve pipelining */
-static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete 
-                                                             also has mismatch bit set if root detected mismatch */
+static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete */
+static int volatile barrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
 #if GASNETI_STATS_OR_TRACE
 static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
 #endif
 
 /*  global state on P0 */
-#define GASNETE_BARRIER_MASTER (gasneti_nodes-1)
-static gasneti_mutex_t barrier_lock = GASNETI_MUTEX_INITIALIZER;
+#define GASNETE_BARRIER_MASTER (gasnete_nodes-1)
+static gasnet_hsl_t barrier_lock = GASNET_HSL_INITIALIZER;
 static int volatile barrier_consensus_value[2]; /*  consensus barrier value */
 static int volatile barrier_consensus_value_present[2] = { 0, 0 }; /*  consensus barrier value found */
-static int volatile barrier_consensus_mismatch[2] = { 0, 0 }; /*  mismatch bit set if root detected a mismatch */
+static int volatile barrier_consensus_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
 static int volatile barrier_count[2] = { 0, 0 }; /*  count of how many remotes have notified (on P0) */
+/* static lapi counters used to eliminate alloc and free of uhdr structure
+ * during "broadcast" that barrier has been reached.  Its probably not necessary
+ * to have two of these, but to be on the safe side...
+ */
+static gasnete_barrier_uhdr_t barrier_uhdr[2];
 
 /* LAPI Completion handler scheduled by HH on master node when the last node
  * has performed the notify.
  * Job is to send done message to all other nodes.
  */
-void gasnete_lapi_barrier_ch(lapi_handle_t *context, void* user_info) {
-    gasnete_barrier_uhdr_t * const uhdr = (gasnete_barrier_uhdr_t*)user_info;
+void gasnete_lapi_barrier_ch(lapi_handle_t *context, void* user_info)
+{
+    gasnete_barrier_uhdr_t *uhdr = (gasnete_barrier_uhdr_t*)user_info;
     int i;
-    #if GASNETE_BARRIER_USE_GFENCE
-      /* when using Gfence, sender needs to ensure completion has run 
-         (and broadcast any mismatches) before continuing
-      */
-      lapi_cntr_t comp_cntr;
-      GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &comp_cntr, 0));
-      #define _GASNETE_BARRIER_COMPLETION &comp_cntr
-    #else
-      #define _GASNETE_BARRIER_COMPLETION NULL
-    #endif
 
     /* Note: uhdr is a pointer to a static structure.  It will not
      * be used again until the next barrier has been reached by all
@@ -1113,222 +1489,147 @@ void gasnete_lapi_barrier_ch(lapi_handle_t *context, void* user_info) {
      * we do not have to protect re-use of this uhdr by waiting
      * on a local counter variable.
      */
-    #if GASNET_TRACE
-      { const int phase = GASNETE_WIREFLAGS_PHASE(uhdr->wireflags);
-        const int flags = GASNETE_WIREFLAGS_FLAGS(uhdr->wireflags);
-        GASNETI_TRACE_PRINTF(B,("BARRIER_CH: phase %d, value %d, flags %d",
-			        phase, uhdr->value, flags));
-      }
-    #endif
+    uhdr->is_notify = 0;
+    uhdr->src = gasnete_mynode;
+
+    GASNETI_TRACE_PRINTF(B,("BARRIER_CH: phase %d, value %d, flags %d, mismatch %d, g_val %d, g_count %d",
+			    uhdr->phase,uhdr->value,uhdr->flags,uhdr->mismatch,
+			    barrier_consensus_value[uhdr->phase],barrier_count[uhdr->phase]));
 
     /* inform all nodes (except local node) that barrier is complete */
     gasneti_suspend_spinpollers();
-    for (i=0; i < gasneti_nodes; i++) {
-	if ( i == gasneti_mynode ) continue;
+    for (i=0; i < gasnete_nodes; i++) {
+	if ( i == gasnete_mynode ) continue;
 	GASNETC_LCHECK(LAPI_Amsend(*context, (unsigned int)i,
 				   gasnete_remote_barrier_hh[i],
 				   uhdr, sizeof(gasnete_barrier_uhdr_t), NULL, 0,
-				   NULL, NULL, _GASNETE_BARRIER_COMPLETION));
+				   NULL, NULL, NULL));
     }
     gasneti_resume_spinpollers();
 
-    /* when using gfence mechanism, need to ensure everyone has acknowledged the mismatch
-       before this completion handler can finish (and inform the remote mismatch 
-       initiator to proceed with the Gfence)
-    */
-    #undef _GASNETE_BARRIER_COMPLETION
-    #if GASNETE_BARRIER_USE_GFENCE
-      { int cur_cntr = 0;          
-        GASNETC_WAITCNTR(&comp_cntr,gasneti_nodes-1,&cur_cntr);
-        gasneti_assert(cur_cntr == 0);
-      }
-    #endif
 }
 
 /* LAPI header handler to implement both notify and done requests on remote node */
 void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
-			      ulong *msg_len, compl_hndlr_t **comp_h, void **uinfo) {
-    gasnete_barrier_uhdr_t const * const u = (gasnete_barrier_uhdr_t*)uhdr;
-    const uint8_t wf = u->wireflags;
-    const int value = u->value;
-    const int phase = GASNETE_WIREFLAGS_PHASE(wf);
-    const int is_notify = GASNETE_WIREFLAGS_ISNOTIFY(wf);
-    #if GASNETE_BARRIER_USE_GFENCE
-      int mismatch_firstdetect = 0;
-    #endif
+			      ulong *msg_len, compl_hndlr_t **comp_h, void **uinfo)
+{
+    gasnete_barrier_uhdr_t *u = (gasnete_barrier_uhdr_t*)uhdr;
+    int phase = u->phase;
+    int value = u->value;
+    int is_done = !u->is_notify;
 
-    GASNETI_TRACE_PRINTF(B,("BARRIER_HH: node %d, notify %d, phase %d, value %d, wireflags %d, g_val %d, g_count %d",
-			    gasneti_mynode,is_notify,phase,value,GASNETE_WIREFLAGS_FLAGS(wf),
-			    barrier_consensus_value[phase],barrier_count[phase]));
+    GASNETI_TRACE_PRINTF(B,("BARRIER_HH: node %d, src %d, notify %d, phase %d, value %d, flags %d, mismatch %d, g_val %d, g_count %d",
+			    gasnete_mynode,u->src,u->is_notify,u->phase,u->value,u->flags,u->mismatch,
+			    barrier_consensus_value[u->phase],barrier_count[u->phase]));
 
     *comp_h = NULL;
     *uinfo = NULL;
 
-    if (is_notify) {
+    if (u->is_notify) {
 	/* this is a notify header handler call */
-	gasneti_assert(gasneti_mynode == GASNETE_BARRIER_MASTER);
+	gasneti_assert(gasnete_mynode == GASNETE_BARRIER_MASTER);
 
-      #if GASNETE_BARRIER_BYPASS_LOOPBACK_AMSEND
-        gasneti_mutex_lock(&barrier_lock);
-      #else
-	/* Don't need a lock here because header handlers are
+	/* Do we need a lock here?  Don't think so.  Header handlers are
 	 * run by LAPI dispatcher and thus guaranteed to run one-at-a-time.
 	 * Varibles read and updated here are only done so in this function.
 	 */
-      #endif
-        {   const int flags = GASNETE_WIREFLAGS_FLAGS(wf);
-	    const int count = barrier_count[phase] + 1;
-	    if (!(flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
-                !barrier_consensus_value_present[phase]) { /* first named notify to arrive */
-		barrier_consensus_value[phase] = value;
+	{
+	    int count = barrier_count[phase];
+	    if (!(u->flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
+                !barrier_consensus_value_present[phase]) {
+		barrier_consensus_value[phase] = (int)value;
 		barrier_consensus_value_present[phase] = 1;
-	    } else if_pf ((flags & GASNET_BARRIERFLAG_MISMATCH) ||
-		       (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) 
-                       && barrier_consensus_value[phase] != value)) { /* mismatch reported or detected */
-                #if GASNETE_BARRIER_USE_GFENCE
-                  if (barrier_consensus_mismatch[phase] == 0) /* mismatch first detected - broadcast it */
-                    mismatch_firstdetect = 1;
-                #endif
-		barrier_consensus_mismatch[phase] = GASNET_BARRIERFLAG_MISMATCH;
+	    } else if ((u->flags & GASNET_BARRIERFLAG_MISMATCH) ||
+		       (!(u->flags & GASNET_BARRIERFLAG_ANONYMOUS) 
+                        && barrier_consensus_value[phase] != (int)value)) {
+		barrier_consensus_mismatch[phase] = 1;
 	    }
-	    barrier_count[phase] = count; /* update count */
+	    barrier_count[phase] = count+1;
 
-          #if GASNETE_BARRIER_USE_GFENCE
-            if (mismatch_firstdetect) {
-          #else
-	    if (count == gasneti_nodes) {
-          #endif
-		/* schedule completion handler to notify all nodes that barrier has been reached.
-		 * use a static uhdr to avoid allocation cost, phased to ensure race-freedom
+	    if (barrier_count[phase] == gasnete_nodes) {
+		/* schedule completion handler to notify all nodes that
+		 * the barrier has been reached.
+		 * Question: can we use a static uhdr?
 		 */
-                static gasnete_barrier_uhdr_t barrier_uhdr[2] = /* init .phase, which never changes */
-                  { {0, GASNETE_WIREFLAGS_SET(0, 0, 0)} , {0, GASNETE_WIREFLAGS_SET(0, 1, 0)} }; 
-		gasnete_barrier_uhdr_t * const uch = (gasnete_barrier_uhdr_t*)&barrier_uhdr[phase];
-                const int mismatch = barrier_consensus_mismatch[phase];
-                const int wireflags = GASNETE_WIREFLAGS_SET(mismatch, phase, 0);
-
-                #if !GASNETE_BARRIER_USE_GFENCE
-	          gasneti_assert(phase == barrier_phase);
-                #endif
-
-		uch->value = barrier_consensus_value[phase];
-                uch->wireflags = wireflags;
+		gasnete_barrier_uhdr_t *uch = (gasnete_barrier_uhdr_t*)&barrier_uhdr[phase];
+		uch->phase = phase;
+		uch->value = value;
+		uch->mismatch = barrier_consensus_mismatch[phase];
+		uch->is_notify = 0;
+		uch->src = gasnete_mynode;
+		uch->flags = -1;
 		*uinfo = (void*)uch;
 		*comp_h = gasnete_lapi_barrier_ch;
-		/* Perform local state update to get the effects of a local done handler  
-                 * Note that the completion handler will not send an AM to this node
+		/* update the local state below.  Note that the completion
+		 * handler will not send an AM to this node
 		 */
-	        barrier_response_done[phase] = 1 | mismatch;
-
+		is_done = 1;
+		u->mismatch = uch->mismatch;
 		GASNETI_TRACE_PRINTF(B,("BARRIER_HH: REACHED %d, mismatch %d, SCHEDULING CH",
-					gasneti_nodes, 
-                                        GASNETE_WIREFLAGS_FLAGS(uch->wireflags)&GASNET_BARRIERFLAG_MISMATCH));
+					gasnete_nodes,uch->mismatch));
 	    }
 	}
-      #if GASNETE_BARRIER_BYPASS_LOOPBACK_AMSEND
-        gasneti_mutex_unlock(&barrier_lock);
-      #endif
-    } else {
-	/* this is a done header handler call... update local state */
-        #if !GASNETE_BARRIER_USE_GFENCE
-	  gasneti_assert(phase == barrier_phase);
-        #endif
+    };
 
-        /* local mismatch and done signals are folded into the same variable write,
-           to avoid the need for a local write barrier here between the two writes */
-	barrier_response_done[phase] = 1 | (GASNETE_WIREFLAGS_FLAGS(u->wireflags)&GASNET_BARRIERFLAG_MISMATCH);
+    if (is_done) {
+	/* this is a done header handler call... update local state */
+	gasneti_assert(phase == barrier_phase);
+
+	barrier_response_mismatch[phase] = u->mismatch;
+        gasneti_sync_writes(); /* ensure mimatch committed before signal */
+	barrier_response_done[phase] = 1;
     }
     return NULL;
 }
 
 extern void gasnete_barrier_notify(int id, int flags) {
-  gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
-  if_pf(barrier_splitstate == INSIDE_BARRIER) 
-      gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
+    int phase;
+    gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
+    if_pf(barrier_splitstate == INSIDE_BARRIER) 
+	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
+    GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
 #if GASNETI_STATS_OR_TRACE
-  barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
+    barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
 #endif
 
-  {
-    const int phase = !barrier_phase; /*  enter new phase */
-    barrier_phase = phase;
     barrier_value = id;
     barrier_flags = flags;
+    phase = !barrier_phase; /*  enter new phase */
+    barrier_phase = phase;
 
-    if (gasneti_nodes > 1) {
-    #if GASNETE_BARRIER_USE_GFENCE
-      if (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) ||
-          (flags & GASNET_BARRIERFLAG_MISMATCH)) 
-    #endif
-     {
-      /* use a static uhdr to avoid allocation cost, phased to ensure race-freedom */
-      static gasnete_barrier_uhdr_t _uhdr[2]; 
-      gasnete_barrier_uhdr_t * const uhdr = &_uhdr[phase];
+    if (gasnete_nodes > 1) {
+	gasnete_barrier_uhdr_t uhdr;
+	lapi_cntr_t o_cntr;
+	int cur_cntr;
 
-      uhdr->value = barrier_value;
-      uhdr->wireflags = GASNETE_WIREFLAGS_SET(flags, phase, 1);
-
-      /*  send notify msg to master */
-      /* tradeoff: we can check if mynode == GASNETE_BARRIER_MASTER and bypass some LAPI
-         overhead for a loopback AM notification by invoking the header handler directly, 
-         but this implies we need a lock in the header handler to ensure correctness
-       */
-    #if GASNETE_BARRIER_BYPASS_LOOPBACK_AMSEND
-      if (gasneti_mynode == GASNETE_BARRIER_MASTER) {
-        static uint uhdrlen = sizeof(gasnete_barrier_uhdr_t);
-        static ulong msglen = 0;
-        compl_hndlr_t *comp_h = NULL;
-        void *uinfo = NULL;
-        gasnete_lapi_barrier_hh(&gasnetc_lapi_context, uhdr, &uhdrlen,
-                                &msglen, &comp_h, &uinfo);
-        if (comp_h) (*comp_h)(&gasnetc_lapi_context, uinfo);
-      } else 
-    #endif
-      {
-        #if GASNETE_BARRIER_USE_GFENCE
-          /* when using Gfence, sender needs to ensure completion has run 
-             (and broadcast any mismatches) before continuing
-          */
-          lapi_cntr_t comp_cntr;
-          GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &comp_cntr, 0));
-          #define _GASNETE_BARRIER_COMPLETION &comp_cntr
-        #else
-          #define _GASNETE_BARRIER_COMPLETION NULL
-        #endif
-
+	uhdr.is_notify = 1;
+	uhdr.phase = phase;
+	uhdr.value = barrier_value;
+	uhdr.flags = flags;
+	uhdr.src = gasnete_mynode;
+	uhdr.mismatch = 999;
+	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
+	
+	/*  send notify msg to 0 */
         gasneti_suspend_spinpollers();
 	GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context,
 				   (unsigned int)GASNETE_BARRIER_MASTER,
 				   gasnete_remote_barrier_hh[GASNETE_BARRIER_MASTER],
-				   uhdr, sizeof(gasnete_barrier_uhdr_t), NULL, 0,
-				   NULL, NULL, _GASNETE_BARRIER_COMPLETION));
+				   &uhdr, sizeof(gasnete_barrier_uhdr_t), NULL, 0,
+				   NULL, &o_cntr, NULL));
         gasneti_resume_spinpollers();
-
-        #undef _GASNETE_BARRIER_COMPLETION
-        #if GASNETE_BARRIER_USE_GFENCE
-          { int cur_cntr = 0;          
-            GASNETC_WAITCNTR(&comp_cntr,1,&cur_cntr);
-            gasneti_assert(cur_cntr == 0);
-          }
-        #endif
-      }
-     }
-
-    #if GASNETE_BARRIER_USE_GFENCE
-      LAPI_Gfence(gasnetc_lapi_context);
-      barrier_response_done[phase] = 1 | barrier_response_done[phase];
-    #endif
-
+	/* wait for local completion */
+	GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
+	gasneti_assert(cur_cntr == 0);
     } else {
-	barrier_response_done[phase] = 1 | (flags & GASNET_BARRIERFLAG_MISMATCH);
+	barrier_response_mismatch[phase] = (flags & GASNET_BARRIERFLAG_MISMATCH);
+	barrier_response_done[phase] = 1;
     }
 
     /*  update state */
     barrier_splitstate = INSIDE_BARRIER;
     gasneti_sync_writes(); /* ensure all state changes committed before return */
-  }
 }
 
 
@@ -1350,24 +1651,23 @@ extern int gasnete_barrier_wait(int id, int flags) {
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
 
     /* if this is the master node, reset the global state */
-    if (gasneti_mynode == GASNETE_BARRIER_MASTER) {
+    if (gasnete_mynode == GASNETE_BARRIER_MASTER) {
 	barrier_count[phase] = 0;
 	barrier_consensus_mismatch[phase] = 0;
 	barrier_consensus_value_present[phase] = 0;
     }
     
-    { const int global_mismatch = barrier_response_done[phase] & GASNET_BARRIERFLAG_MISMATCH;
-      /*  update local state */
-      barrier_splitstate = OUTSIDE_BARRIER;
-      barrier_response_done[phase] = 0;
-      gasneti_sync_writes(); /* ensure all state changes committed before return */
-      if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || /* local mismatch */
-	    flags != barrier_flags || 
-            global_mismatch) { /* global mismatch */
-          return GASNET_ERR_BARRIER_MISMATCH;
-      }
-      else return GASNET_OK;
+    /*  update local state */
+    barrier_splitstate = OUTSIDE_BARRIER;
+    barrier_response_done[phase] = 0;
+    gasneti_sync_writes(); /* ensure all state changes committed before return */
+    if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || 
+	  flags != barrier_flags || 
+	  barrier_response_mismatch[phase]) {
+        barrier_response_mismatch[phase] = 0;
+        return GASNET_ERR_BARRIER_MISMATCH;
     }
+    else return GASNET_OK;
 }
 
 extern int gasnete_barrier_try(int id, int flags) {

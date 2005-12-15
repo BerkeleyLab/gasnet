@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2005/08/20 10:52:58 $
- * $Revision: 1.20 $
+ *     $Date: 2005/12/15 06:21:31 $
+ * $Revision: 1.20.8.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.7
+#define GASNET_EXTENDED_VERSION      1.4
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         LAPI
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
@@ -30,9 +30,6 @@
 #define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1 
 #define GASNETI_DIRECT_WAIT_SYNCNBI_ALL 1
 #endif
-
-/* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
-#define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
 
 #define _GASNET_HANDLE_T
 /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
@@ -101,7 +98,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
-#define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
+#define CONDUIT_EXTENDED_STATS(CNT,VAL,TIME) \
         GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
         GASNETI_REFCOLL_STATS(CNT,VAL,TIME)  \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)           

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2005/10/23 12:28:19 $
- * $Revision: 1.23 $
+ *     $Date: 2005/12/15 06:21:31 $
+ * $Revision: 1.23.6.1 $
  * Description: GASNet header for lapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,9 +30,40 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset);
 #define gasnet_attach gasnetc_attach
 
-extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
-GASNETI_NORETURNP(gasnetc_exit)
+extern void gasnetc_exit(int exitcode) GASNET_NORETURN;
 #define gasnet_exit gasnetc_exit
+
+extern uintptr_t gasnetc_getMaxLocalSegmentSize();
+extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
+#define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize 
+#define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize 
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Job Environment Queries
+  =======================
+*/
+extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
+
+GASNET_INLINE_MODIFIER(gasnet_mynode)
+gasnet_node_t gasnet_mynode() {
+  GASNETI_CHECKINIT();
+  return gasnetc_mynode;
+}
+ 
+GASNET_INLINE_MODIFIER(gasnet_nodes)
+gasnet_node_t gasnet_nodes() {
+  GASNETI_CHECKINIT();
+  return gasnetc_nodes;
+}
+
+#define gasnet_getSegmentInfo gasnetc_getSegmentInfo
+
+GASNET_INLINE_MODIFIER(gasnet_getenv)
+char *gasnet_getenv(const char *s) {
+  GASNETI_CHECKINIT();
+  return gasneti_getenv(s);
+}
 
 /* ------------------------------------------------------------------------------------ */
 /*
