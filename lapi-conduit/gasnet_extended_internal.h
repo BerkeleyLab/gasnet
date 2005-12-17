@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/12/15 07:28:06 $
- * $Revision: 1.13.12.2 $
+ *     $Date: 2005/12/17 00:10:34 $
+ * $Revision: 1.13.12.3 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -97,11 +97,12 @@ typedef struct _gasnete_eop_t {
     gasnete_threadidx_t threadidx;  /*  thread that owns me */
     gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
     int          initiated_cnt;
-#ifdef GASNETC_LAPI_RDMA
+#if GASNETC_LAPI_RDMA
   lapi_cntr_t *origin_counter;          /* For gets */
   int completion_counter;      /* For puts, not a lapi_cntr_t because we do the updates ourselves */
   gasnet_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
+  struct _gasnete_eop_t *next; /* In list of IOPs */
 #endif
     lapi_cntr_t  cntr;
 } gasnete_eop_t;
@@ -113,13 +114,21 @@ typedef struct _gasnete_iop_t {
     int initiated_get_cnt;     /*  count of get ops initiated */
     int initiated_put_cnt;     /*  count of put ops initiated */
 
+#if GASNETC_LAPI_RDMA
+    gasnete_eop_t *gets;
+    gasnete_eop_t *puts;
+#endif
     struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
     /*  make sure the counters live on different cache lines for SMP's */
     uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
 
     lapi_cntr_t      get_cntr;
+#if GASNETC_LAPI_RDMA
+    int      put_cntr;
+#else
     lapi_cntr_t      put_cntr;
+#endif
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */

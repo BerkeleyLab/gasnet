@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/12/15 07:28:06 $
- * $Revision: 1.79.10.2 $
+ *     $Date: 2005/12/17 00:10:34 $
+ * $Revision: 1.79.10.3 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,7 +43,7 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
 
 #if GASNETC_LAPI_RDMA
 
-/* PH
+/* PJRH
  * Extra information needed for LAPI User Level RDMA
  */
 
@@ -51,6 +51,7 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
 #define GASNETC_LAPI_RDMA_GET_TAG (-1)
 #define GASNETC_MAX_PVOS 1024
 
+int gasnetc_num_pvos;
 lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
 lapi_remote_ctxt_t *gasnetc_remote_ctxts = NULL;
 lapi_user_pvo_t **gasnetc_pvo_table = NULL;
@@ -454,6 +455,7 @@ void gasnetc_lapi_register_rcallbacks()
 	}
 	
 	/* Also set up the crazy table for target notification */
+        
 	gasnetc_lapi_local_target_counters = (void *) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int));
 	gasnetc_lapi_completion_ptrs = (int **) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int *));
 	bzero(gasnetc_local_target_counters, GASNETC_LAPI_MAX_TAGS*sizeof(int));
@@ -567,7 +569,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 {
 	 int num_pvos;
 	 /* Break up the segment */
-	 num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
+	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
 	 lapi_get_pvo_t *gasnetc_node_pvo_list = gasneti_malloc(num_pvos*sizeof(lapi_get_pvo_t));
          uintptr_t temp_offset=0;
          i=0;
@@ -679,6 +681,34 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     return GASNET_OK;
 }
     
+#if GASNETC_LAPI_RDMA
+void gasnetc_lapi_free()
+{
+  lapi_get_pvo_t new_pvo;
+  int i;
+  gasneti_free(gasnetc_lapi_local_target_counters);
+  gasneti_free(gasnetc_lapi_completion_ptrs);
+  gasneti_free(gasnetc_lapi_target_counter_directory);
+  for(i=0;i < gasnetc_num_pvos;i++) {
+   new_pvo.Util_type = LAPI_XLATE_ADDRESS;
+   new_pvo.length = 0;
+   new_pvo.user_pvo = gasnetc_node_pvo_list[i];
+   new_pvo.address = 0;
+   new_pvo.operation = LAPI_RDMA_RELEASE;
+   GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_contest, (lapi_util_t *) &new_pvo)); 
+  }
+  gasneti_free(gasnetc_node_pvo_list);
+  for(i=0;i < gasnetc_num_pvos;i++) {
+    gasneti_free(gasnetc_pvo_table[i];
+  }
+  gasneti_free(gasnetc_pvo_table);
+  gasneti_free(gasnetc_segbase_table);
+  for(i=0;i < GASNETC_MAX_PVOS;i++) {
+    gasneti_free(gasnetc_lapi_pvo_free_list[i]);
+  }
+  gasneti_free(gasnetc_lapi_pvo_free_list);
+}
+#endif
 /* ------------------------------------------------------------------------------------ */
 /* All the common cleanup tasks between the various exit routines */
 static void gasnetc_exit_cleanup(void) {
@@ -694,6 +724,9 @@ static void gasnetc_exit_cleanup(void) {
 	    gasnetc_uhdr_freelist.numalloc);
 #endif
 
+#if GASNETC_LAPI_RDMA
+    gasnetc_lapi_free();
+#endif
     gasneti_flush_streams();
     gasneti_trace_finish();
 }
@@ -906,6 +939,10 @@ extern int gasnetc_AMPoll() {
 	}
     }
     
+#if GASNETC_LAPI_RDMA
+    /* Reap some put notifications.  Do one round for now*/
+    gasnetc_lapi_poll_tag_table(GASNETC_LAPI_MAX_TAGS);
+#endif
     return GASNET_OK;
 }
 
@@ -2277,3 +2314,11 @@ int gasnetc_uhdr_more(int want)
 			    want,gasnetc_uhdr_freelist.numalloc,gasnetc_uhdr_freelist.numfree));
     return want;
 }
+
+
+
+
+
+
+
+
