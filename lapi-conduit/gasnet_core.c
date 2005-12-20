@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/12/17 00:10:34 $
- * $Revision: 1.79.10.3 $
+ *     $Date: 2005/12/20 21:55:55 $
+ * $Revision: 1.79.10.4 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -576,6 +576,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 while(tmp_offset < segsize) {
 	 	/* Attempt to get a PVO for this section */
 	 	gasnetc_node_pvo_list[i].Util_type = LAPI_XLATE_ADDRESS;
+#error "Is this right?"
 	 	gasnetc_node_pvo_list[i].length = tmp_offset + 
                                 ((GASNETC_LAPI_PVO_EXTENT < segsize) ? GASNETC_LAPI_PVO_EXTENT :
 	 			segsize - i*GASNETC_LAPI_PVO_EXTENT);
@@ -640,6 +641,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
             }
             gasnetc_lapi_pvo_pool[i] = gasnetc_lapi_pvo_free_list[i];
           } 
+
+          /* Finally, really, set up some network buffers */
+         gasnete_lapi_setup_nb();
 #endif
 #else
     /* GASNET_SEGMENT_EVERYTHING */

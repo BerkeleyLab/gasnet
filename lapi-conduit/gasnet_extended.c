@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/12/17 00:10:34 $
- * $Revision: 1.42.12.3 $
+ *     $Date: 2005/12/20 21:55:55 $
+ * $Revision: 1.42.12.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -269,6 +269,9 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 }
 
 #if GASNETC_LAPI_RDMA
+
+/* No pre-pinned network buffers yet */
+int gasnete_pin_threshold = (4*1024); /* 4K for now */
 void gasnete_lapi_free_eop_list(gasnete_eop_t *current)
 {
   gasnete_eop_t *next;
@@ -502,7 +505,6 @@ void gasnetc_lapi_release_pvo_list(gasnetc_lapi_pvo *head)
  * TODO
  * ====
  * 
- * Use bounce buffers if source is too small, misaligned
  * Add local firehose for better local pinning behaviour
  * Add remote firehose (for segment everything)
  * 
@@ -552,6 +554,75 @@ int gasnetc_lapi_get_unallocated_tag()
 
 }
 
+typedef struct glnb {
+  lapi_get_pvo_t pvo;
+  void *data;
+  int offset;
+  struct glnb *next; 
+} gasnete_lapi_nb;
+
+pthread_mutex_t nb_lock = PTHREAD_MUTEX_INITIALIZER;
+gasnete_lapi_nb *gasnete_free_nb_list;
+int gasnete_num_nb = 1024;
+void gasnete_lapi_setup_nb()
+{
+  gasnete_free_nb_list = (gasnete_lapi_nb *) gasneti_malloc(gasnete_num_nb*sizeof(gasnete_lapi_nb));
+  size_t total_pinned_region = gasnete_lapi_nb * gasnete_pin_threshold;
+  char *all_data = (char *) gasneti_malloc(total_pinned_region);
+  size_t offset = 0;
+  size_t pinned_region = 0;
+  int i;
+  int count = 0;
+  gasneti_assert(GASNETC_LAPI_PVO_EXTENT % gasnete_pin_threshold == 0);
+  while(size_pinned_region < total_pinned_region) {
+    int this_region_size = MIN(GASNETC_LAPI_PVO_EXTENT, total_pinned_region - size_pinned_region);
+    int num_slices,s;
+    req.Util_type = LAPI_XLATE_ADDRESS;
+    req.length = this_region_size;
+    req.usr_pvo =0;
+    req.address = all_data + size_pinned_region;
+    req.operation = LAPI_RDMA_ACQUIRE;
+    GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &req);
+    num_slices = this_region_size/gasnete_pin_threshold;
+    for(s = 0; s < num_slices; s++) {
+      gasnete_free_nb_list[count].data = all_data + size_pinned_region + s*gasnete_pin_threshold;
+      gasnete_free_nb_list[count].offset = s*gasnete_pin_threshold;
+      gasnete_free_nb_list[count].pvo = req.usr_pvo;
+      if(count < gasnete_num_nb-1) {
+        gasnete_free_nb_list[count].next = &(gasnete_free_nb_list[count+1]);
+      } else {
+        gasnete_free_nb_list[count].next = NULL;
+      }
+      count++;
+    }
+    size_pinned_region += this_region_size;
+  }
+}
+
+/* Need back pointers etc. so that reaping happens */
+gasnete_lapi_nb *gasnete_get_free_network_buffer()
+{
+  gasnete_lapi_nb *ret;
+  pthread_mutex_lock(&nb_lock);
+  while(gasnete_free_nb_list == NULL) {
+    pthread_mutex_unlock(&nb_lock);
+    /* TODO - Reap, try to help yourself out */
+    pthread_mutex_lock(&nb_lock); 
+  }
+  ret = gasnete_free_nb_list;
+  gasnete_free_nb_list = gasnete_free_nb_list->next;
+  pthread_mutex_unlock(&nb_lock);
+  return(ret);
+}
+
+void gasnete_free_network_buffer(gasnete_lapi_nb *nb)
+{
+  pthread_mutex_lock(&nb_lock);
+  nb->next = gasnete_free_nb_list;
+  gasnete_free_nb_list = nb; 
+  pthread_mutex_unlock(&nb_lock);
+}
+
 gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origin, size_t nbytes, int op,
 				   lapt_ctr_t * origin_counter, gasnet_iop_t *iop GASNETE_THREAD_FARG)
 {
@@ -568,11 +639,13 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
   gasnetc_lapi_pvo *pvo_list = NULL;
   int *cptr;
   gasnete_eop_t *new_eop = gasnete_eop_new(GASNETE_MYTHREAD);
+  int using_network_buffer = 0;
   bzero (&xfer_struct, sizeof (xfer_struct));
   
 
   new_eop = gasnete_eop_new(GASNETE_MYTHREAD);
   new_eop->get_p = (op == LAPI_RDMA_GET);
+  new_eop->network_buffer_id = -1;
   if(iop == NULL) {
     if(origin_counter != NULL) {
       new_eop->origin_counter = origin_counter;
@@ -593,27 +666,45 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
     }
     cptr = &(iop->put_cntr);
   }
-  /* Do something special if the origin is within the pinned segment */
-  if ((origin_to_long >= gasnetc_segbase_table[gasnetc_mynode])
-      && (origin_to_long < gasnetc_segbase_table[gasnetc_mynode] + gasnetc_seginfo[gasnetc_mynode].size)) {
+  /* Do something special if the origin is within the pinned segment or we can use a network buffer */
+  if(nbytes < gasnete_pin_threshold) {
+      /* TODO:  Use network buffers instead */
+      gasnete_lapi_nb *nb_id = gasnete_get_free_network_buffer();
+      /* Get a free buffer */
+      void *nb_data = nb_id->data;
+      /* Copy in */
+      memcpy(nb_data,src,nbytes);
+      /* Put id in eop so that it can be returned to pool later */
+      new_eop->network_buffer = nb_id;
+      using_network_buffer = 1;
+  } 
+  if (using_network_buffer || ((origin_to_long >= gasnetc_segbase_table[gasnetc_mynode])
+      && (origin_to_long < gasnetc_segbase_table[gasnetc_mynode] + gasnetc_seginfo[gasnetc_mynode].size))) {
     /* No need to pin origin, but you need to deal with misalignment 
      * of the pinned regions of the origin and destination */
     while(n_bytes_transferred < nbytes) {
       /* The number of bytes to either the end of the current PVO region
        * or the end of the data */
       int length_to_boundary, length_to_remote_boundary, chunk_remaining, source_offset, remote_offset;
-      length_to_boundary = (int) MIN(GASNET_LAPI_EXTENT - 
+      if(using_network_buffer) {
+        chunk_remaining = length_to_boundary = nbytes;
+        source_offset = nb_id->offset;
+        source_pvo = nb_id->pvo;
+      } else {
+
+        length_to_boundary = (int) MIN(GASNET_LAPI_EXTENT - 
 				     ((origin_to_long + nbytes_transferred) % GASNET_LAPI_EXTENT),
 				     nbytes - nbytes_transferred);
       
-      /* Try to transfer this chunk of bytes.  It will either take
-       * one or two RDMA calls depending on whether or not it is entirely
-       * within a single PVO region at the target */
-      
-      chunk_remaining = length_to_boundary;
-      source_offset = GASNET_LAPI_EXTENT - length_to_boundary;		
-      source_pvo = gasnetc_pvo_table[(origin_to_long + nbytes_transferred - 
-				     gasnetc_segbase_table[gasnetc_mynode])/GASNET_LAPI_EXTENT][gasnetc_mynode];  
+        /* Try to transfer this chunk of bytes.  It will either take
+         * one or two RDMA calls depending on whether or not it is entirely
+         * within a single PVO region at the target */
+       
+        chunk_remaining = length_to_boundary;
+        source_offset = GASNET_LAPI_EXTENT - length_to_boundary;		
+        source_pvo = gasnetc_pvo_table[(origin_to_long + nbytes_transferred - 
+ 				     gasnetc_segbase_table[gasnetc_mynode])/GASNET_LAPI_EXTENT][gasnetc_mynode];  
+      }
       
       do {
 	remote_pvo = gasnetc_pvo_table[(dest_to_long + nbytes_transferred -

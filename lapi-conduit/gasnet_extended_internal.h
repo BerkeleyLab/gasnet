@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/12/17 00:10:34 $
- * $Revision: 1.13.12.3 $
+ *     $Date: 2005/12/20 21:55:55 $
+ * $Revision: 1.13.12.4 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,6 +103,7 @@ typedef struct _gasnete_eop_t {
   gasnet_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
   struct _gasnete_eop_t *next; /* In list of IOPs */
+  int network_buffer_id;
 #endif
     lapi_cntr_t  cntr;
 } gasnete_eop_t;
