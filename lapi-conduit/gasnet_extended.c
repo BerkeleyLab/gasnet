@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/12/21 21:28:30 $
- * $Revision: 1.42.12.6 $
+ *     $Date: 2005/12/21 22:25:34 $
+ * $Revision: 1.42.12.7 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -632,6 +632,12 @@ gasnete_lapi_nb *gasnete_get_free_network_buffer()
 	GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,current->origin_counter,&cnt));
 	if(cnt == 0) {
 	  ret = current;
+	  /* Copy out if a get */
+	  if(ret->eop->get_p) {
+	    /* Copy out */
+	    memcpy(ret->eop->buffer,ret->data,ret->eop->length);
+	  }
+	  
 	  /* A goto!  What would my mom think! */
 	  goto UNLOCK_AND_RETURN;
 	}
@@ -651,7 +657,7 @@ gasnete_lapi_nb *gasnete_get_free_network_buffer()
  UNLOCK_AND_RETURN:
   ret->id++;
   ret->in_flight = 0;       /* Protect against a nasty race where you get stolen before the transfer even begins!*/
-  pthread_mutex_unlock(&nb_lock);
+  pthread_mutex_unlock(&nb_lock);  /* This should take care of memory consistency nastiness, right? */
   return(ret);
 }
 
@@ -659,6 +665,11 @@ void gasnete_free_network_buffer(gasnete_lapi_nb *nb, int old_id)
 {
   pthread_mutex_lock(&nb_lock);
   if(nb->id == old_id) {
+
+    if(nb->eop->get_p) {
+      /* Copy out */
+      memcpy(nb->eop->buffer,nb->data,nb->eop->length);
+    }
 
     /* Remove from active list */
     if(gasnete_active_nb_list == nb) {
@@ -738,6 +749,8 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
       new_eop->network_buffer = nb_id;
       new_eop->nbid = nb_id->id;
       using_network_buffer = 1;
+      new_eop->buffer = dest;
+      new_eop->length = nbytes;
   } 
 
   if (using_network_buffer || ((origin_to_long >= gasnetc_segbase_table[gasnetc_mynode])

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/12/21 21:18:04 $
- * $Revision: 1.13.12.5 $
+ *     $Date: 2005/12/21 22:25:34 $
+ * $Revision: 1.13.12.6 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -105,6 +105,8 @@ typedef struct _gasnete_eop_t {
   struct _gasnete_eop_t *next; /* In list of IOPs */
   gasnete_lapi_nb *network_buffer_id;
   int nbid;
+  void *buffer;
+  int length;  /* For bounce buffer transfers */
 #endif
     lapi_cntr_t  cntr;
 } gasnete_eop_t;
