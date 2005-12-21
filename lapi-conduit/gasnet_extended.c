@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/12/21 22:25:34 $
- * $Revision: 1.42.12.7 $
+ *     $Date: 2005/12/21 22:34:45 $
+ * $Revision: 1.42.12.8 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -573,6 +573,7 @@ typedef struct _gasnete_lapi_nb_struct {
   int id;                /* So that it can easily be reassigned */
   int *origin_counter;   /* When this counter reaches 0, we can reassign this buffer */
   int in_flight;
+  gasnete_eop_t *eop;
   struct _gasnete_lapi_nb_struct *next; 
   struct _gasnete_lapi_nb_struct *prev; 
 } gasnete_lapi_nb;
@@ -743,13 +744,15 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
       nb_id = gasnete_get_free_network_buffer();
       /* Get a free buffer */
       void *nb_data = nb_id->data;
-      /* Copy in */
-      memcpy(nb_data,src,nbytes);
+      /* Copy in for puts */
+      if(new_eop->get_p) {
+        memcpy(nb_data,origin,nbytes);
+      }
       /* Put id in eop so that it can be returned to pool later */
       new_eop->network_buffer = nb_id;
       new_eop->nbid = nb_id->id;
       using_network_buffer = 1;
-      new_eop->buffer = dest;
+      new_eop->buffer = origin;
       new_eop->length = nbytes;
   } 
 
