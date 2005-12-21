@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/12/20 21:55:55 $
- * $Revision: 1.42.12.4 $
+ *     $Date: 2005/12/21 21:18:04 $
+ * $Revision: 1.42.12.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -270,14 +270,19 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 
 #if GASNETC_LAPI_RDMA
 
-/* No pre-pinned network buffers yet */
-int gasnete_pin_threshold = (4*1024); /* 4K for now */
+/* Use bounce buffers for transfers below the following threshold */
+/* 4K for now, will/should be user controlled later */
+int gasnete_pin_threshold = (4*1024); 
+
 void gasnete_lapi_free_eop_list(gasnete_eop_t *current)
 {
   gasnete_eop_t *next;
 
   while(current != NULL) {
     gasnetc_lapi_release_pvo_list(current->pvo_list);
+    if(current->network_buffer != NULL) {
+      gasnete_free_network_buffer(current->network_buffer,current->nbid);
+    }
     next = current->next;
     gasnete_eop_free(current);
     current = next;
@@ -286,7 +291,8 @@ void gasnete_lapi_free_eop_list(gasnete_eop_t *current)
 #endif
 
 /*  query an op for completeness - for iop this means both puts and gets */
-int gasnete_op_isdone(gasnete_op_t *op) {
+int gasnete_op_isdone(gasnete_op_t *op) 
+{
     int cnt = 0;
     gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
     if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
@@ -298,6 +304,9 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 	  GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->origin_counter,&cnt));
           if(eop->num_transfers == cnt) {
             /* Free the pinned region */
+	    if(eop->network_buffer != NULL) {
+	      gasnete_free_network_buffer(eop->network_buffer,eop->nbid);
+	    }
             gasnetc_lapi_release_pvo_list(eop->pvo_list);
 	    return (1);
           } else {
@@ -306,6 +315,9 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 	} else {
 	  if(eop->num_transfers == eop->completion_counter) {
 	    /* Free pinned region */
+	    if(eop->network_buffer != NULL) {
+	      gasnete_free_network_buffer(eop->network_buffer,eop->nbid);
+	    }
             gasnetc_lapi_release_pvo_list(eop->pvo_list);
             return(1);
           } else {
@@ -506,7 +518,7 @@ void gasnetc_lapi_release_pvo_list(gasnetc_lapi_pvo *head)
  * ====
  * 
  * Add local firehose for better local pinning behaviour
- * Add remote firehose (for segment everything)
+ * Add remote firehose (for SEGMENT_EVERYTHING)
  * 
  */
 
@@ -554,15 +566,20 @@ int gasnetc_lapi_get_unallocated_tag()
 
 }
 
-typedef struct glnb {
+typedef struct _gasnete_lapi_nb_struct {
   lapi_get_pvo_t pvo;
   void *data;
   int offset;
-  struct glnb *next; 
+  int id;                /* So that it can easily be reassigned */
+  int *origin_counter;   /* When this counter reaches 0, we can reassign this buffer */
+  int in_flight;
+  struct _gasnete_lapi_nb_struct *next; 
+  struct _gasnete_lapi_nb_struct *prev; 
 } gasnete_lapi_nb;
 
 pthread_mutex_t nb_lock = PTHREAD_MUTEX_INITIALIZER;
 gasnete_lapi_nb *gasnete_free_nb_list;
+gasnete_lapi_nb *gasnete_active_nb_list;
 int gasnete_num_nb = 1024;
 void gasnete_lapi_setup_nb()
 {
@@ -588,6 +605,8 @@ void gasnete_lapi_setup_nb()
       gasnete_free_nb_list[count].data = all_data + size_pinned_region + s*gasnete_pin_threshold;
       gasnete_free_nb_list[count].offset = s*gasnete_pin_threshold;
       gasnete_free_nb_list[count].pvo = req.usr_pvo;
+      gasnete_free_nb_list[count].id = 0;
+      gasnete_free_nb_list[count].prev = NULL;
       if(count < gasnete_num_nb-1) {
         gasnete_free_nb_list[count].next = &(gasnete_free_nb_list[count+1]);
       } else {
@@ -602,24 +621,59 @@ void gasnete_lapi_setup_nb()
 /* Need back pointers etc. so that reaping happens */
 gasnete_lapi_nb *gasnete_get_free_network_buffer()
 {
-  gasnete_lapi_nb *ret;
+  gasnete_lapi_nb *ret, *current;
   pthread_mutex_lock(&nb_lock);
+  int cnt;
   while(gasnete_free_nb_list == NULL) {
+    current = gasnete_active_nb_list;
+    while(current != NULL) {
+      GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,current->origin_counter,&cnt));
+      if(cnt == 0) {
+        ret = current;
+	/* A goto!  What would my mom think! */
+        goto UNLOCK_AND_RETURN;
+      }
+    }
+    /* Need to give up the lock for a while.  Need to tune this */
     pthread_mutex_unlock(&nb_lock);
-    /* TODO - Reap, try to help yourself out */
-    pthread_mutex_lock(&nb_lock); 
+    pthread_mutex_lock(&nb_lock);
   }
+  /* Remove from free list */
   ret = gasnete_free_nb_list;
   gasnete_free_nb_list = gasnete_free_nb_list->next;
+  /* Place on active list */
+  ret->next = gasnete_active_nb_list;
+  gasnete_active_nb_list->prev = ret;
+  gasnete_active_nb_list = ret;
+ UNLOCK_AND_RETURN:
+  ret->id++;
+  ret->in_flight = 0;       /* Protect against a nasty race where you get stolen before the transfer even begins!*/
   pthread_mutex_unlock(&nb_lock);
   return(ret);
 }
 
-void gasnete_free_network_buffer(gasnete_lapi_nb *nb)
+void gasnete_free_network_buffer(gasnete_lapi_nb *nb, int old_id)
 {
   pthread_mutex_lock(&nb_lock);
-  nb->next = gasnete_free_nb_list;
-  gasnete_free_nb_list = nb; 
+  if(nb->id == old_id) {
+
+    /* Remove from active list */
+    if(gasnete_active_nb_list == nb) {
+      gasnete_active_nb_list = nb->next;
+      if(nb->next != NULL) {
+        nb->next->prev = NULL;
+      }
+    } else {
+      nb->prev->next = nb->next;
+      if(nb->next != NULL) {
+        nb->next->prev = nb->prev;
+      }
+    }
+
+    /* Add back to free list */
+    nb->next = gasnete_free_nb_list;
+    gasnete_free_nb_list = nb; 
+  }
   pthread_mutex_unlock(&nb_lock);
 }
 
@@ -645,7 +699,9 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
 
   new_eop = gasnete_eop_new(GASNETE_MYTHREAD);
   new_eop->get_p = (op == LAPI_RDMA_GET);
-  new_eop->network_buffer_id = -1;
+  new_eop->network_buffer_id = NULL;
+  gasnete_lapi_nb *nb_id;
+
   if(iop == NULL) {
     if(origin_counter != NULL) {
       new_eop->origin_counter = origin_counter;
@@ -666,18 +722,21 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
     }
     cptr = &(iop->put_cntr);
   }
+
   /* Do something special if the origin is within the pinned segment or we can use a network buffer */
+
   if(nbytes < gasnete_pin_threshold) {
-      /* TODO:  Use network buffers instead */
-      gasnete_lapi_nb *nb_id = gasnete_get_free_network_buffer();
+      nb_id = gasnete_get_free_network_buffer();
       /* Get a free buffer */
       void *nb_data = nb_id->data;
       /* Copy in */
       memcpy(nb_data,src,nbytes);
       /* Put id in eop so that it can be returned to pool later */
       new_eop->network_buffer = nb_id;
+      new_eop->nbid = nb_id->id;
       using_network_buffer = 1;
   } 
+
   if (using_network_buffer || ((origin_to_long >= gasnetc_segbase_table[gasnetc_mynode])
       && (origin_to_long < gasnetc_segbase_table[gasnetc_mynode] + gasnetc_seginfo[gasnetc_mynode].size))) {
     /* No need to pin origin, but you need to deal with misalignment 
@@ -807,6 +866,11 @@ gasnete_eop_t *gasnete_lapi_do_rdma (void *dest, gasnet_node_t node, void *origi
   }
 
   /* Return an eop (if necessary) with all the required information */
+  if(nb_id != NULL) {
+    nb_id->in_flight = 1;
+    nb_id->origin_counter = eop->origin_counter;
+  }
+
   if(iop == NULL) {
     new_eop->num_transfers = total_transfers;
     new_eop->pvo_list = pvo_list; 
