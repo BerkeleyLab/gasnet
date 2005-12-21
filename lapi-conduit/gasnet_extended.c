@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/12/21 21:18:04 $
- * $Revision: 1.42.12.5 $
+ *     $Date: 2005/12/21 21:28:30 $
+ * $Revision: 1.42.12.6 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -627,11 +627,14 @@ gasnete_lapi_nb *gasnete_get_free_network_buffer()
   while(gasnete_free_nb_list == NULL) {
     current = gasnete_active_nb_list;
     while(current != NULL) {
-      GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,current->origin_counter,&cnt));
-      if(cnt == 0) {
-        ret = current;
-	/* A goto!  What would my mom think! */
-        goto UNLOCK_AND_RETURN;
+      /* Check to ensure that you don't steal something that just got allocated */
+      if(ret->in_flight) {
+	GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,current->origin_counter,&cnt));
+	if(cnt == 0) {
+	  ret = current;
+	  /* A goto!  What would my mom think! */
+	  goto UNLOCK_AND_RETURN;
+	}
       }
     }
     /* Need to give up the lock for a while.  Need to tune this */
