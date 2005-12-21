@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/12/21 22:25:34 $
- * $Revision: 1.13.12.6 $
+ *     $Date: 2005/12/21 23:13:33 $
+ * $Revision: 1.13.12.7 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -230,4 +230,25 @@ void gasnete_op_free(gasnete_op_t *op);
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
+#if GASNETC_LAPI_RDMA
+/* Should put these somewhere else to avoid duplication */
+#define GASNETC_LAPI_PVO_EXTENT (32L*1024L*1024L*1024L)
+#define GASNETC_LAPI_RDMA_GET_TAG (-1)
+#define GASNETC_MAX_PVOS 1024
+typedef struct _gasnetc_lapi_pvo_struct {
+  lapi_user_pvo_t pvo;
+  struct glp *next;
+} gasnetc_lapi_pvo;
+
+extern int gasnetc_num_pvos;
+extern lapi_get_pvo_t *gasnetc_node_pvo_list;
+extern lapi_remote_ctxt_t *gasnetc_remote_ctxts;
+extern lapi_user_pvo_t **gasnetc_pvo_table;
+extern lapi_long_t *gasnetc_segbase_table;
+extern void *gasnetc_local_target_counters;
+extern int **gasnetc_lapi_completion_ptrs;
+extern lapi_long_t *gasnetc_lapi_target_counter_directory;
+extern gasnetc_lapi_pvo **gasnetc_lapi_pvo_free_list;
+extern gasnetc_lapi_pvo **gasnetc_lapi_pvo_pool;
+#endif
 #endif

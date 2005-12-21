@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/12/20 21:55:55 $
- * $Revision: 1.79.10.4 $
+ *     $Date: 2005/12/21 23:13:33 $
+ * $Revision: 1.79.10.5 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,9 +47,13 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
  * Extra information needed for LAPI User Level RDMA
  */
 
-#define GASNETC_LAPI_EXTENT (32L*1024L*1024L*1024L)
+#define GASNETC_LAPI_PVO_EXTENT (32L*1024L*1024L*1024L)
 #define GASNETC_LAPI_RDMA_GET_TAG (-1)
 #define GASNETC_MAX_PVOS 1024
+typedef struct _gasnetc_lapi_pvo_struct {
+  lapi_user_pvo_t pvo;
+  struct glp *next;
+} gasnetc_lapi_pvo;
 
 int gasnetc_num_pvos;
 lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
@@ -59,12 +63,10 @@ lapi_long_t *gasnetc_segbase_table = NULL;
 void *gasnetc_local_target_counters = NULL;
 int **gasnetc_lapi_completion_ptrs = NULL;
 lapi_long_t *gasnetc_lapi_target_counter_directory = NULL;
-typedef struct glp {
-  lapi_user_pvo_t pvo;
-  struct glp *next;
-} gasnetc_lapi_pvo;
 gasnetc_lapi_pvo **gasnetc_lapi_pvo_free_list;
 gasnetc_lapi_pvo **gasnetc_lapi_pvo_pool;  /* So that we can free at end */
+extern void gasnete_lapi_setup_nb();
+extern void gasnete_lapi_free_nb();
 #endif
 
 /* This is the official core AM handler table.  All registered
@@ -451,7 +453,7 @@ void gasnetc_lapi_register_rcallbacks()
 		util_notifier.cntr = NULL;
 		util_notifier.callback = gasnetc_lapi_rcallback;
 		util_notifier.sinfo = (void *) (gasnetc_lapi_N + i);
-		GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &util_notifier)));
+		GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &util_notifier));
 	}
 	
 	/* Also set up the crazy table for target notification */
@@ -703,7 +705,7 @@ void gasnetc_lapi_free()
   }
   gasneti_free(gasnetc_node_pvo_list);
   for(i=0;i < gasnetc_num_pvos;i++) {
-    gasneti_free(gasnetc_pvo_table[i];
+    gasneti_free(gasnetc_pvo_table[i]);
   }
   gasneti_free(gasnetc_pvo_table);
   gasneti_free(gasnetc_segbase_table);
@@ -711,6 +713,9 @@ void gasnetc_lapi_free()
     gasneti_free(gasnetc_lapi_pvo_free_list[i]);
   }
   gasneti_free(gasnetc_lapi_pvo_free_list);
+  
+  /* Free and unpin the network buffers */
+  gasnete_lapi_free_nb();
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
