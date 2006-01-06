@@ -2,15 +2,15 @@ CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(NETWORK)-conduit
 
 test%-seq: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
-	cp -f $(CONDUIT_DIR)/`basename $@ -seq` $@
+	cp -f $(CONDUIT_DIR)/`basename $@ -seq`$(EXESUFFIX) $@$(EXESUFFIX)
 
 test%-par: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
-	cp -f $(CONDUIT_DIR)/`basename $@ -par` $@
+	cp -f $(CONDUIT_DIR)/`basename $@ -par`$(EXESUFFIX) $@$(EXESUFFIX)
 
 test%-parsync: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
-	cp -f $(CONDUIT_DIR)/`basename $@ -parsync` $@
+	cp -f $(CONDUIT_DIR)/`basename $@ -parsync`$(EXESUFFIX) $@$(EXESUFFIX)
 
 testconduitspecific: force
 	@if test "$(NETWORK)" = "mpi" ; then 	\
