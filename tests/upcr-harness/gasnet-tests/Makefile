@@ -26,7 +26,7 @@ testconduitspecific: force
            conduit_mode=parsync ;		\
          fi ;					\
          $(MAKE) -C $(CONDUIT_DIR) $$conduit_test-$$conduit_mode && \
-	 cp -f $(CONDUIT_DIR)/$$conduit_test $@
+	 cp -f $(CONDUIT_DIR)/$$conduit_test$(EXESUFFIX) $@$(EXESUFFIX)
 
 check-exports: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
