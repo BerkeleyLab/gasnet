@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2005/12/15 06:21:31 $
- * $Revision: 1.23.6.1 $
+ *     $Date: 2006/01/23 21:49:05 $
+ * $Revision: 1.23.6.2 $
  * Description: GASNet header for lapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,7 +30,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset);
 #define gasnet_attach gasnetc_attach
 
-extern void gasnetc_exit(int exitcode) GASNET_NORETURN;
+extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 #define gasnet_exit gasnetc_exit
 
 extern uintptr_t gasnetc_getMaxLocalSegmentSize();

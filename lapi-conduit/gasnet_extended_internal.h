@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/12/21 23:13:33 $
- * $Revision: 1.13.12.7 $
+ *     $Date: 2006/01/23 21:49:05 $
+ * $Revision: 1.13.12.8 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,7 +100,7 @@ typedef struct _gasnete_eop_t {
 #if GASNETC_LAPI_RDMA
   lapi_cntr_t *origin_counter;          /* For gets */
   int completion_counter;      /* For puts, not a lapi_cntr_t because we do the updates ourselves */
-  gasnet_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
+  gasnetc_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
   struct _gasnete_eop_t *next; /* In list of IOPs */
   gasnete_lapi_nb *network_buffer_id;
@@ -235,11 +235,6 @@ void gasnete_op_free(gasnete_op_t *op);
 #define GASNETC_LAPI_PVO_EXTENT (32L*1024L*1024L*1024L)
 #define GASNETC_LAPI_RDMA_GET_TAG (-1)
 #define GASNETC_MAX_PVOS 1024
-typedef struct _gasnetc_lapi_pvo_struct {
-  lapi_user_pvo_t pvo;
-  struct glp *next;
-} gasnetc_lapi_pvo;
-
 extern int gasnetc_num_pvos;
 extern lapi_get_pvo_t *gasnetc_node_pvo_list;
 extern lapi_remote_ctxt_t *gasnetc_remote_ctxts;

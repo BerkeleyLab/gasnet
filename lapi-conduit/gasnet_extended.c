@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/12/22 21:38:53 $
- * $Revision: 1.42.12.10 $
+ *     $Date: 2006/01/23 21:49:05 $
+ * $Revision: 1.42.12.11 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -531,7 +531,7 @@ int gasnetc_lapi_last_polled = 0;
 void gasnetc_lapi_poll_tag_table(int numrounds)
 {
   int i;
-  for(i=0;i < numrounds;i = (i == (GASNET_LAPI_MAX_TAGS-1) ? 0 : i+1)) {
+  for(i=0;i < numrounds;i = (i == (GASNETC_LAPI_MAX_TAGS-1) ? 0 : i+1)) {
     
     if(compare_and_swap((atomic_p) (gasnetc_lapi_local_target_counters + i),
 		     &gasnetc_lapi_done, gasnetc_lapi_empty)) {
@@ -560,7 +560,7 @@ int gasnetc_lapi_get_unallocated_tag()
 			&gasnetc_lapi_empty, gasnetc_lapi_occupied)) {
       return(i);
     } else {
-      i = (i == (GASNET_LAPI_MAX_TAGS-1)) ? 0 : i+1;
+      i = (i == (GASNETC_LAPI_MAX_TAGS-1)) ? 0 : i+1;
     }
   }
 
