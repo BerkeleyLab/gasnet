@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2006/01/23 21:49:05 $
- * $Revision: 1.23.6.2 $
+ *     $Date: 2006/01/25 11:26:32 $
+ * $Revision: 1.23.6.3 $
  * Description: GASNet header for lapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,7 @@ extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 
 extern uintptr_t gasnetc_getMaxLocalSegmentSize();
 extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
+#if 0
 #define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize 
 #define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize 
 
@@ -64,7 +65,7 @@ char *gasnet_getenv(const char *s) {
   GASNETI_CHECKINIT();
   return gasneti_getenv(s);
 }
-
+#endif
 /* ------------------------------------------------------------------------------------ */
 /*
   No-interrupt sections
