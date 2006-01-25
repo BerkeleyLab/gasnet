@@ -1,7 +1,7 @@
 Update strategy
 ===============
 RDMA support for LAPI conduit is currently implemented with #ifdef
-regions providing the required functionality.  Jason yesterday added
+regions providing the required functionality.  Jason has added
 the --enable-lapi-rdma configure option that adds GASNETC_LAPI_RDMA
 to the compilation environment.
 
