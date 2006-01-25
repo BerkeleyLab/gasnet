@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/01/23 21:49:05 $
- * $Revision: 1.79.10.7 $
+ *     $Date: 2006/01/25 11:04:37 $
+ * $Revision: 1.79.10.8 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,7 +49,7 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
 
 int gasnetc_num_pvos;
 lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
-lapi_remote_ctxt_t *gasnetc_remote_ctxts = NULL;
+lapi_remote_cxt_t *gasnetc_remote_ctxts = NULL;
 lapi_user_pvo_t **gasnetc_pvo_table = NULL;
 lapi_long_t *gasnetc_segbase_table = NULL;
 void *gasnetc_lapi_local_target_counters = NULL;
@@ -394,7 +394,6 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 }
 
 #if GASNETC_LAPI_RDMA
-#define GASNETC_LAPI_MAX_TAGS 1024
 
 int gasnetc_lapi_empty=0;
 int gasnetc_lapi_occupied=1;
@@ -419,7 +418,7 @@ void gasnetc_lapi_rcallback(lapi_handle_t *hndl, void *sinfo, int *src)
      * Paul mentioned that using Rmw might help us with debugging:
      *  Check to see of the value returned is actually gasnetc_lapi_occupied
      */
-     int *remote_address = (int *) (gasnetc_lapi_target_counter_directory[*src]+(*((int *) sinfo)))
+     int *remote_address = (int *) (gasnetc_lapi_target_counter_directory[*src]+(*((int *) sinfo)));
 #if 1
     GASNETC_LCHECK(LAPI_Put(*hndl, *src, sizeof(int), remote_address, &gasnetc_lapi_done, NULL, NULL, NULL));
 #else
@@ -604,7 +603,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }		
 
     /* Get rCtxts, the connections to remote nodes */
-    gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_ctxt_t));
+    gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t));
     for(i=0;i < gasneti_nodes;i++) {
       gasnetc_remote_ctxts[i].Util_type = LAPI_REMOTE_RCXT;
       gasnetc_remote_ctxts[i].operation = LAPI_RDMA_ACQUIRE;
@@ -626,7 +625,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       for(j=0;j < GASNETC_MAX_PVOS-1;j++) {
 	gasnetc_lapi_pvo_free_list[i][j].next = &(gasnetc_lapi_pvo_free_list[i][j+1]);
       }
-      gasnetc_lapi_pvo_free_list[GASNETC_MAX_PVOS-1].next = NULL;
+      gasnetc_lapi_pvo_free_list[i][GASNETC_MAX_PVOS-1].next = NULL;
       gasnetc_lapi_pvo_pool[i] = gasnetc_lapi_pvo_free_list[i];
     } 
     
@@ -685,7 +684,7 @@ void gasnetc_lapi_free()
   for(i=0;i < gasnetc_num_pvos;i++) {
    new_pvo.Util_type = LAPI_XLATE_ADDRESS;
    new_pvo.length = 0;
-   new_pvo.user_pvo = gasnetc_node_pvo_list[i];
+   new_pvo.usr_pvo = gasnetc_node_pvo_list[i].usr_pvo;
    new_pvo.address = 0;
    new_pvo.operation = LAPI_RDMA_RELEASE;
    GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &new_pvo)); 

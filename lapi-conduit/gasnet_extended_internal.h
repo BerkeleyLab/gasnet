@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/01/23 21:49:05 $
- * $Revision: 1.13.12.8 $
+ *     $Date: 2006/01/25 11:04:37 $
+ * $Revision: 1.13.12.9 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -91,7 +91,9 @@ typedef union _gasnete_eopaddr_t {
 
 #define gasnete_eopaddr_equal(addr1,addr2) ((addr1).fulladdr == (addr2).fulladdr)
 #define gasnete_eopaddr_isnil(addr) ((addr).fulladdr == EOPADDR_NIL.fulladdr)
-
+#if GASNETC_LAPI_RDMA
+struct _gasnete_lapi_nb_struct;
+#endif
 typedef struct _gasnete_eop_t {
     uint8_t flags;                  /*  state flags */
     gasnete_threadidx_t threadidx;  /*  thread that owns me */
@@ -103,13 +105,35 @@ typedef struct _gasnete_eop_t {
   gasnetc_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
   struct _gasnete_eop_t *next; /* In list of IOPs */
-  gasnete_lapi_nb *network_buffer_id;
+  struct _gasnete_lapi_nb_struct *network_buffer_id;
   int nbid;
   void *buffer;
   int length;  /* For bounce buffer transfers */
+  int get_p;
 #endif
     lapi_cntr_t  cntr;
 } gasnete_eop_t;
+
+#if GASNETC_LAPI_RDMA
+typedef struct _gasnete_lapi_nb_struct {
+#if 0
+  lapi_get_pvo_t pvo;
+#else
+  unsigned long long pvo;
+#endif
+  void *data;
+  int offset;
+  int id;                /* So that it can easily be reassigned */
+  lapi_cntr_t *origin_counter;          /* When this counter reaches 0, we can reassign this buffer */
+#if 0
+  int *origin_counter;   /* When this counter reaches 0, we can reassign this buffer */
+#endif
+  int in_flight;
+  gasnete_eop_t *eop;
+  struct _gasnete_lapi_nb_struct *next; 
+  struct _gasnete_lapi_nb_struct *prev; 
+} gasnete_lapi_nb;
+#endif
 
 typedef struct _gasnete_iop_t {
     uint8_t flags;                  /*  state flags */
@@ -128,11 +152,8 @@ typedef struct _gasnete_iop_t {
     uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
 
     lapi_cntr_t      get_cntr;
-#if GASNETC_LAPI_RDMA
-    int      put_cntr;
-#else
     lapi_cntr_t      put_cntr;
-#endif
+    int rdma_put_cntr;
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -232,12 +253,9 @@ void gasnete_op_free(gasnete_op_t *op);
 
 #if GASNETC_LAPI_RDMA
 /* Should put these somewhere else to avoid duplication */
-#define GASNETC_LAPI_PVO_EXTENT (32L*1024L*1024L*1024L)
-#define GASNETC_LAPI_RDMA_GET_TAG (-1)
-#define GASNETC_MAX_PVOS 1024
 extern int gasnetc_num_pvos;
 extern lapi_get_pvo_t *gasnetc_node_pvo_list;
-extern lapi_remote_ctxt_t *gasnetc_remote_ctxts;
+extern lapi_remote_cxt_t *gasnetc_remote_ctxts;
 extern lapi_user_pvo_t **gasnetc_pvo_table;
 extern lapi_long_t *gasnetc_segbase_table;
 extern void *gasnetc_local_target_counters;
