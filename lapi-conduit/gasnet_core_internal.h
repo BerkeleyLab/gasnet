@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/01/25 11:04:37 $
- * $Revision: 1.40.12.3 $
+ *     $Date: 2006/01/27 02:30:54 $
+ * $Revision: 1.40.12.4 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -52,7 +52,7 @@ extern void**             gasnetc_remote_reply_hh;
        LAPI_Msg_string(lapi_errno,gasnetc_lapi_msg);              \
        gasneti_fatalerror("LAPI Error on node %d in file %s"      \
                           " at line %d, [%s] return code = %d\n", \
-                          gasnetc_mynode,__FILE__,__LINE__,       \
+                          gasneti_mynode,__FILE__,__LINE__,       \
                           gasnetc_lapi_msg,lapi_errno);           \
     }                                                             \
   } while(0)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/01/25 11:26:32 $
- * $Revision: 1.42.12.13 $
+ *     $Date: 2006/01/27 02:30:54 $
+ * $Revision: 1.42.12.14 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -289,7 +289,7 @@ void gasnete_lapi_free_eop_list(gasnete_eop_t *current)
       gasnete_free_network_buffer(current->network_buffer_id,current->nbid);
     }
     next = current->next;
-    gasnete_eop_free(current);
+    gasnete_op_free((gasnete_op_t *)current);
     current = next;
   } 
 }
@@ -782,8 +782,8 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
   } 
 
   /* Do something special if the origin is within the pinned segment or we can use a network buffer */
-  if (using_network_buffer || ((origin_to_long >= gasnetc_segbase_table[gasnetc_mynode])
-      && (origin_to_long < gasnetc_segbase_table[gasnetc_mynode] + gasnetc_seginfo[gasnetc_mynode].size))) {
+  if (using_network_buffer || ((origin_to_long >= gasnetc_segbase_table[gasneti_mynode])
+      && (origin_to_long < gasnetc_segbase_table[gasneti_mynode] + gasneti_seginfo[gasneti_mynode].size))) {
 
     /* No need to pin origin, but you need to deal with misalignment 
        (in terms of the PVO boundaries)
@@ -810,8 +810,8 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
        
         chunk_remaining = length_to_boundary;
         source_offset = GASNETC_LAPI_PVO_EXTENT - length_to_boundary;		
-        source_pvo = gasnetc_pvo_table[(origin_to_long + nbytes_transferred - gasnetc_segbase_table[gasnetc_mynode])/
-				       GASNETC_LAPI_PVO_EXTENT][gasnetc_mynode];  
+        source_pvo = gasnetc_pvo_table[(origin_to_long + nbytes_transferred - gasnetc_segbase_table[gasneti_mynode])/
+				       GASNETC_LAPI_PVO_EXTENT][gasneti_mynode];  
       }
       
       do {
@@ -866,7 +866,7 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
 	remote_offset = dest_to_long % GASNETC_LAPI_PVO_EXTENT;
 	source_offset = 0;
 	transfer_len = MIN (nbytes - nbytes_transferred, GASNETC_LAPI_PVO_EXTENT - remote_offset);
-	xfer_struct.HwXfer.src_pvo = getnet_lapi_get_local_pvo(((lapi_long_t) origin) + nbytes_transferred, transfer_len);
+	xfer_struct.HwXfer.src_pvo = gasnetc_lapi_get_local_pvo(((lapi_long_t) origin) + nbytes_transferred, transfer_len);
 	gasnetc_lapi_add_to_pvo_list(&pvo_list,xfer_struct.HwXfer.src_pvo);
 	xfer_struct.HwXfer.tgt_pvo =
 	  gasnetc_pvo_table[(dest_to_long + nbytes_transferred -
@@ -877,7 +877,7 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
       } else {
 	/* Can now transfer in chunks of size GASNETC_LAPI_PVO_EXTENT */
 	transfer_len = MIN (GASNETC_LAPI_PVO_EXTENT, nbytes - nbytes_transferred);
-	xfer_struct.HwXfer.src_pvo = getnet_lapi_get_local_pvo (origin_to_long + nbytes_transferred, transfer_len);
+	xfer_struct.HwXfer.src_pvo = gasnetc_lapi_get_local_pvo (origin_to_long + nbytes_transferred, transfer_len);
 	gasnetc_lapi_add_to_pvo_list(&pvo_list,xfer_struct.HwXfer.src_pvo);
 	xfer_struct.HwXfer.tgt_pvo = gasnetc_pvo_table[(dest_to_long + nbytes_transferred -
 						       gasnetc_segbase_table[node]) / GASNETC_LAPI_PVO_EXTENT][node];
@@ -948,7 +948,7 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
     gasneti_resume_spinpollers();
     /* Wait on this eop */
     gasnete_wait_syncnb((gasnet_handle_t) eop);
-    gasnet_op_free(eop);
+    gasnete_op_free((gasnete_op_t *)eop);
 #else
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
 
@@ -987,7 +987,7 @@ extern void gasnete_put_bulk (gasnet_node_t node, void *dest, void *src,
     gasneti_resume_spinpollers();
     /* Wait on this eop */
     gasnete_wait_syncnb((gasnet_handle_t) eop);
-    gasnet_op_free(eop);
+    gasnete_op_free((gasnete_op_t *)eop);
 #else
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &c_cntr, 0));
 

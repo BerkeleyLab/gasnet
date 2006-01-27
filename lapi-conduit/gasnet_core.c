@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/01/25 11:04:37 $
- * $Revision: 1.79.10.8 $
+ *     $Date: 2006/01/27 02:30:54 $
+ * $Revision: 1.79.10.9 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -448,7 +448,7 @@ void gasnetc_lapi_register_rcallbacks()
   gasnetc_lapi_local_target_counters = (void *) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int));
   gasnetc_lapi_completion_ptrs = (int **) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int *));
   bzero(gasnetc_lapi_local_target_counters, GASNETC_LAPI_MAX_TAGS*sizeof(int));
-  gasnetc_lapi_target_counter_directory = (lapi_long_t *) gasneti_malloc(gasnetc_nodes*sizeof(lapi_long_t));
+  gasnetc_lapi_target_counter_directory = (lapi_long_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_long_t));
   GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, gasnetc_lapi_local_target_counters,
 				     gasnetc_lapi_target_counter_directory));
 }
