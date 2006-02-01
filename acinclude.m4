@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2005/07/28 00:34:02 $
-dnl $Revision: 1.77 $
+dnl     $Date: 2006/02/01 01:27:24 $
+dnl $Revision: 1.77.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -78,16 +78,32 @@ pushdef([lowername],patsubst(patsubst(patsubst([$1], [/], [_]), [\.], [_]), [-],
 pushdef([uppername],translit(lowername,'a-z','A-Z'))
 if test "$ac_cv_header_[]lowername" = "yes"; then
   AC_MSG_CHECKING(for location of $1)
-  header_pathname=`echo "#include <$1>" > conftest.c ; $CPP conftest.c | grep $1 | head -1`
-  header_pathname=`echo $header_pathname | $AWK '{ printf("%s",[$]3); }'`
+  echo "#include <$1>" > conftest.c
+  header_pathname=
+  if test "$GASNET_FIND_HEADER_CPP"; then
+    echo "$GASNET_FIND_HEADER_CPP conftest.c" >&5
+    header_pathname=`$GASNET_FIND_HEADER_CPP conftest.c 2>&5 | grep $1 | head -1`
+    header_pathname=`echo $header_pathname | $AWK '{ printf("%s",[$]3); }'`
+  fi
+  if test -z "$header_pathname"; then
+    echo "$CPP conftest.c" >&5
+    header_pathname=`$CPP conftest.c 2>&5 | grep $1 | head -1`
+    header_pathname=`echo $header_pathname | $AWK '{ printf("%s",[$]3); }'`
+  fi
   if test -z "$header_pathname"; then
     # IBM xlc doesn't always emit include file name in output: try /usr/include
     if test -r /usr/include/$1; then
         header_pathname="\"/usr/include/$1\""
     fi
   fi
-  AC_MSG_RESULT($header_pathname)
-  have=1
+  if test -z "$header_pathname"; then
+    AC_MSG_RESULT(unknown)
+    AC_MSG_WARN(Unable to detect pathname of lowername - pretending it doesn't exist)
+    have=0
+  else
+    AC_MSG_RESULT($header_pathname)
+    have=1
+  fi
 else
   header_pathname=
   have=0
