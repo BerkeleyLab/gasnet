@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/02/05 04:46:12 $
- * $Revision: 1.135.2.1 $
+ *     $Date: 2006/02/05 04:59:14 $
+ * $Revision: 1.135.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1732,7 +1732,7 @@ static void gasnetc_exit_body(void) {
 #endif
     }
     (void)VAPI_dealloc_pd(gasnetc_hca, gasnetc_pd);
-    if (gasnetc_use_rcv_thread)	{
+    if (!gasnetc_use_rcv_thread)	{
       /* can't release if we could possibly be inside the RCV thread */
       (void)EVAPI_release_hca_hndl(gasnetc_hca);
     }
