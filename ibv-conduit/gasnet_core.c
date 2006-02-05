@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/02/05 04:59:14 $
- * $Revision: 1.135.2.2 $
+ *     $Date: 2006/02/05 05:36:20 $
+ * $Revision: 1.135.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -900,6 +900,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     num_local = 1;
     first_local = gasneti_mynode;
     for (i = 0; i < gasneti_nodes; ++i) {
+      if (i == gasneti_mynode) continue;
       if (remote_addr[i].lid == gasnetc_hca_port.lid) {
         ++num_local;
         first_local = MIN(i, first_local);
