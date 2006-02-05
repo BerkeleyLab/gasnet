@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2005/08/09 22:59:14 $
- * $Revision: 1.135 $
+ *     $Date: 2006/02/05 04:46:12 $
+ * $Revision: 1.135.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -291,12 +291,12 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       #endif
     }
   }
-  { /* Honor PHYSMEM_LIMIT if set */
-    int tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_LIMIT", 0, 1);
+  { /* Honor PHYSMEM_MAX if set */
+    int tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", 0, 1);
     if (tmp) {
       limit = MIN(limit, tmp);
       if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
-	/* Force use of PHYSMEM_LIMIT w/o probing */
+	/* Force use of PHYSMEM_MAX w/o probing */
 	limit = tmp;
 	do_probe = 0;
       }
@@ -1784,9 +1784,6 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   /* We should never receive this AM multiple times */
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_reqs) == 0);
 
-  /* Count the exit requests, so gasnetc_exit_wait() knows when to return */
-  gasneti_atomic_increment(&gasnetc_exit_reqs);
-
   /* If we didn't already know, we are now certain our role is "slave" */
   (void)gasneti_atomic_compare_and_swap(&gasnetc_exit_role, GASNETC_EXIT_ROLE_UNKNOWN, GASNETC_EXIT_ROLE_SLAVE);
 
@@ -1794,6 +1791,9 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   rc = gasnetc_ReplySystem(token, &gasnetc_exit_repl_oust,
 		  	   gasneti_handleridx(gasnetc_SYS_exit_rep), /* no args */ 0);
   gasneti_assert(rc == GASNET_OK);
+
+  /* Count the exit requests, so gasnetc_exit_wait() knows when to return */
+  gasneti_atomic_increment(&gasnetc_exit_reqs);
 
   /* Initiate an exit IFF this is the first we've heard of it */
   if (gasnetc_exit_head(args[0])) {
