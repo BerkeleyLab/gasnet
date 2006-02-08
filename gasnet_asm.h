@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2005/08/20 06:51:50 $
- * $Revision: 1.72.2.2 $
+ *     $Date: 2006/02/08 12:15:40 $
+ * $Revision: 1.72.2.3 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,6 +83,8 @@
   #define GASNETI_ASM(mnemonic)  _asm(mnemonic)
 #elif defined(__HP_aCC)
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
+#elif defined(__SUNPRO_CC)
+  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
 #elif defined(__xlC__)  
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
 #elif defined(_CRAY)  
@@ -94,7 +96,10 @@
 #endif
 
 
-#if defined(__sparc__) || defined(__sparc) || defined(sparc)
+#if defined(__SUNPRO_CC) || defined(__HP_aCC)
+  /* no inline assembly in these C++ compilers, so pay a function call overhead */
+  #define GASNETI_USING_SLOW_ATOMICS 1
+#elif defined(__sparc__) || defined(__sparc) || defined(sparc)
   #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_SPARCV9) /* SPARC v9 */
     GASNET_INLINE_MODIFIER(gasneti_local_wmb)
     void gasneti_local_wmb(void) {
@@ -132,11 +137,6 @@
     }
   #endif
 #elif defined(_PA_RISC1_1) || defined(__hppa) /* HP PA-RISC */
- #if defined(__HP_aCC)
-   extern "C" void gasneti_slow_local_wmb();
-   #define gasneti_local_wmb() gasneti_slow_local_wmb()
-   #define GASNETI_USING_SLOW_ATOMICS 1
- #else
    GASNET_INLINE_MODIFIER(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
      #if defined(__HP_cc) 
@@ -144,19 +144,14 @@
      #endif
      GASNETI_ASM("SYNC");  /* PA RISC load/store ordering */ 
    }
- #endif
- #if defined(__HP_aCC)
-   extern "C" void gasneti_slow_compiler_fence();
-   #define gasneti_compiler_fence() gasneti_slow_compiler_fence()
-   #define GASNETI_USING_SLOW_ATOMICS 1
- #elif defined(__HP_cc) 
-   #if 0
-     /* HP C doesn't like an empty asm statement */
-     #define gasneti_compiler_fence() _asm("OR",0,0,0) /* NOP */
-   #else
-     #define gasneti_compiler_fence() _flush_globals() /* compiler intrinsic forces spills */
+   #if defined(__HP_cc) 
+     #if 0
+       /* HP C doesn't like an empty asm statement */
+       #define gasneti_compiler_fence() _asm("OR",0,0,0) /* NOP */
+     #else
+       #define gasneti_compiler_fence() _flush_globals() /* compiler intrinsic forces spills */
+     #endif
    #endif
- #endif
 #elif defined(__i386__) || defined(__i386) || defined(i386) || \
       defined(__i486__) || defined(__i486) || defined(i486) || \
       defined(__i586__) || defined(__i586) || defined(i586) || \
@@ -367,6 +362,21 @@
  #error unknown CPU - dont know how to do a local memory barrier for your CPU/OS
 #endif
 
+#if GASNETI_USING_SLOW_ATOMICS
+  #ifndef __cplusplus
+    #error Slow atomics are only a hack-around for C++ compilers lacking inline assembly support
+  #endif
+  extern "C" void gasneti_slow_local_wmb();
+  #define gasneti_local_wmb() gasneti_slow_local_wmb()
+  extern "C" void gasneti_slow_local_rmb();
+  #define gasneti_local_rmb() gasneti_slow_local_rmb()
+  extern "C" void gasneti_slow_local_mb();
+  #define gasneti_local_mb() gasneti_slow_local_mb()
+  extern "C" void gasneti_slow_compiler_fence();
+  #define gasneti_compiler_fence() gasneti_slow_compiler_fence()
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* Default gasneti_compiler_fence() */
 #ifndef gasneti_compiler_fence
   #define gasneti_compiler_fence() GASNETI_ASM("")
