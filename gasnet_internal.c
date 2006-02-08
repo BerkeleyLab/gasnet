@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2005/08/16 07:01:32 $
- * $Revision: 1.118.2.1 $
+ *     $Date: 2006/02/08 12:15:40 $
+ * $Revision: 1.118.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,21 +37,29 @@ int gasneti_VerboseErrors = 1;
   #ifdef GASNETI_GENERIC_CAS_DEF
     GASNETI_GENERIC_CAS_DEF
   #endif
-#elif defined(__hppa) || defined(__hppa__)
-  /* support for HP C++ compiler which lacks inline assembly */
-  #ifdef GASNETI_USING_SLOW_ATOMICS
-  #error gasnet_internal.c must be compiled with support for inline assembly
-  #endif
+#endif
+
+/* call-based membar/atomic support for C++ compilers which lack inline assembly */
+#ifdef GASNETI_USING_SLOW_ATOMICS
+#error gasnet_internal.c must be compiled with support for inline assembly
+#endif
+#if defined(__hppa) || defined(__hppa__)
   extern uint32_t gasneti_slow_loadandclear_32(int32_t volatile *v) {
     return gasneti_loadandclear_32(v);
   }
-  extern void gasneti_slow_compiler_fence() {
-    gasneti_compiler_fence();
-  }
-  extern void gasneti_slow_local_wmb() {
-    gasneti_local_wmb();
-  }
 #endif
+extern void gasneti_slow_compiler_fence() {
+  gasneti_compiler_fence();
+}
+extern void gasneti_slow_local_wmb() {
+  gasneti_local_wmb();
+}
+extern void gasneti_slow_local_rmb() {
+  gasneti_local_rmb();
+}
+extern void gasneti_slow_local_mb() {
+  gasneti_local_mb();
+}
 
 #if GASNETI_THROTTLE_POLLERS
   gasneti_atomic_t gasneti_throttle_haveusefulwork = gasneti_atomic_init(0);

@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2005/08/11 10:06:58 $ */
-/*  $Revision: 1.61 $ */
+/*      $Date: 2006/02/08 12:15:40 $ */
+/*  $Revision: 1.61.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -26,6 +26,9 @@
 
 /* C compilers 'restrict' keyword (or empty) */
 #undef GASNETI_RESTRICT
+
+/* true iff GASNETI_RESTRICT may be applied to types which are not pointer types until after typedef expansion */
+#undef GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
 
 /* Functions may be declared "static inline" */
 #undef STATIC_INLINE_WORKS

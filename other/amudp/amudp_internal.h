@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2005/07/23 01:39:32 $
- * $Revision: 1.21 $
+ *     $Date: 2006/02/08 12:15:45 $
+ * $Revision: 1.21.2.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -32,10 +32,11 @@
 #endif
 
 /* AMUDP system configuration parameters */
-#if defined(SUPERUX)
+#if defined(SUPERUX) || defined(HPUX)
   /* broken on SuperUX due to a bad FIONREAD implementation, which causes numBytesWaiting to fail
      also seems to possibly be some issue with a redirected stdout always triggering select, even when
      no output is waiting
+     This also seems the only reliable way to get good output on HPUX, especially in 64-bit mode
    */
   #define DISABLE_STDSOCKET_REDIRECT  1 
 #else

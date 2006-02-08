@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/02/01 01:27:24 $
-dnl $Revision: 1.77.2.1 $
+dnl     $Date: 2006/02/08 12:15:40 $
+dnl $Revision: 1.77.2.2 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -779,31 +779,30 @@ AC_DEFUN([GASNET_CHECK_OPTIMIZEDDEBUG],[
 ])
 
 dnl Checks if 'restrict' C99 keyword (or variants) supported
-dnl #defines GASNET_RESTRICT to correct variant, or to nothing
+dnl #defines GASNETI_RESTRICT to correct variant, or to nothing
 AC_DEFUN([GASNET_CHECK_RESTRICT],[
   dnl Check for restrict keyword
   restrict_keyword=""
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK(for restrict keyword, cc_keyrestrict,
       [int dummy(void * restrict p) { return 1; }], [],
-      AC_DEFINE(GASNETI_RESTRICT, restrict)
       restrict_keyword="restrict")
   fi
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK(for __restrict__ keyword, cc_key__restrict__,
       [int dummy(void * __restrict__ p) { return 1; }], [],
-      AC_DEFINE(GASNETI_RESTRICT, __restrict__)
       restrict_keyword="__restrict__")
   fi
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK(for __restrict keyword, cc_key__restrict,
       [int dummy(void * __restrict p) { return 1; }], [],
-      AC_DEFINE(GASNETI_RESTRICT, __restrict)
       restrict_keyword="__restrict")
   fi
-  if test "$restrict_keyword" = ""; then
-      AC_DEFINE(GASNETI_RESTRICT,)
-  fi
+  AC_DEFINE_UNQUOTED(GASNETI_RESTRICT, $restrict_keyword)
+  GASNET_TRY_CACHE_CHECK(whether restrict may qualify typedefs, cc_restrict_typedefs,
+    [typedef void *foo_t;
+     int dummy(foo_t GASNETI_RESTRICT p) { return 1; }], [],
+    AC_DEFINE(GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS))
 ])
 
 dnl Output compilation error information, if available and do a AC_MSG_ERROR
