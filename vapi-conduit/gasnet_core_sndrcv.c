@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/02/05 04:46:12 $
- * $Revision: 1.123.2.1 $
+ *     $Date: 2006/02/09 03:55:41 $
+ * $Revision: 1.123.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -322,8 +322,8 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     --numargs;
     gasneti_assert(cep != NULL);
     if_pt (credits) {
-      gasnetc_sema_up_n(&cep->am_sema, credits);
       gasnetc_sema_up_n(&cep->am_unrcvd, credits);
+      gasnetc_sema_up_n(&cep->am_sema, credits);
     }
     GASNETI_TRACE_PRINTF(C,("RCV_AM_CREDITS %d\n", credits));
     GASNETC_STAT_EVENT_VAL(RCV_AM_CREDITS, credits);
