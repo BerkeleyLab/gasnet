@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/10/21 20:30:48 $
- * $Revision: 1.62.2.3 $
+ *     $Date: 2006/02/09 03:59:43 $
+ * $Revision: 1.62.2.4 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -529,7 +529,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
     #include <pthread.h>
     typedef struct {
       pthread_mutex_t lock;
-      uintptr_t owner;
+      volatile uintptr_t owner;
     } gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
@@ -708,7 +708,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 typedef struct { 
   uint64_t magic;
   gasneti_mutex_t initmutex;
-  int isinit;
+  volatile int isinit;
   #if GASNETI_THREADS
     pthread_key_t value;
   #else

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2005/07/23 01:39:24 $
- * $Revision: 1.28 $
+ *     $Date: 2006/02/09 03:59:47 $
+ * $Revision: 1.28.2.1 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -385,6 +385,8 @@ tryagain:
     MPI_SAFE(MPI_Testsome(pool->numActive, pool->txHandle, &numcompleted,
                           pool->tmpIndexArray, pool->tmpStatusArray));
 
+    AMMPI_assert(numcompleted >= 0 && numcompleted <= pool->numActive);
+
     /* sort the completions in ascending order (simple insertion sort) */
     for (i=1; i < numcompleted; i++) {
       int x = pool->tmpIndexArray[i];
@@ -398,7 +400,16 @@ tryagain:
     for (i=numcompleted-1; i >= 0; i--) {
       int doneidx = pool->tmpIndexArray[i];
       int activeidx = pool->numActive-1;
-      AMMPI_assert(pool->txHandle[doneidx] == MPI_REQUEST_NULL);
+      AMMPI_assert(doneidx >= 0 && doneidx < pool->numActive);
+      #ifdef _AIX
+        /* Some versions of IBM MPI fail to set MPI_REQUEST_NULL as required by MPI_Testsome,
+           and also apparently fail to reclaim the resources associated with the request */
+        if (pool->txHandle[doneidx] != MPI_REQUEST_NULL) {
+          MPI_Status s;
+          MPI_SAFE(MPI_Wait(&(pool->txHandle[doneidx]),&s));
+        }
+      #endif
+      AMMPI_assert(pool->txHandle[doneidx] == MPI_REQUEST_NULL); 
       if (doneidx != activeidx) {
         /* swap a still-active buffer into this place */
         ammpi_buf_t* tmp = pool->txBuf[doneidx];
