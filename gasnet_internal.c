@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2006/02/08 12:15:40 $
- * $Revision: 1.118.2.2 $
+ *     $Date: 2006/02/10 23:36:17 $
+ * $Revision: 1.118.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1421,8 +1421,11 @@ extern void gasneti_unsetenv(const char *key) {
   }
   extern void *_gasneti_realloc(void *ptr, size_t sz, const char *curloc) {
     void *ret = _gasneti_malloc(sz, curloc);
-    memcpy(ret,ptr,sz);
-    _gasneti_free(ptr, curloc);
+    if_pt (ptr != NULL) {
+      size_t nbytes = _gasneti_memcheck(ptr, curloc, 0);
+      memcpy(ret, ptr, MIN(nbytes, sz));
+      _gasneti_free(ptr, curloc);
+    }
     _gasneti_memcheck(ret,curloc,0);
     return ret;
   }
