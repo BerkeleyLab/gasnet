@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2006/02/05 06:02:21 $
-# $Revision: 1.30.2.3 $
+#     $Date: 2006/02/18 09:42:12 $
+# $Revision: 1.30.2.4 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -64,7 +64,8 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
     my $is_bgl_mpi  = ($mpirun_help =~ m| BG/L |);
-    my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && ($mpirun_help !~ m|ELAN|);
+    my $is_elan_mpi  = ($mpirun_help =~ m|ELAN|);
+    my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
     my $envprog = $ENV{'ENVCMD'};
     if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
       $envprog = `which env`;
@@ -113,6 +114,11 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => "'"
 		  );
+    } elsif ($is_elan_mpi) {
+	$spawner_desc = "Quadrics/ELAN MPI";
+	# this spawner already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1 );
+	# unfortunately, it also botches spaces in arguments in an unrecoverable way
     } elsif ($is_cray_mpi) {
 	$spawner_desc = "Cray MPI";
 	# cannot reliably use /usr/bin/env at all when running via aprun 
