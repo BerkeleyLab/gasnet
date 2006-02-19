@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.16 $
+ *     $Date: 2006/02/19 11:08:36 $
+ * $Revision: 1.16.4.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,6 +69,7 @@ void ping_handler(gasnet_token_t token, void *buf, size_t nbytes) {
 void noop_handler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
+#ifdef GASNET_PAR
 void *workerthread(void *args) {
   int mythread = (int)(intptr_t)args;
   thread_barrier();
@@ -142,8 +143,7 @@ void *workerthread(void *args) {
   abort();
   return NULL;
 }
-
-                                                                                                              
+#endif
 
 typedef void (*test_sighandlerfn_t)(int);
 void testSignalHandler(int sig) {
