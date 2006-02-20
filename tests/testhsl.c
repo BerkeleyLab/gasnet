@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testhsl.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.11 $
+ *     $Date: 2006/02/20 19:48:45 $
+ * $Revision: 1.11.4.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,6 +31,11 @@ void badhandler2(gasnet_token_t token) {
 
 void donothing(gasnet_token_t token) {
 }
+
+#ifdef __SUNPRO_C
+  /* disable a harmless warning */
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
+#endif
 
 int main(int argc, char **argv) {
   int mynode, nodes, partner;
