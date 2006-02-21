@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/02/09 04:12:52 $
-dnl $Revision: 1.77.2.3 $
+dnl     $Date: 2006/02/21 07:50:37 $
+dnl $Revision: 1.77.2.4 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -235,6 +235,17 @@ AC_DEFUN([GASNET_APPEND_DEFINE],[
     [$1]="$[$1] -D[$2]"
   fi
 ]) 
+
+dnl GASNET_SUBST_TEXT(varname, text to subst)
+dnl perform subst for multi-line text fields
+AC_DEFUN([GASNET_SUBST_TEXT],[
+  mkdir -p "$TOP_BUILDDIR/.subst_text"
+  $1="$TOP_BUILDDIR/.subst_text/$1"
+  cat > $$1 <<EOF
+$2
+EOF
+  AC_SUBST_FILE($1)
+])
 
 dnl push a new value into variable varname, saving the old value
 dnl GASNET_PUSHVAR(varname, new value)
