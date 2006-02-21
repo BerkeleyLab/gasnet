@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2005/08/08 03:05:08 $
- * $Revision: 1.34 $
+ *     $Date: 2006/02/21 04:21:23 $
+ * $Revision: 1.34.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,8 +30,17 @@
 #elif defined(HPUX)
   #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE | MAP_PRIVATE)
   #define GASNETI_MMAP_NOTFIXED_FLAG MAP_VARIABLE
-#else
-  #define GASNETI_MMAP_FLAGS (MAP_ANON | MAP_PRIVATE)
+#endif
+
+#ifndef GASNETI_MMAP_FLAGS
+  #ifndef GASNETI_MMAP_NORESERVE
+    #ifdef MAP_NORESERVE /* bug 1358: try to avoid allocating swap space, if possible */
+      #define GASNETI_MMAP_NORESERVE  MAP_NORESERVE
+    #else
+      #define GASNETI_MMAP_NORESERVE  0
+    #endif
+  #endif
+  #define GASNETI_MMAP_FLAGS (MAP_ANON | MAP_PRIVATE | GASNETI_MMAP_NORESERVE)
 #endif
 
 #ifndef GASNETI_MMAP_FIXED_FLAG
