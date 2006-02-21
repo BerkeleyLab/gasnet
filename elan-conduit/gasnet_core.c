@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/08/09 12:06:23 $
- * $Revision: 1.63 $
+ *     $Date: 2006/02/21 09:39:17 $
+ * $Revision: 1.63.2.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -175,7 +175,8 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   gasnetc_bootstrapBarrier();
 
   /* recv data from 0 */
-  elan_hbcast(GROUP(), temp, gasneti_nodes*len, 0, GASNETC_ELAN_GLOBAL_DEST);    
+  /* bug 1358: don't use hbcast here, causes init failures on Opteron/elan4(mu) for some bizarre reason */
+  elan_bcast(GROUP(), temp, gasneti_nodes*len, 0, GASNETC_ELAN_GLOBAL_DEST);    
 
   /* ensure operation complete */
   gasnetc_bootstrapBarrier();
