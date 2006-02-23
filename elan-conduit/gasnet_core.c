@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/02/21 09:39:17 $
- * $Revision: 1.63.2.1 $
+ *     $Date: 2006/02/23 12:36:40 $
+ * $Revision: 1.63.2.2 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,6 +88,33 @@ extern uint64_t gasnetc_clock() {
 gasnetc_handler_fn_t const gasnetc_unused_handler = (gasnetc_handler_fn_t)&abort;
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
+#ifdef GASNETC_ELAN4
+#include <elan4/library.h>
+extern int gasnetc_ispatchfree_driver() {
+  int patchfree_flag = -1;
+  int patchfree;
+  #if defined(ELAN4_PARAM_DRIVER_FEATURES) && \
+      defined(ELAN4_FEATURE_NO_IOPROC) && \
+      defined(ELAN4_FEATURE_NO_IOPROC_UPDATE)
+        int features = CTX()->ctx_devinfo.dev_params.values[ELAN4_PARAM_DRIVER_FEATURES];
+        if ( features & (ELAN4_FEATURE_NO_IOPROC|ELAN4_FEATURE_NO_IOPROC_UPDATE)) patchfree_flag = 1; /* patch-free drivers */
+        else patchfree_flag = 0; /* patched kernel drivers */
+  #endif
+  { const char *patched_kernel_magicfile = "/proc/qsnet/elan4/config/user_ioproc_enabled";
+    FILE *fp = fopen(patched_kernel_magicfile,"r");
+    if (fp) { /* patched kernel drivers */
+      patchfree = 0;
+      fclose(fp);
+    } else { /* patch-free drivers */
+      patchfree = 1;
+    }
+    if (patchfree_flag >= 0 && patchfree != patchfree_flag) 
+        fprintf(stderr,"WARNING: kernel driver state flags and /proc do not match!!!\n");
+  }
+  return patchfree;
+}
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -118,7 +145,13 @@ static void gasnetc_check_config() {
           "PERFORMANCE WARNING: Using Elan4 driver version '%s':\n"
           " elan4 drivers prior to v1.8.7 contain a performance bug that seriously affects GASNet performance.\n"
           " You should download the latest Elan4 libraries from www.quadrics.com and add them to LD_LIBRARY_PATH.\n",
-          ver); fflush(stderr);
+          ver); 
+      if (gasnetc_ispatchfree_driver() && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
+        fprintf(stderr, 
+          "WARNING: You are using the Elan4 patch-free drivers, which have serious known stability\n"
+          " and performance problems. You should ask your admin to download the latest kernel patches\n"
+          " from www.quadrics.com and install the regular Elan4 drivers.\n"); 
+      fflush(stderr);
     #endif
   }
 
@@ -233,12 +266,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_elan_base = elan_baseInit();
   #endif
   gasneti_assert(gasnetc_elan_base);
-  /*  check system sanity */
-  gasnetc_check_config();
-
   gasnetc_elan_state = gasnetc_elan_base->state;
   gasnetc_elan_group = gasnetc_elan_base->allGroup;
   gasnetc_elan_ctx =   gasnetc_elan_state->ctx;
+
+  /*  check system sanity */
+  gasnetc_check_config();
 
   gasneti_mynode = STATE()->vp;
   gasneti_nodes =  STATE()->nvp;

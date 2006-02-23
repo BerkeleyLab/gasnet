@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2005/10/20 08:56:01 $
-# $Revision: 1.285.2.2 $
+#     $Date: 2006/02/23 12:36:38 $
+# $Revision: 1.285.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.285.2.2 $)
+AC_REVISION($Revision: 1.285.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1577,6 +1577,44 @@ if test $enabled_elan = yes; then
     AC_DEFINE_UNQUOTED(ELAN_VERSION_MAJOR, $majorver)
     AC_DEFINE_UNQUOTED(ELAN_VERSION_MINOR, $minorver)
     AC_DEFINE_UNQUOTED(ELAN_VERSION_SUB, $subver)
+
+    AC_MSG_CHECKING(for elan driver version)
+    ELAN_DRIVER_VERSION=unknown
+    if test -f /proc/qsnet/version ; then
+      ELAN_DRIVER_VERSION=`cat /proc/qsnet/version`
+    fi
+    AC_MSG_RESULT($ELAN_DRIVER_VERSION)
+    AC_DEFINE_UNQUOTED(ELAN_DRIVER_VERSION,$ELAN_DRIVER_VERSION)
+
+    ELAN4_KERNEL_PATCH=no
+    if test -d /proc/qsnet/elan4/ ; then
+      AC_MSG_CHECKING(for elan kernel patches)
+      if test -f /proc/qsnet/elan4/config/user_ioproc_enabled ; then
+        ELAN4_KERNEL_PATCH=yes
+        AC_DEFINE(ELAN4_KERNEL_PATCH)
+	AC_MSG_RESULT(yes)
+      else
+        ELAN4_KERNEL_PATCH=no
+	AC_MSG_RESULT(no)
+        badkernelmsg="It appears you are attempting to compile Quadrics/elan4 support \
+using the Quadrics patch-free elan4 drivers. These drivers are a nice convenience for \
+test driving Quadrics hardware on your stock Linux kernel, but are NOT intended for \
+use in production super computing environments, and specifically have serious known bugs when \
+used with one-sided elan-based communication libraries such as GASNet or shmem. \
+You should download the latest Linux kernel patch and associated drivers from \
+http://www.quadrics.com and follow the instructions on that page to install them. \
+Use of GASNet with the patch-free kernel drivers is HIGHLY discouraged, \
+and will very likely induce both serious performance degradation \
+and significant application runtime stability problems."
+        GASNET_IF_ENABLED(allow-elan4-patchfree, Allow the use of the problematic elan4 patch-free drivers, [
+  	  AC_MSG_WARN([$badkernelmsg])
+  	],[
+  	  AC_MSG_ERROR([$badkernelmsg \
+If you're REALLY sure you know what you're doing, you may enable the use of these \
+problematic drivers at your own risk by passing the --enable-allow-elan4-patchfree flag.])
+	])
+      fi
+    fi
   else
     AC_MSG_RESULT(no)
     have_elan=no

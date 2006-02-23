@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/02/08 12:15:40 $ */
-/*  $Revision: 1.61.2.1 $ */
+/*      $Date: 2006/02/23 12:36:38 $ */
+/*  $Revision: 1.61.2.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -157,6 +157,8 @@
 #undef ELAN_VERSION_MAJOR
 #undef ELAN_VERSION_MINOR
 #undef ELAN_VERSION_SUB
+#undef ELAN_DRIVER_VERSION
+#undef ELAN4_KERNEL_PATCH
 #undef HAVE_RMS_RMSAPI_H
 #undef HAVE_RMS_KILLRESOURCE
 #undef RMS_RCONTROL_PATH
