@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/02/23 12:36:40 $
- * $Revision: 1.63.2.2 $
+ *     $Date: 2006/02/25 01:51:43 $
+ * $Revision: 1.63.2.3 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -208,8 +208,7 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   gasnetc_bootstrapBarrier();
 
   /* recv data from 0 */
-  /* bug 1358: don't use hbcast here, causes init failures on Opteron/elan4(mu) for some bizarre reason */
-  elan_bcast(GROUP(), temp, gasneti_nodes*len, 0, GASNETC_ELAN_GLOBAL_DEST);    
+  elan_hbcast(GROUP(), temp, gasneti_nodes*len, 0, GASNETC_ELAN_GLOBAL_DEST);    
 
   /* ensure operation complete */
   gasnetc_bootstrapBarrier();
@@ -888,6 +887,8 @@ static void gasnetc_atexit(void) {
 #else /* !GASNETC_USE_SIGNALING_EXIT */
   extern void gasnetc_exit(int exitcode) {
     /* do a naive non-collective exit */
+   if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+    fprintf(stderr,"WARNING: no recognized job spawner detected. This exit may leave zombie processes.\n",msg);
     gasneti_flush_streams();
     gasneti_trace_finish();
     gasneti_sched_yield();
