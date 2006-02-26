@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2005/08/19 00:25:58 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2006/02/26 13:58:22 $
+ * $Revision: 1.11.2.2 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -68,11 +68,12 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 {
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
     int	 isdone = 0;
+    void *pdone = (void*)&isdone;
 
     GASNETI_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(ptr), PACK((void*)&isdone))));
+		      PACK(ptr), PACK(pdone))));
 
     /* Always blocking, even if an AM */
     GASNET_BLOCKUNTIL(isdone != 0);

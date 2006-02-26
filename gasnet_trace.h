@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/02/05 06:42:35 $
- * $Revision: 1.42.2.1 $
+ *     $Date: 2006/02/26 13:58:20 $
+ * $Revision: 1.42.2.2 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -191,12 +191,17 @@ BEGIN_EXTERNC
                           (unsigned long long)(nbytes)));                                  \
 } while (0)
 
+#if GASNETI_STATS_OR_TRACE
 #define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) do {                       \
+  void *_src = (src);  /* workaround for CrayC warning */                                      \
   GASNETI_TRACE_EVENT_VAL_##locality(P,name,(nbytes));                                         \
   GASNETI_TRACE_PRINTF(D,(#name ": "GASNETI_RADDRFMT" <- "GASNETI_LADDRFMT" (%llu bytes): %s", \
-                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(src),              \
-                          (unsigned long long)(nbytes), gasneti_formatdata((src),(nbytes))));  \
+                          GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(_src),             \
+                          (unsigned long long)(nbytes), gasneti_formatdata(_src,(nbytes))));   \
 } while (0)
+#else
+#define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) ((void)0)
+#endif
 
 #define GASNETI_TRACE_MEMSET_NAMED(name,locality,node,dest,val,nbytes) do { \
   GASNETI_TRACE_EVENT_VAL_##locality(P,name,(nbytes));                      \
