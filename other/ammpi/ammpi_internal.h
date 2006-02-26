@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2005/07/28 10:11:11 $
- * $Revision: 1.25 $
+ *     $Date: 2006/02/26 15:56:48 $
+ * $Revision: 1.25.2.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -23,7 +23,7 @@
 #ifdef WIN32
   #define ammpi_sched_yield() Sleep(0)
   #define ammpi_usleep(x) Sleep(x)
-#elif defined(_CRAYT3E) || defined(_SX) || defined(__MTA__) || defined(__blrts__)
+#elif defined(_CRAYT3E) || defined(_SX) || defined(__MTA__) || defined(__blrts__) || defined(__LIBCATAMOUNT__)
   /* these implement sched_yield() in libpthread only, which we may not want */
   #include <unistd.h>
   #define ammpi_sched_yield() sleep(0)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/02/19 15:24:35 $
- * $Revision: 1.43.2.1 $
+ *     $Date: 2006/02/26 15:56:44 $
+ * $Revision: 1.43.2.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,7 +76,7 @@
 #ifdef __MTA__
    #include <machine/runtime.h>
    #define _gasneti_sched_yield() mta_yield()
-#elif defined(HAVE_SCHED_YIELD) && !defined(__blrts__)
+#elif defined(HAVE_SCHED_YIELD) && !defined(__blrts__) && !defined(__LIBCATAMOUNT__)
    #include <sched.h>
    #define _gasneti_sched_yield() sched_yield()
 #else

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/02/21 04:21:23 $
- * $Revision: 1.34.2.1 $
+ *     $Date: 2006/02/26 15:56:44 $
+ * $Revision: 1.34.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -888,7 +888,7 @@ void gasneti_auxseg_attach() {
 uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
   if (retval) return retval;
-  #ifdef __linux__
+  #if defined(__linux__) && !defined(__LIBCATAMOUNT__)
     #define _BUFSZ        120
     { FILE *fp;
       char line[_BUFSZ+1];
