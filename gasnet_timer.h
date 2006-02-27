@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/02/14 01:05:01 $
- * $Revision: 1.42.2.1 $
+ *     $Date: 2006/02/27 20:38:59 $
+ * $Revision: 1.42.2.2 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -177,6 +177,11 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
   #define GASNETI_STATTIME_NOW()      (gethrtime())
 #endif
+#elif defined(__LIBCATAMOUNT__)
+  #include <catamount/dclock.h>
+  typedef uint64_t gasneti_stattime_t;
+  #define GASNETI_STATTIME_TO_US(st)  (st)
+  #define GASNETI_STATTIME_NOW()      ((gasneti_stattime_t)(dclock()*1E6))
 #elif defined(__linux__) && (defined(__GNUC__) || defined(__INTEL_COMPILER)) && \
      (defined(__i386__) || defined(__x86_64__) || defined(__ia64__))
   #include <stdio.h>
