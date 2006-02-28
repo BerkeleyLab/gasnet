@@ -242,6 +242,7 @@ int main() {
   #include <sys/types.h>
   #include <sys/stat.h>
   #include <fcntl.h>
+  #include <stdlib.h>
   char junk[16384];
   int testfd(int);
   int mmap_check() {
@@ -252,7 +253,9 @@ int main() {
       fd = open(filename, O_RDWR | O_CREAT);
     #else
       char filename[255];
-      strcpy(filename,"/tmp/gasnet-conftemp-XXXXXX");
+      if (getenv("TMPDIR")) strcpy(filename,getenv("TMPDIR"));
+      else strcpy(filename,"/tmp");
+      strcat(filename,"/gasnet-conftemp-XXXXXX");
       fd = mkstemp(filename); /* leaves crap laying around */
     #endif
     retval = testfd(fd);
