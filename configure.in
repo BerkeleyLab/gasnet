@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/02/28 07:43:00 $
-# $Revision: 1.285.2.5 $
+#     $Date: 2006/03/02 20:11:18 $
+# $Revision: 1.285.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.285.2.5 $)
+AC_REVISION($Revision: 1.285.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1422,7 +1422,7 @@ if test "$enabled_lapi" = yes; then
         fi
         AC_MSG_RESULT([$LAPI_VER])
     else
-      AC_MSG_WARN([No IBM SP Switch hardware $lapi_how - disabling lapi])
+      AC_MSG_WARN([No IBM SP Switch hardware $lapi_how - disabling lapi. If your system has LAPI hardware, please select the hardware type using configure switch --with-lapi-type=federation or --with-lapi-type=colony])
       have_lapi="no"
     fi
   fi
