@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/07 05:28:16 $
- * $Revision: 1.76.2.4 $
+ *     $Date: 2006/03/07 23:36:46 $
+ * $Revision: 1.76.2.5 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -213,17 +213,11 @@
       #define gasneti_atomic_read(p)      ((p)->ctr)
       #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
       #define gasneti_atomic_init(v)      { (v) }
-      GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
-      int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
-        int result = fetch_and_add((atomic_p)&((p)->ctr),-1);
-        gasneti_local_rmb();
-        return (result == 1);
-      } 
+      #define gasneti_atomic_decrement_and_test(p) \
+			(fetch_and_add((atomic_p)&((p)->ctr),-1) == 1)
       GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
       int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, int oldval, int newval) {
-        int retval = compare_and_swap( (atomic_p)p, &oldval, newval );
-        gasneti_local_rmb();
-        return retval;
+        return compare_and_swap( (atomic_p)p, &oldval, newval );
       } 
       #define GASNETI_HAVE_ATOMIC_CAS 1
   #elif defined(IRIX)
