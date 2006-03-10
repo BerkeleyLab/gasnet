@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/07 23:36:50 $
- * $Revision: 1.85 $
+ *     $Date: 2006/03/10 01:14:01 $
+ * $Revision: 1.85.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -994,6 +994,42 @@
   #else
     #error Unrecognized platform - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
   #endif
+#endif
+
+#define GASNETI_ATOMIC_NONE			0x00
+#define GASNETI_ATOMIC_RMB_PRE			0x01
+#define GASNETI_ATOMIC_RMB_POST			0x02
+#define GASNETI_ATOMIC_RMB_POST_IF_TRUE		0x04
+#define GASNETI_ATOMIC_RMB_POST_IF_FALSE	0x08
+#define GASNETI_ATOMIC_WMB_PRE			0x10
+#define GASNETI_ATOMIC_WMB_POST			0x20
+/* #define GASNETI_ATOMIC_WMB_POST_IF_TRUE	0x40 */
+/* #define GASNETI_ATOMIC_WMB_POST_IF_FALSE	0x80 */
+
+/* Usefull Aliases */
+#define GASNETI_ATOMIC_REL		GASNETI_ATOMIC_WMB_PRE
+#define GASNETI_ATOMIC_ACQ		GASNETI_ATOMIC_RMB_POST
+#define GASNETI_ATOMIC_ACQ_IF_TRUE	GASNETI_ATOMIC_RMB_POST_IF_TRUE
+#define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
+
+/* XXX: FIXME to do the real thing */
+#define gasneti_atomicX_set(p,v,f)               gasneti_atomic_set(p,v)
+#define gasneti_atomicX_read(p,f)                gasneti_atomic_read(p)
+#define gasneti_atomicX_increment(p,f)           gasneti_atomic_increment(p)
+#define gasneti_atomicX_decrement(p,f)           gasneti_atomic_decrement(p)
+#define gasneti_atomicX_decrement_and_test(p,f)  gasneti_atomic_decrement_and_test(p)
+#ifdef GASNETI_HAVE_ATOMIC_CAS
+  #define gasneti_atomicX_compare_and_swap(p,oldval,newval,f)  \
+          gasneti_atomic_compare_and_swap(p,oldval,newval)
+#endif
+#define gasneti_weakatomicX_set(p,v,f)               gasneti_weakatomic_set(p,v)
+#define gasneti_weakatomicX_read(p,f)                gasneti_weakatomic_read(p)
+#define gasneti_weakatomicX_increment(p,f)           gasneti_weakatomic_increment(p)
+#define gasneti_weakatomicX_decrement(p,f)           gasneti_weakatomic_decrement(p)
+#define gasneti_weakatomicX_decrement_and_test(p,f)  gasneti_weakatomic_decrement_and_test(p)
+#ifdef GASNETI_HAVE_ATOMIC_CAS
+  #define gasneti_weakatomicX_compare_and_swap(p,oldval,newval,f)  \
+          gasneti_weakatomic_compare_and_swap(p,oldval,newval)
 #endif
 
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
