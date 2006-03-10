@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/02/23 12:22:11 $
- * $Revision: 1.36 $
+ *     $Date: 2006/03/10 22:21:35 $
+ * $Revision: 1.36.2.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -199,8 +199,8 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #if GASNETC_USE_SIGNALING_EXIT
   extern gasneti_atomic_t gasnetc_remoteexitflag;
   extern gasneti_atomic_t gasnetc_remoteexitrecvd; 
-  #define GASNETC_EXITINPROGRESS()       (gasneti_atomic_read(&gasnetc_remoteexitflag) != 1)
-  #define GASNETC_REMOTEEXITINPROGRESS() (gasneti_atomic_read(&gasnetc_remoteexitrecvd) != 0)
+  #define GASNETC_EXITINPROGRESS()       (gasneti_atomicX_read(&gasnetc_remoteexitflag, 0) != 1)
+  #define GASNETC_REMOTEEXITINPROGRESS() (gasneti_atomicX_read(&gasnetc_remoteexitrecvd, 0) != 0)
 #else 
   #define GASNETC_EXITINPROGRESS() 0
   #define GASNETC_REMOTEEXITINPROGRESS() 0

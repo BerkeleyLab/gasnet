@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/02/25 01:51:03 $
- * $Revision: 1.66 $
+ *     $Date: 2006/03/10 22:21:35 $
+ * $Revision: 1.66.2.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -769,9 +769,9 @@ static void gasnetc_atexit(void) {
       gasneti_fatalerror("recieved an unknown signal (%i) in gasnetc_remoteexithandler()", sig);
 
     /* record that some node signalled us */
-    gasneti_atomic_increment(&gasnetc_remoteexitrecvd);
+    gasneti_atomicX_increment(&gasnetc_remoteexitrecvd, 0);
 
-    if (gasneti_atomic_decrement_and_test(&gasnetc_remoteexitflag)) {
+    if (gasneti_atomicX_decrement_and_test(&gasnetc_remoteexitflag, 0)) {
       /* some remote node just informed us that it's exiting, 
          and it's the first we've heard about an exit 
       */
@@ -809,7 +809,7 @@ static void gasnetc_atexit(void) {
 
     /* inform the GASNETC_REMOTEEXIT_SIGNAL handler that we're working on it and 
        shouldn't be bothered further */
-    gasneti_atomic_decrement(&gasnetc_remoteexitflag);
+    gasneti_atomicX_decrement(&gasnetc_remoteexitflag, 0);
 
     {  /* ensure only one thread ever continues past this point */
       static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
@@ -855,7 +855,7 @@ static void gasnetc_atexit(void) {
     gasneti_trace_finish();
     gasneti_sched_yield();
 
-    if (gasneti_atomic_read(&gasnetc_remoteexitrecvd) == 0) { 
+    if (gasneti_atomicX_read(&gasnetc_remoteexitrecvd, 0) == 0) { 
       /* we initiated this shutdown synchronously, and it appears that no remote node 
          has signaled yet (reduce duplication of global termination signalling, 
          esp for collective exit)

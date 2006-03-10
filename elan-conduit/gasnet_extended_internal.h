@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/02/28 23:51:44 $
- * $Revision: 1.22 $
+ *     $Date: 2006/03/10 22:21:35 $
+ * $Revision: 1.22.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,10 +182,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt)); \
+    _temp = gasneti_weakatomicX_read(&((iop)->completed_put_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt)); \
+    _temp = gasneti_weakatomicX_read(&((iop)->completed_get_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)
