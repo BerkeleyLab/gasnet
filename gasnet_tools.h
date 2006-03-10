@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/03/10 01:14:01 $
- * $Revision: 1.56.2.1 $
+ *     $Date: 2006/03/10 23:17:50 $
+ * $Revision: 1.56.2.2 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@
   */
   #define gasnett_atomic_t             gasneti_weakatomic_t
   #define gasnett_atomic_read(p)       gasneti_weakatomicX_read(p,0)
-  #define gasnett_atomic_init(v)       gasneti_weakatomic_init(v,0)
+  #define gasnett_atomic_init(v)       gasneti_weakatomic_init(v)
   #define gasnett_atomic_set(p,v)      gasneti_weakatomicX_set(p,v,0)
   #define gasnett_atomic_increment(p)  gasneti_weakatomicX_increment(p,0)
   #define gasnett_atomic_decrement(p)  gasneti_weakatomicX_decrement(p,0)

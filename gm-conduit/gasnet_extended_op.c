@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_op.c,v $
- * $Date: 2006/03/10 01:14:03 $
- * $Revision: 1.15.2.1 $
+ * $Date: 2006/03/10 23:17:52 $
+ * $Revision: 1.15.2.2 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -144,9 +144,9 @@ gasnete_op_isdone(gasnete_op_t *op)
 		gasnete_iop_t *iop = (gasnete_iop_t*)op;
                 gasnete_iop_check(iop);
 		return 
-		    (gasneti_weakatomicX_read(&(iop->completed_get_cnt, 0)) == 
+		    (gasneti_weakatomicX_read(&(iop->completed_get_cnt), 0) == 
 		         iop->initiated_get_cnt) &&
-		    (gasneti_weakatomicX_read(&(iop->completed_put_cnt, 0)) == 
+		    (gasneti_weakatomicX_read(&(iop->completed_put_cnt), 0) == 
 		         iop->initiated_put_cnt);
 	}
 }
@@ -162,9 +162,9 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
                 gasnete_iop_check(iop);
 		if (isget) 
-			gasneti_weakatomicX_increment(&(iop->completed_get_cnt, 0));
+			gasneti_weakatomicX_increment(&(iop->completed_get_cnt), 0);
 		else 
-			gasneti_weakatomicX_increment(&(iop->completed_put_cnt, 0));
+			gasneti_weakatomicX_increment(&(iop->completed_put_cnt), 0);
 	}
 }
 
