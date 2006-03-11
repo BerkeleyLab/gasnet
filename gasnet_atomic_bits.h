@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/10 01:14:01 $
- * $Revision: 1.85.2.1 $
+ *     $Date: 2006/03/11 00:16:48 $
+ * $Revision: 1.85.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,26 +75,26 @@
   #ifdef _INCLUDED_GASNET_H
     extern void *gasneti_patomicop_lock; /* bug 693: avoid header dependency cycle */
     typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
-    #define gasneti_atomic_read(p)      ((p)->ctr)
-    #define gasneti_atomic_init(v)      { (v) }
-    #define gasneti_atomic_set(p,v) do {                          \
+    #define _gasneti_atomic_read(p)      ((p)->ctr)
+    #define _gasneti_atomic_init(v)      { (v) }
+    #define _gasneti_atomic_set(p,v) do {                          \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         (p)->ctr = (v);                                           \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
-    #define gasneti_atomic_increment(p) do {                      \
+    #define _gasneti_atomic_increment(p) do {                      \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         ((p)->ctr)++;                                             \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
-    #define gasneti_atomic_decrement(p) do {                      \
+    #define _gasneti_atomic_decrement(p) do {                      \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         ((p)->ctr)--;                                             \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
-    extern int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p);
+    extern int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p);
     #define GASNETI_GENERIC_DEC_AND_TEST_DEF                     \
-    int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) { \
+    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) { \
       uint32_t newval;                                           \
       gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);    \
       newval = p->ctr - 1;                                       \
@@ -102,9 +102,9 @@
       gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);  \
       return (newval == 0);                                      \
     }
-    extern int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval);
+    extern int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval);
     #define GASNETI_GENERIC_CAS_DEF                              \
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,     \
+    int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,     \
                                         uint32_t oldval,         \
                                         uint32_t newval) {       \
       int retval;                                                \
@@ -145,28 +145,28 @@
        GASNet atomics, to cause a link error on attempts to mix them
      */
     typedef struct { volatile uint32_t ctr; char _pad; } gasneti_atomic_t;
-    #define gasneti_atomic_read(p)      ((p)->ctr)
-    #define gasneti_atomic_init(v)      { (v) }
-    #define gasneti_atomic_set(p,v) do {               \
+    #define _gasneti_atomic_read(p)      ((p)->ctr)
+    #define _gasneti_atomic_init(v)      { (v) }
+    #define _gasneti_atomic_set(p,v) do {               \
         GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         (p)->ctr = (v);                                \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    #define gasneti_atomic_increment(p) do {           \
+    #define _gasneti_atomic_increment(p) do {           \
         GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         ((p)->ctr)++;                                  \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    #define gasneti_atomic_decrement(p) do {           \
+    #define _gasneti_atomic_decrement(p) do {           \
         GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         ((p)->ctr)--;                                  \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
-    int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
+    GASNET_INLINE_MODIFIER(_gasneti_atomic_decrement_and_test)
+    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
       uint32_t newval;
       GASNETI_ATOMICOP_INITCHECK();
       pthread_mutex_lock(&gasneti_atomicop_mutex);
@@ -175,8 +175,8 @@
       pthread_mutex_unlock(&gasneti_atomicop_mutex);
       return (newval == 0);
     }
-    GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, 
+    GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+    int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, 
                            uint32_t oldval, uint32_t newval) {
       int retval;
       GASNETI_ATOMICOP_INITCHECK();
@@ -196,13 +196,13 @@
     extern int pthread_mutex_lock; 
 
     typedef volatile int gasneti_atomic_t;
-    #define gasneti_atomic_read(p)      (*(p))
-    #define gasneti_atomic_init(v)      (v)
-    #define gasneti_atomic_set(p,v)     (*(p) = (v))
-    #define gasneti_atomic_increment(p) ((*(p))++)
-    #define gasneti_atomic_decrement(p) ((*(p))--)
-    #define gasneti_atomic_decrement_and_test(p) ((--(*(p))) == 0)
-    #define gasneti_atomic_compare_and_swap(p,oldval,newval) \
+    #define _gasneti_atomic_read(p)      (*(p))
+    #define _gasneti_atomic_init(v)      (v)
+    #define _gasneti_atomic_set(p,v)     (*(p) = (v))
+    #define _gasneti_atomic_increment(p) ((*(p))++)
+    #define _gasneti_atomic_decrement(p) ((*(p))--)
+    #define _gasneti_atomic_decrement_and_test(p) ((--(*(p))) == 0)
+    #define _gasneti_atomic_compare_and_swap(p,oldval,newval) \
               (*(p) == (oldval) ? *(p) = (newval), 1 : 0)
   #endif
 #else
@@ -214,63 +214,63 @@
   #if defined(AIX)
       #include <sys/atomic_op.h>
       typedef struct { volatile int ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (fetch_and_add((atomic_p)&((p)->ctr),1))
-      #define gasneti_atomic_decrement(p) (fetch_and_add((atomic_p)&((p)->ctr),-1))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) \
+      #define _gasneti_atomic_increment(p) (fetch_and_add((atomic_p)&((p)->ctr),1))
+      #define _gasneti_atomic_decrement(p) (fetch_and_add((atomic_p)&((p)->ctr),-1))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) \
 			(fetch_and_add((atomic_p)&((p)->ctr),-1) == 1)
-      GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-      int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, int oldval, int newval) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+      int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, int oldval, int newval) {
         return compare_and_swap( (atomic_p)p, &oldval, newval );
       } 
       #define GASNETI_HAVE_ATOMIC_CAS 1
   #elif defined(IRIX)
       #include <mutex.h>
       typedef __uint32_t gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (test_then_add32((p),1))
-      #define gasneti_atomic_decrement(p) (test_then_add32((p),(uint32_t)-1))
-      #define gasneti_atomic_read(p)      (*(volatile __uint32_t *)(p))
-      #define gasneti_atomic_set(p,v)     (*(volatile __uint32_t *)(p) = (v))
-      #define gasneti_atomic_init(v)      (v)
-      #define gasneti_atomic_decrement_and_test(p) \
+      #define _gasneti_atomic_increment(p) (test_then_add32((p),1))
+      #define _gasneti_atomic_decrement(p) (test_then_add32((p),(uint32_t)-1))
+      #define _gasneti_atomic_read(p)      (*(volatile __uint32_t *)(p))
+      #define _gasneti_atomic_set(p,v)     (*(volatile __uint32_t *)(p) = (v))
+      #define _gasneti_atomic_init(v)      (v)
+      #define _gasneti_atomic_decrement_and_test(p) \
                                           (add_then_test32((p),(uint32_t)-1) == 0) 
-      GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-      int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, int oldval, int newval) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+      int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, int oldval, int newval) {
         return __compare_and_swap( p, oldval, newval );
       } 
       #define GASNETI_HAVE_ATOMIC_CAS 1
   #elif defined(__MTA__)
       /* use MTA intrinsics */
       typedef int64_t gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (int_fetch_add((p),1))
-      #define gasneti_atomic_decrement(p) (int_fetch_add((p),-1))
-      #define gasneti_atomic_read(p)      (*(volatile int64_t)(p))
-      #define gasneti_atomic_set(p,v)     (*(volatile int64_t)(p) = (v))
-      #define gasneti_atomic_init(v)      (v)
-      #define gasneti_atomic_decrement_and_test(p) \
+      #define _gasneti_atomic_increment(p) (int_fetch_add((p),1))
+      #define _gasneti_atomic_decrement(p) (int_fetch_add((p),-1))
+      #define _gasneti_atomic_read(p)      (*(volatile int64_t)(p))
+      #define _gasneti_atomic_set(p,v)     (*(volatile int64_t)(p) = (v))
+      #define _gasneti_atomic_init(v)      (v)
+      #define _gasneti_atomic_decrement_and_test(p) \
                                           (int_fetch_add((p),-1) == 1) 
   #elif 0 && defined(SOLARIS)
       /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
          to the user... after all, what application would be interested in performance? */
       #include <sys/atomic.h>
       typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (atomic_add_32((uint32_t *)&((p)->ctr),1))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_increment(p) (atomic_add_32((uint32_t *)&((p)->ctr),1))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
   #elif defined(CYGWIN)
       #include <windows.h>
       typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) InterlockedIncrement((LONG *)&((p)->ctr))
-      #define gasneti_atomic_decrement(p) InterlockedDecrement((LONG *)&((p)->ctr))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) \
+      #define _gasneti_atomic_increment(p) InterlockedIncrement((LONG *)&((p)->ctr))
+      #define _gasneti_atomic_decrement(p) InterlockedDecrement((LONG *)&((p)->ctr))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) \
                                           (InterlockedDecrement((LONG *)&((p)->ctr)) == 0)
-      #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+      #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
   /* ------------------------------------------------------------------------------------
@@ -293,27 +293,27 @@
         #define GASNETI_ATOMIC_MEM_CLOBBER
       #endif
       typedef struct { volatile int ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      GASNET_INLINE_MODIFIER(gasneti_atomic_increment)
-      void gasneti_atomic_increment(gasneti_atomic_t *v) {
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_increment)
+      void _gasneti_atomic_increment(gasneti_atomic_t *v) {
         __asm__ __volatile__(
                 GASNETI_LOCK "incl %0"
                 : "=m" (v->ctr)
                 : "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
-      GASNET_INLINE_MODIFIER(gasneti_atomic_decrement)
-      void gasneti_atomic_decrement(gasneti_atomic_t *v) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_decrement)
+      void _gasneti_atomic_decrement(gasneti_atomic_t *v) {
         __asm__ __volatile__(
                 GASNETI_LOCK "decl %0"
                 : "=m" (v->ctr)
                 : "m" (v->ctr) 
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
-      GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
-      int gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_decrement_and_test)
+      int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
           unsigned char c;
           __asm__ __volatile__(
 	          GASNETI_LOCK "decl %0\n\tsete %1"
@@ -322,8 +322,8 @@
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
           return (c != 0);
       }
-      GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-      int gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+      int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
         register unsigned char retval;
         register uint32_t readval;
         __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1\n\tsete %0"
@@ -342,14 +342,14 @@
       /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
       #include <ia64intrin.h>
       typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) _InterlockedIncrement((volatile int *)&((p)->ctr))
-      #define gasneti_atomic_decrement(p) _InterlockedDecrement((volatile int *)&((p)->ctr))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) \
+      #define _gasneti_atomic_increment(p) _InterlockedIncrement((volatile int *)&((p)->ctr))
+      #define _gasneti_atomic_decrement(p) _InterlockedDecrement((volatile int *)&((p)->ctr))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) \
                     (_InterlockedDecrement((volatile int *)&((p)->ctr)) == 0)
-      #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+      #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
                     (_InterlockedCompareExchange((volatile int *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
     #elif defined(__GNUC__)
@@ -392,13 +392,13 @@
         return newctr;
       }
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
-      #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
-      #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
+      #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
     #elif defined(__HP_cc) || defined(__HP_aCC) /* HP C/C++ Itanium intrinsics */
@@ -419,13 +419,13 @@
         return (int32_t) _r_;
       }
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
-      #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 1)
-      #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 1)
+      #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
     #else
@@ -453,14 +453,14 @@
         return result;
       }
      typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-     #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
-     #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
-     #define gasneti_atomic_read(p)      ((p)->ctr)
-     #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-     #define gasneti_atomic_init(v)      { (v) }
-     #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
-     GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-     int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+     #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
+     #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+     #define _gasneti_atomic_read(p)      ((p)->ctr)
+     #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+     #define _gasneti_atomic_init(v)      { (v) }
+     #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
+     GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+     int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
        unsigned long ret;
        __asm__ __volatile__ (
 		"1:	ldl_l	%0,%1\n"	/* Load-linked of current value */
@@ -481,19 +481,19 @@
        /* Compaq C / OSF atomics are compiler built-ins */
        #include <sys/machine/builtins.h>
        typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-       #define gasneti_atomic_increment(p) (__ATOMIC_INCREMENT_LONG(&((p)->ctr)))
-       #define gasneti_atomic_decrement(p) (__ATOMIC_DECREMENT_LONG(&((p)->ctr)))
-       #define gasneti_atomic_read(p)      ((p)->ctr)
-       #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-       #define gasneti_atomic_init(v)      { (v) }
-       #define gasneti_atomic_decrement_and_test(p) \
+       #define _gasneti_atomic_increment(p) (__ATOMIC_INCREMENT_LONG(&((p)->ctr)))
+       #define _gasneti_atomic_decrement(p) (__ATOMIC_DECREMENT_LONG(&((p)->ctr)))
+       #define _gasneti_atomic_read(p)      ((p)->ctr)
+       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+       #define _gasneti_atomic_init(v)      { (v) }
+       #define _gasneti_atomic_decrement_and_test(p) \
                                           (__ATOMIC_DECREMENT_LONG(&((p)->ctr)) == 1)
        /* The __CMP_STORE_LONG built-in is insufficient alone because it returns
 	  a failure indication if the LL/SC is interrupted by another write to the
           same cache line (it does not retry).
        */
-       GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-       int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+       GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+       int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
          return asm("1:	ldl_l	%v0,(%a0);"	/* Load-linked of current value to %v0 */
 		    "	cmpeq	%v0,%a1,%v0;"	/* compare %v0 to oldval w/ result to %v0 */
 		    "	beq	%v0,2f;"	/* done/fail on mismatch (success/fail in %v0) */
@@ -532,15 +532,15 @@
           return oldval;
         }
         typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-        #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
-        #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
-        #define gasneti_atomic_read(p)      ((p)->ctr)
-        #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-        #define gasneti_atomic_init(v)      { (v) }
-        #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 1)
+        #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
+        #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+        #define _gasneti_atomic_read(p)      ((p)->ctr)
+        #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+        #define _gasneti_atomic_init(v)      { (v) }
+        #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 1)
 
-        GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-        int gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
+        GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+        int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
           register volatile uint32_t * addr = (volatile uint32_t *)&(v->ctr);
           __asm__ __volatile__ ( 
               "membar #StoreLoad | #LoadLoad   \n\t" /* complete all previous ops before next load */
@@ -573,7 +573,7 @@
         #define GASNETI_ATOMIC_PRESENT    ((int32_t)0x80000000)
         #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
         typedef struct { volatile uint64_t initflag; volatile int32_t ctr; } gasneti_atomic_t;
-        #define gasneti_atomic_init(v)      { GASNETI_ATOMIC_INIT_MAGIC, (GASNETI_ATOMIC_PRESENT|(v)) }
+        #define _gasneti_atomic_init(v)      { GASNETI_ATOMIC_INIT_MAGIC, (GASNETI_ATOMIC_PRESENT|(v)) }
         /* would like to use gasneti_waituntil here, but it requires libgasnet for waitmode */
         #define gasneti_atomic_spinuntil(cond) do {       \
                 while (!(cond)) gasneti_compiler_fence(); \
@@ -591,14 +591,14 @@
         }
         #if 0
           /* this version fails if set is used in a race with addandfetch */
-          GASNET_INLINE_MODIFIER(gasneti_atomic_set)
-          void gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
+          GASNET_INLINE_MODIFIER(_gasneti_atomic_set)
+          void _gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
             gasneti_local_wmb();
             p->ctr = (GASNETI_ATOMIC_PRESENT | val);
           }
         #else
-          GASNET_INLINE_MODIFIER(gasneti_atomic_set)
-          void gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
+          GASNET_INLINE_MODIFIER(_gasneti_atomic_set)
+          void _gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
             int32_t tmp;
             gasneti_local_wmb();
             if_pf (p->initflag != GASNETI_ATOMIC_INIT_MAGIC) {
@@ -612,20 +612,20 @@
             }
           }
         #endif
-        GASNET_INLINE_MODIFIER(gasneti_atomic_read)
-        int32_t gasneti_atomic_read(gasneti_atomic_t *p) {
+        GASNET_INLINE_MODIFIER(_gasneti_atomic_read)
+        int32_t _gasneti_atomic_read(gasneti_atomic_t *p) {
           int32_t tmp;
           gasneti_assert(p->initflag == GASNETI_ATOMIC_INIT_MAGIC);
           gasneti_atomic_spinuntil((tmp = p->ctr));
           gasneti_assert(tmp & GASNETI_ATOMIC_PRESENT);
           return (tmp & ~GASNETI_ATOMIC_PRESENT);
         }
-        #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(p,1))
-        #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(p,-1))
-        #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(p,-1) == 1)
+        #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(p,1))
+        #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(p,-1))
+        #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(p,-1) == 1)
 
-        GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-        int32_t gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+        GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+        int32_t _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
           int32_t tmp;
           int retval;
           gasneti_assert(p->initflag == GASNETI_ATOMIC_INIT_MAGIC);
@@ -685,7 +685,7 @@
       #define GASNETI_ATOMIC_PRESENT    ((int32_t)0x80000000)
       #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
       typedef struct { volatile uint64_t initflag; volatile int32_t _ctr[4]; char _pad; } gasneti_atomic_t;
-      #define gasneti_atomic_init(v)      {    \
+      #define _gasneti_atomic_init(v)      {    \
               GASNETI_ATOMIC_INIT_MAGIC,       \
               { (GASNETI_ATOMIC_PRESENT|(v)),  \
                 (GASNETI_ATOMIC_PRESENT|(v)),  \
@@ -710,15 +710,15 @@
       }
       #if 0
         /* this version fails if set is used in a race with addandfetch */
-        GASNET_INLINE_MODIFIER(gasneti_atomic_set)
-        void gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
+        GASNET_INLINE_MODIFIER(_gasneti_atomic_set)
+        void _gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
           volatile int32_t * const pctr = GASNETI_ATOMIC_CTR(p);
           gasneti_local_wmb();
           *pctr = (GASNETI_ATOMIC_PRESENT | val);
         }
       #else
-        GASNET_INLINE_MODIFIER(gasneti_atomic_set)
-        void gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
+        GASNET_INLINE_MODIFIER(_gasneti_atomic_set)
+        void _gasneti_atomic_set(gasneti_atomic_t *p, int32_t val) {
           int32_t tmp;
           volatile int32_t * const pctr = GASNETI_ATOMIC_CTR(p);
           gasneti_local_wmb();
@@ -733,8 +733,8 @@
           }
         }
       #endif
-      GASNET_INLINE_MODIFIER(gasneti_atomic_read)
-      int32_t gasneti_atomic_read(gasneti_atomic_t *p) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_read)
+      int32_t _gasneti_atomic_read(gasneti_atomic_t *p) {
         int32_t tmp;
         volatile int32_t * const pctr = GASNETI_ATOMIC_CTR(p);
         gasneti_assert(p->initflag == GASNETI_ATOMIC_INIT_MAGIC);
@@ -742,12 +742,12 @@
         gasneti_assert(tmp & GASNETI_ATOMIC_PRESENT);
         return (tmp & ~GASNETI_ATOMIC_PRESENT);
       }
-      #define gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(p,1))
-      #define gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(p,-1))
-      #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(p,-1) == 1)
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(p,1))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(p,-1))
+      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(p,-1) == 1)
 
-      GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-      int32_t gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+      int32_t _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
         volatile int32_t * const pctr = GASNETI_ATOMIC_CTR(p);
         int32_t tmp;
         int retval;
@@ -776,23 +776,23 @@
     #define gasneti_atomic_presync()  ((void)0)
     #define gasneti_atomic_postsync()  _gsync(0x1)
 
-    #define gasneti_atomic_increment(p)	\
+    #define _gasneti_atomic_increment(p)	\
       (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
-    #define gasneti_atomic_decrement(p)	\
+    #define _gasneti_atomic_decrement(p)	\
       (gasneti_atomic_presync(),_amo_aadd((p),(long)-1),gasneti_atomic_postsync())
-    #define gasneti_atomic_read(p)      (*(p))
-    #define gasneti_atomic_set(p,v)     (*(p) = (v))
-    #define gasneti_atomic_init(v)      (v)
-    GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
-    int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
+    #define _gasneti_atomic_read(p)      (*(p))
+    #define _gasneti_atomic_set(p,v)     (*(p) = (v))
+    #define _gasneti_atomic_init(v)      (v)
+    GASNET_INLINE_MODIFIER(_gasneti_atomic_decrement_and_test)
+    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
        int retval;
        gasneti_atomic_presync();
        retval = (_amo_afadd((p),(long)-1) == 1);
        gasneti_atomic_postsync();
        return retval;
     }
-    GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, long oldval, long newval) {
+    GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+    int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, long oldval, long newval) {
       long result;
       gasneti_atomic_presync();
       result = _amo_acswap(p, oldval, newval);
@@ -806,20 +806,20 @@
     typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
    #if 0
     #include <sys/mplock.h>
-    #define gasneti_atomic_increment(p) (atomic_add4(((p)->ctr),1))
-    #define gasneti_atomic_decrement(p) (atomic_add4(((p)->ctr),-1))
-    #define gasneti_atomic_read(p)      (atomic_read4((p)->ctr))
-    #define gasneti_atomic_set(p,v)     (atomic_set4((p)->ctr,(v)))
-    #define gasneti_atomic_init(v)      { (v) }
-    #define gasneti_atomic_decrement_and_test(p) \
+    #define _gasneti_atomic_increment(p) (atomic_add4(((p)->ctr),1))
+    #define _gasneti_atomic_decrement(p) (atomic_add4(((p)->ctr),-1))
+    #define _gasneti_atomic_read(p)      (atomic_read4((p)->ctr))
+    #define _gasneti_atomic_set(p,v)     (atomic_set4((p)->ctr,(v)))
+    #define _gasneti_atomic_init(v)      { (v) }
+    #define _gasneti_atomic_decrement_and_test(p) \
                                         (atomic_add4(((p)->ctr),-1) == 0)
    #else
-    #define gasneti_atomic_increment(p) (muadd(&((p)->ctr),1))
-    #define gasneti_atomic_decrement(p) (muadd(&((p)->ctr),-1))
-    #define gasneti_atomic_read(p)      (muget(&((p)->ctr)))
-    #define gasneti_atomic_set(p,v)     (muset(&((p)->ctr),(v)))
-    #define gasneti_atomic_init(v)      { (v) }
-    #define gasneti_atomic_decrement_and_test(p) \
+    #define _gasneti_atomic_increment(p) (muadd(&((p)->ctr),1))
+    #define _gasneti_atomic_decrement(p) (muadd(&((p)->ctr),-1))
+    #define _gasneti_atomic_read(p)      (muget(&((p)->ctr)))
+    #define _gasneti_atomic_set(p,v)     (muset(&((p)->ctr),(v)))
+    #define _gasneti_atomic_init(v)      { (v) }
+    #define _gasneti_atomic_decrement_and_test(p) \
                                         (muadd(&((p)->ctr),-1) == 0)
    #endif
   /* ------------------------------------------------------------------------------------ */
@@ -865,12 +865,12 @@
       #pragma reg_killed_by gasneti_atomic_decandfetch_32 cr0, gr4
 
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (gasneti_atomic_inc_32(&((p)->ctr)))
-      #define gasneti_atomic_decrement(p) (gasneti_atomic_dec_32(&((p)->ctr)))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_decandfetch_32(&((p)->ctr)) == 0)
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_inc_32(&((p)->ctr)))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_dec_32(&((p)->ctr)))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_decandfetch_32(&((p)->ctr)) == 0)
 
       static int32_t gasneti_atomic_swap_not_32(volatile int32_t *v, int32_t oldval, int32_t newval);
       #pragma mc_func gasneti_atomic_swap_not_32 {\
@@ -884,7 +884,7 @@
 	/* RETURN in r3 = 0 iff swap took place */ \
       }
       #pragma reg_killed_by gasneti_atomic_swap_not_32 cr0, gr0
-      #define gasneti_atomic_compare_and_swap(p, oldval, newval) \
+      #define _gasneti_atomic_compare_and_swap(p, oldval, newval) \
 	(gasneti_atomic_swap_not_32(&((p)->ctr),(oldval),(newval)) == 0)
       #define GASNETI_HAVE_ATOMIC_CAS 1
     #elif defined(__GNUC__)
@@ -917,15 +917,15 @@
         return result;
       }
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) (gasneti_atomic_add_32(&((p)->ctr),1))
-      #define gasneti_atomic_decrement(p) (gasneti_atomic_add_32(&((p)->ctr),-1))
-      #define gasneti_atomic_read(p)      ((p)->ctr)
-      #define gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define gasneti_atomic_init(v)      { (v) }
-      #define gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_add_32(&((p)->ctr),1))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_add_32(&((p)->ctr),-1))
+      #define _gasneti_atomic_read(p)      ((p)->ctr)
+      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
 
-      GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
-      int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+      GASNET_INLINE_MODIFIER(_gasneti_atomic_compare_and_swap)
+      int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
         register uint32_t result;
         __asm__ __volatile__ (
 	  "0:\t"
@@ -975,19 +975,19 @@
         #undef new
       #endif
       typedef atomic_t gasneti_atomic_t;
-      #define gasneti_atomic_increment(p) atomic_inc(p)
-      #define gasneti_atomic_decrement(p) atomic_dec(p)
-      #define gasneti_atomic_read(p)      atomic_read(p)
-      #define gasneti_atomic_set(p,v)     atomic_set(p,v)
-      #define gasneti_atomic_init(v)      ATOMIC_INIT(v)
-      #define gasneti_atomic_decrement_and_test(p) \
+      #define _gasneti_atomic_increment(p) atomic_inc(p)
+      #define _gasneti_atomic_decrement(p) atomic_dec(p)
+      #define _gasneti_atomic_read(p)      atomic_read(p)
+      #define _gasneti_atomic_set(p,v)     atomic_set(p,v)
+      #define _gasneti_atomic_init(v)      ATOMIC_INIT(v)
+      #define _gasneti_atomic_decrement_and_test(p) \
                                           atomic_dec_and_test(p)
       #ifdef cmpxchg
         /* we must violate the Linux atomic_t abstraction below and pass
            cmpxchg a pointer to the struct field, otherwise cmpxchg will
            stupidly attempt to cast its result to a struct type and fail
          */
-        #define gasneti_atomic_compare_and_swap(p,oval,nval) \
+        #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
              (cmpxchg(&((p)->counter),oval,nval) == (oval))
         #define GASNETI_HAVE_ATOMIC_CAS 1
       #endif
@@ -1013,23 +1013,25 @@
 #define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
 
 /* XXX: FIXME to do the real thing */
-#define gasneti_atomicX_set(p,v,f)               gasneti_atomic_set(p,v)
-#define gasneti_atomicX_read(p,f)                gasneti_atomic_read(p)
-#define gasneti_atomicX_increment(p,f)           gasneti_atomic_increment(p)
-#define gasneti_atomicX_decrement(p,f)           gasneti_atomic_decrement(p)
-#define gasneti_atomicX_decrement_and_test(p,f)  gasneti_atomic_decrement_and_test(p)
+#define gasneti_atomic_init(v)                   _gasneti_atomic_init(v)
+#define gasneti_atomicX_set(p,v,f)               _gasneti_atomic_set(p,v)
+#define gasneti_atomicX_read(p,f)                _gasneti_atomic_read(p)
+#define gasneti_atomicX_increment(p,f)           _gasneti_atomic_increment(p)
+#define gasneti_atomicX_decrement(p,f)           _gasneti_atomic_decrement(p)
+#define gasneti_atomicX_decrement_and_test(p,f)  _gasneti_atomic_decrement_and_test(p)
 #ifdef GASNETI_HAVE_ATOMIC_CAS
   #define gasneti_atomicX_compare_and_swap(p,oldval,newval,f)  \
-          gasneti_atomic_compare_and_swap(p,oldval,newval)
+          _gasneti_atomic_compare_and_swap(p,oldval,newval)
 #endif
-#define gasneti_weakatomicX_set(p,v,f)               gasneti_weakatomic_set(p,v)
-#define gasneti_weakatomicX_read(p,f)                gasneti_weakatomic_read(p)
-#define gasneti_weakatomicX_increment(p,f)           gasneti_weakatomic_increment(p)
-#define gasneti_weakatomicX_decrement(p,f)           gasneti_weakatomic_decrement(p)
-#define gasneti_weakatomicX_decrement_and_test(p,f)  gasneti_weakatomic_decrement_and_test(p)
+#define gasneti_weakatomic_init(v)                   _gasneti_weakatomic_init(v)
+#define gasneti_weakatomicX_set(p,v,f)               _gasneti_weakatomic_set(p,v)
+#define gasneti_weakatomicX_read(p,f)                _gasneti_weakatomic_read(p)
+#define gasneti_weakatomicX_increment(p,f)           _gasneti_weakatomic_increment(p)
+#define gasneti_weakatomicX_decrement(p,f)           _gasneti_weakatomic_decrement(p)
+#define gasneti_weakatomicX_decrement_and_test(p,f)  _gasneti_weakatomic_decrement_and_test(p)
 #ifdef GASNETI_HAVE_ATOMIC_CAS
   #define gasneti_weakatomicX_compare_and_swap(p,oldval,newval,f)  \
-          gasneti_weakatomic_compare_and_swap(p,oldval,newval)
+          _gasneti_weakatomic_compare_and_swap(p,oldval,newval)
 #endif
 
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
@@ -1047,25 +1049,25 @@
  */
 #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
   typedef gasneti_atomic_t gasneti_weakatomic_t;
-  #define gasneti_weakatomic_init(v)                gasneti_atomic_init(v)
-  #define gasneti_weakatomic_set(p,v)               gasneti_atomic_set(p,v)
-  #define gasneti_weakatomic_read(p)                gasneti_atomic_read(p)
-  #define gasneti_weakatomic_increment(p)           gasneti_atomic_increment(p)
-  #define gasneti_weakatomic_decrement(p)           gasneti_atomic_decrement(p)
-  #define gasneti_weakatomic_decrement_and_test(p)  gasneti_atomic_decrement_and_test(p)
+  #define _gasneti_weakatomic_init(v)                _gasneti_atomic_init(v)
+  #define _gasneti_weakatomic_set(p,v)               _gasneti_atomic_set(p,v)
+  #define _gasneti_weakatomic_read(p)                _gasneti_atomic_read(p)
+  #define _gasneti_weakatomic_increment(p)           _gasneti_atomic_increment(p)
+  #define _gasneti_weakatomic_decrement(p)           _gasneti_atomic_decrement(p)
+  #define _gasneti_weakatomic_decrement_and_test(p)  _gasneti_atomic_decrement_and_test(p)
   #ifdef GASNETI_HAVE_ATOMIC_CAS
-    #define gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
-            gasneti_atomic_compare_and_swap(p,oldval,newval)
+    #define _gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
+            _gasneti_atomic_compare_and_swap(p,oldval,newval)
   #endif
 #else
   typedef volatile int gasneti_weakatomic_t;
-  #define gasneti_weakatomic_init(v)                (v)
-  #define gasneti_weakatomic_set(p,v)               (*(p) = (v))
-  #define gasneti_weakatomic_read(p)                (*(p))
-  #define gasneti_weakatomic_increment(p)           ((*(p))++)
-  #define gasneti_weakatomic_decrement(p)           ((*(p))--)
-  #define gasneti_weakatomic_decrement_and_test(p)  (!(--(*(p)))) 
-  #define gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
+  #define _gasneti_weakatomic_init(v)                (v)
+  #define _gasneti_weakatomic_set(p,v)               (*(p) = (v))
+  #define _gasneti_weakatomic_read(p)                (*(p))
+  #define _gasneti_weakatomic_increment(p)           ((*(p))++)
+  #define _gasneti_weakatomic_decrement(p)           ((*(p))--)
+  #define _gasneti_weakatomic_decrement_and_test(p)  (!(--(*(p)))) 
+  #define _gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
           (*(p) == (oldval) ? *(p) = (newval), 1 : 0)
 #endif
 
