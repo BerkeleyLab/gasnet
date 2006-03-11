@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_op.c,v $
- * $Date: 2006/03/10 23:17:52 $
- * $Revision: 1.15.2.2 $
+ * $Date: 2006/03/11 00:40:57 $
+ * $Revision: 1.15.2.3 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -125,8 +125,8 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 	iop->next = NULL;
 	iop->initiated_get_cnt = 0;
 	iop->initiated_put_cnt = 0;
-	gasneti_weakatomicX_set(&(iop->completed_get_cnt), 0, 0);
-	gasneti_weakatomicX_set(&(iop->completed_put_cnt), 0, 0);
+	gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
+	gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
         gasnete_iop_check(iop);
 	return iop;
 }
@@ -144,9 +144,9 @@ gasnete_op_isdone(gasnete_op_t *op)
 		gasnete_iop_t *iop = (gasnete_iop_t*)op;
                 gasnete_iop_check(iop);
 		return 
-		    (gasneti_weakatomicX_read(&(iop->completed_get_cnt), 0) == 
+		    (gasneti_weakatomic_read(&(iop->completed_get_cnt), 0) == 
 		         iop->initiated_get_cnt) &&
-		    (gasneti_weakatomicX_read(&(iop->completed_put_cnt), 0) == 
+		    (gasneti_weakatomic_read(&(iop->completed_put_cnt), 0) == 
 		         iop->initiated_put_cnt);
 	}
 }
@@ -162,9 +162,9 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
                 gasnete_iop_check(iop);
 		if (isget) 
-			gasneti_weakatomicX_increment(&(iop->completed_get_cnt), 0);
+			gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
 		else 
-			gasneti_weakatomicX_increment(&(iop->completed_put_cnt), 0);
+			gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
 	}
 }
 
@@ -213,17 +213,17 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   gasnete_iop_t *op = (gasnete_iop_t *)iop;
   gasneti_weakatomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
   gasnete_iop_check(op);
-  if (noperations == 1) gasneti_weakatomicX_increment(pctr, 0);
+  if (noperations == 1) gasneti_weakatomic_increment(pctr, 0);
   else {
-    #ifdef gasneti_weakatomicX_compare_and_swap
+    #ifdef gasneti_weakatomic_compare_and_swap
     { unsigned int oldval;
       do {
-        oldval = gasneti_weakatomicX_read(pctr, 0);
-      } while (!gasneti_weakatomicX_compare_and_swap(pctr, oldval, oldval+noperations, 0));
+        oldval = gasneti_weakatomic_read(pctr, 0);
+      } while (!gasneti_weakatomic_compare_and_swap(pctr, oldval, oldval+noperations, 0));
     }
     #else /* yuk */
       while (noperations) {
-        gasneti_weakatomicX_increment(pctr, 0);
+        gasneti_weakatomic_increment(pctr, 0);
         noperations--;
       }
     #endif

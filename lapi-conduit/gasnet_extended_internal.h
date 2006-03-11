@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/03/10 01:14:05 $
- * $Revision: 1.14.2.1 $
+ *     $Date: 2006/03/11 00:40:59 $
+ * $Revision: 1.14.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -203,8 +203,8 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            \
     GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); \
     gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            \
-    gasneti_assert(gasneti_weakatomicX_read(&(iop)->get_aux_cntr, 0) >= 0);           \
-    gasneti_assert(gasneti_weakatomicX_read(&(iop)->put_aux_cntr, 0) >= 0);           \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->get_aux_cntr, 0) >= 0);           \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->put_aux_cntr, 0) >= 0);           \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
 #else

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/03/10 22:21:35 $
- * $Revision: 1.67.2.1 $
+ *     $Date: 2006/03/11 00:40:53 $
+ * $Revision: 1.67.2.2 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -383,8 +383,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   iop->next = NULL;
   iop->initiated_get_cnt = 0;
   iop->initiated_put_cnt = 0;
-  gasneti_weakatomicX_set(&(iop->completed_get_cnt), 0, 0);
-  gasneti_weakatomicX_set(&(iop->completed_put_cnt), 0, 0);
+  gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
+  gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
 
   evtbin_data = (ELAN_EVENT **)(iop+1);
   gasnete_evtbin_init(&(iop->putbin), gasnete_nbi_throttle, evtbin_data);
@@ -467,8 +467,8 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
-    if (isget) gasneti_weakatomicX_increment(&(iop->completed_get_cnt), 0);
-    else gasneti_weakatomicX_increment(&(iop->completed_put_cnt), 0);
+    if (isget) gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
+    else gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
   }
 }
 
@@ -517,17 +517,17 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   gasnete_iop_t *op = (gasnete_iop_t *)iop;
   gasneti_weakatomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
   gasnete_iop_check(op);
-  if (noperations == 1) gasneti_weakatomicX_increment(pctr, 0);
+  if (noperations == 1) gasneti_weakatomic_increment(pctr, 0);
   else {
-    #ifdef gasneti_weakatomicX_compare_and_swap
+    #ifdef gasneti_weakatomic_compare_and_swap
     { unsigned int oldval;
       do {
-        oldval = gasneti_weakatomicX_read(pctr, 0);
-      } while (!gasneti_weakatomicX_compare_and_swap(pctr, oldval, oldval+noperations, 0));
+        oldval = gasneti_weakatomic_read(pctr, 0);
+      } while (!gasneti_weakatomic_compare_and_swap(pctr, oldval, oldval+noperations, 0));
     }
     #else /* yuk */
       while (noperations) {
-        gasneti_weakatomicX_increment(pctr, 0);
+        gasneti_weakatomic_increment(pctr, 0);
         noperations--;
       }
     #endif
@@ -1301,10 +1301,10 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 static int gasnete_iop_gets_done(gasnete_iop_t *iop) {
   ASSERT_ELAN_UNLOCKED();
-  if (gasneti_weakatomicX_read(&(iop->completed_get_cnt), 0) == iop->initiated_get_cnt) {
+  if (gasneti_weakatomic_read(&(iop->completed_get_cnt), 0) == iop->initiated_get_cnt) {
     int retval = TRUE;
     if_pf (iop->initiated_get_cnt > 65000) { /* make sure we don't overflow the counters */
-      gasneti_weakatomicX_set(&(iop->completed_get_cnt), 0, 0);
+      gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
       iop->initiated_get_cnt = 0;
     }
     if (iop->getbin.evt_cnt || iop->elan_getbb_list) {
@@ -1321,10 +1321,10 @@ static int gasnete_iop_gets_done(gasnete_iop_t *iop) {
 }
 static int gasnete_iop_puts_done(gasnete_iop_t *iop) {
   ASSERT_ELAN_UNLOCKED();
-  if (gasneti_weakatomicX_read(&(iop->completed_put_cnt), 0) == iop->initiated_put_cnt) {
+  if (gasneti_weakatomic_read(&(iop->completed_put_cnt), 0) == iop->initiated_put_cnt) {
     int retval = TRUE;
     if_pf (iop->initiated_put_cnt > 65000) { /* make sure we don't overflow the counters */
-      gasneti_weakatomicX_set(&(iop->completed_put_cnt), 0, 0);
+      gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
       iop->initiated_put_cnt = 0;
     }
     if (iop->putbin.evt_cnt || iop->elan_putbb_list) {

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2006/03/10 01:14:03 $
- * $Revision: 1.54.6.1 $
+ * $Date: 2006/03/11 00:40:57 $
+ * $Revision: 1.54.6.2 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -202,7 +202,7 @@ gasnete_fh_callback_put(struct gm_port *p, void *context,
 
 	/* If this was associated to an iop, increment put completed count */
 	if (pop->iop != NULL) {
-		gasneti_weakatomicX_increment(&(pop->iop->completed_put_cnt),0/*Rel?*/);
+		gasneti_weakatomic_increment(&(pop->iop->completed_put_cnt),0/*Rel?*/);
 		gasneti_free(pop); /* free a "dummy" eop */
         } else {
 	        gasnete_op_markdone((gasnete_op_t *)pop, 0);
@@ -448,7 +448,7 @@ gasnete_get_fh_done(gasnete_eop_t *eop)
 	GASNETE_FIREHOSE_TRACE_PUTGET(eop, GET);
 
 	if (eop->iop != NULL) {
-		gasneti_weakatomicX_increment(&(eop->iop->completed_get_cnt),0/*Rel?*/);
+		gasneti_weakatomic_increment(&(eop->iop->completed_get_cnt),0/*Rel?*/);
 		gasneti_free(eop); /* free a "dummy" eop */
         } else {
 	        gasnete_op_markdone((gasnete_op_t *) eop, 1);

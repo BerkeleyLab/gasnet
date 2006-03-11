@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/03/10 01:14:03 $
- * $Revision: 1.36.14.1 $
+ *     $Date: 2006/03/11 00:40:57 $
+ * $Revision: 1.36.14.2 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -238,9 +238,9 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
     #endif
 
-    if (gasneti_weakatomicX_read(&(iop->completed_get_cnt),0) == iop->initiated_get_cnt) {
+    if (gasneti_weakatomic_read(&(iop->completed_get_cnt),0) == iop->initiated_get_cnt) {
       if_pf (iop->initiated_get_cnt > 65000) { /* make sure we don't overflow the counters */
-        gasneti_weakatomicX_set(&(iop->completed_get_cnt), 0, 0);
+        gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
         iop->initiated_get_cnt = 0;
       }
       gasneti_sync_reads();
@@ -266,9 +266,9 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     #endif
 
 
-    if (gasneti_weakatomicX_read(&(iop->completed_put_cnt),0) == iop->initiated_put_cnt) {
+    if (gasneti_weakatomic_read(&(iop->completed_put_cnt),0) == iop->initiated_put_cnt) {
       if_pf (iop->initiated_put_cnt > 65000) { /* make sure we don't overflow the counters */
-        gasneti_weakatomicX_set(&(iop->completed_put_cnt), 0, 0);
+        gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
         iop->initiated_put_cnt = 0;
       }
       gasneti_sync_reads();

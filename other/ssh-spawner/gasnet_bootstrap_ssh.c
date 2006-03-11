@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2006/03/10 01:14:07 $
- * $Revision: 1.59.2.1 $
+ *     $Date: 2006/03/11 00:41:01 $
+ * $Revision: 1.59.2.2 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -303,7 +303,7 @@ static void kill_one(const char *rem_host, pid_t rem_pid) {
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
   BOOTSTRAP_VERBOSE(("[-1] Pid %d killing %s:%d\n", pid, rem_host, (int)rem_pid));
-  gasneti_atomicX_increment(&live, 0);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void clean_up(void)
@@ -354,7 +354,7 @@ static void signal_one(const char *rem_host, pid_t rem_pid, int sig) {
     execvp(ssh_argv[0], ssh_argv);
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
-  gasneti_atomicX_increment(&live, 0);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void signal_all(int sig)
@@ -448,9 +448,9 @@ static void reap_one(pid_t pid, int status)
 {
   gasneti_assert(pid);
 
-  gasneti_atomicX_decrement(&live, 0);
+  gasneti_atomic_decrement(&live, 0);
   BOOTSTRAP_VERBOSE(("[%d] Reaped pid %d (%d left)\n",
-		     is_master ? -1 : myproc, (int)pid, (int)gasneti_atomicX_read(&live, 0)));
+		     is_master ? -1 : myproc, (int)pid, (int)gasneti_atomic_read(&live, 0)));
 
   if (child) {
     int j;
@@ -516,9 +516,9 @@ static void wait_for_all(void)
    */
   reaper(SIGCHLD);
 
-  while (gasneti_atomicX_read(&live, 0)) {
+  while (gasneti_atomic_read(&live, 0)) {
     BOOTSTRAP_VERBOSE(("[%d] Sigsuspend with %d children left\n",
-			    is_master ? -1 : myproc, gasneti_atomicX_read(&live, 0)));
+			    is_master ? -1 : myproc, gasneti_atomic_read(&live, 0)));
     sigsuspend(&old_set);
   }
 }
@@ -1150,7 +1150,7 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
       gasneti_fatalerror("execvp(ssh) failed");
     }
   }
-  gasneti_atomicX_increment(&live, 0);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void do_spawn(int argc, char **argv, char *myhost) {

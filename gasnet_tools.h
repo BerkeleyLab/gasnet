@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/03/10 23:17:50 $
- * $Revision: 1.56.2.2 $
+ *     $Date: 2006/03/11 00:40:51 $
+ * $Revision: 1.56.2.3 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,32 +60,32 @@
      TODO: consider exposing "signal-safe" atomics (only avail on some platforms)
   */
   #define gasnett_atomic_t             gasneti_weakatomic_t
-  #define gasnett_atomic_read(p)       gasneti_weakatomicX_read(p,0)
+  #define gasnett_atomic_read(p)       gasneti_weakatomic_read(p,0)
   #define gasnett_atomic_init(v)       gasneti_weakatomic_init(v)
-  #define gasnett_atomic_set(p,v)      gasneti_weakatomicX_set(p,v,0)
-  #define gasnett_atomic_increment(p)  gasneti_weakatomicX_increment(p,0)
-  #define gasnett_atomic_decrement(p)  gasneti_weakatomicX_decrement(p,0)
+  #define gasnett_atomic_set(p,v)      gasneti_weakatomic_set(p,v,0)
+  #define gasnett_atomic_increment(p)  gasneti_weakatomic_increment(p,0)
+  #define gasnett_atomic_decrement(p)  gasneti_weakatomic_decrement(p,0)
   #define gasnett_atomic_decrement_and_test(p)  \
-                                       gasneti_weakatomicX_decrement_and_test(p,0)
-  #ifdef gasneti_weakatomicX_compare_and_swap
+                                       gasneti_weakatomic_decrement_and_test(p,0)
+  #ifdef gasneti_weakatomic_compare_and_swap
     #define GASNETT_HAVE_ATOMIC_CAS 1
     #define gasnett_atomic_compare_and_swap(p,oldval,newval)  \
-                                       gasneti_weakatomicX_compare_and_swap(p,oldval,newval,0)
+                                       gasneti_weakatomic_compare_and_swap(p,oldval,newval,0)
   #endif
 #else
   /* PAR, PARSYNC and non-libgasnet clients (which may have threads) */
   #define gasnett_atomic_t             gasneti_atomic_t
-  #define gasnett_atomic_read(p)       gasneti_atomicX_read(p,0)
+  #define gasnett_atomic_read(p)       gasneti_atomic_read(p,0)
   #define gasnett_atomic_init(v)       gasneti_atomic_init(v)
-  #define gasnett_atomic_set(p,v)      gasneti_atomicX_set(p,v,0)
-  #define gasnett_atomic_increment(p)  gasneti_atomicX_increment(p,0)
-  #define gasnett_atomic_decrement(p)  gasneti_atomicX_decrement(p,0)
+  #define gasnett_atomic_set(p,v)      gasneti_atomic_set(p,v,0)
+  #define gasnett_atomic_increment(p)  gasneti_atomic_increment(p,0)
+  #define gasnett_atomic_decrement(p)  gasneti_atomic_decrement(p,0)
   #define gasnett_atomic_decrement_and_test(p)  \
-                                       gasneti_atomicX_decrement_and_test(p,0)
+                                       gasneti_atomic_decrement_and_test(p,0)
   #ifdef GASNETI_HAVE_ATOMIC_CAS
     #define GASNETT_HAVE_ATOMIC_CAS 1
     #define gasnett_atomic_compare_and_swap(p,oldval,newval)  \
-                                       gasneti_atomicX_compare_and_swap(p,oldval,newval,0)
+                                       gasneti_atomic_compare_and_swap(p,oldval,newval,0)
   #endif
 #endif
 

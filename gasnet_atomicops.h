@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/11 00:16:48 $
- * $Revision: 1.85.2.2 $
+ *     $Date: 2006/03/11 00:40:51 $
+ * $Revision: 1.85.2.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1013,25 +1013,15 @@
 #define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
 
 /* XXX: FIXME to do the real thing */
-#define gasneti_atomic_init(v)                   _gasneti_atomic_init(v)
-#define gasneti_atomicX_set(p,v,f)               _gasneti_atomic_set(p,v)
-#define gasneti_atomicX_read(p,f)                _gasneti_atomic_read(p)
-#define gasneti_atomicX_increment(p,f)           _gasneti_atomic_increment(p)
-#define gasneti_atomicX_decrement(p,f)           _gasneti_atomic_decrement(p)
-#define gasneti_atomicX_decrement_and_test(p,f)  _gasneti_atomic_decrement_and_test(p)
+#define gasneti_atomic_init(v)                  _gasneti_atomic_init(v)
+#define gasneti_atomic_set(p,v,f)               _gasneti_atomic_set(p,v)
+#define gasneti_atomic_read(p,f)                _gasneti_atomic_read(p)
+#define gasneti_atomic_increment(p,f)           _gasneti_atomic_increment(p)
+#define gasneti_atomic_decrement(p,f)           _gasneti_atomic_decrement(p)
+#define gasneti_atomic_decrement_and_test(p,f)  _gasneti_atomic_decrement_and_test(p)
 #ifdef GASNETI_HAVE_ATOMIC_CAS
-  #define gasneti_atomicX_compare_and_swap(p,oldval,newval,f)  \
+  #define gasneti_atomic_compare_and_swap(p,oldval,newval,f)  \
           _gasneti_atomic_compare_and_swap(p,oldval,newval)
-#endif
-#define gasneti_weakatomic_init(v)                   _gasneti_weakatomic_init(v)
-#define gasneti_weakatomicX_set(p,v,f)               _gasneti_weakatomic_set(p,v)
-#define gasneti_weakatomicX_read(p,f)                _gasneti_weakatomic_read(p)
-#define gasneti_weakatomicX_increment(p,f)           _gasneti_weakatomic_increment(p)
-#define gasneti_weakatomicX_decrement(p,f)           _gasneti_weakatomic_decrement(p)
-#define gasneti_weakatomicX_decrement_and_test(p,f)  _gasneti_weakatomic_decrement_and_test(p)
-#ifdef GASNETI_HAVE_ATOMIC_CAS
-  #define gasneti_weakatomicX_compare_and_swap(p,oldval,newval,f)  \
-          _gasneti_weakatomic_compare_and_swap(p,oldval,newval)
 #endif
 
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
@@ -1049,25 +1039,25 @@
  */
 #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
   typedef gasneti_atomic_t gasneti_weakatomic_t;
-  #define _gasneti_weakatomic_init(v)                _gasneti_atomic_init(v)
-  #define _gasneti_weakatomic_set(p,v)               _gasneti_atomic_set(p,v)
-  #define _gasneti_weakatomic_read(p)                _gasneti_atomic_read(p)
-  #define _gasneti_weakatomic_increment(p)           _gasneti_atomic_increment(p)
-  #define _gasneti_weakatomic_decrement(p)           _gasneti_atomic_decrement(p)
-  #define _gasneti_weakatomic_decrement_and_test(p)  _gasneti_atomic_decrement_and_test(p)
+  #define gasneti_weakatomic_init(v)                  gasneti_atomic_init(v)
+  #define gasneti_weakatomic_set(p,v,f)               gasneti_atomic_set(p,v,f)
+  #define gasneti_weakatomic_read(p,f)                gasneti_atomic_read(p,f)
+  #define gasneti_weakatomic_increment(p,f)           gasneti_atomic_increment(p,f)
+  #define gasneti_weakatomic_decrement(p,f)           gasneti_atomic_decrement(p,f)
+  #define gasneti_weakatomic_decrement_and_test(p,f)  gasneti_atomic_decrement_and_test(p,f)
   #ifdef GASNETI_HAVE_ATOMIC_CAS
-    #define _gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
-            _gasneti_atomic_compare_and_swap(p,oldval,newval)
+    #define gasneti_weakatomic_compare_and_swap(p,oldval,newval,f)  \
+            gasneti_atomic_compare_and_swap(p,oldval,newval,f)
   #endif
 #else
   typedef volatile int gasneti_weakatomic_t;
-  #define _gasneti_weakatomic_init(v)                (v)
-  #define _gasneti_weakatomic_set(p,v)               (*(p) = (v))
-  #define _gasneti_weakatomic_read(p)                (*(p))
-  #define _gasneti_weakatomic_increment(p)           ((*(p))++)
-  #define _gasneti_weakatomic_decrement(p)           ((*(p))--)
-  #define _gasneti_weakatomic_decrement_and_test(p)  (!(--(*(p)))) 
-  #define _gasneti_weakatomic_compare_and_swap(p,oldval,newval)  \
+  #define gasneti_weakatomic_init(v)                  (v)
+  #define gasneti_weakatomic_set(p,v,f)               (*(p) = (v))
+  #define gasneti_weakatomic_read(p,f)                (*(p))
+  #define gasneti_weakatomic_increment(p,f)           ((*(p))++)
+  #define gasneti_weakatomic_decrement(p,f)           ((*(p))--)
+  #define gasneti_weakatomic_decrement_and_test(p,f)  (!(--(*(p)))) 
+  #define gasneti_weakatomic_compare_and_swap(p,oldval,newval,f)  \
           (*(p) == (oldval) ? *(p) = (newval), 1 : 0)
 #endif
 

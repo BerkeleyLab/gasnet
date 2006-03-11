@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2006/03/10 22:21:39 $
- * $Revision: 1.47.2.1 $
+ *     $Date: 2006/03/11 00:41:03 $
+ * $Revision: 1.47.2.2 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -125,26 +125,26 @@ typedef struct {
 	int			initiated;
 } gasnetc_counter_t;
 #define GASNETC_COUNTER_INITIALIZER	{gasneti_weakatomic_init(0), 0}
-#define gasnetc_counter_reset(P)	do { gasneti_weakatomicX_set(&(P)->completed, 0, 0); \
+#define gasnetc_counter_reset(P)	do { gasneti_weakatomic_set(&(P)->completed, 0, 0); \
 					     (P)->initiated = 0;                         \
 					} while (0)
-#define gasnetc_counter_done(P)		((P)->initiated == gasneti_weakatomicX_read(&(P)->completed, 0))
+#define gasnetc_counter_done(P)		((P)->initiated == gasneti_weakatomic_read(&(P)->completed, 0))
 #define gasnetc_counter_inc(P)		do { (P)->initiated++; } while (0)
 #define gasnetc_counter_inc_by(P,v)	do { (P)->initiated += (v); } while (0)
 #define gasnetc_counter_inc_if(P)	do { if(P) gasnetc_counter_inc(P); } while (0)
 #define gasnetc_counter_inc_if_pf(P)	do { if_pf(P) gasnetc_counter_inc(P); } while (0)
 #define gasnetc_counter_inc_if_pt(P)	do { if_pt(P) gasnetc_counter_inc(P); } while (0)
 #define gasnetc_counter_dec(P)		do { gasneti_assert(!gasnetc_counter_done(P));      \
-					     gasneti_weakatomicX_increment(&(P)->completed, 0); \
+					     gasneti_weakatomic_increment(&(P)->completed, 0); \
 					} while (0)
-#ifdef gasneti_weakatomicX_compare_and_swap
+#ifdef gasneti_weakatomic_compare_and_swap
   #define gasnetc_counter_dec_by(P,v)   do {                  \
       if (v == 1) gasnetc_counter_dec(P);                     \
       else {                                                  \
         unsigned int _oldval;                                 \
         do {                                                  \
-          _oldval = gasneti_weakatomicX_read(&(P)->completed, 0); \
-        } while (!gasneti_weakatomicX_compare_and_swap(        \
+          _oldval = gasneti_weakatomic_read(&(P)->completed, 0); \
+        } while (!gasneti_weakatomic_compare_and_swap(        \
                    &(P)->completed, _oldval, _oldval+v, 0));     \
       }                                                       \
     } while (0)
