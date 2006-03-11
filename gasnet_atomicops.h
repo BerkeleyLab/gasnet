@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/11 00:40:51 $
- * $Revision: 1.85.2.3 $
+ *     $Date: 2006/03/11 01:21:04 $
+ * $Revision: 1.85.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1012,16 +1012,128 @@
 #define GASNETI_ATOMIC_ACQ_IF_TRUE	GASNETI_ATOMIC_RMB_POST_IF_TRUE
 #define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
 
+/* Default implementations of fences in atomics
+ * This model assumes set and read are distinct, but that
+ * all the read-modify-write ops work the same.
+ * If that is not the case, one can override individual ops. */
+#ifndef _gasneti_atomic_wmb_before_set
+  #define _gasneti_atomic_wmb_before_set() gasneti_local_wmb()
+#endif
+#ifndef _gasneti_atomic_wmb_before_read
+  #define _gasneti_atomic_wmb_before_read() gasneti_local_wmb()
+#endif
+#ifndef _gasneti_atomic_wmb_before_rmw
+  #define _gasneti_atomic_wmb_before_rmw() gasneti_local_wmb()
+#endif
+#ifndef _gasneti_atomic_wmb_after_set
+  #define _gasneti_atomic_wmb_after_set() gasneti_local_wmb()
+#endif
+#ifndef _gasneti_atomic_wmb_after_read
+  #define _gasneti_atomic_wmb_after_read() gasneti_local_wmb()
+#endif
+#ifndef _gasneti_atomic_wmb_after_rmw
+  #define _gasneti_atomic_wmb_after_rmw() gasneti_local_wmb()
+#endif
+#ifndef _gasneti_atomic_rmb_before_set
+  #define _gasneti_atomic_rmb_before_set() gasneti_local_rmb()
+#endif
+#ifndef _gasneti_atomic_rmb_before_read
+  #define _gasneti_atomic_rmb_before_read() gasneti_local_rmb()
+#endif
+#ifndef _gasneti_atomic_rmb_before_rmw
+  #define _gasneti_atomic_rmb_before_rmw() gasneti_local_rmb()
+#endif
+#ifndef _gasneti_atomic_rmb_after_set
+  #define _gasneti_atomic_rmb_after_set() gasneti_local_rmb()
+#endif
+#ifndef _gasneti_atomic_rmb_after_read
+  #define _gasneti_atomic_rmb_after_read() gasneti_local_rmb()
+#endif
+#ifndef _gasneti_atomic_rmb_after_rmw
+  #define _gasneti_atomic_rmb_after_rmw() gasneti_local_rmb()
+#endif
+
 /* XXX: FIXME to do the real thing */
-#define gasneti_atomic_init(v)                  _gasneti_atomic_init(v)
-#define gasneti_atomic_set(p,v,f)               _gasneti_atomic_set(p,v)
-#define gasneti_atomic_read(p,f)                _gasneti_atomic_read(p)
-#define gasneti_atomic_increment(p,f)           _gasneti_atomic_increment(p)
-#define gasneti_atomic_decrement(p,f)           _gasneti_atomic_decrement(p)
-#define gasneti_atomic_decrement_and_test(p,f)  _gasneti_atomic_decrement_and_test(p)
-#ifdef GASNETI_HAVE_ATOMIC_CAS
-  #define gasneti_atomic_compare_and_swap(p,oldval,newval,f)  \
-          _gasneti_atomic_compare_and_swap(p,oldval,newval)
+#ifndef gasneti_atomic_init
+  #define gasneti_atomic_init(v)                  _gasneti_atomic_init(v)
+#endif
+#ifndef gasneti_atomic_set
+  #define gasneti_atomic_set(p,v,f) do {                                    \
+    int __flags = (f);                                                      \
+    if (__flags & GASNETI_ATOMIC_WMB_PRE) _gasneti_atomic_wmb_before_set(); \
+    if (__flags & GASNETI_ATOMIC_RMB_PRE) _gasneti_atomic_rmb_before_set(); \
+    _gasneti_atomic_set((p),(v));                                           \
+    if (__flags & GASNETI_ATOMIC_WMB_POST) _gasneti_atomic_wmb_after_set(); \
+    if (__flags & GASNETI_ATOMIC_RMB_POST) _gasneti_atomic_rmb_after_set(); \
+  } while (0)
+#endif
+#ifndef gasneti_atomic_read
+  GASNET_INLINE_MODIFIER(gasneti_atomic_read)
+  uint32_t gasneti_atomic_read(gasneti_atomic_t *p, int flags) {
+    uint32_t retval;
+    if (flags & GASNETI_ATOMIC_WMB_PRE) _gasneti_atomic_wmb_before_read();
+    if (flags & GASNETI_ATOMIC_RMB_PRE) _gasneti_atomic_rmb_before_read();
+    retval = _gasneti_atomic_read(p);
+    if (flags & GASNETI_ATOMIC_WMB_POST) _gasneti_atomic_wmb_after_read();
+    if (flags & GASNETI_ATOMIC_RMB_POST) _gasneti_atomic_rmb_after_read();
+    return retval;
+  }
+#endif
+#ifndef gasneti_atomic_increment
+  #define gasneti_atomic_increment(p,f) do {                                \
+    int __flags = (f);                                                      \
+    if (__flags & GASNETI_ATOMIC_WMB_PRE) _gasneti_atomic_wmb_before_rmw(); \
+    if (__flags & GASNETI_ATOMIC_RMB_PRE) _gasneti_atomic_rmb_before_rmw(); \
+    _gasneti_atomic_increment(p);                                           \
+    if (__flags & GASNETI_ATOMIC_WMB_POST) _gasneti_atomic_wmb_after_rmw(); \
+    if (__flags & GASNETI_ATOMIC_RMB_POST) _gasneti_atomic_rmb_after_rmw(); \
+  } while (0)
+#endif
+#ifndef gasneti_atomic_decrement
+  #define gasneti_atomic_decrement(p,f) do {                                \
+    int __flags = (f);                                                      \
+    if (__flags & GASNETI_ATOMIC_WMB_PRE) _gasneti_atomic_wmb_before_rmw(); \
+    if (__flags & GASNETI_ATOMIC_RMB_PRE) _gasneti_atomic_rmb_before_rmw(); \
+    _gasneti_atomic_increment(p);                                           \
+    if (__flags & GASNETI_ATOMIC_WMB_POST) _gasneti_atomic_wmb_after_rmw(); \
+    if (__flags & GASNETI_ATOMIC_RMB_POST) _gasneti_atomic_rmb_after_rmw(); \
+  } while (0)
+#endif
+#ifndef gasneti_atomic_decrement_and_test
+  GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
+  int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, int flags) {
+    int retval;
+    if (flags & GASNETI_ATOMIC_WMB_PRE) _gasneti_atomic_wmb_before_rmw();
+    if (flags & GASNETI_ATOMIC_RMB_PRE) _gasneti_atomic_rmb_before_rmw();
+    retval = _gasneti_atomic_decrement_and_test(p);
+    if (flags & GASNETI_ATOMIC_WMB_POST) _gasneti_atomic_wmb_after_rmw();
+    if (flags & GASNETI_ATOMIC_RMB_POST) {
+	_gasneti_atomic_rmb_after_rmw();
+    } else if (retval) {
+      if (flags & GASNETI_ATOMIC_RMB_POST_IF_TRUE) _gasneti_atomic_rmb_after_rmw();
+    } else {
+      if (flags & GASNETI_ATOMIC_RMB_POST_IF_FALSE) _gasneti_atomic_rmb_after_rmw();
+    }
+    return retval;
+  }
+#endif
+#if defined(GASNETI_HAVE_ATOMIC_CAS) && !defined(gasneti_atomic_compare_and_swap)
+  GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
+  int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, int flags) {
+    int retval;
+    if (flags & GASNETI_ATOMIC_WMB_PRE) _gasneti_atomic_wmb_before_rmw();
+    if (flags & GASNETI_ATOMIC_RMB_PRE) _gasneti_atomic_rmb_before_rmw();
+    retval = _gasneti_atomic_compare_and_swap((p),(oldval),(newval));
+    if (flags & GASNETI_ATOMIC_WMB_POST) _gasneti_atomic_wmb_after_rmw();
+    if (flags & GASNETI_ATOMIC_RMB_POST) {
+	_gasneti_atomic_rmb_after_rmw();
+    } else if (retval) {
+      if (flags & GASNETI_ATOMIC_RMB_POST_IF_TRUE) _gasneti_atomic_rmb_after_rmw();
+    } else {
+      if (flags & GASNETI_ATOMIC_RMB_POST_IF_FALSE) _gasneti_atomic_rmb_after_rmw();
+    }
+    return retval;
+  }
 #endif
 
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
