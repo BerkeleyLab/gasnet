@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2006/03/10 01:14:01 $
- * $Revision: 1.42.2.1 $
+ *     $Date: 2006/03/11 00:40:51 $
+ * $Revision: 1.42.2.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2091,7 +2091,7 @@ extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data);
   int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
     int result;
     gasneti_assert(data != NULL);
-    result = (gasneti_atomicX_read(&data->threads.remaining, 0) == 0);
+    result = (gasneti_atomic_read(&data->threads.remaining, 0) == 0);
     if (result) {
       gasneti_sync_reads();
     }
