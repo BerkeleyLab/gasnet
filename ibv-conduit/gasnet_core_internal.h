@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/03/15 20:15:00 $
- * $Revision: 1.123.2.3 $
+ *     $Date: 2006/03/15 20:42:04 $
+ * $Revision: 1.123.2.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -335,7 +335,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
     int retval = 0;
 
   again:
-    old = gasneti_weakatomic_read(s);
+    old = gasneti_weakatomic_read(s, 0);
     if_pt (old) {
       retval = gasneti_weakatomic_compare_and_swap(s, old, old - 1, GASNETI_ATOMIC_ACQ_IF_TRUE);
       if_pf (!retval) {
@@ -360,7 +360,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
     uint32_t retval, old;
 
     do {
-      old = gasneti_weakatomic_read(s);
+      old = gasneti_weakatomic_read(s, 0);
       if_pf (old == 0)
         return 0;
       retval = MIN(old, n);
