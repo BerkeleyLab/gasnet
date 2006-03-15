@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/03/11 00:40:51 $
- * $Revision: 1.39.2.2 $
+ *     $Date: 2006/03/15 20:14:58 $
+ * $Revision: 1.39.2.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -729,7 +729,6 @@ void gasneti_auxseg_init() {
         gasneti_assert(nbytes == sizeof(gasnet_seginfo_t));
         gasneti_assert(_gasneti_auxseg_everything != NULL);
         _gasneti_auxseg_everything[srcid] = *(gasnet_seginfo_t *)buf;
-        gasneti_local_wmb();
         gasneti_atomic_increment(&_gasneti_auxseg_gatherdone, GASNETI_ATOMIC_REL);
         break;
       case 1:
@@ -738,7 +737,6 @@ void gasneti_auxseg_init() {
         gasneti_assert(nbytes % sizeof(gasnet_seginfo_t) == 0);
         gasneti_assert(_gasneti_auxseg_everything != NULL);
         memcpy((void *)(_gasneti_auxseg_everything+offset), buf, nbytes);
-        gasneti_local_wmb();
         gasneti_atomic_increment(&_gasneti_auxseg_bcastdone, GASNETI_ATOMIC_REL);
         break;
     }

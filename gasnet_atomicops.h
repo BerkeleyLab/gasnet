@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/15 19:49:45 $
- * $Revision: 1.85.2.5 $
+ *     $Date: 2006/03/15 20:14:58 $
+ * $Revision: 1.85.2.6 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1053,16 +1053,16 @@
  * This model assumes set and read are distinct, but that
  * all the read-modify-write ops work the same.
  * If that is not the case, one can override individual ops. */
-#ifndef _gasneti_atomic_wmb_before_rmw
+#ifndef _gasneti_atomic_wmb_before
   #define _gasneti_atomic_wmb_before() gasneti_local_wmb()
 #endif
-#ifndef _gasneti_atomic_wmb_after_rmw
+#ifndef _gasneti_atomic_wmb_after
   #define _gasneti_atomic_wmb_after() gasneti_local_wmb()
 #endif
-#ifndef _gasneti_atomic_rmb_before_rmw
+#ifndef _gasneti_atomic_rmb_before
   #define _gasneti_atomic_rmb_before() gasneti_local_rmb()
 #endif
-#ifndef _gasneti_atomic_rmb_after_rmw
+#ifndef _gasneti_atomic_rmb_after
   #define _gasneti_atomic_rmb_after() gasneti_local_rmb()
 #endif
 

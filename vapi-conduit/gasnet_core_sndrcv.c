@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/03/11 00:41:03 $
- * $Revision: 1.172.2.2 $
+ *     $Date: 2006/03/15 20:15:00 $
+ * $Revision: 1.172.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -2151,11 +2151,8 @@ static void gasnetc_fh_do_put(gasnetc_sreq_t *sreq) {
   gasnetc_counter_dec_if_pf(am_oust);
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_sreq_is_ready)
-int gasnetc_sreq_is_ready(gasnetc_sreq_t *sreq) {
-  gasneti_sync_writes();
-  return gasneti_weakatomic_decrement_and_test(&(sreq->fh_ready), GASNETI_ATOMIC_REL);
-}
+#define gasnetc_sreq_is_ready(sreq) \
+  gasneti_weakatomic_decrement_and_test(&((sreq)->fh_ready), GASNETI_ATOMIC_REL)
 
 static void gasnetc_fh_put_cb(void *context, const firehose_request_t *fh_rem, int allLocalHit) {
   gasnetc_sreq_t *sreq = context;

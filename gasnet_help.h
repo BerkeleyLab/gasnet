@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2006/03/11 00:40:51 $
- * $Revision: 1.78.2.2 $
+ *     $Date: 2006/03/15 20:14:58 $
+ * $Revision: 1.78.2.3 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -334,26 +334,29 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #elif defined(GASNETI_ATOMICOPS_NOT_SIGNALSAFE)
   /* We don't implement this case due to lack of signal safety */
 #elif defined(GASNETI_HAVE_ATOMIC_CAS)
-  #define GASNETI_SPINLOCK_LOCKED	1
-  #define GASNETI_SPINLOCK_UNLOCKED	0
+  #if GASNET_DEBUG
+    #define GASNETI_SPINLOCK_LOCKED	0xa5a5
+    #define GASNETI_SPINLOCK_UNLOCKED	0xaa55
+  #else
+    #define GASNETI_SPINLOCK_LOCKED	1
+    #define GASNETI_SPINLOCK_UNLOCKED	0
+  #endif
   #define GASNETI_SPINLOCK_INITIALIZER gasneti_atomic_init(GASNETI_SPINLOCK_UNLOCKED)
-  #define gasneti_spinlock_init(plock) do {                   \
-      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED, 0 /*???*/); \
-      gasneti_local_wmb();      /* ??? needed? */             \
+  #define gasneti_spinlock_init(plock) do {                                            \
+      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_WMB_POST); \
   } while (0)
   #define gasneti_spinlock_destroy(plock) \
       gasneti_assert(gasneti_atomic_read(plock, 0) == GASNETI_SPINLOCK_UNLOCKED)
-  #define gasneti_spinlock_lock(plock) do {                                  \
-      gasneti_waituntil(                                                     \
-        gasneti_atomic_compare_and_swap(plock,                               \
+  #define gasneti_spinlock_lock(plock) do {                                     \
+      gasneti_waituntil(                                                        \
+        gasneti_atomic_compare_and_swap(plock,                                  \
           GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, 0)                \
-      ); /* Acquire: the rmb() is in the gasneti_waituntil() */              \
+      ); /* Acquire: the rmb() is in the gasneti_waituntil() */                 \
       gasneti_assert(gasneti_atomic_read(plock, 0) == GASNETI_SPINLOCK_LOCKED); \
   } while (0)
   GASNET_INLINE_MODIFIER(gasneti_spinlock_unlock)
   int gasneti_spinlock_unlock(gasneti_atomic_t *plock) {
       gasneti_assert(gasneti_atomic_read(plock, 0) == GASNETI_SPINLOCK_LOCKED);
-      gasneti_local_wmb();	/* Release */
       #if GASNET_DEBUG
         { /* Using CAS for release is more costly, but adds validation */
           int did_swap;
@@ -369,7 +372,6 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   GASNET_INLINE_MODIFIER(gasneti_spinlock_trylock)
   int gasneti_spinlock_trylock(gasneti_atomic_t *plock) {
       if (gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
-	  gasneti_local_rmb();	/* Acquire */  
           gasneti_assert(gasneti_atomic_read(plock, 0) == GASNETI_SPINLOCK_LOCKED);
 	  return 0;
       } else {
