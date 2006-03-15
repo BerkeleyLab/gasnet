@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/15 20:14:58 $
- * $Revision: 1.85.2.6 $
+ *     $Date: 2006/03/15 21:24:20 $
+ * $Revision: 1.85.2.7 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -277,10 +277,10 @@
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* bug1405: x86 and x86_64 include full memory fence in locked RMW insns */
-      #define _gasneti_atomic_wmb_before()	 do {} while (0)
-      #define _gasneti_atomic_rmb_before()	 do {} while (0)
-      #define _gasneti_atomic_wmb_after()	 do {} while (0)
-      #define _gasneti_atomic_rmb_after()	 do {} while (0)
+      #define _gasneti_atomic_wmb_before()	 ((void)0)
+      #define _gasneti_atomic_rmb_before()	 ((void)0)
+      #define _gasneti_atomic_wmb_after()	 ((void)0)
+      #define _gasneti_atomic_rmb_after()	 ((void)0)
   /* ------------------------------------------------------------------------------------
    * No OS-provided atomics, so try to provide our own, based on the CPU and compiler 
    * support for inline assembly code
@@ -342,10 +342,10 @@
       }
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* bug1405: x86 and x86_64 include full memory fence in locked RMW insns */
-      #define _gasneti_atomic_wmb_before()	 do {} while (0)
-      #define _gasneti_atomic_rmb_before()	 do {} while (0)
-      #define _gasneti_atomic_wmb_after()	 do {} while (0)
-      #define _gasneti_atomic_rmb_after()	 do {} while (0)
+      #define _gasneti_atomic_wmb_before()	 ((void)0)
+      #define _gasneti_atomic_rmb_before()	 ((void)0)
+      #define _gasneti_atomic_wmb_after()	 ((void)0)
+      #define _gasneti_atomic_rmb_after()	 ((void)0)
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -443,11 +443,11 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* bug1405: using no fences on RMW (TODO: WEAKEN OR CUSTOMIZE) */
-      #define _gasneti_atomic_wmb_before()	 do {} while (0)
-      #define _gasneti_atomic_rmb_before()	 do {} while (0)
-      #define _gasneti_atomic_wmb_after()	 do {} while (0)
-      #define _gasneti_atomic_rmb_after()	 do {} while (0)
+      /* bug1405: using no fences on RMW (TODO: WEAKEN OR CUSTOMIZE CODE ABOVE) */
+      #define _gasneti_atomic_wmb_before()	 ((void)0)
+      #define _gasneti_atomic_rmb_before()	 ((void)0)
+      #define _gasneti_atomic_wmb_after()	 ((void)0)
+      #define _gasneti_atomic_rmb_after()	 ((void)0)
     #else
       #error unrecognized Itanium compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
