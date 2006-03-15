@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2006/03/15 22:29:58 $
- * $Revision: 1.78.2.4 $
+ *     $Date: 2006/03/15 22:39:26 $
+ * $Revision: 1.78.2.5 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -353,7 +353,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #endif
   #define GASNETI_SPINLOCK_INITIALIZER gasneti_atomic_init(GASNETI_SPINLOCK_UNLOCKED)
   #define gasneti_spinlock_init(plock) \
-      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_WMB_POST);
+      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_WMB_POST)
   #define gasneti_spinlock_destroy(plock) \
       gasneti_assert(gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_DESTROYED, GASNETI_ATOMIC_WMB_POST))
   #define gasneti_spinlock_lock(plock) do {                                     \
