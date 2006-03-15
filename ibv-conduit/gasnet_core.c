@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/03/11 00:41:03 $
- * $Revision: 1.159.2.2 $
+ *     $Date: 2006/03/15 20:15:00 $
+ * $Revision: 1.159.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2095,10 +2095,10 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   /* Send a reply so the master knows we are reachable */
   GASNETI_SAFE(gasnetc_ReplySystem(token, &gasnetc_exit_repl_oust,
 				   gasneti_handleridx(gasnetc_SYS_exit_rep), /* no args */ 0));
+  gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
 
   /* Count the exit requests, so gasnetc_exit_slave() knows when to return */
-  gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
-  gasneti_atomic_increment(&gasnetc_exit_reqs, 0); /* 1405: fold in wmb before? It is logically distinct and not performance critical */
+  gasneti_atomic_increment(&gasnetc_exit_reqs, 0);
 
   /* Initiate an exit IFF this is the first we've heard of it */
   if (gasnetc_exit_head(args[0])) {
