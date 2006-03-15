@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/02/25 01:51:43 $
- * $Revision: 1.63.2.3 $
+ *     $Date: 2006/03/15 00:58:16 $
+ * $Revision: 1.63.2.4 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -887,8 +887,8 @@ static void gasnetc_atexit(void) {
 #else /* !GASNETC_USE_SIGNALING_EXIT */
   extern void gasnetc_exit(int exitcode) {
     /* do a naive non-collective exit */
-   if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
-    fprintf(stderr,"WARNING: no recognized job spawner detected. This exit may leave zombie processes.\n",msg);
+    if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) 
+      fprintf(stderr,"WARNING: no recognized job spawner detected. This exit may leave zombie processes.\n");
     gasneti_flush_streams();
     gasneti_trace_finish();
     gasneti_sched_yield();
