@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/02/17 10:38:56 $
- * $Revision: 1.80 $
+ *     $Date: 2006/03/16 01:57:38 $
+ * $Revision: 1.80.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -651,8 +651,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     gasnet_AMGetMsgSource(token, &srcid);
     assert(srcid < gasnet_nodes());
     _test_seginfo[srcid] = *(gasnet_seginfo_t *)buf;
-    gasnett_local_wmb();
-    gasnett_atomic_increment(&_test_seggather_done);
+    gasnett_atomic_increment(&_test_seggather_done, GASNETT_ATOMIC_REL);
   }
   static int _test_segbcast_idx;
   static int _test_segbcast_done = 0;
@@ -698,7 +697,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     BARRIER();
     GASNET_Safe(gasnet_AMRequestMedium0(0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t)));
     if (gasnet_mynode() == 0) {
-      GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done) == (int)gasnet_nodes());
+      GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done, 0) == (int)gasnet_nodes());
       for (i=0; i < (int)gasnet_nodes(); i++) {
         GASNET_Safe(gasnet_AMRequestMedium0(i, _test_segbcast_idx, _test_seginfo, gasnet_nodes()*sizeof(gasnet_seginfo_t)));
       }

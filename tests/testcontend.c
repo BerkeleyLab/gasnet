@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcontend.c,v $
- *     $Date: 2006/02/10 07:38:12 $
- * $Revision: 1.12 $
+ *     $Date: 2006/03/16 01:57:38 $
+ * $Revision: 1.12.2.1 $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  
@@ -119,11 +119,11 @@ void report(gasnett_tick_t ticks) {
     thread_barrier();                                                                   \
     if (mythread == 0) {                                                                \
       int i;                                                                            \
-      gasnett_atomic_set(&pong,0);                                                      \
+      gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
         GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler));              \
-        POLLUNTIL(gasnett_atomic_read(&pong) > i);                                      \
+        POLLUNTIL(gasnett_atomic_read(&pong,0) > i);                                    \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
       GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_markdone_shorthandler));            \
@@ -158,7 +158,7 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
     thread_barrier();                                                                   \
     if (mythread == 0) {                                                                \
       int i;                                                                            \
-      gasnett_atomic_set(&pong,0);                                                      \
+      gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
         putgetstmt;                                                                     \
@@ -362,7 +362,7 @@ void ping_shorthandler(gasnet_token_t token) {
 }
 
 void pong_shorthandler(gasnet_token_t token) {
-  gasnett_atomic_increment(&pong);
+  gasnett_atomic_increment(&pong,0);
 }
 
 void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
@@ -370,7 +370,7 @@ void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
 void pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&pong);
+  gasnett_atomic_increment(&pong,0);
 }
 
 void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
@@ -378,7 +378,7 @@ void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
 void pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&pong);
+  gasnett_atomic_increment(&pong,0);
 }
 
 void noop_shorthandler(gasnet_token_t token) {

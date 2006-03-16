@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcore1.c,v $
- * $Date: 2006/01/28 21:21:46 $
- * $Revision: 1.19 $
+ * $Date: 2006/03/16 01:57:38 $
+ * $Revision: 1.19.2.1 $
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  *
@@ -135,7 +135,7 @@ chksum_test(int iters)
 				201, i, _mseed[i].seed));
 	}
 
-	while ( (received = gasnett_atomic_read(&chksum_received)) < iters ) {
+	while ( (received = gasnett_atomic_read(&chksum_received,0)) < iters ) {
 		/*
 		if (iamreceiver) {
 			if (received % 5 == 0) {
@@ -161,7 +161,7 @@ chksum_test(int iters)
 	BARRIER();
 
 	if (iamsender) {
-	        int success = gasnett_atomic_read(&chksum_success);
+	        int success = gasnett_atomic_read(&chksum_success,0);
 		printf("chksum_test(%d) passed %d/%d\n", chksum_iters, 
 		    success, received);
 	}
@@ -184,7 +184,7 @@ void chksum_reqh(gasnet_token_t token,
 {
         unsigned char   chksum_reqbuf[CHKSUM_TOTAL];
 
-	gasnett_atomic_increment(&chksum_received);
+	gasnett_atomic_increment(&chksum_received, 0);
 	chksum_gen(seed, &chksum_reqbuf);
 	monoseed_trace(iter, seed, &chksum_reqbuf, NULL);
 	GASNET_Safe( 
@@ -197,12 +197,12 @@ void
 chksum_reph(gasnet_token_t token, 
 	void *buf, size_t nbytes, gasnet_handlerarg_t iter) 
 {
-	gasnett_atomic_increment(&chksum_received);
+	gasnett_atomic_increment(&chksum_received, 0);
 	assert_always(iter < chksum_iters && iter >= 0);
 	assert_always(nbytes == CHKSUM_TOTAL);
 	monoseed_trace(iter, _mseed[iter].seed, &_mseed[iter].chksum, buf);
 	if (memcmp(&_mseed[iter].chksum, buf, CHKSUM_LENGTH) == 0) 
-  	        gasnett_atomic_increment(&chksum_success);
+  	        gasnett_atomic_increment(&chksum_success, 0);
 	else {
 		printf("iter %3d failed! chksum_local=", (int)iter);
 		CHKSUM_DUMP(&_mseed[iter].chksum);

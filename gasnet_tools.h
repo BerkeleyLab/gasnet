@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/03/11 00:40:51 $
- * $Revision: 1.56.2.3 $
+ *     $Date: 2006/03/16 01:57:34 $
+ * $Revision: 1.56.2.4 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,38 +54,50 @@
 
 #include <gasnet_atomicops.h>
 
+#define GASNETT_ATOMIC_NONE			GASNETI_ATOMIC_NONE
+#define GASNETT_ATOMIC_RMB_PRE			GASNETI_ATOMIC_RMB_PRE
+#define GASNETT_ATOMIC_RMB_POST			GASNETI_ATOMIC_RMB_POST
+#define GASNETT_ATOMIC_RMB_POST_IF_TRUE		GASNETI_ATOMIC_RMB_POST_IF_TRUE
+#define GASNETT_ATOMIC_RMB_POST_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
+#define GASNETT_ATOMIC_WMB_PRE			GASNETI_ATOMIC_WMB_PRE
+#define GASNETT_ATOMIC_WMB_POST			GASNETI_ATOMIC_WMB_POST
+#define GASNETT_ATOMIC_REL			GASNETI_ATOMIC_REL
+#define GASNETT_ATOMIC_ACQ			GASNETI_ATOMIC_ACQ
+#define GASNETT_ATOMIC_ACQ_IF_TRUE		GASNETI_ATOMIC_ACQ_IF_TRUE
+#define GASNETT_ATOMIC_ACQ_IF_FALSE		GASNETI_ATOMIC_ACQ_IF_FALSE
+
 #ifdef GASNET_SEQ
   /* safe to use weak atomics here, because the client is single-threaded and 
      should only be modifying atomics from the host CPU (using these calls). 
      TODO: consider exposing "signal-safe" atomics (only avail on some platforms)
   */
-  #define gasnett_atomic_t             gasneti_weakatomic_t
-  #define gasnett_atomic_read(p)       gasneti_weakatomic_read(p,0)
-  #define gasnett_atomic_init(v)       gasneti_weakatomic_init(v)
-  #define gasnett_atomic_set(p,v)      gasneti_weakatomic_set(p,v,0)
-  #define gasnett_atomic_increment(p)  gasneti_weakatomic_increment(p,0)
-  #define gasnett_atomic_decrement(p)  gasneti_weakatomic_decrement(p,0)
-  #define gasnett_atomic_decrement_and_test(p)  \
-                                       gasneti_weakatomic_decrement_and_test(p,0)
+  #define gasnett_atomic_t               gasneti_weakatomic_t
+  #define gasnett_atomic_read(p,f)       gasneti_weakatomic_read(p,f)
+  #define gasnett_atomic_init(v)         gasneti_weakatomic_init(v)
+  #define gasnett_atomic_set(p,v,f)      gasneti_weakatomic_set(p,v,f)
+  #define gasnett_atomic_increment(p,f)  gasneti_weakatomic_increment(p,f)
+  #define gasnett_atomic_decrement(p,f)  gasneti_weakatomic_decrement(p,f)
+  #define gasnett_atomic_decrement_and_test(p,f)  \
+                                         gasneti_weakatomic_decrement_and_test(p,f)
   #ifdef gasneti_weakatomic_compare_and_swap
     #define GASNETT_HAVE_ATOMIC_CAS 1
-    #define gasnett_atomic_compare_and_swap(p,oldval,newval)  \
-                                       gasneti_weakatomic_compare_and_swap(p,oldval,newval,0)
+    #define gasnett_atomic_compare_and_swap(p,oldval,newval,f)  \
+                                         gasneti_weakatomic_compare_and_swap(p,oldval,newval,f)
   #endif
 #else
   /* PAR, PARSYNC and non-libgasnet clients (which may have threads) */
-  #define gasnett_atomic_t             gasneti_atomic_t
-  #define gasnett_atomic_read(p)       gasneti_atomic_read(p,0)
-  #define gasnett_atomic_init(v)       gasneti_atomic_init(v)
-  #define gasnett_atomic_set(p,v)      gasneti_atomic_set(p,v,0)
-  #define gasnett_atomic_increment(p)  gasneti_atomic_increment(p,0)
-  #define gasnett_atomic_decrement(p)  gasneti_atomic_decrement(p,0)
-  #define gasnett_atomic_decrement_and_test(p)  \
-                                       gasneti_atomic_decrement_and_test(p,0)
+  #define gasnett_atomic_t               gasneti_atomic_t
+  #define gasnett_atomic_read(p,f)       gasneti_atomic_read(p,f)
+  #define gasnett_atomic_init(v)         gasneti_atomic_init(v)
+  #define gasnett_atomic_set(p,v,f)      gasneti_atomic_set(p,v,f)
+  #define gasnett_atomic_increment(p,f)  gasneti_atomic_increment(p,f)
+  #define gasnett_atomic_decrement(p,f)  gasneti_atomic_decrement(p,f)
+  #define gasnett_atomic_decrement_and_test(p,f)  \
+                                         gasneti_atomic_decrement_and_test(p,f)
   #ifdef GASNETI_HAVE_ATOMIC_CAS
     #define GASNETT_HAVE_ATOMIC_CAS 1
-    #define gasnett_atomic_compare_and_swap(p,oldval,newval)  \
-                                       gasneti_atomic_compare_and_swap(p,oldval,newval,0)
+    #define gasnett_atomic_compare_and_swap(p,oldval,newval,f)  \
+                                         gasneti_atomic_compare_and_swap(p,oldval,newval,f)
   #endif
 #endif
 

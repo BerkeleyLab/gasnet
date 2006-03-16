@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2006/02/16 00:22:48 $
- * $Revision: 1.26 $
+ *     $Date: 2006/03/16 01:57:38 $
+ * $Revision: 1.26.2.1 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -205,17 +205,17 @@ void doit2() { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("gasnett_local_rmb", gasnett_local_rmb());
     TIME_OPERATION("gasnett_local_mb", gasnett_local_mb());
 
-    TIME_OPERATION("gasnett_atomic_read", gasnett_atomic_read(&a));
-    TIME_OPERATION("gasnett_atomic_set", gasnett_atomic_set(&a,1));
-    TIME_OPERATION("gasnett_atomic_increment", gasnett_atomic_increment(&a));
-    TIME_OPERATION("gasnett_atomic_decrement", gasnett_atomic_decrement(&a));
-    TIME_OPERATION("gasnett_atomic_decrement_and_test", gasnett_atomic_decrement_and_test(&a));
+    TIME_OPERATION("gasnett_atomic_read", gasnett_atomic_read(&a,0));
+    TIME_OPERATION("gasnett_atomic_set", gasnett_atomic_set(&a,1,0));
+    TIME_OPERATION("gasnett_atomic_increment", gasnett_atomic_increment(&a,0));
+    TIME_OPERATION("gasnett_atomic_decrement", gasnett_atomic_decrement(&a,0));
+    TIME_OPERATION("gasnett_atomic_decrement_and_test", gasnett_atomic_decrement_and_test(&a,0));
 
 #if defined(GASNETT_HAVE_ATOMIC_CAS)
-    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (result=1)", { gasnett_atomic_set(&a,0); },
-			{ gasnett_atomic_compare_and_swap(&a,0,0); }, {});
-    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (result=0)", { gasnett_atomic_set(&a,1); },
-			{ gasnett_atomic_compare_and_swap(&a,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (result=1)", { gasnett_atomic_set(&a,0,0); },
+			{ gasnett_atomic_compare_and_swap(&a,0,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (result=0)", { gasnett_atomic_set(&a,1,0); },
+			{ gasnett_atomic_compare_and_swap(&a,0,0,0); }, {});
 #endif
 
     doit3();
