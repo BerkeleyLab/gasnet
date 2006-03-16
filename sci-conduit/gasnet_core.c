@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/08/09 12:06:45 $
- * $Revision: 1.18 $
+ *     $Date: 2006/03/16 00:43:58 $
+ * $Revision: 1.18.12.1 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -454,13 +454,13 @@ extern void gasnetc_exit(int exitcode) {
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
+  gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
 
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
   /* (###) add code here to write the source index into sourceid */
-  gasnetc_sci_token_t * curr_token = (gasnetc_sci_token_t *) token;
   sourceid = curr_token->source_id;
 
   gasneti_assert(sourceid < gasneti_nodes);
