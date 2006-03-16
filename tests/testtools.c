@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/03/16 01:57:38 $
- * $Revision: 1.36.2.1 $
+ *     $Date: 2006/03/16 20:07:54 $
+ * $Revision: 1.36.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -265,11 +265,11 @@ gasnett_atomic_t _thread_barrier = gasnett_atomic_init(0);
 
 #define THREAD_BARRIER() do {                                               \
    barcnt++;                                                                \
-   gasnett_local_mb();                                                      \
-   gasnett_atomic_increment(&_thread_barrier,0);                            \
+   gasnett_atomic_increment(&_thread_barrier, GASNETT_ATOMIC_REL);          \
    while (gasnett_atomic_read(&_thread_barrier,0) < (barcnt*NUM_THREADS)) { \
       gasnett_sched_yield();                                                \
-    }                                                                       \
+   }                                                                        \
+   gasnett_local_rmb(); /* Acquire */                                       \
   } while(0)                                                                \
 
 #undef TEST_HEADER

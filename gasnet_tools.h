@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/03/16 01:57:34 $
- * $Revision: 1.56.2.4 $
+ *     $Date: 2006/03/16 20:07:52 $
+ * $Revision: 1.56.2.5 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -65,6 +65,8 @@
 #define GASNETT_ATOMIC_ACQ			GASNETI_ATOMIC_ACQ
 #define GASNETT_ATOMIC_ACQ_IF_TRUE		GASNETI_ATOMIC_ACQ_IF_TRUE
 #define GASNETT_ATOMIC_ACQ_IF_FALSE		GASNETI_ATOMIC_ACQ_IF_FALSE
+#define GASNETT_ATOMIC_MB_PRE			GASNETI_ATOMIC_MB_PRE
+#define GASNETT_ATOMIC_MB_POST			GASNETI_ATOMIC_MB_POST
 
 #ifdef GASNET_SEQ
   /* safe to use weak atomics here, because the client is single-threaded and 
