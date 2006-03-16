@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/15 21:24:20 $
- * $Revision: 1.85.2.7 $
+ *     $Date: 2006/03/16 01:21:52 $
+ * $Revision: 1.85.2.8 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,12 +23,12 @@
     contents of a gasneti_atomic_t), and if the gasneti_atomic_t data is only  
     addressable by the current process (e.g. not in a System V shared memory segment)
 
-    gasneti_atomic_init(v)      initializer for an gasneti_atomic_t to value v
-    gasneti_atomic_set(p,v)     atomically sets *p to value v
-    gasneti_atomic_read(p)      atomically read and return the value of *p
-    gasneti_atomic_increment(p) atomically increment *p (no return value)
-    gasneti_atomic_decrement(p) atomically decrement *p (no return value)
-    gasneti_atomic_decrement_and_test(p) 
+    gasneti_atomic_init(v)        initializer for an gasneti_atomic_t to value v
+    gasneti_atomic_set(p,v,f)     atomically sets *p to value v
+    gasneti_atomic_read(p,f)      atomically read and return the value of *p
+    gasneti_atomic_increment(p,f) atomically increment *p (no return value)
+    gasneti_atomic_decrement(p,f) atomically decrement *p (no return value)
+    gasneti_atomic_decrement_and_test(p,f) 
       atomically decrement *p, return non-zero iff the new value is 0
 
    Semi-portable atomic compare and swap:
@@ -36,7 +36,7 @@
    This useful operation is not available on all platforms
    On platforms where it is implemented
 
-     gasneti_atomic_compare_and_swap(p, oldval, newval)
+     gasneti_atomic_compare_and_swap(p, oldval, newval, flags)
 
    is the atomic equivalent of:
 
@@ -47,13 +47,14 @@
       return 0;
     }
 
-   NOTE: This funtion has neither Acquire nor Release semantics on it own.
-   Use of gasneti_atomic_compare_and_swap() to Release should be preceded
-   by gasneti_sync_writes() (or gasneti_local_wmb()).
-   To Acquire, gasneti_sync_reads() (or gasneti_local_rmb()) should follow
-   a "successful" call to gasneti_atomic_compare_and_swap().
-
    GASNETI_HAVE_ATOMIC_CAS will be defined to 1 on platforms supporting this operation.
+
+
+   NOTE: Atomic operations have no default memory fence properties, as this
+   varies by platform.  Every atomic operation except _init() includes a final
+   argument (f or flags) to indicate the caller's minimum fence requirements.
+   Depending on the platform, the implementation may use fences stronger than
+   those requested, but never weaker.
  */
 
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */          \
