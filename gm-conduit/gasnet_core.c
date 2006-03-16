@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2006/03/11 00:40:57 $
- * $Revision: 1.97.8.2 $
+ * $Date: 2006/03/16 01:06:23 $
+ * $Revision: 1.97.8.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -554,7 +554,6 @@ gasnetc_exit_old(int exitcode)
   #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
 #endif
 
-gasneti_atomic_t gasnetc_exit_running = gasneti_atomic_init(0);		/* boolean used by GASNETC_IS_EXITING */
 
 static gasneti_atomic_t gasnetc_exit_code = gasneti_atomic_init(0);	/* value to _exit() with */
 static gasneti_atomic_t gasnetc_exit_reqs = gasneti_atomic_init(0);	/* count of remote exit requests */
@@ -712,13 +711,11 @@ static int gasnetc_exit_head(int exitcode) {
   static gasneti_atomic_t once = gasneti_atomic_init(1);
   int retval;
 
-  gasneti_atomic_set(&gasnetc_exit_running, 1, 0);
-
   retval = gasneti_atomic_decrement_and_test(&once, 0);
 
   if (retval) {
     /* Store the exit code for later use */
-    gasneti_atomic_set(&gasnetc_exit_code, exitcode, 0);
+    gasneti_atomic_set(&gasnetc_exit_code, exitcode, GASNETI_ATOMIC_WMB_POST);
   }
 
   return retval;
@@ -736,7 +733,7 @@ static int gasnetc_exit_head(int exitcode) {
 static void gasnetc_exit_now(int) GASNETI_NORETURN;
 static void gasnetc_exit_now(int exitcode) {
   /* If anybody is still waiting, let them go */
-  gasneti_atomic_set(&gasnetc_exit_done, 1, 0);
+  gasneti_atomic_set(&gasnetc_exit_done, 1, GASNETI_ATOMIC_WMB_POST);
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_exit(): node %i/%i calling killmyprocess...\n", 
@@ -762,7 +759,7 @@ static void gasnetc_exit_now(int exitcode) {
  */
 static void gasnetc_exit_tail(void) GASNETI_NORETURN;
 static void gasnetc_exit_tail(void) {
-  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code, 0));
+  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE));
   /* NOT REACHED */
 }
 
@@ -778,7 +775,10 @@ static void gasnetc_exit_tail(void) {
 static void gasnetc_exit_sighandler(int sig) {
   #if GASNET_DEBUG
   /* note - can't call trace macros here, or even sprintf */
-  {
+  if (sig == SIGALRM) {
+    static const char msg1[] = "gasnet_exit(): timeout during exit... goodbye\n";
+    write(STDERR_FILENO, msg1, sizeof(msg1) - 1);
+  } else {
     static const char msg1[] = "gasnet_exit(): signal ";
     static const char msg2[] = " received during exit... goodbye\n";
     char digit;
@@ -797,7 +797,17 @@ static void gasnetc_exit_sighandler(int sig) {
   }
   #endif
 
-  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code, 0));
+  #ifdef GASNETC_GM_MPI_COMPAT
+    /* We ask the bootstrap support to kill us, but only once */
+    static gasneti_atomic_t once = gasneti_atomic_init(1);
+    if (gasneti_atomic_decrement_and_test(&once, 0)) {
+      gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+      alarm(5);
+      gasneti_bootstrapAbort_mpi((int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE));
+    }
+  #endif
+
+  gasnetc_exit_now((int)gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE));
   /* NOT REACHED */
 }
 
@@ -818,17 +828,17 @@ static void gasnetc_exit_sighandler(int sig) {
  */
 static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   int i, rc;
-  int64_t start_time;
+  gasneti_stattime_t start_time;
 
   gasneti_assert(timeout_us > 0); 
 
-  start_time = gasneti_getMicrosecondTimeStamp();
+  start_time = GASNETI_STATTIME_NOW();
 
   /* Notify phase */
   for (i = 0; i < gasneti_nodes; ++i) {
     if (i == gasneti_mynode) continue;
 
-    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+    if (GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - start_time) / 1000 > timeout_us) return -1;
 
     /* XXX */
     rc = gasnetc_RequestSystem(i, gasneti_handleridx(gasnetc_SysExit_reqh),
@@ -838,7 +848,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
 
   /* Wait phase - wait for replies from our N-1 peers */
   while (gasneti_atomic_read(&gasnetc_exit_reps, 0) < (gasneti_nodes - 1)) {
-    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+    if (GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - start_time) / 1000 > timeout_us) return -1;
 
     gasneti_AMPoll();
   }
@@ -855,15 +865,15 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
  * Returns 0 on success, non-zero on timeout.
  */
 static int gasnetc_exit_slave(int64_t timeout_us) {
-  int64_t start_time;
+  gasneti_stattime_t start_time;
 
   gasneti_assert(timeout_us > 0); 
 
-  start_time = gasneti_getMicrosecondTimeStamp();
+  start_time = GASNETI_STATTIME_NOW();
 
   /* wait until the exit request is received from the master */
   while (gasneti_atomic_read(&gasnetc_exit_reqs, 0) == 0) {
-    if ((gasneti_getMicrosecondTimeStamp() - start_time) > timeout_us) return -1;
+    if (GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - start_time) / 1000 > timeout_us) return -1;
 
     gasneti_AMPoll(); /* works even before _attach */
   }
@@ -906,7 +916,7 @@ static void gasnetc_exit_body(void) {
     static gasneti_atomic_t exit_lock = gasneti_atomic_init(1);
     if (!gasneti_atomic_decrement_and_test(&exit_lock, 0)) {
       /* poll until it is time to exit */
-      while (!gasneti_atomic_read(&gasnetc_exit_done, 0)) {
+      while (!gasneti_atomic_read(&gasnetc_exit_done, GASNETI_ATOMIC_RMB_PRE)) {
         gasneti_sched_yield(); /* NOT safe to use sleep() here - conflicts with alarm() */
       }
       gasnetc_exit_tail();
@@ -915,7 +925,7 @@ static void gasnetc_exit_body(void) {
   }
 
   /* read exit code, stored by first caller to gasnetc_exit_head() */
-  exitcode = gasneti_atomic_read(&gasnetc_exit_code, 0);
+  exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
 
   /* Establish a last-ditch signal handler in case of failure. */
   alarm(0);

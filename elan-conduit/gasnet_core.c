@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/03/11 00:40:53 $
- * $Revision: 1.66.2.2 $
+ *     $Date: 2006/03/16 01:06:21 $
+ * $Revision: 1.66.2.3 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -769,9 +769,9 @@ static void gasnetc_atexit(void) {
       gasneti_fatalerror("recieved an unknown signal (%i) in gasnetc_remoteexithandler()", sig);
 
     /* record that some node signalled us */
-    gasneti_atomic_increment(&gasnetc_remoteexitrecvd, 0);
+    gasneti_atomic_increment(&gasnetc_remoteexitrecvd, GASNETI_ATOMIC_WMB_POST);
 
-    if (gasneti_atomic_decrement_and_test(&gasnetc_remoteexitflag, 0)) {
+    if (gasneti_atomic_decrement_and_test(&gasnetc_remoteexitflag, GASNETI_ATOMIC_WMB_POST)) {
       /* some remote node just informed us that it's exiting, 
          and it's the first we've heard about an exit 
       */
@@ -809,7 +809,7 @@ static void gasnetc_atexit(void) {
 
     /* inform the GASNETC_REMOTEEXIT_SIGNAL handler that we're working on it and 
        shouldn't be bothered further */
-    gasneti_atomic_decrement(&gasnetc_remoteexitflag, 0);
+    gasneti_atomic_decrement(&gasnetc_remoteexitflag, GASNETI_ATOMIC_WMB_POST);
 
     {  /* ensure only one thread ever continues past this point */
       static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
@@ -855,7 +855,7 @@ static void gasnetc_atexit(void) {
     gasneti_trace_finish();
     gasneti_sched_yield();
 
-    if (gasneti_atomic_read(&gasnetc_remoteexitrecvd, 0) == 0) { 
+    if (gasneti_atomic_read(&gasnetc_remoteexitrecvd, GASNETI_ATOMIC_RMB_PRE) == 0) { 
       /* we initiated this shutdown synchronously, and it appears that no remote node 
          has signaled yet (reduce duplication of global termination signalling, 
          esp for collective exit)
@@ -887,8 +887,8 @@ static void gasnetc_atexit(void) {
 #else /* !GASNETC_USE_SIGNALING_EXIT */
   extern void gasnetc_exit(int exitcode) {
     /* do a naive non-collective exit */
-   if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
-    fprintf(stderr,"WARNING: no recognized job spawner detected. This exit may leave zombie processes.\n",msg);
+    if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
+     fprintf(stderr,"WARNING: no recognized job spawner detected. This exit may leave zombie processes.\n");
     gasneti_flush_streams();
     gasneti_trace_finish();
     gasneti_sched_yield();
