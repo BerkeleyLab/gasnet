@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/03/16 20:07:54 $
- * $Revision: 1.36.2.2 $
+ *     $Date: 2006/03/16 20:35:20 $
+ * $Revision: 1.36.2.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -360,7 +360,7 @@ void * thread_fn(void *arg) {
         gasnett_atomic_increment(&x5,0); /* tally win */
         if (gasnett_atomic_read(&x3,0) != 0) ERR("pounding dec-test mismatch x3");
         if (gasnett_atomic_read(&x4,0) != 0) ERR("pounding dec-test mismatch x4");
-        gasnett_atomic_set(&x4, NUM_THREADS, 0); /* go */
+        gasnett_atomic_set(&x4, NUM_THREADS, GASNETT_ATOMIC_REL); /* go */
       } else {
         while (gasnett_atomic_read(&x4,0) == 0) gasnett_sched_yield(); /* I lost - wait */
       }
@@ -369,13 +369,13 @@ void * thread_fn(void *arg) {
         gasnett_atomic_increment(&x5,0); /* tally win */
         if (gasnett_atomic_read(&x3,0) != 0) ERR(" pounding dec-test mismatch x3");
         if (gasnett_atomic_read(&x4,0) != 0) ERR("pounding dec-test mismatch x4");
-        gasnett_atomic_set(&x3, NUM_THREADS, 0); /* go */
+        gasnett_atomic_set(&x3, NUM_THREADS,  GASNETT_ATOMIC_REL); /* go */
       } else {
         while (gasnett_atomic_read(&x3,0) == 0) gasnett_sched_yield(); /* I lost - wait */
       }
     }
 
-    if (gasnett_atomic_read(&x5,0) != 2*iters)
+    if (gasnett_atomic_read(&x5, GASNETT_ATOMIC_RMB_PRE) != 2*iters)
       ERR("pounding dec-test mismatch");
   }
 
