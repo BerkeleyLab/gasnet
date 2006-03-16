@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.c,v $
- *     $Date: 2006/03/16 00:43:58 $
- * $Revision: 1.12.8.1 $
+ *     $Date: 2006/03/16 02:53:16 $
+ * $Revision: 1.12.8.2 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -35,7 +35,7 @@
 /*******************************************************
 		Big Phys Area Patch installed?
 *******************************************************/
-int GASNETC_BIGPHY_ENABLE = 1; /* set to 0 to disable (otherwise, auto-probe for it) */
+int gasnetc_bigphy_enable = 1; /* set to 0 to disable (otherwise, auto-probe for it) */
 
 /********************************************************
 					Global Variables
@@ -471,14 +471,14 @@ void gasnetc_get_free_mem() {
         int size, found, mod, orig_size;
         char title[100];
 
-        if (GASNETC_BIGPHY_ENABLE) {
+        if (gasnetc_bigphy_enable) {
             FILE* meminfo = fopen("/proc/bigphysarea", "r");
             if(meminfo == NULL) {
               #if GASNET_DEBUG_VERBOSE
                      /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
                      fprintf(stderr,"(%d) Failed to open /proc/bigphysarea, assuming no patch available...", gasneti_mynode); fflush(stderr);
               #endif
-              GASNETC_BIGPHY_ENABLE = 0;
+              gasnetc_bigphy_enable = 0;
             } else {
                 found = 0;
                 while((found == 0) && (feof(meminfo) == 0))
@@ -503,7 +503,7 @@ void gasnetc_get_free_mem() {
                 size = size - mod;
             }
         }
-        if (!GASNETC_BIGPHY_ENABLE) {
+        if (!gasnetc_bigphy_enable) {
             /*for now, we can only really use 1MB segment sizes */
             size = GASNETC_SCI_ONE_MB;
         }
@@ -836,7 +836,7 @@ void* gasnetc_create_gasnetc_sci_seg(uintptr_t *segsize, int index)
 	void* arg;
 	index = gasneti_nodes;
 
-	if (!GASNETC_BIGPHY_ENABLE)
+	if (!gasnetc_bigphy_enable)
 	{
 		if(*segsize >= GASNETC_SCI_ONE_MB)	/* can't currently use more than 1MB */
 		*segsize = GASNETC_SCI_ONE_MB;

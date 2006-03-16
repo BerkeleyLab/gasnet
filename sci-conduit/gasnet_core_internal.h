@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/17 06:46:54 $
- * $Revision: 1.10 $
+ *     $Date: 2006/03/16 02:53:16 $
+ * $Revision: 1.10.14.1 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -117,7 +117,7 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 /********************************************************
 					Global Variables
 ********************************************************/
-extern int GASNETC_BIGPHY_ENABLE;
+extern int gasnetc_bigphy_enable;
 extern sci_desc_t			*gasnetc_sci_sd;
 extern sci_desc_t			*gasnetc_sci_sd_gb;
 extern sci_desc_t			*gasnetc_sci_sd_remote;
