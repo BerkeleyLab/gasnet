@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/16 20:07:52 $
- * $Revision: 1.85.2.9 $
+ *     $Date: 2006/03/17 22:49:34 $
+ * $Revision: 1.85.2.10 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,6 +70,24 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Flags for memory fences */
+#define GASNETI_ATOMIC_NONE			0x00
+#define GASNETI_ATOMIC_RMB_PRE			0x01
+#define GASNETI_ATOMIC_RMB_POST_IF_TRUE		0x02
+#define GASNETI_ATOMIC_RMB_POST_IF_FALSE	0x04
+#define GASNETI_ATOMIC_WMB_PRE			0x10
+#define GASNETI_ATOMIC_WMB_POST			0x20
+
+#define GASNETI_ATOMIC_RMB_POST		(GASNETI_ATOMIC_RMB_POST_IF_TRUE | GASNETI_ATOMIC_RMB_POST_IF_FALSE)
+#define GASNETI_ATOMIC_MB_PRE		(GASNETI_ATOMIC_WMB_PRE | GASNETI_ATOMIC_RMB_PRE)
+#define GASNETI_ATOMIC_MB_POST		(GASNETI_ATOMIC_WMB_POST | GASNETI_ATOMIC_RMB_POST)
+
+#define GASNETI_ATOMIC_REL		GASNETI_ATOMIC_WMB_PRE
+#define GASNETI_ATOMIC_ACQ		GASNETI_ATOMIC_RMB_POST
+#define GASNETI_ATOMIC_ACQ_IF_TRUE	GASNETI_ATOMIC_RMB_POST_IF_TRUE
+#define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
+
+/* ------------------------------------------------------------------------------------ */
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
   /* a very slow but portable implementation of atomic ops */
   #define GASNETI_ATOMICOPS_NOT_SIGNALSAFE 1
@@ -78,34 +96,34 @@
     typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
     #define _gasneti_atomic_read(p)      ((p)->ctr)
     #define _gasneti_atomic_init(v)      { (v) }
-    #define _gasneti_atomic_set(p,v) do {                          \
+    #define _gasneti_atomic_set(p,v) do {                         \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         (p)->ctr = (v);                                           \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
-    #define _gasneti_atomic_increment(p) do {                      \
+    #define _gasneti_atomic_increment(p) do {                     \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         ((p)->ctr)++;                                             \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
-    #define _gasneti_atomic_decrement(p) do {                      \
+    #define _gasneti_atomic_decrement(p) do {                     \
         gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
         ((p)->ctr)--;                                             \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
     extern int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p);
-    #define GASNETI_GENERIC_DEC_AND_TEST_DEF                     \
+    #define GASNETI_GENERIC_DEC_AND_TEST_DEF                      \
     int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) { \
-      uint32_t newval;                                           \
-      gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);    \
-      newval = p->ctr - 1;                                       \
-      p->ctr = newval;                                           \
-      gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);  \
-      return (newval == 0);                                      \
+      uint32_t newval;                                            \
+      gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);     \
+      newval = p->ctr - 1;                                        \
+      p->ctr = newval;                                            \
+      gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
+      return (newval == 0);                                       \
     }
     extern int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval);
     #define GASNETI_GENERIC_CAS_DEF                              \
-    int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,     \
+    int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,    \
                                         uint32_t oldval,         \
                                         uint32_t newval) {       \
       int retval;                                                \
@@ -118,6 +136,13 @@
       return retval;                                             \
     }
     #define GASNETI_HAVE_ATOMIC_CAS 1
+    #if (GASNET_PAR || GASNETI_CONDUIT_THREADS)
+      /* Using real HSLs which yeild an ACQ/RMB before and REL/WMB after the atomic */
+      #define GASNETI_ATOMIC_FENCE_SET (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+      #define GASNETI_ATOMIC_FENCE_SET (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+    #else
+      /* HSLs compile away, so use defaults */
+    #endif
   #elif defined(_REENTRANT) || defined(_THREAD_SAFE) || \
         defined(PTHREAD_MUTEX_INITIALIZER) ||           \
         defined(HAVE_PTHREAD) || defined(HAVE_PTHREAD_H)
@@ -148,19 +173,19 @@
     typedef struct { volatile uint32_t ctr; char _pad; } gasneti_atomic_t;
     #define _gasneti_atomic_read(p)      ((p)->ctr)
     #define _gasneti_atomic_init(v)      { (v) }
-    #define _gasneti_atomic_set(p,v) do {               \
+    #define _gasneti_atomic_set(p,v) do {              \
         GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         (p)->ctr = (v);                                \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    #define _gasneti_atomic_increment(p) do {           \
+    #define _gasneti_atomic_increment(p) do {          \
         GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         ((p)->ctr)++;                                  \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    #define _gasneti_atomic_decrement(p) do {           \
+    #define _gasneti_atomic_decrement(p) do {          \
         GASNETI_ATOMICOP_INITCHECK();                  \
         pthread_mutex_lock(&gasneti_atomicop_mutex);   \
         ((p)->ctr)--;                                  \
@@ -190,6 +215,14 @@
       return retval;
     }
     #define GASNETI_HAVE_ATOMIC_CAS 1
+    #if (defined(__APPLE__) && defined(__MACH__))
+      /* OSX/Darwin tries to be too smart when only 1 thread is running, so use defaults */
+      /* XXX: determine what fence (if any) might still be present? */
+    #else
+      /* Using real mutexes which yeild an ACQ/RMB before and REL/WMB after the atomic */
+      #define GASNETI_ATOMIC_FENCE_SET (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+      #define GASNETI_ATOMIC_FENCE_SET (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+    #endif
   #else
     /* only one thread - everything atomic by definition */
     /* attempt to generate a compile error if pthreads actually are in use */
@@ -205,6 +238,7 @@
     #define _gasneti_atomic_decrement_and_test(p) ((--(*(p))) == 0)
     #define _gasneti_atomic_compare_and_swap(p,oldval,newval) \
               (*(p) == (oldval) ? *(p) = (newval), 1 : 0)
+    /* bug1405: using default fences */
   #endif
 #else
   /* ------------------------------------------------------------------------------------
@@ -255,7 +289,7 @@
       #define _gasneti_atomic_decrement_and_test(p) \
                                           (int_fetch_add((p),-1) == 1) 
       /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
-  #elif 0 && defined(SOLARIS)
+  #elif 0 && defined(SOLARIS) /* DISABLED */
       /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
          to the user... after all, what application would be interested in performance? */
       #include <sys/atomic.h>
@@ -278,10 +312,7 @@
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* bug1405: x86 and x86_64 include full memory fence in locked RMW insns */
-      #define _gasneti_atomic_fence_before_rmw(f)	((void)0)
-      #define _gasneti_atomic_fence_after_rmw(f)	((void)0)
-      #define _gasneti_atomic_fence_before_bool(f)	((void)0)
-      #define _gasneti_atomic_fence_after_bool(f,v)	((void)0)
+      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
   /* ------------------------------------------------------------------------------------
    * No OS-provided atomics, so try to provide our own, based on the CPU and compiler 
    * support for inline assembly code
@@ -343,10 +374,7 @@
       }
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* bug1405: x86 and x86_64 include full memory fence in locked RMW insns */
-      #define _gasneti_atomic_fence_before_rmw(f)	((void)0)
-      #define _gasneti_atomic_fence_after_rmw(f)	((void)0)
-      #define _gasneti_atomic_fence_before_bool(f)	((void)0)
-      #define _gasneti_atomic_fence_after_bool(f,v)	((void)0)
+      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -416,7 +444,8 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
+      /* XXX bug1405: our CAS includes the following fences (TODO: CUSTOMIZE OR WEAKEN?) */
+      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_ACQ)
     #elif defined(__HP_cc) || defined(__HP_aCC) /* HP C/C++ Itanium intrinsics */
       #include <machine/sys/inline.h>
       /* legal values for imm are -16, -8, -4, -1, 1, 4, 8, and 16 
@@ -444,11 +473,8 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* bug1405: using no fences on RMW (TODO: WEAKEN OR CUSTOMIZE CODE ABOVE) */
-      #define _gasneti_atomic_fence_before_rmw(f)	((void)0)
-      #define _gasneti_atomic_fence_after_rmw(f)	((void)0)
-      #define _gasneti_atomic_fence_before_bool(f)	((void)0)
-      #define _gasneti_atomic_fence_after_bool(f,v)	((void)0)
+      /* XXX bug1405: built-in ACQ on RMW (TODO: WEAKEN OR CUSTOMIZE CODE ABOVE?) */
+      #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
     #else
       #error unrecognized Itanium compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -498,7 +524,7 @@
        return ret;
      }
      #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
+     /* bug1405: no fences in our asm, so using default fences */
     #elif (defined(__DECC) || defined(__DECCXX)) && defined(__osf__)
        /* Compaq C / OSF atomics are compiler built-ins */
        #include <sys/machine/builtins.h>
@@ -525,7 +551,7 @@
 		    "2:	", p, oldval, newval);  /* Returns value from %v0 */
        }
        #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
+       /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
     #else
       #error unrecognized Alpha compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -536,6 +562,7 @@
         static __inline__ int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op) {
           /* SPARC v9 architecture manual, p.333 
            * This function requires the cas instruction in Sparc V9, and therefore gcc -mcpu=ultrasparc
+	   * The manual says (sec A.9) no memory fences in CAS (in conflict w/ JMM web page).
            */
           register int32_t volatile * addr = (int32_t volatile *)v;
           register int32_t oldval;
@@ -547,7 +574,7 @@
             "add      %0,%3,%1 \n\t"   /* newval = oldval + op; */
             "cas      [%2],%0,%1 \n\t" /* if (*addr == oldval) { *addr = newval; }  newval = *addr; */
             "cmp      %0, %1 \n\t"     /* check if newval == oldval (swap succeeded) */
-            "bne      0b \n\t"         /* otherwise, try again */
+            "bne,pn   0b \n\t"         /* otherwise, try again (,pn == predict not taken) */
             "membar #StoreLoad | #StoreStore    \n\t" /* complete previous cas store before all subsequent ops */
             : "=&r"(oldval), "=&r"(newval)
             : "r" (addr), "rn"(op) 
@@ -575,7 +602,8 @@
           return (int)(newval == oldval);
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: using default fences (TODO: WEAKEN AS APPROPRIATE) */
+        /* XXX bug1405: our asm includes the following: (TODO: CUSTOMIZE?) */
+	#define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
       #else
         #error unrecognized Sparc v9 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
       #endif
@@ -664,7 +692,11 @@
           return retval;
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
-        /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
+        /* bug1405: Our asm has the following fences */
+	#define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_PRE
+	#define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_WMB_PRE
+	#define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_PRE
+        /* XXX bug1405: TODO: Our set also has RMB_PRE unless uninitialized */
       #else
         #error unrecognized Sparc pre-v9 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
       #endif
@@ -788,7 +820,11 @@
         return retval;
       }
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM, SeqConsistent) */
+      /* bug1405: Our asm has the following fences */
+      #define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_PRE
+      #define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_WMB_PRE
+      #define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_PRE
+      /* XXX bug1405: TODO: Our set also has RMB_PRE unless uninitialized */
   /* ------------------------------------------------------------------------------------ */
   #elif defined(__crayx1) /* This works on X1, but NOT the T3E */
     #include <intrinsics.h>
@@ -914,20 +950,8 @@
       #define _gasneti_atomic_compare_and_swap(p, oldval, newval) \
 	(gasneti_atomic_swap_not_32(&((p)->ctr),(oldval),(newval)) == 0)
       #define GASNETI_HAVE_ATOMIC_CAS 1
+      /* bug1405: using default fences as we have none in our asms */
     #elif defined(__GNUC__)
-      static __inline__ void gasneti_atomic_add_32(int32_t volatile *v, int32_t op) {
-        register int32_t volatile * addr = (int32_t volatile *)v;
-        register int32_t result;
-        __asm__ __volatile__ ( 
-          "0:\t" 
-          "lwarx    %0,0,%1 \n\t" 
-          "add%I2   %0,%0,%2 \n\t"
-          "stwcx.   %0,0,%1 \n\t"
-          "bne-     0b \n\t" 
-          : "=&b"(result)		/* constraint b = "b"ase register (not r0) */
-          : "r" (addr), "Ir"(op) 
-          : "cr0", "memory");
-      }
       static __inline__ int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op) {
         register int32_t volatile * addr = (int32_t volatile *)v;
         register int32_t result;
@@ -943,8 +967,8 @@
         return result;
       }
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define _gasneti_atomic_increment(p) (gasneti_atomic_add_32(&((p)->ctr),1))
-      #define _gasneti_atomic_decrement(p) (gasneti_atomic_add_32(&((p)->ctr),-1))
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
       #define _gasneti_atomic_read(p)      ((p)->ctr)
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
       #define _gasneti_atomic_init(v)      { (v) }
@@ -1018,7 +1042,7 @@
              (cmpxchg(&((p)->counter),oval,nval) == (oval))
         #define GASNETI_HAVE_ATOMIC_CAS 1
       #endif
-      /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM PER PLATFORM) */
+      /* bug1405: using default fences as we can't hope to know what to expect on new platforms */
   #else
     #error Unrecognized platform - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
   #endif
@@ -1034,126 +1058,104 @@
 /* Uniform memory fences for GASNet atomics.
  */
 
-#define GASNETI_ATOMIC_NONE			0x00
-#define GASNETI_ATOMIC_RMB_PRE			0x01
-#define GASNETI_ATOMIC_RMB_POST			0x02
-#define GASNETI_ATOMIC_RMB_POST_IF_TRUE		0x04
-#define GASNETI_ATOMIC_RMB_POST_IF_FALSE	0x08
-#define GASNETI_ATOMIC_WMB_PRE			0x10
-#define GASNETI_ATOMIC_WMB_POST			0x20
-/* #define GASNETI_ATOMIC_WMB_POST_IF_TRUE	0x40 */
-/* #define GASNETI_ATOMIC_WMB_POST_IF_FALSE	0x80 */
-#define GASNETI_ATOMIC_MB_PRE		(GASNETI_ATOMIC_WMB_PRE | GASNETI_ATOMIC_RMB_PRE)
-#define GASNETI_ATOMIC_MB_POST		(GASNETI_ATOMIC_WMB_POST | GASNETI_ATOMIC_RMB_POST)
-
-/* Usefull Aliases */
-#define GASNETI_ATOMIC_REL		GASNETI_ATOMIC_WMB_PRE
-#define GASNETI_ATOMIC_ACQ		GASNETI_ATOMIC_RMB_POST
-#define GASNETI_ATOMIC_ACQ_IF_TRUE	GASNETI_ATOMIC_RMB_POST_IF_TRUE
-#define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
-
 /* Default implementations of fences in atomics. */
-#define GASNETI_ATOMIC_PRE_MASK	 (GASNETI_ATOMIC_WMB_PRE | GASNETI_ATOMIC_RMB_PRE)
+
 #define _gasneti_atomic_fence_before(__f) do {                     \
-    int __tmp = ((__f) & GASNETI_ATOMIC_PRE_MASK);                 \
+    int __tmp = ((__f) & GASNETI_ATOMIC_MB_PRE);                   \
     if      (__tmp == GASNETI_ATOMIC_MB_PRE)  gasneti_local_mb();  \
     else if (__tmp == GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb(); \
     else if (__tmp == GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb(); \
   } while(0)
-#define GASNETI_ATOMIC_POST_MASK (GASNETI_ATOMIC_WMB_POST | GASNETI_ATOMIC_RMB_POST)
 #define _gasneti_atomic_fence_after(__f) do {                       \
-    int __tmp = ((__f) & GASNETI_ATOMIC_POST_MASK);                 \
+    int __tmp = ((__f) & GASNETI_ATOMIC_MB_POST);                   \
     if      (__tmp == GASNETI_ATOMIC_MB_POST)  gasneti_local_mb();  \
     else if (__tmp == GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb(); \
     else if (__tmp == GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb(); \
+    else gasneti_assert(__tmp == 0); /* Detect RMB_POST_IF_*  */    \
+  } while(0)
+#define _gasneti_atomic_fence_after_bool(__f, __v) do {                    \
+    int __tmp = ((__f) & GASNETI_ATOMIC_MB_POST);                          \
+    if      (__tmp == GASNETI_ATOMIC_MB_POST)  gasneti_local_mb();         \
+    else if (__tmp == GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();        \
+    else if (__tmp == GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();        \
+    else { /* TODO: deal better w/ systems where MB < RMB+WMB */           \
+      if (__tmp & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();            \
+      if (__v) {                                                           \
+        if (__tmp & GASNETI_ATOMIC_RMB_POST_IF_TRUE) gasneti_local_rmb();  \
+      } else {                                                             \
+        if (__tmp & GASNETI_ATOMIC_RMB_POST_IF_FALSE) gasneti_local_rmb(); \
+      }                                                                    \
+    }                                                                      \
   } while(0)
 
-#ifndef _gasneti_atomic_fence_before_set
-  #define _gasneti_atomic_fence_before_set _gasneti_atomic_fence_before
+/* Fences included in a given implementation, default to none */
+#ifndef GASNETI_ATOMIC_FENCE_SET
+  #define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_NONE
 #endif
-#ifndef _gasneti_atomic_fence_after_set
-  #define _gasneti_atomic_fence_after_set _gasneti_atomic_fence_after
+#ifndef GASNETI_ATOMIC_FENCE_READ
+  #define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_NONE
 #endif
-#ifndef _gasneti_atomic_fence_before_read
-  #define _gasneti_atomic_fence_before_read _gasneti_atomic_fence_before
-#endif
-#ifndef _gasneti_atomic_fence_after_read
-  #define _gasneti_atomic_fence_after_read _gasneti_atomic_fence_after
-#endif
-#ifndef _gasneti_atomic_fence_before_rmw
-  #define _gasneti_atomic_fence_before_rmw _gasneti_atomic_fence_before
-#endif
-#ifndef _gasneti_atomic_fence_after_rmw
-  #define _gasneti_atomic_fence_after_rmw _gasneti_atomic_fence_after
-#endif
-#ifndef _gasneti_atomic_fence_before_bool
-  #define _gasneti_atomic_fence_before_bool _gasneti_atomic_fence_before
-#endif
-#ifndef _gasneti_atomic_fence_after_bool
-  #define _gasneti_atomic_fence_after_bool(__f, __v) do {              \
-    _gasneti_atomic_fence_after(__f);                                  \
-    if (__v) {                                                         \
-      if (__f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) gasneti_local_rmb();  \
-    } else {                                                           \
-      if (__f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) gasneti_local_rmb(); \
-    }                                                                  \
-  } while(0)
+#ifndef GASNETI_ATOMIC_FENCE_RMW
+  #define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_NONE
 #endif
 
 #ifndef gasneti_atomic_init
   #define gasneti_atomic_init(v)                  _gasneti_atomic_init(v)
 #endif
 #ifndef gasneti_atomic_set
-  #define gasneti_atomic_set(p,v,f) do {       \
-    int __flags = (f);                         \
-    _gasneti_atomic_fence_before_set(__flags); \
-    _gasneti_atomic_set((p),(v));              \
-    _gasneti_atomic_fence_after_set(__flags);  \
+  #define gasneti_atomic_set(p,v,f) do {                 \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_SET; \
+    _gasneti_atomic_fence_before(__flags);               \
+    _gasneti_atomic_set((p),(v));                        \
+    _gasneti_atomic_fence_after(__flags);                \
   } while (0)
 #endif
 #ifndef gasneti_atomic_read
   GASNET_INLINE_MODIFIER(gasneti_atomic_read)
   uint32_t gasneti_atomic_read(gasneti_atomic_t *p, int flags) {
+    const int __flags = flags & ~GASNETI_ATOMIC_FENCE_READ;
     uint32_t retval;
-    _gasneti_atomic_fence_before_read(flags);
+    _gasneti_atomic_fence_before(__flags);
     retval = _gasneti_atomic_read(p);
-    _gasneti_atomic_fence_after_read(flags);
+    _gasneti_atomic_fence_after(__flags);
     return retval;
   }
 #endif
 #ifndef gasneti_atomic_increment
-  #define gasneti_atomic_increment(p,f) do {   \
-    int __flags = (f);                         \
-    _gasneti_atomic_fence_before_rmw(__flags); \
-    _gasneti_atomic_increment(p);              \
-    _gasneti_atomic_fence_after_rmw(__flags);  \
+  #define gasneti_atomic_increment(p,f) do {             \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW; \
+    _gasneti_atomic_fence_before(__flags);               \
+    _gasneti_atomic_increment(p);                        \
+    _gasneti_atomic_fence_after(__flags);                \
   } while (0)
 #endif
 #ifndef gasneti_atomic_decrement
-  #define gasneti_atomic_decrement(p,f) do {   \
-    int __flags = (f);                         \
-    _gasneti_atomic_fence_before_rmw(__flags); \
-    _gasneti_atomic_decrement(p);              \
-    _gasneti_atomic_fence_after_rmw(__flags);  \
+  #define gasneti_atomic_decrement(p,f) do {             \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW; \
+    _gasneti_atomic_fence_before(__flags);               \
+    _gasneti_atomic_decrement(p);                        \
+    _gasneti_atomic_fence_after(__flags);                \
   } while (0)
 #endif
 #ifndef gasneti_atomic_decrement_and_test
   GASNET_INLINE_MODIFIER(gasneti_atomic_decrement_and_test)
   int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, int flags) {
+    const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
     int retval;
-    _gasneti_atomic_fence_before_bool(flags);
+    _gasneti_atomic_fence_before(__flags);
     retval = _gasneti_atomic_decrement_and_test(p);
-    _gasneti_atomic_fence_after_bool(flags, retval);
+    _gasneti_atomic_fence_after_bool(__flags, retval);
     return retval;
   }
 #endif
 #if defined(GASNETI_HAVE_ATOMIC_CAS) && !defined(gasneti_atomic_compare_and_swap)
   GASNET_INLINE_MODIFIER(gasneti_atomic_compare_and_swap)
   int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, int flags) {
+    const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
     int retval;
-    _gasneti_atomic_fence_before_bool(flags);
+    _gasneti_atomic_fence_before(__flags);
     retval = _gasneti_atomic_compare_and_swap((p),(oldval),(newval));
-    _gasneti_atomic_fence_after_bool(flags, retval);
+    _gasneti_atomic_fence_after_bool(__flags, retval);
     return retval;
   }
 #endif
