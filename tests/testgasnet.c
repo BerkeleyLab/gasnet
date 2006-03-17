@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2006/02/17 19:45:17 $
- * $Revision: 1.41 $
+ *     $Date: 2006/03/17 22:46:10 $
+ * $Revision: 1.41.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,10 @@
 #include <other/amxtests/testam.h>
 
 void doit(int partner, int *partnerseg);
+void doit2(int partner, int *partnerseg);
+void doit3(int partner, int *partnerseg);
+void doit4(int partner, int *partnerseg);
+void doit5(int partner, int *partnerseg);
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_SEGMENT_EVERYTHING
@@ -286,8 +290,12 @@ void doit(int partner, int *partnerseg) {
     if (success) MSG("*** passed blocking list test!!");
   }
 
-  BARRIER();
+  doit2(partner, partnerseg);
+}
+void doit2(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
 
+  BARRIER();
   { /*  implicit test */
     GASNET_BEGIN_FUNCTION();
     int vals[100];
@@ -309,6 +317,11 @@ void doit(int partner, int *partnerseg) {
     }
     if (success) MSG("*** passed nbi test!!");
   }
+
+  doit3(partner, partnerseg);
+}
+void doit3(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
 
   BARRIER();
 
@@ -397,6 +410,11 @@ void doit(int partner, int *partnerseg) {
     if (success) MSG("*** passed value test!!");
   }
 
+  doit4(partner, partnerseg);
+}
+void doit4(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+
   BARRIER();
 
   { /*  memset test */
@@ -430,6 +448,11 @@ void doit(int partner, int *partnerseg) {
     }
     if (success) MSG("*** passed memset test!!");
   }
+
+  doit5(partner, partnerseg);
+}
+void doit5(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
 
   BARRIER();
 
