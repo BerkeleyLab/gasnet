@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/21 21:56:52 $
- * $Revision: 1.94.2.1 $
+ *     $Date: 2006/03/21 23:14:18 $
+ * $Revision: 1.94.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1068,14 +1068,13 @@
 
 /* Default implementations of fences in atomics. */
 
-/* _mb_{pre,post,post_bool}(): check for call to mb() */
+/* _mb_{pre,post,post_strict}(): check for call to mb() */
 #if GASNETI_RMB_IS_MB && GASNETI_WMB_IS_MB
   #define _gasneti_atomic_mb_pre(__f) \
     if ((__f) & GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
   #define _gasneti_atomic_mb_post(__f) \
     if ((__f) & GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
-  /* Can't use catch-all because of conditional rmb() */
-  #define _gasneti_atomic_mb_post_bool(__f) \
+  #define _gasneti_atomic_mb_post_strict(__f) \
     if ((((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST)  || \
         (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST) || \
         (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST)) gasneti_local_mb();
@@ -1083,46 +1082,73 @@
   #define _gasneti_atomic_mb_pre(__f) \
     if ((((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) || \
         (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_RMB_PRE)) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
+  #define _gasneti_atomic_mb_post_strict(__f) \
     if ((((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) || \
         (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST)) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post_bool _gasneti_atomic_mb_post
 #elif  GASNETI_WMB_IS_MB
   #define _gasneti_atomic_mb_pre(__f) \
     if ((((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) || \
         (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_WMB_PRE)) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
+  #define _gasneti_atomic_mb_post_strict(__f) \
     if ((((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) || \
         (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST)) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post_bool _gasneti_atomic_mb_post
 #else
   #define _gasneti_atomic_mb_pre(__f) \
     if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
+  #define _gasneti_atomic_mb_post_strict(__f) \
     if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post_bool _gasneti_atomic_mb_post
 #endif
 
-/* _rmb_{pre,post}(): check for call to rmb() */
+/* _rmb_{pre,post,post_strict}(): check for call to rmb() */
 #if GASNETI_RMB_IS_MB || GASNETI_RMB_IS_EMPTY
   #define _gasneti_atomic_rmb_pre(__f) /* nothing */
-  #define _gasneti_atomic_rmb_post(__f) /* nothing */
+  #define _gasneti_atomic_rmb_post_strict(__f) /* nothing */
 #else
   #define _gasneti_atomic_rmb_pre(__f) \
     else if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
-  #define _gasneti_atomic_rmb_post(__f) \
+  #define _gasneti_atomic_rmb_post_strict(__f) \
     else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #endif
 
-/* _wmb_{pre,post}(): check for call to wmb() */
+/* _wmb_{pre,post,post_strict}(): check for call to wmb() */
 #if GASNETI_WMB_IS_MB || GASNETI_WMB_IS_EMPTY
   #define _gasneti_atomic_wmb_pre(__f) /* nothing */
-  #define _gasneti_atomic_wmb_post(__f) /* nothing */
+  #define _gasneti_atomic_wmb_post_strict(__f) /* nothing */
 #else
   #define _gasneti_atomic_wmb_pre(__f) \
     else if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
-  #define _gasneti_atomic_wmb_post(__f) \
+  #define _gasneti_atomic_wmb_post_strict(__f) \
     else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+#endif
+
+/* Special case of interest, can short-cut all but post_strict checks */
+#if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
+  #undef _gasneti_atomic_mb_pre
+  #undef _gasneti_atomic_rmb_pre
+  #undef _gasneti_atomic_wmb_pre
+  #define _gasneti_atomic_mb_pre(__f) /* nothing */
+  #define _gasneti_atomic_rmb_pre(__f) \
+    if ((__f) & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
+  #define _gasneti_atomic_wmb_pre(__f) \
+    if ((__f) & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
+  #undef _gasneti_atomic_mb_post
+  #undef _gasneti_atomic_rmb_post
+  #undef _gasneti_atomic_wmb_post
+  #define _gasneti_atomic_mb_post(__f) /* nothing */
+  #define _gasneti_atomic_rmb_post(__f) \
+    if ((__f) & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
+  #define _gasneti_atomic_wmb_post(__f) \
+    if ((__f) & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+#endif
+
+#ifndef _gasneti_atomic_mb_post
+  #define _gasneti_atomic_mb_post _gasneti_atomic_mb_post_strict
+#endif
+#ifndef _gasneti_atomic_rmb_post
+  #define _gasneti_atomic_rmb_post _gasneti_atomic_rmb_post_strict
+#endif
+#ifndef _gasneti_atomic_wmb_post
+  #define _gasneti_atomic_wmb_post _gasneti_atomic_wmb_post_strict
 #endif
 
 /* _after_bool1(): handles flags containing conditional RMB_POST */
@@ -1172,9 +1198,9 @@
     _gasneti_atomic_wmb_post(__f) /* no semicolon */ \
   } while(0)
 #define _gasneti_atomic_fence_after_bool(__f, __v) do { \
-    _gasneti_atomic_mb_post_bool(__f)  /* no semicolon */          \
-    _gasneti_atomic_rmb_post(__f) /* no semicolon */               \
-    _gasneti_atomic_wmb_post(__f) /* no semicolon */               \
+    _gasneti_atomic_mb_post_strict(__f)  /* no semicolon */        \
+    _gasneti_atomic_rmb_post_strict(__f) /* no semicolon */        \
+    _gasneti_atomic_wmb_post_strict(__f) /* no semicolon */        \
     _gasneti_atomic_fence_after_bool1(__f, __v) /* no semicolon */ \
   } while(0)
 
