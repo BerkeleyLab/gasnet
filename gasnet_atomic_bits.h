@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/21 08:11:40 $
- * $Revision: 1.94 $
+ *     $Date: 2006/03/21 21:56:52 $
+ * $Revision: 1.94.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1068,29 +1068,114 @@
 
 /* Default implementations of fences in atomics. */
 
+/* _mb_{pre,post,post_bool}(): check for call to mb() */
+#if GASNETI_RMB_IS_MB && GASNETI_WMB_IS_MB
+  #define _gasneti_atomic_mb_pre(__f) \
+    if ((__f) & GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post(__f) \
+    if ((__f) & GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
+  /* Can't use catch-all because of conditional rmb() */
+  #define _gasneti_atomic_mb_post_bool(__f) \
+    if ((((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST)  || \
+        (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST) || \
+        (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST)) gasneti_local_mb();
+#elif  GASNETI_RMB_IS_MB
+  #define _gasneti_atomic_mb_pre(__f) \
+    if ((((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) || \
+        (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_RMB_PRE)) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post(__f) \
+    if ((((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) || \
+        (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST)) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post_bool _gasneti_atomic_mb_post
+#elif  GASNETI_WMB_IS_MB
+  #define _gasneti_atomic_mb_pre(__f) \
+    if ((((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) || \
+        (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_WMB_PRE)) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post(__f) \
+    if ((((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) || \
+        (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST)) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post_bool _gasneti_atomic_mb_post
+#else
+  #define _gasneti_atomic_mb_pre(__f) \
+    if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post(__f) \
+    if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
+  #define _gasneti_atomic_mb_post_bool _gasneti_atomic_mb_post
+#endif
+
+/* _rmb_{pre,post}(): check for call to rmb() */
+#if GASNETI_RMB_IS_MB || GASNETI_RMB_IS_EMPTY
+  #define _gasneti_atomic_rmb_pre(__f) /* nothing */
+  #define _gasneti_atomic_rmb_post(__f) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_pre(__f) \
+    else if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
+  #define _gasneti_atomic_rmb_post(__f) \
+    else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
+#endif
+
+/* _wmb_{pre,post}(): check for call to wmb() */
+#if GASNETI_WMB_IS_MB || GASNETI_WMB_IS_EMPTY
+  #define _gasneti_atomic_wmb_pre(__f) /* nothing */
+  #define _gasneti_atomic_wmb_post(__f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_pre(__f) \
+    else if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
+  #define _gasneti_atomic_wmb_post(__f) \
+    else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+#endif
+
+/* _after_bool1(): handles flags containing conditional RMB_POST */
+#if GASNETI_RMB_IS_EMPTY
+  #define _gasneti_atomic_fence_after_bool1(__f, __v) \
+    else if (__f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+#elif GASNETI_WMB_IS_EMPTY
+  #define _gasneti_atomic_fence_after_bool1(__f, __v)  \
+    else if (__f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) {  \
+      if (__v) gasneti_local_rmb();                    \
+    }                                                  \
+    else if (__f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) { \
+      if (!__v) gasneti_local_rmb();                   \
+    }
+#else
+  #define _gasneti_atomic_fence_after_bool1(__f, __v)    \
+  else {                                                 \
+    if (__f & GASNETI_ATOMIC_WMB_POST) {                 \
+      gasneti_local_wmb();                               \
+    }                                                    \
+    if (__f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) {         \
+      if (__v) gasneti_local_rmb();                      \
+    }                                                    \
+    else if (__f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) {   \
+      if (!__v) gasneti_local_rmb();                     \
+    }                                                    \
+  }
+
+  /* There are other optimizations possible when a full mb() is less costly
+     than wmb() + rmw(), especially when wmb() is a full mb().  However:
+     a) Though they all reduce to a single branch on __v, the code
+        "looks" big to the inliner before optimization.
+     b) There are no current callers that mix WMB_POST with a
+        conditional RMB/ACQ, and no likely reason to.
+     So, they are not implemented currently
+   */
+#endif
+
 #define _gasneti_atomic_fence_before(__f) do { \
-    if      (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE)  gasneti_local_mb();  \
-    else if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb(); \
-    else if (((__f) & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb(); \
+    _gasneti_atomic_mb_pre(__f)  /* no semicolon */ \
+    _gasneti_atomic_rmb_pre(__f) /* no semicolon */ \
+    _gasneti_atomic_wmb_pre(__f) /* no semicolon */ \
   } while(0)
 #define _gasneti_atomic_fence_after(__f) do {  \
-    if      (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST)  gasneti_local_mb();  \
-    else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb(); \
-    else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb(); \
-    else gasneti_assert(((__f) & GASNETI_ATOMIC_MB_POST) == 0); /* Detect RMB_POST_IF_*  */    \
+    _gasneti_atomic_mb_post(__f)  /* no semicolon */ \
+    _gasneti_atomic_rmb_post(__f) /* no semicolon */ \
+    _gasneti_atomic_wmb_post(__f) /* no semicolon */ \
   } while(0)
 #define _gasneti_atomic_fence_after_bool(__f, __v) do { \
-    if      (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST)  gasneti_local_mb();  \
-    else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb(); \
-    else if (((__f) & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb(); \
-    else { /* TODO: deal better w/ systems where MB < RMB+WMB */                               \
-      if (__f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();                                  \
-      if (__v) {                                                                               \
-        if (__f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) gasneti_local_rmb();                        \
-      } else {                                                                                 \
-        if (__f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) gasneti_local_rmb();                       \
-      }                                                                                        \
-    }                                                                                          \
+    _gasneti_atomic_mb_post_bool(__f)  /* no semicolon */          \
+    _gasneti_atomic_rmb_post(__f) /* no semicolon */               \
+    _gasneti_atomic_wmb_post(__f) /* no semicolon */               \
+    _gasneti_atomic_fence_after_bool1(__f, __v) /* no semicolon */ \
   } while(0)
 
 /* Fences included in a given implementation, default to none */
