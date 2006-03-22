@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/22 23:44:24 $
- * $Revision: 1.94.2.7 $
+ *     $Date: 2006/03/22 23:49:07 $
+ * $Revision: 1.94.2.8 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1316,9 +1316,6 @@
 						_gasneti_atomic_rmb_before(f) \
 						_gasneti_atomic_wmb_before(f)
 #endif
-#define _gasneti_weakatomic_fence_before_read(f)	_gasneti_atomic_mb_before(f)  \
-						_gasneti_atomic_rmb_before(f) \
-						_gasneti_atomic_wmb_before(f)
 #if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST
   #define _gasneti_atomic_fence_after_read(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_POST)
