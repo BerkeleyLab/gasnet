@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/03/21 21:50:42 $
- * $Revision: 1.86 $
+ *     $Date: 2006/03/22 23:44:24 $
+ * $Revision: 1.86.2.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -440,19 +440,21 @@
    THESE ARE *NOT* INTENDED FOR GENERAL USE IN CONDUIT CODE.
  */
 #ifndef GASNETI_RMB_IS_EMPTY
+  /* Default: assume rmb() is non-empty. */
   #define GASNETI_RMB_IS_EMPTY	0
 #else
   #undef GASNETI_RMB_IS_EMPTY
   #define GASNETI_RMB_IS_EMPTY	1
 #endif
 #ifndef GASNETI_WMB_IS_EMPTY
+  /* Default: assume wmb() is non-empty. */
   #define GASNETI_WMB_IS_EMPTY	0
 #else
   #undef GASNETI_WMB_IS_EMPTY
   #define GASNETI_WMB_IS_EMPTY	1
 #endif
 #ifndef GASNETI_MB_IS_EMPTY
-  /* non-trivial default */
+  /* Default: assume mb() is empty IFF rmb() and wmb() are both empty */
   #if (GASNETI_RMB_IS_EMPTY && GASNETI_WMB_IS_EMPTY)
     #define GASNETI_MB_IS_EMPTY	1
   #else
@@ -463,7 +465,9 @@
   #define GASNETI_MB_IS_EMPTY	1
 #endif
 #ifndef GASNETI_RMB_IS_MB
-  /* non-trivial default */
+  /* Default: assume rmb() is a full mb() if:
+   *  Either mb() is empty (sequential consistency)
+   *  Or mb() = rmb() + wmb(), while wmb() is known empty */
   #if GASNETI_MB_IS_EMPTY || (GASNETI_WMB_IS_EMPTY && defined(GASNETI_MB_IS_SUM))
     #define GASNETI_RMB_IS_MB	1
   #else
@@ -474,7 +478,9 @@
   #define GASNETI_RMB_IS_MB	1
 #endif
 #ifndef GASNETI_WMB_IS_MB
-  /* non-trivial default */
+  /* Default: assume wmb() is a full mb() if:
+   *  Either mb() is empty (sequential consistency)
+   *  Or mb() = rmb() + wmb(), while rmb() is known empty */
   #if GASNETI_MB_IS_EMPTY || (GASNETI_RMB_IS_EMPTY && defined(GASNETI_MB_IS_SUM))
     #define GASNETI_WMB_IS_MB	1
   #else
@@ -485,7 +491,9 @@
   #define GASNETI_WMB_IS_MB	1
 #endif
 #ifndef GASNETI_MB_IS_SUM
-  /* non-trivial default */
+  /* Default: assume mb() = rmb() + wmb() if:
+   *  Either mb() = rmb(), while wmb() is known empty
+   *  Or mb() = wmb(), while rmb() is known empty */
   #if ((GASNETI_RMB_IS_MB && GASNETI_WMB_IS_EMPTY) || \
        (GASNETI_WMB_IS_MB && GASNETI_RMB_IS_EMPTY))
     #define GASNETI_MB_IS_SUM	1
