@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/21 23:54:30 $
- * $Revision: 1.94.2.3 $
+ *     $Date: 2006/03/22 00:24:31 $
+ * $Revision: 1.94.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,11 +73,11 @@
 /* Flags for memory fences */
 #define GASNETI_ATOMIC_NONE			0x00
 #define GASNETI_ATOMIC_RMB_PRE			0x01
-#define GASNETI_ATOMIC_RMB_POST			0x02
-#define GASNETI_ATOMIC_RMB_POST_IF_TRUE		0x04
-#define GASNETI_ATOMIC_RMB_POST_IF_FALSE	0x08
-#define GASNETI_ATOMIC_WMB_PRE			0x10
-#define GASNETI_ATOMIC_WMB_POST			0x20
+#define GASNETI_ATOMIC_WMB_PRE			0x02
+#define GASNETI_ATOMIC_RMB_POST			0x04
+#define GASNETI_ATOMIC_WMB_POST			0x08
+#define GASNETI_ATOMIC_RMB_POST_IF_TRUE		0x10
+#define GASNETI_ATOMIC_RMB_POST_IF_FALSE	0x20
 
 #define GASNETI_ATOMIC_MB_PRE		(GASNETI_ATOMIC_WMB_PRE | GASNETI_ATOMIC_RMB_PRE)
 #define GASNETI_ATOMIC_MB_POST		(GASNETI_ATOMIC_WMB_POST | GASNETI_ATOMIC_RMB_POST)
@@ -1146,51 +1146,49 @@
     if ((__f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) && !__v) gasneti_local_rmb();
 
   /* Several optimizations possible when a conditional rmb() is combined
-   * with an unconditional POST fence.  However: 
+   * with an unconditional POST fence.  Such optimizations would prevent
+   * imposing a "double" mb() in shuch cases.  However: 
    * 1) There are no current callers that mix *MB_POST with a
    *    conditional RMB_POST_IF*, and no likely reason to.
    * 2) Though they all reduce a great deal at compile-time,
    *    such "optimizations" look very large to the inliner
-   *    before optimization.
-   * Therefore, they are not currently implemented
+   *    before any dead code can be eliminated.
+   * Therefore, they are not currently implemented.
    */
 #endif
 
-#define _gasneti_atomic_fence_before(__f) do { \
-    _gasneti_atomic_mb_pre(__f)  /* no semicolon */ \
-    _gasneti_atomic_rmb_pre(__f) /* no semicolon */ \
-    _gasneti_atomic_wmb_pre(__f) /* no semicolon */ \
-  } while(0)
-#define _gasneti_atomic_fence_after(__f) do {  \
-    _gasneti_atomic_mb_post(__f)  /* no semicolon */ \
-    _gasneti_atomic_rmb_post(__f) /* no semicolon */ \
-    _gasneti_atomic_wmb_post(__f) /* no semicolon */ \
-  } while(0)
-#define _gasneti_atomic_fence_after_bool(__f, __v) do { \
-    _gasneti_atomic_mb_post(__f)  /* no semicolon */      \
-    _gasneti_atomic_rmb_post(__f) /* no semicolon */      \
-    _gasneti_atomic_wmb_post(__f) /* no semicolon */      \
-    _gasneti_atomic_rmb_bool(__f, __v) /* no semicolon */ \
-  } while(0)
+#define _gasneti_atomic_fence_before(__f) \
+    _gasneti_atomic_mb_pre(__f)  /* no semi */ \
+    _gasneti_atomic_rmb_pre(__f) /* no semi */ \
+    _gasneti_atomic_wmb_pre(__f) /* no semi */
+#define _gasneti_atomic_fence_after(__f) \
+    _gasneti_atomic_mb_post(__f)  /* no semi */ \
+    _gasneti_atomic_rmb_post(__f) /* no semi */ \
+    _gasneti_atomic_wmb_post(__f) /* no semi */
+#define _gasneti_atomic_fence_after_bool(__f, __v) \
+    _gasneti_atomic_mb_post(__f)  /* no semi */    \
+    _gasneti_atomic_rmb_post(__f) /* no semi */    \
+    _gasneti_atomic_wmb_post(__f) /* no semi */    \
+    _gasneti_atomic_rmb_bool(__f, __v) /* no semi */
 
 #ifndef gasneti_atomic_init
-  #define gasneti_atomic_init(v)                  _gasneti_atomic_init(v)
+  #define gasneti_atomic_init(v)	_gasneti_atomic_init(v)
 #endif
 #ifndef gasneti_atomic_set
   #define gasneti_atomic_set(p,v,f) do {                 \
     const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_SET; \
-    _gasneti_atomic_fence_before(__flags);               \
+    _gasneti_atomic_fence_before(__flags) /* no semi */  \
     _gasneti_atomic_set((p),(v));                        \
-    _gasneti_atomic_fence_after(__flags);                \
+    _gasneti_atomic_fence_after(__flags) /* no semi */   \
   } while (0)
 #endif
 #ifndef gasneti_atomic_read
   GASNETI_INLINE(gasneti_atomic_read)
   uint32_t gasneti_atomic_read(gasneti_atomic_t *p, int flags) {
     const int __flags = flags & ~GASNETI_ATOMIC_FENCE_READ;
-    _gasneti_atomic_fence_before(__flags);
+    _gasneti_atomic_fence_before(__flags) /* no semi */
     { const uint32_t retval = _gasneti_atomic_read(p);
-      _gasneti_atomic_fence_after(__flags);
+      _gasneti_atomic_fence_after(__flags) /* no semi */
       return retval;
     }
   }
@@ -1198,26 +1196,26 @@
 #ifndef gasneti_atomic_increment
   #define gasneti_atomic_increment(p,f) do {             \
     const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW; \
-    _gasneti_atomic_fence_before(__flags);               \
+    _gasneti_atomic_fence_before(__flags) /* no semi */  \
     _gasneti_atomic_increment(p);                        \
-    _gasneti_atomic_fence_after(__flags);                \
+    _gasneti_atomic_fence_after(__flags) /* no semi */   \
   } while (0)
 #endif
 #ifndef gasneti_atomic_decrement
   #define gasneti_atomic_decrement(p,f) do {             \
     const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW; \
-    _gasneti_atomic_fence_before(__flags);               \
+    _gasneti_atomic_fence_before(__flags) /* no semi */  \
     _gasneti_atomic_decrement(p);                        \
-    _gasneti_atomic_fence_after(__flags);                \
+    _gasneti_atomic_fence_after(__flags) /* no semi */   \
   } while (0)
 #endif
 #ifndef gasneti_atomic_decrement_and_test
   GASNETI_INLINE(gasneti_atomic_decrement_and_test)
   int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, int flags) {
     const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
-    _gasneti_atomic_fence_before(__flags);
+    _gasneti_atomic_fence_before(__flags) /* no semi */
     { const int retval = _gasneti_atomic_decrement_and_test(p);
-      _gasneti_atomic_fence_after_bool(__flags, retval);
+      _gasneti_atomic_fence_after_bool(__flags, retval) /* no semi */
       return retval;
     }
   }
@@ -1226,9 +1224,9 @@
   GASNETI_INLINE(gasneti_atomic_compare_and_swap)
   int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, int flags) {
     const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
-    _gasneti_atomic_fence_before(__flags);
+    _gasneti_atomic_fence_before(__flags) /* no semi */
     { const int retval = _gasneti_atomic_compare_and_swap(p,oldval,newval);
-      _gasneti_atomic_fence_after_bool(__flags, retval);
+      _gasneti_atomic_fence_after_bool(__flags, retval) /* no semi */
       return retval;
     }
   }
