@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/22 19:26:46 $
- * $Revision: 1.94.2.5 $
+ *     $Date: 2006/03/22 21:55:41 $
+ * $Revision: 1.94.2.6 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1155,101 +1155,132 @@
    */
 #endif
 
-/* Part 2.  Build pieces according to fencing properties of atomics */
-/* Part 2a.  Set */
-#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_PRE)
-  #define _gasneti_atomic_mb_before_set(f) /* nothing */
+/* Part 2.  Preprocessor removal of redundant fences.
+ *  _gasneti_atomic_{mb,rmb,wmb}_{before,after}_{set,read,rmb}(flags)
+ *  _gasneti_atomic_rmb_after_bool(flags, value)
+ *
+ * This level of macros serves to remove at preprocess-time any tests
+ * that correspond to memory fences that are known to be side-effects
+ * of the atomic operations, as determined by the bits of the masks
+ * GASNETI_ATOMIC_FENCE_{SET,READ,RMW}.
+ *
+ * Note that this macros family is called by the "strong" atomics
+ * only, because the weak atomics don't have any fencing side-effects
+ * currently.  A corresponding gasneti_weakatomic_*_{before,after}_*
+ * family and GASNETI_WEAKATOMIC_FENCE_{SET,READ,RMW} could be added
+ * if there is ever a need.
+ */
+
+/* Part 2a.  Compile away tests for fences that natural side-effects of Set */
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
+  #define _gasneti_atomic_mb_before_set(f)	/* nothing */
+  #define _gasneti_atomic_rmb_before_set(f)	/* nothing */
+  #define _gasneti_atomic_wmb_before_set(f)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_PRE)
+  #define _gasneti_atomic_mb_before_set		_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_set(f)	/* nothing */
+  #define _gasneti_atomic_wmb_before_set	_gasneti_atomic_wmb_before
+#elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_PRE)
+  #define _gasneti_atomic_mb_before_set		_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_set	_gasneti_atomic_rmb_before
+  #define _gasneti_atomic_wmb_before_set(f)	/* nothing */
 #else
-  #define _gasneti_atomic_mb_before_set _gasneti_atomic_mb_before
+  #define _gasneti_atomic_mb_before_set		_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_set	_gasneti_atomic_rmb_before
+  #define _gasneti_atomic_wmb_before_set	_gasneti_atomic_wmb_before
 #endif
-#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_POST)
-  #define _gasneti_atomic_mb_after_set(f) /* nothing */
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_PRE
+  #define _gasneti_atomic_mb_after_set(f)	/* nothing */
+  #define _gasneti_atomic_rmb_after_set(f)	/* nothing */
+  #define _gasneti_atomic_wmb_after_set(f)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_POST)
+  #define _gasneti_atomic_mb_after_set		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_set(f)	/* nothing */
+  #define _gasneti_atomic_wmb_after_set		_gasneti_atomic_wmb_after
+#elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_POST)
+  #define _gasneti_atomic_mb_after_set		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_set		_gasneti_atomic_rmb_after
+  #define _gasneti_atomic_wmb_after_set(f)	/* nothing */
 #else
-  #define _gasneti_atomic_mb_after_set _gasneti_atomic_mb_after
+  #define _gasneti_atomic_mb_after_set		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_set		_gasneti_atomic_rmb_after
+  #define _gasneti_atomic_wmb_after_set		_gasneti_atomic_wmb_after
 #endif
-#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_PRE)
-  #define _gasneti_atomic_rmb_before_set(f) /* nothing */
+
+/* Part 2b.  Compile away tests for fences that natural side-effects of Read */
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
+  #define _gasneti_atomic_mb_before_read(f)	/* nothing */
+  #define _gasneti_atomic_rmb_before_read(f)	/* nothing */
+  #define _gasneti_atomic_wmb_before_read(f)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_PRE)
+  #define _gasneti_atomic_mb_before_read	_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_read(f)	/* nothing */
+  #define _gasneti_atomic_wmb_before_read	_gasneti_atomic_wmb_before
+#elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WMB_PRE)
+  #define _gasneti_atomic_mb_before_read	_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_read	_gasneti_atomic_rmb_before
+  #define _gasneti_atomic_wmb_before_read(f)	/* nothing */
 #else
-  #define _gasneti_atomic_rmb_before_set _gasneti_atomic_rmb_before
+  #define _gasneti_atomic_mb_before_read	_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_read	_gasneti_atomic_rmb_before
+  #define _gasneti_atomic_wmb_before_read	_gasneti_atomic_wmb_before
 #endif
-#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_POST)
-  #define _gasneti_atomic_rmb_after_set(f) /* nothing */
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_PRE
+  #define _gasneti_atomic_mb_after_read(f)	/* nothing */
+  #define _gasneti_atomic_rmb_after_read(f)	/* nothing */
+  #define _gasneti_atomic_wmb_after_read(f)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_POST)
+  #define _gasneti_atomic_mb_after_read		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_read(f)	/* nothing */
+  #define _gasneti_atomic_wmb_after_read	_gasneti_atomic_wmb_after
+#elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WMB_POST)
+  #define _gasneti_atomic_mb_after_read		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_read	_gasneti_atomic_rmb_after
+  #define _gasneti_atomic_wmb_after_read(f)	/* nothing */
 #else
-  #define _gasneti_atomic_rmb_after_set _gasneti_atomic_rmb_after
+  #define _gasneti_atomic_mb_after_read		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_read	_gasneti_atomic_rmb_after
+  #define _gasneti_atomic_wmb_after_read	_gasneti_atomic_wmb_after
 #endif
-#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_PRE)
-  #define _gasneti_atomic_wmb_before_set(f) /* nothing */
+
+/* Part 2c.  Compile away tests for fences that natural side-effects of Read-Modify-Write */
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
+  #define _gasneti_atomic_mb_before_rmw(f)	/* nothing */
+  #define _gasneti_atomic_rmb_before_rmw(f)	/* nothing */
+  #define _gasneti_atomic_wmb_before_rmw(f)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
+  #define _gasneti_atomic_mb_before_rmw		_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_rmw(f)	/* nothing */
+  #define _gasneti_atomic_wmb_before_rmw	_gasneti_atomic_wmb_before
+#elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_PRE)
+  #define _gasneti_atomic_mb_before_rmw		_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_rmw	_gasneti_atomic_rmb_before
+  #define _gasneti_atomic_wmb_before_rmw(f)	/* nothing */
 #else
-  #define _gasneti_atomic_wmb_before_set _gasneti_atomic_wmb_before
+  #define _gasneti_atomic_mb_before_rmw	_gasneti_atomic_mb_before
+  #define _gasneti_atomic_rmb_before_rmw	_gasneti_atomic_rmb_before
+  #define _gasneti_atomic_wmb_before_rmw	_gasneti_atomic_wmb_before
 #endif
-#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WB_POST)
-  #define _gasneti_atomic_wmb_after_set(f) /* nothing */
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_PRE
+  #define _gasneti_atomic_mb_after_rmw(f)	/* nothing */
+  #define _gasneti_atomic_rmb_after_rmw(f)	/* nothing */
+  #define _gasneti_atomic_wmb_after_rmw(f)	/* nothing */
+  #define _gasneti_atomic_rmb_after_bool(f,v)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
+  #define _gasneti_atomic_mb_after_rmw		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_rmw(f)	/* nothing */
+  #define _gasneti_atomic_wmb_after_rmw		_gasneti_atomic_wmb_after
+  #define _gasneti_atomic_rmb_after_bool(f,v)	/* nothing */
+#elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
+  #define _gasneti_atomic_mb_after_rmw		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_rmw		_gasneti_atomic_rmb_after
+  #define _gasneti_atomic_wmb_after_rmw(f)	/* nothing */
+  #define _gasneti_atomic_rmb_after_bool	_gasneti_atomic_rmb_bool
 #else
-  #define _gasneti_atomic_wmb_after_set _gasneti_atomic_wmb_after
-#endif
-/* Part 2b.  Read */
-#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_PRE)
-  #define _gasneti_atomic_mb_before_read(f) /* nothing */
-#else
-  #define _gasneti_atomic_mb_before_read _gasneti_atomic_mb_before
-#endif
-#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_POST)
-  #define _gasneti_atomic_mb_after_read(f) /* nothing */
-#else
-  #define _gasneti_atomic_mb_after_read _gasneti_atomic_mb_after
-#endif
-#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_PRE)
-  #define _gasneti_atomic_rmb_before_read(f) /* nothing */
-#else
-  #define _gasneti_atomic_rmb_before_read _gasneti_atomic_rmb_before
-#endif
-#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_POST)
-  #define _gasneti_atomic_rmb_after_read(f) /* nothing */
-#else
-  #define _gasneti_atomic_rmb_after_read _gasneti_atomic_rmb_after
-#endif
-#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WMB_PRE)
-  #define _gasneti_atomic_wmb_before_read(f) /* nothing */
-#else
-  #define _gasneti_atomic_wmb_before_read _gasneti_atomic_wmb_before
-#endif
-#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WB_POST)
-  #define _gasneti_atomic_wmb_after_read(f) /* nothing */
-#else
-  #define _gasneti_atomic_wmb_after_read _gasneti_atomic_wmb_after
-#endif
-/* Part 2c.  R-M-W */
-#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE)
-  #define _gasneti_atomic_mb_before_rmw(f) /* nothing */
-#else
-  #define _gasneti_atomic_mb_before_rmw _gasneti_atomic_mb_before
-#endif
-#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_POST)
-  #define _gasneti_atomic_mb_after_rmw(f) /* nothing */
-#else
-  #define _gasneti_atomic_mb_after_rmw _gasneti_atomic_mb_after
-#endif
-#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
-  #define _gasneti_atomic_rmb_before_rmw(f) /* nothing */
-#else
-  #define _gasneti_atomic_rmb_before_rmw _gasneti_atomic_rmb_before
-#endif
-#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
-  #define _gasneti_atomic_rmb_after_rmw(f) /* nothing */
-  #define _gasneti_atomic_rmb_after_bool(f, v) /* nothing */
-#else
-  #define _gasneti_atomic_rmb_after_rmw _gasneti_atomic_rmb_after
-  #define _gasneti_atomic_rmb_after_bool _gasneti_atomic_rmb_bool
-#endif
-#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_PRE)
-  #define _gasneti_atomic_wmb_before_rmw(f) /* nothing */
-#else
-  #define _gasneti_atomic_wmb_before_rmw _gasneti_atomic_wmb_before
-#endif
-#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
-  #define _gasneti_atomic_wmb_after_rmw(f) /* nothing */
-#else
-  #define _gasneti_atomic_wmb_after_rmw _gasneti_atomic_wmb_after
+  #define _gasneti_atomic_mb_after_rmw		_gasneti_atomic_mb_after
+  #define _gasneti_atomic_rmb_after_rmw		_gasneti_atomic_rmb_after
+  #define _gasneti_atomic_wmb_after_rmw		_gasneti_atomic_wmb_after
+  #define _gasneti_atomic_rmb_after_bool	_gasneti_atomic_rmb_bool
 #endif
 
 #ifndef gasneti_atomic_init
