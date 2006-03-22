@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2006/03/17 22:46:41 $
- * $Revision: 1.42 $
+ *     $Date: 2006/03/22 23:44:26 $
+ * $Revision: 1.42.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -290,10 +290,12 @@ void doit(int partner, int *partnerseg) {
     if (success) MSG("*** passed blocking list test!!");
   }
 
+#if 0
   doit2(partner, partnerseg);
 }
 void doit2(int partner, int *partnerseg) {
   int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
   { /*  implicit test */
@@ -318,10 +320,12 @@ void doit2(int partner, int *partnerseg) {
     if (success) MSG("*** passed nbi test!!");
   }
 
+#if 0
   doit3(partner, partnerseg);
 }
 void doit3(int partner, int *partnerseg) {
   int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 
@@ -410,10 +414,12 @@ void doit3(int partner, int *partnerseg) {
     if (success) MSG("*** passed value test!!");
   }
 
+#if 0
   doit4(partner, partnerseg);
 }
 void doit4(int partner, int *partnerseg) {
   int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 
@@ -449,10 +455,12 @@ void doit4(int partner, int *partnerseg) {
     if (success) MSG("*** passed memset test!!");
   }
 
+#if 0
   doit5(partner, partnerseg);
 }
 void doit5(int partner, int *partnerseg) {
   int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 
