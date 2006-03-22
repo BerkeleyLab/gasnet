@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/22 00:24:31 $
- * $Revision: 1.94.2.4 $
+ *     $Date: 2006/03/22 19:26:46 $
+ * $Revision: 1.94.2.5 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1079,71 +1079,69 @@
 
 /* Default implementations of fences in atomics. */
 
-/* _mb_{pre,post}(): check for call to mb() */
-#if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  #define _gasneti_atomic_mb_pre(__f) /* nothing */
-  #define _gasneti_atomic_mb_post(__f) /* nothing */
+/* Part 1.  Build pieces according to membar properties */
+/* 1a. _mb_{before,after}(): check for call to mb() */
+#if GASNETI_MB_IS_EMPTY || (GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY))
+  #define _gasneti_atomic_mb_before(f) /* nothing */
+  #define _gasneti_atomic_mb_after(f) /* nothing */
 #elif GASNETI_RMB_IS_MB && GASNETI_WMB_IS_MB
-  #define _gasneti_atomic_mb_pre(__f) \
-    if (__f & GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
-    if (__f & GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
+  #define _gasneti_atomic_mb_before(f) \
+    if (f & GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
+  #define _gasneti_atomic_mb_after(f) \
+    if (f & GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
 #elif  GASNETI_RMB_IS_MB
-  #define _gasneti_atomic_mb_pre(__f) \
-    if (__f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
-    if (__f & GASNETI_ATOMIC_RMB_POST) gasneti_local_mb();
+  #define _gasneti_atomic_mb_before(f) \
+    if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
+  #define _gasneti_atomic_mb_after(f) \
+    if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #elif  GASNETI_WMB_IS_MB
-  #define _gasneti_atomic_mb_pre(__f) \
-    if (__f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
-    if (__f & GASNETI_ATOMIC_WMB_POST) gasneti_local_mb();
+  #define _gasneti_atomic_mb_before(f) \
+    if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
+  #define _gasneti_atomic_mb_after(f) \
+    if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #else
-  #define _gasneti_atomic_mb_pre(__f) \
-    if ((__f & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
-  #define _gasneti_atomic_mb_post(__f) \
-    if ((__f & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
+  #define _gasneti_atomic_mb_before(f) \
+    if ((f & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
+  #define _gasneti_atomic_mb_after(f) \
+    if ((f & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
 #endif
-
-/* _rmb_{pre,post}(): check for call to rmb() */
+/* 1b. _rmb_{before,after}(): check for call to rmb() */
 #if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  #define _gasneti_atomic_rmb_pre(__f) \
-    if (__f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
-  #define _gasneti_atomic_rmb_post(__f) \
-    if (__f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
+  #define _gasneti_atomic_rmb_before(f) \
+    if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
+  #define _gasneti_atomic_rmb_after(f) \
+    if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #elif GASNETI_RMB_IS_MB || GASNETI_RMB_IS_EMPTY
-  #define _gasneti_atomic_rmb_pre(__f) /* nothing */
-  #define _gasneti_atomic_rmb_post(__f) /* nothing */
+  #define _gasneti_atomic_rmb_before(f) /* nothing */
+  #define _gasneti_atomic_rmb_after(f) /* nothing */
 #else
-  #define _gasneti_atomic_rmb_pre(__f) \
-    else if (__f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
-  #define _gasneti_atomic_rmb_post(__f) \
-    else if (__f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
+  #define _gasneti_atomic_rmb_before(f) \
+    else if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
+  #define _gasneti_atomic_rmb_after(f) \
+    else if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #endif
-
-/* _wmb_{pre,post}(): check for call to wmb() */
+/* 1c. _wmb_{before,after}(): check for call to wmb() */
 #if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  #define _gasneti_atomic_wmb_pre(__f) \
-    if (__f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
-  #define _gasneti_atomic_wmb_post(__f) \
-    if (__f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+  #define _gasneti_atomic_wmb_before(f) \
+    if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
+  #define _gasneti_atomic_wmb_after(f) \
+    if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #elif GASNETI_WMB_IS_MB || GASNETI_WMB_IS_EMPTY
-  #define _gasneti_atomic_wmb_pre(__f) /* nothing */
-  #define _gasneti_atomic_wmb_post(__f) /* nothing */
+  #define _gasneti_atomic_wmb_before(f) /* nothing */
+  #define _gasneti_atomic_wmb_after(f) /* nothing */
 #else
-  #define _gasneti_atomic_wmb_pre(__f) \
-    else if (__f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
-  #define _gasneti_atomic_wmb_post(__f) \
-    else if (__f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+  #define _gasneti_atomic_wmb_before(f) \
+    else if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
+  #define _gasneti_atomic_wmb_after(f) \
+    else if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #endif
-
-/* _rmb_bool(): handles flags containing RMB_POST_IF_* */
-#if GASNETI_RMB_IS_EMPTY || (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_FENCE_RMB_POST)
-  #define _gasneti_atomic_rmb_bool(__f, __v) /* nothing */
+/* Part 1d. Condtional RMB after boolean */
+#if GASNETI_RMB_IS_EMPTY
+  #define _gasneti_atomic_rmb_bool(f, v) /* nothing */
 #else
-  #define _gasneti_atomic_rmb_bool(__f, __v)  \
-    if ((__f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) && __v) gasneti_local_rmb(); \
-    if ((__f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) && !__v) gasneti_local_rmb();
+  #define _gasneti_atomic_rmb_bool(f, v)  \
+    if ((f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) && v) gasneti_local_rmb(); \
+    if ((f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) && !v) gasneti_local_rmb();
 
   /* Several optimizations possible when a conditional rmb() is combined
    * with an unconditional POST fence.  Such optimizations would prevent
@@ -1157,65 +1155,169 @@
    */
 #endif
 
-#define _gasneti_atomic_fence_before(__f) \
-    _gasneti_atomic_mb_pre(__f)  /* no semi */ \
-    _gasneti_atomic_rmb_pre(__f) /* no semi */ \
-    _gasneti_atomic_wmb_pre(__f) /* no semi */
-#define _gasneti_atomic_fence_after(__f) \
-    _gasneti_atomic_mb_post(__f)  /* no semi */ \
-    _gasneti_atomic_rmb_post(__f) /* no semi */ \
-    _gasneti_atomic_wmb_post(__f) /* no semi */
-#define _gasneti_atomic_fence_after_bool(__f, __v) \
-    _gasneti_atomic_mb_post(__f)  /* no semi */    \
-    _gasneti_atomic_rmb_post(__f) /* no semi */    \
-    _gasneti_atomic_wmb_post(__f) /* no semi */    \
-    _gasneti_atomic_rmb_bool(__f, __v) /* no semi */
+/* Part 2.  Build pieces according to fencing properties of atomics */
+/* Part 2a.  Set */
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_PRE)
+  #define _gasneti_atomic_mb_before_set(f) /* nothing */
+#else
+  #define _gasneti_atomic_mb_before_set _gasneti_atomic_mb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_POST)
+  #define _gasneti_atomic_mb_after_set(f) /* nothing */
+#else
+  #define _gasneti_atomic_mb_after_set _gasneti_atomic_mb_after
+#endif
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_PRE)
+  #define _gasneti_atomic_rmb_before_set(f) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_before_set _gasneti_atomic_rmb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_POST)
+  #define _gasneti_atomic_rmb_after_set(f) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_after_set _gasneti_atomic_rmb_after
+#endif
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_PRE)
+  #define _gasneti_atomic_wmb_before_set(f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_before_set _gasneti_atomic_wmb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WB_POST)
+  #define _gasneti_atomic_wmb_after_set(f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_after_set _gasneti_atomic_wmb_after
+#endif
+/* Part 2b.  Read */
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_PRE)
+  #define _gasneti_atomic_mb_before_read(f) /* nothing */
+#else
+  #define _gasneti_atomic_mb_before_read _gasneti_atomic_mb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_POST)
+  #define _gasneti_atomic_mb_after_read(f) /* nothing */
+#else
+  #define _gasneti_atomic_mb_after_read _gasneti_atomic_mb_after
+#endif
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_PRE)
+  #define _gasneti_atomic_rmb_before_read(f) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_before_read _gasneti_atomic_rmb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_POST)
+  #define _gasneti_atomic_rmb_after_read(f) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_after_read _gasneti_atomic_rmb_after
+#endif
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WMB_PRE)
+  #define _gasneti_atomic_wmb_before_read(f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_before_read _gasneti_atomic_wmb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WB_POST)
+  #define _gasneti_atomic_wmb_after_read(f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_after_read _gasneti_atomic_wmb_after
+#endif
+/* Part 2c.  R-M-W */
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE)
+  #define _gasneti_atomic_mb_before_rmw(f) /* nothing */
+#else
+  #define _gasneti_atomic_mb_before_rmw _gasneti_atomic_mb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_POST)
+  #define _gasneti_atomic_mb_after_rmw(f) /* nothing */
+#else
+  #define _gasneti_atomic_mb_after_rmw _gasneti_atomic_mb_after
+#endif
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
+  #define _gasneti_atomic_rmb_before_rmw(f) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_before_rmw _gasneti_atomic_rmb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
+  #define _gasneti_atomic_rmb_after_rmw(f) /* nothing */
+  #define _gasneti_atomic_rmb_after_bool(f, v) /* nothing */
+#else
+  #define _gasneti_atomic_rmb_after_rmw _gasneti_atomic_rmb_after
+  #define _gasneti_atomic_rmb_after_bool _gasneti_atomic_rmb_bool
+#endif
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_PRE)
+  #define _gasneti_atomic_wmb_before_rmw(f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_before_rmw _gasneti_atomic_wmb_before
+#endif
+#if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
+  #define _gasneti_atomic_wmb_after_rmw(f) /* nothing */
+#else
+  #define _gasneti_atomic_wmb_after_rmw _gasneti_atomic_wmb_after
+#endif
 
 #ifndef gasneti_atomic_init
   #define gasneti_atomic_init(v)	_gasneti_atomic_init(v)
 #endif
 #ifndef gasneti_atomic_set
-  #define gasneti_atomic_set(p,v,f) do {                 \
-    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_SET; \
-    _gasneti_atomic_fence_before(__flags) /* no semi */  \
-    _gasneti_atomic_set((p),(v));                        \
-    _gasneti_atomic_fence_after(__flags) /* no semi */   \
+  #define gasneti_atomic_set(p,v,f) do {                  \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_SET;  \
+    _gasneti_atomic_mb_before_set(__flags)  /* no semi */ \
+    _gasneti_atomic_rmb_before_set(__flags) /* no semi */ \
+    _gasneti_atomic_wmb_before_set(__flags) /* no semi */ \
+    _gasneti_atomic_set((p),(v));                         \
+    _gasneti_atomic_mb_after_set(__flags)  /* no semi */  \
+    _gasneti_atomic_rmb_after_set(__flags) /* no semi */  \
+    _gasneti_atomic_wmb_after_set(__flags) /* no semi */  \
   } while (0)
 #endif
 #ifndef gasneti_atomic_read
   GASNETI_INLINE(gasneti_atomic_read)
   uint32_t gasneti_atomic_read(gasneti_atomic_t *p, int flags) {
     const int __flags = flags & ~GASNETI_ATOMIC_FENCE_READ;
-    _gasneti_atomic_fence_before(__flags) /* no semi */
+    _gasneti_atomic_mb_before_read(__flags)  /* no semi */
+    _gasneti_atomic_rmb_before_read(__flags) /* no semi */
+    _gasneti_atomic_wmb_before_read(__flags) /* no semi */
     { const uint32_t retval = _gasneti_atomic_read(p);
-      _gasneti_atomic_fence_after(__flags) /* no semi */
+      _gasneti_atomic_mb_after_read(__flags)  /* no semi */
+      _gasneti_atomic_rmb_after_read(__flags) /* no semi */
+      _gasneti_atomic_wmb_after_read(__flags) /* no semi */
       return retval;
     }
   }
 #endif
 #ifndef gasneti_atomic_increment
-  #define gasneti_atomic_increment(p,f) do {             \
-    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW; \
-    _gasneti_atomic_fence_before(__flags) /* no semi */  \
-    _gasneti_atomic_increment(p);                        \
-    _gasneti_atomic_fence_after(__flags) /* no semi */   \
+  #define gasneti_atomic_increment(p,f) do {              \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW;  \
+    _gasneti_atomic_mb_before_rmw(__flags)  /* no semi */ \
+    _gasneti_atomic_rmb_before_rmw(__flags) /* no semi */ \
+    _gasneti_atomic_wmb_before_rmw(__flags) /* no semi */ \
+    _gasneti_atomic_increment(p);                         \
+    _gasneti_atomic_mb_after_rmw(__flags)  /* no semi */  \
+    _gasneti_atomic_rmb_after_rmw(__flags) /* no semi */  \
+    _gasneti_atomic_wmb_after_rmw(__flags) /* no semi */  \
   } while (0)
 #endif
 #ifndef gasneti_atomic_decrement
-  #define gasneti_atomic_decrement(p,f) do {             \
-    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW; \
-    _gasneti_atomic_fence_before(__flags) /* no semi */  \
-    _gasneti_atomic_decrement(p);                        \
-    _gasneti_atomic_fence_after(__flags) /* no semi */   \
+  #define gasneti_atomic_decrement(p,f) do {              \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW;  \
+    _gasneti_atomic_mb_before_rmw(__flags)  /* no semi */ \
+    _gasneti_atomic_rmb_before_rmw(__flags) /* no semi */ \
+    _gasneti_atomic_wmb_before_rmw(__flags) /* no semi */ \
+    _gasneti_atomic_decrement(p);                         \
+    _gasneti_atomic_mb_after_rmw(__flags)  /* no semi */  \
+    _gasneti_atomic_rmb_after_rmw(__flags) /* no semi */  \
+    _gasneti_atomic_wmb_after_rmw(__flags) /* no semi */  \
   } while (0)
 #endif
 #ifndef gasneti_atomic_decrement_and_test
   GASNETI_INLINE(gasneti_atomic_decrement_and_test)
   int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, int flags) {
     const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
-    _gasneti_atomic_fence_before(__flags) /* no semi */
+    _gasneti_atomic_mb_before_rmw(__flags)  /* no semi */
+    _gasneti_atomic_rmb_before_rmw(__flags) /* no semi */
+    _gasneti_atomic_wmb_before_rmw(__flags) /* no semi */
     { const int retval = _gasneti_atomic_decrement_and_test(p);
-      _gasneti_atomic_fence_after_bool(__flags, retval) /* no semi */
+      _gasneti_atomic_mb_after_rmw(__flags)  /* no semi */
+      _gasneti_atomic_rmb_after_rmw(__flags) /* no semi */
+      _gasneti_atomic_wmb_after_rmw(__flags) /* no semi */
+      _gasneti_atomic_rmb_after_bool(__flags, retval) /* no semi */
       return retval;
     }
   }
@@ -1224,9 +1326,14 @@
   GASNETI_INLINE(gasneti_atomic_compare_and_swap)
   int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, int flags) {
     const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
-    _gasneti_atomic_fence_before(__flags) /* no semi */
+    _gasneti_atomic_mb_before_rmw(__flags)  /* no semi */
+    _gasneti_atomic_rmb_before_rmw(__flags) /* no semi */
+    _gasneti_atomic_wmb_before_rmw(__flags) /* no semi */
     { const int retval = _gasneti_atomic_compare_and_swap(p,oldval,newval);
-      _gasneti_atomic_fence_after_bool(__flags, retval) /* no semi */
+      _gasneti_atomic_mb_after_rmw(__flags)  /* no semi */
+      _gasneti_atomic_rmb_after_rmw(__flags) /* no semi */
+      _gasneti_atomic_wmb_after_rmw(__flags) /* no semi */
+      _gasneti_atomic_rmb_after_bool(__flags, retval) /* no semi */
       return retval;
     }
   }
@@ -1259,46 +1366,72 @@
    */
   typedef volatile int gasneti_weakatomic_t;
   #define gasneti_weakatomic_init(v)                  (v)
-  #define gasneti_weakatomic_set(p,v,f) do { \
-    const int __flags = (f);                 \
-    _gasneti_atomic_fence_before(__flags);   \
-    (*(p) = (v));                            \
-    _gasneti_atomic_fence_after(__flags);    \
+  #define gasneti_weakatomic_set(p,v,f) do {          \
+    const int __flags = (f);                          \
+    _gasneti_atomic_mb_before(__flags)  /* no semi */ \
+    _gasneti_atomic_rmb_before(__flags) /* no semi */ \
+    _gasneti_atomic_wmb_before(__flags) /* no semi */ \
+    (*(p) = (v));                                     \
+    _gasneti_atomic_mb_after(__flags)  /* no semi */  \
+    _gasneti_atomic_rmb_after(__flags) /* no semi */  \
+    _gasneti_atomic_wmb_after(__flags) /* no semi */  \
   } while (0)
   GASNETI_INLINE(gasneti_weakatomic_read)
   int gasneti_weakatomic_read(gasneti_weakatomic_t *p, const int flags) {
-    _gasneti_atomic_fence_before(flags);
+    _gasneti_atomic_mb_before(flags)  /* no semi */
+    _gasneti_atomic_rmb_before(flags) /* no semi */
+    _gasneti_atomic_wmb_before(flags) /* no semi */
     { const int retval = *(p);
-      _gasneti_atomic_fence_after(flags);
+      _gasneti_atomic_mb_after(flags)  /* no semi */
+      _gasneti_atomic_rmb_after(flags) /* no semi */
+      _gasneti_atomic_wmb_after(flags) /* no semi */
       return retval;
     }
   }
-  #define gasneti_weakatomic_increment(p,f) do { \
-    const int __flags = (f);                     \
-    _gasneti_atomic_fence_before(__flags);       \
-    (*(p))++;                                    \
-    _gasneti_atomic_fence_after(__flags);        \
+  #define gasneti_weakatomic_increment(p,f) do {      \
+    const int __flags = (f);                          \
+    _gasneti_atomic_mb_before(__flags)  /* no semi */ \
+    _gasneti_atomic_rmb_before(__flags) /* no semi */ \
+    _gasneti_atomic_wmb_before(__flags) /* no semi */ \
+    (*(p))++;                                         \
+    _gasneti_atomic_mb_after(__flags)  /* no semi */  \
+    _gasneti_atomic_rmb_after(__flags) /* no semi */  \
+    _gasneti_atomic_wmb_after(__flags) /* no semi */  \
   } while (0)
-  #define gasneti_weakatomic_decrement(p,f) do { \
-    const int __flags = (f);                     \
-    _gasneti_atomic_fence_before(__flags);       \
-    (*(p))--;                                    \
-    _gasneti_atomic_fence_after(__flags);        \
+  #define gasneti_weakatomic_decrement(p,f) do {      \
+    const int __flags = (f);                          \
+    _gasneti_atomic_mb_before(__flags)  /* no semi */ \
+    _gasneti_atomic_rmb_before(__flags) /* no semi */ \
+    _gasneti_atomic_wmb_before(__flags) /* no semi */ \
+    (*(p))--;                                         \
+    _gasneti_atomic_mb_after(__flags)  /* no semi */  \
+    _gasneti_atomic_rmb_after(__flags) /* no semi */  \
+    _gasneti_atomic_wmb_after(__flags) /* no semi */  \
   } while (0)
   GASNETI_INLINE(gasneti_weakatomic_decrement_and_test)
   int gasneti_weakatomic_decrement_and_test(gasneti_weakatomic_t *p, const int flags) {
-    _gasneti_atomic_fence_before(flags);
+    _gasneti_atomic_mb_before(flags)  /* no semi */
+    _gasneti_atomic_rmb_before(flags) /* no semi */
+    _gasneti_atomic_wmb_before(flags) /* no semi */
     { const int retval = !(--(*p));
-      _gasneti_atomic_fence_after_bool(flags, retval);
+      _gasneti_atomic_mb_after(flags)  /* no semi */
+      _gasneti_atomic_rmb_after(flags) /* no semi */
+      _gasneti_atomic_wmb_after(flags) /* no semi */
+      _gasneti_atomic_rmb_bool(flags, retval)  /* no semi */
       return retval;
     }
   }
   #define GASNETI_HAVE_WEAKATOMIC_CAS 1
   GASNETI_INLINE(gasneti_weakatomic_compare_and_swap)
   int gasneti_weakatomic_compare_and_swap(gasneti_weakatomic_t *p, uint32_t oldval, uint32_t newval, const int flags) {
-    _gasneti_atomic_fence_before(flags);
+    _gasneti_atomic_mb_before(flags)  /* no semi */
+    _gasneti_atomic_rmb_before(flags) /* no semi */
+    _gasneti_atomic_wmb_before(flags) /* no semi */
     { const int retval = ((*p == (oldval)) ? (*p = (newval), 1) : 0);
-      _gasneti_atomic_fence_after_bool(flags, retval);
+      _gasneti_atomic_mb_after(flags)  /* no semi */
+      _gasneti_atomic_rmb_after(flags) /* no semi */
+      _gasneti_atomic_wmb_after(flags) /* no semi */
+      _gasneti_atomic_rmb_bool(flags, retval)  /* no semi */
       return retval;
     }
   }
