@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/23 06:38:52 $
- * $Revision: 1.94.2.16 $
+ *     $Date: 2006/03/23 06:57:14 $
+ * $Revision: 1.94.2.17 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -401,7 +401,7 @@
         int64_t _o_, _r_;
          _o_ = (int64_t)oldval;
          __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(_o_));
-         __asm__ __volatile__ ("mf; cmpxchg4.acq %0=[%1],%2,ar.ccv"
+         __asm__ __volatile__ ("cmpxchg4.acq %0=[%1],%2,ar.ccv"
                                 : "=r"(_r_) : "r"(ptr), "r"(newval) : "memory");
         return (int32_t) _r_;
       }
@@ -431,7 +431,7 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: our CAS includes the following fences (TODO: CUSTOMIZE OR WEAKEN?) */
+      /* bug1405: our asm includes the following fences: */
       #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
     #elif defined(__HP_cc) || defined(__HP_aCC) /* HP C/C++ Itanium intrinsics */
       #include <machine/sys/inline.h>
