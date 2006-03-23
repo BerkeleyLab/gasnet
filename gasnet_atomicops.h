@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/23 01:50:34 $
- * $Revision: 1.94.2.10 $
+ *     $Date: 2006/03/23 02:02:31 $
+ * $Revision: 1.94.2.11 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1124,7 +1124,7 @@
 
 /* Part 1A. Tests for full mb() requested before/after */
 #if GASNETI_MB_IS_EMPTY || (GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY))
-  /* (1Ai)
+  /* (1Ai)	ex: PPC
    * + MB_IS_EMPTY
    *   Sequentially consistent, so no check for a full mb() is needed.
    * + (MB_IS_SUM && !(RMB_IS_EMPTY || WMB_IS_EMPTY))
@@ -1134,7 +1134,7 @@
   #define _gasneti_atomic_mb_before(f)	/* nothing */
   #define _gasneti_atomic_mb_after(f)	/* nothing */
 #elif GASNETI_RMB_IS_MB && GASNETI_WMB_IS_MB
-  /* (1Aii)
+  /* (1Aii)	ex: IA64
    * + RMB_IS_MB and WMB_IS_MB
    *   Since mb(), rmb() and wmb() are all the same, a single test for either the
    *   RMB or WMB bits is sufficient for all three.
@@ -1142,21 +1142,21 @@
   #define _gasneti_atomic_mb_before(f)	if (f & GASNETI_ATOMIC_MB_PRE) gasneti_local_mb();
   #define _gasneti_atomic_mb_after(f)	if (f & GASNETI_ATOMIC_MB_POST) gasneti_local_mb();
 #elif  GASNETI_RMB_IS_MB
-  /* (1Aiii)
+  /* (1Aiii)	ex: ALPHA
    * + RMB_IS_MB (and !WMB_IS_MB)
    *   A single test for the RMB bit is sufficient for both mb() and rmb()
    */
   #define _gasneti_atomic_mb_before(f)	if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
   #define _gasneti_atomic_mb_after(f)	if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #elif  GASNETI_WMB_IS_MB
-  /* (1Aiv)
+  /* (1Aiv)	ex: X86, PARISC and SPARC
    * + WMB_IS_MB (and !RMB_IS_MB)
    *   A single test for the WMB bit is sufficient for both mb() and wmb()
    */
   #define _gasneti_atomic_mb_before(f)	if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
   #define _gasneti_atomic_mb_after(f)	if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #else
-  /* (1Av)
+  /* (1Av)	ex: X86_64
    * + Default
    *   The full mb() is non-empty, nor is it equal to rmb(), wmb() or their sum.
    *   Therefore we test for presence of both RMB and WMB bits to trigger a mb().
@@ -1167,14 +1167,14 @@
 
 /* Part 1B. Tests for rmb() requested before/after */
 #if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  /* (1Bi)
+  /* (1Bi)	ex: PPC
    * + MB_IS_SUM && !(RMB_IS_EMPTY || WMB_IS_EMPTY) [1Ai (2nd half)]
    *   Full mb() == rmb()+wmb(), so rmb() when RMB bit is set.
    */
   #define _gasneti_atomic_rmb_before(f)	if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
   #define _gasneti_atomic_rmb_after(f)	if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #elif GASNETI_RMB_IS_MB || GASNETI_RMB_IS_EMPTY
-  /* (1Bii)
+  /* (1Bii)	ex: X86, ALPHA, IA64, PARISC and SPARC
    * + RMB_IS_MB [1Aii or 1Aiii]
    *   rmb() == mb(), which was already caught in the mb() tests.
    * + RMB_IS_EMPTY [1Ai (1st half), 1Aiv or 1Av]
@@ -1183,7 +1183,7 @@
   #define _gasneti_atomic_rmb_before(f)	/* nothing */
   #define _gasneti_atomic_rmb_after(f)	/* nothing */
 #else
-  /* (1Biii)
+  /* (1Biii)	ex: X86_64
    * + Default [1Aiv or 1Av]
    *   mb/rmb/wmb are distinct, so trigger rmb() if RMB bit is set and WMB is NOT.
    *   The 'else' here follows the 'if' of (1Aiv) or (1Av), to handle the "WMB is NOT".
@@ -1194,25 +1194,35 @@
 
 /* Part 1C. Tests for wmb() requested before/after */
 #if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  /* (1Ci) analagous to 1Bi */
+  /* (1Ci)	ex: PPC
+   * + analagous to 1Bi
+   */
   #define _gasneti_atomic_wmb_before(f)	if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
   #define _gasneti_atomic_wmb_after(f)	if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #elif GASNETI_WMB_IS_MB || GASNETI_WMB_IS_EMPTY
-  /* (1Cii) analagous to 1Bii */
+  /* (1Cii)	ex: X86, IA64, PARISC and SPARC
+   * + analagous to 1Bii
+   */
   #define _gasneti_atomic_wmb_before(f)	/* nothing */
   #define _gasneti_atomic_wmb_after(f)	/* nothing */
 #else
-  /* (1Ciii) analagous to 1Biii */
+  /* (1Ciii)	ex: ALPHA and X86_64
+   * + analagous to 1Biii
+   */
   #define _gasneti_atomic_wmb_before(f)	else if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
   #define _gasneti_atomic_wmb_after(f)	else if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #endif
 
 /* Part 1D. Tests for conditional rmb() after a boolean op */
 #if GASNETI_RMB_IS_EMPTY
-  /* No test needed of RMB is empty */
+  /* (1Di)	ex: X86, PARISC and SPARC
+   * + No test needed if RMB is empty
+   */
   #define _gasneti_atomic_rmb_bool(f, v)	/* nothing */
 #else
-  /* Several optimizations are possible when a conditional rmb() is combined
+  /* (1Dii)	ex: PPC, ALPHA, X86_64 and IA64
+   *
+   * Several optimizations are possible when a conditional rmb() is combined
    * with an unconditional POST fence.  Such optimizations would prevent
    * imposing a "double" mb() in shuch cases.  However: 
    * 1) There are no current callers that mix *MB_POST with a
