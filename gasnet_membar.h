@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/03/22 23:44:24 $
- * $Revision: 1.86.2.1 $
+ *     $Date: 2006/03/23 03:22:22 $
+ * $Revision: 1.86.2.2 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -104,7 +104,7 @@
   /* no inline assembly in these C++ compilers, so pay a function call overhead */
   #define GASNETI_USING_SLOW_ATOMICS 1
 #elif defined(__sparc__) || defined(__sparc) || defined(sparc)
-  #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_SPARCV9) /* SPARC v9 */
+  #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_SPARCV9) /* SPARC v9 */
     GASNETI_INLINE(gasneti_local_wmb)
     void gasneti_local_wmb(void) {
       GASNETI_ASM("membar #StoreLoad | #StoreStore"); 
