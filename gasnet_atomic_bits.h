@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 03:47:46 $
- * $Revision: 1.94.2.14 $
+ *     $Date: 2006/03/23 06:15:09 $
+ * $Revision: 1.94.2.15 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -396,23 +396,6 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
     #elif defined(__GNUC__)
-      #if GASNET_DEBUG
-        #include <stdio.h>
-        #include <stdlib.h>
-        #define GASNETI_CMPXCHG_BUGCHECK_DECL  int _cmpxchg_bugcheck_count = 128;
-        #define GASNETI_CMPXCHG_BUGCHECK(v) do {                                         \
-            if (_cmpxchg_bugcheck_count-- <= 0) {                                        \
-              void *ip;                                                                  \
-              asm ("mov %0=ip" : "=r"(ip));                                              \
-              fprintf(stderr,"CMPXCHG_BUGCHECK: stuck at %p on word %p\n", ip, (v));     \
-              abort();                                                                   \
-            }                                                                            \
-          } while (0)
-      #else
-        #define GASNETI_CMPXCHG_BUGCHECK_DECL
-        #define GASNETI_CMPXCHG_BUGCHECK(v)  ((void)0)
-      #endif
-
       GASNETI_INLINE(gasneti_cmpxchg)
       int32_t gasneti_cmpxchg(int32_t volatile *ptr, int32_t oldval, int32_t newval) {                                                                                      \
         int64_t _o_, _r_;
@@ -422,30 +405,34 @@
                                 : "=r"(_r_) : "r"(ptr), "r"(newval) : "memory");
         return (int32_t) _r_;
       }
-      GASNETI_INLINE(gasneti_atomic_addandfetch_32)
-      int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op) {
-        int32_t oldctr, newctr;
-        GASNETI_CMPXCHG_BUGCHECK_DECL
-
-        do {
-          GASNETI_CMPXCHG_BUGCHECK(v);
-          oldctr = *v;
-          newctr = oldctr + op;
-        } while (gasneti_cmpxchg(v, oldctr, newctr) != oldctr);
-        return newctr;
+      GASNETI_INLINE(gasneti_fetchandinc_32)
+      int32_t gasneti_atomic_fetchandinc_32(int32_t volatile *ptr) {
+        uint64_t result;\
+        asm volatile ("fetchadd4.acq %0=[%1],%2"
+                                : "=r"(result) : "r"(ptr), "i" (1)
+                                : "memory");
+        return result;
+      }
+      GASNETI_INLINE(gasneti_fetchanddec_32)
+      int32_t gasneti_atomic_fetchanddec_32(int32_t volatile *ptr) {
+        uint64_t result;\
+        asm volatile ("fetchadd4.acq %0=[%1],%2"
+                                : "=r"(result) : "r"(ptr), "i" (-1)
+                                : "memory");
+        return result;
       }
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
-      #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+      #define _gasneti_atomic_increment(p) (gasneti_atomic_fetchandinc_32(&((p)->ctr)))
+      #define _gasneti_atomic_decrement(p) (gasneti_atomic_fetchanddec_32(&((p)->ctr)))
       #define _gasneti_atomic_read(p)      ((p)->ctr)
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
       #define _gasneti_atomic_init(v)      { (v) }
-      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
+      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_fetchanddec_32(&((p)->ctr)) == 1)
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* XXX bug1405: our CAS includes the following fences (TODO: CUSTOMIZE OR WEAKEN?) */
-      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_ACQ)
+      #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
     #elif defined(__HP_cc) || defined(__HP_aCC) /* HP C/C++ Itanium intrinsics */
       #include <machine/sys/inline.h>
       /* legal values for imm are -16, -8, -4, -1, 1, 4, 8, and 16 
