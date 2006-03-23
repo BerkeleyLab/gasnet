@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 01:01:13 $
- * $Revision: 1.94.2.9 $
+ *     $Date: 2006/03/23 01:50:34 $
+ * $Revision: 1.94.2.10 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1496,7 +1496,7 @@
   GASNETI_INLINE(gasneti_weakatomic_compare_and_swap)
   int gasneti_weakatomic_compare_and_swap(gasneti_weakatomic_t *p, uint32_t oldval, uint32_t newval, const int flags) {
     _gasneti_weakatomic_fence_before(flags)  /* no semi */
-    { const int retval = ((*p == (oldval)) ? (*p = (newval), 1) : 0);
+    { const int retval = (((uint32_t)*p == oldval) ? (*p = newval, 1) : 0);
       _gasneti_weakatomic_fence_after(flags)  /* no semi */
       _gasneti_weakatomic_fence_after_bool(flags, retval)  /* no semi */
       return retval;
