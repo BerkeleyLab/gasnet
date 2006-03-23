@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/22 23:49:07 $
- * $Revision: 1.94.2.8 $
+ *     $Date: 2006/03/23 01:01:13 $
+ * $Revision: 1.94.2.9 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1350,14 +1350,14 @@
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
-  #define _gasneti_atomic_fence_after_bool(f)	_gasneti_atomic_mb_after(f)  \
+  #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
   #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
-						_gasneti_atomic_rmb_bool(f)
+						_gasneti_atomic_rmb_bool(f,v)
 #else
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
@@ -1365,7 +1365,7 @@
   #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_wmb_after(f) \
-						_gasneti_atomic_rmb_bool(f)
+						_gasneti_atomic_rmb_bool(f,v)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
