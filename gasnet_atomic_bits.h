@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 06:57:14 $
- * $Revision: 1.94.2.17 $
+ *     $Date: 2006/03/23 07:15:01 $
+ * $Revision: 1.94.2.18 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -431,8 +431,10 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* bug1405: our asm includes the following fences: */
-      #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
+      #if 0	/* related to bug1000, we don't trust fence properties of .acq */
+        /* bug1405: our asm includes the following fences: */
+        #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
+      #endif
     #elif defined(__HP_cc) || defined(__HP_aCC) /* HP C/C++ Itanium intrinsics */
       #include <machine/sys/inline.h>
       /* legal values for imm are -16, -8, -4, -1, 1, 4, 8, and 16 
@@ -460,8 +462,10 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
         (gasneti_cmpxchg((volatile int *)&((p)->ctr),oval,nval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* XXX bug1405: built-in ACQ on RMW (TODO: WEAKEN OR CUSTOMIZE CODE ABOVE?) */
-      #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
+      #if 0	/* related to bug1000, we don't trust fence properties of .acq */
+        /* bug1405: built-in ACQ on RMW */
+        #define GASNETI_ATOMIC_FENCE_RMW GASNETI_ATOMIC_ACQ
+      #endif
     #else
       #error unrecognized Itanium compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -1361,7 +1365,7 @@
 
 /* Part 3D.  Compile away tests for fences that are side-effects of Read-Modify-Write */
 #if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
-  /* (3Di)	ex: X86, X86_64, IA64/icc, PARISC and SPARC-V7,8
+  /* (3Di)	ex: X86, X86_64, IA64, PARISC and SPARC-V7,8
    */
   #define _gasneti_atomic_fence_before_rmw(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
@@ -1375,7 +1379,7 @@
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
-  /* (3Div)	ex: IA64/gcc+HPcc; GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+  /* (3Div)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
    */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
@@ -1387,7 +1391,7 @@
   #define _gasneti_atomic_fence_after_rmw(f)	/* nothing */
   #define _gasneti_atomic_fence_after_bool(f,v)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
-  /* (3Dvi)	ex: IA64/gcc+HPcc
+  /* (3Dvi)	ex: NONE
    */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
@@ -1402,7 +1406,7 @@
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_rmb_bool(f,v)
 #else
-  /* (3Dviii)	ex: PPC, ALPHA, IA64/icc, PARISC and SPARC-V7,8
+  /* (3Dviii)	ex: PPC, ALPHA, IA64, PARISC and SPARC-V7,8
    */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
