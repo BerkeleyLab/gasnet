@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 07:17:35 $
- * $Revision: 1.94.2.19 $
+ *     $Date: 2006/03/23 07:43:32 $
+ * $Revision: 1.94.2.20 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -139,7 +139,7 @@
     #if (GASNET_PAR || GASNETI_CONDUIT_THREADS)
       /* Using real HSLs which yeild an ACQ/RMB before and REL/WMB after the atomic */
       #define GASNETI_ATOMIC_FENCE_SET (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
-      #define GASNETI_ATOMIC_FENCE_RMB (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
     #else
       /* HSLs compile away, so use defaults */
     #endif
@@ -221,7 +221,7 @@
     #else
       /* Using real mutexes which yeild an ACQ/RMB before and REL/WMB after the atomic */
       #define GASNETI_ATOMIC_FENCE_SET (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
-      #define GASNETI_ATOMIC_FENCE_RMB (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
     #endif
   #else
     /* only one thread - everything atomic by definition */
@@ -1281,7 +1281,7 @@
    */
   #define _gasneti_atomic_fence_before_set(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_PRE)
-  /* (3Bii)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+  /* (3Bii)	ex: GENERIC_ATOMICOPS on IA64 and X86_64
    */
   #define _gasneti_atomic_fence_before_set(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
@@ -1307,7 +1307,7 @@
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_POST)
-  /* (3Bvii)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+  /* (3Bvii)	ex: GENERIC_ATOMICOPS on IA64 and X86_64
    */
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
@@ -1365,11 +1365,11 @@
 
 /* Part 3D.  Compile away tests for fences that are side-effects of Read-Modify-Write */
 #if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
-  /* (3Di)	ex: X86, X86_64, IA64, PARISC and SPARC-V7,8
+  /* (3Di)	ex: X86, X86_64, PARISC and SPARC-V7,8
    */
   #define _gasneti_atomic_fence_before_rmw(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
-  /* (3Dii)	ex: SPARC-V9
+  /* (3Dii)	ex: SPARC-V9; GENERIC_ATOMICOPS on IA64 and X86_64
    */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
@@ -1379,7 +1379,7 @@
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
-  /* (3Div)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+  /* (3Div)	ex: IA64
    */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
@@ -1398,7 +1398,7 @@
   #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
-  /* (3Dvii)	ex: SPARC-V9
+  /* (3Dvii)	ex: SPARC-V9; GENERIC_ATOMICOPS on IA64 and X86_64
    */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
