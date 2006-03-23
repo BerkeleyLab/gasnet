@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/23 03:27:32 $
- * $Revision: 1.94.2.13 $
+ *     $Date: 2006/03/23 03:47:46 $
+ * $Revision: 1.94.2.14 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1374,7 +1374,7 @@
 
 /* Part 3D.  Compile away tests for fences that are side-effects of Read-Modify-Write */
 #if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
-  /* (3Di)	ex: X86, X86_64, IA64, PARISC and SPARC-V7,8
+  /* (3Di)	ex: X86, X86_64, IA64/gcc+icc, PARISC and SPARC-V7,8
    */
   #define _gasneti_atomic_fence_before_rmw(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
@@ -1388,7 +1388,7 @@
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
-  /* (3Div)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+  /* (3Div)	ex: IA64/HPcc; GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
    */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
