@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 06:15:09 $
- * $Revision: 1.94.2.15 $
+ *     $Date: 2006/03/23 06:38:52 $
+ * $Revision: 1.94.2.16 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1361,7 +1361,7 @@
 
 /* Part 3D.  Compile away tests for fences that are side-effects of Read-Modify-Write */
 #if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
-  /* (3Di)	ex: X86, X86_64, IA64/gcc+icc, PARISC and SPARC-V7,8
+  /* (3Di)	ex: X86, X86_64, IA64/icc, PARISC and SPARC-V7,8
    */
   #define _gasneti_atomic_fence_before_rmw(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
@@ -1375,7 +1375,7 @@
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
-  /* (3Div)	ex: IA64/HPcc; GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+  /* (3Div)	ex: IA64/gcc+HPcc; GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
    */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
@@ -1387,7 +1387,7 @@
   #define _gasneti_atomic_fence_after_rmw(f)	/* nothing */
   #define _gasneti_atomic_fence_after_bool(f,v)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
-  /* (3Dvi)	ex: IA64
+  /* (3Dvi)	ex: IA64/gcc+HPcc
    */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
@@ -1402,7 +1402,7 @@
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_rmb_bool(f,v)
 #else
-  /* (3Dviii)	ex: PPC, ALPHA, PARISC and SPARC-V7,8
+  /* (3Dviii)	ex: PPC, ALPHA, IA64/icc, PARISC and SPARC-V7,8
    */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
@@ -1422,7 +1422,7 @@
 #endif
 #ifndef gasneti_atomic_set
   #define gasneti_atomic_set(p,v,f) do {                     \
-    const int __flags = (f);                                 \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_SET;     \
     _gasneti_atomic_fence_before_set(__flags)  /* no semi */ \
     _gasneti_atomic_set((p),(v));                            \
     _gasneti_atomic_fence_after_set(__flags)  /* no semi */  \
@@ -1431,16 +1431,17 @@
 #ifndef gasneti_atomic_read
   GASNETI_INLINE(gasneti_atomic_read)
   uint32_t gasneti_atomic_read(gasneti_atomic_t *p, const int flags) {
-    _gasneti_atomic_fence_before_read(flags)  /* no semi */
+    const int __flags = flags & ~GASNETI_ATOMIC_FENCE_READ;
+    _gasneti_atomic_fence_before_read(__flags)  /* no semi */
     { const uint32_t retval = _gasneti_atomic_read(p);
-      _gasneti_atomic_fence_after_read(flags)  /* no semi */
+      _gasneti_atomic_fence_after_read(__flags)  /* no semi */
       return retval;
     }
   }
 #endif
 #ifndef gasneti_atomic_increment
   #define gasneti_atomic_increment(p,f) do {                 \
-    const int __flags = (f);                                 \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW;     \
     _gasneti_atomic_fence_before_rmw(__flags)  /* no semi */ \
     _gasneti_atomic_increment(p);                            \
     _gasneti_atomic_fence_after_rmw(__flags)  /* no semi */  \
@@ -1448,7 +1449,7 @@
 #endif
 #ifndef gasneti_atomic_decrement
   #define gasneti_atomic_decrement(p,f) do {                 \
-    const int __flags = (f);                                 \
+    const int __flags = (f) & ~GASNETI_ATOMIC_FENCE_RMW;     \
     _gasneti_atomic_fence_before_rmw(__flags)  /* no semi */ \
     _gasneti_atomic_decrement(p);                            \
     _gasneti_atomic_fence_after_rmw(__flags)  /* no semi */  \
@@ -1457,9 +1458,10 @@
 #ifndef gasneti_atomic_decrement_and_test
   GASNETI_INLINE(gasneti_atomic_decrement_and_test)
   int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags) {
-    _gasneti_atomic_fence_before_rmw(flags)  /* no semi */
+    const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
+    _gasneti_atomic_fence_before_rmw(__flags)  /* no semi */
     { const int retval = _gasneti_atomic_decrement_and_test(p);
-      _gasneti_atomic_fence_after_bool(flags, retval) /* no semi */
+      _gasneti_atomic_fence_after_bool(__flags, retval) /* no semi */
       return retval;
     }
   }
@@ -1467,9 +1469,10 @@
 #if defined(GASNETI_HAVE_ATOMIC_CAS) && !defined(gasneti_atomic_compare_and_swap)
   GASNETI_INLINE(gasneti_atomic_compare_and_swap)
   int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, const int flags) {
-    _gasneti_atomic_fence_before_rmw(flags)  /* no semi */
+    const int __flags = flags & ~GASNETI_ATOMIC_FENCE_RMW;
+    _gasneti_atomic_fence_before_rmw(__flags)  /* no semi */
     { const int retval = _gasneti_atomic_compare_and_swap(p,oldval,newval);
-      _gasneti_atomic_fence_after_bool(flags, retval) /* no semi */
+      _gasneti_atomic_fence_after_bool(__flags, retval) /* no semi */
       return retval;
     }
   }
