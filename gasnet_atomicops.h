@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/23 02:02:31 $
- * $Revision: 1.94.2.11 $
+ *     $Date: 2006/03/23 02:52:18 $
+ * $Revision: 1.94.2.12 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -701,7 +701,7 @@
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
         /* bug1405: Our asm has the following fences */
-	#define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_PRE
+	#define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_POST
 	#define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_WMB_PRE
 	#define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_PRE
         /* XXX bug1405: TODO: Our set also has RMB_PRE unless uninitialized */
@@ -829,7 +829,7 @@
       }
       #define GASNETI_HAVE_ATOMIC_CAS 1
       /* bug1405: Our asm has the following fences */
-      #define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_PRE
+      #define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_POST
       #define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_WMB_PRE
       #define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_PRE
       /* XXX bug1405: TODO: Our set also has RMB_PRE unless uninitialized */
