@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 02:52:18 $
- * $Revision: 1.94.2.12 $
+ *     $Date: 2006/03/23 03:27:32 $
+ * $Revision: 1.94.2.13 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1124,7 +1124,7 @@
 
 /* Part 1A. Tests for full mb() requested before/after */
 #if GASNETI_MB_IS_EMPTY || (GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY))
-  /* (1Ai)	ex: PPC
+  /* (1Ai)	ex: PPC and SPARC-V9
    * + MB_IS_EMPTY
    *   Sequentially consistent, so no check for a full mb() is needed.
    * + (MB_IS_SUM && !(RMB_IS_EMPTY || WMB_IS_EMPTY))
@@ -1149,7 +1149,7 @@
   #define _gasneti_atomic_mb_before(f)	if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
   #define _gasneti_atomic_mb_after(f)	if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #elif  GASNETI_WMB_IS_MB
-  /* (1Aiv)	ex: X86, PARISC and SPARC
+  /* (1Aiv)	ex: X86, PARISC and SPARC-V7,8
    * + WMB_IS_MB (and !RMB_IS_MB)
    *   A single test for the WMB bit is sufficient for both mb() and wmb()
    */
@@ -1167,14 +1167,14 @@
 
 /* Part 1B. Tests for rmb() requested before/after */
 #if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  /* (1Bi)	ex: PPC
+  /* (1Bi)	ex: PPC and SPARC-V9
    * + MB_IS_SUM && !(RMB_IS_EMPTY || WMB_IS_EMPTY) [1Ai (2nd half)]
    *   Full mb() == rmb()+wmb(), so rmb() when RMB bit is set.
    */
   #define _gasneti_atomic_rmb_before(f)	if (f & GASNETI_ATOMIC_RMB_PRE) gasneti_local_rmb();
   #define _gasneti_atomic_rmb_after(f)	if (f & GASNETI_ATOMIC_RMB_POST) gasneti_local_rmb();
 #elif GASNETI_RMB_IS_MB || GASNETI_RMB_IS_EMPTY
-  /* (1Bii)	ex: X86, ALPHA, IA64, PARISC and SPARC
+  /* (1Bii)	ex: X86, ALPHA, IA64, PARISC and SPARC-V7,8
    * + RMB_IS_MB [1Aii or 1Aiii]
    *   rmb() == mb(), which was already caught in the mb() tests.
    * + RMB_IS_EMPTY [1Ai (1st half), 1Aiv or 1Av]
@@ -1194,13 +1194,13 @@
 
 /* Part 1C. Tests for wmb() requested before/after */
 #if GASNETI_MB_IS_SUM && !(GASNETI_RMB_IS_EMPTY || GASNETI_WMB_IS_EMPTY)
-  /* (1Ci)	ex: PPC
+  /* (1Ci)	ex: PPC and SPARC-V9
    * + analagous to 1Bi
    */
   #define _gasneti_atomic_wmb_before(f)	if (f & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
   #define _gasneti_atomic_wmb_after(f)	if (f & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
 #elif GASNETI_WMB_IS_MB || GASNETI_WMB_IS_EMPTY
-  /* (1Cii)	ex: X86, IA64, PARISC and SPARC
+  /* (1Cii)	ex: X86, IA64, PARISC and SPARC-V7,8
    * + analagous to 1Bii
    */
   #define _gasneti_atomic_wmb_before(f)	/* nothing */
@@ -1215,12 +1215,12 @@
 
 /* Part 1D. Tests for conditional rmb() after a boolean op */
 #if GASNETI_RMB_IS_EMPTY
-  /* (1Di)	ex: X86, PARISC and SPARC
+  /* (1Di)	ex: X86, PARISC and SPARC-V7,8
    * + No test needed if RMB is empty
    */
   #define _gasneti_atomic_rmb_bool(f, v)	/* nothing */
 #else
-  /* (1Dii)	ex: PPC, ALPHA, X86_64 and IA64
+  /* (1Dii)	ex: PPC, ALPHA, X86_64, IA64 and SPARC-V9
    *
    * Several optimizations are possible when a conditional rmb() is combined
    * with an unconditional POST fence.  Such optimizations would prevent
@@ -1286,27 +1286,43 @@
 
 /* Part 3B.  Compile away tests for fences that are side-effects of Set */
 #if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
+  /* (3Bi)	ex: NONE
+   */
   #define _gasneti_atomic_fence_before_set(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_PRE)
+  /* (3Bii)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+   */
   #define _gasneti_atomic_fence_before_set(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_PRE)
+  /* (3Biii)	ex: PARISC, SPARC-V7,8
+   */
   #define _gasneti_atomic_fence_before_set(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
+  /* (3Biv)	ex: X86, PPC, ALPHA, X86_64, IA64 and SPARC-V9
+   */
   #define _gasneti_atomic_fence_before_set(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
 						_gasneti_atomic_wmb_before(f)
 #endif
 #if (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST
+  /* (3Bv)	ex: NONE
+   */
   #define _gasneti_atomic_fence_after_set(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_POST)
+  /* (3Bvi)	ex: NONE
+   */
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_POST)
+  /* (3Bvii)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+   */
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
 #else
+  /* (3Bviii)	ex: X86, PPC, ALPHA, X86_64, IA64, PARISC and SPARC-V7,8,9
+   */
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_wmb_after(f)
@@ -1314,27 +1330,43 @@
 
 /* Part 3C.  Compile away tests for fences that are side-effects of Read */
 #if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
+  /* (3Ci)	ex: NONE
+   */
   #define _gasneti_atomic_fence_before_read(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_PRE)
+  /* (3Cii)	ex: NONE
+   */
   #define _gasneti_atomic_fence_before_read(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
 #elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WMB_PRE)
+  /* (3Ciii)	ex: NONE
+   */
   #define _gasneti_atomic_fence_before_read(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
+  /* (3Civ)	ex: X86, PPC, ALPHA, X86_64, IA64, PARISC and SPARC-V7,8,9
+   */
   #define _gasneti_atomic_fence_before_read(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
 						_gasneti_atomic_wmb_before(f)
 #endif
 #if (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST
+  /* (3Cv)	ex: NONE
+   */
   #define _gasneti_atomic_fence_after_read(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_RMB_POST)
+  /* (3Cvi)	ex: PARISC and SPARC-V7,8
+   */
   #define _gasneti_atomic_fence_after_read(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_READ & GASNETI_ATOMIC_WMB_POST)
+  /* (3Cvii)	ex: NONE
+   */
   #define _gasneti_atomic_fence_after_read(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
 #else
+  /* (3Cviii)	ex: X86, PPC, ALPHA, X86_64, IA64 and SPARC-V9
+   */
   #define _gasneti_atomic_fence_after_read(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_wmb_after(f)
@@ -1342,33 +1374,49 @@
 
 /* Part 3D.  Compile away tests for fences that are side-effects of Read-Modify-Write */
 #if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_PRE) == GASNETI_ATOMIC_MB_PRE
+  /* (3Di)	ex: X86, X86_64, IA64, PARISC and SPARC-V7,8
+   */
   #define _gasneti_atomic_fence_before_rmw(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
+  /* (3Dii)	ex: SPARC-V9
+   */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_PRE)
+  /* (3Diii)	ex: NONE
+   */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f)
 #else
+  /* (3Div)	ex: GENERIC_ATOMICOPS on IA64, X86_64 and SPARC
+   */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_rmb_before(f) \
 						_gasneti_atomic_wmb_before(f)
 #endif
 #if (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_MB_POST) == GASNETI_ATOMIC_MB_POST
+  /* (3Dv)	ex: X86 and X86_64
+   */
   #define _gasneti_atomic_fence_after_rmw(f)	/* nothing */
   #define _gasneti_atomic_fence_after_bool(f,v)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_POST)
+  /* (3Dvi)	ex: IA64
+   */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
   #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
+  /* (3Dvii)	ex: SPARC-V9
+   */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
   #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_rmb_bool(f,v)
 #else
+  /* (3Dviii)	ex: PPC, ALPHA, PARISC and SPARC-V7,8
+   */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f) \
 						_gasneti_atomic_wmb_after(f)
