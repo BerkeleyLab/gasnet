@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/23 07:43:32 $
- * $Revision: 1.94.2.20 $
+ *     $Date: 2006/03/23 08:04:50 $
+ * $Revision: 1.94.2.21 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1281,7 +1281,7 @@
    */
   #define _gasneti_atomic_fence_before_set(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_RMB_PRE)
-  /* (3Bii)	ex: GENERIC_ATOMICOPS on IA64 and X86_64
+  /* (3Bii)	ex: GENERIC_ATOMICOPS
    */
   #define _gasneti_atomic_fence_before_set(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
@@ -1307,7 +1307,7 @@
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_SET & GASNETI_ATOMIC_WMB_POST)
-  /* (3Bvii)	ex: GENERIC_ATOMICOPS on IA64 and X86_64
+  /* (3Bvii)	ex: GENERIC_ATOMICOPS
    */
   #define _gasneti_atomic_fence_after_set(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
@@ -1369,7 +1369,7 @@
    */
   #define _gasneti_atomic_fence_before_rmw(f)	/* nothing */
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_RMB_PRE)
-  /* (3Dii)	ex: SPARC-V9; GENERIC_ATOMICOPS on IA64 and X86_64
+  /* (3Dii)	ex: SPARC-V9 and GENERIC_ATOMICOPS
    */
   #define _gasneti_atomic_fence_before_rmw(f)	_gasneti_atomic_mb_before(f)  \
 						_gasneti_atomic_wmb_before(f)
@@ -1398,7 +1398,7 @@
   #define _gasneti_atomic_fence_after_bool(f,v)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_wmb_after(f)
 #elif (GASNETI_ATOMIC_FENCE_RMW & GASNETI_ATOMIC_WMB_POST)
-  /* (3Dvii)	ex: SPARC-V9; GENERIC_ATOMICOPS on IA64 and X86_64
+  /* (3Dvii)	ex: SPARC-V9 and GENERIC_ATOMICOPS
    */
   #define _gasneti_atomic_fence_after_rmw(f)	_gasneti_atomic_mb_after(f)  \
 						_gasneti_atomic_rmb_after(f)
