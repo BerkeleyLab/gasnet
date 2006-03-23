@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/03/23 03:42:30 $
- * $Revision: 1.86.2.3 $
+ *     $Date: 2006/03/23 07:06:22 $
+ * $Revision: 1.86.2.4 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -217,10 +217,10 @@
       /* HP compilers have no inline assembly on Itanium - use intrinsics */
       #define gasneti_compiler_fence() \
          _Asm_sched_fence((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE)) 
-      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
-      #define gasneti_local_wmb() _Asm_mf((_Asm_fence)(_UP_MEM_FENCE))
-      #define gasneti_local_rmb() _Asm_mf((_Asm_fence)(_DOWN_MEM_FENCE))
       #define gasneti_local_mb() _Asm_mf((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE))
+      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
+      #define gasneti_local_wmb gasneti_local_mb
+      #define gasneti_local_rmb gasneti_local_mb
       #define GASNETI_RMB_IS_MB
       #define GASNETI_WMB_IS_MB
    #else
