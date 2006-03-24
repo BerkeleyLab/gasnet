@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/03/24 00:12:15 $
- * $Revision: 1.86.2.5 $
+ *     $Date: 2006/03/24 02:19:52 $
+ * $Revision: 1.86.2.6 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -235,10 +235,12 @@
       #define GASNETI_RMB_IS_MB
       #define GASNETI_WMB_IS_MB
    #endif
-#elif defined(_POWER) /* IBM SP POWER[234] */ || \
-     (defined(__APPLE__) && defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__))) /* PowerPC OSX */ || \
-     (defined(__linux__) && defined(__PPC__)) /* PPC Linux */ || \
-     (defined(__blrts__) && defined(__PPC__)) /* BlueGene/L */
+/* PowerPPC ids:
+ * AIX: _POWER
+ * Darwin: __ppc__ or __ppc64__
+ * Linux: __PPC__
+ */
+#elif defined(_POWER) || defined(__PPC__) || defined(__ppc__) || defined(__ppc64__)
  #ifdef __xlC__
    /* VisualAge C compiler (mpcc_r) has no support for inline symbolic assembly
     * you have to hard-code the opcodes in a pragma that defines an assembly 

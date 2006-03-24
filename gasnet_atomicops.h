@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/03/24 01:51:56 $
- * $Revision: 1.94.2.22 $
+ *     $Date: 2006/03/24 02:19:52 $
+ * $Revision: 1.94.2.23 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -946,9 +946,12 @@
    #endif
     /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
   /* ------------------------------------------------------------------------------------ */
-  #elif (defined(__APPLE__) && defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__))) /* PowerPC OSX */ || \
-        (defined(__linux__) && defined(__PPC__)) /* PowerPC Linux */ || \
-        (defined(__blrts__) && defined(__PPC__)) /* BlueGene/L */
+  /* PowerPPC ids:
+   * AIX: _POWER
+   * Darwin: __ppc__ or __ppc64__
+   * Linux: __PPC__
+   */
+  #elif defined(_POWER) || defined(__PPC__) || defined(__ppc__) || defined(__ppc64__)
     #if defined(__xlC__)
       /* XLC machine code functions are very rigid, thus we produce all
        * three read-modify-write ops as distinct functions in order to
