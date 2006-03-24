@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/03/14 19:55:29 $
-# $Revision: 1.325 $
+#     $Date: 2006/03/24 06:04:38 $
+# $Revision: 1.325.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.325 $)
+AC_REVISION($Revision: 1.325.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2099,56 +2099,6 @@ else
 fi
 
 ########################################################################
-
-# Check for broken asm/atomic.h on Linux
-case "$target_os" in
-  linux*)
-    AC_MSG_CHECKING(for broken asm/atomic.h)
-    AC_TRY_LINK( [
-      #include <asm/bitops.h>
-      #include <asm/system.h>
-      #include <asm/atomic.h>
-    ], [
-      atomic_t v;
-      atomic_set(&v,5);
-      atomic_inc(&v);
-      #ifdef cmpxchg /* cmpxchg may fail to link when optimizations are disabled */
-      do {
-        volatile int x = 1;
-        cmpxchg(&x, 1, 2);
-      } while (0);
-      #endif
-    ], AC_MSG_RESULT(ok), 
-    [ AC_MSG_RESULT(broken) 
-      AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
-    ] )
-    if test "$have_cxx" = 1; then
-      # Do the same check for CXX as well
-      AC_LANG_SAVE
-      AC_LANG_CPLUSPLUS
-      AC_MSG_CHECKING(for broken asm/atomic.h with c++)
-      AC_TRY_LINK( [
-        #include <asm/bitops.h>
-        #include <asm/system.h>
-        #include <asm/atomic.h>
-      ], [
-        atomic_t v;
-        atomic_set(&v,5);
-        atomic_inc(&v);
-        #ifdef cmpxchg /* cmpxchg may fail to link when optimizations are disabled */
-        do {
-          volatile int x = 1;
-          cmpxchg(&x, 1, 2);
-        } while (0);
-        #endif
-      ], AC_MSG_RESULT(ok),
-      [ AC_MSG_RESULT(broken) 
-        AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
-      ] )
-      AC_LANG_RESTORE
-    fi
-    ;;
-esac
 
 # Check for alloca in C code
 GASNET_FUNC_ALLOCA
