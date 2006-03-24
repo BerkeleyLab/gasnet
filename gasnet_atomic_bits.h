@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/23 08:04:50 $
- * $Revision: 1.94.2.21 $
+ *     $Date: 2006/03/24 01:51:56 $
+ * $Revision: 1.94.2.22 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,13 +60,13 @@
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */          \
     defined(CRAYT3E)   || /* T3E seems to have no atomic ops */              \
     defined(_SX)       || /* NEC SX-6 atomics not available to user code? */ \
-    (defined(__PGI) && defined(BROKEN_LINUX_ASM_ATOMIC_H)) || /* haven't implemented atomics for PGI */ \
+    defined(__PGI)     || /* haven't implemented atomics for PGI */ \
     defined(__SUNPRO_C) || defined(__SUNPRO_CC) /* haven't implemented atomics for SunCC */
   #define GASNETI_USE_GENERIC_ATOMICOPS
-#endif
-/* misc rerequisites to detection logic below */
-#if defined(__linux__) && !defined(BROKEN_LINUX_ASM_ATOMIC_H)
-  #include <linux/config.h>
+#elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */          \
+    defined(MTA)   ||  \
+    defined(IRIX) /* We could do LL/SC based gcc asm for MIPS if we had a platform to test */
+  #define GASNETI_USE_OS_ATOMICOPS
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -88,8 +88,18 @@
 #define GASNETI_ATOMIC_ACQ_IF_FALSE	GASNETI_ATOMIC_RMB_POST_IF_FALSE
 
 /* ------------------------------------------------------------------------------------ */
-#ifdef GASNETI_USE_GENERIC_ATOMICOPS
-  /* a very slow but portable implementation of atomic ops */
+/* Yuck */
+#if (defined(__i386__) || defined(__x86_64__)) /* x86 and Athlon/Opteron */ && \
+	(defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__))
+  #ifdef GASNETI_UNI_BUILD
+    #define GASNETI_X86_LOCK_PREFIX ""
+  #else
+    #define GASNETI_X86_LOCK_PREFIX "lock\n\t"
+  #endif
+#endif
+/* ------------------------------------------------------------------------------------ */
+#if defined(GASNETI_USE_GENERIC_ATOMICOPS)
+  /* a very slow but portable implementation of atomic ops using mutexes */
   #define GASNETI_ATOMICOPS_NOT_SIGNALSAFE 1
   #ifdef _INCLUDED_GASNET_H
     extern void *gasneti_patomicop_lock; /* bug 693: avoid header dependency cycle */
@@ -240,11 +250,10 @@
               (*(p) == (oldval) ? *(p) = (newval), 1 : 0)
     /* bug1405: using default fences */
   #endif
-#else
+#elif defined(GASNETI_USE_OS_ATOMICOPS)
   /* ------------------------------------------------------------------------------------
-   * Prefer OS-provided atomics, which should be CPU-independent and
-   * which should work regardless of the compiler's inline assembly support
-   * The exception is the sometimes broken Linux asm/atomic.h
+   * Use OS-provided atomics, which should be CPU-independent and
+   * which should work regardless of the compiler's inline assembly support.
    * ------------------------------------------------------------------------------------ */
   #if defined(AIX)
       #include <sys/atomic_op.h>
@@ -289,7 +298,7 @@
       #define _gasneti_atomic_decrement_and_test(p) \
                                           (int_fetch_add((p),-1) == 1) 
       /* XXX bug1405: using default fences (TODO: VERIFY THAT WE NEED THEM) */
-  #elif 0 && defined(SOLARIS) /* DISABLED */
+  #elif defined(SOLARIS)	/* BROKEN */
       /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
          to the user... after all, what application would be interested in performance? */
       #include <sys/atomic.h>
@@ -299,6 +308,8 @@
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
       #define _gasneti_atomic_init(v)      { (v) }
   #elif defined(CYGWIN)
+      /* These are *NOT* Cywgin calls, but Windows API calls that may actually
+       * be intrinsics in the MS compilers on 64-bit systems. */
       #include <windows.h>
       typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
       #define _gasneti_atomic_increment(p) InterlockedIncrement((LONG *)&((p)->ctr))
@@ -311,19 +322,68 @@
       #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
-      /* bug1405: x86 and x86_64 include full memory fence in locked RMW insns */
+      /* bug1405: MSDN docs ensure memory fence in these, even on ia64 */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
-  /* ------------------------------------------------------------------------------------
-   * No OS-provided atomics, so try to provide our own, based on the CPU and compiler 
-   * support for inline assembly code
-   * ------------------------------------------------------------------------------------ */
-  #elif defined(__i386__) || defined(__x86_64__) /* x86 and Athlon/Opteron */
-    #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__)
-      #ifdef GASNETI_UNI_BUILD
-        #define GASNETI_LOCK ""
-      #else
-        #define GASNETI_LOCK "lock\n\t"
+  #elif defined(__linux__) 
+      #include <linux/config.h>
+      #if !(defined(CONFIG_SMP) || defined(GASNETI_UNI_BUILD))
+        #error Building against a uniprocessor kernel.  Configure with --disable-smp-safe (for uniprocessor compute nodes), or build on an SMP host.
       #endif
+      /* ------------------------------------------------------------------------------------
+       * Linux provides an asm/atomic.h that is sometimes just useless
+       * and other times supplies all but compare-and-swap (even when
+       * it is implemented).
+       * ------------------------------------------------------------------------------------ */
+      /* some versions of the linux kernel ship with a broken atomic.h
+         Disable using this code if this is a gasnet-smp build and the 
+         linux/config.h settings disagree (due to system config problem or 
+         cross-compiling on a uniprocessor frontend for smp nodes)
+       */
+      #ifdef __alpha__
+        /* work-around for a puzzling header bug in alpha Linux */
+        #define extern static
+      #endif
+      #ifdef __cplusplus
+        /* work around a really stupid C++ header bug observed in HP Linux */
+        #define new new_
+      #endif
+      #include <asm/bitops.h>
+      #include <asm/system.h>
+      #include <asm/atomic.h>
+      #ifdef __alpha__
+        #undef extern
+      #endif
+      #ifdef __cplusplus
+        #undef new
+      #endif
+      typedef atomic_t gasneti_atomic_t;
+      #define _gasneti_atomic_increment(p) atomic_inc(p)
+      #define _gasneti_atomic_decrement(p) atomic_dec(p)
+      #define _gasneti_atomic_read(p)      atomic_read(p)
+      #define _gasneti_atomic_set(p,v)     atomic_set(p,v)
+      #define _gasneti_atomic_init(v)      ATOMIC_INIT(v)
+      #define _gasneti_atomic_decrement_and_test(p) \
+                                          atomic_dec_and_test(p)
+      #ifdef cmpxchg
+        /* we must violate the Linux atomic_t abstraction below and pass
+           cmpxchg a pointer to the struct field, otherwise cmpxchg will
+           stupidly attempt to cast its result to a struct type and fail
+         */
+        #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
+             (cmpxchg(&((p)->counter),oval,nval) == (oval))
+        #define GASNETI_HAVE_ATOMIC_CAS 1
+      #endif
+      /* bug1405: using default fences as we can't hope to know what to expect on new platforms */
+  #else
+    #error GASNETI_USE_OS_ATOMICS defined on unsupported OS - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
+  #endif
+#else
+  /* ------------------------------------------------------------------------------------
+   * Not using GENERIC (mutex) or OS-provided atomics, so provide our own based on the
+   * CPU and compiler support for inline assembly code
+   * ------------------------------------------------------------------------------------ */
+  #if defined(__i386__) || defined(__x86_64__) /* x86 and Athlon/Opteron */
+    #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__)
       #if defined(__PATHCC__)
         /* Pathscale optimizer is buggy and fails to clobber memory output location correctly
            unless we include an extraneous full memory clobber 
@@ -339,7 +399,7 @@
       GASNETI_INLINE(_gasneti_atomic_increment)
       void _gasneti_atomic_increment(gasneti_atomic_t *v) {
         __asm__ __volatile__(
-                GASNETI_LOCK "incl %0"
+                GASNETI_X86_LOCK_PREFIX "incl %0"
                 : "=m" (v->ctr)
                 : "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -347,7 +407,7 @@
       GASNETI_INLINE(_gasneti_atomic_decrement)
       void _gasneti_atomic_decrement(gasneti_atomic_t *v) {
         __asm__ __volatile__(
-                GASNETI_LOCK "decl %0"
+                GASNETI_X86_LOCK_PREFIX "decl %0"
                 : "=m" (v->ctr)
                 : "m" (v->ctr) 
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -356,7 +416,7 @@
       int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
           unsigned char c;
           __asm__ __volatile__(
-	          GASNETI_LOCK "decl %0\n\tsete %1"
+	          GASNETI_X86_LOCK_PREFIX "decl %0\n\tsete %1"
 	          : "=m" (v->ctr), "=mq" (c)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -366,7 +426,7 @@
       int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
         register unsigned char retval;
         register uint32_t readval;
-        __asm__ __volatile__ (GASNETI_LOCK "cmpxchgl %3, %1\n\tsete %0"
+        __asm__ __volatile__ (GASNETI_X86_LOCK_PREFIX "cmpxchgl %3, %1\n\tsete %0"
 			          : "=mq" (retval), "=m" (v->ctr), "=a" (readval)
 			          : "r" (newval), "m" (v->ctr), "a" (oldval)
 			          : "cc", "memory");
@@ -995,59 +1055,14 @@
     #else
       #error Unrecognized PowerPC - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
-  /* ------------------------------------------------------------------------------------
-   * Linux provides an asm/atomic.h that is sometimes just useless
-   * and other times supplies all but compare-and-swap (even when
-   * it is implemented).  Therefore we use it only as the last resort.
-   * ------------------------------------------------------------------------------------ */
-  #elif defined(__linux__) && !defined(BROKEN_LINUX_ASM_ATOMIC_H) && \
-      (defined(CONFIG_SMP) || defined(GASNETI_UNI_BUILD))
-      /* some versions of the linux kernel ship with a broken atomic.h
-         Disable using this code if this is a gasnet-smp build and the 
-         linux/config.h settings disagree (due to system config problem or 
-         cross-compiling on a uniprocessor frontend for smp nodes)
-       */
-      #ifdef __alpha__
-        /* work-around for a puzzling header bug in alpha Linux */
-        #define extern static
-      #endif
-      #ifdef __cplusplus
-        /* work around a really stupid C++ header bug observed in HP Linux */
-        #define new new_
-      #endif
-      #include <asm/bitops.h>
-      #include <asm/system.h>
-      #include <asm/atomic.h>
-      #ifdef __alpha__
-        #undef extern
-      #endif
-      #ifdef __cplusplus
-        #undef new
-      #endif
-      typedef atomic_t gasneti_atomic_t;
-      #define _gasneti_atomic_increment(p) atomic_inc(p)
-      #define _gasneti_atomic_decrement(p) atomic_dec(p)
-      #define _gasneti_atomic_read(p)      atomic_read(p)
-      #define _gasneti_atomic_set(p,v)     atomic_set(p,v)
-      #define _gasneti_atomic_init(v)      ATOMIC_INIT(v)
-      #define _gasneti_atomic_decrement_and_test(p) \
-                                          atomic_dec_and_test(p)
-      #ifdef cmpxchg
-        /* we must violate the Linux atomic_t abstraction below and pass
-           cmpxchg a pointer to the struct field, otherwise cmpxchg will
-           stupidly attempt to cast its result to a struct type and fail
-         */
-        #define _gasneti_atomic_compare_and_swap(p,oval,nval) \
-             (cmpxchg(&((p)->counter),oval,nval) == (oval))
-        #define GASNETI_HAVE_ATOMIC_CAS 1
-      #endif
-      /* bug1405: using default fences as we can't hope to know what to expect on new platforms */
   #else
     #error Unrecognized platform - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
   #endif
 #endif
 
-#ifdef GASNETI_USE_GENERIC_ATOMICOPS
+#if defined(GASNETI_USE_GENERIC_ATOMICOPS)
+  #define GASNETI_ATOMIC_CONFIG   atomics_mutex
+#elif defined(GASNETI_USE_OS_ATOMICOPS)
   #define GASNETI_ATOMIC_CONFIG   atomics_os
 #else
   #define GASNETI_ATOMIC_CONFIG   atomics_native
