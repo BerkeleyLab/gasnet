@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/24 06:12:08 $
- * $Revision: 1.94.2.24 $
+ *     $Date: 2006/03/24 20:25:09 $
+ * $Revision: 1.94.2.25 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -414,13 +414,13 @@
       }
       GASNETI_INLINE(_gasneti_atomic_decrement_and_test)
       int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
-          unsigned char c;
+          register unsigned char retval;
           __asm__ __volatile__(
 	          GASNETI_X86_LOCK_PREFIX "decl %0\n\tsete %1"
-	          : "=m" (v->ctr), "=mq" (c)
+	          : "=m" (v->ctr), "=mq" (retval)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-          return (c != 0);
+          return retval;
       }
       GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
       int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
