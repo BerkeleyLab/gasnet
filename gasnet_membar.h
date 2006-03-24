@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/03/23 07:06:22 $
- * $Revision: 1.86.2.4 $
+ *     $Date: 2006/03/24 00:12:15 $
+ * $Revision: 1.86.2.5 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -198,6 +198,13 @@
    }
    #define gasneti_local_mb() _gasneti_local_mb()
 #elif defined(__ia64__) || defined(__ia64) /* Itanium */
+    /* Empirically observed that IA64 requires a full memory fence for both wmb and rmb (see bug 1000).
+     * The reason is that the Itanium memeory model only ensures ordering in one direction when
+     * using st.rel or ld.acq.  In particular, they implement the minimum required for proper
+     * mutex implementation.  While preventing loads and stores from moving OUT of the creitical
+     * section, this still allows for loads before the lock and stored after the  unlock to reorder
+     * INTO the critical section.  We need more than that.
+     */
    #ifdef __INTEL_COMPILER
       /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
       #include <ia64intrin.h>
@@ -207,7 +214,6 @@
         gasneti_compiler_fence();           \
         __mf();  /* memory fence instruction */  \
       } while (0)
-      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
       #define gasneti_local_rmb() gasneti_local_wmb()
       #define gasneti_local_mb()  gasneti_local_wmb()
       #define GASNETI_RMB_IS_MB
@@ -218,46 +224,16 @@
       #define gasneti_compiler_fence() \
          _Asm_sched_fence((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE)) 
       #define gasneti_local_mb() _Asm_mf((_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE))
-      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
       #define gasneti_local_wmb gasneti_local_mb
       #define gasneti_local_rmb gasneti_local_mb
       #define GASNETI_RMB_IS_MB
       #define GASNETI_WMB_IS_MB
    #else
-    #if 1
       #define gasneti_local_wmb() GASNETI_ASM("mf")
-      /* bug 1000: empirically observed that IA64 requires a full memory fence for both wmb and rmb */
       #define gasneti_local_rmb() gasneti_local_wmb()
       #define gasneti_local_mb()  gasneti_local_wmb()
       #define GASNETI_RMB_IS_MB
       #define GASNETI_WMB_IS_MB
-    #else
-      /* according to section 4.4.7 in:
-         "Intel Itanium Architecture Software Developer's Manual, Vol 2 System Architecture"
-         the following should work, but for some reason it does not
-       */
-      GASNETI_INLINE(_gasneti_local_wmb)
-      void _gasneti_local_wmb() {
-        int tmp;
-        __asm__ __volatile__(
-                ";;\n\tst4.rel %0 = r0\n\t;;"
-                :"=m" (tmp)
-                :);
-      }
-      #define gasneti_local_wmb _gasneti_local_wmb
-
-      GASNETI_INLINE(_gasneti_local_rmb)
-      void _gasneti_local_rmb() {
-        register int r;
-        int tmp;
-        __asm__ __volatile__(
-                ";;\n\tld4.acq %0 = %1\n\t;;"
-                : "=r" (r) : "m" (tmp) : "memory");
-      }
-      #define gasneti_local_rmb _gasneti_local_rmb
-
-      #define gasneti_local_mb() GASNETI_ASM("mf")
-    #endif
    #endif
 #elif defined(_POWER) /* IBM SP POWER[234] */ || \
      (defined(__APPLE__) && defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__))) /* PowerPC OSX */ || \
