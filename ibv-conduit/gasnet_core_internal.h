@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/03/19 02:08:30 $
- * $Revision: 1.125 $
+ *     $Date: 2006/03/24 01:51:54 $
+ * $Revision: 1.125.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -251,7 +251,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
   GASNETI_INLINE(_gasnetc_sema_up)
   void _gasnetc_sema_up(_gasnetc_sema_t *s) {
-    __asm__ __volatile__ (GASNETI_LOCK "incl %0" : "=m" (*s) : : "cc", "memory");
+    __asm__ __volatile__ (GASNETI_X86_LOCK_PREFIX "incl %0" : "=m" (*s) : : "cc", "memory");
   }
 
   GASNETI_INLINE(_gasnetc_sema_trydown)
@@ -267,7 +267,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 		          "1: testl	%1, %1		\n\t"	/* test retval */
 		          _GASNETC_SEMA_LEAL	       "\n\t"   /* tmp = retval-1 w/o changing cc */
 		          "je		2f		\n\t"	/* fail if retval 0 */
-             GASNETI_LOCK "cmpxchgl	%2, %0		\n\t"	/* swap */
+  GASNETI_X86_LOCK_PREFIX "cmpxchgl	%2, %0		\n\t"	/* swap */
                           "jne		1b		\n\t"	/* retry on conflict */
 			  "2: "
                                 : "=m" (*s), "=&a" (retval), "=&r" (tmp)
@@ -280,7 +280,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
   GASNETI_INLINE(_gasnetc_sema_up_n)
   void _gasnetc_sema_up_n(_gasnetc_sema_t *s, uint32_t n) {
-    __asm__ __volatile__ (GASNETI_LOCK "addl %1, %0" : "=m" (*s) : "ri" (n) : "cc", "memory");
+    __asm__ __volatile__ (GASNETI_X86_LOCK_PREFIX "addl %1, %0" : "=m" (*s) : "ri" (n) : "cc", "memory");
   }
 
   GASNETI_INLINE(_gasnetc_sema_trydown_n)
@@ -291,7 +291,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 		          "1: movl	%1, %2		\n\t"	/* newval = ... */
 		          "subl		%3, %2		\n\t"	/*          oldval - n */
 		          "js		2f		\n\t"	/* fail if newval < 0 */
-             GASNETI_LOCK "cmpxchgl	%2, %0		\n\t"	/* swap */
+  GASNETI_X86_LOCK_PREFIX "cmpxchgl	%2, %0		\n\t"	/* swap */
                           "jne		1b		\n\t"	/* retry on conflict */
 			  "2: "
                                 : "=m" (*s), "=&a" (oldval), "=&r" (newval)
@@ -593,7 +593,7 @@ typedef struct _gasneti_freelist_ptr_s {
       /* RELEASE semantics: LOCK prefix is a full mb() */
       __asm__ __volatile__ ("1: movl	%0, %%eax	\n\t"	/* eax = p->head */
                             "movl	%%eax, %2	\n\t"	/* tail->next = eax */
-               GASNETI_LOCK "cmpxchgl	%1, %0		\n\t"	/* p->head = head */
+    GASNETI_X86_LOCK_PREFIX "cmpxchgl	%1, %0		\n\t"	/* p->head = head */
                             "jne	1b"		/* retry on conflict */
                                 : "=m" (p->head)
                                 : "r" (head), "m" (tail->next)
@@ -607,7 +607,7 @@ typedef struct _gasneti_freelist_ptr_s {
                             "jz		2f		\n\t"	/*        ... on NULL */
                             "mov	(%0), %%ebx	\n\t"	/* ebx = p->head->next */
                             "lea	1(%3), %%ecx	\n\t"	/* ecx = ABA_tag + 1 */ 
-               GASNETI_LOCK "cmpxchg8b	%1		\n\t"	/* p->(head,ABA_tag) = (ebx,ecx) */
+    GASNETI_X86_LOCK_PREFIX "cmpxchg8b	%1		\n\t"	/* p->(head,ABA_tag) = (ebx,ecx) */
                             "jne	1b		\n\t"	/* retry w/ updated (eax,edx) */
                             "2:"
                                 : "=a" (retval)
