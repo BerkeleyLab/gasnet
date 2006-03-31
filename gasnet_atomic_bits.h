@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/31 04:02:19 $
- * $Revision: 1.128.2.1 $
+ *     $Date: 2006/03/31 04:42:39 $
+ * $Revision: 1.128.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -74,8 +74,7 @@
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */          \
     defined(CRAYT3E)   || /* T3E seems to have no atomic ops */              \
     defined(_SX)       || /* NEC SX-6 atomics not available to user code? */ \
-    (defined(__PGI) && !defined(PGI_WITH_REAL_ASM)) || /* haven't implemented atomics for PGI older than 6.1 */ \
-    defined(__SUNPRO_C) || defined(__SUNPRO_CC) /* haven't implemented atomics for SunCC */
+    (defined(__PGI) && !defined(PGI_WITH_REAL_ASM)) /* haven't implemented atomics for PGI older than 6.1 */
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */          \
     defined(MTA)   ||  \
@@ -103,7 +102,11 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* Yuck */
-#if (defined(__i386__) || defined(__x86_64__)) /* x86 and Athlon/Opteron */
+#if defined(__x86_64__) || /* x86 and Athlon/Opteron */ \
+    defined(__i386__) || defined(__i386) || defined(i386) || \
+    defined(__i486__) || defined(__i486) || defined(i486) || \
+    defined(__i586__) || defined(__i586) || defined(i586) || \
+    defined(__i686__) || defined(__i686) || defined(i686)
   #ifdef GASNETI_UNI_BUILD
     #define GASNETI_X86_LOCK_PREFIX ""
   #else
@@ -480,7 +483,11 @@
    * Not using GENERIC (mutex) or OS-provided atomics, so provide our own based on the
    * CPU and compiler support for inline assembly code
    * ------------------------------------------------------------------------------------ */
-  #if defined(__i386__) || defined(__x86_64__) /* x86 and Athlon/Opteron */
+  #if defined(__x86_64__) || /* x86 and Athlon/Opteron */ \
+      defined(__i386__) || defined(__i386) || defined(i386) || \
+      defined(__i486__) || defined(__i486) || defined(i486) || \
+      defined(__i586__) || defined(__i586) || defined(i586) || \
+      defined(__i686__) || defined(__i686) || defined(i686)
     #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__) || defined(PGI_WITH_REAL_ASM)
      typedef struct { volatile int ctr; } gasneti_atomic_t;
      #define _gasneti_atomic_init(v)      { (v) }
@@ -553,6 +560,53 @@
 
      #define GASNETI_HAVE_ATOMIC_CAS 1
      #define gasneti_atomic_fetchadd _gasneti_atomic_fetchadd
+    #elif defined(__SUNPRO_C)
+      typedef struct { volatile int ctr; } gasneti_atomic_t;
+      #define _gasneti_atomic_init(v)      { (v) }
+      #if defined(__x86_64__)
+	#define GASNETI_ATOMIC_SET_BODY \
+		gasneti_fatalerror("atomic_set not implemented YET");
+	#define GASNETI_ATOMIC_READ_BODY \
+		gasneti_fatalerror("atomic_read not implemented YET");
+	#define GASNETI_ATOMIC_INCREMENT_BODY \
+		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "incl (%rdi)" );
+	#define GASNETI_ATOMIC_DECREMENT_BODY \
+		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "decl (%rdi)" );
+	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY \
+		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "decl (%rdi)	\n\t" \
+			     "sete %dl					\n\t" \
+			     "movzbl  %dl, %eax" );
+	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY \
+		GASNETI_ASM( "movl    %esi, %eax	\n\t" \
+     GASNETI_X86_LOCK_PREFIX "cmpxchgl %edx, (%rdi)	\n\t" \
+			     "sete %cl			\n\t" \
+			     "movzbl  %cl, %eax" );
+      #else
+	#define GASNETI_ATOMIC_SET_BODY \
+		gasneti_fatalerror("atomic_set not implemented YET");
+	#define GASNETI_ATOMIC_READ_BODY \
+		gasneti_fatalerror("atomic_read not implemented YET");
+	#define GASNETI_ATOMIC_INCREMENT_BODY		\
+		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
+     GASNETI_X86_LOCK_PREFIX "incl (%eax)"		);
+	#define GASNETI_ATOMIC_DECREMENT_BODY		\
+		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
+     GASNETI_X86_LOCK_PREFIX "decl (%eax)"		);
+	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY	\
+		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
+     GASNETI_X86_LOCK_PREFIX "decl (%eax)		\n\t" \
+			     "sete %dl			\n\t" \
+			     "movzbl  %dl, %eax"	);
+	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY	\
+		GASNETI_ASM( "movl 8(%ebp), %edx	\n\t" \
+			     "movl 16(%ebp), %ecx	\n\t" \
+			     "movl 12(%ebp), %eax	\n\t" \
+     GASNETI_X86_LOCK_PREFIX "cmpxchgl %ecx, (%edx)	\n\t" \
+			     "sete  %cl			\n\t" \
+			     "movzbl  %cl, %eax"	);
+      #endif
+      #define GASNETI_HAVE_ATOMIC_CAS 1
+      #define GASNETI_USING_SLOW_ATOMICS_SPECIAL
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -1320,29 +1374,29 @@
 	(*(uint32_t (*)(gasneti_atomic_t *, int))(&gasneti_slow_atomic_read))
   GASNETI_EXTERNC void gasneti_slow_atomic_set(void);
   #define gasneti_atomic_set \
-	(*(void (*)(gasneti_atomic_t *, uint32_t, int)(&gasneti_slow_atomic_set))
+	(*(void (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_set))
   GASNETI_EXTERNC void gasneti_slow_atomic_increment(void);
   #define gasneti_atomic_increment \
-	(*(void (*)(gasneti_atomic_t *p, int)(&gasneti_slow_atomic_increment))
+	(*(void (*)(gasneti_atomic_t *p, int))(&gasneti_slow_atomic_increment))
   GASNETI_EXTERNC void gasneti_slow_atomic_decrement(void);
   #define gasneti_atomic_decrement \
-	(*(void (*)(gasneti_atomic_t *p, int)(&gasneti_slow_atomic_decrement))
-  GASNETI_EXTERNC int gasneti_slow_atomic_decrement_and_test(void);
+	(*(void (*)(gasneti_atomic_t *p, int))(&gasneti_slow_atomic_decrement))
+  GASNETI_EXTERNC void gasneti_slow_atomic_decrement_and_test(void);
   #define gasneti_atomic_decrement_and_test \
-	(*(int (*)(gasneti_atomic_t *p, int)(&gasneti_slow_atomic_decrement_and_test))
+	(*(int (*)(gasneti_atomic_t *p, int))(&gasneti_slow_atomic_decrement_and_test))
   #if defined(GASNETI_HAVE_ATOMIC_CAS)
-    GASNETI_EXTERNC int gasneti_slow_atomic_compare_and_swap(void);
+    GASNETI_EXTERNC void gasneti_slow_atomic_compare_and_swap(void);
     #define gasneti_atomic_compare_and_swap \
-	(*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t, int)(&gasneti_slow_atomic_compare_and_swap))
+	(*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t, int))(&gasneti_slow_atomic_compare_and_swap))
   #endif
   #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB) || defined(GASNETI_HAVE_ATOMIC_CAS) || \
       defined(gasneti_atomic_addfetch) || defined(gasneti_atomic_fetchadd)
-    GASNETI_EXTERNC uint32_t gasneti_slow_atomic_add(void);
+    GASNETI_EXTERNC void gasneti_slow_atomic_add(void);
     #define gasneti_atomic_add \
-	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int)(&gasneti_slow_atomic_add))
-    GASNETI_EXTERNC uint32_t gasneti_slow_atomic_subtract(void);
+	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_add))
+    GASNETI_EXTERNC void gasneti_slow_atomic_subtract(void);
     #define gasneti_atomic_subtract \
-	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int)(&gasneti_slow_atomic_subtract))
+	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_subtract))
     #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
   #endif
 #endif
