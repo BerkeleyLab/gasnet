@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/03/31 04:02:19 $
- * $Revision: 1.149.2.1 $
+ *     $Date: 2006/03/31 04:42:39 $
+ * $Revision: 1.149.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -91,39 +91,39 @@ extern void gasneti_slow_local_mb() {
 #endif
 
 #if defined(GASNETI_USING_SLOW_ATOMICS_SPECIAL)
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_read)
-  extern void gasneti_slow_atomic_read() {
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_read,
+  extern void gasneti_slow_atomic_read()) {
     GASNETI_ATOMIC_READ_BODY
   }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_set)
-  extern void gasneti_slow_atomic_set() {
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_set,
+  extern void gasneti_slow_atomic_set()) {
     GASNETI_ATOMIC_SET_BODY
   }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_increment)
-  extern void gasneti_slow_atomic_increment() {
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_increment,
+  extern void gasneti_slow_atomic_increment()) {
     GASNETI_ATOMIC_INCREMENT_BODY
   }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement)
-  extern void gasneti_slow_atomic_decrement() {
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement,
+  extern void gasneti_slow_atomic_decrement()) {
     GASNETI_ATOMIC_DECREMENT_BODY
   }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement_and_test)
-  extern int gasneti_slow_atomic_decrement_and_test() {
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement_and_test,
+  extern void gasneti_slow_atomic_decrement_and_test()) {
     GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY
   }
   #if defined(GASNETI_HAVE_ATOMIC_CAS)
-    GASNETI_NEVER_INLINE(gasneti_slow_atomic_compare_and_swap)
-    extern void gasneti_slow_atomic_compare_and_swap() {
+    GASNETI_NEVER_INLINE(gasneti_slow_atomic_compare_and_swap,
+    extern void gasneti_slow_atomic_compare_and_swap()) {
       GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY
     }
   #endif
   #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-    GASNETI_NEVER_INLINE(gasneti_slow_atomic_add)
-    extern void gasneti_slow_atomic_add() {
+    GASNETI_NEVER_INLINE(gasneti_slow_atomic_add,
+    extern void gasneti_slow_atomic_add()) {
       GASNETI_ATOMIC_ADD_BODY
     }
-    GASNETI_NEVER_INLINE(gasneti_slow_atomic_subract)
-    extern void gasneti_slow_atomic_subtract() {
+    GASNETI_NEVER_INLINE(gasneti_slow_atomic_subract,
+    extern void gasneti_slow_atomic_subtract()) {
       GASNETI_ATOMIC_SUBTRACT_BODY
     }
   #endif
