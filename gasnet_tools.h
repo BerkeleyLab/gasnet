@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/03/31 01:34:16 $
- * $Revision: 1.64 $
+ *     $Date: 2006/03/31 23:43:46 $
+ * $Revision: 1.64.2.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -120,7 +120,7 @@
                                          gasneti_atomic_compare_and_swap(p,oldval,newval,f)
   #endif
 
-  #ifdef GASNETI_HAVE_WEAKATOMIC_ADD_SUB
+  #ifdef GASNETI_HAVE_ATOMIC_ADD_SUB
     #define GASNETT_HAVE_ATOMIC_ADD_SUB 1
     #define gasnett_atomic_add(p,op,f)      gasneti_atomic_add(p,op,f)
     #define gasnett_atomic_subtract(p,op,f) gasneti_atomic_subtract(p,op,f)
