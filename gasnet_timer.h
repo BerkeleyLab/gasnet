@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/03/30 12:39:30 $
- * $Revision: 1.51 $
+ *     $Date: 2006/03/31 04:02:19 $
+ * $Revision: 1.51.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -490,12 +490,9 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_NOW()      ((gasneti_stattime_t)gasneti_getMicrosecondTimeStamp())
 #endif
 
-#ifdef GASNETI_USING_SLOW_TIMERS
-  #ifndef __cplusplus
-    #error Slow timers are only a hack-around for C++ compilers lacking inline assembly support
-  #endif
-  GASNETI_EXTERNC gasneti_stattime_t gasneti_slow_stattime_now();
-  #define GASNETI_STATTIME_NOW()      (gasneti_slow_stattime_now())
+#if defined(GASNETI_USING_SLOW_TIMERS) || defined(GASNETI_USING_SLOW_TIMERS_SPECIAL)
+  GASNETI_EXTERNC void gasneti_slow_stattime_now(void)
+  #define GASNETI_STATTIME_NOW()    ((*(gasneti_stattime_t (*)(void))(&gasneti_slow_stattime_now))())
 #endif
 
 #ifndef GASNETI_STATTIME_MIN
