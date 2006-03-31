@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/31 04:42:39 $
- * $Revision: 1.128.2.2 $
+ *     $Date: 2006/03/31 23:22:44 $
+ * $Revision: 1.128.2.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -560,7 +560,7 @@
 
      #define GASNETI_HAVE_ATOMIC_CAS 1
      #define gasneti_atomic_fetchadd _gasneti_atomic_fetchadd
-    #elif defined(__SUNPRO_C)
+    #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
       typedef struct { volatile int ctr; } gasneti_atomic_t;
       #define _gasneti_atomic_init(v)      { (v) }
       #if defined(__x86_64__)
@@ -572,13 +572,15 @@
 		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "incl (%rdi)" );
 	#define GASNETI_ATOMIC_DECREMENT_BODY \
 		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "decl (%rdi)" );
-	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY \
-		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "decl (%rdi)	\n\t" \
-			     "sete %dl					\n\t" \
+	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY	\
+		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX	\
+			     "decl (%rdi)		\n\t" \
+			     "sete %dl			\n\t" \
 			     "movzbl  %dl, %eax" );
-	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY \
+	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY	\
 		GASNETI_ASM( "movl    %esi, %eax	\n\t" \
-     GASNETI_X86_LOCK_PREFIX "cmpxchgl %edx, (%rdi)	\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "cmpxchgl %edx, (%rdi)	\n\t" \
 			     "sete %cl			\n\t" \
 			     "movzbl  %cl, %eax" );
       #else
@@ -588,20 +590,24 @@
 		gasneti_fatalerror("atomic_read not implemented YET");
 	#define GASNETI_ATOMIC_INCREMENT_BODY		\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
-     GASNETI_X86_LOCK_PREFIX "incl (%eax)"		);
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "incl (%eax)"		);
 	#define GASNETI_ATOMIC_DECREMENT_BODY		\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
-     GASNETI_X86_LOCK_PREFIX "decl (%eax)"		);
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "decl (%eax)"		);
 	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY	\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
-     GASNETI_X86_LOCK_PREFIX "decl (%eax)		\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "decl (%eax)		\n\t" \
 			     "sete %dl			\n\t" \
 			     "movzbl  %dl, %eax"	);
 	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY	\
 		GASNETI_ASM( "movl 8(%ebp), %edx	\n\t" \
 			     "movl 16(%ebp), %ecx	\n\t" \
 			     "movl 12(%ebp), %eax	\n\t" \
-     GASNETI_X86_LOCK_PREFIX "cmpxchgl %ecx, (%edx)	\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "cmpxchgl %ecx, (%edx)	\n\t" \
 			     "sete  %cl			\n\t" \
 			     "movzbl  %cl, %eax"	);
       #endif
@@ -1368,6 +1374,45 @@
   #endif
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+/* Default add and subtract atomics in terms of addfetch, fetachadd or compare-and-swap
+ *
+ * NOTE: _gasneti_atomic_{add,subtract} are only called w/ args free of side-effects.
+ * So, these macros can safely expand the arguments multiple times. 
+ */
+
+#if defined (GASNETI_HAVE_ATOMIC_ADD_SUB)
+  /* Have a platform-specific version */
+#elif defined (GASNETI_USING_SLOW_ATOMICS_SPECIAL)
+  /* Cannot build add/sub via defaults when using "special" slow atomics */
+#elif defined(gasneti_atomic_addfetch)
+  #define _gasneti_atomic_add(p,op)      ((uint32_t)gasneti_atomic_addfetch(p,op))
+  #define _gasneti_atomic_subtract(p,op) ((uint32_t)gasneti_atomic_addfetch(p,-op))
+  #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
+#elif defined(gasneti_atomic_fetchadd)
+  #define _gasneti_atomic_add(p,op)      ((uint32_t)(gasneti_atomic_fetchadd(p,op) + op))
+  #define _gasneti_atomic_subtract(p,op) ((uint32_t)(gasneti_atomic_fetchadd(p,-op) - op))
+  #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
+#elif defined(GASNETI_HAVE_ATOMIC_CAS)
+  GASNETI_INLINE(_gasneti_atomic_addfetch)
+  uint32_t _gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op) {
+    uint32_t _old, _new;
+    do {
+      _new = (_old = _gasneti_atomic_read(p)) + op;
+    } while (!_gasneti_atomic_compare_and_swap(p, _old, _new));
+    return _new;
+  }
+  #define _gasneti_atomic_add(p,op)      _gasneti_atomic_addfetch(p,op)
+  #define _gasneti_atomic_subtract(p,op) _gasneti_atomic_addfetch(p,-op)
+  #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* Slow function-call based atomics
+ * Used at client compile time for any compiler w/o inline asm support
+ * Used at GASNet library compile time for compilers w/ limited asm support.
+ */
+
 #if defined(GASNETI_USING_SLOW_ATOMICS) || defined(GASNETI_USING_SLOW_ATOMICS_SPECIAL)
   GASNETI_EXTERNC void gasneti_slow_atomic_read(void);
   #define gasneti_atomic_read \
@@ -1389,44 +1434,17 @@
     #define gasneti_atomic_compare_and_swap \
 	(*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t, int))(&gasneti_slow_atomic_compare_and_swap))
   #endif
-  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB) || defined(GASNETI_HAVE_ATOMIC_CAS) || \
-      defined(gasneti_atomic_addfetch) || defined(gasneti_atomic_fetchadd)
+  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
     GASNETI_EXTERNC void gasneti_slow_atomic_add(void);
     #define gasneti_atomic_add \
 	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_add))
     GASNETI_EXTERNC void gasneti_slow_atomic_subtract(void);
     #define gasneti_atomic_subtract \
 	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_subtract))
-    #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
   #endif
 #endif
 
-/* Default add and subtract atomics in terms of add-and-return or compare-and-swap */
-#if !defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-  /* NOTE: _gasneti_atomic_{add,subtract} are only called w/ args free of side-effects */
-  #if defined(gasneti_atomic_addfetch)
-    #define _gasneti_atomic_add(p,op)      ((uint32_t)gasneti_atomic_addfetch(p,op))
-    #define _gasneti_atomic_subtract(p,op) ((uint32_t)gasneti_atomic_addfetch(p,-op))
-    #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
-  #elif defined(gasneti_atomic_fetchadd)
-    #define _gasneti_atomic_add(p,op)      ((uint32_t)(gasneti_atomic_fetchadd(p,op) + op))
-    #define _gasneti_atomic_subtract(p,op) ((uint32_t)(gasneti_atomic_fetchadd(p,-op) - op))
-    #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
-  #elif defined(GASNETI_HAVE_ATOMIC_CAS)
-    GASNETI_INLINE(_gasneti_atomic_addfetch)
-    uint32_t _gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op) {
-      uint32_t _old, _new;
-      do {
-        _new = (_old = _gasneti_atomic_read(p)) + op;
-      } while (!_gasneti_atomic_compare_and_swap(p, _old, _new));
-      return _new;
-    }
-    #define _gasneti_atomic_add(p,op)      _gasneti_atomic_addfetch(p,op)
-    #define _gasneti_atomic_subtract(p,op) _gasneti_atomic_addfetch(p,-op)
-    #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
-  #endif
-#endif
-
+/* ------------------------------------------------------------------------------------ */
 
 #if defined(GASNETI_USE_GENERIC_ATOMICOPS)
   #define GASNETI_ATOMIC_CONFIG   atomics_mutex
