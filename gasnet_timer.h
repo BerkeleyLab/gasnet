@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/03/31 04:02:19 $
- * $Revision: 1.51.2.1 $
+ *     $Date: 2006/04/01 06:24:15 $
+ * $Revision: 1.51.2.2 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,12 +182,13 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
   #define GASNETI_STATTIME_TO_NS(st)  (gasneti_stattime_to_ns(st))
   #define GASNETI_STATTIME_NOW()      (gethrtime())
 #endif
-#elif defined(__LIBCATAMOUNT__) && defined(__PGI) && !defined(PGI_WITH_REAL_ASM) /* no way to do rdtsc */
+#elif defined(__LIBCATAMOUNT__) && defined(__PGI) && !defined(PGI_WITH_REAL_ASM) && 0 /* DISABLED */
   #include <catamount/dclock.h>
   typedef uint64_t gasneti_stattime_t;
   #define GASNETI_STATTIME_TO_NS(st)  (st)
   #define GASNETI_STATTIME_NOW()      ((gasneti_stattime_t)(dclock()*1E9))
-#elif defined(__linux__) && (defined(__GNUC__) || defined(__INTEL_COMPILER)) && \
+#elif defined(__linux__) && \
+     (defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PGI)) && \
      (defined(__i386__) || defined(__x86_64__) || defined(__ia64__))
   #include <stdio.h>
   #include <stdlib.h>
@@ -200,7 +201,22 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
     extern unsigned int __cpu_mhz; /* system provided */
   #endif
   typedef uint64_t gasneti_stattime_t;
- #if defined(PGI_WITH_REAL_ASM) && defined(__cplusplus)
+ #if defined(__PGI) && !defined(PGI_WITH_REAL_ASM)
+   #define GASNETI_USING_SLOW_TIMERS_SPECIAL 1
+   #if defined(__i386__)
+     #define GASNETI_SLOW_STATTIME_NOW_BODY GASNETI_ASM("rdtsc")
+   #elif defined (__x86_64__)
+     #define GASNETI_SLOW_STATTIME_NOW_BODY	\
+		GASNETI_ASM( "xor %rax, %rax	\n\t" \
+			     "rdtsc		\n\t" \
+			     "shl $32, %rdx	\n\t" \
+			     "or %rdx, %rax" );
+   #elif defined (__ia64__)
+     /* For completeness. */
+     #define GASNETI_SLOW_STATTIME_NOW_BODY	\
+		GASNETI_ASM( "mov.m r8=ar.itc;" )
+   #endif
+ #elif defined(PGI_WITH_REAL_ASM) && defined(__cplusplus)
   #define GASNETI_USING_SLOW_TIMERS 1
  #else
   GASNETI_INLINE(gasneti_stattime_now)
@@ -491,7 +507,7 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
 #endif
 
 #if defined(GASNETI_USING_SLOW_TIMERS) || defined(GASNETI_USING_SLOW_TIMERS_SPECIAL)
-  GASNETI_EXTERNC void gasneti_slow_stattime_now(void)
+  GASNETI_EXTERNC void gasneti_slow_stattime_now(void);
   #define GASNETI_STATTIME_NOW()    ((*(gasneti_stattime_t (*)(void))(&gasneti_slow_stattime_now))())
 #endif
 
