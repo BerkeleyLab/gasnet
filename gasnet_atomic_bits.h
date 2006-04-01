@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/03/31 23:22:44 $
- * $Revision: 1.128.2.3 $
+ *     $Date: 2006/04/01 01:56:37 $
+ * $Revision: 1.128.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -483,7 +483,7 @@
    * Not using GENERIC (mutex) or OS-provided atomics, so provide our own based on the
    * CPU and compiler support for inline assembly code
    * ------------------------------------------------------------------------------------ */
-  #if defined(__x86_64__) || /* x86 and Athlon/Opteron */ \
+  #if defined(__x86_64__) || defined(__amd64) || /* x86 and Athlon/Opteron */ \
       defined(__i386__) || defined(__i386) || defined(i386) || \
       defined(__i486__) || defined(__i486) || defined(i486) || \
       defined(__i586__) || defined(__i586) || defined(i586) || \
@@ -563,45 +563,111 @@
     #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
       typedef struct { volatile int ctr; } gasneti_atomic_t;
       #define _gasneti_atomic_init(v)      { (v) }
-      #if defined(__x86_64__)
-	#define GASNETI_ATOMIC_SET_BODY \
-		gasneti_fatalerror("atomic_set not implemented YET");
-	#define GASNETI_ATOMIC_READ_BODY \
-		gasneti_fatalerror("atomic_read not implemented YET");
-	#define GASNETI_ATOMIC_INCREMENT_BODY \
-		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "incl (%rdi)" );
-	#define GASNETI_ATOMIC_DECREMENT_BODY \
-		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX "decl (%rdi)" );
+      #if defined(__x86_64__) || defined(__amd64)
+	#define GASNETI_ATOMIC_SET_BODY			\
+		GASNETI_ASM( "testb $1, %dl		\n\t" \
+			     "je 1f			\n\t" \
+			     "lfence			\n" \
+			     "1:			\n\t" \
+			     "testb $2, %dl		\n\t" \
+			     "je 2f			\n\t" \
+			     "sfence			\n" \
+			     "2:			\n\t" \
+			     "movl %esi, (%rdi)		\n\t" \
+			     "testb $4, %dl		\n\t" \
+			     "je 3f			\n\t" \
+			     "lfence			\n" \
+			     "3:			\n\t" \
+			     "testb $8, %dl		\n\t" \
+			     "je 4f			\n\t" \
+			     "sfence			\n" \
+			     "4:" );
+	#define GASNETI_ATOMIC_READ_BODY		\
+		GASNETI_ASM( "testb $1, %dl		\n\t" \
+			     "je 1f			\n\t" \
+			     "lfence			\n" \
+			     "1:			\n\t" \
+			     "testb $2, %dl		\n\t" \
+			     "je 2f			\n\t" \
+			     "sfence			\n" \
+			     "2:			\n\t" \
+			     "movl (%rdi), %eax		\n\t" \
+			     "testb $4, %dl		\n\t" \
+			     "je 3f			\n\t" \
+			     "lfence			\n" \
+			     "3:			\n\t" \
+			     "testb $8, %dl		\n\t" \
+			     "je 4f			\n\t" \
+			     "sfence			\n" \
+			     "4:" );
+	#define GASNETI_ATOMIC_INCREMENT_BODY		\
+		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX	\
+			     "incl (%rdi)" );
+	#define GASNETI_ATOMIC_DECREMENT_BODY		\
+		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX	\
+			     "decl (%rdi)" );
 	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY	\
 		GASNETI_ASM( GASNETI_X86_LOCK_PREFIX	\
 			     "decl (%rdi)		\n\t" \
 			     "sete %dl			\n\t" \
-			     "movzbl  %dl, %eax" );
+			     "movzbl %dl, %eax"	);
 	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY	\
-		GASNETI_ASM( "movl    %esi, %eax	\n\t" \
+		GASNETI_ASM( "movl %esi, %eax		\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
 			     "cmpxchgl %edx, (%rdi)	\n\t" \
 			     "sete %cl			\n\t" \
-			     "movzbl  %cl, %eax" );
+			     "movzbl %cl, %eax"	);
+	#define GASNETI_ATOMIC_ADD_BODY			\
+		GASNETI_ASM( "movl %esi, %eax		\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "xadd %eax, (%rdi)		\n\t" \
+			     "addl %esi, %eax" );
+	#define GASNETI_ATOMIC_SUBTRACT_BODY		\
+		GASNETI_ASM( "movl %esi, %eax		\n\t" \
+			     "negl %eax			\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "xadd %eax, (%rdi)		\n\t" \
+			     "subl %esi, %eax" );
       #else
-	#define GASNETI_ATOMIC_SET_BODY \
-		gasneti_fatalerror("atomic_set not implemented YET");
-	#define GASNETI_ATOMIC_READ_BODY \
-		gasneti_fatalerror("atomic_read not implemented YET");
+	#define GASNETI_ATOMIC_SET_BODY			\
+		GASNETI_ASM( "movl 16(%ebp),%ecx	\n\t" \
+			     "movl 8(%ebp),%eax		\n\t" \
+			     "testb $2,%cl		\n\t" \
+			     "movl 12(%ebp),%edx	\n\t" \
+			     "je 1f			\n\t" \
+			     "lock; addl $0,(%esp)	\n" \
+			     "1:			\n\t" \
+			     "testb $8,%cl		\n\t" \
+			     "movl %edx,(%eax)		\n\t" \
+			     "je 2f			\n\t" \
+			     "lock; addl $0,(%esp)	\n" \
+			     "2:" );
+	#define GASNETI_ATOMIC_READ_BODY		\
+		GASNETI_ASM( "movl 12(%ebp),%ecx	\n\t" \
+			     "movl 8(%ebp),%eax		\n\t" \
+			     "testb $2,%cl		\n\t" \
+			     "je 1f			\n\t" \
+			     "lock; addl $0,(%esp)	\n" \
+			     "1:			\n\t" \
+			     "testb $8,%cl		\n\t" \
+			     "movl (%eax),%eax		\n\t" \
+			     "je 2f			\n\t" \
+			     "lock; addl $0,(%esp)	\n" \
+			     "2:" );
 	#define GASNETI_ATOMIC_INCREMENT_BODY		\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
-			     "incl (%eax)"		);
+			     "incl (%eax)" );
 	#define GASNETI_ATOMIC_DECREMENT_BODY		\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
-			     "decl (%eax)"		);
+			     "decl (%eax)" );
 	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY	\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
 			     "decl (%eax)		\n\t" \
 			     "sete %dl			\n\t" \
-			     "movzbl  %dl, %eax"	);
+			     "movzbl  %dl, %eax" );
 	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY	\
 		GASNETI_ASM( "movl 8(%ebp), %edx	\n\t" \
 			     "movl 16(%ebp), %ecx	\n\t" \
@@ -609,9 +675,25 @@
 			     GASNETI_X86_LOCK_PREFIX	\
 			     "cmpxchgl %ecx, (%edx)	\n\t" \
 			     "sete  %cl			\n\t" \
-			     "movzbl  %cl, %eax"	);
+			     "movzbl  %cl, %eax" );
+	#define GASNETI_ATOMIC_ADD_BODY			\
+		GASNETI_ASM( "movl 12(%ebp), %ecx	\n\t" \
+			     "movl 8(%ebp), %edx	\n\t" \
+			     "movl %ecx, %eax		\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "xadd %eax, (%edx)		\n\t" \
+			     "addl %ecx, %eax" );
+	#define GASNETI_ATOMIC_SUBTRACT_BODY		\
+		GASNETI_ASM( "movl 12(%ebp), %ecx	\n\t" \
+			     "movl 8(%ebp), %edx	\n\t" \
+			     "movl %ecx, %eax		\n\t" \
+			     "negl %eax			\n\t" \
+			     GASNETI_X86_LOCK_PREFIX	\
+			     "xadd %eax, (%edx)		\n\t" \
+			     "subl %ecx, %eax" );
       #endif
       #define GASNETI_HAVE_ATOMIC_CAS 1
+      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
       #define GASNETI_USING_SLOW_ATOMICS_SPECIAL
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
