@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/01 04:51:45 $
- * $Revision: 1.128.2.5 $
+ *     $Date: 2006/04/01 05:10:52 $
+ * $Revision: 1.128.2.6 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -624,7 +624,6 @@
 			     "addl %esi, %eax" );
 	#define GASNETI_ATOMIC_SUBTRACT_BODY		\
 		GASNETI_ASM( "movl %esi, %eax		\n\t" \
-            "0:\t" 
 			     "negl %eax			\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
 			     "xadd %eax, (%rdi)		\n\t" \
@@ -909,6 +908,7 @@
           __asm__ __volatile__ ( 
             "membar #StoreLoad | #LoadLoad    \n\t" /* RMB: prevent loads below from moving up */
             "ld       [%2],%0 \n\t"    /* oldval = *addr; */
+            "0:\t" 
             "add      %0,%3,%1 \n\t"   /* newval = oldval + op; */
             "cas      [%2],%0,%1 \n\t" /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
             "cmp      %0, %1 \n\t"     /* check if newval == oldval (swap succeeded) */
