@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/01 05:10:52 $
- * $Revision: 1.128.2.6 $
+ *     $Date: 2006/04/01 05:29:33 $
+ * $Revision: 1.128.2.7 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,8 +73,7 @@
 
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */          \
     defined(CRAYT3E)   || /* T3E seems to have no atomic ops */              \
-    defined(_SX)       || /* NEC SX-6 atomics not available to user code? */ \
-    (defined(__PGI) && !defined(PGI_WITH_REAL_ASM)) /* haven't implemented atomics for PGI older than 6.1 */
+    defined(_SX)          /* NEC SX-6 atomics not available to user code? */
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */          \
     defined(MTA)   ||  \
@@ -560,7 +559,7 @@
 
      #define GASNETI_HAVE_ATOMIC_CAS 1
      #define gasneti_atomic_fetchadd _gasneti_atomic_fetchadd
-    #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+    #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC) || defined(__PGI)
       typedef struct { volatile int ctr; } gasneti_atomic_t;
       #define _gasneti_atomic_init(v)      { (v) }
       #if defined(__x86_64__) || defined(__amd64)
