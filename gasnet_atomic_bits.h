@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/01 05:29:33 $
- * $Revision: 1.128.2.7 $
+ *     $Date: 2006/04/01 08:39:06 $
+ * $Revision: 1.128.2.8 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1033,7 +1033,7 @@
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
 
-        #define gasneti_atomic_fetchadd gasneti_atomic_fetchadd_32
+        #define gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
 
         /* Our asm has the following fences: */
 	#define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_POST
