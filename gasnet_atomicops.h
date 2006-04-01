@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/01 01:56:37 $
- * $Revision: 1.128.2.4 $
+ *     $Date: 2006/04/01 04:51:45 $
+ * $Revision: 1.128.2.5 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -624,6 +624,7 @@
 			     "addl %esi, %eax" );
 	#define GASNETI_ATOMIC_SUBTRACT_BODY		\
 		GASNETI_ASM( "movl %esi, %eax		\n\t" \
+            "0:\t" 
 			     "negl %eax			\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
 			     "xadd %eax, (%rdi)		\n\t" \
@@ -897,7 +898,7 @@
   #elif defined(__sparc) || defined(__sparc__)
     #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_SPARCV9) /* SPARC v9 */
       #if defined(__GNUC__)
-        static __inline__ int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op) {
+        static __inline__ int32_t gasneti_atomic_fetchandadd_32(int32_t volatile *v, int32_t op) {
           /* SPARC v9 architecture manual, p.333 
            * This function requires the cas instruction in Sparc V9, and therefore gcc -mcpu=ultrasparc
 	   * The manual says (sec A.9) no memory fences in CAS (in conflict w/ JMM web page).
@@ -906,34 +907,34 @@
           register int32_t oldval;
           register int32_t newval;
           __asm__ __volatile__ ( 
-            "0:\t" 
-            "membar #StoreLoad | #LoadLoad    \n\t" /* complete all previous ops before next load */
+            "membar #StoreLoad | #LoadLoad    \n\t" /* RMB: prevent loads below from moving up */
             "ld       [%2],%0 \n\t"    /* oldval = *addr; */
             "add      %0,%3,%1 \n\t"   /* newval = oldval + op; */
-            "cas      [%2],%0,%1 \n\t" /* if (*addr == oldval) { *addr = newval; }  newval = *addr; */
+            "cas      [%2],%0,%1 \n\t" /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
             "cmp      %0, %1 \n\t"     /* check if newval == oldval (swap succeeded) */
-            "bne,pn   %%icc, 0b \n\t"         /* otherwise, try again (,pn == predict not taken) */
-            "membar #StoreLoad | #StoreStore    \n\t" /* complete previous cas store before all subsequent ops */
+            "bne,pn   %%icc, 0b \n\t"  /* otherwise, try again (,pn == predict not taken) */
+            "mov      %1, %0 \n\t"     /* oldval = newval; (branch delay slot) */
+            "membar #StoreLoad | #StoreStore    \n\t" /* WMB: complete previous cas store before all subsequent ops */
             : "=&r"(oldval), "=&r"(newval)
             : "r" (addr), "rn"(op) 
             : "memory");
-          return newval;
+          return oldval;
         }
         typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-        #define _gasneti_atomic_increment(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),1))
-        #define _gasneti_atomic_decrement(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1))
+        #define _gasneti_atomic_increment(p) (gasneti_atomic_fetchandadd_32(&((p)->ctr),1))
+        #define _gasneti_atomic_decrement(p) (gasneti_atomic_fetchandadd_32(&((p)->ctr),-1))
         #define _gasneti_atomic_read(p)      ((p)->ctr)
         #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
         #define _gasneti_atomic_init(v)      { (v) }
-        #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_addandfetch_32(&((p)->ctr),-1) == 0)
+        #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_fetchandadd_32(&((p)->ctr),-1) == 1)
 
         GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
         int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
           register volatile uint32_t * addr = (volatile uint32_t *)&(v->ctr);
           __asm__ __volatile__ ( 
-              "membar #StoreLoad | #LoadLoad   \n\t" /* complete all previous ops before next load */
-              "cas      [%2],%1,%0 \n\t"             /* if (*addr == oldval) { *addr = newval; }  newval = *addr; */
-              "membar #StoreLoad | #StoreStore \n\t" /* complete previous cas store before all subsequent ops */
+              "membar #StoreLoad | #LoadLoad   \n\t" /* RMB: prevent loads below from moving up */
+              "cas      [%2],%1,%0 \n\t"             /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
+              "membar #StoreLoad | #StoreStore \n\t" /* WMB: complete previous cas store before all subsequent ops */
               : "+r"(newval)
               : "r"(oldval), "r" (addr)
               : "memory");
@@ -941,7 +942,7 @@
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
 
-        #define gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
+        #define gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr),op)
 
 	#define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
       #else
