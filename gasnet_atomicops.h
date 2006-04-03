@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/01 08:39:06 $
- * $Revision: 1.128.2.8 $
+ *     $Date: 2006/04/03 19:45:04 $
+ * $Revision: 1.128.2.9 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -693,7 +693,7 @@
       #endif
       #define GASNETI_HAVE_ATOMIC_CAS 1
       #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
-      #define GASNETI_USING_SLOW_ATOMICS_SPECIAL
+      #define GASNETI_USING_SLOW_ATOMICS_SPECIAL 1
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -944,6 +944,185 @@
         #define gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr),op)
 
 	#define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+      #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+	typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
+	#define _gasneti_atomic_init(v)      { (v) }
+	#define GASNETI_ATOMIC_READ_BODY		\
+	GASNETI_ASM( "andcc	%i1, 1, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "andcc	%i1, 2, %g0		\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "andcc	%i1, 2, %g0		\n\t" \
+		     "1:				\n\t" \
+		     "be,pt	%icc, 2f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "2:				\n\t" \
+		     "ld	[%i0], %i0		\n\t" \
+		     "andcc	%i1, 4, %g0		\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "andcc	%i1, 8, %g0		\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "andcc	%i1, 8, %g0		\n\t" \
+		     "3:				\n\t" \
+		     "be,pt	%icc, 4f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "4: ") ;
+	#define GASNETI_ATOMIC_SET_BODY			\
+	GASNETI_ASM( "andcc	%i2, 1, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "andcc	%i2, 2, %g0		\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "andcc	%i2, 2, %g0		\n\t" \
+		     "1:				\n\t" \
+		     "be,pt	%icc, 2f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "2:				\n\t" \
+		     "st	%i1, [%i0]		\n\t" \
+		     "andcc	%i2, 4, %g0		\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "andcc	%i2, 8, %g0		\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "andcc	%i2, 8, %g0		\n\t" \
+		     "3:				\n\t" \
+		     "be,pt	%icc, 4f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "4: " );
+	#define GASNETI_ATOMIC_INCREMENT_BODY		\
+	GASNETI_ASM( "andcc	%i1, 2, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "1:				\n\t" \
+		     "membar	#StoreLoad | #LoadLoad	\n\t" \
+		     "ld	[%i0],%i5		\n\t" \
+		     "2:				\n\t" \
+		     "add	%i5,1,%g1		\n\t" \
+		     "cas	[%i0],%i5,%g1		\n\t" \
+		     "cmp	%i5, %g1		\n\t" \
+		     "bne,pn	%icc, 2b		\n\t" \
+		     "mov	%g1, %i5		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "andcc	%i1, 4, %g0		\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "3: ") ;
+	#define GASNETI_ATOMIC_DECREMENT_BODY		\
+	GASNETI_ASM( "andcc	%i1, 2, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "1:				\n\t" \
+		     "membar	#StoreLoad | #LoadLoad	\n\t" \
+		     "ld	[%i0],%i5		\n\t" \
+		     "2:				\n\t" \
+		     "add	%i5,-1,%g1		\n\t" \
+		     "cas	[%i0],%i5,%g1		\n\t" \
+		     "cmp	%i5, %g1		\n\t" \
+		     "bne,pn	%icc, 2b		\n\t" \
+		     "mov	%g1, %i5		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "andcc	%i1, 4, %g0		\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "3: ") ;
+	#define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY	\
+	GASNETI_ASM( "andcc	%i1, 2, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "1:				\n\t" \
+		     "membar	#StoreLoad | #LoadLoad	\n\t" \
+		     "ld	[%i0],%g1		\n\t" \
+		     "2:				\n\t" \
+		     "add	%g1,-1,%i5		\n\t" \
+		     "cas	[%i0],%g1,%i5		\n\t" \
+		     "cmp	%g1, %i5		\n\t" \
+		     "bne,pn	%icc, 2b		\n\t" \
+		     "mov	%i5, %g1		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "xor	%g1, 1, %i0		\n\t" \
+		     "subcc	%g0, %i0, %g0		\n\t" \
+		     "subx	%g0, -1, %i0		\n\t" \
+		     "cmp	%i0, 0			\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "andcc	%i1, 36, %g0		\n\t" \
+		     "andcc	%i1, 20, %g0		\n\t" \
+		     "3:				\n\t" \
+		     "be,pt	%icc, 4f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "4: ") ;
+	#define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY	\
+	GASNETI_ASM( "andcc	%i3, 2, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "1:				\n\t" \
+		     "membar	#StoreLoad | #LoadLoad	\n\t" \
+		     "cas	[%i0],%i1,%i2		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "xor	%i2, %i1, %i0		\n\t" \
+		     "subcc	%g0, %i0, %g0		\n\t" \
+		     "subx	%g0, -1, %i0		\n\t" \
+		     "cmp	%i0, 0			\n\t" \
+		     "be,pt	%icc, 2f		\n\t" \
+		     "andcc	%i3, 36, %g0		\n\t" \
+		     "andcc	%i3, 20, %g0		\n\t" \
+		     "2:				\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "3: ") ;
+	#define GASNETI_ATOMIC_ADD_BODY			\
+	GASNETI_ASM( "andcc	%i2, 2, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "nop				\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "1:				\n\t" \
+		     "membar	#StoreLoad | #LoadLoad	\n\t" \
+		     "ld	[%i0],%g1		\n\t" \
+		     "2:				\n\t" \
+		     "add	%g1,%i1,%i5		\n\t" \
+		     "cas	[%i0],%g1,%i5		\n\t" \
+		     "cmp	%g1, %i5		\n\t" \
+		     "bne,pn	%icc, 2b		\n\t" \
+		     "mov	%i5, %g1		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "andcc	%i2, 4, %g0		\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "add	%g1, %i1, %i0		\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "3: ") ;
+	#define GASNETI_ATOMIC_SUBTRACT_BODY		\
+	GASNETI_ASM( "andcc	%i2, 2, %g0		\n\t" \
+		     "be,pt	%icc, 1f		\n\t" \
+		     "sub	%g0, %i1, %g1		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "sub	%g0, %i1, %g1		\n\t" \
+		     "1:				\n\t" \
+		     "membar	#StoreLoad | #LoadLoad	\n\t" \
+		     "ld	[%i0],%i5		\n\t" \
+		     "2:				\n\t" \
+		     "add	%i5,%g1,%i4		\n\t" \
+		     "cas	[%i0],%i5,%i4		\n\t" \
+		     "cmp	%i5, %i4		\n\t" \
+		     "bne,pn	%icc, 2b		\n\t" \
+		     "mov	%i4, %i5		\n\t" \
+		     "membar	#StoreLoad | #StoreStore\n\t" \
+		     "andcc	%i2, 4, %g0		\n\t" \
+		     "be,pt	%icc, 3f		\n\t" \
+		     "sub	%i5, %i1, %i0		\n\t" \
+		     "membar	#LoadStore | #LoadLoad	\n\t" \
+		     "3: ") ;
+        #define GASNETI_USING_SLOW_ATOMICS_SPECIAL 1
+        #define GASNETI_HAVE_ATOMIC_CAS 1
+        #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
       #else
         #error unrecognized Sparc v9 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
       #endif
