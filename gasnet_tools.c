@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/04/01 04:50:04 $
- * $Revision: 1.149.2.3 $
+ *     $Date: 2006/04/03 18:38:31 $
+ * $Revision: 1.149.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,7 @@ extern void gasneti_slow_local_mb() {
 #if defined(GASNETI_USING_SLOW_TIMERS_SPECIAL)
   GASNETI_NEVER_INLINE(gasneti_slow_stattime_now)
   extern void gasneti_slow_stattime_now() {
-    GASNETI_SLOW_STATTIME_NOW_BODY
+    GASNETI_STATTIME_NOW_BODY
   }
 #else
   extern gasneti_stattime_t gasneti_slow_stattime_now() {
