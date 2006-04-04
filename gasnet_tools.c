@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/04/04 06:44:58 $
- * $Revision: 1.149.2.5 $
+ *     $Date: 2006/04/04 07:01:56 $
+ * $Revision: 1.149.2.6 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -169,7 +169,7 @@ extern void gasneti_slow_local_mb() {
       return gasneti_atomic_add(p,op,flags);
     }
   #endif
-  #if defined(GASNETI_ATOMIC_SUBTACT_BODY)
+  #if defined(GASNETI_ATOMIC_SUBTRACT_BODY)
     GASNETI_NEVER_INLINE(gasneti_slow_atomic_subtract,
     extern void gasneti_slow_atomic_subtract()) {
       GASNETI_ATOMIC_SUBTRACT_BODY
