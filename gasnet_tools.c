@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/04/03 18:38:31 $
- * $Revision: 1.149.2.4 $
+ *     $Date: 2006/04/04 06:44:58 $
+ * $Revision: 1.149.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,7 +79,7 @@ extern void gasneti_slow_local_mb() {
   gasneti_local_mb();
 }
 
-#if defined(GASNETI_USING_SLOW_TIMERS_SPECIAL)
+#if defined(GASNETI_STATTIME_NOW_BODY)
   GASNETI_NEVER_INLINE(gasneti_slow_stattime_now)
   extern void gasneti_slow_stattime_now() {
     GASNETI_STATTIME_NOW_BODY
@@ -90,73 +90,115 @@ extern void gasneti_slow_local_mb() {
   }
 #endif
 
-#if defined(GASNETI_USING_SLOW_ATOMICS_SPECIAL)
+#if defined(GASNETI_ATOMIC_READ_BODY)
   GASNETI_NEVER_INLINE(gasneti_slow_atomic_read,
   extern void gasneti_slow_atomic_read()) {
     GASNETI_ATOMIC_READ_BODY
   }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_set,
-  extern void gasneti_slow_atomic_set()) {
-    GASNETI_ATOMIC_SET_BODY
-  }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_increment,
-  extern void gasneti_slow_atomic_increment()) {
-    GASNETI_ATOMIC_INCREMENT_BODY
-  }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement,
-  extern void gasneti_slow_atomic_decrement()) {
-    GASNETI_ATOMIC_DECREMENT_BODY
-  }
-  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement_and_test,
-  extern void gasneti_slow_atomic_decrement_and_test()) {
-    GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY
-  }
-  #if defined(GASNETI_HAVE_ATOMIC_CAS)
-    GASNETI_NEVER_INLINE(gasneti_slow_atomic_compare_and_swap,
-    extern void gasneti_slow_atomic_compare_and_swap()) {
-      GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY
-    }
-  #endif
-  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-    GASNETI_NEVER_INLINE(gasneti_slow_atomic_add,
-    extern void gasneti_slow_atomic_add()) {
-      GASNETI_ATOMIC_ADD_BODY
-    }
-    GASNETI_NEVER_INLINE(gasneti_slow_atomic_subtract,
-    extern void gasneti_slow_atomic_subtract()) {
-      GASNETI_ATOMIC_SUBTRACT_BODY
-    }
-  #endif
 #else
   extern uint32_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags) {
     return gasneti_atomic_read(p,flags);
   }
+#endif
+
+#if defined(GASNETI_ATOMIC_SET_BODY)
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_set,
+  extern void gasneti_slow_atomic_set()) {
+    GASNETI_ATOMIC_SET_BODY
+  }
+#else
   extern void gasneti_slow_atomic_set(gasneti_atomic_t *p, uint32_t v, const int flags) {
     gasneti_atomic_set(p, v, flags);
   }
+#endif
+
+#if defined(GASNETI_ATOMIC_INCREMENT_BODY)
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_increment,
+  extern void gasneti_slow_atomic_increment()) {
+    GASNETI_ATOMIC_INCREMENT_BODY
+  }
+#else
   extern void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags) {
     gasneti_atomic_increment(p, flags);
   }
+#endif
+
+#if defined(GASNETI_ATOMIC_DECREMENT_BODY)
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement,
+  extern void gasneti_slow_atomic_decrement()) {
+    GASNETI_ATOMIC_DECREMENT_BODY
+  }
+#else
   extern void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags) {
     gasneti_atomic_decrement(p, flags);
   }
+#endif
+
+#if defined(GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY)
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_decrement_and_test,
+  extern void gasneti_slow_atomic_decrement_and_test()) {
+    GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY
+  }
+#else
   extern int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags) {
     return gasneti_atomic_decrement_and_test(p, flags);
   }
-  #if defined(GASNETI_HAVE_ATOMIC_CAS)
+#endif
+
+#if defined(GASNETI_HAVE_ATOMIC_CAS)
+  #if defined(GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY)
+    GASNETI_NEVER_INLINE(gasneti_slow_atomic_compare_and_swap,
+    extern void gasneti_slow_atomic_compare_and_swap()) {
+      GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY
+    }
+  #else
     extern int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, const int flags) {
       return gasneti_atomic_compare_and_swap(p,oldval,newval,flags);
     }
   #endif
-  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+#endif
+
+#if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+  #if defined(GASNETI_ATOMIC_ADD_BODY)
+    GASNETI_NEVER_INLINE(gasneti_slow_atomic_add,
+    extern void gasneti_slow_atomic_add()) {
+      GASNETI_ATOMIC_ADD_BODY
+    }
+  #else
     extern uint32_t gasneti_slow_atomic_add(gasneti_atomic_t *p, uint32_t op, const int flags) {
       return gasneti_atomic_add(p,op,flags);
     }
+  #endif
+  #if defined(GASNETI_ATOMIC_SUBTACT_BODY)
+    GASNETI_NEVER_INLINE(gasneti_slow_atomic_subtract,
+    extern void gasneti_slow_atomic_subtract()) {
+      GASNETI_ATOMIC_SUBTRACT_BODY
+    }
+  #else
     extern uint32_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, uint32_t op, const int flags) {
       return gasneti_atomic_subtract(p,op,flags);
     }
   #endif
 #endif
+
+#if defined(GASNETI_ATOMIC_FETCHADD_BODY)
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_fetchadd,
+  extern void gasneti_slow_atomic_fetchadd()) {
+    GASNETI_ATOMIC_FETCHADD_BODY
+  }
+  #define gasneti_atomic_fetchadd \
+	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_fetchadd))
+#endif
+
+#if defined(GASNETI_ATOMIC_ADDFETCH_BODY)
+  GASNETI_NEVER_INLINE(gasneti_slow_atomic_addfetch,
+  extern void gasneti_slow_atomic_addfetch()) {
+    GASNETI_ATOMIC_ADDFETCH_BODY
+  }
+  #define gasneti_atomic_addfetch \
+	(*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_addfetch))
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNETI_THROTTLE_POLLERS
