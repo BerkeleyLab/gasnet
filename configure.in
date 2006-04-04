@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/03/30 12:39:30 $
-# $Revision: 1.333 $
+#     $Date: 2006/04/04 05:29:47 $
+# $Revision: 1.333.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.333 $)
+AC_REVISION($Revision: 1.333.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -307,7 +307,9 @@ case "$gasnet_cv_cc_family" in
        GASNET_POPVAR(CFLAGS)
        ;;
   MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
-  Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
+  Sun) MISC_CFLAGS="-errtags"  # show warning tag ids in warnings
+       GASNET_TRY_CFLAG([-xarch=v9], [ AC_DEFINE(GASNETI_ARCH_SPARCV9) ])
+       ;; 
   XLC) MISC_CFLAGS="-qsuppress=1500-010:1506-229" ;; # 1500-010 = infinite loop (such as in our tests)
 	# 1506-229 = empty source file (some linux headers)
   *)   MISC_CFLAGS="" ;;
@@ -1757,7 +1759,7 @@ if test "$enabled_vapi" = yes; then
 
   # Start by finding a reasonable default
   AC_PATH_PROGS(vstat, vstat)
-  if test "$vstat"; then
+  if test -n "$vstat"; then
     vapi_guess=`dirname \`dirname $vstat\``
   elif test -e /usr/local/ibgd/driver/infinihost; then
     vapi_guess=/usr/local/ibgd/driver/infinihost
