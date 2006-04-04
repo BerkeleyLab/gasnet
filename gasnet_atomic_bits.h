@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/04 06:44:58 $
- * $Revision: 1.128.2.11 $
+ *     $Date: 2006/04/04 07:01:48 $
+ * $Revision: 1.128.2.12 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -629,31 +629,24 @@
 			     "xadd %eax, (%rdi)		\n\t" \
 			     "subl %esi, %eax" );
       #else
-	#define GASNETI_ATOMIC_SET_BODY			\
-		GASNETI_ASM( "movl 16(%ebp),%ecx	\n\t" \
-			     "movl 8(%ebp),%eax		\n\t" \
-			     "testb $2,%cl		\n\t" \
-			     "movl 12(%ebp),%edx	\n\t" \
-			     "je 1f			\n\t" \
-			     "lock; addl $0,(%esp)	\n" \
-			     "1:			\n\t" \
-			     "testb $8,%cl		\n\t" \
-			     "movl %edx,(%eax)		\n\t" \
-			     "je 2f			\n\t" \
-			     "lock; addl $0,(%esp)	\n" \
-			     "2:" );
-	#define GASNETI_ATOMIC_READ_BODY		\
-		GASNETI_ASM( "movl 12(%ebp),%ecx	\n\t" \
-			     "movl 8(%ebp),%eax		\n\t" \
-			     "testb $2,%cl		\n\t" \
-			     "je 1f			\n\t" \
-			     "lock; addl $0,(%esp)	\n" \
-			     "1:			\n\t" \
-			     "testb $8,%cl		\n\t" \
-			     "movl (%eax),%eax		\n\t" \
-			     "je 2f			\n\t" \
-			     "lock; addl $0,(%esp)	\n" \
-			     "2:" );
+	GASNETI_INLINE(_gasneti_atomic_read)
+	uint32_t _gasneti_atomic_read(gasneti_atomic_t *p, const int flags) {
+	  if (flags & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();
+	  { const uint32_t retval = p->ctr;
+	    if (flags & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb();
+	    return retval;
+	  }
+	}
+	#define gasneti_atomic_read _gasneti_atomic_read
+
+	#define gasneti_atomic_set(p,v,f) do {                        \
+	  const int __flags = (f);                                    \
+	  if (__flags & GASNETI_ATOMIC_WMB_PRE) gasneti_local_wmb();  \
+	  (p)->ctr = (v);                                             \
+	  if (__flags & GASNETI_ATOMIC_WMB_POST) gasneti_local_wmb(); \
+	} while (0)
+
+
 	#define GASNETI_ATOMIC_INCREMENT_BODY		\
 		GASNETI_ASM( "movl 8(%ebp), %eax	\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
@@ -676,21 +669,29 @@
 			     "cmpxchgl %ecx, (%edx)	\n\t" \
 			     "sete  %cl			\n\t" \
 			     "movzbl  %cl, %eax" );
-	#define GASNETI_ATOMIC_ADD_BODY			\
-		GASNETI_ASM( "movl 12(%ebp), %ecx	\n\t" \
-			     "movl 8(%ebp), %edx	\n\t" \
-			     "movl %ecx, %eax		\n\t" \
+
+        GASNETI_EXTERNC void gasneti_slow_atomic_fetchadd(void);
+        #define gasneti_atomic_fetchadd \
+	    (*(uint32_t (*)(gasneti_atomic_t *, uint32_t, int))(&gasneti_slow_atomic_fetchadd))
+	#define GASNETI_ATOMIC_FETCHADD_BODY		\
+		GASNETI_ASM( "movl 8(%ebp), %edx	\n\t" \
+			     "movl 12(%ebp), %eax	\n\t" \
 			     GASNETI_X86_LOCK_PREFIX	\
-			     "xadd %eax, (%edx)		\n\t" \
-			     "addl %ecx, %eax" );
-	#define GASNETI_ATOMIC_SUBTRACT_BODY		\
-		GASNETI_ASM( "movl 12(%ebp), %ecx	\n\t" \
-			     "movl 8(%ebp), %edx	\n\t" \
-			     "movl %ecx, %eax		\n\t" \
-			     "negl %eax			\n\t" \
-			     GASNETI_X86_LOCK_PREFIX	\
-			     "xadd %eax, (%edx)		\n\t" \
-			     "subl %ecx, %eax" );
+			     "xadd %eax, (%edx)" );
+
+	GASNETI_INLINE(_gasneti_atomic_add)
+	uint32_t _gasneti_atomic_add(gasneti_atomic_t *p, uint32_t op, const int flags) {
+	  gasneti_assert((int32_t)op >= 0); /* TODO: prohibit zero as well? */
+	  return gasneti_atomic_fetchadd(p, op, flags) + op;
+	}
+	#define gasneti_atomic_add _gasneti_atomic_add
+
+	GASNETI_INLINE(_gasneti_atomic_subtract)
+	uint32_t _gasneti_atomic_subtract(gasneti_atomic_t *p, uint32_t op, const int flags) {
+	  gasneti_assert((int32_t)op >= 0); /* TODO: prohibit zero as well? */
+	  return gasneti_atomic_fetchadd(p, (uint32_t)(-op), flags) - op;
+	}
+	#define gasneti_atomic_subtract _gasneti_atomic_subtract
       #endif
       #define GASNETI_HAVE_ATOMIC_CAS 1
       #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
