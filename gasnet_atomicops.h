@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/04 21:07:52 $
- * $Revision: 1.128.2.14 $
+ *     $Date: 2006/04/04 21:55:03 $
+ * $Revision: 1.128.2.15 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -578,63 +578,37 @@
       #define _gasneti_atomic_read(p)      ((p)->ctr)
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
 
-      GASNETI_EXTERNC void _gasneti_special_atomic_increment(void);
-      #define _gasneti_atomic_increment \
-	  (*(void (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_increment))
-      GASNETI_EXTERNC void _gasneti_special_atomic_decrement(void);
-      #define _gasneti_atomic_decrement \
-	  (*(void (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_decrement))
-      GASNETI_EXTERNC void _gasneti_special_atomic_decrement_and_test(void);
-      #define _gasneti_atomic_decrement_and_test \
-	  (*(int (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_decrement_and_test))
-
-      GASNETI_EXTERNC void _gasneti_special_atomic_compare_and_swap(void);
-      #define _gasneti_atomic_compare_and_swap \
-	  (*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t))(&_gasneti_special_atomic_compare_and_swap))
-      #define GASNETI_HAVE_ATOMIC_CAS 1
-
-      GASNETI_EXTERNC void _gasneti_special_atomic_fetchadd(void);
-      #define gasneti_atomic_fetchadd \
-	  (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_fetchadd))
-
-      #define GASNETI_SPECIAL_ATOMIC_DEF				\
-	GASNETI_NEVER_INLINE(_gasneti_special_atomic_increment,		\
-	extern void _gasneti_special_atomic_increment(void)) {		\
+      #define GASNETI_ATOMIC_INCREMENT_BODY				\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
 		       GASNETI_X86_LOCK_PREFIX				\
-		       "incl " _gasneti_atomic_addr );			\
-	}								\
-	GASNETI_NEVER_INLINE(_gasneti_special_atomic_decrement,		\
-	extern void _gasneti_special_atomic_decrement(void)) {		\
+		       "incl " _gasneti_atomic_addr );
+
+      #define GASNETI_ATOMIC_DECREMENT_BODY				\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
 		       GASNETI_X86_LOCK_PREFIX				\
-		       "decl " _gasneti_atomic_addr );			\
-	}								\
-	GASNETI_NEVER_INLINE(_gasneti_special_atomic_decrement_and_test,\
-	extern void _gasneti_special_atomic_decrement_and_test(void)) {	\
+		       "decl " _gasneti_atomic_addr );
+
+      #define GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY			\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "decl " _gasneti_atomic_addr			"\n\t" \
 		       "sete %cl					\n\t" \
-		       "movzbl %cl, %eax" );				\
-	}								\
-	GASNETI_NEVER_INLINE(_gasneti_special_atomic_compare_and_swap,	\
-	extern void _gasneti_special_atomic_compare_and_swap(void)) {	\
+		       "movzbl %cl, %eax" );
+
+      #define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY			\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       _gasneti_atomic_load_arg2			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "cmpxchgl %edx, " _gasneti_atomic_addr		"\n\t" \
 		       "sete  %cl					\n\t" \
-		       "movzbl  %cl, %eax" );				\
-	}								\
-	GASNETI_NEVER_INLINE(_gasneti_special_atomic_fetchadd,		\
-	extern void _gasneti_special_atomic_fetchadd(void)) {		\
+		       "movzbl  %cl, %eax" );
+
+      #define GASNETI_ATOMIC_FETCHADD_BODY				\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       GASNETI_X86_LOCK_PREFIX				\
-		       "xadd %eax, " _gasneti_atomic_addr	);	\
-	}
+		       "xadd %eax, " _gasneti_atomic_addr	);
 
       /* x86 and x86_64 include full memory fence in locked RMW insns */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
@@ -893,23 +867,11 @@
 	#define _gasneti_atomic_init(v)      { (v) }
         #define _gasneti_atomic_read(p)      ((p)->ctr)
         #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-
-        GASNETI_EXTERNC void _gasneti_special_atomic_fetchadd(void);
-        #define gasneti_atomic_fetchadd \
-	    (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_fetchadd))
-
         #define _gasneti_atomic_increment(p) (gasneti_atomic_fetchadd(p,1))
         #define _gasneti_atomic_decrement(p) (gasneti_atomic_fetchadd(p,-1))
         #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_fetchadd(p,-1) == 1)
 
-        GASNETI_EXTERNC void _gasneti_special_atomic_compare_and_swap(void);
-        #define _gasneti_atomic_compare_and_swap \
-	    (*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t))(&_gasneti_special_atomic_compare_and_swap))
-        #define GASNETI_HAVE_ATOMIC_CAS 1
-
-        #define GASNETI_SPECIAL_ATOMIC_DEF						\
-	  GASNETI_NEVER_INLINE(_gasneti_special_atomic_compare_and_swap,		\
-	  extern void _gasneti_special_atomic_compare_and_swap(void)) {			\
+        #define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY					\
 	    GASNETI_ASM(								\
 		/* RMB: so loads don't move up					*/	\
 		     "membar	#StoreLoad | #LoadLoad	\n\t"				\
@@ -920,11 +882,9 @@
 		/* retval = (oldval == newval) ? 1 : 0				*/	\
 		     "xor	%i2, %i1, %g1		\n\t"				\
 		     "cmp	0, %g1			\n\t"				\
-		     "subx	0, -1, %i0 " );						\
-	  }										\
-	  										\
-	  GASNETI_NEVER_INLINE(_gasneti_special_atomic_fetchadd,			\
-	  extern void _gasneti_special_atomic_fetchadd(void)) {				\
+		     "subx	0, -1, %i0 " );
+
+        #define GASNETI_ATOMIC_FETCHADD_BODY						\
 	    GASNETI_ASM(								\
 		/* RMB: so loads don't move up					*/	\
 		     "membar	#StoreLoad | #LoadLoad	\n\t"				\
@@ -940,8 +900,7 @@
 		/* WMB: so stores don't move down				*/	\
 		     "membar	#StoreLoad | #StoreStore\n\t"				\
 		/* Retval = oldval						*/	\
-		     "mov	%i5, %i0" );						\
-	  }
+		     "mov	%i5, %i0" );
 
 	#define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
       #else
@@ -1453,6 +1412,62 @@
   #else
     #error Unrecognized platform - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
   #endif
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* Wrappers for "special" atomics, if any */
+#ifdef GASNETI_ATOMIC_READ_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_read(void);
+  #define _gasneti_atomic_read \
+	(*(uint32_t (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_read))
+#endif
+#ifdef GASNETI_ATOMIC_SET_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_set(void);
+  #define _gasneti_atomic_set \
+	(*(void (*)(gasneti_atomic_t *p, uint32_t))(&_gasneti_special_atomic_increment))
+#endif
+#ifdef GASNETI_ATOMIC_INCREMENT_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_increment(void);
+  #define _gasneti_atomic_increment \
+	(*(void (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_increment))
+#endif
+#ifdef GASNETI_ATOMIC_DECREMENT_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_decrement(void);
+  #define _gasneti_atomic_decrement \
+	(*(void (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_decrement))
+#endif
+#ifdef GASNETI_ATOMIC_DECREMENT_AND_TEST_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_decrement_and_test(void);
+  #define _gasneti_atomic_decrement_and_test \
+	(*(int (*)(gasneti_atomic_t *p))(&_gasneti_special_atomic_decrement_and_test))
+#endif
+#ifdef GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_compare_and_swap(void);
+  #define _gasneti_atomic_compare_and_swap \
+	(*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t))(&_gasneti_special_atomic_compare_and_swap))
+  #ifndef GASNETI_HAVE_ATOMIC_CAS
+    #define GASNETI_HAVE_ATOMIC_CAS 1
+  #endif
+#endif
+#ifdef GASNETI_ATOMIC_ADD_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_add(void);
+  #define gasneti_atomic_add \
+    (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_add))
+#endif
+#ifdef GASNETI_ATOMIC_SUBTRACT_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_subtract(void);
+  #define gasneti_atomic_subtract \
+    (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_subtract))
+#endif
+#ifdef GASNETI_ATOMIC_FETCHADD_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_fetchadd(void);
+  #define gasneti_atomic_fetchadd \
+    (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_fetchadd))
+#endif
+#ifdef GASNETI_ATOMIC_ADDFETCH_BODY
+  GASNETI_EXTERNC void _gasneti_special_atomic_addfetch(void);
+  #define gasneti_atomic_addfetch \
+    (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_addfetch))
 #endif
 
 /* ------------------------------------------------------------------------------------ */
