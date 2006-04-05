@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/04 21:55:03 $
- * $Revision: 1.128.2.15 $
+ *     $Date: 2006/04/05 00:26:56 $
+ * $Revision: 1.128.2.16 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -881,8 +881,8 @@
 		     "membar	#StoreLoad | #StoreStore\n\t"				\
 		/* retval = (oldval == newval) ? 1 : 0				*/	\
 		     "xor	%i2, %i1, %g1		\n\t"				\
-		     "cmp	0, %g1			\n\t"				\
-		     "subx	0, -1, %i0 " );
+		     "cmp	%g0, %g1		\n\t"				\
+		     "subx	%g0, -1, %i0 " );
 
         #define GASNETI_ATOMIC_FETCHADD_BODY						\
 	    GASNETI_ASM(								\
