@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/05 20:21:02 $
- * $Revision: 1.128.2.19 $
+ *     $Date: 2006/04/05 20:43:59 $
+ * $Revision: 1.128.2.20 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -504,10 +504,12 @@
       #endif
       #define _gasneti_atomic_read(p)      ((p)->ctr)
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+
       GASNETI_INLINE(_gasneti_atomic_increment)
       void _gasneti_atomic_increment(gasneti_atomic_t *v) {
         __asm__ __volatile__(
-                GASNETI_X86_LOCK_PREFIX "incl %0"
+                GASNETI_X86_LOCK_PREFIX
+		"incl %0"
                 : "=m" (v->ctr)
                 : "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -515,7 +517,8 @@
       GASNETI_INLINE(_gasneti_atomic_decrement)
       void _gasneti_atomic_decrement(gasneti_atomic_t *v) {
         __asm__ __volatile__(
-                GASNETI_X86_LOCK_PREFIX "decl %0"
+                GASNETI_X86_LOCK_PREFIX
+		"decl %0"
                 : "=m" (v->ctr)
                 : "m" (v->ctr) 
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -524,7 +527,9 @@
       int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
           register unsigned char retval;
           __asm__ __volatile__(
-	          GASNETI_X86_LOCK_PREFIX "decl %0\n\tsete %1"
+	          GASNETI_X86_LOCK_PREFIX
+		  "decl %0		\n\t"
+		  "sete %1"
 	          : "=m" (v->ctr), "=mq" (retval)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -535,10 +540,13 @@
       int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
         register unsigned char retval;
         register uint32_t readval;
-        __asm__ __volatile__ (GASNETI_X86_LOCK_PREFIX "cmpxchgl %3, %1\n\tsete %0"
-			          : "=mq" (retval), "=m" (v->ctr), "=a" (readval)
-			          : "r" (newval), "m" (v->ctr), "a" (oldval)
-			          : "cc", "memory");
+        __asm__ __volatile__ (
+		GASNETI_X86_LOCK_PREFIX
+		"cmpxchgl %3, %1	\n\t"
+		"sete %0"
+		: "=mq" (retval), "=m" (v->ctr), "=a" (readval)
+		: "r" (newval), "m" (v->ctr), "a" (oldval)
+		: "cc", "memory");
         return (int)retval;
       }
 
@@ -551,7 +559,6 @@
                 : "1" (tmp), "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
 	return tmp;
-	
       }
 
       /* x86 and x86_64 include full memory fence in locked RMW insns */
@@ -561,6 +568,7 @@
      #define GASNETI_HAVE_ATOMIC_CAS 1
      #define gasneti_atomic_fetchadd _gasneti_atomic_fetchadd
     #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC) || defined(__PGI)
+      /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if defined(__x86_64__) || defined(__amd64)
         #define _gasneti_atomic_addr		"(%rdi)"
         #define _gasneti_atomic_load_arg0	""	/* arg0 in rdi */
@@ -660,31 +668,35 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
       /* The default c-a-s based add and subtract are already the best we can do. */
+
+      /* See fence treatment after #endif */
     #elif defined(__GNUC__)
       GASNETI_INLINE(gasneti_cmpxchg)
-      int32_t gasneti_cmpxchg(int32_t volatile *ptr, int32_t oldval, int32_t newval) {                                                                                      \
-        int64_t _o_, _r_;
-         _o_ = (int64_t)oldval;
-         __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(_o_));
-         __asm__ __volatile__ ("cmpxchg4.acq %0=[%1],%2,ar.ccv"
-                                : "=r"(_r_) : "r"(ptr), "r"(newval) : "memory");
-        return (int32_t) _r_;
+      uint32_t gasneti_cmpxchg(int32_t volatile *ptr, int32_t oldval, int32_t newval) {
+        int64_t tmp = (int64_t)oldval;
+
+	/* Load "ar.ccv", the special register used for "oldval" in c-a-s */
+        __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(tmp));
+
+        __asm__ __volatile__ ("cmpxchg4.acq %0=[%1],%2,ar.ccv"
+                                : "=r"(tmp) : "r"(ptr), "r"(newval) : "memory");
+        return (uint32_t) tmp;
       }
       GASNETI_INLINE(gasneti_fetchandinc_32)
-      int32_t gasneti_atomic_fetchandinc_32(int32_t volatile *ptr) {
+      uint32_t gasneti_atomic_fetchandinc_32(int32_t volatile *ptr) {
         uint64_t result;\
         asm volatile ("fetchadd4.acq %0=[%1],%2"
                                 : "=r"(result) : "r"(ptr), "i" (1)
                                 : "memory");
-        return result;
+        return (uint32_t) result;
       }
       GASNETI_INLINE(gasneti_fetchanddec_32)
-      int32_t gasneti_atomic_fetchanddec_32(int32_t volatile *ptr) {
+      uint32_t gasneti_atomic_fetchanddec_32(int32_t volatile *ptr) {
         uint64_t result;\
         asm volatile ("fetchadd4.acq %0=[%1],%2"
                                 : "=r"(result) : "r"(ptr), "i" (-1)
                                 : "memory");
-        return result;
+        return (uint32_t) result;
       }
       typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
       #define _gasneti_atomic_increment(p) (gasneti_atomic_fetchandinc_32(&((p)->ctr)))
@@ -699,6 +711,8 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
       /* The default c-a-s based add and subtract are already the best we can do. */
+
+      /* See fence treatment after #endif */
     #elif defined(__HP_cc) || defined(__HP_aCC) /* HP C/C++ Itanium intrinsics */
       #include <machine/sys/inline.h>
       /* legal values for imm are -16, -8, -4, -1, 1, 4, 8, and 16 
@@ -729,6 +743,8 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
       /* The default c-a-s based add and subtract are already the best we can do. */
+
+      /* See fence treatment after #endif */
     #else
       #error unrecognized Itanium compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
