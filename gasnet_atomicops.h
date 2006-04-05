@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/05 20:43:59 $
- * $Revision: 1.128.2.20 $
+ *     $Date: 2006/04/05 21:11:59 $
+ * $Revision: 1.128.2.21 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -554,7 +554,8 @@
       uint32_t _gasneti_atomic_fetchadd(gasneti_atomic_t *v, int32_t op) {
 	uint32_t tmp = op;
         __asm__ __volatile__(
-                GASNETI_X86_LOCK_PREFIX "xaddl %1, %0"
+                GASNETI_X86_LOCK_PREFIX
+		"xaddl %1, %0"
                 : "=m" (v->ctr), "=&r" (tmp)
                 : "1" (tmp), "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
@@ -766,27 +767,27 @@
       int32_t gasneti_atomic_fetchandadd_32(int32_t volatile *v, int32_t op) {
         register int32_t temp;
         register int32_t result;
-        __asm__ __volatile__(
-          "1: ldl_l %1, %2\n\t"
-          "addl %1, %3, %0\n\t"
-          "stl_c %0, %2\n\t"
-          "beq %0, 1b"
-          : "=&r" (temp), "=&r" (result), "=m" (*v) /* outputs */
-          : "IOr" (op)       /* inputs */
-          : "memory", "cc");             /* kills */
+        __asm__ __volatile__ (
+		"1:	ldl_l	%1, %2		\n"	/* result = *addr */
+		"	addl	%1, %3, %0	\n"	/* temp = result + op */
+		"	stl_c	%0, %2		\n"	/* *addr = temp; temp = store_OK */
+		"	beq	%0, 1b"			/* Retry on ll/ss failure */
+		: "=&r" (temp), "=&r" (result), "=m" (*v) /* outputs */
+		: "IOr" (op)       /* inputs */
+		: "memory", "cc"); /* kills */
         return result;
       }
       GASNETI_INLINE(gasneti_atomic_add_32)
       void gasneti_atomic_add_32(int32_t volatile *v, int32_t op) {
         register int32_t temp;
-        __asm__ __volatile__(
-          "1: ldl_l %0, %1\n\t"
-          "addl %0, %2, %0\n\t"
-          "stl_c %0, %1\n\t"
-          "beq %0, 1b"
-          : "=&r" (temp), "=m" (*v) /* outputs */
-          : "IOr" (op)       /* inputs */
-          : "memory", "cc");             /* kills */
+        __asm__ __volatile__ (
+		"1:	ldl_l	%0, %1		\n"	/* temp = *addr */
+		"	addl	%0, %2, %0	\n"	/* temp += op */
+		"	stl_c	%0, %1		\n"	/* *addr = temp; temp = store_OK */
+		"	beq	%0, 1b"			/* Retry on ll/ss failure */
+		: "=&r" (temp), "=m" (*v) /* outputs */
+		: "IOr" (op)              /* inputs */
+		: "memory", "cc");        /* kills */
       }
      typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
      #define _gasneti_atomic_increment(p) (gasneti_atomic_add_32(&((p)->ctr),1))
@@ -865,13 +866,13 @@
           register int32_t oldval;
           register int32_t newval;
           __asm__ __volatile__ ( 
-            "ld       [%2],%0 \n\t"    /* oldval = *addr; */
-            "0:\t" 
-            "add      %0,%3,%1 \n\t"   /* newval = oldval + op; */
+            "ld       [%2],%0    \n\t" /* oldval = *addr; */
+            "0:			 \t" 
+            "add      %0,%3,%1   \n\t" /* newval = oldval + op; */
             "cas      [%2],%0,%1 \n\t" /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
-            "cmp      %0, %1 \n\t"     /* check if newval == oldval (swap succeeded) */
-            "bne,a,pn %%icc, 0b \n\t"  /* otherwise, retry (,pn == predict not taken; ,a == annul) */
-            "  mov    %1, %0"          /* oldval = newval; (branch delay slot, annulled if not taken) */
+            "cmp      %0, %1     \n\t" /* check if newval == oldval (swap succeeded) */
+            "bne,a,pn %%icc, 0b  \n\t" /* otherwise, retry (,pn == predict not taken; ,a == annul) */
+            "  mov    %1, %0     "     /* oldval = newval; (branch delay slot, annulled if not taken) */
             : "=&r"(oldval), "=&r"(newval)
             : "r" (addr), "rn"(op) 
             : "memory");
@@ -889,7 +890,7 @@
         int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
           register volatile uint32_t * addr = (volatile uint32_t *)&(v->ctr);
           __asm__ __volatile__ ( 
-              "cas      [%2],%1,%0 \n\t"             /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
+              "cas      [%2],%1,%0"  /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
               : "+r"(newval)
               : "r"(oldval), "r" (addr)
               : "memory");
@@ -922,7 +923,7 @@
         #define GASNETI_ATOMIC_FETCHADD_BODY /* see gcc asm, above, for more detail */	\
 	    GASNETI_ASM(								\
 		/* oldval = *addr;						*/	\
-		     "ld	[%i0], %g1		\n\t"				\
+		     "ld	[%i0], %g1		\n"				\
 		/* while (!cas(addr, oldval, oldval + op)) { oldval = *addr; }	*/	\
 		     "0:				\n\t"				\
 		     "add	 %g1, %i1, %i5		\n\t"				\
