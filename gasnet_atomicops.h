@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/05 01:32:26 $
- * $Revision: 1.128.2.17 $
+ *     $Date: 2006/04/05 20:08:13 $
+ * $Revision: 1.128.2.18 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -603,6 +603,7 @@
 		       "cmpxchgl %edx, " _gasneti_atomic_addr		"\n\t" \
 		       "sete  %cl					\n\t" \
 		       "movzbl  %cl, %eax" );
+      #define GASNETI_HAVE_ATOMIC_CAS 1
 
       #define GASNETI_ATOMIC_FETCHADD_BODY				\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
@@ -875,6 +876,7 @@
 		     "xor	%i2, %i1, %g1		\n\t" /* g1 = 0 IFF old==new */ \
 		     "cmp	%g0, %g1		\n\t" /* Set/clear carry bit */	\
 		     "subx	%g0, -1, %i0 " );	      /* Subtract w/ carry */
+        #define GASNETI_HAVE_ATOMIC_CAS 1
 
         #define GASNETI_ATOMIC_FETCHADD_BODY /* see gcc asm, above, for more detail */	\
 	    GASNETI_ASM(								\
@@ -1431,18 +1433,24 @@
   #define _gasneti_atomic_compare_and_swap \
 	(*(int (*)(gasneti_atomic_t *, uint32_t, uint32_t))(&_gasneti_special_atomic_compare_and_swap))
   #ifndef GASNETI_HAVE_ATOMIC_CAS
-    #define GASNETI_HAVE_ATOMIC_CAS 1
+    #error GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY defined when GASNETI_HAVE_ATOMIC_CAS is not.
   #endif
 #endif
 #ifdef GASNETI_ATOMIC_ADD_BODY
   GASNETI_EXTERNC void _gasneti_special_atomic_add(void);
-  #define gasneti_atomic_add \
+  #define _gasneti_atomic_add \
     (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_add))
+  #ifndef GASNETI_HAVE_ATOMIC_ADD_SUB
+    #error GASNETI_ATOMIC_ADD_BODY defined when GASNETI_HAVE_ATOMIC_ADD_SUB is not.
+  #endif
 #endif
 #ifdef GASNETI_ATOMIC_SUBTRACT_BODY
   GASNETI_EXTERNC void _gasneti_special_atomic_subtract(void);
-  #define gasneti_atomic_subtract \
+  #define _gasneti_atomic_subtract \
     (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_subtract))
+  #ifndef GASNETI_HAVE_ATOMIC_ADD_SUB
+    #error GASNETI_ATOMIC_SUBTACT_BODY defined when GASNETI_HAVE_ATOMIC_ADD_SUB is not.
+  #endif
 #endif
 #ifdef GASNETI_ATOMIC_FETCHADD_BODY
   GASNETI_EXTERNC void _gasneti_special_atomic_fetchadd(void);
