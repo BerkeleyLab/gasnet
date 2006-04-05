@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/03/28 05:22:19 $
- * $Revision: 1.44 $
+ *     $Date: 2006/04/05 01:37:07 $
+ * $Revision: 1.44.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,12 +31,11 @@
 #define DEFAULT_THREADS 10
 #define DEFAULT_ITERS 100
 int iters = 0;
-char tests[255];
-char curtest = 'A';
-#define TEST_HEADER(desc)                        \
-  curtest++;                                     \
-  if ((!tests[0] || strchr(tests, curtest-1)) && \
-      (MSG0("%c: %s",curtest-1,desc),1))
+#define TEST_HEADER_PREFIX() ((void)0)
+#define TEST_HEADER(desc)             \
+  TEST_HEADER_PREFIX();               \
+  if (TEST_SECTION_BEGIN_ENABLED() && \
+      (MSG0("%c: %s",TEST_SECTION_NAME(),desc),1))
 
 void * thread_fn(void *arg);
 
@@ -71,11 +70,7 @@ int main(int argc, char **argv) {
   #else
     if (argc > 2 && atoi(argv[2]) != 1) { ERR("no pthreads - only one thread available."); test_usage(); }
   #endif
-  if (argc > 3) {
-    const char *p = argv[3];
-    char *q = tests;
-    while (*p) *(q++) = toupper(*(p++));
-  }
+  if (argc > 3) TEST_SECTION_PARSE(argv[3]);
   if (argc > 4) test_usage();
 
   TEST_GENERICS_WARNING();
@@ -292,19 +287,16 @@ gasnett_atomic_t _thread_barrier = gasnett_atomic_init(0);
    gasnett_local_rmb(); /* Acquire */                                       \
   } while(0)                                                                \
 
-#undef TEST_HEADER
-#define TEST_HEADER(desc)                           \
-  th_curtest++;                                     \
-  THREAD_BARRIER();                                 \
-  if ((!tests[0] || strchr(tests, th_curtest-1)) && \
-      (MSG0("%c: %s",th_curtest-1,desc),1))
+#undef TEST_HEADER_PREFIX
+#define TEST_HEADER_PREFIX() THREAD_BARRIER()
 
 void * thread_fn(void *arg) {
   int id = (int)(uintptr_t)arg;
   int i;
   int iters2=100*iters;
   int barcnt = 0;
-  char th_curtest = curtest;
+  char th_test_section = test_section;
+  #define test_section th_test_section
  
   /* sanity check - ensure unique threadids */
   if (!gasnett_atomic_decrement_and_test(thread_flag+id,0)) {

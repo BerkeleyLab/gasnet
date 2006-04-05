@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testinternal.c,v $
- *     $Date: 2006/02/16 17:45:58 $
- * $Revision: 1.3 $
+ *     $Date: 2006/04/05 01:37:07 $
+ * $Revision: 1.3.8.1 $
  * Description: GASNet internal diagnostic tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,23 +14,28 @@
 /* ------------------------------------------------------------------------------------ */
 int main(int argc, char **argv) {
   int iters = 0, threads=0;
+  int arg = 1;
   gasnet_handlerentry_t *htable; int htable_cnt;
+  char *test_sections = NULL;
   gasnett_diagnostic_gethandlers(&htable, &htable_cnt);
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(htable, htable_cnt, 
                             TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
   #if GASNET_PAR
-    test_init("testinternal",0,"(iters) (threadcnt)");
+    test_init("testinternal",0,"(iters) (threadcnt) (test_sections)");
   #else
-    test_init("testinternal",0,"(iters)");
+    test_init("testinternal",0,"(iters) (test_sections)");
   #endif
   TEST_PRINT_CONDUITINFO();
 
-  if (argc > 1) iters = atoi(argv[1]);
+  if (argc > arg) iters = atoi(argv[arg++]);
   if (iters < 1) iters = 1000;
-  if (argc > 2) threads = atoi(argv[2]);
+  #if GASNET_PAR
+  if (argc > arg) threads = atoi(argv[arg++]);
+  #endif
   if (threads < 1) threads = 4;
+  if (argc > arg) test_sections = argv[arg++];
 
   #if GASNET_PAR
     MSG0("Running GASNet internal diagnostics with iters=%i and threads=%i", iters, threads);
@@ -39,7 +44,7 @@ int main(int argc, char **argv) {
   #endif
 
   BARRIER();
-  test_errs = gasnett_run_diagnostics(iters, threads, TEST_SEGINFO());
+  test_errs = gasnett_run_diagnostics(iters, threads, test_sections, TEST_SEGINFO());
   BARRIER();
 
   if (test_errs) ERR("gasnett_run_diagnostics(%i) failed.", iters);

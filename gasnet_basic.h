@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/03/31 01:34:16 $
- * $Revision: 1.62 $
+ *     $Date: 2006/04/05 01:36:59 $
+ * $Revision: 1.62.2.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -215,7 +215,7 @@
   #define GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(mta inline)
 #elif defined(_SGI_COMPILER_VERSION) && _SGI_COMPILER_VERSION >= 710
   #define GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(inline global fnname)
-#elif defined(__DECC) || defined(__DECCXX)
+#elif defined(__DECC) /* not __DECCXX */
   #define GASNETI_ALWAYS_INLINE(fnname) GASNETI_PRAGMA(inline (fnname))
 #elif defined(__HP_cc) && GASNET_NDEBUG /* avoid a warning */ \
    && 0 /* unreliable behavior - Itanium optimizer crashes and 

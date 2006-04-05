@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2006/03/31 01:34:16 $
- * $Revision: 1.85 $
+ *     $Date: 2006/04/05 01:36:59 $
+ * $Revision: 1.85.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -773,6 +773,7 @@ typedef struct {
  * progressfns are internal functions that are called "periodically" by a conduit to 
  *  allow internal GASNet modules to make progress. 
  * Each progressfn is associated with a named subsystem (one-to-one mapping)
+ *  subsystem names should be prefixed by gasneti_pf_ to prevent macro name capture
  * GASNETI_PROGRESSFNS_ENABLE/GASNETI_PROGRESSFNS_DISABLE are used by the conduit
  *  to provide a hint when a particular subsystem's progressfns want to be serviced
  * Each progressfn has either a BOOLEAN hint or COUNTED hint flavor
@@ -805,7 +806,7 @@ typedef void (*gasneti_progressfn_t)();
   #ifndef GASNETE_BARRIER_PROGRESSFN
     extern void gasnete_ambarrier_kick();
     #define GASNETE_BARRIER_PROGRESSFN(FN) \
-      FN(barrier, BOOLEAN, gasnete_ambarrier_kick) 
+      FN(gasneti_pf_barrier, BOOLEAN, gasnete_ambarrier_kick) 
   #endif
 
   #define GASNETE_PROGRESSFNS_LIST(FN) \
@@ -816,8 +817,8 @@ typedef void (*gasneti_progressfn_t)();
   extern void (*gasneti_debug_progressfn_bool)();
   extern void (*gasneti_debug_progressfn_counted)();
   #define GASNETI_DEBUG_PROGRESSFNS(FN) \
-      FN(debug_boolean, BOOLEAN, gasneti_debug_progressfn_bool) \
-      FN(debug_counted, COUNTED, gasneti_debug_progressfn_counted) 
+      FN(gasneti_pf_debug_boolean, BOOLEAN, gasneti_debug_progressfn_bool) \
+      FN(gasneti_pf_debug_counted, COUNTED, gasneti_debug_progressfn_counted) 
 #else
   #define GASNETI_DEBUG_PROGRESSFNS(FN)
 #endif

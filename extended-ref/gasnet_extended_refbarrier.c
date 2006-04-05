@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2006/03/19 02:08:00 $
- * $Revision: 1.30 $
+ *     $Date: 2006/04/05 01:37:01 $
+ * $Revision: 1.30.6.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -142,7 +142,7 @@ void gasnete_ambarrier_kick() {
         ambarrier_mismatch[phase] = 1;
       }
       if (step+numsteps == ambarrier_size) { /* We got the last recv - barrier locally complete */
-        GASNETI_PROGRESSFNS_DISABLE(barrier,BOOLEAN);
+        GASNETI_PROGRESSFNS_DISABLE(gasneti_pf_barrier,BOOLEAN);
         gasneti_sync_writes(); /* flush state before the write to ambarrier_step below */
       } 
       if (step + 1 < ambarrier_size) {
@@ -239,7 +239,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
     GASNETI_SAFE(
       gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                              phase, 0, id, flags));
-    GASNETI_PROGRESSFNS_ENABLE(barrier,BOOLEAN);
+    GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_barrier,BOOLEAN);
   } else {
     ambarrier_recv_value[phase] = id;	/* to simplify checking in _wait */
   }
@@ -413,7 +413,7 @@ void gasnete_ambarrier_kick() {
       int i;
       int mismatch = ambarrier_consensus_mismatch[phase];
 
-      GASNETI_PROGRESSFNS_DISABLE(barrier,BOOLEAN);
+      GASNETI_PROGRESSFNS_DISABLE(gasneti_pf_barrier,BOOLEAN);
 
       /*  inform the nodes */
       for (i=0; i < gasneti_nodes; i++) {
@@ -454,7 +454,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
     GASNETI_SAFE(
       gasnet_AMRequestShort3(GASNETE_AMBARRIER_MASTER, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                            phase, ambarrier_value, flags));
-    if (gasneti_mynode == GASNETE_AMBARRIER_MASTER) GASNETI_PROGRESSFNS_ENABLE(barrier,BOOLEAN);
+    if (gasneti_mynode == GASNETE_AMBARRIER_MASTER) GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_barrier,BOOLEAN);
   } else {
     ambarrier_response_mismatch[phase] = (flags & GASNET_BARRIERFLAG_MISMATCH);
     ambarrier_response_done[phase] = 1;

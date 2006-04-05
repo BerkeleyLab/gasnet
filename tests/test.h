@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/03/29 14:33:55 $
- * $Revision: 1.82 $
+ *     $Date: 2006/04/05 01:37:07 $
+ * $Revision: 1.82.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <ctype.h>
 #ifdef IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
@@ -192,6 +193,19 @@ static int _test_rand(int low, int high) {
   int _retval = (op);                                                 \
   if_pf(!_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
 } while (0)
+
+static char test_section;
+static char test_sections[255];
+
+#define TEST_SECTION_BEGIN()        ((void)(!test_section ? test_section = 'A' : test_section++))
+#define TEST_SECTION_ENABLED()      ((!test_sections[0] || strchr(test_sections, test_section)))
+#define TEST_SECTION_BEGIN_ENABLED() (TEST_SECTION_BEGIN(), TEST_SECTION_ENABLED())
+#define TEST_SECTION_NAME() ((char)test_section)
+#define TEST_SECTION_PARSE(arg) do {       \
+      const char *p = (arg);               \
+      char *q = test_sections;             \
+      while (*p) *(q++) = toupper(*(p++)); \
+    } while (0)
 
 /* ------------------------------------------------------------------------------------ */
 /* timing - TIME() returns a microsecond time-stamp */

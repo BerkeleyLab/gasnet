@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2006/03/03 09:17:44 $
- * $Revision: 1.37 $
+ *     $Date: 2006/04/05 01:37:07 $
+ * $Revision: 1.37.8.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -70,16 +70,18 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 {
 	switch (operation) {
 	case PRINT_LATENCY:
-		printf("Proc %2i - %10i byte : %7i iters,"
+		printf("%c: %2i - %10i byte : %7i iters,"
 			   " latency %10i us total, %9.3f us ave. (%s)\n",
+                        TEST_SECTION_NAME(),
 			myproc, st->datasize, st->iters, (int) st->time,
 			((double)st->time) / st->iters,
 			name);
 		fflush(stdout);
 		break;
 	case PRINT_THROUGHPUT:
-		printf((unitsMB?"Proc %2i - %10i byte : %7i iters, throughput %11.6f MB/sec (%s)\n":
-                                "Proc %2i - %10i byte : %7i iters, throughput %11.3f KB/sec (%s)\n"),
+		printf((unitsMB?"%c: %2i - %10i byte : %7i iters, throughput %11.6f MB/sec (%s)\n":
+                                "%c: %2i - %10i byte : %7i iters, throughput %11.3f KB/sec (%s)\n"),
+                        TEST_SECTION_NAME(),
 			myproc, st->datasize, st->iters,
 			((int)st->time == 0 ? 0.0 :
                         (1000000.0 * st->datasize * st->iters / 
@@ -467,12 +469,13 @@ int main(int argc, char **argv)
     if (!iters) iters = 1000;
     if (argc > arg) { maxsz = atoi(argv[arg]); arg++; }
     if (!maxsz) maxsz = 2048; /* 2 KB default */
+    if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ/2) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING", (unsigned long)(TEST_SEGSZ/2)); gasnet_exit(1); }
     #endif
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testsmall",1, "[options] (iters) (maxsz)\n"
+    test_init("testsmall",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "   memory is in the GASNet segment or not (default it not).\n"
                "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).\n"
@@ -566,16 +569,22 @@ int main(int argc, char **argv)
 
         BARRIER();
 
-	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
+	if (TEST_SECTION_BEGIN_ENABLED()) 
+        for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
 
-  	for (j = min_payload; j <= max_payload; j *= 2)  oneway_test(iters, j);
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
+        for (j = min_payload; j <= max_payload; j *= 2)  oneway_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nbi_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nbi_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nb_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nb_test(iters, j);
 
         BARRIER();

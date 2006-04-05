@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.10 $
+$Revision: 1.10.8.1 $
 
 ----------------------------------------------------------------------
 ?-?-2006 : Release 1.8
@@ -27,6 +27,19 @@ $Revision: 1.10 $
 * InfiniBand/VAPI:
   - Implement multi-port and multi-rail striping support
   - Improvements to firehose region management heuristics
+
+* MPI:
+  - Significant performance and stability improvements on mpi-conduit,
+    especially on systems where the MPI-level flow control is lacking or
+    unreliable (eg XT-3, BGL).
+  - Split request/reply traffic onto separate MPI communicators to ensure
+    bounded AMMPI-level buffer space utilization, even for degenerate cases
+  - Added an AMMPI-level token-based flow control solution to prevent the
+    crashes observed under heavy MPI unexpected message loads on various
+    systems (XT3, Altix)
+  - Add workaround for an IBM MPI ordering bug that could cause deadlock
+    under heavy communication patterns.
+  - Other misc tuning along the primary control paths and new tuning knobs
   
 ----------------------------------------------------------------------
 08-20-2005 : Release 1.6

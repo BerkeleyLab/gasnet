@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/04/04 05:29:47 $
-# $Revision: 1.333.2.1 $
+#     $Date: 2006/04/05 01:36:59 $
+# $Revision: 1.333.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.333.2.1 $)
+AC_REVISION($Revision: 1.333.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1886,7 +1886,7 @@ if test "$enabled_vapi" = yes; then
     GASNET_WITH(vapi-spawner,
        [VAPI job spawner ("ssh" or "mpi", default is mpi when available)],
        [case "$withval" in
-          ssh|mpi) GASNET_VAPI_SPAWNER=$withval
+          ssh|mpi) GASNET_VAPI_SPAWNER_CONF=$withval
 	       ;;
           yes) AC_MSG_ERROR([--with-vapi-spawner requires an argument ("ssh" or "mpi")])
 	       ;;
@@ -1895,15 +1895,15 @@ if test "$enabled_vapi" = yes; then
         esac],
        [AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])],
        [if test "$have_mpi" = yes; then
-          GASNET_VAPI_SPAWNER=mpi
+          GASNET_VAPI_SPAWNER_CONF=mpi
         else
-          GASNET_VAPI_SPAWNER=ssh
+          GASNET_VAPI_SPAWNER_CONF=ssh
         fi])
-    AC_SUBST(GASNET_VAPI_SPAWNER)
-    if test "$GASNET_VAPI_SPAWNER$have_mpi" = mpino; then
+    AC_SUBST(GASNET_VAPI_SPAWNER_CONF)
+    if test "$GASNET_VAPI_SPAWNER_CONF$have_mpi" = mpino; then
       AC_MSG_ERROR([--with-vapi-spawner=mpi requires MPI support which $mpi_reason]);
     fi
-    if test "$GASNET_VAPI_SPAWNER$have_fork" = sshno; then
+    if test "$GASNET_VAPI_SPAWNER_CONF$have_fork" = sshno; then
       AC_MSG_ERROR([--with-vapi-spawner=ssh requires fork() support which $fork_reason]);
     fi
 
