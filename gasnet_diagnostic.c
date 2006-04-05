@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2006/04/05 01:36:59 $
- * $Revision: 1.12.4.1 $
+ *     $Date: 2006/04/05 23:08:06 $
+ * $Revision: 1.12.4.2 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

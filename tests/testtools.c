@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/04/05 01:37:07 $
- * $Revision: 1.44.4.1 $
+ *     $Date: 2006/04/05 23:08:14 $
+ * $Revision: 1.44.4.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

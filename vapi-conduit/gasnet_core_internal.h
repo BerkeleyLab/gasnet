@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/03/25 12:35:25 $
- * $Revision: 1.127 $
+ *     $Date: 2006/04/05 23:08:16 $
+ * $Revision: 1.127.4.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -226,82 +226,6 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 #if !GASNETC_ANY_PAR
   /* No threads, so we use the mutex code that compiles away. */
-#elif (defined(__i386__) || defined(__x86_64__)) && \
-	(defined(__GNUC__) || defined(__INTEL_COMPILER))
-  /* optimized implementation for x86 and x86-64 systems */
-
-  typedef gasneti_weakatomic_t _gasnetc_sema_t;
-
-  #define _GASNETC_SEMA_INITIALIZER(N) {gasneti_weakatomic_init(N)}
-
-  GASNETI_INLINE(_gasnetc_sema_init)
-  void _gasnetc_sema_init(_gasnetc_sema_t *s, int n) {
-    gasneti_weakatomic_set(s, n, 0);
-  }
-
-  GASNETI_INLINE(_gasnetc_sema_destroy)
-  void _gasnetc_sema_destroy(_gasnetc_sema_t *s) {
-    /* Nothing */
-  }
-
-  GASNETI_INLINE(_gasnetc_sema_read)
-  uint32_t _gasnetc_sema_read(_gasnetc_sema_t *s) {
-    return gasneti_weakatomic_read(s, 0);
-  }
-
-  GASNETI_INLINE(_gasnetc_sema_up)
-  void _gasnetc_sema_up(_gasnetc_sema_t *s) {
-    __asm__ __volatile__ (GASNETI_X86_LOCK_PREFIX "incl %0" : "=m" (*s) : : "cc", "memory");
-  }
-
-  GASNETI_INLINE(_gasnetc_sema_trydown)
-  int _gasnetc_sema_trydown(_gasnetc_sema_t *s) {
-    register int tmp, retval;
-
-    #if defined(__x86_64__) /* 1-character difference for 32-bit arithmetic via leal (bug 1411) */
-      #define _GASNETC_SEMA_LEAL "leal	-1(%q1), %2"
-    #else
-      #define _GASNETC_SEMA_LEAL "leal	-1(%1), %2"
-    #endif
-    __asm__ __volatile__ ("movl		%0, %1		\n\t"	/* retval = *s */
-		          "1: testl	%1, %1		\n\t"	/* test retval */
-		          _GASNETC_SEMA_LEAL	       "\n\t"   /* tmp = retval-1 w/o changing cc */
-		          "je		2f		\n\t"	/* fail if retval 0 */
-  GASNETI_X86_LOCK_PREFIX "cmpxchgl	%2, %0		\n\t"	/* swap */
-                          "jne		1b		\n\t"	/* retry on conflict */
-			  "2: "
-                                : "=m" (*s), "=&a" (retval), "=&r" (tmp)
-				: /* no inputs */
-                                : "cc", "memory");
-    #undef _GASNETC_SEMA_LEAL
-
-    return retval;
-  }
-
-  GASNETI_INLINE(_gasnetc_sema_up_n)
-  void _gasnetc_sema_up_n(_gasnetc_sema_t *s, uint32_t n) {
-    __asm__ __volatile__ (GASNETI_X86_LOCK_PREFIX "addl %1, %0" : "=m" (*s) : "ri" (n) : "cc", "memory");
-  }
-
-  GASNETI_INLINE(_gasnetc_sema_trydown_n)
-  uint32_t _gasnetc_sema_trydown_n(_gasnetc_sema_t *s, uint32_t n) {
-    register int oldval, newval;
-
-    __asm__ __volatile__ ("movl		%0, %1		\n\t"	/* oldval = *s */
-		          "1: movl	%1, %2		\n\t"	/* newval = ... */
-		          "subl		%3, %2		\n\t"	/*          oldval - n */
-		          "js		2f		\n\t"	/* fail if newval < 0 */
-  GASNETI_X86_LOCK_PREFIX "cmpxchgl	%2, %0		\n\t"	/* swap */
-                          "jne		1b		\n\t"	/* retry on conflict */
-			  "2: "
-                                : "=m" (*s), "=&a" (oldval), "=&r" (newval)
-				: "ri" (n)
-                                : "cc", "memory");
-
-    return (newval >= 0);
-  }
-
-  #define GASNETC_HAVE_ARCH_SEMA 1
 #elif defined(GASNETI_HAVE_ATOMIC_CAS)
   /* Semi-generic implementation for CAS-capable systems */
 
@@ -311,7 +235,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
   GASNETI_INLINE(_gasnetc_sema_init)
   void _gasnetc_sema_init(_gasnetc_sema_t *s, int n) {
-    gasneti_weakatomic_set(s, n, 0);
+    gasneti_weakatomic_set(s, n, GASNETI_ATOMIC_REL);
   }
 
   GASNETI_INLINE(_gasnetc_sema_destroy)
@@ -331,40 +255,44 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
   GASNETI_INLINE(_gasnetc_sema_trydown)
   int _gasnetc_sema_trydown(_gasnetc_sema_t *s) {
-    uint32_t old;
     int retval = 0;
 
-  again:
-    old = gasneti_weakatomic_read(s, 0);
-    if_pt (old) {
+    do {
+      const uint32_t old = gasneti_weakatomic_read(s, 0);
+      if_pf (old == 0)
+        break;
       retval = gasneti_weakatomic_compare_and_swap(s, old, old - 1, GASNETI_ATOMIC_ACQ_IF_TRUE);
-      if_pf (!retval) {
-	/* contention in CAS */
-	goto again;
-      }
-    }
+    } while (PREDICT_FALSE(!retval));
 
     return retval;
   }
 
   GASNETI_INLINE(_gasnetc_sema_up_n)
   void _gasnetc_sema_up_n(_gasnetc_sema_t *s, uint32_t n) {
-    uint32_t old;
-    do {
-      old = gasneti_weakatomic_read(s, 0);
-    } while (!gasneti_weakatomic_compare_and_swap(s, old, n + old, GASNETI_ATOMIC_REL));
+    #if GASNETI_HAVE_ATOMIC_ADD_SUB
+      (void)gasneti_weakatomic_add(s, n, GASNETI_ATOMIC_REL);
+    #else
+      int swap;
+
+      do {
+	const uint32_t old = gasneti_weakatomic_read(s, 0);
+	swap = gasneti_weakatomic_compare_and_swap(s, old, old + n, GASNETI_ATOMIC_REL);
+      } while (PREDICT_FALSE(!swap));
+    #endif
   }
 
   GASNETI_INLINE(_gasnetc_sema_trydown_n)
   uint32_t _gasnetc_sema_trydown_n(_gasnetc_sema_t *s, uint32_t n) {
-    uint32_t retval, old;
+    uint32_t retval = 0;
+    int swap;
 
     do {
-      old = gasneti_weakatomic_read(s, 0);
+      const uint32_t old = gasneti_weakatomic_read(s, 0);
       if_pf (old == 0)
-        return 0;
+        break;
       retval = MIN(old, n);
-    } while(!gasneti_weakatomic_compare_and_swap(s, old, old - retval, GASNETI_ATOMIC_ACQ_IF_TRUE));
+      swap = gasneti_weakatomic_compare_and_swap(s, old, old - retval, GASNETI_ATOMIC_ACQ_IF_TRUE);
+    } while (PREDICT_FALSE(!swap));
 
     return retval;
   }

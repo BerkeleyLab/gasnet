@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/04/05 01:36:59 $
- * $Revision: 1.62.2.1 $
+ *     $Date: 2006/04/05 23:08:06 $
+ * $Revision: 1.62.2.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/05 21:20:25 $
- * $Revision: 1.128.2.22 $
+ *     $Date: 2006/04/05 23:08:06 $
+ * $Revision: 1.128.2.23 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -74,7 +74,7 @@
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */          \
     defined(CRAYT3E)   || /* T3E seems to have no atomic ops */              \
     defined(_SX)       || /* NEC SX-6 atomics not available to user code? */ \
-    ((defined(__SUNPRO_C) || defined(__SUNPRO_CC)) && defined(__sparc) && !defined(GASNETI_ARCH_SPARCV9))
+    ((defined(__SUNPRO_C) || defined(__SUNPRO_CC)) && defined(__sparc) && !defined(GASNETI_ARCH_ULTRASPARC))
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */          \
     defined(MTA)   ||  \
@@ -855,7 +855,7 @@
     #endif
   /* ------------------------------------------------------------------------------------ */
   #elif defined(__sparc) || defined(__sparc__)
-    #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_SPARCV9) /* SPARC v9 */
+    #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_ULTRASPARC) /* SPARC v9 ISA */
       #if defined(__GNUC__)
         static __inline__ int32_t gasneti_atomic_fetchandadd_32(int32_t volatile *v, int32_t op) {
           /* SPARC v9 architecture manual, p.333 

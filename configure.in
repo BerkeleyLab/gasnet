@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/04/05 01:36:59 $
-# $Revision: 1.333.2.2 $
+#     $Date: 2006/04/05 23:08:06 $
+# $Revision: 1.333.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.333.2.2 $)
+AC_REVISION($Revision: 1.333.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -100,43 +100,23 @@ AC_PROG_LN_S
 GASNET_BIGENDIAN
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
 
-## DOB: this is more trouble than it's worth because so many OS's define
-## LITTLE_ENDIAN or BIG_ENDIAN in random and sultry header files
-## Code with access to gasnet_config.h should use #if defined(WORDS_BIGENDIAN)
-## If we ever decide we need this (to support other code) then we 
-## can reintroduce this define with a fresh prefix
-dnl if test "$ac_cv_c_bigendian" = 'yes'; then
-dnl   ENDIANNESS="-DBIG_ENDIAN"
-dnl   # avoid warnings from re-defining BIG_ENDIAN
-dnl   GASNET_TRY_CACHE_CHECK(for BIG_ENDIAN in sys/types.h, cc_bigend_systypes,
-dnl     [#include <sys/types.h>
-dnl      #ifndef BIG_ENDIAN
-dnl        #error not defined
-dnl      #endif
-dnl     ], [], 
-dnl     ENDIANNESS="")
-dnl else
-dnl   ENDIANNESS="-DLITTLE_ENDIAN=1234"
-dnl   # avoid warnings from re-defining LITTLE_ENDIAN
-dnl   GASNET_TRY_CACHE_CHECK(for LITTLE_ENDIAN in stdlib.h, cc_littleend_stdlib,
-dnl     [#include <stdlib.h>
-dnl      #ifndef LITTLE_ENDIAN
-dnl        #error not defined
-dnl      #endif
-dnl     ], [], 
-dnl     ENDIANNESS="")
-dnl fi
-dnl AC_SUBST(ENDIANNESS)
-
 ## specific compiler families
 
 GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 
-if test "$gasnet_cv_cc_family" = MTA ; then
-  # override target_os for MTA, which may be wrong if cross-compiling
-  target_os="mtx"  
-fi
+## compiler family early initialization
 
+case "$gasnet_cv_cc_family" in
+  GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
+  MTA)  # override target_os for MTA, which may be wrong if cross-compiling
+        target_os="mtx"   ;;
+esac
+
+## discover bit width
+
+GASNET_CHECK_SIZEOF(void *)
+GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
+AC_SUBST(GASNETI_PTR_BITS)
 
 ### 
 #
@@ -144,8 +124,7 @@ fi
 #
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_GCC_VERSION_CHECK(CC)
-	GASNET_PUSHVAR(CFLAGS,"-O3")
+  GNU)  GASNET_PUSHVAR(CFLAGS,"-O3")
 	# prefer the --param inliner option(s), which give us finer control
         GASNET_TRY_CFLAG([--param max-inline-insns-single=35000],
 			 [CFLAGS="$CFLAGS --param max-inline-insns-single=35000"
@@ -183,7 +162,13 @@ case "$gasnet_cv_cc_family" in
 	GASNET_POPVAR(CFLAGS)
   ;;
   Pathscale)  CCOPTFLAGS="-O3 -Winline" ;;
-  Sun)  CCOPTFLAGS="-fast -xO5" ;;
+  Sun) if test "$GASNETI_PTR_BITS" = 64; then # -fast => -xarch=v8 which clobbers user's 64-bit choice
+         SUN_ARCH_FLAG=`echo "$CC $CFLAGS" | $PERL -ne 'foreach(split(/ /,$_)) { print "$_" if (m/^-xarch/);}'` 
+       else
+         SUN_ARCH_FLAG=
+       fi
+       CCOPTFLAGS="-fast $SUN_ARCH_FLAG -xO5" 
+       ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
   HP) CCOPTFLAGS="-O3" ;;
   MIPS) CCOPTFLAGS="-O3" ;;
@@ -259,15 +244,43 @@ case "$gasnet_cv_cc_family" in
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
+dnl GASNET_GET_ULTRASPARC_FLAGS(type,flags)  type=C or CXX
+# attempt to enable the ultrasparc ISA in MISC_C(XX)FLAGS, and test for related capabilities
+# flags is compiler options which enable ultrasparc instructions for 32-bit ABI
+GASNET_IF_DISABLED([ultrasparc-probe],[Disable probe for UltraSPARC compiler options],[DISABLE_ULTRASPARC=1])
+AC_DEFUN([GASNET_GET_ULTRASPARC_FLAGS],[
+  if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_ULTRASPARC" != 1; then 
+    for flag in $2 ; do
+      ]GASNET_TRY_[$1]FLAG[([$flag],[MISC_[$1]FLAGS="$flag" ; break])
+    done
+  fi
+  AC_MSG_CHECKING(for UltraSPARC instruction support)
+  GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS")
+  ]GASNET_TRY_[$1]COMPILE_WITHWARN[( [
+          void foo(void) { 
+            #ifdef __GNUC__
+              register void * addr = 0;
+              register int oldval = 0;
+              register int newval = 1;
+              __asm__ __volatile__ ("cas	[[%2]], %0, %1" 
+                                    : "=&r"(oldval), "=&r"(newval) : "r" (addr) : "memory");
+            #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+              __asm("cas	[[%i0]], %i1, %i2"); 
+            #else
+              #error unknown sparc compiler
+            #endif
+          }
+       ], [ ], [ AC_MSG_RESULT(yes) 
+                 AC_DEFINE(GASNETI_ARCH_ULTRASPARC)
+       ], [ AC_MSG_RESULT(no/warning) ], [ AC_MSG_RESULT(no/error) ])
+  GASNET_POPVAR([$1]FLAGS)
+])
+
 case "$gasnet_cv_cc_family" in
-  GNU)
-    case "$target_cpu" in
-      sparc) # Get sparc v9 ISA
-	GASNET_TRY_CFLAG([-mcpu=ultrasparc -mtune=ultrasparc], 
-	                 [ MISC_CFLAGS="-mcpu=ultrasparc -mtune=ultrasparc" 
-	                   AC_DEFINE(GASNETI_ARCH_SPARCV9) ] ) ;; 
-      *) ;; 
-    esac ;;
+  GNU) if test "$target_cpu" = "sparc"; then 
+         GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"])
+       fi
+    ;;
   Cray) 
     case "$target_cpu" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
@@ -307,9 +320,10 @@ case "$gasnet_cv_cc_family" in
        GASNET_POPVAR(CFLAGS)
        ;;
   MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
-  Sun) MISC_CFLAGS="-errtags"  # show warning tag ids in warnings
-       GASNET_TRY_CFLAG([-xarch=v9], [ AC_DEFINE(GASNETI_ARCH_SPARCV9) ])
-       ;; 
+  Sun) if test "$target_cpu" = "sparc"; then 
+         GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
+       fi
+       MISC_CFLAGS="$MISC_CFLAGS -errtags" ;; # show warning tag ids in warnings
   XLC) MISC_CFLAGS="-qsuppress=1500-010:1506-229" ;; # 1500-010 = infinite loop (such as in our tests)
 	# 1506-229 = empty source file (some linux headers)
   *)   MISC_CFLAGS="" ;;
@@ -903,15 +917,11 @@ if test $enabled_udp = yes; then
     GNU) 
        GASNET_GCC_VERSION_CHECK(CXX)
        GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS")
+       if test "$target_cpu" = "sparc"; then 
+         GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"])
+       fi
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        MISC_CXXFLAGS="$CXXFLAGS" 
-       case "$target_cpu" in
-         sparc) # Get sparc v9 ISA
-	  GASNET_TRY_CXXFLAG([-mcpu=ultrasparc -mtune=ultrasparc], 
-	                     [ MISC_CXXFLAGS="$MISC_CXXFLAGS -mcpu=ultrasparc -mtune=ultrasparc" 
-	                       AC_DEFINE(GASNETI_ARCH_SPARCV9) ] ) ;; 
-         *) ;; 
-       esac 
        GASNET_POPVAR(CXXFLAGS)
     ;;
     PGI)   MISC_CXXFLAGS="-w -Masmkeyword" ;; # apparently has no way to indep control warnings
@@ -935,6 +945,10 @@ if test $enabled_udp = yes; then
       aix*) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh -qweaksymbol" ;;
       *) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh" ;;
      esac ;;
+    Sun) if test "$target_cpu" = "sparc"; then 
+           GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
+         fi
+      ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
 	   GASNET_UDP_LIBS="-Kexceptions" 

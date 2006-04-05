@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.common,v $
-#     $Date: 2006/04/05 01:37:05 $
-# $Revision: 1.5.28.1 $
+#     $Date: 2006/04/05 23:08:12 $
+# $Revision: 1.5.28.2 $
 # Description: Platform-independent variable init, overridden by pre-baked makefiles
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

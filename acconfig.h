@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/03/30 12:39:30 $ */
-/*  $Revision: 1.86 $ */
+/*      $Date: 2006/04/05 23:08:06 $ */
+/*  $Revision: 1.86.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -131,7 +131,7 @@
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
-/* various OS and machine definitions */
+/* various OS and machine definitions - THESE ARE OBSOLETE AND WILL EVENTUALLY BE REMOVED */
 #undef UNIX
 #undef LINUX
 #undef FREEBSD
@@ -149,8 +149,10 @@
 #undef CYGWIN
 #undef DARWIN
 #undef ALTIX
-#undef GASNETI_ARCH_SPARCV9
 #undef CATAMOUNT
+
+/* have working UltraSPARC ISA (lacks an associated builtin preprocessor macro) */
+#undef GASNETI_ARCH_ULTRASPARC
 
 /* Type to use as socklen_t */
 #undef GASNET_SOCKLEN_T
