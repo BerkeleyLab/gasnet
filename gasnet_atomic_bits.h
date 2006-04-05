@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/05 20:08:13 $
- * $Revision: 1.128.2.18 $
+ *     $Date: 2006/04/05 20:21:02 $
+ * $Revision: 1.128.2.19 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -605,11 +605,36 @@
 		       "movzbl  %cl, %eax" );
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
+#if 1
+      /* Fetch-add version is faster for calls that ignore the result and
+       * for subtraction of constants.  In both cases because the "extra"
+       * work is done in C code that the optimizer can discard.
+       */
       #define GASNETI_ATOMIC_FETCHADD_BODY				\
 	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "xadd %eax, " _gasneti_atomic_addr	);
+#else
+      #define GASNETI_ATOMIC_ADD_BODY					\
+	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+		       _gasneti_atomic_load_arg1			\
+		       "movl %eax, %edx					\n\t" \
+		       GASNETI_X86_LOCK_PREFIX				\
+		       "xadd %eax, " _gasneti_atomic_addr		"\n\t" \
+		       "addl %edx, %eax"	);
+
+      #define GASNETI_ATOMIC_SUBTRACT_BODY				\
+	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+		       _gasneti_atomic_load_arg1			\
+		       "movl %eax, %edx					\n\t" \
+		       "negl %eax					\n\t" \
+		       GASNETI_X86_LOCK_PREFIX				\
+		       "xadd %eax, " _gasneti_atomic_addr		"\n\t" \
+		       "subl %edx, %eax"	);
+
+      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
+#endif
 
       /* x86 and x86_64 include full memory fence in locked RMW insns */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
