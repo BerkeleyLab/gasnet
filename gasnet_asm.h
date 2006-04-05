@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/04/05 19:49:56 $
- * $Revision: 1.93.2.1 $
+ *     $Date: 2006/04/05 23:08:06 $
+ * $Revision: 1.93.2.2 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,7 +106,7 @@
   /* no inline assembly in these C++ compilers, so pay a function call overhead */
   #define GASNETI_USING_SLOW_MEMBARS 1
 #elif defined(__sparc__) || defined(__sparc) || defined(sparc)
-  #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_SPARCV9) /* SPARC v9 */
+  #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_ULTRASPARC) /* SPARC v9 ISA */
     GASNETI_INLINE(gasneti_local_wmb)
     void gasneti_local_wmb(void) {
       /* For TSO SPARCs this is technically oversynced, but costs us nothing extra. */
