@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/05 00:26:56 $
- * $Revision: 1.128.2.16 $
+ *     $Date: 2006/04/05 01:32:26 $
+ * $Revision: 1.128.2.17 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -823,15 +823,13 @@
           register int32_t oldval;
           register int32_t newval;
           __asm__ __volatile__ ( 
-            "membar #StoreLoad | #LoadLoad    \n\t" /* RMB: prevent loads below from moving up */
             "ld       [%2],%0 \n\t"    /* oldval = *addr; */
             "0:\t" 
             "add      %0,%3,%1 \n\t"   /* newval = oldval + op; */
             "cas      [%2],%0,%1 \n\t" /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
             "cmp      %0, %1 \n\t"     /* check if newval == oldval (swap succeeded) */
-            "bne,pn   %%icc, 0b \n\t"  /* otherwise, try again (,pn == predict not taken) */
-            "mov      %1, %0 \n\t"     /* oldval = newval; (branch delay slot) */
-            "membar #StoreLoad | #StoreStore    \n\t" /* WMB: complete previous cas store before all subsequent ops */
+            "bne,a,pn %%icc, 0b \n\t"  /* otherwise, retry (,pn == predict not taken; ,a == annul) */
+            "  mov    %1, %0"          /* oldval = newval; (branch delay slot, annulled if not taken) */
             : "=&r"(oldval), "=&r"(newval)
             : "r" (addr), "rn"(op) 
             : "memory");
@@ -849,9 +847,7 @@
         int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
           register volatile uint32_t * addr = (volatile uint32_t *)&(v->ctr);
           __asm__ __volatile__ ( 
-              "membar #StoreLoad | #LoadLoad   \n\t" /* RMB: prevent loads below from moving up */
               "cas      [%2],%1,%0 \n\t"             /* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */
-              "membar #StoreLoad | #StoreStore \n\t" /* WMB: complete previous cas store before all subsequent ops */
               : "+r"(newval)
               : "r"(oldval), "r" (addr)
               : "memory");
@@ -861,7 +857,7 @@
 
         #define gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr),op)
 
-	#define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+	/* Using default fences, as our asm includes none */
       #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
 	typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
 	#define _gasneti_atomic_init(v)      { (v) }
@@ -873,21 +869,15 @@
 
         #define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY					\
 	    GASNETI_ASM(								\
-		/* RMB: so loads don't move up					*/	\
-		     "membar	#StoreLoad | #LoadLoad	\n\t"				\
 		/* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */	\
 		     "cas	[%i0], %i1, %i2		\n\t"				\
-		/* WMB: so stores don't move down				*/	\
-		     "membar	#StoreLoad | #StoreStore\n\t"				\
 		/* retval = (oldval == newval) ? 1 : 0				*/	\
-		     "xor	%i2, %i1, %g1		\n\t"				\
-		     "cmp	%g0, %g1		\n\t"				\
-		     "subx	%g0, -1, %i0 " );
+		     "xor	%i2, %i1, %g1		\n\t" /* g1 = 0 IFF old==new */ \
+		     "cmp	%g0, %g1		\n\t" /* Set/clear carry bit */	\
+		     "subx	%g0, -1, %i0 " );	      /* Subtract w/ carry */
 
-        #define GASNETI_ATOMIC_FETCHADD_BODY						\
+        #define GASNETI_ATOMIC_FETCHADD_BODY /* see gcc asm, above, for more detail */	\
 	    GASNETI_ASM(								\
-		/* RMB: so loads don't move up					*/	\
-		     "membar	#StoreLoad | #LoadLoad	\n\t"				\
 		/* oldval = *addr;						*/	\
 		     "ld	[%i0], %g1		\n\t"				\
 		/* while (!cas(addr, oldval, oldval + op)) { oldval = *addr; }	*/	\
@@ -895,14 +885,12 @@
 		     "add	 %g1, %i1, %i5		\n\t"				\
 		     "cas	[%i0], %g1, %i5		\n\t"				\
 		     "cmp	%g1, %i5		\n\t"				\
-		     "bne,pn	%icc, 0b		\n\t"				\
-		     "mov	%i5, %g1		\n\t"				\
-		/* WMB: so stores don't move down				*/	\
-		     "membar	#StoreLoad | #StoreStore\n\t"				\
+		     "bne,a,pn	%icc, 0b		\n\t"				\
+		     "  mov	%i5, %g1		\n\t" /* annulled delay slot */	\
 		/* Retval = oldval						*/	\
 		     "mov	%i5, %i0" );
 
-	#define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_RMB_PRE | GASNETI_ATOMIC_WMB_POST)
+	/* Using default fences, as our asm includes none */
       #else
         #error unrecognized Sparc v9 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
       #endif
@@ -994,10 +982,9 @@
 
         #define gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
 
-        /* Our asm has the following fences: (noting that RMB is empty) */
+        /* Our code has the following fences: (noting that RMB is empty) */
 	#define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_MB_PRE
 	#define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_PRE
-        /* TODO: Our SET also has RMB_PRE unless uninitialized */
       #else
         #error unrecognized Sparc pre-v9 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
       #endif
@@ -1118,11 +1105,9 @@
         return retval;
       }
 
-      /* Our asm has the following fences: */
-      #define GASNETI_ATOMIC_FENCE_READ	GASNETI_ATOMIC_RMB_POST
-      #define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_WMB_PRE
+      /* Our code has the following fences: (noting that RMB is empty) */
+      #define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_MB_PRE
       #define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_PRE
-      /* TODO: Our SET also has RMB_PRE unless uninitialized */
     #endif /* ! slow atomics */
     #define gasneti_atomic_fetchandadd gasneti_atomic_fetchandadd_32
     #define GASNETI_HAVE_ATOMIC_CAS 1
@@ -1205,8 +1190,8 @@
                                         (muadd(&((p)->ctr),-1) == 0)
 
     #define gasneti_atomic_addfetch(p,op) muadd(&((p)->ctr),op)
-   #endif
     /* Using default fences (TODO: VERIFY THAT WE NEED THEM) */
+   #endif
   /* ------------------------------------------------------------------------------------ */
   /* PowerPPC ids:
    * AIX: _POWER
