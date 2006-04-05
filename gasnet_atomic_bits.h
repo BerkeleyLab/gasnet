@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/05 21:11:59 $
- * $Revision: 1.128.2.21 $
+ *     $Date: 2006/04/05 21:20:25 $
+ * $Revision: 1.128.2.22 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1748,8 +1748,8 @@
    * Therefore, they are not currently implemented.
    */
   #define _gasneti_atomic_rmb_bool(f, v) \
-    if ((f & GASNETI_ATOMIC_RMB_POST_IF_TRUE) && v) gasneti_local_rmb(); \
-    if ((f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) && !v) gasneti_local_rmb();
+    if (((f & GASNETI_ATOMIC_RMB_POST_IF_TRUE ) &&  v) || \
+        ((f & GASNETI_ATOMIC_RMB_POST_IF_FALSE) && !v)) gasneti_local_rmb();
 #endif
 
 
