@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/05 23:27:24 $
- * $Revision: 1.133 $
+ *     $Date: 2006/04/06 20:06:30 $
+ * $Revision: 1.135 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -138,9 +138,9 @@
         ((p)->ctr)--;                                             \
         gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock); \
       } while (0)
-    extern int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p);
+    extern int _gasneti_atomic_decrement_and_test_32(gasneti_atomic_t *p);
     #define GASNETI_GENERIC_DEC_AND_TEST_DEF                      \
-    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) { \
+    int _gasneti_atomic_decrement_and_test_32(gasneti_atomic_t *p) { \
       uint32_t newval;                                            \
       gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);     \
       newval = p->ctr - 1;                                        \
@@ -148,6 +148,7 @@
       gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);   \
       return (newval == 0);                                       \
     }
+    #define _gasneti_atomic_decrement_and_test _gasneti_atomic_decrement_and_test_32
 
     extern int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval);
     #define GASNETI_GENERIC_CAS_DEF                              \
@@ -165,17 +166,17 @@
     }
     #define GASNETI_HAVE_ATOMIC_CAS 1
 
-    extern uint32_t _gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op);
+    extern uint32_t gasneti_atomic_addfetch_32(gasneti_atomic_t *p, int32_t op);
     #define GASNETI_GENERIC_ADD_SUB_DEF                            \
-    extern uint32_t _gasneti_atomic_addfetch(gasneti_atomic_t *p,  \
-                                             int32_t op) {         \
+    extern uint32_t gasneti_atomic_addfetch_32(gasneti_atomic_t *p,\
+                                               int32_t op) {       \
       uint32_t retval;                                             \
       gasnet_hsl_lock((gasnet_hsl_t*)gasneti_patomicop_lock);      \
       retval = (((p)->ctr) += (op));                               \
       gasnet_hsl_unlock((gasnet_hsl_t*)gasneti_patomicop_lock);    \
       return retval;                                               \
     }
-    #define gasneti_atomic_addfetch _gasneti_atomic_addfetch
+    #define _gasneti_atomic_addfetch gasneti_atomic_addfetch_32
 
     #if (GASNET_PAR || GASNETI_CONDUIT_THREADS)
       /* Using real HSLs which yeild an ACQ/RMB before and REL/WMB after the atomic */
@@ -232,8 +233,8 @@
         ((p)->ctr)--;                                  \
         pthread_mutex_unlock(&gasneti_atomicop_mutex); \
       } while (0)
-    GASNETI_INLINE(_gasneti_atomic_decrement_and_test)
-    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
+    GASNETI_INLINE(_gasneti_atomic_decrement_and_test_32)
+    int _gasneti_atomic_decrement_and_test_32(gasneti_atomic_t *p) {
       uint32_t newval;
       GASNETI_ATOMICOP_INITCHECK();
       pthread_mutex_lock(&gasneti_atomicop_mutex);
@@ -242,6 +243,7 @@
       pthread_mutex_unlock(&gasneti_atomicop_mutex);
       return (newval == 0);
     }
+    #define _gasneti_atomic_decrement_and_test _gasneti_atomic_decrement_and_test_32
 
     GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
     int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, 
@@ -258,8 +260,8 @@
     }
     #define GASNETI_HAVE_ATOMIC_CAS 1
 
-    GASNETI_INLINE(_gasneti_atomic_addfetch)
-    uint32_t _gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op) {
+    GASNETI_INLINE(gasneti_atomic_addfetch_32)
+    uint32_t gasneti_atomic_addfetch_32(gasneti_atomic_t *p, int32_t op) {
       uint32_t retval;
       GASNETI_ATOMICOP_INITCHECK();
       pthread_mutex_lock(&gasneti_atomicop_mutex);
@@ -267,7 +269,7 @@
       pthread_mutex_unlock(&gasneti_atomicop_mutex);
       return retval;
     }
-    #define gasneti_atomic_addfetch _gasneti_atomic_addfetch
+    #define _gasneti_atomic_addfetch gasneti_atomic_addfetch_32
 
     #if (defined(__APPLE__) && defined(__MACH__))
       /* OSX/Darwin tries to be too smart when only 1 thread is running, so use defaults */
@@ -323,7 +325,7 @@
       } 
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
-      #define gasneti_atomic_fetchadd(p,op) fetch_and_add((atomic_p)&((p)->ctr), op)
+      #define _gasneti_atomic_fetchadd(p,op) fetch_and_add((atomic_p)&((p)->ctr), op)
 
       /* No syncs in these calls, so use default fences */
   #elif defined(IRIX)
@@ -378,7 +380,7 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
       /* Almost the default add/sub: */
-      #define gasneti_atomic_addfetch(p,op) (add_then_test32((p),(uint32_t)(op))) 
+      #define _gasneti_atomic_addfetch(p,op) (add_then_test32((p),(uint32_t)(op))) 
 
       /* Using default fences - the docs claim acquire or release "barriers" for the various 
          intrinsics, but those are only compiler fences and not architectural sync instructions */
@@ -393,7 +395,7 @@
       #define _gasneti_atomic_decrement_and_test(p) \
                                           (int_fetch_add((p),-1) == 1) 
 
-      #define gasneti_atomic_fetchadd int_fetch_add
+      #define _gasneti_atomic_fetchadd int_fetch_add
 
       /* Using default fences, but this machine is Sequential Consistent anyway */
   #elif defined(SOLARIS)	/* BROKEN (and incomplete) */
@@ -422,7 +424,7 @@
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
-      #define gasneti_atomic_fetchadd(p, op) InterlockedExchangeAdd((LONG *)&((p)->ctr), op)
+      #define _gasneti_atomic_fetchadd(p, op) InterlockedExchangeAdd((LONG *)&((p)->ctr), op)
 
       /* MSDN docs ensure memory fence in these calls, even on ia64 */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
@@ -506,8 +508,8 @@
       #define _gasneti_atomic_read(p)      ((p)->ctr)
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
 
-      GASNETI_INLINE(_gasneti_atomic_increment)
-      void _gasneti_atomic_increment(gasneti_atomic_t *v) {
+      GASNETI_INLINE(_gasneti_atomic_increment_32)
+      void _gasneti_atomic_increment_32(gasneti_atomic_t *v) {
         __asm__ __volatile__(
                 GASNETI_X86_LOCK_PREFIX
 		"incl %0"
@@ -515,8 +517,9 @@
                 : "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
-      GASNETI_INLINE(_gasneti_atomic_decrement)
-      void _gasneti_atomic_decrement(gasneti_atomic_t *v) {
+      #define _gasneti_atomic_increment _gasneti_atomic_increment_32
+      GASNETI_INLINE(_gasneti_atomic_decrement_32)
+      void _gasneti_atomic_decrement_32(gasneti_atomic_t *v) {
         __asm__ __volatile__(
                 GASNETI_X86_LOCK_PREFIX
 		"decl %0"
@@ -524,8 +527,9 @@
                 : "m" (v->ctr) 
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
-      GASNETI_INLINE(_gasneti_atomic_decrement_and_test)
-      int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *v) {
+      #define _gasneti_atomic_decrement _gasneti_atomic_decrement_32
+      GASNETI_INLINE(_gasneti_atomic_decrement_and_test_32)
+      int _gasneti_atomic_decrement_and_test_32(gasneti_atomic_t *v) {
           register unsigned char retval;
           __asm__ __volatile__(
 	          GASNETI_X86_LOCK_PREFIX
@@ -536,6 +540,7 @@
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
           return retval;
       }
+      #define _gasneti_atomic_decrement_and_test _gasneti_atomic_decrement_and_test_32
 
       GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
       int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
@@ -551,8 +556,8 @@
         return (int)retval;
       }
 
-      GASNETI_INLINE(_gasneti_atomic_fetchadd)
-      uint32_t _gasneti_atomic_fetchadd(gasneti_atomic_t *v, int32_t op) {
+      GASNETI_INLINE(gasneti_atomic_fetchadd_32)
+      uint32_t gasneti_atomic_fetchadd_32(gasneti_atomic_t *v, int32_t op) {
 	uint32_t tmp = op;
         __asm__ __volatile__(
                 GASNETI_X86_LOCK_PREFIX
@@ -568,7 +573,7 @@
      #endif /* !slow atomics */
 
      #define GASNETI_HAVE_ATOMIC_CAS 1
-     #define gasneti_atomic_fetchadd _gasneti_atomic_fetchadd
+     #define _gasneti_atomic_fetchadd gasneti_atomic_fetchadd_32
     #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC) || defined(__PGI)
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if defined(__x86_64__) || defined(__amd64)
@@ -684,7 +689,7 @@
                                 : "=r"(tmp) : "r"(ptr), "r"(newval) : "memory");
         return (uint32_t) tmp;
       }
-      GASNETI_INLINE(gasneti_fetchandinc_32)
+      GASNETI_INLINE(gasneti_atomic_fetchandinc_32)
       uint32_t gasneti_atomic_fetchandinc_32(int32_t volatile *ptr) {
         uint64_t result;\
         asm volatile ("fetchadd4.acq %0=[%1],%2"
@@ -692,7 +697,7 @@
                                 : "memory");
         return (uint32_t) result;
       }
-      GASNETI_INLINE(gasneti_fetchanddec_32)
+      GASNETI_INLINE(gasneti_atomic_fetchanddec_32)
       uint32_t gasneti_atomic_fetchanddec_32(int32_t volatile *ptr) {
         uint64_t result;\
         asm volatile ("fetchadd4.acq %0=[%1],%2"
@@ -817,7 +822,7 @@
      }
      #define GASNETI_HAVE_ATOMIC_CAS 1
 
-     #define gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr), op)
+     #define _gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr), op)
 
      /* No fences in our asm, so using default fences */
     #elif (defined(__DECC) || defined(__DECCXX)) && defined(__osf__)
@@ -848,7 +853,7 @@
        }
        #define GASNETI_HAVE_ATOMIC_CAS 1
 
-       #define gasneti_atomic_fetchadd(p, op) __ATOMIC_ADD_LONG(&((p)->ctr), op)
+       #define _gasneti_atomic_fetchadd(p, op) __ATOMIC_ADD_LONG(&((p)->ctr), op)
 
        /* Both the instrisics and our asm lack built-in fences.  So, using default fences */
     #else
@@ -899,7 +904,7 @@
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
 
-        #define gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr),op)
+        #define _gasneti_atomic_fetchadd(p,op) gasneti_atomic_fetchandadd_32(&((p)->ctr),op)
 
 	/* Using default fences, as our asm includes none */
       #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
@@ -907,9 +912,9 @@
 	#define _gasneti_atomic_init(v)      { (v) }
         #define _gasneti_atomic_read(p)      ((p)->ctr)
         #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-        #define _gasneti_atomic_increment(p) (gasneti_atomic_fetchadd(p,1))
-        #define _gasneti_atomic_decrement(p) (gasneti_atomic_fetchadd(p,-1))
-        #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_fetchadd(p,-1) == 1)
+        #define _gasneti_atomic_increment(p) (_gasneti_atomic_fetchadd(p,1))
+        #define _gasneti_atomic_decrement(p) (_gasneti_atomic_fetchadd(p,-1))
+        #define _gasneti_atomic_decrement_and_test(p) (_gasneti_atomic_fetchadd(p,-1) == 1)
 
         #define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY					\
 	    GASNETI_ASM(								\
@@ -927,7 +932,7 @@
 		     "ld	[%i0], %g1		\n"				\
 		/* while (!cas(addr, oldval, oldval + op)) { oldval = *addr; }	*/	\
 		     "0:				\n\t"				\
-		     "add	 %g1, %i1, %i5		\n\t"				\
+		     "add	%g1, %i1, %i5		\n\t"				\
 		     "cas	[%i0], %g1, %i5		\n\t"				\
 		     "cmp	%g1, %i5		\n\t"				\
 		     "bne,a,pn	%icc, 0b		\n\t"				\
@@ -1025,7 +1030,7 @@
         }
         #define GASNETI_HAVE_ATOMIC_CAS 1
 
-        #define gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
+        #define _gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
 
         /* Our code has the following fences: (noting that RMB is empty) */
 	#define GASNETI_ATOMIC_FENCE_SET	GASNETI_ATOMIC_MB_PRE
@@ -1038,6 +1043,10 @@
   #elif defined(__hppa) || defined(__hppa__) /* PA-RISC */
     /* all we get is atomic load-and-clear, but that's actually just barely enough  */
     #define GASNETI_ATOMICOPS_NOT_SIGNALSAFE 1 /* not signal-safe because of "checkout" semantics */
+    /* The load-and-clear requires 16-byte alignment.  Therefore the type (and its
+     * initializer) replicate the value field 4 times.  The actual ops will only use
+     * the one of them that turns out to be 16-byte aligned.
+     */
     typedef struct { volatile uint64_t initflag; volatile int32_t _ctr[4]; char _pad; } gasneti_atomic_t;
     #define _gasneti_atomic_init(v)      {    \
             GASNETI_ATOMIC_INIT_MAGIC,       \
@@ -1179,14 +1188,15 @@
     #define _gasneti_atomic_read(p)      (*(p))
     #define _gasneti_atomic_set(p,v)     (*(p) = (v))
     #define _gasneti_atomic_init(v)      (v)
-    GASNETI_INLINE(_gasneti_atomic_decrement_and_test)
-    int _gasneti_atomic_decrement_and_test(gasneti_atomic_t *p) {
+    GASNETI_INLINE(_gasneti_atomic_decrement_and_test_64)
+    int _gasneti_atomic_decrement_and_test_64(gasneti_atomic_t *p) {
        int retval;
        gasneti_atomic_presync();
        retval = (_amo_afadd((p),(long)-1) == 1);
        gasneti_atomic_postsync();
        return retval;
     }
+    #define _gasneti_atomic_decrement_and_test _gasneti_atomic_decrement_and_test_64
 
     GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
     int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, long oldval, long newval) {
@@ -1198,15 +1208,15 @@
     }
     #define GASNETI_HAVE_ATOMIC_CAS 1
 
-    GASNETI_INLINE(_gasneti_atomic_addfetch)
-    uint32_t _gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op) {
+    GASNETI_INLINE(gasneti_atomic_addfetch_64)
+    uint32_t gasneti_atomic_addfetch_64(gasneti_atomic_t *p, int32_t op) {
        uint32_t retval;
        gasneti_atomic_presync();
        retval = _amo_afadd((p),(long)(op));
        gasneti_atomic_postsync();
        return retval;
     }
-    #define gasneti_atomic_addfetch _gasneti_atomic_addfetch
+    #define _gasneti_atomic_addfetch gasneti_atomic_addfetch_32
 
        /* Both the instrisics and our asm lack built-in fences.  So, using default fences */
     #define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_POST
@@ -1224,7 +1234,7 @@
     #define _gasneti_atomic_decrement_and_test(p) \
                                         (atomic_add4(((p)->ctr),-1) == 0)
 
-    #define gasneti_atomic_addfetch(p,op) atomic_add4(&((p)->ctr),op)
+    #define _gasneti_atomic_addfetch(p,op) atomic_add4(&((p)->ctr),op)
    #else
     #define _gasneti_atomic_increment(p) (muadd(&((p)->ctr),1))
     #define _gasneti_atomic_decrement(p) (muadd(&((p)->ctr),-1))
@@ -1234,7 +1244,7 @@
     #define _gasneti_atomic_decrement_and_test(p) \
                                         (muadd(&((p)->ctr),-1) == 0)
 
-    #define gasneti_atomic_addfetch(p,op) muadd(&((p)->ctr),op)
+    #define _gasneti_atomic_addfetch(p,op) muadd(&((p)->ctr),op)
     /* Using default fences (TODO: VERIFY THAT WE NEED THEM) */
    #endif
   /* ------------------------------------------------------------------------------------ */
@@ -1316,7 +1326,7 @@
 	/* RETURN in r3 = result after addition */ \
       }
       #pragma reg_killed_by gasneti_atomic_addandfetch_32 cr0, gr5
-      #define gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
+      #define _gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
 
       /* Using default fences as we have none in our asms */
     #elif defined(__GNUC__)
@@ -1361,7 +1371,7 @@
       } 
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
-      #define gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
+      #define _gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
 
       /* Using default fences as we have none in our asms */
     #else
@@ -1373,8 +1383,8 @@
       #define _gasneti_atomic_read(p)      ((p)->ctr)
       #define _gasneti_atomic_init(v)      { (v) }
       #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      GASNETI_INLINE(_gasneti_atomic_increment)
-      void _gasneti_atomic_increment(gasneti_atomic_t *p) {
+      GASNETI_INLINE(_gasneti_atomic_increment_32)
+      void _gasneti_atomic_increment_32(gasneti_atomic_t *p) {
 	uint32_t tmp;
 	__asm__ __volatile__(
 		"1:		\n\t"
@@ -1385,9 +1395,10 @@
 		: "=&r" (tmp), "=m" (p->ctr)
 		: "m" (p->ctr)
 		: "memory");
-      }
-      GASNETI_INLINE(_gasneti_atomic_decrement)
-      void _gasneti_atomic_decrement(gasneti_atomic_t *p) {
+      } 
+      #define _gasneti_atomic_increment _gasneti_atomic_increment_32
+      GASNETI_INLINE(_gasneti_atomic_decrement_32)
+      void _gasneti_atomic_decrement_32(gasneti_atomic_t *p) {
 	uint32_t tmp;
 	__asm__ __volatile__(
 		"1:		\n\t"
@@ -1399,6 +1410,7 @@
 		: "m" (p->ctr)
 		: "memory");
       }
+      #define _gasneti_atomic_decrement _gasneti_atomic_decrement_32
       GASNETI_INLINE(gasneti_atomic_fetchandadd_32)
       uint32_t gasneti_atomic_fetchandadd_32(gasneti_atomic_t *p, int32_t op) {
 	uint32_t tmp, retval;
@@ -1435,7 +1447,7 @@
       }
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
-      #define gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
+      #define _gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
 
       /* No memory fences in our asm, so using default fences */
     #endif
@@ -1497,12 +1509,12 @@
 #endif
 #ifdef GASNETI_ATOMIC_FETCHADD_BODY
   GASNETI_EXTERNC void _gasneti_special_atomic_fetchadd(void);
-  #define gasneti_atomic_fetchadd \
+  #define _gasneti_atomic_fetchadd \
     (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_fetchadd))
 #endif
 #ifdef GASNETI_ATOMIC_ADDFETCH_BODY
   GASNETI_EXTERNC void _gasneti_special_atomic_addfetch(void);
-  #define gasneti_atomic_addfetch \
+  #define _gasneti_atomic_addfetch \
     (*(uint32_t (*)(gasneti_atomic_t *, uint32_t))(&_gasneti_special_atomic_addfetch))
 #endif
 
@@ -1515,13 +1527,13 @@
 
 #if defined (GASNETI_HAVE_ATOMIC_ADD_SUB)
   /* Have a platform-specific version */
-#elif defined(gasneti_atomic_addfetch)
-  #define _gasneti_atomic_add(p,op)      ((uint32_t)gasneti_atomic_addfetch(p,op))
-  #define _gasneti_atomic_subtract(p,op) ((uint32_t)gasneti_atomic_addfetch(p,-op))
+#elif defined(_gasneti_atomic_addfetch)
+  #define _gasneti_atomic_add(p,op)      ((uint32_t)_gasneti_atomic_addfetch(p,op))
+  #define _gasneti_atomic_subtract(p,op) ((uint32_t)_gasneti_atomic_addfetch(p,-op))
   #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
-#elif defined(gasneti_atomic_fetchadd)
-  #define _gasneti_atomic_add(p,op)      ((uint32_t)(gasneti_atomic_fetchadd(p,op) + op))
-  #define _gasneti_atomic_subtract(p,op) ((uint32_t)(gasneti_atomic_fetchadd(p,-op) - op))
+#elif defined(_gasneti_atomic_fetchadd)
+  #define _gasneti_atomic_add(p,op)      ((uint32_t)(_gasneti_atomic_fetchadd(p,op) + op))
+  #define _gasneti_atomic_subtract(p,op) ((uint32_t)(_gasneti_atomic_fetchadd(p,-op) - op))
   #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
 #elif defined(GASNETI_HAVE_ATOMIC_CAS)
   GASNETI_INLINE(_gasneti_atomic_addfetch)
