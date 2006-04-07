@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/07 00:18:43 $
- * $Revision: 1.135.2.3 $
+ *     $Date: 2006/04/07 00:52:45 $
+ * $Revision: 1.135.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2108,6 +2108,7 @@
   #define GASNETI_HAVE_WEAKATOMIC_ADD_SUB 1
   GASNETI_INLINE(gasneti_weakatomic_add)
   uint32_t gasneti_weakatomic_add(gasneti_weakatomic_t *p, int32_t op, const int flags) {
+    _gasneti_weakatomic_fence_before(flags)  /* no semi */
     { const uint32_t retval = *(uint32_t *)(p) += (op);
       _gasneti_weakatomic_fence_after(flags)  /* no semi */
       return retval;
@@ -2115,7 +2116,8 @@
   }
   GASNETI_INLINE(gasneti_weakatomic_subtract)
   uint32_t gasneti_weakatomic_subtract(gasneti_weakatomic_t *p, int32_t op, const int flags) {
-    { const uint32_t retval = *(uint32_t *)(p) += (op);
+    _gasneti_weakatomic_fence_before(flags)  /* no semi */
+    { const uint32_t retval = *(uint32_t *)(p) -= (op);
       _gasneti_weakatomic_fence_after(flags)  /* no semi */
       return retval;
     }
