@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/06 21:14:21 $
- * $Revision: 1.135.2.1 $
+ *     $Date: 2006/04/07 00:17:36 $
+ * $Revision: 1.135.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -906,7 +906,6 @@
         #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
 
         /* Default impls of inc, dec, dec-and-test, add and sub */
-        #define _gasneti_atomic_fetchadd _gasneti_atomic_fetchadd
 
         #define GASNETI_ATOMIC_COMPARE_AND_SWAP_BODY					\
 	    GASNETI_ASM(								\
