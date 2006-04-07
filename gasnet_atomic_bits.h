@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/07 00:52:45 $
- * $Revision: 1.135.2.4 $
+ *     $Date: 2006/04/07 03:03:24 $
+ * $Revision: 1.135.2.5 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -485,6 +485,8 @@
      typedef struct { volatile int ctr; } gasneti_atomic_t;
      #define _gasneti_atomic_init(v)      { (v) }
      #if defined(PGI_WITH_REAL_ASM) && defined(__cplusplus) /* PGI C++ lacks inline assembly */
+        #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
+        #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
         #define GASNETI_USING_SLOW_ATOMICS 1
      #else
       #if defined(__PATHCC__)
@@ -565,7 +567,6 @@
       /* x86 and x86_64 include full memory fence in locked RMW insns */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
      #endif /* !slow atomics */
-
     #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC) || defined(__PGI)
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if defined(__x86_64__) || defined(__amd64)
@@ -1047,8 +1048,8 @@
               (GASNETI_ATOMIC_PRESENT|(v)) } \
             }
     #if defined(__HP_aCC) /* HP C++ compiler */
-      #define GASNETI_HAVE_ATOMIC_CAS 1
-      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1
+      #define GASNETI_HAVE_ATOMIC_CAS 1		/* Explicit */
+      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
       #define GASNETI_USING_SLOW_ATOMICS 1
     #else
       GASNETI_INLINE(gasneti_loadandclear_32)
@@ -1506,26 +1507,12 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* Default increment, decrement, decrement-and-test, add and subtract atomics in
- * terms of addfetch, fetachadd or compare-and-swap
- *
+ * terms of addfetch, fetachadd or compare-and-swap.
  */
 
-/* Step 1: If the platform has c-a-s but not fetchadd or addfetch, build an addfetch. */
-#if  defined(GASNETI_HAVE_ATOMIC_CAS) && \
-	!(defined(_gasneti_atomic_addfetch) || defined(_gasneti_atomic_fetchadd))
-  GASNETI_INLINE(gasneti_atomic_addfetch)
-  uint32_t gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op) {
-    uint32_t _old, _new;
-    do {
-      _new = (_old = _gasneti_atomic_read(p)) + op;
-    } while (!_gasneti_atomic_compare_and_swap(p, _old, _new));
-    return _new;
-  }
-  #define _gasneti_atomic_addfetch gasneti_atomic_addfetch
-#endif
-
-/* Step 2: Use addfetch or fetchadd to build missing operations */
-#if defined(_gasneti_atomic_addfetch)
+#if defined(GASNETI_USING_SLOW_ATOMICS)
+  /* No default atomics built when using "slow" atomics. */
+#elif defined(_gasneti_atomic_addfetch)
   #ifndef _gasneti_atomic_increment
     #define _gasneti_atomic_increment(p)	((void)_gasneti_atomic_addfetch((p),1))
   #endif
@@ -1541,7 +1528,20 @@
     #define _gasneti_atomic_subtract(p,op)	((uint32_t)_gasneti_atomic_addfetch(p,-op))
     #define GASNETI_HAVE_ATOMIC_ADD_SUB 	1
   #endif
-#elif defined(_gasneti_atomic_fetchadd)
+#elif defined(_gasneti_atomic_fetchadd) || defined (GASNETI_HAVE_ATOMIC_CAS)
+  #if !defined(_gasneti_atomic_addfetch)
+    /* If needed, build addfetch from compare-and-swap. */
+    GASNETI_INLINE(gasneti_atomic_addfetch)
+    uint32_t gasneti_atomic_addfetch(gasneti_atomic_t *p, int32_t op) {
+      uint32_t _old, _new;
+      do {
+        _new = (_old = _gasneti_atomic_read(p)) + op;
+      } while (!_gasneti_atomic_compare_and_swap(p, _old, _new));
+      return _new;
+    }
+    #define _gasneti_atomic_addfetch gasneti_atomic_addfetch
+  #endif
+
   #ifndef _gasneti_atomic_increment
     #define _gasneti_atomic_increment(p)	((void)_gasneti_atomic_fetchadd((p),1))
   #endif
