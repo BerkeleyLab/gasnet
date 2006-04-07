@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/07 00:17:36 $
- * $Revision: 1.135.2.2 $
+ *     $Date: 2006/04/07 00:18:43 $
+ * $Revision: 1.135.2.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1037,6 +1037,8 @@
      * the one of them that turns out to be 16-byte aligned.
      */
     typedef struct { volatile uint64_t initflag; volatile int32_t _ctr[4]; char _pad; } gasneti_atomic_t;
+    #define GASNETI_ATOMIC_PRESENT    ((int32_t)0x80000000)
+    #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
     #define _gasneti_atomic_init(v)      {    \
             GASNETI_ATOMIC_INIT_MAGIC,       \
             { (GASNETI_ATOMIC_PRESENT|(v)),  \
@@ -1077,8 +1079,6 @@
         return val;
       }
       #define GASNETI_ATOMIC_CTR(p)     ((volatile int32_t *)GASNETI_ALIGNUP(&(p->_ctr),16))
-      #define GASNETI_ATOMIC_PRESENT    ((int32_t)0x80000000)
-      #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
       /* would like to use gasneti_waituntil here, but it requires libgasnet for waitmode */
       #define gasneti_atomic_spinuntil(cond) do {       \
               while (!(cond)) gasneti_compiler_fence(); \
