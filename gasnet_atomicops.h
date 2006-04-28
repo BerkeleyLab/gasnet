@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/28 00:22:36 $
- * $Revision: 1.166 $
+ *     $Date: 2006/04/28 19:49:10 $
+ * $Revision: 1.166.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -155,23 +155,102 @@
 
 
 /* ------------------------------------------------------------------------------------ */
-/* Atomic range and signed treatment (default values if not platform-specific). */
 
-#ifndef gasneti_atomic_val_t
-  typedef uint32_t gasneti_atomic_val_t;
+/* XXX: Transitional "thunk".  This lets us derive the "atomic_t" from either the
+   32-bit or 64-bit opaque atomics without first implementing the fence wrappers
+   for them.
+*/
+
+#if defined(gasneti_atomic_t)
+  /* Use platform-specific type, even though atomic32_t or atomic64_t might be present. */
+#elif defined(GASNETI_HAVE_ATOMIC32_T) && !defined(GASNETI_FORCE_64BIT_ATOMICOPS)
+  typedef uint32_t				gasneti_atomic_val_t;
+  typedef int32_t				gasneti_atomic_sval_t;
+  #define GASNETI_ATOMIC_MAX			((gasneti_atomic_val_t)0xFFFFFFFFU)
+  #define GASNETI_ATOMIC_SIGNED_MIN		((gasneti_atomic_sval_t)0x80000000)
+  #define GASNETI_ATOMIC_SIGNED_MAX		((gasneti_atomic_sval_t)0x7FFFFFFF)
+
+  #define gasneti_atomic_t			gasneti_atomic32_t
+  #define _gasneti_atomic_init			_gasneti_atomic32_init
+  #define _gasneti_atomic_set			_gasneti_atomic32_set
+  #define _gasneti_atomic_read			_gasneti_atomic32_read
+  #define _gasneti_atomic_compare_and_swap	_gasneti_atomic32_compare_and_swap
+  #ifdef _gasneti_atomic32_increment
+    #define _gasneti_atomic_increment		_gasneti_atomic32_increment
+  #endif
+  #ifdef _gasneti_atomic32_decrement
+    #define _gasneti_atomic_decrement		_gasneti_atomic32_decrement
+  #endif
+  #ifdef _gasneti_atomic32_decrement_and_test
+    #define _gasneti_atomic_decrement_and_test	_gasneti_atomic32_decrement_and_test
+  #endif
+  #ifdef _gasneti_atomic32_add
+    #define _gasneti_atomic_add			_gasneti_atomic32_add
+  #endif
+  #ifdef _gasneti_atomic32_subtract
+    #define _gasneti_atomic_subtract		_gasneti_atomic32_subtract
+  #endif
+  #ifdef _gasneti_atomic32_addfetch
+    #define _gasneti_atomic_addfetch		_gasneti_atomic32_addfetch
+  #endif
+  #ifdef _gasneti_atomic32_fetchadd
+    #define _gasneti_atomic_fetchadd		_gasneti_atomic32_fetchadd
+  #endif
+#elif defined(GASNETI_HAVE_ATOMIC64_T)
+  typedef uint64_t gasneti_atomic_val_t;
+  typedef int64_t gasneti_atomic_sval_t;
+  #define GASNETI_ATOMIC_MAX		((gasneti_atomic_val_t)0xFFFFFFFFFFFFFFFFLLU)
+  #define GASNETI_ATOMIC_SIGNED_MIN	((gasneti_atomic_sval_t)0x8000000000000000LL)
+  #define GASNETI_ATOMIC_SIGNED_MAX	((gasneti_atomic_sval_t)0x7FFFFFFFFFFFFFFFLL)
+
+  #define gasneti_atomic_t			gasneti_atomic64_t
+  #define _gasneti_atomic_init			_gasneti_atomic64_init
+  #define _gasneti_atomic_set			_gasneti_atomic64_set
+  #define _gasneti_atomic_read			_gasneti_atomic64_read
+  #define _gasneti_atomic_compare_and_swap	_gasneti_atomic64_compare_and_swap
+  #ifdef _gasneti_atomic64_increment
+    #define _gasneti_atomic_increment		_gasneti_atomic64_increment
+  #endif
+  #ifdef _gasneti_atomic64_decrement
+    #define _gasneti_atomic_decrement		_gasneti_atomic64_decrement
+  #endif
+  #ifdef _gasneti_atomic64_decrement_and_test
+    #define _gasneti_atomic_decrement_and_test	_gasneti_atomic64_decrement_and_test
+  #endif
+  #ifdef _gasneti_atomic64_add
+    #define _gasneti_atomic_add			_gasneti_atomic64_add
+  #endif
+  #ifdef _gasneti_atomic64_subtract
+    #define _gasneti_atomic_subtract		_gasneti_atomic64_subtract
+  #endif
+  #ifdef _gasneti_atomic64_addfetch
+    #define _gasneti_atomic_addfetch		_gasneti_atomic64_addfetch
+  #endif
+  #ifdef _gasneti_atomic64_fetchadd
+    #define _gasneti_atomic_fetchadd		_gasneti_atomic64_fetchadd
+  #endif
+#else
+  /* XXX: This should go away when "atomic{32,64}_t" becomes "base classes" */
+  #ifndef gasneti_atomic_val_t
+    typedef uint32_t gasneti_atomic_val_t;
+  #endif
+  #ifndef gasneti_atomic_sval_t
+    typedef int32_t gasneti_atomic_sval_t;
+  #endif
+  #ifndef GASNETI_ATOMIC_MAX
+    #define GASNETI_ATOMIC_MAX		((gasneti_atomic_val_t)0xFFFFFFFFU)
+  #endif
+  #ifndef GASNETI_ATOMIC_SIGNED_MIN
+    #define GASNETI_ATOMIC_SIGNED_MIN	((gasneti_atomic_sval_t)0x80000000)
+  #endif
+  #ifndef GASNETI_ATOMIC_SIGNED_MAX
+    #define GASNETI_ATOMIC_SIGNED_MAX	((gasneti_atomic_sval_t)0x7FFFFFFF)
+  #endif
 #endif
-#ifndef gasneti_atomic_sval_t
-  typedef int32_t gasneti_atomic_sval_t;
-#endif
-#ifndef GASNETI_ATOMIC_MAX
-  #define GASNETI_ATOMIC_MAX		((gasneti_atomic_val_t)0xFFFFFFFFU)
-#endif
-#ifndef GASNETI_ATOMIC_SIGNED_MIN
-  #define GASNETI_ATOMIC_SIGNED_MIN	((gasneti_atomic_sval_t)0x80000000)
-#endif
-#ifndef GASNETI_ATOMIC_SIGNED_MAX
-  #define GASNETI_ATOMIC_SIGNED_MAX	((gasneti_atomic_sval_t)0x7FFFFFFF)
-#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* Default unsigned->signed conversion, in terms of simple cast. */
+
 #ifndef gasneti_atomic_signed
   #define gasneti_atomic_signed(val)	((gasneti_atomic_sval_t)(val))
 #endif
@@ -255,7 +334,7 @@
  *      else if (f & W_flag) wmb();
  *    can become
  *	if (f & R_flag) rmb();
- *      if (f & W_flag) wmb();
+ *      else if (f & W_flag) wmb();
  *    while we are going to conservatively assume the compilers optimizer
  *    will not, either because it can't tell that mb() and rmb() are
  *    equal, or because merging the two conditionals is a non-obvious

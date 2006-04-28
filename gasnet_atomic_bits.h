@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/28 00:26:54 $
- * $Revision: 1.168 $
+ *     $Date: 2006/04/28 19:49:10 $
+ * $Revision: 1.168.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -399,8 +399,9 @@
       defined(__i586__) || defined(__i586) || defined(i586) || \
       defined(__i686__) || defined(__i686) || defined(i686)
     #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__PATHCC__) || defined(PGI_WITH_REAL_ASM)
-     typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
-     #define _gasneti_atomic_init(v)      { (v) }
+     #define GASNETI_HAVE_ATOMIC32_T
+     typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
+     #define _gasneti_atomic32_init(v)      { (v) }
      #if defined(PGI_WITH_REAL_ASM) && defined(__cplusplus) /* PGI C++ lacks inline assembly */
         #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
         #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
@@ -414,11 +415,11 @@
       #else
         #define GASNETI_ATOMIC_MEM_CLOBBER
       #endif
-      #define _gasneti_atomic_read(p)      ((p)->ctr)
-      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic32_read(p)      ((p)->ctr)
+      #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
 
       GASNETI_INLINE(_gasneti_atomic_increment_32)
-      void _gasneti_atomic_increment_32(gasneti_atomic_t *v) {
+      void _gasneti_atomic_increment_32(gasneti_atomic32_t *v) {
         __asm__ __volatile__(
                 GASNETI_X86_LOCK_PREFIX
 		"incl %0"
@@ -426,9 +427,9 @@
                 : "m" (v->ctr)
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
-      #define _gasneti_atomic_increment _gasneti_atomic_increment_32
+      #define _gasneti_atomic32_increment _gasneti_atomic_increment_32
       GASNETI_INLINE(_gasneti_atomic_decrement_32)
-      void _gasneti_atomic_decrement_32(gasneti_atomic_t *v) {
+      void _gasneti_atomic_decrement_32(gasneti_atomic32_t *v) {
         __asm__ __volatile__(
                 GASNETI_X86_LOCK_PREFIX
 		"decl %0"
@@ -436,9 +437,9 @@
                 : "m" (v->ctr) 
                 : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
       }
-      #define _gasneti_atomic_decrement _gasneti_atomic_decrement_32
+      #define _gasneti_atomic32_decrement _gasneti_atomic_decrement_32
       GASNETI_INLINE(_gasneti_atomic_decrement_and_test_32)
-      int _gasneti_atomic_decrement_and_test_32(gasneti_atomic_t *v) {
+      int _gasneti_atomic_decrement_and_test_32(gasneti_atomic32_t *v) {
           register unsigned char retval;
           __asm__ __volatile__(
 	          GASNETI_X86_LOCK_PREFIX
@@ -449,10 +450,10 @@
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
           return retval;
       }
-      #define _gasneti_atomic_decrement_and_test _gasneti_atomic_decrement_and_test_32
+      #define _gasneti_atomic32_decrement_and_test _gasneti_atomic_decrement_and_test_32
 
-      GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
-      int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *v, uint32_t oldval, uint32_t newval) {
+      GASNETI_INLINE(_gasneti_atomic32_compare_and_swap)
+      int _gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *v, uint32_t oldval, uint32_t newval) {
         register unsigned char retval;
         register uint32_t readval;
         __asm__ __volatile__ (
@@ -467,7 +468,7 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1
 
       GASNETI_INLINE(gasneti_atomic_fetchadd_32)
-      uint32_t gasneti_atomic_fetchadd_32(gasneti_atomic_t *v, int32_t op) {
+      uint32_t gasneti_atomic_fetchadd_32(gasneti_atomic32_t *v, int32_t op) {
 	/* CAUTION: Both PathScale and Intel compilers have been seen to be
          * rather fragile with respect to this asm template (bug 1563).
          * Change this at your own risk!
@@ -483,7 +484,7 @@
       }
 
       /* Default versions of add and subtract */
-      #define _gasneti_atomic_fetchadd gasneti_atomic_fetchadd_32
+      #define _gasneti_atomic32_fetchadd gasneti_atomic_fetchadd_32
 
       /* x86 and x86_64 include full memory fence in locked RMW insns */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
