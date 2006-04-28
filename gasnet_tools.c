@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/04/27 20:14:27 $
- * $Revision: 1.159 $
+ *     $Date: 2006/04/28 23:32:52 $
+ * $Revision: 1.159.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,17 +49,7 @@
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */
 #ifdef GASNETI_USE_GENERIC_ATOMICOPS
-  #ifdef _INCLUDED_GASNET_H
-    gasnet_hsl_t gasneti_atomicop_lock = GASNET_HSL_INITIALIZER;
-    void *gasneti_patomicop_lock = (void*)&gasneti_atomicop_lock;
-    GASNETI_GENERIC_DEC_AND_TEST_DEF
-    #ifdef GASNETI_GENERIC_CAS_DEF
-      GASNETI_GENERIC_CAS_DEF
-    #endif
-    #ifdef GASNETI_GENERIC_ADD_SUB_DEF
-      GASNETI_GENERIC_ADD_SUB_DEF
-    #endif
-  #elif defined(_REENTRANT) || defined(_THREAD_SAFE) || \
+  #if defined(_REENTRANT) || defined(_THREAD_SAFE) || \
         defined(PTHREAD_MUTEX_INITIALIZER) ||           \
         defined(HAVE_PTHREAD) || defined(HAVE_PTHREAD_H)
     pthread_mutex_t gasneti_atomicop_mutex = PTHREAD_MUTEX_INITIALIZER;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/28 20:48:56 $
- * $Revision: 1.166.2.2 $
+ *     $Date: 2006/04/28 23:32:52 $
+ * $Revision: 1.166.2.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -155,13 +155,10 @@
 
 
 /* ------------------------------------------------------------------------------------ */
-
-/* XXX: Transitional "thunk".  This lets us derive the "atomic_t" from either the
-   32-bit or 64-bit opaque atomics without first implementing the fence wrappers
-   for them.
+/* We can derive gasneti_atomic_t from either the 32-bit or 64-bit opaque types.
 */
 
-#if defined(gasneti_atomic_t)
+#if defined(GASNETI_HAVE_PRIVATE_ATOMIC_T)
   /* Use platform-specific type, even though atomic32_t or atomic64_t might be present. */
 #elif defined(GASNETI_HAVE_ATOMIC32_T) && !defined(GASNETI_FORCE_64BIT_ATOMICOPS)
   typedef uint32_t				gasneti_atomic_val_t;
@@ -170,11 +167,15 @@
   #define GASNETI_ATOMIC_SIGNED_MIN		((gasneti_atomic_sval_t)0x80000000)
   #define GASNETI_ATOMIC_SIGNED_MAX		((gasneti_atomic_sval_t)0x7FFFFFFF)
 
+  /* Required parts: */
   #define gasneti_atomic_t			gasneti_atomic32_t
   #define _gasneti_atomic_init			_gasneti_atomic32_init
   #define _gasneti_atomic_set			_gasneti_atomic32_set
   #define _gasneti_atomic_read			_gasneti_atomic32_read
   #define _gasneti_atomic_compare_and_swap	_gasneti_atomic32_compare_and_swap
+  #define GASNETI_HAVE_ATOMIC_CAS		1
+
+  /* Optional parts: */
   #ifdef _gasneti_atomic32_increment
     #define _gasneti_atomic_increment		_gasneti_atomic32_increment
   #endif
@@ -197,17 +198,21 @@
     #define _gasneti_atomic_fetchadd		_gasneti_atomic32_fetchadd
   #endif
 #elif defined(GASNETI_HAVE_ATOMIC64_T)
-  typedef uint64_t gasneti_atomic_val_t;
-  typedef int64_t gasneti_atomic_sval_t;
+  typedef uint64_t			gasneti_atomic_val_t;
+  typedef int64_t			gasneti_atomic_sval_t;
   #define GASNETI_ATOMIC_MAX		((gasneti_atomic_val_t)0xFFFFFFFFFFFFFFFFLLU)
   #define GASNETI_ATOMIC_SIGNED_MIN	((gasneti_atomic_sval_t)0x8000000000000000LL)
   #define GASNETI_ATOMIC_SIGNED_MAX	((gasneti_atomic_sval_t)0x7FFFFFFFFFFFFFFFLL)
 
+  /* Required parts: */
   #define gasneti_atomic_t			gasneti_atomic64_t
   #define _gasneti_atomic_init			_gasneti_atomic64_init
   #define _gasneti_atomic_set			_gasneti_atomic64_set
   #define _gasneti_atomic_read			_gasneti_atomic64_read
   #define _gasneti_atomic_compare_and_swap	_gasneti_atomic64_compare_and_swap
+  #define GASNETI_HAVE_ATOMIC_CAS		1
+
+  /* Optional parts: */
   #ifdef _gasneti_atomic64_increment
     #define _gasneti_atomic_increment		_gasneti_atomic64_increment
   #endif
@@ -229,30 +234,6 @@
   #ifdef _gasneti_atomic64_fetchadd
     #define _gasneti_atomic_fetchadd		_gasneti_atomic64_fetchadd
   #endif
-#else
-  /* XXX: This should go away when "atomic{32,64}_t" becomes "base classes" */
-  #ifndef gasneti_atomic_val_t
-    typedef uint32_t gasneti_atomic_val_t;
-  #endif
-  #ifndef gasneti_atomic_sval_t
-    typedef int32_t gasneti_atomic_sval_t;
-  #endif
-  #ifndef GASNETI_ATOMIC_MAX
-    #define GASNETI_ATOMIC_MAX		((gasneti_atomic_val_t)0xFFFFFFFFU)
-  #endif
-  #ifndef GASNETI_ATOMIC_SIGNED_MIN
-    #define GASNETI_ATOMIC_SIGNED_MIN	((gasneti_atomic_sval_t)0x80000000)
-  #endif
-  #ifndef GASNETI_ATOMIC_SIGNED_MAX
-    #define GASNETI_ATOMIC_SIGNED_MAX	((gasneti_atomic_sval_t)0x7FFFFFFF)
-  #endif
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-/* Default unsigned->signed conversion, in terms of simple cast. */
-
-#ifndef gasneti_atomic_signed
-  #define gasneti_atomic_signed(val)	((gasneti_atomic_sval_t)(val))
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -668,6 +649,40 @@
 /* GASNet atomic ops, using per-platform defns and the macros of Part 4, above.
  */
 
+#if defined(GASNETI_HAVE_ATOMIC32_T)
+  /* Fence the opqaue (non-arithmetic) 32-bit atomic type (if present) */
+  typedef uint32_t gasneti_atomic32_val_t;	/* For consistency */
+  #ifndef gasneti_atomic32_init
+    #define gasneti_atomic32_init(v)	_gasneti_atomic32_init(v)
+  #endif
+  #ifndef gasneti_atomic32_set
+    #define gasneti_atomic32_set(p,v,f)	GASNETI_ATOMIC_FENCED_SET(gasneti_atomic32_set,p,v,f)
+  #endif
+  #ifndef gasneti_atomic32_read
+    GASNETI_ATOMIC_FENCED_READ_DEFN(gasneti_atomic32_read,gasneti_atomic32_)
+  #endif
+  #if defined(gasneti_atomic32_compare_and_swap)
+    GASNETI_ATOMIC_FENCED_CAS_DEFN(gasneti_atomic32_compare_and_swap,gasneti_atomic32_)
+  #endif
+#endif
+
+#if defined(GASNETI_HAVE_ATOMIC64_T)
+  /* Fence the opqaue (non-arithmetic) 64-bit atomic type (if present) */
+  typedef uint64_t gasneti_atomic64_val_t;	/* For consistency */
+  #ifndef gasneti_atomic64_init
+    #define gasneti_atomic64_init(v)	_gasneti_atomic64_init(v)
+  #endif
+  #ifndef gasneti_atomic64_set
+    #define gasneti_atomic64_set(p,v,f)	GASNETI_ATOMIC_FENCED_SET(gasneti_atomic64_set,p,v,f)
+  #endif
+  #ifndef gasneti_atomic64_read
+    GASNETI_ATOMIC_FENCED_READ_DEFN(gasneti_atomic64_read,gasneti_atomic64_)
+  #endif
+  #if defined(gasneti_atomic64_compare_and_swap)
+    GASNETI_ATOMIC_FENCED_CAS_DEFN(gasneti_atomic64_compare_and_swap,gasneti_atomic64_)
+  #endif
+#endif
+
 #ifndef gasneti_atomic_init
   #define gasneti_atomic_init(v)	_gasneti_atomic_init(v)
 #endif
@@ -695,6 +710,9 @@
 #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB) && !defined(gasneti_atomic_subtract)
   GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(gasneti_atomic_subtract,gasneti_atomic_)
 #endif 
+#ifndef gasneti_atomic_signed
+  #define gasneti_atomic_signed(val)	((gasneti_atomic_sval_t)(val))
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet weak atomics - these operations are guaranteed to be atomic if and only if 
@@ -706,6 +724,7 @@
 #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
   typedef gasneti_atomic_t gasneti_weakatomic_t;
   #define gasneti_weakatomic_init(v)                  gasneti_atomic_init(v)
+  #define gasneti_weakatomic_signed(v)                gasneti_atomic_signed(v)
   #define gasneti_weakatomic_set(p,v,f)               gasneti_atomic_set(p,v,f)
   #define gasneti_weakatomic_read(p,f)                gasneti_atomic_read(p,f)
   #define gasneti_weakatomic_increment(p,f)           gasneti_atomic_increment(p,f)
@@ -728,6 +747,7 @@
    */
   typedef volatile gasneti_atomic_val_t gasneti_weakatomic_t;
   #define gasneti_weakatomic_init(v)                  (v)
+  #define gasneti_weakatomic_signed(v)                gasneti_atomic_signed(v)
   #define gasneti_weakatomic_set(p,v,f) do {                 \
     const int __flags = (f);                                 \
     _gasneti_weakatomic_fence_before(__flags)  /* no semi */ \
