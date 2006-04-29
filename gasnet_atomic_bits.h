@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/29 02:43:52 $
- * $Revision: 1.168.2.7 $
+ *     $Date: 2006/04/29 03:02:36 $
+ * $Revision: 1.168.2.8 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1303,32 +1303,38 @@
    */
   #elif defined(_POWER) || defined(__PPC__) || defined(__ppc__) || defined(__ppc64__)
     #if defined(__xlC__)
+      #define GASNETI_HAVE_ATOMIC32_T 1
+      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
+      #define _gasneti_atomic32_read(p)      ((p)->ctr)
+      #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic32_init(v)      { (v) }
+
       /* XLC machine code functions are very rigid, thus we produce all
        * three read-modify-write ops as distinct functions in order to
        * get anything near to optimal code.
        */
-      static void gasneti_atomic_inc_32(int32_t volatile *v);
-      #pragma mc_func gasneti_atomic_inc_32 {\
+      static void _gasneti_atomic32_increment(gasneti_atomic32_t *v);
+      #pragma mc_func _gasneti_atomic32_increment {\
 	/* ARGS: r3 = v  LOCAL: r4 = tmp */ \
 	"7c801828"	/* 0: lwarx	r4,0,r3		*/ \
 	"38840001"	/*    addi	r4,r4,0x1	*/ \
 	"7c80192d"	/*    stwcx.	r4,0,r3		*/ \
 	"40a2fff4"	/*    bne-	0b		*/ \
       }
-      #pragma reg_killed_by gasneti_atomic_inc_32 cr0, gr4
+      #pragma reg_killed_by _gasneti_atomic32_increment cr0, gr4
 
-      static void gasneti_atomic_dec_32(int32_t volatile *v);
-      #pragma mc_func gasneti_atomic_dec_32 {\
+      static void _gasneti_atomic32_decrement(gasneti_atomic32_t *v);
+      #pragma mc_func _gasneti_atomic32_decrement {\
 	/* ARGS: r3 = v  LOCAL: r4 = tmp */ \
 	"7c801828"	/* 0: lwarx	r4,0,r3		*/ \
 	"3884ffff"	/*    subi	r4,r4,0x1	*/ \
 	"7c80192d"	/*    stwcx.	r4,0,r3		*/ \
 	"40a2fff4"	/*    bne-	0b		*/ \
       }
-      #pragma reg_killed_by gasneti_atomic_dec_32 cr0, gr4
+      #pragma reg_killed_by _gasneti_atomic32_decrement cr0, gr4
 
-      static int32_t gasneti_atomic_decandfetch_32(int32_t volatile *v);
-      #pragma mc_func gasneti_atomic_decandfetch_32 {\
+      static uint32_t gasneti_atomic32_decandfetch(gasneti_atomic32_t *v);
+      #pragma mc_func gasneti_atomic32_decandfetch {\
 	/* ARGS: r3 = v  LOCAL: r4 = tmp */ \
 	"7c801828"	/* 0: lwarx	r4,0,r3		*/ \
 	"3884ffff"	/*    subi	r4,r4,0x1	*/ \
@@ -1337,18 +1343,11 @@
 	"7c832378"	/*    mr	r3,r4		*/ \
 	/* RETURN in r3 = result after dec */ \
       }
-      #pragma reg_killed_by gasneti_atomic_decandfetch_32 cr0, gr4
+      #pragma reg_killed_by gasneti_atomic32_decandfetch cr0, gr4
+      #define _gasneti_atomic32_decrement_and_test(p) (gasneti_atomic32_decandfetch(p) == 0)
 
-      typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define _gasneti_atomic_increment(p) (gasneti_atomic_inc_32(&((p)->ctr)))
-      #define _gasneti_atomic_decrement(p) (gasneti_atomic_dec_32(&((p)->ctr)))
-      #define _gasneti_atomic_read(p)      ((p)->ctr)
-      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define _gasneti_atomic_init(v)      { (v) }
-      #define _gasneti_atomic_decrement_and_test(p) (gasneti_atomic_decandfetch_32(&((p)->ctr)) == 0)
-
-      static int gasneti_atomic_swap_not_32(volatile int32_t *v, uint32_t oldval, uint32_t newval);
-      #pragma mc_func gasneti_atomic_swap_not_32 {\
+      static int gasneti_atomic32_swap_not(gasneti_atomic32_t *v, uint32_t oldval, uint32_t newval);
+      #pragma mc_func gasneti_atomic32_swap_not {\
 	/* ARGS: r3 = p, r4=oldval, r5=newval   LOCAL: r0 = tmp */ \
 	"7c001828"	/* 0: lwarx	r0,0,r3		*/ \
 	"7c002279"	/*    xor.	r0,r0,r4	*/ \
@@ -1358,13 +1357,12 @@
 	"7c030378"	/* 1: mr	r3,r0		*/ \
 	/* RETURN in r3 = 0 iff swap took place */ \
       }
-      #pragma reg_killed_by gasneti_atomic_swap_not_32 cr0, gr0
-      #define _gasneti_atomic_compare_and_swap(p, oldval, newval) \
-	(gasneti_atomic_swap_not_32(&((p)->ctr),(oldval),(newval)) == 0)
-      #define GASNETI_HAVE_ATOMIC_CAS 1
+      #pragma reg_killed_by gasneti_atomic32_swap_not cr0, gr0
+      #define _gasneti_atomic32_compare_and_swap(p, oldval, newval) \
+	(gasneti_atomic32_swap_not((p),(oldval),(newval)) == 0)
 
-      static int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op);
-      #pragma mc_func gasneti_atomic_addandfetch_32 {\
+      static uint32_t _gasneti_atomic32_addfetch(gasneti_atomic32_t *v, int32_t op);
+      #pragma mc_func _gasneti_atomic32_addfetch {\
 	/* ARGS: r3 = v  LOCAL: r4 = op, r5 = tmp */ \
 	"7ca01828"	/* 0: lwarx	r5,0,r3		*/ \
 	"7ca52214"	/*    add	r5,r5,r4	*/ \
@@ -1373,15 +1371,21 @@
 	"7ca32b78"	/*    mr	r3,r5		*/ \
 	/* RETURN in r3 = result after addition */ \
       }
-      #pragma reg_killed_by gasneti_atomic_addandfetch_32 cr0, gr5
-      #define _gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
+      #pragma reg_killed_by _gasneti_atomic32_addfetch cr0, gr5
+      #define _gasneti_atomic32_addfetch _gasneti_atomic32_addfetch
 
       /* Using default fences as we have none in our asms */
     #elif defined(__GNUC__)
-      GASNETI_INLINE(gasneti_atomic_addandfetch_32)
-      int32_t gasneti_atomic_addandfetch_32(int32_t volatile *v, int32_t op) {
-        register int32_t volatile * addr = (int32_t volatile *)v;
-        register int32_t result;
+      #define GASNETI_HAVE_ATOMIC32_T 1
+      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
+      #define _gasneti_atomic32_read(p)      ((p)->ctr)
+      #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic32_init(v)      { (v) }
+
+      GASNETI_INLINE(gasneti_atomic32_addandfetch)
+      uint32_t gasneti_atomic32_addandfetch(gasneti_atomic32_t *v, int32_t op) {
+        register uint32_t volatile * addr = (uint32_t volatile *)v;
+        register uint32_t result;
         __asm__ __volatile__ ( 
           "Lga.0.%=:\t"                 /* AIX assembler doesn't grok "0:"-type local labels */
           "lwarx    %0,0,%1 \n\t" 
@@ -1393,16 +1397,12 @@
           : "cr0");
         return result;
       }
-      typedef struct { volatile int32_t ctr; } gasneti_atomic_t;
-      #define _gasneti_atomic_read(p)      ((p)->ctr)
-      #define _gasneti_atomic_set(p,v)     ((p)->ctr = (v))
-      #define _gasneti_atomic_init(v)      { (v) }
+      #define _gasneti_atomic32_addfetch gasneti_atomic32_addandfetch
 
       /* Default impls of inc, dec, dec-and-test, add and sub */
-      #define _gasneti_atomic_addfetch(p,op) gasneti_atomic_addandfetch_32(&((p)->ctr),op)
 
-      GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
-      int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
+      GASNETI_INLINE(_gasneti_atomic32_compare_and_swap)
+      int _gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *p, uint32_t oldval, uint32_t newval) {
         register uint32_t result;
         __asm__ __volatile__ (
           "Lga.0.%=:\t"                   /* AIX assembler doesn't grok "0:"-type local labels */
@@ -1418,7 +1418,6 @@
   
         return (result == 0);
       } 
-      #define GASNETI_HAVE_ATOMIC_CAS 1
 
       /* Using default fences as we have none in our asms */
     #else
