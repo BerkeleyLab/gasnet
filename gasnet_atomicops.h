@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/04/28 23:32:52 $
- * $Revision: 1.166.2.3 $
+ *     $Date: 2006/04/29 00:01:01 $
+ * $Revision: 1.166.2.4 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -237,6 +237,34 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Slow function-call based atomics
+ * Used at client compile time for any compiler w/o inline asm support
+ */
+
+#if defined(GASNETI_USING_SLOW_ATOMICS)
+  GASNETI_EXTERNC gasneti_atomic_val_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_read gasneti_slow_atomic_read
+  GASNETI_EXTERNC void gasneti_slow_atomic_set(gasneti_atomic_t *p, gasneti_atomic_val_t v, const int flags);
+  #define gasneti_atomic_set gasneti_slow_atomic_set
+  GASNETI_EXTERNC void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_increment gasneti_slow_atomic_increment
+  GASNETI_EXTERNC void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_decrement gasneti_slow_atomic_decrement
+  GASNETI_EXTERNC int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_decrement_and_test gasneti_slow_atomic_decrement_and_test
+  #if defined(GASNETI_HAVE_ATOMIC_CAS)
+    GASNETI_EXTERNC int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, gasneti_atomic_val_t oldval, gasneti_atomic_val_t newval, const int flags);
+    #define gasneti_atomic_compare_and_swap gasneti_slow_atomic_compare_and_swap
+  #endif
+  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+    GASNETI_EXTERNC gasneti_atomic_val_t gasneti_slow_atomic_add(gasneti_atomic_t *p, gasneti_atomic_val_t op, const int flags);
+    #define gasneti_atomic_add gasneti_slow_atomic_add
+    GASNETI_EXTERNC gasneti_atomic_val_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, gasneti_atomic_val_t op, const int flags);
+    #define gasneti_atomic_subtract gasneti_slow_atomic_subtract
+  #endif
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* Default increment, decrement, decrement-and-test, add and subtract atomics in
  * terms of addfetch, fetachadd or compare-and-swap.
  */
@@ -340,7 +368,7 @@
  * Part 3.  Defines atomic fence macros in terms of the macros of Part 1,
  *          while applying simplications based on atomic side-effects.
  * Part 4.  Defines templates for defining the fenced atomics, of which there
- *          may be upto 3 families (32-bit, 64-bit and "other").
+ *          may be up to 3 families (32-bit, 64-bit and "other").
  * Both Parts 2 and 3 can be overridden by platform-specific definitions
  * of their respective macros.
  */
@@ -649,7 +677,7 @@
 /* GASNet atomic ops, using per-platform defns and the macros of Part 4, above.
  */
 
-#if defined(GASNETI_HAVE_ATOMIC32_T)
+#if defined(GASNETI_HAVE_ATOMIC32_T) && !defined(GASNETI_USING_SLOW_ATOMICS)
   /* Fence the opqaue (non-arithmetic) 32-bit atomic type (if present) */
   typedef uint32_t gasneti_atomic32_val_t;	/* For consistency */
   #ifndef gasneti_atomic32_init
@@ -666,7 +694,7 @@
   #endif
 #endif
 
-#if defined(GASNETI_HAVE_ATOMIC64_T)
+#if defined(GASNETI_HAVE_ATOMIC64_T) && !defined(GASNETI_USING_SLOW_ATOMICS)
   /* Fence the opqaue (non-arithmetic) 64-bit atomic type (if present) */
   typedef uint64_t gasneti_atomic64_val_t;	/* For consistency */
   #ifndef gasneti_atomic64_init
@@ -683,6 +711,35 @@
   #endif
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+/* Slow function-call based atomics
+ * Used at client compile time for any compiler w/o inline asm support
+ */
+
+#if defined(GASNETI_USING_SLOW_ATOMICS)
+  GASNETI_EXTERNC uint32_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_read gasneti_slow_atomic_read
+  GASNETI_EXTERNC void gasneti_slow_atomic_set(gasneti_atomic_t *p, uint32_t v, const int flags);
+  #define gasneti_atomic_set gasneti_slow_atomic_set
+  GASNETI_EXTERNC void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_increment gasneti_slow_atomic_increment
+  GASNETI_EXTERNC void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_decrement gasneti_slow_atomic_decrement
+  GASNETI_EXTERNC int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags);
+  #define gasneti_atomic_decrement_and_test gasneti_slow_atomic_decrement_and_test
+  #if defined(GASNETI_HAVE_ATOMIC_CAS)
+    GASNETI_EXTERNC int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, const int flags);
+    #define gasneti_atomic_compare_and_swap gasneti_slow_atomic_compare_and_swap
+  #endif
+  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+    GASNETI_EXTERNC uint32_t gasneti_slow_atomic_add(gasneti_atomic_t *p, uint32_t op, const int flags);
+    #define gasneti_atomic_add gasneti_slow_atomic_add
+    GASNETI_EXTERNC uint32_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, uint32_t op, const int flags);
+    #define gasneti_atomic_subtract gasneti_slow_atomic_subtract
+  #endif
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 #ifndef gasneti_atomic_init
   #define gasneti_atomic_init(v)	_gasneti_atomic_init(v)
 #endif
