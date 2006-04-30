@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_fwd.h,v $
- *     $Date: 2006/02/12 03:26:29 $
- * $Revision: 1.1 $
+ *     $Date: 2006/04/30 22:52:32 $
+ * $Revision: 1.1.14.1 $
  * Description: GASNet Non-contiguous Access Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,9 @@
 #ifndef _GASNET_VIS_FWD_H
 #define _GASNET_VIS_FWD_H
 
-#define GASNETI_VIS_PROGRESSFNS(FN)
+extern void gasneti_vis_progressfn();
+#define GASNETI_VIS_PROGRESSFNS(FN) \
+    FN(gasneti_pf_vis, COUNTED, gasneti_vis_progressfn) 
 
 /* conduits may replace the following types, 
    but they should at least include all the following fields */
@@ -37,12 +39,18 @@
 /* stats needed by the VIS reference implementation */
 #ifndef GASNETI_VIS_STATS
   #define GASNETI_VIS_STATS(CNT,VAL,TIME)    \
+        CNT(C, PUTV_GATHER, cnt)             \
+        CNT(C, GETV_SCATTER, cnt)            \
         CNT(C, PUTV_REF_INDIV, cnt)          \
         CNT(C, GETV_REF_INDIV, cnt)          \
         CNT(C, PUTI_REF_INDIV, cnt)          \
+        CNT(C, PUTI_GATHER, cnt)             \
+        CNT(C, GETI_SCATTER, cnt)            \
         CNT(C, GETI_REF_INDIV, cnt)          \
         CNT(C, PUTI_REF_VECTOR, cnt)         \
         CNT(C, GETI_REF_VECTOR, cnt)         \
+        CNT(C, PUTS_GATHER, cnt)             \
+        CNT(C, GETS_SCATTER, cnt)            \
         CNT(C, PUTS_REF_INDIV, cnt)          \
         CNT(C, GETS_REF_INDIV, cnt)          \
         CNT(C, PUTS_REF_VECTOR, cnt)         \

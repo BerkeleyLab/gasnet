@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_indexed.c,v $
- *     $Date: 2006/04/24 08:31:56 $
- * $Revision: 1.15 $
+ *     $Date: 2006/04/30 22:52:32 $
+ * $Revision: 1.15.4.1 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,6 +73,52 @@
 #endif
 
 /*---------------------------------------------------------------------------------*/
+/* ***  VIS state *** */
+/*---------------------------------------------------------------------------------*/
+/* represents a VIS operation in flight */
+typedef struct gasneti_vis_op_S {
+  struct gasneti_vis_op_S *next;
+  uint8_t type;
+  gasnet_handle_t handle;
+  size_t count;
+  size_t len;
+  void *addr;
+  #if GASNETI_HAVE_EOP_INTERFACE
+    gasneti_eop_t *eop;
+    gasneti_iop_t *iop;
+  #endif
+} gasneti_vis_op_t;
+
+/* per-thread state for VIS */
+typedef struct {
+  gasneti_vis_op_t *active_ops;
+  gasneti_vis_op_t *free_ops;
+  int progressfn_active;
+  #ifdef GASNETE_VIS_THREADDATA_EXTRA
+    GASNETE_VIS_THREADDATA_EXTRA
+  #endif
+} gasnete_vis_threaddata_t;
+
+gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
+  gasnete_vis_threaddata_t *result = gasneti_calloc(1,sizeof(*result));
+  #ifdef GASNETE_VIS_THREADDATA_EXTRA_INIT
+    GASNETE_VIS_THREADDATA_EXTRA_INIT(result)
+  #endif
+  return result;
+}
+
+#define GASNETE_VIS_MYTHREAD (GASNETE_MYTHREAD->gasnete_vis_threaddata ? \
+        GASNETE_MYTHREAD->gasnete_vis_threaddata :                       \
+        (GASNETE_MYTHREAD->gasnete_vis_threaddata = gasnete_vis_new_threaddata()))
+
+#define GASNETI_VIS_CAT_PUTV_GATHER   1
+#define GASNETI_VIS_CAT_GETV_SCATTER  2
+#define GASNETI_VIS_CAT_PUTI_GATHER   3
+#define GASNETI_VIS_CAT_GETI_SCATTER  4
+#define GASNETI_VIS_CAT_PUTS_GATHER   5
+#define GASNETI_VIS_CAT_GETS_SCATTER  6
+
+/*---------------------------------------------------------------------------------*/
 /* ***  Helpers *** */
 /*---------------------------------------------------------------------------------*/
 /* helper for vis functions implemented atop other GASNet operations
@@ -116,14 +162,155 @@
                                 GASNETE_THREAD_PASS);                           \
   } while (0)
 
+/* create a dummy eop/iop based on synctype, save it in visop,
+   push the visop on the thread-specific list and return */
+#define GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, isget) do {    \
+    gasnet_handle_t retval;                                           \
+    if (synctype == gasnete_synctype_nbi) {                           \
+      visop->eop = NULL;                                              \
+      visop->iop = gasneti_iop_register(1,isget GASNETE_THREAD_PASS); \
+      retval = GASNET_INVALID_HANDLE;                                 \
+    } else {                                                          \
+      visop->eop = gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);     \
+      visop->iop = NULL;                                              \
+      retval = gasneti_eop_to_handle(visop->eop);                     \
+    }                                                                 \
+    GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_vis,COUNTED);               \
+    visop->next = td->active_ops; /* push on thread-specific list */  \
+    td->active_ops = visop;                                           \
+                                                                      \
+    switch (synctype) {                                               \
+      case gasnete_synctype_b:                                        \
+        gasnete_wait_syncnb(retval);                                  \
+        return GASNET_INVALID_HANDLE;                                 \
+      case gasnete_synctype_nb:                                       \
+        return retval;                                                \
+      case gasnete_synctype_nbi:                                      \
+        return GASNET_INVALID_HANDLE;                                 \
+      default: gasneti_fatalerror("bad synctype");                    \
+        return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */  \
+    }                                                                 \
+} while (0)
+
 #ifdef __SUNPRO_C
   /* disable a harmless warning */
   #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 /*---------------------------------------------------------------------------------*/
+/* packing/unpacking helpers */
+/* TODO: add max byte length? */
+#define _GASNETE_PACK_HELPER(packed, unpacked, sz) \
+        GASNETE_FAST_UNALIGNED_MEMCPY((packed), (unpacked), (sz))
+#define _GASNETE_UNPACK_HELPER(packed, unpacked, sz) \
+        GASNETE_FAST_UNALIGNED_MEMCPY((unpacked), (packed), (sz))
+#define _GASNETE_MEMVEC_PACK(copy) {                             \
+  size_t i;                                                      \
+  uint8_t *ploc = (uint8_t *)buf;                                \
+  gasneti_assert(count > 0 && list && buf);                      \
+  if (start_offset < list[0].len) { /* len might be zero */      \
+    size_t const firstlen = list[0].len - start_offset;          \
+    copy(ploc, ((uint8_t*)list[0].addr)+start_offset, firstlen); \
+    ploc += firstlen;                                            \
+  }                                                              \
+  for (i = 1; i < count; i++) {                                  \
+    size_t const len = list[i].len;                              \
+    if (len > 0) {                                               \
+      copy(ploc, list[i].addr, len);                             \
+      ploc += len;                                               \
+    }                                                            \
+  }                                                              \
+}
+#define _GASNETE_ADDRLIST_PACK(copy) {                                       \
+  size_t i;                                                                  \
+  size_t firstlen = len - start_offset;                                      \
+  uint8_t *ploc = (uint8_t *)buf;                                            \
+  gasneti_assert(count > 0 && list && len > 0 && buf && start_offset < len); \
+  copy(ploc, ((uint8_t*)list[0])+start_offset, firstlen);                    \
+  ploc += firstlen;                                                          \
+  for (i = 1; i < count; i++) {                                              \
+    copy(ploc, list[i], len);                                                \
+    ploc += len;                                                             \
+  }                                                                          \
+}
+
+/* pack a memvec list into a contiguous buffer, using the provided byte offset into the first memvec */
+void gasnete_memvec_pack(size_t count, gasnet_memvec_t const *list, void *buf,
+                           size_t start_offset) _GASNETE_MEMVEC_PACK(_GASNETE_PACK_HELPER)
+void gasnete_memvec_unpack(size_t count, gasnet_memvec_t const *list, void const *buf,
+                             size_t start_offset) _GASNETE_MEMVEC_PACK(_GASNETE_UNPACK_HELPER)
+
+/* pack a addrlist list into a contiguous buffer, using the provided byte offset into the first element */
+void gasnete_addrlist_pack(size_t count, void * const list[], size_t len, void *buf, 
+                           size_t start_offset) _GASNETE_ADDRLIST_PACK(_GASNETE_PACK_HELPER)
+void gasnete_addrlist_unpack(size_t count, void * const list[], size_t len, void const *buf, 
+                             size_t start_offset) _GASNETE_ADDRLIST_PACK(_GASNETE_UNPACK_HELPER)
+
+/*---------------------------------------------------------------------------------*/
 /* ***  Vector *** */
 /*---------------------------------------------------------------------------------*/
+
+/* simple gather put, remotely contiguous */
+#ifndef GASNETE_PUTV_GATHER_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE
+gasnet_handle_t gasnete_putv_gather(gasnete_synctype_t synctype,
+                                   gasnet_node_t dstnode,
+                                   size_t dstcount, gasnet_memvec_t const dstlist[], 
+                                   size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+  size_t const nbytes = dstlist[0].len;
+  GASNETI_TRACE_EVENT(C, PUTV_GATHER);
+  gasneti_assert(dstcount == 1 && srccount > 1); /* only supports gather put */
+  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
+  if_pf (nbytes == 0) return GASNET_INVALID_HANDLE; /* handle empty */
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
+    void * const packedbuf = visop + 1;
+    gasnete_memvec_pack(srccount, srclist, packedbuf, 0);
+    visop->type = GASNETI_VIS_CAT_PUTV_GATHER;
+    visop->handle = gasnete_put_nb_bulk(dstnode, dstlist[0].addr, packedbuf, nbytes GASNETE_THREAD_PASS);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+  }
+}
+  #define GASNETE_PUTV_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) \
+    if (dstcount == 1 && srccount > 1)                                                     \
+      return gasnete_putv_gather(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_PUTV_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) ((void)0)
+#endif
+#endif
+
+/* simple scatter get, remotely contiguous */
+#ifndef GASNETE_GETV_SCATTER_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE
+gasnet_handle_t gasnete_getv_scatter(gasnete_synctype_t synctype,
+                                   size_t dstcount, gasnet_memvec_t const dstlist[], 
+                                   gasnet_node_t srcnode,
+                                   size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+  size_t const nbytes = srclist[0].len;
+  GASNETI_TRACE_EVENT(C, GETV_SCATTER);
+  gasneti_assert(srccount == 1 && dstcount > 1); /* only supports scatter get */
+  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
+  if_pf (nbytes == 0) return GASNET_INVALID_HANDLE; /* handle empty */
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(gasnet_memvec_t)+nbytes);
+    gasnet_memvec_t * const savedlst = (gasnet_memvec_t *)(visop + 1);
+    void * const packedbuf = savedlst + dstcount;
+    memcpy(savedlst, dstlist, dstcount*sizeof(gasnet_memvec_t));
+    visop->type = GASNETI_VIS_CAT_GETV_SCATTER;
+    visop->count = dstcount;
+    visop->handle = gasnete_get_nb_bulk(packedbuf, srcnode, srclist[0].addr, nbytes GASNETE_THREAD_PASS);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
+  }
+}
+  #define GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) \
+    if (srccount == 1 && dstcount > 1)                                                      \
+      return gasnete_getv_scatter(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) ((void)0)
+#endif
+#endif
 
 /* reference version that uses individual puts */
 gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
@@ -288,7 +475,8 @@ extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
 
   /* select algorithm */
   #ifndef GASNETE_PUTV_SELECTOR
-    #define GASNETE_PUTV_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) \
+    #define GASNETE_PUTV_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist)   \
+      GASNETE_PUTV_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist); \
       return gasnete_putv_ref_indiv(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
   #endif
   GASNETE_PUTV_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist);
@@ -311,7 +499,8 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
 
   /* select algorithm */
   #ifndef GASNETE_GETV_SELECTOR
-    #define GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) \
+    #define GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist)    \
+      GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist); \
       return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS)
   #endif
   GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist);
@@ -322,6 +511,69 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
 /*---------------------------------------------------------------------------------*/
 /* ***  Indexed *** */
 /*---------------------------------------------------------------------------------*/
+
+/* simple gather put, remotely contiguous */
+#ifndef GASNETE_PUTI_GATHER_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE
+gasnet_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
+                                   gasnet_node_t dstnode, 
+                                   size_t dstcount, void * const dstlist[], size_t dstlen,
+                                   size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+  size_t const nbytes = dstlen;
+  GASNETI_TRACE_EVENT(C, PUTI_GATHER);
+  gasneti_assert(dstcount == 1 && srccount > 1); /* only supports gather put */
+  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
+  gasneti_assert(nbytes > 0);
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
+    void * const packedbuf = visop + 1;
+    gasnete_addrlist_pack(srccount, srclist, srclen, packedbuf, 0);
+    visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
+    visop->handle = gasnete_put_nb_bulk(dstnode, dstlist[0], packedbuf, nbytes GASNETE_THREAD_PASS);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+  }
+}
+  #define GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
+    if (dstcount == 1 && srccount > 1)                                                                   \
+      return gasnete_puti_gather(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) ((void)0)
+#endif
+#endif
+
+/* simple scatter get, remotely contiguous */
+#ifndef GASNETE_GETI_SCATTER_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE
+gasnet_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
+                                   size_t dstcount, void * const dstlist[], size_t dstlen,
+                                   gasnet_node_t srcnode,
+                                   size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+  size_t const nbytes = srclen;
+  GASNETI_TRACE_EVENT(C, GETI_SCATTER);
+  gasneti_assert(srccount == 1 && dstcount > 1); /* only supports scatter get */
+  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
+  gasneti_assert(nbytes > 0);
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(void *)+nbytes);
+    void * * const savedlst = (void * *)(visop + 1);
+    void * const packedbuf = (void *)(savedlst + dstcount);
+    memcpy(savedlst, dstlist, dstcount*sizeof(void *));
+    visop->type = GASNETI_VIS_CAT_GETI_SCATTER;
+    visop->count = dstcount;
+    visop->len = dstlen;
+    visop->handle = gasnete_get_nb_bulk(packedbuf, srcnode, srclist[0], nbytes GASNETE_THREAD_PASS);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
+  }
+}
+  #define GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
+    if (srccount == 1 && dstcount > 1)                                                                    \
+      return gasnete_geti_scatter(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) ((void)0)
+#endif
+#endif
 
 /* reference version that uses individual puts */
 gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
@@ -533,14 +785,17 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
   #ifndef GASNETE_PUTI_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
       #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) do {                        \
-        switch (rand() % 2) {                                                                                                     \
+        switch (rand() % 3) {                                                                                                     \
           case 0:                                                                                                                 \
-            return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
+            GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);                       \
           case 1:                                                                                                                 \
+            return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
+          case 2:                                                                                                                 \
             return gasnete_puti_ref_vector(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS); \
         } } while (0)
     #else
-      #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
+      #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen)   \
+        GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen); \
         return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
     #endif
   #endif
@@ -566,14 +821,17 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
   #ifndef GASNETE_GETI_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
       #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) do {                        \
-        switch (rand() % 2) {                                                                                                     \
+        switch (rand() % 3) {                                                                                                     \
           case 0:                                                                                                                 \
-            return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
+            GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen);                      \
           case 1:                                                                                                                 \
+            return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
+          case 2:                                                                                                                 \
             return gasnete_geti_ref_vector(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS); \
         } } while (0)
     #else
-      #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
+      #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen)    \
+        GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen); \
         return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
     #endif
   #endif
@@ -586,7 +844,12 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
 /* ***  Strided *** */
 /*---------------------------------------------------------------------------------*/
 /* helper macros */
-/* The macros below expand to code like the following: 
+/* The GASNETE_STRIDED_HELPER(limit,contiglevel) macro expands to code based on 
+     the template below (shown for the case of limit == contiglevel + 2).
+   If (limit - contiglevel) > GASNETE_LOOPING_DIMS, then we use the generalized 
+     striding code shown in the default case of GASNETE_STRIDED_HELPER.
+   Exception: if caller scope contains: GASNETE_STRIDED_HELPER_DECLARE_NODST;
+              then in all cases the dst pointer is not calculated, and pdst is always NULL
     size_t _i0;
     size_t const _count0 = count[contiglevel+1];
     size_t const _srcbump0 = srcstrides[contiglevel];
@@ -619,22 +882,32 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
       psrc += _srcbump2;
       pdst += _dstbump2;
     }
-    */
+*/
+
 /* This would be cleaner if we could use recursive macro expansion, but it seems at least gcc disallows
    this - if a macro invocation X(...) is found while expanding a different invocation of X (even with 
    different arguments), the nested invocation is left unexpanded 
 */
+#define GASNETE_STRIDED_HELPER_DECLARE_NODST \
+       size_t dststrides[1];                 \
+       void * const dstaddr = NULL;          \
+       static int32_t gasnete_strided_helper_nodst = (int32_t)sizeof(gasnete_strided_helper_nodst);
+
+static int8_t gasnete_strided_helper_nodst = (int8_t)sizeof(gasnete_strided_helper_nodst);
+#define GASNETE_STRIDED_HELPER_HAVEDST (sizeof(gasnete_strided_helper_nodst) == 1)
+
 #define GASNETE_STRIDED_HELPER_SETUP0                 \
     size_t _i0;                                       \
     size_t const _count0 = count[contiglevel+1];      \
     size_t const _srcbump0 = srcstrides[contiglevel]; \
-    size_t const _dstbump0 = dststrides[contiglevel];
+    size_t const _dstbump0 = (GASNETE_STRIDED_HELPER_HAVEDST ? dststrides[contiglevel] : 0);
 
 #define GASNETE_STRIDED_HELPER_SETUPINT(curr, lower)                                                           \
     size_t _i##curr;                                                                                           \
     size_t const _count##curr = count[contiglevel+curr+1];                                                     \
     size_t const _srcbump##curr = srcstrides[contiglevel+curr] - _count##lower*srcstrides[contiglevel+curr-1]; \
-    size_t const _dstbump##curr = dststrides[contiglevel+curr] - _count##lower*dststrides[contiglevel+curr-1];
+    size_t const _dstbump##curr = (GASNETE_STRIDED_HELPER_HAVEDST ?                                            \
+                                  dststrides[contiglevel+curr] - _count##lower*dststrides[contiglevel+curr-1] : 0);
 
 #define GASNETE_STRIDED_HELPER_SETUP1  GASNETE_STRIDED_HELPER_SETUP0 GASNETE_STRIDED_HELPER_SETUPINT(1,0)
 #define GASNETE_STRIDED_HELPER_SETUP2  GASNETE_STRIDED_HELPER_SETUP1 GASNETE_STRIDED_HELPER_SETUPINT(2,1)
@@ -645,20 +918,20 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
 #define GASNETE_STRIDED_HELPER_SETUP7  GASNETE_STRIDED_HELPER_SETUP6 GASNETE_STRIDED_HELPER_SETUPINT(7,6)
 
 
-#define GASNETE_STRIDED_HELPER_LOOP0              \
-    for (_i0 = _count0; _i0; _i0--) {             \
-      GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst); \
-      psrc += _srcbump0;                          \
-      pdst += _dstbump0;                          \
+#define GASNETE_STRIDED_HELPER_LOOP0                         \
+    for (_i0 = _count0; _i0; _i0--) {                        \
+      GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst);            \
+      psrc += _srcbump0;                                     \
+      if (GASNETE_STRIDED_HELPER_HAVEDST) pdst += _dstbump0; \
     }
 
 #define GASNETE_STRIDED_HELPER_LOOPHEAD(curr)     \
     for (_i##curr = _count##curr; _i##curr; _i##curr--) { 
 
-#define GASNETE_STRIDED_HELPER_LOOPTAIL(curr) \
-      psrc += _srcbump##curr;                 \
-      pdst += _dstbump##curr;                 \
-    }                                         \
+#define GASNETE_STRIDED_HELPER_LOOPTAIL(curr)                     \
+      psrc += _srcbump##curr;                                     \
+      if (GASNETE_STRIDED_HELPER_HAVEDST) pdst += _dstbump##curr; \
+    }
 
 #define GASNETE_STRIDED_HELPER_LOOP1  GASNETE_STRIDED_HELPER_LOOPHEAD(1) GASNETE_STRIDED_HELPER_LOOP0 GASNETE_STRIDED_HELPER_LOOPTAIL(1)
 #define GASNETE_STRIDED_HELPER_LOOP2  GASNETE_STRIDED_HELPER_LOOPHEAD(2) GASNETE_STRIDED_HELPER_LOOP1 GASNETE_STRIDED_HELPER_LOOPTAIL(2)
@@ -733,7 +1006,9 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
   #define GASNETE_STRIDED_HELPER_CASE1
 #endif
 
-#define GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)                \
+#define GASNETE_STRIDED_HELPER(limit,contiglevel) do {                 \
+  gasneti_assert((limit) > (contiglevel));                             \
+  switch ((limit) - (contiglevel)) {                                   \
     GASNETE_STRIDED_HELPER_CASE1                                       \
     GASNETE_STRIDED_HELPER_CASE2                                       \
     GASNETE_STRIDED_HELPER_CASE3                                       \
@@ -748,13 +1023,15 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
       size_t const dim = (limit) - (contiglevel);                      \
       size_t const * const _count = count + contiglevel + 1;           \
       size_t const * const _srcstrides = srcstrides + contiglevel + 1; \
-      size_t const * const _dststrides = dststrides + contiglevel + 1; \
+      size_t const * const _dststrides =                               \
+      (GASNETE_STRIDED_HELPER_HAVEDST?dststrides + contiglevel + 1:0); \
       ssize_t curdim = 0; /* must be signed */                         \
       uint8_t *_srcptr_start[GASNETE_DIRECT_DIMS];                     \
       uint8_t ** const srcptr_start = (dim <= GASNETE_DIRECT_DIMS ?    \
          _srcptr_start : gasneti_malloc(sizeof(uint8_t *)*dim));       \
       uint8_t *_dstptr_start[GASNETE_DIRECT_DIMS];                     \
-      uint8_t ** const dstptr_start = (dim <= GASNETE_DIRECT_DIMS ?    \
+      uint8_t ** const dstptr_start = ((dim <= GASNETE_DIRECT_DIMS ||  \
+                                    !GASNETE_STRIDED_HELPER_HAVEDST) ? \
          _dstptr_start : gasneti_malloc(sizeof(uint8_t *)*dim));       \
       size_t _idx[GASNETE_DIRECT_DIMS];                                \
       size_t * const idx = (dim <= GASNETE_DIRECT_DIMS ?               \
@@ -762,100 +1039,137 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
       for (curdim = 0; curdim < dim; curdim++) {                       \
         idx[curdim] = 0;                                               \
         srcptr_start[curdim] = psrc;                                   \
-        dstptr_start[curdim] = pdst;                                   \
+        if (GASNETE_STRIDED_HELPER_HAVEDST)                            \
+          dstptr_start[curdim] = pdst;                                 \
       }                                                                \
       while (1) {                                                      \
         GASNETE_CHECK_PTR(psrc, srcaddr, _srcstrides, idx, dim);       \
-        GASNETE_CHECK_PTR(pdst, dstaddr, _dststrides, idx, dim);       \
+        if (GASNETE_STRIDED_HELPER_HAVEDST)                            \
+          GASNETE_CHECK_PTR(pdst, dstaddr, _dststrides, idx, dim);     \
+        else gasneti_assert(pdst == NULL);                             \
         GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst);                    \
         for (curdim = 0; curdim < dim; curdim++) {                     \
           if (idx[curdim] < _count[curdim]-1) {                        \
             idx[curdim]++;                                             \
             psrc += _srcstrides[curdim-1];                             \
-            pdst += _dststrides[curdim-1];                             \
+            if (GASNETE_STRIDED_HELPER_HAVEDST)                        \
+              pdst += _dststrides[curdim-1];                           \
             break;                                                     \
           } else {                                                     \
             idx[curdim] = 0;                                           \
             psrc = srcptr_start[curdim];                               \
-            pdst = dstptr_start[curdim];                               \
+            if (GASNETE_STRIDED_HELPER_HAVEDST)                        \
+              pdst = dstptr_start[curdim];                             \
           }                                                            \
         }                                                              \
         if (curdim == dim) break;                                      \
         for (curdim--; curdim >= 0; curdim--) {                        \
           srcptr_start[curdim] = psrc;                                 \
-          dstptr_start[curdim] = pdst;                                 \
+          if (GASNETE_STRIDED_HELPER_HAVEDST)                          \
+            dstptr_start[curdim] = pdst;                               \
         }                                                              \
       }                                                                \
       if (dim > GASNETE_DIRECT_DIMS) {                                 \
         gasneti_free(idx);                                             \
         gasneti_free(srcptr_start);                                    \
-        gasneti_free(dstptr_start);                                    \
+        if (GASNETE_STRIDED_HELPER_HAVEDST)                            \
+          gasneti_free(dstptr_start);                                  \
       }                                                                \
-    }
+    } /* default */                                                    \
+  } /* switch */                                                       \
+} while (0)
 
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts of the dualcontiguity size */
-gasnet_handle_t gasnete_puts_ref_indiv(gasnete_synctype_t synctype,
+gasnet_handle_t gasnete_puts_ref_indiv(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   const int islocal = (dstnode == gasneti_mynode);
-  size_t const contiglevel = gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels);
+  size_t const contiglevel = stats->dualcontiguity;
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDIV);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   GASNETE_START_NBIREGION(synctype, islocal);
 
   if (contiglevel == stridelevels) { /* fully contiguous at both ends */
-    GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, gasnete_strided_datasize(count, stridelevels));
+    GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats->totalsz);
   } else {
-    size_t const limit = stridelevels - gasnete_strided_nulldims(count, stridelevels);
-    size_t const contigsz = (contiglevel == 0 ? count[0] : count[contiglevel]*srcstrides[contiglevel-1]);
+    size_t const limit = stridelevels - stats->nulldims;
+    size_t const contigsz = MIN(stats->srccontigsz, stats->dstcontigsz);
 
-    gasneti_assert(limit > contiglevel);
-    switch (limit - contiglevel) {
-      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  \
-        GASNETE_PUT_INDIV(islocal, dstnode, pdst, psrc, contigsz)
-      GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-      #undef GASNETE_STRIDED_HELPER_LOOPBODY
-    }
+    #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  \
+      GASNETE_PUT_INDIV(islocal, dstnode, pdst, psrc, contigsz)
+    GASNETE_STRIDED_HELPER(limit,contiglevel);
+    #undef GASNETE_STRIDED_HELPER_LOOPBODY
   }
   GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
 }
 /* reference version that uses individual gets of the dualcontiguity size */
-gasnet_handle_t gasnete_gets_ref_indiv(gasnete_synctype_t synctype,
+gasnet_handle_t gasnete_gets_ref_indiv(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnet_node_t srcnode, 
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   const int islocal = (srcnode == gasneti_mynode);
-  size_t const contiglevel = gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels);
+  size_t const contiglevel = stats->dualcontiguity;
   GASNETI_TRACE_EVENT(C, GETS_REF_INDIV);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   GASNETE_START_NBIREGION(synctype, islocal);
 
   if (contiglevel == stridelevels) { /* fully contiguous at both ends */
-    GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, gasnete_strided_datasize(count, stridelevels));
+    GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats->totalsz);
   } else {
-    size_t const limit = stridelevels - gasnete_strided_nulldims(count, stridelevels);
-    size_t const contigsz = (contiglevel == 0 ? count[0] : count[contiglevel]*srcstrides[contiglevel-1]);
+    size_t const limit = stridelevels - stats->nulldims;
+    size_t const contigsz = MIN(stats->srccontigsz, stats->dstcontigsz);
 
-    gasneti_assert(limit > contiglevel);
-    switch (limit - contiglevel) {
-      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  \
-        GASNETE_GET_INDIV(islocal, pdst, srcnode, psrc, contigsz)
-      GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-      #undef GASNETE_STRIDED_HELPER_LOOPBODY
-    }
+    #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  \
+      GASNETE_GET_INDIV(islocal, pdst, srcnode, psrc, contigsz)
+    GASNETE_STRIDED_HELPER(limit,contiglevel);
+    #undef GASNETE_STRIDED_HELPER_LOOPBODY
   }
   GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
 }
 /*---------------------------------------------------------------------------------*/
 /* helpers for reference versions */
 
+#define _GASNETE_STRIDED_PACKALL() {                                                   \
+  uint8_t *ploc = buf;                                                                 \
+  size_t const contiglevel = gasnete_strided_contiguity(strides, count, stridelevels); \
+  size_t const limit = stridelevels - gasnete_strided_nulldims(count, stridelevels);   \
+  size_t const contigsz = (contiglevel == 0 ? count[0] :                               \
+                           count[contiglevel]*strides[contiglevel-1]);                 \
+  /* macro interface */                                                                \
+  void * const srcaddr = addr;                                                         \
+  size_t const * const srcstrides = strides;                                           \
+  GASNETE_STRIDED_HELPER_DECLARE_NODST;                                                \
+  GASNETE_STRIDED_HELPER(limit,contiglevel);                                           \
+}
+
+#define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+  gasneti_assert(pdst == NULL);                          \
+  GASNETE_FAST_UNALIGNED_MEMCPY(ploc, psrc, contigsz);   \
+  ploc += contigsz;                                      \
+} while (0)
+void gasnete_strided_pack_all(void *addr, const size_t strides[],
+                              const size_t count[], size_t stridelevels, 
+                              void *buf) _GASNETE_STRIDED_PACKALL()
+#undef GASNETE_STRIDED_HELPER_LOOPBODY
+
+#define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+  gasneti_assert(pdst == NULL);                          \
+  GASNETE_FAST_UNALIGNED_MEMCPY(psrc, ploc, contigsz);   \
+  ploc += contigsz;                                      \
+} while (0)
+void gasnete_strided_unpack_all(void *addr, const size_t strides[],
+                                const size_t count[], size_t stridelevels, 
+                                void *buf) _GASNETE_STRIDED_PACKALL()
+#undef GASNETE_STRIDED_HELPER_LOOPBODY
+
+
 /* convert strided metadata to memvec or addrlist metadata for the equivalent operation */
 static void gasnete_convert_strided(const int tomemvec, void *_srclist, void *_dstlist, 
-                                    gasnete_strided_stats_t *stats,
+                                    gasnete_strided_stats_t const *stats,
                                     void *dstaddr, const size_t dststrides[],
                                     void *srcaddr, const size_t srcstrides[],
                                     const size_t count[], size_t stridelevels) {
@@ -875,54 +1189,48 @@ static void gasnete_convert_strided(const int tomemvec, void *_srclist, void *_d
     void * * dstpos = dstlist;
 
     if (srccontigsz == dstcontigsz) {
-      switch (limit - contiglevel) {
-        #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-          *(srcpos) = psrc;                                      \
-          srcpos++;                                              \
-          *(dstpos) = pdst;                                      \
-          dstpos++;                                              \
-        } while(0)
-        GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-        #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      }
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+        *(srcpos) = psrc;                                      \
+        srcpos++;                                              \
+        *(dstpos) = pdst;                                      \
+        dstpos++;                                              \
+      } while(0)
+      GASNETE_STRIDED_HELPER(limit,contiglevel);
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
     } else if (srccontigsz < dstcontigsz) {
       size_t const looplim = dstcontigsz / srccontigsz;
       size_t loopcnt = 0;
       gasneti_assert(looplim*srccontigsz == dstcontigsz);
       /* TODO: this loop could be made more efficient */
-      switch (limit - contiglevel) {
-        #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-          *(srcpos) = psrc;                                      \
-          srcpos++;                                              \
-          if (loopcnt == 0) {                                    \
-            *(dstpos) = pdst;                                    \
-            dstpos++;                                            \
-            loopcnt = looplim;                                   \
-          }                                                      \
-          loopcnt--;                                             \
-        } while(0)
-        GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-        #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      }
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+        *(srcpos) = psrc;                                      \
+        srcpos++;                                              \
+        if (loopcnt == 0) {                                    \
+          *(dstpos) = pdst;                                    \
+          dstpos++;                                            \
+          loopcnt = looplim;                                   \
+        }                                                      \
+        loopcnt--;                                             \
+      } while(0)
+      GASNETE_STRIDED_HELPER(limit,contiglevel);
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
     } else { /* srccontigsz > dstcontigsz */
       size_t const looplim = srccontigsz / dstcontigsz;
       size_t loopcnt = 0;
       gasneti_assert(looplim*dstcontigsz == srccontigsz);
       /* TODO: this loop could be made more efficient */
-      switch (limit - contiglevel) {
-        #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-          if (loopcnt == 0) {                                    \
-            *(srcpos) = psrc;                                    \
-            srcpos++;                                            \
-            loopcnt = looplim;                                   \
-          }                                                      \
-          loopcnt--;                                             \
-          *(dstpos) = pdst;                                      \
-          dstpos++;                                              \
-        } while(0)
-        GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-        #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      }
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+        if (loopcnt == 0) {                                    \
+          *(srcpos) = psrc;                                    \
+          srcpos++;                                            \
+          loopcnt = looplim;                                   \
+        }                                                      \
+        loopcnt--;                                             \
+        *(dstpos) = pdst;                                      \
+        dstpos++;                                              \
+      } while(0)
+      GASNETE_STRIDED_HELPER(limit,contiglevel);
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
     }
     gasneti_assert(srcpos == srclist+stats->srcsegments);
     gasneti_assert(dstpos == dstlist+stats->dstsegments);
@@ -933,130 +1241,189 @@ static void gasnete_convert_strided(const int tomemvec, void *_srclist, void *_d
     gasnet_memvec_t * dstpos = dstlist;
 
     if (srccontigsz == dstcontigsz) {
-      switch (limit - contiglevel) {
-        #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-          srcpos->addr = psrc;                                   \
-          srcpos->len = srccontigsz;                             \
-          srcpos++;                                              \
-          dstpos->addr = pdst;                                   \
-          dstpos->len = dstcontigsz;                             \
-          dstpos++;                                              \
-        } while(0)
-        GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-        #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      }
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+        srcpos->addr = psrc;                                   \
+        srcpos->len = srccontigsz;                             \
+        srcpos++;                                              \
+        dstpos->addr = pdst;                                   \
+        dstpos->len = dstcontigsz;                             \
+        dstpos++;                                              \
+      } while(0)
+      GASNETE_STRIDED_HELPER(limit,contiglevel);
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
     } else if (srccontigsz < dstcontigsz) {
       size_t const looplim = dstcontigsz / srccontigsz;
       size_t loopcnt = 0;
       gasneti_assert(looplim*srccontigsz == dstcontigsz);
       /* TODO: this loop could be made more efficient */
-      switch (limit - contiglevel) {
-        #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-          srcpos->addr = psrc;                                   \
-          srcpos->len = srccontigsz;                             \
-          srcpos++;                                              \
-          if (loopcnt == 0) {                                    \
-            dstpos->addr = pdst;                                 \
-            dstpos->len = dstcontigsz;                           \
-            dstpos++;                                            \
-            loopcnt = looplim;                                   \
-          }                                                      \
-          loopcnt--;                                             \
-        } while(0)
-        GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-        #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      }
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+        srcpos->addr = psrc;                                   \
+        srcpos->len = srccontigsz;                             \
+        srcpos++;                                              \
+        if (loopcnt == 0) {                                    \
+          dstpos->addr = pdst;                                 \
+          dstpos->len = dstcontigsz;                           \
+          dstpos++;                                            \
+          loopcnt = looplim;                                   \
+        }                                                      \
+        loopcnt--;                                             \
+      } while(0)
+      GASNETE_STRIDED_HELPER(limit,contiglevel);
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
     } else { /* srccontigsz > dstcontigsz */
       size_t const looplim = srccontigsz / dstcontigsz;
       size_t loopcnt = 0;
       gasneti_assert(looplim*dstcontigsz == srccontigsz);
       /* TODO: this loop could be made more efficient */
-      switch (limit - contiglevel) {
-        #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
-          if (loopcnt == 0) {                                    \
-            srcpos->addr = psrc;                                 \
-            srcpos->len = srccontigsz;                           \
-            srcpos++;                                            \
-            loopcnt = looplim;                                   \
-          }                                                      \
-          loopcnt--;                                             \
-          dstpos->addr = pdst;                                   \
-          dstpos->len = dstcontigsz;                             \
-          dstpos++;                                              \
-        } while(0)
-        GASNETE_STRIDED_HELPER_CASES(limit,contiglevel)
-        #undef GASNETE_STRIDED_HELPER_LOOPBODY
-      }
+      #define GASNETE_STRIDED_HELPER_LOOPBODY(psrc,pdst)  do { \
+        if (loopcnt == 0) {                                    \
+          srcpos->addr = psrc;                                 \
+          srcpos->len = srccontigsz;                           \
+          srcpos++;                                            \
+          loopcnt = looplim;                                   \
+        }                                                      \
+        loopcnt--;                                             \
+        dstpos->addr = pdst;                                   \
+        dstpos->len = dstcontigsz;                             \
+        dstpos++;                                              \
+      } while(0)
+      GASNETE_STRIDED_HELPER(limit,contiglevel);
+      #undef GASNETE_STRIDED_HELPER_LOOPBODY
     }
     gasneti_assert(srcpos == srclist+stats->srcsegments);
     gasneti_assert(dstpos == dstlist+stats->dstsegments);
   }
 }
 /*---------------------------------------------------------------------------------*/
+/* simple gather put, remotely contiguous */
+#ifndef GASNETE_PUTS_GATHER_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE
+gasnet_handle_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
+                                    gasnet_node_t dstnode,
+                                    void *dstaddr, const size_t dststrides[],
+                                    void *srcaddr, const size_t srcstrides[],
+                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+  size_t const nbytes = stats->totalsz;
+  GASNETI_TRACE_EVENT(C, PUTS_GATHER);
+  gasneti_assert(stats->dstcontiguity == stridelevels && stats->srccontiguity < stridelevels); /* only supports gather put */
+  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
+  gasneti_assert(nbytes > 0);
+  gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
+    void * const packedbuf = visop + 1;
+    gasnete_strided_pack_all(srcaddr, srcstrides, count, stridelevels, packedbuf);
+    visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
+    visop->handle = gasnete_put_nb_bulk(dstnode, dstaddr, packedbuf, nbytes GASNETE_THREAD_PASS);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
+  }
+}
+  #define GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
+    if ((stats)->dstcontiguity == stridelevels && (stats)->srccontiguity < stridelevels)                                \
+      return gasnete_puts_gather(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) ((void)0)
+#endif
+#endif
+
+/* simple scatter get, remotely contiguous */
+#ifndef GASNETE_GETS_SCATTER_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE
+gasnet_handle_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
+                                     void *dstaddr, const size_t dststrides[],
+                                     gasnet_node_t srcnode, 
+                                     void *srcaddr, const size_t srcstrides[],
+                                     const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
+  gasnete_vis_threaddata_t * const td = GASNETE_VIS_MYTHREAD;
+  size_t const nbytes = stats->totalsz;
+  GASNETI_TRACE_EVENT(C, GETS_SCATTER);
+  gasneti_assert(stats->srccontiguity == stridelevels && stats->dstcontiguity < stridelevels); /* only supports scatter get */
+  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
+  gasneti_assert(nbytes > 0);
+  gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+(2*stridelevels+1)*sizeof(size_t)+nbytes);
+    size_t * const savedstrides = (size_t *)(visop + 1);
+    size_t * const savedcount = savedstrides + stridelevels;
+    void * const packedbuf = (void *)(savedcount + stridelevels + 1);
+    memcpy(savedstrides, dststrides, stridelevels*sizeof(size_t));
+    memcpy(savedcount, count, (stridelevels+1)*sizeof(size_t));
+    visop->type = GASNETI_VIS_CAT_GETS_SCATTER;
+    visop->addr = dstaddr;
+    visop->len = stridelevels;
+    visop->handle = gasnete_get_nb_bulk(packedbuf, srcnode, srcaddr, nbytes GASNETE_THREAD_PASS);
+    GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
+  }
+}
+  #define GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
+    if ((stats)->srccontiguity == stridelevels && (stats)->dstcontiguity < stridelevels)                                 \
+      return gasnete_gets_scatter(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) ((void)0)
+#endif
+#endif
+
 /* reference version that uses vector interface */
-gasnet_handle_t gasnete_puts_ref_vector(gasnete_synctype_t synctype,
+gasnet_handle_t gasnete_puts_ref_vector(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  gasnete_strided_stats_t stats;
   GASNETI_TRACE_EVENT(C, PUTS_REF_VECTOR);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_PUTV_ALLOWS_VOLATILE_METADATA);
-  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
-  if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasneti_mynode);
-    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
+    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
-      GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats.totalsz);
+      GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
   } else {
     gasnet_handle_t retval;
-    gasnet_memvec_t * const srclist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats.srcsegments);
-    gasnet_memvec_t * const dstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats.dstsegments);
+    gasnet_memvec_t * const srclist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->srcsegments);
+    gasnet_memvec_t * const dstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->dstsegments);
 
-    gasnete_convert_strided(1, srclist, dstlist, &stats, 
+    gasnete_convert_strided(1, srclist, dstlist, stats, 
       dstaddr, dststrides, srcaddr, srcstrides, count, stridelevels);
 
     retval = gasnete_putv(synctype, dstnode, 
-                          stats.dstsegments, dstlist, 
-                          stats.srcsegments, srclist GASNETE_THREAD_PASS);
+                          stats->dstsegments, dstlist, 
+                          stats->srcsegments, srclist GASNETE_THREAD_PASS);
     gasneti_free(srclist);
     gasneti_free(dstlist);
     return retval; 
   }
 }
 /* reference version that uses vector interface */
-gasnet_handle_t gasnete_gets_ref_vector(gasnete_synctype_t synctype,
+gasnet_handle_t gasnete_gets_ref_vector(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnet_node_t srcnode, 
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  gasnete_strided_stats_t stats;
   GASNETI_TRACE_EVENT(C, GETS_REF_VECTOR);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_GETV_ALLOWS_VOLATILE_METADATA);
-  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
-  if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasneti_mynode);
-    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
+    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
-      GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats.totalsz);
+      GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
   } else {
     gasnet_handle_t retval;
-    gasnet_memvec_t * const srclist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats.srcsegments);
-    gasnet_memvec_t * const dstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats.dstsegments);
+    gasnet_memvec_t * const srclist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->srcsegments);
+    gasnet_memvec_t * const dstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*stats->dstsegments);
 
-    gasnete_convert_strided(1, srclist, dstlist, &stats, 
+    gasnete_convert_strided(1, srclist, dstlist, stats, 
       dstaddr, dststrides, srcaddr, srcstrides, count, stridelevels);
 
     retval = gasnete_getv(synctype, 
-                          stats.dstsegments, dstlist, 
+                          stats->dstsegments, dstlist, 
                           srcnode,
-                          stats.srcsegments, srclist GASNETE_THREAD_PASS);
+                          stats->srcsegments, srclist GASNETE_THREAD_PASS);
     gasneti_free(srclist);
     gasneti_free(dstlist);
     return retval; 
@@ -1064,69 +1431,65 @@ gasnet_handle_t gasnete_gets_ref_vector(gasnete_synctype_t synctype,
 }
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses indexed interface */
-gasnet_handle_t gasnete_puts_ref_indexed(gasnete_synctype_t synctype,
+gasnet_handle_t gasnete_puts_ref_indexed(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  gasnete_strided_stats_t stats;
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDEXED);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_PUTI_ALLOWS_VOLATILE_METADATA);
-  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
-  if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasneti_mynode);
-    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
+    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
-      GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats.totalsz);
+      GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
   } else {
     gasnet_handle_t retval;
-    void * * const srclist = gasneti_malloc(sizeof(void *)*stats.srcsegments);
-    void * * const dstlist = gasneti_malloc(sizeof(void *)*stats.dstsegments);
+    void * * const srclist = gasneti_malloc(sizeof(void *)*stats->srcsegments);
+    void * * const dstlist = gasneti_malloc(sizeof(void *)*stats->dstsegments);
 
-    gasnete_convert_strided(0, srclist, dstlist, &stats, 
+    gasnete_convert_strided(0, srclist, dstlist, stats, 
       dstaddr, dststrides, srcaddr, srcstrides, count, stridelevels);
 
     retval = gasnete_puti(synctype, dstnode, 
-                          stats.dstsegments, dstlist, stats.dstcontigsz,
-                          stats.srcsegments, srclist, stats.srccontigsz GASNETE_THREAD_PASS);
+                          stats->dstsegments, dstlist, stats->dstcontigsz,
+                          stats->srcsegments, srclist, stats->srccontigsz GASNETE_THREAD_PASS);
     gasneti_free(srclist);
     gasneti_free(dstlist);
     return retval; 
   }
 }
 /* reference version that uses indexed interface */
-gasnet_handle_t gasnete_gets_ref_indexed(gasnete_synctype_t synctype,
+gasnet_handle_t gasnete_gets_ref_indexed(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnet_node_t srcnode, 
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  gasnete_strided_stats_t stats;
   GASNETI_TRACE_EVENT(C, GETS_REF_INDEXED);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_GETI_ALLOWS_VOLATILE_METADATA);
-  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
-  if (stats.dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasneti_mynode);
-    gasneti_assert(stats.totalsz == (size_t)stats.totalsz); /* check for size_t truncation */
+    gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
-      GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats.totalsz);
+      GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats->totalsz);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
   } else {
     gasnet_handle_t retval;
-    void * * const srclist = gasneti_malloc(sizeof(void *)*stats.srcsegments);
-    void * * const dstlist = gasneti_malloc(sizeof(void *)*stats.dstsegments);
+    void * * const srclist = gasneti_malloc(sizeof(void *)*stats->srcsegments);
+    void * * const dstlist = gasneti_malloc(sizeof(void *)*stats->dstsegments);
 
-    gasnete_convert_strided(0, srclist, dstlist, &stats, 
+    gasnete_convert_strided(0, srclist, dstlist, stats, 
       dstaddr, dststrides, srcaddr, srcstrides, count, stridelevels);
 
     retval = gasnete_geti(synctype,
-                          stats.dstsegments, dstlist, stats.dstcontigsz,
+                          stats->dstsegments, dstlist, stats->dstcontigsz,
                           srcnode,
-                          stats.srcsegments, srclist, stats.srccontigsz GASNETE_THREAD_PASS);
+                          stats->srcsegments, srclist, stats->srccontigsz GASNETE_THREAD_PASS);
     gasneti_free(srclist);
     gasneti_free(dstlist);
     return retval; 
@@ -1140,37 +1503,38 @@ extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  #if GASNET_DEBUG
-   gasnete_strided_stats_t stats; /* solely for debugging */
-   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
-  #endif
+  gasnete_strided_stats_t stats;
+  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
+
   /* catch silly degenerate cases */
-  if_pf (gasnete_strided_empty(count, stridelevels)) /* empty */
+  if_pf (stats.totalsz == 0) /* empty */
     return GASNET_INVALID_HANDLE;
   if_pf (dstnode == gasneti_mynode || /* purely local */ 
-         stridelevels == 0 || /* fully contiguous */
-         gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels) == stridelevels) { 
-    return gasnete_puts_ref_indiv(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
+         stats.dualcontiguity == stridelevels) {/* fully contiguous */
+    return gasnete_puts_ref_indiv(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
   }
 
   /* select algorithm */
   #ifndef GASNETE_PUTS_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
-      #define GASNETE_PUTS_SELECTOR(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) do {                         \
-        switch (rand() % 3) {                                                                                                               \
-          case 0:                                                                                                                           \
-            return gasnete_puts_ref_indiv(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);   \
-          case 1:                                                                                                                           \
-            return gasnete_puts_ref_vector(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);  \
-          case 2:                                                                                                                           \
-            return gasnete_puts_ref_indexed(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS); \
+      #define GASNETE_PUTS_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) do {                         \
+        switch (rand() % 4) {                                                                                                                     \
+          case 0:                                                                                                                                 \
+            GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);                        \
+          case 1:                                                                                                                                 \
+            return gasnete_puts_ref_indiv(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);   \
+          case 2:                                                                                                                                 \
+            return gasnete_puts_ref_vector(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);  \
+          case 3:                                                                                                                                 \
+            return gasnete_puts_ref_indexed(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS); \
         } } while (0)
     #else
-      #define GASNETE_PUTS_SELECTOR(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-        return gasnete_puts_ref_indiv(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
+      #define GASNETE_PUTS_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)   \
+        GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels); \
+        return gasnete_puts_ref_indiv(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
     #endif
   #endif
-  GASNETE_PUTS_SELECTOR(synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
+  GASNETE_PUTS_SELECTOR(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
   gasneti_fatalerror("failure in GASNETE_PUTS_SELECTOR - should never reach here");
   return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
@@ -1182,41 +1546,127 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
                                    gasnet_node_t srcnode, 
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  #if GASNET_DEBUG
-   gasnete_strided_stats_t stats; /* solely for debugging */
-   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
-  #endif
+  gasnete_strided_stats_t stats;
+  gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
   /* catch silly degenerate cases */
-  if_pf (gasnete_strided_empty(count, stridelevels)) /* empty */
+  if_pf (stats.totalsz == 0) /* empty */
     return GASNET_INVALID_HANDLE;
   if_pf (srcnode == gasneti_mynode || /* purely local */ 
-         stridelevels == 0 || /* fully contiguous */
-         gasnete_strided_dualcontiguity(dststrides, srcstrides, count, stridelevels) == stridelevels) { 
-    return gasnete_gets_ref_indiv(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
+         stats.dualcontiguity == stridelevels) {/* fully contiguous */
+    return gasnete_gets_ref_indiv(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
   }
 
   /* select algorithm */
   #ifndef GASNETE_GETS_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
-      #define GASNETE_GETS_SELECTOR(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) do {                         \
-        switch (rand() % 3) {                                                                                                               \
-          case 0:                                                                                                                           \
-            return gasnete_gets_ref_indiv(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);   \
-          case 1:                                                                                                                           \
-            return gasnete_gets_ref_vector(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);  \
-          case 2:                                                                                                                           \
-            return gasnete_gets_ref_indexed(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS); \
+      #define GASNETE_GETS_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) do {                         \
+        switch (rand() % 4) {                                                                                                                     \
+          case 0:                                                                                                                                 \
+            GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);                       \
+          case 1:                                                                                                                                 \
+            return gasnete_gets_ref_indiv(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);   \
+          case 2:                                                                                                                                 \
+            return gasnete_gets_ref_vector(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);  \
+          case 3:                                                                                                                                 \
+            return gasnete_gets_ref_indexed(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS); \
         } } while (0)
     #else 
-      #define GASNETE_GETS_SELECTOR(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
-        return gasnete_gets_ref_indiv(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
+      #define GASNETE_GETS_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels)    \
+        GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels); \
+        return gasnete_gets_ref_indiv(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
     #endif
   #endif
-  GASNETE_GETS_SELECTOR(synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);
+  GASNETE_GETS_SELECTOR(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);
   gasneti_fatalerror("failure in GASNETE_GETS_SELECTOR - should never reach here");
   return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
 #endif
+/*---------------------------------------------------------------------------------*/
+/* ***  Progress Function *** */
+/*---------------------------------------------------------------------------------*/
+/* signal a visop dummy eop/iop, unlink it and free it */
+#define GASNETE_VISOP_SIGNAL_AND_FREE(visop, isget) do { \
+    gasneti_assert(visop->eop || visop->iop);            \
+    if (visop->eop) gasneti_eop_markdone(visop->eop);    \
+    else gasneti_iop_markdone(visop->iop, 1, isget);     \
+    GASNETI_PROGRESSFNS_DISABLE(gasneti_pf_vis,COUNTED); \
+    *lastp = visop->next; /* unlink */                   \
+    gasneti_free(visop);                                 \
+    goto visop_removed;                                  \
+  } while (0)
+
+extern void gasneti_vis_progressfn() { 
+  GASNETE_THREAD_LOOKUP /* TODO: remove this lookup */
+  gasnete_vis_threaddata_t *td = GASNETE_VIS_MYTHREAD; 
+  gasneti_vis_op_t **lastp = &(td->active_ops);
+  if (td->progressfn_active) return; /* prevent recursion */
+  td->progressfn_active = 1;
+  for (lastp = &(td->active_ops); *lastp; ) {
+    gasneti_vis_op_t * const visop = *lastp;
+    #ifdef GASNETE_VIS_PROGRESSFN_EXTRA
+           GASNETE_VIS_PROGRESSFN_EXTRA(visop, lastp)
+    #endif
+    switch (visop->type) {
+    #ifdef GASNETE_PUTV_GATHER_SELECTOR
+      case GASNETI_VIS_CAT_PUTV_GATHER:
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { /* TODO: remove recursive poll */
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
+        }
+      break;
+    #endif
+    #ifdef GASNETE_GETV_SCATTER_SELECTOR
+      case GASNETI_VIS_CAT_GETV_SCATTER:
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+          gasnet_memvec_t const * const savedlst = (gasnet_memvec_t const *)(visop + 1);
+          void const * const packedbuf = savedlst + visop->count;
+          gasnete_memvec_unpack(visop->count, savedlst, packedbuf, 0);
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 1);
+        }
+      break;
+    #endif
+    #ifdef GASNETE_PUTI_GATHER_SELECTOR
+      case GASNETI_VIS_CAT_PUTI_GATHER:
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { 
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
+        }
+      break;
+    #endif
+    #ifdef GASNETE_GETI_SCATTER_SELECTOR
+      case GASNETI_VIS_CAT_GETI_SCATTER:
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+          void * const * const savedlst = (void * const *)(visop + 1);
+          void const * const packedbuf = savedlst + visop->count;
+          gasnete_addrlist_unpack(visop->count, savedlst, visop->len, packedbuf, 0);
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 1);
+        }
+      break;
+    #endif
+    #ifdef GASNETE_PUTS_GATHER_SELECTOR
+      case GASNETI_VIS_CAT_PUTS_GATHER:
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { 
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
+        }
+      break;
+    #endif
+    #ifdef GASNETE_GETS_SCATTER_SELECTOR
+      case GASNETI_VIS_CAT_GETS_SCATTER:
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
+          size_t stridelevels = visop->len;
+          size_t * const savedstrides = (size_t *)(visop + 1);
+          size_t * const savedcount = savedstrides + stridelevels;
+          void * const packedbuf = (void *)(savedcount + stridelevels + 1);
+          gasnete_strided_unpack_all(visop->addr, savedstrides, savedcount, stridelevels, packedbuf);
+          GASNETE_VISOP_SIGNAL_AND_FREE(visop, 1);
+        }
+      break;
+    #endif
+      default: gasneti_fatalerror("unrecognized visop category: %i", visop->type);
+    }
+    lastp = &(visop->next); /* advance */
+    visop_removed: ;
+  }
+  td->progressfn_active = 0;
+}
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Handlers *** */
