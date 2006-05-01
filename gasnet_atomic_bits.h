@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/04/29 04:02:11 $
- * $Revision: 1.168.2.9 $
+ *     $Date: 2006/05/01 20:32:12 $
+ * $Revision: 1.168.2.10 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -315,7 +315,7 @@
          intrinsics, but those are only compiler fences and not architectural sync instructions */
   #elif defined(__MTA__)
       /* use MTA intrinsics */
-      #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1
+      #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1	/* No CAS */
       typedef uint64_t                      gasneti_atomic_val_t;
       typedef int64_t                       gasneti_atomic_sval_t;
       #define GASNETI_ATOMIC_MAX            ((gasneti_atomic_val_t)0xFFFFFFFFFFFFFFFFLLU)
@@ -330,7 +330,7 @@
       #define _gasneti_atomic_fetchadd int_fetch_add
 
       /* Using default fences, but this machine is Sequential Consistent anyway */
-  #elif defined(SOLARIS)	/* BROKEN (and incomplete) */
+  #elif defined(SOLARIS)	/* BROKEN (and incomplete + out-of-date) */
       /* $%*(! Solaris has atomic functions in the kernel but refuses to expose them
          to the user... after all, what application would be interested in performance? */
       #include <sys/atomic.h>
@@ -393,7 +393,15 @@
       #endif
 
       #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1
+      #if 0 /* XXX: Broken since we don't know the range on a given platform. */
+        typedef uint32_t                      gasneti_atomic_val_t;
+        typedef int32_t                       gasneti_atomic_sval_t;
+        #define GASNETI_ATOMIC_MAX            ((gasneti_atomic_val_t)0xFFFFFFFFU)
+        #define GASNETI_ATOMIC_SIGNED_MIN     ((gasneti_atomic_sval_t)0x80000000)
+        #define GASNETI_ATOMIC_SIGNED_MAX     ((gasneti_atomic_sval_t)0x7FFFFFFF)
+      #endif
       typedef atomic_t gasneti_atomic_t;
+
       #define _gasneti_atomic_increment(p) atomic_inc(p)
       #define _gasneti_atomic_decrement(p) atomic_dec(p)
       #define _gasneti_atomic_read(p)      atomic_read(p)
@@ -1104,6 +1112,8 @@
               (GASNETI_ATOMIC_PRESENT|(v)) } \
             }
     /* Only 31 bits: */
+    typedef uint32_t gasneti_atomic_val_t;
+    typedef int32_t gasneti_atomic_sval_t;
     #define GASNETI_ATOMIC_MAX		((uint32_t)0x7FFFFFFFU)
     #define GASNETI_ATOMIC_SIGNED_MIN	((int32_t)0xC0000000)
     #define GASNETI_ATOMIC_SIGNED_MAX	((int32_t)0x3FFFFFFF)
@@ -1219,7 +1229,6 @@
   /* ------------------------------------------------------------------------------------ */
   #elif defined(__crayx1) /* This works on X1, but NOT the T3E */
     #include <intrinsics.h>
-    typedef volatile long gasneti_atomic_t;
     /* man pages for atomic ops claim gsync is required for using atomic ops,
        but it's unclear when exactly it is required for our purposes - 
        technically we shouldn't need any sync for a bare unfenced AMO, but 
@@ -1232,54 +1241,53 @@
     #define gasneti_atomic_presync()  ((void)0)
     #define gasneti_atomic_postsync()  _gsync(0x1)
 
-    #define _gasneti_atomic_increment(p)	\
-      (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
-    #define _gasneti_atomic_decrement(p)	\
-      (gasneti_atomic_presync(),_amo_aadd((p),(long)-1),gasneti_atomic_postsync())
-    #define _gasneti_atomic_read(p)      (*(p))
-    #define _gasneti_atomic_set(p,v)     (*(p) = (v))
-    #define _gasneti_atomic_init(v)      (v)
-    GASNETI_INLINE(_gasneti_atomic_decrement_and_test_64)
-    int _gasneti_atomic_decrement_and_test_64(gasneti_atomic_t *p) {
-       int retval;
-       gasneti_atomic_presync();
-       retval = (_amo_afadd((p),(long)-1) == 1);
-       gasneti_atomic_postsync();
-       return retval;
-    }
-    #define _gasneti_atomic_decrement_and_test _gasneti_atomic_decrement_and_test_64
+    #define GASNETI_HAVE_ATOMIC64_T
+    typedef volatile unsigned long gasneti_atomic64_t;
 
-    GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
-    int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, long oldval, long newval) {
+    #define _gasneti_atomic64_increment(p)	\
+      (gasneti_atomic_presync(),_amo_aadd((p),(long)1),gasneti_atomic_postsync())
+    #define _gasneti_atomic64_decrement(p)	\
+      (gasneti_atomic_presync(),_amo_aadd((p),(long)-1),gasneti_atomic_postsync())
+    #define _gasneti_atomic64_read(p)      (*(p))
+    #define _gasneti_atomic64_set(p,v)     (*(p) = (v))
+    #define _gasneti_atomic64_init(v)      (v)
+
+    GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
+    int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
       long result;
       gasneti_atomic_presync();
-      result = _amo_acswap(p, oldval, newval);
+      result = _amo_acswap(p, (long)oldval, (long)newval);
       gasneti_atomic_postsync();
       return (result == oldval); 
     }
-    #define GASNETI_HAVE_ATOMIC_CAS 1
 
-    GASNETI_INLINE(gasneti_atomic_addfetch_64)
-    uint32_t gasneti_atomic_addfetch_64(gasneti_atomic_t *p, int32_t op) {
-       uint32_t retval;
+    GASNETI_INLINE(_gasneti_atomic64_fetchadd)
+    uint64_t _gasneti_atomic64_fetchadd(gasneti_atomic64_t *p, int64_t op) {
+       long oldval;
        gasneti_atomic_presync();
-       retval = _amo_afadd((p),(long)(op));
+       oldval = _amo_afadd((p),(long)(op));
        gasneti_atomic_postsync();
-       return retval;
+       return oldval;
     }
-    #define _gasneti_atomic_addfetch gasneti_atomic_addfetch_64
+    #define _gasneti_atomic64_fetchadd _gasneti_atomic64_fetchadd
 
-       /* Both the instrisics and our asm lack built-in fences.  So, using default fences */
+    /* Currently operating on the assumption that gsync() is a full MB: */
     #define GASNETI_ATOMIC_FENCE_RMW	GASNETI_ATOMIC_MB_POST
   /* ------------------------------------------------------------------------------------ */
   #elif defined(_SX) /* NEC SX-6 */
-    /* these are disabled for now because they don't link */
-    typedef struct { volatile uint32_t ctr; } gasneti_atomic_t;
+    #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1	/* No CAS */
+    typedef uint32_t                      gasneti_atomic_val_t;
+    typedef int32_t                       gasneti_atomic_sval_t;
+    #define GASNETI_ATOMIC_MAX            ((gasneti_atomic_val_t)0xFFFFFFFFU)
+    #define GASNETI_ATOMIC_SIGNED_MIN     ((gasneti_atomic_sval_t)0x80000000)
+    #define GASNETI_ATOMIC_SIGNED_MAX     ((gasneti_atomic_sval_t)0x7FFFFFFF)
+    typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
+    #define _gasneti_atomic_init(v)      { (v) }
    #if 0
+    /* these are disabled for now because they don't link */
     #include <sys/mplock.h>
     #define _gasneti_atomic_read(p)      (atomic_read4((p)->ctr))
     #define _gasneti_atomic_set(p,v)     (atomic_set4((p)->ctr,(v)))
-    #define _gasneti_atomic_init(v)      { (v) }
 
     /* Default impls of inc, dec, dec-and-test, add and sub */
     #define _gasneti_atomic_addfetch(p,op) atomic_add4(&((p)->ctr),op)
@@ -1288,7 +1296,6 @@
    #else
     #define _gasneti_atomic_read(p)      (muget(&((p)->ctr)))
     #define _gasneti_atomic_set(p,v)     (muset(&((p)->ctr),(v)))
-    #define _gasneti_atomic_init(v)      { (v) }
 
     /* Default impls of inc, dec, dec-and-test, add and sub */
     #define _gasneti_atomic_addfetch(p,op) muadd(&((p)->ctr),op)
