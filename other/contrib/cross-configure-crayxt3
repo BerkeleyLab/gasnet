@@ -6,18 +6,11 @@
 # Usage Instructions: 
 #  1. fill in the following values to point to the target compilers:
 
-if test "$USE_GCC" != "" ; then
-  # GCC-based compilers
-  #CC='/opt/gcc-catamount/3.3/bin/gcc' ; export CC  # vanilla target C compiler
-  #CXX='/opt/gcc-catamount/3.3/bin/g++' ; export CXX  # vanilla target C++ compiler
-  # warning: you might need to use a gcc-based mpicc to ensure correct behavior, eg:
-  CC='/opt/xt-mpt/1.3.12/mpich2-64/GP2/bin/mpicc' ; export CC
-  CXX='/opt/xt-mpt/1.3.12/mpich2-64/GP2/bin/mpicxx' ; export CXX
-else
-  # PGI-based compilers
-  CC='mpicc' ; export CC  # vanilla target C compiler
-  CXX='mpicxx' ; export CXX  # vanilla target C++ compiler
-fi
+# NOTE: this relies on module-established PATH setting to automatically 
+# select the GCC or PGI-based MPI compilers, based on which PrgEnv is currently loaded
+# The same PrgEnv *must* be loaded when building and using the GASNet install
+CC='mpicc' ; export CC  # vanilla target C compiler
+CXX='mpicxx' ; export CXX  # vanilla target C++ compiler
 
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/ 
@@ -31,7 +24,7 @@ HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
 
 # Optional additional settings: (see configure --help for complete list)
 
-MPI_CC='mpicc' ; export MPI_CC     # MPI-enabled C compiler
+MPI_CC="$CC" ; export MPI_CC     # MPI-enabled C compiler
 MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 #MPIRUN_CMD='pbsyod -size %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs

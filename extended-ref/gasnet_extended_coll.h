@@ -1,15 +1,17 @@
-/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2006/02/11 11:42:35 $
- * $Revision: 1.42 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_coll.h,v $
+ *     $Date: 2005/11/22 09:21:24 $
+ * $Revision: 1.40 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _GASNET_COLL_H
-#define _GASNET_COLL_H
+#ifndef _IN_GASNET_H
+  #error This file is not meant to be included directly- clients should include gasnet.h
+#endif
 
-#include <gasnet.h>
+#ifndef _GASNET_EXTENDED_COLL_H
+#define _GASNET_EXTENDED_COLL_H
 
 /*---------------------------------------------------------------------------------*/
 /* Flag values: */
@@ -1997,16 +1999,16 @@ struct gasnete_coll_generic_data_t_ {
 	GASNETE_COLL_GENERIC_TAG(scatterM),
 	GASNETE_COLL_GENERIC_TAG(gatherM),
 	GASNETE_COLL_GENERIC_TAG(gather_allM),
-	GASNETE_COLL_GENERIC_TAG(exchangeM)
+	GASNETE_COLL_GENERIC_TAG(exchangeM),
 	#if GASNET_PAR
 	  /* Single-address/multi-thread interfaces: */
-	  , GASNETE_COLL_GENERIC_TAG(broadcastT),
+	  GASNETE_COLL_GENERIC_TAG(broadcastT),
 	  GASNETE_COLL_GENERIC_TAG(scatterT),
 	  GASNETE_COLL_GENERIC_TAG(gatherT),
 	  GASNETE_COLL_GENERIC_TAG(gather_allT),
 	  GASNETE_COLL_GENERIC_TAG(exchangeT)
 	#endif
-	/* XXX: still need a few more for scan and reduce */
+	/* XXX: still need a few more */
 
 	/* Hook for conduit-specific extension */
 	#ifdef GASNETE_COLL_GENERIC_TAG_EXTRA
