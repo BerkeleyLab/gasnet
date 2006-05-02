@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_help.h,v $
- *     $Date: 2005/06/29 22:51:17 $
- * $Revision: 1.11 $
+ *     $Date: 2006/05/02 05:44:40 $
+ * $Revision: 1.11.14.1 $
  * Description: GASNet vapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 
@@ -30,6 +30,6 @@ BEGIN_EXTERNC
   #define GASNETC_PIN_SEGMENT 0
 #endif
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif
