@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_dump.c,v $
- *     $Date: 2005/02/17 13:18:53 $
- * $Revision: 1.17 $
+ *     $Date: 2006/05/02 05:43:58 $
+ * $Revision: 1.17.14.1 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,9 +10,30 @@
 #include <gasnet_core_internal.h>
 #include <elan3/elan3.h> /* for DMA_BYTE */
 
+#ifdef GASNETC_ELAN4
+ extern int gasnetc_ispatchfree_driver();
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 extern void gasnetc_dump_base() {
   ELAN_BASE *b = BASE();
+
+  #ifdef ELAN_DRIVER_VERSION
+    GASNETI_STATS_PRINTF(C,("ELAN_DRIVER_VERSION (configure): %s",_STRINGIFY(ELAN_DRIVER_VERSION)));
+  #endif
+  { FILE *fp = fopen("/proc/qsnet/version","r"); 
+    if (fp) {
+      char val[255];
+      fgets(val,244,fp);
+      GASNETI_STATS_PRINTF(C,("ELAN_DRIVER_VERSION (run): %s",val));
+      fclose(fp);
+    }
+  }
+  #ifdef GASNETC_ELAN4
+    GASNETI_STATS_PRINTF(C,("Kernel driver mode: %s",
+      (gasnetc_ispatchfree_driver()?"PATCH-FREE KERNEL DRIVERS":"NORMAL DRIVERS")));
+  #endif
+
 
   GASNETI_STATS_PRINTF(C,("ELAN_BASE: {"));
   GASNETI_STATS_PRINTF(C,(" init= %i",(int)b->init));

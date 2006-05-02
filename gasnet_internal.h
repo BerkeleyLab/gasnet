@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2005/10/23 12:28:15 $
- * $Revision: 1.90 $
+ *     $Date: 2006/05/02 05:43:53 $
+ * $Revision: 1.90.8.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,7 @@
 
 #include <gasnet.h> /* MUST come first to ensure correct inttypes behavior */
 #include <gasnet_tools.h>
+#include <gasnet_syncops.h>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -27,17 +28,17 @@
 #include <malloc.h> /* prevent problems with redefinition of malloc on solaris */
 #endif
 
-BEGIN_EXTERNC
-
-#if defined(_AIX)
-  /* AIX's stdio.h won't provide prototypes for snprintf() and vsnprintf()
-   * by default since they are in C99 but not C89.
-   */
-  extern int snprintf(char * s, size_t n, const char * format, ...)
-					__attribute__((__format__ (__printf__, 3, 4)));
-  extern int vsnprintf(char * s, size_t n, const char * format, va_list ap)
-					__attribute__((__format__ (__printf__, 3, 0)));
+#ifndef STDIN_FILENO
+  #define STDIN_FILENO 0
 #endif
+#ifndef STDOUT_FILENO
+  #define STDOUT_FILENO 1
+#endif
+#ifndef STDERR_FILENO
+  #define STDERR_FILENO 2
+#endif
+
+GASNETI_BEGIN_EXTERNC
 
 #ifdef __SUNPRO_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
@@ -86,17 +87,7 @@ extern void gasneti_decode_args(int *argc, char ***argv);
   extern void *_gasneti_calloc(size_t N, size_t S, const char *curloc) GASNETI_MALLOC;
   extern size_t _gasneti_memcheck(void *ptr, const char *curloc, int checktype);
 #else
-  #ifdef __GNUC__
-    /* provide gcc with additional information about the aliasing qualities
-       of the return value (being malloc-like) to improve caller optimization */
-    GASNET_INLINE_MODIFIER(_gasneti_malloc)
-    void *_gasneti_malloc(size_t nbytes) GASNETI_MALLOC;
-    GASNET_INLINE_MODIFIER(_gasneti_malloc_allowfail)
-    void *_gasneti_malloc_allowfail(size_t nbytes) GASNETI_MALLOC;
-    GASNET_INLINE_MODIFIER(_gasneti_calloc)
-    void *_gasneti_calloc(size_t N, size_t S) GASNETI_MALLOC;
-  #endif
-  GASNET_INLINE_MODIFIER(_gasneti_malloc)
+  GASNETI_INLINE(_gasneti_malloc) GASNETI_MALLOC
   void *_gasneti_malloc(size_t nbytes) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
@@ -107,7 +98,7 @@ extern void gasneti_decode_args(int *argc, char ***argv);
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
     return ret;
   }
-  GASNET_INLINE_MODIFIER(_gasneti_malloc_allowfail)
+  GASNETI_INLINE(_gasneti_malloc_allowfail) GASNETI_MALLOC
   void *_gasneti_malloc_allowfail(size_t nbytes) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
@@ -118,7 +109,7 @@ extern void gasneti_decode_args(int *argc, char ***argv);
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
     return ret;
   }
-  GASNET_INLINE_MODIFIER(_gasneti_calloc)
+  GASNETI_INLINE(_gasneti_calloc) GASNETI_MALLOC
   void *_gasneti_calloc(size_t N, size_t S) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, (N*S));
@@ -129,7 +120,7 @@ extern void gasneti_decode_args(int *argc, char ***argv);
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
     return ret;
   }
-  GASNET_INLINE_MODIFIER(_gasneti_realloc)
+  GASNETI_INLINE(_gasneti_realloc)
   void *_gasneti_realloc(void *ptr, size_t nbytes) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
@@ -140,7 +131,7 @@ extern void gasneti_decode_args(int *argc, char ***argv);
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
     return ret;
   }
-  GASNET_INLINE_MODIFIER(_gasneti_free)
+  GASNETI_INLINE(_gasneti_free)
   void _gasneti_free(void *ptr) {
     GASNETI_STAT_EVENT_VAL(I, GASNET_FREE, 0); /* don't track free size in ndebug mode */
     if_pf (ptr == NULL) return;
@@ -148,10 +139,10 @@ extern void gasneti_decode_args(int *argc, char ***argv);
     free(ptr);
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
   }
-  #ifdef __SUNPRO_C
-    #pragma returns_new_memory(_gasneti_malloc,_gasneti_malloc_allowfail,_gasneti_calloc)
-  #endif
 #endif
+GASNETI_MALLOCP(_gasneti_malloc)
+GASNETI_MALLOCP(_gasneti_malloc_allowfail)
+GASNETI_MALLOCP(_gasneti_calloc)
 
 #ifdef malloc
 #undef malloc
@@ -213,13 +204,7 @@ extern void gasneti_decode_args(int *argc, char ***argv);
 
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
-#ifdef __GNUC__ 
-  GASNET_INLINE_MODIFIER(_gasneti_strdup)
-  char *_gasneti_strdup(const char *s GASNETI_CURLOCFARG) GASNETI_MALLOC;
-  GASNET_INLINE_MODIFIER(_gasneti_strndup)
-  char *_gasneti_strndup(const char *s, size_t n GASNETI_CURLOCFARG) GASNETI_MALLOC;
-#endif
-GASNET_INLINE_MODIFIER(_gasneti_strdup)
+GASNETI_INLINE(_gasneti_strdup) GASNETI_MALLOC
 char *_gasneti_strdup(const char *s GASNETI_CURLOCFARG) {
   char *retval;
   if_pf (s == NULL) {
@@ -235,7 +220,7 @@ char *_gasneti_strdup(const char *s GASNETI_CURLOCFARG) {
 /* Like gasneti_strdup, but copy is limited to at most n characters.
  * Note allocation is upto n+1 bytes, due to the '\0' termination.
  */
-GASNET_INLINE_MODIFIER(_gasneti_strndup)
+GASNETI_INLINE(_gasneti_strndup) GASNETI_MALLOC
 char *_gasneti_strndup(const char *s, size_t n GASNETI_CURLOCFARG) {
   char *retval;
   if_pf (s == NULL) {
@@ -255,16 +240,8 @@ char *_gasneti_strndup(const char *s, size_t n GASNETI_CURLOCFARG) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* CPU affinity */
-extern void gasneti_set_affinity(int rank);
-
-/* ------------------------------------------------------------------------------------ */
 
 extern void gasneti_freezeForDebugger();
-extern void gasneti_killmyprocess(int exitcode) GASNETI_NORETURN;
-GASNETI_NORETURNP(gasneti_killmyprocess)
-extern void gasneti_flush_streams(); /* flush all open streams */
-extern void gasneti_close_streams(); /* close standard streams (for shutdown) */
 
 /* GASNET_DEBUG_VERBOSE is set by configure to request job startup and general 
    status messages on stderr 
@@ -276,10 +253,8 @@ extern void gasneti_close_streams(); /* close standard streams (for shutdown) */
 /* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
-typedef void (*gasneti_sighandlerfn_t)(int);
 void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler);
 void gasneti_defaultSignalHandler(int sig);
-gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp);
 
 #ifdef HAVE_MMAP
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
@@ -311,12 +286,6 @@ gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t
 #ifndef GASNETI_USE_HIGHSEGMENT
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
-
-/* return physical memory of machine
-   on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0
- */
-extern uint64_t gasneti_getPhysMemSz(int failureIsFatal); 
-
 
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);
 typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
@@ -368,6 +337,66 @@ void gasneti_auxseg_attach();
     gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh)
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+#ifndef GASNETI_DISABLE_EOP_INTERFACE
+#define GASNETI_HAVE_EOP_INTERFACE 1
+#endif
+#if GASNETI_HAVE_EOP_INTERFACE
+/* GASNET-Internal OP Interface - provides a mechanism for conduit-independent services (like VIS)
+   to expose non-blocking operations that utilize the regular GASNet op sync mechanisms
+   Conduits provide two opaque scalar types: gasneti_eop_t and gasneti_iop_t
+   and the following manipulator functions
+ */
+#ifndef _GASNETI_EOP_T
+#define _GASNETI_EOP_T
+struct _gasneti_eop_S;
+typedef const struct _gasneti_eop_S gasneti_eop_t;
+#endif
+
+#ifndef _GASNETI_IOP_T
+#define _GASNETI_IOP_T
+struct _gasneti_iop_S;
+typedef const struct _gasneti_iop_S gasneti_iop_t;
+#endif
+
+/* create a new explicit-handle NB operation
+   represented with abstract type gasneti_eop_t
+   and mark it in-flight */
+gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE);
+
+/* convert an gasneti_eop_t* created by an earlier call from this
+   thread to gasneti_new_eop(), into a gasnet_handle_t suitable
+   for this thread to later pass to gasnet_wait_syncnb & friends */
+#if GASNETI_EOP_IS_HANDLE
+  #define gasneti_eop_to_handle(eop) ((gasnet_handle_t)(eop))
+#else
+  gasnet_handle_t gasneti_eop_to_handle(gasneti_eop_t *eop);
+#endif
+
+/* register noperations in-flight operations on the currently selected 
+   implicit-handle NB context represented with abstract type gasneti_iop_t, 
+   and return a pointer to that context
+   if isput is non-zero, the registered operations are puts, otherwise they are gets */
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG);
+
+/* given an gasneti_eop_t* returned by an earlier call from any thread
+   to gasneti_new_eop(), mark that explicit-handle NB operation complete
+   such that a subsequent sync call on the relevant operation by the initiating
+   thread may return success
+   Caller is responsible for calling gasneti_sync_writes before calling this fn, if necessary
+   AMSAFE: must be safe to call in AM context */
+void gasneti_eop_markdone(gasneti_eop_t *eop);
+
+/* given an gasneti_iop_t* returned by an earlier call from any thread
+   to gasneti_iop_register(), increment that implicit-handle NB context
+   to indicate that noperations have completed.
+   if isput is non-zero, the operations are puts, otherwise they are gets
+   noperations must not exceed the number of isput-type operations initiated
+   on the given gasneti_iop_t by earlier calls to gasneti_iop_register
+   Caller is responsible for calling gasneti_sync_writes before calling this fn, if necessary
+   AMSAFE: must be safe to call in AM context */
+void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget);
+#endif
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
 extern int gasneti_VerboseErrors;
@@ -553,7 +582,7 @@ typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
       case 14: (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13]); break; \
       case 15: (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14]); break; \
       case 16: (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14], _args[15]); break; \
-      default: abort();                                                                                    \
+      default: gasneti_fatalerror("Illegal numargs=%i in GASNETI_RUN_HANDLER_SHORT", (int)numargs);        \
       }                                                                                                    \
     }                                                                                                      \
     GASNETI_TRACE_PRINTF(A,("AM%s_SHORT_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
@@ -581,7 +610,7 @@ typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
       case 14: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13]); break; \
       case 15: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14]); break; \
       case 16: (*phandlerfn)(token, pData, datalen, _args[0], _args[1], _args[2], _args[3], _args[4], _args[5], _args[6], _args[7], _args[8], _args[9], _args[10], _args[11], _args[12], _args[13], _args[14], _args[15]); break; \
-      default: abort();                                                                 \
+      default: gasneti_fatalerror("Illegal numargs=%i in _GASNETI_RUN_HANDLER_MEDLONG", (int)numargs); \
       }                                                                                 \
     }                                                                                   \
   } while (0)
@@ -609,7 +638,7 @@ typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
   } while (0)
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #undef _IN_GASNET_INTERNAL_H
 #endif

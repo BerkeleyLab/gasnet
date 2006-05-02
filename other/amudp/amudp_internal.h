@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2006/02/08 08:52:52 $
- * $Revision: 1.22 $
+ *     $Date: 2006/05/02 05:44:14 $
+ * $Revision: 1.22.4.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -55,10 +55,10 @@
                                          * also, ueth uses 38
                                          */
 #ifdef UETH
-#define AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC   10000  /* usec until first retransmit */
-#define UETH_RECVPOOLFUDGEFACTOR                    1  /* scale up the recv buffer */
+  #define AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC   10000  /* usec until first retransmit */
+  #define UETH_RECVPOOLFUDGEFACTOR                    1  /* scale up the recv buffer */
 #else
-#define AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC   10000  /* usec until first retransmit */
+  #define AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC   10000  /* usec until first retransmit */
 #endif
 #define AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER     2  /* timeout exponential backoff factor */
 #define AMUDP_MAX_REQUESTTIMEOUT_MICROSEC    30000000  /* max timeout before considered undeliverable */
@@ -125,11 +125,11 @@
  */
 #ifndef PREDICT_TRUE
   #if defined(__GNUC__) && __GNUC__ >= 3 && 0
-   #define PREDICT_TRUE(exp)  __builtin_expect( (exp), 1 )
-   #define PREDICT_FALSE(exp) __builtin_expect( (exp), 0 )
+    #define PREDICT_TRUE(exp)  __builtin_expect( (exp), 1 )
+    #define PREDICT_FALSE(exp) __builtin_expect( (exp), 0 )
   #else
-   #define PREDICT_TRUE(exp)  (exp)
-   #define PREDICT_FALSE(exp) (exp)
+    #define PREDICT_TRUE(exp)  (exp)
+    #define PREDICT_FALSE(exp) (exp)
   #endif
 
   /* if with branch prediction */
@@ -137,7 +137,7 @@
   #define if_pt(cond) if (PREDICT_TRUE(cond))
 #endif
 
-BEGIN_EXTERNC
+SOCK_BEGIN_EXTERNC
 
 static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
 
@@ -200,8 +200,8 @@ static const char *AMUDP_ErrorName(int errval) {
     case AM_ERR_NOT_SENT: return "AM_ERR_NOT_SENT";      
     case AM_ERR_IN_USE:   return "AM_ERR_IN_USE";       
     default: return "*unknown*";
-    }
   }
+}
 static const char *AMUDP_ErrorDesc(int errval) {
   switch (errval) {
     case AM_ERR_NOT_INIT: return "Active message layer not initialized"; 
@@ -210,54 +210,54 @@ static const char *AMUDP_ErrorDesc(int errval) {
     case AM_ERR_NOT_SENT: return "Synchronous message not sent";  
     case AM_ERR_IN_USE:   return "Resource currently in use";     
     default: return "no description available";
-    }
   }
+}
 //------------------------------------------------------------------------------------
 /* macros for returning errors that allow verbose error tracking */
-#define AMUDP_RETURN_ERR(type) do {                               \
-  if (AMUDP_VerboseErrors) {                                      \
-    fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"  \
-      "  at %s:%i\n"                                              \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")               \
-      , #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);  \
-    fflush(stderr);                                               \
-    }                                                             \
-  return AM_ERR_ ## type;                                         \
+#define AMUDP_RETURN_ERR(type) do {                                        \
+    if (AMUDP_VerboseErrors) {                                             \
+      fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n" \
+        "  at %s:%i\n"                                                     \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+        , #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);      \
+      fflush(stderr);                                                      \
+    }                                                                      \
+    return AM_ERR_ ## type;                                                \
   } while (0)
-#define AMUDP_RETURN_ERRF(type, fromfn) do {                      \
-  if (AMUDP_VerboseErrors) {                                      \
-    fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"  \
-      "  from function %s\n"                                      \
-      "  at %s:%i\n"                                              \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")               \
-      , #fromfn, #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);  \
-    fflush(stderr);                                               \
-    }                                                             \
-  return AM_ERR_ ## type;                                         \
+#define AMUDP_RETURN_ERRF(type, fromfn) do {                                   \
+    if (AMUDP_VerboseErrors) {                                                 \
+      fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"     \
+        "  from function %s\n"                                                 \
+        "  at %s:%i\n"                                                         \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                              \
+        , #fromfn, #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__); \
+      fflush(stderr);                                                          \
+    }                                                                          \
+    return AM_ERR_ ## type;                                                    \
   } while (0)
-#define AMUDP_RETURN_ERRFR(type, fromfn, reason) do {             \
-  if (AMUDP_VerboseErrors) {                                      \
-    fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"  \
-      "  from function %s\n"                                      \
-      "  at %s:%i\n"                                              \
-      "  reason: %s\n"                                            \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")               \
-      , #type, AMUDP_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason);  \
-    fflush(stderr);                                               \
-    }                                                             \
-  return AM_ERR_ ## type;                                         \
+#define AMUDP_RETURN_ERRFR(type, fromfn, reason) do {                                  \
+    if (AMUDP_VerboseErrors) {                                                         \
+      fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"             \
+        "  from function %s\n"                                                         \
+        "  at %s:%i\n"                                                                 \
+        "  reason: %s\n"                                                               \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                                      \
+        , #type, AMUDP_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason); \
+      fflush(stderr);                                                                  \
+    }                                                                                  \
+    return AM_ERR_ ## type;                                                            \
   } while (0)
 /* return a possible error */
-#define AMUDP_RETURN(val) do {                                    \
-  if (AMUDP_VerboseErrors && val != AM_OK) {                      \
-    fprintf(stderr, "AMUDP %s returning an error code: %s (%s)\n"    \
-      "  at %s:%i\n"                                              \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")               \
-      , AMUDP_ErrorName(val), AMUDP_ErrorDesc(val), __FILE__, __LINE__);   \
-    fflush(stderr);                                               \
-    }                                                             \
-  return val;                                                     \
-  } while (0)
+#define AMUDP_RETURN(val) do {                                           \
+  if (AMUDP_VerboseErrors && val != AM_OK) {                             \
+    fprintf(stderr, "AMUDP %s returning an error code: %s (%s)\n"        \
+      "  at %s:%i\n"                                                     \
+      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+      , AMUDP_ErrorName(val), AMUDP_ErrorDesc(val), __FILE__, __LINE__); \
+    fflush(stderr);                                                      \
+  }                                                                      \
+  return val;                                                            \
+} while (0)
 
 #ifndef AMUDP_ENABLE_ERRCHECKS
   #if GASNETI_ENABLE_ERRCHECKS
@@ -468,7 +468,7 @@ typedef enum {
   amudp_system_returnedmessage, // arg is reason code, req/rep represents the type of message refused
 
   amudp_system_numtypes
-  } amudp_system_messagetype_t;
+} amudp_system_messagetype_t;
 
 
 //------------------------------------------------------------------------------------
@@ -499,33 +499,36 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
 
 #if USE_ASYNC_TCP_CONTROL
   #if AMUDP_DEBUG
-   #define ASYNC_CHECK(enabled) do { \
-      int flags = fcntl(AMUDP_SPMDControlSocket, F_GETFL, 0);\
+   #define ASYNC_CHECK(enabled) do {                                             \
+      int flags = fcntl(AMUDP_SPMDControlSocket, F_GETFL, 0);                    \
       if ((enabled && (flags & (O_ASYNC|O_NONBLOCK)) != (O_ASYNC|O_NONBLOCK)) || \
-         (!enabled && (flags & (O_ASYNC|O_NONBLOCK)) != 0)) {\
-        ErrMessage("Failed to modify O_ASYNC|O_NONBLOCK flags in fcntl - try disabling USE_ASYNC_TCP_CONTROL");\
-        abort();\
-      }\
+         (!enabled && (flags & (O_ASYNC|O_NONBLOCK)) != 0)) {                    \
+        ErrMessage("Failed to modify O_ASYNC|O_NONBLOCK flags in fcntl"          \
+                   " - try disabling USE_ASYNC_TCP_CONTROL");                    \
+        abort();                                                                 \
+      }                                                                          \
     } while (0)
   #else
    #define ASYNC_CHECK(enabled) ((void)0)
   #endif
-  #define ASYNC_TCP_ENABLE() do { \
-    if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, O_ASYNC|O_NONBLOCK)) { \
-      perror("fcntl(F_SETFL, O_ASYNC|O_NONBLOCK)");\
-      ErrMessage("Failed to fcntl(F_SETFL, O_ASYNC|O_NONBLOCK) on TCP control socket - try disabling USE_ASYNC_TCP_CONTROL");\
-      abort();\
-    } else ASYNC_CHECK(1); \
-    if (inputWaiting(AMUDP_SPMDControlSocket)) /* check for arrived messages */ \
-      AMUDP_SPMDIsActiveControlSocket = 1;                                      \
+  #define ASYNC_TCP_ENABLE() do {                                                       \
+      if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, O_ASYNC|O_NONBLOCK)) {                \
+        perror("fcntl(F_SETFL, O_ASYNC|O_NONBLOCK)");                                   \
+        ErrMessage("Failed to fcntl(F_SETFL, O_ASYNC|O_NONBLOCK) on TCP control socket" \
+                   " - try disabling USE_ASYNC_TCP_CONTROL");                           \
+        abort();                                                                        \
+      } else ASYNC_CHECK(1);                                                            \
+      if (inputWaiting(AMUDP_SPMDControlSocket)) /* check for arrived messages */       \
+        AMUDP_SPMDIsActiveControlSocket = 1;                                            \
     } while(0)
 
-  #define _ASYNC_TCP_DISABLE(ignoreerr)  do {  \
-    if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, 0) && !ignoreerr) { \
-      perror("fcntl(F_SETFL, 0)");  \
-      ErrMessage("Failed to fcntl(F_SETFL, 0) on TCP control socket - try disabling USE_ASYNC_TCP_CONTROL");\
-      abort();\
-    } else if (!ignoreerr) ASYNC_CHECK(0); \
+  #define _ASYNC_TCP_DISABLE(ignoreerr)  do {                          \
+      if (fcntl(AMUDP_SPMDControlSocket, F_SETFL, 0) && !ignoreerr) {  \
+        perror("fcntl(F_SETFL, 0)");                                   \
+        ErrMessage("Failed to fcntl(F_SETFL, 0) on TCP control socket" \
+                   " - try disabling USE_ASYNC_TCP_CONTROL");          \
+        abort();                                                       \
+      } else if (!ignoreerr) ASYNC_CHECK(0);                           \
     } while(0)
   #define ASYNC_TCP_DISABLE()            _ASYNC_TCP_DISABLE(0)
   #define ASYNC_TCP_DISABLE_IGNOREERR()  _ASYNC_TCP_DISABLE(1)
@@ -562,18 +565,17 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
         else {
           multiplier = 1000000 / (double)freq.QuadPart;
           status = 1;
-          }
         }
+      }
       if (status) { /*  we have a high-performance counter */
         LARGE_INTEGER count;
         QueryPerformanceCounter(&count);
         return (int64_t)(multiplier * count.QuadPart);
-        }
-      else { /*  no high-performance counter */
+      } else { /*  no high-performance counter */
         /*  this is a millisecond-granularity timer that wraps every 50 days */
         return (GetTickCount() * 1000);
-        }
       }
+    }
   /* #elif defined(__I386__) 
    * TODO: it would be nice to take advantage of the Pentium's "rdtsc" instruction,
    * which reads a fast counter incremented on each cycle. Unfortunately, that
@@ -589,7 +591,7 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
       if (gettimeofday(&tv, NULL)) {
         perror("gettimeofday");
         abort();
-        }
+      }
       retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
       #ifdef __crayx1
         /* fix an empirically observed bug in UNICOS gettimeofday(),
@@ -598,7 +600,7 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
         if_pf(retval < (((int64_t)3) << 48)) goto retry;
       #endif
       return retval;
-      }
+    }
   #endif
   /* Ticks == us for gettimeofday */
   #define getCPUTicks()             ((amudp_cputick_t)getMicrosecondTimeStamp())
@@ -608,6 +610,6 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
 #endif
 //------------------------------------------------------------------------------------
 
-END_EXTERNC
+SOCK_END_EXTERNC
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2006/02/11 11:42:35 $
- * $Revision: 1.122 $
+ *     $Date: 2006/05/02 05:43:54 $
+ * $Revision: 1.122.4.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,7 +55,7 @@ char gasneti_stats_maskstr[GASNETI_MAX_MASKBITS+1];
 int gasneti_trace_suppresslocal;
 FILE *gasneti_tracefile = NULL;
 FILE *gasneti_statsfile = NULL;
-static gasneti_stattime_t starttime;
+static gasneti_tick_t starttime;
 
 #if GASNET_STATS
   gasnett_stats_callback_t gasnett_stats_callback = NULL;
@@ -154,7 +154,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
       unsigned int linenum;
       unsigned int frozen;
     } gasneti_srclineinfo_t;
-    GASNET_INLINE_MODIFIER(gasneti_mysrclineinfo)
+    GASNETI_INLINE(gasneti_mysrclineinfo)
     gasneti_srclineinfo_t *gasneti_mysrclineinfo() {
       gasneti_srclineinfo_t *srclineinfo = gasneti_threadkey_get(gasneti_srclineinfo_key);
       if_pt (srclineinfo) {
@@ -208,10 +208,14 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   static gasneti_mutex_t gasneti_buflock = GASNETI_MUTEX_INITIALIZER;
 
   /* give gcc enough information to type-check our format strings */
-  static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr) __attribute__((__format__ (__printf__, 2, 0)));
-  static void gasneti_trace_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-  static void gasneti_stats_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-  static void gasneti_tracestats_printf(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
+  GASNETI_FORMAT_PRINTF(gasneti_file_vprintf,2,0,
+  static void gasneti_file_vprintf(FILE *fp, const char *format, va_list argptr));
+  GASNETI_FORMAT_PRINTF(gasneti_trace_printf,1,2,
+  static void gasneti_trace_printf(const char *format, ...));
+  GASNETI_FORMAT_PRINTF(gasneti_stats_printf,1,2,
+  static void gasneti_stats_printf(const char *format, ...));
+  GASNETI_FORMAT_PRINTF(gasneti_tracestats_printf,1,2,
+  static void gasneti_tracestats_printf(const char *format, ...));
 
   static char *gasneti_getbuf() {
     int bufidx;
@@ -342,7 +346,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   /* dump message to tracefile */
   extern void gasneti_trace_output(const char *type, const char *msg, int traceheader) {
     if (gasneti_tracefile) {
-      double time = GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - starttime) / 1.0E9;
+      double time = gasneti_ticks_to_ns(gasneti_ticks_now() - starttime) / 1.0E9;
       gasneti_mutex_lock(&gasneti_tracelock);
         if (gasneti_tracefile) 
           gasneti_file_output(gasneti_tracefile, time, type, msg, traceheader);
@@ -351,7 +355,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   }
   extern void gasneti_stats_output(const char *type, const char *msg, int traceheader) {
     if (gasneti_tracefile || gasneti_statsfile) {
-      double time = GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - starttime) / 1.0E9;
+      double time = gasneti_ticks_to_ns(gasneti_ticks_now() - starttime) / 1.0E9;
       gasneti_mutex_lock(&gasneti_tracelock);
         if (gasneti_statsfile) 
           gasneti_file_output(gasneti_statsfile, time, type, msg, traceheader);
@@ -364,7 +368,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
   }
   extern void gasneti_tracestats_output(const char *type, const char *msg, int traceheader) {
     if (gasneti_tracefile || gasneti_statsfile) {
-      double time = GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - starttime) / 1.0E9;
+      double time = gasneti_ticks_to_ns(gasneti_ticks_now() - starttime) / 1.0E9;
       gasneti_mutex_lock(&gasneti_tracelock);
         if (gasneti_statsfile) 
           gasneti_file_output(gasneti_statsfile, time, type, msg, traceheader);
@@ -536,7 +540,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   strcat(gasneti_exename, (*pargv)[0]);
 
  #if GASNETI_STATS_OR_TRACE
-  starttime = GASNETI_STATTIME_NOW();
+  starttime = gasneti_ticks_now();
 
   { /* setup tracefile */
     FILE *gasneti_tracefile_tmp = NULL, *gasneti_statsfile_tmp = NULL;
@@ -646,7 +650,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
       "all short-term time measurements will be very rough and include significant timer overheads");
   #endif
   gasneti_tracestats_printf("Timer granularity: ~ %.3f us, overhead: ~ %.3f us",
-   GASNETI_STATTIME_GRANULARITY(), GASNETI_STATTIME_OVERHEAD());
+   gasneti_tick_granularity(), gasneti_tick_overhead());
 
   fflush(NULL);
  #endif
@@ -658,7 +662,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   static gasneti_stat_intval_t AGGRNAME(intval,type) =   \
     { 0, GASNETI_STATCTR_MAX, GASNETI_STATCTR_MIN, 0 };  \
   static gasneti_stat_timeval_t AGGRNAME(timeval,type) = \
-    { 0, GASNETI_STATTIME_MAX, GASNETI_STATTIME_MIN, 0 }
+    { 0, GASNETI_TICK_MAX, GASNETI_TICK_MIN, 0 }
 AGGR(G);
 AGGR(P);
 AGGR(S);
@@ -677,7 +681,7 @@ extern void gasneti_trace_finish() {
   gasneti_mutex_lock(&gasneti_tracefinishlock);
   if (gasneti_tracefile || gasneti_statsfile) {
 
-    double time = GASNETI_STATTIME_TO_NS(GASNETI_STATTIME_NOW() - starttime) / 1.0E9;
+    double time = gasneti_ticks_to_ns(gasneti_ticks_now() - starttime) / 1.0E9;
     gasneti_tracestats_printf("Total application run time: %10.6fs", time);
 
     fflush(NULL);
@@ -735,10 +739,10 @@ extern void gasneti_trace_finish() {
             gasneti_stats_printf(" %-25s %6i  avg/min/max/total %s (us) = %.3f/%.3f/%.3f/%.3f", \
                   #name":", (int)p->count,                                              \
                   pdesc,                                                                \
-                  GASNETI_STATTIME_TO_NS(CALC_AVG(p->sumval, p->count))/1000.0,         \
-                  GASNETI_STATTIME_TO_NS(p->minval)/1000.0,                             \
-                  GASNETI_STATTIME_TO_NS(p->maxval)/1000.0,                             \
-                  GASNETI_STATTIME_TO_NS(p->sumval)/1000.0);                            \
+                  gasneti_ticks_to_ns(CALC_AVG(p->sumval, p->count))/1000.0,         \
+                  gasneti_ticks_to_ns(p->minval)/1000.0,                             \
+                  gasneti_ticks_to_ns(p->maxval)/1000.0,                             \
+                  gasneti_ticks_to_ns(p->sumval)/1000.0);                            \
           ACCUM((&AGGRNAME(timeval,type)), p);                                          \
         }
 
@@ -797,10 +801,10 @@ extern void gasneti_trace_finish() {
         else
           gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
             "Total wait sync. calls:", ((int)wait_time->count),
-            GASNETI_STATTIME_TO_NS(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
-            GASNETI_STATTIME_TO_NS(wait_time->minval)/1000.0,
-            GASNETI_STATTIME_TO_NS(wait_time->maxval)/1000.0,
-            GASNETI_STATTIME_TO_NS(wait_time->sumval)/1000.0);
+            gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
+            gasneti_ticks_to_ns(wait_time->minval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->sumval)/1000.0);
       }
       if (GASNETI_STATS_ENABLED(X)) {
         gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,X);
@@ -816,10 +820,10 @@ extern void gasneti_trace_finish() {
         else
           gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
             "Total coll. wait syncs:", ((int)wait_time->count),
-            GASNETI_STATTIME_TO_NS(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
-            GASNETI_STATTIME_TO_NS(wait_time->minval)/1000.0,
-            GASNETI_STATTIME_TO_NS(wait_time->maxval)/1000.0,
-            GASNETI_STATTIME_TO_NS(wait_time->sumval)/1000.0);
+            gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
+            gasneti_ticks_to_ns(wait_time->minval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
+            gasneti_ticks_to_ns(wait_time->sumval)/1000.0);
       }
       if (GASNETI_STATS_ENABLED(A)) 
         gasneti_stats_printf("%-25s  %6i", "Total AM's:", (int)AGGRNAME(ctr,A));
@@ -855,7 +859,7 @@ extern void gasneti_trace_finish() {
       { 0, GASNETI_STATCTR_MAX, GASNETI_STATCTR_MIN, 0 };
   #define DEF_TIMEVAL(type,name,desc)                    \
     gasneti_stat_timeval_t gasneti_stat_timeval_##name = \
-      { 0, GASNETI_STATTIME_MAX, GASNETI_STATTIME_MIN, 0 };
+      { 0, GASNETI_TICK_MAX, GASNETI_TICK_MIN, 0 };
   GASNETI_ALL_STATS(DEF_CTR, DEF_INTVAL, DEF_TIMEVAL)
 
 /* TODO: these routines are probably a bottleneck for stats performance, 
@@ -880,7 +884,7 @@ extern void gasneti_stat_intval_accumulate(gasneti_stat_intval_t *pintval, gasne
     if_pf (val < pintval->minval) pintval->minval = val;
   GASNETI_STAT_UNLOCK();
 }
-extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gasneti_stattime_t val) {
+extern void gasneti_stat_timeval_accumulate(gasneti_stat_timeval_t *pintval, gasneti_tick_t val) {
   GASNETI_STAT_LOCK();
     pintval->count++;
     pintval->sumval += val;

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/01/30 01:51:58 $
-# $Revision: 1.318 $
+#     $Date: 2006/05/02 05:43:53 $
+# $Revision: 1.318.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.318 $)
+AC_REVISION($Revision: 1.318.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -100,47 +100,23 @@ AC_PROG_LN_S
 GASNET_BIGENDIAN
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
 
-## DOB: this is more trouble than it's worth because so many OS's define
-## LITTLE_ENDIAN or BIG_ENDIAN in random and sultry header files
-## Code with access to gasnet_config.h should use #if defined(WORDS_BIGENDIAN)
-## If we ever decide we need this (to support other code) then we 
-## can reintroduce this define with a fresh prefix
-dnl if test "$ac_cv_c_bigendian" = 'yes'; then
-dnl   ENDIANNESS="-DBIG_ENDIAN"
-dnl   # avoid warnings from re-defining BIG_ENDIAN
-dnl   GASNET_TRY_CACHE_CHECK(for BIG_ENDIAN in sys/types.h, cc_bigend_systypes,
-dnl     [#include <sys/types.h>
-dnl      #ifndef BIG_ENDIAN
-dnl        #error not defined
-dnl      #endif
-dnl     ], [], 
-dnl     ENDIANNESS="")
-dnl else
-dnl   ENDIANNESS="-DLITTLE_ENDIAN=1234"
-dnl   # avoid warnings from re-defining LITTLE_ENDIAN
-dnl   GASNET_TRY_CACHE_CHECK(for LITTLE_ENDIAN in stdlib.h, cc_littleend_stdlib,
-dnl     [#include <stdlib.h>
-dnl      #ifndef LITTLE_ENDIAN
-dnl        #error not defined
-dnl      #endif
-dnl     ], [], 
-dnl     ENDIANNESS="")
-dnl fi
-dnl AC_SUBST(ENDIANNESS)
-
 ## specific compiler families
 
 GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 
-if test "$gasnet_cv_cc_family" = MIPS; then
-  # The MIPSPro C compiler apparently has no identifying markings
-  AC_DEFINE(MIPSPRO_COMPILER)
-fi
-if test "$gasnet_cv_cc_family" = MTA ; then
-  # override target_os for MTA, which may be wrong if cross-compiling
-  target_os="mtx"  
-fi
+## compiler family early initialization
 
+case "$gasnet_cv_cc_family" in
+  GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
+  MTA)  # override target_os for MTA, which may be wrong if cross-compiling
+        target_os="mtx"   ;;
+esac
+
+## discover bit width
+
+GASNET_CHECK_SIZEOF(void *)
+GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
+AC_SUBST(GASNETI_PTR_BITS)
 
 ### 
 #
@@ -148,8 +124,7 @@ fi
 #
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_GCC_VERSION_CHECK(CC)
-	GASNET_PUSHVAR(CFLAGS,"-O3")
+  GNU)  GASNET_PUSHVAR(CFLAGS,"-O3")
 	# prefer the --param inliner option(s), which give us finer control
         GASNET_TRY_CFLAG([--param max-inline-insns-single=35000],
 			 [CFLAGS="$CFLAGS --param max-inline-insns-single=35000"
@@ -187,7 +162,13 @@ case "$gasnet_cv_cc_family" in
 	GASNET_POPVAR(CFLAGS)
   ;;
   Pathscale)  CCOPTFLAGS="-O3 -Winline" ;;
-  Sun)  CCOPTFLAGS="-fast -xO5" ;;
+  Sun) if test "$GASNETI_PTR_BITS" = 64; then # -fast => -xarch=v8 which clobbers user's 64-bit choice
+         SUN_ARCH_FLAG=`echo "$CC $CFLAGS" | $PERL -ne 'foreach(split(/ /,$_)) { print "$_" if (m/^-xarch/);}'` 
+       else
+         SUN_ARCH_FLAG=
+       fi
+       CCOPTFLAGS="-fast $SUN_ARCH_FLAG -xO5" 
+       ;;
   Cray) CCOPTFLAGS="-O2" ;; # DOB: -O3 is unstable on Cray cc
   HP) CCOPTFLAGS="-O3" ;;
   MIPS) CCOPTFLAGS="-O3" ;;
@@ -201,7 +182,7 @@ case "$gasnet_cv_cc_family" in
 		*)	CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; 
 	    esac
 	    ;;
-	linux*) CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # XXX: untested
+	linux*) CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;;
 	*)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
 	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
     esac
@@ -263,21 +244,68 @@ case "$gasnet_cv_cc_family" in
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
+dnl GASNET_GET_ULTRASPARC_FLAGS(type,flags)  type=C or CXX
+# attempt to enable the ultrasparc ISA in MISC_C(XX)FLAGS, and test for related capabilities
+# flags is compiler options which enable ultrasparc instructions for 32-bit ABI
+GASNET_IF_DISABLED([ultrasparc-probe],[Disable probe for UltraSPARC compiler options],[DISABLE_ULTRASPARC=1])
+AC_DEFUN([GASNET_GET_ULTRASPARC_FLAGS],[
+  pushdef([ultrasparc3code],[
+          void foo(void) { 
+            #ifdef __GNUC__
+              register void * addr = 0;
+              register int oldval = 0;
+              register int newval = 1;
+              __asm__ __volatile__ ("cas	[[%2]], %0, %1" 
+                                    : "=&r"(oldval), "=&r"(newval) : "r" (addr) : "memory");
+            #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+              __asm("cas	[[%i0]], %i1, %i2"); 
+            #else
+              #error unknown sparc compiler
+            #endif
+          }
+         ])
+  if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_ULTRASPARC" != 1; then 
+    for flag in $2 ; do
+      ]GASNET_TRY_[$1]FLAG[([$flag],[ultrasparc_flag_worked=1])
+      if test "$ultrasparc_flag_worked" = 1; then
+        GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS $flag")
+	AC_MSG_CHECKING(for working flag $flag)
+	AC_TRY_RUN(ultrasparc3code [ int main() { return 0; } ], 
+	           [ultrasparc_flag_worked=1], [ultrasparc_flag_worked=0], [ultrasparc_flag_worked=1])
+        GASNET_POPVAR([$1]FLAGS)
+	if test "$ultrasparc_flag_worked" = 1; then
+	  AC_MSG_RESULT(yes)
+      	  MISC_[$1]FLAGS="$flag"
+	  break
+	else
+	  AC_MSG_RESULT(no)
+	fi
+      fi
+    done
+  fi
+  AC_MSG_CHECKING(for UltraSPARC instruction support)
+  GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS")
+  ]GASNET_TRY_[$1]COMPILE_WITHWARN[( [ ultrasparc3code ] , [ ], 
+          [ AC_MSG_RESULT(yes) 
+                 AC_DEFINE(GASNETI_ARCH_ULTRASPARC)
+       ], [ AC_MSG_RESULT(no/warning) ], [ AC_MSG_RESULT(no/error) ])
+  GASNET_POPVAR([$1]FLAGS)
+  popdef([ultrasparc3code])
+])
+
 case "$gasnet_cv_cc_family" in
-  GNU)
-    case "$target_cpu" in
-      sparc) # Get sparc v9 ISA
-	GASNET_TRY_CFLAG([-mcpu=ultrasparc -mtune=ultrasparc], 
-	                 [ MISC_CFLAGS="-mcpu=ultrasparc -mtune=ultrasparc" 
-	                   AC_DEFINE(GASNETI_ARCH_SPARCV9) ] ) ;; 
-      *) ;; 
-    esac ;;
+  GNU) if test "$target_cpu" = "sparc"; then 
+         GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"])
+       fi
+    ;;
   Cray) 
     case "$target_cpu" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
       *)        MISC_CFLAGS="-hnomessage=236 $LIBCM" ;; # X1
     esac ;;
-  MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552 -LD_MSG:off=84" ;; # 1035 ensures "#error" is fatal
+  MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552" # 1035 ensures "#error" is fatal
+        # bug1555: older versions (7.4.0) don't have _Pragma without -c99, but that flag causes incorrect optimizer behavior
+	;;
   Compaq) MISC_CFLAGS="-msg_disable extrasemi" ;;
   HP)     MISC_CFLAGS="+W612 +W2111 +W2174 +W2177 +W2236 +W2550 -Wp,-H100000" ;; # -H increases internal preprocessor table size
   Intel) MISC_CFLAGS="-wd177 -wd279" 
@@ -285,9 +313,34 @@ case "$gasnet_cv_cc_family" in
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
   NEC) MISC_CFLAGS="-woff=68:111:174:177:236:301:550:940" ;; 
-  PGI) MISC_CFLAGS="-Masmkeyword -c9x" ;; # get inline assembly and restrict
+  PGI) MISC_CFLAGS="-Masmkeyword -c9x" # get inline assembly and restrict
+       GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CFLAGS")
+       AC_MSG_CHECKING(for PGI true inline assembly support)
+       GASNET_TRY_CCOMPILE_WITHWARN([
+         #include <stdint.h>
+         uint64_t foo (void) {
+           uint64_t ret;
+           #if defined(__i386__)
+             __asm__ __volatile__("rdtsc" : "=A" (ret) : /* no inputs */); 
+           #elif defined(__x86_64__)
+             uint32_t lo, hi;
+             __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi) : /* no inputs */); 
+             ret = ((uint64_t)lo) | (((uint64_t)hi)<<32);
+           #else
+              #error unknown processor
+           #endif
+	   return ret;
+        }
+       ], [ ], [ AC_MSG_RESULT(yes) 
+                 AC_DEFINE(PGI_WITH_REAL_ASM)
+       ], [ AC_MSG_RESULT(no/warning) ], [ AC_MSG_RESULT(no/error)])
+       GASNET_POPVAR(CFLAGS)
+       ;;
   MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
-  Sun) MISC_CFLAGS="-errtags" ;; # show warning tag ids in warnings
+  Sun) if test "$target_cpu" = "sparc"; then 
+         GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
+       fi
+       MISC_CFLAGS="$MISC_CFLAGS -errtags" ;; # show warning tag ids in warnings
   XLC) MISC_CFLAGS="-qsuppress=1500-010:1506-229" ;; # 1500-010 = infinite loop (such as in our tests)
 	# 1506-229 = empty source file (some linux headers)
   *)   MISC_CFLAGS="" ;;
@@ -317,11 +370,11 @@ GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode,
     echo " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING"
     echo "-----------------------------------------------------------------------" 
     CFLAGS="$CCDEBUGFLAGS"
-    BUILDCONFIG_DEFINES="-DGASNET_DEBUG"
+    AC_DEFINE(GASNET_DEBUG)
     BUILDCONFIG="debug"
     enabled_debug=yes],
   [ CFLAGS="$CCOPTFLAGS"
-    BUILDCONFIG_DEFINES="-DGASNET_NDEBUG"
+    AC_DEFINE(GASNET_NDEBUG)
     BUILDCONFIG="optimize"
     enabled_debug=no])
 AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
@@ -329,37 +382,42 @@ AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
 GASNET_IF_ENABLED(gasnet-verbose, Build GASNet lib with debugging status messages, 
   [ enabled_debug_verbose=yes ], [ enabled_debug_verbose=no ])
   if test "$enabled_debug_verbose" = yes; then
-    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_DEBUG_VERBOSE=1"
+    AC_DEFINE(GASNET_DEBUG_VERBOSE)
   fi
 AM_CONDITIONAL(BUILDCONFIG_DEBUG_VERBOSE, test "$enabled_debug_verbose" = yes)
 
 GASNET_IF_ENABLED_WITH_AUTO(trace, Build GASNet with tracing enabled (enabled by default with --enable-debug), 
   enabled_trace=yes, enabled_trace=no, enabled_trace=$enabled_debug)
   if test "$enabled_trace" = yes; then
-    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_TRACE"
+    AC_DEFINE(GASNET_TRACE)
   fi
 AM_CONDITIONAL(BUILDCONFIG_TRACE, test "$enabled_trace" = yes)
 
 GASNET_IF_ENABLED_WITH_AUTO(stats, Build GASNet with statistical collection enabled (enabled by default with --enable-debug), 
   enabled_stats=yes, enabled_stats=no, enabled_stats=$enabled_debug)
   if test "$enabled_stats" = yes; then
-    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_STATS"
+    AC_DEFINE(GASNET_STATS)
   fi
 AM_CONDITIONAL(BUILDCONFIG_STATS, test "$enabled_stats" = yes)
 
 GASNET_IF_ENABLED(srclines, Build GASNet with srclines support (enabled by default with --enable-trace), 
   [ enabled_srclines=yes ])
   if test "$enabled_srclines" = yes; then
-    BUILDCONFIG_DEFINES="$BUILDCONFIG_DEFINES -DGASNET_SRCLINES"
+    AC_DEFINE(GASNET_SRCLINES)
   fi
 AM_CONDITIONAL(BUILDCONFIG_SRCLINES, test "$enabled_srclines" = yes)
 
-GASNET_CHECK_OPTIMIZEDDEBUG(CC,CFLAGS,[$CPPFLAGS $MISC_CFLAGS $MISC_CPPFLAGS $BUILDCONFIG_DEFINES],[])
+case "$target" in
+  *-uclinux-*) # uclinux requires -Os
+    MISC_CFLAGS="$MISC_CFLAGS -DGASNET_ALLOW_OPTIMIZED_DEBUG=1" ;;
+  *)
+    GASNET_CHECK_OPTIMIZEDDEBUG(CC,CFLAGS,[$CPPFLAGS $MISC_CFLAGS $MISC_CPPFLAGS],[])
+  ;;
+esac
 
 #AC_SUBST(CFLAGS)	      # opt/debug flags
 AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
 AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
-AC_SUBST(BUILDCONFIG_DEFINES) # defines that setup build configuration
 
 segconfig=""
 GASNET_IF_ENABLED(segment-fast, Build GASNet in the FAST shared segment configuration,
@@ -419,6 +477,24 @@ popdef([BARRIERVALS])
 GASNET_LIBGCC
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS")
 GASNET_CHECK_RESTRICT
+GASNET_CHECK_GCC_ATTRIBUTE([__always_inline__],
+            [__attribute__((__always_inline__)) int dummy() { return 1; }])
+GASNET_CHECK_GCC_ATTRIBUTE([__noinline__],
+            [__attribute__((__noinline__)) int dummy() { return 1; }])
+GASNET_CHECK_GCC_ATTRIBUTE([__malloc__],
+            [#include <stdlib.h>
+	     __attribute__((__malloc__)) void * dummy() { return malloc(14); }])
+GASNET_CHECK_GCC_ATTRIBUTE([__warn_unused_result__],
+            [__attribute__((__warn_unused_result__)) void * dummy() { return 0; }])
+GASNET_CHECK_GCC_ATTRIBUTE([__noreturn__],
+            [#include <stdlib.h>
+	     __attribute__((__noreturn__)) void dummy() { abort(); }])
+GASNET_CHECK_GCC_ATTRIBUTE([__const__],
+            [__attribute__((__const__)) int dummy(int x) { return x+1; }])
+GASNET_CHECK_GCC_ATTRIBUTE([__pure__],
+            [__attribute__((__pure__)) int dummy(int x) { return x+1; }])
+GASNET_CHECK_GCC_ATTRIBUTE([__format__],
+            [__attribute__((__format__ (__printf__, 1, 2))) void dummy(const char *fmt,...) { }])
 GASNET_POPVAR(CFLAGS)
 
 ########################################################################
@@ -733,11 +809,40 @@ AC_SUBST(PTHREADS)
 
 AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 
+########################################################################
+## CPU feature checks
+
+## Look for PPC970/PPC970FX (aka G5)
+# Both false positives and false negatives are safe, but getting this
+# wrong may hurt performance.
+GASNET_IF_ENABLED_WITH_AUTO(tune-ppc970, Enable/disable tuning for PPC970 (aka G5) (auto-detected),
+  enabled_ppc970=yes, enabled_ppc970=no, enabled_ppc970=probe)
+if expr "$enabled_ppc970@$cross_compiling@$target_cpu" : "probe@no@powerpc" >/dev/null; then
+  AC_MSG_CHECKING(whether to tune for PPC970/G5)
+  case "$target_os" in
+     aix*) if /usr/sbin/lsattr -l proc0 -E | grep -i PowerPC_970 >/dev/null 2>&1; then
+             enabled_ppc970=yes
+           fi ;;
+   linux*) if grep -i PPC970 /proc/cpuinfo >/dev/null 2>&1; then
+             enabled_ppc970=yes
+           fi ;;
+  darwin*) if test `/usr/sbin/sysctl hw.cpusubtype | cut '-d ' -f2` = '100'; then
+             enabled_ppc970=yes
+           fi ;;
+  esac
+  if test "$enabled_ppc970" = yes; then
+    AC_DEFINE(GASNETI_TUNE_PPC970)
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+  fi
+fi
+
 ## Spinloop hints
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -D_IN_CONFIGURE")
 AC_MSG_CHECKING(for x86 pause instruction)
 AC_TRY_COMPILE([
-  #include "gasnet_membar.h" /* For GASNET_ASM() only */
+  #include "gasnet_asm.h"
 ], [
   #if defined(__i386__) || defined(__x86_64__)
     GASNETI_ASM("pause");
@@ -750,7 +855,7 @@ AC_TRY_COMPILE([
 ## Disabled ia64 pause hint until we see an actual need for it -PHH 2006.01.09
 #AC_MSG_CHECKING(for ia64 pause hint)
 #AC_TRY_COMPILE([
-#  #include "gasnet_membar.h" /* For GASNET_ASM() only */
+#  #include "gasnet_asm.h"
 #], [
 #  #if defined(__ia64__)
 #    GASNETI_ASM("hint @pause");
@@ -851,6 +956,16 @@ if test $enabled_udp = yes; then
   # Do C++ configuration
   AC_LANG_SAVE
 
+  # when called by Titanium configure, target C++ compiler will be in TARGET_CXX(FLAGS)
+  GASNET_ENV_DEFAULT(TARGET_CXX, "")
+  if test "${TARGET_CXX}" != "" ; then
+    GASNET_ENV_DEFAULT(TARGET_CXXFLAGS, "")
+    unset ac_cv_prog_CXX
+    unset ac_cv_prog_CXXCPP
+    CXX="$TARGET_CXX"
+    CXXFLAGS="$TARGET_CXXFLAGS"
+  fi
+
   GASNET_PROG_CXX
   have_cxx=1
 
@@ -862,22 +977,20 @@ if test $enabled_udp = yes; then
   case "$gasnet_cv_cxx_family" in
     GNU) 
        GASNET_GCC_VERSION_CHECK(CXX)
+       if test "$target_cpu" = "sparc"; then 
+         GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"])
+       fi
        GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
-       MISC_CXXFLAGS="$CXXFLAGS" 
-       case "$target_cpu" in
-         sparc) # Get sparc v9 ISA
-	  GASNET_TRY_CXXFLAG([-mcpu=ultrasparc -mtune=ultrasparc], 
-	                     [ MISC_CXXFLAGS="$MISC_CXXFLAGS -mcpu=ultrasparc -mtune=ultrasparc" 
-	                       AC_DEFINE(GASNETI_ARCH_SPARCV9) ] ) ;; 
-         *) ;; 
-       esac 
+       MISC_CXXFLAGS="$MISC_CXXFLAGS $CXXFLAGS" 
        GASNET_POPVAR(CXXFLAGS)
     ;;
     PGI)   MISC_CXXFLAGS="-w -Masmkeyword" ;; # apparently has no way to indep control warnings
     KAI)   MISC_CXXFLAGS="--diag_suppress 611 --diag_suppress 610" ;;
     MIPS)  MISC_CXXFLAGS="-diag_error 1035 -diag_suppress 1171,1174,1209,1552,1681,1682 -LANG:std -common" ;;
-    HP)    MISC_CXXFLAGS="+W612 +W749 +W2111 +W2174 +W2177 +W2236 +W2550" ;;
+    HP)    MISC_CXXFLAGS="+W612 +W749 +W2111 +W2174 +W2177 +W2236 +W2550"
+           CXXOPTFLAGS="+O3"
+           ;;
     Compaq) MISC_CXXFLAGS="-msg_disable extrasemi,boolexprconst,codeunreachable" ;;
     MTA)   MISC_CXXFLAGS="-exceptions -display_error_number -WS 111,174,238" 
            CXXDEBUGFLAGS="-g2"
@@ -893,6 +1006,10 @@ if test $enabled_udp = yes; then
       aix*) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh -qweaksymbol" ;;
       *) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh" ;;
      esac ;;
+    Sun) if test "$target_cpu" = "sparc"; then 
+           GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
+         fi
+      ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
 	   GASNET_UDP_LIBS="-Kexceptions" 
@@ -909,8 +1026,14 @@ if test $enabled_udp = yes; then
   else
     CXXFLAGS="$CXXDEBUGFLAGS"
   fi
-  GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CXXCPPFLAGS $MISC_CXXFLAGS $BUILDCONFIG_DEFINES],[])
-  GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS $CXXCPPFLAGS $MISC_CXXFLAGS $BUILDCONFIG_DEFINES")
+  case "$target" in
+    *-uclinux-*) # uclinux requires -Os
+      MISC_CXXFLAGS="$MISC_CXXFLAGS -DGASNET_ALLOW_OPTIMIZED_DEBUG=1" ;;
+    *)
+      GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CXXCPPFLAGS $MISC_CXXFLAGS],[])
+    ;;
+  esac
+  GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS $CXXCPPFLAGS $MISC_CXXFLAGS")
   GASNET_TRY_CACHE_VERIFY_RUN( [for working C++ exceptions], cxx_exceptions, [ ], [
      try {
        int *p = new int[[10]];
@@ -1095,8 +1218,6 @@ if test $enabled_mpi = yes; then
   esac
   GASNET_GETFULLPATH(MPI_CC)
   GASNET_GETFULLPATH(MPIRUN_CMD)
-
-  MPI_CFLAGS="$BUILDCONFIG_DEFINES $MPI_CFLAGS"
 
   # now run a basic test of the MPI configuration to make sure it works
   if test $have_mpi = yes; then
@@ -1462,7 +1583,7 @@ if test "$enabled_lapi" = yes; then
         fi
         AC_MSG_RESULT([$LAPI_VER])
     else
-      AC_MSG_WARN([No IBM SP Switch hardware $lapi_how - disabling lapi])
+      AC_MSG_WARN([No IBM SP Switch hardware $lapi_how - disabling lapi. If your system has LAPI hardware, please select the hardware type using configure switch --with-lapi-type=federation or --with-lapi-type=colony])
       have_lapi="no"
     fi
   fi
@@ -1629,6 +1750,44 @@ if test $enabled_elan = yes; then
     AC_DEFINE_UNQUOTED(ELAN_VERSION_MAJOR, $majorver)
     AC_DEFINE_UNQUOTED(ELAN_VERSION_MINOR, $minorver)
     AC_DEFINE_UNQUOTED(ELAN_VERSION_SUB, $subver)
+
+    AC_MSG_CHECKING(for elan driver version)
+    ELAN_DRIVER_VERSION=unknown
+    if test -f /proc/qsnet/version ; then
+      ELAN_DRIVER_VERSION=`cat /proc/qsnet/version`
+    fi
+    AC_MSG_RESULT($ELAN_DRIVER_VERSION)
+    AC_DEFINE_UNQUOTED(ELAN_DRIVER_VERSION,$ELAN_DRIVER_VERSION)
+
+    ELAN4_KERNEL_PATCH=no
+    if test -d /proc/qsnet/elan4/ ; then
+      AC_MSG_CHECKING(for elan kernel patches)
+      if test -f /proc/qsnet/elan4/config/user_ioproc_enabled ; then
+        ELAN4_KERNEL_PATCH=yes
+        AC_DEFINE(ELAN4_KERNEL_PATCH)
+	AC_MSG_RESULT(yes)
+      else
+        ELAN4_KERNEL_PATCH=no
+	AC_MSG_RESULT(no)
+        badkernelmsg="It appears you are attempting to compile Quadrics/elan4 support \
+using the Quadrics patch-free elan4 drivers. These drivers are a nice convenience for \
+test driving Quadrics hardware on your stock Linux kernel, but are NOT intended for \
+use in production super computing environments, and specifically have serious known bugs when \
+used with one-sided elan-based communication libraries such as GASNet or shmem. \
+You should download the latest Linux kernel patch and associated drivers from \
+http://www.quadrics.com and follow the instructions on that page to install them. \
+Use of GASNet with the patch-free kernel drivers is HIGHLY discouraged, \
+and will very likely induce both serious performance degradation \
+and significant application runtime stability problems."
+        GASNET_IF_ENABLED(allow-elan4-patchfree, Allow the use of the problematic elan4 patch-free drivers, [
+  	  AC_MSG_WARN([$badkernelmsg])
+  	],[
+  	  AC_MSG_ERROR([$badkernelmsg \
+If you're REALLY sure you know what you're doing, you may enable the use of these \
+problematic drivers at your own risk by passing the --enable-allow-elan4-patchfree flag.])
+	])
+      fi
+    fi
   else
     AC_MSG_RESULT(no)
     have_elan=no
@@ -1679,7 +1838,7 @@ if test "$enabled_vapi" = yes; then
 
   # Start by finding a reasonable default
   AC_PATH_PROGS(vstat, vstat)
-  if test "$vstat"; then
+  if test -n "$vstat"; then
     vapi_guess=`dirname \`dirname $vstat\``
   elif test -e /usr/local/ibgd/driver/infinihost; then
     vapi_guess=/usr/local/ibgd/driver/infinihost
@@ -1806,7 +1965,7 @@ if test "$enabled_vapi" = yes; then
     GASNET_WITH(vapi-spawner,
        [VAPI job spawner ("ssh" or "mpi", default is mpi when available)],
        [case "$withval" in
-          ssh|mpi) GASNET_VAPI_SPAWNER=$withval
+          ssh|mpi) GASNET_VAPI_SPAWNER_CONF=$withval
 	       ;;
           yes) AC_MSG_ERROR([--with-vapi-spawner requires an argument ("ssh" or "mpi")])
 	       ;;
@@ -1815,15 +1974,15 @@ if test "$enabled_vapi" = yes; then
         esac],
        [AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])],
        [if test "$have_mpi" = yes; then
-          GASNET_VAPI_SPAWNER=mpi
+          GASNET_VAPI_SPAWNER_CONF=mpi
         else
-          GASNET_VAPI_SPAWNER=ssh
+          GASNET_VAPI_SPAWNER_CONF=ssh
         fi])
-    AC_SUBST(GASNET_VAPI_SPAWNER)
-    if test "$GASNET_VAPI_SPAWNER$have_mpi" = mpino; then
+    AC_SUBST(GASNET_VAPI_SPAWNER_CONF)
+    if test "$GASNET_VAPI_SPAWNER_CONF$have_mpi" = mpino; then
       AC_MSG_ERROR([--with-vapi-spawner=mpi requires MPI support which $mpi_reason]);
     fi
-    if test "$GASNET_VAPI_SPAWNER$have_fork" = sshno; then
+    if test "$GASNET_VAPI_SPAWNER_CONF$have_fork" = sshno; then
       AC_MSG_ERROR([--with-vapi-spawner=ssh requires fork() support which $fork_reason]);
     fi
 
@@ -1885,20 +2044,9 @@ if test $enabled_shmem = yes; then
       AC_MSG_WARN(Currently no access to shmem on IRIX)
       have_shmem=no
       ;;
-    # Linux shmem may mean Quadrics shmem, or SGI shmem.  A first try is to
-    # look for _ELAN_SHMEM_H in /usr/include/shmem.h.
+    # Linux shmem may mean Quadrics shmem or SGI shmem, but only SGI shmem is supported.
     linux*)
-      # This first case should catch Elan shmem 
-      if test -e ${SHMEM_INCLUDE}/shmem.h; then
-	is_quadrics=`grep ELAN_SHMEM ${SHMEM_INCLUDE}/shmem.h`
-	if test -n "$is_quadrics"; then
-	  SHMEM_FLAVOUR="ELAN_SHMEM"
-	  AC_MSG_RESULT(Quadrics/Elan)
-	  GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
-	  GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /usr/lib)
-	  GASNET_ENV_DEFAULT(SHMEM_LIBS, "-lshmem")
-	fi
-      elif test -e /dev/xpmem; then
+      if test -e /dev/xpmem; then
         # SGI Altix uhas xpmem device
 	SHMEM_FLAVOUR="SGI_SHMEM"
 	AC_MSG_RESULT(SGI/Altix)
@@ -2024,7 +2172,7 @@ popdef([CONDUIT_DESC])
 # Configure conduit-independent spawners
 
 # Things needed by ssh spawner
-AC_CHECK_HEADERS(netinet/tcp.h)
+AC_CHECK_HEADERS(sys/socket.h netinet/tcp.h)
 case "$target_os" in
   linux*)
     GASNET_IF_ENABLED(ssh-prctl, Enable use of prctl() in the ssh-based spawner (see other/ssh-spawner/README) (disabled by default), [
@@ -2071,56 +2219,6 @@ fi
 
 ########################################################################
 
-# Check for broken asm/atomic.h on Linux
-case "$target_os" in
-  linux*)
-    AC_MSG_CHECKING(for broken asm/atomic.h)
-    AC_TRY_LINK( [
-      #include <asm/bitops.h>
-      #include <asm/system.h>
-      #include <asm/atomic.h>
-    ], [
-      atomic_t v;
-      atomic_set(&v,5);
-      atomic_inc(&v);
-      #ifdef cmpxchg /* cmpxchg may fail to link when optimizations are disabled */
-      do {
-        volatile int x = 1;
-        cmpxchg(&x, 1, 2);
-      } while (0);
-      #endif
-    ], AC_MSG_RESULT(ok), 
-    [ AC_MSG_RESULT(broken) 
-      AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
-    ] )
-    if test "$have_cxx" = 1; then
-      # Do the same check for CXX as well
-      AC_LANG_SAVE
-      AC_LANG_CPLUSPLUS
-      AC_MSG_CHECKING(for broken asm/atomic.h with c++)
-      AC_TRY_LINK( [
-        #include <asm/bitops.h>
-        #include <asm/system.h>
-        #include <asm/atomic.h>
-      ], [
-        atomic_t v;
-        atomic_set(&v,5);
-        atomic_inc(&v);
-        #ifdef cmpxchg /* cmpxchg may fail to link when optimizations are disabled */
-        do {
-          volatile int x = 1;
-          cmpxchg(&x, 1, 2);
-        } while (0);
-        #endif
-      ], AC_MSG_RESULT(ok),
-      [ AC_MSG_RESULT(broken) 
-        AC_DEFINE(BROKEN_LINUX_ASM_ATOMIC_H)
-      ] )
-      AC_LANG_RESTORE
-    fi
-    ;;
-esac
-
 # Check for alloca in C code
 GASNET_FUNC_ALLOCA
 
@@ -2134,8 +2232,8 @@ if test "$ac_cv_header_execinfo_h" = "yes" ; then
   AC_CHECK_FUNCS(backtrace backtrace_symbols)
 fi
 
-########################################################################
 
+########################################################################
 # Try to discover the C compiler's inline modifier
 
 inlinemod=""
@@ -2307,6 +2405,7 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
   #include <sys/stat.h>
   #include <fcntl.h>
   #include <stdio.h>
+  #include <stdlib.h>
   char junk[[16384]];
   int testfd(int);
   int main() {
@@ -2317,7 +2416,9 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
       fd = open(filename, O_RDWR | O_CREAT);
     #else
       char filename[[255]];
-      strcpy(filename,"/tmp/gasnet-conftemp-XXXXXX");
+      if (getenv("TMPDIR")) strcpy(filename,getenv("TMPDIR"));
+      else strcpy(filename,"/tmp");
+      strcat(filename,"/gasnet-conftemp-XXXXXX");
       fd = mkstemp(filename); /* leaves crap laying around */
     #endif
     retval = testfd(fd);
@@ -2490,6 +2591,10 @@ case "$target_os" in
     LDFLAGS="$LDFLAGS -Wl,-multiply_defined,suppress"
   ;;
 esac
+case "$gasnet_cv_cc_family" in
+  MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
+  ;;
+esac
 AC_SUBST(LDFLAGS)
 
 # Figure out how to install config files
@@ -2554,6 +2659,7 @@ shmem-conduit/conduit.mak
 
 other/Makefile
 other/Makefile-conduit.mak
+other/Makefile-libgasnet.mak
 other/fragment-head.mak
 other/fragment-body.mak
 other/ammpi/Makefile

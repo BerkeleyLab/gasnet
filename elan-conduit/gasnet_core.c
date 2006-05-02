@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/08/09 12:06:23 $
- * $Revision: 1.63 $
+ *     $Date: 2006/05/02 05:43:58 $
+ * $Revision: 1.63.12.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,6 +88,33 @@ extern uint64_t gasnetc_clock() {
 gasnetc_handler_fn_t const gasnetc_unused_handler = (gasnetc_handler_fn_t)&abort;
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
+#ifdef GASNETC_ELAN4
+#include <elan4/library.h>
+extern int gasnetc_ispatchfree_driver() {
+  int patchfree_flag = -1;
+  int patchfree;
+  #if defined(ELAN4_PARAM_DRIVER_FEATURES) && \
+      defined(ELAN4_FEATURE_NO_IOPROC) && \
+      defined(ELAN4_FEATURE_NO_IOPROC_UPDATE)
+        int features = CTX()->ctx_devinfo.dev_params.values[ELAN4_PARAM_DRIVER_FEATURES];
+        if ( features & (ELAN4_FEATURE_NO_IOPROC|ELAN4_FEATURE_NO_IOPROC_UPDATE)) patchfree_flag = 1; /* patch-free drivers */
+        else patchfree_flag = 0; /* patched kernel drivers */
+  #endif
+  { const char *patched_kernel_magicfile = "/proc/qsnet/elan4/config/user_ioproc_enabled";
+    FILE *fp = fopen(patched_kernel_magicfile,"r");
+    if (fp) { /* patched kernel drivers */
+      patchfree = 0;
+      fclose(fp);
+    } else { /* patch-free drivers */
+      patchfree = 1;
+    }
+    if (patchfree_flag >= 0 && patchfree != patchfree_flag) 
+        fprintf(stderr,"WARNING: kernel driver state flags and /proc do not match!!!\n");
+  }
+  return patchfree;
+}
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -118,7 +145,13 @@ static void gasnetc_check_config() {
           "PERFORMANCE WARNING: Using Elan4 driver version '%s':\n"
           " elan4 drivers prior to v1.8.7 contain a performance bug that seriously affects GASNet performance.\n"
           " You should download the latest Elan4 libraries from www.quadrics.com and add them to LD_LIBRARY_PATH.\n",
-          ver); fflush(stderr);
+          ver); 
+      if (gasnetc_ispatchfree_driver() && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
+        fprintf(stderr, 
+          "WARNING: You are using the Elan4 patch-free drivers, which have serious known stability\n"
+          " and performance problems. You should ask your admin to download the latest kernel patches\n"
+          " from www.quadrics.com and install the regular Elan4 drivers.\n"); 
+      fflush(stderr);
     #endif
   }
 
@@ -232,12 +265,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_elan_base = elan_baseInit();
   #endif
   gasneti_assert(gasnetc_elan_base);
-  /*  check system sanity */
-  gasnetc_check_config();
-
   gasnetc_elan_state = gasnetc_elan_base->state;
   gasnetc_elan_group = gasnetc_elan_base->allGroup;
   gasnetc_elan_ctx =   gasnetc_elan_state->ctx;
+
+  /*  check system sanity */
+  gasnetc_check_config();
 
   gasneti_mynode = STATE()->vp;
   gasneti_nodes =  STATE()->nvp;
@@ -736,9 +769,9 @@ static void gasnetc_atexit(void) {
       gasneti_fatalerror("recieved an unknown signal (%i) in gasnetc_remoteexithandler()", sig);
 
     /* record that some node signalled us */
-    gasneti_atomic_increment(&gasnetc_remoteexitrecvd);
+    gasneti_atomic_increment(&gasnetc_remoteexitrecvd, GASNETI_ATOMIC_WMB_POST);
 
-    if (gasneti_atomic_decrement_and_test(&gasnetc_remoteexitflag)) {
+    if (gasneti_atomic_decrement_and_test(&gasnetc_remoteexitflag, GASNETI_ATOMIC_WMB_POST)) {
       /* some remote node just informed us that it's exiting, 
          and it's the first we've heard about an exit 
       */
@@ -776,7 +809,7 @@ static void gasnetc_atexit(void) {
 
     /* inform the GASNETC_REMOTEEXIT_SIGNAL handler that we're working on it and 
        shouldn't be bothered further */
-    gasneti_atomic_decrement(&gasnetc_remoteexitflag);
+    gasneti_atomic_decrement(&gasnetc_remoteexitflag, GASNETI_ATOMIC_WMB_POST);
 
     {  /* ensure only one thread ever continues past this point */
       static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
@@ -822,7 +855,7 @@ static void gasnetc_atexit(void) {
     gasneti_trace_finish();
     gasneti_sched_yield();
 
-    if (gasneti_atomic_read(&gasnetc_remoteexitrecvd) == 0) { 
+    if (gasneti_atomic_read(&gasnetc_remoteexitrecvd, GASNETI_ATOMIC_RMB_PRE) == 0) { 
       /* we initiated this shutdown synchronously, and it appears that no remote node 
          has signaled yet (reduce duplication of global termination signalling, 
          esp for collective exit)
@@ -840,6 +873,7 @@ static void gasnetc_atexit(void) {
     abort();
   }
   extern void gasnetc_fatalsignal_callback(int sig) {
+    gasneti_local_rmb();
     if (GASNETC_EXITINPROGRESS()) {
     /* if we get a fatal signal during exit, it's almost certainly a signal-safety
        issue and not a client bug, so don't bother reporting it verbosely, 
@@ -854,6 +888,8 @@ static void gasnetc_atexit(void) {
 #else /* !GASNETC_USE_SIGNALING_EXIT */
   extern void gasnetc_exit(int exitcode) {
     /* do a naive non-collective exit */
+    if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0))
+     fprintf(stderr,"WARNING: no recognized job spawner detected. This exit may leave zombie processes.\n");
     gasneti_flush_streams();
     gasneti_trace_finish();
     gasneti_sched_yield();
@@ -1116,7 +1152,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 
   {
     #if GASNETI_STATS_OR_TRACE
-      gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
+      gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
       while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
@@ -1124,7 +1160,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_mutex_lock(&(hsl->lock));
     #endif
     #if GASNETI_STATS_OR_TRACE
-      hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
     #endif
   }
@@ -1149,7 +1185,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
@@ -1163,7 +1199,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
     if (locked) {
       #if GASNETI_STATS_OR_TRACE
-        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+        hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
         /* conduits with interrupt-based handler dispatch need to add code here to 

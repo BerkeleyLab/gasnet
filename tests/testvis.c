@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2006/02/11 11:42:48 $
- * $Revision: 1.14 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.14.14.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,6 +8,7 @@
 
 #include <gasnet.h>
 #include <gasnet_vis.h>
+#include <gasnet_coll.h>
 
 #ifndef TEST_SEGSZ
   /* select a larger than default segment, 
@@ -1027,8 +1028,7 @@ int main(int argc, char **argv) {
   test_init("testvis",0, "[-v] [-i] [-s] [-n] (iters) (seed)\n"
             " -v/-i/-s/-n  run vector/indexed/strided/non-blocking tests (defaults to all)\n"
             " iters     number of testing iterations\n"
-            " seed      seed offset for PRNG (for single node run, \n"
-            "             seed=i runs node i's sequence from multi-node job) \n");
+            " seed      seed offset for PRNG \n");
 
   for (i = 1; i < argc; i++) {
     if (argv[i][0] == '-') {
@@ -1049,20 +1049,25 @@ int main(int argc, char **argv) {
   if (i < argc) { seedoffset = atoi(argv[i]); i++; }
   if (i < argc) test_usage();
 
-  MSG("running %i iterations of %s%s%s%s test...", 
-    iters, 
-    (runtests&RUN_VECTOR?"V":""), 
-    (runtests&RUN_INDEXED?"I":""), 
-    (runtests&RUN_STRIDED?"S":""),
-    (runtests&RUN_NB?"N":"")
-    );
-
   mynode = gasnet_mynode();
   myseg = TEST_SEG(mynode);
   partner = (gasnet_mynode() + 1) % gasnet_nodes();
   partnerseg = TEST_SEG(partner);
   heapseg = (VEC_T *)test_malloc(TEST_SEGSZ);
+
+  if (seedoffset == 0) {
+    seedoffset = (((unsigned int)TIME()) & 0xFFFF);
+    TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
+  }
   TEST_SRAND(mynode+seedoffset);
+  MSG("running %i iterations of %s%s%s%s test (seed=%i)...", 
+    iters, 
+    (runtests&RUN_VECTOR?"V":""), 
+    (runtests&RUN_INDEXED?"I":""), 
+    (runtests&RUN_STRIDED?"S":""),
+    (runtests&RUN_NB?"N":""),
+    mynode+seedoffset
+    );
 
   doit(iters, runtests);
   MSG("done.");

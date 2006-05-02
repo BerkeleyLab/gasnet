@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socket.h,v $
- *      $Date: 2005/09/28 00:54:43 $
- *  $Revision: 1.11 $
+ *      $Date: 2006/05/02 05:44:14 $
+ *  $Revision: 1.11.10.1 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */
@@ -125,13 +125,13 @@ typedef fd_set FD_SET;
 #endif
 
 #ifdef __cplusplus
-  #define BEGIN_EXTERNC extern "C" {
-  #define END_EXTERNC }
-  #define EXTERNC extern "C"
+  #define SOCK_BEGIN_EXTERNC extern "C" {
+  #define SOCK_END_EXTERNC }
+  #define SOCK_EXTERNC extern "C"
 #else
-  #define BEGIN_EXTERNC 
-  #define END_EXTERNC 
-  #define EXTERNC
+  #define SOCK_BEGIN_EXTERNC 
+  #define SOCK_END_EXTERNC 
+  #define SOCK_EXTERNC
 #endif
 
 /*  resolve disagreements about types of arguments to misc. functions */
@@ -174,14 +174,14 @@ typedef fd_set FD_SET;
 #endif
 
 #if SOCK_USE_C_BYPASS
-  BEGIN_EXTERNC
+  SOCK_BEGIN_EXTERNC
   extern int SOCK_getsockopt(int  s, int level, int optname, void *optval, GETSOCKOPT_LENGTH_T *optlen);
   extern int SOCK_getsockname(int s, struct sockaddr *name, GETSOCKNAME_LENGTH_T *namelen);
   extern int SOCK_getpeername(int s, struct sockaddr *name, GETSOCKNAME_LENGTH_T *namelen);
   extern int SOCK_ioctlsocket(int d, int request, IOCTL_FIONREAD_ARG_T *val);
   extern int SOCK_accept(SOCKET listener, struct sockaddr* calleraddr, LENGTH_PARAM *sz);
   extern int SOCK_recvfrom(SOCKET s, char * buf, int len, int flags, struct sockaddr *from, LENGTH_PARAM *sz);
-  END_EXTERNC
+  SOCK_END_EXTERNC
 #else
   #define SOCK_getsockopt   getsockopt
   #define SOCK_getsockname  getsockname

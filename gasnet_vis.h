@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
- *     $Date: 2006/02/11 11:42:35 $
- * $Revision: 1.10 $
+ *     $Date: 2006/05/02 05:43:54 $
+ * $Revision: 1.10.4.1 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,9 +11,11 @@
 
 #include <gasnet.h>
 
+GASNETI_BEGIN_EXTERNC
+
 /*---------------------------------------------------------------------------------*/
 
-GASNET_INLINE_MODIFIER(gasnete_memveclist_stats)
+GASNETI_INLINE(gasnete_memveclist_stats)
 gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_t const *list) {
   gasneti_memveclist_stats_t retval;
   size_t minsz = (size_t)-1, maxsz = 0;
@@ -24,11 +26,13 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_
   for (i = 0; i < count; i++) {
     size_t const len = list[i].len;
     char * const addr = (char *)list[i].addr;
-    if (len < minsz) minsz = len;
-    if (len > maxsz) maxsz = len;
-    if (addr < minaddr) minaddr = addr;
-    if (addr + len - 1 > maxaddr) maxaddr = addr + len - 1;
-    totalsz += len;
+    if (len > 0) {
+      if (len < minsz) minsz = len;
+      if (len > maxsz) maxsz = len;
+      if (addr < minaddr) minaddr = addr;
+      if (addr + len - 1 > maxaddr) maxaddr = addr + len - 1;
+      totalsz += len;
+    }
   }
   retval.minsz = minsz;
   retval.maxsz = maxsz;
@@ -40,7 +44,7 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_
 
 /*---------------------------------------------------------------------------------*/
 
-GASNET_INLINE_MODIFIER(gasnete_addrlist_stats)
+GASNETI_INLINE(gasnete_addrlist_stats)
 gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t count, void * const *list, size_t len) {
   gasneti_addrlist_stats_t retval;
   char *minaddr = (char *)(intptr_t)(uintptr_t)-1;
@@ -59,7 +63,7 @@ gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t count, void * const *list
 /*---------------------------------------------------------------------------------*/
 
 /* returns non-zero iff the specified strided region is empty */
-GASNET_INLINE_MODIFIER(gasnete_strided_empty)
+GASNETI_INLINE(gasnete_strided_empty)
 int gasnete_strided_empty(size_t const *count, size_t stridelevels) {
   size_t i;
   for (i = 0; i <= stridelevels; i++) {
@@ -69,9 +73,9 @@ int gasnete_strided_empty(size_t const *count, size_t stridelevels) {
 }
 
 /* returns the number of top-level dimensions with a count of 1 */
-GASNET_INLINE_MODIFIER(gasnete_strided_nulldims)
+GASNETI_INLINE(gasnete_strided_nulldims)
 size_t gasnete_strided_nulldims(size_t const *count, size_t stridelevels) {
-  int i;
+  ssize_t i;
   for (i = stridelevels; i >= 0; i--) {
     if_pt (count[i] != 1) return stridelevels-i;
   }
@@ -79,7 +83,7 @@ size_t gasnete_strided_nulldims(size_t const *count, size_t stridelevels) {
 }
 
 /* returns the length of the bounding box containing all the data */
-GASNET_INLINE_MODIFIER(gasnete_strided_extent)
+GASNETI_INLINE(gasnete_strided_extent)
 size_t gasnete_strided_extent(size_t const *strides, size_t const *count, size_t stridelevels) {
   /* Calculating the bounding rectangle for a strided section is subtle.
      The obvious choice:
@@ -99,7 +103,7 @@ size_t gasnete_strided_extent(size_t const *strides, size_t const *count, size_t
 }
 
 /* returns the total bytes of data in the transfer */
-GASNET_INLINE_MODIFIER(gasnete_strided_datasize)
+GASNETI_INLINE(gasnete_strided_datasize)
 size_t gasnete_strided_datasize(size_t const *count, size_t stridelevels) {
   size_t i;
   size_t sz = count[0];
@@ -113,24 +117,23 @@ size_t gasnete_strided_datasize(size_t const *count, size_t stridelevels) {
 
 /* returns the size of the contiguous segments in the transfer
  */
-GASNET_INLINE_MODIFIER(gasnete_strided_contigsz)
+GASNETI_INLINE(gasnete_strided_contigsz)
 size_t gasnete_strided_contigsz(size_t const *strides, size_t const *count, size_t stridelevels) {
-  size_t sz;
-  size_t i;
   size_t limit = stridelevels;
+  size_t sz = count[0];
+  size_t i;
 
   /* querying the contiguity of an empty region probably signifies a bug */
   gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
 
   while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  sz = count[0];
-  if (strides[0] > sz) return sz;
-  for (i = 1; i < stridelevels; i++) {
-    if (count[i] != 1) sz *= count[i];
-    if (strides[i] > (count[i]*strides[i-1])) return sz;
+  if (strides[0] > sz || limit == 0) return sz;
+  for (i = 1; i < limit; i++) {
+    sz *= count[i];
+    if (strides[i] > sz) return sz;
     gasneti_assert(strides[i] == (count[i]*strides[i-1]));
   }
-  if (count[stridelevels] != 1) sz *= count[stridelevels];
+  sz *= count[limit];
   return sz;
 }
 
@@ -138,7 +141,7 @@ size_t gasnete_strided_contigsz(size_t const *strides, size_t const *count, size
    eg. returns zero if only the bottom level is contiguous,
    and stridelevels if the entire region is contiguous
  */
-GASNET_INLINE_MODIFIER(gasnete_strided_contiguity)
+GASNETI_INLINE(gasnete_strided_contiguity)
 size_t gasnete_strided_contiguity(size_t const *strides, size_t const *count, size_t stridelevels) {
   size_t i;
   size_t limit = stridelevels;
@@ -147,7 +150,7 @@ size_t gasnete_strided_contiguity(size_t const *strides, size_t const *count, si
   gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
 
   while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  if (limit == 0) return stridelevels; /* trivially fully contiguous */
+  if_pf (limit == 0) return stridelevels; /* trivially fully contiguous */
 
   if (strides[0] > count[0]) return 0;
   gasneti_assert(strides[0] == count[0]);
@@ -163,7 +166,7 @@ size_t gasnete_strided_contiguity(size_t const *strides, size_t const *count, si
    and stridelevels if the both regions are entirely contiguous
    this can computed more efficiently than checking contiguity of each separately
  */
-GASNET_INLINE_MODIFIER(gasnete_strided_dualcontiguity)
+GASNETI_INLINE(gasnete_strided_dualcontiguity)
 size_t gasnete_strided_dualcontiguity(size_t const *strides1, size_t const *strides2, size_t const *count, size_t stridelevels) {
   size_t i;
   size_t temp;
@@ -173,7 +176,7 @@ size_t gasnete_strided_dualcontiguity(size_t const *strides1, size_t const *stri
   gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
 
   while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
-  if (limit == 0) return stridelevels; /* trivially fully contiguous */
+  if_pf (limit == 0) return stridelevels; /* trivially fully contiguous */
 
   temp = (strides1[0]+strides2[0]);
   if (temp > (count[0]<<1)) {
@@ -195,7 +198,7 @@ size_t gasnete_strided_dualcontiguity(size_t const *strides1, size_t const *stri
 }
 
 /* returns the number of contiguous segments in the transfer */
-GASNET_INLINE_MODIFIER(gasnete_strided_segments)
+GASNETI_INLINE(gasnete_strided_segments)
 size_t gasnete_strided_segments(size_t const *strides, size_t const *count, size_t stridelevels) {
   size_t contiglevel = gasnete_strided_contiguity(strides, count, stridelevels);
   if (contiglevel == stridelevels) return 1;
@@ -239,11 +242,11 @@ typedef struct {
 } gasnete_strided_stats_t;
 
 /* calculate a number of useful shape properties over the given regions */
-GASNET_INLINE_MODIFIER(gasnete_strided_stats)
+GASNETI_INLINE(gasnete_strided_stats)
 void gasnete_strided_stats(gasnete_strided_stats_t *result, 
                            size_t const *dststrides, size_t const *srcstrides, 
                            size_t const *count, size_t stridelevels) {
-  if (stridelevels == 0 && count[0] != 0) {
+  if_pf (stridelevels == 0 && count[0] != 0) {
     size_t const sz = count[0];
     gasneti_assert(!gasnete_strided_empty(count, stridelevels));
     result->srcextent = sz;
@@ -453,43 +456,6 @@ typedef enum _gasnete_synctype_t {
   gasnete_synctype_nbi
 } gasnete_synctype_t;
 
-#ifdef __GNUC__
-/* provide gcc with additional information about explicit handle returns, 
- * which should never be ignored */
-GASNET_INLINE_MODIFIER(_gasnet_putv_nb_bulk)
-gasnet_handle_t _gasnet_putv_nb_bulk(gasnet_node_t dstnode,
-                                     size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                     size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG)
-                                     GASNETI_WARN_UNUSED_RESULT;
-GASNET_INLINE_MODIFIER(_gasnet_getv_nb_bulk)
-gasnet_handle_t _gasnet_getv_nb_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
-                                     gasnet_node_t srcnode,
-                                     size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG)
-                                     GASNETI_WARN_UNUSED_RESULT;
-GASNET_INLINE_MODIFIER(_gasnet_puti_nb_bulk)
-gasnet_handle_t _gasnet_puti_nb_bulk(gasnet_node_t dstnode,
-                                     size_t dstcount, void * const dstlist[], size_t dstlen,
-                                     size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG)
-                                     GASNETI_WARN_UNUSED_RESULT;
-GASNET_INLINE_MODIFIER(_gasnet_geti_nb_bulk)
-gasnet_handle_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
-                                     gasnet_node_t srcnode,
-                                     size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG)
-                                     GASNETI_WARN_UNUSED_RESULT;
-GASNET_INLINE_MODIFIER(_gasnet_puts_nb_bulk)
-gasnet_handle_t _gasnet_puts_nb_bulk(gasnet_node_t dstnode,
-                                     void *dstaddr, const size_t dststrides[],
-                                     void *srcaddr, const size_t srcstrides[],
-                                     const size_t count[], size_t stridelevels GASNETE_THREAD_FARG)
-                                     GASNETI_WARN_UNUSED_RESULT;
-GASNET_INLINE_MODIFIER(_gasnet_gets_nb_bulk)
-gasnet_handle_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
-                                     gasnet_node_t srcnode,
-                                     void *srcaddr, const size_t srcstrides[],
-                                     const size_t count[], size_t stridelevels GASNETE_THREAD_FARG)
-                                     GASNETI_WARN_UNUSED_RESULT;
-#endif 
-
 /*---------------------------------------------------------------------------------*/
 /* Vector */
 #ifndef gasnete_putv
@@ -505,7 +471,7 @@ gasnet_handle_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG);
 #endif
 
-GASNET_INLINE_MODIFIER(_gasnet_putv_bulk)
+GASNETI_INLINE(_gasnet_putv_bulk)
 void _gasnet_putv_bulk(gasnet_node_t dstnode,
                        size_t dstcount, gasnet_memvec_t const dstlist[], 
                        size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -517,7 +483,7 @@ void _gasnet_putv_bulk(gasnet_node_t dstnode,
 #define gasnet_putv_bulk(dstnode,dstcount,dstlist,srccount,srclist) \
        _gasnet_putv_bulk(dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_getv_bulk)
+GASNETI_INLINE(_gasnet_getv_bulk)
 void _gasnet_getv_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
                        gasnet_node_t srcnode,
                        size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -529,7 +495,7 @@ void _gasnet_getv_bulk(size_t dstcount, gasnet_memvec_t const dstlist[],
 #define gasnet_getv_bulk(dstcount,dstlist,srcnode,srccount,srclist) \
        _gasnet_getv_bulk(dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_putv_nb_bulk)
+GASNETI_INLINE(_gasnet_putv_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_putv_nb_bulk(gasnet_node_t dstnode,
                                      size_t dstcount, gasnet_memvec_t const dstlist[], 
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -541,7 +507,7 @@ gasnet_handle_t _gasnet_putv_nb_bulk(gasnet_node_t dstnode,
 #define gasnet_putv_nb_bulk(dstnode,dstcount,dstlist,srccount,srclist) \
        _gasnet_putv_nb_bulk(dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_getv_nb_bulk)
+GASNETI_INLINE(_gasnet_getv_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_getv_nb_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
                                      gasnet_node_t srcnode,
                                      size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -553,7 +519,7 @@ gasnet_handle_t _gasnet_getv_nb_bulk(size_t dstcount, gasnet_memvec_t const dstl
 #define gasnet_getv_nb_bulk(dstcount,dstlist,srcnode,srccount,srclist) \
        _gasnet_getv_nb_bulk(dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_putv_nbi_bulk)
+GASNETI_INLINE(_gasnet_putv_nbi_bulk)
 void _gasnet_putv_nbi_bulk(gasnet_node_t dstnode,
                            size_t dstcount, gasnet_memvec_t const dstlist[], 
                            size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -565,7 +531,7 @@ void _gasnet_putv_nbi_bulk(gasnet_node_t dstnode,
 #define gasnet_putv_nbi_bulk(dstnode,dstcount,dstlist,srccount,srclist) \
        _gasnet_putv_nbi_bulk(dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_getv_nbi_bulk)
+GASNETI_INLINE(_gasnet_getv_nbi_bulk)
 void _gasnet_getv_nbi_bulk(size_t dstcount, gasnet_memvec_t const dstlist[], 
                            gasnet_node_t srcnode,
                            size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -592,7 +558,7 @@ void _gasnet_getv_nbi_bulk(size_t dstcount, gasnet_memvec_t const dstlist[],
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG);
 #endif
 
-GASNET_INLINE_MODIFIER(_gasnet_puti_bulk)
+GASNETI_INLINE(_gasnet_puti_bulk)
 void _gasnet_puti_bulk(gasnet_node_t dstnode, 
                        size_t dstcount, void * const dstlist[], size_t dstlen,
                        size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -604,7 +570,7 @@ void _gasnet_puti_bulk(gasnet_node_t dstnode,
 #define gasnet_puti_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
        _gasnet_puti_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_geti_bulk)
+GASNETI_INLINE(_gasnet_geti_bulk)
 void _gasnet_geti_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
                        gasnet_node_t srcnode,
                        size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -616,7 +582,7 @@ void _gasnet_geti_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
 #define gasnet_geti_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
        _gasnet_geti_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_puti_nb_bulk)
+GASNETI_INLINE(_gasnet_puti_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_puti_nb_bulk(gasnet_node_t dstnode, 
                                      size_t dstcount, void * const dstlist[], size_t dstlen,
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -628,7 +594,7 @@ gasnet_handle_t _gasnet_puti_nb_bulk(gasnet_node_t dstnode,
 #define gasnet_puti_nb_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
        _gasnet_puti_nb_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_geti_nb_bulk)
+GASNETI_INLINE(_gasnet_geti_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
                                      gasnet_node_t srcnode,
                                      size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -640,7 +606,7 @@ gasnet_handle_t _gasnet_geti_nb_bulk(size_t dstcount, void * const dstlist[], si
 #define gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
        _gasnet_geti_nb_bulk(dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_puti_nbi_bulk)
+GASNETI_INLINE(_gasnet_puti_nbi_bulk)
 void _gasnet_puti_nbi_bulk(gasnet_node_t dstnode, 
                            size_t dstcount, void * const dstlist[], size_t dstlen,
                            size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -652,7 +618,7 @@ void _gasnet_puti_nbi_bulk(gasnet_node_t dstnode,
 #define gasnet_puti_nbi_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
        _gasnet_puti_nbi_bulk(dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_geti_nbi_bulk)
+GASNETI_INLINE(_gasnet_geti_nbi_bulk)
 void _gasnet_geti_nbi_bulk(size_t dstcount, void * const dstlist[], size_t dstlen,
                            gasnet_node_t srcnode,
                            size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -682,7 +648,7 @@ void _gasnet_geti_nbi_bulk(size_t dstcount, void * const dstlist[], size_t dstle
                                      const size_t count[], size_t stridelevels GASNETE_THREAD_FARG);
 #endif
 
-GASNET_INLINE_MODIFIER(_gasnet_puts_bulk)
+GASNETI_INLINE(_gasnet_puts_bulk)
 void _gasnet_puts_bulk(gasnet_node_t dstnode,
                        void *dstaddr, const size_t dststrides[],
                        void *srcaddr, const size_t srcstrides[],
@@ -695,7 +661,7 @@ void _gasnet_puts_bulk(gasnet_node_t dstnode,
 #define gasnet_puts_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
        _gasnet_puts_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_gets_bulk)
+GASNETI_INLINE(_gasnet_gets_bulk)
 void _gasnet_gets_bulk(void *dstaddr, const size_t dststrides[],
                        gasnet_node_t srcnode, 
                        void *srcaddr, const size_t srcstrides[],
@@ -708,7 +674,7 @@ void _gasnet_gets_bulk(void *dstaddr, const size_t dststrides[],
 #define gasnet_gets_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
        _gasnet_gets_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_puts_nb_bulk)
+GASNETI_INLINE(_gasnet_puts_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_puts_nb_bulk(gasnet_node_t dstnode,
                                      void *dstaddr, const size_t dststrides[],
                                      void *srcaddr, const size_t srcstrides[],
@@ -721,7 +687,7 @@ gasnet_handle_t _gasnet_puts_nb_bulk(gasnet_node_t dstnode,
 #define gasnet_puts_nb_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
        _gasnet_puts_nb_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_gets_nb_bulk)
+GASNETI_INLINE(_gasnet_gets_nb_bulk) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
                                      gasnet_node_t srcnode, 
                                      void *srcaddr, const size_t srcstrides[],
@@ -734,7 +700,7 @@ gasnet_handle_t _gasnet_gets_nb_bulk(void *dstaddr, const size_t dststrides[],
 #define gasnet_gets_nb_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
        _gasnet_gets_nb_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_puts_nbi_bulk)
+GASNETI_INLINE(_gasnet_puts_nbi_bulk)
 void _gasnet_puts_nbi_bulk(gasnet_node_t dstnode,
                            void *dstaddr, const size_t dststrides[],
                            void *srcaddr, const size_t srcstrides[],
@@ -747,7 +713,7 @@ void _gasnet_puts_nbi_bulk(gasnet_node_t dstnode,
 #define gasnet_puts_nbi_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
        _gasnet_puts_nbi_bulk(dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
-GASNET_INLINE_MODIFIER(_gasnet_gets_nbi_bulk)
+GASNETI_INLINE(_gasnet_gets_nbi_bulk)
 void _gasnet_gets_nbi_bulk(void *dstaddr, const size_t dststrides[],
                            gasnet_node_t srcnode, 
                            void *srcaddr, const size_t srcstrides[],
@@ -761,4 +727,7 @@ void _gasnet_gets_nbi_bulk(void *dstaddr, const size_t dststrides[],
        _gasnet_gets_nbi_bulk(dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
+
+GASNETI_END_EXTERNC
+
 #endif

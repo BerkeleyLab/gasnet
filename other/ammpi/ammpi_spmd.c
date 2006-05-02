@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2005/07/23 01:39:24 $
- * $Revision: 1.27 $
+ *     $Date: 2006/05/02 05:44:12 $
+ * $Revision: 1.27.14.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -40,9 +40,9 @@ static void _freezeForDebugger(int depth) {
     while (ammpi_frozen) {
       i++;
       ammpi_sched_yield();
-      }
     }
   }
+}
 static void freezeForDebugger() {
   char name[255];
   gethostname(name, 255);
@@ -70,7 +70,6 @@ static int AMMPI_SPMDNUMPROCS = -1;
 static int AMMPI_SPMDMYPROC = -1;
 static MPI_Comm AMMPI_SPMDMPIComm;
 
-
 /* ------------------------------------------------------------------------------------ 
  *  misc helpers
  * ------------------------------------------------------------------------------------ */
@@ -92,6 +91,11 @@ static void flushStreams(const char *context) {
     perror("fflush");
     exit(1);
   }
+  fsync(STDOUT_FILENO); /* ignore errors for output is a console */
+  fsync(STDERR_FILENO); /* ignore errors for output is a console */
+  #ifndef __LIBCATAMOUNT__
+    sync();
+  #endif
   ammpi_sched_yield();
 }
 /* ------------------------------------------------------------------------------------ */
@@ -99,14 +103,14 @@ extern char *AMMPI_enStr(en_t en, char *buf) {
   AMMPI_assert(buf);
   sprintf(buf, "(%i)", en.mpirank);
   return buf;
-  }
+}
 extern char *AMMPI_tagStr(tag_t tag, char *buf) {
   AMMPI_assert(buf);
   sprintf(buf, "0x%08x%08x", 
     (unsigned int)(uint32_t)(tag >> 32), 
     (unsigned int)(uint32_t)(tag & 0xFFFFFFFF));
   return buf;
-  }
+}
 /* ------------------------------------------------------------------------------------ 
  *  basic inquiries
  * ------------------------------------------------------------------------------------ */
@@ -117,7 +121,7 @@ extern int AMMPI_SPMDNumProcs() {
   }
   AMMPI_assert(AMMPI_SPMDNUMPROCS >= 1);
   return AMMPI_SPMDNUMPROCS;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_SPMDMyProc() {
   if (!AMMPI_SPMDStartupCalled) {
@@ -126,7 +130,7 @@ extern int AMMPI_SPMDMyProc() {
   }
   AMMPI_assert(AMMPI_SPMDMYPROC >= 0);
   return AMMPI_SPMDMYPROC;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_SPMDStartup(int *argc, char ***argv,
                              int networkdepth, 
@@ -193,19 +197,14 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
     fflush(stderr);
   #endif
 
-  #if AMMPI_MPI_COMMUNICATORS
-    { /* setup comm for isolation */
-      MPI_Group world_group;
-      MPI_SAFE(MPI_Comm_group(MPI_COMM_WORLD, &world_group));
-      MPI_SAFE(MPI_Comm_create(MPI_COMM_WORLD, world_group, &AMMPI_SPMDMPIComm));
-      MPI_SAFE(MPI_Group_free(&world_group));
-    }
-  #else
-    AMMPI_SPMDMPIComm = MPI_COMM_WORLD;
-  #endif
+  { /* setup comm for isolation */
+    MPI_Group world_group;
+    MPI_SAFE(MPI_Comm_group(MPI_COMM_WORLD, &world_group));
+    MPI_SAFE(MPI_Comm_create(MPI_COMM_WORLD, world_group, &AMMPI_SPMDMPIComm));
+    MPI_SAFE(MPI_Group_free(&world_group));
+  }
 
-  {
-    int mypid = getpid();
+  { int mypid = getpid();
     int networkpidtemp = 0;
     if (!mypid) mypid = (int)AMMPI_getMicrosecondTimeStamp() | 0x1; /* ensure nonzero pid */
     AMMPI_assert(mypid);
@@ -223,8 +222,6 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
       AMMPI_RETURN(temp);
     }
   
-    AMMPI_SetEndpointCommunicator(&AMMPI_SPMDMPIComm);
-
     temp = AM_AllocateEndpoint(AMMPI_SPMDBundle, &AMMPI_SPMDEndpoint, &AMMPI_SPMDName);
     if (temp != AM_OK) {
       ErrMessage("Failed to create endpoint in AMMPI_SPMDStartup");
@@ -372,10 +369,8 @@ static int AMMPI_SPMDShutdown(int exitcode) {
     MPI_SAFE(MPI_Abort(AMMPI_SPMDMPIComm, exitcode));
   #endif
 
-  #if AMMPI_MPI_COMMUNICATORS
-    MPI_SAFE(MPI_Comm_free(&AMMPI_SPMDMPIComm));
-    AMMPI_SPMDMPIComm = MPI_COMM_WORLD;
-  #endif
+  MPI_SAFE(MPI_Comm_free(&AMMPI_SPMDMPIComm));
+  AMMPI_SPMDMPIComm = MPI_COMM_WORLD;
 
   MPI_SAFE(MPI_Finalize());
 
@@ -423,7 +418,7 @@ extern int AMMPI_SPMDBarrier() {
   if (!AMMPI_SPMDStartupCalled) {
     ErrMessage("called AMMPI_SPMDBarrier before AMMPI_SPMDStartup()");
     AMMPI_RETURN_ERR(NOT_INIT);
-    }
+  }
 
   flushStreams("AMMPI_SPMDBarrier");
 
@@ -463,8 +458,7 @@ extern int AMMPI_SPMDBarrier() {
       if (AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'B', (int32_t)0) != AM_OK)
         AMMPI_RETURN_ERR(RESOURCE);
     }
-  }
-  else { /* proc non-zero */
+  } else { /* proc non-zero */
     en_t remoteName;
     if (AM_GetTranslationName(AMMPI_SPMDEndpoint, 0, &remoteName) != AM_OK)
       AMMPI_RETURN_ERR(RESOURCE);
@@ -492,7 +486,7 @@ extern int AMMPI_SPMDBarrier() {
   AM_SetEventMask(AMMPI_SPMDBundle, oldmask);
   DEBUG_MSG("Leaving barrier");
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ 
  *  bootstrapping helpers
  * ------------------------------------------------------------------------------------ */

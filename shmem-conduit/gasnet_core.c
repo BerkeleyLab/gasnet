@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2005/11/27 16:00:13 $
- * $Revision: 1.25 $
+ *     $Date: 2006/05/02 05:44:28 $
+ * $Revision: 1.25.8.1 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -626,7 +626,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_AMProcess)
+GASNETI_INLINE(gasnetc_AMProcess)
 void
 gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 {
@@ -1229,7 +1229,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 
   { int retval; 
     #if GASNETI_STATS_OR_TRACE
-      gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
+      gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
       while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
@@ -1237,7 +1237,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_mutex_lock(&(hsl->lock));
     #endif
     #if GASNETI_STATS_OR_TRACE
-      hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
     #endif
   }
@@ -1262,7 +1262,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW()-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, gasneti_ticks_now()-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
@@ -1276,7 +1276,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
     if (locked) {
       #if GASNETI_STATS_OR_TRACE
-        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+        hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
         /* conduits with interrupt-based handler dispatch need to add code here to 
@@ -1413,7 +1413,7 @@ gasnet_seginfo_t
 gasnetc_SHMallocSegmentSearch()
 {
 	gasnet_seginfo_t    si;
-	gasneti_stattime_t  starttime, endtime;
+	gasneti_tick_t  starttime, endtime;
 	int64_t		    start, end;
 	uintptr_t	    maxsz;
 
@@ -1440,7 +1440,7 @@ gasnetc_SHMallocSegmentSearch()
 
 	    alloc_perthread = gasnetc_aligndown_pow2(maxsz/gasneti_nodes);
 
-	    starttime = GASNETI_STATTIME_NOW();
+	    starttime = gasneti_ticks_now();
 	    si.addr = NULL;
 
 	    while (alloc_perthread > 0) {
@@ -1452,21 +1452,21 @@ gasnetc_SHMallocSegmentSearch()
 			break;
 		alloc_perthread /= 2;
 	    }
-	    endtime = GASNETI_STATTIME_NOW();
+	    endtime = gasneti_ticks_now();
 
 	    if (si.addr != NULL)
 		si.size = alloc_perthread;
 	}
 	#else
-	    starttime = GASNETI_STATTIME_NOW();
+	    starttime = gasneti_ticks_now();
 	    si = gasnetc_SHMallocBinarySearch(0UL, maxsz);
-	    endtime = GASNETI_STATTIME_NOW();
+	    endtime = gasneti_ticks_now();
 	#endif
 
 	if (gasnetc_verbose_spawn)
 		printf("shmalloc search for %lu bytes (max=%lu) took %lu us (%p,%lu)\n", 
 		    si.size, maxsz, 
-		    (long)GASNETI_STATTIME_TO_NS(endtime-starttime)/1000,
+		    (long)gasneti_ticks_to_ns(endtime-starttime)/1000,
 		    (void*)si.addr,(uintptr_t)si.size);
 
 	return si;

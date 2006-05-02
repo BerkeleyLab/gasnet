@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.h,v $
- *     $Date: 2004/10/09 14:44:05 $
- * $Revision: 1.12 $
+ *     $Date: 2006/05/02 05:44:12 $
+ * $Revision: 1.12.18.1 $
  * Description: AMMPI Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -10,7 +10,7 @@
 
 #include <ammpi.h>
 
-BEGIN_EXTERNC
+AMMPI_BEGIN_EXTERNC
 
 #undef  AMMPI_SPMDStartup
 #define AMMPI_SPMDStartup _CONCAT(AMMPI_SPMDStartup_AMMPI,AMMPI_DEBUG_CONFIG)
@@ -88,6 +88,6 @@ extern int AMMPI_SPMDBroadcast(void *buf, size_t len, int rootid);
 #define AMX_SPMDStartup(pargc, pargv, networkdepth, pnetworkpid, peb, pep) \
       AMMPI_SPMDStartup((pargc), (pargv), (networkdepth), (pnetworkpid), (peb), (pep))
 
-END_EXTERNC
+AMMPI_END_EXTERNC
 
 #endif

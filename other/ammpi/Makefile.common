@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.common,v $
-#     $Date: 2005/08/22 09:30:26 $
-# $Revision: 1.8 $
+#     $Date: 2006/05/02 05:44:12 $
+# $Revision: 1.8.18.1 $
 # Description: Platform-independent variable init, overridden by pre-baked makefiles
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -20,6 +20,7 @@ MPIRUN_CMD = mpirun -np %N %P %A
 # system utilities
 ranlib = ranlib
 ar = ar
+PERL = perl
 
 # To be set by pre-baked makefiles:
 endianness = 

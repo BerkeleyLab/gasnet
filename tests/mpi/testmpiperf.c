@@ -172,8 +172,12 @@ double barriertest(int iters) {
  *   or even to some form of non-blocking send)
  * returns the total number of microseconds consumed during the test
  */
+#ifndef USE_ISEND
 #define USE_ISEND 1
+#endif
+#ifndef USE_ZERO_BYTE_ACK
 #define USE_ZERO_BYTE_ACK 1
+#endif
 double pingpongtest(int iters, int msgsz) {
   int i;
   int64_t starttime, endtime;

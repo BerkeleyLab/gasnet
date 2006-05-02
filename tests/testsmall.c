@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2006/01/28 21:21:46 $
- * $Revision: 1.36 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.36.2.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -41,6 +41,8 @@ int numprocs;
 int peerproc = -1;
 int iamsender = 0;
 int unitsMB = 0;
+int doputs = 1;
+int dogets = 1;
 
 void *tgtmem;
 char *msgbuf;
@@ -70,16 +72,18 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 {
 	switch (operation) {
 	case PRINT_LATENCY:
-		printf("Proc %2i - %10i byte : %7i iters,"
+		printf("%c: %2i - %10i byte : %7i iters,"
 			   " latency %10i us total, %9.3f us ave. (%s)\n",
+                        TEST_SECTION_NAME(),
 			myproc, st->datasize, st->iters, (int) st->time,
 			((double)st->time) / st->iters,
 			name);
 		fflush(stdout);
 		break;
 	case PRINT_THROUGHPUT:
-		printf((unitsMB?"Proc %2i - %10i byte : %7i iters, throughput %11.6f MB/sec (%s)\n":
-                                "Proc %2i - %10i byte : %7i iters, throughput %11.3f KB/sec (%s)\n"),
+		printf((unitsMB?"%c: %2i - %10i byte : %7i iters, throughput %11.6f MB/sec (%s)\n":
+                                "%c: %2i - %10i byte : %7i iters, throughput %11.3f KB/sec (%s)\n"),
+                        TEST_SECTION_NAME(),
 			myproc, st->datasize, st->iters,
 			((int)st->time == 0 ? 0.0 :
                         (1000000.0 * st->datasize * st->iters / 
@@ -107,7 +111,7 @@ void roundtrip_test(int iters, int nbytes)
 
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		/* measure the round-trip time of put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -119,14 +123,14 @@ void roundtrip_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put latency", PRINT_LATENCY);
 	}	
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 
-	if (iamsender) {
+	if (iamsender && dogets) {
 		/* measure the round-trip time of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -138,7 +142,7 @@ void roundtrip_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && dogets) {
 		print_stat(myproc, &st, "get latency", PRINT_LATENCY);
 	}	
 }
@@ -157,7 +161,7 @@ void oneway_test(int iters, int nbytes)
 
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		/* measure the throughput of put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -169,14 +173,14 @@ void oneway_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put throughput", PRINT_THROUGHPUT);
 	}	
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 
-	if (iamsender) {
+	if (iamsender && dogets) {
 		/* measure the throughput of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -188,7 +192,7 @@ void oneway_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && dogets) {
 		print_stat(myproc, &st, "get throughput", PRINT_THROUGHPUT);
 	}	
 }
@@ -208,7 +212,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		/* measure the round-trip time of nonblocking implicit put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -221,7 +225,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put_nbi latency", PRINT_LATENCY);
 	}	
 
@@ -229,7 +233,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 
-	if (iamsender) {
+	if (iamsender && dogets) {
 		/* measure the round-trip time of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -242,7 +246,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && dogets) {
 		print_stat(myproc, &st, "get_nbi latency", PRINT_LATENCY);
 	}	
 
@@ -262,7 +266,7 @@ void oneway_nbi_test(int iters, int nbytes)
 
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		/* measure the throughput of nonblocking implicit put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -275,14 +279,14 @@ void oneway_nbi_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put_nbi throughput", PRINT_THROUGHPUT);
 	}	
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 
-	if (iamsender) {
+	if (iamsender && dogets) {
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -295,7 +299,7 @@ void oneway_nbi_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && dogets) {
 		print_stat(myproc, &st, "get_nbi throughput", PRINT_THROUGHPUT);
 	}	
 }
@@ -316,7 +320,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		/* measure the round-trip time of nonblocking put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -329,14 +333,14 @@ void roundtrip_nb_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put_nb latency", PRINT_LATENCY);
 	}	
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 
-	if (iamsender) {
+	if (iamsender && dogets) {
 		/* measure the round-trip time of nonblocking get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
@@ -349,7 +353,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && dogets) {
 		print_stat(myproc, &st, "get_nb latency", PRINT_LATENCY);
 	}	
 
@@ -373,7 +377,7 @@ void oneway_nb_test(int iters, int nbytes)
 
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		/* measure the throughput of sending a message */
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
@@ -390,14 +394,14 @@ void oneway_nb_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put_nb throughput", PRINT_THROUGHPUT);
 	}	
 	
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 
-	if (iamsender) {
+	if (iamsender && dogets) {
 		/* measure the throughput of receiving a message */
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
@@ -414,7 +418,7 @@ void oneway_nb_test(int iters, int nbytes)
 	
 	BARRIER();
 	
-	if (iamsender) {
+	if (iamsender && dogets) {
 		print_stat(myproc, &st, "get_nb throughput", PRINT_THROUGHPUT);
 	}	
 	
@@ -431,6 +435,7 @@ int main(int argc, char **argv)
     int i, j;
     int firstlastmode = 0;
     int fullduplexmode = 0;
+    int crossmachinemode = 0;
     int help = 0;   
    
     /* call startup */
@@ -447,35 +452,46 @@ int main(int argc, char **argv)
       } else if (!strcmp(argv[arg], "-f")) {
         firstlastmode = 1;
         ++arg;
+      } else if (!strcmp(argv[arg], "-c")) {
+        crossmachinemode = 1;
+        ++arg;
       } else if (!strcmp(argv[arg], "-a")) {
         fullduplexmode = 1;
         ++arg;
       } else if (!strcmp(argv[arg], "-m")) {
         unitsMB = 1;
         ++arg;
+      } else if (!strcmp(argv[arg], "-p")) {
+        dogets = 0; doputs = 1;
+        ++arg;
+      } else if (!strcmp(argv[arg], "-g")) {
+        dogets = 1; doputs = 0;
+        ++arg;
       } else if (argv[arg][0] == '-') {
         help = 1;
         ++arg;
       } else break;
     }
-    if (fullduplexmode && firstlastmode) help = 1;
 
     if (argc > arg) { iters = atoi(argv[arg]); arg++; }
     if (!iters) iters = 1000;
     if (argc > arg) { maxsz = atoi(argv[arg]); arg++; }
     if (!maxsz) maxsz = 2048; /* 2 KB default */
+    if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ/2) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING", (unsigned long)(TEST_SEGSZ/2)); gasnet_exit(1); }
     #endif
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testsmall",1, "[-in|-out|-f] (iters) (maxsz)\n"
+    test_init("testsmall",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
-               "  memory is in the GASNet segment or not (default it not).\n"
+               "   memory is in the GASNet segment or not (default it not).\n"
+               "  The -p/-g option selects puts only or gets only (default is both).\n"
                "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).\n"
                "  The -a option enables full-duplex mode, where all nodes send.\n"
+               "  The -c option enables cross-machine pairing, default is nearest neighbor.\n"
                "  The -f option enables 'first/last' mode, where the first/last\n"
-               "  nodes communicate with each other, while all other nodes sit idle.\n");
+               "   nodes communicate with each other, while all other nodes sit idle.\n");
     if (help || argc > arg) test_usage();
 
     min_payload = 1;
@@ -500,11 +516,19 @@ int main(int argc, char **argv)
     
     /* Setting peer thread rank */
     if (firstlastmode) {
-      peerproc = numprocs-1;
-      iamsender = (myproc == 0);
+      peerproc = (myproc == 0 ? numprocs-1 : 0);
+      iamsender = (fullduplexmode ? myproc == 0 || myproc == numprocs-1 : myproc == 0);
     }  else if (numprocs == 1) {
       peerproc = 0;
       iamsender = 1;
+    } else if (crossmachinemode) {
+      if (myproc < numprocs / 2) {
+        peerproc = myproc + numprocs/2;
+        iamsender = 1;
+      } else {
+        peerproc = myproc - numprocs/2;
+        iamsender = fullduplexmode;
+      }
     } else { 
       peerproc = (myproc % 2) ? (myproc - 1) : (myproc + 1);
       iamsender = (fullduplexmode || myproc % 2 == 0);
@@ -524,9 +548,11 @@ int main(int argc, char **argv)
         assert(((uintptr_t)msgbuf) % PAGESZ == 0);
         assert(((uintptr_t)ackbuf) % PAGESZ == 0);
         if (myproc == 0) 
-          MSG("Running %i iterations of %snon-bulk put/get with local addresses %sside the segment for sizes: %i...%i\n", 
+          MSG("Running %i iterations of %s%s%snon-bulk put/get with local addresses %sside the segment for sizes: %i...%i\n", 
           iters, 
-          firstlastmode ? "first/last " : (fullduplexmode ? "full-duplex ": ""),
+          (firstlastmode ? "first/last " : ""),
+          (fullduplexmode ? "full-duplex ": ""),
+          (crossmachinemode ? "cross-machine ": ""),
           insegment ? "in" : "out", 
           min_payload, max_payload);
         BARRIER();
@@ -552,16 +578,22 @@ int main(int argc, char **argv)
 
         BARRIER();
 
-	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
+	if (TEST_SECTION_BEGIN_ENABLED()) 
+        for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
 
-  	for (j = min_payload; j <= max_payload; j *= 2)  oneway_test(iters, j);
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
+        for (j = min_payload; j <= max_payload; j *= 2)  oneway_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nbi_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nbi_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nb_test(iters, j);
 
+  	if (TEST_SECTION_BEGIN_ENABLED()) 
   	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nb_test(iters, j);
 
         BARRIER();

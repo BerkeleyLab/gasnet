@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spawn.cpp,v $
- *     $Date: 2005/05/23 11:36:34 $
- * $Revision: 1.12 $
+ *     $Date: 2006/05/02 05:44:14 $
+ * $Revision: 1.12.24.1 $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -53,7 +53,7 @@ extern int AMUDP_SPMDLocalSpawn(int nproc, int argc, char **argv) {
   if (!AMUDP_SPMDSpawnRunning) {
     ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
     return FALSE;
-    }
+  }
 
   for (i = 0; i < nproc; i++) {
     #if defined(WIN32) && !defined(__CYGWIN__)
@@ -76,8 +76,7 @@ extern int AMUDP_SPMDLocalSpawn(int nproc, int argc, char **argv) {
       if (forkRet == -1) {
         perror("fork");
         return FALSE;
-        }
-      else if (forkRet != 0) continue;  /*  this is the parent, will go back to the top of the loop */
+      } else if (forkRet != 0) continue;  /*  this is the parent, will go back to the top of the loop */
       else {  /*  this is the child - exec the new process */
         /*  could close some resources here (like AMUDP_SPMDListenSocket) but not strictly necessary */
 
@@ -92,51 +91,49 @@ extern int AMUDP_SPMDLocalSpawn(int nproc, int argc, char **argv) {
         /*  if execv returns, an error occurred */
         perror("execv");
         _exit(1); /*  use _exit() to prevent corrupting parent's io buffers */
-        } /*  child */
+      } /*  child */
     #endif
-    }
-  return TRUE;
   }
+  return TRUE;
+}
 /* ------------------------------------------------------------------------------------ 
  *  spawn jobs using Glunix (requires GLUNIX be defined when library is built)
  * ------------------------------------------------------------------------------------ */
 #ifdef GLUNIX
-#include <glib.h>
-extern int AMUDP_SPMDGlunixSpawn(int nproc, int argc, char **argv) {
-  /* GLUNIX has good built-in facilities for remote spawn */
-  int forkRet;
+  #include <glib.h>
+  extern int AMUDP_SPMDGlunixSpawn(int nproc, int argc, char **argv) {
+    /* GLUNIX has good built-in facilities for remote spawn */
+    int forkRet;
 
-  if (!AMUDP_SPMDSpawnRunning) {
-    ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
-    return FALSE;
+    if (!AMUDP_SPMDSpawnRunning) {
+      ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
+      return FALSE;
     }
 
-  forkRet = fork();
-  if (forkRet == -1) {
-    perror("fork");
-    return FALSE;
-    }
-  else if (forkRet != 0) {
-    AMUDP_SPMDRedirectStdsockets = FALSE; /* GLUNIX has it's own console redirection facilities */
-    return TRUE;  
-    }
-  else {  /*  this is the child - exec the new process */
-    if (!Glib_Initialize()) {
-      fprintf(stderr,"failed to Glib_Initialize()\n");
-      abort(); /* failed to init */
+    forkRet = fork();
+    if (forkRet == -1) {
+      perror("fork");
+      return FALSE;
+    } else if (forkRet != 0) {
+      AMUDP_SPMDRedirectStdsockets = FALSE; /* GLUNIX has it's own console redirection facilities */
+      return TRUE;  
+    } else {  /*  this is the child - exec the new process */
+      if (!Glib_Initialize()) {
+        fprintf(stderr,"failed to Glib_Initialize()\n");
+        abort(); /* failed to init */
       }
-    /*AMUDP_assert(Glib_AmIStartup() > 0);*/
-    Glib_Spawn(nproc, argv[0], argv); /* should never return */
-    fprintf(stderr,"failed to Glib_Spawn()\n");
-    abort(); /* something went wrong */
-    return FALSE;
+      /*AMUDP_assert(Glib_AmIStartup() > 0);*/
+      Glib_Spawn(nproc, argv[0], argv); /* should never return */
+      fprintf(stderr,"failed to Glib_Spawn()\n");
+      abort(); /* something went wrong */
+      return FALSE;
     }
   }
 #else
-extern int AMUDP_SPMDGlunixSpawn(int nproc, int argc, char **argv) {
-  ErrMessage("AMUDP_SPMDGlunixSpawn() cannot be called because the AMUDP library was compiled without -DGLUNIX.\n"
-           "  Please recompile libAMUDP.a with -DGLUNIX, relink your application and try again.");
-  return FALSE;
+  extern int AMUDP_SPMDGlunixSpawn(int nproc, int argc, char **argv) {
+    ErrMessage("AMUDP_SPMDGlunixSpawn() cannot be called because the AMUDP library was compiled without -DGLUNIX.\n"
+             "  Please recompile libAMUDP.a with -DGLUNIX, relink your application and try again.");
+    return FALSE;
   }
 #endif
 /* ------------------------------------------------------------------------------------ 
@@ -156,73 +153,70 @@ extern int AMUDP_SPMDGlunixSpawn(int nproc, int argc, char **argv) {
  *  of AMUDP_ or AMUDP_ENV_PREFIX##_)
  */
 #ifdef REXEC
-int AMUDP_SPMDRexecSpawn(int nproc, int argc, char **argv) {
-  int i;
-  char *rexec_cmd;
-  char *rexec_options;
-  char cmd1[1024],cmd2[1024];
-  int pid;
+  int AMUDP_SPMDRexecSpawn(int nproc, int argc, char **argv) {
+    int i;
+    char *rexec_cmd;
+    char *rexec_options;
+    char cmd1[1024],cmd2[1024];
+    int pid;
 
-  if (!AMUDP_SPMDSpawnRunning) {
-    ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
-    return FALSE;
-    }
-
-  pid = getpid();
-
-  rexec_cmd = AMUDP_getenv_prefixed_withdefault("REXEC_CMD", "rexec");
-  rexec_options = AMUDP_getenv_prefixed_withdefault("REXEC_OPTIONS", "-q");
-
-  cmd1[0] = '\0';
-  for (i = 0; i < argc; i++) {
-   AMUDP_assert(argv[i]);
-   strcat(cmd1,"'");
-   strcat(cmd1,argv[i]);
-   strcat(cmd1,"' ");
-   }
-  AMUDP_assert(!argv[i]);
-
-  /* build the rexec command */
-  sprintf(cmd2, "%s %s -n %i /bin/sh -c \"%s%s\" " /* shell wrapper required because of crappy rexec implementation */
-   " || ( echo \"rexec spawn failed.\" ; kill %i ) ",
-  rexec_cmd, rexec_options, nproc,
-
-  (AMUDP_SilentMode?"":"echo connected to \\`uname -n\\`... ; "),
-
-    cmd1, pid
-
-   );
-
-  {
-    int forkRet;
-    forkRet = fork(); /* fork a new process to hold rexec master */
-
-    if (forkRet == -1) {
-      perror("fork");
+    if (!AMUDP_SPMDSpawnRunning) {
+      ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
       return FALSE;
-      }
-    else if (forkRet != 0) {
-      AMUDP_SPMDRedirectStdsockets = FALSE; /* REXEC has it's own console redirection facilities */
-      return TRUE;  
-      }
-    else {  /*  this is the child - exec the new process */
-      if (!AMUDP_SilentMode) 
-        printf("system(%s)\n", cmd2); fflush(stdout);
-      if (system(cmd2) == -1) {
-         printf("Failed to call system() to spawn rexec");
-         abort();
-         return FALSE;
-         }
-      exit(0);
+    }
+
+    pid = getpid();
+
+    rexec_cmd = AMUDP_getenv_prefixed_withdefault("REXEC_CMD", "rexec");
+    rexec_options = AMUDP_getenv_prefixed_withdefault("REXEC_OPTIONS", "-q");
+
+    cmd1[0] = '\0';
+    for (i = 0; i < argc; i++) {
+      AMUDP_assert(argv[i]);
+      strcat(cmd1,"'");
+      strcat(cmd1,argv[i]);
+      strcat(cmd1,"' ");
+    }
+    AMUDP_assert(!argv[i]);
+
+    /* build the rexec command */
+    sprintf(cmd2, "%s %s -n %i /bin/sh -c \"%s%s\" " /* shell wrapper required because of crappy rexec implementation */
+     " || ( echo \"rexec spawn failed.\" ; kill %i ) ",
+      rexec_cmd, rexec_options, nproc,
+
+      (AMUDP_SilentMode?"":"echo connected to \\`uname -n\\`... ; "),
+
+      cmd1, pid
+
+    );
+
+    { int forkRet;
+      forkRet = fork(); /* fork a new process to hold rexec master */
+
+      if (forkRet == -1) {
+        perror("fork");
+        return FALSE;
+      } else if (forkRet != 0) {
+        AMUDP_SPMDRedirectStdsockets = FALSE; /* REXEC has it's own console redirection facilities */
+        return TRUE;  
+      } else {  /*  this is the child - exec the new process */
+        if (!AMUDP_SilentMode) 
+          printf("system(%s)\n", cmd2); fflush(stdout);
+        if (system(cmd2) == -1) {
+           printf("Failed to call system() to spawn rexec");
+           abort();
+           return FALSE;
+        }
+        exit(0);
       }
     }
-  return TRUE;
-  }
+    return TRUE;
+}
 #else
-extern int AMUDP_SPMDRexecSpawn(int nproc, int argc, char **argv) {
-  ErrMessage("AMUDP_SPMDRexecSpawn() cannot be called because the AMUDP library was compiled without -DREXEC.\n"
-           "  Please recompile libAMUDP.a with -DREXEC, relink your application and try again.");
-  return FALSE;
+  extern int AMUDP_SPMDRexecSpawn(int nproc, int argc, char **argv) {
+    ErrMessage("AMUDP_SPMDRexecSpawn() cannot be called because the AMUDP library was compiled without -DREXEC.\n"
+             "  Please recompile libAMUDP.a with -DREXEC, relink your application and try again.");
+    return FALSE;
   }
 #endif
 /* ------------------------------------------------------------------------------------ 
@@ -264,7 +258,7 @@ int AMUDP_SPMDSshSpawn(int nproc, int argc, char **argv) {
   if (!AMUDP_SPMDSpawnRunning) {
     ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
     return FALSE;
-    }
+  }
 
   pid = getpid();
 
@@ -300,83 +294,83 @@ int AMUDP_SPMDSshSpawn(int nproc, int argc, char **argv) {
 
   cmd1[0] = '\0';
   for (i = 0; i < argc; i++) {
-   AMUDP_assert(argv[i] != NULL);
-   strcat(cmd1,"'");
-   strcat(cmd1,argv[i]);
-   strcat(cmd1,"' ");
-   }
+    AMUDP_assert(argv[i] != NULL);
+    strcat(cmd1,"'");
+    strcat(cmd1,argv[i]);
+    strcat(cmd1,"' ");
+  }
   AMUDP_assert(!argv[i]);
 
   p = ssh_servers;
   for (i = 0; i < nproc; i++) { /* check we have enough servers */
-   const char *end;
-   while (*p && strchr(SSH_SERVERS_DELIM_CHARS, *p)) p++;
-   end = p + strcspn(p, SSH_SERVERS_DELIM_CHARS);
-   if (p == end) {
-     printf("Not enough machines in environment variable SSH_SERVERS to satisfy request for (%i).\n"
+    const char *end;
+    while (*p && strchr(SSH_SERVERS_DELIM_CHARS, *p)) p++;
+    end = p + strcspn(p, SSH_SERVERS_DELIM_CHARS);
+    if (p == end) {
+      printf("Not enough machines in environment variable SSH_SERVERS to satisfy request for (%i).\n"
        "Only (%i) machines available: %s\n", nproc, i, ssh_servers);
-     return FALSE;
-     }
-   if (*end) p = end+1;
-   else p = end;
-   } 
+      return FALSE;
+    }
+    if (*end) p = end+1;
+    else p = end;
+  } 
 
   p = ssh_servers;
   for (i = 0; i < nproc; i++) {
-   char ssh_server[255];
-   const char *end;
-   while (*p && strchr(SSH_SERVERS_DELIM_CHARS, *p)) p++;
-   end = p + strcspn(p, SSH_SERVERS_DELIM_CHARS);
-   AMUDP_assert(p != end);
+    char ssh_server[255];
+    const char *end;
+    while (*p && strchr(SSH_SERVERS_DELIM_CHARS, *p)) p++;
+    end = p + strcspn(p, SSH_SERVERS_DELIM_CHARS);
+    AMUDP_assert(p != end);
 
-   strncpy(ssh_server, p, (end-p));
-   ssh_server[end-p] = '\0'; 
+    strncpy(ssh_server, p, (end-p));
+    ssh_server[end-p] = '\0'; 
 
-   /* build the ssh command */
-   sprintf(cmd2, "%s %s %s %s %s %s \" %s cd '%s' ; %s\" "
-     " || ( echo \"connection to %s failed.\" ; kill %i ) "
-     "%s", 
-    ssh_cmd,
+    /* build the ssh command */
+    sprintf(cmd2, "%s %s %s %s %s %s \" %s cd '%s' ; %s\" "
+      " || ( echo \"connection to %s failed.\" ; kill %i ) "
+      "%s", 
+      ssh_cmd,
 
-    (isOpenSSH?"-f":""),    /* go into background and nullify stdin */
+      (isOpenSSH?"-f":""),    /* go into background and nullify stdin */
 
-    #if SSH_SUPRESSNEWKEYPROMPT
-      (isOpenSSH?"-o 'StrictHostKeyChecking no'":""),
-    #else 
-      "",
-    #endif
+      #if SSH_SUPRESSNEWKEYPROMPT
+        (isOpenSSH?"-o 'StrictHostKeyChecking no'":""),
+      #else 
+        "",
+      #endif
 
-    #if SSH_PREVENTRSHFALLBACK
-      (isOpenSSH?"-o 'FallBackToRsh no'":""),
-    #else 
-      "",
-    #endif
+      #if SSH_PREVENTRSHFALLBACK
+        (isOpenSSH?"-o 'FallBackToRsh no'":""),
+      #else 
+        "",
+      #endif
 
       ssh_options, ssh_server, 
       
       (AMUDP_SilentMode?"":"echo connected to \\$HOST... ;"),
 
-     ssh_remote_path, cmd1, ssh_server, pid,
+      ssh_remote_path, cmd1, ssh_server, pid,
 
-    #if SSH_PARALLELSPAWN
-      "&"
-    #else
-      ""
-    #endif
-     );
+      #if SSH_PARALLELSPAWN
+        "&"
+      #else
+        ""
+      #endif
+    );
 
-   if (!AMUDP_SilentMode) 
-     printf("system(%s)\n", cmd2); fflush(stdout);
-   if (system(cmd2) == -1) {
-     printf("Failed to call system() to spawn");
-     return FALSE;
-     }
-   if (*end) p = end+1;
-   else p = end;
-   } 
+    if (!AMUDP_SilentMode) 
+      printf("system(%s)\n", cmd2); fflush(stdout);
+    if (system(cmd2) == -1) {
+      printf("Failed to call system() to spawn");
+      return FALSE;
+    }
+    if (*end) p = end+1;
+    else p = end;
+  } 
 
   return TRUE;
-  }
+}
 /* ------------------------------------------------------------------------------------ 
  *  spawn jobs using a user-defined command
  * ------------------------------------------------------------------------------------ */
@@ -411,7 +405,7 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
   if (!AMUDP_SPMDSpawnRunning) {
     ErrMessage("Spawn functions should never be run directly - only passed to AMUDP_SPMDStartup()"); 
     return FALSE;
-    }
+  }
 
   pid = getpid();
 
@@ -433,23 +427,23 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
     strcpy(serverDelim," "); /* default to space */
     workerservers[0] = '\0';
     for (i = 0; i < nproc; i++) { /* check we have enough servers & copy the right number */
-     char *end;
-     while (*p && strchr(SSH_SERVERS_DELIM_CHARS, *p)) p++;
-     end = p + strcspn(p, SSH_SERVERS_DELIM_CHARS);
-     if (p == end) {
-       printf("Not enough machines in environment variable "AMUDP_ENV_PREFIX_STR"_CSPAWN_SERVERS to satisfy request for (%i).\n"
-         "Only (%i) machines available: %s\n", nproc, i, spawn_servers);
-       return FALSE;
-     }
-     strncpy(servername, p, end-p);
-     servername[end-p] = '\0';
-     if (workerservers[0]) strcat(workerservers, serverDelim);
-     if (*end) serverDelim[0] = *end;
-     strcat(workerservers, servername);
-     if (*end) p = end+1;
-     else p = end;
+      char *end;
+      while (*p && strchr(SSH_SERVERS_DELIM_CHARS, *p)) p++;
+      end = p + strcspn(p, SSH_SERVERS_DELIM_CHARS);
+      if (p == end) {
+        printf("Not enough machines in environment variable "AMUDP_ENV_PREFIX_STR"_CSPAWN_SERVERS to satisfy request for (%i).\n"
+          "Only (%i) machines available: %s\n", nproc, i, spawn_servers);
+        return FALSE;
+      }
+      strncpy(servername, p, end-p);
+      servername[end-p] = '\0';
+      if (workerservers[0]) strcat(workerservers, serverDelim);
+      if (*end) serverDelim[0] = *end;
+      strcat(workerservers, servername);
+      if (*end) p = end+1;
+      else p = end;
     }
-   } 
+  } 
 
   sprintf(nproc_str, "%i", nproc);
 
@@ -462,17 +456,17 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
   { char temp[1024];
     temp[0] = '\0';
     for (i = 0; i < argc; i++) {
-     AMUDP_assert(argv[i] != NULL);
-     strcat(temp,"'");
-     strcat(temp,argv[i]);
-     strcat(temp,"' ");
-     }
+      AMUDP_assert(argv[i] != NULL);
+      strcat(temp,"'");
+      strcat(temp,argv[i]);
+      strcat(temp,"' ");
+    }
     AMUDP_assert(!argv[i]);
 
     sprintf(workercmd, "/bin/sh -c \"%s%s\" || ( echo \"spawn failed.\" ; kill %i ) ",
       (AMUDP_SilentMode?"":"echo connected to `uname -n`... ; "),
       temp, pid
-     );
+    );
   }
 
   strcpy(cmd, spawn_cmd);
@@ -503,10 +497,10 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
     }
   }
 
-AMUDP_SPMDRedirectStdsockets = spawn_route_output; 
+  AMUDP_SPMDRedirectStdsockets = spawn_route_output; 
 
   {
-#ifdef UNIX
+  #ifdef UNIX
     int forkRet;
     forkRet = fork(); /* fork a new process to hold cmd master */
 
@@ -518,7 +512,7 @@ AMUDP_SPMDRedirectStdsockets = spawn_route_output;
       return TRUE;  
     }
     else 
-#endif
+  #endif
     {  /*  this is the child - exec the new process */
       if (!AMUDP_SilentMode) 
         printf("system(%s)\n", cmd); fflush(stdout);

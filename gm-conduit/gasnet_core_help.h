@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_help.h,v $
- * $Date: 2005/04/26 16:02:34 $
- * $Revision: 1.42 $
+ * $Date: 2006/05/02 05:44:02 $
+ * $Revision: 1.42.16.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -14,7 +14,7 @@
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 #include <gm.h>
@@ -289,6 +289,6 @@ BEGIN_EXTERNC
 
 /* -------------------------------------------------------------------------- */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

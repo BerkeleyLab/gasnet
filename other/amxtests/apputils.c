@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.c,v $
- *     $Date: 2004/10/12 11:33:29 $
- * $Revision: 1.13 $
+ *     $Date: 2006/05/02 05:44:16 $
+ * $Revision: 1.13.26.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -40,7 +40,7 @@ static void stats_request_handler(void *token, void *buf, int nbytes, int32_t pr
   assert(nbytes == sizeof(amx_stats_t));
   AM_Safe(AMX_AggregateStatistics(&globalStats, (amx_stats_t *)buf));
   statscalls++;
-  }
+}
 
 void printGlobalStats() {
   amx_stats_t stats;
@@ -81,18 +81,18 @@ void printGlobalStats() {
         AM_Safe(AM_Poll(eb));
         if (timeoutusec < 10000) timeoutusec *= 2;
       #endif
-      }
+    }
     fprintf(stderr, "--------------------------------------------------\n"
                     "Global stats:\n");
     AMX_DumpStatistics(stderr, &globalStats, 1);
     fprintf(stderr, "--------------------------------------------------\n");
     fflush(stderr);
     sleep(1); /* HACK: give a little time for this output to reach master */
-    }
+  }
 
   AM_Safe(AMX_SPMDBarrier()); /* just to keep things clean */
 
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 #ifndef UETH
 #ifdef WIN32
@@ -105,18 +105,17 @@ void printGlobalStats() {
       else {
         multiplier = 1000000 / (double)freq.QuadPart;
         status = 1;
-        }
       }
+    }
     if (status) { /*  we have a high-performance counter */
       LARGE_INTEGER count;
       QueryPerformanceCounter(&count);
       return (int64_t)(multiplier * count.QuadPart);
-      }
-    else { /*  no high-performance counter */
+    } else { /*  no high-performance counter */
       /*  this is a millisecond-granularity timer that wraps every 50 days */
       return (GetTickCount() * 1000);
-      }
     }
+  }
 #else
   int64_t getCurrentTimeMicrosec() {
     int64_t retval;
@@ -124,10 +123,10 @@ void printGlobalStats() {
     if (gettimeofday(&tv, NULL)) {
       perror("gettimeofday");
       abort();
-      }
+    }
     retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
     return retval;
-    }
+  }
 #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -156,11 +155,11 @@ extern void outputTimerStats() {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-#define REQ_32BITPTRS() do { \
-  if (sizeof(void *) != 4) { \
+#define REQ_32BITPTRS() do {                                                  \
+  if (sizeof(void *) != 4) {                                                  \
     fprintf(stderr,"This test not supported on 64-bit ptr architectures.\n"); \
-    fflush(stderr); \
-    abort(); \
+    fflush(stderr);                                                           \
+    abort();                                                                  \
   }} while(0)
 /* ------------------------------------------------------------------------------------ */
 #ifndef APPUTILS_OMIT_READWRITE
@@ -175,7 +174,7 @@ static void get_reply_handler(void *token, int ctr, int dest, int val) {
   assert(pdest);
   *pdest = (uint32_t)val;
   *pctr = TRUE;
-  }
+}
 
 static void get_request_handler(void *token, int ctr, int dest, int addr) {
   uint32_t *paddr;
@@ -185,7 +184,7 @@ static void get_request_handler(void *token, int ctr, int dest, int addr) {
 
   AM_Safe(AM_Reply3(token, GET_REP_HANDLER, 
                     ctr, dest, *paddr));
-  }
+}
 
 uint32_t getWord(int proc, void *addr) {
   volatile uint32_t getdone = FALSE;
@@ -195,7 +194,7 @@ uint32_t getWord(int proc, void *addr) {
                       (int)&getdone, (int)&getval, (int)addr));
   while (!getdone) AM_PollBlock(eb);
   return getval;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static void put_reply_handler(void *token, int ctr) {
   uint32_t *pctr;
@@ -203,7 +202,7 @@ static void put_reply_handler(void *token, int ctr) {
   pctr = (uint32_t *)ctr;
   assert(pctr);
   *pctr = TRUE;
-  }
+}
 
 static void put_request_handler(void *token, int ctr, int dest, int val) {
   uint32_t *paddr;
@@ -214,7 +213,7 @@ static void put_request_handler(void *token, int ctr, int dest, int val) {
 
   AM_Safe(AM_Reply1(token, PUT_REP_HANDLER, 
                     ctr));
-  }
+}
 
 void putWord(int proc, void *addr, uint32_t val) {
   volatile uint32_t putdone = FALSE;
@@ -223,7 +222,7 @@ void putWord(int proc, void *addr, uint32_t val) {
                       (int)&putdone, (int)addr, (int)val));
   while (!putdone) AM_PollBlock(eb);
   return;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 /*  asynchronous reads and writes */
 static volatile uint32_t readCtr = 0;
@@ -237,7 +236,7 @@ static void read_reply_handler(void *token, int ctr, int dest, int val) {
   assert(pdest);
   *pdest = (uint32_t)val;
   (*pctr)--;
-  }
+}
 
 static void read_request_handler(void *token, int ctr, int dest, int addr) {
   uint32_t *paddr;
@@ -247,7 +246,7 @@ static void read_request_handler(void *token, int ctr, int dest, int addr) {
 
   AM_Safe(AM_Reply3(token, READ_REP_HANDLER, 
                     ctr, dest, *paddr));
-  }
+}
 
 
 void readWord(void *destaddr, int proc, void *addr) {
@@ -256,11 +255,11 @@ void readWord(void *destaddr, int proc, void *addr) {
                       (int)&readCtr, (int)destaddr, (int)addr));
   readCtr++;
   return;
-  }
+}
 
 void readSync() {
   while (readCtr) AM_PollBlock(eb);
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static volatile uint32_t writeCtr = 0;
 static void write_reply_handler(void *token, int ctr) {
@@ -269,7 +268,7 @@ static void write_reply_handler(void *token, int ctr) {
   pctr = (uint32_t *)ctr;
   assert(pctr);
   (*pctr)--;
-  }
+}
 
 static void write_request_handler(void *token, int ctr, int dest, int val) {
   uint32_t *paddr;
@@ -280,7 +279,7 @@ static void write_request_handler(void *token, int ctr, int dest, int val) {
 
   AM_Safe(AM_Reply1(token, WRITE_REP_HANDLER, 
                     ctr));
-  }
+}
 
 void writeWord(int proc, void *addr, uint32_t val) {
   REQ_32BITPTRS();
@@ -288,11 +287,11 @@ void writeWord(int proc, void *addr, uint32_t val) {
                       (int)&writeCtr, (int)addr, (int)val));
   writeCtr++;
   return;
-  }
+}
 
 void writeSync() {
   while (writeCtr) AM_PollBlock(eb);
-  }
+}
 #endif
 /* ------------------------------------------------------------------------------------ */
 void free_resource_handler(int sig) {
@@ -332,5 +331,5 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
     signal (SIGSEGV, free_resource_handler);
     signal (SIGBUS, free_resource_handler);
   #endif
-  }
+}
 /* ------------------------------------------------------------------------------------ */

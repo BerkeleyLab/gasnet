@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2005/08/19 04:37:37 $
- * $Revision: 1.16 $
+ *     $Date: 2006/05/02 05:44:14 $
+ * $Revision: 1.16.20.1 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -33,10 +33,10 @@ double AMUDP_FaultInjectionEnabled = 0;
 const amudp_stats_t AMUDP_initial_stats = /* the initial state for stats type */
         { {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, 
               {0,0,0}, {0,0,0},
-              0,
-              (amudp_cputick_t)-1, 0, 0,
-              {0,0,0}, 0
-              };
+          0,
+          (amudp_cputick_t)-1, 0, 0,
+          {0,0,0}, 0
+        };
 
 /*------------------------------------------------------------------------------------
  * Endpoint list handling for bundles
@@ -48,9 +48,9 @@ static int AMUDP_ContainsEndpoint(eb_t eb, ep_t ep) {
   int i;
   for (i = 0; i < eb->n_endpoints; i++) {
     if (eb->endpoints[i] == ep) return TRUE;
-    }
-  return FALSE;
   }
+  return FALSE;
+}
 /* ------------------------------------------------------------------------------------ */
 static void AMUDP_InsertEndpoint(eb_t eb, ep_t ep) {
   AMUDP_assert(eb && ep);
@@ -61,27 +61,26 @@ static void AMUDP_InsertEndpoint(eb_t eb, ep_t ep) {
     memcpy(newendpoints, eb->endpoints, sizeof(ep_t)*eb->n_endpoints);
     eb->endpoints = newendpoints;
     eb->cursize = newsize;
-    }
+  }
   eb->endpoints[eb->n_endpoints] = ep;
   eb->n_endpoints++;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static void AMUDP_RemoveEndpoint(eb_t eb, ep_t ep) {
   AMUDP_assert(eb && ep);
   AMUDP_assert(eb->endpoints != NULL);
   AMUDP_assert(AMUDP_ContainsEndpoint(eb, ep));
-  {
-    int i;
+  { int i;
     for (i = 0; i < eb->n_endpoints; i++) {
       if (eb->endpoints[i] == ep) {
         eb->endpoints[i] = eb->endpoints[eb->n_endpoints-1];
         eb->n_endpoints--;
         return;
-        }
       }
-    abort();
     }
+    abort();
   }
+}
 /*------------------------------------------------------------------------------------
  * Endpoint bulk buffer management
  *------------------------------------------------------------------------------------ */
@@ -97,13 +96,13 @@ extern amudp_buf_t *AMUDP_AcquireBulkBuffer(ep_t ep) { // get a bulk buffer
     if (ep->bulkBufferPool) {
       memcpy(temp+1, ep->bulkBufferPool, sizeof(amudp_buf_t *)*oldsz);
       AMUDP_free(ep->bulkBufferPool);
-      }
+    }
     ep->bulkBufferPool = temp;
     ep->bulkBufferPoolSz = oldsz + 1;
     ep->bulkBufferPoolFreeCnt = 1;
-    }
-  return ep->bulkBufferPool[--ep->bulkBufferPoolFreeCnt];
   }
+  return ep->bulkBufferPool[--ep->bulkBufferPoolFreeCnt];
+}
 /* ------------------------------------------------------------------------------------ */
 extern void AMUDP_ReleaseBulkBuffer(ep_t ep, amudp_buf_t *buf) { // release a bulk buffer
   int i; // this is non-optimal, but the list should never get too long, so it won't matter
@@ -115,11 +114,11 @@ extern void AMUDP_ReleaseBulkBuffer(ep_t ep, amudp_buf_t *buf) { // release a bu
       ep->bulkBufferPool[ep->bulkBufferPoolFreeCnt] = buf;
       ep->bulkBufferPoolFreeCnt++;
       return;
-      }
     }
+  }
   ErrMessage("Internal error in AMUDP_ReleaseBulkBuffer()");
   abort();
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static void AMUDP_FreeAllBulkBuffers(ep_t ep) {
   int i;
@@ -130,7 +129,7 @@ static void AMUDP_FreeAllBulkBuffers(ep_t ep) {
   ep->bulkBufferPool = NULL;
   ep->bulkBufferPoolFreeCnt = 0;
   ep->bulkBufferPoolSz = 0;
-  }
+}
 /*------------------------------------------------------------------------------------
  * Endpoint resource management
  *------------------------------------------------------------------------------------ */
@@ -138,7 +137,7 @@ static uint32_t AMUDP_currentUDPInterface = INADDR_ANY;
 extern int AMUDP_SetUDPInterface(uint32_t IPAddress) {
   AMUDP_currentUDPInterface = IPAddress;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 #if !defined(UETH) && USE_SOCKET_RECVBUFFER_GROW
   #if 0
@@ -146,17 +145,16 @@ extern int AMUDP_SetUDPInterface(uint32_t IPAddress) {
     #include <linux/unistd.h>
     #include <linux/sysctl.h>
   #endif
-  #endif
+#endif
 extern void AMUDP_growSocketRecvBufferSize(ep_t ep, int targetsize) {
   int initialsize; /* original socket recv size */
   GETSOCKOPT_LENGTH_T junk = sizeof(int);
   if (SOCK_getsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&initialsize, &junk) == SOCKET_ERROR) {
     #if AMUDP_DEBUG
-      perror("getsockopt");
-      ErrMessage("getsockopt(SOL_SOCKET, SO_RCVBUF) on UDP socket failed");
+      WarnMessage("getsockopt(SOL_SOCKET, SO_RCVBUF) on UDP socket failed: %s",strerror(errno));
     #endif
     initialsize = 65535;
-    }
+  }
 
   targetsize = MAX(initialsize, targetsize); /* never shrink buffer */
 
@@ -171,11 +169,11 @@ extern void AMUDP_growSocketRecvBufferSize(ep_t ep, int targetsize) {
           perror("sysctl");
           ErrMessage("sysctl() on UDP socket failed");
         #endif
-        }
-      size = MIN(size, maxsize);
       }
-    #endif
+      size = MIN(size, maxsize);
     }
+    #endif
+  }
   #endif
   /* now set it to the largest value it will take */
   ep->socketRecvBufferMaxedOut = 0;
@@ -183,31 +181,28 @@ extern void AMUDP_growSocketRecvBufferSize(ep_t ep, int targetsize) {
     int sz = targetsize; /* prevent OS from tampering */
     if (setsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&sz, sizeof(int)) == SOCKET_ERROR) {
       #if AMUDP_DEBUG
-        perror("setsockopt");
-        ErrMessage("setsockopt(SOL_SOCKET, SO_RCVBUF, %i) on UDP socket failed", targetsize);
+        WarnMessage("setsockopt(SOL_SOCKET, SO_RCVBUF, %i) on UDP socket failed: %s", targetsize, strerror(errno));
       #endif
-      }
-    else {
+    } else {
       int temp = targetsize;
       junk = sizeof(int);
       if (SOCK_getsockopt(ep->s, SOL_SOCKET, SO_RCVBUF, (char *)&temp, &junk) == SOCKET_ERROR) {
         #if AMUDP_DEBUG
-          perror("getsockopt");
-          ErrMessage("getsockopt(SOL_SOCKET, SO_RCVBUF) on UDP socket failed");
+          WarnMessage("getsockopt(SOL_SOCKET, SO_RCVBUF) on UDP socket failed: %s", strerror(errno));
         #endif
-        }
+      }
       if (temp >= targetsize) {
         if (!AMUDP_SilentMode) {
           fprintf(stderr, "UDP recv buffer successfully set to %i bytes\n", targetsize); fflush(stderr);
         }
         ep->socketRecvBufferSize = temp;
         break; /* success */
-        }
       }
+    }
     targetsize = (int)(0.9 * targetsize);
     ep->socketRecvBufferMaxedOut = 1;
-    }
   }
+}
 #endif
 /* ------------------------------------------------------------------------------------ */
 static int AMUDP_AllocateEndpointResource(ep_t ep) {
@@ -218,12 +213,12 @@ static int AMUDP_AllocateEndpointResource(ep_t ep) {
     if (ueth_getaddress(&ep->name) != UETH_OK) {
       ueth_terminate();
       return FALSE;
-      }
+    }
     /*  TODO this doesn't handle apps that dont use SPMD extensions */
     if (ueth_setaddresshook(&AMUDP_SPMDAddressChangeCallback) != UETH_OK) {
       ueth_terminate();
       return FALSE;
-      }
+    }
     AMUDP_UETH_endpoint = ep;
   #else
     /* allocate socket */
@@ -239,7 +234,7 @@ static int AMUDP_AllocateEndpointResource(ep_t ep) {
         AMUDP_RETURN_ERRFR(RESOURCE, getsockopt, sockErrDesc());
       if (maxmsg < AMUDP_MAX_NETWORK_MSG) 
         AMUDP_RETURN_ERRFR(RESOURCE, AMUDP_AllocateEndpointResource, "max datagram size of UDP provider is too small");
-      }
+    }
     #endif
 
     ep->name.sin_family = AF_INET;
@@ -250,27 +245,26 @@ static int AMUDP_AllocateEndpointResource(ep_t ep) {
     if (bind(ep->s, (struct sockaddr*)&ep->name, sizeof(struct sockaddr)) == SOCKET_ERROR) {
       closesocket(ep->s);
       return FALSE;
-      }
-    {
-      /*  danger: this might fail on multi-homed hosts if AMUDP_currentUDPInterface was not set*/
+    }
+    { /*  danger: this might fail on multi-homed hosts if AMUDP_currentUDPInterface was not set*/
       GETSOCKNAME_LENGTH_T sz = sizeof(en_t);
       if (SOCK_getsockname(ep->s, (struct sockaddr*)&ep->name, &sz) == SOCKET_ERROR) {
         closesocket(ep->s);
         return FALSE;
-        }
+      }
       /* can't determine interface address */
       if (ep->name.sin_addr.s_addr == INADDR_ANY) {
         ErrMessage("AMUDP_AllocateEndpointResource failed to determine UDP endpoint interface address");
         return FALSE;
-        }
+      }
       if (ep->name.sin_port == 0) {
         ErrMessage("AMUDP_AllocateEndpointResource failed to determine UDP endpoint interface port");
         return FALSE; 
-        }
       }
+    }
   #endif
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
   int PD = ep->PD;
@@ -308,13 +302,13 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
     ep->rxReadyIdx = 0;
     ep->temporaryBuf = &pool[4*PD+1];
   
-  #if USE_SOCKET_RECVBUFFER_GROW
-  { int HPAMsize = 2*PD*AMUDP_MAX_NETWORK_MSG; /* theoretical max required by plain-vanilla HPAM */
-    int padsize = 2*AMUDP_MAXBULK_NETWORK_MSG; /* some pad for non-HPAM true bulk xfers & retransmissions */
+    #if USE_SOCKET_RECVBUFFER_GROW
+    { int HPAMsize = 2*PD*AMUDP_MAX_NETWORK_MSG; /* theoretical max required by plain-vanilla HPAM */
+      int padsize = 2*AMUDP_MAXBULK_NETWORK_MSG; /* some pad for non-HPAM true bulk xfers & retransmissions */
     
-    AMUDP_growSocketRecvBufferSize(ep, HPAMsize+padsize);
+      AMUDP_growSocketRecvBufferSize(ep, HPAMsize+padsize);
     }
-  #endif
+    #endif
 
   #endif
   ep->requestDesc = (amudp_bufdesc_t*)AMUDP_malloc(2 * PD * sizeof(amudp_bufdesc_t));
@@ -334,13 +328,13 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
      * if USE_TRUE_BULK_XFERS is off
      * */
     for (i = 0; i < PD; i++) ep->replyBuf[i].status.bulkBuffer = NULL;
-    }
+  }
 
   ep->bulkBufferPool = NULL;
   ep->bulkBufferPoolSz = 0;
   ep->bulkBufferPoolFreeCnt = 0;
   return TRUE;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static int AMUDP_FreeEndpointResource(ep_t ep) {
   AMUDP_assert(ep != NULL);
@@ -353,7 +347,7 @@ static int AMUDP_FreeEndpointResource(ep_t ep) {
     if (closesocket(ep->s) == SOCKET_ERROR) return FALSE;
   #endif
   return TRUE;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static int AMUDP_FreeEndpointBuffers(ep_t ep) {
   AMUDP_assert(ep != NULL);
@@ -376,7 +370,7 @@ static int AMUDP_FreeEndpointBuffers(ep_t ep) {
   AMUDP_FreeAllBulkBuffers(ep);
 
   return TRUE;
-  }
+}
 /*------------------------------------------------------------------------------------
  * System initialization/termination
  *------------------------------------------------------------------------------------ */
@@ -397,16 +391,15 @@ extern int AM_Init() {
     AMUDP_assert(sizeof(uintptr_t) >= sizeof(void *));
 
     #ifdef WINSOCK
-    {
-      WSADATA wsa;
-    #if 1
-      WORD wVersionRequested = MAKEWORD( 1, 1 );
-    #else
-      WORD wVersionRequested = MAKEWORD( 2, 2 );
-    #endif
+    { WSADATA wsa;
+      #if 1
+        WORD wVersionRequested = MAKEWORD( 1, 1 );
+      #else
+        WORD wVersionRequested = MAKEWORD( 2, 2 );
+      #endif
 
       if (WSAStartup(wVersionRequested, &wsa)) AMUDP_RETURN_ERR(RESOURCE);
-      }
+    }
     #endif
 
     { char *faultRate = AMUDP_getenv_prefixed("FAULT_RATE");
@@ -416,18 +409,18 @@ extern int AM_Init() {
           100.0 * AMUDP_FaultInjectionRate);
         fflush(stderr);
         srand( (unsigned)time( NULL ) ); /* TODO: we should really be using a private rand num generator */
-        }
       }
+    }
     #ifdef UETH
     { int retval = ueth_kill_link_on_signal(SIGUSR2);
       if (retval != UETH_OK)
         AMUDP_RETURN_ERRFR(RESOURCE, AM_Init, "ueth_kill_link_on_signal() failed");
     }
     #endif
-    }
+  }
   amudp_Initialized++;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_Terminate() {
   int i;
@@ -438,16 +431,16 @@ extern int AM_Terminate() {
     for (i = 0; i < AMUDP_numBundles; i++) {
       if (AM_FreeBundle(AMUDP_bundles[i]) != AM_OK) 
         retval = AM_ERR_RESOURCE;
-      }
+    }
     AMUDP_numBundles = 0;
     #ifdef WINSOCK
       if (WSACleanup()) retval = AM_ERR_RESOURCE;
     #endif
-    }
+  }
 
   amudp_Initialized--;
   AMUDP_RETURN(retval);
-  }
+}
 /*------------------------------------------------------------------------------------
  * endpoint/bundle management
  *------------------------------------------------------------------------------------ */
@@ -468,18 +461,17 @@ extern int AM_AllocateBundle(int type, eb_t *endb) {
   AMUDP_bundles[AMUDP_numBundles++] = eb; /* keep track of all bundles */
   *endb = eb;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_FreeBundle(eb_t bundle) {
   if (!bundle) AMUDP_RETURN_ERR(BAD_ARG);
-  {
-    int i;
+  { int i;
 
     /* free all constituent endpoints */
     for (i = 0; i < bundle->n_endpoints; i++) {
       int retval = AM_FreeEndpoint(bundle->endpoints[i]);
       if (retval != AM_OK) AMUDP_RETURN(retval);
-      }
+    }
     AMUDP_assert(bundle->n_endpoints == 0);
 
     /* remove from bundle list */
@@ -487,16 +479,16 @@ extern int AM_FreeBundle(eb_t bundle) {
       if (AMUDP_bundles[i] == bundle) { 
         AMUDP_bundles[i] = AMUDP_bundles[AMUDP_numBundles-1]; 
         break;
-        }
       }
+    }
     AMUDP_assert(i < AMUDP_numBundles);
     AMUDP_numBundles--;
 
     AMUDP_free(bundle->endpoints);
     AMUDP_free(bundle);
-    }
-  return AM_OK;
   }
+  return AM_OK;
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_AllocateEndpoint(eb_t bundle, ep_t *endp, en_t *endpoint_name) {
   ep_t ep;
@@ -510,22 +502,21 @@ extern int AM_AllocateEndpoint(eb_t bundle, ep_t *endp, en_t *endpoint_name) {
   if (retval != AM_OK) {
     AMUDP_free(ep);
     AMUDP_RETURN(retval);
-    }
+  }
 
   /* setup eb<->ep link */
   AMUDP_InsertEndpoint(bundle, ep);
   ep->eb = bundle;
 
   /* initialize ep data */
-  {
-    int i;
+  { int i;
     for (i = 0; i < AMUDP_MAX_NUMTRANSLATIONS; i++) {
       ep->translation[i].inuse = FALSE;
-      }
+    }
     ep->handler[0] = amudp_defaultreturnedmsg_handler;
     for (i = 1; i < AMUDP_MAX_NUMHANDLERS; i++) {
       ep->handler[i] = amudp_unused_handler;
-      }
+    }
     ep->tag = AM_NONE;
     ep->segAddr = NULL;
     ep->segLength = 0;
@@ -534,12 +525,12 @@ extern int AM_AllocateEndpoint(eb_t bundle, ep_t *endp, en_t *endpoint_name) {
     ep->PD = 0;
 
     ep->stats = AMUDP_initial_stats;
-    }
+  }
 
   *endp = ep;
   *endpoint_name = ep->name;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_FreeEndpoint(ep_t ea) {
   int retval = AM_OK;
@@ -553,7 +544,7 @@ extern int AM_FreeEndpoint(ep_t ea) {
   AMUDP_RemoveEndpoint(ea->eb, ea);
   AMUDP_free(ea);
   AMUDP_RETURN(retval);
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_MoveEndpoint(ep_t ea, eb_t from_bundle, eb_t to_bundle) {
   AMUDP_CHECKINIT();
@@ -563,7 +554,7 @@ extern int AM_MoveEndpoint(ep_t ea, eb_t from_bundle, eb_t to_bundle) {
   AMUDP_RemoveEndpoint(from_bundle, ea);
   AMUDP_InsertEndpoint(to_bundle, ea);
   return AM_OK;
-  }
+}
 /*------------------------------------------------------------------------------------
  * Tag management
  *------------------------------------------------------------------------------------ */
@@ -574,7 +565,7 @@ extern int AM_SetTag(ep_t ea, tag_t tag) {
   /*  TODO: return mismatched messages to sender */
   ea->tag = tag;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_GetTag(ep_t ea, tag_t *tag) {
   AMUDP_CHECKINIT();
@@ -582,7 +573,7 @@ extern int AM_GetTag(ep_t ea, tag_t *tag) {
 
   *tag = ea->tag;
   return AM_OK;
-  }
+}
 /*------------------------------------------------------------------------------------
  * VM Segment management
  *------------------------------------------------------------------------------------ */
@@ -592,7 +583,7 @@ extern int AM_GetSeg(ep_t ea, void **addr, uintptr_t *nbytes) {
   *addr = ea->segAddr;
   *nbytes = ea->segLength;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_SetSeg(ep_t ea, void *addr, uintptr_t nbytes) {
   AMUDP_CHECKINIT();
@@ -602,7 +593,7 @@ extern int AM_SetSeg(ep_t ea, void *addr, uintptr_t nbytes) {
   ea->segAddr = addr;
   ea->segLength = nbytes;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_MaxSegLength(uintptr_t* nbytes) {
   AMUDP_CHECKINIT();
@@ -625,15 +616,14 @@ extern int AM_Map(ep_t ea, int index, en_t name, tag_t tag) {
   ea->translation[index].tag = tag;
   ea->P++;  /* track num of translations */
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_MapAny(ep_t ea, int *index, en_t name, tag_t tag) {
   AMUDP_CHECKINIT();
   if (!ea || !index) AMUDP_RETURN_ERR(BAD_ARG);
   if (ea->depth != -1) AMUDP_RETURN_ERR(RESOURCE); /* it's an error to map after call to AM_SetExpectedResources */
 
-  {
-    int i;
+  { int i;
     for (i = 0; i < AMUDP_MAX_NUMTRANSLATIONS; i++) {
       if (!ea->translation[i].inuse) { /* use this one */
         ea->translation[i].inuse = TRUE;
@@ -642,11 +632,11 @@ extern int AM_MapAny(ep_t ea, int *index, en_t name, tag_t tag) {
         ea->P++;  /* track num of translations */
         *index = i;
         return AM_OK;
-        }
       }
-    AMUDP_RETURN_ERR(RESOURCE); /* none available */
     }
+    AMUDP_RETURN_ERR(RESOURCE); /* none available */
   }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_UnMap(ep_t ea, int index) {
   AMUDP_CHECKINIT();
@@ -658,7 +648,7 @@ extern int AM_UnMap(ep_t ea, int index) {
   ea->translation[index].inuse = FALSE;
   ea->P--;  /* track num of translations */
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_GetTranslationInuse(ep_t ea, int i) {
   AMUDP_CHECKINIT();
@@ -667,7 +657,7 @@ extern int AM_GetTranslationInuse(ep_t ea, int i) {
 
   if (ea->translation[i].inuse) return AM_OK; /* in use */
   else return AM_ERR_RESOURCE; /* don't complain here - it's a common case */
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_GetTranslationTag(ep_t ea, int i, tag_t *tag) {
   AMUDP_CHECKINIT();
@@ -677,7 +667,7 @@ extern int AM_GetTranslationTag(ep_t ea, int i, tag_t *tag) {
 
   (*tag) = ea->translation[i].tag;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_SetTranslationTag(ep_t ea, int index, tag_t tag) {
   AMUDP_CHECKINIT();
@@ -689,10 +679,10 @@ extern int AMUDP_SetTranslationTag(ep_t ea, int index, tag_t tag) {
 
   if (ea->depth != -1) { /* after call to AM_SetExpectedResources we must update compressed table */
     ea->perProcInfo[ea->translation[index].id].tag = tag;
-    }
+  }
 
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_GetTranslationName(ep_t ea, int i, en_t *gan) {
   AMUDP_CHECKINIT();
@@ -702,7 +692,7 @@ extern int AM_GetTranslationName(ep_t ea, int i, en_t *gan) {
 
   (*gan) = ea->translation[i].name; 
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_requests) {
   AMUDP_CHECKINIT();
@@ -718,8 +708,7 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
   if (!AMUDP_AllocateEndpointBuffers(ea)) AMUDP_RETURN_ERR(RESOURCE);
 
   /*  compact a copy of the translation table into our perproc info array */
-  {
-    int procid = 0;
+  { int procid = 0;
     int i;
     for (i=0; i < AMUDP_MAX_NUMTRANSLATIONS; i++) {
       if (ea->translation[i].inuse) {
@@ -728,9 +717,9 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
         ea->translation[i].id = (uint8_t)procid;
         procid++;
         if (procid == ea->P) break; /*  should have all of them now */
-        }
       }
     }
+  }
 
   #ifdef UETH
   { /* need to init the request/reply destinations */
@@ -748,7 +737,7 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
   #endif
 
   return AM_OK;
-  }
+}
 /*------------------------------------------------------------------------------------
  * Handler management
  *------------------------------------------------------------------------------------ */
@@ -759,7 +748,7 @@ extern int _AM_SetHandler(ep_t ea, handler_t handler, amudp_handler_fn_t functio
 
   ea->handler[handler] = function;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int _AM_SetHandlerAny(ep_t ea, handler_t *handler, amudp_handler_fn_t function) {
   int i;
@@ -771,10 +760,10 @@ extern int _AM_SetHandlerAny(ep_t ea, handler_t *handler, amudp_handler_fn_t fun
       ea->handler[i] = function;
       *handler = (handler_t)i;
       return AM_OK;
-      }
     }
-  AMUDP_RETURN_ERR(RESOURCE); /* all in use */
   }
+  AMUDP_RETURN_ERR(RESOURCE); /* all in use */
+}
 /*------------------------------------------------------------------------------------
  * Event management
  *------------------------------------------------------------------------------------ */
@@ -784,7 +773,7 @@ extern int AM_GetEventMask(eb_t eb, int *mask) {
 
   *mask = eb->event_mask;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_SetEventMask(eb_t eb, int mask) {
   AMUDP_CHECKINIT();
@@ -793,7 +782,7 @@ extern int AM_SetEventMask(eb_t eb, int mask) {
 
   eb->event_mask = (uint8_t)mask;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_WaitSema(eb_t eb) {
   int retval;
@@ -813,7 +802,7 @@ extern int AM_WaitSema(eb_t eb) {
     retval = AM_Poll(eb);
 
   AMUDP_RETURN(retval);
-  }
+}
 /*------------------------------------------------------------------------------------
  * Message interrogation
  *------------------------------------------------------------------------------------ */
@@ -823,7 +812,7 @@ extern int AM_GetSourceEndpoint(void *token, en_t *gan) {
 
   *gan = ((amudp_buf_t *)token)->status.sourceAddr;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_GetSourceId(void *token, int *srcid) {
   AMUDP_CHECKINIT();
@@ -839,7 +828,7 @@ extern int AM_GetDestEndpoint(void *token, ep_t *endp) {
 
   *endp = ((amudp_buf_t *)token)->status.dest;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AM_GetMsgTag(void *token, tag_t *tagp) {
   AMUDP_CHECKINIT();
@@ -849,7 +838,7 @@ extern int AM_GetMsgTag(void *token, tag_t *tagp) {
     *tagp = ((amudp_buf_t *)token)->status.bulkBuffer->Msg.tag;
   else *tagp = ((amudp_buf_t *)token)->Msg.tag;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_SetHandlerCallbacks(ep_t ep, AMUDP_preHandlerCallback_t preHandlerCallback, 
                                               AMUDP_postHandlerCallback_t postHandlerCallback) {
@@ -867,14 +856,14 @@ extern int AMUDP_GetEndpointStatistics(ep_t ep, amudp_stats_t *stats) { /* calle
   if (!ep || !stats) AMUDP_RETURN_ERR(BAD_ARG);
   memcpy(stats, &ep->stats, sizeof(amudp_stats_t));
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_ResetEndpointStatistics(ep_t ep) {
   AMUDP_CHECKINIT();
   if (!ep) AMUDP_RETURN_ERR(BAD_ARG);
   ep->stats = AMUDP_initial_stats;
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMUDP_AggregateStatistics(amudp_stats_t *runningsum, amudp_stats_t *newvalues) {
   int category;
@@ -902,7 +891,7 @@ extern int AMUDP_AggregateStatistics(amudp_stats_t *runningsum, amudp_stats_t *n
   runningsum->TotalBytesSent += newvalues->TotalBytesSent;
 
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int globalAnalysis) {
   static char msg[4096];
@@ -934,11 +923,11 @@ extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int glob
   packetssent = (requestsSent + requestsRetransmitted + 
                  repliesSent  + repliesRetransmitted);
 
-#ifdef UETH 
-  UDPIPheaderbytes = 0; /* n/a- all headers already included */
-#else
-  UDPIPheaderbytes = packetssent * (20 /* IP header */ + 8  /* UDP header*/);
-#endif
+  #ifdef UETH 
+    UDPIPheaderbytes = 0; /* n/a- all headers already included */
+  #else
+    UDPIPheaderbytes = packetssent * (20 /* IP header */ + 8  /* UDP header*/);
+  #endif
 
   /* batch lines together to improve chance of output together */
   sprintf(msg, 
@@ -956,9 +945,9 @@ extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int glob
     " Small  (<=%5i bytes)   %8i    %8i        %9.3f bytes\n"
     " Medium (<=%5i bytes)   %8i    %8i        %9.3f bytes\n"
     " Large  (<=%5i bytes)   %8i    %8i        %9.3f bytes\n"
-#if !USE_TRUE_BULK_XFERS
+  #if !USE_TRUE_BULK_XFERS
     " ^^^^^ (Statistics for Large refer to internal fragments)\n"
-#endif
+  #endif
     " Total                                                %9.3f bytes\n"
 
     "Data bytes sent:      %9i bytes\n"
@@ -986,11 +975,11 @@ extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int glob
       (stats->RequestsSent[amudp_Medium]+stats->RepliesSent[amudp_Medium] > 0 ?
         ((float)(int64_t)stats->DataBytesSent[amudp_Medium]) / 
         ((float)(int64_t)(stats->RequestsSent[amudp_Medium]+stats->RepliesSent[amudp_Medium])) : 0.0),
-#if USE_TRUE_BULK_XFERS
+  #if USE_TRUE_BULK_XFERS
     (int)(AMUDP_MAX_SHORT*sizeof(int) + AMUDP_MAX_LONG),
-#else
+  #else
     (int)(AMUDP_MAX_SHORT*sizeof(int) + AMUDP_MAX_MEDIUM),
-#endif
+  #endif
       (int)stats->RequestsSent[amudp_Long], (int)stats->RepliesSent[amudp_Long], 
       (stats->RequestsSent[amudp_Long]+stats->RepliesSent[amudp_Long] > 0 ?
         ((float)(int64_t)stats->DataBytesSent[amudp_Long]) / 
@@ -1012,7 +1001,7 @@ extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int glob
     (packetssent > 0 ?
       ((float)((int64_t)stats->TotalBytesSent+UDPIPheaderbytes)) / ((float)(int64_t)packetssent)
       : 0.0)
-    );
+  );
 
   if (globalAnalysis) {
     int64_t reqsent = requestsSent + requestsRetransmitted;
@@ -1036,6 +1025,6 @@ extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int glob
 
   if (fp != NULL) fprintf(fp, "%s", msg);
   return msg;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 

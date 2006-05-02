@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2006/02/11 11:42:35 $
- * $Revision: 1.43 $
+ *     $Date: 2006/05/02 05:43:53 $
+ * $Revision: 1.43.4.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,10 +20,12 @@
 #endif
 
 /* Usage:
-   see the GASNet specification for details on how to use the GASNet interface
-   clients should #define GASNET_NDEBUG when compiling this implementation for production use
-     or #define GASNET_DEBUG for extra debugging safety checks
+   see the GASNet specification and top-level README for details on how to use the GASNet interface
+   clients should use the automatically-generated Makefile *.mak fragments to get the correct compile settings
 */
+
+/* autoconf-generated configuration header */
+#include <gasnet_config.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* check threading configuration */
@@ -51,7 +53,7 @@
 #endif
 
 #if !((defined(GASNET_DEBUG) && !defined(GASNET_NDEBUG)) || (!defined(GASNET_DEBUG) && defined(GASNET_NDEBUG)))
-  #error Client code #define exactly one of (GASNET_DEBUG or GASNET_NDEBUG) to select GASNet build configuration
+  #error Conflicting or incorrect definitions of GASNET_DEBUG and GASNET_NDEBUG
 #endif
 
 /* codify other configuration settings */
@@ -96,11 +98,9 @@
   #error bad def of GASNETI_STATS_OR_TRACE
 #endif
 
-/* autoconf-generated configuration header */
-#include <gasnet_config.h>
-
 /* basic utilities used in the headers */
 #include <gasnet_basic.h>
+#include <gasnet_toolhelp.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* check segment configuration */
@@ -200,10 +200,10 @@
   #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 #endif
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 extern const char *gasnet_ErrorName(int);
 extern const char *gasnet_ErrorDesc(int);
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* core types */
@@ -252,28 +252,6 @@ END_EXTERNC
 #ifndef _GASNET_THREADINFO_T
 #define _GASNET_THREADINFO_T
   typedef void *gasnet_threadinfo_t;
-#endif
-
-#ifndef GASNET_PAGESIZE
-  #ifdef GASNETI_PAGESIZE
-    #define GASNET_PAGESIZE GASNETI_PAGESIZE
-  #elif defined(CRAYT3E)
-    /* on Cray: shmemalign allocates mem aligned across nodes, 
-        but there seems to be no fixed page size (man pagesize)
-        this is probably because they don't support VM
-       actual page size is set separately for each linker section, 
-        ranging from 512KB(default) to 8MB
-       Here we return 8 to reflect the lack of page alignment constraints
-       (for basic sanity, we want page alignment >= reqd double alignment)
-   */
-
-    #define GASNET_PAGESIZE 8
-  #else
-    #error GASNET_PAGESIZE unknown and not set by conduit
-  #endif
-  #if GASNET_PAGESIZE <= 0
-    #error bad defn of GASNET_PAGESIZE
-  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -404,6 +382,8 @@ static int *gasneti_linkconfig_idiotcheck() {
     val += *_gasneti_linkconfig_idiotcheck();
   return &val;
 }
+extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
+                                       uintptr_t segsize, uintptr_t minheapoffset);
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
   #ifndef GASNET_ALLOW_OPTIMIZED_DEBUG
@@ -417,15 +397,8 @@ static int *gasneti_linkconfig_idiotcheck() {
 #endif
 
 /* intentionally expanded on every include */
-#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(GASNETI_INTERNAL_TEST_PROGRAM) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
+#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
   #define _GASNET_INTERNAL_IDIOTCHECK
   #undef gasnet_attach
-  GASNET_INLINE_MODIFIER(gasnet_attach)
-  int gasnet_attach(gasnet_handlerentry_t *table, int numentries,
-                    uintptr_t segsize, uintptr_t minheapoffset) {
-    gasneti_fatalerror("GASNet client code must NOT #include <gasnet_internal.h>\n"
-                       "gasnet_internal.h is not installed, and modifies the behavior "
-                       "of various internal operations, such as segment safety bounds-checking.");
-    return GASNET_ERR_NOT_INIT;
-  }
+  #define gasnet_attach  gasneti_internal_idiotcheck
 #endif

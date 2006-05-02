@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socklist.h,v $
-//     $Date: 2005/08/12 12:27:45 $
-// $Revision: 1.3 $
+//     $Date: 2006/05/02 05:44:14 $
+// $Revision: 1.3.22.1 $
 // Description: 
 // Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -55,8 +55,6 @@ class SocketList {
     int getIntersection(fd_set* set, SOCKET* buffer, int bufsiz);
       // same as above except return the number matched
 
-    };
-
-
+};
 
 #endif

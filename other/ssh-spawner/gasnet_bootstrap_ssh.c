@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2006/02/07 23:04:25 $
- * $Revision: 1.58 $
+ *     $Date: 2006/05/02 05:44:22 $
+ * $Revision: 1.58.2.1 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -186,9 +186,8 @@ enum {
 
 static void gather_pids(void);
 
-static void do_verbose(const char *fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
-static void do_verbose(const char *fmt, ...)
-{
+GASNETI_FORMAT_PRINTF(do_verbose,1,2,
+static void do_verbose(const char *fmt, ...)) {
   va_list args;
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
@@ -197,9 +196,8 @@ static void do_verbose(const char *fmt, ...)
 }
 #define BOOTSTRAP_VERBOSE(ARGS)		if_pf (is_verbose) do_verbose ARGS
 
-static char *sappendf(char *s, const char *fmt, ...) __attribute__((__format__ (__printf__, 2, 3)));
-static char *sappendf(char *s, const char *fmt, ...)
-{
+GASNETI_FORMAT_PRINTF(sappendf,2,3,
+static char *sappendf(char *s, const char *fmt, ...)) {
   va_list args;
   int old_len, add_len;
 
@@ -244,8 +242,9 @@ static char *quote_arg(const char *arg) {
 /* Like gasneti_fatalerror, but w/o dumping core
  * This is used for probable user errors
  */
-static void die(int exitcode, const char *msg, ...) GASNETI_NORETURN __attribute__((__format__ (__printf__, 2, 3)));
-static void die(int exitcode, const char *msg, ...) {
+GASNETI_FORMAT_PRINTF(die,2,3, 
+GASNETI_NORETURN
+static void die(int exitcode, const char *msg, ...)) {
   va_list argptr;
   char expandedmsg[255];
 
@@ -303,7 +302,7 @@ static void kill_one(const char *rem_host, pid_t rem_pid) {
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
   BOOTSTRAP_VERBOSE(("[-1] Pid %d killing %s:%d\n", pid, rem_host, (int)rem_pid));
-  gasneti_atomic_increment(&live);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void clean_up(void)
@@ -354,7 +353,7 @@ static void signal_one(const char *rem_host, pid_t rem_pid, int sig) {
     execvp(ssh_argv[0], ssh_argv);
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
-  gasneti_atomic_increment(&live);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void signal_all(int sig)
@@ -448,9 +447,9 @@ static void reap_one(pid_t pid, int status)
 {
   gasneti_assert(pid);
 
-  gasneti_atomic_decrement(&live);
+  gasneti_atomic_decrement(&live, 0);
   BOOTSTRAP_VERBOSE(("[%d] Reaped pid %d (%d left)\n",
-		     is_master ? -1 : myproc, (int)pid, (int)gasneti_atomic_read(&live)));
+		     is_master ? -1 : myproc, (int)pid, (int)gasneti_atomic_read(&live, 0)));
 
   if (child) {
     int j;
@@ -516,9 +515,9 @@ static void wait_for_all(void)
    */
   reaper(SIGCHLD);
 
-  while (gasneti_atomic_read(&live)) {
+  while (gasneti_atomic_read(&live, 0)) {
     BOOTSTRAP_VERBOSE(("[%d] Sigsuspend with %d children left\n",
-			    is_master ? -1 : myproc, gasneti_atomic_read(&live)));
+			    is_master ? -1 : myproc, gasneti_atomic_read(&live, 0)));
     sigsuspend(&old_set);
   }
 }
@@ -834,7 +833,9 @@ static void build_nodelist(void)
   } else if ((env_string = getenv("PBS_NODEFILE")) != NULL && strlen(env_string)) {
     nodelist = parse_nodefile(env_string);
   } else if ((env_string = getenv("PE_HOSTFILE")) != NULL && strlen(env_string)) {
-    nodelist = parse_nodefile(env_string);
+    char *filename = sappendf(NULL, "%s/machines", getenv("TMPDIR"));
+    nodelist = parse_nodefile(filename);
+    gasneti_free(filename);
   } else if ((env_string = getenv("SSS_HOSTLIST")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
   } else if ((env_string = getenv("LSB_HOSTS")) != NULL && strlen(env_string)) {
@@ -1148,7 +1149,7 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
       gasneti_fatalerror("execvp(ssh) failed");
     }
   }
-  gasneti_atomic_increment(&live);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void do_spawn(int argc, char **argv, char *myhost) {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2006/01/28 21:21:46 $
- * $Revision: 1.13 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.13.4.1 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -186,7 +186,7 @@ void pairwise_wait_nbrs  (nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int ph
 #define _hidx_ghostReqHandler 201
 #define _hidx_ghostRepHandler 202
 
-GASNET_INLINE_MODIFIER(ghostReqHandler_inner)
+GASNETT_INLINE(ghostReqHandler_inner)
 void
 ghostReqHandler_inner(gasnet_token_t token, void *buf, size_t nbytes,
 	              int axis, int destp, int *flag)
@@ -208,7 +208,7 @@ LONG_HANDLER(ghostReqHandler,3,4,
 /*
  * This reply handler is currently unused.
  */
-GASNET_INLINE_MODIFIER(ghostReqHandler_inner)
+GASNETT_INLINE(ghostReqHandler_inner)
 void
 ghostRepHandler_inner(gasnet_token_t token, volatile int *flag)
 {

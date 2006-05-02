@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/02/11 11:42:50 $
- * $Revision: 1.16 $
+ *     $Date: 2006/05/02 05:44:40 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,6 +26,7 @@
 struct _gasnete_op_t;
 typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
+#define GASNETI_EOP_IS_HANDLE 1
 
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */

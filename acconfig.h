@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/02/08 08:52:48 $ */
-/*  $Revision: 1.78 $ */
+/*      $Date: 2006/05/02 05:43:53 $ */
+/*  $Revision: 1.78.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -18,8 +18,16 @@
 #undef GASNETI_SYSTEM_TUPLE
 #undef GASNETI_SYSTEM_NAME
 
-/* using the MIPSPro C compiler (which doesn't seem to have other identifying markers) */
-#undef MIPSPRO_COMPILER
+/* attributes support */
+#undef GASNETI_HAVE_GCC_ATTRIBUTE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_ALWAYSINLINE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_NOINLINE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_MALLOC
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_NORETURN
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_PURE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_CONST
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT
 
 /* Defined to be the inline function modifier supported by the C compiler (if supported) */
 #undef CC_INLINE_MODIFIER
@@ -90,6 +98,9 @@
 /* has __func__ function name defined */
 #undef HAVE_FUNC
 
+/* PGI compiler, with full asm support */
+#undef PGI_WITH_REAL_ASM
+
 /* portable inttypes support */
 #undef HAVE_INTTYPES_H
 #undef HAVE_STDINT_H
@@ -100,9 +111,6 @@
 
 /* Linux PR_SET_PDEATHSIG support */
 #undef HAVE_PR_SET_PDEATHSIG
-
-/* Linux asm/atomic.h broken */
-#undef BROKEN_LINUX_ASM_ATOMIC_H
 
 /* forcing UP build, even if build platform is a multi-processor */
 #undef GASNETI_UNI_BUILD
@@ -123,7 +131,7 @@
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
-/* various OS and machine definitions */
+/* various OS and machine definitions - THESE ARE OBSOLETE AND WILL EVENTUALLY BE REMOVED */
 #undef UNIX
 #undef LINUX
 #undef FREEBSD
@@ -141,11 +149,24 @@
 #undef CYGWIN
 #undef DARWIN
 #undef ALTIX
-#undef GASNETI_ARCH_SPARCV9
 #undef CATAMOUNT
+
+/* have working UltraSPARC ISA (lacks an associated builtin preprocessor macro) */
+#undef GASNETI_ARCH_ULTRASPARC
+
+/* Tune for a PPC970 cpu (should not crash other PPCs) */
+#undef GASNETI_TUNE_PPC970
 
 /* Type to use as socklen_t */
 #undef GASNET_SOCKLEN_T
+
+/* GASNet build configuration */
+#undef GASNET_DEBUG
+#undef GASNET_NDEBUG
+#undef GASNET_TRACE
+#undef GASNET_STATS
+#undef GASNET_SRCLINES
+#undef GASNET_DEBUG_VERBOSE
 
 /* GASNet segment definition */
 #undef GASNET_SEGMENT_FAST
@@ -180,6 +201,8 @@
 #undef ELAN_VERSION_MAJOR
 #undef ELAN_VERSION_MINOR
 #undef ELAN_VERSION_SUB
+#undef ELAN_DRIVER_VERSION
+#undef ELAN4_KERNEL_PATCH
 #undef HAVE_RMS_RMSAPI_H
 #undef HAVE_RMS_KILLRESOURCE
 #undef RMS_RCONTROL_PATH
@@ -191,37 +214,6 @@
 #undef HAVE_ELAN_QUEUETXINIT
 
 @BOTTOM@
-
-/* special GCC features */
-#if ! defined (__GNUC__) && ! defined (__attribute__)
-#define __attribute__(flags)
-#endif
-
-#if defined(__GNUC__) && ((__GNUC__ > 3) || (__GNUC__ == 3  && __GNUC_MINOR__ >= 4)) \
-    && !defined(__INTEL_COMPILER) /* __warn_unused_result__ not available in icc */
-  /* gcc-3.4 and newer: assert return value is unaliased + warn if unused */
-  #define GASNETI_MALLOC __attribute__((__malloc__,__warn_unused_result__))
-#elif defined(__GNUC__) && !(__GNUC__ <= 2 && __GNUC_MINOR__ <= 95)
-  /* gcc-2.96 and newer: assert return value is unaliased */
-  #define GASNETI_MALLOC __attribute__((__malloc__))
-#else
-  /* malloc attribute missing in egcs-2.91.66, gcc 2.95.4, and non-gcc compilers */
-  #define GASNETI_MALLOC
-#endif
-
-#if defined(__GNUC__)
-#define GASNETI_NORETURN __attribute__((__noreturn__))
-#else
-#define GASNETI_NORETURN 
-#endif
-
-#if defined(__GNUC__) && ((__GNUC__ > 3) || (__GNUC__ == 3  && __GNUC_MINOR__ >= 4)) \
-    && !defined(__INTEL_COMPILER) /* not available in icc */
-  /* Warn if return value is ignored.  Available on gcc-3.4 and newer. */
-  #define GASNETI_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
-#else
-  #define GASNETI_WARN_UNUSED_RESULT
-#endif
 
 /* these get us 64-bit file declarations under several Unixen */
 /* they must come before the first include of features.h (included by many system headers) */

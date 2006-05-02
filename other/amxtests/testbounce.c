@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testbounce.c,v $
- *     $Date: 2005/06/28 08:40:54 $
- * $Revision: 1.7 $
+ *     $Date: 2006/05/02 05:44:16 $
+ * $Revision: 1.7.22.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,14 +41,14 @@ static void large_request_handler(void *token, void *buf, int nbytes, int arg) {
         printf("%i: ERROR: mismatched data recvdbuf[%i]=%i\n", myproc, i, (int)recvdbuf[i]);
         fflush(stdout);
         abort();
-        }
       }
+    }
     count++;
     for (i = 0; i < AM_MaxLong()/4; i++) {
       recvdbuf[i] = (uint32_t)((count << 16) + i);
-      }
-    if (numprocs > 1) count++;
     }
+    if (numprocs > 1) count++;
+  }
 
   #if VERBOSE
     printf("%i: large_request_handler(). sending reply...", myproc); fflush(stdout);
@@ -57,7 +57,7 @@ static void large_request_handler(void *token, void *buf, int nbytes, int arg) {
 
   AM_Safe(AM_ReplyXfer1(token, 100, LARGE_REP_HANDLER, buf, nbytes, 666));
   done++;
-  }
+}
 
 static void large_reply_handler(void *token, void *buf, int nbytes, int arg) {
   uint32_t *recvdbuf = (uint32_t *)buf;
@@ -79,13 +79,13 @@ static void large_reply_handler(void *token, void *buf, int nbytes, int arg) {
         printf("%i: ERROR: mismatched data recvdbuf[%i]=%i\n", myproc, i, (int)recvdbuf[i]);
         fflush(stdout);
         abort();
-        }
       }
     }
+  }
   count++;
 
   done = 1;
-  }
+}
 
 int main(int argc, char **argv) {
   eb_t eb;
@@ -95,13 +95,7 @@ int main(int argc, char **argv) {
   int polling = 1;
   int iters = 0;
 
-  AMX_VerboseErrors = 1;
-
-  CHECKARGS(argc, argv, 1, 2, "iters (Poll/Block)");
-
-  /* call startup */
-  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
-                            0, &networkpid, &eb, &ep));
+  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 2, "iters (Poll/Block)");
 
   /* setup handlers */
   AM_Safe(AM_SetHandler(ep, LARGE_REQ_HANDLER, large_request_handler));
@@ -120,11 +114,11 @@ int main(int argc, char **argv) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
       default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
-      }
     }
+  }
   if (numprocs % 2 != 0 && numprocs > 1) {
      printf("requires an even or unary number of processors\n"); AMX_SPMDExit(1);
-    }
+  }
   VMseg = (uint32_t *)malloc(AM_MaxLong()+100);
   memset(VMseg, 0, AM_MaxLong()+100);
   AM_Safe(AM_SetSeg(ep, VMseg, AM_MaxLong()+100));
@@ -146,7 +140,7 @@ int main(int argc, char **argv) {
       uint32_t *srcmem = (uint32_t *)(((uint8_t*)VMseg)+100);
       for (i = 0; i < AM_MaxLong()/4; i++) {
         srcmem[i] = (uint32_t)((count << 16) + i);
-        }
+      }
       #if VERBOSE
 	printf("%i: sending request...", myproc); fflush(stdout);
       #endif
@@ -158,32 +152,28 @@ int main(int argc, char **argv) {
       if (polling) { /* poll until everyone done */
         while (!done) {
           AM_Safe(AM_Poll(eb));
-          }
         }
-      else {
+      } else {
         while (!done) {
           AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
           AM_Safe(AM_WaitSema(eb));
           AM_Safe(AM_Poll(eb));
-          }
         }
-      
       }
     }
-  else {
+  } else {
     if (polling) { /* poll until everyone done */
       while (count<iters*2) {
         AM_Safe(AM_Poll(eb));
-        }
       }
-    else {
+    } else {
       while (count<iters*2) {
         AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
         AM_Safe(AM_WaitSema(eb));
         AM_Safe(AM_Poll(eb));
-        }
       }
     }
+  }
 
   end = getCurrentTimeMicrosec();
 
@@ -201,5 +191,5 @@ int main(int argc, char **argv) {
   AM_Safe(AMX_SPMDExit(0));
 
   return 0;
-  }
+}
 /* ------------------------------------------------------------------------------------ */

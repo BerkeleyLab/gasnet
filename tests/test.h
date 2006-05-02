@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/02/11 02:38:44 $
- * $Revision: 1.76 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.76.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,9 +28,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
-#ifdef IRIX
-#define signal(a,b) bsd_signal(a,b)
-#endif
+#include <ctype.h>
 
 #if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
   #include <pthread.h>
@@ -43,66 +41,20 @@
     #define NDEBUG 1
   #endif
 #endif
+
+/* bug 1206: several systems (notably Compaq C++ and OSX gcc) have an assert.h header 
+   which is broken in one or more subtle ways. Don't trust the system assert.h. */
 #include <assert.h>
+#undef assert
+
 #define assert_always(expr) \
-    ((expr) ? (void)0 : FATALERR("Assertion failure: %s", #expr))
+    ((expr) ? (void)0 : (void)FATALERR("Assertion failure: %s", #expr))
 
-#if defined(__DECCXX) && defined(NDEBUG) 
-  /* bug 1206: workaround a broken assert.h header in Compaq C++ */
-  #undef assert
+#ifdef NDEBUG
   #define assert(x) ((void)0)
+#else
+  #define assert(x) assert_always(x)
 #endif
-
-/* ------------------------------------------------------------------------------------ */
-/* misc tools */
-
-#ifndef MIN
-  #define MIN(x,y) ((x)<(y)?(x):(y))
-#endif
-
-#ifndef MAX
-  #define MAX(x,y) ((x)>(y)?(x):(y))
-#endif
-
-static uint64_t test_checksum(void *p, int numbytes) {
- uint8_t *buf = (uint8_t *)p;
- uint64_t result = 0;
- int i;
- for (i=0;i<numbytes;i++) {
-   result = ((result << 8) | ((result >> 56) & 0xFF) ) ^ *buf;
-   buf++;
- }
- return result;
-}
-
-#define PAGESZ GASNETT_PAGESIZE
-#define alignup(a,b) ((((a)+(b)-1)/(b))*(b))
-#define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
-
-static int _test_rand(int low, int high) {
-  int result;
-  assert(low <= high);
-  result = low+(int)(((double)(high-low+1))*rand()/(RAND_MAX+1.0));
-  assert(result >= low && result <= high);
-  return result;
-}
-#define TEST_RAND(low,high) _test_rand((low), (high))
-#define TEST_RAND_PICK(a,b) (TEST_RAND(0,1)==1?(a):(b))
-#define TEST_SRAND(seed)    srand(seed)
-#define TEST_RAND_ONEIN(p)  (TEST_RAND(1,p) == 1)
-
-#define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
-#define TEST_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
-
-#define check_zeroret(op) do {                                       \
-  int _retval = (op);                                                \
-  if_pf(_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
-} while (0)
-
-#define check_nzeroret(op) do {                                       \
-  int _retval = (op);                                                 \
-  if_pf(!_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
-} while (0)
 
 /* ------------------------------------------------------------------------------------ */
 /* generic message output utility
@@ -144,16 +96,6 @@ static int test_errs = 0;
 #define ERR      TERR(0)
 #define FATALERR TERR(1)
 
-#if defined(_AIX) && defined(__cplusplus)
-  /* AIX's stdio.h won't provide prototypes for snprintf() and vsnprintf()
-   * by default since they are in C99 but not C89.
-   */
-  extern int snprintf(char * s, size_t n, const char * format, ...)
-					__attribute__((__format__ (__printf__, 3, 4)));
-  extern int vsnprintf(char * s, size_t n, const char * format, va_list ap)
-					__attribute__((__format__ (__printf__, 3, 0)));
-#endif
-
 #define _TEST_MSG_BUFSZ 1024
 static char _test_baseformat[_TEST_MSG_BUFSZ];
 static volatile int _test_squashmsg = 0;
@@ -166,8 +108,8 @@ static volatile int _test_fatalmsg = 0;
   #define _test_LOCKMSG()   ((void)0)
   #define _test_UNLOCKMSG() ((void)0)
 #endif
-static void _test_doErrMsg(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-static void _test_doErrMsg(const char *format, ...) {
+GASNETT_FORMAT_PRINTF(_test_doErrMsg,1,2,
+static void _test_doErrMsg(const char *format, ...)) {
   if (_test_squashmsg) _test_squashmsg = 0; 
   else {
     char output[_TEST_MSG_BUFSZ];
@@ -188,8 +130,8 @@ static void _test_doErrMsg(const char *format, ...) {
   }
   _test_UNLOCKMSG();
 }
-static void _test_makeErrMsg(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-static void _test_makeErrMsg(const char *format, ...) {
+GASNETT_FORMAT_PRINTF(_test_makeErrMsg,1,2,
+static void _test_makeErrMsg(const char *format, ...)) {
   va_list argptr;
   _test_LOCKMSG();
   va_start(argptr, format); /*  pass in last argument */
@@ -198,19 +140,66 @@ static void _test_makeErrMsg(const char *format, ...) {
     }
   va_end(argptr);
 }
+/* ------------------------------------------------------------------------------------ */
+/* misc tools */
+
+#ifndef MIN
+  #define MIN(x,y) ((x)<(y)?(x):(y))
+#endif
+
+#ifndef MAX
+  #define MAX(x,y) ((x)>(y)?(x):(y))
+#endif
+
+#define test_checksum gasnett_checksum
+
+#define PAGESZ GASNETT_PAGESIZE
+#define alignup(a,b) ((((a)+(b)-1)/(b))*(b))
+#define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
+
+static int _test_rand(int low, int high) {
+  int result;
+  assert(low <= high);
+  result = low+(int)(((double)(high-low+1))*rand()/(RAND_MAX+1.0));
+  assert(result >= low && result <= high);
+  return result;
+}
+#define TEST_RAND(low,high) _test_rand((low), (high))
+#define TEST_RAND_PICK(a,b) (TEST_RAND(0,1)==1?(a):(b))
+#define TEST_SRAND(seed)    srand(seed)
+#define TEST_RAND_ONEIN(p)  (TEST_RAND(1,p) == 1)
+
+#define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
+#define TEST_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+
+#define check_zeroret(op) do {                                       \
+  int _retval = (op);                                                \
+  if_pf(_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
+} while (0)
+
+#define check_nzeroret(op) do {                                       \
+  int _retval = (op);                                                 \
+  if_pf(!_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
+} while (0)
+
+static char test_section;
+static char test_sections[255];
+
+#define TEST_SECTION_BEGIN()        ((void)(!test_section ? test_section = 'A' : test_section++))
+#define TEST_SECTION_ENABLED()      ((!test_sections[0] || strchr(test_sections, test_section)))
+#define TEST_SECTION_BEGIN_ENABLED() (TEST_SECTION_BEGIN(), TEST_SECTION_ENABLED())
+#define TEST_SECTION_NAME() ((char)test_section)
+#define TEST_SECTION_PARSE(arg) do {       \
+      const char *p = (arg);               \
+      char *q = test_sections;             \
+      while (*p) *(q++) = toupper(*(p++)); \
+    } while (0)
 
 /* ------------------------------------------------------------------------------------ */
 /* timing - TIME() returns a microsecond time-stamp */
 
 #ifdef FORCE_GETTIMEOFDAY
-  static int64_t mygetMicrosecondTimeStamp(void) {
-      int64_t retval;
-      struct timeval tv;
-      check_zeroret(gettimeofday(&tv, NULL));
-      retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
-      return retval;
-  }
-  #define TIME() mygetMicrosecondTimeStamp()
+  #define TIME() gasnett_gettimeofday_us()
 #else
   #define TIME() gasnett_ticks_to_us(gasnett_ticks_now()) 
 #endif
@@ -522,6 +511,20 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
   } while (0)
 #endif
 
+static int test_collinit = 0;
+#define TEST_COLL_INIT() do {          \
+    if (!test_collinit) {              \
+      gasnet_coll_init(0, 0, 0, 0, 0); \
+      test_collinit = 1;               \
+    }                                  \
+  } while(0)
+/* cheap and simple broadcast operation */
+#define TEST_BCAST(dst, rootid, src, sz) do {                         \
+  TEST_COLL_INIT();                                                   \
+  gasnet_coll_broadcast(0, (dst), (rootid), (src), (sz),              \
+   GASNET_COLL_LOCAL|GASNET_COLL_IN_ALLSYNC|GASNET_COLL_OUT_ALLSYNC); \
+} while (0)
+
 /* ------------------------------------------------------------------------------------ */
 /* standard messages */
 static void TEST_DEBUGPERFORMANCE_WARNING() {
@@ -629,8 +632,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
 #endif
 
 #ifdef GASNET_SEGMENT_EVERYTHING
-  static gasnet_seginfo_t *_test_seginfo = NULL;
+  static gasnet_seginfo_t *_test_seginfo;
   #define TEST_SEG(node) (assert(_test_seginfo), _test_seginfo[node].addr)
+  #define TEST_SEGINFO() (assert(_test_seginfo), (gasnet_seginfo_t const *)_test_seginfo)
   /* following trivially handles the case where static data is aligned
      across the nodes, and also works on X-1 where the static data is
      misaligned across nodes. 
@@ -646,8 +650,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     gasnet_AMGetMsgSource(token, &srcid);
     assert(srcid < gasnet_nodes());
     _test_seginfo[srcid] = *(gasnet_seginfo_t *)buf;
-    gasnett_local_wmb();
-    gasnett_atomic_increment(&_test_seggather_done);
+    gasnett_atomic_increment(&_test_seggather_done, GASNETT_ATOMIC_REL);
   }
   static int _test_segbcast_idx;
   static int _test_segbcast_done = 0;
@@ -693,7 +696,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     BARRIER();
     GASNET_Safe(gasnet_AMRequestMedium0(0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t)));
     if (gasnet_mynode() == 0) {
-      GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done) == (int)gasnet_nodes());
+      GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done, 0) == (int)gasnet_nodes());
       for (i=0; i < (int)gasnet_nodes(); i++) {
         GASNET_Safe(gasnet_AMRequestMedium0(i, _test_segbcast_idx, _test_seginfo, gasnet_nodes()*sizeof(gasnet_seginfo_t)));
       }
@@ -709,9 +712,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
   #undef gasnet_attach
   #define gasnet_attach _test_attach
 #else
+  static gasnet_seginfo_t *_test_seginfo;
   static void *_test_getseg(gasnet_node_t node) {
-    static gasnet_seginfo_t *si = NULL;
-    if (si == NULL) {
+    if (_test_seginfo == NULL) {
       gasnet_node_t i;
       gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
       GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
@@ -722,11 +725,12 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
           assert_always(s[i].addr == s[0].addr);
         #endif
       }
-      si = s;
+      _test_seginfo = s;
     }
-    return si[node].addr;
+    return _test_seginfo[node].addr;
   }
   #define TEST_SEG(node) (_test_getseg(node))
+  #define TEST_SEGINFO() (assert(_test_seginfo), (gasnet_seginfo_t const *)_test_seginfo)
 #endif
 
 #define TEST_MYSEG()          (TEST_SEG(gasnet_mynode()))
@@ -735,10 +739,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
 /* ------------------------------------------------------------------------------------ */
 /* test initialization boilerplate */
 #if defined(__alpha) || defined(_CRAYT3E)
-  #define TEST_SIG_INIT() do {                          \
-      if (signal(SIGFPE, SIG_IGN) == SIG_ERR)           \
-        { perror("signal(SIGFPE, SIG_IGN)"); abort(); } \
-  } while (0)
+  #define TEST_SIG_INIT() gasnett_reghandler(SIGFPE, SIG_IGN)
 #else
   #define TEST_SIG_INIT()
 #endif
@@ -823,7 +824,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
       TEST_GENERICS_WARNING();
       if (gasnet_mynode() == 0)
         fprintf(stdout, "Timer granularity: <= %.3f us, overhead: ~ %.3f us\n",
-                       gasnett_timer_granularityus(), gasnett_timer_overheadus());
+                       gasnett_tick_granularityus(), gasnett_tick_overheadus());
       fflush(NULL);
     }
     if (test_getenv_yesno("GASNET_TEST_POLITE_SYNC",0)) {
@@ -837,7 +838,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
       if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s", hostname);
+        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
         fflush(NULL);
         BARRIER();
       }

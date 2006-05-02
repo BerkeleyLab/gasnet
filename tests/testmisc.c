@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2006/02/08 11:40:31 $
- * $Revision: 1.25 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.25.2.1 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -25,8 +25,8 @@ int accuracy = 0;
 void report(const char *desc, int64_t totaltime, int iters) {
   if (mynode == 0) {
       char format[80];
-      sprintf(format, "%%-50s: %%%i.%if sec  %%%i.%if us/iter\n", 
-              (4+accuracy), accuracy, (4+accuracy), accuracy);
+      sprintf(format, "%c: %%-50s: %%%i.%if s  %%%i.%if us\n", 
+              TEST_SECTION_NAME(), (4+accuracy), accuracy, (4+accuracy), accuracy);
       printf(format, desc, totaltime/1.0E9, (totaltime/1000.0)/iters);
       fflush(stdout);
   }
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
                             TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testmisc",1,"(iters) (accuracy_digits)");
+  test_init("testmisc",1,"(iters) (accuracy_digits) (test_sections)");
 
   mynode = gasnet_mynode();
   myseg = TEST_MYSEG();
@@ -102,7 +102,9 @@ int main(int argc, char **argv) {
   if (argc > 2) accuracy = atoi(argv[2]);
   if (!accuracy) accuracy = 3;
 
-  if (argc > 2) test_usage();
+  if (argc > 3) TEST_SECTION_PARSE(argv[3]);
+
+  if (argc > 4) test_usage();
 
   if (mynode == 0) {
       printf("Running misc performance test with %i iterations...\n",iters);
@@ -119,6 +121,7 @@ int main(int argc, char **argv) {
 }
 
 #define TIME_OPERATION_FULL(desc, preop, op, postop)       \
+  if (TEST_SECTION_ENABLED())                              \
   { int i, _iters = iters, _warmupiters = MAX(1,iters/10); \
     gasnett_tick_t start,end;  /* use ticks interface */   \
     BARRIER();                 /* for best accuracy */     \
@@ -145,12 +148,12 @@ int32_t temp = 0;
 gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
 gasnet_handle_t handles[8];
-
 /* ------------------------------------------------------------------------------------ */
 void doit1() { GASNET_BEGIN_FUNCTION();
 
     { int i; for (i=0;i<8;i++) handles[i] = GASNET_INVALID_HANDLE; }
 
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("Tester overhead", {});
     
     TIME_OPERATION("gasnett_ticks_now()",
@@ -162,6 +165,7 @@ void doit1() { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("gasnett_ticks_to_ns()",
       { timertemp = (gasnett_tick_t)gasnett_ticks_to_ns(timertemp); });
     
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("Do-nothing gasnet_AMPoll()",
       { gasnet_AMPoll(); });
     
@@ -186,8 +190,12 @@ void doit1() { GASNET_BEGIN_FUNCTION();
     doit2();
 }
 /* ------------------------------------------------------------------------------------ */
+volatile int val_true = 1;
+volatile int val_false = 0;
+int val_junk = 0;
 void doit2() { GASNET_BEGIN_FUNCTION();
 
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("hold/resume interrupts",
       { gasnet_hold_interrupts(); gasnet_resume_interrupts(); });
 
@@ -201,21 +209,51 @@ void doit2() { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("lock/unlock uncontended HSL (" _STRINGIFY(TEST_PARSEQ) " mode)",
       { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
 
+    TEST_SECTION_BEGIN();
+    #define MESSY(i) ((((i+14)*i)+(i+23)*i)&4)
+    TIME_OPERATION("if_pf correct",
+      { if_pf(val_false) val_false ^= MESSY(i); else val_junk++; });
+    
+    TIME_OPERATION("if_pf incorrect",
+      { if_pf(val_true) val_junk++; else val_true ^= MESSY(i); });
+    
+    TIME_OPERATION("if_pt correct",
+      { if_pt(val_true) val_junk++; else val_true ^= MESSY(i); });
+    
+    TIME_OPERATION("if_pt incorrect",
+      { if_pt(val_false) val_false ^= MESSY(i); else val_junk++;});
+    
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("gasnett_local_wmb", gasnett_local_wmb());
     TIME_OPERATION("gasnett_local_rmb", gasnett_local_rmb());
     TIME_OPERATION("gasnett_local_mb", gasnett_local_mb());
 
-    TIME_OPERATION("gasnett_atomic_read", gasnett_atomic_read(&a));
-    TIME_OPERATION("gasnett_atomic_set", gasnett_atomic_set(&a,1));
-    TIME_OPERATION("gasnett_atomic_increment", gasnett_atomic_increment(&a));
-    TIME_OPERATION("gasnett_atomic_decrement", gasnett_atomic_decrement(&a));
-    TIME_OPERATION("gasnett_atomic_decrement_and_test", gasnett_atomic_decrement_and_test(&a));
+    TEST_SECTION_BEGIN();
+    TIME_OPERATION("gasnett_atomic_read", gasnett_atomic_read(&a,0));
+    TIME_OPERATION("gasnett_atomic_set", gasnett_atomic_set(&a,1,0));
+    TIME_OPERATION("gasnett_atomic_increment", gasnett_atomic_increment(&a,0));
+    TIME_OPERATION("gasnett_atomic_increment.rel", gasnett_atomic_increment(&a,GASNETT_ATOMIC_REL));
+    TIME_OPERATION("gasnett_atomic_decrement", gasnett_atomic_decrement(&a,0));
+    TIME_OPERATION("gasnett_atomic_decrement.acq", gasnett_atomic_decrement(&a,GASNETT_ATOMIC_ACQ));
+    TIME_OPERATION("gasnett_atomic_decrement_and_test", gasnett_atomic_decrement_and_test(&a,0));
+    TIME_OPERATION("gasnett_atomic_decrement_and_test.acq", gasnett_atomic_decrement_and_test(&a,GASNETT_ATOMIC_ACQ));
 
 #if defined(GASNETT_HAVE_ATOMIC_CAS)
-    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (success)", { gasnett_atomic_set(&a,0); },
-			{ gasnett_atomic_compare_and_swap(&a,0,0); }, {});
-    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (failure)", { gasnett_atomic_set(&a,1); },
-			{ gasnett_atomic_compare_and_swap(&a,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (result=1)", { gasnett_atomic_set(&a,0,0); },
+			{ gasnett_atomic_compare_and_swap(&a,0,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap.acq (result=1)", { gasnett_atomic_set(&a,0,0); },
+			{ gasnett_atomic_compare_and_swap(&a,0,0,GASNETT_ATOMIC_ACQ); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap (result=0)", { gasnett_atomic_set(&a,1,0); },
+			{ gasnett_atomic_compare_and_swap(&a,0,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic_compare_and_swap.acq (result=0)", { gasnett_atomic_set(&a,1,0); },
+			{ gasnett_atomic_compare_and_swap(&a,0,0,GASNETT_ATOMIC_ACQ); }, {});
+#endif
+
+#if defined(GASNETT_HAVE_ATOMIC_ADD_SUB)
+    TIME_OPERATION("gasnett_atomic_add", gasnett_atomic_add(&a,i,0));
+    TIME_OPERATION("gasnett_atomic_add.rel", gasnett_atomic_add(&a,i,GASNETT_ATOMIC_REL));
+    TIME_OPERATION("gasnett_atomic_subtract", gasnett_atomic_subtract(&a,i,0));
+    TIME_OPERATION("gasnett_atomic_subtract.acq", gasnett_atomic_subtract(&a,i,GASNETT_ATOMIC_ACQ));
 #endif
 
     doit3();
@@ -226,6 +264,7 @@ void doit3() {
   volatile gasnet_threadinfo_t ti;
   volatile uintptr_t y = 0;
 
+  TEST_SECTION_BEGIN();
   { GASNET_BEGIN_FUNCTION();
     gasnett_threadkey_t key = GASNETT_THREADKEY_INITIALIZER;
 
@@ -240,8 +279,10 @@ void doit3() {
       { gasnett_threadkey_set_noinit(key, x); });
   }
 
+  TEST_SECTION_BEGIN();
   TIME_OPERATION("GASNET_BEGIN_FUNCTION (" _STRINGIFY(TEST_PARSEQ) " mode)", 
       { GASNET_BEGIN_FUNCTION(); });
+  memset((void *)&ti,0,sizeof(ti));
   TIME_OPERATION("GASNET_POST_THREADINFO (" _STRINGIFY(TEST_PARSEQ) " mode)", 
       { GASNET_POST_THREADINFO(ti); });
   { GASNET_BEGIN_FUNCTION();
@@ -256,6 +297,7 @@ void doit3() {
 /* ------------------------------------------------------------------------------------ */
 void doit4() { GASNET_BEGIN_FUNCTION();
 
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("local 4-byte gasnet_put",
       { gasnet_put(mynode, myseg, &temp, 4); });
 
@@ -350,11 +392,12 @@ void doit6() { GASNET_BEGIN_FUNCTION();
 /* ------------------------------------------------------------------------------------ */
 void doit7() { GASNET_BEGIN_FUNCTION();
 
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("do-nothing gasnet_wait_syncnb()",
       { gasnet_wait_syncnb(GASNET_INVALID_HANDLE);  });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnb()",
-      { gasnet_try_syncnb(GASNET_INVALID_HANDLE); });
+      { int junk = gasnet_try_syncnb(GASNET_INVALID_HANDLE); });
 
     TIME_OPERATION("do-nothing gasnet_wait_syncnb_all() (8 handles)",
       { gasnet_wait_syncnb_all(handles, 8); });
@@ -378,19 +421,20 @@ void doit7() { GASNET_BEGIN_FUNCTION();
       { gasnet_wait_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnbi_all()",
-      { gasnet_try_syncnbi_all(); });
+      { int junk = gasnet_try_syncnbi_all(); });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnbi_puts()",
-      { gasnet_try_syncnbi_puts(); });
+      { int junk = gasnet_try_syncnbi_puts(); });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnbi_gets()",
-      { gasnet_try_syncnbi_gets(); });
+      { int junk = gasnet_try_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gasnet_begin_nbi_accessregion();
         gasnet_wait_syncnb(gasnet_end_nbi_accessregion());
       });
 
+    TEST_SECTION_BEGIN();
     TIME_OPERATION("single-node barrier",
       { gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            
         gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS); 

@@ -1,7 +1,46 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.9 $
+$Revision: 1.9.12.1 $
 
+----------------------------------------------------------------------
+?-?-2006 : Release 1.8
+
+* New conduits added:
+
+* New platform support:
+  - New ports: MacOSX/x86, MacOSX/PPC64, Cray XD1 and ucLinux/MicroBlaze
+
+* Misc changes:  
+  - Change default timer granularity to nanoseconds, adding _ticks_to_ns()
+  - Implement automatic backtrace generation on crash
+  - Add --help option to all tests
+  - Add internal diagnostic tests
+  - Add progress functions
+  - Fix ansi-aliasing violations on small local put/get copies
+  - Default to allocate-first-touch for segment mmap on Linux and Solaris
+  - Many, many bug fixes, for both specific conduits and general platform
+    portability. See http://upc-bugs.lbl.gov for complete details.    
+
+* General performance improvements:
+  - split-phase barriers on most conduits now make progress during any GASNet call
+
+* InfiniBand/VAPI:
+  - Implement multi-port and multi-rail striping support
+  - Improvements to firehose region management heuristics
+
+* MPI:
+  - Significant performance and stability improvements on mpi-conduit,
+    especially on systems where the MPI-level flow control is lacking or
+    unreliable (eg XT-3, BGL).
+  - Split request/reply traffic onto separate MPI communicators to ensure
+    bounded AMMPI-level buffer space utilization, even for degenerate cases
+  - Added an AMMPI-level token-based flow control solution to prevent the
+    crashes observed under heavy MPI unexpected message loads on various
+    systems (XT3, Altix)
+  - Add workaround for an IBM MPI ordering bug that could cause deadlock
+    under heavy communication patterns.
+  - Other misc tuning along the primary control paths and new tuning knobs
+  
 ----------------------------------------------------------------------
 08-20-2005 : Release 1.6
 

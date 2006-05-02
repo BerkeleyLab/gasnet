@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/02/08 08:52:48 $
-dnl $Revision: 1.90 $
+dnl     $Date: 2006/05/02 05:43:53 $
+dnl $Revision: 1.90.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -640,7 +640,7 @@ dnl action-none runs for no foo arg given
 dnl GASNET_WITH(foo, description, action-withval, [action-without], [action-none])
 AC_DEFUN([GASNET_WITH],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=value,$2), [
+AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=value,[$2]), [
   case "$withval" in
     no) :
         $4 ;;
@@ -818,7 +818,38 @@ AC_DEFUN([GASNET_TRY_RUNCMD],[
 
 dnl GASNET_TRY_CCOMPILE_WITHWARN(includes, function-body, action-success, action-warning, action-error)
 dnl Compile a C program and take different actions based on complete success, error or warning
+dnl Automatically handles compilers that issue unrelated warnings on every compile
+
 AC_DEFUN([GASNET_TRY_CCOMPILE_WITHWARN],[
+  GASNET_FUN_BEGIN([$0(...)])
+  GASNET_TRY_CCOMPILE_WITHWARN_NORETRY([$1],[$2],[$3],[
+    dnl got a warning - does same warning also happen with an empty program?
+    _GASNET_TRY_COMPILE_WITHWARN_OUTTMP="$gasnet_cmd_stdout"
+    _GASNET_TRY_COMPILE_WITHWARN_ERRTMP="$gasnet_cmd_stderr"
+    GASNET_TRY_CCOMPILE_WITHWARN_NORETRY([],[],[
+        dnl no warning on empty program => warning caused by input
+	gasnet_cmd_stdout="$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP"
+	gasnet_cmd_stderr="$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP"
+    	$4
+    ],[ dnl still got a warning - is the same?
+      if test "$gasnet_cmd_stdout$gasnet_cmd_stderr" = "$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP" ; then
+        dnl identical warnings => no new warnings caused by program
+	$3
+      else
+        dnl different warnings => program is likely causal factor
+	gasnet_cmd_stdout="$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP"
+	gasnet_cmd_stderr="$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP"
+	$4
+      fi
+    ],[ dnl got an error on an empty program!
+      GASNET_MSG_ERROR([unknown failure case in TRY_CCOMPILE_WITHWARN])
+    ])
+  ],[$5])
+  GASNET_FUN_END([$0(...)])
+])
+
+dnl for internal use only
+AC_DEFUN([GASNET_TRY_CCOMPILE_WITHWARN_NORETRY],[
   GASNET_FUN_BEGIN([$0(...)])
   gasnet_testname=gasnet-conftest
   gasnet_testfile=${gasnet_testname}.c
@@ -845,7 +876,38 @@ EOF
 
 dnl GASNET_TRY_CXXCOMPILE_WITHWARN(includes, function-body, action-success, action-warning, action-error)
 dnl Compile a C++ program and take different actions based on complete success, error or warning
+dnl Automatically handles compilers that issue unrelated warnings on every compile
+
 AC_DEFUN([GASNET_TRY_CXXCOMPILE_WITHWARN],[
+  GASNET_FUN_BEGIN([$0(...)])
+  GASNET_TRY_CXXCOMPILE_WITHWARN_NORETRY([$1],[$2],[$3],[
+    dnl got a warning - does same warning also happen with an empty program?
+    _GASNET_TRY_COMPILE_WITHWARN_OUTTMP="$gasnet_cmd_stdout"
+    _GASNET_TRY_COMPILE_WITHWARN_ERRTMP="$gasnet_cmd_stderr"
+    GASNET_TRY_CXXCOMPILE_WITHWARN_NORETRY([],[],[
+        dnl no warning on empty program => warning caused by input
+	gasnet_cmd_stdout="$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP"
+	gasnet_cmd_stderr="$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP"
+    	$4
+    ],[ dnl still got a warning - is the same?
+      if test "$gasnet_cmd_stdout$gasnet_cmd_stderr" = "$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP" ; then
+        dnl identical warnings => no new warnings caused by program
+	$3
+      else
+        dnl different warnings => program is likely causal factor
+	gasnet_cmd_stdout="$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP"
+	gasnet_cmd_stderr="$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP"
+	$4
+      fi
+    ],[ dnl got an error on an empty program!
+      GASNET_MSG_ERROR([unknown failure case in TRY_CXXCOMPILE_WITHWARN])
+    ])
+  ],[$5])
+  GASNET_FUN_END([$0(...)])
+])
+
+dnl for internal use only
+AC_DEFUN([GASNET_TRY_CXXCOMPILE_WITHWARN_NORETRY],[
   GASNET_FUN_BEGIN([$0(...)])
   gasnet_testname=gasnet-conftest
   gasnet_testfile=${gasnet_testname}.cc
@@ -875,14 +937,33 @@ AC_DEFUN([GASNET_TRY_CFLAG],[
 GASNET_FUN_BEGIN([$0($1)])
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $1")
 AC_MSG_CHECKING(for C compiler flag $1)
-GASNET_TRY_CCOMPILE_WITHWARN([], [], [
+GASNET_TRY_CCOMPILE_WITHWARN_NORETRY([], [], [
  AC_MSG_RESULT(yes)
  GASNET_POPVAR(CFLAGS)
  $2
 ], [
- AC_MSG_RESULT(no/warning: $gasnet_cmd_stdout$gasnet_cmd_stderr)
+ dnl some compilers issue a warning on *every* compile, 
+ dnl so save the warning and try again without the flag being tested, 
+ dnl to verify the warning we saw is actually a new warning
+ _GASNET_TRY_CFLAG_TMP="$gasnet_cmd_stdout$gasnet_cmd_stderr"
  GASNET_POPVAR(CFLAGS)
- $3
+ GASNET_TRY_CCOMPILE_WITHWARN_NORETRY([], [], [
+   dnl warning disappeared when flag removed => flag is the cause
+   AC_MSG_RESULT(no/warning: $_GASNET_TRY_CFLAG_TMP)
+   $3
+ ],[ 
+   if test "$gasnet_cmd_stdout$gasnet_cmd_stderr" = "$_GASNET_TRY_CFLAG_TMP" ; then
+     dnl got same warning => flag does not create new warnings
+     AC_MSG_RESULT(yes/persistent-warning: $_GASNET_TRY_CFLAG_TMP)
+     $2
+   else
+     dnl warnings differ with and without flag => flag is probably a causal factor
+     AC_MSG_RESULT(no/new-warning: $_GASNET_TRY_CFLAG_TMP)
+     $3
+   fi
+ ],[ dnl got an error - should never happen?
+   GASNET_MSG_ERROR([unknown failure case in TRY_CFLAG])
+ ])
 ], [
  AC_MSG_RESULT(no/error: $gasnet_cmd_stdout$gasnet_cmd_stderr)
  GASNET_POPVAR(CFLAGS)
@@ -896,14 +977,33 @@ AC_DEFUN([GASNET_TRY_CXXFLAG],[
 GASNET_FUN_BEGIN([$0($1)])
 GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS $1")
 AC_MSG_CHECKING(for C++ compiler flag $1)
-GASNET_TRY_CXXCOMPILE_WITHWARN([], [], [
+GASNET_TRY_CXXCOMPILE_WITHWARN_NORETRY([], [], [
  AC_MSG_RESULT(yes)
  GASNET_POPVAR(CXXFLAGS)
  $2
 ], [
- AC_MSG_RESULT(no/warning: $gasnet_cmd_stdout$gasnet_cmd_stderr)
+ dnl some compilers issue a warning on *every* compile, 
+ dnl so save the warning and try again without the flag being tested, 
+ dnl to verify the warning we saw is actually a new warning
+ _GASNET_TRY_CXXFLAG_TMP="$gasnet_cmd_stdout$gasnet_cmd_stderr"
  GASNET_POPVAR(CXXFLAGS)
- $3
+ GASNET_TRY_CCOMPILE_WITHWARN_NORETRY([], [], [
+   dnl warning disappeared when flag removed => flag is the cause
+   AC_MSG_RESULT(no/warning: $_GASNET_TRY_CXXFLAG_TMP)
+   $3
+ ],[ 
+   if test "$gasnet_cmd_stdout$gasnet_cmd_stderr" = "$_GASNET_TRY_CXXFLAG_TMP" ; then
+     dnl got same warning => flag does not create new warnings
+     AC_MSG_RESULT(yes/persistent-warning: $_GASNET_TRY_CXXFLAG_TMP)
+     $2
+   else
+     dnl warnings differ with and without flag => flag is probably a causal factor
+     AC_MSG_RESULT(no/new-warning: $_GASNET_TRY_CXXFLAG_TMP)
+     $3
+   fi
+ ],[ dnl got an error - should never happen?
+   GASNET_MSG_ERROR([unknown failure case in TRY_CXXFLAG])
+ ])
 ], [
  AC_MSG_RESULT(no/error: $gasnet_cmd_stdout$gasnet_cmd_stderr)
  GASNET_POPVAR(CXXFLAGS)
@@ -990,6 +1090,25 @@ GASNET_FUN_BEGIN([$0])
     AC_DEFINE(GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS))
 GASNET_FUN_END([$0])
 ])
+
+dnl check whether a given gcc attribute is available
+dnl GASNET_CHECK_GCC_ATTRIBUTE(attribute-name, declaration, code)
+AC_DEFUN([GASNET_CHECK_GCC_ATTRIBUTE],[
+  GASNET_FUN_BEGIN([$0($1)])
+  pushdef([uppername],translit(patsubst([$1], [_], []),'a-z','A-Z'))
+  AC_MSG_CHECKING(for __attribute__(($1)))
+  GASNET_TRY_CCOMPILE_WITHWARN([$2], [$3], [
+      AC_MSG_RESULT(yes)
+      AC_DEFINE(GASNETI_HAVE_GCC_ATTRIBUTE_[]uppername)
+      AC_DEFINE(GASNETI_HAVE_GCC_ATTRIBUTE)
+    ],[ dnl AC_MSG_RESULT([no/warning: $gasnet_cmd_stdout$gasnet_cmd_stderr])
+        AC_MSG_RESULT([no/warning])
+    ],[ dnl AC_MSG_RESULT([no/error: $gasnet_cmd_stdout$gasnet_cmd_stderr]) 
+        AC_MSG_RESULT([no/error]) 
+  ])
+  GASNET_FUN_END([$0($1)])
+  popdef([uppername])
+]) 
 
 dnl Output compilation error information, if available and do a AC_MSG_ERROR
 dnl should be used within the failed branch of the compile macro, otherwise
@@ -1114,6 +1233,7 @@ AC_CACHE_CHECK($1, cv_prefix[]$2,
 AC_TRY_RUN([
   #include "confdefs.h"
   #include <stdio.h>
+  #include <stdlib.h>
   $3
   int main() {
     FILE *f=fopen("conftestval", "w");
@@ -1161,6 +1281,15 @@ AC_DEFUN([GASNET_PROG_CPP], [
     #endif
   ], [], [GASNET_MSG_ERROR([Your C preprocessor is broken, it erroneously defines __cplusplus. This software requires a true, working ANSI C compiler - a C++ compiler is not an acceptable replacement.])])
   AC_MSG_RESULT(yes$gasnet_progcpp_extrainfo)
+  if test "$CPP" = "/lib/cpp" ; then
+    badlibcppmsg="Autoconf detected your preprocessor to be '/lib/cpp' instead of '$CC -E'. This is almost always a mistake, resulting from either a broken C compiler or an outdated version of autoconf. Proceeding is very likely to result in incorrect configure decisions."
+    GASNET_IF_ENABLED(allow-libcpp, Allow the use of /lib/cpp for preprocessing, [
+      AC_MSG_WARN([$badlibcppmsg])
+    ],[
+      AC_MSG_ERROR([$badlibcppmsg \
+        You may enable use of this preprocessor at your own risk by passing the --enable-allow-libcpp flag.])
+    ])
+  fi
   AC_LANG_RESTORE
   GASNET_FUN_END([$0])
 ])
@@ -1212,7 +1341,10 @@ AC_DEFUN([GASNET_PROG_CC], [
   AC_TRY_COMPILE([], [
     fail for me
   ], [AC_MSG_ERROR(Your C compiler is broken - reported success when it should have failed)], [])
-  AC_TRY_COMPILE([], [], [], [GASNET_MSG_ERROR(Your C compiler is broken - reported failure when it should have succeeded)])
+  AC_TRY_COMPILE([ #include <stdio.h>
+                   #include <stdlib.h>
+		 ], [ printf("hi\n"); exit(0); ], 
+     [], [GASNET_MSG_ERROR(Your C compiler is broken - reported failure when it should have succeeded)])
   AC_TRY_COMPILE([
     double *p;
     void *foo(double *d) { 
@@ -1225,7 +1357,10 @@ AC_DEFUN([GASNET_PROG_CC], [
   ], [], [GASNET_MSG_ERROR([Your C compiler is broken, it fails to compile a simple C program using implicit void* conversion. This software requires a true, working ANSI C compiler - note that a C++ compiler is not an acceptable replacement.])])
   AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
               [AC_MSG_ERROR(Your C linker is broken - reported success when it should have failed)], [])
-  AC_TRY_LINK([], [], [], [GASNET_MSG_ERROR(Your C link is broken - reported failure when it should have succeeded)])
+  AC_TRY_LINK([ #include <stdio.h>
+                #include <stdlib.h>
+              ], [ printf("hi\n"); exit(0); ], 
+     [], [GASNET_MSG_ERROR(Your C link is broken - reported failure when it should have succeeded)])
   AC_MSG_RESULT(yes)
   AC_MSG_CHECKING(if user enabled cross-compile)
   GASNET_IF_ENABLED(cross-compile, [ Enable cross-compilation (experimental) ], [
@@ -1262,10 +1397,16 @@ AC_DEFUN([GASNET_PROG_CXX], [
   AC_TRY_COMPILE([], [
     fail for me
   ], [AC_MSG_ERROR(Your C++ compiler is broken - reported success when it should have failed)], [])
-  AC_TRY_COMPILE([], [], [], [GASNET_MSG_ERROR(Your C++ compiler is broken - reported failure when it should have succeeded)])
+  AC_TRY_COMPILE([ #include <stdio.h>
+                   #include <stdlib.h>
+                 ], [ printf("hi\n"); exit(0); ], 
+     [], [GASNET_MSG_ERROR(Your C++ compiler is broken - reported failure when it should have succeeded)])
   AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
               [AC_MSG_ERROR(Your C++ linker is broken - reported success when it should have failed)], [])
-  AC_TRY_LINK([], [], [], [GASNET_MSG_ERROR(Your C++ link is broken - reported failure when it should have succeeded)])
+  AC_TRY_LINK([ #include <stdio.h>
+                   #include <stdlib.h>
+              ], [ printf("hi\n"); exit(0); ], 
+     [], [GASNET_MSG_ERROR(Your C++ link is broken - reported failure when it should have succeeded)])
   AC_MSG_RESULT(yes)
   dnl reset autoconf cross compilation setting, which is wrong if executables are broken
   AC_MSG_CHECKING(if user enabled cross-compile)
@@ -1294,13 +1435,19 @@ if test "$cross_compiling" = "yes" ; then
   HOST_MSG="When cross-compiling, \$HOST_CC or --with-host-cc= must be set to indicate a C compiler for the host machine (ie the machine running this configure script)"
   GASNET_ENV_DEFAULT(HOST_CC, )
   GASNET_ENV_DEFAULT(HOST_CFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_LDFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_LIBS, )
   AC_SUBST(HOST_CC)
   AC_SUBST(HOST_CFLAGS)
+  AC_SUBST(HOST_LDFLAGS)
+  AC_SUBST(HOST_LIBS)
   if test ! "$HOST_CC" ; then
     AC_MSG_ERROR([$HOST_MSG])
   fi
   GASNET_PUSHVAR(CC,"$HOST_CC")
   GASNET_PUSHVAR(CFLAGS,"$HOST_CFLAGS")
+  GASNET_PUSHVAR(LDFLAGS,"$HOST_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$HOST_LIBS")
   dnl push all the other goop that AC_PROG_C(PP) caches away
   GASNET_PUSHVAR_UNSET(CPP)
   GASNET_PUSHVAR_UNSET(CPPFLAGS)
@@ -1322,9 +1469,13 @@ if test "$cross_compiling" = "yes" ; then
     HOST_CPP="$CPP"
     HOST_CPPFLAGS="$CPPFLAGS"
     HOST_CFLAGS="$CFLAGS"
+    HOST_LDFLAGS="$LDFLAGS"
+    HOST_LIBS="$LIBS"
     AC_LANG_RESTORE
   GASNET_POPVAR(CC)
   GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LDFLAGS)
+  GASNET_POPVAR(LIBS)
   GASNET_POPVAR(CPP)
   GASNET_POPVAR(CPPFLAGS)
   GASNET_POPVAR(ac_cv_prog_CC)
@@ -1345,13 +1496,19 @@ if test "$cross_compiling" = "yes" ; then
   HOST_MSG="When cross-compiling, \$HOST_CXX or --with-host-cxx= must be set to indicate a C++ compiler for the host machine (ie the machine running this configure script)"
   GASNET_ENV_DEFAULT(HOST_CXX, )
   GASNET_ENV_DEFAULT(HOST_CXXFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_CXX_LDFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_CXX_LIBS, )
   AC_SUBST(HOST_CXX)
   AC_SUBST(HOST_CXXFLAGS)
+  AC_SUBST(HOST_CXX_LDFLAGS)
+  AC_SUBST(HOST_CXX_LIBS)
   if test ! "$HOST_CXX" ; then
     AC_MSG_ERROR([$HOST_MSG])
   fi
   GASNET_PUSHVAR(CXX,"$HOST_CXX")
   GASNET_PUSHVAR(CXXFLAGS,"$HOST_CXXFLAGS")
+  GASNET_PUSHVAR(LDFLAGS,"$HOST_CXX_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$HOST_CXX_LIBS")
   dnl push all the other goop that AC_PROG_CXX(CPP) caches away
   GASNET_PUSHVAR_UNSET(CXXCPP)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_CXX)
@@ -1370,10 +1527,14 @@ if test "$cross_compiling" = "yes" ; then
     HOST_CXX="$CXX"
     HOST_CXXCPP="$CXXCPP"
     HOST_CXXFLAGS="$CXXFLAGS"
+    HOST_CXX_LDFLAGS="$LDFLAGS"
+    HOST_CXX_LIBS="$LIBS"
     AC_LANG_RESTORE
   GASNET_POPVAR(CXX)
   GASNET_POPVAR(CXXFLAGS)
   GASNET_POPVAR(CXXCPP)
+  GASNET_POPVAR(LDFLAGS)
+  GASNET_POPVAR(LIBS)
   GASNET_POPVAR(ac_cv_prog_CXX)
   GASNET_POPVAR(ac_cv_prog_CXXCPP)
   GASNET_POPVAR(ac_cv_cxx_compiler_gnu)
@@ -1449,6 +1610,9 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(__HP_aCC, $3=HP) # HP aCC (C++)
   fi
   if test "$$3" = "unknown"; then
+    GASNET_IFDEF(_SGI_COMPILER_VERSION, $3=MIPS)
+  fi
+  if test "$$3" = "unknown"; then
     GASNET_IFDEF(__MTA__, $3=MTA)
   fi
   if test "$$3" = "unknown"; then
@@ -1457,7 +1621,6 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
 
   dnl compilers lacking specific identifying marks - identify by platform
   if test "$$3" = "unknown"; then
-    GASNET_IFDEF(mips, $3=MIPS)
     GASNET_IFDEF(_SX, $3=NEC)
   fi
 ])

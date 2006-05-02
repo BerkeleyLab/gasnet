@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2006/01/28 21:21:46 $
- * $Revision: 1.9 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.9.4.1 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -45,13 +45,13 @@ gasnet_handle_t *handles;
 gasnett_atomic_t amcount = gasnett_atomic_init(0);
 
 void ping_shorthandler(gasnet_token_t token) {
-  gasnett_atomic_increment(&amcount);
+  gasnett_atomic_increment(&amcount,0);
 }
 void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&amcount);
+  gasnett_atomic_increment(&amcount,0);
 }
 void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&amcount);
+  gasnett_atomic_increment(&amcount,0);
 }
 
 gasnet_handlerentry_t htable[] = { 
@@ -425,32 +425,32 @@ void do_blockingputgets() {
 }
 void do_amtests() {
     if (do_amshort) {
-      gasnett_atomic_set(&amcount, 0);
+      gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestShort0", 
                  gasnet_AMRequestShort0(peerproc, hidx_ping_shorthandler), (void)0,
                 { assert(iamrecver);
-                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount) == depth); 
-                  gasnett_atomic_set(&amcount, 0); }, 
+                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
+                  gasnett_atomic_set(&amcount, 0, 0); }, 
                  min_payload);
     }
 
     if (do_ammedium) {
-      gasnett_atomic_set(&amcount, 0);
+      gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestMedium0", 
                  gasnet_AMRequestMedium0(peerproc, hidx_ping_medhandler, msgbuf, payload), (void)0,
                 { assert(iamrecver);
-                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount) == depth); 
-                  gasnett_atomic_set(&amcount, 0); }, 
+                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
+                  gasnett_atomic_set(&amcount, 0, 0); }, 
                  gasnet_AMMaxMedium());
     }
 
     if (do_amlong) {
-      gasnett_atomic_set(&amcount, 0);
+      gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestLong0", 
                  gasnet_AMRequestLong0(peerproc, hidx_ping_medhandler, msgbuf, payload, tgtmem), (void)0,
                 { assert(iamrecver);
-                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount) == depth); 
-                  gasnett_atomic_set(&amcount, 0); }, 
+                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
+                  gasnett_atomic_set(&amcount, 0, 0); }, 
                  gasnet_AMMaxLongRequest());
     }
 }

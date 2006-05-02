@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/04/06 06:59:10 $
- * $Revision: 1.26 $
+ *     $Date: 2006/05/02 05:44:02 $
+ * $Revision: 1.26.16.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -70,7 +70,7 @@ typedef struct _gasnete_eop_t {
 
 	#ifdef GASNETC_FIREHOSE_TRACE
 	gasnetc_fh_stats_t	fh_stats;
-	gasneti_stattime_t	starttime;
+	gasneti_tick_t	starttime;
 	#endif
 
 	gasnete_eopaddr_t	addr;      /*  next cell while in free list, 
@@ -107,6 +107,7 @@ typedef struct _gasnete_threaddata_t {
 	void			*gasnetc_threaddata;
 	/* pointer reserved for use by the collectives */
 	void			*gasnete_coll_threaddata;
+        void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
 
 	gasnete_threadidx_t	threadidx;
 
@@ -127,7 +128,7 @@ typedef struct _gasnete_threaddata_t {
 #define OPTYPE_EXPLICIT		0x00  /* gasnete_eop_new() relies on this value */
 #define OPTYPE_IMPLICIT		0x80
 #define OPTYPE(op)		((op)->flags & 0x80)
-GASNET_INLINE_MODIFIER(SET_OPTYPE)
+GASNETI_INLINE(SET_OPTYPE)
 void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 	op->flags = (op->flags & 0x7F) | (type & 0x80);
 	gasneti_assert(OPTYPE(op) == type);
@@ -141,7 +142,7 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 #define OPMISC_NONAMBUF		4
 #define OPMISC_AMBUF		8
 #define OPMISC(op)		((op)->flags & 0x0C)
-GASNET_INLINE_MODIFIER(SET_OPSTATE)
+GASNETI_INLINE(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
 	op->flags = (op->flags & 0xFC) | (state & 0x03);
 	/* RACE: If we are marking the op COMPLETE, don't assert for completion
@@ -150,7 +151,7 @@ void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
 	gasneti_assert(state == OPSTATE_COMPLETE ? 1 : OPSTATE(op) == state);
 }
 
-GASNET_INLINE_MODIFIER(SET_OPMISC)
+GASNETI_INLINE(SET_OPMISC)
 void SET_OPMISC(gasnete_eop_t *op, uint8_t misc) {
 	op->flags = (op->flags & 0xF3) | (misc & 0x0C);
 	gasneti_assert(OPMISC(op) == misc);
@@ -191,10 +192,10 @@ void		gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt),0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt),0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)

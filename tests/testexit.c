@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2006/02/10 07:38:12 $
- * $Revision: 1.19 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.19.12.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -208,13 +208,7 @@ int main(int argc, char **argv) {
 	                    TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
-  { test_sighandlerfn_t fpret = (test_sighandlerfn_t)signal(SIGQUIT, testSignalHandler); 
-    if (fpret == (test_sighandlerfn_t)SIG_ERR) {
-      MSG("Got a SIG_ERR while registering SIGQUIT handler");
-      perror("signal");
-      abort();
-    }
-  }
+  gasnett_reghandler(SIGQUIT, testSignalHandler);
 
   TEST_SEG(mynode);
 

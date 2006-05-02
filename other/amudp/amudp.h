@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2005/08/20 11:03:12 $
- * $Revision: 1.27 $
+ *     $Date: 2006/05/02 05:44:14 $
+ * $Revision: 1.27.12.1 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -96,7 +96,7 @@ typedef enum {
   amudp_Medium=1, 
   amudp_Long=2,
   amudp_NumCategories=3
-  } amudp_category_t;
+} amudp_category_t;
 
 #define AMUDP_MSG_SETFLAGS(pmsg, isreq, cat, numargs, seqnum, instance) do { \
    (pmsg)->flags = (amudp_flag_t) (                                          \
@@ -128,7 +128,7 @@ typedef struct {
   uint8_t       systemMessageArg;
 
   uintptr_t	destOffset;
-  } amudp_msg_t;
+} amudp_msg_t;
 
 /* non-transmitted amudp buffer bookkeeping info -
  * this data must be kept to a bare minimum because it constrains packet size 
@@ -141,7 +141,7 @@ typedef struct {
   struct amudp_ep *dest;  /* ep_t of endpoint that received this message */
   struct amudp_buf *bulkBuffer; /* if non-NULL, points to a bulk buffer 
                               holding the transmitted data fields for this buffer */
-  } amudp_bufstatus_t;
+} amudp_bufstatus_t;
 
 /* active message buffer, including message and space for data payload */
 typedef struct amudp_buf {
@@ -162,7 +162,7 @@ typedef struct amudp_buf {
       this could go in descriptor, but need 4-bytes of pad here anyhow for correct alignment */
    int32_t bufhandle; 
   #endif
-  } amudp_buf_t;
+} amudp_buf_t;
 
 #define AMUDP_MIN_NETWORK_MSG     ((int)(uintptr_t)&((amudp_buf_t *)NULL)->_Data[0])
 #define AMUDP_MAX_NETWORK_MSG     (AMUDP_MIN_NETWORK_MSG+(4*AMUDP_MAX_SHORT)+AMUDP_MAX_MEDIUM)
@@ -178,7 +178,7 @@ typedef struct {
   uint8_t transmitCount; /* how many times we've actually transmitted */
   uint8_t inuse;
   uint8_t seqNum; /* seq number for next message to be sent/recv'd on this desc */
-  } amudp_bufdesc_t;
+} amudp_bufdesc_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* Complex user-visible types */
@@ -199,7 +199,7 @@ typedef struct {
   amudp_cputick_t RequestSumLatency;  /* in CPU ticks, only if AMUDP_COLLECT_LATENCY_STATS */
   uint64_t DataBytesSent[amudp_NumCategories];  /* total of args + data payload for all req/rep, not including retrans */
   uint64_t TotalBytesSent; /* total user level packet sizes for all req/rep, including retrans */
-  } amudp_stats_t;
+} amudp_stats_t;
 
 typedef void (*amudp_handler_fn_t)();  /* prototype for handler function */
 typedef struct {
@@ -207,7 +207,7 @@ typedef struct {
   en_t name;  /*  remote address */
   tag_t tag;  /*  remote tag */
   uint8_t id; /*  id in compressed table */
-  } amudp_translation_t;
+} amudp_translation_t;
 
 typedef struct {
   uintptr_t minDestOffset;   /* smallest destOffset seen in this xfer */
@@ -215,14 +215,14 @@ typedef struct {
   uint8_t  packetsRemaining; /* number of packets left to be recieved (0 = notinuse)*/
   uint8_t  numargs;          /* cache number of args */
   uint32_t args[AMUDP_MAX_SHORT]; /* cache the args (sent in a single fragment) */
-  } bulkslot_t;
+} bulkslot_t;
 
 typedef struct {
   uint16_t  instanceHint; /* instance hint pointer for request buffer allocation */
   en_t      remoteName;   /* gives us a compacted version of the translation table */
   tag_t     tag;
   bulkslot_t inboundBulkSlot[16]; /* slots for maintaining inbound bulk transfer status */
-  } amudp_perproc_info_t;
+} amudp_perproc_info_t;
 
 typedef void (*AMUDP_preHandlerCallback_t)(amudp_category_t cat, int isReq, int handlerId, void *token, 
                                          void *buf, size_t nbytes, int numargs, uint32_t *args);
@@ -234,7 +234,7 @@ typedef struct amudp_eb {
   int	  n_endpoints;           /* Number of EPs in the bundle */
   int	  cursize;               /* size of the array */
   uint8_t event_mask;            /* Event Mask for blocking ops */
-  } *eb_t;
+} *eb_t;
 
 /* Endpoint object */
 typedef struct amudp_ep {
@@ -293,7 +293,7 @@ typedef struct amudp_ep {
   int bulkBufferPoolSz;     /* length of list */
   int bulkBufferPoolFreeCnt; /* number of those that are free (which appear first in list) */
 
-  } *ep_t;
+} *ep_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* User-visible constants */
@@ -307,12 +307,12 @@ typedef enum {
                     a message delivered to it generates an event */
   /* AM_CANSEND, */ /* TODO: can send without blocking */
   AM_NUMEVENTMASKS
-  } amudp_eventmask_t;
+} amudp_eventmask_t;
 
 typedef enum {
-    AM_SEQ,             /* Sequential bundle/endpoint access */
-    AM_PAR,             /* Concurrent bundle/endpoint access */
-    AM_NUM_BUNDLE_MODES
+  AM_SEQ,             /* Sequential bundle/endpoint access */
+  AM_PAR,             /* Concurrent bundle/endpoint access */
+  AM_NUM_BUNDLE_MODES
 } amudp_bundle_mode_t;
 
 /*
@@ -353,7 +353,7 @@ typedef int op_t;
 
 /* ------------------------------------------------------------------------------------ */
 
-BEGIN_EXTERNC
+SOCK_BEGIN_EXTERNC
 
 /* AMUDP-specific user entry points */
 extern int AMUDP_VerboseErrors; /* set to non-zero for verbose error reporting */
@@ -845,6 +845,6 @@ extern int AMUDP_ReplyXferVA(void *token, handler_t handler,
    AMUDP_ReplyXfer(token, hnum, sa, cnt, desto, 16, (int32_t)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13, (int32_t)a14, (int32_t)a15)
 
 
-END_EXTERNC
+SOCK_END_EXTERNC
 
 #endif

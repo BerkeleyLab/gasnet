@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2005/12/08 01:46:11 $
- * $Revision: 1.32 $
+ *     $Date: 2006/05/02 05:44:20 $
+ * $Revision: 1.32.8.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,7 +40,7 @@
 typedef uintptr_t	fh_uint_t;
 typedef intptr_t	fh_int_t;
 
-extern gasnet_node_t	fh_mynode;
+extern int fh_verbose;
 
 /* 
  * Locks
@@ -616,14 +616,14 @@ extern gasnet_handlerentry_t fh_am_handlers[];
 int	fh_FreeVictim(int count, firehose_region_t *reg,
 			fh_fifoq_t *fifo_head);
 
-GASNET_INLINE_MODIFIER(fhi_FreeVictimLocal)
+GASNETI_INLINE(fhi_FreeVictimLocal)
 int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
 {
 	gasneti_assert(count <= fhc_LocalVictimFifoBuckets);
 	return fh_FreeVictim(count, reg, &fh_LocalFifo);
 }
 
-GASNET_INLINE_MODIFIER(fhi_FreeVictimRemote)
+GASNETI_INLINE(fhi_FreeVictimRemote)
 int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 {
 	gasneti_assert(count <= fhc_RemoteVictimFifoBuckets[node]);
@@ -701,7 +701,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 	do {								\
 		char	msg[64];					\
 		fh_refc_t *rp = FH_BUCKET_REFC(bd);			\
-		if (FH_PRIV_NODE(bd) != fh_mynode) {			\
+		if (FH_PRIV_NODE(bd) != gasneti_mynode) {			\
 			if (FH_IS_REMOTE_PENDING(bd)) 			\
 				sprintf(msg, "rrefc=%d PENDING",	\
 				    rp->refc_r);			\
@@ -720,7 +720,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 		GASNETI_TRACE_PRINTF(C,					\
 		    ("Firehose Bucket %s %s node=%d,addr="              \
 		     GASNETI_LADDRFMT",%s", #bmsg,                      \
-		     FH_PRIV_NODE(bd) == fh_mynode ? "Local ":"Remote", \
+		     FH_PRIV_NODE(bd) == gasneti_mynode ? "Local ":"Remote", \
 		     (int) FH_PRIV_NODE(bd),                            \
 		     GASNETI_LADDRSTR(FH_BADDR(bd)), msg));		\
 	} while (0)
@@ -738,6 +738,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 #define FH_NUMPINNED_TRACE_LOCAL
 #define FH_NUMPINNED_TRACE_REMOTE
 #endif
+
 
 /*
  * Conduit Features	gm-conduit	vapi-conduit	sci-conduit

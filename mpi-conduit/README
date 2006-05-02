@@ -1,6 +1,6 @@
 GASNet mpi-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.7 $
+$Revision: 1.7.8.1 $
 
 User Information:
 -----------------
@@ -13,9 +13,14 @@ Recognized environment variables:
 * GASNET_NETWORKDEPTH - depth of network buffers to allocate (defaults to 4)
   can also be set as AMMPI_NETWORKDEPTH (GASNET_NETWORKDEPTH takes precedence)
   mpi-conduit's max MPI buffer usage at any time is bounded by:
-   depth * 65 KB preposted non-blocking recvs
-   2 * depth * <= 65 KB non-blocking sends (AMMedium/AMLong)
-   2 * depth * <= 78 byte non-blocking sends (AMShort)
+   4 * depth * 65 KB preposted non-blocking recvs
+   2 * depth * 65 KB non-blocking sends (AMMedium/AMLong)
+   2 * depth * 78 byte non-blocking sends (AMShort)
+
+* AMMPI_SYNCSEND_THRESH - size threshhold above which to use synchronous
+  non-blocking MPI sends, a workaround for buggy MPI implementations on a
+  few platforms. 0 means always use synchronous sends, -1 means never use them
+  (the default on most platforms).
 
 Configuration-time variables:
 ---------------------------------

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2006/02/11 11:42:48 $
- * $Revision: 1.31 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.31.2.1 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -446,6 +446,8 @@ void *thread_main(void *arg) {
 
 #if (GASNET_ALIGNED_SEGMENTS != 1)
     MSG00("Skipping SINGLE/single-addr tests (unaligned segments)");
+#elif GASNET_SEGMENT_EVERYTHING
+    MSG00("Skipping SINGLE/single-addr tests (segment everything)");
 #else
     if (threads > 1) {
       MSG00("Skipping SINGLE/single-addr tests (multiple threads)");

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2006/02/11 11:42:39 $
- * $Revision: 1.55 $
+ *     $Date: 2006/05/02 05:44:00 $
+ * $Revision: 1.55.4.1 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -343,7 +343,7 @@ typedef struct {
     }		u;
 } gasnete_coll_local_handle_t;
 
-GASNET_INLINE_MODIFIER(gasnete_coll_local_handles)
+GASNETI_INLINE(gasnete_coll_local_handles)
 gasnete_coll_local_handle_t *
 gasnete_coll_local_handles(gasnete_coll_threaddata_t *td, int grow) {
     gasnete_coll_local_handle_t *result = (gasnete_coll_local_handle_t *)td->handles.array;
@@ -593,7 +593,7 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
         if (op->flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_IN_MYSYNC)) {
 	  /* signal thread barrier */
           gasneti_assert(op->data != NULL);
-          gasneti_atomic_decrement(&GASNETE_COLL_GENERIC_DATA(op)->threads.remaining);
+          gasneti_atomic_decrement(&GASNETE_COLL_GENERIC_DATA(op)->threads.remaining, 0);
         }
 
         /* Deal with OUT_*SYNC */
@@ -1125,7 +1125,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       return gasnete_coll_issued_id++;
     }
 
-    GASNET_INLINE_MODIFIER(gasnete_coll_consensus_do_try)
+    GASNETI_INLINE(gasnete_coll_consensus_do_try)
     int gasnete_coll_consensus_do_try(void) {
 #if GASNET_DEBUG
       int rc = gasnet_barrier_try(gasnete_coll_consensus_id, 0);
@@ -1150,7 +1150,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 #endif
     }
 
-    GASNET_INLINE_MODIFIER(gasnete_coll_consensus_do_notify)
+    GASNETI_INLINE(gasnete_coll_consensus_do_notify)
     void gasnete_coll_consensus_do_notify(void) {
 	  ++gasnete_coll_consensus_id;
 #if GASNET_DEBUG
@@ -1397,7 +1397,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     }
 
     /* Memcopy payload and then decrement atomic counter if requested */
-    GASNET_INLINE_MODIFIER(gasnete_coll_p2p_memcpy_reqh_inner)
+    GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
     void gasnete_coll_p2p_memcpy_reqh_inner(gasnet_token_t token, void *buf, size_t nbytes,
 						   void *dest,
 						   gasnet_handlerarg_t team_id,
@@ -1668,9 +1668,9 @@ gasnete_coll_op_generic_init(gasnete_coll_team_t team, int flags,
       #if GASNET_PAR
       if (gasnete_coll_multi_images && !(flags & GASNETE_COLL_SUBORDINATE)) {
         op->threads.sequence = gasnete_coll_threads_sequence - 1;
-        gasneti_atomic_set(&data->threads.remaining, (flags & GASNET_COLL_IN_NOSYNC) ? 0 : (gasnete_coll_my_images - 1));
+        gasneti_atomic_set(&data->threads.remaining, (flags & GASNET_COLL_IN_NOSYNC) ? 0 : (gasnete_coll_my_images - 1), 0);
       } else {
-        gasneti_atomic_set(&data->threads.remaining, 0);
+        gasneti_atomic_set(&data->threads.remaining, 0, 0);
       }
       #endif
 
@@ -1711,7 +1711,7 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_init(gasnete_coll_tree_k
   geom = gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
   geom->kind = kind;
   geom->root = root;
-  gasneti_weakatomic_set(&(geom->ref_count), 1);
+  gasneti_weakatomic_set(&(geom->ref_count), 1, 0);
 
   geom->parent = (gasnet_node_t)(-1);
   geom->child_id = -1;
@@ -2017,7 +2017,7 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_init(gasnete_coll_tree_k
  * therefore cannot receive additional references.
  */
 static void gasnete_coll_tree_geom_put(gasnete_coll_tree_geom_t *geom) {
-  if (gasneti_weakatomic_decrement_and_test(&(geom->ref_count))) {
+  if (gasneti_weakatomic_decrement_and_test(&(geom->ref_count), 0)) {
     if (geom->child_list) {
       gasneti_free(geom->child_list);
     }
@@ -2045,7 +2045,7 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_ki
       geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, root);
     }
 
-    gasneti_weakatomic_increment(&(geom->ref_count));
+    gasneti_weakatomic_increment(&(geom->ref_count), 0);
   gasneti_mutex_unlock(&gasnete_coll_geom_lock);
 
   return geom;

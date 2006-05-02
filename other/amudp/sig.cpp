@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sig.cpp,v $
-//     $Date: 2004/08/26 04:53:50 $
-// $Revision: 1.5 $
+//     $Date: 2006/05/02 05:44:14 $
+// $Revision: 1.5.32.1 $
 // Description: signal handling module
 // Copyright 1999, Dan Bonachea
 
@@ -16,16 +16,16 @@ LPSIGHANDLER reghandler(int sigtocatch, LPSIGHANDLER fp) {
     printf("Got a SIG_ERR while registering handler for signal %s. Errno = %i\n", 
     sigstr(sigtocatch), errno);
     return NULL;
-    }
+  }
 #ifdef SIG_HOLD
   else if (fpret == (LPSIGHANDLER)SIG_HOLD) {
     printf("Got a SIG_HOLD while registering handler for signal %s(%i).\n", 
     sigstr(sigtocatch), errno);
     return NULL;
-    }
+  }
 #endif
   return fpret;
-  }
+}
 //------------------------------------------------------------------------------------
 static struct {
   int sig;
@@ -142,28 +142,28 @@ static struct {
   #endif
 // SIGRTMIN ... SIGRTMAX (real-time signals) ignored
     {0, NULL, ST_OTHER}
-    };
+  };
 //------------------------------------------------------------------------------------
 const char* sigstr(int sig) {
   for (int i=0; sigdesctable[i].desc; i++) {
     if (sigdesctable[i].sig == sig) return sigdesctable[i].desc;
-    }
-  return "Unknown Signal";
   }
+  return "Unknown Signal";
+}
 //------------------------------------------------------------------------------------
 void regallhandler(LPSIGHANDLER fp, SIGTYPE sigtype) {
   for (int i=0; sigdesctable[i].desc; i++) {
     if (sigdesctable[i].sigtype == sigtype || 
         (sigtype == ST_ALL_CATCHABLE && sigdesctable[i].sigtype != ST_FATAL))
         reghandler(sigdesctable[i].sig, fp);
-    }
-  return;
   }
+  return;
+}
 //------------------------------------------------------------------------------------
 SIGTYPE getsigtype(int sig) {
   for (int i=0; sigdesctable[i].desc; i++) {
     if (sigdesctable[i].sig == sig) return sigdesctable[i].sigtype;
-    }
-  return ST_OTHER;
   }
+  return ST_OTHER;
+}
 //------------------------------------------------------------------------------------

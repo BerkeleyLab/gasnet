@@ -14,7 +14,7 @@ TEST_RUNCMD= ; $(AMMPI_RUNCMD_EXP) ; 				\
             echo "  **** $$testname **** "; 	                \
             echo $$TEST_DOIT ; 					\
             ( eval $$TEST_DOIT || echo "ERROR: Test exited with failure code=$$?" 2>&1 ) | tee .test-output ; \
-            failure=`grep -e ERROR -e 'fatal signal' .test-output` ;                    \
+            failure=`@PERL@ -ne 'print if (/ERROR/ || /fatal signal/);' .test-output` ; \
             if test "$$failure" != "" ; then                                            \
                echo " " >> $(TESTLOG) ;                                                 \
                echo " *-* $$faildesc *-*" >> $(TESTLOG) ;                               \

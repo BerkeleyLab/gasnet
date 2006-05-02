@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2006/02/10 07:38:12 $
- * $Revision: 1.40 $
+ *     $Date: 2006/05/02 05:44:34 $
+ * $Revision: 1.40.2.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,14 @@
 #define SHORT_REQ_BASE 128
 #include <other/amxtests/testam.h>
 
+/* Define to get one big function that pushes the gcc inliner heursitics */
+#undef TESTGASNET_NO_SPLIT
+
 void doit(int partner, int *partnerseg);
+void doit2(int partner, int *partnerseg);
+void doit3(int partner, int *partnerseg);
+void doit4(int partner, int *partnerseg);
+void doit5(int partner, int *partnerseg);
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_SEGMENT_EVERYTHING
@@ -142,6 +149,9 @@ void test_libgasnet_keys(test_keys_t *s) {
 }
 #if GASNET_PAR
   /* thread-parallel gasnet_tools tests */
+  #ifdef __cplusplus
+    extern "C"
+  #endif
   void *test_libgasnetpar_tools(void *p) {
     int idx = (int)(uintptr_t)p;
     PTHREAD_LOCALBARRIER(NUM_THREADS);
@@ -156,11 +166,7 @@ void test_libgasnet_keys(test_keys_t *s) {
 #endif
 void test_libgasnet_tools() {
   void *p;
-  int cpucnt = gasnett_cpu_count();
   TEST_TRACING_MACROS();
-  MSG0("CPU count estimated to be: %i", cpucnt);
-  assert_always(cpucnt >= 1);
-  gasnett_flush_streams();
   #ifdef HAVE_MMAP
     p = gasnett_mmap(GASNETT_PAGESIZE);
     assert_always(p);
@@ -276,15 +282,22 @@ void doit(int partner, int *partnerseg) {
     gasnet_wait_syncnb_all(handles, iters); 
     for (i=0; i < iters; i++) {
       if (vals[i] != 100 + mynode + i) {
-        MSG("*** ERROR - FAILED NB LIST TEST!!!");
+        MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
+            i, vals[i], 100 + mynode + i);
         success = 0;
       }
     }
     if (success) MSG("*** passed blocking list test!!");
   }
 
-  BARRIER();
+#ifndef TESTGASNET_NO_SPLIT
+  doit2(partner, partnerseg);
+}
+void doit2(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
+  BARRIER();
   { /*  implicit test */
     GASNET_BEGIN_FUNCTION();
     int vals[100];
@@ -300,12 +313,20 @@ void doit(int partner, int *partnerseg) {
     gasnet_wait_syncnbi_gets();
     for (i=0; i < 100; i++) {
       if (vals[i] != mynode + i) {
-        MSG("*** ERROR - FAILED NBI TEST!!!");
+        MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
+            i, vals[i], mynode + i);
         success = 0;
       }
     }
     if (success) MSG("*** passed nbi test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit3(partner, partnerseg);
+}
+void doit3(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 
@@ -394,6 +415,13 @@ void doit(int partner, int *partnerseg) {
     if (success) MSG("*** passed value test!!");
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit4(partner, partnerseg);
+}
+void doit4(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
+
   BARRIER();
 
   { /*  memset test */
@@ -427,6 +455,13 @@ void doit(int partner, int *partnerseg) {
     }
     if (success) MSG("*** passed memset test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit5(partner, partnerseg);
+}
+void doit5(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 

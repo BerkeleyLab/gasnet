@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.69 $
+$Revision: 1.69.2.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -50,6 +50,8 @@ compilers, including which GASNet conduits are supported.
 * make all
   Build the GASNet libraries. A number of other useful makefile targets 
   are available from the top-level:
+    make {seq,par,parsync}
+      build the conduit libraries in a given mode
     make tests-{seq,par,parsync}  
       build all the GASNet tests in a given mode
     make run-tests-{seq,par,parsync}  
@@ -58,7 +60,11 @@ compilers, including which GASNet conduits are supported.
       run whatever tests are already built in the conduit directories
     make run-tests TESTS="test1 test2..."
       run specifically-listed tests that are already built in the conduit directories
+    make DO_WHAT="<makefile target>"
+      build selected makefile target in all supported conduit directories
   Each conduit also has several useful makefile targets:
+    make {seq,par,parsync}
+      build the conduit libraries in a given mode
     make tests-{seq,par,parsync}  
       build the conduit tests in a given mode
     make testXXX 
@@ -152,17 +158,18 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * HPUX/Itanium/HPcc/64: smp, mpi
  
     * Solaris/SPARC/gcc,SunProC/32,64: smp, udp, mpi
-    * Solaris/x86/gcc/32: smp, udp, #
+    * Solaris/x86/gcc,SunProC/32: smp, udp, mpi
 
-    * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT)
+    * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT,MPICH2)
 
-    * MacOSX/PowerPC/{gcc,xlc}/32: smp, udp, mpi, vapi
+    * MacOSX/PowerPC/{gcc,xlc}/32,64: smp, udp, mpi, vapi
+    * MacOSX/x86/gcc/32: smp, udp, #
 
     * Unicos/Cray-T3e/CrayC/64: smp, udp, mpi %
  
     * Unicos/Cray-X1/CrayC/64: smp, udp, mpi, shmem
 
-    * Catamount/Cray-XT3/PGI/64: smp, mpi %
+    * Catamount/Cray-XT3/{gcc,PGI}/64: smp, mpi %
 
     * Linux/Cray-XD1/{gcc,PGI}/64: smp, mpi
 
@@ -171,6 +178,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MTX/Cray-MTA/CrayMTAC/64: smp, udp
  
     * SuperUX/SX-6/NEC-C/64: smp, udp, mpi %
+
+    * ucLinux/Microblaze/gcc/32: smp, udp, #%
 
 # = No working MPI implementation available, although we have every reason to
 believe mpi conduit would work if one was available.
@@ -706,15 +715,15 @@ Required porting steps:
   MISC_CFLAGS and MISC_CXXFLAGS if appropriate. 
 
 * For a new C/C++ compiler, implement GASNETI_ASM for inline assembly 
-  to gasnet_membar.h, if supported by the compiler. Ensure configure
+  in gasnet_asm.h, if supported by the compiler. Ensure configure
   inline modifier detection worked, otherwise tweak it in gasnet_basic.h.
 
 * For a new CPU, implement atomic increment/decrement operations in 
-  gasnet_atomicops.h, or enable GASNETI_USE_GENERIC_ATOMICOPS if the CPU does
+  gasnet_atomic_bits.h, or enable GASNETI_USE_GENERIC_ATOMICOPS if the CPU does
   not support atomic operations. Implement atomic compare-and-swap, if supported
   by the system.
 
-* For a new CPU, implement appropriate memory barriers in gasnet_atomicops.h:
+* For a new CPU, implement appropriate memory barriers in gasnet_membar.h:
   gasneti_local_wmb and gasneti_local_rmb (one or both may be no-ops, depending
   on the memory consistency semantics enforced by hardware).
 
@@ -726,7 +735,7 @@ Required porting steps:
 
 Optional porting steps:
 
-* Implement GASNet high-performance timers (gasneti_stattime_t) in gasnet_timer.h,
+* Implement GASNet high-performance timers (gasneti_tick_t) in gasnet_timer.h,
   if supported by the system.
 
 * Implement a new conduit for the network hardware (see template-conduit/README.template).

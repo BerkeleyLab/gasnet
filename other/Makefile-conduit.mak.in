@@ -4,12 +4,8 @@
 
 .PHONY: do-error do-make-fragment libs force clean-local        \
         do-clean-local do-install-data-local do-uninstall-local \
-        do-libgasnet-seq do-libgasnet-par do-libgasnet-parsync  \
-	do-libgasnet do-run-testexit do-error do-pthreads-error \
 	test tests tests-seq tests-par tests-parsync tests-clean \
-	tests-check
-
-thread_defines = @GASNET_THREAD_DEFINES@
+	tests-check do-run-testexit 
 
 # header files to be installed
 # Conduit-specific headers will overwrite any conflicts in extended-ref
@@ -23,95 +19,20 @@ makefile_fragments =                \
 @GASNET_SEGMENT_LARGE_TRUE@GASNET_SEGMENT_STR="LARGE"
 @GASNET_SEGMENT_EVERYTHING_TRUE@GASNET_SEGMENT_STR="EVERYTHING"
 
-VPATH=$(srcdir)
-
-LIBINCLUDES =             \
-        -I$(srcdir)       \
-        -I$(top_srcdir)   \
-        -I$(top_builddir) \
-        -I$(top_srcdir)/other \
-        -I$(top_srcdir)/extended-ref  
-
-LIBDEFINES =                        \
-        $(LIBGASNET_THREAD_DEFINES) \
-        -DGASNET_$(THREAD_MODEL)    \
-        @BUILDCONFIG_DEFINES@       \
-        @GASNET_MACHINE_DEFINES@ 
-
-LIBCFLAGS =                       \
-        @CFLAGS@                  \
-        @MISC_CFLAGS@             \
-        $(LIBDEFINES)             \
-        $(CONDUIT_EXTRALIBCFLAGS) \
-	$(LIBINCLUDES)		  \
-	$(MANUAL_LIBCFLAGS)
-
-libgasnet_sources =           \
-	$(CONDUIT_SOURCELIST) \
-	$(top_srcdir)/gasnet_internal.c	  \
-	$(top_srcdir)/gasnet_trace.c	  \
-	$(top_srcdir)/gasnet_mmap.c	  \
-	$(top_srcdir)/gasnet_diagnostic.c
-
-libgasnet_objects = \
-	`for file in $(libgasnet_sources) ; do echo \`basename $$file .c\`.o ; done` \
-	$(CONDUIT_SPECIAL_OBJS)
-
-libgasnet_dependencies =                  \
-        $(CONFIG_HEADER)                  \
-        $(srcdir)/*.[ch]                  \
-        $(top_srcdir)/*.[ch]              \
-        $(top_srcdir)/extended-ref/*.[ch] \
-	$(top_srcdir)/other/*.h           \
-	$(CONDUIT_SOURCELIST)             \
-	$(CONDUIT_EXTRAHEADERS)           \
-	$(CONDUIT_EXTRADEPS)
+include $(top_builddir)/other/Makefile-libgasnet.mak
 
 EXTRA_DIST = $(CONDUIT_FILELIST) README
 
 docdir = $(datadir)/doc/gasnet
 
-# library targets 
-THREAD_MODEL=SEQ
-THREAD_MODEL_LC=`echo "$(THREAD_MODEL)" | @AWK@ '{print tolower($$0)}'`
-do-libgasnet: $(CONDUIT_SPECIAL_OBJS)
-	@mkdir -p .$(THREAD_MODEL)
-	@libgasnet_objects="$(libgasnet_objects)" ; libgasnet_objects=`echo $$libgasnet_objects` ; \
-	pwd=`@PWD_PROG@` ; cmd="$(CC) $(LIBCFLAGS) -c $(libgasnet_sources) && \
-	$(AR) cru $$pwd/libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a $$libgasnet_objects && \
-	$(RANLIB) $$pwd/libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a && \
-	rm -f $$libgasnet_objects" ; \
-	echo " --- BUILDING libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a --- " ; \
-        echo $$cmd ; cd .$(THREAD_MODEL) ; eval $$cmd
-	@rm -Rf .$(THREAD_MODEL)
-
-do-libgasnet-seq: $(libgasnet_dependencies) $(CONDUIT_SEQ_HOOK)
-	@$(MAKE) THREAD_MODEL=SEQ LIBGASNET_THREAD_DEFINES= \
-          top_srcdir=`cd $(top_srcdir); @PWD_PROG@`         \
-          top_builddir=`cd $(top_builddir); @PWD_PROG@`     \
-          srcdir=`cd $(srcdir); @PWD_PROG@`                 \
-          builddir=`@PWD_PROG@`                             \
-          do-libgasnet
-
-do-libgasnet-par: $(libgasnet_dependencies) $(CONDUIT_PAR_HOOK)
-	@@HAVE_PTHREAD_FALSE@$(MAKE) do-pthreads-error
-	@$(MAKE) THREAD_MODEL=PAR                           \
-          LIBGASNET_THREAD_DEFINES="$(thread_defines)"      \
-          top_srcdir=`cd $(top_srcdir); @PWD_PROG@`         \
-          top_builddir=`cd $(top_builddir); @PWD_PROG@`     \
-          srcdir=`cd $(srcdir); @PWD_PROG@`                 \
-          builddir=`@PWD_PROG@`                             \
-          do-libgasnet
-
-do-libgasnet-parsync: $(libgasnet_dependencies) $(CONDUIT_PARSYNC_HOOK)
-	@@HAVE_PTHREAD_FALSE@$(MAKE) do-pthreads-error
-	@$(MAKE) THREAD_MODEL=PARSYNC                       \
-          LIBGASNET_THREAD_DEFINES="$(thread_defines)"      \
-          top_srcdir=`cd $(top_srcdir); @PWD_PROG@`         \
-          top_builddir=`cd $(top_builddir); @PWD_PROG@`     \
-          srcdir=`cd $(srcdir); @PWD_PROG@`                 \
-          builddir=`@PWD_PROG@`                             \
-          do-libgasnet
+# convenience aliases
+seq par parsync: force
+	@$(MAKE) $(CONDUIT_NAME)-$@.mak libgasnet-$(CONDUIT_NAME)-$@.a
+	@for dir in $(SUBDIRS) ; do 		\
+	  if test "$$dir" != "." ; then 	\
+	    $(MAKE) -C $$dir all || exit 1 ; 	\
+	  fi ;					\
+	 done
 
 # test targets 
 
@@ -158,6 +79,13 @@ tests-mpi2: force
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-mpi2 \
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
+testtools: force 
+	@$(MAKE) $(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak
+	@echo "*** Building $@ ***"
+	@$(MAKE) -f $(top_builddir)/tests/Makefile $@   \
+	  configfile="$(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak" \
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
+
 test%: $(top_srcdir)/tests/test%.c force 
 	@$(MAKE) libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a $(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak
 	@echo "*** Building $@ in $(THREAD_MODEL)/$(GASNET_SEGMENT_STR) mode ***"
@@ -190,8 +118,10 @@ tests-clean:
 
 check-run-tests-deps: force
 	@if test "$(SUBDIRS)" != "" ; then 	\
-	   for dir in ""$(SUBDIRS) ; do 	\
+	   for dir in "$(SUBDIRS)" ; do 	\
+	     if test "$$dir" != "."; then       \
 	   	( cd "$$dir" && $(MAKE) ) || exit $$?;	\
+             fi ;                               \
 	   done ;				\
 	 fi
 
@@ -223,35 +153,6 @@ run-testexit: force
 	  $(MAKE) testexit-par || exit $$? ; \
 	fi
 	@$(MAKE) do-run-testexit	
-
-@GNU_NM_TRUE@check-exports: $(libraries)
-@GNU_NM_TRUE@	@echo Checking libgasnet exports...
-@GNU_NM_TRUE@	@for lib in $(libraries) ; do                                               \
-@GNU_NM_TRUE@	  failed=0 ;                                                                \
-@GNU_NM_TRUE@	  echo ;                                                                    \
-@GNU_NM_TRUE@	  echo $$lib: ;                                                             \
-@GNU_NM_TRUE@	  @NM@ --defined-only $$lib |                                               \
-@GNU_NM_TRUE@	    grep -v -e ' [\._]*gasnetc_' -e ' [\._]*gasneti_' -e ' [\._]*gasnete_'  \
-@GNU_NM_TRUE@		    -e ' [\._]*gasnet_' -e ' [\._]*gasnett_'                        \
-@GNU_NM_TRUE@		    -e ' [\._]*fh_' -e ' [\._]*firehose_'                           \
-@GNU_NM_TRUE@		    -e ' [\._]*fhi_' -e ' [\._]*fhc_' -e ' [\._]*fhsmp_' -e ' [\._]*fhuni_' \
-@GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e ' [\._]*DWinfo'       \
-@GNU_NM_TRUE@               -e ' [\._]*debug_info_seg' -e ' [\._]*debug_abbrev_seg'         \
-@GNU_NM_TRUE@               -e ' [\._]*debug_frame_seg' -e ' [\._]*debug_line_seg'          \
-@GNU_NM_TRUE@               -e ' [\._]*stab' |                                              \
-@GNU_NM_TRUE@	    @PERL@ -n -e 'print if /^[0-9a-fA-F]+\s+[A-Z]\s+/' > .$$lib.exp;        \
-@GNU_NM_TRUE@	  if test -s .$$lib.exp ; then                                              \
-@GNU_NM_TRUE@	    cat .$$lib.exp ;                                                        \
-@GNU_NM_TRUE@	    echo FAILED ;                                                           \
-@GNU_NM_TRUE@	    failed=1 ;                                                              \
-@GNU_NM_TRUE@	  else                                                                      \
-@GNU_NM_TRUE@	    echo PASSED ;                                                           \
-@GNU_NM_TRUE@	  fi ;                                                                      \
-@GNU_NM_TRUE@	  rm -f .$$lib.exp ;                                                        \
-@GNU_NM_TRUE@	done ; exit $$failed
-
-@GNU_NM_FALSE@check-exports: $(libraries)
-@GNU_NM_FALSE@	@echo check-exports test SKIPPED
 
 @GNU_NM_TRUE@tests-check:
 @GNU_NM_TRUE@	@echo "checking for diagnostic export..."
@@ -312,11 +213,6 @@ do-error:
 	@echo "       try re-running configure with --enable-$(CONDUIT_NAME)"
 	@exit 1
 
-do-pthreads-error: 
-	@echo "ERROR: pthreads support was not detected at configure time"
-	@echo "       try re-running configure with --enable-pthreads"
-	@exit 1
-
 $(top_builddir)/other/Makefile-conduit.mak: $(top_srcdir)/other/Makefile-conduit.mak.in
 	$(MAKE) -C $(top_builddir)/other Makefile-conduit.mak
 
@@ -329,17 +225,22 @@ $(top_builddir)/other/fragment-head.mak: $(top_srcdir)/other/fragment-head.mak.i
 $(top_builddir)/tests/Makefile: $(top_srcdir)/tests/Makefile.in
 	$(MAKE) -C $(top_builddir)/tests Makefile
 
-Makefile: $(srcdir)/Makefile.am $(top_builddir)/other/Makefile-conduit.mak $(top_builddir)/tests/Makefile
+Makefile: $(srcdir)/Makefile.am 			\
+          $(top_builddir)/other/Makefile-conduit.mak 	\
+          $(top_builddir)/other/Makefile-libgasnet.mak 	\
+          $(top_builddir)/tests/Makefile
+	cd $(top_builddir) && CONFIG_FILES=$(CONDUIT_NAME)-conduit/$@ CONFIG_HEADERS= ./config.status
 
+make_fragment_deps = conduit.mak $(top_builddir)/other/fragment-head.mak $(top_builddir)/other/fragment-body.mak
 
-$(CONDUIT_NAME)-seq.mak: conduit.mak $(top_builddir)/other/fragment-head.mak $(top_builddir)/other/fragment-body.mak 
+$(CONDUIT_NAME)-seq.mak: $(make_fragment_deps)
 	$(MAKE) do-make-fragment thread_model=seq THREAD_MODEL=SEQ
 
-$(CONDUIT_NAME)-par.mak: conduit.mak $(top_builddir)/other/fragment-head.mak $(top_builddir)/other/fragment-body.mak 
+$(CONDUIT_NAME)-par.mak: $(make_fragment_deps)
 	@@HAVE_PTHREAD_FALSE@$(MAKE) do-pthreads-error
 	$(MAKE) do-make-fragment thread_model=par THREAD_MODEL=PAR
 
-$(CONDUIT_NAME)-parsync.mak: conduit.mak $(top_builddir)/other/fragment-head.mak $(top_builddir)/other/fragment-body.mak 
+$(CONDUIT_NAME)-parsync.mak: $(make_fragment_deps)
 	@@HAVE_PTHREAD_FALSE@$(MAKE) do-pthreads-error
 	$(MAKE) do-make-fragment thread_model=parsync THREAD_MODEL=PARSYNC
 

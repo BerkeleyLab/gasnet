@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2005/11/27 16:13:25 $
- * $Revision: 1.23 $
+ *     $Date: 2006/05/02 05:43:58 $
+ * $Revision: 1.23.8.1 $
  * Description: GASNet header for elan conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #define GASNET_CORE_VERSION      1.7
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
@@ -43,19 +43,8 @@ BEGIN_EXTERNC
         VAL(C, GET_AMMEDIUM, sz)         \
         VAL(C, GET_AMLONG, sz)         
 
-/* ------------------------------------------------------------------------------------ */
-/* use ELAN-specific high-performance nanosecond timer -
-   currently only a win on Alpha, where the native timer support is poor
- */
-#if defined(__alpha__) || defined(__alpha) || \
-    defined(GASNETC_FORCE_ELAN_TIMERS)
-#define GASNETC_CONDUIT_SPECIFIC_TIMERS
-typedef uint64_t gasneti_stattime_t;
-extern uint64_t gasnetc_clock();
-#define GASNETI_STATTIME_NOW()      (gasnetc_clock())
-#define GASNETI_STATTIME_TO_NS(st)  (st)
-#endif
-/* ------------------------------------------------------------------------------------ */
+/* get elan timers, if appropriate */
+#include <gasnet_core_toolhelp.h>
 
 #define GASNETC_TRACE_FINISH()  gasnetc_trace_finish()
 extern void gasnetc_trace_finish();
@@ -78,6 +67,6 @@ extern void gasnetc_fatalsignal_callback(int sig);
   #define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
 #endif
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

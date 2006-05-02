@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.c,v $
- *     $Date: 2006/02/11 11:42:39 $
- * $Revision: 1.13 $
+ *     $Date: 2006/05/02 05:44:00 $
+ * $Revision: 1.13.12.1 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -125,7 +125,7 @@
 /* ***  Vector *** */
 /*---------------------------------------------------------------------------------*/
 
-/* reference versions that use individual put/gets */
+/* reference version that uses individual puts */
 gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
@@ -137,7 +137,7 @@ gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
 
   if (dstcount == 1) { /* dst is contiguous buffer */
     uintptr_t pdst = (uintptr_t)(dstlist[0].addr);
-    int i;
+    size_t i;
     for (i = 0; i < srccount; i++) {
       const size_t srclen = srclist[i].len;
       if_pt (srclen > 0)
@@ -147,7 +147,7 @@ gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
     gasneti_assert(pdst == (uintptr_t)(dstlist[0].addr)+dstlist[0].len);
   } else if (srccount == 1) { /* src is contiguous buffer */
     uintptr_t psrc = (uintptr_t)(srclist[0].addr);
-    int i;
+    size_t i;
     for (i = 0; i < dstcount; i++) {
       const size_t dstlen = dstlist[i].len;
       if_pt (dstlen > 0)
@@ -197,6 +197,7 @@ gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
   GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
 }
 
+/* reference version that uses individual gets */
 gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnet_node_t srcnode,
@@ -208,7 +209,7 @@ gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
 
   if (dstcount == 1) { /* dst is contiguous buffer */
     uintptr_t pdst = (uintptr_t)(dstlist[0].addr);
-    int i;
+    size_t i;
     for (i = 0; i < srccount; i++) {
       const size_t srclen = srclist[i].len;
       if_pt (srclen > 0)
@@ -218,7 +219,7 @@ gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
     gasneti_assert(pdst == (uintptr_t)(dstlist[0].addr)+dstlist[0].len);
   } else if (srccount == 1) { /* src is contiguous buffer */
     uintptr_t psrc = (uintptr_t)(srclist[0].addr);
-    int i;
+    size_t i;
     for (i = 0; i < dstcount; i++) {
       const size_t dstlen = dstlist[i].len;
       if_pt (dstlen > 0)
@@ -271,7 +272,7 @@ gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
   GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
 }
 /*---------------------------------------------------------------------------------*/
-
+/* top-level gasnet_putv_* entry point */
 #ifndef GASNETE_PUTV_OVERRIDE
 extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode,
@@ -294,7 +295,7 @@ extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
   gasneti_fatalerror("failure in GASNETE_PUTV_SELECTOR - should never reach here");
 }
 #endif
-
+/* top-level gasnet_getv_* entry point */
 #ifndef GASNETE_GETV_OVERRIDE
 extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
@@ -305,7 +306,6 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
     return GASNET_INVALID_HANDLE; 
   if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
          srcnode == gasneti_mynode) { /* purely local */ 
-    if (dstcount == 0 || srccount == 0) return GASNET_INVALID_HANDLE;
     return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
   }
 
@@ -323,7 +323,7 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
 /* ***  Indexed *** */
 /*---------------------------------------------------------------------------------*/
 
-/* reference versions that use individual put/gets */
+/* reference version that uses individual puts */
 gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode, 
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
@@ -335,14 +335,14 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
   GASNETE_START_NBIREGION(synctype, islocal);
 
   if (dstlen == srclen) { /* matched sizes (fast case) */
-    int i;
+    size_t i;
     gasneti_assert(dstcount == srccount);
     for (i = 0; i < dstcount; i++) {
       GASNETE_PUT_INDIV(islocal, dstnode, dstlist[i], srclist[i], dstlen);
     }
   } else if (dstcount == 1) { /* dst is contiguous buffer */
     uintptr_t pdst = (uintptr_t)(dstlist[0]);
-    int i;
+    size_t i;
     for (i = 0; i < srccount; i++) {
       GASNETE_PUT_INDIV(islocal, dstnode, (void *)pdst, srclist[i], srclen);
       pdst += srclen;
@@ -350,7 +350,7 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
     gasneti_assert(pdst == (uintptr_t)(dstlist[0])+dstlen);
   } else if (srccount == 1) { /* src is contiguous buffer */
     uintptr_t psrc = (uintptr_t)(srclist[0]);
-    int i;
+    size_t i;
     for (i = 0; i < dstcount; i++) {
       GASNETE_PUT_INDIV(islocal, dstnode, dstlist[i], (void *)psrc, dstlen);
       psrc += dstlen;
@@ -393,6 +393,7 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
   GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
 }
 
+/* reference version that uses individual gets */
 gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnet_node_t srcnode,
@@ -404,14 +405,14 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
   GASNETE_START_NBIREGION(synctype, islocal);
 
   if (dstlen == srclen) { /* matched sizes (fast case) */
-    int i;
+    size_t i;
     gasneti_assert(dstcount == srccount);
     for (i = 0; i < dstcount; i++) {
       GASNETE_GET_INDIV(islocal, dstlist[i], srcnode, srclist[i], dstlen);
     }
   } else if (dstcount == 1) { /* dst is contiguous buffer */
     uintptr_t pdst = (uintptr_t)(dstlist[0]);
-    int i;
+    size_t i;
     for (i = 0; i < srccount; i++) {
       GASNETE_GET_INDIV(islocal, (void *)pdst, srcnode, srclist[i], srclen);
       pdst += srclen;
@@ -419,7 +420,7 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
     gasneti_assert(pdst == (uintptr_t)(dstlist[0])+dstlen);
   } else if (srccount == 1) { /* src is contiguous buffer */
     uintptr_t psrc = (uintptr_t)(srclist[0]);
-    int i;
+    size_t i;
     for (i = 0; i < dstcount; i++) {
       GASNETE_GET_INDIV(islocal, dstlist[i], srcnode, (void *)psrc, dstlen);
       psrc += dstlen;
@@ -465,7 +466,7 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
 }
 
 /*---------------------------------------------------------------------------------*/
-/* reference versions that use vector interface */
+/* reference version that uses vector interface */
 gasnet_handle_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode, 
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
@@ -489,7 +490,7 @@ gasnet_handle_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
   gasneti_free(newsrclist);
   return retval;
 }
-
+/* reference version that uses vector interface */
 gasnet_handle_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnet_node_t srcnode,
@@ -515,6 +516,7 @@ gasnet_handle_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
 }
 
 /*---------------------------------------------------------------------------------*/
+/* top-level gasnet_puti_* entry point */
 #ifndef GASNETE_PUTI_OVERRIDE
 extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode, 
@@ -547,7 +549,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
   return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
 #endif
-
+/* top-level gasnet_geti_* entry point */
 #ifndef GASNETE_GETI_OVERRIDE
 extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
@@ -674,6 +676,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
     } break;
 
 #if GASNET_DEBUG
+  /* assert the generalized looping code is functioning properly */
   #define GASNETE_CHECK_PTR(ploc, addr, strides, idx, dim) do { \
       int i;                                                    \
       uint8_t *ptest = (addr);                                  \
@@ -687,7 +690,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
 #endif
 
 #if GASNETE_LOOPING_DIMS > 8
-#error GASNETE_LOOPING_DIMS currently ony supports <= 8
+#error GASNETE_LOOPING_DIMS currently only supports <= 8
 #endif
 #if GASNETE_LOOPING_DIMS >= 8
   #define GASNETE_STRIDED_HELPER_CASE8 GASNETE_STRIDED_HELPER_CASE(7)
@@ -791,7 +794,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
     }
 
 /*---------------------------------------------------------------------------------*/
-/* reference versions that use individual put/gets */
+/* reference version that uses individual puts of the dualcontiguity size */
 gasnet_handle_t gasnete_puts_ref_indiv(gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
@@ -819,7 +822,7 @@ gasnet_handle_t gasnete_puts_ref_indiv(gasnete_synctype_t synctype,
   }
   GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal);
 }
-
+/* reference version that uses individual gets of the dualcontiguity size */
 gasnet_handle_t gasnete_gets_ref_indiv(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnet_node_t srcnode, 
@@ -850,6 +853,7 @@ gasnet_handle_t gasnete_gets_ref_indiv(gasnete_synctype_t synctype,
 /*---------------------------------------------------------------------------------*/
 /* helpers for reference versions */
 
+/* convert strided metadata to memvec or addrlist metadata for the equivalent operation */
 static void gasnete_convert_strided(const int tomemvec, void *_srclist, void *_dstlist, 
                                     gasnete_strided_stats_t *stats,
                                     void *dstaddr, const size_t dststrides[],
@@ -989,8 +993,7 @@ static void gasnete_convert_strided(const int tomemvec, void *_srclist, void *_d
   }
 }
 /*---------------------------------------------------------------------------------*/
-/* reference versions that use vector interface */
-
+/* reference version that uses vector interface */
 gasnet_handle_t gasnete_puts_ref_vector(gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
@@ -1024,7 +1027,7 @@ gasnet_handle_t gasnete_puts_ref_vector(gasnete_synctype_t synctype,
     return retval; 
   }
 }
-
+/* reference version that uses vector interface */
 gasnet_handle_t gasnete_gets_ref_vector(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnet_node_t srcnode, 
@@ -1060,7 +1063,7 @@ gasnet_handle_t gasnete_gets_ref_vector(gasnete_synctype_t synctype,
   }
 }
 /*---------------------------------------------------------------------------------*/
-/* reference versions that use indexed interface */
+/* reference version that uses indexed interface */
 gasnet_handle_t gasnete_puts_ref_indexed(gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
@@ -1094,7 +1097,7 @@ gasnet_handle_t gasnete_puts_ref_indexed(gasnete_synctype_t synctype,
     return retval; 
   }
 }
-
+/* reference version that uses indexed interface */
 gasnet_handle_t gasnete_gets_ref_indexed(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnet_node_t srcnode, 
@@ -1130,6 +1133,7 @@ gasnet_handle_t gasnete_gets_ref_indexed(gasnete_synctype_t synctype,
   }
 }
 /*---------------------------------------------------------------------------------*/
+/* top-level gasnet_puts_* entry point */
 #ifndef GASNETE_PUTS_OVERRIDE
 extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
                                   gasnet_node_t dstnode,
@@ -1171,7 +1175,7 @@ extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
   return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
 #endif
-
+/* top-level gasnet_gets_* entry point */
 #ifndef GASNETE_GETS_OVERRIDE
 extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],

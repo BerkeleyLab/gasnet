@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.h,v $
- *     $Date: 2004/09/27 09:53:01 $
- * $Revision: 1.12 $
+ *     $Date: 2006/05/02 05:44:16 $
+ * $Revision: 1.12.18.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -56,7 +56,9 @@
   #pragma warning(disable: 4127)
 #endif
 
-BEGIN_EXTERNC
+#ifdef __cplusplus
+  extern "C" {
+#endif
 
 /* in a multi-threaded program, this would also include a lock */
 #define AM_Safe(fncall) do {                \
@@ -71,7 +73,7 @@ BEGIN_EXTERNC
         AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY));  \
         AM_Safe(AM_WaitSema(eb));                   \
         AM_Safe(AM_Poll(eb));                       \
-        } while (0)
+      } while (0)
 
 #if defined(AMUDP)
   #define LEADING_ARGS      2
@@ -81,12 +83,25 @@ BEGIN_EXTERNC
   #define LEADING_ARGS_STR  ""
 #endif
 
-#define CHECKARGS(argc, argv, minargs, maxargs, usagestr) do {                    \
-  if ((argc) < (minargs)+LEADING_ARGS+1 || (argc) > (maxargs)+LEADING_ARGS+1 ) {  \
-    fprintf(stderr, "Usage: %s%s %s\n", (argv)[0], LEADING_ARGS_STR, (usagestr)); \
-    fflush(stderr);                                                               \
-    exit(-1);                                                                     \
-  } } while (0)
+#define TEST_STARTUP(argc, argv, networkpid, eb, ep, minargs, maxargs, usagestr) do { \
+    AMX_VerboseErrors = 1;                                                            \
+    if (AMX_SPMDIsWorker(argv)) { /* slave */                                         \
+      AM_Safe(AMX_SPMDStartup(&(argc), &(argv), 0, &(networkpid), &(eb), &(ep)));     \
+      if ((argc) < (minargs)+1 || (argc) > (maxargs)+1 ) {                                \
+        eb_t eb; ep_t ep; uint64_t networkpid;                                        \
+        fprintf(stderr, "Usage: %s %s\n", (argv)[0], (usagestr));                     \
+        fflush(stderr);                                                               \
+        AMX_SPMDExit(-1);                                                             \
+      }                                                                               \
+    } else { /* implicit master */                                                    \
+      if ((argc) < (minargs)+LEADING_ARGS+1 || (argc) > (maxargs)+LEADING_ARGS+1 ) {  \
+        fprintf(stderr, "Usage: %s%s %s\n", (argv)[0], LEADING_ARGS_STR, (usagestr)); \
+        fflush(stderr);                                                               \
+        exit(-1);                                                                     \
+      }                                                                               \
+      AM_Safe(AMX_SPMDStartup(&argc, &argv, 0, &networkpid, &eb, &ep));               \
+    }                                                                                 \
+  } while (0)
 
 /* app can define this before including to move our handlers 
    NO - that doesn't work unless apputils.c is recompiled */
@@ -118,5 +133,7 @@ void writeWord(int proc, void *addr, uint32_t val);
 void writeSync();
 #endif
 
-END_EXTERNC
+#ifdef __cplusplus
+  }
+#endif
 #endif

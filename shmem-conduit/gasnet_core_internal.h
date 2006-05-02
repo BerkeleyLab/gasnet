@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/01/23 17:34:11 $
- * $Revision: 1.10 $
+ *     $Date: 2006/05/02 05:44:28 $
+ * $Revision: 1.10.4.1 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -164,7 +164,7 @@ extern volatile long	gasnetc_amq_reqfields[GASNETC_AMQUEUE_MAX_FIELDS];
 extern long		gasnetc_amq_numfields;
 #endif
 
-GASNET_INLINE_MODIFIER(gasnetc_AMQueueAcquire)
+GASNETI_INLINE(gasnetc_AMQueueAcquire)
 int gasnetc_AMQueueAcquire(gasnet_node_t pe, int reqrep) {
     int	idx;
     const int isreply = (reqrep == GASNETC_REPLY_T);
@@ -190,7 +190,7 @@ int gasnetc_AMQueueAcquire(gasnet_node_t pe, int reqrep) {
     return idx;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_AMQueueRelease)
+GASNETI_INLINE(gasnetc_AMQueueRelease)
 void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
 {
   #ifdef CRAY_SHMEM
