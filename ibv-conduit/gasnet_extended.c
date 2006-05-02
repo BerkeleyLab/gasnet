@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2006/01/26 03:03:22 $
- * $Revision: 1.36 $
+ *     $Date: 2006/05/02 05:44:40 $
+ * $Revision: 1.36.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,7 +192,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   return iop;
 }
 
-GASNET_INLINE_MODIFIER(gasnete_eop_free)
+GASNETI_INLINE(gasnete_eop_free)
 void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
   gasnete_eopaddr_t addr = eop->addr;
@@ -203,7 +203,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   thread->eop_free = addr;
 }
 
-GASNET_INLINE_MODIFIER(gasnete_iop_free)
+GASNETI_INLINE(gasnete_iop_free)
 void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
@@ -215,14 +215,14 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
 }
 
 /* query an eop for completeness */
-GASNET_INLINE_MODIFIER(gasnete_eop_test)
+GASNETI_INLINE(gasnete_eop_test)
 int gasnete_eop_test(gasnete_eop_t *eop) {
   gasnete_eop_check(eop);
   return gasnetc_counter_done(&eop->req_oust);
 }
 
 /* query an iop for completeness - this means both puts and gets */
-GASNET_INLINE_MODIFIER(gasnete_iop_test)
+GASNETI_INLINE(gasnete_iop_test)
 int gasnete_iop_test(gasnete_iop_t *iop) {
   gasnete_iop_check(iop);
   if (gasnetc_counter_done(&(iop->get_req_oust)) &&
@@ -237,7 +237,7 @@ int gasnete_iop_test(gasnete_iop_t *iop) {
 /*  query an op for completeness 
  *  free it if complete
  *  returns 0 or 1 */
-GASNET_INLINE_MODIFIER(gasnete_op_try_free)
+GASNETI_INLINE(gasnete_op_try_free)
 int gasnete_op_try_free(gasnet_handle_t handle) {
   gasnete_op_t *op = (gasnete_op_t *)handle;
 
@@ -265,7 +265,7 @@ int gasnete_op_try_free(gasnet_handle_t handle) {
 /*  query an op for completeness 
  *  free it and clear the handle if complete
  *  returns 0 or 1 */
-GASNET_INLINE_MODIFIER(gasnete_op_try_free_clear)
+GASNETI_INLINE(gasnete_op_try_free_clear)
 int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
   gasnete_op_t *op = (gasnete_op_t *)(*handle_p);
 
@@ -293,7 +293,7 @@ int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
 }
 
 /* Reply handler to complete an op - might be replaced w/ IB atomics one day */
-GASNET_INLINE_MODIFIER(gasnete_done_reph_inner)
+GASNETI_INLINE(gasnete_done_reph_inner)
 void gasnete_done_reph_inner(gasnet_token_t token, void *counter) {
   gasnetc_counter_dec((gasnetc_counter_t *)counter);
 }
@@ -304,6 +304,37 @@ SHORT_HANDLER(gasnete_done_reph,1,2,
   GASNETI_SAFE(                                                                    \
     SHORT_REP(1,2,((token), gasneti_handleridx(gasnete_done_reph), PACK(counter))) \
   )
+
+/* ------------------------------------------------------------------------------------ */
+/* GASNET-Internal OP Interface */
+gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE) {
+  gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+  gasnetc_counter_inc(&op->req_oust);
+  gasnete_eop_check(op);
+  return (gasneti_eop_t *)op;
+}
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  gasnete_iop_check(op);
+  if (isget) gasnetc_counter_inc_by(&op->get_req_oust,noperations);
+  else       gasnetc_counter_inc_by(&op->put_req_oust,noperations);
+  gasnete_iop_check(op);
+  return (gasneti_iop_t *)op;
+}
+void gasneti_eop_markdone(gasneti_eop_t *eop) {
+  gasnete_eop_t *op = (gasnete_eop_t *)eop;
+  gasnete_eop_check(op);
+  gasnetc_counter_dec(&op->req_oust);
+  gasnete_eop_check(op);
+}
+void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
+  gasnete_iop_t *op = (gasnete_iop_t *)iop;
+  gasnetc_counter_t * const pctr = (isget ? &(op->get_req_oust) : &(op->put_req_oust));
+  gasnete_iop_check(op);
+  gasnetc_counter_dec_by(pctr,noperations);
+  gasnete_iop_check(op);
+}
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -350,7 +381,7 @@ extern void gasnete_init() {
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_memset_reqh_inner)
+GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *counter) {
   memset(dest, (int)(uint32_t)val, nbytes);
