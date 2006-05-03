@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2006/04/30 02:03:35 $
- * $Revision: 1.15 $
+ *     $Date: 2006/05/03 15:03:11 $
+ * $Revision: 1.15.2.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,9 +17,12 @@
 #endif
 #include <test.h>
 
-
+#ifndef MAX_VECLEN
 #define MAX_VECLEN  100
+#endif
+#ifndef MAX_IDXLEN
 #define MAX_IDXLEN  8192
+#endif
 
 /* VEC_SZ sets the size/offset alignment of all data accesses
    we support sizes 1, 4 and 8

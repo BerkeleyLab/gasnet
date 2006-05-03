@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
- *     $Date: 2006/04/30 08:53:16 $
- * $Revision: 1.16 $
+ *     $Date: 2006/05/03 15:03:07 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,6 +14,15 @@
 GASNETI_BEGIN_EXTERNC
 
 /*---------------------------------------------------------------------------------*/
+GASNETI_INLINE(gasnete_memveclist_totalsz)
+uintptr_t gasnete_memveclist_totalsz(size_t count, gasnet_memvec_t const *list) {
+  uintptr_t retval = 0;
+  size_t i;
+  for (i = 0; i < count; i++) {
+    retval += list[i].len;
+  }
+  return retval;
+}
 
 GASNETI_INLINE(gasnete_memveclist_stats)
 gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_t const *list) {
@@ -39,9 +48,9 @@ gasneti_memveclist_stats_t gasnete_memveclist_stats(size_t count, gasnet_memvec_
   retval.minaddr = minaddr;
   retval.maxaddr = maxaddr;
   retval.totalsz = totalsz;
+  gasneti_assert(totalsz == gasnete_memveclist_totalsz(count, list));
   return retval;
 }
-
 /*---------------------------------------------------------------------------------*/
 
 GASNETI_INLINE(gasnete_addrlist_stats)
