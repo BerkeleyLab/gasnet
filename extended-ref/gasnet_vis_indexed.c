@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_indexed.c,v $
- *     $Date: 2006/05/03 15:03:09 $
- * $Revision: 1.15.4.2 $
+ *     $Date: 2006/05/04 12:13:25 $
+ * $Revision: 1.15.4.3 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -120,12 +120,18 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         GASNETE_MYTHREAD->gasnete_vis_threaddata :                       \
         (GASNETE_MYTHREAD->gasnete_vis_threaddata = gasnete_vis_new_threaddata()))
 
-#define GASNETI_VIS_CAT_PUTV_GATHER   1
-#define GASNETI_VIS_CAT_GETV_SCATTER  2
-#define GASNETI_VIS_CAT_PUTI_GATHER   3
-#define GASNETI_VIS_CAT_GETI_SCATTER  4
-#define GASNETI_VIS_CAT_PUTS_GATHER   5
-#define GASNETI_VIS_CAT_GETS_SCATTER  6
+#define GASNETI_VIS_CAT_PUTV_GATHER       1
+#define GASNETI_VIS_CAT_GETV_SCATTER      2
+#define GASNETI_VIS_CAT_PUTI_GATHER       3
+#define GASNETI_VIS_CAT_GETI_SCATTER      4
+#define GASNETI_VIS_CAT_PUTS_GATHER       5
+#define GASNETI_VIS_CAT_GETS_SCATTER      6
+#define GASNETI_VIS_CAT_PUTV_AMPIPELINE   7
+#define GASNETI_VIS_CAT_GETV_AMPIPELINE   8
+#define GASNETI_VIS_CAT_PUTI_AMPIPELINE   9
+#define GASNETI_VIS_CAT_GETI_AMPIPELINE   10
+#define GASNETI_VIS_CAT_PUTS_AMPIPELINE   11
+#define GASNETI_VIS_CAT_GETS_AMPIPELINE   12
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Helpers *** */
@@ -197,6 +203,13 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
         return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
+
+/* signal a visop dummy eop/iop */
+#define GASNETE_VISOP_SIGNAL(visop, isget) do {       \
+    gasneti_assert(visop->eop || visop->iop);         \
+    if (visop->eop) gasneti_eop_markdone(visop->eop); \
+    else gasneti_iop_markdone(visop->iop, 1, isget);  \
+  } while (0)
 
 /* do GASNETE_VISOP_SETUP, push the visop on the thread-specific list 
    and do GASNETE_VISOP_RETURN */
@@ -481,7 +494,14 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
           gasneti_assert(((metadatasz*entries + packetdata) >= maxpayload - metadatasz) || done); /* not underfull */
         } else {
           gasneti_assert(MAX(metadatasz*entries,packetdata) <= maxpayload); /* not overfull */
-          gasneti_assert((MAX(metadatasz*entries,packetdata) >= maxpayload - metadatasz) || done); /* not underfull */
+          /* algorithm currently may underfill for !sharedpacket, because it effectively always 
+             subtracts the MAX(metadatasz, datasz) from *both* packets being managed simultaneously in packetremain,
+             rather than maintaining independent packetremains and updating each accordingly (increasing arithmetic complexity)
+             In vectors whose entries are dominated by datasz or metadatasz, the effect should be neglible
+             In perverse cases we might end up with a packet which where the maximal packet is only 2/3 full
+             this means in datasz dominated vectors with a few entries where datasz < metadatasz (or vice-versa)
+           */
+          gasneti_assert((MAX(metadatasz*entries,packetdata) >= (maxpayload - metadatasz)/2) || done); /* not underfull */
         }
       }
     #endif
@@ -575,7 +595,7 @@ gasnet_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) \
-    if (dstcount > 1 && ((uint32_t)dstcount) == dstcount)                                      \
+    if (dstcount > 1)                                      \
       return gasnete_putv_AMPipeline(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) ((void)0)
@@ -609,34 +629,117 @@ SHORT_HANDLER(gasnete_putv_AMPipeline_reph,1,2,
               (token, UNPACK(a0)),
               (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
-#if 0
-    gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t));
-    visop->type = GASNETI_VIS_CAT_PUTV_AMPIPELINE;
-    GASNETE_VISOP_SETUP(visop, synctype, 0);
+/* Pipelined AM gather-scatter get */
+#ifndef GASNETE_GETV_AMPIPELINE_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE && GASNETE_USE_AMPIPELINE
+gasnet_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
+                                   size_t dstcount, gasnet_memvec_t const dstlist[], 
+                                   gasnet_node_t srcnode,
+                                   size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
+  gasneti_assert(srccount > 1); /* supports gather get */
+  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
+  GASNETI_TRACE_EVENT(C, GETV_AMPIPELINE);
+  { size_t i; /* detect empty list */
+    for (i = 0; i < dstcount; i++) { 
+      if (dstlist[i].len > 0) break;
+    }
+    if_pf (i == dstcount) return GASNET_INVALID_HANDLE;
+  }
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
+                                                    dstcount*sizeof(gasnet_memvec_t) + 
+                                                    gasnet_AMMaxMedium());
+    gasnet_memvec_t * const savedlst = (gasnet_memvec_t *)(visop + 1);
+    gasnet_memvec_t * const packedbuf = savedlst + dstcount;
+    gasnete_packetdesc_t *remotept;
+    gasnete_packetdesc_t *localpt;
+    size_t packetidx;
+    size_t const packetcnt = gasnete_packetize_memvec(srccount, srclist, dstcount, dstlist,  
+                                                &remotept, &localpt, gasnet_AMMaxMedium(), 0);
+    GASNETE_VISOP_SETUP(visop, synctype, 1);
+    #if GASNET_DEBUG
+      visop->type = GASNETI_VIS_CAT_GETV_AMPIPELINE;
+      visop->count = dstcount;
+    #endif
     gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
+    gasneti_assert(packetcnt == (gasnet_handlerarg_t)packetcnt);
+    visop->addr = localpt;
+    memcpy(savedlst, dstlist, dstcount*sizeof(gasnet_memvec_t));
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
 
-    size_t firstidx = 0;
-    size_t lastidx = firstidx;
-    size_t partialoffset = 0;
-    size_t packetremain = maxpacket - sizeof(gasnet_memvec_t);
-
-    if (partialoffset > 0 && packetremain >= dstlist[firstidx].len - partialoffset) {
-      consume 
-      partialoffset = 0;
-    }
-
-    while (firstidx < dstcount) {
-      while (packetremain >= dstlist[lastidx].len - dstoffset) {
-        if ( <= packetremain) {
-        } else {
-        }
+    for (packetidx = 0; packetidx < packetcnt; packetidx++) {
+      gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
+      size_t const rnum = rpacket->lastidx - rpacket->firstidx + 1;
+      /* fill packet with remote metadata */
+      memcpy(packedbuf, &srclist[rpacket->firstidx], rnum*sizeof(gasnet_memvec_t));
+      if (rpacket->firstoffset) {
+        packedbuf[0].addr = ((uint8_t *)packedbuf[0].addr) + rpacket->firstoffset;
+        packedbuf[0].len -= rpacket->firstoffset;
       }
+      packedbuf[rnum-1].len = rpacket->lastlen;
+
+      /* send AM(visop) from packedbuf */
+      GASNETI_SAFE(
+        MEDIUM_REQ(2,3,(srcnode, gasneti_handleridx(gasnete_getv_AMPipeline_reqh),
+                      packedbuf, rnum*sizeof(gasnet_memvec_t),
+                      PACK(visop), packetidx)));
     }
 
+    gasneti_free(remotept);
     GASNETE_VISOP_RETURN(visop, synctype);
+  }
+}
+  #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) \
+    if (srccount > 1)                                      \
+      return gasnete_getv_AMPipeline(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) ((void)0)
 #endif
-
+#endif
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_getv_AMPipeline_reqh_inner)
+void gasnete_getv_AMPipeline_reqh_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *_visop, gasnet_handlerarg_t packetidx) {
+  gasnet_memvec_t * const rlist = addr;
+  size_t const rnum = nbytes / sizeof(gasnet_memvec_t);
+  gasneti_vis_op_t * const visop = _visop;
+  uint8_t * const packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
+  /* gather data payload from sourcelist into packet */
+  uint8_t * const end = gasnete_memvec_pack(rnum, rlist, packedbuf, 0, (size_t)-1);
+  size_t const repbytes = end - packedbuf;
+  gasneti_assert(repbytes <= gasnet_AMMaxMedium());
+  GASNETI_SAFE(
+    MEDIUM_REP(2,3,(token, gasneti_handleridx(gasnete_getv_AMPipeline_reph),
+                  packedbuf, repbytes,
+                  PACK(visop),packetidx)));
+  gasneti_free(packedbuf);
+}
+MEDIUM_HANDLER(gasnete_getv_AMPipeline_reqh,2,3, 
+              (token,addr,nbytes, UNPACK(a0),    , a1),
+              (token,addr,nbytes, UNPACK2(a0, a1), a2));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_getv_AMPipeline_reph_inner)
+void gasnete_getv_AMPipeline_reph_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *_visop, gasnet_handlerarg_t packetidx) {
+  gasneti_vis_op_t * const visop = _visop;
+  gasnet_memvec_t * const savedlst = (gasnet_memvec_t *)(visop + 1);
+  gasnete_packetdesc_t * const lpacket = ((gasnete_packetdesc_t *)visop->addr) + packetidx;
+  size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
+  gasneti_assert(visop->type == GASNETI_VIS_CAT_GETV_AMPIPELINE);
+  gasneti_assert(lpacket->lastidx < visop->count);
+  gasnete_memvec_unpack(lnum, savedlst+lpacket->firstidx, addr, lpacket->firstoffset, lpacket->lastlen);
+  if (gasneti_weakatomic_decrement_and_test(&(visop->packetcnt), GASNETI_ATOMIC_WMB_PRE)) {
+    /* last response packet completes operation and cleans up */
+    GASNETE_VISOP_SIGNAL(visop, 1);
+    gasneti_free(visop->addr); /* free localpt */
+    gasneti_free(visop); /* free visop, savedlst and send buffer */
+  }
+}
+MEDIUM_HANDLER(gasnete_getv_AMPipeline_reph,2,3, 
+              (token,addr,nbytes, UNPACK(a0),    , a1),
+              (token,addr,nbytes, UNPACK2(a0, a1), a2));
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
 gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
@@ -828,6 +931,7 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
   #ifndef GASNETE_GETV_SELECTOR
     #define GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist)    \
       GASNETE_GETV_SCATTER_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist); \
+      GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist); \
       return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS)
   #endif
   GASNETE_GETV_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist);
@@ -1915,9 +2019,7 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
 /*---------------------------------------------------------------------------------*/
 /* signal a visop dummy eop/iop, unlink it and free it */
 #define GASNETE_VISOP_SIGNAL_AND_FREE(visop, isget) do { \
-    gasneti_assert(visop->eop || visop->iop);            \
-    if (visop->eop) gasneti_eop_markdone(visop->eop);    \
-    else gasneti_iop_markdone(visop->iop, 1, isget);     \
+    GASNETE_VISOP_SIGNAL(visop, isget);                  \
     GASNETI_PROGRESSFNS_DISABLE(gasneti_pf_vis,COUNTED); \
     *lastp = visop->next; /* unlink */                   \
     gasneti_free(visop);                                 \
@@ -2006,7 +2108,9 @@ extern void gasneti_vis_progressfn() {
                                                                       \
   /* ptr-width dependent handlers */                                  \
   gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reqh), \
-  gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reph)  \
+  gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reph), \
+  gasneti_handler_tableentry_with_bits(gasnete_getv_AMPipeline_reqh), \
+  gasneti_handler_tableentry_with_bits(gasnete_getv_AMPipeline_reph)  \
 
 /*---------------------------------------------------------------------------------*/
 
