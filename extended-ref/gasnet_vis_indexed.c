@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_indexed.c,v $
- *     $Date: 2006/05/04 12:13:25 $
- * $Revision: 1.15.4.3 $
+ *     $Date: 2006/05/05 18:43:36 $
+ * $Revision: 1.15.4.4 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -378,7 +378,7 @@ typedef struct {
 } gasnete_packetdesc_t;
 
 static void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int lastpacket,
-                              size_t count, gasnet_memvec_t const list[]) {
+                              size_t count, size_t len, gasnet_memvec_t const *list) {
   size_t firstidx = pt[ptidx].firstidx;
   size_t firstoffset = pt[ptidx].firstoffset;
   size_t lastidx = pt[ptidx].lastidx;
@@ -389,7 +389,7 @@ static void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
   if (ptidx == 0) gasneti_assert(firstidx == 0 && firstoffset == 0); /* first packet */
   else if (firstidx == lastidx && lastlen == 0) ; /* empty local packet */
   else if (firstidx == pt[ptidx-1].lastidx) { /* continued from last packet */
-    gasneti_assert(firstoffset > 0 && firstoffset < list[firstidx].len);
+    gasneti_assert(firstoffset > 0 && firstoffset < (list?list[firstidx].len:len));
     if (pt[ptidx-1].lastidx == pt[ptidx-1].firstidx)
       gasneti_assert(firstoffset == pt[ptidx-1].lastlen+pt[ptidx-1].firstoffset);
     else
@@ -398,16 +398,16 @@ static void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
     gasneti_assert(firstidx == pt[ptidx-1].lastidx + 1);
     gasneti_assert(firstoffset == 0);
     if (pt[ptidx-1].lastidx == pt[ptidx-1].firstidx)
-      gasneti_assert(pt[ptidx-1].lastlen == list[firstidx-1].len-pt[ptidx-1].firstoffset);
+      gasneti_assert(pt[ptidx-1].lastlen == (list?list[firstidx-1].len:len)-pt[ptidx-1].firstoffset);
     else
-      gasneti_assert(pt[ptidx-1].lastlen == list[firstidx-1].len);
+      gasneti_assert(pt[ptidx-1].lastlen == (list?list[firstidx-1].len:len));
   }
   if (lastpacket) {
     if (lastidx == firstidx) {
       if (lastlen == 0) ; /* empty local packet */
-      else gasneti_assert(lastlen == list[lastidx].len-firstoffset);
+      else gasneti_assert(lastlen == (list?list[lastidx].len:len)-firstoffset);
     }
-    else gasneti_assert(lastlen == list[lastidx].len);
+    else gasneti_assert(lastlen == (list?list[lastidx].len:len));
   }
 }
 
@@ -480,7 +480,7 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
     remotept[ptidx].lastlen = rdatasz;
 
     #if GASNET_DEBUG /* verify packing properties */
-      gasnete_packetize_verify(remotept, ptidx, done, remotecount, remotelist);
+      gasnete_packetize_verify(remotept, ptidx, done, remotecount, 0, remotelist);
       { size_t datachk = 0, i;
         size_t entries = remotept[ptidx].lastidx - remotept[ptidx].firstidx + 1;
         for (i = remotept[ptidx].firstidx; i <= remotept[ptidx].lastidx; i++) {
@@ -526,7 +526,149 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
     localpt[ptidx].lastlen = ldatasz;
 
     #if GASNET_DEBUG /* verify packing properties */
-      gasnete_packetize_verify(localpt, ptidx, done, localcount, locallist);
+      gasnete_packetize_verify(localpt, ptidx, done, localcount, 0, locallist);
+    #endif
+
+    if (done) {
+      gasneti_assert(ridx == remotecount && roffset == 0 && lidx == localcount && loffset == 0);
+      *premotept = remotept;
+      *plocalpt = localpt;
+      return ptidx+1;
+    }
+  }
+}
+/*---------------------------------------------------------------------------------*/
+size_t gasnete_packetize_addrlist(size_t remotecount, size_t remotelen,
+                                  size_t localcount, size_t locallen,
+                                  gasnete_packetdesc_t **premotept,
+                                  gasnete_packetdesc_t **plocalpt,
+                                  size_t maxpayload, int sharedpacket) {
+  size_t ptidx;
+  int done = 0;
+  size_t ridx = 0, roffset = 0, lidx = 0, loffset = 0;
+  size_t const metadatasz = sizeof(void *);
+  size_t const runit = (sharedpacket ? metadatasz + remotelen : MAX(metadatasz,remotelen));
+  size_t ptsz = (runit <= maxpayload ? /* conservative upper bound on packet count */
+                 remotecount / (maxpayload / runit) + 1 : 
+                 remotelen*remotecount / (maxpayload - 2*metadatasz) + 1); 
+  gasnete_packetdesc_t *remotept = gasneti_malloc(ptsz*sizeof(gasnete_packetdesc_t));
+  gasnete_packetdesc_t *localpt = gasneti_malloc(ptsz*sizeof(gasnete_packetdesc_t));
+  gasneti_assert(premotept && plocalpt && remotecount && remotelen && localcount && locallen);
+  gasneti_assert(remotecount*remotelen == localcount*locallen);
+  gasneti_assert(remotecount*remotelen > 0);
+
+  for (ptidx = 0; ; ptidx++) {
+    ssize_t packetremain = maxpayload;
+    ssize_t packetdata = 0;
+    size_t rdatasz, ldatasz; 
+
+    gasneti_assert(ptidx < ptsz);
+
+    /* begin remote packet */
+    remotept[ptidx].firstidx = ridx;
+    remotept[ptidx].firstoffset = roffset;
+    /* begin local packet */
+    if_pf (lidx == localcount) localpt[ptidx].firstidx = lidx-1; 
+    else                       localpt[ptidx].firstidx = lidx;
+    localpt[ptidx].firstoffset = loffset;
+
+    if (roffset > 0) { /* initial partial entry */
+      gasneti_assert(roffset < remotelen);
+      rdatasz = remotelen - roffset; /* data left in current entry */
+      /* try to add the entire entry to packet */
+      if (sharedpacket) packetremain -= (metadatasz + rdatasz);
+      else              packetremain -= MAX(metadatasz, rdatasz);
+      if (packetremain < 0) { /* overflowed - finished a packet, and spill to next */
+        rdatasz += packetremain; /* compute truncated datasz that fits in this packet */
+        roffset += rdatasz; /* update offset into current entry */
+        packetdata += rdatasz;
+        goto rend;
+      } else {
+        packetdata += rdatasz;
+        roffset = 0; /* finished an entry */
+        ridx++;
+        if (ridx == remotecount) { done = 1; goto rend; } /* done - this is last packet */
+      }
+    }
+    if (packetremain >= runit) { /* whole entries */
+      size_t numunits = packetremain / runit;
+      if (ridx + numunits > remotecount) numunits = remotecount - ridx;
+      rdatasz = remotelen;
+      packetremain -= runit*numunits;
+      packetdata += remotelen*numunits;
+      ridx += numunits;
+      gasneti_assert(roffset == 0);
+      if (ridx == remotecount) { done = 1; goto rend; } /* done - this is last packet */
+    }
+    if (packetremain > metadatasz) { /* trailing partial entry */
+      gasneti_assert(packetremain < runit);
+      if (sharedpacket) rdatasz = packetremain - metadatasz;
+      else              rdatasz = packetremain;
+      packetdata += rdatasz;
+      roffset = rdatasz;
+    }
+    rend:
+    /* end remote packet */
+    if (roffset == 0) remotept[ptidx].lastidx = ridx-1;
+    else              remotept[ptidx].lastidx = ridx;
+    remotept[ptidx].lastlen = rdatasz;
+
+    #if GASNET_DEBUG /* verify packing properties */
+      gasnete_packetize_verify(remotept, ptidx, done, remotecount, remotelen, 0);
+      { size_t datachk = 0, i;
+        size_t entries = remotept[ptidx].lastidx - remotept[ptidx].firstidx + 1;
+        for (i = remotept[ptidx].firstidx; i <= remotept[ptidx].lastidx; i++) {
+          if (i == remotept[ptidx].lastidx) datachk += remotept[ptidx].lastlen;
+          else if (i == remotept[ptidx].firstidx) datachk += (remotelen - remotept[ptidx].firstoffset);
+          else datachk += remotelen;
+        }
+        gasneti_assert(packetdata == datachk);
+        if (sharedpacket) { 
+          gasneti_assert((metadatasz*entries + packetdata) <= maxpayload); /* not overfull */
+          gasneti_assert(((metadatasz*entries + packetdata) >= maxpayload - metadatasz) || done); /* not underfull */
+        } else {
+          gasneti_assert(MAX(metadatasz*entries,packetdata) <= maxpayload); /* not overfull */
+          gasneti_assert((MAX(metadatasz*entries,packetdata) >= maxpayload - 2*metadatasz) || done); /* not underfull */
+        }
+      }
+    #endif
+
+    ldatasz = 0;
+    if (loffset > 0) { /* initial partial entry */
+      gasneti_assert(loffset < locallen);
+      ldatasz = locallen - loffset; /* data left in current entry */
+      packetdata -= ldatasz;
+      if (packetdata < 0) { /* overflowed - this entry spills into next packet */
+        ldatasz += packetdata; /* compute truncated datasz that fits in this packet */
+        loffset += ldatasz; /* update offset into current entry */
+        packetdata = 0;
+      } else {
+        loffset = 0; /* finished an entry */
+        lidx++;
+        gasneti_assert(lidx < localcount || (lidx == localcount && packetdata == 0));
+      }
+    }
+    if (packetdata >= locallen) { /* whole entries */
+      size_t numunits = packetdata / locallen;
+      if (lidx + numunits > localcount) numunits = localcount - lidx;
+      ldatasz = locallen;
+      packetdata -= locallen*numunits;
+      lidx += numunits;
+      gasneti_assert(lidx < localcount || (lidx == localcount && packetdata == 0));
+      gasneti_assert(loffset == 0);
+    }
+    if (packetdata > 0) { /* trailing partial entry */
+      gasneti_assert(packetdata < locallen);
+      ldatasz = packetdata;
+      loffset = ldatasz;
+    }
+    /* end local packet */
+    if (loffset == 0) localpt[ptidx].lastidx = lidx-1;
+    else              localpt[ptidx].lastidx = lidx;
+    localpt[ptidx].lastlen = ldatasz;
+
+    #if GASNET_DEBUG /* verify packing properties */
+      gasnete_packetize_verify(localpt, ptidx, done, localcount, locallen, 0);
     #endif
 
     if (done) {
@@ -613,19 +755,19 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnet_token_t token,
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   GASNETI_SAFE(
-    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_putv_AMPipeline_reph),
+    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph),
                   PACK(iop))));
 }
 MEDIUM_HANDLER(gasnete_putv_AMPipeline_reqh,2,4, 
               (token,addr,nbytes, UNPACK(a0),      a1),
               (token,addr,nbytes, UNPACK2(a0, a1), a2));
 /* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_putv_AMPipeline_reph_inner)
-void gasnete_putv_AMPipeline_reph_inner(gasnet_token_t token, 
+GASNETI_INLINE(gasnete_putvis_AMPipeline_reph_inner)
+void gasnete_putvis_AMPipeline_reph_inner(gasnet_token_t token, 
   void *iop) {
   gasneti_iop_markdone(iop, 1, 0);
 }
-SHORT_HANDLER(gasnete_putv_AMPipeline_reph,1,2, 
+SHORT_HANDLER(gasnete_putvis_AMPipeline_reph,1,2, 
               (token, UNPACK(a0)),
               (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
@@ -716,7 +858,7 @@ void gasnete_getv_AMPipeline_reqh_inner(gasnet_token_t token,
   gasneti_free(packedbuf);
 }
 MEDIUM_HANDLER(gasnete_getv_AMPipeline_reqh,2,3, 
-              (token,addr,nbytes, UNPACK(a0),    , a1),
+              (token,addr,nbytes, UNPACK(a0),      a1),
               (token,addr,nbytes, UNPACK2(a0, a1), a2));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_getv_AMPipeline_reph_inner)
@@ -729,7 +871,9 @@ void gasnete_getv_AMPipeline_reph_inner(gasnet_token_t token,
   size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
   gasneti_assert(visop->type == GASNETI_VIS_CAT_GETV_AMPIPELINE);
   gasneti_assert(lpacket->lastidx < visop->count);
-  gasnete_memvec_unpack(lnum, savedlst+lpacket->firstidx, addr, lpacket->firstoffset, lpacket->lastlen);
+  { uint8_t *end = gasnete_memvec_unpack(lnum, savedlst+lpacket->firstidx, addr, lpacket->firstoffset, lpacket->lastlen);
+    gasneti_assert(end - (uint8_t *)addr == nbytes);
+  }
   if (gasneti_weakatomic_decrement_and_test(&(visop->packetcnt), GASNETI_ATOMIC_WMB_PRE)) {
     /* last response packet completes operation and cleans up */
     GASNETE_VISOP_SIGNAL(visop, 1);
@@ -738,7 +882,7 @@ void gasnete_getv_AMPipeline_reph_inner(gasnet_token_t token,
   }
 }
 MEDIUM_HANDLER(gasnete_getv_AMPipeline_reph,2,3, 
-              (token,addr,nbytes, UNPACK(a0),    , a1),
+              (token,addr,nbytes, UNPACK(a0),      a1),
               (token,addr,nbytes, UNPACK2(a0, a1), a2));
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
@@ -1005,7 +1149,182 @@ gasnet_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
   #define GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) ((void)0)
 #endif
 #endif
+/*---------------------------------------------------------------------------------*/
+/* Pipelined AM gather-scatter put */
+#ifndef GASNETE_PUTI_AMPIPELINE_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE && GASNETE_USE_AMPIPELINE
+gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
+                                   gasnet_node_t dstnode, 
+                                   size_t dstcount, void * const dstlist[], size_t dstlen,
+                                   size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+  gasneti_assert(dstcount > 1); /* supports scatter put */
+  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
+  GASNETI_TRACE_EVENT(C, PUTI_AMPIPELINE);
+  GASNETE_START_NBIREGION(synctype, 0);
 
+  { void * * packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
+    gasnete_packetdesc_t *remotept;
+    gasnete_packetdesc_t *localpt;
+    size_t packetidx;
+    size_t const packetcnt = gasnete_packetize_addrlist(dstcount, dstlen, srccount, srclen, 
+                                                &remotept, &localpt, gasnet_AMMaxMedium(), 1);
+    gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
+
+    for (packetidx = 0; packetidx < packetcnt; packetidx++) {
+      gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
+      gasnete_packetdesc_t * const lpacket = &localpt[packetidx];
+      size_t const rnum = rpacket->lastidx - rpacket->firstidx + 1;
+      size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
+      uint8_t *end;
+      /* fill packet with remote metadata */
+      memcpy(packedbuf, &dstlist[rpacket->firstidx], rnum*sizeof(void *));
+      /* gather data payload from sourcelist into packet */
+      end = gasnete_addrlist_pack(lnum, &srclist[lpacket->firstidx], srclen, &packedbuf[rnum], 
+                                  lpacket->firstoffset, lpacket->lastlen);
+
+      /* send AM(rnum, iop) from packedbuf */
+      GASNETI_SAFE(
+        MEDIUM_REQ(5,6,(dstnode, gasneti_handleridx(gasnete_puti_AMPipeline_reqh),
+                      packedbuf, end - (uint8_t *)packedbuf,
+                      PACK(iop), rnum, dstlen, rpacket->firstoffset, rpacket->lastlen)));
+    }
+
+    gasneti_free(remotept);
+    gasneti_free(localpt);
+    gasneti_free(packedbuf);
+    GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
+  }
+}
+  #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
+    if (dstcount > 1 && dstlen == (uint32_t)(dstlen))                                                        \
+      return gasnete_puti_AMPipeline(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) ((void)0)
+#endif
+#endif
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_puti_AMPipeline_reqh_inner)
+void gasnete_puti_AMPipeline_reqh_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *iop, gasnet_handlerarg_t rnum, 
+  gasnet_handlerarg_t dstlen, gasnet_handlerarg_t firstoffset, gasnet_handlerarg_t lastlen) {
+  void * const * const rlist = addr;
+  uint8_t * const data = (uint8_t *)(&rlist[rnum]);
+  uint8_t * const end = gasnete_addrlist_unpack(rnum, rlist, dstlen, data, firstoffset, lastlen);
+  gasneti_assert(end - (uint8_t *)addr <= gasnet_AMMaxMedium());
+  gasneti_sync_writes();
+  /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
+  GASNETI_SAFE(
+    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph),
+                  PACK(iop))));
+}
+MEDIUM_HANDLER(gasnete_puti_AMPipeline_reqh,5,6, 
+              (token,addr,nbytes, UNPACK(a0),      a1,a2,a3,a4),
+              (token,addr,nbytes, UNPACK2(a0, a1), a2,a3,a4,a5));
+/* ------------------------------------------------------------------------------------ */
+/* Pipelined AM gather-scatter get */
+#ifndef GASNETE_GETI_AMPIPELINE_SELECTOR
+#if GASNETI_HAVE_EOP_INTERFACE && GASNETE_USE_AMPIPELINE
+gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
+                                   size_t dstcount, void * const dstlist[], size_t dstlen,
+                                   gasnet_node_t srcnode,
+                                   size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+  gasneti_assert(srccount > 1); /* supports gather get */
+  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
+  GASNETI_TRACE_EVENT(C, GETI_AMPIPELINE);
+
+  { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
+                                                    dstcount*sizeof(void *) + 
+                                                    gasnet_AMMaxMedium());
+    void * * const savedlst = (void * *)(visop + 1);
+    void * * const packedbuf = savedlst + dstcount;
+    gasnete_packetdesc_t *remotept;
+    gasnete_packetdesc_t *localpt;
+    size_t packetidx;
+    size_t const packetcnt = gasnete_packetize_addrlist(srccount, srclen, dstcount, dstlen,  
+                                                &remotept, &localpt, gasnet_AMMaxMedium(), 0);
+    GASNETE_VISOP_SETUP(visop, synctype, 1);
+    #if GASNET_DEBUG
+      visop->type = GASNETI_VIS_CAT_GETI_AMPIPELINE;
+      visop->count = dstcount;
+    #endif
+    gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
+    gasneti_assert(packetcnt == (gasnet_handlerarg_t)packetcnt);
+    visop->len = dstlen;
+    visop->addr = localpt;
+    memcpy(savedlst, dstlist, dstcount*sizeof(void *));
+    gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
+
+    for (packetidx = 0; packetidx < packetcnt; packetidx++) {
+      gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
+      size_t const rnum = rpacket->lastidx - rpacket->firstidx + 1;
+      /* fill packet with remote metadata */
+      memcpy(packedbuf, &srclist[rpacket->firstidx], rnum*sizeof(void *));
+
+      /* send AM(visop) from packedbuf */
+      GASNETI_SAFE(
+        MEDIUM_REQ(5,6,(srcnode, gasneti_handleridx(gasnete_geti_AMPipeline_reqh),
+                      packedbuf, rnum*sizeof(void *),
+                      PACK(visop), packetidx, srclen, rpacket->firstoffset, rpacket->lastlen)));
+    }
+
+    gasneti_free(remotept);
+    GASNETE_VISOP_RETURN(visop, synctype);
+  }
+}
+  #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
+    if (srccount > 1)                                                                                        \
+      return gasnete_geti_AMPipeline(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
+#else
+  #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) ((void)0)
+#endif
+#endif
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_geti_AMPipeline_reqh_inner)
+void gasnete_geti_AMPipeline_reqh_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *_visop, gasnet_handlerarg_t packetidx,
+  gasnet_handlerarg_t dstlen, gasnet_handlerarg_t firstoffset, gasnet_handlerarg_t lastlen) {
+  void * const * const rlist = addr;
+  size_t const rnum = nbytes / sizeof(void *);
+  uint8_t * const packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
+  /* gather data payload from sourcelist into packet */
+  uint8_t * const end = gasnete_addrlist_pack(rnum, rlist, dstlen, packedbuf, firstoffset, lastlen);
+  size_t const repbytes = end - packedbuf;
+  gasneti_assert(repbytes <= gasnet_AMMaxMedium());
+  GASNETI_SAFE(
+    MEDIUM_REP(2,3,(token, gasneti_handleridx(gasnete_geti_AMPipeline_reph),
+                  packedbuf, repbytes,
+                  PACK(_visop),packetidx)));
+  gasneti_free(packedbuf);
+}
+MEDIUM_HANDLER(gasnete_geti_AMPipeline_reqh,5,6, 
+              (token,addr,nbytes, UNPACK(a0),      a1,a2,a3,a4),
+              (token,addr,nbytes, UNPACK2(a0, a1), a2,a3,a4,a5));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_geti_AMPipeline_reph_inner)
+void gasnete_geti_AMPipeline_reph_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *_visop, gasnet_handlerarg_t packetidx) {
+  gasneti_vis_op_t * const visop = _visop;
+  void * const * const savedlst = (void * *)(visop + 1);
+  gasnete_packetdesc_t * const lpacket = ((gasnete_packetdesc_t *)visop->addr) + packetidx;
+  size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
+  gasneti_assert(visop->type == GASNETI_VIS_CAT_GETI_AMPIPELINE);
+  gasneti_assert(lpacket->lastidx < visop->count);
+  { uint8_t *end = gasnete_addrlist_unpack(lnum, savedlst+lpacket->firstidx, visop->len, addr, lpacket->firstoffset, lpacket->lastlen);
+    gasneti_assert(end - (uint8_t *)addr == nbytes);
+  }
+  if (gasneti_weakatomic_decrement_and_test(&(visop->packetcnt), GASNETI_ATOMIC_WMB_PRE)) {
+    /* last response packet completes operation and cleans up */
+    GASNETE_VISOP_SIGNAL(visop, 1);
+    gasneti_free(visop->addr); /* free localpt */
+    gasneti_free(visop); /* free visop, savedlst and send buffer */
+  }
+}
+MEDIUM_HANDLER(gasnete_geti_AMPipeline_reph,2,3, 
+              (token,addr,nbytes, UNPACK(a0),      a1),
+              (token,addr,nbytes, UNPACK2(a0, a1), a2));
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
 gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
@@ -1216,18 +1535,21 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
   /* select algorithm */
   #ifndef GASNETE_PUTI_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
-      #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) do {                        \
-        switch (rand() % 3) {                                                                                                     \
-          case 0:                                                                                                                 \
-            GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);                       \
-          case 1:                                                                                                                 \
-            return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
-          case 2:                                                                                                                 \
-            return gasnete_puti_ref_vector(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS); \
+      #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) do {                          \
+        switch (rand() % 3) {                                                                                                       \
+          case 0:                                                                                                                   \
+            GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);     \
+          case 1:                                                                                                                   \
+            GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS); \
+          case 2:                                                                                                                   \
+            return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);    \
+          case 3:                                                                                                                   \
+            return gasnete_puti_ref_vector(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);   \
         } } while (0)
     #else
-      #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen)   \
-        GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen); \
+      #define GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen)       \
+        GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);     \
+        GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen); \
         return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
     #endif
   #endif
@@ -1252,18 +1574,21 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
   /* select algorithm */
   #ifndef GASNETE_GETI_SELECTOR
     #if GASNETE_RANDOM_SELECTOR
-      #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) do {                        \
-        switch (rand() % 3) {                                                                                                     \
-          case 0:                                                                                                                 \
-            GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen);                      \
-          case 1:                                                                                                                 \
-            return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);  \
-          case 2:                                                                                                                 \
-            return gasnete_geti_ref_vector(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS); \
+      #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) do {                          \
+        switch (rand() % 3) {                                                                                                       \
+          case 0:                                                                                                                   \
+            GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);    \
+          case 1:                                                                                                                   \
+            GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS); \
+          case 2:                                                                                                                   \
+            return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);    \
+          case 3:                                                                                                                   \
+            return gasnete_geti_ref_vector(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);   \
         } } while (0)
     #else
-      #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen)    \
-        GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen); \
+      #define GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen)       \
+        GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen);    \
+        GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen); \
         return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
     #endif
   #endif
@@ -2102,15 +2427,18 @@ extern void gasneti_vis_progressfn() {
 /*---------------------------------------------------------------------------------*/
 /* ***  Handlers *** */
 /*---------------------------------------------------------------------------------*/
-#define GASNETE_REFVIS_HANDLERS()                                     \
-  /* ptr-width independent handlers */                                \
-  /*  gasneti_handler_tableentry_no_bits(gasnete__reqh) */            \
-                                                                      \
-  /* ptr-width dependent handlers */                                  \
-  gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reqh), \
-  gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reph), \
-  gasneti_handler_tableentry_with_bits(gasnete_getv_AMPipeline_reqh), \
-  gasneti_handler_tableentry_with_bits(gasnete_getv_AMPipeline_reph)  \
+#define GASNETE_REFVIS_HANDLERS()                                       \
+  /* ptr-width independent handlers */                                  \
+  /*  gasneti_handler_tableentry_no_bits(gasnete__reqh) */              \
+                                                                        \
+  /* ptr-width dependent handlers */                                    \
+  gasneti_handler_tableentry_with_bits(gasnete_putv_AMPipeline_reqh),   \
+  gasneti_handler_tableentry_with_bits(gasnete_putvis_AMPipeline_reph), \
+  gasneti_handler_tableentry_with_bits(gasnete_getv_AMPipeline_reqh),   \
+  gasneti_handler_tableentry_with_bits(gasnete_getv_AMPipeline_reph),   \
+  gasneti_handler_tableentry_with_bits(gasnete_puti_AMPipeline_reqh),   \
+  gasneti_handler_tableentry_with_bits(gasnete_geti_AMPipeline_reqh),   \
+  gasneti_handler_tableentry_with_bits(gasnete_geti_AMPipeline_reph)    \
 
 /*---------------------------------------------------------------------------------*/
 

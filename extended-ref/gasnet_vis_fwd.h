@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_fwd.h,v $
- *     $Date: 2006/05/04 12:13:25 $
- * $Revision: 1.1.14.3 $
+ *     $Date: 2006/05/05 18:43:36 $
+ * $Revision: 1.1.14.4 $
  * Description: GASNet Non-contiguous Access Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -74,9 +74,12 @@ extern void gasneti_vis_progressfn();
 #define GASNETE_VIS_HANDLER_BASE 110
 #endif
 
-#define _hidx_gasnete_putv_AMPipeline_reqh  (GASNETE_VIS_HANDLER_BASE+0)
-#define _hidx_gasnete_putv_AMPipeline_reph  (GASNETE_VIS_HANDLER_BASE+1)
-#define _hidx_gasnete_getv_AMPipeline_reqh  (GASNETE_VIS_HANDLER_BASE+2)
-#define _hidx_gasnete_getv_AMPipeline_reph  (GASNETE_VIS_HANDLER_BASE+3)
+#define _hidx_gasnete_putv_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+0)
+#define _hidx_gasnete_putvis_AMPipeline_reph  (GASNETE_VIS_HANDLER_BASE+1)
+#define _hidx_gasnete_getv_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+2)
+#define _hidx_gasnete_getv_AMPipeline_reph    (GASNETE_VIS_HANDLER_BASE+3)
+#define _hidx_gasnete_puti_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+4)
+#define _hidx_gasnete_geti_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+5)
+#define _hidx_gasnete_geti_AMPipeline_reph    (GASNETE_VIS_HANDLER_BASE+6)
 
 #endif
