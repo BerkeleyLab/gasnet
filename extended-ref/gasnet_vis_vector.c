@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_vector.c,v $
- *     $Date: 2006/05/07 23:39:47 $
- * $Revision: 1.15.4.5 $
+ *     $Date: 2006/05/08 00:10:35 $
+ * $Revision: 1.15.4.6 $
  * Description: Reference implemetation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1765,7 +1765,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
 #define GASNETE_STRIDED_HELPER_DECLARE_NODST \
        size_t dststrides[1];                 \
        void * dstaddr = NULL;                \
-       static int8_t _gasnete_strided_helper_nodst = (int8_t)sizeof(_gasnete_strided_helper_nodst);
+       static int8_t _gasnete_strided_helper_nodst = (int8_t)sizeof(_gasnete_strided_helper_nodst)
 
 static int32_t _gasnete_strided_helper_nodst = (int32_t)sizeof(_gasnete_strided_helper_nodst);
 #define GASNETE_STRIDED_HELPER_HAVEDST (sizeof(_gasnete_strided_helper_nodst) == 4)
@@ -1774,7 +1774,7 @@ static int32_t _gasnete_strided_helper_nodst = (int32_t)sizeof(_gasnete_strided_
        size_t * const _gasnete_strided_init = (init);                      \
        size_t _gasnete_strided_chunkcnt = (numchunks);                     \
        int const _gasnete_strided_streaming = (streaming);                 \
-       static int8_t _gasnete_strided_helper_havepartial = (int8_t)sizeof(_gasnete_strided_helper_havepartial);
+       static int8_t _gasnete_strided_helper_havepartial = (int8_t)sizeof(_gasnete_strided_helper_havepartial)
 
 static int32_t *_gasnete_strided_init = (sizeof(_gasnete_strided_init)?NULL:NULL);
 static int32_t _gasnete_strided_chunkcnt = (int32_t)sizeof(_gasnete_strided_chunkcnt);
