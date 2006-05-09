@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
- *     $Date: 2006/05/03 15:03:07 $
- * $Revision: 1.16.2.1 $
+ *     $Date: 2006/05/09 01:24:22 $
+ * $Revision: 1.16.2.2 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -206,6 +206,39 @@ size_t gasnete_strided_dualcontiguity(size_t const *strides1, size_t const *stri
   return stridelevels;
 }
 
+/* returns the size of the contiguous region at the dualcontiguity level */
+GASNETI_INLINE(gasnete_strided_dualcontigsz)
+size_t gasnete_strided_dualcontigsz(size_t const *strides1, size_t const *strides2, size_t const *count, size_t stridelevels) {
+  size_t i;
+  size_t temp;
+  size_t limit = stridelevels;
+
+  /* querying the contiguity of an empty region probably signifies a bug */
+  gasneti_assert(!gasnete_strided_empty(count,stridelevels)); 
+
+  while (limit && count[limit] == 1) limit--; /* ignore null dimensions */
+  if_pf (limit == 0) return count[0]; /* trivially fully contiguous */
+
+  temp = (strides1[0]+strides2[0]);
+  if (temp > (count[0]<<1)) {
+    gasneti_assert(strides1[0] > count[0] || strides2[0] > count[0]);
+    return count[0];
+  }
+  gasneti_assert(strides1[0] == count[0] && strides1[0] == count[0]);
+  /* loop invariant: temp == strides1[i-1]*2 == strides2[i-1]*2 */
+  for (i = 1; i <= limit; i++) {
+    size_t const newtemp = (strides1[i]+strides2[i]);
+    temp *= count[i];
+    if (newtemp > temp) {
+      gasneti_assert(strides1[i] > (count[i]*strides1[i-1]) || strides2[i] > (count[i]*strides2[i-1]));
+      return temp>>1;
+    }
+    gasneti_assert(strides1[i] == (count[i]*strides1[i-1]) || strides2[i] == (count[i]*strides2[i-1]));
+    temp = newtemp;
+  }
+  return temp>>1;
+}
+
 /* returns the number of contiguous segments in the transfer */
 GASNETI_INLINE(gasnete_strided_segments)
 size_t gasnete_strided_segments(size_t const *strides, size_t const *count, size_t stridelevels) {
@@ -247,6 +280,7 @@ typedef struct {
 
   size_t srccontigsz;   /* size of the contiguous segments in the src region */
   size_t dstcontigsz;   /* size of the contiguous segments in the dst region */
+  size_t dualcontigsz;   /* MIN(srccontigsz,dstcontigsz) */
 
 } gasnete_strided_stats_t;
 
@@ -269,6 +303,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     result->dstsegments = 1;
     result->srccontigsz = sz;
     result->dstcontigsz = sz;
+    result->dualcontigsz = sz;
     return;
   } else {
     ssize_t limit;
@@ -332,6 +367,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     result->srcextent = srcextent;
     result->dstextent = dstextent;
     result->dualcontiguity = MIN(result->srccontiguity, result->dstcontiguity);
+    result->dualcontigsz = MIN(result->srccontigsz, result->dstcontigsz);
     /* sanity check */
     gasneti_assert(!gasnete_strided_empty(count, stridelevels));
     gasneti_assert(result->srcextent == gasnete_strided_extent(srcstrides, count, stridelevels));
@@ -345,6 +381,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
     gasneti_assert(result->dstsegments == gasnete_strided_segments(dststrides, count, stridelevels));
     gasneti_assert(result->srccontigsz == gasnete_strided_contigsz(srcstrides, count, stridelevels));
     gasneti_assert(result->dstcontigsz == gasnete_strided_contigsz(dststrides, count, stridelevels));
+    gasneti_assert(result->dualcontigsz == gasnete_strided_dualcontigsz(srcstrides, dststrides, count, stridelevels));
   }
   return;
 }

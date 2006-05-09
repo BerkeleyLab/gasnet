@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2006/05/03 15:03:11 $
- * $Revision: 1.15.2.1 $
+ *     $Date: 2006/05/09 01:24:26 $
+ * $Revision: 1.15.2.2 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,9 +55,15 @@
 #endif
 
 #define NUM_AREAS   4
+#ifndef MAX_STRIDEDIM
 #define MAX_STRIDEDIM  20
+#endif
+#ifndef MAX_CHUNKSZ
 #define MAX_CHUNKSZ 256
+#endif
+#ifndef MAX_INFLIGHT_OPS
 #define MAX_INFLIGHT_OPS 16
+#endif
 
 #define RUN_VECTOR   1
 #define RUN_INDEXED  2
