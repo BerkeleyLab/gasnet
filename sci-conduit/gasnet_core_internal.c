@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.c,v $
- *     $Date: 2006/03/16 00:43:11 $
- * $Revision: 1.14 $
+ *     $Date: 2006/05/10 07:08:17 $
+ * $Revision: 1.14.12.1 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -64,7 +64,7 @@ sci_local_segment_t		        *gasnetc_sci_local_dma_segment;
 sci_dma_queue_t			        *gasnetc_sci_local_dma_queue;
 sci_desc_t				*gasnetc_sci_local_dma_sd;
 void					**gasnetc_sci_local_dma_addr;
-void					*gasnetc_sci_handler_table[256];			/*  array of handler information with the index = handler ID */
+void					*gasnetc_sci_handler_table[GASNETC_SCI_MAX_HANDLER_NUMBER];			/*  array of handler information with the index = handler ID */
                                                                                                 /*  and handler_table[index] = function ptr for the handler */
 uint16_t				gasnetc_sci_dmaqueue_count = 0;				/*  # of temporary segment created, used for dynamic linking to remote DMA segments */
 bool				        *gasnetc_sci_msg_loc_status;

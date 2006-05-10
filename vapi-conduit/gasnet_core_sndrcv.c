@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/04/21 23:34:21 $
- * $Revision: 1.186 $
+ *     $Date: 2006/05/10 07:08:27 $
+ * $Revision: 1.186.4.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -806,10 +806,11 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     }
 #else
     /* Simple round-robin (w/ a harmless multi-thread race) */
-    static volatile int prev = 0;
-    qpi = prev;
+    /* Note use of casts to volatile are require to work around bug 1586 */
+    static int prev = 0;
+    qpi = *(volatile int *)(&prev);
     qpi = ((qpi == 0) ? gasnetc_num_qps : qpi) - 1;
-    prev = qpi;
+    *(volatile int *)(&prev) = qpi;
 #endif
   } else {
     --qpi; /* offset */

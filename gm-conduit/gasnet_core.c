@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2006/04/26 21:35:54 $
- * $Revision: 1.107 $
+ * $Date: 2006/05/10 07:08:13 $
+ * $Revision: 1.107.4.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -159,7 +159,7 @@ gasnetc_AM_InitHandler()
 	int	i;
 
 	for (i = 0; i < GASNETC_AM_MAX_HANDLERS; i++) 
-		_gmc.handlers[i] = (gasnetc_handler_fn_t) abort;  
+		_gmc.handlers[i] = (gasnetc_handler_fn_t) gasneti_defaultAMHandler;  
 
 	return;
 }

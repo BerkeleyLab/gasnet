@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/04/30 02:03:35 $
- * $Revision: 1.89 $
+ *     $Date: 2006/05/10 07:08:25 $
+ * $Revision: 1.89.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,6 +46,8 @@
    which is broken in one or more subtle ways. Don't trust the system assert.h. */
 #include <assert.h>
 #undef assert
+
+GASNETT_BEGIN_EXTERNC
 
 #define assert_always(expr) \
     ((expr) ? (void)0 : (void)FATALERR("Assertion failure: %s", #expr))
@@ -868,5 +870,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
   GASNETT_STATS_SETMASK(GASNETT_STATS_GETMASK());                                  \
   GASNETT_TRACE_SET_TRACELOCAL(GASNETT_TRACE_GET_TRACELOCAL());                    \
 } while (0)
+
+GASNETT_END_EXTERNC
 
 #endif

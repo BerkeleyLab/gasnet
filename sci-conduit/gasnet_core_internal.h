@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/03/19 02:08:18 $
- * $Revision: 1.12 $
+ *     $Date: 2006/05/10 07:08:17 $
+ * $Revision: 1.12.12.1 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -129,7 +129,7 @@ extern sci_map_t			*gasnetc_sci_localMap;
 extern sci_map_t			*gasnetc_sci_remoteMap;
 extern sci_map_t			*gasnetc_sci_remoteMap_gb;
 extern void 				**gasnetc_sci_global_ready;
-extern void				*gasnetc_sci_handler_table[256];
+extern void				*gasnetc_sci_handler_table[GASNETC_SCI_MAX_HANDLER_NUMBER];
 extern bool				*gasnetc_sci_msg_loc_status;
 extern bool 				*gasnetc_sci_msg_flag;
 extern int				gasnetc_sci_internal_barrier_flag;
