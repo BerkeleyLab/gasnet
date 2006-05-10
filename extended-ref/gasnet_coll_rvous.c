@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2006/05/02 05:44:00 $
- * $Revision: 1.55.4.1 $
+ *     $Date: 2006/05/10 08:34:33 $
+ * $Revision: 1.55.4.2 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1417,11 +1417,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
                   (token,addr,nbytes, UNPACK(a0),      a1, a2, a3),
                   (token,addr,nbytes, UNPACK2(a0, a1), a2, a3, a4));
 
-    /* XXX: Assigning from 127 down here is a total kludge!!! */
-    #define _hidx_gasnete_coll_p2p_memcpy_reqh	124
-    #define _hidx_gasnete_coll_p2p_short_reqh	125
-    #define _hidx_gasnete_coll_p2p_med_reqh	126
-    #define _hidx_gasnete_coll_p2p_long_reqh	127
     #define GASNETE_COLL_P2P_HANDLERS \
 	gasneti_handler_tableentry_with_bits(gasnete_coll_p2p_memcpy_reqh), \
 	gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_short_reqh),    \
