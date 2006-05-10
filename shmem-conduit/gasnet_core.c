@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2006/05/02 05:44:28 $
- * $Revision: 1.25.8.1 $
+ *     $Date: 2006/05/10 08:34:41 $
+ * $Revision: 1.25.8.2 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -312,6 +312,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
+  { int i;
+    for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
+      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+  }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;

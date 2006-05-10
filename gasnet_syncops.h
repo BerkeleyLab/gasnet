@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2006/05/02 05:43:53 $
- * $Revision: 1.33.2.1 $
+ *     $Date: 2006/05/10 08:34:28 $
+ * $Revision: 1.33.2.2 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -532,14 +532,14 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 /* Default implementations: */
 #if defined(GASNETI_HAVE_ATOMIC_PTR_CAS)
   /* Use platform-specific version */
-#elif (SIZEOF_VOID_P == 4) && defined(GASNETI_HAVE_ATOMIC32_T)
+#elif (SIZEOF_VOID_P == 4) && !defined(GASNETI_USE_GENERIC_ATOMIC32)
   #define GASNETI_HAVE_ATOMIC_PTR_CAS 1
   typedef gasneti_atomic32_t                    gasneti_atomic_ptr_t;
   #define gasneti_atomic_ptr_init(_v)		gasneti_atomic32_init((uintptr_t)(_v))
   #define gasneti_atomic_ptr_set(_p,_v)		gasneti_atomic32_set(_p,(uintptr_t)(_v),0)
   #define gasneti_atomic_ptr_read(_p)		((uintptr_t)gasneti_atomic32_read(_p,0))
   #define gasneti_atomic_ptr_cas(_p,_o,_n,_f)	gasneti_atomic32_compare_and_swap(_p,(uintptr_t)(_o),(uintptr_t)(_n),_f)
-#elif (SIZEOF_VOID_P == 8) && defined(GASNETI_HAVE_ATOMIC64_T)
+#elif (SIZEOF_VOID_P == 8) && !defined(GASNETI_USE_GENERIC_ATOMIC64)
   #define GASNETI_HAVE_ATOMIC_PTR_CAS 1
   typedef gasneti_atomic64_t                    gasneti_atomic_ptr_t;
   #define gasneti_atomic_ptr_init(_v)		gasneti_atomic64_init((uintptr_t)(_v))
@@ -550,7 +550,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 
 #if defined(GASNETI_HAVE_ATOMIC_DBLPTR_CAS)
   /* Use platform-specific version */
-#elif (SIZEOF_VOID_P == 4) && defined(GASNETI_HAVE_ATOMIC_PTR_CAS) && defined(GASNETI_HAVE_ATOMIC64_T)
+#elif (SIZEOF_VOID_P == 4) && defined(GASNETI_HAVE_ATOMIC_PTR_CAS) && !defined(GASNETI_USE_GENERIC_ATOMIC64)
   #if WORDS_BIGENDIAN
     typedef union {
       struct { gasneti_atomic_ptr_t hi_ptr, lo_ptr; } ptrs;	/* must be first for initializer */

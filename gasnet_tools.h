@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/05/02 05:43:54 $
- * $Revision: 1.53.2.1 $
+ *     $Date: 2006/05/10 08:34:28 $
+ * $Revision: 1.53.2.2 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -105,6 +105,20 @@
     #define gasnett_atomic_add(p,op,f)      gasneti_atomic_add(p,op,f)
     #define gasnett_atomic_subtract(p,op,f) gasneti_atomic_subtract(p,op,f)
   #endif
+
+  #define gasnett_atomic32_t              gasneti_atomic32_t
+  #define gasnett_atomic32_read(p,f)      gasneti_atomic32_read(p,f)
+  #define gasnett_atomic32_init(v)        gasneti_atomic32_init(v)
+  #define gasnett_atomic32_set(p,v,f)     gasneti_atomic32_set(p,v,f)
+  #define gasnett_atomic32_compare_and_swap(p,oldval,newval,f)  \
+                                          gasneti_atomic32_compare_and_swap(p,oldval,newval,f)
+
+  #define gasnett_atomic64_t              gasneti_atomic64_t
+  #define gasnett_atomic64_read(p,f)      gasneti_atomic64_read(p,f)
+  #define gasnett_atomic64_init(v)        gasneti_atomic64_init(v)
+  #define gasnett_atomic64_set(p,v,f)     gasneti_atomic64_set(p,v,f)
+  #define gasnett_atomic64_compare_and_swap(p,oldval,newval,f)  \
+                                            gasneti_atomic64_compare_and_swap(p,oldval,newval,f)
 #else /* GASNET_SEQ and non-thread-safe tools clients */
   /* safe to use weak atomics here, because the client is single-threaded and 
      should only be modifying atomics from the host CPU (using these calls). 
@@ -129,6 +143,20 @@
     #define gasnett_atomic_add(p,op,f)      gasneti_weakatomic_add(p,op,f)
     #define gasnett_atomic_subtract(p,op,f) gasneti_weakatomic_subtract(p,op,f)
   #endif
+
+  #define gasnett_atomic32_t              gasneti_weakatomic32_t
+  #define gasnett_atomic32_read(p,f)      gasneti_weakatomic32_read(p,f)
+  #define gasnett_atomic32_init(v)        gasneti_weakatomic32_init(v)
+  #define gasnett_atomic32_set(p,v,f)     gasneti_weakatomic32_set(p,v,f)
+  #define gasnett_atomic32_compare_and_swap(p,oldval,newval,f)  \
+                                          gasneti_weakatomic32_compare_and_swap(p,oldval,newval,f)
+
+  #define gasnett_atomic64_t              gasneti_weakatomic64_t
+  #define gasnett_atomic64_read(p,f)      gasneti_weakatomic64_read(p,f)
+  #define gasnett_atomic64_init(v)        gasneti_weakatomic64_init(v)
+  #define gasnett_atomic64_set(p,v,f)     gasneti_weakatomic64_set(p,v,f)
+  #define gasnett_atomic64_compare_and_swap(p,oldval,newval,f)  \
+                                          gasneti_weakatomic64_compare_and_swap(p,oldval,newval,f)
 #endif
 
 /* tight spin loop CPU hint */
@@ -138,12 +166,16 @@
 #define GASNETT_USING_GENERIC_ATOMICOPS
 #endif
 #define GASNETT_ATOMIC_CONFIG         GASNETI_ATOMIC_CONFIG
+#define GASNETT_ATOMIC32_CONFIG       GASNETI_ATOMIC32_CONFIG
+#define GASNETT_ATOMIC64_CONFIG       GASNETI_ATOMIC64_CONFIG
 #define GASNETT_CONFIG_STRING                    \
        "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) "," \
        _STRINGIFY(GASNETT_DEBUG_CONFIG) ","      \
        _STRINGIFY(GASNETT_THREAD_MODEL) ","      \
        _STRINGIFY(GASNETT_TIMER_CONFIG) ","      \
-       _STRINGIFY(GASNETT_ATOMIC_CONFIG)         
+       _STRINGIFY(GASNETT_ATOMIC_CONFIG) ","     \
+       _STRINGIFY(GASNETT_ATOMIC32_CONFIG) ","   \
+       _STRINGIFY(GASNETT_ATOMIC64_CONFIG)
 
 /* ------------------------------------------------------------------------------------ */
 /* portable high-performance, low-overhead timers */
@@ -342,6 +374,8 @@ extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_DEBUG_CONFIG);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_PTR_CONFIG);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_TIMER_CONFIG);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC_CONFIG);
+extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC32_CONFIG);
+extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC64_CONFIG);
 static int *gasnett_linkconfig_idiotcheck();
 static int *(*_gasnett_linkconfig_idiotcheck)() = &gasnett_linkconfig_idiotcheck;
 static int *gasnett_linkconfig_idiotcheck() {
@@ -351,6 +385,8 @@ static int *gasnett_linkconfig_idiotcheck() {
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_PTR_CONFIG)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_TIMER_CONFIG)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC_CONFIG)
+        + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC32_CONFIG)
+        + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC64_CONFIG)
         ;
   if (_gasnett_linkconfig_idiotcheck != gasnett_linkconfig_idiotcheck)
     val += *_gasnett_linkconfig_idiotcheck();

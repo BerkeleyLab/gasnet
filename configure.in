@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/05/02 05:43:53 $
-# $Revision: 1.318.2.1 $
+#     $Date: 2006/05/10 08:34:28 $
+# $Revision: 1.318.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.318.2.1 $)
+AC_REVISION($Revision: 1.318.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -293,11 +293,88 @@ AC_DEFUN([GASNET_GET_ULTRASPARC_FLAGS],[
   popdef([ultrasparc3code])
 ])
 
+dnl GASNET_GET_PPC64_FLAGS(type,flags)  type=C or CXX
+# attempt to enable 64-bit inline asm in MISC_C(XX)FLAGS, and test for related capabilities
+# flags is compiler options which enable ppc64 instructions for 32-bit ABI
+GASNET_IF_DISABLED([ppc64-probe],[Disable probe for PPC64 compiler options],[DISABLE_PPC64=1])
+AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
+  pushdef([ppc64code],[[
+	#include <stdio.h>
+	#if defined(__xlC__)
+	  static int testme(double *p);
+	  #pragma mc_func testme {            \\
+	    /* ARGS: r3 = p  LOCAL: r4, r5 */ \\
+	    "38a00001" /* li   r5,1     */    \\
+	    "38800000" /* li   r4,0     */    \\
+	    "f8830000" /* std  r4,0(r3) */    \\
+	    "e8a30000" /* ld   r5,0(r3) */    \\
+	    "7ca32b78" /* mr   r3,r5    */    \\
+	  }
+	  #pragma reg_killed_by testme cr0, gr4, gr5
+	#else
+	  static int testme(double *p) {
+	    int tmp, result;
+	    __asm__ __volatile__ (
+			"li	%2,1		\n\t"
+			"li	%1,0		\n\t"
+			"std	%1,0(%3)	\n\t"
+			"ld	%2,0(%3)	\n\t"
+			: "=m" (*p), "=&b" (tmp), "=&r" (result)
+			: "b" (p) );
+	    return result;
+	  }
+	#endif
+      ]])
+  if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_PPC64" != 1 -a "$cross_compiling" != "yes"; then 
+    # Bug 1587: "for flag in ; do" chokes the shell on Solaris
+    # Bug 1589: Use of m4_ifval([$2]) to avoid bug 1587 chokes autoconf 2.13
+    # So, we add a dummy element to keep the for-loop list non-empty, and then skip it.
+    for flag in $2 DUMMY ; do
+      if test "$flag" != DUMMY ; then
+        ]GASNET_TRY_[$1]FLAG[([$flag],[ppc64_flag_worked=1])
+        if test "$ppc64_flag_worked" = 1; then
+          GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS $flag")
+	  AC_MSG_CHECKING(for working flag $flag)
+	  AC_TRY_RUN(ppc64code [ int main() { double x; return testme(&x); } ],
+	             [ppc64_flag_worked=1], [ppc64_flag_worked=0], [ppc64_flag_worked=1])
+          GASNET_POPVAR([$1]FLAGS)
+	  if test "$ppc64_flag_worked" = 1; then
+	    AC_MSG_RESULT(yes)
+      	    MISC_[$1]FLAGS="$flag"
+	    break
+	  else
+	    AC_MSG_RESULT(no)
+	  fi
+        fi
+      fi
+    done
+  fi
+  AC_MSG_CHECKING(for PPC64 instruction support)
+  GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS")
+  ]GASNET_TRY_[$1]COMPILE_WITHWARN[( [ ppc64code ] , [ ], 
+          AC_TRY_RUN(ppc64code [ int main() { double x; return testme(&x); } ],
+                     [AC_MSG_RESULT(yes) 
+                      AC_DEFINE(GASNETI_ARCH_PPC64)],
+		     [AC_MSG_RESULT(no/failure)],
+		     [ # Cross compiling.  For now just trust PTR_BITS.
+		       if test "$GASNETI_PTR_BITS" = 64; then
+                         AC_MSG_RESULT([yes (cross-compiling w/ 64-bit pointers)]) 
+                         AC_DEFINE(GASNETI_ARCH_PPC64)
+		       else
+                         AC_MSG_RESULT([no (cross-compiling w/ 32-bit pointers)]) 
+		       fi
+		     ]),
+       [ AC_MSG_RESULT(no/warning) ], [ AC_MSG_RESULT(no/error) ])
+  GASNET_POPVAR([$1]FLAGS)
+  popdef([ppc64code])
+])
+
 case "$gasnet_cv_cc_family" in
-  GNU) if test "$target_cpu" = "sparc"; then 
-         GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"])
-       fi
-    ;;
+  GNU)
+    case "$target_cpu" in
+      sparc) GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
+      powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL"]);;
+    esac ;;
   Cray) 
     case "$target_cpu" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
@@ -341,8 +418,11 @@ case "$gasnet_cv_cc_family" in
          GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
        fi
        MISC_CFLAGS="$MISC_CFLAGS -errtags" ;; # show warning tag ids in warnings
-  XLC) MISC_CFLAGS="-qsuppress=1500-010:1506-229" ;; # 1500-010 = infinite loop (such as in our tests)
+  XLC) GASNET_GET_PPC64_FLAGS(C)
+       MISC_CFLAGS="$MISC_CFLAGS -qsuppress=1500-010:1506-229"
+        # 1500-010 = infinite loop (such as in our tests)
 	# 1506-229 = empty source file (some linux headers)
+       ;;
   *)   MISC_CFLAGS="" ;;
 esac
 
@@ -977,9 +1057,10 @@ if test $enabled_udp = yes; then
   case "$gasnet_cv_cxx_family" in
     GNU) 
        GASNET_GCC_VERSION_CHECK(CXX)
-       if test "$target_cpu" = "sparc"; then 
-         GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"])
-       fi
+       case "$target_cpu" in
+         sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
+         powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL"]);;
+       esac
        GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        MISC_CXXFLAGS="$MISC_CXXFLAGS $CXXFLAGS" 
@@ -1001,7 +1082,8 @@ if test $enabled_udp = yes; then
                           [MISC_CXXFLAGS="$MISC_CXXFLAGS -wd1572"])
            ;;
     XLC)
-     MISC_CXXFLAGS="-qsuppress=1540-0809" # 1540-0809 = empty source file (some linux headers)
+     GASNET_GET_PPC64_FLAGS(CXX)
+     MISC_CXXFLAGS="$MISC_CXXFLAGS -qsuppress=1540-0809" # 1540-0809 = empty source file (some linux headers)
      case "$target_os" in
       aix*) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh -qweaksymbol" ;;
       *) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh" ;;
@@ -1732,7 +1814,7 @@ if test $enabled_elan = yes; then
   if test "$elan_test_worked" = yes; then
     AC_MSG_RESULT(yes)
     AC_MSG_CHECKING(for libelan version)
-    if test -e ${ELAN_HEADERBASE}/elan/version.h; then
+    if test -r ${ELAN_HEADERBASE}/elan/version.h; then
       verstr=`grep QSNETLIBS_VERSION_STRING ${ELAN_HEADERBASE}/elan/version.h`
       [majorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $4 }'`]
       [minorver=`echo $verstr | $AWK -F'[ \t]*|\"|[.]' '{ print $5 }'`]
@@ -1840,9 +1922,9 @@ if test "$enabled_vapi" = yes; then
   AC_PATH_PROGS(vstat, vstat)
   if test -n "$vstat"; then
     vapi_guess=`dirname \`dirname $vstat\``
-  elif test -e /usr/local/ibgd/driver/infinihost; then
+  elif test -r /usr/local/ibgd/driver/infinihost; then
     vapi_guess=/usr/local/ibgd/driver/infinihost
-  elif test -e /usr/mellanox; then
+  elif test -r /usr/mellanox; then
     vapi_guess=/usr/mellanox
   else
     vapi_guess=/usr
@@ -1851,10 +1933,10 @@ if test "$enabled_vapi" = yes; then
 
   # MTHOME may point to either 'true' home, or to symlinked location
   AC_MSG_CHECKING(if $MTHOME is the VAPI install directory)
-  if test -e $MTHOME/include/vapi.h; then
+  if test -r $MTHOME/include/vapi.h; then
     # MTHOME looks OK
     AC_MSG_RESULT([yes])
-  elif test -e $MTHOME/bin/vstat; then
+  elif test -r $MTHOME/bin/vstat; then
     vstat=$MTHOME/bin/vstat
     GASNET_FOLLOWLINKS(vstat)
     MTHOME=`dirname \`dirname $vstat\``
@@ -2046,7 +2128,7 @@ if test $enabled_shmem = yes; then
       ;;
     # Linux shmem may mean Quadrics shmem or SGI shmem, but only SGI shmem is supported.
     linux*)
-      if test -e /dev/xpmem; then
+      if test -r /dev/xpmem; then
         # SGI Altix uhas xpmem device
 	SHMEM_FLAVOUR="SGI_SHMEM"
 	AC_MSG_RESULT(SGI/Altix)

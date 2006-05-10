@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/05/02 05:44:04 $
- * $Revision: 1.79.22.1 $
+ *     $Date: 2006/05/10 08:34:37 $
+ * $Revision: 1.79.22.2 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -403,6 +403,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ------------------------------------------------------------------------------------ */
     /*  register handlers */
+    { int i;
+      for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
+        gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+    }
     { /*  core API handlers */
 	gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
 	int len = 0;

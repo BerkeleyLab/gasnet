@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/05/02 05:44:26 $
- * $Revision: 1.18.14.1 $
+ *     $Date: 2006/05/10 08:34:39 $
+ * $Revision: 1.18.14.2 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -238,6 +238,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
+  { int i;
+    for (i = 0; i < GASNETC_SCI_MAX_HANDLER_NUMBER; i++) 
+      gasnetc_sci_handler_table[i] = &gasneti_defaultAMHandler;
+  }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;

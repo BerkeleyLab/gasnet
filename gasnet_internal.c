@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2006/05/02 05:43:53 $
- * $Revision: 1.143.2.1 $
+ *     $Date: 2006/05/10 08:34:28 $
+ * $Revision: 1.143.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,10 +33,15 @@ int gasneti_VerboseErrors = 1;
 
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */
-#ifdef GASNETI_USE_GENERIC_ATOMICOPS
+#if defined(GASNETI_USE_GENERIC_ATOMIC32) || defined(GASNETI_USE_GENERIC_ATOMIC64)
   gasnet_hsl_t gasneti_atomicop_lock = GASNET_HSL_INITIALIZER;
   void *gasneti_patomicop_lock = (void*)&gasneti_atomicop_lock;
-  GASNETI_GENERIC_ATOMICS_DEFN
+  #ifdef GASNETI_GENATOMIC32_DEFN
+    GASNETI_GENATOMIC32_DEFN
+  #endif
+  #ifdef GASNETI_GENATOMIC64_DEFN
+    GASNETI_GENATOMIC64_DEFN
+  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -87,6 +92,8 @@ int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
+int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME)) = 1;
 int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME)) = 1;
 
@@ -282,6 +289,14 @@ extern void gasneti_freezeForDebugger() {
     fflush(stderr);
     _freezeForDebugger(0);
   }
+}
+/* ------------------------------------------------------------------------------------ */
+extern void gasneti_defaultAMHandler(gasnet_token_t token) {
+  gasnet_node_t srcnode = (gasnet_node_t)-1;
+  gasnetc_AMGetMsgSource(token, &srcnode);
+  gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
+                     "with no associated AM handler function registered", 
+                     gasnet_mynode(), gasnet_nodes(), srcnode);
 }
 /* ------------------------------------------------------------------------------------ */
 #define DEF_SIGNAL(name) { name, #name, NULL }

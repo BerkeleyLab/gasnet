@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2006/05/02 05:44:32 $
- * $Revision: 1.52.22.1 $
+ *     $Date: 2006/05/10 08:34:45 $
+ * $Revision: 1.52.22.2 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,10 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_COR
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
 static void gasnetc_atexit(void);
+
+#define GASNETC_MAX_NUMHANDLERS   256
+typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
+gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -156,8 +160,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
-    /* (###) add code here to register table[i].fnptr 
-             on index (gasnet_handler_t)newindex */
+    gasnetc_handler[(gasnet_handler_t)newindex] = (gasnetc_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -198,6 +201,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
+  { int i;
+    for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
+      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+  }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;

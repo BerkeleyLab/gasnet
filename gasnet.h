@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2006/05/02 05:43:53 $
- * $Revision: 1.43.4.1 $
+ *     $Date: 2006/05/10 08:34:28 $
+ * $Revision: 1.43.4.2 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -337,7 +337,9 @@ GASNETI_END_EXTERNC
              _STRINGIFY(GASNETI_STATS_CONFIG) ","                         \
              _STRINGIFY(GASNETI_SRCLINES_CONFIG) ","                      \
              _STRINGIFY(GASNETI_TIMER_CONFIG) ","                         \
-             _STRINGIFY(GASNETI_ATOMIC_CONFIG)                            \
+             _STRINGIFY(GASNETI_ATOMIC_CONFIG) ","                        \
+             _STRINGIFY(GASNETI_ATOMIC32_CONFIG) ","                      \
+             _STRINGIFY(GASNETI_ATOMIC64_CONFIG)                          \
              GASNETC_EXTRA_CONFIG_INFO                                    \
              GASNETE_EXTRA_CONFIG_INFO                                    
 #endif
@@ -358,6 +360,8 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME));
 
@@ -375,6 +379,8 @@ static int *gasneti_linkconfig_idiotcheck() {
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME))
         ;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/05/02 05:43:53 $
- * $Revision: 1.161.2.1 $
+ *     $Date: 2006/05/10 08:34:28 $
+ * $Revision: 1.161.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,11 +48,17 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */
-#ifdef GASNETI_USE_GENERIC_ATOMICOPS
+#if defined(GASNETI_USE_GENERIC_ATOMIC32) || defined(GASNETI_USE_GENERIC_ATOMIC64)
   #if defined(_REENTRANT) || defined(_THREAD_SAFE) || \
         defined(PTHREAD_MUTEX_INITIALIZER) ||           \
         defined(HAVE_PTHREAD) || defined(HAVE_PTHREAD_H)
     pthread_mutex_t gasneti_atomicop_mutex = PTHREAD_MUTEX_INITIALIZER;
+  #endif
+  #ifdef GASNETI_GENATOMIC32_DEFN
+    GASNETI_GENATOMIC32_DEFN
+  #endif
+  #ifdef GASNETI_GENATOMIC64_DEFN
+    GASNETI_GENATOMIC64_DEFN
   #endif
 #endif
 
@@ -90,33 +96,37 @@ extern void gasneti_slow_local_rmb() {
 extern void gasneti_slow_local_mb() {
   gasneti_local_mb();
 }
-extern uint32_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags) {
-  return gasneti_atomic_read(p,flags);
-}
-extern void gasneti_slow_atomic_set(gasneti_atomic_t *p, uint32_t v, const int flags) {
-  gasneti_atomic_set(p, v, flags);
-}
-extern void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags) {
-  gasneti_atomic_increment(p, flags);
-}
-extern void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags) {
-  gasneti_atomic_decrement(p, flags);
-}
-extern int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags) {
-  return gasneti_atomic_decrement_and_test(p, flags);
-}
-#if defined(GASNETI_HAVE_ATOMIC_CAS)
-  extern int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, const int flags) {
-    return gasneti_atomic_compare_and_swap(p,oldval,newval,flags);
+#ifdef GASNETI_USE_GENERIC_ATOMICOPS
+  /* We don't offer slow versions of generics  */
+#else
+  extern uint32_t gasneti_slow_atomic_read(gasneti_atomic_t *p, const int flags) {
+    return gasneti_atomic_read(p,flags);
   }
-#endif
-#if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-  extern uint32_t gasneti_slow_atomic_add(gasneti_atomic_t *p, uint32_t op, const int flags) {
-    return gasneti_atomic_add(p,op,flags);
+  extern void gasneti_slow_atomic_set(gasneti_atomic_t *p, uint32_t v, const int flags) {
+    gasneti_atomic_set(p, v, flags);
   }
-  extern uint32_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, uint32_t op, const int flags) {
-    return gasneti_atomic_subtract(p,op,flags);
+  extern void gasneti_slow_atomic_increment(gasneti_atomic_t *p, const int flags) {
+    gasneti_atomic_increment(p, flags);
   }
+  extern void gasneti_slow_atomic_decrement(gasneti_atomic_t *p, const int flags) {
+    gasneti_atomic_decrement(p, flags);
+  }
+  extern int gasneti_slow_atomic_decrement_and_test(gasneti_atomic_t *p, const int flags) {
+    return gasneti_atomic_decrement_and_test(p, flags);
+  }
+  #if defined(GASNETI_HAVE_ATOMIC_CAS)
+    extern int gasneti_slow_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval, const int flags) {
+      return gasneti_atomic_compare_and_swap(p,oldval,newval,flags);
+    }
+  #endif
+  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+    extern uint32_t gasneti_slow_atomic_add(gasneti_atomic_t *p, uint32_t op, const int flags) {
+      return gasneti_atomic_add(p,op,flags);
+    }
+    extern uint32_t gasneti_slow_atomic_subtract(gasneti_atomic_t *p, uint32_t op, const int flags) {
+      return gasneti_atomic_subtract(p,op,flags);
+    }
+  #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* ident strings and idiot checks */
@@ -142,6 +152,8 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_DEBUG_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_PTR_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_TIMER_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC_CONFIG) = 1;
+int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
+int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
 /* ------------------------------------------------------------------------------------ */
 /* timer support */
