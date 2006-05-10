@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/05/10 08:34:47 $
- * $Revision: 1.36.4.2 $
+ *     $Date: 2006/05/10 08:36:32 $
+ * $Revision: 1.36.4.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -907,7 +907,6 @@ void * thread_fn(void *arg) {
     }
   }
 
->>>>>>> 1.58
   THREAD_BARRIER();
 
   return NULL;
