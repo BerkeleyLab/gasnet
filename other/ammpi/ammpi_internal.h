@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2006/03/26 06:31:00 $
- * $Revision: 1.32 $
+ *     $Date: 2006/05/11 12:01:25 $
+ * $Revision: 1.37 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -23,6 +23,9 @@
 #ifndef AMMPI_PREPOST_RECVS
 #define AMMPI_PREPOST_RECVS         1   /* pre-post non-blocking MPI recv's */
 #endif
+#ifndef AMMPI_RECV_REPOST_SLACK
+#define AMMPI_RECV_REPOST_SLACK     1   /* number of recv operations to lazily re-post */
+#endif
 #ifndef AMMPI_SEPARATE_TEST
 #define AMMPI_SEPARATE_TEST         1   /* issue separate MPI_Test calls in the common case, instead of a single MPI_TestAny */
 #endif
@@ -32,6 +35,12 @@
 #ifndef AMMPI_NONBLOCKING_SENDS
 #define AMMPI_NONBLOCKING_SENDS     1   /* use non-blocking MPI send's */
 #endif
+#ifndef AMMPI_SEND_EARLYCOMPLETE
+#define AMMPI_SEND_EARLYCOMPLETE    2   /* num outstanding send ops that initiates early completion attempt (0==never) */
+#endif
+#ifndef AMMPI_LINEAR_SEND_COMPLETE
+#define AMMPI_LINEAR_SEND_COMPLETE  0   /* use linear algorithm to complete sends */
+#endif
 #ifndef AMMPI_MPIIRECV_ORDERING_BUGCHECK
   #ifdef _AIX
     /* some MPI implementations intermittently fail to correctly maintain irecv ordering required by MPI spec
@@ -40,6 +49,11 @@
   #else
     #define AMMPI_MPIIRECV_ORDERING_BUGCHECK 0
   #endif
+#endif
+#if AMMPI_MPIIRECV_ORDERING_BUGCHECK && AMMPI_RECV_REPOST_SLACK
+  /* AMMPI_RECV_REPOST_SLACK incompatible with AMMPI_MPIIRECV_ORDERING_BUGCHECK */
+  #undef AMMPI_RECV_REPOST_SLACK
+  #define AMMPI_RECV_REPOST_SLACK 0
 #endif
 #if AMMPI_NONBLOCKING_SENDS
 #define AMMPI_SENDBUFFER_SZ         2*AMMPI_MAX_NETWORK_MSG /* size of MPI send buffer (used for rejections) */
@@ -73,6 +87,10 @@
 /* AMMPI-SPMD system configuration parameters */
 #ifndef AMMPI_BLOCKING_SPMD_BARRIER
 #define AMMPI_BLOCKING_SPMD_BARRIER   1   /* use blocking AM calls in SPMDBarrier() */
+#endif
+
+#ifndef AMMPI_COLLECT_STATS
+#define AMMPI_COLLECT_STATS           1 /* collect AM messaging layer statistics */
 #endif
 
 #ifndef AMMPI_COLLECT_LATENCY_STATS
@@ -135,12 +153,8 @@
     _tv.tv_sec  = _timeoutusec / 1000000;                                 \
     _tv.tv_usec = _timeoutusec % 1000000;                                 \
     if (select(1, NULL, NULL, NULL, &_tv) < 0) /* sleep a little while */ \
-       ErrMessage("failed to select(): %s(%i)", strerror(errno), errno);  \
+       AMMPI_Err("failed to select(): %s(%i)", strerror(errno), errno);   \
   } while (0)
-#endif
-
-#if ! defined (__GNUC__) && ! defined (__attribute__)
-#define __attribute__(flags)
 #endif
 
 #ifndef TRUE
@@ -161,16 +175,37 @@
   #define __CURR_FUNCTION ((const char *) 0) /* could use __func__ for C99 compilers.. */
 #endif
 
-#if ! defined (__GNUC__) && ! defined (__attribute__)
-  #define __attribute__(flags)
-#endif
-
 /* alignment macros */
 #define AMMPI_POWEROFTWO(P)    (((P)&((P)-1)) == 0)
 
 #define AMMPI_ALIGNDOWN(p,P)    (AMMPI_assert(AMMPI_POWEROFTWO(P)), \
                                    ((uintptr_t)(p))&~((uintptr_t)((P)-1)))
 #define AMMPI_ALIGNUP(p,P)     (AMMPI_ALIGNDOWN((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
+
+#if ! defined (__GNUC__) && ! defined (__attribute__)
+#define __attribute__(flags)
+#endif
+
+__attribute__((__format__ (__printf__, 1, 2)))
+extern int AMMPI_Err(const char *msg, ...);
+
+__attribute__((__format__ (__printf__, 1, 2)))
+extern int AMMPI_Warn(const char *msg, ...);
+
+#ifdef GASNETT_NORETURN
+GASNETT_NORETURN
+#endif
+__attribute__((__format__ (__printf__, 1, 2)))
+extern void AMMPI_FatalErr(const char *msg, ...);
+#ifdef GASNETT_NORETURNP
+GASNETT_NORETURNP(AMMPI_FatalErr)
+#endif
+
+#if AMMPI_COLLECT_STATS
+  #define AMMPI_STATS(stmt) stmt
+#else
+  #define AMMPI_STATS(stmt) 
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -208,7 +243,7 @@ typedef struct {
   uint16_t      nBytes;     /* TODO: remove for short */
   uintptr_t	destOffset; /* TODO: remove for short/med */
 
-  } ammpi_msg_t;
+} ammpi_msg_t;
 
 /* non-transmitted ammpi buffer bookkeeping info -
  * this data must be kept to a bare minimum because it constrains packet size 
@@ -219,7 +254,7 @@ typedef struct {
   ammpi_node_t sourceId;  /* 0-based endpoint id of remote */
   struct ammpi_ep *dest;  /* ep_t of endpoint that received this message */
   en_t sourceAddr;        /* address of remote */
-  } ammpi_bufstatus_t;
+} ammpi_bufstatus_t;
 
 /* active message buffer, including message and space for data payload */
 typedef struct ammpi_buf {
@@ -243,11 +278,13 @@ typedef struct ammpi_buf {
     uint8_t _pad[__EXP == 0 ? AMMPI_BUF_ALIGN : __EXP];
   #endif
   #undef __EXP
-  } ammpi_buf_t;
+} ammpi_buf_t;
 
 #define AMMPI_MIN_NETWORK_MSG ((int)(uintptr_t)&((ammpi_buf_t *)NULL)->_Data[0])
 #define AMMPI_MAX_SMALL_NETWORK_MSG ((int)(uintptr_t)&((ammpi_buf_t *)NULL)->_Data[(4*AMMPI_MAX_SHORT)])
 #define AMMPI_MAX_NETWORK_MSG ((int)(uintptr_t)&((ammpi_buf_t *)NULL)->_Data[(4*AMMPI_MAX_SHORT)+AMMPI_MAX_LONG])
+
+#define AMMPI_SMALL_SENDBUF_SZ AMMPI_ALIGNUP(AMMPI_MAX_SMALL_NETWORK_MSG, AMMPI_BUF_ALIGN)
 
 /* ------------------------------------------------------------------------------------ */
 /* Complex user-visible types */
@@ -257,7 +294,7 @@ typedef struct {
   char inuse; /*  entry in use */
   ammpi_node_t id; /*  id in compressed table */
   en_t name;  /*  remote address */
-  } ammpi_translation_t;
+} ammpi_translation_t;
 
 typedef struct { /* gives us a compacted version of the translation table */
   en_t      remoteName;  
@@ -268,7 +305,7 @@ typedef struct { /* gives us a compacted version of the translation table */
     uint32_t  tokens_out; /* remaining tokens for sends to this host */
     uint32_t  tokens_in;  /* coalesced tokens recieved from this host */
   #endif
-  } ammpi_perproc_info_t;
+} ammpi_perproc_info_t;
 
 typedef struct {
   MPI_Request* txHandle; /* send buffer handles */
@@ -296,7 +333,10 @@ typedef struct {
   ammpi_buf_t* rxBuf;     /* recv buffers (aligned) */
   uint32_t rxNumBufs;     /* number of recv buffers in each pool */
   int rxCurr;             /* the oldest recv buffer index */
-
+  #if AMMPI_RECV_REPOST_SLACK
+    int rxPostSlack;      /* number of recv reposts lazily delayed */
+    int rxPostSlackMax;   /* max number of recv reposts lazily delayed */
+  #endif
 } ammpi_virtual_network_t;
 
 /* Endpoint bundle object */
@@ -344,7 +384,6 @@ struct ammpi_ep {
 
   ammpi_virtual_network_t Req; /* requests */
   ammpi_virtual_network_t Rep; /* replies */
-
 };
 
 /* ------------------------------------------------------------------------------------ */
@@ -378,8 +417,6 @@ struct ammpi_ep {
 
 AMMPI_BEGIN_EXTERNC
 
-static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf__, 1, 2)));
-
 /* memory allocation */
 #if AMMPI_DEBUG
   /* use the gasnet debug malloc functions if a debug libgasnet is linked */
@@ -388,12 +425,12 @@ static int ErrMessage(const char *msg, ...) __attribute__((__format__ (__printf_
   void (*gasnett_debug_free_fn)(void *ptr, const char *curloc);
   static void *_AMMPI_malloc(size_t sz, const char *curloc) {
     void *ret = malloc(sz);
-    if_pf(!ret) { ErrMessage("Failed to malloc(%lu) at %s", (unsigned long)sz, curloc); abort(); }
+    if_pf(!ret) AMMPI_FatalErr("Failed to malloc(%lu) at %s", (unsigned long)sz, curloc);
     return ret;
   }
   static void *_AMMPI_calloc(size_t N, size_t S, const char *curloc) {
     void *ret = calloc(N,S);
-    if_pf(!ret) { ErrMessage("Failed to calloc(%lu,%lu) at %s", (unsigned long)N, (unsigned long)S, curloc); abort(); }
+    if_pf(!ret) AMMPI_FatalErr("Failed to calloc(%lu,%lu) at %s", (unsigned long)N, (unsigned long)S, curloc);
     return ret;
   }
   static void _AMMPI_free(void *ptr, const char *curloc) {
@@ -442,8 +479,8 @@ static const char *AMMPI_ErrorName(int errval) {
     case AM_ERR_NOT_SENT: return "AM_ERR_NOT_SENT";      
     case AM_ERR_IN_USE:   return "AM_ERR_IN_USE";       
     default: return "*unknown*";
-    }
   }
+}
 static const char *AMMPI_ErrorDesc(int errval) {
   switch (errval) {
     case AM_ERR_NOT_INIT: return "Active message layer not initialized"; 
@@ -452,8 +489,8 @@ static const char *AMMPI_ErrorDesc(int errval) {
     case AM_ERR_NOT_SENT: return "Synchronous message not sent";  
     case AM_ERR_IN_USE:   return "Resource currently in use";     
     default: return "no description available";
-    }
   }
+}
 static const char *MPI_ErrorName(int errval) {
   const char *code = NULL;
   char systemErrDesc[MPI_MAX_ERROR_STRING+10];
@@ -481,46 +518,46 @@ static const char *MPI_ErrorName(int errval) {
     case MPI_ERR_IN_STATUS: code = "MPI_ERR_IN_STATUS"; break;      
     case MPI_ERR_LASTCODE:  code = "MPI_ERR_LASTCODE";  break;     
     default: code = "*unknown MPI error*";
-    }
+  }
   if (MPI_Error_string(errval, systemErrDesc, &len) != MPI_SUCCESS || len == 0) 
     strcpy(systemErrDesc, "(no description available)");
   sprintf(msg, "%s(%i): %s", code, errval, systemErrDesc);
   return msg;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 /* macros for returning errors that allow verbose error tracking */
-#define AMMPI_RETURN_ERR(type) do {                                      \
-  if (AMMPI_VerboseErrors) {                                             \
-    fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n" \
-      "  at %s:%i\n"                                                     \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
-      , #type, AMMPI_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);      \
-    fflush(stderr);                                                      \
-    }                                                                    \
-  return AM_ERR_ ## type;                                                \
+#define AMMPI_RETURN_ERR(type) do {                                        \
+    if (AMMPI_VerboseErrors) {                                             \
+      fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n" \
+        "  at %s:%i\n"                                                     \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+        , #type, AMMPI_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);      \
+      fflush(stderr);                                                      \
+    }                                                                      \
+    return AM_ERR_ ## type;                                                \
   } while (0)
-#define AMMPI_RETURN_ERRF(type, fromfn) do {                                 \
-  if (AMMPI_VerboseErrors) {                                                 \
-    fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n"     \
-      "  from function %s\n"                                                 \
-      "  at %s:%i\n"                                                         \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                              \
-      , #fromfn, #type, AMMPI_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__); \
-    fflush(stderr);                                                          \
-    }                                                                        \
-  return AM_ERR_ ## type;                                                    \
+#define AMMPI_RETURN_ERRF(type, fromfn) do {                                   \
+    if (AMMPI_VerboseErrors) {                                                 \
+      fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n"     \
+        "  from function %s\n"                                                 \
+        "  at %s:%i\n"                                                         \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                              \
+        , #fromfn, #type, AMMPI_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__); \
+      fflush(stderr);                                                          \
+    }                                                                          \
+    return AM_ERR_ ## type;                                                    \
   } while (0)
-#define AMMPI_RETURN_ERRFR(type, fromfn, reason) do {                                \
-  if (AMMPI_VerboseErrors) {                                                         \
-    fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n"             \
-      "  from function %s\n"                                                         \
-      "  at %s:%i\n"                                                                 \
-      "  reason: %s\n"                                                               \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                                      \
-      , #type, AMMPI_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason); \
-    fflush(stderr);                                                                  \
-    }                                                                                \
-  return AM_ERR_ ## type;                                                            \
+#define AMMPI_RETURN_ERRFR(type, fromfn, reason) do {                                  \
+    if (AMMPI_VerboseErrors) {                                                         \
+      fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n"             \
+        "  from function %s\n"                                                         \
+        "  at %s:%i\n"                                                                 \
+        "  reason: %s\n"                                                               \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                                      \
+        , #type, AMMPI_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason); \
+      fflush(stderr);                                                                  \
+    }                                                                                  \
+    return AM_ERR_ ## type;                                                            \
   } while (0)
 
 #ifndef AMMPI_ENABLE_ERRCHECKS
@@ -578,31 +615,16 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
 }
 
 /* return a possible error */
-#define AMMPI_RETURN(val) do {                                           \
-  if_pf (AMMPI_VerboseErrors && val != AM_OK) {                          \
-    fprintf(stderr, "AMMPI %s returning an error code: %s (%s)\n"        \
-      "  at %s:%i\n"                                                     \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
-      , AMMPI_ErrorName(val), AMMPI_ErrorDesc(val), __FILE__, __LINE__); \
-    fflush(stderr);                                                      \
-    }                                                                    \
-  return val;                                                            \
+#define AMMPI_RETURN(val) do {                                             \
+    if_pf (AMMPI_VerboseErrors && val != AM_OK) {                          \
+      fprintf(stderr, "AMMPI %s returning an error code: %s (%s)\n"        \
+        "  at %s:%i\n"                                                     \
+        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+        , AMMPI_ErrorName(val), AMMPI_ErrorDesc(val), __FILE__, __LINE__); \
+      fflush(stderr);                                                      \
+    }                                                                      \
+    return val;                                                            \
   } while (0)
-
-static int ErrMessage(const char *msg, ...) {
-  static va_list argptr;
-  char *expandedmsg = (char *)AMMPI_malloc(strlen(msg)+50);
-  int retval;
-
-  va_start(argptr, msg); /*  pass in last argument */
-  sprintf(expandedmsg, "*** AMMPI ERROR: %s\n", msg);
-  retval = vfprintf(stderr, expandedmsg, argptr);
-  fflush(stderr);
-  AMMPI_free(expandedmsg);
-
-  va_end(argptr);
-  return retval; /*  this MUST be only return in this function */
-  }
 
 #include <assert.h>
 #undef assert
@@ -610,15 +632,10 @@ static int ErrMessage(const char *msg, ...) {
 #if AMMPI_NDEBUG
   #define AMMPI_assert(expr) ((void)0)
 #else
-  static void AMMPI_assertfail(const char *fn, const char *file, int line, const char *expr) {
-    fprintf(stderr, "Assertion failure at %s %s:%i: %s\n", fn, file, line, expr);
-    fflush(stderr);
-    abort();
-  }
-  #define AMMPI_assert(expr)                                     \
-    (PREDICT_TRUE(expr) ? (void)0 :                              \
-      AMMPI_assertfail((__CURR_FUNCTION ? __CURR_FUNCTION : ""), \
-                        __FILE__, __LINE__, #expr))
+  #define AMMPI_assert(expr)                                \
+    (PREDICT_TRUE(expr) ? (void)0 :                         \
+      AMMPI_FatalErr("Assertion failure at %s %s:%i: %s\n", \
+        (__CURR_FUNCTION ? __CURR_FUNCTION : ""), __FILE__, __LINE__, #expr))
 #endif
 
 #ifdef AMMPI_HERE
@@ -669,7 +686,6 @@ extern int AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int repl
 extern char *AMMPI_enStr(en_t en, char *buf);
 extern char *AMMPI_tagStr(tag_t tag, char *buf);
 
-void abort();
 extern ammpi_handler_fn_t ammpi_unused_handler;
 extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *token);
 
@@ -688,8 +704,12 @@ extern int AMMPI_AllocateSendBuffers(ep_t ep);
 extern int AMMPI_ReleaseSendBuffers(ep_t ep);
 extern int AMMPI_AcquireSendBuffer(ep_t ep, int numBytes, int isrequest, 
                             ammpi_buf_t** pbuf, MPI_Request** pHandle);
+extern int AMMPI_ReapSendCompletions(ammpi_sendbuffer_pool_t* pool);
+extern int AMMPI_GrowReplyPool(ammpi_sendbuffer_pool_t* pool);
 #endif
-
+#if AMMPI_PREPOST_RECVS
+extern int AMMPI_PostRecvBuffer(ammpi_buf_t *rxBuf, MPI_Request *prxHandle, MPI_Comm *pmpicomm);
+#endif
 /* ------------------------------------------------------------------------------------ */
 /* AMMPI_IDENT() takes a unique identifier and a textual string and embeds the textual
    string in the executable file
@@ -733,7 +753,7 @@ typedef enum {
   ammpi_system_controlmessage, /*  used to pass system control information - arg is reserved */
 
   ammpi_system_numtypes
-  } ammpi_system_messagetype_t;
+} ammpi_system_messagetype_t;
 
 
 /* ------------------------------------------------------------------------------------ */

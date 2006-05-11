@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2006/03/26 06:31:00 $
- * $Revision: 1.29 $
+ *     $Date: 2006/05/11 09:43:38 $
+ * $Revision: 1.33 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -40,9 +40,9 @@ static void _freezeForDebugger(int depth) {
     while (ammpi_frozen) {
       i++;
       ammpi_sched_yield();
-      }
     }
   }
+}
 static void freezeForDebugger() {
   char name[255];
   gethostname(name, 255);
@@ -77,20 +77,22 @@ static void flushStreams(const char *context) {
   if (!context) context = "flushStreams()";
 
   if (fflush(NULL)) { /* passing NULL to fflush causes it to flush all open FILE streams */
-    ErrMessage("failed to fflush(NULL) in %s", context); 
     perror("fflush");
-    exit(1);
+    AMMPI_FatalErr("failed to fflush(NULL) in %s", context); 
   }
   if (fflush(stdout)) {
-    ErrMessage("failed to flush stdout in %s", context); 
     perror("fflush");
-    exit(1);
+    AMMPI_FatalErr("failed to flush stdout in %s", context); 
   }
   if (fflush(stderr)) {
-    ErrMessage("failed to flush stderr in %s", context); 
     perror("fflush");
-    exit(1);
+    AMMPI_FatalErr("failed to flush stderr in %s", context); 
   }
+  fsync(STDOUT_FILENO); /* ignore errors for output is a console */
+  fsync(STDERR_FILENO); /* ignore errors for output is a console */
+  #ifndef __LIBCATAMOUNT__
+    sync();
+  #endif
   ammpi_sched_yield();
 }
 /* ------------------------------------------------------------------------------------ */
@@ -98,34 +100,34 @@ extern char *AMMPI_enStr(en_t en, char *buf) {
   AMMPI_assert(buf);
   sprintf(buf, "(%i)", en.mpirank);
   return buf;
-  }
+}
 extern char *AMMPI_tagStr(tag_t tag, char *buf) {
   AMMPI_assert(buf);
   sprintf(buf, "0x%08x%08x", 
     (unsigned int)(uint32_t)(tag >> 32), 
     (unsigned int)(uint32_t)(tag & 0xFFFFFFFF));
   return buf;
-  }
+}
 /* ------------------------------------------------------------------------------------ 
  *  basic inquiries
  * ------------------------------------------------------------------------------------ */
 extern int AMMPI_SPMDNumProcs() {
   if (!AMMPI_SPMDStartupCalled) {
-    ErrMessage("called AMMPI_SPMDNumProcs before AMMPI_SPMDStartup()");
+    AMMPI_Err("called AMMPI_SPMDNumProcs before AMMPI_SPMDStartup()");
     return -1;
   }
   AMMPI_assert(AMMPI_SPMDNUMPROCS >= 1);
   return AMMPI_SPMDNUMPROCS;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_SPMDMyProc() {
   if (!AMMPI_SPMDStartupCalled) {
-    ErrMessage("called AMMPI_SPMDMyProc before AMMPI_SPMDStartup()");
+    AMMPI_Err("called AMMPI_SPMDMyProc before AMMPI_SPMDStartup()");
     return -1;
   }
   AMMPI_assert(AMMPI_SPMDMYPROC >= 0);
   return AMMPI_SPMDMYPROC;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_SPMDStartup(int *argc, char ***argv,
                              int networkdepth, 
@@ -161,7 +163,7 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
 
   if (!eb || !ep) AMMPI_RETURN_ERR(BAD_ARG);
   if (AM_Init() != AM_OK) {
-    ErrMessage("Failed to AM_Init() in AMMPI_SPMDStartup");
+    AMMPI_Err("Failed to AM_Init() in AMMPI_SPMDStartup");
     AMMPI_RETURN_ERRFR(RESOURCE, AMMPI_SPMDStartup, "AM_Init() failed");
   }
 
@@ -173,15 +175,15 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
   { /* check job size */
     int temp, maxtranslations = 0;
     if (AMMPI_SPMDNUMPROCS > AMMPI_MAX_SPMDPROCS) {
-      ErrMessage("Too many MPI nodes: %d (max is %d)", AMMPI_SPMDNUMPROCS, AMMPI_MAX_SPMDPROCS);
+      AMMPI_Err("Too many MPI nodes: %d (max is %d)", AMMPI_SPMDNUMPROCS, AMMPI_MAX_SPMDPROCS);
       AMMPI_RETURN_ERR(RESOURCE);
     }
     temp = AM_MaxNumTranslations(&maxtranslations);
     if (temp != AM_OK) {
-      ErrMessage("Failed to AM_MaxNumTranslations() in AMMPI_SPMDStartup");
+      AMMPI_Err("Failed to AM_MaxNumTranslations() in AMMPI_SPMDStartup");
       AMMPI_RETURN(temp);
     } else if (AMMPI_SPMDNUMPROCS > maxtranslations) {
-      ErrMessage("Too many nodes: AM_MaxNumTranslations (%d) less than number of MPI nodes (%d)",
+      AMMPI_Err("Too many nodes: AM_MaxNumTranslations (%d) less than number of MPI nodes (%d)",
               maxtranslations, AMMPI_SPMDNUMPROCS);
       AMMPI_RETURN_ERR(RESOURCE);
     }
@@ -199,8 +201,7 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
     MPI_SAFE(MPI_Group_free(&world_group));
   }
 
-  {
-    int mypid = getpid();
+  { int mypid = getpid();
     int networkpidtemp = 0;
     if (!mypid) mypid = (int)AMMPI_getMicrosecondTimeStamp() | 0x1; /* ensure nonzero pid */
     AMMPI_assert(mypid);
@@ -214,13 +215,13 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
   { /* create endpoint and get name */
     int temp = AM_AllocateBundle(AM_SEQ, &AMMPI_SPMDBundle);
     if (temp != AM_OK) {
-      ErrMessage("Failed to create bundle in AMMPI_SPMDStartup");
+      AMMPI_Err("Failed to create bundle in AMMPI_SPMDStartup");
       AMMPI_RETURN(temp);
     }
   
     temp = AM_AllocateEndpoint(AMMPI_SPMDBundle, &AMMPI_SPMDEndpoint, &AMMPI_SPMDName);
     if (temp != AM_OK) {
-      ErrMessage("Failed to create endpoint in AMMPI_SPMDStartup");
+      AMMPI_Err("Failed to create endpoint in AMMPI_SPMDStartup");
       AMMPI_RETURN(temp);
     }
   }
@@ -241,13 +242,13 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
     /* setup translation table */
     temp = AM_SetNumTranslations(AMMPI_SPMDEndpoint, AMMPI_SPMDNUMPROCS);
     if (temp != AM_OK) {
-      ErrMessage("Failed to AM_SetNumTranslations() in AMMPI_SPMDStartup");
+      AMMPI_Err("Failed to AM_SetNumTranslations() in AMMPI_SPMDStartup");
       AMMPI_RETURN(temp);
     }
     for (i = 0; i < AMMPI_SPMDNUMPROCS; i++) {
       temp = AM_Map(AMMPI_SPMDEndpoint, i, namebuf[i], tagbuf[i]);
       if (temp != AM_OK) {
-        ErrMessage("Failed to AM_Map() in AMMPI_SPMDStartup");
+        AMMPI_Err("Failed to AM_Map() in AMMPI_SPMDStartup");
         AMMPI_RETURN(temp);
       }
     }
@@ -258,7 +259,7 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
   { /* allocate network buffers */
     int temp = AM_SetExpectedResources(AMMPI_SPMDEndpoint, AMMPI_SPMDNUMPROCS, networkdepth);
     if (temp != AM_OK) {
-      ErrMessage("Failed to AM_SetExpectedResources() in AMMPI_SPMDStartup");
+      AMMPI_Err("Failed to AM_SetExpectedResources() in AMMPI_SPMDStartup");
       AMMPI_RETURN(temp);
     }
   }
@@ -266,7 +267,7 @@ extern int AMMPI_SPMDStartup(int *argc, char ***argv,
   { /* set tag */
     int temp = AM_SetTag(AMMPI_SPMDEndpoint, mytag);
     if (temp != AM_OK) {
-      ErrMessage("Failed to AM_SetTag() in AMMPI_SPMDStartup");
+      AMMPI_Err("Failed to AM_SetTag() in AMMPI_SPMDStartup");
       AMMPI_RETURN(temp);
     }
   }
@@ -312,7 +313,7 @@ void AMMPI_SPMDHandleControlMessage(void *token, int32_t messageType, int32_t me
       break;
     }
     default: 
-      ErrMessage("unrecognized AMMPI SPMD control message - ignoring..."); 
+      AMMPI_Err("unrecognized AMMPI SPMD control message - ignoring..."); 
   }
 }
 
@@ -329,7 +330,7 @@ void (*AMMPI_SPMDkillmyprocess)(int) = &_exit;
 static int AMMPI_SPMDShutdown(int exitcode) {
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
   { static int shutdownInProgress = FALSE;
-    if (shutdownInProgress) abort(); 
+    if (shutdownInProgress) AMMPI_FatalErr("recursion failure in AMMPI_SPMDShutdown"); 
     shutdownInProgress = TRUE;
   }
 
@@ -339,19 +340,19 @@ static int AMMPI_SPMDShutdown(int exitcode) {
 
   if (fclose(stdin)) {
   #if AMMPI_DEBUG_VERBOSE
-    ErrMessage("failed to fclose stdin in AMMPI_SPMDExit()"); 
+    AMMPI_Err("failed to fclose stdin in AMMPI_SPMDExit()"); 
     perror("fclose");
   #endif
   }
   if (fclose(stdout)) {
   #if AMMPI_DEBUG_VERBOSE
-    ErrMessage("failed to fclose stdout in AMMPI_SPMDExit()"); 
+    AMMPI_Err("failed to fclose stdout in AMMPI_SPMDExit()"); 
     perror("fclose");
   #endif
   }
   if (fclose(stderr)) {
   #if AMMPI_DEBUG_VERBOSE
-    ErrMessage("failed to fclose stderr in AMMPI_SPMDExit()"); 
+    AMMPI_Err("failed to fclose stderr in AMMPI_SPMDExit()"); 
     perror("fclose");
   #endif
   }
@@ -359,7 +360,7 @@ static int AMMPI_SPMDShutdown(int exitcode) {
   ammpi_sched_yield();
 
   if (AM_Terminate() != AM_OK) 
-    ErrMessage("failed to AM_Terminate() in AMMPI_SPMDExit()");
+    AMMPI_Err("failed to AM_Terminate() in AMMPI_SPMDExit()");
 
   #if 0
     MPI_SAFE(MPI_Abort(AMMPI_SPMDMPIComm, exitcode));
@@ -373,7 +374,7 @@ static int AMMPI_SPMDShutdown(int exitcode) {
   AMMPI_SPMDStartupCalled = 0;
   DEBUG_MSG("exiting..");
   AMMPI_SPMDkillmyprocess(exitcode);
-  abort();
+  AMMPI_FatalErr("AMMPI_SPMDkillmyprocess failed");
   return AM_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -383,7 +384,7 @@ extern int AMMPI_SPMDExit(int exitcode) {
 
   /* this function is not re-entrant - if someone tries, something is seriously wrong */
   { static int exitInProgress = FALSE;
-    if (exitInProgress) abort(); 
+    if (exitInProgress) AMMPI_FatalErr("recursion failure in AMMPI_SPMDExit"); 
     exitInProgress = TRUE;
   }
 
@@ -393,13 +394,13 @@ extern int AMMPI_SPMDExit(int exitcode) {
     if (AM_GetTranslationName(AMMPI_SPMDEndpoint, i, &remoteName) == AM_OK &&
         !AMMPI_enEqual(remoteName, AMMPI_SPMDName)) {
       if (AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'E', (int32_t)exitcode) != AM_OK)
-        ErrMessage("Failed to AMMPI_SendControlMessage in AMMPI_SPMDExit()");
+        AMMPI_Err("Failed to AMMPI_SendControlMessage in AMMPI_SPMDExit()");
     }
   }
 
   /* exit this proc */
   AMMPI_SPMDShutdown(exitcode);
-  abort();
+  AMMPI_FatalErr("AMMPI_SPMDShutdown failed");
   return 0;
 }
 /* ------------------------------------------------------------------------------------ 
@@ -412,9 +413,9 @@ extern int AMMPI_SPMDBarrier() {
   #endif
 
   if (!AMMPI_SPMDStartupCalled) {
-    ErrMessage("called AMMPI_SPMDBarrier before AMMPI_SPMDStartup()");
+    AMMPI_Err("called AMMPI_SPMDBarrier before AMMPI_SPMDStartup()");
     AMMPI_RETURN_ERR(NOT_INIT);
-    }
+  }
 
   flushStreams("AMMPI_SPMDBarrier");
 
@@ -454,8 +455,7 @@ extern int AMMPI_SPMDBarrier() {
       if (AMMPI_SendControlMessage(AMMPI_SPMDEndpoint, remoteName, 2, (int32_t)'B', (int32_t)0) != AM_OK)
         AMMPI_RETURN_ERR(RESOURCE);
     }
-  }
-  else { /* proc non-zero */
+  } else { /* proc non-zero */
     en_t remoteName;
     if (AM_GetTranslationName(AMMPI_SPMDEndpoint, 0, &remoteName) != AM_OK)
       AMMPI_RETURN_ERR(RESOURCE);
@@ -483,7 +483,7 @@ extern int AMMPI_SPMDBarrier() {
   AM_SetEventMask(AMMPI_SPMDBundle, oldmask);
   DEBUG_MSG("Leaving barrier");
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ 
  *  bootstrapping helpers
  * ------------------------------------------------------------------------------------ */

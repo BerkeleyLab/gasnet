@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2006/03/26 06:31:00 $
- * $Revision: 1.35 $
+ *     $Date: 2006/05/11 09:43:38 $
+ * $Revision: 1.37 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -72,7 +72,7 @@ typedef enum {
   ammpi_Medium=1, 
   ammpi_Long=2,
   ammpi_NumCategories=3
-  } ammpi_category_t;
+} ammpi_category_t;
 
 typedef void (*AMMPI_preHandlerCallback_t)(ammpi_category_t cat, int isReq, int handlerId, void *token, 
                                          void *buf, size_t nbytes, int numargs, uint32_t *args);
@@ -92,7 +92,7 @@ typedef struct {
   uint64_t RequestSumLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
   uint64_t DataBytesSent[ammpi_NumCategories];  /* total of args + data payload for all req/rep */
   uint64_t TotalBytesSent; /* total user level packet sizes for all req/rep */
-  } ammpi_stats_t;
+} ammpi_stats_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* User-visible constants */
@@ -106,7 +106,7 @@ typedef enum {
                     a message delivered to it generates an event */
   /* AM_CANSEND, */ /* TODO: can send without blocking */
   AM_NUMEVENTMASKS
-  } ammpi_eventmask_t;
+} ammpi_eventmask_t;
 
 typedef enum {
     AM_SEQ,             /* Sequential bundle/endpoint access */
@@ -164,6 +164,11 @@ AMMPI_BEGIN_EXTERNC
 /* AMMPI-specific user entry points */
 extern int AMMPI_VerboseErrors; /* set to non-zero for verbose error reporting */
 extern int AMMPI_SilentMode; /* set to non-zero to silence any non-error output */
+
+#ifdef __GNUC__
+__attribute__((__format__ (__printf__, 1, 2)))
+#endif
+extern void AMMPI_FatalErr(const char *msg, ...);
 
 /* define the communicator to be used as the basis for all
  * subsequent calls to AM_AllocateEndpoint(), which must be called 
@@ -250,6 +255,7 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
 #define AMX_initial_stats         AMMPI_initial_stats
 #define amx_stats_t               ammpi_stats_t
 #define amx_handler_fn_t          ammpi_handler_fn_t
+#define AMX_FatalErr              AMMPI_FatalErr
 
 #if !defined(AMMPI_DEBUG) && !defined(AMMPI_NDEBUG)
   #if defined(GASNET_DEBUG) || defined(AMX_DEBUG)

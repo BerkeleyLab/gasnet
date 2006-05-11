@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testbulk.c,v $
- *     $Date: 2005/08/15 06:28:48 $
- * $Revision: 1.9 $
+ *     $Date: 2005/08/15 06:30:53 $
+ * $Revision: 1.8.2.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2006/03/18 03:31:03 $
- * $Revision: 1.13 $
+ *     $Date: 2005/04/13 00:55:50 $
+ * $Revision: 1.12 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,10 +14,10 @@
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
-  #define INCREQ() gasnett_atomic_increment(&numreq,0)
-  #define INCREP() gasnett_atomic_increment(&numrep,0)
-  #define NUMREQ() gasnett_atomic_read(&numreq,0)
-  #define NUMREP() gasnett_atomic_read(&numrep,0)
+  #define INCREQ() gasnett_atomic_increment(&numreq)
+  #define INCREP() gasnett_atomic_increment(&numrep)
+  #define NUMREQ() gasnett_atomic_read(&numreq)
+  #define NUMREP() gasnett_atomic_read(&numrep)
   #define RequestShort(num,args)                GASNET_Safe(gasnet_AMRequestShort##num args)
   #define RequestMedium(num,args)               GASNET_Safe(gasnet_AMRequestMedium##num args)
   #define RequestLong(num,AMargs,GASNETargs)    GASNET_Safe(gasnet_AMRequestLong##num GASNETargs)
