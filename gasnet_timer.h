@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/02/27 20:38:59 $
- * $Revision: 1.42.2.2 $
+ *     $Date: 2006/05/15 03:22:11 $
+ * $Revision: 1.42.2.3 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -99,8 +99,10 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
     #define GASNETI_UNICOS_SYS_CLOCK 75 
   #elif defined(CRAYX1)
     #include <intrinsics.h>
-    /* 100 Mhz sys. clock, according to Fortran IRTC_RATE() */
-    #define GASNETI_UNICOS_SYS_CLOCK 100
+    /* 100 or 113 Mhz sys. clock, depending on hardware */
+    extern long IRTC_RATE();
+    long gasneti_rtc_rate;
+    #define GASNETI_UNICOS_SYS_CLOCK (gasneti_rtc_rate?gasneti_rtc_rate:(gasneti_rtc_rate=(IRTC_RATE()/1000000)))
   #endif
   #ifdef __GNUC__
     #define _rtc rtclock
