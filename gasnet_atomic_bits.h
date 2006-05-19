@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/05/19 04:12:42 $
- * $Revision: 1.217.2.1 $
+ *     $Date: 2006/05/19 05:02:53 $
+ * $Revision: 1.217.2.2 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1983,57 +1983,58 @@
      * bits involving the lock type later.  Here, we just build the templates.
      */
     #if SIZEOF_VOID_P > 4
-      #define GASNETI_ATOMIC_LOCK_HASH_64(val)	val ^= (val >> 32)
+      #define GASNETI_ATOMIC_LOCK_HASH_64(val)    val ^= (val >> 32)
     #else
-      #define GASNETI_ATOMIC_LOCK_HASH_64(val)	
+      #define GASNETI_ATOMIC_LOCK_HASH_64(val)
     #endif
-    #define GASNETI_ATOMIC_LOCK_TBL_DECLS(stem,type)                        \
-	  typedef struct {                                                  \
-	    type##t lock;                                                   \
-	    char _pad[GASNETI_CACHE_PAD(sizeof(type##t))];                  \
-	  } stem##tbl_t;                                                    \
-	  extern stem##tbl_t *stem##tbl;                                    \
-	  extern uintptr_t stem##tbl_mask;                                  \
-	  extern void stem##tbl_init(void);                                 \
-	  GASNETI_INLINE(stem##hash_lookup) GASNETI_CONST                   \
-	  type##t * stem##hash_lookup(const void *addr) {                   \
-	    uintptr_t val = (uintptr_t)addr;                                \
-	    /* Step 0. Initialization check */                              \
-	    if_pf (!stem##tbl_mask) stem##tbl_init();                       \
-	    /* Step 1.  Mask out the bits within a single cache line */     \
-	    val &= ~(((uintptr_t)1 << GASNETI_CACHE_LINE_SHIFT) - 1);       \
-	    /* Step 2. Fold with xor so all bits influence the lowest 8 */  \
-	    GASNETI_ATOMIC_LOCK_HASH_64(val);                               \
-	    val ^= (val >> 16);                                             \
-	    val ^= (val >> 8);                                              \
-	    /* Step 3. Return the index */                                  \
-	    return &((stem##tbl[val & stem##tbl_mask]).lock);               \
-	  }                                                                 \
-	  GASNETI_CONSTP(stem##hash_lookup)
-    #define GASNETI_ATOMIC_LOCK_TBL_DEFNS(stem,type,initializer,malloc)     \
-	  /* XXX: We'd like the tbl size to be overridable via env var. */  \
-	  /*      Ideally we'd use gasneti_getenv_int_withdefault().    */  \
-	  /*      However, we don't have that in tools clients.         */  \
-	  static int stem##tbl_size = 256;                                  \
-	  static type##t stem##tbl_lock = initializer;                      \
-	  uintptr_t stem##tbl_mask = 0;                                     \
-	  stem##tbl_t *stem##tbl = NULL;                                    \
-	  void stem##tbl_init(void) {                                       \
-	    type##lock(&stem##tbl_lock);                                    \
-	    if (stem##tbl_mask == 0) {                                      \
-	      int i;                                                        \
-	      gasneti_assert_always(GASNETI_POWEROFTWO(stem##tbl_size));    \
-	      /* Over allocate to leave at least a cache line before and after */ \
-	      stem##tbl = malloc((2+stem##tbl_size) * sizeof(stem##tbl_t)); \
-	      ++stem##tbl;                                                  \
-	      for (i = 0; i < stem##tbl_size; ++i) {                        \
-	        _gasnet_##type##init(&(stem##tbl[i].lock));                 \
-	      }                                                             \
-	      gasneti_local_wmb(); /* enforce locks init before mask is written */  \
-	      stem##tbl_mask = (stem##tbl_size - 1);                        \
-	    }                                                               \
-	    type##unlock(&stem##tbl_lock);                                  \
-	  }
+    #define GASNETI_ATOMIC_LOCK_TBL_DECLS(stem,type)                      \
+        typedef struct {                                                  \
+          type##t lock;                                                   \
+          char _pad[GASNETI_CACHE_PAD(sizeof(type##t))];                  \
+        } stem##tbl_t;                                                    \
+        extern stem##tbl_t *stem##tbl;                                    \
+        extern uintptr_t stem##tbl_mask;                                  \
+        extern void stem##tbl_init(void);                                 \
+        GASNETI_INLINE(stem##hash_lookup) GASNETI_CONST                   \
+        type##t * stem##hash_lookup(const void *addr) {                   \
+          uintptr_t val = (uintptr_t)addr;                                \
+          /* Step 0. Initialization check */                              \
+          if_pf (!stem##tbl_mask) stem##tbl_init();                       \
+          /* Step 1.  Mask out the bits within a single cache line */     \
+          val &= ~(((uintptr_t)1 << GASNETI_CACHE_LINE_SHIFT) - 1);       \
+          /* Step 2. Fold with xor so all bits influence the lowest 8 */  \
+          GASNETI_ATOMIC_LOCK_HASH_64(val);                               \
+          val ^= (val >> 16);                                             \
+          val ^= (val >> 8);                                              \
+          /* Step 3. Return the index */                                  \
+          return &((stem##tbl[val & stem##tbl_mask]).lock);               \
+        }                                                                 \
+        GASNETI_CONSTP(stem##hash_lookup)
+    #define GASNETI_ATOMIC_LOCK_TBL_DEFNS(stem,type,initializer,malloc)   \
+        /* XXX: We'd like the tbl size to be overridable via env var. */  \
+        /*      Ideally we'd use gasneti_getenv_int_withdefault().    */  \
+        /*      However, we don't have that in tools clients.         */  \
+        static int stem##tbl_size = 256;                                  \
+        static type##t stem##tbl_lock = initializer;                      \
+        uintptr_t stem##tbl_mask = 0;                                     \
+        stem##tbl_t *stem##tbl = NULL;                                    \
+        GASNETI_NEVER_INLINE(stem##tbl_init,                              \
+                             extern void stem##tbl_init(void)) {          \
+          type##lock(&stem##tbl_lock);                                    \
+          if (stem##tbl_mask == 0) {                                      \
+            int i;                                                        \
+            gasneti_assert_always(GASNETI_POWEROFTWO(stem##tbl_size));    \
+            /* Over allocate to leave at least a cache line before and after */ \
+            stem##tbl = malloc((2+stem##tbl_size) * sizeof(stem##tbl_t)); \
+            ++stem##tbl;                                                  \
+            for (i = 0; i < stem##tbl_size; ++i) {                        \
+              _gasnet_##type##init(&(stem##tbl[i].lock));                 \
+            }                                                             \
+            gasneti_local_wmb(); /* enforce locks init before mask is written */  \
+            stem##tbl_mask = (stem##tbl_size - 1);                        \
+          }                                                               \
+          type##unlock(&stem##tbl_lock);                                  \
+        }
   #endif
 #endif
 
