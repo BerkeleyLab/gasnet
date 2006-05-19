@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/05/19 05:02:53 $
- * $Revision: 1.217.2.2 $
+ *     $Date: 2006/05/19 05:37:28 $
+ * $Revision: 1.217.2.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2010,12 +2010,12 @@
           return &((stem##tbl[val & stem##tbl_mask]).lock);               \
         }                                                                 \
         GASNETI_CONSTP(stem##hash_lookup)
-    #define GASNETI_ATOMIC_LOCK_TBL_DEFNS(stem,type,initializer,malloc)   \
+    #define GASNETI_ATOMIC_LOCK_TBL_DEFNS(stem,type)                      \
         /* XXX: We'd like the tbl size to be overridable via env var. */  \
         /*      Ideally we'd use gasneti_getenv_int_withdefault().    */  \
         /*      However, we don't have that in tools clients.         */  \
         static int stem##tbl_size = 256;                                  \
-        static type##t stem##tbl_lock = initializer;                      \
+        static type##t stem##tbl_lock = _gasneti_atomic_lock_initializer;                      \
         uintptr_t stem##tbl_mask = 0;                                     \
         stem##tbl_t *stem##tbl = NULL;                                    \
         GASNETI_NEVER_INLINE(stem##tbl_init,                              \
@@ -2025,10 +2025,11 @@
             int i;                                                        \
             gasneti_assert_always(GASNETI_POWEROFTWO(stem##tbl_size));    \
             /* Over allocate to leave at least a cache line before and after */ \
-            stem##tbl = malloc((2+stem##tbl_size) * sizeof(stem##tbl_t)); \
+            stem##tbl = _gasneti_atomic_lock_malloc((2+stem##tbl_size)    \
+                                                    * sizeof(stem##tbl_t)); \
             ++stem##tbl;                                                  \
             for (i = 0; i < stem##tbl_size; ++i) {                        \
-              _gasnet_##type##init(&(stem##tbl[i].lock));                 \
+              _gasneti_atomic_lock_init(&(stem##tbl[i].lock));            \
             }                                                             \
             gasneti_local_wmb(); /* enforce locks init before mask is written */  \
             stem##tbl_mask = (stem##tbl_size - 1);                        \
