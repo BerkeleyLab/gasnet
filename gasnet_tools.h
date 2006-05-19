@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/05/11 14:22:51 $
- * $Revision: 1.80 $
+ *     $Date: 2006/05/19 04:12:42 $
+ * $Revision: 1.80.2.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -369,6 +369,9 @@ GASNETI_BEGIN_EXTERNC
   #define gasnett_format_putsgets_bufsz   gasneti_format_putsgets_bufsz   
   #define gasnett_format_putsgets         gasneti_format_putsgets         
 
+  #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
+    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_hsl_atomic_, gasnet_hsl_)
+  #endif
 #else
   #define gasnett_mmap(sz)        gasnett_fatalerror("gasnett_mmap not available")
 
@@ -379,6 +382,10 @@ GASNETI_BEGIN_EXTERNC
   #define gasnett_threadkey_init(pkey)              gasnett_fatalerror("gasnett_threadkey_* not available")
   #define gasnett_threadkey_get_noinit(key)         gasnett_fatalerror("gasnett_threadkey_* not available")
   #define gasnett_threadkey_set_noinit(key,newval)  gasnett_fatalerror("gasnett_threadkey_* not available")
+
+  #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
+    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_pthread_atomic_, pthread_mutex_)
+  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */
