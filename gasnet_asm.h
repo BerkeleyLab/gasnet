@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/04/28 00:19:29 $
- * $Revision: 1.105 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.105.10.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,35 +13,35 @@
 #ifndef _GASNET_ASM_H
 #define _GASNET_ASM_H
 
-#if defined(__GNUC__)
+#include "portable_platform.h"
+
+#if PLATFORM_COMPILER_GNU
   #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
-#elif defined(__INTEL_COMPILER)
+#elif PLATFORM_COMPILER_INTEL
   #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
-#elif defined(PGI_WITH_REAL_ASM)
-  #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
-#elif defined(__PGI) /* note this requires compiler flag -Masmkeyword */
-  #define GASNETI_ASM(mnemonic) asm(mnemonic)
-#elif defined(__DECC) || defined(__DECCXX)
+#elif PLATFORM_COMPILER_PGI 
+  #if defined(PGI_WITH_REAL_ASM) || PLATFORM_COMPILER_VERSION_GE(6,1,1)
+    #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
+  #else /* note this requires compiler flag -Masmkeyword */
+    #define GASNETI_ASM(mnemonic) asm(mnemonic)
+  #endif
+#elif PLATFORM_COMPILER_COMPAQ
   #include <c_asm.h>
   #define GASNETI_ASM(mnemonic) asm(mnemonic)
-#elif defined(_SGI_COMPILER_VERSION) /* MIPSPro C */
-  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
-#elif defined(__SUNPRO_C) /* Sun C works, Sun C++ lacks inline assembly support (man inline) */
-  #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
-#elif defined(_SX)  
+#elif PLATFORM_COMPILER_SUN 
+  #ifdef __cplusplus /* Sun C works, Sun C++ lacks inline assembly support (man inline) */
+    #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
+  #else
+    #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
+  #endif
+#elif PLATFORM_COMPILER_NEC 
   #define GASNETI_ASM(mnemonic)  asm(mnemonic)
-#elif defined(__HP_cc) /* HP C */
+#elif dPLATFORM_COMPILER_HP
   #define GASNETI_ASM(mnemonic)  _asm(mnemonic)
-#elif defined(__HP_aCC)
-  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
-#elif defined(__SUNPRO_CC)
-  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
-#elif defined(__xlC__)  
-  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
-#elif defined(_CRAY)  
-  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
-#elif defined(__MTA__)  
-  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
+#elif PLATFORM_COMPILER_SGI || PLATFORM_COMPILER_HP || PLATFORM_COMPILER_XLC || \
+      PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_MTA
+  /* platforms where inline assembly not supported or used */
+  #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 
 #else
   #error "Don't know how to use inline assembly for your compiler"
 #endif

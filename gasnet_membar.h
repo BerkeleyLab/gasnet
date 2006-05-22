@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/04/27 23:34:46 $
- * $Revision: 1.104 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.104.8.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,10 +66,13 @@
  */
 #include <gasnet_asm.h>
 
-#if defined(__SUNPRO_CC) || defined(__HP_aCC) || (defined(PGI_WITH_REAL_ASM) && defined(__cplusplus))
+#if PLATFORM_COMPILER_SUN_CXX || \
+   (PLATFORM_COMPILER_HP_CXX && PLATFORM_ARCH_PARISC) || \
+   (PLATFORM_COMPILER_PGI_CXX && defined(PGI_WITH_REAL_ASM))
   /* no inline assembly in these C++ compilers, so pay a function call overhead */
   #define GASNETI_USING_SLOW_MEMBARS 1
-#elif defined(__sparc__) || defined(__sparc) || defined(sparc)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_SPARC
   #if defined(__sparcv9) || defined(__sparcv9cpu) || defined(GASNETI_ARCH_ULTRASPARC) /* SPARC v9 ISA */
     GASNETI_INLINE(gasneti_local_wmb)
     void gasneti_local_wmb(void) {
@@ -98,8 +101,9 @@
       GASNETI_ASM("stbar"); /* SPARC store barrier */
     }
   #endif
-#elif defined(__mips__) || defined(__mips) || defined(mips) || defined(_MIPS_ISA)
-  #if defined(_SGI_COMPILER_VERSION)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_MIPS
+  #if PLATFORM_COMPILER_SGI
     /* bug1534: issue a full architectural sync for the compiler fence - 
        this is overkill, but the compiler seems to lack any stand-alone optimization
        barrier, and the other synchronizing intrinsics (atomics) are even more expensive */
@@ -120,15 +124,16 @@
     #define GASNETI_WMB_IS_MB
     #define GASNETI_RMB_IS_MB
   #endif
-#elif defined(_PA_RISC1_1) || defined(__hppa) /* HP PA-RISC */
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_PARISC /* HP PA-RISC */
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
-     #if defined(__HP_cc) 
+     #if PLATFORM_COMPILER_HP_C
        _flush_globals();
      #endif
      GASNETI_ASM("SYNC");  /* PA RISC load/store ordering */ 
    }
-   #if defined(__HP_cc) 
+   #if PLATFORM_COMPILER_HP_C
      #if 0
        /* HP C doesn't like an empty asm statement */
        #define gasneti_compiler_fence() _asm("OR",0,0,0) /* NOP */
@@ -136,10 +141,8 @@
        #define gasneti_compiler_fence() _flush_globals() /* compiler intrinsic forces spills */
      #endif
    #endif
-#elif defined(__i386__) || defined(__i386) || defined(i386) || \
-      defined(__i486__) || defined(__i486) || defined(i486) || \
-      defined(__i586__) || defined(__i586) || defined(i586) || \
-      defined(__i686__) || defined(__i686) || defined(i686)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_X86
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
      /* The instruction here can be any locked read-modify-write operation.
@@ -150,9 +153,10 @@
       * Unfortunately, all read-modify-write operations also set condition
       * codes.  So, we have an extra messy case for gcc, icc, etc.
       */
-     #if (defined(__PGI) && !defined(PGI_WITH_REAL_ASM)) || defined(__SUNPRO_C)
+     #if (PLATFORM_COMPILER_PGI && !defined(PGI_WITH_REAL_ASM)) || PLATFORM_COMPILER_SUN_C
        GASNETI_ASM("lock; addl $0,0(%esp)");
-     #elif defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(PGI_WITH_REAL_ASM)
+     #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
+          (PLATFORM_COMPILER_PGI && defined(PGI_WITH_REAL_ASM))
        /* For gcc, icc and other gcc look-alikes */
        __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory", "cc");
      #else
@@ -160,7 +164,8 @@
        GASNETI_ASM("lock; addl $0,0(%%esp)");
      #endif
    }
-#elif defined(__x86_64__) /* Athlon/Opteron */
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_X86_64 /* Athlon/Opteron */
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
      GASNETI_ASM("sfence");
@@ -175,7 +180,8 @@
      GASNETI_ASM("mfence");
    }
    #define gasneti_local_mb() _gasneti_local_mb()
-#elif defined(__ia64__) || defined(__ia64) /* Itanium */
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_IA64 /* Itanium */
     /* Empirically observed that IA64 requires a full "mf" for both wmb and rmb (see bug 1000).
      * The reason is that the Itanium memeory model only ensures ordering in one direction when
      * using st.rel or ld.acq.  In particular, they implement the minimum required for proper
@@ -183,7 +189,7 @@
      * section, this still allows for loads before the lock and stored after the unlock to reorder
      * INTO the critical section.  We need more than that.
      */
-   #ifdef __INTEL_COMPILER
+   #ifdef PLATFORM_COMPILER_INTEL
       /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
       #include <ia64intrin.h>
       #define gasneti_compiler_fence() \
@@ -196,7 +202,7 @@
       #define gasneti_local_mb()  gasneti_local_wmb()
       #define GASNETI_RMB_IS_MB
       #define GASNETI_WMB_IS_MB
-   #elif defined(__HP_cc) || defined(__HP_aCC)
+   #elif PLATFORM_COMPILER_HP
       #include <machine/sys/inline.h>
       /* HP compilers have no inline assembly on Itanium - use intrinsics */
       #define gasneti_compiler_fence() \
@@ -213,13 +219,9 @@
       #define GASNETI_RMB_IS_MB
       #define GASNETI_WMB_IS_MB
    #endif
-/* PowerPPC ids:
- * AIX: _POWER
- * Darwin: __ppc__ or __ppc64__
- * Linux: __PPC__
- */
-#elif defined(_POWER) || defined(__PPC__) || defined(__ppc__) || defined(__ppc64__)
- #ifdef __xlC__
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_POWERPC
+ #ifdef PLATFORM_COMPILER_XLC
    /* VisualAge C compiler (mpcc_r) has no support for inline symbolic assembly
     * you have to hard-code the opcodes in a pragma that defines an assembly 
     * function - see /usr/include/sys/atomic_op.h on AIX for examples
@@ -279,7 +281,8 @@
    #define gasneti_local_mb() gasneti_local_wmb()
    #define GASNETI_WMB_IS_MB
  #endif
-#elif defined(__alpha)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_ALPHA
  #if 1 /* tested on OSF1, LINUX, FreeBSD */
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
@@ -296,7 +299,7 @@
    }
    #define gasneti_local_mb() _gasneti_local_mb()
    #define GASNETI_RMB_IS_MB
- #elif defined(__osf__) && 0
+ #elif PLATFORM_COMPILER_COMPAQ && 0
    /* Use compaq C built-ins */
    /* Note this is heavier weight than required */
    #include <machine/builtins.h>
@@ -306,7 +309,8 @@
    #define GASNETI_RMB_IS_MB
    #define GASNETI_WMB_IS_MB
  #endif
-#elif defined(_CRAYT3E) /* Takes care of e-regs also */
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_CRAYT3E /* Takes care of e-regs also */
    #include <intrinsics.h>
    #define gasneti_local_wmb() _memory_barrier()
    #define gasneti_local_rmb() _memory_barrier()
@@ -314,7 +318,8 @@
    #define gasneti_compiler_fence() do { int volatile x = 0; } while (0)
    #define GASNETI_RMB_IS_MB
    #define GASNETI_WMB_IS_MB
-#elif defined(__crayx1)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_CRAYX1
   GASNETI_INLINE(_gasneti_compiler_fence)
   void _gasneti_compiler_fence(void) {
     static int volatile x;
@@ -352,7 +357,8 @@
   #else /* NOT safe */
     #define gasneti_local_wmb gasneti_compiler_fence
   #endif
-#elif defined(__MTA__)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_MTA
    #if 0 /* causes warnings */
      #define gasneti_compiler_fence() (_Pragma("mta fence"))
    #else
@@ -370,7 +376,8 @@
    #define gasneti_local_mb()  gasneti_compiler_fence()
    #define GASNETI_RMB_IS_MB
    #define GASNETI_WMB_IS_MB
-#elif defined(_SX)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_NECSX
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {
      /* TODO: probably need more here */
@@ -378,13 +385,15 @@
      x = 1;
      /* GASNETI_ASM("nop"); - leads to "FATAL COMPILER ERROR, Unknown statement. c++: Internal Error: Please report." */
    }
-#elif defined(__MICROBLAZE__)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_MICROBLAZE
    /* no SMP support */
    #define gasneti_local_wmb() gasneti_compiler_fence()
    #define gasneti_local_rmb() gasneti_compiler_fence()
    #define gasneti_local_mb()  gasneti_compiler_fence()
    #define GASNETI_RMB_IS_MB
    #define GASNETI_WMB_IS_MB
+/* ------------------------------------------------------------------------------------ */
 #else
  #error unknown CPU - dont know how to do a local memory barrier for your CPU/OS
 #endif
@@ -523,7 +532,7 @@
     * IA64 includes a "hint" for use in spinloops
    */
    #define gasneti_spinloop_hint() GASNETI_ASM(GASNETI_PAUSE_INSTRUCTION)
- #elif (defined(__ia64__) || defined(__ia64)) && defined(__INTEL_COMPILER) && 0 /* DISABLED */
+ #elif PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL && 0 /* DISABLED */
    /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
    #include <ia64intrin.h>
    #define gasneti_spinloop_hint() __hint(__hint_pause)

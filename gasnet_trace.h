@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/05/15 13:32:42 $
- * $Revision: 1.54 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.54.4.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -181,7 +181,7 @@ GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* misc helpers for specific tracing scenarios */
-#ifdef GASNETI_PTR32 
+#if PLATFORM_ARCH_32 
   #define GASNETI_LADDRFMT "0x%08x"
   #define GASNETI_LADDRSTR(ptr) ((unsigned int)(uintptr_t)(ptr))
   #define GASNETI_RADDRFMT "(%i,0x%08x)"

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2006/05/19 04:09:56 $
- * $Revision: 1.35 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.35.4.1 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -443,7 +443,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
   } while (0)
   #define gasneti_cond_destroy(pc)    gasneti_assert_zeroret(pthread_cond_destroy(pc))
 
-  #if defined(__crayx1) /* bug 993 - workaround for buggy pthread library */
+  #if PLATFORM_ARCH_CRAYX1 /* bug 993 - workaround for buggy pthread library */
     static gasneti_cond_t const gasneti_cond_staticinitialized = GASNETI_COND_INITIALIZER;
     #define GASNETI_COND_INIT_CHECK(pc) \
       (!memcmp(&gasneti_cond_staticinitialized,(pc),sizeof(gasneti_cond_t)) ? \
@@ -523,14 +523,14 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 /* Default implementations: */
 #if defined(GASNETI_HAVE_ATOMIC_PTR_CAS)
   /* Use platform-specific version */
-#elif (SIZEOF_VOID_P == 4) && !defined(GASNETI_USE_GENERIC_ATOMIC32)
+#elif PLATFORM_ARCH_32 && !defined(GASNETI_USE_GENERIC_ATOMIC32)
   #define GASNETI_HAVE_ATOMIC_PTR_CAS 1
   typedef gasneti_atomic32_t                    gasneti_atomic_ptr_t;
   #define gasneti_atomic_ptr_init(_v)		gasneti_atomic32_init((uintptr_t)(_v))
   #define gasneti_atomic_ptr_set(_p,_v)		gasneti_atomic32_set(_p,(uintptr_t)(_v),0)
   #define gasneti_atomic_ptr_read(_p)		((uintptr_t)gasneti_atomic32_read(_p,0))
   #define gasneti_atomic_ptr_cas(_p,_o,_n,_f)	gasneti_atomic32_compare_and_swap(_p,(uintptr_t)(_o),(uintptr_t)(_n),_f)
-#elif (SIZEOF_VOID_P == 8) && !defined(GASNETI_USE_GENERIC_ATOMIC64)
+#elif PLATFORM_ARCH_64 && !defined(GASNETI_USE_GENERIC_ATOMIC64)
   #define GASNETI_HAVE_ATOMIC_PTR_CAS 1
   typedef gasneti_atomic64_t                    gasneti_atomic_ptr_t;
   #define gasneti_atomic_ptr_init(_v)		gasneti_atomic64_init((uintptr_t)(_v))
@@ -541,7 +541,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 
 #if defined(GASNETI_HAVE_ATOMIC_DBLPTR_CAS)
   /* Use platform-specific version */
-#elif (SIZEOF_VOID_P == 4) && defined(GASNETI_HAVE_ATOMIC_PTR_CAS) && !defined(GASNETI_USE_GENERIC_ATOMIC64)
+#elif PLATFORM_ARCH_32 && defined(GASNETI_HAVE_ATOMIC_PTR_CAS) && !defined(GASNETI_USE_GENERIC_ATOMIC64)
   #if WORDS_BIGENDIAN
     typedef union {
       struct { gasneti_atomic_ptr_t hi_ptr, lo_ptr; } ptrs;	/* must be first for initializer */
@@ -636,16 +636,11 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
   /* No threads, so we use the mutex code that compiles away. */
 #elif defined(GASNETI_USE_GENERIC_ATOMICOPS)
   /* If using mutexes, then just use the mutex code */
-#elif defined(_POWER) || defined(__PPC__) || defined(__ppc__) || defined(__ppc64__)
-  /* PowerPPC ids:
-   * AIX: _POWER
-   * Darwin: __ppc__ or __ppc64__
-   * Linux: __PPC__
-   *
-   * Among the platforms we currently support, PPC is unique in having an LL/SC
+#elif PLATFORM_ARCH_POWERPC
+  /* Among the platforms we currently support, PPC is unique in having an LL/SC
    * construct which allows a load between the LL and the SC.
    */
-  #if defined(__GNUC__)
+  #if PLATFORM_COMPILER_GNU
     /* Note use of "Lga.0.%=" for labels works around the AIX assembler, which doesn't like "1:" */
     typedef struct {
       /* Ensure list head pointer is the only item on its cache line.
@@ -680,7 +675,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 	 */
 	return NULL;
       }
-      #if (SIZEOF_VOID_P == 4)
+      #if PLATFORM_ARCH_32
         __asm__ __volatile__ ("Lga.1.%=:	   \n\t"
 			      "lwarx	%1,0,%0    \n\t" /* head = p->head */
 			      "cmpwi	0,%1,0     \n\t" /* head == NULL? */
@@ -693,7 +688,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 				: "=b" (addr), "=b" (head), "=r" (next)
 				: "0" (addr)
 				: "memory", "cc");
-      #elif (SIZEOF_VOID_P == 8)
+      #elif PLATFORM_ARCH_64
         __asm__ __volatile__ ("Lga.1.%=:	   \n\t"
 			      "ldarx	%1,0,%0    \n\t" /* head = p->head */
 			      "cmpdi	0,%1,0     \n\t" /* head == NULL? */
@@ -721,7 +716,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     }
     #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_ptr_init(0),}
     #define GASNETI_HAVE_ARCH_LIFO	1
-  #elif defined(__xlC__)
+  #elif PLATFORM_COMPILER_XLC
     typedef struct {
       /* Ensure list head pointer is the only item on its cache line.
        * This prevents a live-lock which would result if a list element fell
@@ -745,7 +740,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 
     static void *_gasneti_lifo_pop(gasneti_lifo_head_t *p);
     /* ARGS: r3 = p  LOCAL: r0 = next, r4 = head */
-    #if (SIZEOF_VOID_P == 4)
+    #if PLATFORM_ARCH_32
       #pragma mc_func _gasneti_lifo_pop {\
 	"80830080"	/* lwz		r4,128(r3)	*/ \
 	"38630080"	/* addi		r3,r3,128	*/ \
@@ -761,7 +756,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 	"40a2ffe8"	/* bne-		1b		*/ \
 	"7c832378"	/* 2: mr	r3,r4		*/ \
       }
-    #elif (SIZEOF_VOID_P == 8)
+    #elif PLATFORM_ARCH_64
       #pragma mc_func _gasneti_lifo_pop {\
 	"e8830080"	/* ld		r4,128(r3)	*/ \
 	"38630080"	/* addi		r3,r3,128	*/ \

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_help.h,v $
- * $Date: 2006/03/19 02:08:02 $
- * $Revision: 1.43 $
+ * $Date: 2006/05/22 10:53:43 $
+ * $Revision: 1.43.16.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -154,9 +154,9 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETC_AM_LONG_ARGS_OFF	(8+sizeof(uintptr_t))
 
 #define GASNETC_AM_MEDIUM_HEADER_PAD(numargs) ((((numargs)&0x1)==1) ? 0 : 4)
-#ifdef GASNETI_PTR32
+#if PLATFORM_ARCH_32
 #define GASNETC_AM_LONG_PAD(numargs) ((((numargs)&0x1)==1) ? 0 : 4)
-#elif defined(GASNETI_PTR64)
+#elif PLATFORM_ARCH_64
 #define GASNETC_AM_LONG_PAD(numargs) ((((numargs)&0x1)==0) ? 0 : 4)
 #endif
 
@@ -276,10 +276,10 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETC_AMPAYLOAD_WRITE(d,s,l)	GASNETE_FAST_UNALIGNED_MEMCPY(d,s,l)
 #define GASNETC_AMPAYLOAD_READ GASNETC_AMPAYLOAD_WRITE
 
-#if defined(GASNETI_PTR32)
+#if PLATFORM_ARCH_32
 #define GASNETC_ARGPTR_NUM	1
 #define GASNETC_ARGPTR(ptr, addr)	(*((int32_t *)(ptr)) = (int32_t) addr)
-#elif defined(GASNETI_PTR64)
+#elif PLATFORM_ARCH_64
 #define GASNETC_ARGPTR_NUM	2
 #define GASNETC_ARGPTR(ptr, addr)				    \
 	do { *((int32_t *)(ptr)) = (int32_t) GASNETI_HIWORD(addr);  \

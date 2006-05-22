@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/05/04 12:09:34 $
- * $Revision: 1.13 $
+ *     $Date: 2006/05/22 10:53:45 $
+ * $Revision: 1.13.4.1 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -94,7 +94,7 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 #define GASNETC_SCI_FALSE					0
 #define GASNETC_SCI_MAX_REQUEST_MSG			2
 #define GASNETC_SCI_MAX_HANDLER_NUMBER		256
-#ifdef GASNETI_PTR64
+#if PLATFORM_ARCH_64
 	#define GASNETC_SCI_COMMAND_MESSAGE_SIZE	(2048+80) /*  max medium payload size + size of the longest header -- 64-bit machines*/
 #else
 	#define GASNETC_SCI_COMMAND_MESSAGE_SIZE	(2048+76) /*  max medium payload size + size of the longest header*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2006/04/21 00:39:22 $
- * $Revision: 1.90 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.90.8.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -409,7 +409,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define GASNETI_USE_TRUE_MUTEXES 0
 #endif
 
-#if defined(__CYGWIN__) || defined(GASNETI_FORCE_MUTEX_INITCLEAR)
+#if PLATFORM_OS_CYGWIN || defined(GASNETI_FORCE_MUTEX_INITCLEAR)
   /* we're sometimes unable to call pthread_mutex_destroy when freeing a mutex
      some pthread implementations will fail to re-init a mutex
      (eg after a free and realloc of the associated mem) unless

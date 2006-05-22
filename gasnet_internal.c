@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2006/05/19 05:46:58 $
- * $Revision: 1.166 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.166.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -180,12 +180,12 @@ extern void gasneti_check_config_preinit() {
   gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
   gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
 
-  #if    defined(GASNETI_PTR32) && !defined(GASNETI_PTR64)
+  #if    PLATFORM_ARCH_32 && !PLATFORM_ARCH_64
     gasneti_assert_always(sizeof(void*) == 4);
-  #elif !defined(GASNETI_PTR32) &&  defined(GASNETI_PTR64)
+  #elif !PLATFORM_ARCH_32 &&  PLATFORM_ARCH_64
     gasneti_assert_always(sizeof(void*) == 8);
   #else
-    #error must #define exactly one of GASNETI_PTR32 or GASNETI_PTR64
+    #error must #define exactly one of PLATFORM_ARCH_32 or PLATFORM_ARCH_64
   #endif
 
   #if defined(GASNETI_UNI_BUILD)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/05/20 13:23:37 $
- * $Revision: 1.43 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.43.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,21 +17,21 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 
-#if defined(IRIX)
+#if PLATFORM_OS_IRIX
   #ifdef MAP_SGI_ANYADDR /* allow mmap to use 'reserved' 256MB region on O2k */
     #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_SGI_ANYADDR | MAP_AUTORESRV)
   #else
     #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
   #endif
   #define GASNETI_MMAP_FILE "/dev/zero"
-#elif defined(__crayx1)
+#elif PLATFORM_ARCH_CRAYX1
   #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
   #define GASNETI_MMAP_FILE "/dev/zero"
-#elif defined(_CRAYT3E)
+#elif PLATFORM_ARCH_CRAYT3E
   #error mmap not supported on Cray-T3E
-#elif defined(CYGWIN)
+#elif PLATFORM_OS_CYGWIN
   #error mmap not supported on Cygwin - it doesnt work properly
-#elif defined(HPUX)
+#elif PLATFORM_OS_HPUX
   #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE | MAP_PRIVATE)
   #define GASNETI_MMAP_NOTFIXED_FLAG MAP_VARIABLE
 #endif
@@ -274,7 +274,7 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
     { const char *envstr = gasneti_getenv("GASNET_MAX_SEGSIZE");
       if (envstr) { tmp = gasneti_parse_int(envstr, 1); is_dflt = 0; }
     }
-    #ifdef GASNETI_PTR32
+    #if PLATFORM_ARCH_32
       /* need to be careful about 32-bit overflow: hard limit is 2^32 - pagesz */
       result = MIN(tmp,(uint32_t)-1);
     #else

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/05/11 09:43:56 $
- * $Revision: 1.91 $
+ *     $Date: 2006/05/22 10:53:47 $
+ * $Revision: 1.91.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -353,7 +353,7 @@ GASNETT_IDENT(GASNetT_IdentString_link_compiletime,
 GASNETT_IDENT(GASNetT_IdentString_HeapSz, 
  "$UPCRDefaultHeapSizes: UPC_SHARED_HEAP_OFFSET=0 UPC_SHARED_HEAP_SIZE=0 $");
 GASNETT_IDENT(GASNetT_IdentString_PthCnt, "$UPCRDefaultPthreadCount: 1 $");
-#ifdef GASNETI_PTR32
+#if PLATFORM_ARCH_32
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=( $");
 #else
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=, $");

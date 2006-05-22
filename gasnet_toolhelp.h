@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2006/04/21 21:33:03 $
- * $Revision: 1.4 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.4.10.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,7 @@ GASNETI_BEGIN_EXTERNC
 #ifdef __MTA__
    #include <machine/runtime.h>
    #define _gasneti_sched_yield() mta_yield()
-#elif defined(HAVE_SCHED_YIELD) && !defined(__blrts__) && !defined(__LIBCATAMOUNT__)
+#elif defined(HAVE_SCHED_YIELD) && !PLATFORM_OS_BLRTS && !PLATFORM_OS_CATAMOUNT
    #include <sched.h>
    #define _gasneti_sched_yield() sched_yield()
 #else
@@ -116,7 +116,7 @@ extern int64_t gasneti_parse_int(const char *str, uint64_t mem_size_multiplier);
 extern void gasneti_setenv(const char *key, const char *value);
 extern void gasneti_unsetenv(const char *key);
 
-#if defined(_AIX)
+#if PLATFORM_OS_AIX
   /* AIX's stdio.h won't provide prototypes for snprintf() and vsnprintf()
    * by default since they are in C99 but not C89.
    */

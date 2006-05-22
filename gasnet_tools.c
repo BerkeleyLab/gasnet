@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/05/21 10:32:23 $
- * $Revision: 1.168 $
+ *     $Date: 2006/05/22 10:53:38 $
+ * $Revision: 1.168.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -272,7 +272,7 @@ extern void gasneti_flush_streams() {
     gasneti_fatalerror("failed to flush stderr: %s", strerror(errno));
   fsync(STDOUT_FILENO); /* ignore errors for output is a console */
   fsync(STDERR_FILENO); /* ignore errors for output is a console */
-  #ifndef __LIBCATAMOUNT__
+  #ifndef PLATFORM_OS_CATAMOUNT
     sync();
   #endif
   gasneti_sched_yield();
@@ -485,14 +485,14 @@ extern void gasneti_unsetenv(const char *key) {
 }
 /* ------------------------------------------------------------------------------------ */
 /* Physical CPU query */
-#if defined(__sgi) || defined(__crayx1)
+#if PLATFORM_OS_IRIX || PLATFORM_ARCH_CRAYX1
 #define _SC_NPROCESSORS_ONLN _SC_NPROC_ONLN
-#elif defined(_CRAYT3E)
+#elif PLATFORM_ARCH_CRAYT3E
 #define _SC_NPROCESSORS_ONLN _SC_CRAY_MAXPES
-#elif defined(HPUX)
+#elif PLATFORM_OS_HPUX
 #include <sys/param.h>
 #include <sys/pstat.h>
-#elif defined(__APPLE__) || defined(FREEBSD) || defined(NETBSD)
+#elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
@@ -502,7 +502,7 @@ extern int gasneti_cpu_count() {
   static int hwprocs = -1;
   if (hwprocs >= 0) return hwprocs;
 
-  #if defined(__APPLE__) || defined(FREEBSD) || defined(NETBSD)
+  #if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD
       {
         int mib[2];
         size_t len;
@@ -513,13 +513,13 @@ extern int gasneti_cpu_count() {
         gasneti_assert_zeroret(sysctl(mib, 2, &hwprocs, &len, NULL, 0));
         if (hwprocs < 1) hwprocs = 0;
       }
-  #elif defined(HPUX) 
+  #elif PLATFORM_OS_HPUX
       {
         struct pst_dynamic psd;
         gasneti_assert_zeroret(pstat_getdynamic(&psd, sizeof(psd), (size_t)1, 0) == -1);
         hwprocs = psd.psd_proc_cnt;
       }
-  #elif defined(SUPERUX) || defined(__MTA__)
+  #elif PLATFORM_OS_NECSX || PLATFORM_OS_MTA
       hwprocs = 0; /* appears to be no way to query CPU count on these */
   #else
       hwprocs = sysconf(_SC_NPROCESSORS_ONLN);
@@ -542,14 +542,14 @@ extern int gasneti_cpu_count() {
 #else
   #define _gasneti_getPhysMemSysconf() 0
 #endif
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
   #include <sys/types.h>
   #include <sys/sysctl.h>
 #endif
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
   if (retval) return retval;
-  #if defined(__linux__) && !defined(__LIBCATAMOUNT__)
+  #if PLATFORM_OS_LINUX
     #define _BUFSZ        120
     { FILE *fp;
       char line[_BUFSZ+1];
@@ -572,7 +572,7 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
       fclose(fp);
     }
     #undef _BUFSZ
-  #elif defined(__APPLE__) || defined(__FreeBSD__)
+  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
     { /* see "man 3 sysctl" */    
       int mib[2];
       size_t len = 0;
@@ -596,7 +596,7 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
             (int)len, strerror(errno), errno);
       }
     }
-  #elif defined(_AIX)
+  #elif PLATFORM_OS_AIX
     { /* returns amount of real memory in kilobytes */
       long int val = sysconf(_SC_AIX_REALMEM);
       if (val > 0) retval = (1024 * (uint64_t)val);

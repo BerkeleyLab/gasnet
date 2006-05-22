@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/04/29 10:20:58 $
- * $Revision: 1.30 $
+ *     $Date: 2006/05/22 10:53:43 $
+ * $Revision: 1.30.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -249,10 +249,10 @@ int gasnete_extref_barrier_wait(int id, int flags);
 int gasnete_extref_barrier_try(int id, int flags);
 
 /* Additional support for core AMReplyLongAsync */
-#if defined(GASNETI_PTR32)
+#if PLATFORM_ARCH_32
 #define LONGASYNC_REP(cnt32, cnt64, args) \
 	gasnetc_AMReplyLongAsync ## cnt32 args
-#elif defined(GASNETI_PTR64)
+#elif PLATFORM_ARCH_64
 #define LONGASYNC_REP(cnt32, cnt64, args) \
 	gasnetc_AMReplyLongAsync ## cnt64 args
 #endif
