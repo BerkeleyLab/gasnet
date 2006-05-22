@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/05/21 10:32:25 $
- * $Revision: 1.1 $
+ *     $Date: 2006/05/22 11:18:33 $
+ * $Revision: 1.1.2.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -28,6 +28,9 @@
 /* 
   PLATFORM_COMPILER_<family>:
      defined to 1 if compiler is a given family, undef otherwise
+  PLATFORM_COMPILER_<family>_C
+  PLATFORM_COMPILER_<family>_CXX
+     defined to 1 if compiler is a given family, and is the C or C++ compiler, respectively
   PLATFORM_COMPILER_FAMILYNAME:
      unquoted token which provides the compiler family name
   PLATFORM_COMPILER_FAMILYID:
@@ -52,6 +55,11 @@
   #define PLATFORM_COMPILER_INTEL  1
   #define PLATFORM_COMPILER_FAMILYNAME INTEL
   #define PLATFORM_COMPILER_FAMILYID 2
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_INTEL_CXX  1
+  #else
+    #define PLATFORM_COMPILER_INTEL_C  1
+  #endif
   #define _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE 19700000 /* year 1970: predates most intel products :) */
   #ifdef __INTEL_COMPILER_BUILD_DATE
     #define _PLATFORM_INTEL_COMPILER_BUILD_DATE __INTEL_COMPILER_BUILD_DATE
@@ -72,6 +80,11 @@
   #define PLATFORM_COMPILER_PATHSCALE  1
   #define PLATFORM_COMPILER_FAMILYNAME PATHSCALE
   #define PLATFORM_COMPILER_FAMILYID 3
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_PATHSCALE_CXX  1
+  #else
+    #define PLATFORM_COMPILER_PATHSCALE_C  1
+  #endif
   #define PLATFORM_COMPILER_VERSION \
           PLATFORM_COMPILER_VERSION_INT(__PATHCC__,__PATHCC_MINOR__,__PATHCC_PATCHLEVEL__)
   #define PLATFORM_COMPILER_VERSION_STR __PATHSCALE__
@@ -80,6 +93,11 @@
   #define PLATFORM_COMPILER_PGI  1
   #define PLATFORM_COMPILER_FAMILYNAME PGI
   #define PLATFORM_COMPILER_FAMILYID 4
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_PGI_CXX  1
+  #else
+    #define PLATFORM_COMPILER_PGI_C  1
+  #endif
   #if defined(__PGIC__) && defined(__PGIC_MINOR__) && defined(__PGIC_PATCHLEVEL__)
     #define PLATFORM_COMPILER_VERSION \
             PLATFORM_COMPILER_VERSION_INT(__PGIC__,__PGIC_MINOR__,__PGIC_PATCHLEVEL__)
@@ -105,6 +123,11 @@
   #define PLATFORM_COMPILER_XLC  1
   #define PLATFORM_COMPILER_FAMILYNAME XLC
   #define PLATFORM_COMPILER_FAMILYID 5
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_XLC_CXX  1
+  #else
+    #define PLATFORM_COMPILER_XLC_C  1
+  #endif
   #define PLATFORM_COMPILER_VERSION __xlC__
   #define PLATFORM_COMPILER_VERSION_INT(maj,min,pat) \
         ( ((maj) << 8) | ((min) << 4) | (pat) )
@@ -113,6 +136,11 @@
   #define PLATFORM_COMPILER_COMPAQ  1
   #define PLATFORM_COMPILER_FAMILYNAME COMPAQ
   #define PLATFORM_COMPILER_FAMILYID 6
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_COMPAQ_CXX  1
+  #else
+    #define PLATFORM_COMPILER_COMPAQ_C  1
+  #endif
   #if defined(__DECC_VER)
     #define PLATFORM_COMPILER_VERSION __DECC_VER
   #elif defined(__DECCXX_VER)
@@ -127,6 +155,11 @@
   #define PLATFORM_COMPILER_SUN  1
   #define PLATFORM_COMPILER_FAMILYNAME SUN
   #define PLATFORM_COMPILER_FAMILYID 7
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_SUN_CXX  1
+  #else
+    #define PLATFORM_COMPILER_SUN_C  1
+  #endif
   #if defined(__SUNPRO_C) && __SUNPRO_C > 0
     #define PLATFORM_COMPILER_VERSION __SUNPRO_C
   #elif defined(__SUNPRO_CC) && __SUNPRO_CC > 0
@@ -139,6 +172,11 @@
   #define PLATFORM_COMPILER_HP  1
   #define PLATFORM_COMPILER_FAMILYNAME HP
   #define PLATFORM_COMPILER_FAMILYID 8
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_HP_CXX  1
+  #else
+    #define PLATFORM_COMPILER_HP_C  1
+  #endif
   #if defined(__HP_cc) && __HP_cc > 0
     #define PLATFORM_COMPILER_VERSION __HP_cc
   #elif defined(__HP_aCC) && __HP_aCC > 0
@@ -152,6 +190,11 @@
   #define PLATFORM_COMPILER_SGI  1
   #define PLATFORM_COMPILER_FAMILYNAME SGI
   #define PLATFORM_COMPILER_FAMILYID 9
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_SGI_CXX  1
+  #else
+    #define PLATFORM_COMPILER_SGI_C  1
+  #endif
   #if defined(_SGI_COMPILER_VERSION) && _SGI_COMPILER_VERSION > 0
     #define PLATFORM_COMPILER_VERSION _SGI_COMPILER_VERSION
   #elif defined(_COMPILER_VERSION) && _COMPILER_VERSION > 0
@@ -164,6 +207,11 @@
   #define PLATFORM_COMPILER_CRAY  1
   #define PLATFORM_COMPILER_FAMILYNAME CRAY
   #define PLATFORM_COMPILER_FAMILYID 10
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_CRAY_CXX  1
+  #else
+    #define PLATFORM_COMPILER_CRAY_C  1
+  #endif
   #define PLATFORM_COMPILER_VERSION \
           PLATFORM_COMPILER_VERSION_INT(_RELEASE,_RELEASE_MINOR,0)
   #define PLATFORM_COMPILER_VERSION_STR _RELEASE_STRING
@@ -172,16 +220,31 @@
   #define PLATFORM_COMPILER_KAI  1
   #define PLATFORM_COMPILER_FAMILYNAME KAI
   #define PLATFORM_COMPILER_FAMILYID 11
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_KAI_CXX  1
+  #else
+    #define PLATFORM_COMPILER_KAI_C  1
+  #endif
 
 #elif defined(__MTA__)
-  #define PLATFORM_COMPILER_TERA  1
-  #define PLATFORM_COMPILER_FAMILYNAME TERA
+  #define PLATFORM_COMPILER_MTA  1
+  #define PLATFORM_COMPILER_FAMILYNAME MTA
   #define PLATFORM_COMPILER_FAMILYID 12
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_MTA_CXX  1
+  #else
+    #define PLATFORM_COMPILER_MTA_C  1
+  #endif
 
 #elif defined(_SX)
-  #define PLATFORM_COMPILER_NEC  1
-  #define PLATFORM_COMPILER_FAMILYNAME NEC
+  #define PLATFORM_COMPILER_NECSX  1
+  #define PLATFORM_COMPILER_FAMILYNAME NECSX
   #define PLATFORM_COMPILER_FAMILYID 13
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_NECSX_CXX  1
+  #else
+    #define PLATFORM_COMPILER_NECSX_C  1
+  #endif
 
 #else /* unknown compiler */
   #define PLATFORM_COMPILER_UNKNOWN  1
@@ -195,6 +258,11 @@
     #define PLATFORM_COMPILER_GNU  1
     #define PLATFORM_COMPILER_FAMILYNAME GNU
     #define PLATFORM_COMPILER_FAMILYID 1
+    #ifdef __cplusplus
+      #define PLATFORM_COMPILER_GNU_CXX  1
+    #else
+      #define PLATFORM_COMPILER_GNU_C  1
+    #endif
     #define PLATFORM_COMPILER_VERSION \
             PLATFORM_COMPILER_VERSION_INT(__GNUC__,__GNUC_MINOR__,__GNUC_PATCHLEVEL__)
     #define PLATFORM_COMPILER_VERSION_STR __PLATFORM_COMPILER_GNU_VERSION_STR
@@ -311,42 +379,67 @@
 #if defined(__LIBCATAMOUNT__) || defined(__QK_USER__)
   #define PLATFORM_OS_CATAMOUNT 1
   #define PLATFORM_OS_FAMILYNAME CATAMOUNT
+
 #elif defined(__blrts) || defined(__blrts__) || defined(__gnu_blrts__)
   #define PLATFORM_OS_BLRTS 1
   #define PLATFORM_OS_FAMILYNAME BLRTS
+
+#elif defined(__uClinux__)
+  #define PLATFORM_OS_UCLINUX 1
+  #define PLATFORM_OS_FAMILYNAME UCLINUX
+
 #elif defined(__linux) || defined(__linux__) || defined(__gnu_linux__)
   #define PLATFORM_OS_LINUX 1
   #define PLATFORM_OS_FAMILYNAME LINUX
+
 #elif defined(__CYGWIN__)
   #define PLATFORM_OS_CYGWIN 1
   #define PLATFORM_OS_FAMILYNAME CYGWIN
+
 #elif defined(_AIX)
   #define PLATFORM_OS_AIX 1
   #define PLATFORM_OS_FAMILYNAME AIX
+
 #elif defined(__osf__) || defined(__digital__)
   #define PLATFORM_OS_TRU64 1
   #define PLATFORM_OS_FAMILYNAME TRU64
+
 #elif defined(__FreeBSD) || defined(__FreeBSD__)
   #define PLATFORM_OS_FREEBSD 1
   #define PLATFORM_OS_FAMILYNAME FREEBSD
+
 #elif defined(__NetBSD) || defined(__NetBSD__)
   #define PLATFORM_OS_NETBSD 1
   #define PLATFORM_OS_FAMILYNAME NETBSD
+
 #elif defined(__sun) || defined(__sun__)
   #define PLATFORM_OS_SOLARIS 1
   #define PLATFORM_OS_FAMILYNAME SOLARIS
+
 #elif (defined(__APPLE__) && defined(__MACH__))
   #define PLATFORM_OS_DARWIN 1
   #define PLATFORM_OS_FAMILYNAME DARWIN
+
 #elif defined(__sgi) || defined(__sgi__)
   #define PLATFORM_OS_IRIX 1
   #define PLATFORM_OS_FAMILYNAME IRIX
+
 #elif defined(__hpux) || defined(__hpux__)
   #define PLATFORM_OS_HPUX 1
   #define PLATFORM_OS_FAMILYNAME HPUX
+
 #elif defined(_CRAY) || defined(_UNICOSMP)
   #define PLATFORM_OS_UNICOS 1
   #define PLATFORM_OS_FAMILYNAME UNICOS
+
+#elif defined(__MTA__)
+  #define PLATFORM_OS_MTA 1
+  #define PLATFORM_OS_FAMILYNAME MTA
+
+#elif defined(_SX)
+  #define PLATFORM_OS_NECSX 1
+  #define PLATFORM_OS_FAMILYNAME NECSX
+
 #else
   #define PLATFORM_OS_UNKNOWN 1
   #define PLATFORM_OS_FAMILYNAME UNKNOWN
@@ -447,6 +540,26 @@
   #define PLATFORM_ARCH_BIG_ENDIAN 1
   #define PLATFORM_ARCH_64 1
 
+#elif defined(_CRAYT3E)
+  #define PLATFORM_ARCH_CRAYT3E 1
+  #define PLATFORM_ARCH_FAMILYNAME CRAYT3E
+  #define PLATFORM_ARCH_BIG_ENDIAN 1
+  #define PLATFORM_ARCH_64 1
+
+#elif defined(__MTA__)
+  #define PLATFORM_ARCH_MTA 1
+  #define PLATFORM_ARCH_FAMILYNAME MTA
+
+#elif defined(_SX)
+  #define PLATFORM_ARCH_NECSX 1
+  #define PLATFORM_ARCH_FAMILYNAME NECSX
+
+#elif defined(__MICROBLAZE__)
+  #define PLATFORM_ARCH_MICROBLAZE 1
+  #define PLATFORM_ARCH_FAMILYNAME MICROBLAZE
+  #define PLATFORM_ARCH_BIG_ENDIAN 1
+  #define PLATFORM_ARCH_32 1
+
 #else /* unknown CPU */
   #define PLATFORM_ARCH_UNKNOWN 1
   #define PLATFORM_ARCH_FAMILYNAME UNKNOWN
@@ -466,12 +579,14 @@
 
 #if !defined(PLATFORM_ARCH_32) && !defined(PLATFORM_ARCH_64)
   #if defined(_LP64) || defined(__LP64__) || \
-      defined(__arch64__) || defined(__64BIT__)
+      defined(__arch64__) || defined(__64BIT__) || \
+      (defined(SIZEOF_VOID_P) && SIZEOF_VOID_P == 8)
     #define PLATFORM_ARCH_64 1
   #endif
 
   #if defined(_ILP32) || defined(__ILP32__) || \
-      defined(__arch32__) || defined(__32BIT__)
+      defined(__arch32__) || defined(__32BIT__) || \
+      (defined(SIZEOF_VOID_P) && SIZEOF_VOID_P == 4)
     #define PLATFORM_ARCH_32 1
   #endif
 #endif
