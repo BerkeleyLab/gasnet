@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2006/01/27 01:16:50 $
- * $Revision: 1.33 $
+ *     $Date: 2006/05/22 12:53:02 $
+ * $Revision: 1.33.20.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,12 +92,12 @@ extern void gasnetc_fatalsignal_callback(int sig);
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
 
-#if defined(__APPLE__) && defined(__MACH__) && !GASNET_SEQ
+#if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
-#if defined(__PGI)
+#if PLATFORM_COMPILER_PGI
   /* VAPI headers rely on the non-portable u_int*_t names
      PGI lacks these, so translate them to the versions guaranteed by the C99 spec and portable_inttypes
    */
