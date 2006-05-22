@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/05/22 10:53:38 $
- * $Revision: 1.168.2.1 $
+ *     $Date: 2006/05/22 12:52:46 $
+ * $Revision: 1.168.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,15 +29,15 @@
 #include <sys/time.h> /* gasneti_gettimeofday_us */
 #include <signal.h>
 
-#ifdef IRIX
+#if PLATFORM_OS_IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
 
-#ifdef __SUNPRO_C
+#ifdef PLATFORM_COMPILER_SUN_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 
-#ifdef __osf__
+#if PLATFORM_OS_TRU64
   /* replace a stupidly broken implementation of toupper on Tru64 
      (fails to correctly implement required integral promotion of
       character-typed arguments, leading to bogus warnings)
@@ -194,12 +194,12 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 extern uint64_t gasneti_gettimeofday_us(void) {
   uint64_t retval;
   struct timeval tv;
-  #ifdef __crayx1
+  #if PLATFORM_OS_UNICOS
   retry:
   #endif
   gasneti_assert_zeroret(gettimeofday(&tv, NULL));
   retval = ((uint64_t)tv.tv_sec) * 1000000 + (uint64_t)tv.tv_usec;
-  #ifdef __crayx1
+  #if PLATFORM_OS_UNICOS
     /* fix an empirically observed bug in UNICOS gettimeofday(),
        which occasionally returns ridiculously incorrect values
        SPR 728120, fixed in kernel 2.4.34 

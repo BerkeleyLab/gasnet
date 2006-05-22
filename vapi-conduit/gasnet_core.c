@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/05/11 09:44:00 $
- * $Revision: 1.169 $
+ *     $Date: 2006/05/22 12:53:02 $
+ * $Revision: 1.169.4.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -268,7 +268,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
    *     (SEGMENT_FAST ? MMAP_LIMIT : 0 ) + (FIREHOSE_M + FIREHOSE_MAXVICTIM_M + eplison)
    */
 
-#if defined(__APPLE__)
+#if PLATFORM_OS_DARWIN
   /* Note bug #532: Pin requests >= 1GB kill Cluster X nodes */
   limit = MIN((gasneti_getPhysMemSz(1) / 4) - 1, 0x3fffffff /*1GB-1*/);
 #else
@@ -1525,7 +1525,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 	flags |= FIREHOSE_INIT_FLAG_LOCAL_ONLY;
       #endif
-      #if defined(__APPLE__) && defined(__MACH__)
+      #if PLATFORM_OS_DARWIN
 	flags |= FIREHOSE_INIT_FLAG_UNPIN_ON_FINI;
       #endif
 
@@ -2531,7 +2531,7 @@ const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS] = {
 
 #if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
   /* Configuration */
-  #if defined(__APPLE__) && defined(__MACH__)
+  #if PLATFORM_OS_DARWIN
     #include <sys/mman.h>	/* For mprotect */
     #define GASNETC_DEFAULT_PTHREAD_STACKSZ (512*1024)
     #define GASNETC_PTHREAD_STACK_DIR (-1)

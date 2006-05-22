@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/05/22 10:53:38 $
- * $Revision: 1.59.4.1 $
+ *     $Date: 2006/05/22 12:52:46 $
+ * $Revision: 1.59.4.2 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,7 +70,7 @@ GASNETI_BEGIN_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_CRAYT3E || PLATFORM_ARCH_CRAYX1
   typedef uint64_t gasneti_tick_t;
-  #ifdef __GNUC__
+  #if PLATFORM_COMPILER_GNU
     #define _rtc rtclock
   #else
     extern long _rtc();

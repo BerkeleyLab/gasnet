@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.h,v $
- *     $Date: 2006/05/10 23:15:33 $
- * $Revision: 1.3 $
+ *     $Date: 2006/05/22 12:52:50 $
+ * $Revision: 1.3.4.1 $
  * Description: GASNet Vector, Indexed & Strided conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,15 +43,15 @@
   #define GASNETE_LOOPING_DIMS 8
 #endif
 
-#if defined(__HP_cc) && GASNETE_LOOPING_DIMS > 7
+#if PLATFORM_COMPILER_HP && GASNETE_LOOPING_DIMS > 7
   /* avoid bugs in HP C preprocessor */
   #undef GASNETE_LOOPING_DIMS
   #define GASNETE_LOOPING_DIMS 7  
-#elif defined(_CRAYC) && GASNETE_LOOPING_DIMS > 4
+#elif PLATFORM_COMPILER_CRAY && GASNETE_LOOPING_DIMS > 4
   /* avoid bugs in Cray C compiler */
   #undef GASNETE_LOOPING_DIMS
   #define GASNETE_LOOPING_DIMS 4  
-#elif defined(__DECC) && GASNETE_LOOPING_DIMS > 4
+#elif PLATFORM_COMPILER_COMPAQ && GASNETE_LOOPING_DIMS > 4
   /* avoid bugs in Compaq C optimizer */
   #undef GASNETE_LOOPING_DIMS
   #define GASNETE_LOOPING_DIMS 4 

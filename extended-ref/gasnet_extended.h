@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2006/04/30 02:18:48 $
- * $Revision: 1.38 $
+ *     $Date: 2006/05/22 12:52:50 $
+ * $Revision: 1.38.6.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -752,7 +752,7 @@ gasnet_register_value_t gasnet_wait_syncnb_valget (gasnet_valget_handle_t handle
   ==================
 */
 
-#ifdef __SUNPRO_C
+#ifdef PLATFORM_COMPILER_SUN_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 
@@ -782,7 +782,7 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
 #define gasnet_get_val(node,src,nbytes) \
        _gasnet_get_val(node,src,nbytes GASNETE_THREAD_GET)
 
-#ifdef __SUNPRO_C
+#ifdef PLATFORM_COMPILER_SUN_C
   #pragma error_messages(default, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testhsl.c,v $
- *     $Date: 2006/05/11 09:43:56 $
- * $Revision: 1.18 $
+ *     $Date: 2006/05/22 12:52:58 $
+ * $Revision: 1.18.4.1 $
  * Description: GASNet HSL correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,7 +64,7 @@ void donothing(gasnet_token_t token) {
   void * thread_fn(void *arg);
 #endif
 
-#ifdef __SUNPRO_C
+#ifdef PLATFORM_COMPILER_SUN_C
   /* disable a harmless warning */
   #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif

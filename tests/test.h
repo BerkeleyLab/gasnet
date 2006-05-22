@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/05/22 10:53:47 $
- * $Revision: 1.91.4.1 $
+ *     $Date: 2006/05/22 12:52:58 $
+ * $Revision: 1.91.4.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -434,7 +434,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
 
 #if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
   /* Cheap (but functional!) pthread + gasnet barrier */
-  #if defined(__crayx1) || defined(__CYGWIN__)
+  #if PLATFORM_ARCH_CRAYX1 || PLATFORM_OS_CYGWIN
     /* pthread_cond is unreliable on some versions of these OS's - use semaphores */
     #include <semaphore.h>
     static void test_pthread_barrier(unsigned int local_pthread_count, int doGASNetbarrier) {
@@ -733,7 +733,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
 #endif /* TEST_GASNET_H */
 /* ------------------------------------------------------------------------------------ */
 /* test initialization boilerplate */
-#if defined(__alpha) || defined(_CRAYT3E)
+#if PLATFORM_ARCH_ALPHA || PLATFORM_ARCH_CRAYT3E
   #define TEST_SIG_INIT() gasnett_reghandler(SIGFPE, SIG_IGN)
 #else
   #define TEST_SIG_INIT()

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_internal.h,v $
- *     $Date: 2006/05/10 13:10:13 $
- * $Revision: 1.17 $
+ *     $Date: 2006/05/22 12:52:50 $
+ * $Revision: 1.17.4.1 $
  * Description: Internal definitions for GASNet Vector, Indexed & Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -216,7 +216,7 @@ extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int
 
 /*---------------------------------------------------------------------------------*/
 
-#ifdef __SUNPRO_C
+#ifdef PLATFORM_COMPILER_SUN_C
   /* disable a harmless warning */
   #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif

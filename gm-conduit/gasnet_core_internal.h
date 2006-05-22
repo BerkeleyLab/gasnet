@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2006/04/18 01:02:01 $
- * $Revision: 1.72 $
+ * $Date: 2006/05/22 12:52:52 $
+ * $Revision: 1.72.8.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -29,16 +29,12 @@
 #else
   #include <gm.h>
 #endif
-#ifdef __linux__
-#include <asm/param.h> /* MAXHOSTNAMELEN */
-#else
-  #ifdef FREEBSD	 /* sys/param.h defines its own min/max */
+#if PLATFORM_OS_FREEBSD	 /* sys/param.h defines its own min/max */
   #include <sys/types.h> /* mmap on FreeBSD */
   #undef MIN
   #undef MAX 
-  #endif
-#include <sys/param.h>
 #endif
+#include <sys/param.h> /* MAXHOSTNAMELEN */
 
 #define gasnetc_alloca(nbytes) alloca(nbytes)
 

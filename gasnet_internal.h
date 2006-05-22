@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2006/05/04 12:09:25 $
- * $Revision: 1.103 $
+ *     $Date: 2006/05/22 12:52:46 $
+ * $Revision: 1.103.4.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,11 +40,11 @@
 
 GASNETI_BEGIN_EXTERNC
 
-#ifdef __SUNPRO_C
+#ifdef PLATFORM_COMPILER_SUN_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 
-#ifdef __osf__
+#ifdef PLATFORM_OS_TRU64
   /* replace a stupidly broken implementation of toupper on Tru64 
      (fails to correctly implement required integral promotion of
       character-typed arguments, leading to bogus warnings)
@@ -217,6 +217,7 @@ char *_gasneti_strdup(const char *s GASNETI_CURLOCFARG) {
   }
   return retval;
 }
+GASNETI_MALLOCP(_gasneti_strdup)
 /* Like gasneti_strdup, but copy is limited to at most n characters.
  * Note allocation is upto n+1 bytes, due to the '\0' termination.
  */
@@ -235,9 +236,7 @@ char *_gasneti_strndup(const char *s, size_t n GASNETI_CURLOCFARG) {
   }
   return retval;
 }
-#ifdef __SUNPRO_C
-  #pragma returns_new_memory(_gasneti_strdup,_gasneti_strndup)
-#endif
+GASNETI_MALLOCP(_gasneti_strndup)
 
 /* ------------------------------------------------------------------------------------ */
 
