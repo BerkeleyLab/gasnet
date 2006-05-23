@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/05/17 22:15:31 $ */
-/*  $Revision: 1.94 $ */
+/*      $Date: 2006/05/23 11:17:36 $ */
+/*  $Revision: 1.94.4.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -132,25 +132,8 @@
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
-/* various OS and machine definitions - THESE ARE OBSOLETE AND WILL EVENTUALLY BE REMOVED */
-#undef UNIX
-#undef LINUX
-#undef FREEBSD
-#undef NETBSD
-#undef SOLARIS
-#undef UNICOS
-#undef CRAYT3E
-#undef CRAYX1
-#undef MTA
-#undef AIX
-#undef OSF
-#undef HPUX
-#undef SUPERUX
-#undef IRIX
-#undef CYGWIN
-#undef DARWIN
-#undef ALTIX
-#undef CATAMOUNT
+/* platform is an SGI Altix multiprocessor */
+#undef GASNETI_ARCH_ALTIX
 
 /* have (potentially buggy) MIPS R10000 multiprocessor */
 #undef GASNETI_ARCH_SGI_IP27

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/05/23 08:48:17 $
-# $Revision: 1.357.4.2 $
+#     $Date: 2006/05/23 11:17:36 $
+# $Revision: 1.357.4.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.357.4.2 $)
+AC_REVISION($Revision: 1.357.4.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -677,31 +677,23 @@ fi
 #---------------------------------------------------------------------------------------------------------------
 # Machine defs
 
-AC_DEFINE(UNIX)
 GASNET_THREAD_DEFINES=""
 GASNET_THREAD_LIBS=""
 case "$target_os" in
   solaris*)  
-	AC_DEFINE(SOLARIS)
-	GASNET_MACHINE_DEFINES="-DSOLARIS" 
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         # on some systems static linking fails with -lpthread, 
         # but need it or pthread_create will fail at runtime
         GASNET_THREAD_LIBS="-lpthread" 
         ;;
   linux*) 
-	AC_DEFINE(LINUX)
-	GASNET_MACHINE_DEFINES="-DLINUX"
 	# Check for SGI Altix, using a device heuristic.  SGI has assured us
 	# that /dev/hw is specific (and standard) on their system
 	if test -d "/dev/hw/cpunum"; then
-	  AC_DEFINE(ALTIX)
-	  GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DALTIX"
+	  AC_DEFINE(GASNETI_ARCH_ALTIX)
 	fi
         case "$target" in
           *-catamount-*) 
-	    AC_DEFINE(CATAMOUNT)
-	    GASNET_MACHINE_DEFINES="-DCATAMOUNT"
 	    GASNET_IFDEF(__LIBCATAMOUNT__,[],[
 	      AC_MSG_ERROR([Compiling for a catamount target, but __LIBCATAMOUNT__ is not predefined! Are you using the right compiler? (perhaps try mpicc)])
 	    ])
@@ -714,69 +706,47 @@ case "$target_os" in
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   freebsd*) 
-	AC_DEFINE(FREEBSD)
-	GASNET_MACHINE_DEFINES="-DFREEBSD"
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-pthread" # bug 1205: do not explicitly select threading lib
 	;;
   netbsd*) 
-	AC_DEFINE(NETBSD)
-	GASNET_MACHINE_DEFINES="-DNETBSD"
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-pthread" # bug 1205: do not explicitly select threading lib
 	;;
   cygwin*) 
-	AC_DEFINE(CYGWIN)
-	GASNET_MACHINE_DEFINES="-DCYGWIN"
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS=""
 	;;
   darwin*) 
-	AC_DEFINE(DARWIN)
-	GASNET_MACHINE_DEFINES="-DDARWIN"
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS=""
 	;;
   irix*)
-	AC_DEFINE(IRIX)
-	GASNET_MACHINE_DEFINES="-DIRIX"
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
 	GASNET_THREAD_LIBS="-lpthread"
         ;;
   aix*)
-	AC_DEFINE(AIX)
-        GASNET_MACHINE_DEFINES="-DAIX"
         GASNET_THREAD_DEFINES="-D_REENTRANT -D_THREAD_SAFE"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   osf*)
-	AC_DEFINE(OSF)
-	GASNET_MACHINE_DEFINES="-DOSF"
         # -D_PTHREAD_NOMETER_STATIC fixes failures when initially trylocking a statically-init mutex
         GASNET_THREAD_DEFINES="-D_REENTRANT -D_THREAD_SAFE -D_PTHREAD_NOMETER_STATIC"
         GASNET_THREAD_LIBS="-pthread -lpthreads"
 	;;
   hpux*)
-	AC_DEFINE(HPUX)
-	GASNET_MACHINE_DEFINES="-DHPUX"
         GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   mtx*)
-	AC_DEFINE(MTA)
-	GASNET_MACHINE_DEFINES="-DMTA" 
 	GASNET_THREAD_DEFINES=""
         GASNET_THREAD_LIBS="-lpthread" 
         ;;
   superux*)
-	AC_DEFINE(SUPERUX)
-	GASNET_MACHINE_DEFINES="-DSUPERUX"
         GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   unicos*)
-	AC_DEFINE(UNICOS)
-        GASNET_MACHINE_DEFINES="-DUNICOS"
         GASNET_THREAD_LIBS="-lpthread"
 	GASNET_TRY_CACHE_CHECK(for Cray T3E, cc_is_t3e, [], [
 	    #ifndef _CRAYT3E
@@ -784,8 +754,6 @@ case "$target_os" in
 	    #endif
 	  ], [
             GASNET_THREAD_DEFINES="-D_REENTRANT"
-	    GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYT3E"
-	    AC_DEFINE(CRAYT3E)
 	    use_pthreads=no  # pthreads are horribly broken on the T3E
 	  ])
         GASNET_TRY_CACHE_CHECK(for Cray X1, cc_is_x1, [], [
@@ -794,16 +762,12 @@ case "$target_os" in
             #endif
           ], [
             GASNET_THREAD_DEFINES="-D_REENTRANT -hthreadsafe"
-            GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DCRAYX1"
-            AC_DEFINE(CRAYX1)
           ])
         ;;
   *)
         AC_MSG_WARN(unknown OS - you may need to update the configure script)
         ;;
 esac
-
-GASNET_MACHINE_DEFINES="$GASNET_MACHINE_DEFINES -DUNIX"
 
 AC_SUBST(GASNET_MACHINE_DEFINES)
 AC_SUBST(GASNET_THREAD_DEFINES)

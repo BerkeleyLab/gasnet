@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.cpp,v $
-//     $Date: 2006/05/11 09:43:40 $
-// $Revision: 1.15 $
+//     $Date: 2006/05/23 11:17:45 $
+// $Revision: 1.15.4.1 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -122,7 +122,7 @@ SOCKET connect_socket(char* addr) {
   else { // need to do DNS thing
     struct hostent* he = gethostbyname(addr);
     if (!he) xsocket(INVALID_SOCKET, "DNS failure in gethostbyname()");
-    #ifdef UNICOS
+    #if PLATFORM_OS_UNICOS
       assert(sizeof(u_long) == he->h_length);
       saddr.sin_addr.s_addr = *(u_long *)he->h_addr_list[0]; // s_addr is a bitfield on Unicos
     #else
@@ -164,7 +164,7 @@ void recvAll(SOCKET s, void* buffer, int numbytes) {
 void sendAll(SOCKET s, const void* buffer, int numbytes) {
   // blocks until it can send numbytes on s from buffer
   // (throws xSocket on close)
-  #ifdef UNIX
+  #if !PLATFORM_OS_MSWINDOWS
     LPSIGHANDLER oldsighandler = reghandler(SIGPIPE, (LPSIGHANDLER)SIG_IGN); 
     // ignore broken pipes, because we get that when we write to a socket after other side reset
   #endif
@@ -174,7 +174,7 @@ void sendAll(SOCKET s, const void* buffer, int numbytes) {
     retval = send(s, buf, numbytes, 0);
     if (retval == SOCKET_ERROR) {
       closesocket(s);
-      #ifdef UNIX
+      #if !PLATFORM_OS_MSWINDOWS
         reghandler(SIGPIPE, oldsighandler); // restore handler
       #endif
       xsocket(s, "error in sendAll() - connection closed");
@@ -184,7 +184,7 @@ void sendAll(SOCKET s, const void* buffer, int numbytes) {
     buf += retval;
     numbytes -= retval;
   }
-  #ifdef UNIX
+  #if !PLATFORM_OS_MSWINDOWS
     reghandler(SIGPIPE, oldsighandler); // restore handler
   #endif
 }
@@ -650,7 +650,7 @@ int getSocketErrorCode() {
 #undef select
 extern int myselect(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
             struct timeval *timeout) {
-  #if !defined(UNIX)
+  #if PLATFORM_OS_MSWINDOWS
     return select(n, readfds, writefds, exceptfds, timeout);
   #else
     /* a select that ignores UNIX's stupid fucking interrupt signals */

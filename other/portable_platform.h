@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/05/23 08:48:22 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2006/05/23 11:17:41 $
+ * $Revision: 1.1.2.4 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -608,6 +608,8 @@
 
 #if defined(PLATFORM_ARCH_64) && defined(PLATFORM_ARCH_32)
   #error conflicting bit width information
+#elif !defined(PLATFORM_ARCH_64) && !defined(PLATFORM_ARCH_32)
+  #error missing bit width information
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2006/05/11 14:22:51 $
- * $Revision: 1.126 $
+ *     $Date: 2006/05/23 11:17:36 $
+ * $Revision: 1.126.4.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@
 #include <errno.h>
 
 /* get MAXHOSTNAMELEN */
-#ifdef SOLARIS
+#if PLATFORM_OS_SOLARIS
 #include <netdb.h>
 #else
 #include <sys/param.h>

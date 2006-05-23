@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2006/05/14 07:23:24 $
- * $Revision: 1.19 $
+ *     $Date: 2006/05/23 11:17:52 $
+ * $Revision: 1.19.4.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -265,7 +265,7 @@ gasnete_barrier_notify(int id, int flags)
      */
     if (flags & GASNET_BARRIERFLAG_MISMATCH) gasnete_barrier_broadcastmismatch();
     else if (!(flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
-	#ifdef CRAYX1
+	#if PLATFORM_ARCH_CRAYX1
 	    curval = _amo_acswap(
 		    GASNETE_TRANSLATE_X1(&barrier_value[barrier_phase], 0), 
 		    BARRIER_INITVAL, (long) id);
@@ -281,7 +281,7 @@ gasnete_barrier_notify(int id, int flags)
     }
 	
     /* Atomic increment at node 0 */
-    #ifdef CRAYX1
+    #if PLATFORM_ARCH_CRAYX1
 	_amo_aadd(GASNETE_TRANSLATE_X1(&barrier_notify_ctr[barrier_phase], 0), 
 		  1);
     #else
@@ -341,7 +341,7 @@ gasnete_barrier_wait(int id, int flags)
 	#else
 	    /*GASNETC_VECTORIZE*/
 	    for (i=0; i < gasneti_nodes; i++) 
-		#ifdef CRAYX1
+		#if PLATFORM_ARCH_CRAYX1
 		    *((long *) GASNETE_TRANSLATE_X1(done_ctr, i)) = 1;
 		#else
 		    shmem_long_p((long *)done_ctr, 1, i);
@@ -352,7 +352,7 @@ gasnete_barrier_wait(int id, int flags)
     }
     else {
 	#if BARRIER_READ_NOTIFYCTR
-	    #ifdef CRAYX1
+	    #if PLATFORM_ARCH_CRAYX1
 		done_ctr = GASNETE_TRANSLATE_X1((void *)done_ctr, 0);
 	    #else
 		done_ctr = shmem_ptr((void *)done_ctr, 0);

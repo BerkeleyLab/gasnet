@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/05/23 08:48:17 $
- * $Revision: 1.59.4.3 $
+ *     $Date: 2006/05/23 11:17:36 $
+ * $Revision: 1.59.4.4 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,7 +170,8 @@ GASNETI_BEGIN_EXTERNC
   #define gasneti_ticks_now()      ((gasneti_tick_t)(dclock()*1E9))
 /* ------------------------------------------------------------------------------------ */
 #elif (PLATFORM_OS_LINUX || PLATFORM_OS_CATAMOUNT) && \
-     (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PGI) && \
+     (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
+      PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI) && \
      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64)
   #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
     #include <ia64intrin.h>

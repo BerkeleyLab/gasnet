@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/05/23 08:48:17 $
- * $Revision: 1.73.2.3 $
+ *     $Date: 2006/05/23 11:17:36 $
+ * $Revision: 1.73.2.4 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -102,7 +102,7 @@
 #ifndef GASNET_PAGESIZE
   #ifdef GASNETI_PAGESIZE
     #define GASNET_PAGESIZE GASNETI_PAGESIZE
-  #elif defined(CRAYT3E)
+  #elif PLATFORM_ARCH_CRAYT3E
     /* on Cray: shmemalign allocates mem aligned across nodes, 
         but there seems to be no fixed page size (man pagesize)
         this is probably because they don't support VM

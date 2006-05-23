@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2006/05/23 08:48:26 $
- * $Revision: 1.31.4.2 $
+ *     $Date: 2006/05/23 11:17:45 $
+ * $Revision: 1.31.4.3 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -10,7 +10,7 @@
 
 #include <errno.h>
 #include <stdio.h>
-#if defined(WIN32) && !defined(UNIX)
+#if PLATFORM_OS_MSWINDOWS
   #define sched_yield() Sleep(0)
   #define sleep(x) Sleep(x*1000)
   #include <process.h>
@@ -991,7 +991,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
               setvbuf(stdout, NULL, _IONBF, 0);
               setvbuf(stderr, NULL, _IONBF, 0);
             #endif
-            #if defined(WIN32) && !defined(UNIX)
+            #if PLATFORM_OS_MSWINDOWS
               #if 0
               // not sure how to do this on Win32 yet - maybe use _fdopen() and/or _fileno()
               { FILE* newf;

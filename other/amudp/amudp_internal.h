@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2006/05/23 08:48:26 $
- * $Revision: 1.27.4.2 $
+ *     $Date: 2006/05/23 11:17:45 $
+ * $Revision: 1.27.4.3 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -15,7 +15,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#ifdef UNIX
+#if !PLATFORM_OS_MSWINDOWS
   #include <unistd.h>
   #include <errno.h>
 #endif
@@ -28,7 +28,7 @@
 #endif
 
 /* AMUDP system configuration parameters */
-#if defined(SUPERUX) || defined(HPUX)
+#if PLATFORM_OS_SUPERUX || PLATFORM_OS_HPUX
   /* broken on SuperUX due to a bad FIONREAD implementation, which causes numBytesWaiting to fail
      also seems to possibly be some issue with a redirected stdout always triggering select, even when
      no output is waiting

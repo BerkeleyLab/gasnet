@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_help_extra.h,v $
- *     $Date: 2006/03/19 02:08:20 $
- * $Revision: 1.5 $
+ *     $Date: 2006/05/23 11:17:52 $
+ * $Revision: 1.5.16.1 $
  * Description: GASNet Extended Shmem-specific Header 
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,7 +29,7 @@
  * This is more important on X1 since we really want the nbi loop to
  * generate a vector load/store.
  */
-#if defined(CRAYX1)
+#if PLATFORM_ARCH_CRAYX1
 #define GASNETE_NBISYNC_ALWAYS_QUIET	1
 #else
 #define GASNETE_NBISYNC_ALWAYS_QUIET	0
@@ -73,7 +73,7 @@
 #define GASNETE_SHMPTR_AM(addr,pe) GASNETE_TRANSLATE_PTR(addr,pe)
 
 
-#ifdef CRAYX1
+#if PLATFORM_ARCH_CRAYX1
 #define _GASNETE_CRAYX1_ONLY(x)  x
 #else
 #define _GASNETE_CRAYX1_ONLY(x)
@@ -163,7 +163,7 @@
 	    }							    \
 	} while (0)
 
-#ifdef CRAYX1
+#if PLATFORM_ARCH_CRAYX1
   /*
    * X1 is more picky about alignment.  Size of the dereference must 
    * match it's alignment boundary.

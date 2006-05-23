@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2006/05/11 09:43:50 $
- * $Revision: 1.29 $
+ *     $Date: 2006/05/23 11:17:52 $
+ * $Revision: 1.29.4.1 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -507,7 +507,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 	}
     }
-    #ifdef CRAYX1
+    #if PLATFORM_ARCH_CRAYX1
     { /* Although there is no GASNet segment, we must still recover the
        * mask/shift bits to translate X1 pointers */
        static int dummy = 0; /* an indicator of where our static data resides on each node */
@@ -841,7 +841,7 @@ extern int gasnetc_AMRequestShortM(
 
   gasneti_AMPoll();
 
-#if 0 && defined(CRAYX1)
+#if 0 && PLATFORM_ARCH_CRAYX1
   myidx = gasnetc_AMQueueAcquire(dest, GASNETC_REQUEST_T);
 
   args = (uint32_t *) shmem_ptr(&gasnetc_amq_reqs[myidx].header, dest);
@@ -1368,7 +1368,7 @@ gasnetc_aligndown_pow2(uintptr_t addr)
      * find first bit set and return if found
      */
     for (i = 0; i <= len; i++) {
-	#if SIZEOF_VOID_P == 8
+	#if PLATFORM_ARCH_64
 	  mask = 1ULL << (63-i);
 	#else
 	  mask = 1ULL << (31-i);
@@ -1394,7 +1394,7 @@ gasnetc_alignup_pow2(uintptr_t addr)
      * find first bit set and return if found
      */
     for (i = 0; i <= len; i++) {
-	#if SIZEOF_VOID_P == 8
+	#if PLATFORM_ARCH_64
 	  mask = 1ULL << (63-i);
 	#else
 	  mask = 1ULL << (31-i);
@@ -1434,7 +1434,7 @@ gasnetc_SHMallocSegmentSearch()
 		}
 #endif
 
-	#ifdef ALTIX
+	#if GASNETI_ARCH_ALTIX
 	{
 	    uintptr_t alloc_perthread;
 	    double  frac;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2006/05/23 08:48:24 $
- * $Revision: 1.37.4.2 $
+ *     $Date: 2006/05/23 11:17:43 $
+ * $Revision: 1.37.4.3 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -117,13 +117,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef UNIX
-  #include <unistd.h>
-  #include <errno.h>
-  #include <time.h>
-  #include <sys/time.h>
-#endif
+#include <unistd.h>
+#include <errno.h>
+#include <time.h>
+#include <sys/time.h>
 
 #ifdef __AMMPI_H
 #error AMMPI library files should not include ammpi.h directly

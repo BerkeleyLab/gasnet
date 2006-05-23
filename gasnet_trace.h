@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/05/22 10:53:38 $
- * $Revision: 1.54.4.1 $
+ *     $Date: 2006/05/23 11:17:36 $
+ * $Revision: 1.54.4.2 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -159,7 +159,7 @@ GASNETI_BEGIN_EXTERNC
   #else
     #define GASNETI_SRCLINE_TRACKING() GASNETI_TRACE_ENABLED(N)
   #endif
-  #ifdef CRAYT3E /* workaround a compiler bug */
+  #if PLATFORM_ARCH_CRAYT3E /* workaround a compiler bug */
     #define GASNETI_TRACE_SETSOURCELINE(filename, linenum) \
          gasneti_trace_setsourceline(filename, linenum) 
   #else

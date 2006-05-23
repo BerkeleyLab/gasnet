@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2006/04/18 18:27:55 $
- * $Revision: 1.34 $
+ *     $Date: 2006/05/23 11:17:50 $
+ * $Revision: 1.34.8.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -159,7 +159,7 @@ extern int	*fhc_RemoteVictimFifoBuckets;
  * table (for both remote and local pins).
  */
 
-#if SIZEOF_VOID_P == 4
+#if PLATFORM_ARCH_32
 typedef uint16_t	fh_refc_uint_t;
 #else
 typedef uint32_t	fh_refc_uint_t;

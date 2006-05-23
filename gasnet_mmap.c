@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/05/22 10:53:38 $
- * $Revision: 1.43.2.1 $
+ *     $Date: 2006/05/23 11:17:36 $
+ * $Revision: 1.43.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -84,9 +84,9 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
         (ptr == MAP_FAILED?strerror(errno):"")));
 
   if (ptr == MAP_FAILED && errno != ENOMEM) {
-    #if defined(CYGWIN)
+    #if PLATFORM_OS_CYGWIN
       if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
-    #elif defined(SOLARIS)
+    #elif PLATFORM_OS_SOLARIS
       if (errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
     #endif
     gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
@@ -115,7 +115,7 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
   gasneti_tick_t t1, t2;
   gasneti_assert(segsize > 0);
   t1 = gasneti_ticks_now();
-    #if 0 && defined(OSF) /* doesn't seem to help */
+    #if 0 && PLATFORM_OS_TRU64 /* doesn't seem to help */
       /* invalidate the pages before unmap to avoid write-back penalty */
       if (madvise(segbase, segsize, MADV_DONTNEED))
         gasneti_fatalerror("madvise("GASNETI_LADDRFMT",%lu) failed: %s\n",
@@ -213,7 +213,7 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
     si.size = maxsz;
     mmaped = 1;
   } else { /* use a search to find largest possible */
-    #if defined(OSF)
+    #if PLATFORM_OS_TRU64
       /* linear descending search best on systems with 
          fast mmap-failed and very slow unmap and/or mmap-succeed */
       si = gasneti_mmap_lineardesc_segsrch(maxsz);

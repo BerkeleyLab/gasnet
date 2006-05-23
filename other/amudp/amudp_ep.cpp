@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2006/05/23 05:38:36 $
- * $Revision: 1.22.4.1 $
+ *     $Date: 2006/05/23 11:17:45 $
+ * $Revision: 1.22.4.2 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -189,7 +189,7 @@ extern int AMUDP_SetUDPInterface(uint32_t IPAddress) {
 /* ------------------------------------------------------------------------------------ */
 #if !defined(UETH) && USE_SOCKET_RECVBUFFER_GROW
   #if 0
-  #ifdef LINUX 
+  #if PLATFORM_OS_LINUX
     #include <linux/unistd.h>
     #include <linux/sysctl.h>
   #endif
@@ -210,7 +210,7 @@ extern int AMUDP_growSocketBufferSize(ep_t ep, int targetsize,
 
   #if 0 /* it appears this max means nothing */
   { int maxsize;
-    #ifdef LINUX 
+    #if PLATFORM_OS_LINUX
     { /*  try to determine the max we can use (reading /proc/sys/net/core/rmem_max may be more reliable) */
       int rmem_max[1] = { NET_CORE_RMEM_MAX };
       struct __sysctl_args args={&rmem_max,sizeof(rmem_max),&maxsize,sizeof(int),0,0};

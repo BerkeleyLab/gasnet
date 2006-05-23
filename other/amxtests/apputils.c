@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.c,v $
- *     $Date: 2006/05/11 09:43:42 $
- * $Revision: 1.15 $
+ *     $Date: 2006/05/23 11:17:48 $
+ * $Revision: 1.15.4.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -312,7 +312,7 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
   AM_Safe(AM_SetHandler(ep, WRITE_REP_HANDLER, (amx_handler_fn_t)write_reply_handler));
 #endif
 
-  #ifdef UNIX
+  #if !PLATFORM_OS_MSWINDOWS
     /* some MPI implementations don't cleanup well and leave orphaned nodes
      * if we allow a node to crash without shutting down properly 
      */

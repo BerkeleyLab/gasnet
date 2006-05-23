@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2006/05/23 08:48:24 $
- * $Revision: 1.40.4.2 $
+ *     $Date: 2006/05/23 11:17:43 $
+ * $Revision: 1.40.4.3 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -377,7 +377,7 @@ static int AMMPI_freeSendBufferPool(ammpi_sendbuffer_pool_t* pool) {
            * implementations screw this up
            */
           retval &= MPI_SAFE_NORETURN(MPI_Cancel(&pool->txHandle[i]));
-          #ifdef CRAYT3E
+          #if PLATFORM_ARCH_CRAYT3E
             /* Cray MPI implementation sometimes hangs forever if you cancel-wait */
             retval &= MPI_SAFE_NORETURN(MPI_Request_free(&pool->txHandle[i]));
           #else
