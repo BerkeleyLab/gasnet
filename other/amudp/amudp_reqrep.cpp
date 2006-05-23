@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2006/05/23 11:17:45 $
- * $Revision: 1.38.4.2 $
+ *     $Date: 2006/05/23 11:27:40 $
+ * $Revision: 1.38.4.3 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -230,7 +230,7 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
  * the size of the next message waiting, not the total data
  * available on the socket. We need this to decide whether 
  * or not we have an incoming bulk message next on the queue
- * This works on Linux, but Win2K seems to fuck it up (despite the 
+ * This works on Linux, but Win2K seems to botch it (despite the 
  * fact their own Winsock spec says it returns the next message size)
  */
 #if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN

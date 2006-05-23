@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.cpp,v $
-//     $Date: 2006/05/23 11:17:45 $
-// $Revision: 1.15.4.1 $
+//     $Date: 2006/05/23 11:27:40 $
+// $Revision: 1.15.4.2 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -653,7 +653,7 @@ extern int myselect(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfd
   #if PLATFORM_OS_MSWINDOWS
     return select(n, readfds, writefds, exceptfds, timeout);
   #else
-    /* a select that ignores UNIX's stupid fucking interrupt signals */
+    /* a select that ignores UNIX's ridiculously inconvenient interrupt signals */
     int retval;
     do {
       retval = select(n, readfds, writefds, exceptfds, timeout);
