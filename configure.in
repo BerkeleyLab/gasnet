@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/05/23 03:57:07 $
-# $Revision: 1.357.4.1 $
+#     $Date: 2006/05/23 08:48:17 $
+# $Revision: 1.357.4.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.357.4.1 $)
+AC_REVISION($Revision: 1.357.4.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -969,7 +969,7 @@ if test "$enabled_sgi_ip27" = yes; then
 fi
 
 ## Spinloop hints
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -D_IN_CONFIGURE")
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
 AC_MSG_CHECKING(for x86 pause instruction)
 AC_TRY_COMPILE([
   #include "gasnet_asm.h"

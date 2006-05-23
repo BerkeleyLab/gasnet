@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/05/23 03:57:07 $
- * $Revision: 1.220.2.2 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.220.2.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -255,7 +255,7 @@
       #if !(defined(CONFIG_SMP) || defined(GASNETI_UNI_BUILD))
         #error Building against a uniprocessor kernel.  Configure with --disable-smp-safe (for uniprocessor compute nodes), or build on an SMP host.
       #endif
-      #ifdef PLATFORM_ARCH_ALPHA
+      #if PLATFORM_ARCH_ALPHA
         /* work-around for a puzzling header bug in alpha Linux */
         #define extern static
       #endif
@@ -266,7 +266,7 @@
       #include <asm/bitops.h>
       #include <asm/system.h>
       #include <asm/atomic.h>
-      #ifdef PLATFORM_ARCH_ALPHA
+      #if PLATFORM_ARCH_ALPHA
         #undef extern
       #endif
       #ifdef __cplusplus
@@ -313,7 +313,7 @@
    * ------------------------------------------------------------------------------------ */
   #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 /* x86 and Athlon/Opteron */
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || defined(PGI_WITH_REAL_ASM)
+        PLATFORM_COMPILER_PATHSCALE || PGI_WITH_REAL_ASM
      #define GASNETI_HAVE_ATOMIC32_T 1
      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
      #define _gasneti_atomic32_init(v)      { (v) }
@@ -322,7 +322,7 @@
      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
      #define _gasneti_atomic64_init(v)      { (v) }
 
-     #if PLATFORM_COMPILER_PATHSCALE_CXX && defined(PGI_WITH_REAL_ASM) /* PGI C++ lacks inline assembly */
+     #if PLATFORM_COMPILER_PATHSCALE_CXX && PGI_WITH_REAL_ASM /* PGI C++ lacks inline assembly */
         #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
         #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
         #define GASNETI_USING_SLOW_ATOMICS 1

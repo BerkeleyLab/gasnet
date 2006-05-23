@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2006/05/23 05:38:34 $
- * $Revision: 1.40.4.1 $
+ *     $Date: 2006/05/23 08:48:24 $
+ * $Revision: 1.40.4.2 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -261,13 +261,13 @@ static int AMMPI_FreeEndpointBuffers(ep_t ep) {
           if (*rxh != MPI_REQUEST_NULL) {
             MPI_Status mpistatus;
             retval &= MPI_SAFE_NORETURN(MPI_Cancel(rxh));
-            #ifdef CRAYT3E
+            #if PLATFORM_ARCH_CRAYT3E
               /* Cray MPI implementation sometimes hangs forever if you cancel-wait */
               retval &= MPI_SAFE_NORETURN(MPI_Request_free(rxh));
-            #elif defined(__LIBCATAMOUNT__) && MPI_VERSION == 1
+            #elif PLATFORM_OS_CATAMOUNT && MPI_VERSION == 1
               /* Sandia MPI implementation hangs on cancel-wait */
               retval &= MPI_SAFE_NORETURN(MPI_Request_free(rxh));
-            #elif defined(_AIX)
+            #elif PLATFORM_OS_AIX
               /* AIX 5.2 32-bit MPI implementation is unreliable for cancel-wait
                  (frequent crashes observed for Titanium shutdown on 
                   MPI-over-LAPI 3.5.0.15, for 2 or more nodes) */
@@ -495,7 +495,7 @@ extern int AMMPI_ReapSendCompletions(ammpi_sendbuffer_pool_t* pool) {
     int doneidx = pool->tmpIndexArray[i];
     int activeidx = pool->numActive-1;
     AMMPI_assert(doneidx >= 0 && doneidx < pool->numActive);
-    #ifdef _AIX
+    #if PLATFORM_OS_AIX
       /* Some versions of IBM MPI fail to set MPI_REQUEST_NULL as required by MPI_Testsome,
          and also apparently fail to reclaim the resources associated with the request */
       if (pool->txHandle[doneidx] != MPI_REQUEST_NULL) {

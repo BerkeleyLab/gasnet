@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/05/22 10:53:38 $
- * $Revision: 1.104.8.1 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.104.8.2 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -68,7 +68,7 @@
 
 #if PLATFORM_COMPILER_SUN_CXX || \
    (PLATFORM_COMPILER_HP_CXX && PLATFORM_ARCH_PARISC) || \
-   (PLATFORM_COMPILER_PGI_CXX && defined(PGI_WITH_REAL_ASM))
+   (PLATFORM_COMPILER_PGI_CXX && PGI_WITH_REAL_ASM)
   /* no inline assembly in these C++ compilers, so pay a function call overhead */
   #define GASNETI_USING_SLOW_MEMBARS 1
 /* ------------------------------------------------------------------------------------ */
@@ -153,10 +153,10 @@
       * Unfortunately, all read-modify-write operations also set condition
       * codes.  So, we have an extra messy case for gcc, icc, etc.
       */
-     #if (PLATFORM_COMPILER_PGI && !defined(PGI_WITH_REAL_ASM)) || PLATFORM_COMPILER_SUN_C
+     #if (PLATFORM_COMPILER_PGI && !PGI_WITH_REAL_ASM) || PLATFORM_COMPILER_SUN_C
        GASNETI_ASM("lock; addl $0,0(%esp)");
      #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-          (PLATFORM_COMPILER_PGI && defined(PGI_WITH_REAL_ASM))
+          (PLATFORM_COMPILER_PGI && PGI_WITH_REAL_ASM)
        /* For gcc, icc and other gcc look-alikes */
        __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory", "cc");
      #else
@@ -189,7 +189,7 @@
      * section, this still allows for loads before the lock and stored after the unlock to reorder
      * INTO the critical section.  We need more than that.
      */
-   #ifdef PLATFORM_COMPILER_INTEL
+   #if PLATFORM_COMPILER_INTEL
       /* Intel compiler's inline assembly broken on Itanium (bug 384) - use intrinsics instead */
       #include <ia64intrin.h>
       #define gasneti_compiler_fence() \
@@ -221,7 +221,7 @@
    #endif
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_POWERPC
- #ifdef PLATFORM_COMPILER_XLC
+ #if PLATFORM_COMPILER_XLC
    /* VisualAge C compiler (mpcc_r) has no support for inline symbolic assembly
     * you have to hard-code the opcodes in a pragma that defines an assembly 
     * function - see /usr/include/sys/atomic_op.h on AIX for examples

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spawn.cpp,v $
- *     $Date: 2006/05/23 05:38:36 $
- * $Revision: 1.14.4.1 $
+ *     $Date: 2006/05/23 08:48:26 $
+ * $Revision: 1.14.4.2 $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -54,10 +54,10 @@ extern int AMUDP_SPMDLocalSpawn(int nproc, int argc, char **argv) {
   }
 
   for (i = 0; i < nproc; i++) {
-    #if defined(WIN32) && !defined(__CYGWIN__)
+    #if PLATFORM_OS_MSWINDOWS && !PLATFORM_OS_CYGWIN
       if (_spawnv(_P_NOWAIT, argv[0], argv) == -1)
         AMUDP_FatalErr("failed _spawnv()");
-    #elif defined(CRAYX1)
+    #elif PLATFORM_ARCH_CRAYX1
       { char **nargv = (char **)AMUDP_malloc(sizeof(char *)*(argc+2));
         nargv[0] = argv[0];
         memcpy(nargv+1,argv,argc*sizeof(char *));

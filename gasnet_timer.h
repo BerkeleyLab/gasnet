@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2006/05/22 12:52:46 $
- * $Revision: 1.59.4.2 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.59.4.3 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -163,7 +163,7 @@ GASNETI_BEGIN_EXTERNC
   #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
 #endif
 /* ------------------------------------------------------------------------------------ */
-#elif PLATFORM_OS_CATAMOUNT && PLATFORM_COMPILER_PGI && !defined(PGI_WITH_REAL_ASM) && 0 /* DISABLED */
+#elif PLATFORM_OS_CATAMOUNT && PLATFORM_COMPILER_PGI && !PGI_WITH_REAL_ASM && 0 /* DISABLED */
   #include <catamount/dclock.h>
   typedef uint64_t gasneti_tick_t;
   #define gasneti_ticks_to_ns(st)  (st)
@@ -179,7 +179,7 @@ GASNETI_BEGIN_EXTERNC
     extern unsigned int __cpu_mhz; /* system provided */
   #endif
   typedef uint64_t gasneti_tick_t;
- #if PLATFORM_COMPILER_PGI && !defined(PGI_WITH_REAL_ASM)
+ #if PLATFORM_COMPILER_PGI && !PGI_WITH_REAL_ASM
    #if PLATFORM_ARCH_X86
      #define GASNETI_TICKS_NOW_BODY GASNETI_ASM("rdtsc");
    #elif PLATFORM_ARCH_X86_64
@@ -193,7 +193,7 @@ GASNETI_BEGIN_EXTERNC
      #define GASNETI_TICKS_NOW_BODY \
 		GASNETI_ASM( "mov.m r8=ar.itc;" );
    #endif
- #elif defined(PGI_WITH_REAL_ASM) && defined(__cplusplus)
+ #elif PGI_WITH_REAL_ASM && defined(__cplusplus)
   #define GASNETI_USING_SLOW_TIMERS 1
  #else
   GASNETI_INLINE(gasneti_ticks_now)
@@ -262,7 +262,7 @@ GASNETI_BEGIN_EXTERNC
   #include <sys/types.h>
   #include <dirent.h>
   typedef uint64_t gasneti_tick_t;
- #ifdef PLATFORM_COMPILER_GNU
+ #if PLATFORM_COMPILER_GNU
   GASNETI_INLINE(gasneti_ticks_now)
   uint64_t gasneti_ticks_now(void) {
     uint64_t ret;
@@ -327,7 +327,7 @@ GASNETI_BEGIN_EXTERNC
     static double Tick = 0.0;
     if_pf (firstTime) {
       uint32_t freq;
-     #ifdef PLATFORM_OS_BLRTS
+     #if PLATFORM_OS_BLRTS
       /* don't know how to query this, so hard-code it for now */
       freq = 700000000;
      #else 

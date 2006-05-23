@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/05/22 12:52:46 $
- * $Revision: 1.73.2.2 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.73.2.3 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -152,7 +152,7 @@
   #define GASNETI_MALLOC GASNETI_WARN_UNUSED_RESULT
 #endif
 /* pragma version of GASNETI_MALLOC */
-#ifdef PLATFORM_COMPILER_SUN_C
+#if PLATFORM_COMPILER_SUN_C
   #define GASNETI_MALLOCP(fnname) GASNETI_PRAGMA(returns_new_memory(fnname))
 #elif PLATFORM_COMPILER_HP_C && !PLATFORM_ARCH_IA64
   #define GASNETI_MALLOCP(fnname) GASNETI_PRAGMA(ALLOCS_NEW_MEMORY fnname)
@@ -166,7 +166,7 @@
   #define GASNETI_NORETURN 
 #endif
 /* pragma version of GASNETI_NORETURN */
-#ifdef PLATFORM_COMPILER_SUN_C
+#if PLATFORM_COMPILER_SUN_C
   #define GASNETI_NORETURNP(fnname) GASNETI_PRAGMA(does_not_return(fnname))
 #elif PLATFORM_COMPILER_SGI && _SGI_COMPILER_VERSION >= 720 && _MIPS_SIM != _ABIO32
   #define GASNETI_NORETURNP(fnname) GASNETI_PRAGMA(mips_frequency_hint NEVER fnname)
@@ -215,7 +215,7 @@
   #define GASNETI_CONST GASNETI_PURE
 #endif
 /* pragma version of GASNETI_CONST */
-#ifdef PLATFORM_COMPILER_SUN_C
+#if PLATFORM_COMPILER_SUN_C
   #define GASNETI_CONSTP(fnname) GASNETI_PRAGMA(no_side_effect(fnname))
 #elif PLATFORM_COMPILER_SGI && _SGI_COMPILER_VERSION >= 730
   #define GASNETI_CONSTP(fnname) GASNETI_PRAGMA(pure (fnname))
@@ -369,7 +369,7 @@
 
 /* if with branch prediction */
 #ifndef if_pf
-#ifdef PLATFORM_COMPILER_MTA
+#if PLATFORM_COMPILER_MTA
   /* MTA's pragma mechanism is buggy, so allow it to be selectively disabled */
   #define GASNETT_MTA_PRAGMA_EXPECT_ENABLED(x) _Pragma(x)
   #define GASNETT_MTA_PRAGMA_EXPECT_DISABLED(x) 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2006/05/23 05:38:34 $
- * $Revision: 1.34.4.1 $
+ *     $Date: 2006/05/23 08:48:24 $
+ * $Revision: 1.34.4.2 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -58,7 +58,7 @@ static int intpow(int val, int exp) {
       return (GetTickCount() * 1000);
     }
   }
-/* #elif defined(__I386__) 
+/* #elif PLATFORM_ARCH_X86
  * TODO: it would be nice to take advantage of the Pentium's "rdtsc" instruction,
  * which reads a fast counter incremented on each cycle. Unfortunately, that
  * requires a way to convert cycles to microseconds, and there doesn't appear to 

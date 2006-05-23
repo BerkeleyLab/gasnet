@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/05/22 10:53:38 $
- * $Revision: 1.105.10.1 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.105.10.2 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,12 +15,10 @@
 
 #include "portable_platform.h"
 
-#if PLATFORM_COMPILER_GNU
-  #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
-#elif PLATFORM_COMPILER_INTEL
+#if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE
   #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
 #elif PLATFORM_COMPILER_PGI 
-  #if defined(PGI_WITH_REAL_ASM) || PLATFORM_COMPILER_VERSION_GE(6,1,1)
+  #if PGI_WITH_REAL_ASM || PLATFORM_COMPILER_VERSION_GE(6,1,1)
     #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
   #else /* note this requires compiler flag -Masmkeyword */
     #define GASNETI_ASM(mnemonic) asm(mnemonic)

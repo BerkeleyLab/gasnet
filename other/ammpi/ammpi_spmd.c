@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2006/05/23 05:38:34 $
- * $Revision: 1.33.4.1 $
+ *     $Date: 2006/05/23 08:48:24 $
+ * $Revision: 1.33.4.2 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -13,7 +13,7 @@
   #include <process.h>
 #else
   #include <unistd.h>
-  #if defined(__linux__) && !defined(__USE_GNU)
+  #if PLATFORM_OS_LINUX && !defined(__USE_GNU)
     /* some Linuxes need this to pull in F_SETSIG */
     #define __USE_GNU
     #include <fcntl.h>
@@ -90,7 +90,7 @@ static void flushStreams(const char *context) {
   }
   fsync(STDOUT_FILENO); /* ignore errors for output is a console */
   fsync(STDERR_FILENO); /* ignore errors for output is a console */
-  #ifndef __LIBCATAMOUNT__
+  #if !PLATFORM_OS_CATAMOUNT
     sync();
   #endif
   ammpi_sched_yield();

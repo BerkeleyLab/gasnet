@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/05/23 03:57:09 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2006/05/23 08:48:22 $
+ * $Revision: 1.1.2.3 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -314,15 +314,15 @@
 /* version check macros */
 
 #define PLATFORM_COMPILER_VERSION_GT(maj,min,pat) \
-        PLATFORM_COMPILER_VERSION_INT(maj,min,pat) > PLATFORM_COMPILER_VERSION
+        PLATFORM_COMPILER_VERSION >  PLATFORM_COMPILER_VERSION_INT(maj,min,pat)
 #define PLATFORM_COMPILER_VERSION_GE(maj,min,pat) \
-        PLATFORM_COMPILER_VERSION_INT(maj,min,pat) >= PLATFORM_COMPILER_VERSION
+        PLATFORM_COMPILER_VERSION >= PLATFORM_COMPILER_VERSION_INT(maj,min,pat)
 #define PLATFORM_COMPILER_VERSION_EQ(maj,min,pat) \
-        PLATFORM_COMPILER_VERSION_INT(maj,min,pat) == PLATFORM_COMPILER_VERSION
+        PLATFORM_COMPILER_VERSION == PLATFORM_COMPILER_VERSION_INT(maj,min,pat)
 #define PLATFORM_COMPILER_VERSION_LE(maj,min,pat) \
-        PLATFORM_COMPILER_VERSION_INT(maj,min,pat) <= PLATFORM_COMPILER_VERSION
+        PLATFORM_COMPILER_VERSION <= PLATFORM_COMPILER_VERSION_INT(maj,min,pat)
 #define PLATFORM_COMPILER_VERSION_LT(maj,min,pat) \
-        PLATFORM_COMPILER_VERSION_INT(maj,min,pat) < PLATFORM_COMPILER_VERSION
+        PLATFORM_COMPILER_VERSION <  PLATFORM_COMPILER_VERSION_INT(maj,min,pat)
 
 /* misc feature detection */
 
@@ -407,6 +407,10 @@
   #define PLATFORM_OS_CYGWIN 1
   #define PLATFORM_OS_FAMILYNAME CYGWIN
 
+#elif defined(_WIN32)
+  #define PLATFORM_OS_MSWINDOWS 1
+  #define PLATFORM_OS_FAMILYNAME MSWINDOWS
+
 #elif defined(_AIX)
   #define PLATFORM_OS_AIX 1
   #define PLATFORM_OS_FAMILYNAME AIX
@@ -448,8 +452,8 @@
   #define PLATFORM_OS_FAMILYNAME MTA
 
 #elif defined(_SX)
-  #define PLATFORM_OS_NECSX 1
-  #define PLATFORM_OS_FAMILYNAME NECSX
+  #define PLATFORM_OS_SUPERUX 1
+  #define PLATFORM_OS_FAMILYNAME SUPERUX
 
 #else
   #define PLATFORM_OS_UNKNOWN 1

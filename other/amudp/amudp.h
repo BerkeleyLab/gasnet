@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2006/05/23 05:38:36 $
- * $Revision: 1.32.4.1 $
+ *     $Date: 2006/05/23 08:48:26 $
+ * $Revision: 1.32.4.2 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -38,9 +38,10 @@
 #define AMUDP_MAX_MEDIUM   512   /* max. data transmission unit for medium messages, >= 512 */
 #ifdef UETH
   #define AMUDP_MAX_LONG     (AMUDP_MAX_MEDIUM*256)  /* max. data size for xfer and get operations >= 8192 */
-#elif defined(__sgi) || defined(__sgi__)
+#elif PLATFORM_OS_IRIX
   #define AMUDP_MAX_LONG     61000  /* max. UDP datagram on IRIX is apparently 61412 */
-#elif defined(__osf__) || defined(__FreeBSD__) || defined(DARWIN) || defined(MACOSX) || defined(_AIX) || defined(__NetBSD__)
+#elif PLATFORM_OS_TRU64 || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || \
+      PLATFORM_OS_DARWIN || PLATFORM_OS_AIX
   #define AMUDP_MAX_LONG     9000   /* max UDP datagram on OSF/FREEBSD/DARWIN is apparently 9196 */
 #else
   #define AMUDP_MAX_LONG     65000  /* default max. UDP datagram */

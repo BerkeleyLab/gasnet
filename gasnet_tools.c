@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/05/22 12:52:46 $
- * $Revision: 1.168.2.2 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.168.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,7 +33,7 @@
 #define signal(a,b) bsd_signal(a,b)
 #endif
 
-#ifdef PLATFORM_COMPILER_SUN_C
+#if PLATFORM_COMPILER_SUN_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 
@@ -272,7 +272,7 @@ extern void gasneti_flush_streams() {
     gasneti_fatalerror("failed to flush stderr: %s", strerror(errno));
   fsync(STDOUT_FILENO); /* ignore errors for output is a console */
   fsync(STDERR_FILENO); /* ignore errors for output is a console */
-  #ifndef PLATFORM_OS_CATAMOUNT
+  #if !PLATFORM_OS_CATAMOUNT
     sync();
   #endif
   gasneti_sched_yield();
@@ -519,7 +519,7 @@ extern int gasneti_cpu_count() {
         gasneti_assert_zeroret(pstat_getdynamic(&psd, sizeof(psd), (size_t)1, 0) == -1);
         hwprocs = psd.psd_proc_cnt;
       }
-  #elif PLATFORM_OS_NECSX || PLATFORM_OS_MTA
+  #elif PLATFORM_OS_SUPERUX || PLATFORM_OS_MTA
       hwprocs = 0; /* appears to be no way to query CPU count on these */
   #else
       hwprocs = sysconf(_SC_NPROCESSORS_ONLN);

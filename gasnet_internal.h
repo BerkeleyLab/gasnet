@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2006/05/22 12:52:46 $
- * $Revision: 1.103.4.1 $
+ *     $Date: 2006/05/23 08:48:17 $
+ * $Revision: 1.103.4.2 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,11 +40,11 @@
 
 GASNETI_BEGIN_EXTERNC
 
-#ifdef PLATFORM_COMPILER_SUN_C
+#if PLATFORM_COMPILER_SUN_C
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
 #endif
 
-#ifdef PLATFORM_OS_TRU64
+#if PLATFORM_OS_TRU64
   /* replace a stupidly broken implementation of toupper on Tru64 
      (fails to correctly implement required integral promotion of
       character-typed arguments, leading to bogus warnings)

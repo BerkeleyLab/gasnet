@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socket.h,v $
- *      $Date: 2006/03/19 02:08:10 $
- *  $Revision: 1.12 $
+ *      $Date: 2006/05/23 08:48:26 $
+ *  $Revision: 1.12.16.1 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */
@@ -8,8 +8,11 @@
 #ifndef SOCKET_H
 #define SOCKET_H
 
+#include <portable_inttypes.h>
+#include <portable_platform.h>
+
 /*  ------------- win32 -------------------- */
-#if defined(WIN32) && !defined(__CYGWIN__)
+#if PLATFORM_OS_MSWINDOWS && !PLATFORM_OS_CYGWIN
 #define WINSOCK 1
 #include <winsock2.h>    /*  sockets */
 #include <windows.h>  
@@ -23,10 +26,6 @@
 /*  ------------ unix ------------------ */
 #else
 
-#ifdef __osf__
-#include <inttypes.h>      /* must proceed below or int64_t won't be defined correctly */
-#endif
-
 #include <sys/types.h>     /*  Solaris 2.5.1 fix: u_short, required by sys/socket.h */
 #include <sys/socket.h>    /*  sockets */
 #include <sys/time.h>      /*  timeval */
@@ -38,7 +37,7 @@
 #include <arpa/inet.h>     /*  inet_addr */
 #include <errno.h>         /*  socket error codes */
 
-#if defined(SOLARIS)
+#if PLATFORM_OS_SOLARIS
   /*  all this just to get ioctl(FIONREAD) to work (see man 7I streamio) */
   #if 1
     #include <stropts.h>
@@ -47,18 +46,18 @@
   #else
     #include <sys/filio.h>     /*  FIONREAD */
   #endif
-#elif defined(AIX) && 0 /*  AIX has I_NREAD and the docs claim it has the right semantics */
+#elif PLATFORM_OS_AIX && 0 /*  AIX has I_NREAD and the docs claim it has the right semantics */
                         /*  but it appears to be broken for sockets */
   #include <stropts.h>
   #define _FIONREAD I_NREAD
-#elif defined(SUPERUX) && 0 /* similarly broken on SuperUX, despite the docs - what a disaster */
+#elif PLATFORM_OS_SUPERUX && 0 /* similarly broken on SuperUX, despite the docs - what a disaster */
   #include <stropts.h>
   #define _FIONREAD I_NREAD
 #else
   #define _FIONREAD FIONREAD
 #endif
 
-#if defined(SUPERUX)
+#if PLATFORM_OS_SUPERUX
   #include <sys/select.h>
 #endif
 
@@ -98,14 +97,14 @@
 
 /*  closesocket */
 #define closesocket close
-#if defined(__CYGWIN__)
+#if PLATFORM_OS_CYGWIN
 #  include <sys/unistd.h>     /*  close */
 #else   /*  __UNIX__ */
 #  include <unistd.h>         /*  close */
 #endif
 
 /* ioctlsocket */
-#ifdef MTA
+#if PLATFORM_OS_MTA
 #define ioctlsocket(a,b,c) ioctl((a),(b),(caddr_t)(c))
 /* these are missing on MTA for some reason */
 #ifdef __cplusplus
@@ -135,10 +134,11 @@ typedef fd_set FD_SET;
 #endif
 
 /*  resolve disagreements about types of arguments to misc. functions */
-#if defined(LINUX) || defined(FREEBSD) || defined(NETBSD) || defined(SOLARIS) || (defined(AIX) && defined(_AIX51))
+#if PLATFORM_OS_LINUX || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || \
+    PLATFORM_OS_SOLARIS || (PLATFORM_OS_AIX && defined(_AIX51))
 #  define GETSOCKNAME_LENGTH_T socklen_t
 #  define GETSOCKOPT_LENGTH_T socklen_t
-#elif defined(AIX)
+#elif PLATFORM_OS_AIX
 #  define GETSOCKNAME_LENGTH_T size_t
 #  define GETSOCKOPT_LENGTH_T size_t
 #else
@@ -146,23 +146,23 @@ typedef fd_set FD_SET;
 #  define GETSOCKOPT_LENGTH_T int
 #endif
 
-#if defined(WIN32) || defined(CYGWIN) || defined(AIX) || \
-    defined(SOLARIS) || defined(LINUX) || defined(OSF) || defined(SUPERUX) || \
-   defined(__crayx1) /* X1 docs claim it's a size_t, they lie */
+#if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN || PLATFORM_OS_AIX || \
+    PLATFORM_OS_SOLARIS || PLATFORM_OS_LINUX || PLATFORM_OS_TRU64 || PLATFORM_OS_SUPERUX || \
+    PLATFORM_ARCH_CRAYX1 /* X1 docs claim it's a size_t, they lie */
   #define IOCTL_FIONREAD_ARG_T unsigned int
-#elif defined(IRIX)
+#elif PLATFORM_OS_IRIX
   #define IOCTL_FIONREAD_ARG_T size_t
-#elif defined(MTA)
+#elif PLATFORM_OS_MTA
   #define IOCTL_FIONREAD_ARG_T size_t
 #else
   #define IOCTL_FIONREAD_ARG_T unsigned long
 #endif
 
 /* addr-length argument type fiasco.. */
-#if defined(LINUX) || defined(FREEBSD) || defined(AIX) || \
-    defined(SOLARIS) || defined(NETBSD)
+#if PLATFORM_OS_LINUX || PLATFORM_OS_FREEBSD || PLATFORM_OS_AIX || \
+    PLATFORM_OS_SOLARIS || PLATFORM_OS_NETBSD
 #  define LENGTH_PARAM socklen_t
-#elif defined(OSF1)
+#elif PLATFORM_OS_TRU64
 #  define LENGTH_PARAM unsigned long
 #else
 #  define LENGTH_PARAM int
