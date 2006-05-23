@@ -1,15 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2006/05/11 12:01:25 $
- * $Revision: 1.40 $
+ *     $Date: 2006/05/23 05:38:34 $
+ * $Revision: 1.40.4.1 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <portable_inttypes.h>
+#include <ammpi_internal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <ammpi_internal.h>
 
 /* definitions for internal declarations */
 int ammpi_Initialized = 0;
@@ -1227,7 +1226,8 @@ extern int AMMPI_AggregateStatistics(ammpi_stats_t *runningsum, ammpi_stats_t *n
   return AM_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern const char *AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis) {
+extern const char *AMMPI_DumpStatistics(void *_fp, ammpi_stats_t *stats, int globalAnalysis) {
+  FILE *fp = (FILE *)_fp;
   static char msg[4096];
   int64_t packetssent; 
   int64_t requestsSent = 0; 

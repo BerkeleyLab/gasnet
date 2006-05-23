@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2006/05/11 09:43:38 $
- * $Revision: 1.37 $
+ *     $Date: 2006/05/23 05:38:34 $
+ * $Revision: 1.37.4.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -8,11 +8,10 @@
 #ifndef __AMMPI_H
 #define __AMMPI_H
 
-#include "portable_inttypes.h"
+#include <portable_inttypes.h>
 
 #include <stdarg.h>
-
-#include <stdio.h> /* FILE* */
+#include <stddef.h>
 
 /* miscellaneous macro helpers */
 #define _STRINGIFY_HELPER(x) #x
@@ -192,8 +191,8 @@ extern int AMMPI_SetHandlerCallbacks(ep_t ep, AMMPI_preHandlerCallback_t preHand
 extern int AMMPI_GetEndpointStatistics(ep_t ep, ammpi_stats_t *stats); /* get ep counters */
 extern int AMMPI_ResetEndpointStatistics(ep_t ep); /* reset ep counters */
 extern int AMMPI_AggregateStatistics(ammpi_stats_t *runningsum, ammpi_stats_t *newvalues); 
-  /* aggregate statistics - augment running sum with the given values */
-extern const char *AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis); 
+  /* aggregate statistics - augment running sum with the given values (fp is a FILE *) */
+extern const char *AMMPI_DumpStatistics(void *fp, ammpi_stats_t *stats, int globalAnalysis); 
   /* output stats to fp (if non-null) in human-readable form.
    * return a pointer to the same output in an internal static buffer (rewritten on each call)
    * pass globalAnalysis non-zero if stats is a global agreggation across all nodes

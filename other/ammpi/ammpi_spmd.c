@@ -1,11 +1,13 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2006/05/11 09:43:38 $
- * $Revision: 1.33 $
+ *     $Date: 2006/05/23 05:38:34 $
+ * $Revision: 1.33.4.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <portable_inttypes.h>
+#include <ammpi_internal.h>
+#include <ammpi_spmd.h>
+
 #include <stdio.h>
 #ifdef WIN32
   #include <process.h>
@@ -21,8 +23,6 @@
   #endif
 #endif
 
-#include <ammpi_internal.h>
-#include <ammpi_spmd.h>
 
 #define FD_STDIN 0
 #define FD_STDOUT 1

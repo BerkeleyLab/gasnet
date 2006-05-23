@@ -1,10 +1,10 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2006/05/11 12:01:25 $
- * $Revision: 1.34 $
+ *     $Date: 2006/05/23 05:38:34 $
+ * $Revision: 1.34.4.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
-#include <portable_inttypes.h>
+#include <ammpi_internal.h>
 #include <stdarg.h>
 #include <math.h>
 #include <time.h>
@@ -14,7 +14,6 @@
   #include <fcntl.h>
 #endif
 
-#include <ammpi_internal.h>
 
 /* forward decls */
 static int AMMPI_RequestGeneric(ammpi_category_t category, 

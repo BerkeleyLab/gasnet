@@ -1,12 +1,15 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2006/05/13 00:04:29 $
- * $Revision: 1.27 $
+ *     $Date: 2006/05/23 05:38:36 $
+ * $Revision: 1.27.4.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
 #ifndef _AMUDP_INTERNAL_H
 #define _AMUDP_INTERNAL_H
+
+#include <portable_inttypes.h>
+#include <portable_platform.h>
 
 #include <stdio.h>
 #include <stdarg.h>

@@ -1,11 +1,13 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2006/05/17 12:11:00 $
- * $Revision: 1.31 $
+ *     $Date: 2006/05/23 05:38:36 $
+ * $Revision: 1.31.4.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <portable_inttypes.h>
+#include <amudp_internal.h>
+#include <amudp_spmd.h>
+
 #include <errno.h>
 #include <stdio.h>
 #if defined(WIN32) && !defined(UNIX)
@@ -32,9 +34,6 @@
 
 extern char **environ; 
 
-#include <amudp.h>
-#include <amudp_spmd.h>
-#include <amudp_internal.h>
 #include "sockutil.h"
 #include "socklist.h"
 #include "sig.h"

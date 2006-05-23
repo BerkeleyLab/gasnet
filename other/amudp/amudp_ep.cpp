@@ -1,19 +1,17 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2006/05/17 12:11:00 $
- * $Revision: 1.22 $
+ *     $Date: 2006/05/23 05:38:36 $
+ * $Revision: 1.22.4.1 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <portable_inttypes.h>
+#include <amudp_internal.h>
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <signal.h>
-
-#include <amudp.h>
-#include <amudp_internal.h>
 
 /* definitions for internal declarations */
 int amudp_Initialized = 0;
@@ -948,7 +946,8 @@ extern int AMUDP_AggregateStatistics(amudp_stats_t *runningsum, amudp_stats_t *n
   return AM_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern const char *AMUDP_DumpStatistics(FILE *fp, amudp_stats_t *stats, int globalAnalysis) {
+extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int globalAnalysis) {
+  FILE *fp = (FILE *)_fp;
   static char msg[4096];
   int64_t packetssent; 
   int64_t requestsSent = 0; 

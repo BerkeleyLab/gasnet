@@ -1,11 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2006/05/17 12:11:00 $
- * $Revision: 1.38 $
+ *     $Date: 2006/05/23 05:38:36 $
+ * $Revision: 1.38.4.1 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <portable_inttypes.h>
+#include <amudp_internal.h>
+
 #include <errno.h>
 #include <stdarg.h>
 #include <math.h>
@@ -15,10 +16,6 @@
   #include <unistd.h>
   #include <fcntl.h>
 #endif
-
-#include <amudp.h>
-#include <amudp_internal.h>
-#include "socket.h"
 
 /* forward decls */
 static int AMUDP_RequestGeneric(amudp_category_t category, 

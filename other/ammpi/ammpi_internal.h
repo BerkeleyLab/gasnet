@@ -1,12 +1,15 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2006/05/11 12:01:25 $
- * $Revision: 1.37 $
+ *     $Date: 2006/05/23 05:38:34 $
+ * $Revision: 1.37.4.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
 #ifndef _AMMPI_INTERNAL_H
 #define _AMMPI_INTERNAL_H
+
+#include <portable_inttypes.h>
+#include <portable_platform.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* AMMPI system configuration parameters */

@@ -1,11 +1,13 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spawn.cpp,v $
- *     $Date: 2006/05/11 09:43:40 $
- * $Revision: 1.14 $
+ *     $Date: 2006/05/23 05:38:36 $
+ * $Revision: 1.14.4.1 $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
 
-#include <portable_inttypes.h>
+#include <amudp_internal.h>
+#include <amudp_spmd.h>
+
 #include <errno.h>
 #if defined(WIN32) && !defined(UNIX)
   #include <winsock2.h>
@@ -20,10 +22,6 @@
   #include <sys/prctl.h>
   extern char **environ; 
 #endif
-
-#include <amudp_spmd.h>
-#include <amudp_internal.h>
-
 
 amudp_spawnfn_desc_t const AMUDP_Spawnfn_Desc[] = {
   { 'S',  "Spawn jobs using ssh remote shells", 

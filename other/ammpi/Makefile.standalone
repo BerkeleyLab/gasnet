@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.standalone,v $
-#     $Date: 2005/08/22 09:30:26 $
-# $Revision: 1.21 $
+#     $Date: 2006/05/23 05:38:34 $
+# $Revision: 1.21.28.1 $
 # Description: Makefile for AMMPI
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -86,7 +86,9 @@ amxdist:
          echo "+++ Building distribution for AMMPI version $${VERSION} +++" && \
          rm -Rf ammpi$${VERSION}.tar.gz ammpi$${VERSION} && \
          mkdir ammpi$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h ammpi$${VERSION} && \
+         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.[ch]* $(testdir)/*.[ch]* \
+	    $(altincdir)/portable_inttypes.h $(altincdir)/portable_platform.h \
+	    ammpi$${VERSION} && \
          rm -f ammpi$${VERSION}/Makefile.in ammpi$${VERSION}/Makefile.titanium && \
          mv ammpi$${VERSION}/Makefile.standalone ammpi$${VERSION}/Makefile && \
          tar -cvhf ammpi$${VERSION}.tar ammpi$${VERSION} && gzip -9 ammpi$${VERSION}.tar && \
