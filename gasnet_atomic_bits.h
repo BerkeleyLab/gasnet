@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/05/23 12:14:29 $
- * $Revision: 1.220.2.4 $
+ *     $Date: 2006/05/23 12:18:45 $
+ * $Revision: 1.220.2.5 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1624,7 +1624,7 @@
             "7ce74378"  /*    or      r7,r7,r8     */ \
             "39000000"  /*    li      r8,0         */ \
             "7cc018a8"  /* 0: ldarx   r6,0,r3      */ \
-            "7cc62a79"  /*    xor.    r6,r6,r5     */ \
+            "7c262800"  /*    cmpd    0,r6,r5      */ \
             "40820010"  /*    bne-    1f           */ \
             "7ce019ad"  /*    stdcx.  r7,0,r3      */ \
             "40a2fff0"  /*    bne-    0b           */ \
