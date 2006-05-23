@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/05/22 11:18:33 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2006/05/23 03:57:09 $
+ * $Revision: 1.1.2.2 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -245,6 +245,17 @@
   #else
     #define PLATFORM_COMPILER_NECSX_C  1
   #endif
+
+#elif defined(_MSC_VER)
+  #define PLATFORM_COMPILER_MICROSOFT  1
+  #define PLATFORM_COMPILER_FAMILYNAME MICROSOFT
+  #define PLATFORM_COMPILER_FAMILYID 14
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_MICROSOFT_CXX  1
+  #else
+    #define PLATFORM_COMPILER_MICROSOFT_C  1
+  #endif
+  #define PLATFORM_COMPILER_VERSION _MSC_VER
 
 #else /* unknown compiler */
   #define PLATFORM_COMPILER_UNKNOWN  1

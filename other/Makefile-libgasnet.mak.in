@@ -116,7 +116,8 @@ do-libgasnet-parsync: $(libgasnet_dependencies) $(CONDUIT_PARSYNC_HOOK)
           $(set_dirs) do-libgasnet
 
 do-libgasnet_tools:
-	@$(MAKE)                                             \
+	@keeptmps="$(KEEPTMPS)" ;                            \
+	 $(MAKE)                                             \
 	  LIBCFLAGS="$(TOOLLIBCFLAGS)"                       \
           LIBGASNET_NAME=libgasnet_tools		     \
 	  libgasnet_sources="$(libgasnet_tools_sources)"     \

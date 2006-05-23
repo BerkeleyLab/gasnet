@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/04/07 17:29:16 $
-dnl $Revision: 1.99 $
+dnl     $Date: 2006/05/23 03:57:07 $
+dnl $Revision: 1.99.8.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1622,6 +1622,7 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
   dnl compilers lacking specific identifying marks - identify by platform
   if test "$$3" = "unknown"; then
     GASNET_IFDEF(_SX, $3=NEC)
+    GASNET_IFDEF(__sgi, $3=MIPS) # MIPSPro 7.3.0 and earlier
   fi
 ])
 if test "$$3" != "GNU" ; then

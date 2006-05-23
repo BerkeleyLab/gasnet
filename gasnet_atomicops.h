@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/05/19 05:46:58 $
- * $Revision: 1.194 $
+ *     $Date: 2006/05/23 03:57:07 $
+ * $Revision: 1.194.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -671,8 +671,8 @@
 #endif
 
 /* Part 2.  Convienience macros for weakatomics
- *	_gasneti_weakatomic_fence_{before,after}_{set,read,rmw}(flags)
- *	_gasneti_weakatomic_fence_after_bool(flags, value)
+ *	_gasneti_weakatomic_fence_{before,after}_{set,read,rmw}(p, flags)
+ *	_gasneti_weakatomic_fence_after_bool(p, flags, value)
  *
  * These are defined for readability, and are defined unconditionally,
  * because presently there are no fencing side-effects for the weak
@@ -718,8 +718,8 @@
 
 
 /* Part 3.  Removal of fences which are redundant before/after atomic ops.
- *	_gasneti_atomic_fence_{before,after}_{set,read,rmb}(flags)
- *	_gasneti_atomic_fence_after_bool(flags, value)
+ *	_gasneti_atomic_fence_{before,after}_{set,read,rmb}(p, flags)
+ *	_gasneti_atomic_fence_after_bool(p, flags, value)
  *
  * This level of macros serves to remove at, preprocess-time, any tests
  * that correspond to memory fences that are known to be side-effects
@@ -1161,9 +1161,9 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   GASNETI_INLINE(gasneti_atomic64_read)
   uint64_t gasneti_atomic64_read(gasneti_atomic64_t *p, const int flags) {
     if_pt (!((uintptr_t)p & 0x7)) {
-      _gasneti_atomic_fence_before_read(flags)
+      _gasneti_atomic_fence_before_read(p, flags)
       { const uint64_t retval = _gasneti_atomic_read(p);
-        _gasneti_atomic_fence_after_read(flags)
+        _gasneti_atomic_fence_after_read(p, flags)
         return retval;
       }
     } else {
@@ -1174,9 +1174,9 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   int gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval,
 					uint64_t newval, const int flags) {
     if_pt (!((uintptr_t)p & 0x7)) {
-      _gasneti_atomic_fence_before_rmw(flags)
+      _gasneti_atomic_fence_before_rmw(p, flags)
       { const int retval = _gasneti_atomic64_compare_and_swap(p,oldval,newval);
-        _gasneti_atomic_fence_after_bool(flags, retval)
+        _gasneti_atomic_fence_after_bool(p, flags, retval)
         return retval;
       }
     } else {

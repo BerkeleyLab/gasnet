@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/05/18 02:38:32 $
-# $Revision: 1.357 $
+#     $Date: 2006/05/23 03:57:07 $
+# $Revision: 1.357.4.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.357 $)
+AC_REVISION($Revision: 1.357.4.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -503,7 +503,7 @@ case "$gasnet_cv_cc_family" in
   GNU) KEEPTMP_CFLAGS="-save-temps" ;;
   Pathscale) KEEPTMP_CFLAGS="-keep" ;;
   XLC) KEEPTMP_CFLAGS="-qlist" ;; # XXX: generates .lst w/ asm.  Can't find a way to preserve .i
-  PGI) KEEPTMP_CFLAGS="-Mkeep-asm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
+  PGI) KEEPTMP_CFLAGS="-Mkeepasm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
   Sun) KEEPTMP_CFLAGS="-keeptmp" ;;
   *) KEEPTMP_CFLAGS="" ;;
 esac
