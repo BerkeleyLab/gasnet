@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.76 $
+$Revision: 1.76.4.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -671,6 +671,14 @@ All GASNet conduit code is required to meet the following coding standards:
 * Use gasneti_fatalerror() to signal fatal errors - the arguments work
   just like printf. NEVER use "assert(0)" (it will be compiled away), 
   and gasneti_fatalerror() with a useful message is always preferable to abort().
+
+* Conditional compilation for platform-specific features should be done using
+  the standardized platform macros provided by other/portable_platform.h, not ad-hoc
+  vendor or compiler-provided preprocessor macros.
+
+* Conduit code should never make assumptions about integer data type sizes. In cases that
+  call for a specific size integral type, the (u)int(sz)_t types provided by
+  other/portable_inttypes.h should always be used (eg "uint64_t" = unsigned 64-bit int).
 
 * Learn how to use the tracing macros and use them to trace interesting
   events in your conduit. They're invaluable for debugging mysterious behavior.
