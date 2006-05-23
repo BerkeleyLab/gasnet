@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/05/23 08:48:17 $
- * $Revision: 1.220.2.3 $
+ *     $Date: 2006/05/23 12:14:29 $
+ * $Revision: 1.220.2.4 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -322,7 +322,7 @@
      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
      #define _gasneti_atomic64_init(v)      { (v) }
 
-     #if PLATFORM_COMPILER_PATHSCALE_CXX && PGI_WITH_REAL_ASM /* PGI C++ lacks inline assembly */
+     #if PLATFORM_COMPILER_PGI_CXX && PGI_WITH_REAL_ASM /* PGI C++ lacks inline assembly */
         #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
         #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
         #define GASNETI_USING_SLOW_ATOMICS 1
