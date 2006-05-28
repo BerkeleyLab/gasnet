@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2006/05/11 09:43:38 $
- * $Revision: 1.37 $
+ *     $Date: 2006/05/28 10:09:56 $
+ * $Revision: 1.37.6.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -18,7 +18,7 @@
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
 
-#define AMMPI_LIBRARY_VERSION      1.2
+#define AMMPI_LIBRARY_VERSION      2.0
 #define AMMPI_LIBRARY_VERSION_STR  _STRINGIFY(AMMPI_LIBRARY_VERSION)
 
 /* naming policy:
@@ -157,6 +157,13 @@ typedef int op_t;
 #else
   #define AMMPI_BEGIN_EXTERNC 
   #define AMMPI_END_EXTERNC 
+#endif
+/* legacy defs for amxtest compatibility, special-case hack for 2.0 release */
+#ifndef BEGIN_EXTERNC
+#define BEGIN_EXTERNC AMMPI_BEGIN_EXTERNC 
+#endif
+#ifndef END_EXTERNC
+#define END_EXTERNC   AMMPI_END_EXTERNC
 #endif
 
 AMMPI_BEGIN_EXTERNC
