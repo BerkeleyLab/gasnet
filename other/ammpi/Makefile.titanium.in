@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.titanium.in,v $
-#     $Date: 2005/08/22 09:30:26 $
-# $Revision: 1.11 $
+#     $Date: 2006/05/28 10:42:05 $
+# $Revision: 1.11.30.1 $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -22,6 +22,7 @@ MPIRUN_CMD = @MPIRUN_CMD@
 # system utilities
 ranlib = @RANLIB@
 ar = @AR@
+PERL = @PERL@
 
 # stuff normally set by the pre-baked makefiles
 platform_defines = @TIC_MACHINE_DEFINES@ @INTTYPES_DEFINES@ -DUNIX
