@@ -1,0 +1,18 @@
+#   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.solaris,v $
+#     $Date: 2006/05/31 08:17:42 $
+# $Revision: 1.1 $
+# Description: Solaris Makefile fragment
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# additional defines required to build on this platform
+platform_defines = 
+
+# additional linker flags required to build on this platform
+platform_ldflags = 
+
+# additional libraries and/or library directories
+#   socket: most socket funcs
+#   nsl: gethostbyname, inet_addr
+#   posix4: sched_yield
+platform_libraries = -lsocket -lnsl -lposix4
+
