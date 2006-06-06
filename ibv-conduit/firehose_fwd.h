@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/firehose_fwd.h,v $
- *     $Date: 2005/12/07 00:20:44 $
- * $Revision: 1.8 $
+ *     $Date: 2006/06/06 22:35:55 $
+ * $Revision: 1.8.2.1 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -24,6 +24,11 @@
   #endif
 #endif
 
+#ifndef GASNETC_VAPI_MAX_HCAS
+  /* Undefined means no multi-rail support */
+  #define GASNETC_VAPI_MAX_HCAS 1
+#endif
+
 /* vapi-conduit uses firehose-region */
 #define FIREHOSE_REGION
 
@@ -34,12 +39,12 @@
 #define FIREHOSE_CLIENT_T
 typedef struct _firehose_client_t {
     #if FIREHOSE_VAPI_USE_FMR
-      EVAPI_fmr_hndl_t handle;	/* used to release the region */
+      EVAPI_fmr_hndl_t handle[GASNETC_VAPI_MAX_HCAS];	/* used to release the region */
     #else
-      VAPI_mr_hndl_t   handle;	/* used to release the region */
+      VAPI_mr_hndl_t   handle[GASNETC_VAPI_MAX_HCAS];	/* used to release the region */
     #endif
-    VAPI_lkey_t      lkey;	/* used for local access by HCA */
-    VAPI_rkey_t      rkey;	/* used for remote access by HCA */
+    VAPI_lkey_t      lkey[GASNETC_VAPI_MAX_HCAS];	/* used for local access by HCA */
+    VAPI_rkey_t      rkey[GASNETC_VAPI_MAX_HCAS];	/* used for remote access by HCA */
 } firehose_client_t;
 
 #ifndef GASNETC_PUTINMOVE_LIMIT_MAX
