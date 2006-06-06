@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2005/10/25 16:52:56 $
- * $Revision: 1.28 $
+ *     $Date: 2006/06/06 22:35:05 $
+ * $Revision: 1.28.4.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,20 +49,20 @@ static gasnet_hsl_t ambarrier_lock = GASNET_HSL_INITIALIZER;
 static enum { OUTSIDE_AMBARRIER, INSIDE_AMBARRIER } ambarrier_splitstate = OUTSIDE_AMBARRIER;
 static int volatile ambarrier_value; /*  local ambarrier value */
 static int volatile ambarrier_flags; /*  local ambarrier flags */
-static int volatile ambarrier_step;  /*  local ambarrier step */
+static int volatile ambarrier_step = 0;  /*  local ambarrier step */
 static int volatile ambarrier_size = -1;  /*  ceil(lg(nodes)), or -1 if uninitialized */
 static int volatile ambarrier_phase = 0;  /*  2-phase operation to improve pipelining */
-static int volatile ambarrier_step_done[2][GASNETE_AMBARRIER_MAXSTEP] = { {0} }; /*  non-zero when a step is complete */
+static int volatile ambarrier_step_done[2][GASNETE_AMBARRIER_MAXSTEP] = { { 0 } }; /*  non-zero when a step is complete */
 static int volatile ambarrier_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
 static int volatile ambarrier_recv_value[2]; /*  consensus ambarrier value */
 static int volatile ambarrier_recv_value_present[2] = { 0, 0 }; /*  consensus ambarrier value is present */
 #if GASNETI_STATS_OR_TRACE
-  static gasneti_stattime_t ambarrier_notifytime; /* for statistical purposes */ 
+  static gasneti_tick_t ambarrier_notifytime; /* for statistical purposes */ 
 #endif
 
-void gasnete_ambarrier_init(void)
-{
-  int i, j;
+void gasnete_ambarrier_init(void) {
+  int i;
+  int64_t j;
 
   gasneti_assert(ambarrier_size < 0);
 
@@ -84,17 +84,17 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
      * The local value is compared in the kick function.
      */
     if (!(flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
-        !ambarrier_recv_value_present[phase]) {
+        !ambarrier_recv_value_present[phase]) {  /* first named value we've seen */
       ambarrier_recv_value[phase] = (int)value;
       gasneti_sync_writes();
       ambarrier_recv_value_present[phase] = 1;
-    } else if ((flags & GASNET_BARRIERFLAG_MISMATCH) ||
-               (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+    } else if ((flags & GASNET_BARRIERFLAG_MISMATCH) || /* explicit mismatch */
+               (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && /* 2nd+ named value and mismatch */
                  ambarrier_recv_value[phase] != (int)value)) {
       ambarrier_mismatch[phase] = 1;
     }
     
-    /* gasneti_assert(ambarrier_step_done[phase][step] == 0); */
+    gasneti_assert(ambarrier_step_done[phase][step] == 0);
     
     gasneti_sync_writes();
     ambarrier_step_done[phase][step] = 1;
@@ -106,60 +106,48 @@ static void gasnete_ambarrier_notify_reqh(gasnet_token_t token,
  * Equivalent to ``(gasneti_sync_reads(), ambarrier_recv_value[phase])'',
  * except w/o assuming gasneti_sync_reads() to be valid in expression context.
  */
-GASNET_INLINE_MODIFIER(ambarrier_recv_value_synced)
+GASNETI_INLINE(ambarrier_recv_value_synced)
 int ambarrier_recv_value_synced(int phase) {
   gasneti_sync_reads();
   return ambarrier_recv_value[phase];
 }
 
-static void gasnete_ambarrier_kick() {
+void gasnete_ambarrier_kick() {
   int phase = ambarrier_phase;
   int step = ambarrier_step;
-  GASNETI_SAFE(gasneti_AMPoll());
+  int numsteps = 0;
+  gasnet_handlerarg_t flags, value;
 
-  if_pt (step != ambarrier_size) {
-    if (ambarrier_step_done[phase][step]) {
+  if (step == ambarrier_size || !ambarrier_step_done[phase][step]) 
+    return; /* nothing to do */
+
+  gasneti_assert(gasneti_nodes > 1);
+
+  gasnet_hsl_lock(&ambarrier_lock);
+    phase = ambarrier_phase;
+    step = ambarrier_step;
+    /* count steps we can take while holding the lock - must release before send,
+       so coalesce as many as possible in one acquisition */
+    while (step+numsteps < ambarrier_size && ambarrier_step_done[phase][step+numsteps]) {
+      numsteps++;
+    }
+
+    if (numsteps) { /* completed one or more steps */
       gasneti_sync_reads(); /* between unlocked reads of _step_done and _mismatch */
       if_pf (ambarrier_mismatch[phase] ||
 	     ((ambarrier_flags == 0) && 
 	      ambarrier_recv_value_present[phase] &&
 	      (ambarrier_recv_value_synced(phase) != ambarrier_value))) {
         ambarrier_flags = GASNET_BARRIERFLAG_MISMATCH;
+        ambarrier_mismatch[phase] = 1;
       }
-
-      ++step;
-      if (step == ambarrier_size) {
-	/* We have the last recv.  There is nothing more to send. */
-	gasneti_sync_writes(); /* flush state before the write below to ambarrier_step */
-      } else {
-        gasnet_node_t peer;
-	gasnet_handlerarg_t value = ambarrier_value;
-	gasnet_handlerarg_t flags = ambarrier_flags;
-
-	/* No need for a full mod because worst case is < 2*gasneti_nodes.
-	 * However, we must take care for overflow if we try to do the
-	 * arithmetic in gasnet_node_t.  An example is gasnet_node_t
-	 * of uint8_t and gasneti_nodes=250 nodes.  The largest value of
-	 * gasnet_mynode is 249 and the largest value of 2^step is 128.
-	 * We can't compute (249 + 128) mod 250 in 8-bit arithmetic.
-	 * If we are using GASNET_MAXNODES <= INT_MAX then we can
-	 * fit the arithmetic into unsigned integers (32-bit example is
-	 * 0x7ffffffe + 0x40000000 = 0xbffffffe).  Otherwise we are
-	 * confident that 64-bit integers are ALWAYS large enough.
-	 */
-	{
-	  #if (GASNET_MAXNODES <= INT_MAX)
-	    unsigned int tmp;
-	  #else
-	    uint64_t tmp;
-	  #endif
-	  tmp = (1 << step) + gasneti_mynode;
-	  peer = (tmp >= gasneti_nodes) ? (tmp - gasneti_nodes)
-                                        : tmp;
-	  gasneti_assert(peer < gasneti_nodes);
-	}
-
-	if ((ambarrier_flags & GASNET_BARRIERFLAG_ANONYMOUS) &&
+      if (step+numsteps == ambarrier_size) { /* We got the last recv - barrier locally complete */
+        GASNETI_PROGRESSFNS_DISABLE(gasneti_pf_barrier,BOOLEAN);
+        gasneti_sync_writes(); /* flush state before the write to ambarrier_step below */
+      } 
+      if (step + 1 < ambarrier_size) {
+        /* we will send at least one message - so calculate args */
+        if ((ambarrier_flags & GASNET_BARRIERFLAG_ANONYMOUS) &&
 	    ambarrier_recv_value_present[phase]) {
 	  /* If we are on an node with an anonymous barrier invocation we
 	   * may have received a barrier name from another node.  If so we
@@ -168,14 +156,54 @@ static void gasnete_ambarrier_kick() {
 	  gasneti_sync_reads(); /* Between unlocked reads of _recv_value_present and _recv_value */
 	  flags = 0;
 	  value = ambarrier_recv_value[phase];
-	}
-
-        GASNETI_SAFE(
-          gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
-                                 phase, step, value, flags));
+        } else {
+	  value = ambarrier_value;
+	  flags = ambarrier_flags;
+        }
       }
-      ambarrier_step = step;
+      /* notify all threads of the step increase - 
+         this may allow other local threads to proceed on the barrier and even indicate
+         barrier completion while we overlap outgoing notifications to other nodes
+      */
+      ambarrier_step = step+numsteps;
+    } 
+  gasnet_hsl_unlock(&ambarrier_lock);
+
+  for ( ; numsteps; numsteps--) {
+    gasnet_node_t peer;
+
+    step++;
+    if (step == ambarrier_size) { /* no send upon reaching last step */
+      gasneti_assert(numsteps == 1);
+      break;
     }
+
+    /* No need for a full mod because worst case is < 2*gasneti_nodes.
+     * However, we must take care for overflow if we try to do the
+     * arithmetic in gasnet_node_t.  An example is gasnet_node_t
+     * of uint8_t and gasneti_nodes=250 nodes.  The largest value of
+     * gasnet_mynode is 249 and the largest value of 2^step is 128.
+     * We can't compute (249 + 128) mod 250 in 8-bit arithmetic.
+     * If we are using GASNET_MAXNODES <= INT_MAX then we can
+     * fit the arithmetic into unsigned integers (32-bit example is
+     * 0x7ffffffe + 0x40000000 = 0xbffffffe).  Otherwise we are
+     * confident that 64-bit integers are ALWAYS large enough.
+     */
+    {
+      #if (GASNET_MAXNODES <= INT_MAX)
+	unsigned int tmp;
+      #else
+	uint64_t tmp;
+      #endif
+      tmp = (1 << step) + gasneti_mynode;
+      peer = (tmp >= gasneti_nodes) ? (tmp - gasneti_nodes)
+                                    : tmp;
+      gasneti_assert(peer < gasneti_nodes);
+    }
+
+    GASNETI_SAFE(
+      gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
+                             phase, step, value, flags));
   }
 }
 
@@ -187,7 +215,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
 
   GASNETI_TRACE_PRINTF(B, ("AMBARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
   #if GASNETI_STATS_OR_TRACE
-    ambarrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
+    ambarrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
 
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
@@ -195,10 +223,15 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
    */
   ambarrier_value = (gasnet_handlerarg_t)id;
 
-  ambarrier_flags = flags;
   phase = !ambarrier_phase; /*  enter new phase */
-  ambarrier_phase = phase;
+  if_pf (flags & GASNET_BARRIERFLAG_MISMATCH) {
+    ambarrier_mismatch[phase] = 1;
+    flags = GASNET_BARRIERFLAG_MISMATCH;
+  }
+  ambarrier_flags = flags;
   ambarrier_step = 0;
+  gasneti_sync_writes(); 
+  ambarrier_phase = phase;
 
   if (gasneti_nodes > 1) {
     /*  send notify msg to peer */
@@ -206,12 +239,9 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
     GASNETI_SAFE(
       gasnet_AMRequestShort4(peer, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                              phase, 0, id, flags));
+    GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_barrier,BOOLEAN);
   } else {
-    ambarrier_recv_value[phase] = id;	/* to similify checking in _wait */
-  }
-
-  if_pf (flags & GASNET_BARRIERFLAG_MISMATCH) {
-    ambarrier_mismatch[phase] = 1;
+    ambarrier_recv_value[phase] = id;	/* to simplify checking in _wait */
   }
 
   /*  update state */
@@ -225,7 +255,7 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
   int i;
 
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
+    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
   int phase;
   gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
@@ -233,12 +263,15 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_wait() called without a matching notify");
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-ambarrier_notifytime);
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-ambarrier_notifytime);
 
-  /*  wait for response */
-  GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), (ambarrier_step == ambarrier_size)));
+  if (ambarrier_step == ambarrier_size) { /* completed asynchronously before wait (via progressfns or try) */
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-ambarrier_notifytime);
+  } else { /*  wait for response */
+    GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), ambarrier_step == ambarrier_size));
+  }
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-wait_start);
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
 
   /* determine return value */
   if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && (gasnet_handlerarg_t)id != ambarrier_value) || 
@@ -264,6 +297,7 @@ extern int gasnete_ambarrier_try(int id, int flags) {
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_try() called without a matching notify");
 
+  GASNETI_SAFE(gasneti_AMPoll());
   gasnete_ambarrier_kick();
 
   if (ambarrier_step == ambarrier_size) {
@@ -311,10 +345,10 @@ static int volatile ambarrier_phase = 0;  /*  2-phase operation to improve pipel
 static int volatile ambarrier_response_done[2] = { 0, 0 }; /*  non-zero when ambarrier is complete */
 static int volatile ambarrier_response_mismatch[2] = { 0, 0 }; /*  non-zero if we detected a mismatch */
 #if GASNETI_STATS_OR_TRACE
-  static gasneti_stattime_t ambarrier_notifytime; /* for statistical purposes */ 
+  static gasneti_tick_t ambarrier_notifytime; /* for statistical purposes */ 
 #endif
 
-/*  global state on P0 */
+/*  global state on master */
 #ifndef GASNETE_AMBARRIER_MASTER
   #define GASNETE_AMBARRIER_MASTER (gasneti_nodes-1)
 #endif
@@ -360,29 +394,38 @@ static void gasnete_ambarrier_done_reqh(gasnet_token_t token,
 }
 
 /*  make some progress on the ambarrier */
-static void gasnete_ambarrier_kick() {
+void gasnete_ambarrier_kick() {
   int phase = ambarrier_phase;
-  GASNETI_SAFE(gasneti_AMPoll());
 
   if (gasneti_mynode != GASNETE_AMBARRIER_MASTER) return;
 
   /*  master does all the work */
   if (ambarrier_count[phase] == gasneti_nodes) {
-    /*  ambarrier is complete */
-    int i;
-    int mismatch = ambarrier_consensus_mismatch[phase];
+    int gotit = 0;
+    gasnet_hsl_lock(&ambarrier_lock);
+      if (ambarrier_count[phase] == gasneti_nodes) {
+        ambarrier_count[phase] = 0;
+        gotit = 1;
+      }
+    gasnet_hsl_unlock(&ambarrier_lock);
 
-    /*  inform the nodes */
-    for (i=0; i < gasneti_nodes; i++) {
-      GASNETI_SAFE(
-        gasnet_AMRequestShort2(i, gasneti_handleridx(gasnete_ambarrier_done_reqh), 
-                             phase, mismatch));
+    if (gotit) { /*  ambarrier is complete */
+      int i;
+      int mismatch = ambarrier_consensus_mismatch[phase];
+
+      GASNETI_PROGRESSFNS_DISABLE(gasneti_pf_barrier,BOOLEAN);
+
+      /*  inform the nodes */
+      for (i=0; i < gasneti_nodes; i++) {
+        GASNETI_SAFE(
+          gasnet_AMRequestShort2(i, gasneti_handleridx(gasnete_ambarrier_done_reqh), 
+                               phase, mismatch));
+      }
+
+      /*  reset state */
+      ambarrier_consensus_mismatch[phase] = 0;
+      ambarrier_consensus_value_present[phase] = 0;
     }
-
-    /*  reset state */
-    ambarrier_count[phase] = 0;
-    ambarrier_consensus_mismatch[phase] = 0;
-    ambarrier_consensus_value_present[phase] = 0;
   }
 }
 
@@ -394,7 +437,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
 
   GASNETI_TRACE_PRINTF(B, ("AMBARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
   #if GASNETI_STATS_OR_TRACE
-    ambarrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
+    ambarrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
 
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
@@ -407,10 +450,11 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
   ambarrier_phase = phase;
 
   if (gasneti_nodes > 1) {
-    /*  send notify msg to 0 */
+    /*  send notify msg to master */
     GASNETI_SAFE(
       gasnet_AMRequestShort3(GASNETE_AMBARRIER_MASTER, gasneti_handleridx(gasnete_ambarrier_notify_reqh), 
                            phase, ambarrier_value, flags));
+    if (gasneti_mynode == GASNETE_AMBARRIER_MASTER) GASNETI_PROGRESSFNS_ENABLE(gasneti_pf_barrier,BOOLEAN);
   } else {
     ambarrier_response_mismatch[phase] = (flags & GASNET_BARRIERFLAG_MISMATCH);
     ambarrier_response_done[phase] = 1;
@@ -424,7 +468,7 @@ extern void gasnete_ambarrier_notify(int id, int flags) {
 
 extern int gasnete_ambarrier_wait(int id, int flags) {
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
+    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
   int phase;
   gasneti_sync_reads(); /* ensure we read correct ambarrier_splitstate */
@@ -432,12 +476,15 @@ extern int gasnete_ambarrier_wait(int id, int flags) {
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_wait() called without a matching notify");
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-ambarrier_notifytime);
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-ambarrier_notifytime);
 
-  /*  wait for response */
-  GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), ambarrier_response_done[phase]));
+  if (ambarrier_response_done[phase]) { /* completed asynchronously before wait (via progressfns or try) */
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-ambarrier_notifytime);
+  } else { /*  wait for response */
+    GASNET_BLOCKUNTIL((gasnete_ambarrier_kick(), ambarrier_response_done[phase]));
+  }
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW_IFENABLED(B)-wait_start);
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
 
   /*  update state */
   ambarrier_splitstate = OUTSIDE_AMBARRIER;
@@ -457,6 +504,7 @@ extern int gasnete_ambarrier_try(int id, int flags) {
   if_pf(ambarrier_splitstate == OUTSIDE_AMBARRIER) 
     gasneti_fatalerror("gasnet_ambarrier_try() called without a matching notify");
 
+  GASNETI_SAFE(gasneti_AMPoll());
   gasnete_ambarrier_kick();
 
   if (ambarrier_response_done[ambarrier_phase]) {

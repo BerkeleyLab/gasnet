@@ -1,10 +1,10 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2005/08/25 09:13:58 $
- * $Revision: 1.24 $
+ *     $Date: 2006/06/06 22:35:21 $
+ * $Revision: 1.24.6.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
-#include <portable_inttypes.h>
+#include <ammpi_internal.h>
 #include <stdarg.h>
 #include <math.h>
 #include <time.h>
@@ -14,7 +14,6 @@
   #include <fcntl.h>
 #endif
 
-#include <ammpi_internal.h>
 
 /* forward decls */
 static int AMMPI_RequestGeneric(ammpi_category_t category, 
@@ -36,7 +35,7 @@ static int intpow(int val, int exp) {
   AMMPI_assert(exp >= 0);
   for (i = 0; i < exp; i++) retval *= val;
   return retval;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 #ifdef WIN32
   extern int64_t AMMPI_getMicrosecondTimeStamp() {
@@ -48,19 +47,18 @@ static int intpow(int val, int exp) {
       else {
         multiplier = 1000000 / (double)freq.QuadPart;
         status = 1;
-        }
       }
+    }
     if (status) { /*  we have a high-performance counter */
       LARGE_INTEGER count;
       QueryPerformanceCounter(&count);
       return (int64_t)(multiplier * count.QuadPart);
-      }
-    else { /*  no high-performance counter */
+    } else { /*  no high-performance counter */
       /*  this is a millisecond-granularity timer that wraps every 50 days */
       return (GetTickCount() * 1000);
-      }
     }
-/* #elif defined(__I386__) 
+  }
+/* #elif PLATFORM_ARCH_X86
  * TODO: it would be nice to take advantage of the Pentium's "rdtsc" instruction,
  * which reads a fast counter incremented on each cycle. Unfortunately, that
  * requires a way to convert cycles to microseconds, and there doesn't appear to 
@@ -71,44 +69,85 @@ static int intpow(int val, int exp) {
   extern int64_t AMMPI_getMicrosecondTimeStamp() {
     int64_t retval;
     struct timeval tv;
-    if (gettimeofday(&tv, NULL)) {
-      perror("gettimeofday");
-      abort();
-      }
+    if (gettimeofday(&tv, NULL))
+      AMMPI_FatalErr("gettimeofday failed: %s",strerror(errno));
     retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
     return retval;
-    }
+  }
 #endif
 /* ------------------------------------------------------------------------------------ */
 /* mpihandle points to the MPI_Request to receive the non-blocking send handle, 
  * or null to use a blocking send
  */
-static int sendPacket(ep_t ep, void *packet, int packetlength, en_t destaddress, MPI_Request *mpihandle) {
+extern int AMMPI_syncsend_thresh;
+static int sendPacket(ep_t ep, ammpi_virtual_network_t *activeNet, void *packet, int packetlength, 
+                      en_t destaddress, MPI_Request *mpihandle) {
   int retval;
-  AMMPI_assert(ep && packet && packetlength > 0);
+  AMMPI_assert(ep && activeNet && packet && packetlength > 0);
   AMMPI_assert(packetlength <= AMMPI_MAX_NETWORK_MSG);
 
   #if AMMPI_DEBUG_VERBOSE
   { char temp[80];
-    fprintf(stderr, "sending packet to (%s)\n", AMMPI_enStr(destaddress, temp)); fflush(stderr);
+    fprintf(stderr, "sending %i byte packet to (%s)\n", packetlength, AMMPI_enStr(destaddress, temp)); fflush(stderr);
     }
   #endif
 
   #if AMMPI_NONBLOCKING_SENDS
-    if (mpihandle && *mpihandle == MPI_REQUEST_NULL) {
-      /* could also use synchronous mode non-blocking send here */
-      retval = MPI_Isend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *(ep->pmpicomm), mpihandle);
+    if_pt (mpihandle && *mpihandle == MPI_REQUEST_NULL) {
+      if (packetlength >= AMMPI_syncsend_thresh) {
+        /* synchronous mode non-blocking send - for MPI implementations lacking 
+           a reasonable implementation of back-pressure. This doesn't guarantee we dont
+           get unexpected messages if the target is inattentive, but it at least 
+           limits the max number of messages in the unexpected message queue which
+           exceed the syncsend threshold - limit is one depth of such messages
+           (and an unlimited number of messages smaller than the threshold)
+         */
+        retval = MPI_Issend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm, mpihandle);
+      } else {
+        retval = MPI_Isend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm, mpihandle);
+      }
     } else
   #endif
     {
-      retval = MPI_Bsend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *(ep->pmpicomm));
+      retval = MPI_Bsend(packet, packetlength, MPI_BYTE, destaddress.mpirank, destaddress.mpitag, *activeNet->mpicomm);
     }
   if_pf (retval != MPI_SUCCESS) 
      AMMPI_RETURN_ERRFR(RESOURCE, sendPacket, MPI_ErrorName(retval));        
 
-  ep->stats.TotalBytesSent += packetlength;
-  return AM_OK;
+  AMMPI_STATS(ep->stats.TotalBytesSent += packetlength);
+
+  if_pt (mpihandle) { 
+    #if AMMPI_RECV_REPOST_SLACK
+    { /* use the send delay slot to catch up on deferred recv buffer reposting work */ 
+      /* check the opposite net, because a reply send means we just got a request,
+         and a request send means we're likely to have recently received a reply */
+      ammpi_virtual_network_t * const altNet = ( (activeNet == &(ep->Req)) ? &(ep->Rep) : &(ep->Req) );
+      while (altNet->rxPostSlack > 0) {
+        int altidx = altNet->rxCurr - altNet->rxPostSlack;
+        if (altidx < 0) altidx += altNet->rxNumBufs;
+        AMMPI_assert(altidx >= 0 && altidx < altNet->rxNumBufs && altidx != altNet->rxCurr);
+        if (AMMPI_PostRecvBuffer(&altNet->rxBuf[altidx],
+                                 &altNet->rxHandle[altidx],
+                                 altNet->mpicomm)) AMMPI_RETURN_ERR(RESOURCE); 
+        altNet->rxPostSlack--;
+      }
+    }
+    #endif
+    #if AMMPI_SEND_EARLYCOMPLETE
+    { /* use the send delay slot to catch up on send completion work */ 
+      ammpi_sendbuffer_pool_t * const pool = 
+        ( (packetlength <= AMMPI_SMALL_SENDBUF_SZ) ? 
+          &activeNet->sendPool_small : &activeNet->sendPool_large );
+      if (pool->numActive >= AMMPI_SEND_EARLYCOMPLETE) {
+        int retval = AMMPI_ReapSendCompletions(pool);
+        if_pf (retval != AM_OK) AMMPI_RETURN(retval);
+      }
+    }
+    #endif
   }
+
+  return AM_OK;
+}
 /* ------------------------------------------------------------------------------------ */
 static int AMMPI_GetOpcode(int isrequest, ammpi_category_t cat) {
   switch (cat) {
@@ -121,10 +160,10 @@ static int AMMPI_GetOpcode(int isrequest, ammpi_category_t cat) {
     case ammpi_Long:
       if (isrequest) return AM_REQUEST_XFER_M;
       else return AM_REPLY_XFER_M; 
-    default: abort();
+    default: AMMPI_FatalErr("unrecognized opcode in AMMPI_GetOpcode");
       return -1;
-    }
   }
+}
 /* ------------------------------------------------------------------------------------ */
 static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   /*  return source id in ep perproc table of this remote addr, or -1 for not found */
@@ -139,13 +178,14 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   for (i = 0; i < ep->totalP; i++) {
     if (AMMPI_enEqual(ep->perProcInfo[i].remoteName, sourceAddr))
       return i;
-    }
-  return -1;
   }
+  return -1;
+}
 /* ------------------------------------------------------------------------------------ */
 /* accessors for packet args, data and length
  * the only complication here is we want data to be double-word aligned, so we may add
  * an extra unused 4-byte argument to make sure the data lands on a double-word boundary
+ * TODO: remove padding arg for shorts and longs, where it's irrelevant
  */
 #define HEADER_EVEN_WORDLENGTH  (((int)(uintptr_t)((&((ammpi_buf_t *)NULL)->_Data)-1))%8==0?1:0)
 #define ACTUAL_NUM_ARGS(pMsg) (AMMPI_MSG_NUMARGS(pMsg)%2==0?       \
@@ -162,55 +202,55 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   ((uint32_t *)pbuf->_Data)
 /* ------------------------------------------------------------------------------------ */
 #define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
-  AMMPI_assert(phandlerfn);                                                             \
-  if (numargs == 0) (*(AMMPI_HandlerShort)phandlerfn)((void *)token);                   \
-  else {                                                                                \
-    uint32_t *args = (uint32_t *)(pArgs); /* eval only once */                          \
-    switch (numargs) {                                                                  \
-      case 1:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0]); break;         \
-      case 2:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1]); break;\
-      case 3:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2]); break; \
-      case 4:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3]); break; \
-      case 5:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4]); break; \
-      case 6:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-      case 7:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-      case 8:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-      case 9:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-      case 10: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-      case 11: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-      case 12: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-      case 13: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-      case 14: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-      case 15: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-      case 16: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-      default: abort();                                                                 \
+    AMMPI_assert(phandlerfn);                                                             \
+    if (numargs == 0) (*(AMMPI_HandlerShort)phandlerfn)((void *)token);                   \
+    else {                                                                                \
+      uint32_t *args = (uint32_t *)(pArgs); /* eval only once */                          \
+      switch (numargs) {                                                                  \
+        case 1:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0]); break;         \
+        case 2:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1]); break;\
+        case 3:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2]); break; \
+        case 4:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3]); break; \
+        case 5:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4]); break; \
+        case 6:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
+        case 7:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
+        case 8:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
+        case 9:  (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
+        case 10: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
+        case 11: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
+        case 12: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
+        case 13: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
+        case 14: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
+        case 15: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
+        case 16: (*(AMMPI_HandlerShort)phandlerfn)((void *)token, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
+        default: AMMPI_FatalErr("bad argument count");                                                                 \
       }                                                                                 \
     }                                                                                   \
   } while (0)
 /* ------------------------------------------------------------------------------------ */
 #define _RUN_HANDLER_MEDLONG(phandlerfn, token, pArgs, numargs, pData, datalen) do {   \
-  AMMPI_assert(phandlerfn);                                                   \
-  if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
-  else {                                                                      \
-    uint32_t *args = (uint32_t *)(pArgs); /* eval only once */                \
-    switch (numargs) {                                                        \
-      case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;           \
-      case 2:  (*phandlerfn)(token, pData, datalen, args[0], args[1]); break;  \
-      case 3:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2]); break; \
-      case 4:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3]); break; \
-      case 5:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4]); break; \
-      case 6:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
-      case 7:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
-      case 8:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
-      case 9:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
-      case 10: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
-      case 11: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
-      case 12: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
-      case 13: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
-      case 14: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
-      case 15: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
-      case 16: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
-      default: abort();                                                                 \
+    AMMPI_assert(phandlerfn);                                                   \
+    if (numargs == 0) (*phandlerfn)(token, pData, datalen);                     \
+    else {                                                                      \
+      uint32_t *args = (uint32_t *)(pArgs); /* eval only once */                \
+      switch (numargs) {                                                        \
+        case 1:  (*phandlerfn)(token, pData, datalen, args[0]); break;           \
+        case 2:  (*phandlerfn)(token, pData, datalen, args[0], args[1]); break;  \
+        case 3:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2]); break; \
+        case 4:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3]); break; \
+        case 5:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4]); break; \
+        case 6:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5]); break; \
+        case 7:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6]); break; \
+        case 8:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]); break; \
+        case 9:  (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]); break; \
+        case 10: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]); break; \
+        case 11: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]); break; \
+        case 12: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]); break; \
+        case 13: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]); break; \
+        case 14: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]); break; \
+        case 15: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]); break; \
+        case 16: (*phandlerfn)(token, pData, datalen, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14], args[15]); break; \
+        default: AMMPI_FatalErr("bad argument count");                                                                 \
       }                                                                                 \
     }                                                                                   \
   } while (0)
@@ -225,21 +265,21 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   } while(0)
 /* ------------------------------------------------------------------------------------ */
 #if AMMPI_DEBUG
-  #define REFUSE_NOTICE(reason) ErrMessage("I just refused a message and returned to sender. Reason: %s", reason)
+  #define REFUSE_NOTICE(reason) AMMPI_Err("I just refused a message and returned to sender. Reason: %s", reason)
 #else
   #define REFUSE_NOTICE(reason) (void)0
 #endif
 
 /* this is a local-use-only macro for AMMPI_processPacket */
-#define AMMPI_REFUSEMESSAGE(ep, buf, errcode) do {                                        \
-    int retval;                                                                           \
-    buf->Msg.systemMessageType = (uint8_t)ammpi_system_returnedmessage;                   \
-    buf->Msg.systemMessageArg = (uint8_t)errcode;                                         \
-    retval = sendPacket(ep, buf, GET_PACKET_LENGTH(buf), (buf)->status.sourceAddr, NULL); \
-       /* ignore errors sending this */                                                   \
-    if (retval != AM_OK) ErrMessage("failed to sendPacket to refuse message");            \
-    else REFUSE_NOTICE(#errcode);                                                         \
-    return;                                                                               \
+#define AMMPI_REFUSEMESSAGE(ep, buf, errcode) do {                            \
+    int retval;                                                               \
+    buf->Msg.systemMessageType = (uint8_t)ammpi_system_returnedmessage;       \
+    buf->Msg.systemMessageArg = (uint8_t)errcode;                             \
+    retval = sendPacket(ep, &ep->Rep, buf, GET_PACKET_LENGTH(buf),            \
+                        (buf)->status.sourceAddr, NULL);                      \
+    if (retval != AM_OK) AMMPI_Err("failed to sendPacket to refuse message"); \
+    else REFUSE_NOTICE(#errcode);                                             \
+    return;                                                                   \
   } while(0)
 
 void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
@@ -270,13 +310,15 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
       AMMPI_assert(handlerfn);
       (*handlerfn)(msg->systemMessageArg, opcode, (void *)buf);
       status->handlerRunning = FALSE;
-      ep->stats.ReturnedMessages++;
+      AMMPI_STATS(ep->stats.ReturnedMessages++);
       return;
     }
   }
 
-  if (isrequest) ep->stats.RequestsReceived[cat]++;
-  else ep->stats.RepliesReceived[cat]++;
+  if (!isloopback) {
+    if (isrequest) AMMPI_STATS(ep->stats.RequestsReceived[cat]++);
+    else AMMPI_STATS(ep->stats.RepliesReceived[cat]++);
+  }
 
   if_pf (sourceId == (ammpi_node_t)-1) AMMPI_REFUSEMESSAGE(ep, buf, EBADENDPOINT);
 
@@ -306,12 +348,12 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
         AMMPI_REFUSEMESSAGE(ep, buf, EBADLENGTH);
       break;
     default:
-      abort();
+      AMMPI_FatalErr("bad AM category");
   }
 
 
   /* --- message accepted --- */
-  #if AMMPI_COLLECT_LATENCY_STATS
+  #if AMMPI_COLLECT_LATENCY_STATS && AMMPI_COLLECT_STATS
     if (!isrequest && !isloopback) { 
       /* gather some latency statistics */
       uint64_t now = AMMPI_getMicrosecondTimeStamp();
@@ -330,20 +372,34 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
     switch (type) {
       case ammpi_system_autoreply:
         /*  do nothing, already taken care of */
+        #if AMMPI_FLOW_CONTROL
+          AMMPI_assert(!isloopback);
+          ep->perProcInfo[sourceId].tokens_out += msg->systemMessageArg; /* returned tokens */
+          AMMPI_assert(ep->perProcInfo[sourceId].tokens_out <= ep->tokens_perhost);
+        #endif
         break;
       case ammpi_system_controlmessage:
         /*  run a control handler */
         if (ep->controlMessageHandler == NULL || ep->controlMessageHandler == ammpi_unused_handler)
-          ErrMessage("got an AMMPI control message, but no controlMessageHandler is registered. Ignoring...");
+          AMMPI_Err("got an AMMPI control message, but no controlMessageHandler is registered. Ignoring...");
         else {
           RUN_HANDLER_SHORT(ep->controlMessageHandler, buf, 
                             GET_PACKET_ARGS(buf), numargs);
         }
         break;
       default:
-        abort();
+        AMMPI_FatalErr("bad AM type");
     }
   } else { /* a user message */
+    #if AMMPI_FLOW_CONTROL
+      if (!isloopback) {
+        if (isrequest) ep->perProcInfo[sourceId].tokens_in++; /* coalesce tokens */
+        AMMPI_assert(ep->perProcInfo[sourceId].tokens_in <= ep->tokens_perhost);
+        ep->perProcInfo[sourceId].tokens_out += msg->systemMessageArg; /* returned tokens */
+        AMMPI_assert(ep->perProcInfo[sourceId].tokens_out <= ep->tokens_perhost);
+      }
+    #endif
+
     switch (cat) {
       case ammpi_Short: 
         if (ep->preHandlerCallback) 
@@ -376,18 +432,19 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
         break;
         }
       default:
-        abort();
+        AMMPI_FatalErr("bad AM category");
     }
   }
   status->handlerRunning = FALSE;
 
-  #if AMMPI_COLLECT_LATENCY_STATS
-    if (isrequest && !status->replyIssued) { /* auto-reply is only required for latency collection */
+  #if AMMPI_FLOW_CONTROL || AMMPI_COLLECT_LATENCY_STATS
+    if (isrequest && !status->replyIssued &&
+        ep->perProcInfo[sourceId].tokens_in > ep->tokens_slack) { 
       va_list va_dummy; va_list *p_dummy = &va_dummy; /* dummy value */
       /*  user didn't reply, so issue an auto-reply */
-      if_pf (AMMPI_ReplyGeneric(ammpi_Short, buf, 0, 0, 0, 0, 0, va_dummy, ammpi_system_autoreply, 0) 
-          != AM_OK) /*  should never happen - don't return here to prevent leaking buffer */
-        ErrMessage("Failed to issue auto reply in AMMPI_ServiceIncomingMessages");
+      if_pf (AMMPI_ReplyGeneric(ammpi_Short, buf, 0, 0, 0, 0, 0, va_dummy, 
+                                ammpi_system_autoreply, 0) != AM_OK) /*  should never happen */
+        AMMPI_Err("Failed to issue auto reply in AMMPI_ServiceIncomingMessages");
     }
   #endif
 } 
@@ -401,88 +458,143 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
  */
 #if AMMPI_DEBUG 
   /* enforce lack of reentrancy */
-  extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun);
-  extern int AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun) {
+  extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int repliesOnly);
+  extern int AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int repliesOnly) {
     static int inServiceIncomingMessages = 0;
     int retval;
-    AMMPI_assert(inServiceIncomingMessages == 0);
-    inServiceIncomingMessages = 1;
-    retval = _AMMPI_ServiceIncomingMessages(ep, blockForActivity, numUserHandlersRun);
-    inServiceIncomingMessages = 0;
+    AMMPI_assert(inServiceIncomingMessages == 0 || 
+      (inServiceIncomingMessages == 1 && repliesOnly));
+    inServiceIncomingMessages++;
+    retval = _AMMPI_ServiceIncomingMessages(ep, blockForActivity, repliesOnly);
+    inServiceIncomingMessages--;
     return retval;
   }
 #else
   #define _AMMPI_ServiceIncomingMessages AMMPI_ServiceIncomingMessages
 #endif
-extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *numUserHandlersRun) {
-  int i;
-  
-  AMMPI_CHECK_ERR((!numUserHandlersRun),BAD_ARG);
-  *numUserHandlersRun = 0;
+extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int repliesOnly) {
+  int numUserHandlersRun = 0;
 
-  for (i = 0; AMMPI_MAX_RECVMSGS_PER_POLL == 0 || i < AMMPI_MAX_RECVMSGS_PER_POLL; i++) {
+  do {
     #if AMMPI_PREPOST_RECVS
-      int idxready = 0;
+      ammpi_virtual_network_t *activeNet;
+      int activeidx;
     #else
-      static ammpi_buf_t _recvBuffer;
+      static ammpi_buf_t _recvBuffer[2];
     #endif  
     ammpi_buf_t *buf = NULL; /* the buffer that holds the incoming msg */
     MPI_Status mpistatus;
 
-    if_pf (blockForActivity && *numUserHandlersRun > 0) return AM_OK; /* got one - done blocking */
-
-    { /* check for message */
-      int msgready = FALSE;
-
-      #if AMMPI_PREPOST_RECVS
-        #if AMMPI_MPIIRECV_ORDERING_WORKS
-          /* according to the MPI spec we should be able to use a single request test/wait
-           * fn if we keep track of the oldest recv initiated in the circular buffer, 
-           * but some MPI implementations may get this subtlely wrong, so don't count on it
-           */
-          idxready = ep->rxCurr;
-          AMMPI_assert(ep->rxHandle[idxready] != MPI_REQUEST_NULL);
-          if_pf (blockForActivity) {
-            MPI_SAFE(MPI_Wait(&(ep->rxHandle[idxready]), &mpistatus));
-            msgready = TRUE;
-          } else {
-            MPI_SAFE(MPI_Test(&(ep->rxHandle[idxready]), &msgready, &mpistatus));
-            if (!msgready) idxready = MPI_UNDEFINED;
-          }
-        #else
-          if_pf (blockForActivity) {
-            MPI_SAFE(MPI_Waitany(ep->rxNumBufs, ep->rxHandle, &idxready, &mpistatus));
-            msgready = TRUE;
-          }
-          else {
-            MPI_SAFE(MPI_Testany(ep->rxNumBufs, ep->rxHandle, &idxready, &msgready, &mpistatus));
+    /* check for message */
+    #if AMMPI_PREPOST_RECVS
+      { int msgready = 0;
+        #if AMMPI_MPIIRECV_ORDERING_BUGCHECK
+          static int recvorder_bugcheck = 0;
+          if (recvorder_bugcheck < 0 ||
+              recvorder_bugcheck++ == AMMPI_MPIIRECV_ORDERING_BUGCHECK) { 
+            int idxready;
+            static int alt = 0;
+            activeNet = &ep->Rep;
+            if (!repliesOnly && ((alt++)&1)) activeNet = &ep->Req;
+            MPI_SAFE(MPI_Testany(activeNet->rxNumBufs, activeNet->rxHandle, &idxready, &msgready, &mpistatus));
+            if (msgready) {
+              if (idxready != activeNet->rxCurr && recvorder_bugcheck > 0) { 
+                #ifdef AMMPI_DEBUG
+                  fprintf(stderr,"*** AMMPI WARNING: Detected bug in MPI recv ordering - activating workaround (%s,%i,%i)\n", 
+                    (activeNet == &ep->Req ? "Req":"Rep"), idxready, activeNet->rxCurr); 
+                  fflush(NULL); 
+                #endif
+                recvorder_bugcheck = -1; /* ordering is now messed up - enable the hack for the remainder of this run */
+              }
+              activeNet->rxCurr = idxready;
+              goto gotone;
+            } else if (recvorder_bugcheck > 0) recvorder_bugcheck = 0;
           }
         #endif
-        if (msgready) {
-          AMMPI_assert(ep->rxHandle[idxready] == MPI_REQUEST_NULL);
-          buf = &ep->rxBuf[idxready];
-        }
-        else AMMPI_assert(idxready == MPI_UNDEFINED);
-      #else
-        if_pf (blockForActivity) {
-          MPI_SAFE(MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, *(ep->pmpicomm), &mpistatus));
-          msgready = TRUE;
-        }
-        else {
-          MPI_SAFE(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, *(ep->pmpicomm), &msgready, &mpistatus));
-        }
-        if (msgready) buf = &_recvBuffer;
-      #endif
+        #if AMMPI_SEPARATE_TEST /* use separate test calls */
+            #if AMMPI_SEPARATE_TEST_BOUNCE
+              static int bounce = 0; /* bounce back and forth between pools */
+              if (!repliesOnly && ((bounce++)&1)) goto testreq;
+            #endif
 
-      if (!msgready) return AM_OK; /* nothing else waiting */
-    }
-  
+            activeNet = &ep->Rep;
+            AMMPI_assert(activeNet->rxHandle[activeNet->rxCurr] != MPI_REQUEST_NULL);
+            MPI_SAFE(MPI_Test(&activeNet->rxHandle[activeNet->rxCurr], &msgready, &mpistatus));
+            if (msgready) goto gotone;
+
+            #if AMMPI_SEPARATE_TEST_BOUNCE
+              goto testdone; 
+            #endif
+
+          if (!repliesOnly) {
+          testreq:
+            activeNet = &ep->Req;
+            AMMPI_assert(activeNet->rxHandle[activeNet->rxCurr] != MPI_REQUEST_NULL);
+            MPI_SAFE(MPI_Test(&activeNet->rxHandle[activeNet->rxCurr], &msgready, &mpistatus));
+            if (msgready) goto gotone;
+          }
+          testdone:
+          if_pt (!blockForActivity) return AM_OK; /* nothing else waiting */
+        #endif
+
+        { MPI_Request rxCheck[2];
+          int idxready;
+          int numToCheck = 1;
+          rxCheck[0] = ep->Rep.rxHandle[ep->Rep.rxCurr];
+          AMMPI_assert(rxCheck[0] != MPI_REQUEST_NULL);
+          if_pt (!repliesOnly) {
+            rxCheck[1] = ep->Req.rxHandle[ep->Req.rxCurr];
+            AMMPI_assert(rxCheck[1] != MPI_REQUEST_NULL);
+            numToCheck++;
+          }
+          if_pf (blockForActivity) {
+            msgready = TRUE;
+            MPI_SAFE(MPI_Waitany(numToCheck, rxCheck, &idxready, &mpistatus));
+          } else {
+            MPI_SAFE(MPI_Testany(numToCheck, rxCheck, &idxready, &msgready, &mpistatus));
+          }
+          if (msgready) {
+            activeNet = (idxready ? &ep->Req : &ep->Rep);
+            AMMPI_assert(rxCheck[idxready] == MPI_REQUEST_NULL);
+            activeNet->rxHandle[activeNet->rxCurr] = MPI_REQUEST_NULL; /* required by AMMPI_FreeEndpointBuffers */
+          } else return AM_OK; /* nothing else waiting */
+        }
+      gotone:
+        #if AMMPI_MPIIRECV_ORDERING_BUGCHECK
+          if (recvorder_bugcheck > 0) recvorder_bugcheck = 0; /* reset */
+        #endif
+        AMMPI_assert(activeNet == &ep->Rep || !repliesOnly);
+        activeidx = activeNet->rxCurr;
+        AMMPI_assert(activeNet->rxHandle[activeidx] == MPI_REQUEST_NULL);
+        buf = &activeNet->rxBuf[activeidx];
+      }
+    #else
+      do { /* we can't make a blocking probe on two separate communicators, so we need to spin bouncing between them */
+        int msgready;
+        AMMPI_assert(repliesOnly == 0 || repliesOnly == 1);
+        MPI_SAFE(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, *ep->Rep.mpicomm, &msgready, &mpistatus));
+        if (msgready) {
+          buf = &_recvBuffer[repliesOnly];
+          MPI_SAFE(MPI_Recv(buf, AMMPI_MAX_NETWORK_MSG, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, *ep->Rep.mpicomm, &mpistatus));
+          break;
+        }
+        if (!repliesOnly) {
+          MPI_SAFE(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, *ep->Req.mpicomm, &msgready, &mpistatus));
+          if (msgready) {
+            buf = &_recvBuffer[repliesOnly];
+            MPI_SAFE(MPI_Recv(buf, AMMPI_MAX_NETWORK_MSG, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, *ep->Req.mpicomm, &mpistatus));
+            break;
+          }
+        }
+      } while (blockForActivity);
+      if (!buf) return AM_OK; /* nothing else waiting */
+    #endif
+
+    AMMPI_assert(buf);
+
     /* we have a real message waiting - get it */
     { ammpi_bufstatus_t* status = &(buf->status); /* the status block for this buffer */
-
-      #if !AMMPI_PREPOST_RECVS
-        MPI_SAFE(MPI_Recv(buf, AMMPI_MAX_NETWORK_MSG, MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, *(ep->pmpicomm), &mpistatus));
-      #endif
+      int recvlen;
 
       if_pf (mpistatus.MPI_TAG != ep->name.mpitag) {
         #if AMMPI_DEBUG
@@ -491,14 +603,15 @@ extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *nu
         goto donewithmessage;
       }
 
+      #if AMMPI_DEBUG 
       { /* MPI-specific sanity checks */
-        int recvlen;
         MPI_SAFE(MPI_Get_count(&mpistatus, MPI_BYTE, &recvlen));
         AMMPI_CHECK_ERRFR((recvlen > AMMPI_MAX_NETWORK_MSG),
           RESOURCE, AMMPI_ServiceIncomingMessages, "buffer overrun - received message too long");
         AMMPI_CHECK_ERRFR((recvlen  < AMMPI_MIN_NETWORK_MSG),
           RESOURCE, AMMPI_ServiceIncomingMessages, "incomplete message received");
       }
+      #endif
 
       /* remember which ep sent/recvd this message */
       status->sourceAddr.mpirank = mpistatus.MPI_SOURCE;
@@ -522,36 +635,49 @@ extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int *nu
         status->sourceId = (ammpi_node_t)sourceId;
       }
 
-      #if 0 && AMMPI_DEBUG_VERBOSE
+      #if AMMPI_DEBUG_VERBOSE
       { char temp[80];
         printf("MPI_Recv got buflen=%i sourceAddr=%s\n", 
-          retval, length, AMMPI_enStr(status->sourceAddr, temp));
+               recvlen, AMMPI_enStr(status->sourceAddr, temp));
         fflush(stdout);
-        }
+      }
       #endif
+
+      if (repliesOnly) AMMPI_assert(!AMMPI_MSG_ISREQUEST(&buf->Msg));
 
       AMMPI_processPacket(buf, 0);
-      (*numUserHandlersRun)++;
+      numUserHandlersRun++;
 
-      donewithmessage: /* message handled - continue to next one */
+      donewithmessage: ; /* message handled - continue to next one */
       #if AMMPI_PREPOST_RECVS
         /* repost the recv */
-        AMMPI_assert(ep->rxHandle[idxready] == MPI_REQUEST_NULL);
-        AMMPI_assert(((uintptr_t)&ep->rxBuf[idxready]) % AMMPI_BUF_ALIGN == 0);
-        MPI_SAFE(MPI_Irecv(&ep->rxBuf[idxready], AMMPI_MAX_NETWORK_MSG, MPI_BYTE, 
-                           MPI_ANY_SOURCE, MPI_ANY_TAG, *(ep->pmpicomm), 
-                           &ep->rxHandle[idxready]));
-        #if AMMPI_MPIIRECV_ORDERING_WORKS
-          AMMPI_assert(idxready == ep->rxCurr);
-          ep->rxCurr = ep->rxCurr + 1;
-          if (ep->rxCurr >= ep->rxNumBufs) ep->rxCurr = 0;
+        AMMPI_assert(activeidx == activeNet->rxCurr);
+        #if AMMPI_RECV_REPOST_SLACK
+          /* postpone it until later if possible, to maximize overlap */
+          if (activeNet->rxPostSlack < activeNet->rxPostSlackMax) activeNet->rxPostSlack++;
+          else { /* too far behind, repost oldest now */
+            int oldestidx = activeNet->rxCurr - activeNet->rxPostSlack;
+            if (oldestidx < 0) oldestidx += activeNet->rxNumBufs;
+            AMMPI_assert(oldestidx >= 0 && oldestidx < activeNet->rxNumBufs);
+            if (AMMPI_PostRecvBuffer(&activeNet->rxBuf[oldestidx],
+                                    &activeNet->rxHandle[oldestidx],
+                                    activeNet->mpicomm)) AMMPI_RETURN_ERR(RESOURCE); 
+          }
+        #else
+          if (AMMPI_PostRecvBuffer(&activeNet->rxBuf[activeidx],
+                                  &activeNet->rxHandle[activeidx],
+                                  activeNet->mpicomm)) AMMPI_RETURN_ERR(RESOURCE); 
         #endif
+        activeidx++;
+        if (activeidx >= activeNet->rxNumBufs) activeidx = 0;
+        activeNet->rxCurr = activeidx;
       #endif
-
       } /*  message waiting */
-    }  /*  for */
+
+      if_pf (blockForActivity && numUserHandlersRun > 0) return AM_OK; /* got one - done blocking */
+    } while (numUserHandlersRun < ((unsigned int)AMMPI_MAX_RECVMSGS_PER_POLL));
   return AM_OK;
-  } /*  AMMPI_ServiceIncomingMessages */
+} /*  AMMPI_ServiceIncomingMessages */
 /*------------------------------------------------------------------------------------
  * Poll
  *------------------------------------------------------------------------------------ */
@@ -565,14 +691,13 @@ extern int AM_Poll(eb_t eb) {
     ep_t ep = eb->endpoints[i];
 
     if_pt (ep->depth != -1) { /* only poll endpoints which have buffers */
-      int userHandlersRun = 0;
-      retval = AMMPI_ServiceIncomingMessages(ep, FALSE, &userHandlersRun); /* drain network and check for activity */
+      retval = AMMPI_ServiceIncomingMessages(ep, FALSE, FALSE); /* drain network and check for activity */
       if_pf (retval != AM_OK) AMMPI_RETURN(retval);
-      }
     }
+  }
 
   return AM_OK;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_Block(eb_t eb) {
   /* block until some endpoint receive buffer becomes non-empty with a valid user message
@@ -580,18 +705,13 @@ extern int AMMPI_Block(eb_t eb) {
    */
   int retval = AM_OK;
   if (eb->n_endpoints == 1) {
-    int userHandlersRun = 0;
-    while (retval == AM_OK && userHandlersRun == 0) {
-      /* drain network and check for activity */
-      retval = AMMPI_ServiceIncomingMessages(eb->endpoints[0], TRUE, &userHandlersRun); 
-    }
-  }
-  else {
+    /* drain network and check for activity */
+    retval = AMMPI_ServiceIncomingMessages(eb->endpoints[0], TRUE, FALSE); 
+  } else {
     /* we could implement this (at least for AMMPI_PREPOST_RECVS) by combining the handle vectors, 
      * but it doesn't seem worthwhile right now
      */
-    ErrMessage("unimplemented: tried to AMMPI_Block on an endpoint-bundle containing multiple endpoints...");
-    abort();
+    AMMPI_FatalErr("unimplemented: tried to AMMPI_Block on an endpoint-bundle containing multiple endpoints...");
   }
   return retval;
 }
@@ -615,22 +735,35 @@ static int AMMPI_RequestGeneric(ammpi_category_t category,
   /*  always poll before sending a request */
   AM_Poll(request_endpoint->eb);
 
-  {
+ {
   MPI_Request *mpihandle = NULL;
-  #if AMMPI_NONBLOCKING_SENDS
-    if (isloopback) {
-     outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
-   } else {
+  if (isloopback) {
+    outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
+  } else {
+    #if AMMPI_NONBLOCKING_SENDS
       /*  acquire a free request buffer */
       int retval;
       predictedsz = PREDICT_PACKET_LENGTH(numargs, nbytes);
       retval = AMMPI_AcquireSendBuffer(request_endpoint, predictedsz, TRUE, &outgoingbuf, &mpihandle);
       if_pf (retval != AM_OK) AMMPI_RETURN(retval);
       AMMPI_assert(outgoingbuf && mpihandle && *mpihandle == MPI_REQUEST_NULL);
+    #else
+      outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
+    #endif
+    #if AMMPI_FLOW_CONTROL
+    { int remoteid = request_endpoint->translation[reply_endpoint].id;
+      AMMPI_assert(systemType == ammpi_system_user);
+      AMMPI_assert(systemArg == 0);
+      while (request_endpoint->perProcInfo[remoteid].tokens_out == 0) { /* back pressure */
+        AMMPI_BACKPRESSURE_WARNING("Out of request send credits");
+        AM_Poll(request_endpoint->eb);
+      }
+      request_endpoint->perProcInfo[remoteid].tokens_out--;
+      systemArg = MIN(255,request_endpoint->perProcInfo[remoteid].tokens_in); /* return tokens */
+      request_endpoint->perProcInfo[remoteid].tokens_in -= systemArg;
     }
-  #else
-    outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
-  #endif
+    #endif
+  }
 
   /*  setup message meta-data */
   { ammpi_msg_t *msg = &outgoingbuf->Msg;
@@ -679,7 +812,8 @@ static int AMMPI_RequestGeneric(ammpi_category_t category,
     #if AMMPI_NONBLOCKING_SENDS
       AMMPI_assert(packetlength <= predictedsz);
     #endif
-    retval = sendPacket(request_endpoint, outgoingbuf, packetlength, destaddress, mpihandle);
+    retval = sendPacket(request_endpoint, &request_endpoint->Req, 
+                        outgoingbuf, packetlength, destaddress, mpihandle);
     if_pf (retval != AM_OK) AMMPI_RETURN(retval);
 
     #if AMMPI_COLLECT_LATENCY_STATS
@@ -687,12 +821,13 @@ static int AMMPI_RequestGeneric(ammpi_category_t category,
         outgoingdesc->firstSendTime = now;
       }
     #endif
+    AMMPI_STATS(request_endpoint->stats.RequestsSent[category]++);
+    AMMPI_STATS(request_endpoint->stats.RequestDataBytesSent[category] += sizeof(int) * numargs + nbytes);
+    AMMPI_STATS(request_endpoint->stats.RequestTotalBytesSent[category] += packetlength);
   }
 
-  request_endpoint->stats.DataBytesSent[category] += sizeof(int) * numargs + nbytes;
-  request_endpoint->stats.RequestsSent[category]++;
   return AM_OK;
-  }
+ }
 }
 /* ------------------------------------------------------------------------------------ */
 static int AMMPI_ReplyGeneric(ammpi_category_t category, 
@@ -711,22 +846,29 @@ static int AMMPI_ReplyGeneric(ammpi_category_t category,
 
   /*  we don't poll within a reply because by definition we are already polling somewhere in the call chain */
 
-  {
+ {
   MPI_Request *mpihandle = NULL;
-  #if AMMPI_NONBLOCKING_SENDS
-    if (isloopback) {
-     outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
-   } else {
+  if (isloopback) {
+    outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
+  } else {
+    #if AMMPI_NONBLOCKING_SENDS
       /*  acquire a free reply buffer */
       int retval;
       predictedsz = PREDICT_PACKET_LENGTH(numargs, nbytes);
       retval = AMMPI_AcquireSendBuffer(ep, predictedsz, FALSE, &outgoingbuf, &mpihandle);
       if_pf (retval != AM_OK) AMMPI_RETURN(retval);
       AMMPI_assert(outgoingbuf && mpihandle && *mpihandle == MPI_REQUEST_NULL);
-   }
-  #else
-    outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
-  #endif
+    #else
+      outgoingbuf = (ammpi_buf_t *)AMMPI_ALIGNUP(&_stagingbuf,8);
+    #endif
+    #if AMMPI_FLOW_CONTROL
+      if (systemType == ammpi_system_user || systemType == ammpi_system_autoreply) {
+        AMMPI_assert(systemArg == 0);
+        systemArg = MIN(255,ep->perProcInfo[destP].tokens_in);
+        ep->perProcInfo[destP].tokens_in -= systemArg;
+      }
+    #endif
+  }
 
   /*  setup message meta-data */
   { ammpi_msg_t *msg = &outgoingbuf->Msg;
@@ -786,16 +928,16 @@ static int AMMPI_ReplyGeneric(ammpi_category_t category,
     #if AMMPI_NONBLOCKING_SENDS
       AMMPI_assert(packetlength <= predictedsz);
     #endif
-    retval = sendPacket(ep, outgoingbuf, packetlength, destaddress, mpihandle);
+    retval = sendPacket(ep, &ep->Rep, outgoingbuf, packetlength, destaddress, mpihandle);
     if_pf (retval != AM_OK) AMMPI_RETURN(retval);
-    }
-
-  /* outgoingdesc->seqNum = !(outgoingdesc->seqNum); */ /* this gets handled by AMMPI_ServiceIncomingMessages */
-  requestbuf->status.replyIssued = TRUE;
-  ep->stats.RepliesSent[category]++;
-  ep->stats.DataBytesSent[category] += sizeof(int) * numargs + nbytes;
-  return AM_OK;
+    AMMPI_STATS(ep->stats.RepliesSent[category]++);
+    AMMPI_STATS(ep->stats.ReplyDataBytesSent[category] += sizeof(int) * numargs + nbytes);
+    AMMPI_STATS(ep->stats.ReplyTotalBytesSent[category] += packetlength);
   }
+
+  requestbuf->status.replyIssued = TRUE;
+  return AM_OK;
+ }
 }
 /*------------------------------------------------------------------------------------
  * Request
@@ -816,7 +958,7 @@ extern int AMMPI_RequestVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, h
                                 NULL, 0, 0,
                                 numargs, argptr,
                                 ammpi_system_user, 0);
-  }
+}
 extern int AMMPI_Request(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
                          int numargs, ...) {
     int retval;
@@ -847,7 +989,7 @@ extern int AMMPI_RequestIVA(ep_t request_endpoint, ammpi_node_t reply_endpoint, 
                                 source_addr, nbytes, 0,
                                 numargs, argptr,
                                 ammpi_system_user, 0);
-  }
+}
 extern int AMMPI_RequestI(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
                           void *source_addr, int nbytes,
                           int numargs, ...) {
@@ -875,27 +1017,25 @@ extern int AMMPI_RequestXferVA(ep_t request_endpoint, ammpi_node_t reply_endpoin
   AMMPI_CHECK_ERR((nbytes < 0 || nbytes > AMMPI_MAX_LONG),BAD_ARG);
   AMMPI_CHECK_ERR((dest_offset > AMMPI_MAX_SEGLENGTH),BAD_ARG);
   AMMPI_assert(numargs >= 0 && numargs <= AMMPI_MAX_SHORT);
-  {
-    if (async) { /*  decide if we can satisfy request without blocking */
-      /* it's unclear from the spec whether we should poll before an async failure,
-       * but by definition the app must be prepared for handlers to run when calling this 
-       * request, so it shouldn't cause anything to break, and the async request is more likely
-       * to succeed if we do. so:
-       */
-      AM_Poll(request_endpoint->eb);
 
-      /* too hard to compute whether this will block */
-      ErrMessage("unimplemented: AMMPI_RequestXferAsyncM not implemented - use AMMPI_RequestXferM");
-      abort();
-    }
-    /* perform the send */
-    return AMMPI_RequestGeneric(ammpi_Long, 
-                                  request_endpoint, reply_endpoint, handler, 
-                                  source_addr, nbytes, dest_offset,
-                                  numargs, argptr,
-                                  ammpi_system_user, 0);
-    }
+  if (async) { /*  decide if we can satisfy request without blocking */
+    /* it's unclear from the spec whether we should poll before an async failure,
+     * but by definition the app must be prepared for handlers to run when calling this 
+     * request, so it shouldn't cause anything to break, and the async request is more likely
+     * to succeed if we do. so:
+     */
+    AM_Poll(request_endpoint->eb);
+
+    /* too hard to compute whether this will block */
+    AMMPI_FatalErr("unimplemented: AMMPI_RequestXferAsyncM not implemented - use AMMPI_RequestXferM");
   }
+  /* perform the send */
+  return AMMPI_RequestGeneric(ammpi_Long, 
+                                request_endpoint, reply_endpoint, handler, 
+                                source_addr, nbytes, dest_offset,
+                                numargs, argptr,
+                                ammpi_system_user, 0);
+}
 extern int AMMPI_RequestXfer(ep_t request_endpoint, ammpi_node_t reply_endpoint, handler_t handler, 
                           void *source_addr, int nbytes, uintptr_t dest_offset, 
                           int async, 
@@ -929,7 +1069,7 @@ extern int AMMPI_ReplyVA(void *token, handler_t handler,
     AMMPI_CHECK_ERR((requestbuf->status.replyIssued),RESOURCE);     /* already issued a reply */
     AMMPI_CHECK_ERR((((ammpi_system_messagetype_t)requestbuf->Msg.systemMessageType) != ammpi_system_user),
                     RESOURCE); /* can't reply to a system message (returned message) */
-    }
+  }
 
   /*  call the generic replier */
   return AMMPI_ReplyGeneric(ammpi_Short, 
@@ -937,7 +1077,7 @@ extern int AMMPI_ReplyVA(void *token, handler_t handler,
                                 NULL, 0, 0,
                                 numargs, argptr,
                                 ammpi_system_user, 0);
-  }
+}
 extern int AMMPI_Reply(void *token, handler_t handler, 
                        int numargs, ...) {
     int retval;
@@ -968,7 +1108,7 @@ extern int AMMPI_ReplyIVA(void *token, handler_t handler,
     AMMPI_CHECK_ERR((requestbuf->status.replyIssued),RESOURCE);     /* already issued a reply */
     AMMPI_CHECK_ERR((((ammpi_system_messagetype_t)requestbuf->Msg.systemMessageType) != ammpi_system_user),
                     RESOURCE); /* can't reply to a system message (returned message) */
-    }
+  }
 
   /*  call the generic replier */
   return AMMPI_ReplyGeneric(ammpi_Medium, 
@@ -976,7 +1116,7 @@ extern int AMMPI_ReplyIVA(void *token, handler_t handler,
                                 source_addr, nbytes, 0,
                                 numargs, argptr,
                                 ammpi_system_user, 0);
-  }
+}
 extern int AMMPI_ReplyI(void *token, handler_t handler, 
                           void *source_addr, int nbytes,
                           int numargs, ...) {
@@ -1018,7 +1158,7 @@ extern int AMMPI_SendControlMessage(ep_t from, en_t to, int numargs, ...) {
                                   ammpi_system_controlmessage, 0);
     va_end(argptr);
     return retval;
-    }
+  }
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_ReplyXferVA(void *token, handler_t handler, 
@@ -1041,7 +1181,7 @@ extern int AMMPI_ReplyXferVA(void *token, handler_t handler,
     AMMPI_CHECK_ERR((requestbuf->status.replyIssued),RESOURCE);     /* already issued a reply */
     AMMPI_CHECK_ERR((((ammpi_system_messagetype_t)requestbuf->Msg.systemMessageType) != ammpi_system_user),
                     RESOURCE); /* can't reply to a system message (returned message) */
-    }
+  }
 
 
   /*  call the generic replier */
@@ -1050,7 +1190,7 @@ extern int AMMPI_ReplyXferVA(void *token, handler_t handler,
                                 source_addr, nbytes, dest_offset,
                                 numargs, argptr,
                                 ammpi_system_user, 0);
-  }
+}
 extern int AMMPI_ReplyXfer(void *token, handler_t handler, 
                           void *source_addr, int nbytes, uintptr_t dest_offset, 
                           int numargs, ...) {
@@ -1085,7 +1225,7 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
     STATCASE(ECONGESTION   , "Congestion at destination endpoint                ");
     STATCASE(EUNREACHABLE  , "Destination endpoint unreachable                  ");
     STATCASE(EREPLYREJECTED, "Destination endpoint refused reply message        ");
-    }
+  }
   #define OPCASE(name) case name: opcodeStr = #name; break;
   switch (opcode) {
     OPCASE(AM_REQUEST_M);
@@ -1094,17 +1234,17 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
     OPCASE(AM_REPLY_M);
     OPCASE(AM_REPLY_IM);
     OPCASE(AM_REPLY_XFER_M);
-    }
+  }
 
   argStr[0] = '\0';
   for (i=0; i < numArgs; i++) {
     char tmp[20];
     sprintf(tmp, "0x%08x  ", (unsigned int)args[i]);
     strcat(argStr, tmp);
-    }
+  }
   { char temp1[80];
     char temp2[80];
-  ErrMessage("An active message was returned to sender,\n"
+    AMMPI_FatalErr("An active message was returned to sender,\n"
              "    and trapped by the default returned message handler (handler 0):\n"
              "Error Code: %s\n"
              "Message type: %s\n"
@@ -1122,7 +1262,6 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
                "<AM tags disabled>",
              #endif
              numArgs, argStr);
-    }
-  abort();
   }
+}
 /* ------------------------------------------------------------------------------------ */

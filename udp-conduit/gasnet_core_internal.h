@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_internal.h,v $
- *     $Date: 2005/02/17 13:19:24 $
- * $Revision: 1.6 $
+ *     $Date: 2006/06/06 22:35:53 $
+ * $Revision: 1.6.10.1 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,7 +30,7 @@ extern gasneti_mutex_t gasnetc_AMlock; /*  protect access to AMUDP */
 /* ------------------------------------------------------------------------------------
  *  AM Error Handling
  * ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasneti_AMErrorName)
+GASNETI_INLINE(gasneti_AMErrorName)
 const char *gasneti_AMErrorName(int errval) {
   switch (errval) {
     case AM_OK:           return "AM_OK";      
@@ -46,38 +46,34 @@ const char *gasneti_AMErrorName(int errval) {
 /* ------------------------------------------------------------------------------------ */
 /* make an AM call - if it fails, print error message and return */
 #define GASNETI_AM_SAFE(fncall) do {                            \
-   int retcode = (fncall);                                      \
-   if (gasneti_VerboseErrors && retcode != AM_OK) {                                      \
-     char msg[1024];                                            \
+   int const _retcode = (fncall);                               \
+   if_pf (_retcode != AM_OK) {                                  \
+     char msg[128];                                             \
      sprintf(msg, "\nGASNet encountered an AM Error: %s(%i)\n", \
-        gasneti_AMErrorName(retcode), retcode);                 \
+        gasneti_AMErrorName(_retcode), _retcode);               \
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);               \
    }                                                            \
  } while (0)
 
 /* ------------------------------------------------------------------------------------ */
-/* make an AM call - 
- * if it fails, print error message and value of expression is FALSE, 
- * otherwise, the value of this expression will be TRUE 
+/* make an AM call - if it fails, print error message and set retval to non-zero errcode
+ * else, set retval to zero
  */
-#define GASNETI_AM_SAFE_NORETURN(fncall) (gasneti_VerboseErrors ?        \
-      gasneti_checkAMreturn(fncall, #fncall,                             \
-                          GASNETI_CURRENT_FUNCTION, __FILE__, __LINE__): \
-      (fncall) == AM_OK)
-GASNET_INLINE_MODIFIER(gasneti_checkAMreturn)
-int gasneti_checkAMreturn(int retcode, const char *fncallstr, 
-                                const char *context, const char *file, int line) {
-   if (retcode != AM_OK) {  
-     fprintf(stderr, "\nGASNet %s encountered an AM Error: %s(%i)\n"
-                     "  at %s:%i\n", 
-       context, 
-       gasneti_AMErrorName(retcode), 
-       retcode, file, line); 
-     fflush(stderr);
-     return FALSE;
-   }
-   else return TRUE;
-}
+#define GASNETI_AM_SAFE_NORETURN(retval,fncall) do {                   \
+   gasneti_assert(AM_OK == 0);                                         \
+   retval = (fncall);                                                  \
+   if_pf (retval) {                                                    \
+     if (gasneti_VerboseErrors) {                                      \
+       fprintf(stderr, "\nGASNet %s encountered an AM Error: %s(%i)\n" \
+                       "  at %s:%i\n",                                 \
+         GASNETI_CURRENT_FUNCTION,                                     \
+         gasneti_AMErrorName(retval),                                  \
+         retval, __FILE__, __LINE__);                                  \
+       fflush(stderr);                                                 \
+     }                                                                 \
+   }                                                                   \
+ } while (0)
+
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)

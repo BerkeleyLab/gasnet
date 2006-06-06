@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_internal.h,v $
- *     $Date: 2005/02/20 10:13:30 $
- * $Revision: 1.18 $
+ *     $Date: 2006/06/06 22:35:05 $
+ * $Revision: 1.18.10.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -63,6 +63,7 @@ typedef struct _gasnete_iop_t {
 typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* pointer reserved for use by the core */
   void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
+  void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
 
   gasnete_threadidx_t threadidx;
 
@@ -83,7 +84,7 @@ typedef struct _gasnete_threaddata_t {
 #define OPTYPE_EXPLICIT               0x00  /*  gasnete_eop_new() relies on this value */
 #define OPTYPE_IMPLICIT               0x80
 #define OPTYPE(op) ((op)->flags & 0x80)
-GASNET_INLINE_MODIFIER(SET_OPTYPE)
+GASNETI_INLINE(SET_OPTYPE)
 void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
   op->flags = (op->flags & 0x7F) | (type & 0x80);
 }
@@ -93,7 +94,7 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 #define OPSTATE_INFLIGHT  1
 #define OPSTATE_COMPLETE  2
 #define OPSTATE(op) ((op)->flags & 0x03) 
-GASNET_INLINE_MODIFIER(SET_OPSTATE)
+GASNETI_INLINE(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
   /* RACE: If we are marking the op COMPLETE, don't assert for completion
@@ -136,10 +137,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)

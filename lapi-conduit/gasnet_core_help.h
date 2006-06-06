@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2005/06/01 03:52:54 $
- * $Revision: 1.23 $
+ *     $Date: 2006/06/06 22:35:12 $
+ * $Revision: 1.23.10.1 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 #include <lapi.h>
@@ -41,7 +41,7 @@ BEGIN_EXTERNC
  * message.  Note that messages that fit into a single token
  * are optimized.
  */
-#define GASNETC_AM_MAX_MEDIUM 16384
+#define GASNETC_AM_MAX_MEDIUM 262144
 
 /* In 32 bit mode, this is 2^31 - 1 bytes.  */
 #define GASNETC_AM_MAX_LONG 2147483647
@@ -69,13 +69,13 @@ extern gasnetc_lapimode_t gasnetc_lapi_default_mode;
     #error Missing required spinlock support
   #endif
   typedef gasneti_atomic_t gasnetc_spinlock_t;
-  #define GASNETC_SPINLOCK_INITIALIZER	gasneti_atomic_init(0)
+  #define GASNETC_SPINLOCK_INITIALIZER	GASNETI_SPINLOCK_INITIALIZER
 #else  /* Use pthread mutex for spinlock */
   typedef gasneti_mutex_t gasnetc_spinlock_t;
   #define GASNETC_SPINLOCK_INITIALIZER	GASNETI_MUTEX_INITIALIZER
 #endif
 
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.am,v $
-#     $Date: 2005/05/23 11:36:34 $
-# $Revision: 1.32 $
+#     $Date: 2006/06/06 22:35:24 $
+# $Revision: 1.32.10.1 $
 # Description: Makefile for AMUDP/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -16,15 +16,23 @@ else
   apputils_flags = -DAPPUTILS_OMIT_READWRITE
 endif
 
+if BUILDCONFIG_DEBUG
+  BUILDCONFIG_DEFINES = -DAMUDP_DEBUG=1
+else
+  BUILDCONFIG_DEFINES = -DAMUDP_NDEBUG=1
+endif
+
 CC  = @CC@
 CFLAGS = @CFLAGS@ @MISC_CFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags)
 CXX = @CXX@
 CXXFLAGS = @CXXFLAGS@ @MISC_CXXFLAGS@ $(MANUAL_CXXFLAGS)
 LDFLAGS = @LDFLAGS@ $(MANUAL_LDFLAGS)
 
-platform_defines = @GASNET_MACHINE_DEFINES@ @BUILDCONFIG_DEFINES@ @INTTYPES_DEFINES@ -DAMUDP_ENV_PREFIX=GASNET $(MANUAL_DEFINES)
+PERL = @PERL@
 
-platform_libraries = @LIBS@ @GASNET_UDP_LIBS@
+platform_defines = @GASNET_MACHINE_DEFINES@ $(BUILDCONFIG_DEFINES) @INTTYPES_DEFINES@ -DAMUDP_ENV_PREFIX=GASNET $(MANUAL_DEFINES)
+
+platform_libraries = -L$(top_builddir) -lgasnet_tools-seq @LIBS@ @GASNET_UDP_LIBS@
 
 VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
@@ -38,6 +46,7 @@ linkend = $(platform_libraries) $(MANUAL_LIBS)
 
 if USE_UDP_CONDUIT
 lib_LIBRARIES = libamudp.a
+bin_PROGRAMS = amudprun
 endif
 headers = \
 	amudp.h			\
@@ -68,9 +77,11 @@ libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o)
 
 EXTRA_DIST = \
 	Makefile.common 	\
+	Makefile.generic 	\
 	Makefile.standalone 	\
 	Makefile.tests  	\
 	Makefile.titanium.in 	\
+	amudprun.c              \
 	license.txt
 
 # ---------- test programs -------------
@@ -95,7 +106,7 @@ testprograms =    		\
 
 tests: apputils.o $(testprograms)
 
-test%: test%.o apputils.o libamudp.a 
+test%: test%.o apputils.o libamudp.a
 	$(link) -o $@ $< apputils.o -L. -lamudp $(linkend)
 
 tests-clean:
@@ -109,11 +120,17 @@ test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
 apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
 	$(compile) -DAMUDP -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
 
+amudprun$(EXEEXT): amudprun.o $(headers) libamudp.a
+	$(link) -o $@ $< -L. -lamudp $(linkend)
+
 %.o: %.c $(headers)
 	$(compile) -o $@ -c $<
 
-%.o: %.cpp $(headers)
+%.o: %.cpp $(headers) $(top_builddir)/libgasnet_tools-seq.a
 	$(cxxcompile) -o $@ -c $<
+
+$(top_builddir)/libgasnet_tools-seq.a: force
+	@cd $(top_builddir) && $(MAKE) libgasnet_tools-seq.a
 
 if USE_UDP_CONDUIT
 if GNU_NM

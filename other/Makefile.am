@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2005/07/31 11:26:34 $
-# $Revision: 1.25 $
+#     $Date: 2006/06/06 22:35:19 $
+# $Revision: 1.25.8.1 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -25,7 +25,8 @@ EXTRA_DIST =        \
 # 	cross-configure-help.c
 
 include_HEADERS = \
-	portable_inttypes.h
+	portable_inttypes.h \
+	portable_platform.h
 
 if USE_UDP_CONDUIT                           
   UDP_dir=$(top_builddir)/other/amudp

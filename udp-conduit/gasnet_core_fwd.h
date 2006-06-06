@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/08/20 10:53:08 $
- * $Revision: 1.12 $
+ *     $Date: 2006/06/06 22:35:53 $
+ * $Revision: 1.12.6.1 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,7 @@
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
 #ifndef GASNET_ALIGNED_SEGMENTS
   /* udp-conduit supports both aligned and un-aligned */
-  #if defined(HAVE_MMAP) && !defined(__crayx1)
+  #if defined(HAVE_MMAP) && !PLATFORM_ARCH_CRAYX1
     #define GASNET_ALIGNED_SEGMENTS   1  
   #else
     #define GASNET_ALIGNED_SEGMENTS   0
@@ -69,5 +69,8 @@ extern void gasnetc_trace_finish();
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int sig);
+
+extern void _gasnetc_set_waitmode(int wait_mode);
+#define gasnetc_set_waitmode(wait_mode) _gasnetc_set_waitmode(wait_mode)
 
 #endif

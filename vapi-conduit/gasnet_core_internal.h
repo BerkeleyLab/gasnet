@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/12/07 00:20:44 $
- * $Revision: 1.91 $
+ *     $Date: 2006/06/06 22:35:55 $
+ * $Revision: 1.91.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,6 +23,10 @@
 #include <evapi.h>
 #include <vapi_common.h>
 
+#if HAVE_MMAP
+  #include <sys/mman.h> /* For MAP_FAILED */
+#endif
+
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
 
@@ -35,7 +39,7 @@
 
 /* check for exit in progress */
 extern gasneti_atomic_t gasnetc_exit_running;
-#define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running)
+#define GASNETC_IS_EXITING() gasneti_atomic_read(&gasnetc_exit_running, GASNETI_ATOMIC_RMB_PRE)
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
@@ -50,38 +54,45 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define _hidx_gasnetc_SYS_exit_role_rep   2
 #define _hidx_gasnetc_SYS_exit_req        3
 #define _hidx_gasnetc_SYS_exit_rep        4
+#define _hidx_gasnetc_SYS_init_ping       5
 
 /* ------------------------------------------------------------------------------------ */
 
 typedef struct {
 #if GASNETI_STATS_OR_TRACE
-  gasneti_stattime_t	stamp;
+  gasneti_tick_t	stamp;
 #endif
   gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
 } gasnetc_shortmsg_t;
+#define GASNETC_MSG_SHORT_ARGSEND(nargs) offsetof(gasnetc_shortmsg_t,args[(unsigned int)nargs])
 
 typedef struct {
 #if GASNETI_STATS_OR_TRACE
-  gasneti_stattime_t	stamp;
+  gasneti_tick_t	stamp;
 #endif
-  uint16_t		nBytes;
-  uint16_t		_pad0;
+  uint32_t		nBytes;	/* 16 bits would be sufficient if we ever need the space */
   gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
 } gasnetc_medmsg_t;
+#define GASNETC_MSG_MED_ARGSEND(nargs) /* Note 8-byte alignment for payload */ \
+		GASNETI_ALIGNUP(offsetof(gasnetc_medmsg_t,args[(unsigned int)nargs]), 8)
+#define GASNETC_MSG_MED_DATA(msg,nargs) \
+		((void *)((uintptr_t)(msg) + GASNETC_MSG_MED_ARGSEND(nargs)))
 
 typedef struct {
 #if GASNETI_STATS_OR_TRACE
-  gasneti_stattime_t	stamp;
+  gasneti_tick_t	stamp;
 #endif
   uintptr_t		destLoc;
-  uint32_t		nBytes;
+  int32_t		nBytes;
   gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
 } gasnetc_longmsg_t;
+#define GASNETC_MSG_LONG_ARGSEND(nargs)  offsetof(gasnetc_longmsg_t,args[(unsigned int)nargs])
+#define GASNETC_MSG_LONG_DATA(msg,nargs) (void *)(&msg->longmsg.args[(unsigned int)nargs])
 
 typedef union {
   uint8_t		raw[GASNETC_BUFSZ];
 #if GASNETI_STATS_OR_TRACE
-  gasneti_stattime_t	stamp;
+  gasneti_tick_t	stamp;
 #endif
   gasnetc_shortmsg_t	shortmsg;
   gasnetc_medmsg_t	medmsg;
@@ -94,22 +105,6 @@ typedef enum {
   gasnetc_Long=2,
   gasnetc_System=3
 } gasnetc_category_t;
-
-/* The a Medium AM's payload starts as soon after the args as possible while still
-   providing the required 8-byte alignment.
-*/
-#define GASNETC_MSG_MED_OFFSET(nargs)	\
-	(offsetof(gasnetc_medmsg_t,args) + 4 * (nargs + ((nargs & 0x1) ^ ((GASNETC_MEDIUM_HDRSZ>>2) & 0x1))))
-#define GASNETC_MSG_MED_DATA(msg, nargs) \
-	((void *)((uintptr_t)(msg) + GASNETC_MSG_MED_OFFSET(nargs)))
-
-/* Only needed for non-RDMA ReplyLong, used when remote segment not pinned.
-   This is a much simpler expression than the medium, since we don't 8-byte align.
-*/
-#define GASNETC_MSG_LONG_OFFSET(nargs)	\
-	(offsetof(gasnetc_longmsg_t,args) + 4 * nargs)
-#define GASNETC_MSG_LONG_DATA(msg, nargs) \
-	((void *)((uintptr_t)(msg) + GASNETC_MSG_LONG_OFFSET(nargs)))
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -159,14 +154,14 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_TRACE_WAIT_BEGIN() \
-    gasneti_stattime_t _waitstart = GASNETI_STATTIME_NOW_IFENABLED(C)
+    gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(C)
 #else 
   #define GASNETC_TRACE_WAIT_BEGIN() \
     static char _dummy = (char)sizeof(_dummy)
 #endif
 
 #define GASNETC_TRACE_WAIT_END(name) \
-  GASNETI_TRACE_EVENT_TIME(C,name,GASNETI_STATTIME_NOW() - _waitstart)
+  GASNETI_TRACE_EVENT_TIME(C,name,gasneti_ticks_now() - _waitstart)
 
 #define GASNETC_STAT_EVENT(name) \
   _GASNETI_STAT_EVENT(C,name)
@@ -222,337 +217,23 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Lock ops that depend on the level of concurrency */
-#define gasnetc_mutex_t                      gasneti_mutex_t
-#define GASNETC_MUTEX_INITIALIZER            GASNETI_MUTEX_INITIALIZER
-#define gasnetc_mutex_init                   gasneti_mutex_init
-#define gasnetc_mutex_destroy                gasneti_mutex_destroy
-#define gasnetc_mutex_lock(X,C)              if (C) { gasneti_mutex_lock(X); }
-#define gasnetc_mutex_unlock(X,C)            if (C) { gasneti_mutex_unlock(X); }
-#define gasnetc_mutex_assertlocked(X,C)      if (C) { gasneti_mutex_assertlocked(X); }
-#define gasnetc_mutex_assertunlocked(X,C)    if (C) { gasneti_mutex_assertlocked(X); }
-
-/* ------------------------------------------------------------------------------------ */
-
-/*
- * gasnetc_sema_t
- *
- * This is a simple busy-waiting semaphore used, for instance, to control access to
- * some resource of known multiplicity.
- */
-typedef struct {
-  #if GASNET_DEBUG
-    uint32_t			limit;
-  #endif
-  #ifdef GASNETI_HAVE_ATOMIC_CAS
-    gasneti_weakatomic_t	count;
-    #if GASNET_DEBUG
-      char			_pad[GASNETC_CACHE_PAD(sizeof(uint32_t)+sizeof(gasneti_weakatomic_t))];
-    #else
-      char			_pad[GASNETC_CACHE_PAD(sizeof(gasneti_weakatomic_t))];
-    #endif
-  #else
-    gasnetc_mutex_t		lock;
-    gasneti_weakatomic_t	count;
-    #if GASNET_DEBUG
-      char			_pad[GASNETC_CACHE_PAD(sizeof(uint32_t)+sizeof(gasnetc_mutex_t)+sizeof(gasneti_weakatomic_t))];
-    #else
-      char			_pad[GASNETC_CACHE_PAD(sizeof(gasnetc_mutex_t)+sizeof(gasneti_weakatomic_t))];
-    #endif
-  #endif
-} gasnetc_sema_t;
-
-#ifdef GASNETI_HAVE_ATOMIC_CAS
-  #define GASNETC_SEMA_INITIALIZER(N) {gasneti_weakatomic_init(N)}
+#if GASNETC_VAPI_MAX_HCAS > 1
+  #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
+  #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
 #else
-  #define GASNETC_SEMA_INITIALIZER(N) {GASNETC_MUTEX_INITIALIZER, gasneti_weakatomic_init(N)}
+  #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < 1; ++h)
+  #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[1]; ++p)
 #endif
-
-#if GASNET_DEBUG
-  #define GASNETC_SEMA_CHECK(_s)	do {                                  \
-      uint32_t _tmp = gasneti_weakatomic_read(&((_s)->count));                \
-      gasneti_assert((_tmp >= 0) && ((_tmp <= (_s)->limit) || !(_s)->limit)); \
-    } while (0)
-#else
-  #define GASNETC_SEMA_CHECK(_s)	do {} while(0)
-#endif
-
-/* gasnetc_sema_init */
-GASNET_INLINE_MODIFIER(gasnetc_sema_init)
-void gasnetc_sema_init(gasnetc_sema_t *s, int n, uint32_t limit) {
-  #ifndef GASNETI_HAVE_ATOMIC_CAS
-    gasnetc_mutex_init(&(s->lock));
-  #endif
-  gasneti_weakatomic_set(&(s->count), n);
-  #if GASNET_DEBUG
-    s->limit = limit;
-  #endif
-}
-
-/* gasnetc_sema_destroy */
-GASNET_INLINE_MODIFIER(gasnetc_sema_destroy)
-void gasnetc_sema_destroy(gasnetc_sema_t *s) {
-  #ifndef GASNETI_HAVE_ATOMIC_CAS
-    gasnetc_mutex_destroy(&(s->lock));
-  #endif
-}
-
-/* gasnetc_sema_read
- *
- * Returns current value of the semaphore
- */
-GASNET_INLINE_MODIFIER(gasnetc_sema_read)
-uint32_t gasnetc_sema_read(gasnetc_sema_t *s) {
-  /* no locking needed here */
-  GASNETC_SEMA_CHECK(s);
-  return gasneti_weakatomic_read(&(s->count));
-}
-
-/* gasnetc_sema_up
- *
- * Atomically increments the value of the semaphore.
- * Since this just a busy-waiting semaphore, no waking operations are required.
- */
-GASNET_INLINE_MODIFIER(gasnetc_sema_up)
-void gasnetc_sema_up(gasnetc_sema_t *s) {
-  /* no locking needed here */
-  GASNETC_SEMA_CHECK(s);
-  gasneti_weakatomic_increment(&(s->count));
-  GASNETC_SEMA_CHECK(s);
-}
-
-/* gasnetc_sema_trydown
- *
- * If the value of the semaphore is non-zero, decrements it and returns the old value.
- * If the value is zero, returns zero.
- *
- * If non-zero, the "concurrent" argument indicates that there are multiple threads
- * calling gasnetc_sema_trydown, and thus locking is required.
- */
-GASNET_INLINE_MODIFIER(gasnetc_sema_trydown)
-int gasnetc_sema_trydown(gasnetc_sema_t *s, int concurrent) {
-  int retval;
-
-  GASNETC_SEMA_CHECK(s);
-  #ifdef GASNETI_HAVE_ATOMIC_CAS
-  {
-    uint32_t old = gasneti_weakatomic_read(&(s->count));
-    retval = (old > 0) && gasneti_weakatomic_compare_and_swap(&(s->count), old, old - 1);
-    if (retval) gasneti_sync_reads();
-  }
-  #else
-    gasnetc_mutex_lock(&(s->lock), concurrent);
-
-    retval = gasneti_weakatomic_read(&(s->count));
-    if_pt(retval != 0)
-      gasneti_weakatomic_decrement(&(s->count));
-
-    gasnetc_mutex_unlock(&(s->lock), concurrent);
-  #endif
-  GASNETC_SEMA_CHECK(s);
-
-  return retval;
-}
-
-/* gasnetc_sema_up_n
- *
- * Increases the value of the semaphore by the indicated count.
- * Since this just a busy-waiting semaphore, no waking operations are required.
- */
-GASNET_INLINE_MODIFIER(gasnetc_sema_up_n)
-void gasnetc_sema_up_n(gasnetc_sema_t *s, uint32_t n) {
-  GASNETC_SEMA_CHECK(s);
-  #ifdef GASNETI_HAVE_ATOMIC_CAS
-  {
-    uint32_t old;
-    do {
-      old = gasneti_weakatomic_read(&(s->count));
-    } while (!gasneti_weakatomic_compare_and_swap(&(s->count), old, n + old));
-  }
-  #else
-    gasnetc_mutex_lock(&(s->lock), concurrent);
-    gasneti_weakatomic_write(&(s->count), n + gasneti_weakatomic_read(&(s->count)));
-    gasnetc_mutex_unlock(&(s->lock), concurrent);
-  #endif
-  GASNETC_SEMA_CHECK(s);
-}
-
-/* gasnetc_sema_trydown_n
- *
- * Decrements the semaphore by as much as 'n' and returns the number of "counts" thus
- * obtained.  The decrement is the smaller of 'n' and the "old" value of the semaphore,
- * and this value is returned.
- * If the "old" value is zero, returns zero.
- *
- * If non-zero, the "concurrent" argument indicates that there are multiple threads
- * calling gasnetc_sema_trydown, and thus locking is required.
- */
-GASNET_INLINE_MODIFIER(gasnetc_sema_trydown_n)
-uint32_t gasnetc_sema_trydown_n(gasnetc_sema_t *s, uint32_t n, int concurrent) {
-  uint32_t retval, old;
-
-  GASNETC_SEMA_CHECK(s);
-  #ifdef GASNETI_HAVE_ATOMIC_CAS
-    do {
-      old = gasneti_weakatomic_read(&(s->count));
-      if_pf (old == 0)
-        return 0;
-      retval = MIN(old, n);
-    } while(!gasneti_weakatomic_compare_and_swap(&(s->count), old, old - retval));
-    gasneti_sync_reads();
-  #else
-    gasnetc_mutex_lock(&(s->lock), concurrent);
-
-    old = gasneti_weakatomic_read(&(s->count));
-    retval = MIN(old, n);
-    gasneti_weakatomic_write(&(s->count), old - retval);
-
-    gasnetc_mutex_unlock(&(s->lock), concurrent);
-  #endif
-  GASNETC_SEMA_CHECK(s);
-
-  return retval;
-}
 
 /* ------------------------------------------------------------------------------------ */
 
-/* Global freelist type
- *
- * Freelists in vapi-conduit have multiple consumers and multiple producers.
- * Thread-local lists don't use this data structure.
- *
- * Current implementation is a LIFO (stack) with a mutex.
- * Other possibilities include FIFO (queue) with mutex, or lock-free LIFO or FIFO
- */
-
-/*
- * Data type for the linkage of a freelist
- * Must be the first field in the data structure to be held in the list or the
- * data structure should be considered to be a union of this type and the real
- * type.  In the union case one can expect some number of bytes to get clobbered
- * while an element is on the freelist, while making this type the first element
- * (as shown below) preserves the contents of the free element (useful if there
- * are invariants to preserve).
- *
- * struct foobar {
- *   gasneti_freelist_ptr_t	linkage;
- *
- *   int			blah;
- *   double			boo;
- * };
- */
-typedef struct _gasneti_freelist_ptr_s {
-  struct _gasneti_freelist_ptr_s *next;
-} gasneti_freelist_ptr_t;
-
-/*
- * Data type for the "head" of a freelist.
- */
-typedef struct {
-  gasneti_mutex_t		lock;
-  gasneti_freelist_ptr_t	*head;
-  char				_pad[GASNETC_CACHE_PAD(sizeof(gasneti_mutex_t)+sizeof(gasneti_freelist_ptr_t *))];
-} gasneti_freelist_t;
-
-/* Initializer for staticly allocated freelists */
-#define GASNETI_FREELIST_INITIALIZER	{ GASNETI_MUTEX_INITIALIZER, NULL }
-
-/* Initializer for dynamically allocated freelists */
-GASNET_INLINE_MODIFIER(gasneti_freelist_init)
-void gasneti_freelist_init(gasneti_freelist_t *fl) {
-  gasneti_mutex_init(&(fl->lock));
-  fl->head = NULL;
-}
-
-/* Get one element from the freelist or NULL if it is empty */
-#ifdef __GNUC__
-  GASNET_INLINE_MODIFIER(gasneti_freelist_get)
-  void *gasneti_freelist_get(gasneti_freelist_t *fl) GASNETI_MALLOC;
-#endif
-GASNET_INLINE_MODIFIER(gasneti_freelist_get)
-void *gasneti_freelist_get(gasneti_freelist_t *fl) {
-  gasneti_freelist_ptr_t *head;
-
-  gasneti_mutex_lock(&((fl)->lock));
-  head = fl->head;
-  if_pt (head != NULL) {
-    fl->head = head->next;
-  }
-  gasneti_mutex_unlock(&((fl)->lock));
-
-  return (void *)head;
-}
-
-/* Put an unused element into the freelist */
-GASNET_INLINE_MODIFIER(gasneti_freelist_put)
-void gasneti_freelist_put(gasneti_freelist_t *fl, void *elem) {
-  gasneti_assert(elem != NULL);
-
-  gasneti_mutex_lock(&((fl)->lock));
-  ((gasneti_freelist_ptr_t *)elem)->next = fl->head;
-  fl->head = elem;
-  gasneti_mutex_unlock(&((fl)->lock));
-}
-
-/* Put a chain of unused elements into the freelist */
-GASNET_INLINE_MODIFIER(gasneti_freelist_put_many)
-void gasneti_freelist_put_many(gasneti_freelist_t *fl, void *head, void *tail) {
-  gasneti_assert(head != NULL);
-  gasneti_assert(tail != NULL);
-
-  gasneti_mutex_lock(&((fl)->lock));
-  ((gasneti_freelist_ptr_t *)tail)->next = fl->head;
-  fl->head = head;
-  gasneti_mutex_unlock(&((fl)->lock));
-}
-
-/* Build a chain (q follows p) for use with _put_many() */
-GASNET_INLINE_MODIFIER(gasneti_freelist_link)
-void gasneti_freelist_link(void *p, void *q) {
-  gasneti_assert(p != NULL);
-
-  ((gasneti_freelist_ptr_t *)p)->next = q;
-}
-
-/* Get next element in a chain */
-GASNET_INLINE_MODIFIER(gasneti_freelist_next)
-void *gasneti_freelist_next(void *elem) {
-  gasneti_assert(elem != NULL);
-
-  return (void *)(((gasneti_freelist_ptr_t *)elem)->next);
-}
-
-/* ------------------------------------------------------------------------------------ */
-
-/* Structure for a cep (connection end-point) */
-typedef struct {
-  gasnetc_sema_t	sq_sema;	/* control in-flight RDMA ops (send queue slots) */
-  gasnetc_sema_t	am_sema;	/* control in-flight AM Requests */
-  gasnetc_sema_t	am_unrcvd;	/* ACK coalescing - unmatched rcv buffers */
-  gasneti_weakatomic_t	am_unsent;	/* ACK coalescing - unsent credits */
-  VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
-  gasnetc_epid_t	epid;
-  char			_pad[GASNETC_CACHE_PAD(3*sizeof(gasnetc_sema_t)+sizeof(gasneti_weakatomic_t)+sizeof(VAPI_qp_hndl_t)+sizeof(gasnetc_epid_t))];
-} gasnetc_cep_t;
-
-/* Structure for a peer */
-typedef struct {
-  gasnetc_cep_t		*cep;
-  #if GASNETC_PIN_SEGMENT
-    /* Bounds and RKey(s) for the segment, registered at attach time */
-    uintptr_t		end;	/* Cached inclusive ending address of the remote segment */
-    VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
-    char		_pad[GASNETC_CACHE_PAD(sizeof(gasnetc_cep_t *)+sizeof(uintptr_t)+sizeof(void*))];
-  #else
-    char		_pad[GASNETC_CACHE_PAD(sizeof(gasnetc_cep_t *))];
-  #endif
-} gasnetc_peer_t;
 
 /* Description of a pre-pinned memory region */
 typedef struct {
   VAPI_mr_hndl_t	handle;	/* used to release or modify the region */
   VAPI_lkey_t		lkey;	/* used for local access by HCA */
   VAPI_rkey_t		rkey;	/* used for remote access by HCA */
+  VAPI_hca_hndl_t	hca_hndl;
   uintptr_t		addr;
   size_t		len;
   uintptr_t		end;	/* inclusive */
@@ -562,10 +243,80 @@ typedef struct {
   size_t		req_size;
 } gasnetc_memreg_t;
 
+/* Structure for an HCA */
+typedef struct {
+  VAPI_hca_hndl_t	handle;
+  gasnetc_memreg_t	rcv_reg;
+  gasnetc_memreg_t	snd_reg;
+#if GASNETC_PIN_SEGMENT
+  gasnetc_memreg_t	*seg_reg;
+  VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time */
+#endif
+  VAPI_cq_hndl_t	rcv_cq;
+  VAPI_cq_hndl_t	snd_cq;
+  VAPI_pd_hndl_t	pd;
+#if FIREHOSE_VAPI_USE_FMR
+  EVAPI_fmr_t		fmr_props;
+#endif
+  int			hca_index;
+  char			*hca_id;
+  VAPI_hca_cap_t	hca_cap;
+  VAPI_hca_vendor_t	hca_vendor;
+  int			qps; /* qps per peer */
+  int			total_qps; /* total over all peers */
+
+  void			*rbuf_alloc;
+  gasneti_lifo_head_t	rbuf_freelist;
+
+  /* Rcv thread */
+  EVAPI_compl_handler_hndl_t rcv_handler;
+  void			*rcv_thread_priv;
+} gasnetc_hca_t;
+
+/* Keys in a cep, all replicated from other data */
+struct gasnetc_cep_keys_ {
+#if GASNETC_PIN_SEGMENT
+  gasnetc_memreg_t	*seg_reg;
+  VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
+#endif
+  VAPI_lkey_t		rcv_lkey;
+  VAPI_lkey_t		snd_lkey;
+};
+
+/* Structure for a cep (connection end-point) */
+typedef struct {
+  /* Read/write fields */
+  gasneti_semaphore_t	sq_sema;	/* control in-flight ops (send queue slots) */
+  gasneti_semaphore_t	am_sema;	/* control in-flight AM Requests (recv queue slots )*/
+  gasneti_semaphore_t	am_unrcvd;	/* ACK coalescing - unmatched rcv buffers */
+  gasneti_semaphore_t	*snd_cq_sema_p;	/* control in-flight ops (send completion queue slots) */
+  gasneti_weakatomic_t	am_unsent;	/* ACK coalescing - unsent credits */
+  char			_pad0[GASNETC_CACHE_PAD(3*sizeof(gasneti_semaphore_t)+
+						 sizeof(gasneti_semaphore_t*)+
+						 sizeof(gasneti_weakatomic_t))];
+
+  /* Read-only fields */
+  struct gasnetc_cep_keys_ keys;
+  gasneti_lifo_head_t	*rbuf_freelist;	/* Source of rcv buffers for AMs */
+  gasnetc_hca_t		*hca;
+  VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
+  VAPI_hca_hndl_t	hca_handle;	/* == uint32_t */
+  int			hca_index;
+  gasnetc_epid_t	epid;		/* == uint32_t */
+  char			_pad1[GASNETC_CACHE_PAD(sizeof(struct gasnetc_cep_keys_) +
+						sizeof(gasneti_lifo_head_t*)+
+						sizeof(gasnetc_hca_t*)+
+						sizeof(VAPI_qp_hndl_t)+
+						sizeof(VAPI_hca_hndl_t)+
+						sizeof(int)+
+						sizeof(gasnetc_epid_t))];
+} gasnetc_cep_t;
+
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
+extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_poll(void);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
@@ -578,20 +329,17 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				int numargs, gasnetc_counter_t *mem_oust, va_list argptr);
 
 /* General routines in gasnet_core.c */
-extern void *gasnetc_alloc_pinned(size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
-extern void gasnetc_free_pinned(gasnetc_memreg_t *reg);
+extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
+extern void gasnetc_unpin(gasnetc_memreg_t *reg);
+#define gasnetc_unmap(reg)	gasneti_munmap((reg)->req_addr, (reg)->req_size)
 
 /* Global configuration variables */
-extern char		*gasnetc_hca_id;
-extern IB_port_t	gasnetc_port_num;
 extern int		gasnetc_op_oust_limit;
 extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
-extern int		gasnetc_use_poll_lock;
 extern int		gasnetc_use_rcv_thread;
-extern int		gasnetc_use_firehose;
 extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_num_qps;
 extern size_t		gasnetc_packedlong_limit;
@@ -600,19 +348,21 @@ extern size_t		gasnetc_bounce_limit;
 #if !GASNETC_PIN_SEGMENT
   extern size_t		gasnetc_putinmove_limit;
 #endif
+#if GASNET_DEBUG
+  #define GASNETC_USE_FIREHOSE	gasnetc_use_firehose
+  extern int		gasnetc_use_firehose;
+#else
+  #define GASNETC_USE_FIREHOSE	1
+#endif
 
 /* Global variables */
+extern int		gasnetc_num_hcas;
+extern gasnetc_hca_t	gasnetc_hca[GASNETC_VAPI_MAX_HCAS];
 extern gasnetc_cep_t	*gasnetc_cep;
-extern gasnetc_peer_t	*gasnetc_peer;
-extern VAPI_hca_hndl_t	gasnetc_hca;
-extern VAPI_hca_cap_t	gasnetc_hca_cap;
-extern VAPI_hca_port_t	gasnetc_hca_port;
-extern VAPI_pd_hndl_t	gasnetc_pd;
-extern gasnetc_memreg_t		gasnetc_snd_reg;
-extern gasnetc_memreg_t		gasnetc_rcv_reg;
+extern uintptr_t	gasnetc_max_msg_sz;
 #if GASNETC_PIN_SEGMENT
   extern int			gasnetc_seg_reg_count;
-  extern gasnetc_memreg_t	*gasnetc_seg_reg;
+  extern int			gasnetc_max_regs; /* max of gasnetc_seg_reg_count over all nodes */
   extern uintptr_t		gasnetc_seg_start;
   extern uintptr_t		gasnetc_seg_end;
   extern unsigned long		gasnetc_pin_maxsz;
@@ -621,12 +371,5 @@ extern gasnetc_memreg_t		gasnetc_rcv_reg;
 extern size_t			gasnetc_fh_align;
 extern size_t			gasnetc_fh_align_mask;
 extern firehose_info_t		gasnetc_firehose_info;
-#if FIREHOSE_VAPI_USE_FMR
-  extern EVAPI_fmr_t		gasnetc_fmr_props;
-#endif
-
-extern VAPI_cq_hndl_t	gasnetc_snd_cq;
-extern VAPI_cq_hndl_t	gasnetc_rcv_cq;
-
 
 #endif

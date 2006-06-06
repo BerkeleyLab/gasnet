@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testenv.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.2 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.2.10.1 $
  * Description: GASNet environment variable propagation test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,6 +22,7 @@ const char *expect_args[] = { "GASNet", "is", "Global Address Space Networking" 
 int expect_argc = 1 + sizeof(expect_args)/sizeof(char *);
 
 int main(int argc, char **argv) {
+  char usagestr[255];
   char tmp[1024];
   int i;
   const char *startup_val = NULL;
@@ -30,6 +31,13 @@ int main(int argc, char **argv) {
   GASNET_Safe(gasnet_init(&argc, &argv));
     startup_val = gasnet_getenv(TEST_VAR);
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  usagestr[0] = '\0';
+  for (i=0; i < expect_argc-1; i++) {
+    strcat(usagestr,"'");
+    strcat(usagestr,expect_args[i]);
+    strcat(usagestr,"' ");
+  }
+  test_init("testenv",0,usagestr);
 
   BARRIER();
 

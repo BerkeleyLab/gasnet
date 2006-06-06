@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v $
-#     $Date: 2005/05/01 03:26:47 $
-# $Revision: 1.53 $
+#     $Date: 2006/06/06 22:35:09 $
+# $Revision: 1.53.10.1 $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -36,6 +36,7 @@ CONDUIT_FILELIST =               \
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
 fh_srcdir = $(top_srcdir)/other/firehose
+fh_install_hdrs = $(fh_srcdir)/firehose_trace.h
 CONDUIT_SOURCELIST =                       \
       $(srcdir)/gasnet_core.c              \
       $(srcdir)/gasnet_core_receive.c      \
@@ -82,7 +83,7 @@ CONDUIT_EXTRALIBCFLAGS = @GM_NO_ALIAS@ -I$(fh_srcdir) $(mpi_cflags) $(rodata_fla
 			 
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = 
+CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

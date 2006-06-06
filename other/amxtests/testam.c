@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.c,v $
- *     $Date: 2005/06/24 21:20:04 $
- * $Revision: 1.10 $
+ *     $Date: 2006/06/06 22:35:27 $
+ * $Revision: 1.10.8.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,10 +16,6 @@ int main(int argc, char **argv) {
   int partner;
   int iters=0, polling = 1, i;
 
-  AMX_VerboseErrors = 1;
-
-  CHECKARGS(argc, argv, 1, 2, "iters (Poll/Block)");
-
 #if defined(AMUDP)
   putenv((char*)"A=A");
   putenv((char*)"B=B");
@@ -28,9 +24,7 @@ int main(int argc, char **argv) {
   putenv((char*)"AReallyLongEnvironmentName=A Really Long Environment Value");
 #endif
 
-  /* call startup */
-  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
-                            0, &networkpid, &eb, &ep));
+  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 2, "iters (Poll/Block)");
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 1;
@@ -40,8 +34,8 @@ int main(int argc, char **argv) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
       default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
-      }
     }
+  }
 
   /* setup handlers */
   SETUP_ALLAM();
@@ -75,36 +69,25 @@ int main(int argc, char **argv) {
     while (!ALLAM_DONE(i+1)) {
       if (polling) {
         AM_Safe(AM_Poll(eb));
-        } 
-      else {
+      } else {
         AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY));
         AM_Safe(AM_WaitSema(eb));
         AM_Safe(AM_Poll(eb));
-        }
       }
     }
+  }
 
 #if defined(AMUDP)
-  if (strcmp(AMX_SPMDgetenvMaster("A"),"A")) {
-    fprintf(stderr, "Environment value mismatch on P%i\n", MYPROC);
-    abort();
-    }
-  if (strcmp(AMX_SPMDgetenvMaster("B"),"B")) {
-    fprintf(stderr, "Environment value mismatch on P%i\n", MYPROC);
-    abort();
-    }
-  if (strcmp(AMX_SPMDgetenvMaster("C"),"C")) {
-    fprintf(stderr, "Environment value mismatch on P%i\n", MYPROC);
-    abort();
-    }
-  if (strcmp(AMX_SPMDgetenvMaster("ABC"),"ABC")) {
-    fprintf(stderr, "Environment value mismatch on P%i\n", MYPROC);
-    abort();
-    }
-  if (strcmp(AMX_SPMDgetenvMaster("AReallyLongEnvironmentName"),"A Really Long Environment Value")) {
-    fprintf(stderr, "Environment value mismatch on P%i\n", MYPROC);
-    abort();
-    }
+  if (strcmp(AMX_SPMDgetenvMaster("A"),"A")) 
+    FATALERR("Environment value mismatch on P%i\n", MYPROC);
+  if (strcmp(AMX_SPMDgetenvMaster("B"),"B")) 
+    FATALERR("Environment value mismatch on P%i\n", MYPROC);
+  if (strcmp(AMX_SPMDgetenvMaster("C"),"C"))
+    FATALERR("Environment value mismatch on P%i\n", MYPROC);
+  if (strcmp(AMX_SPMDgetenvMaster("ABC"),"ABC"))
+    FATALERR("Environment value mismatch on P%i\n", MYPROC);
+  if (strcmp(AMX_SPMDgetenvMaster("AReallyLongEnvironmentName"),"A Really Long Environment Value"))
+    FATALERR("Environment value mismatch on P%i\n", MYPROC);
 #endif
 
   /* barrier */
@@ -118,5 +101,5 @@ int main(int argc, char **argv) {
   AM_Safe(AMX_SPMDExit(0));
 
   return 0;
-  }
+}
 /* ------------------------------------------------------------------------------------ */

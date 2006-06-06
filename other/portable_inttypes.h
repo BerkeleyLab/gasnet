@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_inttypes.h,v $ */
-/*      $Date: 2005/01/22 15:11:42 $ */
-/*  $Revision: 1.12 $ */
+/*      $Date: 2006/06/06 22:35:19 $ */
+/*  $Revision: 1.12.10.1 $ */
 /*  Description: portable_inttypes.h  */
 /*  Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> */
 
@@ -35,7 +35,7 @@
   #elif defined(COMPLETE_SYS_TYPES_H)
     #include <sys/types.h>
   /* next, certain known systems are handled specially */
-  #elif defined(WIN32) && defined(_MSC_VER) /* MS Visual C++ */
+  #elif defined(_WIN32) && defined(_MSC_VER) /* MS Visual C++ */
     typedef signed __int8      int8_t;
     typedef unsigned __int8   uint8_t;
     typedef __int16           int16_t;

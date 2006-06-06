@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.c,v $
- *     $Date: 2004/10/12 11:33:29 $
- * $Revision: 1.13 $
+ *     $Date: 2006/06/06 22:35:27 $
+ * $Revision: 1.13.12.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -40,7 +40,7 @@ static void stats_request_handler(void *token, void *buf, int nbytes, int32_t pr
   assert(nbytes == sizeof(amx_stats_t));
   AM_Safe(AMX_AggregateStatistics(&globalStats, (amx_stats_t *)buf));
   statscalls++;
-  }
+}
 
 void printGlobalStats() {
   amx_stats_t stats;
@@ -81,18 +81,18 @@ void printGlobalStats() {
         AM_Safe(AM_Poll(eb));
         if (timeoutusec < 10000) timeoutusec *= 2;
       #endif
-      }
+    }
     fprintf(stderr, "--------------------------------------------------\n"
                     "Global stats:\n");
     AMX_DumpStatistics(stderr, &globalStats, 1);
     fprintf(stderr, "--------------------------------------------------\n");
     fflush(stderr);
     sleep(1); /* HACK: give a little time for this output to reach master */
-    }
+  }
 
   AM_Safe(AMX_SPMDBarrier()); /* just to keep things clean */
 
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 #ifndef UETH
 #ifdef WIN32
@@ -105,29 +105,26 @@ void printGlobalStats() {
       else {
         multiplier = 1000000 / (double)freq.QuadPart;
         status = 1;
-        }
       }
+    }
     if (status) { /*  we have a high-performance counter */
       LARGE_INTEGER count;
       QueryPerformanceCounter(&count);
       return (int64_t)(multiplier * count.QuadPart);
-      }
-    else { /*  no high-performance counter */
+    } else { /*  no high-performance counter */
       /*  this is a millisecond-granularity timer that wraps every 50 days */
       return (GetTickCount() * 1000);
-      }
     }
+  }
 #else
   int64_t getCurrentTimeMicrosec() {
     int64_t retval;
     struct timeval tv;
-    if (gettimeofday(&tv, NULL)) {
-      perror("gettimeofday");
-      abort();
-      }
+    if (gettimeofday(&tv, NULL))
+      AMX_FatalErr("gettimeofday failed: %s",strerror(errno));
     retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
     return retval;
-    }
+  }
 #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -156,143 +153,127 @@ extern void outputTimerStats() {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-#define REQ_32BITPTRS() do { \
-  if (sizeof(void *) != 4) { \
-    fprintf(stderr,"This test not supported on 64-bit ptr architectures.\n"); \
-    fflush(stderr); \
-    abort(); \
-  }} while(0)
+#define REQ_32BITPTRS() \
+  if (sizeof(void *) != 4) AMX_FatalErr("This test not supported on 64-bit ptr architectures.")
 /* ------------------------------------------------------------------------------------ */
 #ifndef APPUTILS_OMIT_READWRITE
 /*  synchronous gets and puts */
 static void get_reply_handler(void *token, int ctr, int dest, int val) {
-  uint32_t *pctr;
-  uint32_t *pdest;
+  uint32_t *pctr = (uint32_t *)(uintptr_t)ctr;
+  uint32_t *pdest = (uint32_t *)(uintptr_t)dest;
   
-  pctr = (uint32_t *)ctr;
-  pdest = (uint32_t *)dest;
   assert(pctr);
   assert(pdest);
   *pdest = (uint32_t)val;
   *pctr = TRUE;
-  }
+}
 
 static void get_request_handler(void *token, int ctr, int dest, int addr) {
-  uint32_t *paddr;
+  uint32_t *paddr = (uint32_t *)(uintptr_t)addr;
 
-  paddr = (uint32_t *)addr;
   assert(paddr);
 
   AM_Safe(AM_Reply3(token, GET_REP_HANDLER, 
                     ctr, dest, *paddr));
-  }
+}
 
 uint32_t getWord(int proc, void *addr) {
   volatile uint32_t getdone = FALSE;
   volatile uint32_t getval = 0;
   REQ_32BITPTRS();
   AM_Safe(AM_Request3(ep, proc, GET_REQ_HANDLER, 
-                      (int)&getdone, (int)&getval, (int)addr));
+                     (int)(uintptr_t)&getdone, (int)(uintptr_t)&getval, 
+                     (int)(uintptr_t)addr));
   while (!getdone) AM_PollBlock(eb);
   return getval;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static void put_reply_handler(void *token, int ctr) {
-  uint32_t *pctr;
-
-  pctr = (uint32_t *)ctr;
+  uint32_t *pctr = (uint32_t *)(uintptr_t)ctr;
   assert(pctr);
   *pctr = TRUE;
-  }
+}
 
 static void put_request_handler(void *token, int ctr, int dest, int val) {
-  uint32_t *paddr;
-
-  paddr = (uint32_t *)dest;
+  uint32_t *paddr = (uint32_t *)(uintptr_t)dest;
   assert(paddr);
   *paddr = (uint32_t)val;
 
   AM_Safe(AM_Reply1(token, PUT_REP_HANDLER, 
                     ctr));
-  }
+}
 
 void putWord(int proc, void *addr, uint32_t val) {
   volatile uint32_t putdone = FALSE;
   REQ_32BITPTRS();
   AM_Safe(AM_Request3(ep, proc, PUT_REQ_HANDLER, 
-                      (int)&putdone, (int)addr, (int)val));
+                      (int)(uintptr_t)&putdone, (int)(uintptr_t)addr, 
+                      (int)val));
   while (!putdone) AM_PollBlock(eb);
   return;
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 /*  asynchronous reads and writes */
 static volatile uint32_t readCtr = 0;
 static void read_reply_handler(void *token, int ctr, int dest, int val) {
-  uint32_t *pctr;
-  uint32_t *pdest;
+  uint32_t *pctr = (uint32_t *)(uintptr_t)ctr;
+  uint32_t *pdest = (uint32_t *)(uintptr_t)dest;
 
-  pctr = (uint32_t *)ctr;
-  pdest = (uint32_t *)dest;
   assert(pctr);
   assert(pdest);
   *pdest = (uint32_t)val;
   (*pctr)--;
-  }
+}
 
 static void read_request_handler(void *token, int ctr, int dest, int addr) {
-  uint32_t *paddr;
-
-  paddr = (uint32_t *)addr;
+  uint32_t *paddr = (uint32_t *)(uintptr_t)addr;
   assert(paddr);
 
   AM_Safe(AM_Reply3(token, READ_REP_HANDLER, 
                     ctr, dest, *paddr));
-  }
+}
 
 
 void readWord(void *destaddr, int proc, void *addr) {
   REQ_32BITPTRS();
   AM_Safe(AM_Request3(ep, proc, READ_REQ_HANDLER, 
-                      (int)&readCtr, (int)destaddr, (int)addr));
+                      (int)(uintptr_t)&readCtr, (int)(uintptr_t)destaddr, 
+                      (int)(uintptr_t)addr));
   readCtr++;
   return;
-  }
+}
 
 void readSync() {
   while (readCtr) AM_PollBlock(eb);
-  }
+}
 /* ------------------------------------------------------------------------------------ */
 static volatile uint32_t writeCtr = 0;
 static void write_reply_handler(void *token, int ctr) {
-  uint32_t *pctr;
-
-  pctr = (uint32_t *)ctr;
+  uint32_t *pctr = (uint32_t *)(uintptr_t)ctr;
   assert(pctr);
   (*pctr)--;
-  }
+}
 
 static void write_request_handler(void *token, int ctr, int dest, int val) {
-  uint32_t *paddr;
-
-  paddr = (uint32_t *)dest;
+  uint32_t *paddr = (uint32_t *)(uintptr_t)dest;
   assert(paddr);
   *paddr = (uint32_t)val;
 
   AM_Safe(AM_Reply1(token, WRITE_REP_HANDLER, 
                     ctr));
-  }
+}
 
 void writeWord(int proc, void *addr, uint32_t val) {
   REQ_32BITPTRS();
   AM_Safe(AM_Request3(ep, proc, WRITE_REQ_HANDLER, 
-                      (int)&writeCtr, (int)addr, (int)val));
+                      (int)(uintptr_t)&writeCtr, (int)(uintptr_t)addr, (int)val));
   writeCtr++;
   return;
-  }
+}
 
 void writeSync() {
   while (writeCtr) AM_PollBlock(eb);
-  }
+}
 #endif
 /* ------------------------------------------------------------------------------------ */
 void free_resource_handler(int sig) {
@@ -308,6 +289,7 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
   AM_Safe(AM_SetHandler(ep, STATS_REQ_HANDLER, (amx_handler_fn_t)stats_request_handler));
 
 #ifndef APPUTILS_OMIT_READWRITE
+ if (sizeof(void*) == 4) {
   AM_Safe(AM_SetHandler(ep, GET_REQ_HANDLER, (amx_handler_fn_t)get_request_handler));
   AM_Safe(AM_SetHandler(ep, GET_REP_HANDLER, (amx_handler_fn_t)get_reply_handler));
   AM_Safe(AM_SetHandler(ep, PUT_REQ_HANDLER, (amx_handler_fn_t)put_request_handler));
@@ -317,9 +299,10 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
   AM_Safe(AM_SetHandler(ep, READ_REP_HANDLER, (amx_handler_fn_t)read_reply_handler));
   AM_Safe(AM_SetHandler(ep, WRITE_REQ_HANDLER, (amx_handler_fn_t)write_request_handler));
   AM_Safe(AM_SetHandler(ep, WRITE_REP_HANDLER, (amx_handler_fn_t)write_reply_handler));
+ }
 #endif
 
-  #ifdef UNIX
+  #if !PLATFORM_OS_MSWINDOWS
     /* some MPI implementations don't cleanup well and leave orphaned nodes
      * if we allow a node to crash without shutting down properly 
      */
@@ -332,5 +315,5 @@ void setupUtilHandlers(ep_t activeep, eb_t activeeb) {
     signal (SIGSEGV, free_resource_handler);
     signal (SIGBUS, free_resource_handler);
   #endif
-  }
+}
 /* ------------------------------------------------------------------------------------ */

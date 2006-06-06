@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/04/17 06:46:54 $
- * $Revision: 1.10 $
+ *     $Date: 2006/06/06 22:35:40 $
+ * $Revision: 1.10.10.1 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -94,7 +94,7 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 #define GASNETC_SCI_FALSE					0
 #define GASNETC_SCI_MAX_REQUEST_MSG			2
 #define GASNETC_SCI_MAX_HANDLER_NUMBER		256
-#ifdef GASNETI_PTR64
+#if PLATFORM_ARCH_64
 	#define GASNETC_SCI_COMMAND_MESSAGE_SIZE	(2048+80) /*  max medium payload size + size of the longest header -- 64-bit machines*/
 #else
 	#define GASNETC_SCI_COMMAND_MESSAGE_SIZE	(2048+76) /*  max medium payload size + size of the longest header*/
@@ -117,7 +117,7 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 /********************************************************
 					Global Variables
 ********************************************************/
-extern int GASNETC_BIGPHY_ENABLE;
+extern int gasnetc_bigphy_enable;
 extern sci_desc_t			*gasnetc_sci_sd;
 extern sci_desc_t			*gasnetc_sci_sd_gb;
 extern sci_desc_t			*gasnetc_sci_sd_remote;
@@ -129,7 +129,7 @@ extern sci_map_t			*gasnetc_sci_localMap;
 extern sci_map_t			*gasnetc_sci_remoteMap;
 extern sci_map_t			*gasnetc_sci_remoteMap_gb;
 extern void 				**gasnetc_sci_global_ready;
-extern void				*gasnetc_sci_handler_table[256];
+extern void				*gasnetc_sci_handler_table[GASNETC_SCI_MAX_HANDLER_NUMBER];
 extern bool				*gasnetc_sci_msg_loc_status;
 extern bool 				*gasnetc_sci_msg_flag;
 extern int				gasnetc_sci_internal_barrier_flag;
@@ -201,21 +201,21 @@ void gasnetc_get_SegInfo(gasnet_seginfo_t* gasnetc_sci_seginfo, uintptr_t segsiz
 ********************************************************/
 
 /*  Return the memory address (ptr, virtual) to the control segment on the remote node */
-GASNET_INLINE_MODIFIER(gasnetc_gr_get_addr)
+GASNETI_INLINE(gasnetc_gr_get_addr)
 void * gasnetc_gr_get_addr (gasnet_node_t RemoteID)
 {
         return gasnetc_sci_global_ready[RemoteID];
 }
 
 /*  Return the remote map handler (SCI) created for the dedicated segment on the remote node */
-GASNET_INLINE_MODIFIER(gasnetc_rs_get_rmap)
+GASNETI_INLINE(gasnetc_rs_get_rmap)
 sci_map_t gasnetc_rs_get_rmap (gasnet_node_t RemoteID)
 {
         return gasnetc_sci_remoteMap[RemoteID];
 }
 
 /*  Calculates the appropriate offset required based on the input address and the starting address of a remote payload segment */
-GASNET_INLINE_MODIFIER(gasnetc_rs_get_offset)
+GASNETI_INLINE(gasnetc_rs_get_offset)
 int gasnetc_rs_get_offset (gasnet_node_t RemoteID, void * dest_addr)
 {
         void * dest_base_addr = gasneti_seginfo[RemoteID].addr;
@@ -244,14 +244,14 @@ int gasnetc_rs_get_offset (gasnet_node_t RemoteID, void * dest_addr)
 ********************************************************/
 
 /*  Check if the given location is free or not */
-GASNET_INLINE_MODIFIER(gasnetc_mls_status)
+GASNETI_INLINE(gasnetc_mls_status)
 bool gasnetc_mls_status (gasnet_node_t RemoteID, uint8_t msg_number)
 {
         return gasnetc_sci_msg_loc_status[RemoteID * GASNETC_SCI_MAX_REQUEST_MSG * 2 + msg_number];
 }
 
 /*  Set a given message space to un-occupied (false) */
-GASNET_INLINE_MODIFIER(gasnetc_mls_set)
+GASNETI_INLINE(gasnetc_mls_set)
 void gasnetc_mls_set (gasnet_node_t RemoteID, uint8_t msg_number)
 {
         if (RemoteID >= gasneti_nodes)
@@ -279,28 +279,28 @@ int gasnetc_mls_get_loc (gasnet_node_t dest_node_id);
 				  MSG Flag Management
 ********************************************************/
 /*  return the status of message existense flag */
-GASNET_INLINE_MODIFIER(gasnetc_msg_exist_flag_status)
+GASNETI_INLINE(gasnetc_msg_exist_flag_status)
 bool gasnetc_msg_exist_flag_status ()
 {
         return gasnetc_sci_msg_flag[gasneti_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2];
 }
 
 /*  set the message existense flag to FALSE */
-GASNET_INLINE_MODIFIER(gasnetc_msg_exist_flag_release)
+GASNETI_INLINE(gasnetc_msg_exist_flag_release)
 void gasnetc_msg_exist_flag_release ()
 {
         gasnetc_sci_msg_flag[gasneti_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2] = GASNETC_SCI_FALSE;
 }
 
 /*  return the status of msg_flag */
-GASNET_INLINE_MODIFIER(gasnetc_msg_flag_status)
+GASNETI_INLINE(gasnetc_msg_flag_status)
 bool gasnetc_msg_flag_status (gasnet_node_t node_id, uint8_t msg_number)
 {
         return gasnetc_sci_msg_flag[node_id * GASNETC_SCI_MAX_REQUEST_MSG * 2 + msg_number];
 }
 
 /*  set the corresponding msg_flag to FALSE */
-GASNET_INLINE_MODIFIER(gasnetc_msg_flag_release)
+GASNETI_INLINE(gasnetc_msg_flag_release)
 void gasnetc_msg_flag_release (gasnet_node_t node_id, uint8_t msg_number)
 {
         gasnetc_sci_msg_flag[node_id * GASNETC_SCI_MAX_REQUEST_MSG * 2 + msg_number] = GASNETC_SCI_FALSE;
@@ -314,28 +314,28 @@ void gasnetc_MRF_scan ();
 ********************************************************/
 
 /*  Return the Handler # for the given message */
-GASNET_INLINE_MODIFIER(gasnetc_get_msg_handler)
+GASNETI_INLINE(gasnetc_get_msg_handler)
 gasnet_handler_t gasnetc_get_msg_handler (uint16_t header)
 {
         return ((gasnet_handler_t) (header>>8));
 }
 
 /*  Return the type (Request/Reply) for the given message */
-GASNET_INLINE_MODIFIER(gasnetc_get_msg_type)
+GASNETI_INLINE(gasnetc_get_msg_type)
 uint8_t gasnetc_get_msg_type (uint16_t header)
 {
         return ((uint8_t) ((header>>7) & 1));
 }
 
 /*  Return the AM type (Short/Medium/Long) for the given message */
-GASNET_INLINE_MODIFIER(gasnetc_get_AM_type)
+GASNETI_INLINE(gasnetc_get_AM_type)
 uint8_t gasnetc_get_AM_type (uint16_t header)
 {
         return ((uint8_t) ((header>>5) & 3));
 }
 
 /*  Return the # of argument for the given message */
-GASNET_INLINE_MODIFIER(gasnetc_get_msg_num_arg)
+GASNETI_INLINE(gasnetc_get_msg_num_arg)
 uint8_t gasnetc_get_msg_num_arg (uint16_t header)
 {
         return ((uint8_t) (header & 31));
@@ -346,7 +346,7 @@ uint8_t gasnetc_get_msg_num_arg (uint16_t header)
 ********************************************************/
 
 /*  Generate Short / Medium Message Header */
-GASNET_INLINE_MODIFIER(gasnetc_construct_ShortMedium_command)
+GASNETI_INLINE(gasnetc_construct_ShortMedium_command)
 void gasnetc_construct_ShortMedium_command (gasnetc_ShortMedium_header_t *temp, gasnet_handler_t handler,
                                                                                         uint8_t msg_type, uint8_t AM_type, size_t size, uint8_t num_args, gasnet_handlerarg_t args[],
                                                                                         uint16_t header_size)
@@ -362,7 +362,7 @@ void gasnetc_construct_ShortMedium_command (gasnetc_ShortMedium_header_t *temp, 
 }
 
 /*  Generate Long Message Header */
-GASNET_INLINE_MODIFIER(gasnetc_construct_Long_command)
+GASNETI_INLINE(gasnetc_construct_Long_command)
 void gasnetc_construct_Long_command (gasnetc_Long_header_t *temp, gasnet_handler_t handler, uint8_t msg_type, void *payload,
                                                                          size_t size, uint8_t num_args, gasnet_handlerarg_t args[],
                                                                          uint16_t header_size)
@@ -382,7 +382,7 @@ void gasnetc_construct_Long_command (gasnetc_Long_header_t *temp, gasnet_handler
                                     AM Transfer Functions
 ********************************************************/
 
-GASNET_INLINE_MODIFIER(gasnetc_send_unaligned_offset_calculation)
+GASNETI_INLINE(gasnetc_send_unaligned_offset_calculation)
 void gasnetc_send_unaligned_offset_calculation (void *base_addr, void *dest_addr, size_t dest_size, uint8_t *start_unaligned_bytes, uint8_t *right_unaligned_bytes)
 {
        uint8_t alignment_value = 64;
@@ -399,7 +399,7 @@ void gasnetc_send_unaligned_offset_calculation (void *base_addr, void *dest_addr
 }
 
 /*  Calculate the actual header size */
-GASNET_INLINE_MODIFIER(gasnetc_get_header_size)
+GASNETI_INLINE(gasnetc_get_header_size)
 int gasnetc_get_header_size (uint8_t AM_type, int num_arg)
 {
         /* AM header size calculation include pedding of 2 bytes to uint16_t header*/
@@ -418,7 +418,7 @@ int gasnetc_SM_transfer (gasnet_node_t dest, uint8_t msg_number, uint8_t msg_typ
 						void *long_payload);
 
 /*  SM Request */
-GASNET_INLINE_MODIFIER(gasnetc_SM_request)
+GASNETI_INLINE(gasnetc_SM_request)
 int gasnetc_SM_request (gasnet_node_t dest, uint8_t AM_type, gasnet_handler_t handler,
                                                 int numargs, gasnet_handlerarg_t args[], void *payload_source_addr, size_t nbytes,
                                                 void *payload_dest_addr)

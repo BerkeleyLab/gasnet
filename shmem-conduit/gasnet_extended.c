@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2005/09/28 00:54:47 $
- * $Revision: 1.13 $
+ *     $Date: 2006/06/06 22:35:42 $
+ * $Revision: 1.13.4.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,6 +25,8 @@ uintptr_t gasnete_addr_bits_mask = 0;
 #endif
 
 gasnete_threaddata_t	     gasnete_threaddata;
+gasnete_threaddata_t  * const gasnete_threaddata_ptr = &gasnete_threaddata;
+#undef gasnete_mythread
 #define gasnete_mythread() (&gasnete_threaddata)
 
 extern void gasnete_init() {
@@ -68,11 +70,12 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 {
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
     int	 isdone = 0;
+    void *pdone = (void*)&isdone;
 
     GASNETI_SAFE(
 	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
 		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
-		      PACK(ptr), PACK((void*)&isdone))));
+		      PACK(ptr), PACK(pdone))));
 
     /* Always blocking, even if an AM */
     GASNET_BLOCKUNTIL(isdone != 0);
@@ -80,7 +83,7 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
     return GASNETE_SYNC_NONE;
 }
 
-GASNET_INLINE_MODIFIER(gasnete_memset_reqh_inner)
+GASNETI_INLINE(gasnete_memset_reqh_inner)
 void 
 gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val, 
 			  gasnet_handlerarg_t nbytes, void *dest, void *op) 
@@ -96,7 +99,7 @@ SHORT_HANDLER(gasnete_memset_reqh,4,6,
               (token, a0, a1, UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5)));
 
-GASNET_INLINE_MODIFIER(gasnete_markdone_reph_inner)
+GASNETI_INLINE(gasnete_markdone_reph_inner)
 void 
 gasnete_markdone_reph_inner(gasnet_token_t token, void *h) 
 {
@@ -205,7 +208,7 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 
 
 #if GASNETI_STATS_OR_TRACE
-  static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
+  static gasneti_tick_t barrier_notifytime; /* for statistical purposes */ 
 #endif
 static 
 enum { OUTSIDE_BARRIER, INSIDE_BARRIER } 
@@ -249,7 +252,7 @@ gasnete_barrier_notify(int id, int flags)
 
     GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
     #if GASNETI_STATS_OR_TRACE
-      barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
+      barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
     #endif
 
     barrier_phase = !barrier_phase;
@@ -262,7 +265,7 @@ gasnete_barrier_notify(int id, int flags)
      */
     if (flags & GASNET_BARRIERFLAG_MISMATCH) gasnete_barrier_broadcastmismatch();
     else if (!(flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
-	#ifdef CRAYX1
+	#if PLATFORM_ARCH_CRAYX1
 	    curval = _amo_acswap(
 		    GASNETE_TRANSLATE_X1(&barrier_value[barrier_phase], 0), 
 		    BARRIER_INITVAL, (long) id);
@@ -278,7 +281,7 @@ gasnete_barrier_notify(int id, int flags)
     }
 	
     /* Atomic increment at node 0 */
-    #ifdef CRAYX1
+    #if PLATFORM_ARCH_CRAYX1
 	_amo_aadd(GASNETE_TRANSLATE_X1(&barrier_notify_ctr[barrier_phase], 0), 
 		  1);
     #else
@@ -296,7 +299,7 @@ gasnete_barrier_wait(int id, int flags)
     long volatile *done_ctr = &barrier_done[barrier_phase];
 
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
+    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
     gasneti_sync_reads();
 
@@ -305,7 +308,7 @@ gasnete_barrier_wait(int id, int flags)
 	    "gasnet_barrier_wait() called without a matching notify");
 
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,
-			       GASNETI_STATTIME_NOW()-barrier_notifytime);
+			       gasneti_ticks_now()-barrier_notifytime);
 
     barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_sync_writes();
@@ -338,7 +341,7 @@ gasnete_barrier_wait(int id, int flags)
 	#else
 	    /*GASNETC_VECTORIZE*/
 	    for (i=0; i < gasneti_nodes; i++) 
-		#ifdef CRAYX1
+		#if PLATFORM_ARCH_CRAYX1
 		    *((long *) GASNETE_TRANSLATE_X1(done_ctr, i)) = 1;
 		#else
 		    shmem_long_p((long *)done_ctr, 1, i);
@@ -349,7 +352,7 @@ gasnete_barrier_wait(int id, int flags)
     }
     else {
 	#if BARRIER_READ_NOTIFYCTR
-	    #ifdef CRAYX1
+	    #if PLATFORM_ARCH_CRAYX1
 		done_ctr = GASNETE_TRANSLATE_X1((void *)done_ctr, 0);
 	    #else
 		done_ctr = shmem_ptr((void *)done_ctr, 0);
@@ -365,7 +368,7 @@ gasnete_barrier_wait(int id, int flags)
 
     }
 
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,gasneti_ticks_now()-wait_start);
 
     gasneti_sync_writes();
 
@@ -395,9 +398,7 @@ gasnete_barrier_try(int id, int flags)
 */
 
 /* use reference implementation of scatter/gather and strided */
-#define GASNETI_GASNET_EXTENDED_VIS_C 1
-#include "gasnet_extended_refvis.c"
-#undef GASNETI_GASNET_EXTENDED_VIS_C
+#include "gasnet_extended_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -406,9 +407,7 @@ gasnete_barrier_try(int id, int flags)
 */
 
 /* use reference implementation of collectives */
-#define GASNETI_GASNET_EXTENDED_COLL_C 1
-#include "gasnet_extended_refcoll.c"
-#undef GASNETI_GASNET_EXTENDED_COLL_C
+#include "gasnet_extended_refcoll.h"
 
 /* ------------------------------------------------------------------------ */
 /*
@@ -422,11 +421,11 @@ gasnete_handlers[] = {
     #endif
 
     #ifdef GASNETE_REFVIS_HANDLERS
-      GASNETE_REFVIS_HANDLERS(),
+      GASNETE_REFVIS_HANDLERS()
     #endif
 
     #ifdef GASNETE_REFCOLL_HANDLERS
-      GASNETE_REFCOLL_HANDLERS(),
+      GASNETE_REFCOLL_HANDLERS()
     #endif
 
     /* ptr-width independent handlers */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/04/06 06:59:10 $
- * $Revision: 1.36 $
+ *     $Date: 2006/06/06 22:35:09 $
+ * $Revision: 1.36.10.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
 
-gasnete_threaddata_t	*gasnete_threadtable[256] = { 0 };
+gasnete_threaddata_t	*gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
 int 			 gasnete_numthreads = 0;
 static gasnet_hsl_t	 threadtable_lock = GASNET_HSL_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
@@ -58,13 +58,13 @@ gasnete_new_threaddata()
 		gasnete_numthreads++;
 	gasnet_hsl_unlock(&threadtable_lock);
 
-	#if GASNETI_CLIENT_THREADS
-		if (idx >= 256) 
-			gasneti_fatalerror("GASNet Extended API: "
-			    "Too many local client threads (limit=256)");
-	#else
-		gasneti_assert(idx == 0);
-	#endif
+        gasneti_assert(GASNETI_MAX_THREADS <= 256);
+        #if GASNETI_CLIENT_THREADS
+          if (idx >= GASNETI_MAX_THREADS) 
+            gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
+        #else
+          gasneti_assert(idx == 0);
+        #endif
 	gasneti_assert(gasnete_threadtable[idx] == NULL);
 
 	threaddata = (gasnete_threaddata_t *)
@@ -95,8 +95,6 @@ gasnete_new_threaddata()
     gasneti_threadkey_set(gasnete_threaddata, threaddata);
     return threaddata;
   }
-#else
-  #define gasnete_mythread() (gasnete_threadtable[0])
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -238,9 +236,9 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
     #endif
 
-    if (gasneti_weakatomic_read(&(iop->completed_get_cnt)) == iop->initiated_get_cnt) {
+    if (gasneti_weakatomic_read(&(iop->completed_get_cnt),0) == iop->initiated_get_cnt) {
       if_pf (iop->initiated_get_cnt > 65000) { /* make sure we don't overflow the counters */
-        gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
+        gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
         iop->initiated_get_cnt = 0;
       }
       gasneti_sync_reads();
@@ -266,9 +264,9 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     #endif
 
 
-    if (gasneti_weakatomic_read(&(iop->completed_put_cnt)) == iop->initiated_put_cnt) {
+    if (gasneti_weakatomic_read(&(iop->completed_put_cnt),0) == iop->initiated_put_cnt) {
       if_pf (iop->initiated_put_cnt > 65000) { /* make sure we don't overflow the counters */
-        gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
+        gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
         iop->initiated_put_cnt = 0;
       }
       gasneti_sync_reads();

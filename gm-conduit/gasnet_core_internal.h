@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2005/07/29 07:51:27 $
- * $Revision: 1.70 $
+ * $Date: 2006/06/06 22:35:09 $
+ * $Revision: 1.70.8.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -29,16 +29,12 @@
 #else
   #include <gm.h>
 #endif
-#ifdef __linux__
-#include <asm/param.h> /* MAXHOSTNAMELEN */
-#else
-  #ifdef FREEBSD	 /* sys/param.h defines its own min/max */
+#if PLATFORM_OS_FREEBSD	 /* sys/param.h defines its own min/max */
   #include <sys/types.h> /* mmap on FreeBSD */
   #undef MIN
   #undef MAX 
-  #endif
-#include <sys/param.h>
 #endif
+#include <sys/param.h> /* MAXHOSTNAMELEN */
 
 #define gasnetc_alloca(nbytes) alloca(nbytes)
 
@@ -53,6 +49,8 @@
 extern gasneti_mutex_t	gasnetc_lock_gm;
 extern gasneti_mutex_t	gasnetc_lock_reqpool;
 extern gasneti_mutex_t	gasnetc_lock_amreq;
+extern gasneti_atomic_t gasnetc_exit_running;
+
 /* -------------------------------------------------------------------------- */
 /* Core-specific AMs */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
@@ -266,7 +264,7 @@ struct _gasnetc_state {
 extern gasnetc_state_t	_gmc;
 
 /* -------------------------------------------------------------------------- */
-GASNET_INLINE_MODIFIER(gasnetc_portid)
+GASNETI_INLINE(gasnetc_portid)
 uint16_t
 gasnetc_portid(gasnet_node_t node)
 {
@@ -274,7 +272,7 @@ gasnetc_portid(gasnet_node_t node)
 	return _gmc.gm_nodes[node].port;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_nodeid)
+GASNETI_INLINE(gasnetc_nodeid)
 uint16_t
 gasnetc_nodeid(gasnet_node_t node)
 {
@@ -302,7 +300,7 @@ gasnetc_nodeid(gasnet_node_t node)
  * poll()    wraps acquire around a gasnetc_AMPoll loop and returns only when a
  *           hi token could be obtained
  */
-GASNET_INLINE_MODIFIER(gasnetc_token_hi_acquire)
+GASNETI_INLINE(gasnetc_token_hi_acquire)
 int
 gasnetc_token_hi_acquire()
 {
@@ -320,7 +318,7 @@ gasnetc_token_hi_acquire()
 	}
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_token_hi_release)
+GASNETI_INLINE(gasnetc_token_hi_release)
 void
 gasnetc_token_hi_release()
 {
@@ -331,7 +329,7 @@ gasnetc_token_hi_release()
 	_gmc.stoks.total--;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_token_lo_acquire)
+GASNETI_INLINE(gasnetc_token_lo_acquire)
 int
 gasnetc_token_lo_acquire()
 {
@@ -346,7 +344,7 @@ gasnetc_token_lo_acquire()
 	}
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_token_lo_poll)
+GASNETI_INLINE(gasnetc_token_lo_poll)
 void
 gasnetc_token_lo_poll()
 {
@@ -361,7 +359,7 @@ gasnetc_token_lo_poll()
 	}
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_token_lo_release)
+GASNETI_INLINE(gasnetc_token_lo_release)
 void
 gasnetc_token_lo_release()
 {
@@ -378,7 +376,7 @@ gasnetc_token_lo_release()
  * This causes Replies originating from AMRequestMedium to be serialized
  * until they can be sent out.
  */
-GASNET_INLINE_MODIFIER(gasnetc_bufdesc_from_token)
+GASNETI_INLINE(gasnetc_bufdesc_from_token)
 gasnetc_bufdesc_t *
 gasnetc_bufdesc_from_token(gasnet_token_t token)
 {
@@ -416,7 +414,7 @@ gasnetc_bufdesc_from_token(gasnet_token_t token)
 }
 /* -------------------------------------------------------------------------- */
 /* GM provide receive buffer wrapper */
-GASNET_INLINE_MODIFIER(gasnetc_relinquish_AMReply_token)
+GASNETI_INLINE(gasnetc_relinquish_AMReply_token)
 void
 gasnetc_relinquish_AMReply_token()
 {
@@ -424,7 +422,7 @@ gasnetc_relinquish_AMReply_token()
 	_gmc.rtoks.hi--;
 	gasneti_assert(_gmc.rtoks.hi >= 0);
 }
-GASNET_INLINE_MODIFIER(gasnetc_relinquish_AMRequest_token)
+GASNETI_INLINE(gasnetc_relinquish_AMRequest_token)
 void
 gasnetc_relinquish_AMRequest_token()
 {
@@ -433,7 +431,7 @@ gasnetc_relinquish_AMRequest_token()
 	gasneti_assert(_gmc.rtoks.lo >= 0);
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_reset_bufdesc)
+GASNETI_INLINE(gasnetc_reset_bufdesc)
 void
 gasnetc_reset_bufdesc(gasnetc_bufdesc_t *bufd)
 {
@@ -450,7 +448,7 @@ gasnetc_reset_bufdesc(gasnetc_bufdesc_t *bufd)
 	return;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_provide_AMMedium)
+GASNETI_INLINE(gasnetc_provide_AMMedium)
 void
 gasnetc_provide_AMMedium(gasnetc_bufdesc_t *bufd)
 {
@@ -465,7 +463,7 @@ gasnetc_provide_AMMedium(gasnetc_bufdesc_t *bufd)
 	gasneti_mutex_unlock(&gasnetc_lock_amreq);
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_provide_AMReply)
+GASNETI_INLINE(gasnetc_provide_AMReply)
 void
 gasnetc_provide_AMReply(gasnetc_bufdesc_t *bufd)
 {
@@ -483,7 +481,7 @@ gasnetc_provide_AMReply(gasnetc_bufdesc_t *bufd)
 	gasneti_assert(_gmc.rtoks.hi <= _gmc.rtoks.max);
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_provide_AMRequest)
+GASNETI_INLINE(gasnetc_provide_AMRequest)
 void
 gasnetc_provide_AMRequest(gasnetc_bufdesc_t *bufd)
 {
@@ -504,7 +502,7 @@ gasnetc_provide_AMRequest(gasnetc_bufdesc_t *bufd)
 	gasneti_assert(_gmc.rtoks.lo <= _gmc.rtoks.max);
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_provide_AMRequestPool)
+GASNETI_INLINE(gasnetc_provide_AMRequestPool)
 void
 gasnetc_provide_AMRequestPool(gasnetc_bufdesc_t *bufd)
 {
@@ -529,7 +527,7 @@ gasnetc_provide_AMRequestPool(gasnetc_bufdesc_t *bufd)
 /* FIFO related operations for sending AMReplies */
 #define gasnetc_fifo_head()	_gmc.fifo_bd_head
 
-GASNET_INLINE_MODIFIER(gasnetc_fifo_remove)
+GASNETI_INLINE(gasnetc_fifo_remove)
 void
 gasnetc_fifo_remove()
 {
@@ -543,7 +541,7 @@ gasnetc_fifo_remove()
 		_gmc.fifo_bd_head = _gmc.fifo_bd_head->next;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_fifo_insert)
+GASNETI_INLINE(gasnetc_fifo_insert)
 void
 gasnetc_fifo_insert(gasnetc_bufdesc_t *bufd)
 {
@@ -566,7 +564,7 @@ gasnetc_fifo_insert(gasnetc_bufdesc_t *bufd)
  * the critical section, hopes are that we'll be able to get one.
  */
 
-GASNET_INLINE_MODIFIER(gasnetc_fifo_progress)
+GASNETI_INLINE(gasnetc_fifo_progress)
 void
 gasnetc_fifo_progress()
 {
@@ -601,7 +599,7 @@ gasnetc_fifo_progress()
  *
  * |header(1)|handler(1)|pad(2)|args(0..64)
  */
-GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferShort)
+GASNETI_INLINE(gasnetc_write_AMBufferShort)
 uint32_t
 gasnetc_write_AMBufferShort(	void *buf,
 				gasnet_handler_t handler, int numargs, 
@@ -626,7 +624,7 @@ gasnetc_write_AMBufferShort(	void *buf,
  * pad depends on the number of arguments.  If even, the pad will be
  * 4, or else 0.
  */
-GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferMedium)
+GASNETI_INLINE(gasnetc_write_AMBufferMedium)
 uint32_t
 gasnetc_write_AMBufferMedium(	void *buf,
 				gasnet_handler_t handler,
@@ -657,7 +655,7 @@ gasnetc_write_AMBufferMedium(	void *buf,
  * a large buffer).  It handles both 32-bit and 64-bit pointers differently
  * as we are packing the 'destination' pointer in 1 or 2 AM args.
  */
-GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferMediumMedcopy)
+GASNETI_INLINE(gasnetc_write_AMBufferMediumMedcopy)
 uint32_t
 gasnetc_write_AMBufferMediumMedcopy(	
 		void *buf,
@@ -694,7 +692,7 @@ gasnetc_write_AMBufferMediumMedcopy(
  * pad depends on the number of arguments.  If even, the pad will be
  * 4, or else 0.
  */
-GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferLong)
+GASNETI_INLINE(gasnetc_write_AMBufferLong)
 uint32_t
 gasnetc_write_AMBufferLong(void *buf, gasnet_handler_t handler, int numargs, 
 		va_list argptr, size_t nbytes, void *source_addr, 
@@ -714,7 +712,7 @@ gasnetc_write_AMBufferLong(void *buf, gasnet_handler_t handler, int numargs,
 	return GASNETC_AM_LONG_HEADER_LEN(numargs);
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferBulk)
+GASNETI_INLINE(gasnetc_write_AMBufferBulk)
 void
 gasnetc_write_AMBufferBulk(void *dest, void *src, size_t nbytes)
 {
@@ -732,7 +730,7 @@ gasnetc_write_AMBufferBulk(void *dest, void *src, size_t nbytes)
  * pad depends on the number of arguments.  If even, the pad will be
  * 4, or else 0.
  */
-GASNET_INLINE_MODIFIER(gasnetc_write_AMBufferSystem)
+GASNETI_INLINE(gasnetc_write_AMBufferSystem)
 uint32_t
 gasnetc_write_AMBufferSystem(	void *buf,
 				gasnet_handler_t handler,

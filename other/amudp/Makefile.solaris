@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.solaris,v $
-#     $Date: 2006/05/31 08:17:42 $
-# $Revision: 1.1 $
+#     $Date: 2006/06/06 22:35:24 $
+# $Revision: 1.1.2.1 $
 # Description: Solaris Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 

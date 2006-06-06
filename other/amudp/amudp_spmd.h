@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.h,v $
- *     $Date: 2004/10/09 14:44:08 $
- * $Revision: 1.8 $
+ *     $Date: 2006/06/06 22:35:24 $
+ * $Revision: 1.8.12.1 $
  * Description: AMUDP Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -10,7 +10,7 @@
 
 #include <amudp.h>
 
-BEGIN_EXTERNC
+SOCK_BEGIN_EXTERNC
 
 /* idiot proofing */
 #undef  AMUDP_SPMDStartup
@@ -55,11 +55,11 @@ extern int AMUDP_SPMDExit(int exitcode);
   /* adding extern C for these versions fails with "multiple storage classes in 
      declaration of `amudp_exitcallback_t'" */
 #else
-  EXTERNC 
+  SOCK_EXTERNC 
 #endif
 typedef void (*amudp_exitcallback_t)(int);
 
-EXTERNC int AMUDP_SPMDSetExitCallback(amudp_exitcallback_t);
+SOCK_EXTERNC int AMUDP_SPMDSetExitCallback(amudp_exitcallback_t);
   /* register a function to be called when AMUDP_SPMDExit is called by any node
    * exit code is passed
    */
@@ -132,6 +132,6 @@ extern amudp_spawnfn_desc_t const AMUDP_Spawnfn_Desc[];
 #define AMX_SPMDStartup(pargc, pargv, networkdepth, pnetworkpid, peb, pep) \
       AMUDP_SPMDStartup((pargc), (pargv), 0, (networkdepth), NULL, (pnetworkpid), (peb), (pep))
 
-END_EXTERNC
+SOCK_END_EXTERNC
 
 #endif

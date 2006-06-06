@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2005/11/15 18:22:31 $
- * $Revision: 1.71 $
+ *     $Date: 2006/06/06 22:34:57 $
+ * $Revision: 1.71.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,17 +17,14 @@
 #include <string.h>
 #include <stdlib.h>
 #if GASNETI_THREADS
-  #ifdef __linux__
+  #if PLATFORM_OS_LINUX
    struct timespec; /* avoid an annoying warning on Linux */
   #endif
   #include <pthread.h>
 #endif
 #include <gasnet_membar.h>
 
-BEGIN_EXTERNC
-
-extern void gasneti_fatalerror(const char *msg, ...) GASNETI_NORETURN __attribute__((__format__ (__printf__, 1, 2)));
-GASNETI_NORETURNP(gasneti_fatalerror)
+GASNETI_BEGIN_EXTERNC
 
 extern int (*gasneti_print_backtrace)(int);
 
@@ -79,18 +76,6 @@ extern int gasneti_verboseenv();
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
 
-/* format a integer value as a human-friendly string, with appropriate mem suffix */
-extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_mem_size);
-/* parse an integer value back out again
-  if mem_size_multiplier==0, it's a unitless quantity
-  otherwise, it's a memory size quantity, and mem_size_multiplier provides the 
-    default memory unit (ie 1024=1KB) if the string provides none  */
-extern int64_t gasneti_parse_int(const char *str, uint64_t mem_size_multiplier);
-
-/* set/unset an environment variable, for the local process ONLY */
-extern void gasneti_setenv(const char *key, const char *value);
-extern void gasneti_unsetenv(const char *key);
-
 typedef struct { 
   uint64_t allocated_bytes;   /* num bytes ever allocated */
   uint64_t freed_bytes;       /* num bytes ever freed */
@@ -126,38 +111,23 @@ typedef struct {
 #endif
 
 /* extern versions of gasnet malloc fns for use in public headers */
-extern void *_gasneti_extern_malloc(size_t sz 
-             GASNETI_CURLOCFARG) GASNETI_MALLOC;
-extern void *_gasneti_extern_realloc(void *ptr, size_t sz 
-             GASNETI_CURLOCFARG);
-extern void *_gasneti_extern_calloc(size_t N, size_t S 
-             GASNETI_CURLOCFARG) GASNETI_MALLOC;
-extern void _gasneti_extern_free(void *ptr
-             GASNETI_CURLOCFARG);
-extern char *_gasneti_extern_strdup(const char *s
-              GASNETI_CURLOCFARG) GASNETI_MALLOC;
-extern char *_gasneti_extern_strndup(const char *s, size_t n 
-              GASNETI_CURLOCFARG) GASNETI_MALLOC;
-#ifdef __SUNPRO_C
-  #pragma returns_new_memory(_gasneti_extern_malloc, _gasneti_extern_calloc, _gasneti_extern_strdup, _gasneti_extern_strndup)
-#endif
+extern void *_gasneti_extern_malloc(size_t sz GASNETI_CURLOCFARG) GASNETI_MALLOC;
+GASNETI_MALLOCP(_gasneti_extern_malloc)
+extern void *_gasneti_extern_realloc(void *ptr, size_t sz GASNETI_CURLOCFARG);
+extern void *_gasneti_extern_calloc(size_t N, size_t S GASNETI_CURLOCFARG) GASNETI_MALLOC;
+GASNETI_MALLOCP(_gasneti_extern_calloc)
+extern void _gasneti_extern_free(void *ptr GASNETI_CURLOCFARG);
+extern char *_gasneti_extern_strdup(const char *s GASNETI_CURLOCFARG) GASNETI_MALLOC;
+GASNETI_MALLOCP(_gasneti_extern_strdup)
+extern char *_gasneti_extern_strndup(const char *s, size_t n GASNETI_CURLOCFARG) GASNETI_MALLOC;
+GASNETI_MALLOCP(_gasneti_extern_strndup)
+
 #define gasneti_extern_malloc(sz)      _gasneti_extern_malloc((sz) GASNETI_CURLOCAARG)
 #define gasneti_extern_realloc(ptr,sz) _gasneti_extern_realloc((ptr), (sz) GASNETI_CURLOCAARG)
 #define gasneti_extern_calloc(N,S)     _gasneti_extern_calloc((N),(S) GASNETI_CURLOCAARG)
 #define gasneti_extern_free(ptr)       _gasneti_extern_free((ptr) GASNETI_CURLOCAARG)
 #define gasneti_extern_strdup(s)       _gasneti_extern_strdup((s) GASNETI_CURLOCAARG)
 #define gasneti_extern_strndup(s,n)    _gasneti_extern_strndup((s),(n) GASNETI_CURLOCAARG)
-
-#if defined(__GNUC__) || defined(__FUNCTION__)
-  #define GASNETI_CURRENT_FUNCTION __FUNCTION__
-#elif defined(HAVE_FUNC) && !defined(__cplusplus)
-  /* __func__ should also work for ISO C99 compilers */
-  #define GASNETI_CURRENT_FUNCTION __func__
-#else
-  #define GASNETI_CURRENT_FUNCTION ""
-#endif
-extern char *gasneti_build_loc_str(const char *funcname, const char *filename, int linenum);
-#define gasneti_current_loc gasneti_build_loc_str(GASNETI_CURRENT_FUNCTION,__FILE__,__LINE__)
 
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #if GASNET_SEGMENT_EVERYTHING
@@ -235,46 +205,6 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
          _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
 #endif
 
-/* gasneti_assert_always():
- * an assertion that never compiles away - for sanity checks in non-critical paths 
- */
-#define gasneti_assert_always(expr) \
-    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
-
-/* gasneti_assert():
- * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
- */
-#if GASNET_NDEBUG
-  #define gasneti_assert(expr) ((void)0)
-#else
-  #define gasneti_assert(expr) gasneti_assert_always(expr)
-#endif
-
-/* gasneti_assert_zeroret(), gasneti_assert_nzeroret():
- * evaluate an expression (always), and in debug mode additionally 
- * assert that it returns zero or non-zero
- * useful for making system calls and checking the result
- */
-#if GASNET_DEBUG
-  #define gasneti_assert_zeroret(op) do {                   \
-    int _retval = (op);                                     \
-    if_pf(_retval)                                          \
-      gasneti_fatalerror(#op": %s(%i), errno=%s(%i) at %s", \
-        strerror(_retval), _retval, strerror(errno), errno, \
-        gasneti_current_loc);                               \
-  } while (0)
-  #define gasneti_assert_nzeroret(op) do {                  \
-    int _retval = (op);                                     \
-    if_pf(!_retval)                                         \
-      gasneti_fatalerror(#op": %s(%i), errno=%s(%i) at %s", \
-        strerror(_retval), _retval, errno, strerror(errno), \
-        gasneti_current_loc);                               \
-  } while (0)
-#else
-  #define gasneti_assert_zeroret(op)  op
-  #define gasneti_assert_nzeroret(op) op
-#endif
-
 /* make a GASNet core API call - if it fails, print error message and abort */
 #ifndef GASNETI_SAFE
 #define GASNETI_SAFE(fncall) do {                                            \
@@ -306,83 +236,6 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #include <gasnet_atomicops.h>
 
 /* ------------------------------------------------------------------------------------ */
-
-/* conduits may replace the following types, 
-   but they should at least include all the following fields */
-#ifndef GASNETI_MEMVECLIST_STATS_T
-  typedef struct {
-    size_t minsz;
-    size_t maxsz;
-    uintptr_t totalsz;
-    void *minaddr;
-    void *maxaddr;
-  } gasneti_memveclist_stats_t;
-#endif
-
-#ifndef GASNETI_ADDRLIST_STATS_T
-  typedef struct {
-    void *minaddr;
-    void *maxaddr;
-  } gasneti_addrlist_stats_t;
-#endif
-
-/* stats needed by the VIS reference implementation */
-#ifndef GASNETI_REFVIS_STATS
-  #define GASNETI_REFVIS_STATS(CNT,VAL,TIME) \
-        CNT(C, PUTV_REF_INDIV, cnt)          \
-        CNT(C, GETV_REF_INDIV, cnt)          \
-        CNT(C, PUTI_REF_INDIV, cnt)          \
-        CNT(C, GETI_REF_INDIV, cnt)          \
-        CNT(C, PUTI_REF_VECTOR, cnt)         \
-        CNT(C, GETI_REF_VECTOR, cnt)         \
-        CNT(C, PUTS_REF_INDIV, cnt)          \
-        CNT(C, GETS_REF_INDIV, cnt)          \
-        CNT(C, PUTS_REF_VECTOR, cnt)         \
-        CNT(C, GETS_REF_VECTOR, cnt)         \
-        CNT(C, PUTS_REF_INDEXED, cnt)        \
-        CNT(C, GETS_REF_INDEXED, cnt)
-#endif
-
-/* stats needed by the COLL reference implementation */
-#ifndef GASNETI_REFCOLL_STATS
-  #define GASNETI_REFCOLL_STATS(CNT,VAL,TIME) \
-        VAL(X, COLL_TRY_SYNC, success)        \
-        VAL(X, COLL_TRY_SYNC_ALL, success)    \
-        VAL(X, COLL_TRY_SYNC_SOME, success)   \
-        TIME(X, COLL_WAIT_SYNC, waittime)     \
-        TIME(X, COLL_WAIT_SYNC_ALL, waittime) \
-        TIME(X, COLL_WAIT_SYNC_SOME, waittime)\
-        VAL(W, COLL_BROADCAST, sz)            \
-        VAL(W, COLL_BROADCAST_NB, sz)         \
-        VAL(W, COLL_BROADCAST_M, sz)          \
-        VAL(W, COLL_BROADCAST_M_NB, sz)       \
-        VAL(W, COLL_SCATTER, sz)              \
-        VAL(W, COLL_SCATTER_NB, sz)           \
-        VAL(W, COLL_SCATTER_M, sz)            \
-        VAL(W, COLL_SCATTER_M_NB, sz)         \
-        VAL(W, COLL_GATHER, sz)               \
-        VAL(W, COLL_GATHER_NB, sz)            \
-        VAL(W, COLL_GATHER_M, sz)             \
-        VAL(W, COLL_GATHER_M_NB, sz)          \
-        VAL(W, COLL_GATHER_ALL, sz)           \
-        VAL(W, COLL_GATHER_ALL_NB, sz)        \
-        VAL(W, COLL_GATHER_ALL_M, sz)         \
-        VAL(W, COLL_GATHER_ALL_M_NB, sz)      \
-        VAL(W, COLL_EXCHANGE, sz)             \
-        VAL(W, COLL_EXCHANGE_NB, sz)          \
-        VAL(W, COLL_EXCHANGE_M, sz)           \
-        VAL(W, COLL_EXCHANGE_M_NB, sz)        \
-        VAL(W, COLL_REDUCE, cnt)              \
-        VAL(W, COLL_REDUCE_NB, cnt)           \
-        VAL(W, COLL_REDUCE_M, cnt)            \
-        VAL(W, COLL_REDUCE_M_NB, cnt)         \
-        VAL(W, COLL_SCAN, cnt)                \
-        VAL(W, COLL_SCAN_NB, cnt)             \
-        VAL(W, COLL_SCAN_M, cnt)              \
-        VAL(W, COLL_SCAN_M_NB, cnt)
-#endif
-
-/* ------------------------------------------------------------------------------------ */
 /* semi-portable spinlocks using gasneti_atomic_t
    This useful primitive is not available on all platforms and it therefore reserved 
    for internal use only.
@@ -402,8 +255,6 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
    trying to acquire a spinlock in signal context is legal, it is dangerous.
 
    GASNETI_HAVE_SPINLOCK will be defined to 1 on platforms supporting this primitive.
-
-   TODO Possibly add debugging wrappers as well.  That will require an actual struct.
  */
 #if 0
   /* TODO Some platforms may have cheaper implementations than atomic-CAS. */
@@ -411,49 +262,129 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #elif defined(GASNETI_ATOMICOPS_NOT_SIGNALSAFE)
   /* We don't implement this case due to lack of signal safety */
 #elif defined(GASNETI_HAVE_ATOMIC_CAS)
-  #define GASNETI_SPINLOCK_LOCKED	1
-  #define GASNETI_SPINLOCK_UNLOCKED	0
+  #if GASNET_DEBUG
+    #define GASNETI_SPINLOCK_LOCKED	0xa5a5
+    #define GASNETI_SPINLOCK_UNLOCKED	0xaa55
+    #define GASNETI_SPINLOCK_DESTROYED	0xDEAD
+    GASNETI_INLINE(gasneti_spinlock_is_valid)
+    int gasneti_spinlock_is_valid(gasneti_atomic_t *plock) {
+      uint32_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
+      if_pf (tmp == GASNETI_SPINLOCK_DESTROYED)
+        gasneti_fatalerror("Detected use of destroyed spinlock");
+      if_pf (!((tmp == GASNETI_SPINLOCK_LOCKED) || (tmp == GASNETI_SPINLOCK_UNLOCKED)))
+        gasneti_fatalerror("Detected use of uninitialized or corrupted spinlock");
+      return 1;
+    }
+    GASNETI_INLINE(gasneti_spinlock_is_locked)
+    int gasneti_spinlock_is_locked(gasneti_atomic_t *plock) {
+      uint32_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
+      return (tmp == GASNETI_SPINLOCK_LOCKED);
+    }
+  #else
+    #define GASNETI_SPINLOCK_LOCKED	1
+    #define GASNETI_SPINLOCK_UNLOCKED	0
+    #define gasneti_spinlock_is_valid(plock) 1
+  #endif
   #define GASNETI_SPINLOCK_INITIALIZER gasneti_atomic_init(GASNETI_SPINLOCK_UNLOCKED)
-  #define gasneti_spinlock_init(plock) do {                   \
-      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED); \
-      gasneti_local_wmb();      /* ??? needed? */             \
-  } while (0)
+  #define gasneti_spinlock_init(plock) \
+      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_WMB_POST)
   #define gasneti_spinlock_destroy(plock) \
-      gasneti_assert(gasneti_atomic_read(plock) == GASNETI_SPINLOCK_UNLOCKED)
-  #define gasneti_spinlock_lock(plock) do {                                  \
-      gasneti_waituntil(                                                     \
-        gasneti_atomic_compare_and_swap(plock,                               \
-          GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED)                \
-      ); /* Acquire: the rmb() is in the gasneti_waituntil() */              \
-      gasneti_assert(gasneti_atomic_read(plock) == GASNETI_SPINLOCK_LOCKED); \
+      gasneti_assert(gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_DESTROYED, GASNETI_ATOMIC_WMB_POST))
+  #define gasneti_spinlock_lock(plock) do {                                     \
+      gasneti_waituntil(                                                        \
+	!gasneti_spinlock_is_valid(plock) ||                                    \
+        gasneti_atomic_compare_and_swap(plock,                                  \
+          GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, 0)                \
+      ); /* Acquire: the rmb() is in the gasneti_waituntil() */                 \
+      gasneti_assert(gasneti_spinlock_is_locked(plock));                        \
   } while (0)
-  GASNET_INLINE_MODIFIER(gasneti_spinlock_unlock)
+  GASNETI_INLINE(gasneti_spinlock_unlock)
   int gasneti_spinlock_unlock(gasneti_atomic_t *plock) {
-      gasneti_assert(gasneti_atomic_read(plock) == GASNETI_SPINLOCK_LOCKED);
-      gasneti_local_wmb();	/* Release */
       #if GASNET_DEBUG
-        { /* Using CAS for release is more costly, but adds validation */
-          int did_swap;
-          did_swap = gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_LOCKED, GASNETI_SPINLOCK_UNLOCKED);
-          gasneti_assert(did_swap);
-        }
+        /* Using CAS for release is more costly, but adds validation */
+        gasneti_assert(gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_LOCKED, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL));
       #else
-        gasneti_atomic_set(plock, GASNETI_SPINLOCK_UNLOCKED);
+        gasneti_atomic_set(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_REL);
       #endif
       return 0;
   }
   /* return 0/EBUSY on success/failure to match pthreads */
-  GASNET_INLINE_MODIFIER(gasneti_spinlock_trylock)
+  GASNETI_INLINE(gasneti_spinlock_trylock)
   int gasneti_spinlock_trylock(gasneti_atomic_t *plock) {
-      if (gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED)) {
-	  gasneti_local_rmb();	/* Acquire */  
-          gasneti_assert(gasneti_atomic_read(plock) == GASNETI_SPINLOCK_LOCKED);
+      gasneti_assert(gasneti_spinlock_is_valid(plock));
+      if (gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
+	  gasneti_assert(gasneti_spinlock_is_locked(plock));
 	  return 0;
       } else {
 	  return EBUSY;
       }
   }
   #define GASNETI_HAVE_SPINLOCK 1
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* public threadinfo support */
+
+#if GASNETI_CLIENT_THREADS
+  #ifndef GASNETI_THREADINFO_OPT
+  #define GASNETI_THREADINFO_OPT      1
+  #endif
+  #ifndef GASNETI_LAZY_BEGINFUNCTION
+  #define GASNETI_LAZY_BEGINFUNCTION  1
+  #endif
+#endif
+
+#if GASNETI_THREADINFO_OPT
+  /* Here we use a clever trick - GASNET_GET_THREADINFO() uses the sizeof(gasneti_threadinfo_available)
+      to determine whether gasneti_threadinfo_cache was bound a value posted by GASNET_POST_THREADINFO()
+      of if it bound to the globally declared dummy variables. 
+     Even a very stupid C optimizer should constant-fold away the unused calls to gasneti_get_threadinfo() 
+      and discard the unused variables
+     We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
+   */
+  static uint8_t gasnete_threadinfo_cache = 0;
+  static uint8_t gasnete_threadinfo_available = 
+    sizeof(gasnete_threadinfo_cache) + sizeof(gasnete_threadinfo_available);
+    /* silly little trick to prevent unused variable warning on gcc -Wall */
+
+  #define GASNET_POST_THREADINFO(info)                     \
+    gasnet_threadinfo_t gasnete_threadinfo_cache = (info); \
+    uint32_t gasnete_threadinfo_available = 0
+    /* if you get an unused variable warning on gasnete_threadinfo_available, 
+       it means you POST'ed in a function which made no GASNet calls that needed it */
+
+  #if GASNETI_LAZY_BEGINFUNCTION
+    #define GASNET_GET_THREADINFO()                              \
+      ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
+        (gasnet_threadinfo_t)gasnete_mythread() :                \
+        ( (uintptr_t)gasnete_threadinfo_cache == 0 ?             \
+          ((*(gasnet_threadinfo_t *)&gasnete_threadinfo_cache) = \
+            (gasnet_threadinfo_t)gasnete_mythread()) :           \
+          (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache) )
+  #else
+    #define GASNET_GET_THREADINFO()                   \
+      ( (sizeof(gasnete_threadinfo_available) == 1) ? \
+        (gasnet_threadinfo_t)gasnete_mythread() :     \
+        (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache )
+  #endif
+
+  /* the gasnet_threadinfo_t pointer points to a thread data-structure owned by
+     the extended API, whose first element is a pointer reserved
+     for use by the core API (initialized to NULL)
+   */
+
+  #if GASNETI_LAZY_BEGINFUNCTION
+    /* postpone thread discovery to first use */
+    #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(0)
+  #else
+    #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
+  #endif
+
+#else
+  #define GASNET_POST_THREADINFO(info)   \
+    static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
+  #define GASNET_GET_THREADINFO() (NULL)
+  #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -478,7 +409,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define GASNETI_USE_TRUE_MUTEXES 0
 #endif
 
-#if defined(__CYGWIN__) || defined(GASNETI_FORCE_MUTEX_INITCLEAR)
+#if PLATFORM_OS_CYGWIN || defined(GASNETI_FORCE_MUTEX_INITCLEAR)
   /* we're sometimes unable to call pthread_mutex_destroy when freeing a mutex
      some pthread implementations will fail to re-init a mutex
      (eg after a free and realloc of the associated mem) unless
@@ -519,7 +450,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);            \
               (pl)->owner = GASNETI_THREADIDQUERY();                           \
             } while (0)
-    GASNET_INLINE_MODIFIER(gasneti_mutex_trylock)
+    GASNETI_INLINE(gasneti_mutex_trylock)
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
               int retval;
               gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());
@@ -551,7 +482,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
               (pl)->owner = GASNETI_THREADIDQUERY();                \
             } while (0)
-    GASNET_INLINE_MODIFIER(gasneti_mutex_trylock)
+    GASNETI_INLINE(gasneti_mutex_trylock)
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);
               (pl)->owner = GASNETI_THREADIDQUERY();
@@ -599,65 +530,6 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define gasneti_mutex_assertunlocked(pl)  ((void)0)
 #endif
 
-/* gasneti_cond_t Condition variables - 
-   Provides pthread_cond-like functionality, with error checking
-  GASNETI_COND_INITIALIZER - value to statically initialize a gasneti_cond_t
-  gasneti_cond_init(gasneti_cond_t *pc) - dynamically initialize a gasneti_cond_t   
-  gasneti_cond_destroy(gasneti_cond_t *pc) - reclaim a gasneti_cond_t
-  gasneti_cond_signal(gasneti_cond_t *pc) - 
-    signal at least one waiter on a gasneti_cond_t, while holding the associated mutex
-  gasneti_cond_broadcast(gasneti_cond_t *pc) - 
-    signal all current waiters on a gasneti_cond_t, while holding the associated mutex
-  gasneti_cond_wait(gasneti_cond_t *pc, gasneti_mutex_t *pl) - 
-    release gasneti_mutex_t pl (which must be held) and block WITHOUT POLLING 
-    until gasneti_cond_t pc is signalled by another thread, or until the system
-    decides to wake this thread for no good reason (which it may or may not do).
-    Upon wakeup for any reason, the mutex will be reacquired before returning.
-
-    It's an error to wait if there is only one thread, and can easily lead to 
-    deadlock if the last thread goes to sleep. No thread may call wait unless it
-    can guarantee that (A) some other thread is still polling and (B) some other
-    thread will eventually signal it to wake up. The system may or may not also 
-    randomly signal threads to wake up for no good reason, so upon awaking the thread
-    MUST verify using its own means that the condition it was waiting for 
-    has actually been signalled (ie that the client-level "outer" condition has been set).
-
-    In order to prevent races leading to missed signals and deadlock, signaling
-    threads must always hold the associated mutex while signaling, and ensure the
-    outer condition is set *before* releasing the mutex. Additionally, all waiters
-    must check the outer condition *after* acquiring the same mutex and *before*
-    calling wait (which atomically releases the lock and puts the thread to sleep).
-*/
-
-#if GASNETI_USE_TRUE_MUTEXES
-  typedef pthread_cond_t            gasneti_cond_t;
-
-  #define GASNETI_COND_INITIALIZER    PTHREAD_COND_INITIALIZER
-  #define gasneti_cond_init(pc)       gasneti_assert_zeroret(pthread_cond_init(pc))
-  #define gasneti_cond_destroy(pc)    gasneti_assert_zeroret(pthread_cond_destroy(pc))
-  #define gasneti_cond_signal(pc)     gasneti_assert_zeroret(pthread_cond_signal(pc))
-  #define gasneti_cond_broadcast(pc)  gasneti_assert_zeroret(pthread_cond_broadcast(pc))
-  #if GASNET_DEBUG
-    #define gasneti_cond_wait(pc,pl)  do {                          \
-      gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());       \
-      (pl)->owner = GASNETI_MUTEX_NOOWNER;                          \
-      gasneti_assert_zeroret(pthread_cond_wait(pc, &((pl)->lock))); \
-      gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);         \
-      (pl)->owner = GASNETI_THREADIDQUERY();                        \
-    } while (0)
-  #else
-    #define gasneti_cond_wait(pc,pl)  gasneti_assert_zeroret(pthread_cond_wait(pc, pl))
-  #endif
-#else
-  typedef char           gasneti_cond_t;
-  #define GASNETI_COND_INITIALIZER  '\0'
-  #define gasneti_cond_init(pc)       ((void)0)
-  #define gasneti_cond_destroy(pc)    ((void)0)
-  #define gasneti_cond_signal(pc)     ((void)0)
-  #define gasneti_cond_broadcast(pc)  ((void)0)
-  #define gasneti_cond_wait(pc,pl) \
-      gasneti_fatalerror("There's only one thread: waiting on condition variable => deadlock")
-#endif
 /* ------------------------------------------------------------------------------------ */
 /* Wrappers for pthread getspecific data 
 
@@ -680,26 +552,30 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #define GASNETI_THREADKEY_MAGIC 0xFF00ABCDEF573921ULL
 
 typedef struct { 
-  uint64_t magic;
-  gasneti_mutex_t initmutex;
-  volatile int isinit;
+  #if GASNET_DEBUG
+    uint64_t magic;
+    #define GASNETI_THREADKEY_MAGIC_INIT GASNETI_THREADKEY_MAGIC,
+  #else
+    #define GASNETI_THREADKEY_MAGIC_INIT
+  #endif
   #if GASNETI_THREADS
+    gasneti_mutex_t initmutex;
+    volatile int isinit;
     pthread_key_t value;
+    #define GASNETI_THREADKEY_REST_INIT GASNETI_MUTEX_INITIALIZER, 0 /* value field left NULL */
   #else
     void *value;
+    #define GASNETI_THREADKEY_REST_INIT 0
   #endif
 } gasneti_threadkey_t;
 
 #define GASNETI_THREADKEY_INITIALIZER \
-  { GASNETI_THREADKEY_MAGIC, GASNETI_MUTEX_INITIALIZER, 0 /* value field left NULL */ }
-
-#define _gasneti_threadkey_check(key, requireinit)         \
- ( gasneti_assert((key).magic == GASNETI_THREADKEY_MAGIC), \
-   (requireinit ? gasneti_assert((key).isinit) : ((void)0)))
+  { GASNETI_THREADKEY_MAGIC_INIT GASNETI_THREADKEY_REST_INIT }
 
 #if GASNETI_THREADS
-  #define _gasneti_threadkey_init(pvalue) \
-    gasneti_assert_zeroret(pthread_key_create((pvalue),NULL));
+  #define _gasneti_threadkey_check(key, requireinit)         \
+   ( gasneti_assert((key).magic == GASNETI_THREADKEY_MAGIC), \
+     (requireinit ? gasneti_assert((key).isinit) : ((void)0)))
   #define gasneti_threadkey_get_noinit(key) \
     ( _gasneti_threadkey_check((key), 1),   \
       pthread_getspecific((key).value) )
@@ -707,48 +583,163 @@ typedef struct {
     _gasneti_threadkey_check((key), 1);                                   \
     gasneti_assert_zeroret(pthread_setspecific((key).value, (newvalue))); \
   } while (0)
-#else
-  #define _gasneti_threadkey_init(pvalue) ((void)0)
-  #define gasneti_threadkey_get_noinit(key) \
-    (_gasneti_threadkey_check((key), 1), (key).value)
-  #define gasneti_threadkey_set_noinit(key, newvalue) do { \
-    _gasneti_threadkey_check((key), 1);                    \
-    (key).value = (newvalue);                              \
-  } while (0)
-#endif
-  
-/* not inlined, to avoid inserting overhead for an uncommon path */
-static void gasneti_threadkey_init(gasneti_threadkey_t *pkey) {
-  _gasneti_threadkey_check(*pkey, 0);
-  gasneti_mutex_lock(&(pkey->initmutex));
-    if (pkey->isinit == 0) {
-      _gasneti_threadkey_init(&(pkey->value));
-      gasneti_local_wmb();
-      pkey->isinit = 1;
-    }
-  gasneti_mutex_unlock(&(pkey->initmutex));
-}
-  
-#define gasneti_threadkey_get(key)       \
-  ( _gasneti_threadkey_check(key, 0),    \
-    ( PREDICT_FALSE((key).isinit == 0) ? \
-      gasneti_threadkey_init(&(key)) :   \
-      ((void)0) ),                       \
-    gasneti_threadkey_get_noinit(key) )
+  GASNETI_NEVER_INLINE(gasneti_threadkey_init, /* avoid inserting overhead for an uncommon path */
+  static void gasneti_threadkey_init(gasneti_threadkey_t *pkey)) {
+    _gasneti_threadkey_check(*pkey, 0);
+    gasneti_mutex_lock(&(pkey->initmutex));
+      if (pkey->isinit == 0) {
+        gasneti_assert_zeroret(pthread_key_create(&(pkey->value),NULL));
+        gasneti_local_wmb();
+        pkey->isinit = 1;
+      }
+    gasneti_mutex_unlock(&(pkey->initmutex));
+    _gasneti_threadkey_check(*pkey, 1);
+  }
+  #define gasneti_threadkey_get(key)       \
+    ( _gasneti_threadkey_check(key, 0),    \
+      ( PREDICT_FALSE((key).isinit == 0) ? \
+        gasneti_threadkey_init(&(key)) :   \
+        ((void)0) ),                       \
+      gasneti_threadkey_get_noinit(key) )
 
-#define gasneti_threadkey_set(key,newvalue) do { \
-    _gasneti_threadkey_check(key, 0);            \
-    if_pf((key).isinit == 0)                     \
-      gasneti_threadkey_init(&(key));            \
-    gasneti_threadkey_set_noinit(key, newvalue); \
+  #define gasneti_threadkey_set(key,newvalue) do { \
+      _gasneti_threadkey_check(key, 0);            \
+      if_pf((key).isinit == 0)                     \
+        gasneti_threadkey_init(&(key));            \
+      gasneti_threadkey_set_noinit(key, newvalue); \
+    } while (0)
+#else
+  #define gasneti_threadkey_init(pkey) ((void)0)
+  #define _gasneti_threadkey_check(key)         \
+          gasneti_assert((key).magic == GASNETI_THREADKEY_MAGIC)
+  #define gasneti_threadkey_get_noinit(key) \
+    (_gasneti_threadkey_check(key), (key).value)
+  #define gasneti_threadkey_set_noinit(key, newvalue) do { \
+    _gasneti_threadkey_check(key);                         \
+    (key).value = (newvalue);                              \
+    } while (0)
+  #define gasneti_threadkey_get gasneti_threadkey_get_noinit
+  #define gasneti_threadkey_set gasneti_threadkey_set_noinit
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* GASNet progressfn support
+ * progressfns are internal functions that are called "periodically" by a conduit to 
+ *  allow internal GASNet modules to make progress. 
+ * Each progressfn is associated with a named subsystem (one-to-one mapping)
+ *  subsystem names should be prefixed by gasneti_pf_ to prevent macro name capture
+ * GASNETI_PROGRESSFNS_ENABLE/GASNETI_PROGRESSFNS_DISABLE are used by the conduit
+ *  to provide a hint when a particular subsystem's progressfns want to be serviced
+ * Each progressfn has either a BOOLEAN hint or COUNTED hint flavor
+ *  COUNTED flavor: ENABLE/DISABLE manipulate an atomic reference count, initially zero 
+ *    and hinting that calls are requested whenever the count > 0
+ *  BOOLEAN flavor: ENABLE/DISABLE is a simple (non-atomic) flag, and the conduit
+ *    is responsible for arbitrating any races between different threads when  
+ *    setting/clearing that flag under GASNETI_THREADS
+ * progressfns are called from a non-AM context, but they should never perform collective ops
+ *  or execute any code that might block (aside from aquiring hsls in an AM-safe manner)
+ * they may be called concurrently (if GASNETI_THREADS), and must be prepared to
+ *  receive calls even when the hint indicates the given subsytem does not need service
+ *  additionally, progressfns that make gasnet calls must be prepared to recieve 
+ *  reentrant calls (ie without infinite recursion or deadlock)
+ */
+typedef void (*gasneti_progressfn_t)();
+
+/* currently the list of progressfns is compile-time constant for dispatch performance 
+ * reasons (a static dispatch is about 3x faster than a dynamic one on modern CPUs)
+ * in the future it may be expanded with a dynamic function registration facility
+ * PROGRESSFNS_LIST entries should look like:
+   FN(token subsysname, flavor [COUNTED|BOOLEAN], gasneti_progressfn_t progressfn)
+ */
+
+#ifndef GASNETC_PROGRESSFNS_LIST
+#define GASNETC_PROGRESSFNS_LIST(FN)
+#endif
+
+#ifndef GASNETE_PROGRESSFNS_LIST
+  #ifndef GASNETE_BARRIER_PROGRESSFN
+    extern void gasnete_ambarrier_kick();
+    #define GASNETE_BARRIER_PROGRESSFN(FN) \
+      FN(gasneti_pf_barrier, BOOLEAN, gasnete_ambarrier_kick) 
+  #endif
+
+  #define GASNETE_PROGRESSFNS_LIST(FN) \
+    GASNETE_BARRIER_PROGRESSFN(FN)     
+#endif
+
+#if GASNET_DEBUG
+  extern void (*gasneti_debug_progressfn_bool)();
+  extern void (*gasneti_debug_progressfn_counted)();
+  #define GASNETI_DEBUG_PROGRESSFNS(FN) \
+      FN(gasneti_pf_debug_boolean, BOOLEAN, gasneti_debug_progressfn_bool) \
+      FN(gasneti_pf_debug_counted, COUNTED, gasneti_debug_progressfn_counted) 
+#else
+  #define GASNETI_DEBUG_PROGRESSFNS(FN)
+#endif
+
+#define GASNETI_PROGRESSFNS_LIST(FN) \
+  GASNETI_DEBUG_PROGRESSFNS(FN)      \
+  GASNETI_COLL_PROGRESSFNS(FN)       \
+  GASNETI_VIS_PROGRESSFNS(FN)        \
+  GASNETE_PROGRESSFNS_LIST(FN)       \
+  GASNETC_PROGRESSFNS_LIST(FN) 
+
+/* default to one atomic counter per subsystem, because atomic_read
+   is many times faster than a do-nothing function call 
+*/
+#ifndef GASNETI_PROGRESSFNS_ENABLE
+  #define _GASNETI_PROGRESSFNS_DEFAULT
+  #define _GASNETI_PROGRESSFNS_FLAG(subsysname,flavor) \
+          _gasneti_progressfn_enabled_##subsysname##_##flavor
+
+  #define _GASNETI_PROGRESSFNS_TYPE_BOOLEAN volatile int
+  #define _GASNETI_PROGRESSFNS_TYPE_COUNTED gasneti_weakatomic_t
+  #define _GASNETI_PROGRESSFNS_TYPE(flavor) _GASNETI_PROGRESSFNS_TYPE_##flavor
+
+  #define _GASNETI_PROGRESSFNS_INIT_BOOLEAN = 0
+  #define _GASNETI_PROGRESSFNS_INIT_COUNTED = gasneti_weakatomic_init(0)
+  #define _GASNETI_PROGRESSFNS_INIT(flavor) _GASNETI_PROGRESSFNS_INIT_##flavor
+
+  #define _GASNETI_PROGRESSFNS_DECLARE_FLAGS(subsysname, flavor, progressfn) \
+    extern _GASNETI_PROGRESSFNS_TYPE(flavor) _GASNETI_PROGRESSFNS_FLAG(subsysname, flavor);
+  #define _GASNETI_PROGRESSFNS_DEFINE_FLAGS(subsysname, flavor, progressfn)         \
+    _GASNETI_PROGRESSFNS_TYPE(flavor) _GASNETI_PROGRESSFNS_FLAG(subsysname, flavor) \
+                                      _GASNETI_PROGRESSFNS_INIT(flavor);
+  GASNETI_PROGRESSFNS_LIST(_GASNETI_PROGRESSFNS_DECLARE_FLAGS) /* forward declaration */
+
+  #define _GASNETI_PROGRESSFNS_ENABLE_BOOLEAN(subsysname) \
+    (_GASNETI_PROGRESSFNS_FLAG(subsysname,BOOLEAN) = 1)
+  #define _GASNETI_PROGRESSFNS_DISABLE_BOOLEAN(subsysname) \
+    (_GASNETI_PROGRESSFNS_FLAG(subsysname,BOOLEAN) = 0)
+  #define _GASNETI_PROGRESSFNS_ENABLE_COUNTED(subsysname) do {                                   \
+    gasneti_weakatomic_increment(&_GASNETI_PROGRESSFNS_FLAG(subsysname,COUNTED),0);                \
+    gasneti_assert(gasneti_weakatomic_read(&_GASNETI_PROGRESSFNS_FLAG(subsysname,COUNTED),0) > 0); \
   } while (0)
+  #define _GASNETI_PROGRESSFNS_DISABLE_COUNTED(subsysname) do {                                  \
+    gasneti_assert(gasneti_weakatomic_read(&_GASNETI_PROGRESSFNS_FLAG(subsysname,COUNTED),0) > 0); \
+    gasneti_weakatomic_decrement(&_GASNETI_PROGRESSFNS_FLAG(subsysname,COUNTED),0);                \
+  } while (0)
+  #define GASNETI_PROGRESSFNS_ENABLE(subsysname,flavor) \
+         _GASNETI_PROGRESSFNS_ENABLE_##flavor(subsysname)
+  #define GASNETI_PROGRESSFNS_DISABLE(subsysname,flavor) \
+         _GASNETI_PROGRESSFNS_DISABLE_##flavor(subsysname)
+
+  #define _GASNETI_PROGRESSFNS_ISENABLED_BOOLEAN(subsysname) \
+    _GASNETI_PROGRESSFNS_FLAG(subsysname,BOOLEAN)
+  #define _GASNETI_PROGRESSFNS_ISENABLED_COUNTED(subsysname) \
+    gasneti_weakatomic_read(&_GASNETI_PROGRESSFNS_FLAG(subsysname,COUNTED),0)
+  #define _GASNETI_PROGRESSFNS_RUN_IFENABLED(subsysname, flavor, progressfn) \
+    (_GASNETI_PROGRESSFNS_ISENABLED_##flavor(subsysname) ? progressfn() : ((void)0)) ,
+  #define GASNETI_PROGRESSFNS_RUN()                        \
+   ( GASNETI_PROGRESSFNS_LIST(_GASNETI_PROGRESSFNS_RUN_IFENABLED) ((void)0) ) 
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_GASNETI_AMPOLL
   /*
    gasnet_AMPoll() - public poll function called by the client, throttled and traced 
                      should not be called from within GASNet (so we only trace directly user-initiated calls)
-   gasneti_AMPoll() - called internally by GASNet, provides throttling (if enabled), but no tracing
+   gasneti_AMPoll() - called internally by GASNet, provides throttling (if enabled), progress functions, but no tracing
    gasnetc_AMPoll() - conduit AM dispatcher, should only be called from gasneti_AMPoll()
    */
   #ifndef GASNETI_GASNETC_AMPOLL
@@ -807,8 +798,15 @@ static void gasneti_threadkey_init(gasneti_threadkey_t *pkey) {
   #endif
 
   #if !GASNETI_THROTTLE_POLLERS 
-    #define gasneti_AMPoll() (gasneti_AMPoll_spinpollers_check(), \
-                              gasneti_memcheck_one(), gasnetc_AMPoll())
+    GASNETI_INLINE(gasneti_AMPoll)
+    int gasneti_AMPoll() {
+       int retval;
+       gasneti_AMPoll_spinpollers_check();
+       gasneti_memcheck_one();
+       retval = gasnetc_AMPoll();
+       GASNETI_PROGRESSFNS_RUN();
+       return retval;
+    }
     #define gasneti_suspend_spinpollers() gasneti_suspend_spinpollers_check()
     #define gasneti_resume_spinpollers()  gasneti_resume_spinpollers_check()
   #else
@@ -831,25 +829,26 @@ static void gasneti_threadkey_init(gasneti_threadkey_t *pkey) {
 
     #define gasneti_suspend_spinpollers() do {                      \
         gasneti_suspend_spinpollers_check();                        \
-        gasneti_atomic_increment(&gasneti_throttle_haveusefulwork); \
+        gasneti_atomic_increment(&gasneti_throttle_haveusefulwork,0); \
     } while (0)
     #define gasneti_resume_spinpollers() do {                       \
         gasneti_resume_spinpollers_check();                         \
-        gasneti_atomic_decrement(&gasneti_throttle_haveusefulwork); \
+        gasneti_atomic_decrement(&gasneti_throttle_haveusefulwork,0); \
     } while (0)
 
     /* and finally, the throttled poll implementation */
-    GASNET_INLINE_MODIFIER(gasneti_AMPoll)
+    GASNETI_INLINE(gasneti_AMPoll)
     int gasneti_AMPoll() {
        int retval;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
-       if (gasneti_atomic_read(&gasneti_throttle_haveusefulwork) > 0) 
+       if (gasneti_atomic_read(&gasneti_throttle_haveusefulwork,0) > 0) 
          return GASNET_OK; /* another thread sending - skip the poll */
        if (gasneti_mutex_trylock(&gasneti_throttle_spinpoller) != 0)
          return GASNET_OK; /* another thread spin-polling - skip the poll */
        retval = gasnetc_AMPoll();
        gasneti_mutex_unlock(&gasneti_throttle_spinpoller);
+       GASNETI_PROGRESSFNS_RUN();
        return retval;
     }
   #endif
@@ -865,7 +864,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
     if (gasneti_wait_mode != GASNET_WAIT_SPIN) gasneti_sched_yield(); \
     /* prevent optimizer from hoisting the condition check out of */  \
     /* the enclosing spin loop - this is our way of telling the */    \
-    /* optimizer "the wholse world could change here" */              \
+    /* optimizer "the whole world could change here" */               \
     gasneti_compiler_fence();                                         \
     gasneti_spinloop_hint();                                          \
   } while (0)
@@ -912,7 +911,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_AMPOLL
 #define _GASNET_AMPOLL
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
-  GASNET_INLINE_MODIFIER(gasnet_AMPoll)
+  GASNETI_INLINE(gasnet_AMPoll)
   int gasnet_AMPoll() {
     GASNETI_TRACE_EVENT(I, AMPOLL);
     return gasneti_AMPoll();
@@ -921,7 +920,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 
 #ifndef _GASNET_GETENV
 #define _GASNET_GETENV
-  GASNET_INLINE_MODIFIER(gasnet_getenv)
+  GASNETI_INLINE(gasnet_getenv)
   char *gasnet_getenv(const char *s) {
     GASNETI_CHECKINIT();
     return gasneti_getenv(s);
@@ -1003,6 +1002,6 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #endif
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

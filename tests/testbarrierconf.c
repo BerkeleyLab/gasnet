@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testbarrierconf.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.11 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.11.10.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testbarrierconf", 0);
+  test_init("testbarrierconf", 0, "(iters)");
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
   if (iters < 0) {
     iters = 1000;
   }
+  if (argc > 2) test_usage();
 
   if (mynode == 0) {
       printf("Running barrier conformance test with %d iterations...\n", iters);

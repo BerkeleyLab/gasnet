@@ -1,8 +1,8 @@
 \input texinfo   @c -*-texinfo-*-
 @c %**start of header
 @c   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/gasnet.texi,v $
-@c     $Date: 2005/07/15 18:06:34 $
-@c $Revision: 1.38 $
+@c     $Date: 2006/06/06 22:35:01 $
+@c $Revision: 1.38.8.1 $
 @c Description: GASNet specification
 @c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 @c Terms of use are as specified in license.txt
@@ -164,9 +164,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2005/07/15 18:06:34 $
+@subtitle $Date: 2006/06/06 22:35:01 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.38 $ 
+@subtitle $Revision: 1.38.8.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://gasnet.cs.berkeley.edu/}
 
@@ -204,8 +204,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2005/07/15 18:06:34 $
-@*$Revision: 1.38 $ 
+@*$Date: 2006/06/06 22:35:01 $
+@*$Revision: 1.38.8.1 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -2052,13 +2052,13 @@ Sample code:
 @lisp
   gasnet_begin_nbi_accessregion(); // begin the access region
 
-  gasnet_put_nbi_shared(...); // becomes assoc. with access region
+  gasnet_put_nbi(...); // becomes assoc. with access region
   while (...) @{
-    gasnet_put_nbi_shared(...); // becomes assoc. with access region
+    gasnet_put_nbi(...); // becomes assoc. with access region
   @}
 
   // unrelated explicit-handle operation not assoc. with access region
-  h2 = gasnet_get_nb_shared(...); 
+  h2 = gasnet_get_nb(...); 
   gasnet_wait_syncnb(h2);
 
   // end the access region and get the handle

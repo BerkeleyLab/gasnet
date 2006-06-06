@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_op.c,v $
- * $Date: 2005/03/06 23:34:19 $
- * $Revision: 1.14 $
+ * $Date: 2006/06/06 22:35:09 $
+ * $Revision: 1.14.10.1 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -125,8 +125,8 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 	iop->next = NULL;
 	iop->initiated_get_cnt = 0;
 	iop->initiated_put_cnt = 0;
-	gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
-	gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
+	gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
+	gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
         gasnete_iop_check(iop);
 	return iop;
 }
@@ -144,9 +144,9 @@ gasnete_op_isdone(gasnete_op_t *op)
 		gasnete_iop_t *iop = (gasnete_iop_t*)op;
                 gasnete_iop_check(iop);
 		return 
-		    (gasneti_weakatomic_read(&(iop->completed_get_cnt)) == 
+		    (gasneti_weakatomic_read(&(iop->completed_get_cnt), 0) == 
 		         iop->initiated_get_cnt) &&
-		    (gasneti_weakatomic_read(&(iop->completed_put_cnt)) == 
+		    (gasneti_weakatomic_read(&(iop->completed_put_cnt), 0) == 
 		         iop->initiated_put_cnt);
 	}
 }
@@ -162,9 +162,9 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 		gasnete_iop_t *iop = (gasnete_iop_t *)op;
                 gasnete_iop_check(iop);
 		if (isget) 
-			gasneti_weakatomic_increment(&(iop->completed_get_cnt));
+			gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
 		else 
-			gasneti_weakatomic_increment(&(iop->completed_put_cnt));
+			gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
 	}
 }
 
@@ -189,4 +189,40 @@ void gasnete_op_free(gasnete_op_t *op) {
 		iop->next = thread->iop_free;
 		thread->iop_free = iop;
 	}
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* GASNET-Internal OP Interface */
+gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE) {
+  gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+  return (gasneti_eop_t *)op;
+}
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  gasnete_iop_check(op);
+  if (isget) op->initiated_get_cnt += noperations;
+  else       op->initiated_put_cnt += noperations;
+  gasnete_iop_check(op);
+  return (gasneti_iop_t *)op;
+}
+void gasneti_eop_markdone(gasneti_eop_t *eop) {
+  gasnete_op_markdone((gasnete_op_t *)eop, 0);
+}
+void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
+  gasnete_iop_t *op = (gasnete_iop_t *)iop;
+  gasneti_weakatomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
+  gasnete_iop_check(op);
+  if (noperations == 1) gasneti_weakatomic_increment(pctr, 0);
+  else {
+    #if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
+      gasneti_weakatomic_add(pctr, noperations, 0);
+    #else /* yuk */
+      while (noperations) {
+        gasneti_weakatomic_increment(pctr, 0);
+        noperations--;
+      }
+    #endif
+  }
+  gasnete_iop_check(op);
 }

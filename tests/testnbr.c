@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2005/07/27 01:23:20 $
- * $Revision: 1.11 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.11.8.1 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -186,7 +186,7 @@ void pairwise_wait_nbrs  (nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int ph
 #define _hidx_ghostReqHandler 201
 #define _hidx_ghostRepHandler 202
 
-GASNET_INLINE_MODIFIER(ghostReqHandler_inner)
+GASNETT_INLINE(ghostReqHandler_inner)
 void
 ghostReqHandler_inner(gasnet_token_t token, void *buf, size_t nbytes,
 	              int axis, int destp, int *flag)
@@ -208,7 +208,7 @@ LONG_HANDLER(ghostReqHandler,3,4,
 /*
  * This reply handler is currently unused.
  */
-GASNET_INLINE_MODIFIER(ghostReqHandler_inner)
+GASNETT_INLINE(ghostRepHandler_inner)
 void
 ghostRepHandler_inner(gasnet_token_t token, volatile int *flag)
 {
@@ -352,26 +352,6 @@ int level_dims[][20] = {
 	{ 64,128,192,256,320,384,448,512,576,640,704,768,832,896,960,1024,0 }
 };
 
-void
-usage()
-{
-    if (myproc != 0)
-	return;
-
-    printf("\ntestnbr Neighbor-to-Neighbor microbenchmark\n\n");
-    printf("testnbr [-f] [-m] [iters] [level]\n\n");
-    printf("-f      run full nbr exchange (NAS MG) instead of per axis\n");
-    printf("-m      run UPC version of GASNet MG test only\n");
-    printf("[iters] How many iterations per exchange (default = 150)\n");
-    printf("[level] select level of dimensions (default level = 0)\n");
-    printf("   level=0 dims=<16,32,48,64,80,96,112,128>\n");
-    printf("   level=1 dims=<16,32,48,64, .. 128,160,192,224,256>\n");
-    printf("   level=2 dims=<32,64,96,128, .. 320,352,384,416,448,480,512>\n");
-    printf("   level=3 dims=<32,64,96,128, .. 928,960,992,1024>\n\n");
-    fflush(stdout);
-    gasnet_exit(1);
-}
-
 int
 main(int argc, char **argv)
 {
@@ -385,6 +365,7 @@ main(int argc, char **argv)
     int maxdim = 0;
     int axis;
     int argn = 1;
+    int help = 0;
     void *myseg;
     void *alloc;
 
@@ -404,19 +385,17 @@ main(int argc, char **argv)
 	else if (c == 'm')
 	    upctestonly = 1;
 	else 
-	    usage();
+	    help = 1;
 	argn++;
     }
 
     if (argc > argn) {
 	iters = atoi(argv[argn++]);
-	if (!iters)
-	    usage();
+	if (!iters) help = 1;
     }
     if (argc > argn) {
 	level = atoi(argv[argn++]);
-	if (!(level >= 0 && level < 4))
-	    usage();
+	if (!(level >= 0 && level < 4)) help = 1;
     }
 
     for (i = 0; i < level_dims[level][i]; i++) 
@@ -429,14 +408,27 @@ main(int argc, char **argv)
 
     /* setup max grid we intend to use, so we can get enough 
      * memory per proc at startup */
-    setupGrid(&Nbr, maxdim);
-    estimateMemSegment(&Nbr, &insegsz, &outsegsz);
-    maxsegmentsz = outsegsz + PAGESZ*nprocs;
+    if (help) maxsegmentsz = 0;
+    else {
+      setupGrid(&Nbr, maxdim);
+      estimateMemSegment(&Nbr, &insegsz, &outsegsz);
+      maxsegmentsz = outsegsz + PAGESZ*nprocs;
+    }
 
     GASNET_Safe(gasnet_attach(
 	htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
 	TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testnbr",1);
+    test_init("testnbr",1, "[-f] [-m] [iters] [level]\n\n"
+      "-f      run full nbr exchange (NAS MG) instead of per axis\n"
+      "-m      run UPC version of GASNet MG test only\n"
+      "[iters] How many iterations per exchange (default = 150)\n"
+      "[level] select level of dimensions (default level = 0)\n"
+      "   level=0 dims=<16,32,48,64,80,96,112,128>\n"
+      "   level=1 dims=<16,32,48,64, .. 128,160,192,224,256>\n"
+      "   level=2 dims=<32,64,96,128, .. 320,352,384,416,448,480,512>\n"
+      "   level=3 dims=<32,64,96,128, .. 928,960,992,1024>\n\n"
+    );
+    if (help) test_usage();
 
     initNbr(&Nbr);
 
@@ -622,9 +614,9 @@ setupGrid(nbr_t *nb, int dimsz)
 	int blocksz = elemsPerDim / nb->procGrid[axis];
 
 	/* We don't handle corner cases, yet */
-	assert(blocksz > 0);
-	assert(elemsPerDim > nb->procGrid[axis]);
-	assert(elemsPerDim % nb->procGrid[axis] == 0);
+	assert_always(blocksz > 0);
+	assert_always(elemsPerDim > nb->procGrid[axis]);
+	assert_always(elemsPerDim % nb->procGrid[axis] == 0);
 
 	nb->idGridUpper[axis] = 
 	    nb->idGrid[axis] == nb->procGrid[axis]-1 

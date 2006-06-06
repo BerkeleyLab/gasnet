@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_fwd.h,v $
- *     $Date: 2006/05/10 13:10:13 $
- * $Revision: 1.3 $
+ *     $Date: 2006/06/06 22:35:06 $
+ * $Revision: 1.3.6.1 $
  * Description: GASNet Non-contiguous Access Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

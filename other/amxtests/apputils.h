@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.h,v $
- *     $Date: 2004/09/27 09:53:01 $
- * $Revision: 1.12 $
+ *     $Date: 2006/06/06 22:35:27 $
+ * $Revision: 1.12.12.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -52,18 +52,20 @@
 #define FALSE 0
 #endif
 
-#ifdef _MSC_VER
+#if PLATFORM_COMPILER_MICROSOFT
   #pragma warning(disable: 4127)
 #endif
 
-BEGIN_EXTERNC
+#ifdef __cplusplus
+  extern "C" {
+#endif
 
 /* in a multi-threaded program, this would also include a lock */
 #define AM_Safe(fncall) do {                \
   if ((fncall) != AM_OK) {                  \
     printf("Error calling: %s\n", #fncall); \
     AMX_SPMDExit(-1);                       \
-    abort();                                \
+    AMX_FatalErr("AMX_SPMDExit failed");    \
     }                                       \
   } while(0)
 
@@ -71,7 +73,7 @@ BEGIN_EXTERNC
         AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY));  \
         AM_Safe(AM_WaitSema(eb));                   \
         AM_Safe(AM_Poll(eb));                       \
-        } while (0)
+      } while (0)
 
 #if defined(AMUDP)
   #define LEADING_ARGS      2
@@ -81,12 +83,25 @@ BEGIN_EXTERNC
   #define LEADING_ARGS_STR  ""
 #endif
 
-#define CHECKARGS(argc, argv, minargs, maxargs, usagestr) do {                    \
-  if ((argc) < (minargs)+LEADING_ARGS+1 || (argc) > (maxargs)+LEADING_ARGS+1 ) {  \
-    fprintf(stderr, "Usage: %s%s %s\n", (argv)[0], LEADING_ARGS_STR, (usagestr)); \
-    fflush(stderr);                                                               \
-    exit(-1);                                                                     \
-  } } while (0)
+#define TEST_STARTUP(argc, argv, networkpid, eb, ep, minargs, maxargs, usagestr) do { \
+    AMX_VerboseErrors = 1;                                                            \
+    if (AMX_SPMDIsWorker(argv)) { /* slave */                                         \
+      AM_Safe(AMX_SPMDStartup(&(argc), &(argv), 0, &(networkpid), &(eb), &(ep)));     \
+      if ((argc) < (minargs)+1 || (argc) > (maxargs)+1 ) {                                \
+        eb_t eb; ep_t ep; uint64_t networkpid;                                        \
+        fprintf(stderr, "Usage: %s %s\n", (argv)[0], (usagestr));                     \
+        fflush(stderr);                                                               \
+        AMX_SPMDExit(-1);                                                             \
+      }                                                                               \
+    } else { /* implicit master */                                                    \
+      if ((argc) < (minargs)+LEADING_ARGS+1 || (argc) > (maxargs)+LEADING_ARGS+1 ) {  \
+        fprintf(stderr, "Usage: %s%s %s\n", (argv)[0], LEADING_ARGS_STR, (usagestr)); \
+        fflush(stderr);                                                               \
+        exit(-1);                                                                     \
+      }                                                                               \
+      AM_Safe(AMX_SPMDStartup(&argc, &argv, 0, &networkpid, &eb, &ep));               \
+    }                                                                                 \
+  } while (0)
 
 /* app can define this before including to move our handlers 
    NO - that doesn't work unless apputils.c is recompiled */
@@ -107,6 +122,17 @@ void printGlobalStats();
 #endif
 extern void outputTimerStats();
 
+#define TEST_32BIT_ONLY() do {                                         \
+    if (sizeof(void*) != 4) {                                          \
+      if (AMX_SPMDMyProc() == 0) {                                     \
+        printf("Test SKIPPED -- not implemented on 64-bit systems\n"); \
+        fflush(stdout);                                                \
+      }                                                                \
+      AM_Safe(AMX_SPMDBarrier());                                      \
+      AM_Safe(AMX_SPMDExit(0));                                        \
+    }                                                                  \
+  } while(0)
+
 #ifndef APPUTILS_OMIT_READWRITE
 uint32_t getWord(int proc, void *addr);
 void putWord(int proc, void *addr, uint32_t val);
@@ -116,7 +142,16 @@ void readSync();
 
 void writeWord(int proc, void *addr, uint32_t val);
 void writeSync();
+#else
+  #define getWord(a,b)     (AMX_FatalErr("APPUTILS_OMIT_READWRITE violation"),0)
+  #define putWord(a,b,c)   AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
+  #define readWord(a,b,c)  AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
+  #define readSync()       AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
+  #define writeWord(a,b,c) AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
+  #define writeSync()      AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")
 #endif
 
-END_EXTERNC
+#ifdef __cplusplus
+  }
+#endif
 #endif

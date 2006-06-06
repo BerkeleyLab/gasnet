@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockaddr.h,v $
-//     $Date: 2005/08/24 04:32:48 $
-// $Revision: 1.4 $
+//     $Date: 2006/06/06 22:35:24 $
+// $Revision: 1.4.6.1 $
 // Description: Objects for encapsulating and hashing SockAddr's
 // Copyright 1998, Dan Bonachea
 
@@ -45,7 +45,13 @@ class SockAddr {
     SockAddr(const char* IPStr, unsigned short portnum, short sin_family=AF_INET) { 
       addr.sin_family = sin_family;
       addr.sin_port = htons(portnum); // change to network format port
-      addr.sin_addr.s_addr = inet_addr((char*)IPStr); // already in network format
+      #if 1
+        addr.sin_addr.s_addr = inet_addr((char*)IPStr); // already in network format
+        if (addr.sin_addr.s_addr + 1 == 0) addr.sin_addr.s_addr = 0; // portable test for -1
+      #else
+        /* newer/safer interface, but not as widely portable */
+        if (!inet_aton((char*)IPStr, (in_addr*)&addr.sin_addr.s_addr)) addr.sin_addr.s_addr = 0;
+      #endif
       memset(&(addr.sin_zero), '\0', sizeof(addr.sin_zero));
       DEBUGIP(); // makes it easier to see addresses in debugger
     }
@@ -90,7 +96,7 @@ class SockAddr {
       unsigned int a = pdata[2], b = pdata[3], c = pdata[4], d = pdata[5];
       sprintf(IPBuffer, "%u.%u.%u.%u",a,b,c,d);
       return IPBuffer; 
-      }
+    }
     char *FTPStr() { 
       unsigned char * pdata = (unsigned char *)(((sockaddr*)&addr)->sa_data);
       unsigned int a = pdata[2], b = pdata[3], c = pdata[4], d = pdata[5];
@@ -99,9 +105,9 @@ class SockAddr {
                    f = (prt & 0xFF);
       sprintf(IPBuffer, "%u,%u,%u,%u,%u,%u",a,b,c,d,e,f);
       return IPBuffer; 
-      }
+    }
     int operator==(const SockAddr& other) const { return !memcmp(this, &other.addr, sizeof(sockaddr)); }
     int operator!=(const SockAddr& other) const { return !(*this == other); }
-  };
+};
 
 #endif

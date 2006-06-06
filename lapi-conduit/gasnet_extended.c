@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/02/17 13:18:59 $
- * $Revision: 1.42 $
+ *     $Date: 2006/06/06 22:35:12 $
+ * $Revision: 1.42.10.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
 
-static gasnete_threaddata_t *gasnete_threadtable[256] = { 0 };
+gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
 static int gasnete_numthreads = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
@@ -51,11 +51,13 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     idx = gasnete_numthreads;
     gasnete_numthreads++;
     gasnet_hsl_unlock(&threadtable_lock);
-#if GASNETI_CLIENT_THREADS
-    if (idx >= 256) gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=256)");
-#else
-    gasneti_assert(idx == 0);
-#endif
+    gasneti_assert(GASNETI_MAX_THREADS <= 256);
+    #if GASNETI_CLIENT_THREADS
+      if (idx >= GASNETI_MAX_THREADS) 
+        gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
+    #else
+      gasneti_assert(idx == 0);
+    #endif
     gasneti_assert(gasnete_threadtable[idx] == NULL);
 
     threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
@@ -84,8 +86,6 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     gasneti_threadkey_set(gasnete_threaddata, threaddata);
     return threaddata;
   }
-#else
-  #define gasnete_mythread() (gasnete_threadtable[0])
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -264,6 +264,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 	iop->initiated_put_cnt = 0;
 	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->get_cntr,0));
 	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&iop->put_cntr,0));
+        gasneti_weakatomic_set(&iop->put_aux_cntr, 0, 0);
+        gasneti_weakatomic_set(&iop->get_aux_cntr, 0, 0);
         gasnete_iop_check(iop);
 	return iop;
 }
@@ -285,6 +287,8 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 	/* only call getcntr if we need to */
 	gasnete_iop_t *iop = (gasnete_iop_t*)op;
         gasnete_iop_check(iop);
+        if (gasneti_weakatomic_read(&iop->get_aux_cntr, 0) > 0 || 
+            gasneti_weakatomic_read(&iop->put_aux_cntr, 0) > 0) return 0;
 	if (iop->initiated_get_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&iop->get_cntr,&cnt));
 	    gasneti_assert(cnt <= iop->initiated_get_cnt);
@@ -301,19 +305,15 @@ int gasnete_op_isdone(gasnete_op_t *op) {
 }
 
 /* mark an op done
- * Not called by handlers in LAPI version, just here for completeness
  */
 void gasnete_op_markdone(gasnete_op_t *op, int isget) {
     if (OPTYPE(op) == OPTYPE_EXPLICIT) {
 	gasnete_eop_t *eop = (gasnete_eop_t *)op;
-	int cnt = 0;
 	gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
         gasnete_eop_check(eop);
-	if (eop->initiated_cnt > 0) {
-	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&cnt));
-	    gasneti_assert(eop->initiated_cnt == cnt);
-	}
-	SET_OPSTATE(eop, OPSTATE_COMPLETE);
+	GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&eop->cntr,eop->initiated_cnt));
+	/* SET_OPSTATE(eop, OPSTATE_COMPLETE); -- not used */
+        gasnete_eop_check(eop);
     } else {
 	/* gasnete_iop_t *iop = (gasnete_iop_t *)op; */
         gasneti_fatalerror("this should not happen");
@@ -361,6 +361,61 @@ static void gasnete_wait_syncnbi_myputs(int numputs GASNETE_THREAD_FARG)
     gasneti_sync_reads();  /* MLW: is this needed? */
 }
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+/* GASNET-Internal OP Interface */
+gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE) {
+  gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+  op->initiated_cnt = 1;
+  return (gasneti_eop_t *)op;
+}
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  gasneti_weakatomic_t * const pctr = (isget ? &(op->get_aux_cntr) : &(op->put_aux_cntr));
+  gasnete_iop_check(op);
+  if (noperations == 1) gasneti_weakatomic_increment(pctr, 0);
+  else {
+    #if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
+      gasneti_weakatomic_add(pctr, noperations, 0);
+    #else /* yuk */
+      while (noperations) {
+        gasneti_weakatomic_increment(pctr, 0);
+        noperations--;
+      }
+    #endif
+  }
+  gasnete_iop_check(op);
+  return (gasneti_iop_t *)op;
+}
+void gasneti_eop_markdone(gasneti_eop_t *_eop) {
+  /* cannot use gasnete_op_markdone here, because it's not AMSAFE - 
+     it creates races with the app thread when run on the completion thread */
+  gasnete_eop_t *eop = (gasnete_eop_t*)_eop;
+  gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
+  gasnete_eop_check(eop);
+  GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&eop->cntr,eop->initiated_cnt));
+  /* SET_OPSTATE(eop, OPSTATE_COMPLETE); -- not used */
+}
+void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
+  gasnete_iop_t *op = (gasnete_iop_t *)iop;
+  gasneti_weakatomic_t * const pctr = (isget ? &(op->get_aux_cntr) : &(op->put_aux_cntr));
+  /* cannot use gasnete_iop_check here, because it's not AMSAFE - 
+     it creates races with the app thread when run on the completion thread */
+  gasneti_assert(gasneti_weakatomic_read(pctr, 0) > 0);
+  gasneti_assert(OPTYPE(op) == OPTYPE_IMPLICIT);
+  if (noperations == 1) gasneti_weakatomic_decrement(pctr, 0);
+  else {
+    #if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
+      gasneti_weakatomic_subtract(pctr, noperations, 0);
+    #else /* yuk */
+      while (noperations) {
+        gasneti_weakatomic_decrement(pctr, 0);
+        noperations--;
+      }
+    #endif
+  }
+}
 
 /* --------------------------------------------------------------------------
  * This is the LAPI Header Handler that executes a gasnet_memset operation
@@ -707,6 +762,10 @@ extern void gasnete_wait_syncnb(gasnet_handle_t handle) {
 	    gasneti_assert(cnt == 0);
 	    iop->initiated_put_cnt = 0;
 	}
+        if (gasneti_weakatomic_read(&iop->get_aux_cntr, 0)) /* avoid extra rmb when possible */
+          GASNET_BLOCKUNTIL(gasneti_weakatomic_read(&iop->get_aux_cntr, 0) == 0);
+        if (gasneti_weakatomic_read(&iop->put_aux_cntr, 0)) /* avoid extra rmb when possible */
+          GASNET_BLOCKUNTIL(gasneti_weakatomic_read(&iop->put_aux_cntr, 0) == 0);
     }
     gasneti_sync_reads();
     gasnete_op_free(handle);
@@ -886,7 +945,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
 	if (iop->next != NULL)
 	    gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
 #endif
-
+        if (gasneti_weakatomic_read(&iop->get_aux_cntr, 0) > 0) return GASNET_ERR_NOT_READY;
 	if (iop->initiated_get_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&iop->get_cntr,&cnt));
 	    gasneti_assert(cnt <= iop->initiated_get_cnt);
@@ -914,7 +973,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 	if (iop->next != NULL)
 	    gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
 #endif
-
+        if (gasneti_weakatomic_read(&iop->put_aux_cntr, 0) > 0) return GASNET_ERR_NOT_READY;
 	if (iop->initiated_put_cnt > 0) {
 	    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&iop->put_cntr,&cnt));
 	    gasneti_assert(cnt <= iop->initiated_put_cnt);
@@ -943,6 +1002,8 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     if (iop->next != NULL)
 	gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_puts() inside an NBI access region");
 #endif
+    if (gasneti_weakatomic_read(&iop->put_aux_cntr, 0)) /* avoid extra rmb when possible */
+      GASNET_BLOCKUNTIL(gasneti_weakatomic_read(&iop->put_aux_cntr, 0) == 0);
     if (iop->initiated_put_cnt > 0) {
 	GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->put_cntr,iop->initiated_put_cnt,&cnt));
 	/* note that waitcntr decreemnts counter by amount waited for */
@@ -1076,7 +1137,7 @@ static int volatile barrier_phase = 0;  /*  2-phase operation to improve pipelin
 static int volatile barrier_response_done[2] = { 0, 0 }; /*  non-zero when barrier is complete 
                                                              also has mismatch bit set if root detected mismatch */
 #if GASNETI_STATS_OR_TRACE
-static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
+static gasneti_tick_t barrier_notifytime; /* for statistical purposes */ 
 #endif
 
 /*  global state on P0 */
@@ -1248,7 +1309,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
 #if GASNETI_STATS_OR_TRACE
-  barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
+  barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
 #endif
 
   {
@@ -1334,7 +1395,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
 extern int gasnete_barrier_wait(int id, int flags) {
 #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
+    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
 #endif
     int phase;
     gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
@@ -1342,12 +1403,12 @@ extern int gasnete_barrier_wait(int id, int flags) {
     if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
 
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW()-barrier_notifytime);
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,gasneti_ticks_now()-barrier_notifytime);
 
     /*  wait for response */
     gasneti_polluntil(barrier_response_done[phase]);
 
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_STATTIME_NOW()-wait_start);
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,gasneti_ticks_now()-wait_start);
 
     /* if this is the master node, reset the global state */
     if (gasneti_mynode == GASNETE_BARRIER_MASTER) {
@@ -1393,9 +1454,7 @@ extern int gasnete_barrier_try(int id, int flags) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#define GASNETI_GASNET_EXTENDED_VIS_C 1
-#include "gasnet_extended_refvis.c"
-#undef GASNETI_GASNET_EXTENDED_VIS_C
+#include "gasnet_extended_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1404,9 +1463,7 @@ extern int gasnete_barrier_try(int id, int flags) {
 */
 
 /* use reference implementation of collectives */
-#define GASNETI_GASNET_EXTENDED_COLL_C 1
-#include "gasnet_extended_refcoll.c"
-#undef GASNETI_GASNET_EXTENDED_COLL_C
+#include "gasnet_extended_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1418,10 +1475,10 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
-    GASNETE_REFVIS_HANDLERS(),
+    GASNETE_REFVIS_HANDLERS()
   #endif
   #ifdef GASNETE_REFCOLL_HANDLERS
-    GASNETE_REFCOLL_HANDLERS(),
+    GASNETE_REFCOLL_HANDLERS()
   #endif
     /* ptr-width independent handlers */
 

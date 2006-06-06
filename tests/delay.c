@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/delay.c,v $
- *     $Date: 2005/07/03 14:33:57 $
- * $Revision: 1.7 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.7.8.1 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -17,12 +17,21 @@ float test_bogus() { /* ensure the values escape (otherwise x is dead) */
 }
 
                                                                                                               
-void test_delay (int64_t n)
+void test_delay (int64_t n, int pollcnt)
 {
-  int64_t i;
+  int64_t i,j;
 
 
   y = z;
   x = 1.0;
-  for (i=0; i<n; i++) { x *= y; }
+  if (pollcnt) { /* include pollcnt AMPolls, evenly interspersed */
+    int64_t n_chunk = n / (pollcnt+1);
+    for (j=0; j<pollcnt; j++) {
+      for (i=0; i<n_chunk; i++) { x *= y; }
+      gasnet_AMPoll();
+    }
+    for (i=0; i<n_chunk; i++) { x *= y; }
+  } else {
+    for (i=0; i<n; i++) { x *= y; }
+  }
 }

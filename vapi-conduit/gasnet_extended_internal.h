@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/05/12 21:34:48 $
- * $Revision: 1.19 $
+ *     $Date: 2006/06/06 22:35:56 $
+ * $Revision: 1.19.10.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -67,6 +67,7 @@ typedef struct _gasnete_iop_t {
 typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* pointer reserved for use by the core */
   void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
+  void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
 
   gasnete_threadidx_t threadidx;
 

@@ -1,6 +1,6 @@
 GASNet collectives design notes
 ===============================
-* $Revision: 1.34 $
+* $Revision: 1.34.4.1 $
 * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> and Paul Hargrove <PHHargrove@lbl.gov>
 * Terms of use are as specified in license.txt
 
@@ -1519,13 +1519,13 @@ Implement the following in gasnet_extended_fwd.h:
 
 extern gasneti_atomic_t gasnetc_collective_count;
 
-GASNET_INLINE_MODIFIER(gasnete_collective_entry_hook)
+GASNETI_INLINE(gasnete_collective_entry_hook)
 void gasnete_collective_entry_hook(void)
 {
   gasneti_atomic_increment(&gasnetc_collective_count);
 }
 
-GASNET_INLINE_MODIFIER(gasnete_collective_leave_hook)
+GASNETI_INLINE(gasnete_collective_leave_hook)
 void gasnete_collective_leave_hook(void)
 {
   gasneti_atomic_decrement(&gasnetc_collective_count);
@@ -1556,7 +1556,7 @@ extern gasneti_atomic_t gasnetc_collective_count;
 extern gasnet_hsl_t gasnetc_collective_hsl;
 extern gasneti_cond_t gasnetc_collective_cond;
 
-GASNET_INLINE_MODIFIER(gasnete_collective_entry_hook)
+GASNETI_INLINE(gasnete_collective_entry_hook)
 void gasnete_collective_entry_hook(void)
 {
   gasneti_atomic_increment(&gasnetc_collective_count);
@@ -1566,7 +1566,7 @@ void gasnete_collective_entry_hook(void)
   gasnet_hsl_unlock(&gasnetc_collective_hsl);
 }
 
-GASNET_INLINE_MODIFIER(gasnete_collective_leave_hook)
+GASNETI_INLINE(gasnete_collective_leave_hook)
 void gasnete_collective_leave_hook(void)
 {
   gasneti_atomic_decrement(&gasnetc_collective_count);
@@ -1609,7 +1609,7 @@ Implement the following in gasnet_extended_fwd.h:
 extern unsigned gasnetc_collective_count;
 extern gasnet_hsl_t gasnetc_collective_hsl;
 
-GASNET_INLINE_MODIFIER(gasnete_collective_entry_hook)
+GASNETI_INLINE(gasnete_collective_entry_hook)
 void gasnete_collective_entry_hook(void)
 {
   gasnet_hsl_lock(&gasnetc_collective_hsl);
@@ -1620,7 +1620,7 @@ void gasnete_collective_entry_hook(void)
   gasnet_hsl_unlock(&gasnetc_collective_hsl);
 }
 
-GASNET_INLINE_MODIFIER(gasnete_collective_leave_hook)
+GASNETI_INLINE(gasnete_collective_leave_hook)
 void gasnete_collective_leave_hook(void)
 {
   gasnet_hsl_lock(&gasnetc_collective_hsl);

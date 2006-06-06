@@ -1,14 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2005/12/06 00:33:35 $
- * $Revision: 1.17 $
+ *     $Date: 2006/06/06 22:35:31 $
+ * $Revision: 1.17.2.1 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 #ifndef FIREHOSE_H
 #define FIREHOSE_H
-#include <firehose_fwd.h>
 #include <gasnet_internal.h>
+#include <firehose_fwd.h>
 
 struct _firehose_private_t;
 typedef struct _firehose_private_t	firehose_private_t;

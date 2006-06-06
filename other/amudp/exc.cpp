@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/exc.cpp,v $
-//     $Date: 2004/08/26 04:53:50 $
-// $Revision: 1.2 $
+//     $Date: 2006/06/06 22:35:24 $
+// $Revision: 1.2.18.1 $
 // Description: Exception handlers for fserver
 // Copyright 1999, Dan Bonachea & Scott McPeak
 
@@ -19,7 +19,7 @@ void breaker() {
                          // that this function has a complete
   ackackack(&a);         // stack frame, so the debugger can unwind
   i++;                   // the stack
-  }
+}
 
 // ------------------------- xBase -----------------
 int xBase::creationCount = 0;
@@ -31,19 +31,19 @@ xBase::xBase(char const *m) {
   // done at very end when we know this object will
   // successfully be created
   creationCount++;
-  }
+}
 
 
 xBase::xBase(xBase const &obj){
   strncpy(msg, obj.msg, MAX_EXC_MSG);
   msg[MAX_EXC_MSG-1] = '\0';
   creationCount++;
-  }
+}
 
 
 xBase::~xBase() {
   creationCount--;
-  }
+}
 
 
 // this is obviously not perfect, since exception objects can be
@@ -55,14 +55,14 @@ xBase::~xBase() {
 // arise in practice, so I will endorse it for now)
 bool unwinding() {
   return xBase::creationCount != 0;
-  }
+}
 
 
 // tweaked version
 bool unwinding_other(xBase const &) {
   // we know the passed xBase exists.. any others?
   return xBase::creationCount > 1;
-  } 
+} 
 
 
 //-------------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ void xsocket(SOCKET s, char const *msg) { // creates and throws an xsocket
   char tmp[MAX_EXC_MSG];
   sprintf(tmp, "%s (%i:%s)", msg, getSocketErrorCode(), errorCodeString(getSocketErrorCode()));
   THROW(xSocket(s, tmp));
-  }
+}
 
 //-------------------------------------------------------------------------------------
 // ------------------- xForm ----------------------------

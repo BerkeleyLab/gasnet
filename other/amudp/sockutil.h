@@ -1,11 +1,13 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.h,v $
-//     $Date: 2004/09/28 06:59:33 $
-// $Revision: 1.3 $
+//     $Date: 2006/06/06 22:35:24 $
+// $Revision: 1.3.12.1 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
 #ifndef SOCKUTIL_H
 #define SOCKUTIL_H
+
+#include <portable_inttypes.h>
 
 #include "socket.h"
 #include "sockaddr.h"
@@ -46,12 +48,27 @@ void sendAll(SOCKET s, const char* buffer, int numbytes=-1);
   // (throws xSocket on close)
 void sendEOL(SOCKET s); // send CR LF
 
-unsigned long recv32(SOCKET s);
-void send32(SOCKET s, unsigned long value);
+uint32_t recv32(SOCKET s);
+void send32(SOCKET s, uint32_t value);
   // recv/send a 32-bit value with endian conversions
 extern bool endianconvert; // whether or not conversions should happen on recv/send
 
-unsigned long byteSwap(unsigned long val);
+uint16_t byteSwap16(uint16_t val);
+uint32_t byteSwap32(uint32_t val);
+uint64_t byteSwap64(uint64_t val);
+
+uint16_t ntoh16(uint16_t v);
+uint32_t ntoh32(uint32_t v);
+uint64_t ntoh64(uint64_t v);
+void ntoh16a(void *pv);
+void ntoh32a(void *pv);
+void ntoh64a(void *pv);
+uint16_t hton16(uint16_t v);
+uint32_t hton32(uint32_t v);
+uint64_t hton64(uint64_t v);
+void hton16a(void *pv);
+void hton32a(void *pv);
+void hton64a(void *pv);
 
 char recvch(SOCKET s); // get one character
 

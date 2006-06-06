@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2005/12/08 19:00:05 $ */
-/*  $Revision: 1.73 $ */
+/*      $Date: 2006/06/06 22:34:57 $ */
+/*  $Revision: 1.73.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -18,14 +18,28 @@
 #undef GASNETI_SYSTEM_TUPLE
 #undef GASNETI_SYSTEM_NAME
 
-/* using the MIPSPro C compiler (which doesn't seem to have other identifying markers) */
-#undef MIPSPRO_COMPILER
+/* configure-detected conduits */
+#undef GASNETI_CONDUITS
+
+/* attributes support */
+#undef GASNETI_HAVE_GCC_ATTRIBUTE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_ALWAYSINLINE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_NOINLINE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_MALLOC
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_NORETURN
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_PURE
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_CONST
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT
 
 /* Defined to be the inline function modifier supported by the C compiler (if supported) */
 #undef CC_INLINE_MODIFIER
 
 /* C compilers 'restrict' keyword (or empty) */
 #undef GASNETI_RESTRICT
+
+/* true iff GASNETI_RESTRICT may be applied to types which are not pointer types until after typedef expansion */
+#undef GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
 
 /* Functions may be declared "static inline" */
 #undef STATIC_INLINE_WORKS
@@ -75,8 +89,8 @@
 /* has pthread_kill_other_threads_np() */
 #undef HAVE_PTHREAD_KILL_OTHER_THREADS_NP
 
-/* have pause instruction, only relevant on Pentium4 */
-#undef HAVE_X86_PAUSE_INSTRUCTION
+/* pause instruction, if any */
+#undef GASNETI_PAUSE_INSTRUCTION
 
 /* has __builtin_expect */
 #undef HAVE_BUILTIN_EXPECT
@@ -98,8 +112,15 @@
 /* Linux PR_SET_PDEATHSIG support */
 #undef HAVE_PR_SET_PDEATHSIG
 
-/* Linux asm/atomic.h broken */
-#undef BROKEN_LINUX_ASM_ATOMIC_H
+/* forcing use of "non-native" implementations: */
+#undef GASNETI_FORCE_GENERIC_ATOMICOPS
+#undef GASNETI_FORCE_OS_ATOMICOPS
+#undef GASNETI_FORCE_TRUE_WEAKATOMICS
+#undef GASNETI_FORCE_GENERIC_SEMAPHORES
+#undef GASNETI_FORCE_YIELD_MEMBARS
+#undef GASNETI_FORCE_SLOW_MEMBARS
+#undef GASNETI_FORCE_GETTIMEOFDAY
+#undef GASNETI_FORCE_POSIX_REALTIME
 
 /* forcing UP build, even if build platform is a multi-processor */
 #undef GASNETI_UNI_BUILD
@@ -116,33 +137,35 @@
 
 /* auto-detected shared data cache line size */
 #undef GASNETI_CACHE_LINE_BYTES
+#undef GASNETI_CACHE_LINE_SHIFT
 
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
-/* various OS and machine definitions */
-#undef UNIX
-#undef LINUX
-#undef FREEBSD
-#undef NETBSD
-#undef SOLARIS
-#undef UNICOS
-#undef CRAYT3E
-#undef CRAYX1
-#undef MTA
-#undef AIX
-#undef OSF
-#undef HPUX
-#undef SUPERUX
-#undef IRIX
-#undef CYGWIN
-#undef DARWIN
-#undef ALTIX
-#undef GASNETI_ARCH_SPARCV9
-#undef CATAMOUNT
+/* platform is an SGI Altix multiprocessor */
+#undef GASNETI_ARCH_ALTIX
+
+/* have (potentially buggy) MIPS R10000 multiprocessor */
+#undef GASNETI_ARCH_SGI_IP27
+
+/* have working UltraSPARC ISA (lacks an associated builtin preprocessor macro) */
+#undef GASNETI_ARCH_ULTRASPARC
+
+/* Have working PPC64 ISA (lacks an associated builtin preprocessor macro) */
+#undef GASNETI_ARCH_PPC64
+/* Tune for a PPC970 cpu (should not crash other PPCs) */
+#undef GASNETI_TUNE_PPC970
 
 /* Type to use as socklen_t */
 #undef GASNET_SOCKLEN_T
+
+/* GASNet build configuration */
+#undef GASNET_DEBUG
+#undef GASNET_NDEBUG
+#undef GASNET_TRACE
+#undef GASNET_STATS
+#undef GASNET_SRCLINES
+#undef GASNET_DEBUG_VERBOSE
 
 /* GASNet segment definition */
 #undef GASNET_SEGMENT_FAST
@@ -158,8 +181,9 @@
 
 /* GASNet vapi-conduit features and bug work-arounds */
 #undef HAVE_VAPI_FMR
-#undef GASNETC_VAPI_FORCE_POLL_LOCK
+#undef GASNETC_VAPI_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
+#undef GASNETC_VAPI_MAX_HCAS
 
 /* GASNet lapi-conduit specific */
 #undef GASNETC_LAPI_FEDERATION
@@ -176,6 +200,8 @@
 #undef ELAN_VERSION_MAJOR
 #undef ELAN_VERSION_MINOR
 #undef ELAN_VERSION_SUB
+#undef ELAN_DRIVER_VERSION
+#undef ELAN4_KERNEL_PATCH
 #undef HAVE_RMS_RMSAPI_H
 #undef HAVE_RMS_KILLRESOURCE
 #undef RMS_RCONTROL_PATH
@@ -187,35 +213,6 @@
 #undef HAVE_ELAN_QUEUETXINIT
 
 @BOTTOM@
-
-/* special GCC features */
-#if ! defined (__GNUC__) && ! defined (__attribute__)
-#define __attribute__(flags)
-#endif
-
-#if defined(__GNUC__) && ((__GNUC__ > 3) || (__GNUC__ == 3  && __GNUC_MINOR__ >= 4))
-  /* gcc-3.4 and newer: assert return value is unaliased + warn if unused */
-  #define GASNETI_MALLOC __attribute__((__malloc__,__warn_unused_result__))
-#elif defined(__GNUC__) && !(__GNUC__ <= 2 && __GNUC_MINOR__ <= 95)
-  /* gcc-2.96 and newer: assert return value is unaliased */
-  #define GASNETI_MALLOC __attribute__((__malloc__))
-#else
-  /* malloc attribute missing in egcs-2.91.66, gcc 2.95.4, and non-gcc compilers */
-  #define GASNETI_MALLOC
-#endif
-
-#if defined(__GNUC__)
-#define GASNETI_NORETURN __attribute__((__noreturn__))
-#else
-#define GASNETI_NORETURN 
-#endif
-
-#if (__GNUC__ > 3) || (__GNUC__ == 3  && __GNUC_MINOR__ >= 4)
-  /* Warn if return value is ignored.  Available on gcc-3.4 and newer. */
-  #define GASNETI_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
-#else
-  #define GASNETI_WARN_UNUSED_RESULT
-#endif
 
 /* these get us 64-bit file declarations under several Unixen */
 /* they must come before the first include of features.h (included by many system headers) */

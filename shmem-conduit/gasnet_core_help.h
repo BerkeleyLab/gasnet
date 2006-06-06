@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_help.h,v $
- *     $Date: 2005/02/12 11:29:33 $
- * $Revision: 1.5 $
+ *     $Date: 2006/06/06 22:35:42 $
+ * $Revision: 1.5.10.1 $
  * Description: GASNet shmem conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,10 +13,10 @@
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2005/04/13 00:55:50 $
- * $Revision: 1.12 $
+ *     $Date: 2006/06/06 22:35:27 $
+ * $Revision: 1.12.10.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,10 +14,10 @@
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
-  #define INCREQ() gasnett_atomic_increment(&numreq)
-  #define INCREP() gasnett_atomic_increment(&numrep)
-  #define NUMREQ() gasnett_atomic_read(&numreq)
-  #define NUMREP() gasnett_atomic_read(&numrep)
+  #define INCREQ() gasnett_atomic_increment(&numreq,0)
+  #define INCREP() gasnett_atomic_increment(&numrep,0)
+  #define NUMREQ() gasnett_atomic_read(&numreq,0)
+  #define NUMREP() gasnett_atomic_read(&numrep,0)
   #define RequestShort(num,args)                GASNET_Safe(gasnet_AMRequestShort##num args)
   #define RequestMedium(num,args)               GASNET_Safe(gasnet_AMRequestMedium##num args)
   #define RequestLong(num,AMargs,GASNETargs)    GASNET_Safe(gasnet_AMRequestLong##num GASNETargs)
@@ -59,6 +59,7 @@
   #define MYSEG                    (VMseg)
   #define ENDPOINT  ep,
   #define GETPARTNER(token)
+  #define FATALERR                  AMX_FatalErr
 #endif
 #define ALLAM_DONE(iters) ((int)NUMREP() == (int)(NUMHANDLERS_PER_TYPE*4*(iters)))
 
@@ -279,62 +280,44 @@ typedef struct {
 #define LONG_16REP_HANDLER (LONG_REP_BASE+16)
 
 /* ------------------------------------------------------------------------------------ */
-#define SHORTHANDLERS(num)                                                           \
-  void short_##num##req_handler(token_t token FA##num) {                             \
-    if (CA##num) {                                                                   \
-      fprintf(stderr, "Arg mismatch in short_%sreq_handler on P%i\n", #num, (int)MYPROC); \
-      fflush(stderr);                                                                \
-      abort();                                                                       \
-    }                                                                                \
-    INCREQ();                                                                        \
-    ReplyShort(num,(token, SHORT_##num##REP_HANDLER aa##num));                       \
-  }                                                                                  \
-  void short_##num##rep_handler(token_t token FA##num) {                             \
-    if (CA##num) {                                                                   \
-      fprintf(stderr, "Arg mismatch in short_%srep_handler on P%i\n", #num, (int)MYPROC); \
-      fflush(stderr);                                                                \
-      abort();                                                                       \
-    }                                                                                \
-    INCREP();                                                                        \
+#define SHORTHANDLERS(num)                                                         \
+  void short_##num##req_handler(token_t token FA##num) {                           \
+    if (CA##num)                                                                   \
+      FATALERR("Arg mismatch in short_%sreq_handler on P%i\n", #num, (int)MYPROC); \
+    INCREQ();                                                                      \
+    ReplyShort(num,(token, SHORT_##num##REP_HANDLER aa##num));                     \
+  }                                                                                \
+  void short_##num##rep_handler(token_t token FA##num) {                           \
+    if (CA##num)                                                                   \
+      FATALERR("Arg mismatch in short_%srep_handler on P%i\n", #num, (int)MYPROC); \
+    INCREP();                                                                      \
   }
 
-#define MEDIUMHANDLERS(num)                                                                \
-  void medium_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {     \
-    testam_payload_t *payload = (testam_payload_t *)buf;                                   \
-    if (CA##num) {                                                                         \
-      fprintf(stderr, "Arg mismatch in medium_%sreq_handler on P%i\n", #num, (int)MYPROC); \
-      fflush(stderr);                                                                      \
-      abort();                                                                             \
-    }                                                                                      \
-    if (nbytes != sizeof(testam_payload_t) || payload->idx != num ||                       \
-        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                      \
-        payload->int64var != TESTAM_INT64VAR_VAL) {                                        \
-      fprintf(stderr, "buf mismatch in medium_%sreq_handler on P%i: nbytes=%i, buf=%i\n",  \
-                       #num, (int)MYPROC, (int)nbytes, payload->idx);                      \
-      fflush(stderr);                                                                      \
-      abort();                                                                             \
-    }                                                                                      \
-    INCREQ();                                                                              \
-    payload->idx = -payload->idx;                                                          \
-    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));              \
-    memset(buf, 0xBB, sizeof(testam_payload_t));                                           \
-  }                                                                                        \
-  void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {     \
-    testam_payload_t *payload = (testam_payload_t *)buf;                                   \
-    if (CA##num) {                                                                         \
-      fprintf(stderr, "Arg mismatch in medium_%srep_handler on P%i\n", #num, (int)MYPROC); \
-      fflush(stderr);                                                                      \
-      abort();                                                                             \
-    }                                                                                      \
-    if (nbytes != sizeof(testam_payload_t) || payload->idx != -num ||                      \
-        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                      \
-        payload->int64var != TESTAM_INT64VAR_VAL) {                                        \
-      fprintf(stderr, "buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n",  \
-                       #num, (int)MYPROC, (int)nbytes, payload->idx);                      \
-      fflush(stderr);                                                                      \
-      abort();                                                                             \
-    }                                                                                      \
-    INCREP();                                                                              \
+#define MEDIUMHANDLERS(num)                                                            \
+  void medium_##num##req_handler(token_t token, void *buf, bufsize_t nbytes FA##num) { \
+    testam_payload_t *payload = (testam_payload_t *)buf;                               \
+    if (CA##num)                                                                       \
+      FATALERR("Arg mismatch in medium_%sreq_handler on P%i\n", #num, (int)MYPROC);    \
+    if (nbytes != sizeof(testam_payload_t) || payload->idx != num ||                   \
+        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                  \
+        payload->int64var != TESTAM_INT64VAR_VAL)                                      \
+      FATALERR("buf mismatch in medium_%sreq_handler on P%i: nbytes=%i, buf=%i\n",     \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                  \
+    INCREQ();                                                                          \
+    payload->idx = -payload->idx;                                                      \
+    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));          \
+    memset(buf, 0xBB, sizeof(testam_payload_t));                                       \
+  }                                                                                    \
+  void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) { \
+    testam_payload_t *payload = (testam_payload_t *)buf;                               \
+    if (CA##num)                                                                       \
+      FATALERR("Arg mismatch in medium_%srep_handler on P%i\n", #num, (int)MYPROC);    \
+    if (nbytes != sizeof(testam_payload_t) || payload->idx != -num ||                  \
+        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                  \
+        payload->int64var != TESTAM_INT64VAR_VAL)                                      \
+      FATALERR("buf mismatch in medium_%srep_handler on P%i: nbytes=%i, buf=%i\n",     \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                  \
+    INCREP();                                                                          \
   }
 
 #define LONGHANDLERS(num)                                                                     \
@@ -342,21 +325,15 @@ typedef struct {
     testam_payload_t *payload = (testam_payload_t *)buf;                                      \
     testam_payload_t mybuf;                                                                   \
     GETPARTNER(token);                                                                        \
-    if (CA##num) {                                                                            \
-      fprintf(stderr, "Arg mismatch in long_%sreq_handler on P%i\n", #num, (int)MYPROC);      \
-      fflush(stderr);                                                                         \
-      abort();                                                                                \
-    }                                                                                         \
+    if (CA##num)                                                                              \
+      FATALERR("Arg mismatch in long_%sreq_handler on P%i\n", #num, (int)MYPROC);             \
     if (nbytes != sizeof(testam_payload_t) ||                                                 \
         buf != ((testam_payload_t*)MYSEG)+num ||                                              \
         payload->idx != num ||                                                                \
         payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                         \
-        payload->int64var != TESTAM_INT64VAR_VAL) {                                           \
-      fprintf(stderr, "buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",       \
+        payload->int64var != TESTAM_INT64VAR_VAL)                                             \
+      FATALERR("buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",              \
                        #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
-      fflush(stderr);                                                                         \
-      abort();                                                                                \
-    }                                                                                         \
     mybuf = *payload;                                                                         \
     mybuf.idx = -mybuf.idx;                                                                   \
     INCREQ();                                                                                 \
@@ -368,21 +345,15 @@ typedef struct {
   }                                                                                           \
   void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
     testam_payload_t *payload = (testam_payload_t *)buf;                                      \
-    if (CA##num) {                                                                            \
-      fprintf(stderr, "Arg mismatch in long_%srep_handler on P%i\n", #num, (int)MYPROC);      \
-      fflush(stderr);                                                                         \
-      abort();                                                                                \
-    }                                                                                         \
+    if (CA##num)                                                                              \
+      FATALERR("Arg mismatch in long_%srep_handler on P%i\n", #num, (int)MYPROC);             \
     if (nbytes != sizeof(testam_payload_t) ||                                                 \
         buf != ((testam_payload_t*)MYSEG)+NUMHANDLERS_PER_TYPE+num ||                         \
         payload->idx != -num ||                                                               \
         payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                         \
-        payload->int64var != TESTAM_INT64VAR_VAL) {                                           \
-      fprintf(stderr, "buf mismatch in long_%srep_handler on P%i: nbytes=%i, buf=%i\n",       \
+        payload->int64var != TESTAM_INT64VAR_VAL)                                             \
+      FATALERR("buf mismatch in long_%srep_handler on P%i: nbytes=%i, buf=%i\n",              \
                        #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
-      fflush(stderr);                                                                         \
-      abort();                                                                                \
-    }                                                                                         \
     INCREP();                                                                                 \
   }
 

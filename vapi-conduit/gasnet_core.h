@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2005/10/23 12:28:33 $
- * $Revision: 1.42 $
+ *     $Date: 2006/06/06 22:35:55 $
+ * $Revision: 1.42.4.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #include <gasnet_core_help.h>
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -59,7 +59,7 @@ typedef struct _gasnet_hsl_t {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t acquiretime;
+    gasneti_tick_t acquiretime;
   #endif
 
   #if GASNETC_USE_INTERRUPTS
@@ -120,27 +120,44 @@ typedef struct _gasnet_hsl_t {
 /* ------------------------------------------------------------------------------------ */
 /* Type and ops for rdma counters */
 #include <gasnet_atomicops.h> /* must come after hsl defs */
-typedef gasneti_weakatomic_t gasnetc_counter_t;
-#define GASNETC_COUNTER_INITIALIZER	gasneti_weakatomic_init(0)
-#define gasnetc_counter_reset(P)	gasneti_weakatomic_set((P), 0)
-#define gasnetc_counter_done(P)		(gasneti_weakatomic_read(P) == 0)
-#define gasnetc_counter_inc(P)		gasneti_weakatomic_increment(P)
-#define gasnetc_counter_dec(P)	do {                                              \
-					gasneti_assert(!gasnetc_counter_done(P)); \
-					gasneti_weakatomic_decrement(P);          \
-				} while (0)
+typedef struct {
+	gasneti_weakatomic_t	completed;
+	int			initiated;
+} gasnetc_counter_t;
+#define GASNETC_COUNTER_INITIALIZER	{gasneti_weakatomic_init(0), 0}
+#define gasnetc_counter_reset(P)	do { gasneti_weakatomic_set(&(P)->completed, 0, 0); \
+					     (P)->initiated = 0;                         \
+					} while (0)
+#define gasnetc_counter_done(P)		((P)->initiated == gasneti_weakatomic_read(&(P)->completed, 0))
+#define gasnetc_counter_inc(P)		do { (P)->initiated++; } while (0)
+#define gasnetc_counter_inc_by(P,v)	do { (P)->initiated += (v); } while (0)
+#define gasnetc_counter_inc_if(P)	do { if(P) gasnetc_counter_inc(P); } while (0)
+#define gasnetc_counter_inc_if_pf(P)	do { if_pf(P) gasnetc_counter_inc(P); } while (0)
+#define gasnetc_counter_inc_if_pt(P)	do { if_pt(P) gasnetc_counter_inc(P); } while (0)
+#define gasnetc_counter_dec(P)		do { gasneti_assert(!gasnetc_counter_done(P));      \
+					     gasneti_weakatomic_increment(&(P)->completed, 0); \
+					} while (0)
+#if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
+  #define gasnetc_counter_dec_by(P,v)   \
+      gasneti_weakatomic_add(&(P)->completed,(v),0)
+#else /* yuk */
+  #define gasnetc_counter_dec_by(P,v)   do {       \
+      int _i = (v);                                \
+      while (_i) { gasnetc_counter_dec(P); _i--; } \
+    } while (0)
+#endif
 #define gasnetc_counter_dec_if(P)	do { if(P) gasnetc_counter_dec(P); } while (0)
 #define gasnetc_counter_dec_if_pf(P)	do { if_pf(P) gasnetc_counter_dec(P); } while (0)
 #define gasnetc_counter_dec_if_pt(P)	do { if_pt(P) gasnetc_counter_dec(P); } while (0)
 #if GASNETI_STATS_OR_TRACE
-  #define gasnetc_counter_val(P)	gasneti_weakatomic_read(P)
+  #define gasnetc_counter_val(P)	((P)->initiated)
 #endif
 
 /* Wait until given counter is marked as done.
  * Note that no AMPoll is done in the best case.
  */
 extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context);
-GASNET_INLINE_MODIFIER(gasnetc_counter_wait)
+GASNETI_INLINE(gasnetc_counter_wait)
 void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) { 
   if_pf (!gasnetc_counter_done(counter)) {
     gasnetc_counter_wait_aux(counter, handler_context);
@@ -159,13 +176,14 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 #define GASNETC_ALIGNUP(p,P)	(GASNETC_ALIGNDOWN((uintptr_t)(p)+((P)-1),P))
 
 #define GASNETC_BUFSZ		4096
+
 #if GASNET_STATS
-  #define GASNETC_MEDIUM_HDRSZ	12
-  #define GASNETC_LONG_HDRSZ	(12 + SIZEOF_VOID_P)
+  #define GASNETC_HDR_TIMESTAMP	8
 #else
-  #define GASNETC_MEDIUM_HDRSZ	4
-  #define GASNETC_LONG_HDRSZ	(4 + SIZEOF_VOID_P)
+  #define GASNETC_HDR_TIMESTAMP	0
 #endif
+#define GASNETC_MEDIUM_HDRSZ	(GASNETC_HDR_TIMESTAMP + 4)
+#define GASNETC_LONG_HDRSZ	(GASNETC_HDR_TIMESTAMP + SIZEOF_VOID_P + 4)
 
 #define GASNETC_MAX_ARGS_USER	16
 #define GASNETC_MAX_ARGS_EXTRA	1	/* 1 for piggbacked credits */
@@ -241,7 +259,7 @@ extern int gasnetc_rdma_getv(gasnetc_epid_t epid, void *src_ptr, size_t dstcount
 
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif
 

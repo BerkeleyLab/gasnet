@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_trace.h,v $
- *     $Date: 2006/02/04 01:20:21 $
- * $Revision: 1.1 $
+ *     $Date: 2006/06/06 22:35:31 $
+ * $Revision: 1.1.22.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

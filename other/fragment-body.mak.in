@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.4 2004/08/26 04:53:46 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.4.18.1 2006/06/06 22:35:19 welcome Exp $
 # ----------------------------------------------------------------------
 # Following section @configure_input@
 
@@ -26,7 +26,7 @@ GASNET_EXTRADEFINES_SEQ =
 GASNET_EXTRADEFINES_PAR = @GASNET_THREAD_DEFINES@
 GASNET_EXTRADEFINES_PARSYNC = @GASNET_THREAD_DEFINES@
 
-GASNET_DEFINES = @BUILDCONFIG_DEFINES@ -DGASNET_#THREAD_MODEL# $(GASNET_EXTRADEFINES_#THREAD_MODEL#) $(CONDUIT_DEFINES) $(CONDUIT_DEFINES_#THREAD_MODEL#)
+GASNET_DEFINES = -DGASNET_#THREAD_MODEL# $(GASNET_EXTRADEFINES_#THREAD_MODEL#) $(CONDUIT_DEFINES) $(CONDUIT_DEFINES_#THREAD_MODEL#)
 
 # ----------------------------------------------------------------------
 # Documented compilation convenience aliases

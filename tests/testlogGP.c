@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlogGP.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.26 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.26.10.1 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -41,6 +41,7 @@ int myproc;
 int numprocs;
 int peerproc = -1;
 int iamsender = 0;
+int pollcnt = 0;
 
 void *mymem;
 void *peermem;
@@ -144,14 +145,14 @@ void put_tests(int iters, int nbytes)
 
     		/* Seek number of loops needed to exceed running time by 20% or more */
 		delay_time = 1.2 * st.time;
-		loops = test_calibrate_delay(iters, &delay_time);
+		loops = test_calibrate_delay(iters, pollcnt, &delay_time);
 
 		/* Now measure overhead */
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
-			test_delay(loops);
+			test_delay(loops, pollcnt);
 			gasnet_wait_syncnb(h);
 		}
 		end = TIME();
@@ -179,7 +180,7 @@ void put_tests(int iters, int nbytes)
 	 	update_stat(&st, (end - begin), iters);
 
 		delay_time = 1.2 * st.time;
-		loops = test_calibrate_delay(iters, &delay_time);
+		loops = test_calibrate_delay(iters, pollcnt, &delay_time);
 	}
 	BARRIER();
 	if (iamsender) {
@@ -191,7 +192,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			test_delay(loops);
+			test_delay(loops, pollcnt);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
@@ -267,14 +268,14 @@ void get_tests(int iters, int nbytes)
 
     		/* Seek number of loops needed to exceed running time by 20% or more */
 		delay_time = 1.2 * st.time;
-		loops = test_calibrate_delay(iters, &delay_time);
+		loops = test_calibrate_delay(iters, pollcnt, &delay_time);
 
 		/* Now measure overhead */
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
-			test_delay(loops);
+			test_delay(loops, pollcnt);
 			gasnet_wait_syncnb(h);
 		}
 		end = TIME();
@@ -302,7 +303,7 @@ void get_tests(int iters, int nbytes)
 	 	update_stat(&st, (end - begin), iters);
 
 		delay_time = 1.2 * st.time;
-		loops = test_calibrate_delay(iters, &delay_time);
+		loops = test_calibrate_delay(iters, pollcnt, &delay_time);
 	}
 	BARRIER();
 	if (iamsender) {
@@ -314,7 +315,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			test_delay(loops);
+			test_delay(loops, pollcnt);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
@@ -357,21 +358,23 @@ int main(int argc, char **argv)
 {
     int iters = 0;
     int i;
+    char usagestr[255];
    
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testlogGP",1);
+    sprintf(usagestr, "iters pollcnt sizes...\n"
+                      "    sizes are limited to %d", TEST_SEGSZ);
+    test_init("testlogGP",1, usagestr);
+    
 
     /* parse arguments */
-    if (argc < 3) {
-        printf( "Usage: %s iters sizes... \n"
-		"    sizes are limited to %d\n", argv[0], TEST_SEGSZ);
-        gasnet_exit(1);
-    }
+    if (argc < 4) test_usage();
 
     iters = atoi(argv[1]);
     if (!iters) iters = 1;
+
+    pollcnt = atoi(argv[2]);
 
     /* get SPMD info */
     myproc = gasnet_mynode();
@@ -379,7 +382,7 @@ int main(int argc, char **argv)
 
     /* Only allow even number for numprocs */
     if (numprocs % 2 != 0) {
-      MSG("WARNING: This test requires an even number of threads. Test skipped.\n");
+      MSG0("WARNING: This test requires an even number of threads. Test skipped.\n");
       gasnet_exit(0); /* exit 0 to prevent false negatives in test harnesses for smp-conduit */
     }
     
@@ -392,11 +395,11 @@ int main(int argc, char **argv)
     
     peermem = (void *) TEST_SEG(peerproc);
 
-    for (i = 2; i < argc; ++i) {
+    for (i = 3; i < argc; ++i) {
         int size = atoi(argv[i]);
 
         if (size < 0 || size > TEST_SEGSZ) {
-            printf("size is limited to <= %d\n", TEST_SEGSZ);
+            MSG0("size is limited to <= %d\n", TEST_SEGSZ);
             continue;
         }
 

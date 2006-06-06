@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.16 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.16.10.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,6 +69,7 @@ void ping_handler(gasnet_token_t token, void *buf, size_t nbytes) {
 void noop_handler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
+#ifdef GASNET_PAR
 void *workerthread(void *args) {
   int mythread = (int)(intptr_t)args;
   thread_barrier();
@@ -133,23 +134,19 @@ void *workerthread(void *args) {
         }
       }
       break;
-    default:
-      abort();
+    default:FATALERR("bad test id");
   }
 
   /* if we ever reach here, something really bad happenned */
-  MSG("TEST FAILED!!");
-  abort();
+  FATALERR("TEST FAILED!!");
   return NULL;
 }
-
-                                                                                                              
+#endif
 
 typedef void (*test_sighandlerfn_t)(int);
 void testSignalHandler(int sig) {
   if (sig != SIGQUIT) {
-    MSG("ERROR! got an unexpected signal!");
-    abort();
+    FATALERR("got an unexpected signal!");
   } else {
     MSG("in SIGQUIT handler, calling gasnet_exit(4)...");
     gasnet_exit(4);
@@ -157,8 +154,7 @@ void testSignalHandler(int sig) {
 }
 
 int main(int argc, char **argv) {
-  char *argvzero;
-  const char *pth_args = "";
+  char usagestr[255];
   gasnet_handlerentry_t htable[] = { 
     { hidx_exit_handler, test_exit_handler },
     { hidx_ping_handler, ping_handler },
@@ -166,7 +162,11 @@ int main(int argc, char **argv) {
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  test_init_early("testexit",0);
+  sprintf(usagestr,"(exittestnum:1..%i)", (int)MAXTEST);
+  #ifdef GASNET_PAR
+    strcat(usagestr, " (num_pthreads)");
+  #endif
+  test_init_early("testexit",0,usagestr);
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -177,17 +177,12 @@ int main(int argc, char **argv) {
     peer = mynode;
   }
 
-  argvzero = argv[0];
   argv++; argc--;
   if (argc > 0) { testid = atoi(*argv); argv++; argc--; }
   #ifdef GASNET_PAR
     if (argc > 0) { numpthreads = atoi(*argv); argv++; argc--; }
-    pth_args = " (num_pthreads)";
   #endif
-  if (argc > 0 || testid <= 0 || testid > MAXTEST || numpthreads <= 1) {
-    printf("Usage: %s (errtestnum:1..%i)%s\n", argvzero, (int)MAXTEST, pth_args);fflush(stdout);
-    gasnet_exit(-1);
-  }
+  if (argc > 0 || testid <= 0 || testid > MAXTEST || numpthreads <= 1) test_usage();
 
   if (testid == 6 || testid == 7) {
     if (mynode == 0) {
@@ -199,10 +194,10 @@ int main(int argc, char **argv) {
     sleep(1);
     if (testid == 6) {
       gasnet_exit(6);
-      abort();
+      FATALERR("gasnet_exit failed");
     } else if (testid == 7 && mynode == nodes - 1) {
       gasnet_exit(7);
-      abort();
+      FATALERR("gasnet_exit failed");
     }
   }
 
@@ -210,13 +205,7 @@ int main(int argc, char **argv) {
 	                    TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
-  { test_sighandlerfn_t fpret = (test_sighandlerfn_t)signal(SIGQUIT, testSignalHandler); 
-    if (fpret == (test_sighandlerfn_t)SIG_ERR) {
-      MSG("Got a SIG_ERR while registering SIGQUIT handler");
-      perror("signal");
-      abort();
-    }
-  }
+  gasnett_reghandler(SIGQUIT, testSignalHandler);
 
   TEST_SEG(mynode);
 
@@ -281,23 +270,14 @@ int main(int argc, char **argv) {
       break;
   #ifdef GASNET_PAR
     case 14: case 15: case 16: case 17: case 18: {
-      pthread_t *tt_tids = test_malloc(numpthreads*sizeof(pthread_t));
-      int i;
-      for (i = 1; i < numpthreads; i++) {
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-        if (pthread_create(&tt_tids[i], &attr, workerthread, (void *)(intptr_t)i) != 0) { MSG("ERROR forking threads\n"); gasnet_exit(-1); }
-      }
-      workerthread(0);
+      test_createandjoin_pthreads(numpthreads, &workerthread, NULL, 0);
       break;
     }
   #endif
-    default:
-      abort();
+    default:FATALERR("bad testid");
   }
 
   /* if we ever reach here, something really bad happenned */
-  MSG("TEST FAILED!!");
-  abort();
+  FATALERR("TEST FAILED!!");
+  return 0;
 }

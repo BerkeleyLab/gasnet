@@ -1,12 +1,13 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2005/12/03 15:04:05 $
- * $Revision: 1.28 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.28.2.1 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #include "gasnet.h"
+#include "gasnet_coll.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -44,6 +45,7 @@ typedef struct {
   int myproc;
   int peerthread;
   gasnet_coll_handle_t *hndl;
+  char _pad[GASNETT_CACHE_LINE_BYTES];
 } thread_data_t;
 
 #define PROLOGUE(NAME) \
@@ -444,6 +446,8 @@ void *thread_main(void *arg) {
 
 #if (GASNET_ALIGNED_SEGMENTS != 1)
     MSG00("Skipping SINGLE/single-addr tests (unaligned segments)");
+#elif GASNET_SEGMENT_EVERYTHING
+    MSG00("Skipping SINGLE/single-addr tests (segment everything)");
 #else
     if (threads > 1) {
       MSG00("Skipping SINGLE/single-addr tests (multiple threads)");
@@ -470,7 +474,7 @@ void *thread_main(void *arg) {
   
   test_free(td->hndl);
 
-  return arg;
+  return NULL;
 }
 
 int main(int argc, char **argv)
@@ -511,7 +515,8 @@ int main(int argc, char **argv)
     datasize = iters * (3 + 4 * images);
 
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testcoll",0);
+    test_init("testcoll",0,"(iters) (threadcnt)");
+    if (argc > 3) test_usage();
     
     MSG0("Running coll test(s) with %d iterations.", iters);
 
@@ -578,41 +583,18 @@ int main(int argc, char **argv)
     BARRIER();
 
 #if GASNET_PAR
+    MSG("Forking %d gasnet threads", threads);
     {
         int i;
-	pthread_t *tids;
-
-        tids = (pthread_t *)test_malloc(sizeof(pthread_t) * threads);
-
-	MSG("Forking %d gasnet threads", threads);
-
+	thread_data_t* tt_thread_data = test_malloc(threads*sizeof(thread_data_t));
         for (i = 0; i < threads; i++) {
-	    thread_data_t *td;
-	    pthread_attr_t attr;
-
-	    pthread_attr_init(&attr);
-	    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-
-	    td = test_malloc(sizeof(thread_data_t));
-	    td->myproc = myproc;
-	    td->local_id = i;
-	    td->mythread = i + threads * myproc;
-	    td->peerthread = i + threads * (((myproc ^ 1) == numprocs) ? myproc : (myproc ^ 1));
-
-	    if (pthread_create(&tids[i], &attr, thread_main, (void *)td) != 0) {
-		printf("ERROR forking threads\n");
-		exit(EXIT_FAILURE);
-            }
-	}
-
-	for (i = 0; i < threads; i++) {
-	    void *td;
-	    if (pthread_join(tids[i], &td) != 0) {
-		printf("ERROR joining threads\n");
-		exit(EXIT_FAILURE);
-	    }
-	    test_free(td);
-	}
+	    tt_thread_data[i].myproc = myproc;
+	    tt_thread_data[i].local_id = i;
+	    tt_thread_data[i].mythread = i + threads * myproc;
+	    tt_thread_data[i].peerthread = i + threads * (((myproc ^ 1) == numprocs) ? myproc : (myproc ^ 1));
+        }
+        test_createandjoin_pthreads(threads, &thread_main, tt_thread_data, sizeof(tt_thread_data[0]));
+        test_free(tt_thread_data);
     }
 #else
     { thread_data_t td;

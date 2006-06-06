@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.21 $
+ *     $Date: 2006/06/06 22:35:48 $
+ * $Revision: 1.21.10.1 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -24,8 +24,6 @@
 
 #include "test.h"
 
-#define CACHE_LINE_BYTES	(128)
-
 #ifndef GASNET_PAR
 #error This test can only be built for GASNet PAR configuration
 #endif
@@ -39,7 +37,7 @@ struct _threaddata_t {
 	int	tid_peer_local; /* global thread id of local peer thread */
 
 	volatile int	flag;
-	char	_pad[CACHE_LINE_BYTES-5*sizeof(int)];
+	char _pad[GASNETT_CACHE_LINE_BYTES];
 } 
 threaddata_t;
 
@@ -77,7 +75,6 @@ int	sizes[] = { 0, /* gasnet_AMMaxMedium()-1      */
 
 int		AM_loopback = 0;
 int		threads_num;
-pthread_t	*tt_tids;
 gasnet_node_t	*tt_thread_map;
 void		**tt_addr_map;
 threaddata_t	*tt_thread_data;
@@ -157,33 +154,13 @@ gasnet_handlerentry_t htable[] = {
 };
 #define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnet_handlerentry_t))
 
-void
-usage(char *progname)
-{
-	printf("usage: %s [ -pgalvt ] [ -i <iters> ] <threads_per_node>\n\n", progname);
-	printf("<threads_per_node> must be between 1 and %i       \n",TEST_MAXTHREADS);
-	printf("no options means run all tests with %i iterations\n",DEFAULT_ITERS);
-	printf("options:                                      \n");
-	printf("  -p  use puts                                   \n");
-	printf("  -g  use puts                                   \n");
-	printf("  -a  use Active Messages                        \n");
-	printf("  -l  use local Active Messages                  \n");
-      #if TEST_MPI
-	printf("  -m  use MPI calls                              \n");
-      #endif
-	printf("  -v  output information about actions taken     \n");
-	printf("  -t  include AM handler actions with -v         \n");
-	printf("  -i <iters> use <iters> iterations per thread   \n\n");
-
-	exit(EXIT_FAILURE);
-}
+	
 
 int
 main(int argc, char **argv)
 {
 	int 		threads = 1;
 	int		i;
-	pthread_t	*tids;
         const char *getopt_str;
         int opt_p=0, opt_g=0, opt_a=0, opt_m=0;
 
@@ -197,7 +174,24 @@ main(int argc, char **argv)
 	GASNET_Safe(gasnet_init(&argc, &argv));
     	GASNET_Safe(gasnet_attach(htable, HANDLER_TABLE_SIZE,
 		    TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-	test_init("testthreads",0);
+
+        #if TEST_MPI
+          #define TEST_MPI_USAGE  "  -m  use MPI calls                              \n"
+        #else
+          #define TEST_MPI_USAGE  ""
+        #endif
+	test_init("testthreads",0, "[ -pgalvt ] [ -i <iters> ] <threads_per_node>\n\n"
+	    "<threads_per_node> must be between 1 and "_STRINGIFY(TEST_MAXTHREADS)"       \n"
+	    "no options means run all tests with "_STRINGIFY(DEFAULT_ITERS)" iterations\n"
+	    "options:                                      \n"
+	    "  -p  use puts                                   \n"
+	    "  -g  use puts                                   \n"
+	    "  -a  use Active Messages                        \n"
+	    "  -l  use local Active Messages                  \n"
+            TEST_MPI_USAGE
+	    "  -v  output information about actions taken     \n"
+	    "  -t  include AM handler actions with -v         \n"
+	    "  -i <iters> use <iters> iterations per thread   \n");
 
 	while ((i = getopt (argc, argv, getopt_str)) != EOF) {
           switch (i) {
@@ -209,8 +203,7 @@ main(int argc, char **argv)
 		case 'i': iters = atoi(optarg); break;
                 case 'v': verbose = 1; break;
                 case 't': amtrace = 1; break;
-		default:
-			usage(argv[0]);
+		default: test_usage();
           }
 	}
 
@@ -237,8 +230,7 @@ main(int argc, char **argv)
 
 	argc -= optind;
 
-	if (argc != 1)
-		usage(argv[0]);
+	if (argc != 1) test_usage();
 	else {
 		argv += optind;
 		threads_num = threads = atoi(argv[0]);
@@ -269,29 +261,8 @@ main(int argc, char **argv)
           attach_test_mpi();
         #endif
 
-	{
-		int 	i;
-		void	*ret;
-
-		MSG("Forking %d gasnet threads", threads);
-		for (i = 0; i < threads; i++) {
-                        pthread_attr_t attr;
-                        pthread_attr_init(&attr);
-                        pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-			if (pthread_create(&tt_tids[i], &attr, threadmain, 
-					(void *) &tt_thread_data[i]) != 0) {
-				printf("ERROR forking threads\n");
-				exit(EXIT_FAILURE);
-			}
-		}
-
-		for (i = 0; i < threads; i++) {
-			if (pthread_join(tt_tids[i], &ret) != 0) {
-				printf("ERROR joining threads\n");
-				exit(EXIT_FAILURE);
-			}
-		}
-	}
+	MSG("Forking %d gasnet threads", threads);
+        test_createandjoin_pthreads(threads, &threadmain, tt_thread_data, sizeof(threaddata_t));
 
         BARRIER();
 
@@ -343,7 +314,6 @@ alloc_thread_data(int threads)
 	nodes = gasnet_nodes();
 	tot_threads = nodes * threads;
 
-	tt_tids = (pthread_t *) test_malloc(sizeof(pthread_t) * threads);
 	tt_thread_map = (gasnet_node_t *) test_malloc(sizeof(gasnet_node_t) * tot_threads);
 	tt_thread_data = (threaddata_t *) test_malloc(sizeof(threaddata_t) * threads);
 	tt_addr_map = (void **) test_malloc(sizeof(void *) * tot_threads);
@@ -384,7 +354,6 @@ alloc_thread_data(int threads)
 void
 free_thread_data()
 {
-	test_free(tt_tids);
 	test_free(tt_thread_map);
 	test_free(tt_addr_map);
 	test_free(tt_thread_data);
