@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2006/05/23 12:42:43 $
- * $Revision: 1.34 $
+ *     $Date: 2006/06/30 02:49:08 $
+ * $Revision: 1.34.4.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,6 +48,10 @@ typedef uint8_t gasnet_handler_t;
         CNT(C, AMREPLY_SYS, cnt)                  \
         CNT(C, AMREQUEST_SYS_HANDLER, cnt)        \
         CNT(C, AMREPLY_SYS_HANDLER, cnt)          \
+        CNT(C, SND_AM_SNDRCV, cnt)                \
+        CNT(C, SND_AM_RDMA, cnt)                  \
+        CNT(C, RCV_AM_SNDRCV, cnt)                \
+        CNT(C, RCV_AM_RDMA, cnt)                  \
         VAL(C, RDMA_PUT_IN_MOVE, bytes)           \
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
@@ -55,8 +59,6 @@ typedef uint8_t gasnet_handler_t;
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
         CNT(C, ALLOC_AM_SPARE, cnt)	          \
-        VAL(C, SND_AM_CREDITS, piggybacked credits) \
-        VAL(C, RCV_AM_CREDITS, piggybacked credits) \
         CNT(C, GET_AMREQ_CREDIT, cnt)             \
 	TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
 	TIME(C, GET_AMREQ_BUFFER_STALL, stalled time) \
