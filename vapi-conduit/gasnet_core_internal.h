@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/06/30 02:49:08 $
- * $Revision: 1.134.12.1 $
+ *     $Date: 2006/07/06 23:21:43 $
+ * $Revision: 1.134.12.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -244,7 +244,7 @@ typedef struct {
 } gasnetc_memreg_t;
 
 /* XXX: need env var overrides for DEPTH and MAX */
-#define GASNETC_AMRDMA_DEPTH	8
+#define GASNETC_AMRDMA_DEPTH	2	/* Power-of-2 */
 #define GASNETC_AMRDMA_HDRSZ    (sizeof(uint32_t) + sizeof(uint16_t))
 #define GASNETC_AMRDMA_SZ	2048 /* Keep to a power-of-2 */
 #define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ/2 - GASNETC_AMRDMA_HDRSZ)
@@ -311,9 +311,12 @@ typedef struct {
 	gasneti_weakatomic32_t	ack_mask;
   } am_flow;
   struct {	/* AM-over-RDMA local state */
-	gasneti_weakatomic_t	send_slot;
-	gasneti_weakatomic_t	recv_slot;
-        gasneti_weakatomic_t	in_use[GASNETC_AMRDMA_DEPTH];
+        gasneti_weakatomic_t	send_in_use[GASNETC_AMRDMA_DEPTH];
+        gasneti_weakatomic_t	recv_in_use[GASNETC_AMRDMA_DEPTH];
+	#if (GASNETC_AMRDMA_DEPTH > 1)
+	  gasneti_weakatomic_t	send_count;
+	  gasneti_weakatomic_t	recv_count;
+	#endif
   } amrdma;
 
   char			_pad1[GASNETI_CACHE_LINE_BYTES];
