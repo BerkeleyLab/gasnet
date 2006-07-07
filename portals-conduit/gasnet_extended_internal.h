@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/06/13 23:30:28 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2006/07/07 23:51:58 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,7 +11,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
-#include <portals3.h>
+#include <portals/portals3.h>
 
 /* ------------------------------------------------------------------------------------ */
 typedef uint8_t gasnete_threadidx_t;
@@ -55,9 +55,10 @@ typedef struct _gasnete_iop_t {
   int initiated_put_cnt;     /*  count of put ops initiated */
 
   /*  make sure the counters live on different cache lines for SMP's */
+#if 0
   /*  MLW: Need to adjust this pad field length */
   uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
-
+#endif
   gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
   gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
 } gasnete_iop_t;
@@ -74,7 +75,7 @@ typedef struct _gasnete_threaddata_t {
   int eop_num_bufs;             /*  number of valid eop buffer entries */
   gasnete_opaddr_t eop_free;    /*  free list of eops */
 
-  gasnete_eop_t *iop_bufs[256]; /*  buffers of iops for memory management */
+  gasnete_iop_t *iop_bufs[256]; /*  buffers of iops for memory management */
   int iop_num_bufs;             /*  number of valid iop buffer entries (generally just one) */
   gasnete_iop_t *iop_free;      /*  free list of iops */
 
@@ -113,7 +114,8 @@ void SET_IOP_THREADID(gasnete_iop_t *iop, uint8_t threadid) {
   iop->threadidx = (threadid & 0x7F) | OPTYPE_IMPLICIT;
 }
 
-#define GASNETE_THREADID(op) ((op)->threadidx & 0x7F)
+#define GASNETE_THREADID(th) ((th) & 0x7F)
+#define GASNETE_OP_THREADID(op) GASNETE_THREADID((op)->threadidx)
 #define GASNETE_IS_EOP(op) (((op)->threadidx & 0x80) == OPTYPE_EXPLICIT)
 #define GASNETE_IS_IOP(op) (((op)->threadidx & 0x80) == OPTYPE_IMPLICIT)
 
@@ -124,7 +126,7 @@ void SET_IOP_THREADID(gasnete_iop_t *iop, uint8_t threadid) {
 #define OPSTATE_COMPLETE  2
 #define OPSTATE(op) ((op)->flags & 0x03) 
 GASNETI_INLINE(SET_OPSTATE)
-void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
+void SET_OPSTATE(gasnete_op_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
   /* RACE: If we are marking the op COMPLETE, don't assert for completion
    * state as another thread spinning on the op may already have changed
@@ -157,15 +159,6 @@ void gasnete_op_free(gasnete_op_t *op);
        gasneti_memcheck((threaddata)->iop_bufs[(opaddr).bufferidx]),    \
        (threaddata)->iop_bufs[(opaddr).bufferidx] + (opaddr).opidx)
 
-GASNETI_INLINE(gasnete_opaddr_to_ptr)
-gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr_t opaddr)
-{
-  gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
-  return ((threadid & OPTYPE_IMPLICIT)  == OPTYPE_IMPLICIT
-	  ? GASNETE_IOPADDR_TO_PTR(th,opaddr) 
-	  : GASNETE_EOPADDR_TO_PTR(th,opaddr)
-	  );
-}
 
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */
@@ -174,16 +167,15 @@ gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                \
-    _th = gasnete_threadtable[GASNETE_THREADID(eop)];                     \
+    _th = gasnete_threadtable[GASNETE_OP_THREADID(eop)];                     \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
     int _temp;                                                \
-    gasneti_memcheck(iop);                                    \
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert(OPSTATE(iop) == OPSTATE_INFLIGHT);         \
-    gasneti_assert(GASNETE_THREADID(iop) < gasnete_numthreads);    \
-    gasneti_memcheck(gasnete_threadtable[GASNETE_THREADID(iop)]);  \
+    gasneti_assert(GASNETE_OP_THREADID(iop) < gasnete_numthreads);    \
+    gasneti_memcheck(gasnete_threadtable[GASNETE_OP_THREADID(iop)]);  \
     _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
@@ -269,7 +261,7 @@ typedef union _gasnete_lowbits_t {
      gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n"   \
         "  while calling: %s\n"                                              \
         "  at %s",                                                           \
-        ptl_err_src[_retcode], _retcode, #fncall, gasneti_current_loc); \
+        ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
    }                                                                         \
  } while (0)
 
@@ -281,23 +273,47 @@ typedef union _gasnete_lowbits_t {
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
 void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnete_op_t *op)
 {
+  /* The format is 0x00000000TTAAAAMM
+   * Where TT   = threadid with eop/iop encoding in most significant bit
+   *       AAAA = EOP/IOP opaddr bits
+   *       MM   = message type and match bits
+   */
+#if 0
     gasnete_lowbits_t lb;
     lb.lb_addr.threadidx = op->threadidx;  /* contains encoding of eop/iop type */
     lb.lb_addr.addr.fulladdr = op->addr.fulladdr;
     lb.lb_addr.msgtype = msg_type;
-    *mbits = (MASK_UPPER32 & *mbits) | (MASK_LOWER32 & lb.lowbits);
+    *mbits = (GASNETE_MASK_UPPER32 & *mbits) | (GASNETE_MASK_LOWER32 & lb.lowbits);
+#else
+    uint32_t th_b   = ( ((uint32_t)op->threadidx) << 24)    & 0xFF000000;
+    uint32_t addr_b = ( ((uint32_t)op->addr.fulladdr) << 8) & 0x00FFFF00;
+    uint32_t m_b    = ( (uint32_t)msg_type )                & 0x000000FF;
+    *mbits = (GASNETE_MASK_UPPER32 & *mbits) | (GASNETE_MASK_LOWER32 & (ptl_match_bits_t)(th_b | addr_b | m_b));
+    GASNETI_TRACE_PRINTF(C,("set lowbits th = 0x%x, addr = 0x%x, type = 0x%x, bits = 0x%llx",th_b,addr_b,m_b,*mbits));
+#endif
 }
 
 GASNETI_INLINE(gasnete_get_mbits_lowbits)
 void gasnete_get_mbits_lowbits(ptl_match_bits_t mbits, uint8_t *threadid,
 			       uint8_t *msg_type, gasnete_opaddr_t *addr)
 {
+#if 0
     gasnete_lowbits_t lb;
     lb.lowbits = (uint32_t)(GASNETE_MASK_LOWER32 & mbits);
     *threadid = lb.lb_addr.threadidx;  /* contains encoding of eop/iop type */
-    addr->fulladdr = lb.lb_addr.addr.fulladdr;
     *msg_type = lb.lb_addr.msgtype;
+    addr->fulladdr = lb.lb_addr.addr.fulladdr;
+#else
+    uint32_t lb = (uint32_t)(GASNETE_MASK_LOWER32 & mbits);
+    uint32_t work;
+    *threadid = (uint8_t)(lb >> 24);
+    addr->fulladdr = (uint16_t)((lb & 0x00FFFF00) >> 8);
+    *msg_type = (uint8_t)(lb & 0x000000FF);
+    GASNETI_TRACE_PRINTF(C,("get bits = 0x%lx, th = 0x%x, addr = 0x%x, type = 0x%x",(unsigned long)mbits,*threadid,addr->fulladdr,*msg_type));
+#endif
 }
+
+extern ptl_process_id_t gasnete_ptl_nodeid(gasnet_node_t node);
 
 /* -----------------------------------------------------------------------------------
  * A dumb chunk allocator used for put/get bounce buffer
@@ -305,6 +321,7 @@ void gasnete_get_mbits_lowbits(ptl_match_bits_t mbits, uint8_t *threadid,
  * Will have to re-implement for multi-threaded (Linux) XT3
  */
 #define GASNETE_BB_CHUNKSIZE 1024
+#define GASNETE_BB_NUM_CHUNK 1024
 extern ptl_handle_md_t gasnete_rar_md;
 extern ptl_handle_md_t gasnete_bb_md;
 typedef union _gasnete_bb_chunk {
@@ -315,11 +332,11 @@ typedef union _gasnete_bb_chunk {
 extern gasnete_bb_chunk_t *gasnete_bb_freelist;
 extern void* gasnete_bb_start;
 extern ptl_handle_md_t  gasnete_bb_md_h;
-extern int gasnete_bb_chunk_alloc(size_t nbytes, uintptr_t *offset);
+extern int gasnete_bb_chunk_alloc(size_t nbytes, ptl_size_t *offset);
 extern void gasnete_bb_init(size_t nchunks);
 
 GASNETI_INLINE(gasnete_bb_chunk_free)
-void gasnete_bb_chunk_free(uintptr_t offset)
+void gasnete_bb_chunk_free(ptl_size_t offset)
 {
     gasnete_bb_chunk_t *p = (gasnete_bb_chunk_t*)((uint8_t*)gasnete_bb_start + offset);
     p->next = gasnete_bb_freelist;
@@ -328,8 +345,7 @@ void gasnete_bb_chunk_free(uintptr_t offset)
 
 extern void gasnete_portals_init(void);
 extern ptl_handle_md_t gasnete_alloc_tmpmd(void* dest, size_t nbytes);
-extern void gasnete_poll(void);
-extern void gasnete_event_handler(ptl_event_t *ev, int which_md);
+extern void gasnete_event_handler(ptl_event_t *ev);
 
 #define GASNETE_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
@@ -342,6 +358,9 @@ int gasnete_in_local_rar(uint8_t* pstart, size_t n)
 
   return (pstart >= start) && (pend <= end);
 }
+
+/* Number of temporary Portals MDs in use at any time */
+#define GASNETE_MAX_TMP_MDS 1024
 
 
 /* ------------------------------------------------------------------------------------ */
