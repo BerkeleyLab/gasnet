@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/07/06 23:21:43 $
- * $Revision: 1.189.4.2 $
+ *     $Date: 2006/07/08 03:29:48 $
+ * $Revision: 1.189.4.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1031,6 +1031,66 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, int limit, gasnetc_rbuf_t **spar
   return count;
 }
 
+static volatile uint8_t *gasnetc_decode_amrdma_bytes(volatile uint8_t *in, uint8_t *out, int count) {
+  gasneti_assert (count > 0);
+  do {
+    while (PREDICT_FALSE(in[0] != in[1])) GASNETI_WAITHOOK();
+    *(out++) = in[0];
+    in[0] = 0; in[1] = -1;
+    in += 2;
+  } while (--count);
+  return in;
+}
+
+#define GASNETC_AMRDMA_DECODE_MASK ((uintptr_t)0x00ff00ff00ff00ffLLU)
+
+GASNETI_INLINE(gasnetc_decode_amrdma)
+volatile uint8_t *gasnetc_decode_amrdma(volatile uint8_t *in, void *out, int count) {
+  /* Given the alignment we can read full words (byte writes still appear to generate best code) */
+  uint8_t *p = out;
+  volatile uintptr_t *q = (volatile uintptr_t *)in;
+  const unsigned int bytes_per_iter = sizeof(uintptr_t) / 2;
+  int i;
+  gasneti_assert(!((uintptr_t)in & (sizeof(uintptr_t)-1)));
+  gasneti_assert(!(count & (sizeof(uintptr_t)-1)));
+  gasneti_assert (count >= 0);
+  while (count) {
+    uintptr_t tmp = *q;
+    if_pf ((tmp ^ (tmp >> 8)) & GASNETC_AMRDMA_DECODE_MASK) {
+      /* Either less than a full word remains, or we've observed the RMDA in-progress. */
+      return gasnetc_decode_amrdma_bytes((volatile uint8_t *)q, p, count);
+      break;
+    } else {
+      gasneti_assert(count >= bytes_per_iter);
+    }
+    #if WORDS_BIGENDIAN
+      #if SIZEOF_VOID_P == 8
+        p[0] = (tmp >> 48);
+        p[1] = (tmp >> 32);
+        p[2] = (tmp >> 16);
+        p[3] = tmp;
+      #else
+        p[0] = (tmp >> 16);
+        p[1] = tmp;
+      #endif
+    #else
+      #if SIZEOF_VOID_P == 8
+        p[0] = tmp;
+        p[1] = (tmp >> 16);
+        p[2] = (tmp >> 32);
+        p[3] = (tmp >> 48);
+      #else
+        p[0] = tmp;
+        p[1] = (tmp >> 16);
+      #endif
+    #endif
+    *(q++) = GASNETC_AMRDMA_DECODE_MASK;
+    p += bytes_per_iter;
+    count -= bytes_per_iter;
+  }
+  return (volatile uint8_t *)q;
+}
+
 GASNETI_INLINE(gasnetc_rcv_amrdma)
 int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   #if (GASNETC_AMRDMA_DEPTH > 1)
@@ -1039,13 +1099,14 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   #else
     const int recv_slot = 0;
   #endif
-  volatile unsigned char *p = cep->amrdma_loc[recv_slot];
+  volatile uint8_t *p = cep->amrdma_loc[recv_slot];
   gasnetc_rbuf_t rbuf;
-  char _buf[8 + GASNETC_AMRDMA_MAX];
-  char *buf;
+  uint8_t _buf[8 + GASNETC_AMRDMA_MAX];
+  gasnetc_buffer_t * const msg = (gasnetc_buffer_t *)GASNETI_ALIGNUP(_buf, 8);
   uint32_t seq, flags, mask;
-  uint16_t msg_len;
+  int numargs;
   int i;
+  int bytes = 0;
 
   if (gasneti_weakatomic_read(&cep->amrdma.recv_in_use[recv_slot], 0) ||
       (p[0] != p[1]) ||
@@ -1064,26 +1125,33 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
     gasneti_weakatomic_increment(&cep->amrdma.recv_count, 0);
   #endif
 
-  buf = (char *)&flags;
-  for (i = 0; i < sizeof(flags); ++i, ++buf, p += 2) {
-    gasneti_waitwhile(p[0] != p[1]);
-    *buf = p[0];
-    p[0] = 0; p[1] = -1;
-  }
-
-  buf = (char *)&msg_len;
-  for (i = 0; i < sizeof(msg_len); ++i, ++buf, p += 2) {
-    gasneti_waitwhile(p[0] != p[1]);
-    *buf = p[0];
-    p[0] = 0; p[1] = -1;
-  }
-
-  buf = (char *)GASNETI_ALIGNUP(_buf, 8);
-  rbuf.rr_sg.addr = (uintptr_t)buf;
-  for (i = 0; i < msg_len; ++i, ++buf, p += 2) {
-    gasneti_waitwhile(p[0] != p[1]);
-    *buf = p[0];
-    p[0] = 0; p[1] = -1;
+  p = gasnetc_decode_amrdma(p, &flags, sizeof(flags));
+  numargs = GASNETC_MSG_NUMARGS(flags);
+  switch (GASNETC_MSG_CATEGORY(flags)) {
+  case gasnetc_System: /* Currently System == Short.  Fall through... */
+  case gasnetc_Short:
+    bytes = GASNETC_MSG_SHORT_ARGSEND(numargs);
+    p = gasnetc_decode_amrdma(p, msg, bytes);
+    break;
+  
+  case gasnetc_Medium:
+    bytes = GASNETC_MSG_MED_ARGSEND(numargs); /* XXX: includes possible padding bytes */
+    p = gasnetc_decode_amrdma(p, msg, bytes);
+    (void)gasnetc_decode_amrdma(p, (uint8_t *)msg + bytes, msg->medmsg.nBytes);
+    break;
+  
+  case gasnetc_Long:
+    bytes = GASNETC_MSG_LONG_ARGSEND(numargs);
+    p = gasnetc_decode_amrdma(p, msg, bytes);
+    if (msg->longmsg.nBytes & 0x80000000) {
+      msg->longmsg.nBytes &= 0x7fffffff;
+      (void)gasnetc_decode_amrdma(p, (void *)(msg->longmsg.destLoc), msg->longmsg.nBytes);
+    }
+    break;
+  
+  default:
+    gasneti_fatalerror("invalid AM category on send");
+    /* NOT REACHED */
   }
 
   if (GASNETC_MSG_ISREPLY(flags)) {
@@ -1109,6 +1177,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   gasneti_weakatomic32_set(&cep->am_flow.ack_mask, 1, 0);
 #endif
 
+  rbuf.rr_sg.addr = (uintptr_t)msg;
   rbuf.cep = cep;
   rbuf.rr_is_rdma = 1;
   gasnetc_processPacket(cep, &rbuf, flags);
@@ -1594,8 +1663,6 @@ size_t gasnetc_encode_amrdma(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc, int 
   gasneti_assert(new_len <= GASNETC_AMRDMA_SZ);
 
   { /* Encode (in-place!!) */
-    const uint16_t tmp_len = msg_len;
-    const uint32_t flags = sr_desc->imm_data;
     char *base = (char *)(uintptr_t)sr_desc->sg_lst_p[0].addr;
     char *in = base + msg_len - 1;
     char *out = base + new_len - 2;
@@ -1603,12 +1670,8 @@ size_t gasnetc_encode_amrdma(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc, int 
     for (i = 0; i < msg_len; ++i, --in, out -= 2) {
       out[0] = out[1] = *in;
     }
-    in = (char *)&tmp_len + sizeof(tmp_len) - 1;
-    for (i = 0; i < sizeof(tmp_len); ++i, --in, out -= 2) {
-      out[0] = out[1] = *in;
-    }
-    in = (char *)&flags + sizeof(flags) - 1;
-    for (i = 0; i < sizeof(flags); ++i, --in, out -= 2) {
+    in = (char *)&sr_desc->imm_data + sizeof(sr_desc->imm_data) - 1;
+    for (i = 0; i < sizeof(sr_desc->imm_data); ++i, --in, out -= 2) {
       out[0] = out[1] = *in;
     }
     gasneti_assert(out == (base - 2));
