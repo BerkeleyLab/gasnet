@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/07/08 05:15:21 $
- * $Revision: 1.189.4.4 $
+ *     $Date: 2006/07/08 07:31:46 $
+ * $Revision: 1.189.4.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1605,34 +1605,46 @@ int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
 }
 
 GASNETI_INLINE(gasnetc_encode_amrdma)
-size_t gasnetc_encode_amrdma(gasnetc_sreq_t *sreq, VAPI_sr_desc_t *sr_desc, int send_slot) {
-  const size_t msg_len = sr_desc->sg_lst_p[0].len;
-  const int new_len = 2 * (GASNETC_AMRDMA_HDRSZ + msg_len);
+size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, VAPI_sr_desc_t *sr_desc, int send_slot,
+			     char *src_addr, size_t nbytes) {
+  size_t msg_len = sr_desc->sg_lst_p[0].len;
+  int new_len = 2 * (GASNETC_AMRDMA_HDRSZ + msg_len);
 
-  if (send_slot < 0) {
-    /* NOT using RDMA */
-    return msg_len;
-  }
-
+  gasneti_assert(send_slot >= 0);
+  gasneti_assert(send_slot < GASNETC_AMRDMA_DEPTH);
   gasneti_assert(new_len <= GASNETC_AMRDMA_SZ);
 
   { /* Encode (in-place!!) */
-    char *base = (char *)(uintptr_t)sr_desc->sg_lst_p[0].addr;
-    char *in = base + msg_len - 1;
-    char *out = base + new_len - 2;
+    char * const base = (char *)(uintptr_t)sr_desc->sg_lst_p[0].addr;
+    char *in, *out;
     int i;
+
+    /* Medium (or packedLong) payload if applicable */
+    if (nbytes) {
+      msg_len -= nbytes;
+      in = src_addr;
+      out = base + 2 * (GASNETC_AMRDMA_HDRSZ + msg_len);
+      for (i = 0; i < nbytes; ++i, ++in, out += 2) {
+        out[0] = out[1] = *in;
+      }
+    }
+    
+    /* Header w/ args (in reverse to do in place) */
+    in = base + (msg_len - 1);
+    out = base + 2 * (GASNETC_AMRDMA_HDRSZ + (msg_len - 1));
     for (i = 0; i < msg_len; ++i, --in, out -= 2) {
       out[0] = out[1] = *in;
     }
-    in = (char *)&sr_desc->imm_data + sizeof(sr_desc->imm_data) - 1;
-    for (i = 0; i < sizeof(sr_desc->imm_data); ++i, --in, out -= 2) {
+
+    /* Flags word (would be "immediate data" in a snd/rcv) */
+    in = (char *)&sr_desc->imm_data;
+    out = base;
+    for (i = 0; i < sizeof(sr_desc->imm_data); ++i, ++in, out += 2) {
       out[0] = out[1] = *in;
     }
-    gasneti_assert(out == (base - 2));
   }
 
   { /* Fixup the descriptor */
-    gasnetc_cep_t * const cep = sreq->cep;
     sr_desc->sg_lst_p[0].len = new_len;
     sr_desc->opcode = VAPI_RDMA_WRITE;
     sr_desc->remote_addr = cep->amrdma_rem + (send_slot * GASNETC_AMRDMA_SZ);
@@ -1711,6 +1723,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     /* Remote Case */
     gasnetc_buffer_t *buf;
     gasnet_handlerarg_t *args;
+    void *payload = NULL;
     size_t msg_len;
     int i;
     int have_flow;
@@ -1883,9 +1896,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       break;
   
     case gasnetc_Medium:
-      memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
+      payload = GASNETC_MSG_MED_DATA(buf, numargs);
       buf->medmsg.nBytes = nbytes;
       args = buf->medmsg.args;
+      if (rdma_slot < 0) memcpy(payload, src_addr, nbytes);
       break;
   
     case gasnetc_Long:
@@ -1895,7 +1909,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         /* Pack like a Medium */
         gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG);
         buf->longmsg.nBytes |= 0x80000000; /* IDs the packedlong case */
-        memcpy(GASNETC_MSG_LONG_DATA(buf, numargs), src_addr, nbytes);
+        payload = GASNETC_MSG_LONG_DATA(buf, numargs);
+        if (rdma_slot < 0) memcpy(payload, src_addr, nbytes);
       }
       args = buf->longmsg.args;
       break;
@@ -1961,7 +1976,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       }
   
       (void)gasnetc_bind_cep(epid, sreq, VAPI_SEND_WITH_IMM, msg_len);
-      msg_len = gasnetc_encode_amrdma(sreq, sr_desc, rdma_slot);
+
+      gasneti_assert(!payload || (payload == (char *)buf + msg_len - nbytes));
+      if (rdma_slot >= 0) {
+        msg_len = gasnetc_encode_amrdma(sreq->cep, sr_desc, rdma_slot, src_addr, payload ? nbytes : 0);
+      }
+
       gasnetc_snd_post_common(sreq, sr_desc, (msg_len <= gasnetc_inline_limit));
     }
   } 
