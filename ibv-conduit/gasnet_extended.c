@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2006/06/06 22:35:55 $
- * $Revision: 1.34.10.1 $
+ *     $Date: 2006/07/10 23:57:05 $
+ * $Revision: 1.34.10.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -373,6 +373,9 @@ extern void gasnete_init() {
    
   /* Initialize barrier resources */
   gasnete_barrier_init();
+
+  /* Initialize VIS subsystem */
+  gasnete_vis_init();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -736,10 +739,6 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
 
 /* use reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
-#define gasnete_refbarrier_init    gasnete_barrier_init
-#define gasnete_refbarrier_notify  gasnete_barrier_notify
-#define gasnete_refbarrier_wait    gasnete_barrier_wait
-#define gasnete_refbarrier_try     gasnete_barrier_try
 #include "gasnet_extended_refbarrier.c"
 #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 
