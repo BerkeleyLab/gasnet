@@ -131,8 +131,8 @@ run-tests do-run-testexit: check-run-tests-deps
 	  TESTINSTANCE=$(TESTINSTANCE) TESTLOG=$(TESTLOG) \
 	  CONDUIT_NAME=$(CONDUIT_NAME) \
 	  CONDUIT_RUNCMD="$(CONDUIT_RUNCMD)" \
-	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
-	@$(MAKE) TESTINSTANCE=$(TESTINSTANCE) TESTLOG=$(TESTLOG) do-end-tests
+	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS) ; \
+	 $(MAKE) TESTINSTANCE=$(TESTINSTANCE) TESTLOG=$(TESTLOG) do-end-tests
 
 # these are separate make commands to ensure they can be composed 
 # and still get multiple run-tests invocations

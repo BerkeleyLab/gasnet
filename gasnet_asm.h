@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/06/06 22:34:57 $
- * $Revision: 1.109.2.1 $
+ *     $Date: 2006/07/10 23:56:37 $
+ * $Revision: 1.109.2.2 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,9 +29,13 @@
   #include <c_asm.h>
   #define GASNETI_ASM(mnemonic) asm(mnemonic)
 #elif PLATFORM_COMPILER_SUN 
-  #ifdef __cplusplus /* Sun C works, Sun C++ lacks inline assembly support (man inline) */
-    #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
-  #else
+  #ifdef __cplusplus 
+    #if PLATFORM_OS_LINUX
+      #define GASNETI_ASM(mnemonic)  asm(mnemonic)
+    #else /* Sun C++ on Solaris lacks inline assembly support (man inline) */
+      #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
+    #endif
+  #else /* Sun C */
     #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
   #endif
 #elif PLATFORM_COMPILER_NEC 

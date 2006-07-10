@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_help.h,v $
- *     $Date: 2006/06/13 23:30:28 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2006/07/10 23:56:57 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,7 @@
 GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
+
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_MAX_THREADS

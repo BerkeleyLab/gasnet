@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2006/06/06 22:35:48 $
-# $Revision: 1.72.2.1 $
+#     $Date: 2006/07/10 23:57:01 $
+# $Revision: 1.72.2.2 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -11,7 +11,8 @@ all:
 	@echo do a "make tests-seq" or "make tests-par" within the conduit directory
 
 # linker to be used for MPI programs
-GASNET_MPI_LD = @MPI_CC@
+GASNET_MPI_CC = @MPI_CC@
+GASNET_MPI_LD = $(GASNET_MPI_CC)
 
 srcdir="@TOP_SRCDIR@/tests"
 
@@ -23,8 +24,8 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
 # GASNet-related MPI tests
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS_SEQ = 
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS_PAR = testmpi
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_SEQ = 
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_PAR = testmpi
 
 # non-GASNet plain MPI tests
 MPI1_TESTS = 			\
@@ -43,7 +44,7 @@ MPI2_TESTS = 			\
 	testosumpi2_get_bw 	\
 	testosumpi2_acc_lat  	
 
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
+MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
 
 # tests that can be built in any mode
 # in order of most useful execution
@@ -70,6 +71,7 @@ testprograms_seq =      \
         testvis         \
         testcoll        \
         testnbr    	\
+        testvisperf     \
 	testqueue	\
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
@@ -129,6 +131,7 @@ TEST_PARAMS=                    					\
    testmpiperf_args="BPFE 1000";					\
    testqueue_args="1 256 262144"; 					\
    testenv_args='GASNet is \"Global Address Space Networking\"';	\
+   testvisperf_args="-maxdata 131072 -maxcontig 512 10"; 		\
    $(CONDUIT_TESTPARAMS) dummy=1 ; 					\
    $(MANUAL_TESTPARAMS) dummy=1 ;
 
@@ -333,16 +336,23 @@ testbarrierlate_extraobjs = delay.o
 delay.o: force
 	$(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_MISC_CFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -DGASNET_ALLOW_OPTIMIZED_DEBUG -c -o $@ $(srcdir)/$*.c
 
+mpi-check: force
+	@if test -z "$(GASNET_MPI_CC)" ; then \
+	  echo "ERROR: requested building an MPI test, but configure detected no MPI compiler." ; \
+	  echo "       Issue make again with GASNET_MPI_CC=<your mpi compiler>" ; \
+	  exit 1 ; \
+	fi
+
 # testmpi must be compiled like an MPI program with GASNet support
-testmpi: force
-	@MPI_CC@ -I$(srcdir) $(GASNET_CPPFLAGS) @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
+testmpi: mpi-check force
+	$(GASNET_MPI_CC) -I$(srcdir) $(GASNET_CPPFLAGS) @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # the following are just plain MPI programs
 # testmpinbr requires libm
-$(MPI_TESTS): force
-	@MPI_CC@ -I$(srcdir)/mpi -I@TOP_SRCDIR@/other @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/mpi/$@.c
+$(MPI_TESTS): mpi-check force
+	$(GASNET_MPI_CC) -I$(srcdir)/mpi -I@TOP_SRCDIR@/other @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/mpi/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ @LIBM@ $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 

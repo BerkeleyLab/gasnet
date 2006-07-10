@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/06/06 22:34:57 $
-# $Revision: 1.310.2.1 $
+#     $Date: 2006/07/10 23:56:37 $
+# $Revision: 1.310.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.2.1 $)
+AC_REVISION($Revision: 1.310.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -111,6 +111,10 @@ case "$gasnet_cv_cc_family" in
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
 esac
+
+if test "$cross_compiling" = "yes" ; then
+  AC_DEFINE(GASNETI_CROSS_COMPILING)
+fi
 
 ## discover bit width
 
@@ -534,20 +538,6 @@ GASNET_WITH(segment-mmap-max,
       *) AC_MSG_ERROR(Illegal value for --with-segment-mmap-max=$withval) ;;
     esac])
 
-pushdef([BARRIERVALS],[permitted values are AMDISSEM or AMCENTRAL])
-GASNET_WITH(barrier,
-   [Default barrier implementation to use for reference extended implementation, BARRIERVALS],
-   [case "$withval" in
-      AMDISSEM) AC_DEFINE(GASNETE_USE_AMDISSEMINATION_REFBARRIER)
-        ;;
-      AMCENTRAL) 
-        ;;
-      *) AC_MSG_ERROR(Illegal value for --with-barrier: BARRIERVALS) ;;
-    esac], [ AC_MSG_ERROR(Illegal value for --with-barrier: BARRIERVALS) ],
-   [ # default is AMDISSEM
-     AC_DEFINE(GASNETE_USE_AMDISSEMINATION_REFBARRIER) ])
-popdef([BARRIERVALS])
-
 GASNET_LIBGCC
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS")
 GASNET_CHECK_RESTRICT
@@ -569,6 +559,19 @@ GASNET_CHECK_GCC_ATTRIBUTE([__pure__],
             [__attribute__((__pure__)) int dummy(int x) { return x+1; }])
 GASNET_CHECK_GCC_ATTRIBUTE([__format__],
             [__attribute__((__format__ (__printf__, 1, 2))) void dummy(const char *fmt,...) { }])
+
+GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
+GASNET_TRY_CACHE_EXTRACT_STR(PLATFORM_COMPILER_IDSTR, PLATFORM_COMPILER_IDSTR,
+  [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_IDSTR ], GASNETI_PLATFORM_COMPILER_IDSTR)
+AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_IDSTR,$GASNETI_PLATFORM_COMPILER_IDSTR)
+GASNET_TRY_CACHE_EXTRACT_EXPR(PLATFORM_COMPILER_ID, PLATFORM_COMPILER_ID,
+  [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_ID ], GASNETI_PLATFORM_COMPILER_ID)
+AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_ID,$GASNETI_PLATFORM_COMPILER_ID)
+GASNET_TRY_CACHE_EXTRACT_EXPR(PLATFORM_COMPILER_VERSION, PLATFORM_COMPILER_VERSION,
+  [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_VERSION ], GASNETI_PLATFORM_COMPILER_VERSION)
+AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_VERSION,$GASNETI_PLATFORM_COMPILER_VERSION)
+GASNET_POPVAR(CPPFLAGS)
+
 GASNET_POPVAR(CFLAGS)
 
 ########################################################################
@@ -1185,7 +1188,16 @@ if test $enabled_udp = yes; then
       GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CXXCPPFLAGS $MISC_CXXFLAGS],[])
     ;;
   esac
+
+  GASNET_ENV_DEFAULT(cxxLIBS, )             # C++ LIBS for any C++ link
+  GASNET_ENV_DEFAULT(cxxLDFLAGS, )          # C++ LDFLAGS for any C++ link
+  GASNET_UDP_LIBS="$GASNET_UDP_LIBS $cxxLIBS"
+  AC_SUBST(cxxLIBS)
+  AC_SUBST(cxxLDFLAGS)
+
   GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS $CXXCPPFLAGS $MISC_CXXFLAGS")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $cxxLDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$LIBS $cxxLIBS")
   GASNET_TRY_CACHE_VERIFY_RUN( [for working C++ exceptions], cxx_exceptions, [ ], [
      try {
        int *p = new int[[10]];
@@ -1197,6 +1209,8 @@ if test $enabled_udp = yes; then
      }
   ], [ "I can\'t figure out how to build and run a program that uses C++ exceptions" ] )  
   GASNET_POPVAR(CXXFLAGS)
+  GASNET_POPVAR(LDFLAGS)
+  GASNET_POPVAR(LIBS)
   AC_SUBST(MISC_CXXFLAGS)
 
   AC_LANG_RESTORE
@@ -1252,13 +1266,21 @@ fi
 
 #---------------------------------------------------------------------------------------------------------------
 # MPI/AMMPI Configuration
-# (In the future it would be nice to try and discover MPI setup automatically)
+
+# --enable-mpi-compat controls MPI compatibility in all conduits
+GASNET_IF_ENABLED_WITH_AUTO(mpi-compat, Enable/disable MPI compatibility (auto-detected),
+  [enabled_mpi_compat=yes;force_mpi_compat=yes],
+  enabled_mpi_compat=no,
+  enabled_mpi_compat=yes)
+
+# --enable-mpi controls mpi-conduit
 pushdef([CONDUIT_DESC],[portable MPI-1.1/2.x network conduit (mpi)])
 GASNET_IF_ENABLED_WITH_AUTO(mpi, Enable/disable the CONDUIT_DESC (auto-detected),
   [enabled_mpi=yes;force_mpi=yes],
   enabled_mpi=no,
   enabled_mpi=yes)
-if test $enabled_mpi = yes; then
+
+if test $enabled_mpi = yes || test $enabled_mpi_compat = yes; then
   # user can explicitly configure MPI by setting MPI_CC, MPI_CFLAGS and MPI_LIBS
   have_mpi=yes # start by assuming they have it
   if test "$BUILDCONFIG" = "debug" ; then
@@ -1442,6 +1464,9 @@ _GASNET_EOF
       GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider using \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want the mpi conduit])
       have_mpi=no
   fi
+  if test "$force_mpi_compat$have_mpi" = yesno ; then
+    GASNET_MSG_ERROR(User requested --enable-mpi-compat but I don't know how to build MPI programs for your system)
+  fi
   if test "$force_mpi$have_mpi" = yesno ; then
     GASNET_MSG_ERROR(User requested --enable-mpi but I don't know how to build MPI programs for your system)
   fi
@@ -1465,6 +1490,14 @@ else
   CONDUIT_REPORT(OFF)
 fi
 popdef([CONDUIT_DESC])
+if test "$enabled_mpi_compat$have_mpi" = yesyes ; then
+  have_mpi_compat=yes
+else
+  have_mpi_compat=no
+fi
+AM_CONDITIONAL(USE_MPI_COMPAT, test "$have_mpi_compat" = yes)
+# USE_MPI == MPI-compatbility or MPI-conduit
+AM_CONDITIONAL(USE_MPI, test "$have_mpi" = yes)
 
 #-----------------------------------------------------------------------------------------------
 # SMP configuration
@@ -1591,29 +1624,18 @@ if test $enabled_gm = yes; then
       GASNET_POPVAR(LIBS)
 
       force_enable_gm_mpi_compat=no
-      AC_MSG_CHECKING(for GM interoperability with MPI)
       GASNET_IF_ENABLED_WITH_AUTO(gm-mpi-compat, 
         Enable/disable GM interoperability with MPI (enabled if MPI detected),
 	[force_enable_gm_mpi_compat=yes; enabled_gm_mpi_compat=yes], 
 	 enabled_gm_mpi_compat=no, enabled_gm_mpi_compat=yes)
 
-      GM_MPI_COMPAT='no'
-      if test "$enabled_gm_mpi_compat" = yes; then
-        if test "$have_mpi" = yes; then
-          AC_MSG_RESULT(yes)
-          GM_MPI_COMPAT='yes'
+      AC_MSG_CHECKING(for GM interoperability with MPI)
+      GM_MPI_COMPAT=$have_mpi_compat
+      AC_MSG_RESULT($GM_MPI_COMPAT)
+      if test "$GM_MPI_COMPAT" = yes; then
 	  AC_DEFINE(GASNETC_GM_MPI_COMPAT)
-	else
-          AC_MSG_RESULT(no)
-	  if test "$force_enable_gm_mpi_compat" = yes; then
-	    AC_MSG_ERROR([GM requires a working MPI for interoperability.  Install MPI \
-	                  and fix detection OR rerun configure with --disable-gm-mpi-compat])
-	  else
-	    GASNET_MSG_WARN([GM requires MPI for interoperability and MPI $mpi_reason - disabling feature])
-	  fi
-	fi
       else
-        AC_MSG_RESULT(no)
+	  GASNET_MSG_WARN([GM requires MPI for interoperability and MPI $mpi_reason - disabling feature])
       fi
     fi
   fi
@@ -1976,12 +1998,12 @@ if test "$enabled_vapi$have_pthread" = yesno; then
   enabled_vapi=no
   GASNET_MSG_WARN([vapi-conduit requires pthread support but pthreads $pthread_reason - disabling vapi])
 fi
-if test "$force_vapi$have_mpi$have_fork" = yesnono; then
-  AC_MSG_ERROR([vapi-conduit requires either MPI ($mpi_reason) or fork() ($fork_reason) for startup])
+if test "$force_vapi$have_mpi_compat$have_fork" = yesnono; then
+  AC_MSG_ERROR([vapi-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup])
 fi
-if test "$enabled_vapi$have_mpi$have_fork" = yesnono; then
+if test "$enabled_vapi$have_mpi_compat$have_fork" = yesnono; then
   enabled_vapi=no
-  GASNET_MSG_WARN([vapi-conduit requires either MPI ($mpi_reason) or fork() ($fork_reason) for startup - disabling vapi])
+  GASNET_MSG_WARN([vapi-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup - disabling vapi])
 fi
 if test "$enabled_vapi" = yes; then
   # Start by assuming we do have VAPI
@@ -2124,14 +2146,14 @@ if test "$enabled_vapi" = yes; then
 	       ;;
         esac],
        [AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])],
-       [if test "$have_mpi" = yes; then
+       [if test "$have_mpi_compat" = yes; then
           GASNET_VAPI_SPAWNER_CONF=mpi
         else
           GASNET_VAPI_SPAWNER_CONF=ssh
         fi])
     AC_SUBST(GASNET_VAPI_SPAWNER_CONF)
-    if test "$GASNET_VAPI_SPAWNER_CONF$have_mpi" = mpino; then
-      AC_MSG_ERROR([--with-vapi-spawner=mpi requires MPI support which $mpi_reason])
+    if test "$GASNET_VAPI_SPAWNER_CONF$have_mpi_compat" = mpino; then
+      AC_MSG_ERROR([--with-vapi-spawner=mpi requires MPI compatibility support which $mpi_reason])
     fi
     if test "$GASNET_VAPI_SPAWNER_CONF$have_fork" = sshno; then
       AC_MSG_ERROR([--with-vapi-spawner=ssh requires fork() support which $fork_reason])
@@ -2159,7 +2181,7 @@ AC_SUBST(VAPI_LIBS)
 AC_SUBST(VAPI_LIBCFLAGS)
 AC_SUBST(VAPI_NO_ALIAS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
-AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI, test "$have_mpi" = yes)	# Option to omit MPI support?
+AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 AM_CONDITIONAL(VAPI_RCV_THREAD,test "$enabled_vapi_rcv_thread" = yes)
 if test "$have_vapi" = yes ; then
   CONDUITS="$CONDUITS vapi"
@@ -2168,6 +2190,24 @@ else
   CONDUIT_REPORT(OFF)
 fi
 popdef([CONDUIT_DESC])
+#--------------------------------------------------------------------------------------------------------
+pushdef([CONDUIT_DESC],[Portals network conduit (portals)])
+GASNET_IF_ENABLED(portals,Enable the portals conduit (forced),enabled_portals=yes,enabled_protals=no)
+AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$enabled_portals" = yes)
+AC_SUBST(MPI_CC) # compiler to be used to build AMMPI, and linker for AMMPI-based backends
+AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used with above compiler when building AMMPI
+AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based backend
+AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that includes ammpi.h (not including AMMPI library itself)
+AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
+
+if test "$enabled_portals" = yes ; then
+   CONDUITS="$CONDUITS portals"
+   CONDUIT_REPORT(ON)
+else
+   CONDUIT_REPORT(OFF)
+fi
+popdef([CONDUIT_DESC])
+
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
 
@@ -2769,6 +2809,19 @@ GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
 
+cat >>$CONDUIT_LIST <<EOF
+
+ Some conduits require --enable-XXX configure flags and/or additional
+ variables providing the install location of vendor drivers.
+ See the GASNet documentation for details.
+
+ Misc Settings
+ -------------
+  MPI compatibility:      $have_mpi_compat
+  Pthreads support:       $have_pthread
+  Segment config:         $segconfig
+EOF
+
 # Files added here should also be added to ./unBootstrap
 GASNET_END_CONFIGURE()
 AC_OUTPUT(
@@ -2810,6 +2863,9 @@ vapi-conduit/contrib/gasnetrun_vapi
 shmem-conduit/Makefile
 shmem-conduit/conduit.mak
 
+portals-conduit/Makefile
+portals-conduit/conduit.mak
+
 other/Makefile
 other/Makefile-conduit.mak
 other/Makefile-libgasnet.mak
@@ -2824,6 +2880,7 @@ tests/Makefile
 config-aux/Makefile
 , 
 GASNET_FIX_EXEC_OUTPUT()
+GASNET_SANITIZE_PACKAGE(gasnet_config.h)
 [ 
 GASNET_MSG_WARN_FINISH()
 CONDUIT_LIST=.gasnet-conduit-list.tmp
@@ -2831,10 +2888,6 @@ if test -f "$CONDUIT_LIST" ; then
   echo "----------------------------------------------------------------------"
   echo "GASNet conduit configuration: $CONDUITS"
   cat $CONDUIT_LIST
-  echo " "
-  echo " Some conduits require --enable-XXX configure flags and/or additional"
-  echo " variables providing the install location of vendor drivers."
-  echo " See the GASNet documentation for details."
   echo "----------------------------------------------------------------------"
   rm -f $CONDUIT_LIST
 fi

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.63.4.1 $
+ *     $Date: 2006/07/10 23:57:01 $
+ * $Revision: 1.63.4.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -158,6 +158,7 @@ static void _test_makeErrMsg(const char *format, ...)) {
 #define PAGESZ GASNETT_PAGESIZE
 #define alignup(a,b) ((((a)+(b)-1)/(b))*(b))
 #define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
+#define aligndown(a,b) (((a)/(b))*(b))
 
 static int _test_rand(int low, int high) {
   int result;
@@ -335,9 +336,15 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
   #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CORE_NAME_STR "-uni"
 #else
+  #if GASNETI_CROSS_COMPILING
+    #define GASNETI_TOOLS_CONDUIT "MPI"
+    #define TEST_TITANIUM_BACKEND "mpi-cluster-uniprocess"
+  #else
+    #define GASNETI_TOOLS_CONDUIT "SMP"
+    #define TEST_TITANIUM_BACKEND "sequential"
+  #endif
   #define TEST_CONFIG_STRING \
-    "RELEASE=x,SPEC=x,CONDUIT=SMP-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
-  #define TEST_TITANIUM_BACKEND "sequential"
+    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
 #endif
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
@@ -768,18 +775,6 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
   #define TEST_SIG_INIT()
 #endif
 
-static int test_getenv_yesno(const char *key, int deflt) {
-  #ifdef TEST_GASNET_H
-    const char *p = gasnet_getenv(key);
-  #else
-    const char *p = getenv(key);
-  #endif
-  if (!p) return deflt;
-  if (!*p) return 1; /* empty == yes */
-  if (*p == 'Y' || *p == 'y' || atoi(p)) return 1;
-  return 0;
-}
-
 static void TEST_GENERICS_WARNING() {
   #ifdef TEST_GASNET_H
     if (gasnet_mynode() == 0)
@@ -851,7 +846,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
                        gasnett_tick_granularityus(), gasnett_tick_overheadus());
       fflush(NULL);
     }
-    if (test_getenv_yesno("GASNET_TEST_POLITE_SYNC",0)) {
+    if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) {
       MSG0("WARNING: GASNET_TEST_POLITE_SYNC is set - enabling  \"polite\", low-performance synchronization algorithms");
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
     }
@@ -881,7 +876,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
       }
     }
   #endif
-  if (test_getenv_yesno("GASNET_VERBOSEENV",0)) MSG("%s running...", testname);
+  if (gasnett_verboseenv()) MSG("%s running...", testname);
 }
 #define test_init(testname, reports_performance, usagestr) \
        _test_init(testname, reports_performance, 0, argc, (const char * const *)argv, usagestr)

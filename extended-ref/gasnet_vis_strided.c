@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_strided.c,v $
- *     $Date: 2006/06/06 22:35:06 $
- * $Revision: 1.12.10.1 $
+ *     $Date: 2006/07/10 23:56:42 $
+ * $Revision: 1.12.10.2 $
  * Description: GASNet Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -142,7 +142,8 @@ static int32_t _gasnete_strided_helper_nodst = (int32_t)sizeof(_gasnete_strided_
        int const _gasnete_strided_update_addr_init = (update_addr_init);                               \
        static int8_t _gasnete_strided_helper_havepartial = (int8_t)sizeof(_gasnete_strided_helper_havepartial)
 
-static int32_t * const _gasnete_strided_init = (sizeof(_gasnete_strided_init)?NULL:NULL);
+static int32_t * const _gasnete_strided_init = 
+   (sizeof(_gasnete_strided_init)?NULL:(void*)&_gasnete_strided_init); /* NULL:NULL triggers gcc -O1 bug on sysx */
 static int32_t _gasnete_strided_chunkcnt = (int32_t)sizeof(_gasnete_strided_chunkcnt);
 static int32_t const _gasnete_strided_addr_already_offset = (int32_t)sizeof(_gasnete_strided_addr_already_offset);
 static int32_t const _gasnete_strided_update_addr_init = (int32_t)sizeof(_gasnete_strided_update_addr_init);
@@ -676,7 +677,8 @@ gasnet_handle_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasnet
   }
 }
   #define GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-    if ((stats)->dstcontiguity == stridelevels && (stats)->srccontiguity < stridelevels)                                \
+    if (gasnete_vis_use_remotecontig &&                                                                                 \
+        (stats)->dstcontiguity == stridelevels && (stats)->srccontiguity < stridelevels)                                \
       return gasnete_puts_gather(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) ((void)0)
@@ -713,7 +715,8 @@ gasnet_handle_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gasne
   }
 }
   #define GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
-    if ((stats)->srccontiguity == stridelevels && (stats)->dstcontiguity < stridelevels)                                 \
+    if (gasnete_vis_use_remotecontig &&                                                                                  \
+        (stats)->srccontiguity == stridelevels && (stats)->dstcontiguity < stridelevels)                                 \
       return gasnete_gets_scatter(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) ((void)0)
@@ -796,7 +799,10 @@ gasnet_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, ga
   }
 }
   #define GASNETE_PUTS_AMPIPELINE_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
-    if ((stats)->dstsegments > 1 && (stats)->dualcontigsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels))              \
+    if (gasnete_vis_use_ampipe &&                                                                                           \
+        (stats)->dstsegments > 1 &&                                                                                         \
+        (stats)->dualcontigsz <= gasnete_vis_maxchunk &&                                                                    \
+        (stats)->dualcontigsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels))                                          \
       return gasnete_puts_AMPipeline(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTS_AMPIPELINE_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) ((void)0)
@@ -906,7 +912,10 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
   }
 }
   #define GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
-    if ((stats)->srcsegments > 1 && (stats)->dualcontigsz <= gasnet_AMMaxMedium())                                          \
+    if (gasnete_vis_use_ampipe &&                                                                                           \
+        (stats)->srcsegments > 1 &&                                                                                         \
+        (stats)->dualcontigsz <= gasnete_vis_maxchunk &&                                                                    \
+        (stats)->dualcontigsz <= gasnet_AMMaxMedium())                                                                      \
       return gasnete_gets_AMPipeline(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) ((void)0)
@@ -1131,6 +1140,7 @@ extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_strided_stats_t stats;
+  gasneti_assert(gasnete_vis_isinit);
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
 
   /* catch silly degenerate cases */
@@ -1177,6 +1187,7 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
   gasnete_strided_stats_t stats;
+  gasneti_assert(gasnete_vis_isinit);
   gasnete_strided_stats(&stats, dststrides, srcstrides, count, stridelevels);
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */

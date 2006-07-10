@@ -1,13 +1,13 @@
 GASNet gm-conduit documentation
 Christian Bell <csbell@cs.berkeley.edu>
-$Revision: 1.18 $
+$Revision: 1.18.8.1 $
 
 User Information:
 -----------------
 
 * MPI GM-conduit Compatibility
 
-  MPI and GM compatibility (--enable-gm-mpi-compat and --disable-gm-mpi-compat)
+  MPI and GM compatibility (--enable-mpi-compat and --disable-mpi-compat)
   The major problem in allowing GASNet/GM applications and MPI applications to
   coexist peacefully is related to job spawning, since Myricom doesn't provide
   an API for opening network endpoints.  As part of GASNet's configure script,
@@ -27,7 +27,7 @@ User Information:
   accounting of library resources is critical.
 
   At any time, whether MPI is detected or not on the target system, the GM-MPI
-  compatibility option can be disabled with --disable-gm-mpi-compat, at which
+  compatibility option can be disabled with --disable-mpi-compat, at which
   time GASNet/GM job spawning utilities described below must be used.
 
 

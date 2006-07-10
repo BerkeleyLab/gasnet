@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/06/06 22:34:57 $
-# $Revision: 1.54.8.1 $
+#     $Date: 2006/07/10 23:56:37 $
+# $Revision: 1.54.8.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -23,7 +23,8 @@ CONDUIT_DIRS =       \
 	shmem-conduit  \
 	smp-conduit  \
 	udp-conduit  \
-	vapi-conduit
+	vapi-conduit \
+	portals-conduit
 
 DIST_SUBDIRS = $(SUBDIRS) $(CONDUIT_DIRS)
 
@@ -171,12 +172,22 @@ CLEANFILES = $(TESTLOG)
 recurse_local = $(CONDUITS:%=%-recurse)
 $(recurse_local):
 	@cd `echo $@ | sed s/-recurse//`-conduit && $(MAKE) $(DO_WHAT)
+# conduit subdirectories that should be made, even when the conduit is disabled
+SPECIAL_SUBDIRS = mpi-conduit/contrib
+recurse_special:
+	@for dir in $(SPECIAL_SUBDIRS) ; do \
+	  if test -f $$dir/Makefile ; then \
+	    cd $$dir && $(MAKE) $(DO_WHAT) || exit $$? ; \
+	  fi ; \
+	 done
 all-local: $(lib_LIBRARIES)
 	@$(MAKE) $(recurse_local) DO_WHAT=$${DO_WHAT=all}
+	@$(MAKE) recurse_special  DO_WHAT=$${DO_WHAT=all}
 clean-local:
 	@if test -f Makefile -a -f smp-conduit/Makefile; then \
 	  $(MAKE) $(recurse_local) DO_WHAT=clean || exit $$? ; \
 	 fi
+	@$(MAKE) recurse_special DO_WHAT=clean
 check-local: check-exports
 seq par parsync:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
@@ -185,14 +196,17 @@ check tests-clean:
 	@cd "$(top_builddir)/other" && $(MAKE) $@
 install-data-local: 
 	@$(MAKE) $(recurse_local) DO_WHAT=install-data
+	@$(MAKE) recurse_special DO_WHAT=install-data
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
 	cp -f $(top_srcdir)/README $(DESTDIR)$(docdir)/README
 	cp -f $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref
 	cp -f $(top_srcdir)/license.txt $(DESTDIR)$(docdir)/license.txt
 install-exec-local:
 	@$(MAKE) $(recurse_local) DO_WHAT=install-exec
+	@$(MAKE) recurse_special DO_WHAT=install-exec
 uninstall-local: 
 	@$(MAKE) $(recurse_local) DO_WHAT=uninstall
+	@$(MAKE) recurse_special DO_WHAT=uninstall
 	rm -Rf $(DESTDIR)$(docdir)
 
 # automake 1.4 doesn't automatically make distclean in DIST_SUBDIRS
@@ -205,6 +219,7 @@ distclean-local:
 	     ( cd "$$dir" && $(MAKE) distclean ) || exit 1; \
 	   fi;                                              \
 	 done
+	@$(MAKE) recurse_special DO_WHAT=distclean
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \

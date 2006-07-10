@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/06/06 22:35:09 $
- * $Revision: 1.26.10.1 $
+ *     $Date: 2006/07/10 23:56:45 $
+ * $Revision: 1.26.10.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -244,9 +244,6 @@ void gasnete_extref_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
 			size_t nbytes GASNETE_THREAD_FARG);
 void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, 
 			size_t nbytes GASNETE_THREAD_FARG);
-void gasnete_extref_barrier_notify(int id, int flags);
-int gasnete_extref_barrier_wait(int id, int flags);
-int gasnete_extref_barrier_try(int id, int flags);
 
 /* Additional support for core AMReplyLongAsync */
 #if PLATFORM_ARCH_32
@@ -258,18 +255,19 @@ int gasnete_extref_barrier_try(int id, int flags);
 #endif
 
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_ambarrier_notify_reqh	        (GASNETE_HANDLER_BASE+0) 
-#define _hidx_gasnete_ambarrier_done_reqh		(GASNETE_HANDLER_BASE+1)
-#define _hidx_gasnete_extref_get_reqh			(GASNETE_HANDLER_BASE+2)
-#define _hidx_gasnete_extref_get_reph			(GASNETE_HANDLER_BASE+3)
-#define _hidx_gasnete_extref_getlong_reqh		(GASNETE_HANDLER_BASE+4)
-#define _hidx_gasnete_extref_getlong_reph		(GASNETE_HANDLER_BASE+5)
-#define _hidx_gasnete_extref_put_reqh			(GASNETE_HANDLER_BASE+6)
-#define _hidx_gasnete_extref_putlong_reqh		(GASNETE_HANDLER_BASE+7)
-#define _hidx_gasnete_extref_memset_reqh		(GASNETE_HANDLER_BASE+8)
-#define _hidx_gasnete_extref_markdone_reph		(GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
+#define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_extref_get_reqh        (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_extref_get_reph        (GASNETE_HANDLER_BASE+4)
+#define _hidx_gasnete_extref_getlong_reqh    (GASNETE_HANDLER_BASE+5)
+#define _hidx_gasnete_extref_getlong_reph    (GASNETE_HANDLER_BASE+6)
+#define _hidx_gasnete_extref_put_reqh        (GASNETE_HANDLER_BASE+7)
+#define _hidx_gasnete_extref_putlong_reqh    (GASNETE_HANDLER_BASE+8)
+#define _hidx_gasnete_extref_memset_reqh     (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_extref_markdone_reph   (GASNETE_HANDLER_BASE+10)
 
-#define _hidx_gasnete_get_dma_reqh			(GASNETE_HANDLER_BASE+10)
-#define _hidx_gasnete_get_dma_reph			(GASNETE_HANDLER_BASE+11)
+#define _hidx_gasnete_get_dma_reqh           (GASNETE_HANDLER_BASE+11)
+#define _hidx_gasnete_get_dma_reph           (GASNETE_HANDLER_BASE+12)
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/06/06 22:35:12 $
- * $Revision: 1.20.6.1 $
+ *     $Date: 2006/07/10 23:56:47 $
+ * $Revision: 1.20.6.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,9 +22,6 @@
 #define GASNETI_DIRECT_GET_BULK 1
 #define GASNETI_DIRECT_PUT_BULK 1
 #define GASNETI_DIRECT_MEMSET   1
-
-/* lapi-conduit has a native barrier implementation */
-#define GASNETE_BARRIER_PROGRESSFN(FN) 
 
 #if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
 #define GASNETI_DIRECT_WAIT_SYNCNB 1

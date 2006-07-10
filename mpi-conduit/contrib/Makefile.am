@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/Makefile.am,v $
-#     $Date: 2005/05/22 13:01:52 $
-# $Revision: 1.12 $
+#     $Date: 2006/07/10 23:56:49 $
+# $Revision: 1.12.10.1 $
 # Description: Makefile for GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -17,7 +17,10 @@ dotpldir = $(bindir)
 $(top_builddir)/other/perlstart: $(top_srcdir)/other/perlstart.in
 	@cd $(top_builddir)/other && $(MAKE) perlstart
 $(target): $(top_builddir)/other/perlstart
-all-local: $(target).pl $(target)
+if USE_MPI
+all_targets = $(target).pl $(target)
+endif
+all-local: $(all_targets)
 
 # Files to copy from srcdir to builddir if they differ
 if BUILD_IS_SRC
@@ -37,7 +40,7 @@ DISTCLEANFILES = $(files_we_copy)
 EXTRA_DIST = $(target).pl
 
 # Conditionally install the .pl and its wrapper
-if USE_MPI_CONDUIT
+if USE_MPI
 scripts = $(target)
 data = $(target).pl
 else

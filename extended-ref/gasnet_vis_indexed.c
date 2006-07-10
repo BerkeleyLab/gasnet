@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_indexed.c,v $
- *     $Date: 2006/06/06 22:35:06 $
- * $Revision: 1.12.10.1 $
+ *     $Date: 2006/07/10 23:56:42 $
+ * $Revision: 1.12.10.2 $
  * Description: GASNet Indexed implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -225,7 +225,7 @@ gasnet_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
-    if (dstcount == 1 && srccount > 1)                                                                   \
+    if (gasnete_vis_use_remotecontig && dstcount == 1 && srccount > 1)                                   \
       return gasnete_puti_gather(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTI_GATHER_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) ((void)0)
@@ -258,7 +258,7 @@ gasnet_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
-    if (srccount == 1 && dstcount > 1)                                                                    \
+    if (gasnete_vis_use_remotecontig && srccount == 1 && dstcount > 1)                                    \
       return gasnete_geti_scatter(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETI_SCATTER_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) ((void)0)
@@ -311,7 +311,8 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
-    if (dstcount > 1 && dstlen == (uint32_t)(dstlen))                                                        \
+    if (gasnete_vis_use_ampipe && dstcount > 1 && dstlen == (uint32_t)(dstlen) &&                            \
+        (srclen <= gasnete_vis_maxchunk || dstlen <= gasnete_vis_maxchunk))                                  \
       return gasnete_puti_AMPipeline(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) ((void)0)
@@ -390,7 +391,8 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
-    if (srccount > 1)                                                                                        \
+    if (gasnete_vis_use_ampipe && srccount > 1 &&                                                            \
+        (srclen <= gasnete_vis_maxchunk || dstlen <= gasnete_vis_maxchunk))                                  \
       return gasnete_geti_AMPipeline(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) ((void)0)
@@ -645,6 +647,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode, 
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+  gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
   if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
          dstnode == gasneti_mynode) { /* purely local */ 
@@ -684,6 +687,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnet_node_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
+  gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
   if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
          srcnode == gasneti_mynode) { /* purely local */ 

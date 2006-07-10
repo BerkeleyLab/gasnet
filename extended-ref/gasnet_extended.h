@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2006/06/06 22:35:05 $
- * $Revision: 1.33.2.1 $
+ *     $Date: 2006/07/10 23:56:42 $
+ * $Revision: 1.33.2.2 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -791,14 +791,17 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
   =========
 */
 
-extern void gasnete_barrier_init(void);
-extern void gasnete_barrier_notify(int id, int flags);
-extern int gasnete_barrier_wait(int id, int flags);
-extern int gasnete_barrier_try(int id, int flags);
+extern void (*gasnete_barrier_notify)(int id, int flags);
+extern int (*gasnete_barrier_wait)(int id, int flags);
+extern int (*gasnete_barrier_try)(int id, int flags);
+extern void gasnete_barrier_init();
 
-#define gasnet_barrier_notify  gasnete_barrier_notify
-#define gasnet_barrier_wait    gasnete_barrier_wait
-#define gasnet_barrier_try     gasnete_barrier_try
+#define gasnet_barrier_notify(id, flags)  (gasneti_assert(gasnete_barrier_notify), \
+                                          (*gasnete_barrier_notify)(id, flags))
+#define gasnet_barrier_wait(id, flags)    (gasneti_assert(gasnete_barrier_wait), \
+                                          (*gasnete_barrier_wait)(id, flags))
+#define gasnet_barrier_try(id, flags)     (gasneti_assert(gasnete_barrier_try), \
+                                          (*gasnete_barrier_try)(id, flags))
 
 /* ------------------------------------------------------------------------------------ */
 

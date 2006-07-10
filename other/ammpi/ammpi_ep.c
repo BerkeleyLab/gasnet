@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2006/06/06 22:35:21 $
- * $Revision: 1.30.2.1 $
+ *     $Date: 2006/07/10 23:56:53 $
+ * $Revision: 1.30.2.2 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -19,6 +19,34 @@ int AMMPI_VerboseErrors = 0;
 int AMMPI_SilentMode = 0; 
 int AMMPI_syncsend_thresh = 0;
 AMMPI_IDENT(AMMPI_IdentString_Version, "$AMMPILibraryVersion: " AMMPI_LIBRARY_VERSION_STR " $");
+
+#ifdef MPI_VERSION
+  #define AMMPI_MPI_VERSION_STR_1 "|MPI_VERSION="_STRINGIFY(MPI_VERSION)
+#else
+  #define AMMPI_MPI_VERSION_STR_1 
+#endif
+#ifdef MPI_SUBVERSION
+  #define AMMPI_MPI_VERSION_STR_2 "|MPI_SUBVERSION="_STRINGIFY(MPI_SUBVERSION)
+#else
+  #define AMMPI_MPI_VERSION_STR_2 
+#endif
+#ifdef MPICH_VERSION
+  #define AMMPI_MPI_VERSION_STR_3 "|MPICH_VERSION="MPICH_VERSION
+#else
+  #define AMMPI_MPI_VERSION_STR_3 
+#endif
+#ifdef ROMIO_VERSION
+  #define AMMPI_MPI_VERSION_STR_4 "|ROMIO_VERSION="_STRINGIFY(ROMIO_VERSION)
+#else
+  #define AMMPI_MPI_VERSION_STR_4 
+#endif
+AMMPI_IDENT(AMMPI_IdentString_MPIVersion, "$MPIVersion: " \
+            AMMPI_MPI_VERSION_STR_1 \
+            AMMPI_MPI_VERSION_STR_2 \
+            AMMPI_MPI_VERSION_STR_3 \
+            AMMPI_MPI_VERSION_STR_4 \
+            "| $");
+AMMPI_IDENT(AMMPI_IdentString_MPICCVersion, "$MPICompiler: " PLATFORM_COMPILER_IDSTR " $");
 
 const ammpi_stats_t AMMPI_initial_stats = /* the initial state for stats type */
         { {0,0,0}, {0,0,0}, 

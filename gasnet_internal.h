@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2006/06/06 22:34:58 $
- * $Revision: 1.90.4.1 $
+ *     $Date: 2006/07/10 23:56:37 $
+ * $Revision: 1.90.4.2 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,62 +144,66 @@ GASNETI_MALLOCP(_gasneti_malloc)
 GASNETI_MALLOCP(_gasneti_malloc_allowfail)
 GASNETI_MALLOCP(_gasneti_calloc)
 
+/* ------------------------------------------------------------------------------------ */
+/* Enforce some of the GASNet conduit coding practices - see README */
+
 #ifdef malloc
 #undef malloc
 #endif
-#define malloc_error  ERROR__GASNet_conduit_code_must_use_gasneti_malloc
-#define malloc(n) malloc_error
+#define gasneti_malloc_error  ERROR__GASNet_conduit_code_must_use_gasneti_malloc
+#define malloc(n)             gasneti_malloc_error
 #ifdef calloc
 #undef calloc
 #endif
-#define calloc_error  ERROR__GASNet_conduit_code_must_use_gasneti_calloc
-#define calloc(n,s) calloc_error
+#define gasneti_calloc_error  ERROR__GASNet_conduit_code_must_use_gasneti_calloc
+#define calloc(n,s)           gasneti_calloc_error
 #ifdef realloc
 #undef realloc
 #endif
-#define realloc_error  ERROR__GASNet_conduit_code_must_use_gasneti_realloc
-#define realloc(p,n) realloc_error
+#define gasneti_realloc_error ERROR__GASNet_conduit_code_must_use_gasneti_realloc
+#define realloc(p,n)          gasneti_realloc_error
 #ifdef strdup
 #undef strdup
 #endif
-#define strdup_error  ERROR__GASNet_conduit_code_must_use_gasneti_strdup
-#define strdup(p) strdup_error
+#define gasneti_strdup_error  ERROR__GASNet_conduit_code_must_use_gasneti_strdup
+#define strdup(p)             gasneti_strdup_error
 #ifdef strndup
 #undef strndup
 #endif
-#define strndup_error  ERROR__GASNet_conduit_code_must_use_gasneti_strndup
-#define strndup(p,n) strndup_error
+#define gasneti_strndup_error ERROR__GASNet_conduit_code_must_use_gasneti_strndup
+#define strndup(p,n)          gasneti_strndup_error
 #ifdef free
 #undef free
 #endif
-#define free_error    ERROR__GASNet_conduit_code_must_use_gasneti_free
-#define free(p) free_error
+#define gasneti_free_error    ERROR__GASNet_conduit_code_must_use_gasneti_free
+#define free(p)               gasneti_free_error
 
 #include <assert.h>
 #undef assert
-#define assert(x)     ERROR__GASNet_conduit_code_should_use_gasneti_assert
+#define gasneti_assert_error  ERROR__GASNet_conduit_code_should_use_gasneti_assert
+#define assert(x)             gasneti_assert_error
 
 #if GASNETI_NO_FORK
   #ifdef fork
     #undef fork
   #endif
-  #define fork_error	ERROR__GASNet_conduit_code_calling_fork_while_GASNETI_NO_FORK
-  #define fork()	fork_error
+  #define gasneti_fork_error  ERROR__GASNet_conduit_code_calling_fork_while_GASNETI_NO_FORK
+  #define fork()	      gasneti_fork_error
   #ifdef vfork
     #undef vfork
   #endif
-  #define vfork_error	ERROR__GASNet_conduit_code_calling_vfork_while_GASNETI_NO_FORK
-  #define vfork()	vfork_error
+  #define gasneti_vfork_error ERROR__GASNet_conduit_code_calling_vfork_while_GASNETI_NO_FORK
+  #define vfork()	      gasneti_vfork_error
   #ifdef popen
     #undef popen
   #endif
-  #define popen_error	ERROR__GASNet_conduit_code_calling_popen_while_GASNETI_NO_FORK
-  #define popen(c,t)	popen_error
+  #define gasneti_popen_error ERROR__GASNet_conduit_code_calling_popen_while_GASNETI_NO_FORK
+  #define popen(c,t)	      gasneti_popen_error
   #ifdef system
     #undef system
   #endif
-  #define system_error	ERROR__GASNet_conduit_code_calling_system_while_GASNETI_NO_FORK
-  #define system(s)	system_error
+  #define gasneti_system_error ERROR__GASNet_conduit_code_calling_system_while_GASNETI_NO_FORK
+  #define system(s)            gasneti_system_error
 #endif
 
 /* ------------------------------------------------------------------------------------ */

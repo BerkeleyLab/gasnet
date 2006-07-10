@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/06/06 22:35:03 $
- * $Revision: 1.21.6.1 $
+ *     $Date: 2006/07/10 23:56:40 $
+ * $Revision: 1.21.6.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,16 +44,10 @@
 #define GASNETE_USE_ELAN_PUTGET 1
 #endif
 
-/* true to use elan hardware supported barrier */
-#ifndef GASNETE_USE_ELAN_BARRIER
-  #define GASNETE_USE_ELAN_BARRIER 1
-#endif
-
-/* true to "bend" the rules of barrier to improve performance
+/* predicate is true if we "bend" the rules of barrier to improve performance
    (may deadlock if threads disagree on named/anon barrier flags) */
-#ifndef GASNETE_FAST_ELAN_BARRIER
-  #define GASNETE_FAST_ELAN_BARRIER 1
-#endif
+extern int gasnete_elanbarrier_fast;
+#define GASNETE_USING_ELANFAST_BARRIER() ((int)gasnete_elanbarrier_fast)
 
 /* Ratio of elan pollfn callbacks to true AMPolls while barrier blocking
    must be power of two : BEWARE - raising this value hurts attentiveness at barriers
@@ -64,10 +58,6 @@
 #else
   #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
 #endif
-#endif
-
-#if GASNETE_USE_ELAN_BARRIER
-  #define GASNETE_BARRIER_PROGRESSFN(FN) 
 #endif
 
 /* ------------------------------------------------------------------------------------ */

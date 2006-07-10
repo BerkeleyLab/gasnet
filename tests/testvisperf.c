@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvisperf.c,v $
- *     $Date: 2006/07/07 22:03:59 $
- * $Revision: 1.3 $
+ *     $Date: 2006/07/10 23:57:01 $
+ * $Revision: 1.3.2.1 $
  * Description: GASNet VIS performance test
  * Copyright 2006 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

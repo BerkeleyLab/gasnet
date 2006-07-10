@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/06/06 22:34:58 $
- * $Revision: 1.140.2.1 $
+ *     $Date: 2006/07/10 23:56:37 $
+ * $Revision: 1.140.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -504,6 +504,129 @@ extern void gasneti_unsetenv(const char *key) {
     gasneti_fatalerror("Got a call to gasneti_unsetenv, but don't know how to do that on your system");
   #endif
 }
+/* ------------------------------------------------------------------------------------ */
+const char * (*gasnett_decode_envval_fn)(const char *);
+int (*gasneti_verboseenv_fn)(void);
+gasneti_getenv_fn_t *gasneti_conduit_getenv = NULL;
+char *gasneti_globalEnv = NULL;
+
+extern char *gasneti_getenv(const char *keyname) {
+  char *retval = NULL;
+
+  if (keyname && gasneti_conduit_getenv) {
+    /* highest priority given to conduit-specific getenv */
+    retval = (*gasneti_conduit_getenv)(keyname);
+  }
+
+  if (keyname && !retval && gasneti_globalEnv) { 
+    /* global environment takes precedence 
+     * (callers who want the local environment can call getenv directly)
+     */
+    char *p = gasneti_globalEnv;
+    int keylen = strlen(keyname);
+    while (*p) {
+      if (!strncmp(keyname, p, keylen) && p[keylen] == '=') {
+        retval = p + keylen + 1;
+        break;
+      }
+      p += strlen(p) + 1;
+    }
+  }
+
+  if (keyname && !retval) /* try local environment */
+    retval = getenv(keyname);
+  
+  if (retval && gasnett_decode_envval_fn && /* check if environment value needs decoding */
+      strcmp(keyname, "GASNET_DISABLE_ENVDECODE") &&
+      strcmp(keyname, "GASNET_VERBOSEENV")) { /* prevent inf recursion */ 
+    retval = (char *)((*gasnett_decode_envval_fn)(retval));
+  }
+
+  GASNETT_TRACE_PRINTF("gasnet_getenv(%s) => '%s'",
+                          (keyname?keyname:"NULL"),(retval?retval:"NULL"));
+
+  return retval;
+}
+
+/* return true iff GASNET_VERBOSEENV reporting is enabled on this node */
+extern int gasneti_verboseenv() {
+  if (gasneti_verboseenv_fn) return (*gasneti_verboseenv_fn)();
+  else return !!gasneti_getenv("GASNET_VERBOSEENV");
+}
+
+/* display an integral/string environment setting iff gasneti_verboseenv() */
+extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt) {
+  const char *dflt = (is_dflt?"   (default)":"");
+  const char *displayval = val;
+  if (!val) displayval = "*not set*";
+  else if (strlen(val) == 0) displayval = "*empty*";
+  if (gasneti_verboseenv()) {
+    int width = MAX(10,55 - strlen(key) - strlen(displayval));
+    fprintf(stderr, "ENV parameter: %s = %s%*s\n", key, displayval, width, dflt);
+    fflush(stderr);
+  }
+  GASNETT_TRACE_PRINTF("ENV parameter: %s = %s%s", key, displayval, dflt);
+}
+extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size) {
+  char valstr[80];
+  char displayval[80];
+  const char *rawval;
+  if (!gasneti_verboseenv() && !GASNETT_TRACE_ENABLED) return;
+
+  gasneti_format_number(val, valstr, 80, is_mem_size);
+  rawval = gasneti_getenv(key);
+
+  if (is_dflt) { /* Use the numerical value */
+    strcpy(displayval, valstr);
+  } else if (!strcmp(rawval,valstr)) {
+    strcpy(displayval, valstr);
+  } else { /* Use the environment string and numerical value */
+    snprintf(displayval, sizeof(displayval), "%s (%s)", gasneti_getenv(key), valstr);
+  }
+  gasneti_envstr_display(key, displayval, is_dflt);
+}
+
+static char *_gasneti_getenv_withdefault(const char *keyname, const char *defaultval, int valmode, int64_t *val) {
+  const char * retval = NULL;
+  int is_dflt = 0;
+  retval = gasneti_getenv(keyname);
+  if (retval == NULL) { retval = defaultval; is_dflt = 1; }
+
+  if (valmode == 0) {
+    /* just a string value */
+    gasneti_envstr_display(keyname, retval, is_dflt);
+  } else if (valmode == 1) { /* yes/no value */
+    char s[10];
+    int i;
+    strncpy(s, retval, 10); s[9] = '\0';
+    for (i = 0; i < 10; i++) s[i] = toupper(s[i]);
+    if (!strcmp(s, "N") || !strcmp(s, "NO") || !strcmp(s, "0")) retval = "NO";
+    else if (!strcmp(s, "Y") || !strcmp(s, "YES") || !strcmp(s, "1")) retval = "YES";
+    else gasneti_fatalerror("If used, environment variable '%s' must be set to 'Y|YES|y|yes|1' or 'N|n|NO|no|0'", keyname);
+    gasneti_envstr_display(keyname, retval, is_dflt);
+  } else if (valmode == 2 || valmode == 3) { /* int value, regular or memsize */
+    int is_mem_size = (valmode == 3);
+    gasneti_assert(val);
+    *val = gasneti_parse_int(retval, *val);
+    gasneti_envint_display(keyname, *val, is_dflt, is_mem_size);
+  } else gasneti_fatalerror("internal error in _gasneti_getenv_withdefault");
+
+  return (char *)retval;
+}
+extern char *gasneti_getenv_withdefault(const char *keyname, const char *defaultval) {
+  return _gasneti_getenv_withdefault(keyname, defaultval, 0, NULL);
+}
+extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval) {
+  return !strcmp(_gasneti_getenv_withdefault(keyname, (defaultval?"YES":"NO"), 1, NULL), "YES");
+}
+extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier) {
+  int64_t val = mem_size_multiplier;
+  char defstr[80];
+  gasneti_format_number(defaultval, defstr, 80, mem_size_multiplier);
+  _gasneti_getenv_withdefault(keyname, defstr, (mem_size_multiplier?3:2), &val);
+  return val;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Physical CPU query */
 #if PLATFORM_OS_IRIX || PLATFORM_ARCH_CRAYX1

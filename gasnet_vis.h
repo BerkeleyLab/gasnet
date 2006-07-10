@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
- *     $Date: 2006/06/06 22:34:58 $
- * $Revision: 1.9.2.1 $
+ *     $Date: 2006/07/10 23:56:37 $
+ * $Revision: 1.9.2.2 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -226,7 +226,7 @@ size_t gasnete_strided_dualcontigsz(size_t const *strides1, size_t const *stride
   }
   gasneti_assert(strides1[0] == count[0] && strides1[0] == count[0]);
   /* loop invariant: temp == strides1[i-1]*2 == strides2[i-1]*2 */
-  for (i = 1; i <= limit; i++) {
+  for (i = 1; i < limit; i++) {
     size_t const newtemp = (strides1[i]+strides2[i]);
     temp *= count[i];
     if (newtemp > temp) {
@@ -236,6 +236,7 @@ size_t gasnete_strided_dualcontigsz(size_t const *strides1, size_t const *stride
     gasneti_assert(strides1[i] == (count[i]*strides1[i-1]) || strides2[i] == (count[i]*strides2[i-1]));
     temp = newtemp;
   }
+  temp *= count[limit];
   return temp>>1;
 }
 

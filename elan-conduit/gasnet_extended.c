@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/06/06 22:35:03 $
- * $Revision: 1.65.4.1 $
+ *     $Date: 2006/07/10 23:56:40 $
+ * $Revision: 1.65.4.2 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,12 +82,12 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
       use AM ref-ext
 
   barrier:
-    if !GASNETE_USE_ELAN_BARRIER
+    if GASNET_BARRIER != ELANFAST && GASNET_BARRIER != ELANSLOW
       use AM (extended ref)
     else
       register a poll callback function at startup to ensure polling 
        during hardware barrier
-      if GASNETE_FAST_ELAN_BARRIER and barrier anonymous
+      if GASNET_BARRIER==ELANFAST and barrier anonymous
         mismatchers report to all nodes
         hardware elan barrier
       else
@@ -97,9 +97,6 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 */
 
 /* ------------------------------------------------------------------------------------ */
-#if GASNETE_USE_ELAN_BARRIER
-  extern void gasnete_barrier_init();
-#endif
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 #if GASNETE_USE_ELAN_PUTGET
@@ -257,7 +254,11 @@ extern void gasnete_init() {
     gasnete_op_free((gasnete_op_t *)eop);
   }
 
+  /* Initialize barrier resources */
   gasnete_barrier_init();
+
+  /* Initialize VIS subsystem */
+  gasnete_vis_init();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -290,6 +291,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
     buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
+    GASNETE_ASSERT_ALIGNED(buf);
     for (i=0; i < 256; i++) {
       gasnete_eopaddr_t addr;
       addr.bufferidx = bufidx;
@@ -345,7 +347,8 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
       for (i=0;i<(bufidx==255?255:256);i++) {                                   
         gasnete_eop_t *eop;                                   
         gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
-        eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
+        eop = GASNETE_EOPADDR_TO_PTR(thread,addr);           
+        GASNETE_ASSERT_ALIGNED(eop);
         gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
         gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);                 
         gasneti_assert(eop->threadidx == threadidx);                  
@@ -1469,23 +1472,33 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   Barriers:
   =========
 */
-#if !GASNETE_USE_ELAN_BARRIER
-  /* use reference implementation of barrier */
-  #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
-  #define gasnete_refbarrier_init    gasnete_barrier_init
-  #define gasnete_refbarrier_notify  gasnete_barrier_notify
-  #define gasnete_refbarrier_wait    gasnete_barrier_wait
-  #define gasnete_refbarrier_try     gasnete_barrier_try
-  #include "gasnet_extended_refbarrier.c"
-  #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
+static void gasnete_elanbarrier_init();
+static void gasnete_elanbarrier_notify(int id, int flags);
+static int gasnete_elanbarrier_wait(int id, int flags);
+static int gasnete_elanbarrier_try(int id, int flags);
+int gasnete_elanbarrier_fast = 0;
+
+#define GASNETE_BARRIER_DEFAULT "ELANFAST"
+#define GASNETE_BARRIER_INIT() do {                         \
+    if (GASNETE_ISBARRIER("ELANFAST")) {                    \
+      gasnete_elanbarrier_fast = 1;                         \
+      gasnete_barrier_notify = &gasnete_elanbarrier_notify; \
+      gasnete_barrier_wait =   &gasnete_elanbarrier_wait;   \
+      gasnete_barrier_try =    &gasnete_elanbarrier_try;    \
+      gasnete_elanbarrier_init();                           \
+    } else if (GASNETE_ISBARRIER("ELANSLOW")) {             \
+      gasnete_barrier_notify = &gasnete_elanbarrier_notify; \
+      gasnete_barrier_wait =   &gasnete_elanbarrier_wait;   \
+      gasnete_barrier_try =    &gasnete_elanbarrier_try;    \
+      gasnete_elanbarrier_init();                           \
+    }                                                       \
+  } while (0)
+
+/* allow reference implementation of barrier */
+#define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#include "gasnet_extended_refbarrier.c"
+#undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 /* ------------------------------------------------------------------------------------ */
-#else /* GASNETE_USE_ELAN_BARRIER */
-
-#if GASNETI_STATS_OR_TRACE
-  static gasneti_tick_t barrier_notifytime; /* for statistical purposes */ 
-#endif
-static enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate = OUTSIDE_BARRIER;
-
 #ifdef ELAN_VER_1_2
   typedef int (*ELAN_POLLFN)(void *handle, unsigned int *ready);
   extern void elan_addPollFn(ELAN_STATE *elan_state, ELAN_POLLFN, void *handle);
@@ -1530,7 +1543,7 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
   return 0; /* return 0 => don't delay the elan blocking */
 }
 
-extern void gasnete_barrier_init() {
+static void gasnete_elanbarrier_init() {
   #ifdef ELAN_VER_1_2
     barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, 6*sizeof(gasnete_barrier_state_t));
   #else
@@ -1547,7 +1560,7 @@ extern void gasnete_barrier_init() {
   #endif
 }
 
-extern void gasnete_barrier_notify(int id, int flags) {
+static void gasnete_elanbarrier_notify(int id, int flags) {
   int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == INSIDE_BARRIER) 
@@ -1577,13 +1590,13 @@ extern void gasnete_barrier_notify(int id, int flags) {
       /* Bug 1021: only this thread may poll inside a barrier, 
          otherwise we get poll reentrancy, which causes all sorts of problems */
     barrier_blocking = 1; /* allow polling while inside blocking barriers */
-    #if GASNETE_FAST_ELAN_BARRIER
-      /* the GASNETE_FAST_ELAN_BARRIER algorithm requires all threads agree on 
-         whether the flags indicate a named or anonymous barrier 
-         (otherwise it may deadlock or fail to detect a mismatch)
-         Turning off GASNETE_FAST_ELAN_BARRIER gives a slower, strictly spec-compliant barrier
-      */
-      if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
+    /* the GASNETE_FAST_ELAN_BARRIER algorithm requires all threads agree on 
+       whether the flags indicate a named or anonymous barrier 
+       (otherwise it may deadlock or fail to detect a mismatch)
+       Turning off GASNETE_FAST_ELAN_BARRIER gives a slower, strictly spec-compliant barrier
+    */
+    if (gasnete_elanbarrier_fast &&
+        flags & GASNET_BARRIERFLAG_ANONYMOUS) { /* elanfast anon barrier */
         if_pf(flags & GASNET_BARRIERFLAG_MISMATCH) { /* notify all of local mismatch */
           int i;
           barrier_state[phase+2].barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
@@ -1594,16 +1607,15 @@ extern void gasnete_barrier_notify(int id, int flags) {
           }
         }
         elan_hgsync(GROUP()); 
-      } else
-    #endif
-      { int root = 0;
-      tryagain:
-        if (gasnet_mynode() == root) barrier_state[phase] = barrier_state[phase+2];
-        elan_hbcast(GROUP(), &(barrier_state[phase]), 
-          sizeof(gasnete_barrier_state_t), root, GASNETC_ELAN_GLOBAL_DEST);
-      #if !GASNETE_FAST_ELAN_BARRIER
-        if_pf (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
-               (barrier_state[phase].barrier_flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
+    } else { /* named barrier or elanslow barrier */ 
+      int root = 0;
+    tryagain:
+      if (gasnet_mynode() == root) barrier_state[phase] = barrier_state[phase+2];
+      elan_hbcast(GROUP(), &(barrier_state[phase]), 
+        sizeof(gasnete_barrier_state_t), root, GASNETC_ELAN_GLOBAL_DEST);
+      if_pf (!gasnete_elanbarrier_fast &&
+            !(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+             (barrier_state[phase].barrier_flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
           int i;
           /* broadcaster was anonymous and I am not - reelect a broadcast root */
           gasneti_assert(root == 0 && gasnet_mynode() != 0);
@@ -1617,8 +1629,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
                                         (int *)&(barrier_state[phase+4].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);
           }
-        } else 
-      #endif
+      } else {
         if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
                barrier_state[phase].barrier_value != id) || 
               (flags & GASNET_BARRIERFLAG_MISMATCH)) { /* detected a mismatch - tell everybody */
@@ -1630,8 +1641,9 @@ extern void gasnete_barrier_notify(int id, int flags) {
                                         sizeof(int), i), ELAN_POLL_EVENT);
           }
         }
-        elan_hgsync(GROUP()); 
-      #if !GASNETE_FAST_ELAN_BARRIER
+      }
+      elan_hgsync(GROUP()); 
+      if (!gasnete_elanbarrier_fast) {
         /* check for a reelection */
         if_pf (barrier_state[phase+4].barrier_flags) {
           gasneti_assert(root == 0);
@@ -1642,8 +1654,8 @@ extern void gasnete_barrier_notify(int id, int flags) {
           gasneti_assert(root > 0 && root < gasnet_nodes());
           goto tryagain;
         }
-      #endif
       }
+    }
     barrier_blocking = 0; 
     UNLOCK_ELAN_WEAK();
   } 
@@ -1653,7 +1665,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
   gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
-extern int gasnete_barrier_wait(int id, int flags) {
+static int gasnete_elanbarrier_wait(int id, int flags) {
   int phase;
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
@@ -1680,7 +1692,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
     return GASNET_OK;
 }
 
-extern int gasnete_barrier_try(int id, int flags) {
+static int gasnete_elanbarrier_try(int id, int flags) {
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
@@ -1688,7 +1700,6 @@ extern int gasnete_barrier_try(int id, int flags) {
   GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
   return gasnete_barrier_wait(id, flags);
 }
-#endif
 /* ------------------------------------------------------------------------------------ */
 /*
   Vector, Indexed & Strided:

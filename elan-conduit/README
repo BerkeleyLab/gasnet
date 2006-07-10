@@ -1,6 +1,6 @@
 GASNet elan-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.5 $
+$Revision: 1.5.10.1 $
 
 User Information:
 -----------------
@@ -19,6 +19,13 @@ Recognized environment variables:
 * GASNET_NBI_THROTTLE - max number of outstanding nbi operations to issue before
   stalling to reap some completions. Defaults to GASNET_NETWORKDEPTH.
 
+* GASNET_BARRIER=ELANFAST (default) - use elan hardware support for barrier.
+ Additionally, assume that all threads agree on whether a given barrier is 
+ named or anonymous, to allow higher performance barrier
+
+* GASNET_BARRIER=ELANSLOW - use libelan hardware collectives for barrier, 
+  but comply strictly to barrier semantics.
+
 Optional compile-time settings:
 ------------------------------
 
@@ -34,11 +41,6 @@ Optional compile-time settings:
 
 * GASNETE_USE_ELAN_PUTGET(1/0) - setting to zero makes all put/gets use AM
  rather than elanlib put/gets
-
-* GASNETE_USE_ELAN_BARRIER(1/0) - use elanlib hardware collectives for barrier
-
-* GASNETE_FAST_ELAN_BARRIER(1/0) - assume that all threads agree on whether a
- given barrier is named or anonymous, to get higher performance
 
 Known problems:
 ---------------
@@ -173,12 +175,12 @@ put_nbi:
     use AM ref-ext
 
 barrier:
-  if !GASNETE_USE_ELAN_BARRIER
+  if GASNET_BARRIER != ELANFAST && GASNET_BARRIER != ELANSLOW
     use AM (extended ref)
   else
     register a poll callback function at startup to ensure polling 
      during hardware barrier
-    if GASNETE_FAST_ELAN_BARRIER and barrier anonymous
+    if GASNET_BARRIER==ELANFAST and barrier anonymous
       mismatchers report to all nodes
       hardware elan barrier
     else

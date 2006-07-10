@@ -166,7 +166,7 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 @GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e ' [\._]*DWinfo'       \
 @GNU_NM_TRUE@               -e ' [\._]*debug_info_seg' -e ' [\._]*debug_abbrev_seg'         \
 @GNU_NM_TRUE@               -e ' [\._]*debug_frame_seg' -e ' [\._]*debug_line_seg'          \
-@GNU_NM_TRUE@               -e ' [\._]*stab' -e ' [\._]*gnu_dev_' |	                    \
+@GNU_NM_TRUE@               -e ' [\._]*stab' -e ' [\._]*gnu_dev_' -e ' W stat'  |           \
 @GNU_NM_TRUE@	    @PERL@ -n -e 'print if /^[0-9a-fA-F]+\s+[A-Z]\s+/' > .$$lib.exp;        \
 @GNU_NM_TRUE@	  if test -s .$$lib.exp ; then                                              \
 @GNU_NM_TRUE@	    cat .$$lib.exp ;                                                        \

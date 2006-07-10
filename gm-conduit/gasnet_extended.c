@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/06/06 22:35:09 $
- * $Revision: 1.36.10.1 $
+ *     $Date: 2006/07/10 23:56:45 $
+ * $Revision: 1.36.10.2 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -136,8 +136,11 @@ extern void gasnete_init() {
 		gasnete_op_free((gasnete_op_t *)eop);
 	}
  
-	/* Initialize barrier resources */
-	gasnete_barrier_init();
+  /* Initialize barrier resources */
+  gasnete_barrier_init();
+
+  /* Initialize VIS subsystem */
+  gasnete_vis_init();
 }
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -354,23 +357,6 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   gasnete_wait_syncnb(handle->handle);
   val = handle->val;
   return val;
-}
-
-extern void
-gasnete_barrier_notify(int id, int flags) 
-{
-	gasnete_extref_barrier_notify(id,flags);
-	return;
-}
-extern int 
-gasnete_barrier_wait(int id, int flags)
-{
-	return gasnete_extref_barrier_wait(id,flags);
-}
-extern int 
-gasnete_barrier_try(int id, int flags)
-{
-	return gasnete_extref_barrier_try(id,flags);
 }
 
 extern gasnet_handle_t 

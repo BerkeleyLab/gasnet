@@ -30,7 +30,8 @@ MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 MPIRUN_CMD='pbsyod -size %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
 #MPIRUN_CMD='yod -np %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
-EXTRA_CONFIGURE_ARGS='--enable-portals --enable-mpi --disable-udp --disable-amudp --disable-pthreads --disable-fork'
+#EXTRA_CONFIGURE_ARGS='--enable-portals --enable-mpi --enable-debug --enable-trace --disable-udp --disable-amudp --disable-pthreads --disable-fork'
+EXTRA_CONFIGURE_ARGS='--enable-portals --enable-mpi --disable-debug --disable-trace --disable-udp --disable-amudp --disable-pthreads --disable-fork'
 
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine

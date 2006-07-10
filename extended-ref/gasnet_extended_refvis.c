@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.c,v $
- *     $Date: 2006/06/06 22:35:06 $
- * $Revision: 1.12.10.1 $
+ *     $Date: 2006/07/10 23:56:42 $
+ * $Revision: 1.12.10.2 $
  * Description: Reference implementation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,40 @@
 
 #include <gasnet_extended_refvis.h>
 
+/*---------------------------------------------------------------------------------*/
+/* *** VIS Init *** */
+/*---------------------------------------------------------------------------------*/
+static int gasnete_vis_isinit = 0;
+
+#if GASNETE_USE_AMPIPELINE
+static int gasnete_vis_use_ampipe;
+static size_t gasnete_vis_maxchunk;
+#endif
+#if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
+static int gasnete_vis_use_remotecontig;
+#endif
+
+extern void gasnete_vis_init() {
+  gasneti_assert(!gasnete_vis_isinit);
+  gasnete_vis_isinit = 1;
+  GASNETI_TRACE_PRINTF(C,("gasnete_vis_init()"));
+
+  #define GASNETE_VIS_ENV_YN(varname, envname, enabler) do {                                                    \
+    if (enabler) {                                                                                              \
+      varname = gasneti_getenv_yesno_withdefault(#envname, enabler##_DEFAULT);                                  \
+    } else if (!gasnet_mynode() && gasneti_getenv(#envname) && gasneti_getenv_yesno_withdefault(#envname, 0)) { \
+      fprintf(stderr, "WARNING: %s is set in environment, but %s support is compiled out - setting ignored",    \
+                      #envname, #enabler);                                                                      \
+    }                                                                                                           \
+  } while (0)
+  #if GASNETE_USE_AMPIPELINE
+  GASNETE_VIS_ENV_YN(gasnete_vis_use_ampipe,GASNET_VIS_AMPIPE, GASNETE_USE_AMPIPELINE);
+  gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnet_AMMaxMedium()-2*sizeof(void*),1);
+  #endif
+  #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
+  GASNETE_VIS_ENV_YN(gasnete_vis_use_remotecontig,GASNET_VIS_REMOTECONTIG, GASNETE_USE_REMOTECONTIG_GATHER_SCATTER);
+  #endif
+}
 /*---------------------------------------------------------------------------------*/
 
 #define GASNETI_GASNET_EXTENDED_REFVIS_C 1

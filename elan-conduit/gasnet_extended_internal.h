@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/06/06 22:35:03 $
- * $Revision: 1.21.10.1 $
+ *     $Date: 2006/07/10 23:56:40 $
+ * $Revision: 1.21.10.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -201,16 +201,17 @@ void gasnete_op_free(gasnete_op_t *op);
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
-#define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)
-#define _hidx_gasnete_get_reqh              (GASNETE_HANDLER_BASE+2)
-#define _hidx_gasnete_get_reph              (GASNETE_HANDLER_BASE+3)
-#define _hidx_gasnete_getlong_reqh          (GASNETE_HANDLER_BASE+4)
-#define _hidx_gasnete_getlong_reph          (GASNETE_HANDLER_BASE+5)
-#define _hidx_gasnete_put_reqh              (GASNETE_HANDLER_BASE+6)
-#define _hidx_gasnete_putlong_reqh          (GASNETE_HANDLER_BASE+7)
-#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+8)
-#define _hidx_gasnete_markdone_reph         (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
+#define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_get_reqh               (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_get_reph               (GASNETE_HANDLER_BASE+4)
+#define _hidx_gasnete_getlong_reqh           (GASNETE_HANDLER_BASE+5)
+#define _hidx_gasnete_getlong_reph           (GASNETE_HANDLER_BASE+6)
+#define _hidx_gasnete_put_reqh               (GASNETE_HANDLER_BASE+7)
+#define _hidx_gasnete_putlong_reqh           (GASNETE_HANDLER_BASE+8)
+#define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+10)
 
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 

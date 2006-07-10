@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/06/06 22:34:57 $
-dnl $Revision: 1.88.2.1 $
+dnl     $Date: 2006/07/10 23:56:37 $
+dnl $Revision: 1.88.2.2 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -146,7 +146,11 @@ AC_DEFUN([GASNET_CHECK_SIZEOF],[
   pushdef([uppername],translit($2[]barename,'a-z','A-Z'))
 
   if test "$cross_compiling" = "yes" ; then
-    GASNET_CROSS_VAR(uppername,uppername)
+    uppername=
+    GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof($1) (binary probe)],uppername,[],[sizeof($1)],uppername)
+    if test -z "$uppername" ; then # last resort is to use CROSS var
+      GASNET_CROSS_VAR(uppername,uppername)
+    fi
     ac_cv_[]lowername=$uppername
   fi
   dnl use bare AC_CHECK_SIZEOF here to get correct .h behavior & avoid duplicate defs
@@ -423,6 +427,17 @@ GASNET_FUN_BEGIN([$0])
    esac
   done
 GASNET_FUN_END([$0])
+]])
+
+dnl bug1657: remove the autoconf-generated PACKAGE_* macros from config.h file
+AC_DEFUN([GASNET_SANITIZE_PACKAGE],[[
+GASNET_FUN_BEGIN([$0($1)])
+  if test -f '$1' -a -n "`grep PACKAGE_NAME '$1'`" ; then
+    mv '$1' '$1.dirty'
+    cat '$1.dirty' | grep -v '#define PACKAGE_' > '$1'
+    rm -f '$1.dirty'
+  fi
+GASNET_FUN_END([$0($1)])
 ]])
 
 AC_DEFUN([GASNET_LIBGCC],[
@@ -1810,10 +1825,6 @@ GASNET_FUN_BEGIN([$0($1)])
       ac_sub_cache_file="--cache-file=$ac_dots$cache_file" ;;
     esac
   fi
-  case "$ac_given_INSTALL" in
-    [/$]*) INSTALL="$ac_given_INSTALL" ;;
-    *) INSTALL="$ac_dots$ac_given_INSTALL" ;;
-  esac
 
   echo "running ${CONFIG_SHELL-/bin/sh} $ac_sub_configure $ac_sub_configure_args" \
        " $ac_sub_cache_file --srcdir=$ac_sub_srcdir"
@@ -1873,7 +1884,10 @@ dnl query the numerical value of a system signal and AC_SUBST it
 AC_DEFUN([GASNET_GET_SIG], [
   GASNET_FUN_BEGIN([$0])
   if test "$cross_compiling" = "yes" ; then
-    GASNET_CROSS_VAR(SIG$1,SIG$1)
+    GASNET_TRY_CACHE_EXTRACT_EXPR([value of SIG$1 (binary probe)],SIG$1,[#include <signal.h>],[SIG$1],SIG$1)
+    if test -z "$SIG$1" ; then # last resort is to use CROSS var
+      GASNET_CROSS_VAR(SIG$1,SIG$1)
+    fi
   else 
     GASNET_TRY_CACHE_RUN_EXPR([value of SIG$1], SIG$1, [#include <signal.h>], [val = (int)SIG$1;], SIG$1)
   fi
@@ -1920,46 +1934,37 @@ if test "$cross_compiling" = "no" ; then
     }], $1[]WORDS_BIGENDIAN)
 else
   AC_MSG_CHECKING(whether byte ordering is bigendian (binary probe) $1)
-[
-cat >conftest.$ac_ext <<EOF
-short ascii_mm[] = { 0x4249, 0x4765, 0x6E44, 0x6961, 0x6E53, 0x7953, 0 };
-short ascii_ii[] = { 0x694C, 0x5454, 0x656C, 0x6E45, 0x6944, 0x6E61, 0 };
-void _ascii() { char* s = (char*) ascii_mm; s = (char*) ascii_ii; }
-short ebcdic_ii[] = { 0x89D3, 0xE3E3, 0x8593, 0x95C5, 0x89C4, 0x9581, 0 };
-short ebcdic_mm[] = { 0xC2C9, 0xC785, 0x95C4, 0x8981, 0x95E2, 0xA8E2, 0 };
-void _ebcdic() { char* s = (char*) ebcdic_mm; s = (char*) ebcdic_ii; }
-int main() { _ascii (); _ebcdic (); return 0; }
-EOF
-]
+  pushdef([endiancode],[[
+	short ascii_mm[] = { 0x4249, 0x4765, 0x6E44, 0x6961, 0x6E53, 0x7953, 0 };
+	short ascii_ii[] = { 0x694C, 0x5454, 0x656C, 0x6E45, 0x6944, 0x6E61, 0 };
+	void _ascii() { char* s = (char*) ascii_mm; s = (char*) ascii_ii; }
+	short ebcdic_ii[] = { 0x89D3, 0xE3E3, 0x8593, 0x95C5, 0x89C4, 0x9581, 0 };
+	short ebcdic_mm[] = { 0xC2C9, 0xC785, 0x95C4, 0x8981, 0x95E2, 0xA8E2, 0 };
+	void _ebcdic() { char* s = (char*) ebcdic_mm; s = (char*) ebcdic_ii; }
+	int foo() { _ascii (); _ebcdic (); return 0; }
+  ]])
   $1[]WORDS_BIGENDIAN=""
-  if test -f conftest.$ac_ext ; then
-     dnl do a full link and compile, because some systems (eg X1) have an unscannable
-     dnl string table in one or the other. Link first because it might clobber the .o
-     if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
-          (eval $ac_link) 2>&5
-          ac_status=$?
-          echo "$as_me:$LINENO: \$? = $ac_status" >&5
-          (exit $ac_status); } && \
-        { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
-          (eval $ac_compile) 2>&5
-          ac_status=$?
-          echo "$as_me:$LINENO: \$? = $ac_status" >&5
-          (exit $ac_status); } && \
-        test -f conftest.o && test -f conftest$ac_exeext ; then
-        # use perl here, because some greps barf on binary files (eg Solaris)
-        if test `$PERL -ne 'if (m/BIGenDianSyS/) { print "yes\n"; }' conftest.o` || \
-           test `$PERL -ne 'if (m/BIGenDianSyS/) { print "yes\n"; }' conftest$ac_exeext` ; then
-           $1[]WORDS_BIGENDIAN=1
+  dnl try both link and compile, because some systems (eg X1) have an unscannable
+  dnl string table in one or the other. Start with compile because it's faster
+  pushdef([endianscan],[
+      # use perl here, because some greps barf on binary files (eg Solaris)
+      if test `$PERL -ne 'if (m/BIGenDianSyS/) { print "yes\n"; }' $GASNET_EXAMINE_BIN` ; then
+         $1[]WORDS_BIGENDIAN=1
+      fi
+      if test `$PERL -ne 'if (m/LiTTleEnDian/) { print "yes\n"; }' $GASNET_EXAMINE_BIN` ; then
+        if test -z "$[$1]WORDS_BIGENDIAN" ; then
+          $1[]WORDS_BIGENDIAN=0
+        else
+          $1[]WORDS_BIGENDIAN=""
         fi
-        if test `$PERL -ne 'if (m/LiTTleEnDian/) { print "yes\n"; }' conftest.o` || \
-           test `$PERL -ne 'if (m/LiTTleEnDian/) { print "yes\n"; }' conftest$ac_exeext`; then
-          if test "$[$1]WORDS_BIGENDIAN" != "1" ; then
-            $1[]WORDS_BIGENDIAN=0
-          fi
-        fi
-     fi
-     dnl rm -f conftest.c conftest.o conftest$ac_exeext
+      fi
+  ])
+  GASNET_COMPILE_EXAMINE([ endiancode ],[foo();],[ endianscan ],[AC_MSG_ERROR(error building endian probe)])
+  if test -z "$[$1]WORDS_BIGENDIAN" ; then
+    GASNET_LINK_EXAMINE([ endiancode ],[foo();],[ endianscan ],[AC_MSG_ERROR(error building endian probe)])
   fi
+  popdef([endianscan])
+  popdef([endiancode])
   AC_MSG_RESULT($[$1]WORDS_BIGENDIAN)
 fi 
 if test "$[$1]WORDS_BIGENDIAN" = "1"; then
@@ -1968,4 +1973,147 @@ elif test "$[$1]WORDS_BIGENDIAN" = ""; then
   AC_MSG_ERROR(Inconsistent results from endian probe)
 fi
 GASNET_FUN_END([$0($1)])
+])
+
+dnl GASNET_COMPILE_EXAMINE(headers,body,action-success,action-failure)
+dnl compile the program given by headers and body
+dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename of generated object
+dnl else, run action-failure
+AC_DEFUN([GASNET_COMPILE_EXAMINE], [
+GASNET_FUN_BEGIN([$0(...)])
+  cat >conftest.$ac_ext <<"EOF"
+#include "confdefs.h"
+$1
+  int main() { 
+$2
+  return 0; }
+EOF
+  if test ! -f conftest.$ac_ext ; then
+     AC_MSG_ERROR(failed to write conftest.$ac_ext)
+  fi
+  if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
+       (eval $ac_compile) 2>&5
+       ac_status=$?
+       echo "$as_me:$LINENO: \$? = $ac_status" >&5
+       (exit $ac_status); } && \
+       test -f conftest.o ; then
+    GASNET_PUSHVAR(GASNET_EXAMINE_BIN,"gasnet-examine-bin-$LINENO.o")
+    mv conftest.o $GASNET_EXAMINE_BIN
+    $3
+    rm -f $GASNET_EXAMINE_BIN
+    GASNET_POPVAR(GASNET_EXAMINE_BIN)
+  else
+    echo Failed program: >&5
+    cat conftest.$ac_ext >&5
+    $4
+  fi
+GASNET_FUN_END([$0(...)])
 ]) 
+
+dnl GASNET_LINK_EXAMINE(headers,body,action-success,action-failure)
+dnl link the program given by headers and body
+dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename of generated executable
+dnl else, run action-failure
+AC_DEFUN([GASNET_LINK_EXAMINE], [
+GASNET_FUN_BEGIN([$0(...)])
+  cat >conftest.$ac_ext <<"EOF"
+#include "confdefs.h"
+$1
+  int main() { 
+$2
+  return 0; }
+EOF
+  if test ! -f conftest.$ac_ext ; then
+     AC_MSG_ERROR(failed to write conftest.$ac_ext)
+  fi
+  if { (eval echo "$as_me:$LINENO: \"$ac_link\"") >&5
+       (eval $ac_link) 2>&5
+       ac_status=$?
+       echo "$as_me:$LINENO: \$? = $ac_status" >&5
+       (exit $ac_status); } && \
+       test -f conftest$ac_exeext ; then
+    GASNET_PUSHVAR(GASNET_EXAMINE_BIN,"gasnet-examine-bin-$LINENO$ac_exeext")
+    mv conftest$ac_exeext $GASNET_EXAMINE_BIN
+    $3
+    rm -f $GASNET_EXAMINE_BIN
+    GASNET_POPVAR(GASNET_EXAMINE_BIN)
+  else
+    echo Failed program: >&5
+    cat conftest.$ac_ext >&5
+    $4
+  fi
+GASNET_FUN_END([$0(...)])
+]) 
+
+dnl build a program and extract the value of a compile-time constant string expression
+dnl GASNET_TRY_CACHE_EXTRACT_STR(description,cache_name,headers,expression,result_variable)
+AC_DEFUN([GASNET_TRY_CACHE_EXTRACT_STR],[
+AC_REQUIRE([GASNET_PROG_PERL])
+GASNET_FUN_BEGIN([$0($1,$2,...)])
+AC_CACHE_CHECK($1, cv_prefix[]$2,[
+cv_prefix[]$2=""
+pushdef([embedcode],[
+ #include <stdio.h>
+ extern const char *s; 
+ const char *s = "$gasnetextractstr: (-(|" $4 "|)-) $";
+])
+pushdef([unpackcode],[
+   _extract_prog='BEGIN{$/="\0";} if (m/\$gasnetextractstr: \(-\(\|(.+?)\|\)-\) \$/) { print "[$]1";}' 
+   cv_prefix[]$2=`$PERL -ne "$_extract_prog" $GASNET_EXAMINE_BIN`
+])
+ GASNET_COMPILE_EXAMINE([$3
+   embedcode ],[ printf("%s",s); ],
+   [ unpackcode ],[AC_MSG_ERROR(Failed while compile extracting $4)])
+if test -z "$cv_prefix[]$2" ; then
+ GASNET_LINK_EXAMINE([$3
+   embedcode ],[ printf("%s",s); ],
+   [ unpackcode ],[AC_MSG_ERROR(Failed while link extracting $4)])
+fi
+popdef([unpackcode])
+popdef([embedcode])
+])
+if test -n "$cv_prefix[]$2" ; then
+  $5=$cv_prefix[]$2
+fi
+GASNET_FUN_END([$0($1,$2,...)])
+])
+
+dnl build a program and extract the value of a compile-time constant expression
+dnl GASNET_TRY_CACHE_EXTRACT_EXPR(description,cache_name,headers,expression,result_variable)
+AC_DEFUN([GASNET_TRY_CACHE_EXTRACT_EXPR],[
+AC_REQUIRE([GASNET_PROG_PERL])
+GASNET_FUN_BEGIN([$0($1,$2,...)])
+AC_CACHE_CHECK($1, cv_prefix[]$2,[
+cv_prefix[]$2=""
+pushdef([embedcode],[
+ #include <stdio.h>
+ extern char s[[]]; 
+ #define DIGIT(d) (((char)(( (($4)>0?($4):-($4)) >>(d*4))&0xF))+0x40)
+ char s[[]] = {'$','g','a','s','n','e','t','e','x','t','r','a','c','t','e','x','p','r',':',' ',
+             (($4)>=0?' ':'-'),
+             ' ',
+	     DIGIT(7),DIGIT(6),DIGIT(5),DIGIT(4),
+	     DIGIT(3),DIGIT(2),DIGIT(1),DIGIT(0),
+             ' ','$','\0'};
+])
+pushdef([unpackcode],[
+   _extract_prog='BEGIN{$/="\$";} if (m/^gasnetextractexpr: ([[ -]]) (.+?) \$/) { map($val=($val<<4)+($_-0x40),unpack("C8",[$]2)); print "-" if ([$]1 eq "-"); print $val;}' 
+   cv_prefix[]$2=`$PERL -ne "$_extract_prog" $GASNET_EXAMINE_BIN`
+])
+ GASNET_COMPILE_EXAMINE([$3
+   embedcode ],[ char *p = s; while (*p) printf("%c",*(p++)); ],
+   [ unpackcode ],[AC_MSG_ERROR(Failed while compile extracting $4)])
+if test -z "$cv_prefix[]$2" ; then
+ GASNET_LINK_EXAMINE([$3
+   embedcode ],[ char *p = s; while (*p) printf("%c",*(p++)); ],
+   [ unpackcode ],[AC_MSG_ERROR(Failed while link extracting $4)])
+fi
+popdef([unpackcode])
+popdef([embedcode])
+])
+if test -n "$cv_prefix[]$2" ; then
+  $5=$cv_prefix[]$2
+fi
+GASNET_FUN_END([$0($1,$2,...)])
+])
+

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.h,v $
- *     $Date: 2006/06/06 22:35:06 $
- * $Revision: 1.4.2.1 $
+ *     $Date: 2006/07/10 23:56:42 $
+ * $Revision: 1.4.2.2 $
  * Description: GASNet Vector, Indexed & Strided conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,19 +73,21 @@
 
 #ifndef GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
   #if GASNETI_HAVE_EOP_INTERFACE
-    #define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER 0
+    #define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER 1
   #else
     #define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER 0
   #endif
 #endif
+#define GASNETE_USE_REMOTECONTIG_GATHER_SCATTER_DEFAULT 0
 
 #ifndef GASNETE_USE_AMPIPELINE
   #if GASNETI_HAVE_EOP_INTERFACE
-    #define GASNETE_USE_AMPIPELINE 0
+    #define GASNETE_USE_AMPIPELINE 1
   #else
     #define GASNETE_USE_AMPIPELINE 0
   #endif
 #endif
+#define GASNETE_USE_AMPIPELINE_DEFAULT 0
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Handlers *** */
