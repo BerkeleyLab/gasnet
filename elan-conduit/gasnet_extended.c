@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/07/10 23:56:40 $
- * $Revision: 1.65.4.2 $
+ *     $Date: 2006/07/18 02:04:26 $
+ * $Revision: 1.65.4.3 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -199,7 +199,7 @@ extern void gasnete_init() {
   strcpy(default_nbi_throttle, _STRINGIFY(GASNETE_DEFAULT_NBI_THROTTLE));
   #if GASNETE_MULTI_PGCTRL
     { int i;
-      int depth = atoi(gasneti_getenv_withdefault("GASNET_NETWORKDEPTH", "1024"));
+      int depth = gasnett_getenv_int_withdefault("GASNET_NETWORKDEPTH", 1024, 0);
       gasnete_elan_pgctrl_cnt = GASNETI_ALIGNUP(depth, GASNETC_PGCTRL_THROTTLE)
                                  / GASNETC_PGCTRL_THROTTLE;
       if (depth < 1 || gasnete_elan_pgctrl_cnt > GASNETE_NUMPGCTRL_CNTMAX)
@@ -234,8 +234,7 @@ extern void gasnete_init() {
     }
   #endif
 
-  gasnete_nbi_throttle = atoi(
-    gasneti_getenv_withdefault("GASNET_NBI_THROTTLE", default_nbi_throttle));
+  gasnete_nbi_throttle = gasnett_getenv_int_withdefault("GASNET_NBI_THROTTLE", default_nbi_throttle, 0);
   if (gasnete_nbi_throttle < 1) gasnete_nbi_throttle = GASNETE_DEFAULT_NBI_THROTTLE;
 
   { gasnete_threaddata_t *threaddata = NULL;

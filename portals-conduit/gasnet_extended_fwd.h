@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/07/10 23:56:57 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2006/07/18 02:04:32 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,22 +18,13 @@
 #define GASNET_EXTENDED_NAME         PORTALS
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
-/* Hijack the CORE definitions of these as well, to prevent misleading messages */
-#ifdef GASNET_CORE_NAME
-#undef GASNET_CORE_NAME
-#endif
-#ifdef GASNET_CORE_NAME_STR
-#undef GASNET_CORE_NAME_STR
-#endif
-#ifdef GASNET_CORE_VERSION
-#undef GASNET_CORE_VERSION
-#endif
-#ifdef GASNET_CONDUIT_MPI
-#undef GASNET_CONDUIT_MPI
-#endif
-#define GASNET_CORE_VERSION    GASNET_EXTENDED_VERSION
-#define GASNET_CORE_NAME       PORTALS
-#define GASNET_CORE_NAME_STR  _STRINGIFY(GASNET_CORE_NAME)
+/* For Portals conduit, can only have 128 threads per process since we use the
+ * most significant bit of the uint8_t threadid field to distinguish whether
+ * the handle it is imbedded in is an eop or an iop.  This allows us to represent
+ * a reference to the handle in 24 bits when hidden in the match bits of a
+ * portals opertaion
+ */
+#define GASNETI_MAX_THREADS 128
 
 #define _GASNET_HANDLE_T
 /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
@@ -65,6 +56,13 @@ extern void gasnete_portals_poll();
 #define GASNETE_PROGRESSFN_EXTRA(FN)					\
   FN(gasnete_pf_portals_poll, BOOLEAN, gasnete_portals_poll)
 #endif
+
+/* Define an extended API exit function to cleanup Portals
+ * resources at exit time.
+ * This is called from the mpi-conduit gasnetc_exit() routine
+ */
+extern void gasnete_exit(int exitcode);
+#define GASNETE_EXIT_CALLBACK(exitcode) gasnete_exit(exitcode)
 
 #endif
 

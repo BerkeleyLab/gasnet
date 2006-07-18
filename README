@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.66.4.2 $
+$Revision: 1.66.4.3 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -669,7 +669,7 @@ All GASNet conduit code is required to meet the following coding standards:
 
 * GASNet conduit code should never call any of the following functions 
   directly:
-   malloc, calloc, free, str(n)dup, assert, sched_yield, 
+   malloc, calloc, realloc, free, str(n)dup, assert, sched_yield, 
    getenv, (un)setenv, mmap, pthread_*
   Instead, you should use the gasneti_* wrapper functions of the same name.
 
@@ -705,6 +705,13 @@ All GASNet conduit code is required to meet the following coding standards:
   (and continue to include the unchanged files) to reduce maintenance headache
   (this applies especially to gasnet_extended.h and gasnet_extended_help.h, which
   should never be cloned).
+
+* Makefiles should never use GNU-make specific features (vanilla BSD make only).
+  Makefile commands and configure scripts should adhere strictly to simple
+  bourne shell usage (not bash).
+
+* Perl code should only use features and modules available in all installations
+  of Perl 5.005+.
 
 GASNet porting guide
 ====================

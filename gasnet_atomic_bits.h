@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/06/06 22:34:57 $
- * $Revision: 1.238.2.1 $
+ *     $Date: 2006/07/18 02:04:24 $
+ * $Revision: 1.238.2.2 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2099,18 +2099,16 @@
         }                                                                 \
         GASNETI_CONSTP(stem##hash_lookup)
     #define GASNETI_ATOMIC_LOCK_TBL_DEFNS(stem,type)                      \
-        /* XXX: We'd like the tbl size to be overridable via env var. */  \
-        /*      Ideally we'd use gasneti_getenv_int_withdefault().    */  \
-        /*      However, we don't have that in tools clients.         */  \
         uintptr_t stem##tbl_mask = 0;                                     \
         stem##tbl_t *stem##tbl = NULL;                                    \
         GASNETI_NEVER_INLINE(stem##tbl_init,                              \
                              extern void stem##tbl_init(void)) {          \
           static type##t stem##tbl_lock = _gasneti_atomic_lock_initializer; \
-          static int stem##tbl_size = 256; /* XXX: see note above */      \
           type##lock(&stem##tbl_lock);                                    \
           if (stem##tbl_mask == 0) {                                      \
             int i;                                                        \
+            int stem##tbl_size = gasnett_getenv_int_withdefault(          \
+                                         "GASNET_ATOMIC_TABLESZ", 256,0); \
             gasneti_assert_always(GASNETI_POWEROFTWO(stem##tbl_size));    \
             /* Over allocate to leave at least a cache line before and after */ \
             stem##tbl = _gasneti_atomic_lock_malloc((2 + stem##tbl_size)  \

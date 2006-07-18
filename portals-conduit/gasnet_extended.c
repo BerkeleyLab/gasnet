@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/07/10 23:56:57 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2006/07/18 02:04:32 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -415,6 +415,8 @@ static const char* gasnete_md_name[] = {"RARAM_MD","BB_MD","TMP_MD"};
 static int gasnete_bb_numchunk = GASNETE_BB_NUM_CHUNK;
 gasnete_bb_chunk_t *gasnete_bb_freelist;
 void* gasnete_bb_start;
+int gasnete_bb_outstanding;
+int gasnete_bb_hwm;
 
 /* We limit the number of temporary memory descriptors in use at any time.
  * If over the limit, allocator will poll until the number of outstanding tmp mds
@@ -422,6 +424,9 @@ void* gasnete_bb_start;
  */
 static int gasnete_max_tmpmd = GASNETE_MAX_TMP_MDS;
 static gasneti_weakatomic_t gasnete_tmpmd_count;
+
+#define GASNETE_MAX_POLL_EVENTS 40
+static int gasnete_max_poll_events = GASNETE_MAX_POLL_EVENTS;
 
 /* ------------------------------------------------------------------------------------ */
 /* Trivial chunk allocator for bounce buffer
@@ -432,6 +437,9 @@ void gasnete_bb_init(size_t nchunks)
   int i;
   ptl_md_t bb_md;
   size_t nbytes = nchunks * sizeof(gasnete_bb_chunk_t);
+
+  gasnete_bb_outstanding = 0;
+  gasnete_bb_hwm = 0;
     
   start = (gasnete_bb_chunk_t*)gasneti_malloc(nbytes);
   if (start == NULL) {
@@ -461,6 +469,27 @@ void gasnete_bb_init(size_t nchunks)
   GASNETE_PTLSAFE(PtlMDBind(gasnete_ni_h, bb_md, PTL_RETAIN, &gasnete_bb_md_h));
 }
 
+void gasnete_bb_remove()
+{
+  int nchunk = 0;
+  gasnete_bb_chunk_t *p = gasnete_bb_freelist;
+
+  GASNETI_TRACE_PRINTF(C,("BB_Remove: outstanding = %d, HWM = %d",gasnete_bb_outstanding,gasnete_bb_hwm));
+  /* check for allocated chunks */
+  while (p != NULL) {
+    nchunk++;
+    p = p->next;
+  }
+  GASNETI_TRACE_PRINTF(C,("BB_Remove: %d free chunks, expected %d",nchunk,gasnete_bb_numchunk));
+  gasneti_assert(nchunk == gasnete_bb_numchunk);
+
+  /* remove Portals MD */
+  GASNETE_PTLSAFE(PtlMDUnlink(gasnete_bb_md_h));
+
+  gasneti_free(gasnete_bb_start);
+
+}
+
 int gasnete_bb_chunk_alloc(size_t nbytes, ptl_size_t *offset)
 {
     gasnete_bb_chunk_t *p;
@@ -477,6 +506,10 @@ int gasnete_bb_chunk_alloc(size_t nbytes, ptl_size_t *offset)
     p = gasnete_bb_freelist;
     gasnete_bb_freelist = p->next;
     *offset = ((uint8_t*)p - (uint8_t*)gasnete_bb_start);
+
+    gasnete_bb_outstanding++;
+    if (gasnete_bb_outstanding > gasnete_bb_hwm) gasnete_bb_hwm = gasnete_bb_outstanding;
+    GASNETI_TRACE_PRINTF(C,("BB_chunk_alloc: outstanding = %d, hwm = %d",gasnete_bb_outstanding,gasnete_bb_hwm));
     return 1;
 }
 
@@ -504,6 +537,14 @@ void gasnete_portals_init(void)
 							    (int64_t)GASNETE_BB_NUM_CHUNK,0);
   gasnete_max_tmpmd = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_NUM_TMPMD",
 							  (int64_t)GASNETE_MAX_TMP_MDS,0);
+  gasnete_max_poll_events = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MAX_POLL",
+							  (int64_t)GASNETE_MAX_POLL_EVENTS,0);
+  
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: num_bb = %d, max tmp_md = %d, max poll = %d",(int)gasnete_bb_numchunk,(int)gasnete_max_tmpmd,gasnete_max_poll_events));
+
+  if (gasneti_mynode == 0) {
+	fprintf(stderr,"Portals_init: max_event = %d\n",gasnete_max_poll_events);
+  }
 
   /* Init the temp md counter to zero */
   gasneti_weakatomic_set(&gasnete_tmpmd_count, 0, 0);
@@ -600,7 +641,7 @@ void gasnete_portals_init(void)
   md.eq_handle = gasnete_eq_h;
 
   GASNETE_PTLSAFE(PtlMEInsert(gasnete_rar_mle_h, match_id, GASNETE_PTL_RARAM_BITS,
-			      GASNETE_PTL_IGNORE_BITS, PTL_RETAIN, PTL_INS_AFTER,
+			      GASNETE_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
 			      &gasnete_raram_mle_h));
   GASNETE_PTLSAFE(PtlMDAttach(gasnete_raram_mle_h, md, PTL_RETAIN, &gasnete_raram_md_h));
 
@@ -656,14 +697,32 @@ extern void gasnete_init() {
     gasnete_op_free((gasnete_op_t *)iop);
   }
 
-  /* Initialize barrier resources */
-  gasnete_barrier_init();
-
   /* MLW: Allocate Portals resources */
   gasnete_portals_init();
   
+  /* Initialize barrier resources */
+  gasnete_barrier_init();
+
   /* Initialize VIS subsystem */
   gasnete_vis_init();
+}
+
+void gasnete_exit(int exitcode)
+{
+  GASNETI_TRACE_PRINTF(C,("gasnete_exit: outstanding tmp_mds = %d",gasneti_weakatomic_read(&gasnete_tmpmd_count,0)));
+
+  /* remove the RAR and RARAM.  Note that MLE's will be removed by this as well */
+  GASNETE_PTLSAFE(PtlMDUnlink(gasnete_rar_md_h));
+  GASNETE_PTLSAFE(PtlMDUnlink(gasnete_raram_md_h));
+
+  /* release the bounce buffer */
+  gasnete_bb_remove();
+
+  /* free the event queue */
+  GASNETE_PTLSAFE(PtlEQFree(gasnete_eq_h));
+
+  GASNETI_TRACE_PRINTF(C,("leaving gasnete_exit"));
+  
 }
 
 /* Allocate a temp md to be used as the source of a Put or destination
@@ -677,12 +736,8 @@ ptl_handle_md_t gasnete_alloc_tmpmd(void* dest, size_t nbytes)
   /* Want to limit the number of tmp MDs in operation at once.
    * Poll until number of outstanding TMP MDs is less than limit.
    */
+  GASNETI_TRACE_PRINTF(C,("Alloc_Tmpmd: num TmpMD outstanding = %d",gasneti_weakatomic_read(&gasnete_tmpmd_count,0)));
   gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_tmpmd_count,0) >= gasnete_max_tmpmd) );
-#if 0
-  while (gasneti_weakatomic_read(&gasnete_tmpmd_count,0) >= gasnete_max_tmpmd) {
-    GASNETI_SAFE(gasneti_AMPoll());
-  }
-#endif
 
   gasneti_weakatomic_increment(&gasnete_tmpmd_count,0);
   md.start = dest;
@@ -708,10 +763,60 @@ void gasnete_portals_poll(void)
 {
   ptl_event_t ev;
   int rc;
+  int processed = 0;
+  int finished = 0;
+
+  /* Note that PtlEQGet is just a user-space call and will see if anything is
+   * on the list without diving into the kernel to see if any unprocessed events
+   * are waiting.  Try it first.  If multiple exist, run them back to back since they
+   * release resources.
+   */
+  while (! finished) {
+    rc = PtlEQGet( gasnete_eq_h, &ev);
+    switch (rc) {
+    case PTL_OK:
+      GASNETI_TRACE_PRINTF(C,("Q Handler: Got event %s from PtlEQGet",ptl_event_str[ev.type]));
+      gasnete_event_handler(&ev);
+      processed++;
+      if (processed > gasnete_max_poll_events) finished = 1;
+      break;
+    case PTL_EQ_EMPTY:
+      finished = 1;
+      break;
+    default:
+      gasneti_fatalerror("GASNet Portals Error in PtlEQGet: %s (%i)\n at %s\n",
+			 ptl_err_str[rc],rc,gasneti_current_loc);
+      break;
+    }
+  }
+
+  if (processed == 0) {
+    /* No easy pickings... try polling, which may enter the kernel */
+    int which = 0;
+    int timeout = 0;       /* number of usec to wait */
+    rc = PtlEQPoll(&gasnete_eq_h,1,timeout,&ev,&which);
+    switch (rc) {
+    case PTL_OK:
+      GASNETI_TRACE_PRINTF(C,("Q Handler: Got event %s from PtlEQPoll",ptl_event_str[ev.type]));
+      gasnete_event_handler(&ev);
+      break;
+    case PTL_EQ_EMPTY:
+      break;
+    default:
+      gasneti_fatalerror("GASNet Portals Error in PtlEQPoll: %s (%i)\n at %s\n",
+			 ptl_err_str[rc],rc,gasneti_current_loc);
+      break;
+    }
+  }
+}
+#if 0
+void gasnete_portals_poll_old(void)
+{
+  ptl_event_t ev;
+  int rc;
   int got_one;
   int processed = 0;
-  int max_try = 4;
-
+  int max_try = 2;       
 
   /* Note that PtlEQGet is just a user-space call and will see if anything is
    * on the list without diving into the kernel to see if any unprocessed events
@@ -766,6 +871,7 @@ void gasnete_portals_poll(void)
     }
   }
 }
+#endif
 
 /*
  * We use a single event handler for all the MDs, the "which_md" arg will
@@ -1117,7 +1223,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       GASNETI_TRACE_PRINTF(P,("put_nb: from tmpmd, src= 0x%lx",(uintptr_t)src));
     }
     if (wait_for_local_completion) {
-      /* clear local completion flag in threaddata */
+      /* increment local completion flag and indicate to event handler to decrement */
       gasneti_weakatomic_increment(&(mythread->local_completion_count), 0);
       lbits |= GASNETE_PTL_MSG_DOLC;
     }
@@ -1131,11 +1237,6 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     /* poll here for local completion in non-bulk or non-bb case */
     if (wait_for_local_completion) {
       gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
-#if 0
-      while(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) {
-	GASNETI_SAFE(gasneti_AMPoll());
-      };
-#endif
     }
     return (gasnet_handle_t)op;
 
@@ -1306,7 +1407,6 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   ptl_hdr_data_t hdr_data = 0;
 
   gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
-  gasneti_assert(mythread->local_completion_count == 0);
 
   while (nbytes > 0) {
     size_t toput = MIN(nbytes,GASNETE_PTL_MAX_TRANS_SZ);
@@ -1342,7 +1442,6 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 	gasneti_weakatomic_increment(&(mythread->local_completion_count), 0);
       }
     }
-
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
     /* Issue Ptl Put operation */
@@ -1356,11 +1455,6 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   /* poll here for local completion in non-bulk or non-bb case */
   if (wait_for_local_completion) {
     gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
-#if 0
-    while(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) {
-      GASNETI_SAFE(gasneti_AMPoll());
-    }
-#endif
   }
 }
 

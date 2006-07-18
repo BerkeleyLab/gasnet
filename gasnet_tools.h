@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/07/10 23:56:37 $
- * $Revision: 1.52.2.2 $
+ *     $Date: 2006/07/18 02:04:24 $
+ * $Revision: 1.52.2.3 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -273,6 +273,14 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_set_affinity    gasneti_set_affinity
 #define gasnett_spinloop_hint   gasneti_spinloop_hint
 
+#define gasnett_threadkey_t                       gasneti_threadkey_t
+#define GASNETT_THREADKEY_INITIALIZER             GASNETI_THREADKEY_INITIALIZER
+#define gasnett_threadkey_get(key)                gasneti_threadkey_get(key)
+#define gasnett_threadkey_set(key,newval)         gasneti_threadkey_set(key,newval)
+#define gasnett_threadkey_init(pkey)              gasneti_threadkey_init(pkey)
+#define gasnett_threadkey_get_noinit(key)         gasneti_threadkey_get_noinit(key)
+#define gasnett_threadkey_set_noinit(key,newval)  gasneti_threadkey_set_noinit(key,newval)
+
 /* ------------------------------------------------------------------------------------ */
 /* GASNet tracing/stats support (automatically stubbed out when libgasnet absent) */
 
@@ -350,14 +358,6 @@ GASNETI_BEGIN_EXTERNC
   #define gasnett_run_diagnostics gasneti_run_diagnostics
   #define gasnett_diagnostic_gethandlers gasneti_diagnostic_gethandlers
 
-  #define gasnett_threadkey_t           gasneti_threadkey_t
-  #define GASNETT_THREADKEY_INITIALIZER GASNETI_THREADKEY_INITIALIZER
-  #define gasnett_threadkey_get(key)                gasneti_threadkey_get(key)
-  #define gasnett_threadkey_set(key,newval)         gasneti_threadkey_set(key,newval)
-  #define gasnett_threadkey_init(pkey)              gasneti_threadkey_init(pkey)
-  #define gasnett_threadkey_get_noinit(key)         gasneti_threadkey_get_noinit(key)
-  #define gasnett_threadkey_set_noinit(key,newval)  gasneti_threadkey_set_noinit(key,newval)
-
   #define GASNETT_FAST_ALIGNED_MEMCPY   GASNETE_FAST_ALIGNED_MEMCPY
   #define GASNETT_FAST_UNALIGNED_MEMCPY GASNETE_FAST_UNALIGNED_MEMCPY
   #define GASNETT_VALUE_ASSIGN          GASNETE_VALUE_ASSIGN
@@ -396,14 +396,6 @@ GASNETI_BEGIN_EXTERNC
   #endif
 #else
   #define gasnett_mmap(sz)        gasnett_fatalerror("gasnett_mmap not available")
-
-  #define gasnett_threadkey_t           char
-  #define GASNETT_THREADKEY_INITIALIZER 0
-  #define gasnett_threadkey_get(key)                gasnett_fatalerror("gasnett_threadkey_* not available")
-  #define gasnett_threadkey_set(key,newval)         gasnett_fatalerror("gasnett_threadkey_* not available")
-  #define gasnett_threadkey_init(pkey)              gasnett_fatalerror("gasnett_threadkey_* not available")
-  #define gasnett_threadkey_get_noinit(key)         gasnett_fatalerror("gasnett_threadkey_* not available")
-  #define gasnett_threadkey_set_noinit(key,newval)  gasnett_fatalerror("gasnett_threadkey_* not available")
 
   #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
     GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_pthread_atomic_, pthread_mutex_)

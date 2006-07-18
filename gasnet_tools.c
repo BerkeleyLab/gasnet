@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/07/10 23:56:37 $
- * $Revision: 1.140.2.2 $
+ *     $Date: 2006/07/18 02:04:24 $
+ * $Revision: 1.140.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -548,24 +548,67 @@ extern char *gasneti_getenv(const char *keyname) {
   return retval;
 }
 
-/* return true iff GASNET_VERBOSEENV reporting is enabled on this node */
+/* indicate whether GASNET_VERBOSEENV reporting is enabled on this node 
+   1 = yes, 0 = no, -1 = not yet / don't know
+*/
 extern int gasneti_verboseenv() {
   if (gasneti_verboseenv_fn) return (*gasneti_verboseenv_fn)();
   else return !!gasneti_getenv("GASNET_VERBOSEENV");
 }
 
+typedef struct gasneti_verboseenv_S {
+  struct gasneti_verboseenv_S *next;
+  const char *key;
+  const char *displaystr;
+} gasneti_verboseenv_t;
+
 /* display an integral/string environment setting iff gasneti_verboseenv() */
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt) {
   const char *dflt = (is_dflt?"   (default)":"");
   const char *displayval = val;
+  int verbose = gasneti_verboseenv();
   if (!val) displayval = "*not set*";
   else if (strlen(val) == 0) displayval = "*empty*";
-  if (gasneti_verboseenv()) {
-    int width = MAX(10,55 - strlen(key) - strlen(displayval));
-    fprintf(stderr, "ENV parameter: %s = %s%*s\n", key, displayval, width, dflt);
-    fflush(stderr);
-  }
   GASNETT_TRACE_PRINTF("ENV parameter: %s = %s%s", key, displayval, dflt);
+  if (verbose) {
+    static gasneti_mutex_t envmutex = GASNETI_MUTEX_INITIALIZER;
+    static gasneti_verboseenv_t *displaylist = NULL;
+    static gasneti_verboseenv_t *displaylist_tail = NULL;
+    static int notyet = 1;
+    gasneti_verboseenv_t *p;
+    char displaystr[255];
+    int width = MAX(10,55 - strlen(key) - strlen(displayval));
+    sprintf(displaystr, "ENV parameter: %s = %s%*s", key, displayval, width, dflt);
+    gasneti_mutex_lock(&envmutex);
+      for (p = displaylist; p; p = p->next) { /* check for previous report */
+        if (!strcmp(key,p->key)) break;
+      }
+      if (!p) { /* new entry */
+        p = malloc(sizeof(gasneti_verboseenv_t));
+        p->key = strdup(key);
+        if (verbose > 0 && !notyet) { /* display now */
+          p->displaystr = NULL;
+          fprintf(stderr, "%s\n", displaystr);
+          fflush(stderr);
+        } else { /* cache for later */
+          p->displaystr = strdup(displaystr);
+        }
+        if (!displaylist) displaylist = p;
+        if (displaylist_tail) displaylist_tail->next = p;
+        displaylist_tail = p;
+        p->next = NULL;
+      }
+      if (notyet && verbose > 0) { /* dump cached values */ 
+        for (p = displaylist; p; p = p->next) {
+          fprintf(stderr, "%s\n", p->displaystr);
+          fflush(stderr);
+          free((void *)p->displaystr);
+          p->displaystr = NULL;
+        }
+        notyet = 0;
+      }
+    gasneti_mutex_unlock(&envmutex);
+  }
 }
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size) {
   char valstr[80];

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2006/06/06 22:35:03 $
- * $Revision: 1.29.8.1 $
+ *     $Date: 2006/07/18 02:04:26 $
+ * $Revision: 1.29.8.2 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -321,8 +321,7 @@ extern void gasnetc_initbufs() {
       gasneti_fatalerror("error on elan_queueTxInit in gasnetc_initbufs()");
 
     #if GASNETC_OVERLAP_AMQUEUE
-      gasnetc_am_throttle = atoi(
-        gasneti_getenv_withdefault("GASNET_AM_THROTTLE", _STRINGIFY(GASNETC_DEFAULT_AM_THROTTLE)));
+      gasnetc_am_throttle = gasnett_getenv_int_withdefault("GASNET_AM_THROTTLE", GASNETC_DEFAULT_AM_THROTTLE, 0);
       if (gasnetc_am_throttle < 1) gasnetc_am_throttle = GASNETC_DEFAULT_AM_THROTTLE;
       gasnete_evtbin_init(&gasnetc_am_evtbin, gasnetc_am_throttle, gasneti_malloc(gasnetc_am_throttle*sizeof(ELAN_EVENT*)));
     #endif

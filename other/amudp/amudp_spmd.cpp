@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2006/06/06 22:35:24 $
- * $Revision: 1.24.6.1 $
+ *     $Date: 2006/07/18 02:04:30 $
+ * $Revision: 1.24.6.2 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -407,7 +407,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
     bootstrapinfo.numprocs = hton32(AMUDP_SPMDNUMPROCS);
     bootstrapinfo.depth = hton32(networkdepth);
 
-    { char *faultRate = getenv("AMUDP_FAULT_RATE");
+    { char *faultRate = AMUDP_getenv_prefixed_withdefault("FAULT_RATE", "0.0");
       if (faultRate && atof(faultRate) != 0.0) {      
         bootstrapinfo.faultInjectionRate = atof(faultRate);
       } else bootstrapinfo.faultInjectionRate = 0.0;
@@ -1628,6 +1628,12 @@ extern char *AMUDP_getenv_prefixed_withdefault(const char *basekey, const char *
     retval = (char *)defaultval;
     dflt = "   (default)";
   }
+#ifdef gasnett_envstr_display
+  { char displaykey[255];
+    sprintf(displaykey,"%s_%s",AMUDP_ENV_PREFIX_STR,basekey);
+    gasnett_envstr_display(displaykey, retval, usingdefault);
+  }
+#else
   if (verboseenv && (AMUDP_SPMDMYPROC == -1 || AMUDP_SPMDMYPROC == 0)) {
     const char *displayval = retval;
     char displaykey[255];
@@ -1639,6 +1645,7 @@ extern char *AMUDP_getenv_prefixed_withdefault(const char *basekey, const char *
     fprintf(stderr, "ENV parameter: %s = %s%*s\n", displaykey, displayval, width, dflt);
     fflush(stderr);
   }
+#endif
   return retval;
 }
 /* ------------------------------------------------------------------------------------ */

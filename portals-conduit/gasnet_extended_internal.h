@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/07/10 23:56:57 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2006/07/18 02:04:32 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -305,7 +305,6 @@ void gasnete_get_mbits_lowbits(ptl_match_bits_t mbits, uint8_t *threadid,
     addr->fulladdr = lb.lb_addr.addr.fulladdr;
 #else
     uint32_t lb = (uint32_t)(GASNETE_MASK_LOWER32 & mbits);
-    uint32_t work;
     *threadid = (uint8_t)(lb >> 24);
     addr->fulladdr = (uint16_t)((lb & 0x00FFFF00) >> 8);
     *msg_type = (uint8_t)(lb & 0x000000FF);
@@ -331,9 +330,12 @@ typedef union _gasnete_bb_chunk {
 
 extern gasnete_bb_chunk_t *gasnete_bb_freelist;
 extern void* gasnete_bb_start;
+extern int gasnete_bb_outstanding;
+extern int gasnete_bb_hwm;
 extern ptl_handle_md_t  gasnete_bb_md_h;
 extern int gasnete_bb_chunk_alloc(size_t nbytes, ptl_size_t *offset);
 extern void gasnete_bb_init(size_t nchunks);
+extern void gasnete_bb_remove(void);
 
 GASNETI_INLINE(gasnete_bb_chunk_free)
 void gasnete_bb_chunk_free(ptl_size_t offset)
@@ -341,6 +343,9 @@ void gasnete_bb_chunk_free(ptl_size_t offset)
     gasnete_bb_chunk_t *p = (gasnete_bb_chunk_t*)((uint8_t*)gasnete_bb_start + offset);
     p->next = gasnete_bb_freelist;
     gasnete_bb_freelist = p;
+    gasnete_bb_outstanding--;
+    gasneti_assert(gasnete_bb_outstanding >= 0);
+    GASNETI_TRACE_PRINTF(C,("BB_chunk_freed: outstanding = %d",gasnete_bb_outstanding));
 }
 
 extern void gasnete_portals_init(void);

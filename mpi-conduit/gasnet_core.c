@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2006/06/06 22:35:15 $
- * $Revision: 1.65.8.1 $
+ *     $Date: 2006/07/18 02:04:28 $
+ * $Revision: 1.65.8.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -113,8 +113,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     #endif
 
     /*  choose network depth */
-    networkdepth = atoi(
-      gasneti_getenv_withdefault("GASNET_NETWORKDEPTH", _STRINGIFY(GASNETC_DEFAULT_NETWORKDEPTH)));
+    networkdepth = gasnett_getenv_int_withdefault("GASNET_NETWORKDEPTH", GASNETC_DEFAULT_NETWORKDEPTH, 0);
     if (networkdepth <= 1) networkdepth = GASNETC_DEFAULT_NETWORKDEPTH;
 
     AMMPI_VerboseErrors = gasneti_VerboseErrors;
@@ -393,6 +392,14 @@ extern void gasnetc_exit(int exitcode) {
   }
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+
+  #ifdef GASNETE_EXIT_CALLBACK
+    /* callback for native conduits using an mpi-conduit core 
+       this should cleanup extended API resources (only) 
+       and then return so that MPI can be shutdown properly
+     */
+    GASNETE_EXIT_CALLBACK(exitcode);
+  #endif
 
   gasneti_flush_streams();
   gasneti_trace_finish();
