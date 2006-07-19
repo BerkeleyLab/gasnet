@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/07/18 02:04:32 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2006/07/19 17:54:55 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,7 +38,26 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
-        CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
+        CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
+	CNT(C, EOP_ALLOC, count)             \
+	CNT(C, EOP_FREE, count)              \
+	CNT(C, EOP_BUCKETS, cnt)             \
+	CNT(C, BB_ALLOC, count)              \
+	CNT(C, BB_FREE, count)               \
+	CNT(C, TMPMD_ALLOC, count)           \
+	CNT(C, TMPMD_FREE, count)            \
+	CNT(C, GET_NB_RAR, count)            \
+	CNT(C, GET_NB_BB, count)             \
+	CNT(C, GET_NB_TMPMD, count)          \
+	CNT(C, GET_NBI_RAR, count)           \
+	CNT(C, GET_NBI_BB, count)            \
+	CNT(C, GET_NBI_TMPMD, count)         \
+	CNT(C, PUT_NB_RAR, count)            \
+	CNT(C, PUT_NB_BB, count)             \
+	CNT(C, PUT_NB_TMPMD, count)          \
+	CNT(C, PUT_NBI_RAR, count)           \
+	CNT(C, PUT_NBI_BB, count)            \
+	CNT(C, PUT_NBI_TMPMD, count)
 
 /* When defining a Portals Event Queue, we have the option of installing
  * an event handler for the Queue that will be executed for each event
@@ -64,5 +83,11 @@ extern void gasnete_portals_poll();
 extern void gasnete_exit(int exitcode);
 #define GASNETE_EXIT_CALLBACK(exitcode) gasnete_exit(exitcode)
 
-#endif
+/* Hijack the gasnet core trace_finish function if it has not already been
+ * defined.  (And I know it has not for the mpi_conduit)
+ * Better to have one for the extended API as well...
+ */
+extern void gasnete_trace_finish(void);
+#define GASNETC_TRACE_FINISH() gasnete_trace_finish()
 
+#endif

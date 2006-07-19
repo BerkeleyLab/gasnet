@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/06/06 22:34:58 $
- * $Revision: 1.46.2.1 $
+ *     $Date: 2006/07/19 17:54:53 $
+ * $Revision: 1.46.2.2 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,9 +103,13 @@ GASNETI_BEGIN_EXTERNC
   #define GASNETI_STATS_PRINTF(type, args)
 #endif
 
-/* allow for final output of conduit-specific statistics */
+/* allow for final output of conduit-core specific statistics */
 #ifndef GASNETC_TRACE_FINISH
 #define GASNETC_TRACE_FINISH()
+#endif
+/* allow for final output of conduit-extended specific statistics */
+#ifndef GASNETE_TRACE_FINISH
+#define GASNETE_TRACE_FINISH()
 #endif
 
 #ifndef GASNETI_STATS_ECHOED_TO_TRACEFILE
