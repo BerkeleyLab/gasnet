@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/07/08 05:15:21 $
- * $Revision: 1.134.12.4 $
+ *     $Date: 2006/07/22 02:02:31 $
+ * $Revision: 1.134.12.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -243,11 +243,21 @@ typedef struct {
   size_t		req_size;
 } gasnetc_memreg_t;
 
+typedef struct {
+	/* Length and Checksum include immediate_data and the msg that follows */
+	int16_t		length;	
+	int16_t		length_again;
+	int16_t		zeros;
+	int16_t		zeros_again;
+	/* Immediate data that vapi would otherwise send in its own header */
+	uint32_t	immediate_data;
+} gasnetc_amrdma_hdr_t;
+
 /* XXX: need env var overrides for DEPTH and MAX */
-#define GASNETC_AMRDMA_DEPTH	2	/* Power-of-2 */
-#define GASNETC_AMRDMA_HDRSZ    sizeof(uint32_t) /* space for immediate data */
+#define GASNETC_AMRDMA_DEPTH	32	/* Power-of-2 */
+#define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
 #define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */
-#define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ/2 - GASNETC_AMRDMA_HDRSZ)
+#define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 
 /* Structure for an HCA */
