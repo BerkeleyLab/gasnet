@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/04/29 10:21:02 $
- * $Revision: 1.20 $
+ *     $Date: 2006/07/22 02:02:31 $
+ * $Revision: 1.20.10.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -121,10 +121,11 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
-#define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)
-#define _hidx_gasnete_done_reph             (GASNETE_HANDLER_BASE+2)
-#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
+#define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_done_reph              (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+4)
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif
