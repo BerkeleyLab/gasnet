@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/07/08 07:31:46 $
- * $Revision: 1.189.4.5 $
+ *     $Date: 2006/07/22 02:02:31 $
+ * $Revision: 1.189.4.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -52,7 +52,8 @@
 size_t					gasnetc_fh_align;
 size_t					gasnetc_fh_align_mask;
 size_t                   		gasnetc_inline_limit;
-size_t                   		gasnetc_am_inline_limit;
+size_t                   		gasnetc_am_inline_limit_sndrcv;
+size_t                   		gasnetc_am_inline_limit_rdma;
 size_t                   		gasnetc_bounce_limit;
 size_t					gasnetc_packedlong_limit;
 #if !GASNETC_PIN_SEGMENT
@@ -1016,65 +1017,6 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, int limit, gasnetc_rbuf_t **spar
   return count;
 }
 
-static volatile uint8_t *gasnetc_decode_amrdma_bytes(volatile uint8_t *in, uint8_t *out, int count) {
-  gasneti_assert (count > 0);
-  do {
-    while (PREDICT_FALSE(in[0] != in[1])) GASNETI_WAITHOOK();
-    *(out++) = in[0];
-    in[0] = 0; in[1] = -1;
-    in += 2;
-  } while (--count);
-  return in;
-}
-
-#define GASNETC_AMRDMA_DECODE_MASK ((uintptr_t)0x00ff00ff00ff00ffLLU)
-
-GASNETI_INLINE(gasnetc_decode_amrdma)
-volatile uint8_t *gasnetc_decode_amrdma(volatile uint8_t *in, void *out, int count) {
-  /* Given the alignment we can read full words (byte writes still appear to generate best code) */
-  uint8_t *p = out;
-  volatile uintptr_t *q = (volatile uintptr_t *)in;
-  const unsigned int bytes_per_iter = sizeof(uintptr_t) / 2;
-  int i;
-  gasneti_assert(!((uintptr_t)in & (sizeof(uintptr_t)-1)));
-  gasneti_assert (count >= 0);
-  while (count) {
-    uintptr_t tmp = *q;
-    if_pf ((tmp ^ (tmp >> 8)) & GASNETC_AMRDMA_DECODE_MASK) {
-      /* Either less than a full word remains, or we've observed the RMDA in-progress. */
-      return gasnetc_decode_amrdma_bytes((volatile uint8_t *)q, p, count);
-      break;
-    } else {
-      gasneti_assert(count >= bytes_per_iter);
-    }
-    #if PLATFORM_ARCH_BIG_ENDIAN
-      #if PLATFORM_ARCH_64
-        p[0] = (tmp >> 48);
-        p[1] = (tmp >> 32);
-        p[2] = (tmp >> 16);
-        p[3] = tmp;
-      #else
-        p[0] = (tmp >> 16);
-        p[1] = tmp;
-      #endif
-    #else
-      #if PLATFORM_ARCH_64
-        p[0] = tmp;
-        p[1] = (tmp >> 16);
-        p[2] = (tmp >> 32);
-        p[3] = (tmp >> 48);
-      #else
-        p[0] = tmp;
-        p[1] = (tmp >> 16);
-      #endif
-    #endif
-    *(q++) = GASNETC_AMRDMA_DECODE_MASK;
-    p += bytes_per_iter;
-    count -= bytes_per_iter;
-  }
-  return (volatile uint8_t *)q;
-}
-
 GASNETI_INLINE(gasnetc_rcv_amrdma)
 int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   #if (GASNETC_AMRDMA_DEPTH > 1)
@@ -1083,62 +1025,88 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   #else
     const int recv_slot = 0;
   #endif
-  volatile uint8_t *p = cep->amrdma_loc[recv_slot];
+  volatile uint8_t *p;
+  uint8_t *q;
+  volatile gasnetc_amrdma_hdr_t *hdr = (volatile gasnetc_amrdma_hdr_t *)cep->amrdma_loc[recv_slot];
+  gasnetc_buffer_t * const msg_in = (gasnetc_buffer_t *)((uintptr_t)hdr + sizeof(*hdr));
   gasnetc_rbuf_t rbuf;
   uint8_t _buf[8 + GASNETC_AMRDMA_MAX];
   gasnetc_buffer_t * const msg = (gasnetc_buffer_t *)GASNETI_ALIGNUP(_buf, 8);
   uint32_t seq, flags, mask;
   int numargs;
   int i;
-  int bytes = 0;
+  int length, zeros;
 
   if (gasneti_weakatomic_read(&cep->amrdma.recv_in_use, 0) ||
-      (p[0] != p[1]) ||
+      (hdr->length != hdr->length_again) ||
       !gasneti_weakatomic_compare_and_swap(&cep->amrdma.recv_in_use, 0, 1, GASNETI_ATOMIC_ACQ)) {
     /* Another thread is working on this slot or no AM is waiting */
     return 0;
-  } else if (p[0] != p[1]) { /* Must recheck with lock bit held */
-    /* Another thread got to it first, so release our lock */
+  }
+  
+  /* Must recheck with lock bit held */
+  if_pf (((length = hdr->length) != hdr->length_again) ||
+         ((zeros = hdr->zeros) != hdr->zeros_again)) {
+    /* Release our lock */
     gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
     return 0;
   }
+  gasneti_assert(length >= sizeof(uint32_t)); /* Must be at least the immediate data */
 
-  GASNETC_STAT_EVENT(RCV_AM_RDMA);
+  /* Validate against checksum */
+  p = (volatile uint8_t *) &hdr->immediate_data;
+  for (i = 0; i < length; ++i) {
+    if ((*(p++) == 0) && !(zeros--)) {
+      /* Too many zeros */
+      gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0); /* Release our lock */
+      return 0;
+    }
+  }
+  gasneti_assert(zeros == 0); /* Too few zeros!! */
 
   #if (GASNETC_AMRDMA_DEPTH > 1)
     gasneti_weakatomic_increment(&cep->amrdma.recv_count, 0);
   #endif
 
-  p = gasnetc_decode_amrdma(p, &flags, sizeof(flags));
-  numargs = GASNETC_MSG_NUMARGS(flags);
-  switch (GASNETC_MSG_CATEGORY(flags)) {
-  case gasnetc_System: /* Currently System == Short.  Fall through... */
-  case gasnetc_Short:
-    bytes = GASNETC_MSG_SHORT_ARGSEND(numargs);
-    p = gasnetc_decode_amrdma(p, msg, bytes);
-    break;
-  
-  case gasnetc_Medium:
-    bytes = GASNETC_MSG_MED_ARGSEND(numargs); /* XXX: includes possible padding bytes */
-    p = gasnetc_decode_amrdma(p, msg, bytes);
-    (void)gasnetc_decode_amrdma(p, (uint8_t *)msg + bytes, msg->medmsg.nBytes);
-    break;
-  
-  case gasnetc_Long:
-    bytes = GASNETC_MSG_LONG_ARGSEND(numargs);
-    p = gasnetc_decode_amrdma(p, msg, bytes);
-    if (msg->longmsg.nBytes & 0x80000000) {
-      msg->longmsg.nBytes &= 0x7fffffff;
-      (void)gasnetc_decode_amrdma(p, (void *)(msg->longmsg.destLoc), msg->longmsg.nBytes);
+  GASNETC_STAT_EVENT(RCV_AM_RDMA);
+
+  /* Extract flags */
+  flags = hdr->immediate_data;
+  length -= sizeof(uint32_t);
+
+#if 0 /* Preliminary timings suggest this doesn't help - perhaps because of the distinct zeroing pass */
+  /* Relocate the Long payload if it was packed like a Medium */
+  if ((GASNETC_MSG_CATEGORY(flags) == gasnetc_Long) && (msg_in->longmsg.nBytes & 0x80000000)) {
+     void * const dst = (void *)(msg_in->longmsg.destLoc);
+     void * const src = GASNETC_MSG_LONG_DATA(msg_in, GASNETC_MSG_NUMARGS(flags));
+     const size_t nbytes = (msg_in->longmsg.nBytes &= 0x7fffffff);
+     memcpy(dst, src, nbytes);
+     memset(src, 0, nbytes);
+     length -= nbytes;
+  }
+#endif
+
+  { /* Copy and zero in a single pass. */
+    const unsigned int bytes = GASNETI_ALIGNUP(length, sizeof(unsigned long));
+    const unsigned int words = bytes / sizeof(unsigned long);
+    unsigned long *p, *q;
+    int i;
+    gasneti_assert(bytes <= GASNETC_AMRDMA_MAX);
+    p = (unsigned long *)msg_in;
+    q = (unsigned long *)msg;
+    gasneti_assert(!((uintptr_t)p & 7));  /* 8-byte aligned */
+    gasneti_assert(!((uintptr_t)q & 7));  /* 8-byte aligned */
+    for (i = 0; i < words; ++i) {
+      *(q++) = *p;
+      *(p++) = 0;
     }
-    break;
-  
-  default:
-    gasneti_fatalerror("invalid AM category on send");
-    /* NOT REACHED */
   }
 
   /* Mark slot free locally prior to enabling the ack */
+  hdr->length = 0; hdr->length_again = -1;
+  hdr->zeros = 0;  hdr->zeros_again = -1;
+  hdr->immediate_data = 0;
+
   gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, GASNETI_ATOMIC_REL);
   gasneti_weakatomic_increment(&cep->am_flow.ack, 0);
 
@@ -1605,46 +1573,30 @@ int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
 }
 
 GASNETI_INLINE(gasnetc_encode_amrdma)
-size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, VAPI_sr_desc_t *sr_desc, int send_slot,
-			     char *src_addr, size_t nbytes) {
+size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, VAPI_sr_desc_t *sr_desc, int send_slot) {
   size_t msg_len = sr_desc->sg_lst_p[0].len;
-  int new_len = 2 * (GASNETC_AMRDMA_HDRSZ + msg_len);
+  int new_len = msg_len + sizeof(gasnetc_amrdma_hdr_t);
+  gasnetc_amrdma_hdr_t * const hdr =
+	  (gasnetc_amrdma_hdr_t *)((uintptr_t)sr_desc->sg_lst_p[0].addr - sizeof(gasnetc_amrdma_hdr_t));
 
   gasneti_assert(send_slot >= 0);
   gasneti_assert(send_slot < GASNETC_AMRDMA_DEPTH);
   gasneti_assert(new_len <= GASNETC_AMRDMA_SZ);
 
-  { /* Encode (in-place!!) */
-    char * const base = (char *)(uintptr_t)sr_desc->sg_lst_p[0].addr;
-    char *in, *out;
-    int i;
-
-    /* Medium (or packedLong) payload if applicable */
-    if (nbytes) {
-      msg_len -= nbytes;
-      in = src_addr;
-      out = base + 2 * (GASNETC_AMRDMA_HDRSZ + msg_len);
-      for (i = 0; i < nbytes; ++i, ++in, out += 2) {
-        out[0] = out[1] = *in;
-      }
+  /* Build header */
+  { uint8_t *p = (uint8_t *) &hdr->immediate_data;
+    const int tmp_len =  msg_len + sizeof(uint32_t);
+    int i, zeros;
+    hdr->immediate_data = sr_desc->imm_data;
+    hdr->length = hdr->length_again = tmp_len;
+    for (i = zeros = 0; i < tmp_len; ++i) {
+      if (*(p++) == 0) ++zeros;
     }
-    
-    /* Header w/ args (in reverse to do in place) */
-    in = base + (msg_len - 1);
-    out = base + 2 * (GASNETC_AMRDMA_HDRSZ + (msg_len - 1));
-    for (i = 0; i < msg_len; ++i, --in, out -= 2) {
-      out[0] = out[1] = *in;
-    }
-
-    /* Flags word (would be "immediate data" in a snd/rcv) */
-    in = (char *)&sr_desc->imm_data;
-    out = base;
-    for (i = 0; i < sizeof(sr_desc->imm_data); ++i, ++in, out += 2) {
-      out[0] = out[1] = *in;
-    }
+    hdr->zeros = hdr->zeros_again = zeros;
   }
 
   { /* Fixup the descriptor */
+    sr_desc->sg_lst_p[0].addr = (uintptr_t)hdr;
     sr_desc->sg_lst_p[0].len = new_len;
     sr_desc->opcode = VAPI_RDMA_WRITE;
     sr_desc->remote_addr = cep->amrdma_rem + (send_slot * GASNETC_AMRDMA_SZ);
@@ -1721,13 +1673,11 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     #endif
   } else {
     /* Remote Case */
-    gasnetc_buffer_t *buf;
+    gasnetc_buffer_t *buf, *buf_alloc = NULL;
     gasnet_handlerarg_t *args;
-    void *payload = NULL;
     size_t msg_len;
     int i;
     int have_flow;
-    int buf_on_stack;
     int packedlong = 0;
     int rdma_slot;
     gasnetc_epid_t epid;
@@ -1884,11 +1834,23 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
   
     /* Now get a buffer and start building the message.
      * If we can be certain that the message will be small enough for an inline send/put,
-     * even in the presence of encoding for AM-over-RDMA, then we'll use a buffer on the
-     * stack (saving us from accessing the shared pool of bounce buffers, which might block).
+     * then we'll use a buffer on the stack (saving us from accessing the shared pool of
+     * bounce buffers, which might block).
      */
-    buf_on_stack = (msg_len <= gasnetc_am_inline_limit);
-    buf = buf_on_stack ? ((gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8)) : gasnetc_get_bbuf(1);
+    if (rdma_slot >= 0) {
+      if (msg_len <= gasnetc_am_inline_limit_rdma) {
+        buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
+      } else {
+	buf = (buf_alloc = gasnetc_get_bbuf(1));
+      }
+      buf = (gasnetc_buffer_t *)((uintptr_t)buf + sizeof(gasnetc_amrdma_hdr_t));
+    } else {
+      if (msg_len <= gasnetc_am_inline_limit_sndrcv) { /* sndrcv has higher limit */
+        buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
+      } else {
+	buf = (buf_alloc = gasnetc_get_bbuf(1));
+      }
+    }
     switch (category) {
     case gasnetc_System: /* Currently System == Short.  Fall through... */
     case gasnetc_Short:
@@ -1896,10 +1858,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       break;
   
     case gasnetc_Medium:
-      payload = GASNETC_MSG_MED_DATA(buf, numargs);
       buf->medmsg.nBytes = nbytes;
       args = buf->medmsg.args;
-      if (rdma_slot < 0) memcpy(payload, src_addr, nbytes);
+      memcpy(GASNETC_MSG_MED_DATA(buf, numargs), src_addr, nbytes);
       break;
   
     case gasnetc_Long:
@@ -1909,8 +1870,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         /* Pack like a Medium */
         gasneti_assert(nbytes <= GASNETC_MAX_PACKEDLONG);
         buf->longmsg.nBytes |= 0x80000000; /* IDs the packedlong case */
-        payload = GASNETC_MSG_LONG_DATA(buf, numargs);
-        if (rdma_slot < 0) memcpy(payload, src_addr, nbytes);
+        memcpy(GASNETC_MSG_LONG_DATA(buf, numargs), src_addr, nbytes);
       }
       args = buf->longmsg.args;
       break;
@@ -1968,7 +1928,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       sr_desc->sg_lst_p[0].lkey      = GASNETC_SND_LKEY(cep);
   
       sreq = gasnetc_get_sreq(GASNETC_OP_AM GASNETC_PERTHREAD_PASS);
-      sreq->am_buff = buf_on_stack ? NULL : buf;
+      sreq->am_buff = buf_alloc;
       if_pf (req_oust) {
         gasnetc_counter_inc(req_oust);
         sreq->req_oust = req_oust;
@@ -1977,9 +1937,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
   
       (void)gasnetc_bind_cep(epid, sreq, VAPI_SEND_WITH_IMM, msg_len);
 
-      gasneti_assert(!payload || (payload == (char *)buf + msg_len - nbytes));
       if (rdma_slot >= 0) {
-        msg_len = gasnetc_encode_amrdma(sreq->cep, sr_desc, rdma_slot, src_addr, payload ? nbytes : 0);
+        msg_len = gasnetc_encode_amrdma(sreq->cep, sr_desc, rdma_slot);
       }
 
       gasnetc_snd_post_common(sreq, sr_desc, (msg_len <= gasnetc_inline_limit));
@@ -2975,8 +2934,8 @@ extern int gasnetc_sndrcv_init(void) {
   }
 
   /* Misc: */
-  gasnetc_am_inline_limit = (MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t)) / 2)
-	  				- GASNETC_AMRDMA_HDRSZ;
+  gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
+  gasnetc_am_inline_limit_rdma = MAX(GASNETC_AMRDMA_HDRSZ, gasnetc_am_inline_limit_sndrcv) - GASNETC_AMRDMA_HDRSZ;
 #if !GASNETC_PIN_SEGMENT
   gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
 	  				? (gasnetc_putinmove_limit + gasnetc_inline_limit)
@@ -3020,11 +2979,9 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       gasneti_weakatomic_set(&cep->amrdma.recv_count, 0, 0);
       cep->amrdma_loc = hca->amrdma_next;
       for (j = 0; j < GASNETC_AMRDMA_DEPTH; ++j) {
-	char *p = cep->amrdma_loc[j];
-	int k;
-	for (k = 0; k < GASNETC_AMRDMA_SZ; k += 2, p+= 2) {
-	  p[0] = 0; p[1] = -1;
-	}
+	gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)cep->amrdma_loc[j];
+	hdr->length = hdr->zeros = 0;
+	hdr->length_again = hdr->zeros_again = -1;
       }
       hca->amrdma_next += GASNETC_AMRDMA_DEPTH;
       gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
