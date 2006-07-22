@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/07/22 02:02:31 $
- * $Revision: 1.134.12.5 $
+ *     $Date: 2006/07/22 09:01:05 $
+ * $Revision: 1.134.12.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -244,7 +244,7 @@ typedef struct {
 } gasnetc_memreg_t;
 
 typedef struct {
-	/* Length and Checksum include immediate_data and the msg that follows */
+	/* Length excludes immediate data but zeros includes it */
 	int16_t		length;	
 	int16_t		length_again;
 	int16_t		zeros;
@@ -255,9 +255,10 @@ typedef struct {
 
 /* XXX: need env var overrides for DEPTH and MAX */
 #define GASNETC_AMRDMA_DEPTH	32	/* Power-of-2 */
+#define GASNETC_AMRDMA_PAD	(GASNETC_ALIGNUP(sizeof(gasnetc_amrdma_hdr_t),8)-sizeof(gasnetc_amrdma_hdr_t))
 #define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
 #define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */
-#define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ)
+#define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ - GASNETC_AMRDMA_PAD)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 
 /* Structure for an HCA */
