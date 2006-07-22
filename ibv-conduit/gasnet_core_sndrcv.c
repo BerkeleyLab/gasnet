@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/07/22 02:02:31 $
- * $Revision: 1.189.4.6 $
+ *     $Date: 2006/07/22 09:01:05 $
+ * $Revision: 1.189.4.7 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1017,6 +1017,54 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, int limit, gasnetc_rbuf_t **spar
   return count;
 }
 
+GASNETI_INLINE(gasnetc_amrdma_zeros)
+int gasnetc_amrdma_zeros(uint32_t flags, const void *buf, unsigned int length) {
+  volatile unsigned long *p = (volatile unsigned long *)buf;
+  #if SIZEOF_LONG == 8
+    int full_words = length >> 3;
+  #elif SIZEOF_LONG == 4
+    int full_words = length >> 2;
+  #endif
+  int zeros = !(flags & (0xff << 24)) +
+	      !(flags & (0xff << 16)) +
+	      !(flags & (0xff << 8)) +
+	      !(flags & 0xff);
+
+  gasneti_assert(!((uintptr_t)p & (sizeof(unsigned long) - 1))); /* word aligned */
+
+  while (full_words--) {
+    unsigned long tmp = *(p++);
+    zeros +=
+    #if SIZEOF_LONG == 8
+	     !(tmp & (0xffUL << 56)) +
+	     !(tmp & (0xffUL << 48)) +
+	     !(tmp & (0xffUL << 40)) +
+	     !(tmp & (0xffUL << 32)) +
+    #endif
+	     !(tmp & (0xff << 24)) +
+	     !(tmp & (0xff << 16)) +
+	     !(tmp & (0xff << 8)) +
+	     !(tmp & 0xff);
+  }
+
+  { volatile uint8_t *q = (volatile uint8_t *)p;
+    switch (length & (sizeof(unsigned long) - 1)) {
+    #if SIZEOF_LONG == 8
+      case 7: if (*(q++) == 0) ++zeros;
+      case 6: if (*(q++) == 0) ++zeros;
+      case 5: if (*(q++) == 0) ++zeros;
+      case 4: if (*(q++) == 0) ++zeros;
+    #endif
+      case 3: if (*(q++) == 0) ++zeros;
+      case 2: if (*(q++) == 0) ++zeros;
+      case 1: if (*(q++) == 0) ++zeros;
+      case 0: (void)0;
+    }
+  }
+
+  return zeros;
+}
+
 GASNETI_INLINE(gasnetc_rcv_amrdma)
 int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   #if (GASNETC_AMRDMA_DEPTH > 1)
@@ -1025,8 +1073,6 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   #else
     const int recv_slot = 0;
   #endif
-  volatile uint8_t *p;
-  uint8_t *q;
   volatile gasnetc_amrdma_hdr_t *hdr = (volatile gasnetc_amrdma_hdr_t *)cep->amrdma_loc[recv_slot];
   gasnetc_buffer_t * const msg_in = (gasnetc_buffer_t *)((uintptr_t)hdr + sizeof(*hdr));
   gasnetc_rbuf_t rbuf;
@@ -1035,7 +1081,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   uint32_t seq, flags, mask;
   int numargs;
   int i;
-  int length, zeros;
+  int length, checksum;
 
   if (gasneti_weakatomic_read(&cep->amrdma.recv_in_use, 0) ||
       (hdr->length != hdr->length_again) ||
@@ -1046,33 +1092,31 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   
   /* Must recheck with lock bit held */
   if_pf (((length = hdr->length) != hdr->length_again) ||
-         ((zeros = hdr->zeros) != hdr->zeros_again)) {
+         ((checksum = hdr->zeros) != hdr->zeros_again)) {
     /* Release our lock */
     gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
     return 0;
   }
-  gasneti_assert(length >= sizeof(uint32_t)); /* Must be at least the immediate data */
 
-  /* Validate against checksum */
-  p = (volatile uint8_t *) &hdr->immediate_data;
-  for (i = 0; i < length; ++i) {
-    if ((*(p++) == 0) && !(zeros--)) {
-      /* Too many zeros */
+  /* Extract flags */
+  flags = hdr->immediate_data;
+
+  /* Validate checksum */
+  { 
+    const int zeros = gasnetc_amrdma_zeros(flags, (void *)(&hdr->immediate_data + 1), length);
+    if (zeros != checksum) {
+      gasneti_assert(zeros > checksum); /* Too few zeros is impossible. */
+      /* Too many zeros = recv incomplete */
       gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0); /* Release our lock */
       return 0;
     }
   }
-  gasneti_assert(zeros == 0); /* Too few zeros!! */
 
   #if (GASNETC_AMRDMA_DEPTH > 1)
     gasneti_weakatomic_increment(&cep->amrdma.recv_count, 0);
   #endif
 
   GASNETC_STAT_EVENT(RCV_AM_RDMA);
-
-  /* Extract flags */
-  flags = hdr->immediate_data;
-  length -= sizeof(uint32_t);
 
 #if 0 /* Preliminary timings suggest this doesn't help - perhaps because of the distinct zeroing pass */
   /* Relocate the Long payload if it was packed like a Medium */
@@ -1086,19 +1130,32 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   }
 #endif
 
-  { /* Copy and zero in a single pass. */
-    const unsigned int bytes = GASNETI_ALIGNUP(length, sizeof(unsigned long));
-    const unsigned int words = bytes / sizeof(unsigned long);
-    unsigned long *p, *q;
-    int i;
-    gasneti_assert(bytes <= GASNETC_AMRDMA_MAX);
-    p = (unsigned long *)msg_in;
-    q = (unsigned long *)msg;
-    gasneti_assert(!((uintptr_t)p & 7));  /* 8-byte aligned */
-    gasneti_assert(!((uintptr_t)q & 7));  /* 8-byte aligned */
-    for (i = 0; i < words; ++i) {
-      *(q++) = *p;
-      *(p++) = 0;
+  if (length) {
+    /* Copy and zero in a single pass.
+     * We can safely do this in full words because we own both the source and destination
+     * memory, and can write a few bytes past the end of either w/o harm. */
+    #if SIZEOF_LONG == 8
+      const int words = (length + 7) >> 3;
+    #elif SIZEOF_LONG == 4
+      const int words = (length + 3) >> 2;
+    #else
+      #error "Bad or missing SIZEOF_LONG"
+    #endif
+    int trips = (words + 7) >> 3;
+    unsigned long *p = (unsigned long *)msg_in;
+    unsigned long *q = (unsigned long *)msg;
+    gasneti_assert(!((uintptr_t)p & (sizeof(unsigned long) - 1)));  /* word aligned */
+    gasneti_assert(!((uintptr_t)q & (sizeof(unsigned long) - 1)));  /* word aligned */
+    switch (words & 7) { /* Duff's Device */
+      case 0: do { *(q++) = *p; *(p++) = 0;
+      case 7:      *(q++) = *p; *(p++) = 0;
+      case 6:      *(q++) = *p; *(p++) = 0;
+      case 5:      *(q++) = *p; *(p++) = 0;
+      case 4:      *(q++) = *p; *(p++) = 0;
+      case 3:      *(q++) = *p; *(p++) = 0;
+      case 2:      *(q++) = *p; *(p++) = 0;
+      case 1:      *(q++) = *p; *(p++) = 0;
+                 } while (--trips);
     }
   }
 
@@ -1574,36 +1631,33 @@ int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
 
 GASNETI_INLINE(gasnetc_encode_amrdma)
 size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, VAPI_sr_desc_t *sr_desc, int send_slot) {
-  size_t msg_len = sr_desc->sg_lst_p[0].len;
-  int new_len = msg_len + sizeof(gasnetc_amrdma_hdr_t);
-  gasnetc_amrdma_hdr_t * const hdr =
-	  (gasnetc_amrdma_hdr_t *)((uintptr_t)sr_desc->sg_lst_p[0].addr - sizeof(gasnetc_amrdma_hdr_t));
+  const size_t msg_len = sr_desc->sg_lst_p[0].len;
 
   gasneti_assert(send_slot >= 0);
   gasneti_assert(send_slot < GASNETC_AMRDMA_DEPTH);
-  gasneti_assert(new_len <= GASNETC_AMRDMA_SZ);
 
   /* Build header */
-  { uint8_t *p = (uint8_t *) &hdr->immediate_data;
-    const int tmp_len =  msg_len + sizeof(uint32_t);
-    int i, zeros;
-    hdr->immediate_data = sr_desc->imm_data;
-    hdr->length = hdr->length_again = tmp_len;
-    for (i = zeros = 0; i < tmp_len; ++i) {
-      if (*(p++) == 0) ++zeros;
-    }
-    hdr->zeros = hdr->zeros_again = zeros;
+  { 
+    void * const data = (void *)(uintptr_t)sr_desc->sg_lst_p[0].addr;
+    gasnetc_amrdma_hdr_t * const hdr = (gasnetc_amrdma_hdr_t *)data - 1;
+    const uint32_t flags = sr_desc->imm_data;
+
+    hdr->length = hdr->length_again = msg_len;
+    hdr->zeros = hdr->zeros_again = gasnetc_amrdma_zeros(flags, data, msg_len);
+    hdr->immediate_data = flags;
   }
 
-  { /* Fixup the descriptor */
-    sr_desc->sg_lst_p[0].addr = (uintptr_t)hdr;
+  { /* Fix up the descriptor */
+    const int new_len = msg_len + sizeof(gasnetc_amrdma_hdr_t);
+    sr_desc->sg_lst_p[0].addr -= sizeof(gasnetc_amrdma_hdr_t);
     sr_desc->sg_lst_p[0].len = new_len;
     sr_desc->opcode = VAPI_RDMA_WRITE;
     sr_desc->remote_addr = cep->amrdma_rem + (send_slot * GASNETC_AMRDMA_SZ);
     sr_desc->r_key = cep->keys.amrdma_rkey;
-  }
 
-  return (size_t)new_len;
+    gasneti_assert(new_len <= GASNETC_AMRDMA_SZ);
+    return (size_t)new_len;
+  }
 }
 
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
@@ -2871,7 +2925,8 @@ extern int gasnetc_sndrcv_init(void) {
 	  /* XXX: unwind here? */
 	  gasneti_fatalerror("Unable to allocate pinned memory for AM-over-RDMA");
         }
-        hca->amrdma_next = buf;
+	/* Hand out buffers offset from page base to get full-word alignment of msg */
+        hca->amrdma_next = (gasnetc_amrdma_buf_t *)((uintptr_t)buf + GASNETC_AMRDMA_PAD);
       }
     }
   }
