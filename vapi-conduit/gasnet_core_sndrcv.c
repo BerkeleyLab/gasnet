@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/07/22 09:01:05 $
- * $Revision: 1.189.4.7 $
+ *     $Date: 2006/07/27 23:22:40 $
+ * $Revision: 1.189.4.8 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1076,8 +1076,8 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   volatile gasnetc_amrdma_hdr_t *hdr = (volatile gasnetc_amrdma_hdr_t *)cep->amrdma_loc[recv_slot];
   gasnetc_buffer_t * const msg_in = (gasnetc_buffer_t *)((uintptr_t)hdr + sizeof(*hdr));
   gasnetc_rbuf_t rbuf;
-  uint8_t _buf[8 + GASNETC_AMRDMA_MAX];
-  gasnetc_buffer_t * const msg = (gasnetc_buffer_t *)GASNETI_ALIGNUP(_buf, 8);
+  //uint8_t _buf[8 + GASNETC_AMRDMA_MAX];
+  //gasnetc_buffer_t * const msg = (gasnetc_buffer_t *)GASNETI_ALIGNUP(_buf, 8);
   uint32_t seq, flags, mask;
   int numargs;
   int i;
@@ -1130,6 +1130,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   }
 #endif
 
+#if 0
   if (length) {
     /* Copy and zero in a single pass.
      * We can safely do this in full words because we own both the source and destination
@@ -1158,25 +1159,27 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
                  } while (--trips);
     }
   }
+#endif
 
-  /* Mark slot free locally prior to enabling the ack */
-  hdr->length = 0; hdr->length_again = -1;
-  hdr->zeros = 0;  hdr->zeros_again = -1;
-  hdr->immediate_data = 0;
 
-  gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, GASNETI_ATOMIC_REL);
-  gasneti_weakatomic_increment(&cep->am_flow.ack, 0);
+  rbuf.rr_sg.addr = (uintptr_t)msg_in;
+  rbuf.cep = cep;
+  rbuf.rr_is_rdma = 1;
+  gasnetc_processPacket(cep, &rbuf, flags);
 
   if (GASNETC_MSG_ISREPLY(flags)) {
     /* Account for recv buffer that was reserved for the reply, but not used. */
     gasneti_semaphore_up(&cep->am_loc);
   }
 
-  rbuf.rr_sg.addr = (uintptr_t)msg;
-  rbuf.cep = cep;
-  rbuf.rr_is_rdma = 1;
-  gasnetc_processPacket(cep, &rbuf, flags);
+  /* Mark slot free locally prior to enabling the ack */
+  hdr->length = 0; hdr->length_again = -1;
+  hdr->zeros = 0;  hdr->zeros_again = -1;
+  hdr->immediate_data = 0;
+  memset(msg_in, 0, length);
 
+  gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, GASNETI_ATOMIC_REL);
+  gasneti_weakatomic_increment(&cep->am_flow.ack, 0);
   /* Finalize flow control */
   /* XXX: should force reply on (sndrcv+rdma) >= slack */
   if (rbuf.rbuf_needReply) {
