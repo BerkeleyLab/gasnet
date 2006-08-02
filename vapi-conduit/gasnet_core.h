@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2006/07/08 05:15:21 $
- * $Revision: 1.51.12.2 $
+ *     $Date: 2006/08/02 22:18:34 $
+ * $Revision: 1.51.12.3 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -121,8 +121,8 @@ typedef struct _gasnet_hsl_t {
 /* Type and ops for rdma counters */
 #include <gasnet_atomicops.h> /* must come after hsl defs */
 typedef struct {
-	gasneti_weakatomic_t	completed;
-	int			initiated;
+	gasneti_weakatomic_t	 completed;
+	gasneti_weakatomic_val_t initiated;
 } gasnetc_counter_t;
 #define GASNETC_COUNTER_INITIALIZER	{gasneti_weakatomic_init(0), 0}
 #define gasnetc_counter_reset(P)	do { gasneti_weakatomic_set(&(P)->completed, 0, 0); \
