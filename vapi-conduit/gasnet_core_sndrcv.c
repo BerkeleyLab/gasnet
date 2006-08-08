@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/07/27 23:22:40 $
- * $Revision: 1.189.4.8 $
+ *     $Date: 2006/08/08 19:34:24 $
+ * $Revision: 1.189.4.9 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -227,7 +227,7 @@ static gasnetc_cep_t			**gasnetc_node2cep;
 #endif
 
 #if GASNETI_THREADS
-  static gasneti_threadkey_t gasnetc_per_thread_key = GASNETI_THREADKEY_INITIALIZER;
+  GASNETI_THREADKEY_DEFINE(gasnetc_per_thread_key);
 #else
   static gasnetc_per_thread_t gasnetc_per_thread;
 #endif
@@ -3007,7 +3007,7 @@ extern int gasnetc_sndrcv_init(void) {
 
   /* Init thread-local data */
 #if GASNETI_THREADS
-  gasneti_threadkey_init(&gasnetc_per_thread_key);
+  gasneti_threadkey_init(gasnetc_per_thread_key);
 #else
   gasnetc_per_thread_init(&gasnetc_per_thread);
 #endif
