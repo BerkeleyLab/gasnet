@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.16.10.1 $
+ *     $Date: 2006/08/08 16:36:49 $
+ * $Revision: 1.16.10.2 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,7 @@ int mynode, nodes;
 int peer = -1;
 int testid = 0;
 int numpthreads = 4;
+volatile int signal_bt = 0;
 #define thread_barrier() PTHREAD_BARRIER(numpthreads)
 
 /* test various modes of exiting a GASNet program.
@@ -45,7 +46,18 @@ const char *testdesc[] = {
   "non-collective gasnet_exit(18) from one pthread, others sending messages",
 #endif
 };
-#define MAXTEST (sizeof(testdesc)/sizeof(char*))
+#define NUMTEST (sizeof(testdesc)/sizeof(char*))
+
+const char *crashtestdesc[] = {
+  "gasnett_print_backtrace() from main",
+  "gasnett_print_backtrace() from SIGQUIT handler",
+  "gasnett_fatalerror()",
+  "abort()",
+  "segmentation fault",
+  "bus error",
+  "floating-point exception"
+};
+#define NUMCRASHTEST (sizeof(crashtestdesc)/sizeof(char*))
 
 #define hidx_exit_handler		201
 #define hidx_noop_handler               202
@@ -147,6 +159,10 @@ typedef void (*test_sighandlerfn_t)(int);
 void testSignalHandler(int sig) {
   if (sig != SIGQUIT) {
     FATALERR("got an unexpected signal!");
+  } else if (signal_bt == 1) {
+      gasnett_print_backtrace(STDERR_FILENO);
+      signal_bt = 2;
+      return;
   } else {
     MSG("in SIGQUIT handler, calling gasnet_exit(4)...");
     gasnet_exit(4);
@@ -154,7 +170,8 @@ void testSignalHandler(int sig) {
 }
 
 int main(int argc, char **argv) {
-  char usagestr[255];
+  static char usagestr[4096];
+  char testdescstr[255];
   gasnet_handlerentry_t htable[] = { 
     { hidx_exit_handler, test_exit_handler },
     { hidx_ping_handler, ping_handler },
@@ -162,10 +179,24 @@ int main(int argc, char **argv) {
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  sprintf(usagestr,"(exittestnum:1..%i)", (int)MAXTEST);
-  #ifdef GASNET_PAR
-    strcat(usagestr, " (num_pthreads)");
-  #endif
+  { int i;
+    sprintf(usagestr,"(exittestnum:1..%i | crashtestnum:100..%i)", (int)NUMTEST, (int)(100+NUMCRASHTEST-1));
+    #ifdef GASNET_PAR
+      strcat(usagestr, " (num_pthreads)");
+    #endif
+    strcat(usagestr, "\n\n Exit tests:\n");
+    for (i = 0; i < NUMTEST; i++) {
+      char tmp[80];
+      sprintf(tmp,"  %3i: %s\n", i+1, testdesc[i]);
+      strcat(usagestr, tmp);
+    }
+    strcat(usagestr, "\n Crash tests:\n");
+    for (i = 0; i < NUMCRASHTEST; i++) {
+      char tmp[80];
+      sprintf(tmp,"  %3i: %s\n", i+100, crashtestdesc[i]);
+      strcat(usagestr, tmp);
+    }
+  }
   test_init_early("testexit",0,usagestr);
 
   mynode = gasnet_mynode();
@@ -182,14 +213,16 @@ int main(int argc, char **argv) {
   #ifdef GASNET_PAR
     if (argc > 0) { numpthreads = atoi(*argv); argv++; argc--; }
   #endif
-  if (argc > 0 || testid <= 0 || testid > MAXTEST || numpthreads <= 1) test_usage();
+  if (argc > 0 || testid <= 0 || 
+      (testid > NUMTEST && testid < 100) || 
+      (testid >= 100+NUMCRASHTEST) || 
+      numpthreads <= 1) test_usage();
+
+  sprintf(testdescstr, "Running exit test %i: %s",testid,
+         (testid < 100 ? testdesc[testid-1] : crashtestdesc[testid-100]));
 
   if (testid == 6 || testid == 7) {
-    if (mynode == 0) {
-        printf("Running exit test %i...\n",testid);
-        printf("%s\n",testdesc[testid-1]);
-        fflush(stdout);
-    }
+    MSG0(testdescstr);
     gasnett_sched_yield();
     sleep(1);
     if (testid == 6) {
@@ -210,11 +243,7 @@ int main(int argc, char **argv) {
   TEST_SEG(mynode);
 
   BARRIER();
-  if (mynode == 0) {
-      printf("Running exit test %i...\n",testid);
-      printf("%s\n",testdesc[testid-1]);
-      fflush(stdout);
-  }
+  MSG0(testdescstr);
   BARRIER();
 
   switch (testid) {
@@ -274,7 +303,78 @@ int main(int argc, char **argv) {
       break;
     }
   #endif
-    default:FATALERR("bad testid");
+
+    case 100:
+      if (mynode == nodes-1) { sleep(1); gasnett_print_backtrace(STDERR_FILENO); }
+      BARRIER();
+      gasnet_exit(0);
+      break;
+    case 101:
+      if (mynode == nodes-1) { 
+        sleep(1); 
+        signal_bt = 1;
+        kill(getpid(), SIGQUIT);
+        while (signal_bt != 2) gasnett_sched_yield(); /* await delivery */
+      } else BARRIER();
+      BARRIER();
+      gasnet_exit(0);
+      break;
+    case 102:
+      if (mynode == nodes-1) { 
+        gasnett_fatalerror("Synthetic fatal error");
+        FATALERR("gasnett_fatalerror FAILED!!");
+      }
+      BARRIER();
+      break;
+    case 103:
+      if (mynode == nodes-1) { 
+        abort();
+        FATALERR("abort() FAILED!!");
+      }
+      BARRIER();
+      break;
+    case 104:
+      if (mynode == nodes-1) { 
+        static char volatile *p = NULL;
+        *p = *p + 10;
+        FATALERR("Failed to generate a segmentation fault");
+      }
+      BARRIER();
+      break;
+    case 105:
+      if (mynode == nodes-1) { 
+        static uint64_t myarr[3];
+        static char *p = ((char *)(myarr+1))+1;
+        *(uint16_t volatile *)p = *(uint16_t volatile *)p + 10;
+        *(uint32_t volatile *)p = *(uint32_t volatile *)p + 10;
+        *(uint64_t volatile *)p = *(uint64_t volatile *)p + 10;
+        *(float volatile *)p = *(float volatile *)p + 10;
+        *(double volatile *)p = *(double volatile *)p + 10;
+        gasnett_sched_yield();
+        kill(getpid(), SIGBUS);
+        gasnett_sched_yield();
+        FATALERR("Failed to generate a bus error");
+      }
+      BARRIER();
+      break;
+    case 106:
+      if (mynode == nodes-1) { 
+        static double volatile d = 0.0;
+        static int volatile i = 0;
+        d = 16.0 / d;
+        d = 1.0E30;
+        for (;i < 100;i++) d *= d;
+        d = 1.0;
+        for (;i < 1000;i++) d /= 1.0E30;
+        i = 16 / i;
+        gasnett_sched_yield();
+        kill(getpid(), SIGFPE);
+        gasnett_sched_yield();
+        FATALERR("Failed to generate a floating-point exception");
+      }
+      BARRIER();
+      break;
+    default: FATALERR("bad testid");
   }
 
   /* if we ever reach here, something really bad happenned */

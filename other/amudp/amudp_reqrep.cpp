@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2006/06/06 22:35:24 $
- * $Revision: 1.32.6.1 $
+ *     $Date: 2006/08/08 16:36:41 $
+ * $Revision: 1.32.6.2 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -77,15 +77,24 @@ static int sendPacket(ep_t ep, amudp_buf_t *packet, int packetlength, en_t desta
   #else
     if (sendto(ep->s, (char *)packet, packetlength, /* Solaris requires cast to char* */
                0, (struct sockaddr *)&destaddress, sizeof(en_t)) == SOCKET_ERROR) {
-      for (int i = 0; i < 5; i++) { 
+      int err = errno;
+      int i = 0;
+      while (err == EPERM && i++ < 5) {
          /* Linux intermittently gets EPERM failures here at startup for no apparent reason -
             so allow a retry */
         #if AMUDP_DEBUG_VERBOSE
-           AMUDP_Warn("Got a '%s' on sendto(), retrying...\n", strerror(errno)); 
+           AMUDP_Warn("Got a '%s'(%i) on sendto(), retrying...", strerror(err), err); 
         #endif
+        sleep(1);
         if (sendto(ep->s, (char *)packet, packetlength,
                0, (struct sockaddr *)&destaddress, sizeof(en_t)) != SOCKET_ERROR) goto success;
-        sleep(1);
+        err = errno;
+      }
+      if (err == ENOBUFS || err == ENOMEM) {
+        /* some linuxes also generate ENOBUFS for localhost backpressure - 
+           ignore it and treat it as a drop, let retransmisison handle if necessary */
+        AMUDP_Warn("Got a '%s'(%i) on sendto(%i), ignoring...", strerror(err), err,packetlength); 
+        goto success;
       }
       AMUDP_RETURN_ERRFR(RESOURCE, sendPacket, sockErrDesc());
       success: ;

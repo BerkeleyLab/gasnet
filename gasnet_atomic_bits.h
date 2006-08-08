@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/07/18 02:04:24 $
- * $Revision: 1.238.2.2 $
+ *     $Date: 2006/08/08 16:36:22 $
+ * $Revision: 1.238.2.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1694,6 +1694,7 @@
             "7ca53378"  /* or    r5,r5,r6  */ \
             "f8a30000"  /* std   r5,0(r3)  */ \
           }
+          #pragma reg_killed_by _gasneti_atomic64_set gr5
           #pragma mc_func _gasneti_atomic64_compare_and_swap {\
 	    /* ARGS: r3 = p, r5=oldhi32, r6=oldlo32, r7=newhi32, r8=newlo32 */ \
             "78a507c6"  /*    sldi    r5,r5,32     */ \
@@ -1718,6 +1719,7 @@
             "7c842b78"  /* or    r4,r4,r5  */ \
             "f8830000"  /* std   r4,0(r3)  */ \
           }
+          #pragma reg_killed_by _gasneti_atomic64_set gr4
           #pragma mc_func _gasneti_atomic64_compare_and_swap {\
 	    /* ARGS: r3 = p, r4=oldhi32, r5=oldlo32, r6=newhi32, r7=newlo32 */ \
             "788407c6"  /*    sldi    r4,r4,32     */ \

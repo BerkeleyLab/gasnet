@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/07/10 23:56:37 $
-dnl $Revision: 1.88.2.2 $
+dnl     $Date: 2006/08/08 16:36:22 $
+dnl $Revision: 1.88.2.3 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1126,6 +1126,61 @@ AC_DEFUN([GASNET_CHECK_GCC_ATTRIBUTE],[
   popdef([uppername])
 ]) 
 
+dnl  Check to see if __thread attribute exists and works
+dnl  Caller must setup CFLAGS/LIBS to support pthreaded compilation
+dnl  GASNET_CHECK_TLS_SUPPORT(action-if-yes, action-if-no)
+AC_DEFUN([GASNET_CHECK_TLS_SUPPORT],[
+  GASNET_FUN_BEGIN([$0])
+  GASNET_TRY_CACHE_RUN_WITHCC([whether the GCC __thread extension is supported.], tls_supported, [
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <pthread.h>
+
+#define NTHREADS 5
+pthread_t p[[NTHREADS]];
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+extern __thread long tlocal;
+void foo() { tlocal = 4; } /* extern + use + definition crashes gcc-3.3/ia64 */
+__thread long tlocal = 0;
+
+/* trigger a bug on gcc-3.4/solaris/SPARC - misalignment during compilation with -g leads to 
+   a link error: relocation error: R_SPARC_TLS_DTPOFF32 .. symbol misc2: offset 0xff351dd1 is non-aligned
+*/
+__thread int  misc  = 0;
+__thread long misc2 = 0;
+
+void * thread_start (void *arg) {
+  int id = *((int *)arg);
+  int *return_val = malloc(sizeof(int));
+  if (pthread_mutex_lock (&lock)) { exit (2); }
+  /* if the value is truly thread-local, this assignment
+     will yield the value 1, for each thread. If tlocal
+     is instead a process global static value then tlocal
+     will be incremented by each thread, and its final
+     value will be the number of threads. */
+  tlocal += 1;
+  if (pthread_mutex_unlock (&lock)) { exit (2); }
+  *return_val = tlocal;
+  return return_val;
+}
+],[
+  int i;
+  for (i = 0; i < NTHREADS; ++i) {
+      int *id = (int *)malloc(sizeof(int));
+      *id = i;
+      if (pthread_create(&p[[i]], NULL, thread_start, id)) { exit (2); }
+  }
+  for (i = 0; i < NTHREADS; ++i) {
+      int *rc;
+      if (pthread_join (p[[i]], (void **)&rc)) { exit (2); }
+      if (*rc != 1) { exit (1); }
+  }
+  return 0;
+],[$1],[$2])
+  GASNET_FUN_END([$0])
+])
+
 dnl Output compilation error information, if available and do a AC_MSG_ERROR
 dnl should be used within the failed branch of the compile macro, otherwise
 dnl use GASNET_ERR_SAVE() in the failed branch to save the error info
@@ -1251,21 +1306,29 @@ fi
 GASNET_FUN_END([$0($1,$2,...)])
 ])
 
-dnl compile and run a program, error out if one fails (cross-compilation will skip the run)
-dnl GASNET_TRY_CACHE_VERIFY_RUN(description,cache_name,includes,program,errormsg-on-failure)
-AC_DEFUN([GASNET_TRY_CACHE_VERIFY_RUN],[
+dnl compile and run a program and execute success/failure paths 
+dnl cross-compilation will skip the run and assume success
+dnl GASNET_TRY_CACHE_RUN_WITHCC(description,cache_name,includes,program,action-on-success,action-on-failure)
+AC_DEFUN([GASNET_TRY_CACHE_RUN_WITHCC],[
   GASNET_FUN_BEGIN([$0($1,$2,...)])
   if test "$cross_compiling" = "yes" ; then
-    GASNET_TRY_CACHE_LINK([$1],[$2],[$3],[$4],[ ],[ GASNET_MSG_ERROR([$5]) ])
+    GASNET_TRY_CACHE_LINK([$1],[$2],[$3],[$4],[$5],[$6])
   else
     GASNET_TRY_CACHE_RUN([$1],[$2],[
       $3
       int main() {
         $4
+	return 0;
       }
-    ],[ ],[ GASNET_MSG_ERROR([$5]) ])
+    ],[$5],[$6])
   fi
   GASNET_FUN_END([$0($1,$2,...)])
+])
+
+dnl compile and run a program, error out if one fails (cross-compilation will skip the run)
+dnl GASNET_TRY_CACHE_VERIFY_RUN(description,cache_name,includes,program,errormsg-on-failure)
+AC_DEFUN([GASNET_TRY_CACHE_VERIFY_RUN],[
+  GASNET_TRY_CACHE_RUN_WITHCC([$1],[$2],[$3],[$4],[ ],[ GASNET_MSG_ERROR([$5]) ])
 ])
 
 dnl run a program to extract the value of a runtime expression 

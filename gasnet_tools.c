@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/07/18 02:04:24 $
- * $Revision: 1.140.2.3 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.140.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,6 +30,13 @@
 #include <time.h> /* gasneti_gettimeofday_us */
 #include <sys/time.h> /* gasneti_gettimeofday_us */
 #include <signal.h>
+
+#if HAVE_EXECINFO_H
+  #include <execinfo.h>
+#endif
+#ifdef HAVE_UCONTEXT_H
+  #include <ucontext.h>
+#endif
 
 #if PLATFORM_OS_IRIX
 #define signal(a,b) bsd_signal(a,b)
@@ -209,6 +216,8 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
+static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
+
 /* ------------------------------------------------------------------------------------ */
 /* timer support */
 
@@ -260,6 +269,7 @@ extern double gasneti_tick_metric(int idx) {
   return _gasneti_tick_metric[idx];
 }
 /* ------------------------------------------------------------------------------------ */
+volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
   char expandedmsg[255];
@@ -271,6 +281,14 @@ extern void gasneti_fatalerror(const char *msg, ...) {
     vfprintf(stderr, expandedmsg, argptr);
     fflush(stderr);
   va_end(argptr);
+
+  /* allow freeze */
+  if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0))
+    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
+
+  /* try to get a pre-signal backtrace, which may be more precise */
+  if (!gasneti_print_backtrace_ifenabled(STDERR_FILENO)) 
+    gasneti_atomic_set(&gasneti_backtrace_enabled,0,GASNETI_ATOMIC_REL);
 
   abort();
 }
@@ -325,6 +343,377 @@ extern gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighand
   #endif
   return fpret;
 }
+/* ------------------------------------------------------------------------------------ */
+#ifndef GASNETI_UNFREEZE_SIGNAL
+/* signal to use for unfreezing, could also use SIGUSR1/2 or several others */
+#define GASNETI_UNFREEZE_SIGNAL SIGCONT
+#define GASNETI_UNFREEZE_SIGNAL_STR "SIGCONT"
+#endif
+static volatile int * volatile _gasneti_freeze_flag = NULL;
+static void gasneti_unfreezeHandler(int sig) {
+  gasneti_assert(_gasneti_freeze_flag);
+  *_gasneti_freeze_flag = 0;
+}
+/*  all this to make sure we get a full stack frame for debugger */
+static void _freezeForDebugger(int depth) {
+  if (!depth) _freezeForDebugger(1);
+  else {
+    volatile int i=0;
+    gasneti_sighandlerfn_t old = gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, gasneti_unfreezeHandler);
+    while (*_gasneti_freeze_flag) {
+      i++;
+      sleep(1);
+    }
+    gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old);
+  }
+}
+extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname) {
+  char name[255];
+  gethostname(name, 255);
+  fprintf(stderr,"Process frozen for debugger: host=%s  pid=%i\n"
+                 "To unfreeze, attach a debugger and set '%s' to 0, or send a "
+                 GASNETI_UNFREEZE_SIGNAL_STR "\n", 
+                 name, (int)getpid(), flagsymname); 
+  fflush(stderr);
+  _gasneti_freeze_flag = flag;
+  *_gasneti_freeze_flag = 1;
+  gasneti_local_wmb();
+  _freezeForDebugger(0);
+}
+/* ------------------------------------------------------------------------------------ */
+/* Dynamic backtrace support */
+
+/* All configure-detected backtrace mechanisms available */
+#if HAVE_BACKTRACE
+  #define GASNETI_BT_EXECINFO	&gasneti_bt_execinfo
+#endif
+#if HAVE_PRINTSTACK
+  #define GASNETI_BT_PRINTSTACK	&printstack
+#endif
+#if defined(GDB_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_GDB	&gasneti_bt_gdb
+#endif
+#if defined(LADEBUG_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_LADEBUG	&gasneti_bt_ladebug
+#endif
+#if defined(DBX_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_DBX	&gasneti_bt_dbx
+#endif
+
+#if !GASNETI_NO_FORK
+/* Execute system w/ stdout redirected to 'fd' and std{in,err} to /dev/null */
+static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
+  int rc;
+  int saved_stdin, saved_stdout, saved_stderr;
+
+  /* Redirect output to 'fd' and std{in,err} to /dev/null */
+  saved_stdin = dup(STDIN_FILENO);
+  saved_stdout = dup(STDOUT_FILENO);
+  saved_stderr = dup(STDERR_FILENO);
+  dup2(stdout_fd, STDOUT_FILENO);
+  rc = open("/dev/null", O_WRONLY); dup2(rc, STDERR_FILENO); close(rc);
+  rc = open("/dev/null", O_RDONLY); dup2(rc, STDIN_FILENO); close(rc);
+
+  /* Run the command */
+  rc = system(cmd);
+
+  /* Restore I/O */
+  dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
+  dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
+  dup2(saved_stdin, STDIN_FILENO); close(saved_stdin);
+  return rc;
+}
+#endif
+
+static char gasneti_exename_bt[255];
+
+#ifdef GASNETI_BT_LADEBUG
+  static int gasneti_bt_ladebug(int fd) {
+    #if GASNETI_THREADS
+      const char fmt[] = "echo 'set $stoponattach; attach %d; show thread *; where thread *; quit' | %s '%s'"; 
+    #else
+      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s '%s'"; 
+    #endif
+    static char cmd[1024];
+    /* Try to be smart if not in same place as at configure time */
+    const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
+    int rc = sprintf(cmd, fmt, (int)getpid(), ladebug, gasneti_exename_bt);
+    if (rc < 0) return -1;
+    return gasneti_system_redirected(cmd, fd);
+  }
+#endif
+
+#ifdef GASNETI_BT_DBX
+  static int gasneti_bt_dbx(int fd) {
+    /* dbx's thread support is poor and not easily scriptable */
+    const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
+    static char cmd[1024];
+    const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
+    int rc = sprintf(cmd, fmt, (int)getpid(), dbx, gasneti_exename_bt);
+    if (rc < 0) return -1;
+    return gasneti_system_redirected(cmd, fd);
+  }
+#endif
+
+#ifdef GASNETI_BT_GDB
+  static int gasneti_bt_gdb(int fd) {
+    /* Change "backtrace" to "backtrace full" to also see local vars from each frame */
+    #if GASNETI_THREADS
+      const char commands[] = "info threads\nthread apply all backtrace\ndetach\nquit\n";
+    #else
+      const char commands[] = "backtrace\ndetach\nquit\n";
+    #endif
+    const char fmt[] = "%s -nx -batch -x %s '%s' %d";
+    static char cmd[1024];
+    char filename[255];
+    const char *gdb = (access(GDB_PATH, X_OK) ? "gdb" : GDB_PATH);
+    int rc;
+
+    /* Build gdb commands file, since it won't take commands on stdin */
+    {
+      int tmpfd, len;
+
+      if (getenv("TMPDIR")) strcpy(filename,getenv("TMPDIR"));
+      else strcpy(filename,"/tmp");
+      strcat(filename,"/gasnet_XXXXXX");
+      tmpfd = mkstemp(filename);
+      if (tmpfd < 0) return -1;
+
+      len = sizeof(commands) - 1;
+      rc = write(tmpfd, commands, len);
+      if (rc != len) return -1;
+
+      rc = close(tmpfd);
+      if (rc < 0) return -1;
+    }
+
+    rc = sprintf(cmd, fmt, gdb, filename, gasneti_exename_bt, (int)getpid());
+    if (rc < 0) return -1;
+
+    rc = gasneti_system_redirected(cmd, fd);
+
+    (void)unlink(filename);
+
+    return rc;
+  }
+#endif
+
+#ifdef GASNETI_BT_EXECINFO
+  static int gasneti_bt_execinfo(int fd) {
+    #define MAXBT 1024
+    static void *btaddrs[MAXBT];
+    int entries;
+    char **fnnames = NULL;
+    int i;
+    entries = backtrace(btaddrs, MAXBT);
+    #if HAVE_BACKTRACE_SYMBOLS
+      fnnames = backtrace_symbols(btaddrs, entries);
+    #endif
+    for (i=0; i < entries; i++) {
+      FILE *xlate;
+      #define XLBUF 1024
+      static char xlstr[XLBUF];
+      static char linebuf[XLBUF];
+      int len;
+      xlstr[0] = '\0';
+      #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
+        /* use addr2line when available to retrieve symbolic info */
+        { static char cmd[255];
+          sprintf(cmd,"%s -f -e '%s' %p", ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+          xlate = popen(cmd, "r");
+          if (xlate) {
+            char *p = xlstr;
+            int sz = XLBUF;
+            while (fgets(p, sz, xlate)) {
+              p += strlen(p) - 1;
+              if (*p != '\n') p++;
+              strcpy(p, " ");
+              p += strlen(p);
+            }
+            pclose(xlate);
+          }
+        }
+      #endif
+      sprintf(linebuf, "%i: %s ", i, (fnnames?fnnames[i]:""));
+      write(fd, linebuf, strlen(linebuf));
+      write(fd, xlstr, strlen(xlstr));
+      write(fd, "\n", 1);
+    }
+    /* if (fnnames) free(fnnames); */
+    return 0;
+  }
+#endif
+
+/* table of known/detected backtrace mechanisms */
+static struct {
+  const char *name;        /* upper-case display name of backtrace function */
+  int (* const fnp)(int);   /* pointer to backtrace function */
+  const int threadsupport; /* does backtrace function handle threads correctly? */
+} gasneti_backtrace_mechanisms[] = {
+  #ifdef GASNETI_BT_LADEBUG
+  { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
+  #endif
+  #ifdef GASNETI_BT_GDB
+  { "GDB", GASNETI_BT_GDB, 1 },
+  #endif
+  #ifdef GASNETI_BT_DBX
+  { "DBX", GASNETI_BT_DBX, 0 },
+  #endif
+  #ifdef GASNETI_BT_EXECINFO
+  { "EXECINFO", GASNETI_BT_EXECINFO, 1 },
+  #endif
+  #ifdef GASNETI_BT_PRINTSTACK
+  { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
+  #endif
+  { NULL, NULL, 0 } /* Avoids empty initializer and trailing commas */
+};
+static int const gasneti_backtrace_mechanism_count = /* excludes the NULL */
+   (sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0])) - 1;
+
+static int gasneti_backtrace_isinit = 0;
+static int gasneti_backtrace_userenabled = 0;
+static const char *gasneti_backtrace_list = 0;
+const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
+extern void gasneti_backtrace_init(const char *exename) {
+  char tmp[255];
+  if (exename[0] == '/' || exename[0] == '\\') tmp[0] = '\0';
+  else { getcwd(tmp, sizeof(tmp)); strcat(tmp,"/"); }
+  strcat(tmp, exename);
+  strcpy(gasneti_exename_bt,tmp);
+
+  gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
+
+  { static char btlist_def[255];
+    int i, th;
+    btlist_def[0] = '\0';
+    #if GASNETI_THREADS
+      for (th = 1; th >= 0; th--) 
+    #endif
+      {
+        for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
+          #if GASNETI_THREADS
+          if (th == gasneti_backtrace_mechanisms[i].threadsupport) 
+          #endif
+            {
+              if (strlen(btlist_def)) strcat(btlist_def, ",");
+              strcat(btlist_def,gasneti_backtrace_mechanisms[i].name);
+            }
+        }
+      }
+  
+    gasneti_backtrace_list = gasneti_getenv_withdefault("GASNET_BACKTRACE_TYPE",btlist_def);
+  }
+
+  gasneti_backtrace_isinit = 1;
+}
+
+/* "best effort" to produce a backtrace
+ * Returns 0 on apparent success, non-zero otherwise.
+ * NOTE: If fd corresponds to a FILE*, caller should fflush() it first.
+ */
+extern int gasneti_print_backtrace(int fd) {
+  int retval = 1;
+
+  if (!gasneti_backtrace_isinit) {
+    fprintf(stderr,"WARNING: Ignoring call to gasneti_print_backtrace before gasneti_backtrace_init\n");
+    fflush(stderr);
+    return -1;
+  }
+
+  /* a hopefully signal-safe lock to ensure mutual exclusion and prevent recursion */
+  if (!gasneti_atomic_decrement_and_test(&gasneti_backtrace_enabled,GASNETI_ATOMIC_ACQ)) 
+    return -1;
+
+  { /* Save signal handlers to avoid recursion */
+    gasneti_sighandlerfn_t old_ABRT = gasneti_reghandler(SIGABRT, SIG_DFL);
+    gasneti_sighandlerfn_t old_ILL  = gasneti_reghandler(SIGILL,  SIG_DFL);
+    gasneti_sighandlerfn_t old_SEGV = gasneti_reghandler(SIGSEGV, SIG_DFL);
+    gasneti_sighandlerfn_t old_BUS  = gasneti_reghandler(SIGBUS,  SIG_DFL);
+    gasneti_sighandlerfn_t old_FPE  = gasneti_reghandler(SIGFPE,  SIG_DFL);
+    FILE *file;
+    const char *btlist = NULL;
+
+    /* Create a tmpfile to hold the backtrace */
+    file = tmpfile();
+
+    if (file) {
+      int tmpfd = fileno(file);
+      const char *plist = gasneti_backtrace_list;
+      while (*plist) { /* Loop over selections until success or end */
+        int i;
+        static char btsel[255]; /* parse selection */
+        char *psel = btsel;
+        while (*plist && !strchr(" ,|;",*plist)) { *psel++ = toupper(*plist++); }
+        *psel = '\0';
+        if (*plist) plist++;
+
+        for (i = 0; i < gasneti_backtrace_mechanism_count; ++i) {
+          if (!strcmp(gasneti_backtrace_mechanisms[i].name,btsel)) {
+            retval = (*gasneti_backtrace_mechanisms[i].fnp)(tmpfd);
+            break;
+          }
+        }
+        if (i == gasneti_backtrace_mechanism_count) {
+          fprintf(stderr, "WARNING: GASNET_BACKTRACE_TYPE=%s unrecognized or unsupported - ignoring..\n", btsel);
+          fflush(stderr);
+        } else if (retval == 0) {
+	  static char linebuf[1024];
+	  char *p = linebuf;
+	  int len = sizeof(linebuf);
+          if (gasneti_backtraceid_fn) {
+            strcpy(p, (*gasneti_backtraceid_fn)());
+            len -= strlen(p);
+            p += strlen(p);
+          } else *p = '\0';
+
+	  /* Send to requested destination (and tracefile if any) */
+	  GASNETT_TRACE_PRINTF_FORCE("========== BEGIN BACKTRACE ==========");
+	  rewind(file);
+	  while (fgets(p, len, file)) {
+	    write(fd, linebuf, strlen(linebuf)); /* w/ node prefix */
+            GASNETT_TRACE_PRINTF_FORCE("%s",p);/* w/o node prefix */
+	  }
+	  GASNETT_TRACE_PRINTF_FORCE("========== END BACKTRACE ==========");
+          gasneti_flush_streams();
+          break;
+        } else { /* backtrace attempt failed - retry with next mechanism */
+	  rewind(file);
+        }
+      }
+
+      fclose(file);
+    }
+
+    gasneti_reghandler(SIGABRT, old_ABRT);
+    gasneti_reghandler(SIGILL,  old_ILL);
+    gasneti_reghandler(SIGSEGV, old_SEGV);
+    gasneti_reghandler(SIGBUS,  old_BUS);
+    gasneti_reghandler(SIGFPE,  old_FPE);
+  }
+  gasneti_atomic_set(&gasneti_backtrace_enabled,1,GASNETI_ATOMIC_REL);
+
+  return retval;
+}
+/* ------------------------------------------------------------------------------------ */
+static int _gasneti_print_backtrace_ifenabled(int fd) {
+  static int noticeshown = 0;
+  if (!gasneti_backtrace_isinit) {
+    fprintf(stderr,"WARNING: Ignoring call to gasneti_print_backtrace_ifenabled before gasneti_backtrace_init\n");
+    fflush(stderr);
+    return -1;
+  }
+  if (gasneti_backtrace_userenabled) {
+    return gasneti_print_backtrace(fd);
+  } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
+    fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
+    fflush(stderr);
+    noticeshown = 1;
+    return 1;
+  } else {
+    return 1; /* We don't support any backtrace methods, so avoid false advertising. */
+  }
+}
+int (*gasneti_print_backtrace_ifenabled)(int fd) = &_gasneti_print_backtrace_ifenabled;
 /* ------------------------------------------------------------------------------------ */
 extern uint64_t gasneti_checksum(void *p, int numbytes) {
  uint8_t *buf = (uint8_t *)p;

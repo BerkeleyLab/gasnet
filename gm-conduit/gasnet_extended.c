@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/07/10 23:56:45 $
- * $Revision: 1.36.10.2 $
+ *     $Date: 2006/08/08 16:36:30 $
+ * $Revision: 1.36.10.3 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,7 @@ int 			 gasnete_numthreads = 0;
 static gasnet_hsl_t	 threadtable_lock = GASNET_HSL_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
+  GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
 #endif
 const gasnete_eopaddr_t	EOPADDR_NIL = { { 0xFF, 0xFF } };
 

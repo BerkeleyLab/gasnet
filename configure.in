@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/07/10 23:56:37 $
-# $Revision: 1.310.2.2 $
+#     $Date: 2006/08/08 16:36:22 $
+# $Revision: 1.310.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.2.2 $)
+AC_REVISION($Revision: 1.310.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -274,7 +274,7 @@ AC_DEFUN([GASNET_GET_ULTRASPARC_FLAGS],[
          ])
   if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_ULTRASPARC" != 1; then 
     for flag in $2 ; do
-      ]GASNET_TRY_[$1]FLAG[([$flag],[ultrasparc_flag_worked=1])
+      ]GASNET_TRY_[$1]FLAG[([$flag],[ultrasparc_flag_worked=1],[ultrasparc_flag_worked=0])
       if test "$ultrasparc_flag_worked" = 1; then
         GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS $flag")
 	AC_MSG_CHECKING(for working flag $flag)
@@ -339,7 +339,7 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
     # So, we add a dummy element to keep the for-loop list non-empty, and then skip it.
     for flag in $2 DUMMY ; do
       if test "$flag" != DUMMY ; then
-        ]GASNET_TRY_[$1]FLAG[([$flag],[ppc64_flag_worked=1])
+        ]GASNET_TRY_[$1]FLAG[([$flag],[ppc64_flag_worked=1],[ppc64_flag_worked=0])
         if test "$ppc64_flag_worked" = 1; then
           GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS $flag")
 	  AC_MSG_CHECKING(for working flag $flag)
@@ -381,7 +381,7 @@ case "$gasnet_cv_cc_family" in
   GNU)
     case "$target_cpu" in
       sparc) GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
-      powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL"]);;
+      powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
     esac ;;
   Cray) 
     case "$target_cpu" in
@@ -814,6 +814,23 @@ else
   AC_SEARCH_LIBS(pthread_setconcurrency, pthread pthreads c_r, AC_DEFINE(HAVE_PTHREAD_SETCONCURRENCY))
   AC_SEARCH_LIBS(pthread_kill_other_threads_np, pthread pthreads, AC_DEFINE(HAVE_PTHREAD_KILL_OTHER_THREADS_NP))
 
+  GASNET_IF_ENABLED_WITH_AUTO(tls, Enable/disable use of thread-local storage extensions (ie __thread) (auto-detected),
+    enabled_tls=yes, enabled_tls=no, enabled_tls=probe)
+  if test "$enabled_tls" != "no" ; then
+    case "$gasnet_cv_cc_family-$target_cpu" in
+      Sun-i*86) have_tls=no ;; # __thread causes sunC 5.7 for x86 to crash on libgasnet-par
+      *) 
+      GASNET_CHECK_TLS_SUPPORT([ 
+    	AC_DEFINE(GASNETI_HAVE_TLS_SUPPORT, 1) 
+	have_tls=yes
+      ],[ have_tls=no ]) 
+      ;;
+    esac
+  fi
+  if test "$enabled_tls$have_tls" = "yesno"; then
+     GASNET_MSG_ERROR([--enable-tls passed but no working tls support found])
+  fi
+
  if test "$cross_compiling" = "no"; then
   case "$target_os" in
     darwin*)
@@ -1132,7 +1149,7 @@ if test $enabled_udp = yes; then
        GASNET_GCC_VERSION_CHECK(CXX)
        case "$target_cpu" in
          sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
-         powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL"]);;
+         powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
        esac
        GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
@@ -2420,9 +2437,62 @@ AC_CHECK_FUNCS(setenv unsetenv putenv)
 AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
 
-AC_CHECK_HEADERS(execinfo.h)
-if test "$ac_cv_header_execinfo_h" = "yes" ; then
-  AC_CHECK_FUNCS(backtrace backtrace_symbols)
+########################################################################
+# BACKTRACE support
+
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-execinfo, support backtrace via execinfo.h (auto-detected),
+                 [use_execinfo="yes"], [use_execinfo="no"], [use_execinfo="try"])
+if test "$use_execinfo" != no; then
+  AC_CHECK_HEADERS(execinfo.h)
+  if test "$ac_cv_header_execinfo_h" = "yes" ; then
+    AC_CHECK_FUNCS(backtrace backtrace_symbols)
+  fi
+  if test "$use_execinfo$ac_cv_func_backtrace" = 'yesno'; then
+    AC_MSG_ERROR(User requested --enable-backtrace-execinfo but support is not available on your system.)
+  fi
+  AC_PATH_PROGS(ADDR2LINE_PATH, addr2line, , /usr/bin:${PATH})
+  if test -n "$ADDR2LINE_PATH"; then
+    AC_DEFINE_UNQUOTED(ADDR2LINE_PATH,"$ADDR2LINE_PATH")
+  fi
+fi
+
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-gdb, support backtrace via gdb (auto-detected),
+                 [use_gdb="yes"], [use_gdb="no"], [use_gdb="try"])
+if test "$use_gdb" != no; then
+  AC_PATH_PROGS(GDB_PATH, $GDB gdb, , /usr/bin:${PATH})
+  if test -n "$GDB_PATH"; then
+    AC_DEFINE_UNQUOTED(GDB_PATH,"$GDB_PATH")
+  elif test "$use_gdb" = yes; then
+    AC_MSG_ERROR(User requested --enable-backtrace-gdb but gdb was not found.  Perhaps you need to set \$GDB?)
+  fi
+fi
+
+
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-ladebug, support backtrace via ladebug (auto-detected),
+                 [use_ladebug="yes"], [use_ladebug="no"], [use_ladebug="try"])
+if test "$use_ladebug" != no; then
+  AC_PATH_PROGS(LADEBUG_PATH, $LADEBUG ladebug, , /usr/bin:${PATH})
+  if test -n "$LADEBUG_PATH"; then
+    AC_DEFINE_UNQUOTED(LADEBUG_PATH,"$LADEBUG_PATH")
+  elif test "$use_ladebg" = yes; then
+    AC_MSG_ERROR(User requested --enable-backtrace-ladebug but ladebug was not found.  Perhaps you need to set \$LADEBUG?)
+  fi
+fi
+
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-dbx, support backtrace via dbx (auto-detected),
+                 [use_dbx="yes"], [use_dbx="no"], [use_dbx="try"])
+if test "$use_dbx" != no; then
+  AC_PATH_PROGS(DBX_PATH, $DBX dbx, , /usr/bin:${PATH})
+  if test -n "$DBX_PATH"; then
+    AC_DEFINE_UNQUOTED(DBX_PATH,"$DBX_PATH")
+  elif test "$use_dbx" = yes; then
+    AC_MSG_ERROR(User requested --enable-backtrace-dbx but dbx was not found.  Perhaps you need to set \$DBX?)
+  fi
+fi
+
+AC_CHECK_HEADERS(ucontext.h)
+if test "$ac_cv_header_ucontext_h" = "yes" ; then
+  AC_CHECK_FUNCS(printstack)
 fi
 
 
@@ -2731,22 +2801,6 @@ AC_PATH_PROGS(READLINK, $READLINK readlink)
 # other optional commands
 AC_PATH_PROGS(TIMECMD, $TIMECMD time, , /usr/bin:${PATH})
 AC_PATH_PROGS(ENVCMD, $ENVCMD env, , /usr/bin:${PATH})
-AC_PATH_PROGS(ADDR2LINE_PATH, addr2line, , /usr/bin:${PATH})
-if test -n "$ADDR2LINE_PATH"; then
-  AC_DEFINE_UNQUOTED(ADDR2LINE_PATH,"$ADDR2LINE_PATH")
-fi
-AC_PATH_PROGS(GDB_PATH, $GDB gdb, , /usr/bin:${PATH})
-if test -n "$GDB_PATH"; then
-  AC_DEFINE_UNQUOTED(GDB_PATH,"$GDB_PATH")
-fi
-AC_PATH_PROGS(LADEBUG_PATH, $LADEBUG ladebug, , /usr/bin:${PATH})
-if test -n "$LADEBUG_PATH"; then
-  AC_DEFINE_UNQUOTED(LADEBUG_PATH,"$LADEBUG_PATH")
-fi
-AC_PATH_PROGS(DBX_PATH, $DBX dbx, , /usr/bin:${PATH})
-if test -n "$DBX_PATH"; then
-  AC_DEFINE_UNQUOTED(DBX_PATH,"$DBX_PATH")
-fi
 
 AC_SUBST(BOURNE_SHELL)
 AC_SUBST(AR)

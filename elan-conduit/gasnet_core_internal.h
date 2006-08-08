@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/06/06 22:35:03 $
- * $Revision: 1.35.8.1 $
+ *     $Date: 2006/08/08 16:36:26 $
+ * $Revision: 1.35.8.2 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,25 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+
+#if PLATFORM_COMPILER_PGI
+  /* this workaround enables use of PGI with the libelan headers */
+  #ifndef __GNUC__
+    #define __GNUC__ 3
+    #define GASNETC_PGI_ELAN_GNUC 1
+  #endif
+  #if PLATFORM_ARCH_X86_64 && !defined(__x86_64)
+    #define __x86_64 1
+    #define GASNETC_PGI_ELAN_X8664 1
+  #endif
+  #include <qsnet/fence.h>
+  #if GASNETC_PGI_ELAN_GNUC
+    #undef __GNUC__
+  #endif
+  #if GASNETC_PGI_ELAN_X8664
+    #undef __x86_64
+  #endif
+#endif
 
 #include <elan/elan.h>
 

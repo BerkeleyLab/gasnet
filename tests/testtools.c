@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.32.2.1 $
+ *     $Date: 2006/08/08 16:36:49 $
+ * $Revision: 1.32.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,6 +64,29 @@ double volatile d_junk = 0;
 GASNETT_EXTERNC
 void test_dummy5(void) { }
 
+GASNETT_THREADKEY_DECLARE(sertest_key1);
+GASNETT_THREADKEY_DEFINE(sertest_key1);
+GASNETT_THREADKEY_DEFINE(sertest_key2);
+GASNETT_THREADKEY_DEFINE(partest_key1);
+GASNETT_THREADKEY_DEFINE(partest_key2);
+#define test_threadkeys(key1,key2) do {            \
+  void *val = gasnett_threadkey_get(key1);         \
+  assert_always(val == NULL);                      \
+  gasnett_threadkey_set(key1,(void *)&val);        \
+  val = gasnett_threadkey_get(key1);               \
+  assert_always(val == &val);                      \
+                                                   \
+  gasnett_threadkey_init(key2);                    \
+  val = gasnett_threadkey_get_noinit(key2);        \
+  assert_always(val == NULL);                      \
+  gasnett_threadkey_set_noinit(key2,(void *)&val); \
+  val = gasnett_threadkey_get_noinit(key2);        \
+  assert_always(val == &val);                      \
+  gasnett_threadkey_init(key2);                    \
+  val = gasnett_threadkey_get_noinit(key2);        \
+  assert_always(val == &val);                      \
+} while (0)
+
 int main(int argc, char **argv) {
 
   test_init("testtools", 0,"(iters) (num_threads) (tests_to_run)");
@@ -112,7 +135,7 @@ int main(int argc, char **argv) {
   if ((GASNETT_CACHE_LINE_BYTES & (GASNETT_CACHE_LINE_BYTES-1)) != 0)
         ERR("GASNETT_CACHE_LINE_BYTES not a power of two!");
 
-  { uint64_t val = gasneti_getPhysMemSz(0);
+  { uint64_t val = gasnett_getPhysMemSz(0);
     char sz_str[50];
     gasnett_format_number(val, sz_str, sizeof(sz_str), 1);
     if (val == 0) MSG("WARNING: gasnett_getPhysMemSz() failed to discover physical memory size.");
@@ -191,12 +214,12 @@ int main(int argc, char **argv) {
         ERR("timer and reference differ by more than 0.01sec:\n"
                "\ttime=%i  timeref=%i\n",time,timeref);
 
-      if (abs( (gasnett_ticks_to_us(end) - gasnett_ticks_to_us(start)) - 
-               gasnett_ticks_to_us(end - start) ) > 1)
+      if (abs( (int)((gasnett_ticks_to_us(end) - gasnett_ticks_to_us(start)) - 
+                      gasnett_ticks_to_us(end - start)) ) > 1)
         ERR("ticks_to_us(A) - ticks_to_us(B) != ticks_to_us(A-B)");
 
-      if (abs( gasnett_ticks_to_ns(end - start)/1000 - 
-               gasnett_ticks_to_us(end - start) ) > 1)
+      if (abs( (int)(gasnett_ticks_to_ns(end - start)/1000 - 
+                     gasnett_ticks_to_us(end - start)) ) > 1)
         ERR("ticks_to_ns(A)/1000 != ticks_to_us(A)");
 
     }
@@ -235,6 +258,11 @@ int main(int argc, char **argv) {
     }
   }
 
+  TEST_HEADER("Testing threadkey (sequential)...")
+  { /* serial threadkey test */
+    test_threadkeys(sertest_key1,sertest_key2);
+  }
+
   TEST_HEADER("Testing atomic ops (sequential)...")
   { /* we can't really test atomicity without spinning threads, 
        but we can at least test simple operations  */
@@ -245,32 +273,32 @@ int main(int argc, char **argv) {
       ERR("gasnett_atomic_init/gasnett_atomic_read got wrong value");
 
     gasnett_atomic_set(&var, 2*iters, 0);
-    if (gasnett_atomic_read(&var,0) != 2*iters)
+    if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(2*iters))
       ERR("gasnett_atomic_set/gasnett_atomic_read got wrong value");
 
     for (i=1;i<=iters;i++) {
       gasnett_atomic_increment(&var,0);
-      if (gasnett_atomic_read(&var,0) != 2*iters + i)
+      if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(2*iters + i))
         ERR("gasnett_atomic_increment got wrong value");
     }
 
     for (i=iters-1;i>=0;i--) {
       gasnett_atomic_decrement(&var,0);
-      if (gasnett_atomic_read(&var,0) != 2*iters + i)
+      if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(2*iters + i))
         ERR("gasnett_atomic_decrement got wrong value");
     }
 
     for (i=1;i<=iters;i++) {
       gasnett_atomic_set(&var, i, 0);
       gasnett_atomic_increment(&var,0);
-      if (gasnett_atomic_read(&var,0) != i+1)
+      if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(i+1))
         ERR("gasnett_atomic_set/gasnett_atomic_increment got wrong value");
     }
 
     for (i=1;i<=iters;i++) {
       gasnett_atomic_set(&var, i, 0);
       gasnett_atomic_decrement(&var,0);
-      if (gasnett_atomic_read(&var,0) != i-1)
+      if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(i-1))
         ERR("gasnett_atomic_set/gasnett_atomic_decrement got wrong value");
     }
 
@@ -278,7 +306,7 @@ int main(int argc, char **argv) {
     for (i=iters-1;i>=1;i--) {
       if (gasnett_atomic_decrement_and_test(&var,0))
         ERR("gasnett_atomic_decrement_and_test got wrong value");
-      if (gasnett_atomic_read(&var,0) != i)
+      if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(i))
         ERR("gasnett_atomic_decrement_and_test set wrong value");
     }
     if (!gasnett_atomic_decrement_and_test(&var,0))
@@ -293,11 +321,11 @@ int main(int argc, char **argv) {
           ERR("gasnett_atomic_compare_and_swap succeeded at i=%i when it should have failed", i);
 	if (gasnett_atomic_compare_and_swap(&var, i+1, i-2, 0))
           ERR("gasnett_atomic_compare_and_swap succeeded at i=%i when it should have failed", i);
-        if (gasnett_atomic_read(&var,0) != i)
+        if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(i))
           ERR("gasnett_atomic_compare_and_swap altered value when it should not have at i=%i", i);
 	if (!gasnett_atomic_compare_and_swap(&var, i, i+1, 0))
           ERR("gasnett_atomic_compare_and_swap failed at i=%i when it should have succeeded", i);
-        if (gasnett_atomic_read(&var,0) != i+1)
+        if (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(i+1))
           ERR("gasnett_atomic_compare_and_swap set wrong updated value at i=%i", i);
       }
     #endif
@@ -305,11 +333,11 @@ int main(int argc, char **argv) {
     #if defined(GASNETT_HAVE_ATOMIC_ADD_SUB)
       gasnett_atomic_set(&var, 1, 0);
       for (i=1;i<=iters;i++) {
-        if ((gasnett_atomic_add(&var, i, 0) != 2*i) ||
-            (gasnett_atomic_read(&var,0) != 2*i))
+        if ((gasnett_atomic_add(&var, i, 0) != (gasnett_atomic_val_t)(2*i)) ||
+            (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(2*i)))
           ERR("gasnett_atomic_add got wrong value");
-        if ((gasnett_atomic_subtract(&var, i-1, 0) != i+1) ||
-            (gasnett_atomic_read(&var,0) != i+1))
+        if ((gasnett_atomic_subtract(&var, i-1, 0) != (gasnett_atomic_val_t)(i+1)) ||
+            (gasnett_atomic_read(&var,0) != (gasnett_atomic_val_t)(i+1)))
           ERR("gasnett_atomic_subtract got wrong value");
       }
     #endif
@@ -325,7 +353,7 @@ int main(int argc, char **argv) {
     if (gasnett_atomic_read(&var,0) != GASNETT_ATOMIC_MAX)
         ERR("gasnett_atomic_increment could not reach GASNETT_ATOMIC_MAX");
 
-    gasnett_atomic_set(&var, -1, 0);
+    gasnett_atomic_set(&var, (gasnett_atomic_val_t)(-1), 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != -1)
         ERR("gasnett_atomic_set/signed could not handle -1");
     gasnett_atomic_increment(&var, 0);
@@ -411,7 +439,7 @@ int main(int argc, char **argv) {
         ERR("gasnett_atomic32_init/gasnett_atomic32_read got wrong value");
 
       gasnett_atomic32_set(&var32, 2*iters, 0);
-      if (gasnett_atomic32_read(&var32,0) != 2*iters)
+      if (gasnett_atomic32_read(&var32,0) != (uint32_t)(2*iters))
         ERR("gasnett_atomic32_set/gasnett_atomic32_read got wrong value");
 
       /* single bit-marching tests */
@@ -444,11 +472,11 @@ int main(int argc, char **argv) {
           ERR("gasnett_atomic32_compare_and_swap succeeded at i=%i when it should have failed", i);
 	if (gasnett_atomic32_compare_and_swap(&var32, i+1, i-2, 0))
           ERR("gasnett_atomic32_compare_and_swap succeeded at i=%i when it should have failed", i);
-        if (gasnett_atomic32_read(&var32,0) != i)
+        if (gasnett_atomic32_read(&var32,0) != (uint32_t)i)
           ERR("gasnett_atomic32_compare_and_swap altered value when it should not have at i=%i", i);
 	if (!gasnett_atomic32_compare_and_swap(&var32, i, i+1, 0))
           ERR("gasnett_atomic32_compare_and_swap failed at i=%i when it should have succeeded", i);
-        if (gasnett_atomic32_read(&var32,0) != i+1)
+        if (gasnett_atomic32_read(&var32,0) != (uint32_t)(i+1))
           ERR("gasnett_atomic32_compare_and_swap set wrong updated value at i=%i", i);
       }
     }
@@ -462,7 +490,7 @@ int main(int argc, char **argv) {
         ERR("gasnett_atomic64_init/gasnett_atomic64_read got wrong value");
 
       gasnett_atomic64_set(&var64, 2*iters, 0);
-      if (gasnett_atomic64_read(&var64,0) != 2*iters)
+      if (gasnett_atomic64_read(&var64,0) != (uint64_t)(2*iters))
         ERR("gasnett_atomic64_set/gasnett_atomic64_read got wrong value");
 
       /* single bit-marching tests */
@@ -495,11 +523,11 @@ int main(int argc, char **argv) {
           ERR("gasnett_atomic64_compare_and_swap succeeded at i=%i when it should have failed", i);
 	if (gasnett_atomic64_compare_and_swap(&var64, i+1, i-2, 0))
           ERR("gasnett_atomic64_compare_and_swap succeeded at i=%i when it should have failed", i);
-        if (gasnett_atomic64_read(&var64,0) != i)
+        if (gasnett_atomic64_read(&var64,0) != (uint64_t)i)
           ERR("gasnett_atomic64_compare_and_swap altered value when it should not have at i=%i", i);
 	if (!gasnett_atomic64_compare_and_swap(&var64, i, i+1, 0))
           ERR("gasnett_atomic64_compare_and_swap failed at i=%i when it should have succeeded", i);
-        if (gasnett_atomic64_read(&var64,0) != i+1)
+        if (gasnett_atomic64_read(&var64,0) != (uint64_t)(i+1))
           ERR("gasnett_atomic64_compare_and_swap set wrong updated value at i=%i", i);
       }
     }
@@ -539,7 +567,8 @@ gasnett_atomic_t _thread_barrier = gasnett_atomic_init(0);
 #define THREAD_BARRIER() do {                                               \
    barcnt++;                                                                \
    gasnett_atomic_increment(&_thread_barrier, GASNETT_ATOMIC_REL);          \
-   while (gasnett_atomic_read(&_thread_barrier,0) < (barcnt*NUM_THREADS)) { \
+   while (gasnett_atomic_read(&_thread_barrier,0) <                         \
+                              (gasnett_atomic_val_t)(barcnt*NUM_THREADS)) { \
       gasnett_sched_yield();                                                \
    }                                                                        \
    gasnett_local_rmb(); /* Acquire */                                       \
@@ -567,12 +596,12 @@ void * thread_fn(void *arg) {
       int tmp;
       /* simple count-up barrier */
       gasnett_atomic_increment(&up,0);
-      while (gasnett_atomic_read(&up,0) < NUM_THREADS) gasnett_sched_yield(); 
+      while (gasnett_atomic_read(&up,0) < (gasnett_atomic_val_t)NUM_THREADS) gasnett_sched_yield(); 
 
       gasnett_atomic_set(&down, 2*NUM_THREADS, 0);
 
       gasnett_atomic_increment(&up,0);
-      while (gasnett_atomic_read(&up,0) < 2*NUM_THREADS) gasnett_sched_yield(); 
+      while (gasnett_atomic_read(&up,0) < (gasnett_atomic_val_t)(2*NUM_THREADS)) gasnett_sched_yield(); 
 
       tmp = gasnett_atomic_read(&up,0);
       if (tmp != 2*NUM_THREADS)
@@ -580,7 +609,7 @@ void * thread_fn(void *arg) {
 
       /* simple count-down barrier */
       gasnett_atomic_decrement(&down,0);
-      while (gasnett_atomic_read(&down,0) > NUM_THREADS) gasnett_sched_yield(); 
+      while (gasnett_atomic_read(&down,0) > (gasnett_atomic_val_t)NUM_THREADS) gasnett_sched_yield(); 
 
       gasnett_atomic_set(&up, 0, 0);
 
@@ -591,6 +620,11 @@ void * thread_fn(void *arg) {
       if (tmp != 0)
         ERR("count-down post-barrier read: %i != 0", tmp);
     }
+  }
+
+  TEST_HEADER("parallel threadkey test...")
+  { /* parallel threadkey test */
+    test_threadkeys(partest_key1,partest_key2);
   }
 
   TEST_HEADER("parallel atomic-op pounding test...") {
@@ -664,7 +698,7 @@ void * thread_fn(void *arg) {
       }
     }
 
-    if (gasnett_atomic_read(&x5, GASNETT_ATOMIC_RMB_PRE) != 2*iters)
+    if (gasnett_atomic_read(&x5, GASNETT_ATOMIC_RMB_PRE) != (gasnett_atomic_val_t)(2*iters))
       ERR("pounding dec-test mismatch");
   }
 
@@ -816,7 +850,7 @@ void * thread_fn(void *arg) {
       uint32_t woncnt = 0;
       uint32_t oldval;
 
-      while (woncnt < iters &&
+      while (woncnt < (uint32_t)iters &&
              (oldval = gasnett_atomic_read(&counter2,0)) != goal) {
         if (gasnett_atomic_compare_and_swap(&counter2, oldval, (oldval + 1), 0)) {
            woncnt++;
@@ -826,7 +860,7 @@ void * thread_fn(void *arg) {
       oldval = gasnett_atomic_read(&counter2,0);
       if (oldval != goal) 
         ERR("failed compare-and-swap test: counter=%i expecting=%i", (int)oldval, (int)goal);
-      if (woncnt != iters) 
+      if (woncnt != (uint32_t)iters) 
         ERR("failed compare-and-swap test: woncnt=%i iters=%i", (int)woncnt, (int)iters);
 
       /* Now try spinlock construct */
@@ -862,7 +896,7 @@ void * thread_fn(void *arg) {
       uint32_t woncnt = 0;
       uint32_t oldval;
 
-      while (woncnt < iters && (oldval = gasnett_atomic32_read(&counter32,0)) != goal) {
+      while (woncnt < (uint32_t)iters && (oldval = gasnett_atomic32_read(&counter32,0)) != goal) {
         if (gasnett_atomic32_compare_and_swap(&counter32, oldval, (oldval + 1), 0)) {
            woncnt++;
         }
@@ -871,7 +905,7 @@ void * thread_fn(void *arg) {
       oldval = gasnett_atomic32_read(&counter32,0);
       if (oldval != goal) 
         ERR("failed 32-bit compare-and-swap test: counter=%i expecting=%i", (int)oldval, (int)goal);
-      if (woncnt != iters) 
+      if (woncnt != (uint32_t)iters) 
         ERR("failed 32-bit compare-and-swap test: woncnt=%i iters=%i", (int)woncnt, (int)iters);
     }
 
@@ -881,7 +915,7 @@ void * thread_fn(void *arg) {
       uint64_t woncnt = 0;
       uint64_t oldval;
 
-      while (woncnt < iters && (oldval = gasnett_atomic64_read(&counter64,0)) != goal) {
+      while (woncnt < (uint32_t)iters && (oldval = gasnett_atomic64_read(&counter64,0)) != goal) {
         if (gasnett_atomic64_compare_and_swap(&counter64, oldval, (oldval + 1), 0)) {
            woncnt++;
         }
@@ -890,7 +924,7 @@ void * thread_fn(void *arg) {
       oldval = gasnett_atomic64_read(&counter64,0);
       if (oldval != goal) 
         ERR("failed 64-bit compare-and-swap test: counter=%i expecting=%i", (int)oldval, (int)goal);
-      if (woncnt != iters) 
+      if (woncnt != (uint32_t)iters) 
         ERR("failed 64-bit compare-and-swap test: woncnt=%i iters=%i", (int)woncnt, (int)iters);
     }
   }

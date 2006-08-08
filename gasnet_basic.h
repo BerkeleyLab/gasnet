@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/06/06 22:34:57 $
- * $Revision: 1.47.2.1 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.47.2.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,15 @@
 /* must precede everything else to ensure correct operation */
 #include "portable_inttypes.h"
 #include "portable_platform.h"
+
+#if PLATFORM_COMPILER_ID != GASNETI_PLATFORM_COMPILER_ID || \
+    PLATFORM_COMPILER_VERSION != GASNETI_PLATFORM_COMPILER_VERSION
+  /* detect when the compiler in use differs from the one tested by configure,
+     indicating some of the configure-detected results may be invalid for this compilation
+     this is permitted in certain VERY limited contexts, and activates conservative assumptions
+   */
+  #define GASNETI_CONFIGURE_MISMATCH 1
+#endif
 
 /* include files that may conflict with macros defined later */
 #ifdef HAVE_SYS_PARAM_H
@@ -36,10 +45,12 @@
   #define GASNETI_BEGIN_EXTERNC extern "C" {
   #define GASNETI_EXTERNC       extern "C" 
   #define GASNETI_END_EXTERNC   }
+  #define GASNETI_TENTATIVE_EXTERN extern
 #else
   #define GASNETI_BEGIN_EXTERNC 
   #define GASNETI_EXTERNC       
   #define GASNETI_END_EXTERNC 
+  #define GASNETI_TENTATIVE_EXTERN 
 #endif
 
 #if defined(__cplusplus)
@@ -297,6 +308,12 @@
           declarator
 #else
   #define GASNETI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
+#endif
+#if PLATFORM_COMPILER_GCC
+  /* gcc allows format attribute on a pointer-to-function */
+  #define GASNETI_FORMAT_PRINTF_FUNCPTR GASNETI_FORMAT_PRINTF
+#else
+  #define GASNETI_FORMAT_PRINTF_FUNCPTR(fnpname,fmtarg,firstvararg,declarator) declarator
 #endif
 
 /* ------------------------------------------------------------------------------------ */

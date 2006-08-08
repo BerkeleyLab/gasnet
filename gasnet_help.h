@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2006/07/18 02:04:24 $
- * $Revision: 1.71.2.3 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.71.2.4 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,8 +14,6 @@
 #define _GASNET_HELP_H
 
 GASNETI_BEGIN_EXTERNC
-
-extern int (*gasneti_print_backtrace)(int);
 
 typedef struct { 
   uint64_t allocated_bytes;   /* num bytes ever allocated */
@@ -461,8 +459,8 @@ typedef void (*gasneti_progressfn_t)();
      get the lock. They should not AMPoll while this suspend is in effect.
      The following debugging assertions detect violations of these rules.
   */ 
-  #if GASNET_DEBUG && GASNETI_THREADS
-    extern gasneti_threadkey_t gasneti_throttledebug_key;
+  #if GASNET_DEBUG
+    GASNETI_THREADKEY_DECLARE(gasneti_throttledebug_key);
 
     #define gasneti_AMPoll_spinpollers_check()          \
       /* assert this thread hasn't already suspended */ \
@@ -478,22 +476,6 @@ typedef void (*gasneti_progressfn_t)();
       /* assert this thread previously suspended */                                         \
       gasneti_assert(_mythrottlecnt == 1);                                                  \
       gasneti_threadkey_set(gasneti_throttledebug_key, (void *)(intptr_t)0);                \
-    } while(0)
-  #elif GASNET_DEBUG
-    extern int gasneti_throttledebug_cnt;
-
-    #define gasneti_AMPoll_spinpollers_check()          \
-      /* assert this thread hasn't already suspended */ \
-      gasneti_assert(gasneti_throttledebug_cnt == 0)
-    #define gasneti_suspend_spinpollers_check() do {    \
-      /* assert this thread hasn't already suspended */ \
-      gasneti_assert(gasneti_throttledebug_cnt == 0);   \
-      gasneti_throttledebug_cnt = 1;                    \
-    } while(0)
-    #define gasneti_resume_spinpollers_check() do {   \
-      /* assert this thread previously suspended */   \
-      gasneti_assert(gasneti_throttledebug_cnt == 1); \
-      gasneti_throttledebug_cnt = 0;                  \
     } while(0)
   #else
     #define gasneti_AMPoll_spinpollers_check()  ((void)0)

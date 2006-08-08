@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/07/18 02:04:26 $
- * $Revision: 1.65.4.3 $
+ *     $Date: 2006/08/08 16:36:26 $
+ * $Revision: 1.65.4.4 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,7 @@ static int gasnete_nbi_throttle = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  static gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
+  GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
@@ -187,7 +187,7 @@ static void gasnete_check_config() {
 
 extern void gasnete_init() {
   static int firstcall = 1;
-  char default_nbi_throttle[80];
+  int default_nbi_throttle = GASNETE_DEFAULT_NBI_THROTTLE;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
   gasneti_assert(firstcall); /*  make sure we haven't been called before */
   firstcall = 0;
@@ -196,7 +196,6 @@ extern void gasnete_init() {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  strcpy(default_nbi_throttle, _STRINGIFY(GASNETE_DEFAULT_NBI_THROTTLE));
   #if GASNETE_MULTI_PGCTRL
     { int i;
       int depth = gasnett_getenv_int_withdefault("GASNET_NETWORKDEPTH", 1024, 0);
@@ -206,7 +205,7 @@ extern void gasnete_init() {
         gasneti_fatalerror("Illegal value for GASNET_NETWORKDEPTH - must be in 1..%i", 
                            GASNETE_NUMPGCTRL_CNTMAX*GASNETC_PGCTRL_THROTTLE);
       depth = gasnete_elan_pgctrl_cnt*GASNETC_PGCTRL_THROTTLE;
-      sprintf(default_nbi_throttle, "%i", depth);
+      default_nbi_throttle = depth;
       for (i = 0; i < gasnete_elan_pgctrl_cnt; i++) {
         void *qMem = NULL;
         #if ELAN_VERSION_GE(1,4,8) && GASNETE_PGCTRL_PGVSUPPORT

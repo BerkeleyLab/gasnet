@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/07/18 02:04:24 $
- * $Revision: 1.52.2.3 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.52.2.4 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,12 +100,16 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_CONSTP                  GASNETI_CONSTP
 #define GASNETT_WARN_UNUSED_RESULT      GASNETI_WARN_UNUSED_RESULT
 #define GASNETT_FORMAT_PRINTF           GASNETI_FORMAT_PRINTF
+#define GASNETT_FORMAT_PRINTF_FUNCPTR   GASNETI_FORMAT_PRINTF_FUNCPTR
 
 #define GASNETT_CURRENT_FUNCTION        GASNETI_CURRENT_FUNCTION
 
 #define GASNETT_BEGIN_EXTERNC           GASNETI_BEGIN_EXTERNC
 #define GASNETT_END_EXTERNC             GASNETI_END_EXTERNC
 #define GASNETT_EXTERNC                 GASNETI_EXTERNC
+#define GASNETT_COMMON_EXTERN           GASNETI_COMMON_EXTERN
+#define GASNETT_TENTATIVE_EXTERN        GASNETI_TENTATIVE_EXTERN
+
 /* ------------------------------------------------------------------------------------ */
 /* portable memory barriers */
 
@@ -269,15 +273,19 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_sighandlerfn_t  gasneti_sighandlerfn_t
 #define gasnett_reghandler      gasneti_reghandler
 #define gasnett_checksum        gasneti_checksum
-#define gasneti_isLittleEndian  gasneti_isLittleEndian
+#define gasnett_isLittleEndian  gasneti_isLittleEndian
 #define gasnett_set_affinity    gasneti_set_affinity
 #define gasnett_spinloop_hint   gasneti_spinloop_hint
+#define gasnett_freezeForDebuggerNow gasneti_freezeForDebuggerNow
+#define gasnett_backtrace_init gasneti_backtrace_init
+#define gasnett_print_backtrace gasneti_print_backtrace
+#define gasnett_print_backtrace_ifenabled gasneti_print_backtrace_ifenabled
 
-#define gasnett_threadkey_t                       gasneti_threadkey_t
-#define GASNETT_THREADKEY_INITIALIZER             GASNETI_THREADKEY_INITIALIZER
+#define GASNETT_THREADKEY_DECLARE                 GASNETI_THREADKEY_DECLARE
+#define GASNETT_THREADKEY_DEFINE                  GASNETI_THREADKEY_DEFINE
 #define gasnett_threadkey_get(key)                gasneti_threadkey_get(key)
 #define gasnett_threadkey_set(key,newval)         gasneti_threadkey_set(key,newval)
-#define gasnett_threadkey_init(pkey)              gasneti_threadkey_init(pkey)
+#define gasnett_threadkey_init(key)               gasneti_threadkey_init(key)
 #define gasnett_threadkey_get_noinit(key)         gasneti_threadkey_get_noinit(key)
 #define gasnett_threadkey_set_noinit(key,newval)  gasneti_threadkey_set_noinit(key,newval)
 
@@ -296,30 +304,41 @@ GASNETI_BEGIN_EXTERNC
   #define GASNETT_TRACE_UNFREEZESOURCELINE()        ((void)0)
 #endif
 
-#if defined(_INCLUDED_GASNET_H) && defined(GASNET_TRACE)
-  #define GASNETT_TRACE_ENABLED  GASNETI_TRACE_ENABLED(H)
-  #define GASNETT_TRACE_PRINTF        _gasnett_trace_printf
-  #define GASNETT_TRACE_PRINTF_FORCE  _gasnett_trace_printf_force
-  GASNETI_FORMAT_PRINTF(_gasnett_trace_printf,1,2,
-  extern void _gasnett_trace_printf(const char *format, ...));
-  GASNETI_FORMAT_PRINTF(_gasnett_trace_printf_force,1,2,
-  extern void _gasnett_trace_printf_force(const char *format, ...));
-  #define GASNETT_TRACE_GETMASK()     GASNETI_TRACE_GETMASK()
-  #define GASNETT_TRACE_SETMASK(mask) GASNETI_TRACE_SETMASK(mask)
-  #define GASNETT_TRACE_GET_TRACELOCAL()        GASNETI_TRACE_GET_TRACELOCAL()
-  #define GASNETT_TRACE_SET_TRACELOCAL(newval)  GASNETI_TRACE_SET_TRACELOCAL(newval)
+GASNETI_FORMAT_PRINTF(_gasnett_trace_printf_noop,1,2,
+static void _gasnett_trace_printf_noop(const char *_format, ...)) {
+  #if PLATFORM_COMPILER_PGI
+    va_list _ap; va_start(_ap,_format); va_end(_ap); /* avoid a silly warning */
+  #endif
+  return; 
+}
+#ifdef GASNET_TRACE
+  GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf,1,2,
+  GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf)(const char *format, ...));
+  GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf_force,1,2,
+  GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf_force)(const char *format, ...));
+  #define GASNETT_TRACE_PRINTF \
+          (*(_gasnett_trace_printf?_gasnett_trace_printf:&_gasnett_trace_printf_noop))
+  #define GASNETT_TRACE_PRINTF_FORCE \
+          (*(_gasnett_trace_printf_force?_gasnett_trace_printf_force:&_gasnett_trace_printf_noop))
+
+  #ifdef _INCLUDED_GASNET_H
+    #define GASNETT_TRACE_ENABLED       GASNETI_TRACE_ENABLED(H)
+    #define GASNETT_TRACE_GETMASK()     GASNETI_TRACE_GETMASK()
+    #define GASNETT_TRACE_SETMASK(mask) GASNETI_TRACE_SETMASK(mask)
+    #define GASNETT_TRACE_GET_TRACELOCAL()        GASNETI_TRACE_GET_TRACELOCAL()
+    #define GASNETT_TRACE_SET_TRACELOCAL(newval)  GASNETI_TRACE_SET_TRACELOCAL(newval)
+  #else
+    GASNETT_TENTATIVE_EXTERN int (*_gasnett_trace_enabled)(char tracecat);
+    #define GASNETT_TRACE_ENABLED       (_gasnett_trace_enabled?_gasnett_trace_enabled('H'):0)
+    #define GASNETT_TRACE_GETMASK()               ""
+    #define GASNETT_TRACE_SETMASK(mask)           ((void)0)
+    #define GASNETT_TRACE_GET_TRACELOCAL()        (0)
+    #define GASNETT_TRACE_SET_TRACELOCAL(newval)  ((void)0)
+  #endif
 #else
   #define GASNETT_TRACE_ENABLED  0
-  #define GASNETT_TRACE_PRINTF        _gasnett_trace_printf
-  #define GASNETT_TRACE_PRINTF_FORCE  _gasnett_trace_printf
-  /*GASNETI_INLINE(_gasnett_trace_printf) 
-   * causes many warnings because vararg fns cannot be inlined */
-  static void _gasnett_trace_printf(const char *_format, ...) { 
-    #if PLATFORM_COMPILER_PGI
-      va_list _ap; va_start(_ap,_format); va_end(_ap); /* avoid a silly warning */
-    #endif
-    return; 
-  }
+  #define GASNETT_TRACE_PRINTF        _gasnett_trace_printf_noop
+  #define GASNETT_TRACE_PRINTF_FORCE  _gasnett_trace_printf_noop
   #define GASNETT_TRACE_GETMASK()               ""
   #define GASNETT_TRACE_SETMASK(mask)           ((void)0)
   #define GASNETT_TRACE_GET_TRACELOCAL()        (0)
@@ -351,7 +370,6 @@ GASNETI_BEGIN_EXTERNC
   #else
     #define gasnett_mmap(sz) gasnett_fatalerror("gasnett_mmap not available")
   #endif
-  #define gasnett_print_backtrace gasneti_print_backtrace
   extern int gasneti_run_diagnostics(int iters, int threadcnt, 
                                      const char *testsections, gasnet_seginfo_t const *seginfo);
   extern void gasneti_diagnostic_gethandlers(gasnet_handlerentry_t **htable, int *htable_cnt);

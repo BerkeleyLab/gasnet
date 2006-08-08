@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.21.2.1 $
+ *     $Date: 2006/08/08 16:36:49 $
+ * $Revision: 1.21.2.2 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -259,6 +259,7 @@ void doit2() { GASNET_BEGIN_FUNCTION();
     doit3();
 }
 /* ------------------------------------------------------------------------------------ */
+GASNETI_THREADKEY_DEFINE(key);
 void doit3() { 
   void * volatile x = 0;
   volatile gasnet_threadinfo_t ti;
@@ -266,9 +267,8 @@ void doit3() {
 
   TEST_SECTION_BEGIN();
   { GASNET_BEGIN_FUNCTION();
-    gasnett_threadkey_t key = GASNETT_THREADKEY_INITIALIZER;
 
-    gasnett_threadkey_init(&key);
+    gasnett_threadkey_init(key);
     TIME_OPERATION("gasnett_threadkey_get (" _STRINGIFY(TEST_PARSEQ) " mode)",
       { x = gasnett_threadkey_get(key); });
     TIME_OPERATION("gasnett_threadkey_set (" _STRINGIFY(TEST_PARSEQ) " mode)",

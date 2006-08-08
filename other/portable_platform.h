@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/06/06 22:35:19 $
- * $Revision: 1.6.2.1 $
+ *     $Date: 2006/08/08 16:36:36 $
+ * $Revision: 1.6.2.2 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -101,6 +101,8 @@
   #if defined(__PGIC__) && defined(__PGIC_MINOR__) && defined(__PGIC_PATCHLEVEL__)
     #define PLATFORM_COMPILER_VERSION \
             PLATFORM_COMPILER_VERSION_INT(__PGIC__,__PGIC_MINOR__,__PGIC_PATCHLEVEL__)
+    #define PLATFORM_COMPILER_VERSION_STR \
+            _STRINGIFY(__PGIC__)"."_STRINGIFY(__PGIC_MINOR__)"-"_STRINGIFY(__PGIC_PATCHLEVEL__)
   #else
     /* PGI before 6.1-4 lacks any version ID preprocessor macros - so use this filthy hack */
     #ifdef PLATFORM_PGI_IS_ANCIENT
@@ -112,9 +114,11 @@
       #if defined(_PGOMP_H)
         /* 6.1.1 or newer */
         #define PLATFORM_COMPILER_VERSION 0x060101
+        #define PLATFORM_COMPILER_VERSION_STR ">=6.1-1"
       #else
         /* 6.0.8 or older */
         #define PLATFORM_COMPILER_VERSION 0
+        #define PLATFORM_COMPILER_VERSION_STR "<=6.0-8"
       #endif
     #endif
   #endif
@@ -648,5 +652,31 @@
   #error missing bit width information
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+/* handy test code that can be parsed after preprocess or executed to show platform results */
+#ifdef PLATFORM_SHOW
+const char *
+COMPILER_FAMILYNAME = _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME)
+, *
+COMPILER_FAMILYID = _STRINGIFY(PLATFORM_COMPILER_FAMILYID)
+, *
+COMPILER_VERSION_STR = PLATFORM_COMPILER_VERSION_STR
+, *
+COMPILER_IDSTR = PLATFORM_COMPILER_IDSTR
+, *
+OS_FAMILYNAME = _STRINGIFY(PLATFORM_OS_FAMILYNAME)
+, *
+ARCH_FAMILYNAME = _STRINGIFY(PLATFORM_ARCH_FAMILYNAME)
+;
+int main() {
+  #define PLATFORM_DISP(x) printf("PLATFORM_"#x"=%s\n",x)
+  PLATFORM_DISP(COMPILER_FAMILYNAME);
+  PLATFORM_DISP(COMPILER_FAMILYID);
+  PLATFORM_DISP(COMPILER_VERSION_STR);
+  PLATFORM_DISP(COMPILER_IDSTR);
+  PLATFORM_DISP(OS_FAMILYNAME);
+  PLATFORM_DISP(ARCH_FAMILYNAME);
+}
+#endif
 /* ------------------------------------------------------------------------------------ */
 #endif

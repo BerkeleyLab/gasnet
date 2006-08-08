@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2006/07/10 23:56:53 $
- * $Revision: 1.30.2.2 $
+ *     $Date: 2006/08/08 16:36:38 $
+ * $Revision: 1.30.2.3 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -525,7 +525,7 @@ extern int AMMPI_ReapSendCompletions(ammpi_sendbuffer_pool_t* pool) {
     int activeidx = pool->numActive-1;
     AMMPI_assert(doneidx >= 0 && doneidx < pool->numActive);
     #if PLATFORM_OS_AIX
-      /* Some versions of IBM MPI fail to set MPI_REQUEST_NULL as required by MPI_Testsome,
+      /* Some versions of IBM MPI (PE v? to v4.2.2.3) fail to set MPI_REQUEST_NULL as required by MPI_Testsome,
          and also apparently fail to reclaim the resources associated with the request */
       if (pool->txHandle[doneidx] != MPI_REQUEST_NULL) {
         MPI_Status s;

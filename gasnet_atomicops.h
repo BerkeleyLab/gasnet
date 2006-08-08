@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/06/06 22:34:57 $
- * $Revision: 1.78.2.1 $
+ *     $Date: 2006/08/08 16:36:22 $
+ * $Revision: 1.78.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1024,6 +1024,7 @@
       typedef volatile uint##_sz##_t gasneti_genatomic##_sz##_t;                             \
       typedef uint##_sz##_t gasneti_genatomic##_sz##_val_t;                                  \
       typedef int##_sz##_t gasneti_genatomic##_sz##_sval_t;                                  \
+      GASNETI_BEGIN_EXTERNC                                                                  \
       extern void gasneti_genatomic##_sz##_set(gasneti_genatomic##_sz##_t *p,                \
                                                gasneti_genatomic##_sz##_val_t v,             \
                                                const int flags);                             \
@@ -1036,10 +1037,11 @@
       extern int gasneti_genatomic##_sz##_compare_and_swap(gasneti_genatomic##_sz##_t *p,    \
                                                            uint##_sz##_t oldval,             \
                                                            uint##_sz##_t newval,             \
-                                                           int flags); \
+                                                           int flags);                       \
       extern uint##_sz##_t gasneti_genatomic##_sz##_addfetch(gasneti_genatomic##_sz##_t *p,  \
                                                              int##_sz##_t op,                \
-                                                             int flags);
+                                                             int flags);                     \
+      GASNETI_END_EXTERNC
     #define _GASNETI_GENATOMIC_DEFN(_sz)                                                         \
       GASNETI_ATOMIC_FENCED_SET_DEFN_NOT_INLINE(genatomic,                                       \
                                                 gasneti_genatomic##_sz##_set,                    \
@@ -1097,7 +1099,7 @@
        * Note that we use the "rmw" fencing macros here, since the "read" fencing macros
        * assume no lock is taken and thus would potentially double fence.
        */
-      extern uint64_t gasneti_genatomic64_read(gasneti_genatomic64_t *p, int flags);
+      GASNETI_EXTERNC uint64_t gasneti_genatomic64_read(gasneti_genatomic64_t *p, int flags);
       #define _GASNETI_GENATOMIC64_DEFN_EXTRA \
 	uint64_t gasneti_genatomic64_read(gasneti_genatomic64_t *p, const int flags) { \
 	  _gasneti_genatomic_fence_before_rmw(p,flags)  /* rmw is NOT a typo here */ \

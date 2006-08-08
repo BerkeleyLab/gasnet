@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/07/19 17:54:53 $
- * $Revision: 1.46.2.2 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.46.2.3 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2006/06/06 22:35:36 $
- * $Revision: 1.50.2.1 $
+ *     $Date: 2006/08/08 16:36:44 $
+ * $Revision: 1.50.2.2 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -697,11 +697,7 @@ static void configure_ssh(void) {
   int i, argi;
 
   /* Determine the ssh command */
-  if ((env_string = getenv(ENV_PREFIX "SSH_CMD")) != NULL && strlen(env_string)) {
-    ssh_argv0 = env_string;
-  } else {
-    ssh_argv0 = gasneti_strdup("ssh");
-  }
+  ssh_argv0 = gasneti_getenv_withdefault(ENV_PREFIX "SSH_CMD", "ssh");
 
   /* Check for OpenSSH */
   {
@@ -712,7 +708,7 @@ static void configure_ssh(void) {
   }
 
   /* Check for user-supplied options */
-  if ((env_string = getenv(ENV_PREFIX "SSH_OPTIONS")) != NULL && strlen(env_string)) {
+  if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_OPTIONS", "")) != NULL && strlen(env_string)) {
     ssh_options = parse_options(env_string, &optcount, "while parsing " ENV_PREFIX "SSH_OPTIONS");
   }
 
@@ -826,19 +822,19 @@ static void build_nodelist(void)
     nnodes = nproc;
   }
 
-  if ((env_string = getenv(ENV_PREFIX "SSH_NODEFILE")) != NULL && strlen(env_string)) {
+  if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_NODEFILE","")) != NULL && strlen(env_string)) {
     nodelist = parse_nodefile(env_string);
-  } else if ((env_string = getenv(ENV_PREFIX "SSH_SERVERS")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_SERVERS","")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
-  } else if ((env_string = getenv("PBS_NODEFILE")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault("PBS_NODEFILE","")) != NULL && strlen(env_string)) {
     nodelist = parse_nodefile(env_string);
-  } else if ((env_string = getenv("PE_HOSTFILE")) != NULL && strlen(env_string)) {
-    char *filename = sappendf(NULL, "%s/machines", getenv("TMPDIR"));
+  } else if ((env_string = gasneti_getenv_withdefault("PE_HOSTFILE","")) != NULL && strlen(env_string)) {
+    char *filename = sappendf(NULL, "%s/machines", gasneti_getenv_withdefault("TMPDIR",""));
     nodelist = parse_nodefile(filename);
     gasneti_free(filename);
-  } else if ((env_string = getenv("SSS_HOSTLIST")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault("SSS_HOSTLIST","")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
-  } else if ((env_string = getenv("LSB_HOSTS")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault("LSB_HOSTS","")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
   } else {
     die(1, "No " ENV_PREFIX "SSH_NODEFILE or " ENV_PREFIX "SSH_SERVERS in environment");
@@ -962,7 +958,7 @@ static void pre_spawn(int count) {
   char *env_string;
 
   /* Get the cwd */
-  if ((env_string = getenv(ENV_PREFIX "SSH_REMOTE_PATH")) != NULL && strlen(env_string)) {
+  if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_REMOTE_PATH","")) != NULL && strlen(env_string)) {
     strncpy(cwd, env_string, sizeof(cwd));
   } else if (!getcwd(cwd, sizeof(cwd))) {
     gasneti_fatalerror("getcwd() failed");
@@ -1193,6 +1189,8 @@ static void do_kill(int argc, char **argv) {
   _exit(0);
 }
 
+extern int (*gasneti_verboseenv_fn)(void);
+
 static void do_master(int argc, char **argv) GASNETI_NORETURN;
 static void do_master(int argc, char **argv) {
   char myhost[1024];
@@ -1234,6 +1232,9 @@ static void do_master(int argc, char **argv) {
   if (gethostname(myhost, sizeof(myhost)) < 0) {
     die(1, "gethostname() failed");
   }
+
+  /* Enable VERBOSEENV */
+  gasneti_verboseenv_fn = NULL;
 
   configure_ssh();
   build_nodelist();

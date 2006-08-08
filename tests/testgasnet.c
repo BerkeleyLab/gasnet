@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.36.2.1 $
+ *     $Date: 2006/08/08 16:36:49 $
+ * $Revision: 1.36.2.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -124,29 +124,6 @@ void test_threadinfo(int threadid, int numthreads) {
 }
 /* ------------------------------------------------------------------------------------ */
 /* test libgasnet-specific gasnet_tools interfaces */
-typedef struct {
-  gasnett_threadkey_t key1;
-  gasnett_threadkey_t key2;
-} test_keys_t;
-test_keys_t sertest_keys = {GASNETT_THREADKEY_INITIALIZER,GASNETT_THREADKEY_INITIALIZER};
-test_keys_t partest_keys = {GASNETT_THREADKEY_INITIALIZER,GASNETT_THREADKEY_INITIALIZER};
-void test_libgasnet_keys(test_keys_t *s) {
-  void *val = gasnett_threadkey_get(s->key1);
-  assert_always(val == NULL);
-  gasnett_threadkey_set(s->key1,(void *)&val);
-  val = gasnett_threadkey_get(s->key1);
-  assert_always(val == &val);
-
-  gasnett_threadkey_init(&(s->key2));
-  val = gasnett_threadkey_get_noinit(s->key2);
-  assert_always(val == NULL);
-  gasnett_threadkey_set_noinit(s->key2,(void *)&val);
-  val = gasnett_threadkey_get_noinit(s->key2);
-  assert_always(val == &val);
-  gasnett_threadkey_init(&(s->key2));
-  val = gasnett_threadkey_get_noinit(s->key2);
-  assert_always(val == &val);
-}
 #if GASNET_PAR
   /* thread-parallel gasnet_tools tests */
   #ifdef __cplusplus
@@ -159,8 +136,6 @@ void test_libgasnet_keys(test_keys_t *s) {
     PTHREAD_LOCALBARRIER(NUM_THREADS);
     gasnett_set_affinity(idx);
     PTHREAD_LOCALBARRIER(NUM_THREADS);
-    test_libgasnet_keys(&partest_keys);
-    PTHREAD_LOCALBARRIER(NUM_THREADS);
     return NULL;
   }
 #endif
@@ -172,7 +147,6 @@ void test_libgasnet_tools() {
     assert_always(p);
     assert_always(((uintptr_t)p)%GASNETT_PAGESIZE == 0);
   #endif
-  test_libgasnet_keys(&sertest_keys);
   test_threadinfo(0, 1);
   #if GASNET_DEBUG
   { char *ptr = (char *)gasnett_debug_malloc(10); 

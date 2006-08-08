@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/06/06 22:34:58 $
- * $Revision: 1.77.2.1 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.77.2.2 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -166,7 +166,7 @@
    }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_X86_64 /* Athlon/Opteron */
- #if PLATFORM_COMPILER_PATHSCALE /* See bug 1620 */
+ #if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(2,4,99) /* See bug 1620 */
    #define GASNETI_COMPILER_FENCE_BODY	0
    #define GASNETI_LOCAL_WMB_BODY	GASNETI_ASM("sfence")
    #define GASNETI_LOCAL_RMB_BODY	GASNETI_ASM("lfence")

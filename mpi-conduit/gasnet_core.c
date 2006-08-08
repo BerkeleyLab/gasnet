@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2006/07/18 02:04:28 $
- * $Revision: 1.65.8.2 $
+ *     $Date: 2006/08/08 16:36:34 $
+ * $Revision: 1.65.8.3 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -623,7 +623,7 @@ extern int gasnetc_AMReplyLongM(
 
   #if GASNETI_CLIENT_THREADS
     /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
-    static gasneti_threadkey_t gasnetc_hsl_errcheckinfo = GASNETI_THREADKEY_INITIALIZER;
+    GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
     static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo() {
       gasnetc_hsl_errcheckinfo_t *info = gasneti_threadkey_get(gasnetc_hsl_errcheckinfo);
       if_pt (info) return info;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2006/07/18 02:04:24 $
- * $Revision: 1.140.2.3 $
+ *     $Date: 2006/08/08 16:36:23 $
+ * $Revision: 1.140.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,9 +24,6 @@
 
 #if HAVE_MALLOC_H
   #include <malloc.h>
-#endif
-#if HAVE_EXECINFO_H
-  #include <execinfo.h>
 #endif
 
 /* set to non-zero for verbose error reporting */
@@ -58,10 +55,8 @@ int gasneti_VerboseErrors = 1;
   gasneti_atomic_t gasneti_throttle_haveusefulwork = gasneti_atomic_init(0);
   gasneti_mutex_t gasneti_throttle_spinpoller = GASNETI_MUTEX_INITIALIZER;
 #endif
-#if GASNET_DEBUG && GASNETI_THREADS
-  gasneti_threadkey_t gasneti_throttledebug_key = GASNETI_THREADKEY_INITIALIZER;
-#elif GASNET_DEBUG
-  int gasneti_throttledebug_cnt = 0;
+#if GASNET_DEBUG
+  GASNETI_THREADKEY_DEFINE(gasneti_throttledebug_key);
 #endif
 
 #define GASNET_VERSION_STR  _STRINGIFY(GASNET_VERSION)
@@ -200,7 +195,7 @@ extern void gasneti_check_config_preinit() {
     if (firstcall) { /* miscellaneous conduit-independent initializations */
       firstcall = 0;
       #if GASNET_DEBUG && GASNETI_THREADS
-        gasneti_threadkey_init(&gasneti_throttledebug_key);
+        gasneti_threadkey_init(gasneti_throttledebug_key);
       #endif
       gasneti_memcheck_all();
     }
@@ -271,39 +266,9 @@ extern const char *gasnet_ErrorDesc(int errval) {
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
-#ifndef GASNETI_UNFREEZE_SIGNAL
-/* signal to use for unfreezing, could also use SIGUSR1/2 or several others */
-#define GASNETI_UNFREEZE_SIGNAL SIGCONT
-#define GASNETI_UNFREEZE_SIGNAL_STR "SIGCONT"
-#endif
-
-static volatile int gasnet_frozen = 1;
-static void gasneti_unfreezeHandler(int sig) {
-  gasnet_frozen = 0;
-}
-/*  all this to make sure we get a full stack frame for debugger */
-static void _freezeForDebugger(int depth) {
-  if (!depth) _freezeForDebugger(1);
-  else {
-    volatile int i=0;
-    gasneti_sighandlerfn_t old = gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, gasneti_unfreezeHandler);
-    while (gasnet_frozen) {
-      i++;
-      sleep(1);
-    }
-    gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old);
-  }
-}
 extern void gasneti_freezeForDebugger() {
-  char name[255];
   if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE",0)) {
-    gethostname(name, 255);
-    fprintf(stderr,"GASNet node frozen for debugger: host=%s  pid=%i\n"
-                   "To unfreeze, attach a debugger and set 'gasnet_frozen' to 0, or send a "
-                   GASNETI_UNFREEZE_SIGNAL_STR "\n", 
-                   name, (int)getpid()); 
-    fflush(stderr);
-    _freezeForDebugger(0);
+    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
   }
 }
 /* ------------------------------------------------------------------------------------ */
@@ -365,7 +330,12 @@ void gasneti_defaultSignalHandler(int sig) {
       fprintf(stderr,"*** Caught a fatal signal: %s(%i) on node %i/%i\n",
         signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
       fflush(stderr);
-      gasneti_print_backtrace(STDERR_FILENO);
+
+      if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0))
+        gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
+
+      gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
+
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
       #if 1
         raise(sig);
@@ -634,6 +604,13 @@ extern int _gasneti_verboseenv_fn() {
 }
 int (*gasneti_verboseenv_fn)(void) = &_gasneti_verboseenv_fn;
 
+extern const char * _gasneti_backtraceid_fn() {
+  static char myid[255];
+  sprintf(myid, "[%i] ", gasneti_mynode);
+  return myid;
+}
+const char *(*gasneti_backtraceid_fn)(void) = &_gasneti_backtraceid_fn;
+
 extern void gasneti_decode_args(int *argc, char ***argv) {
   static int firsttime = 1;
   if (!firsttime) return; /* ignore subsequent calls, to allow early decode */
@@ -667,6 +644,7 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
       }
     }
   }
+  gasneti_backtrace_init((*argv)[0]);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -684,292 +662,6 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
     return GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg);
   }
 #endif
-
-/* ------------------------------------------------------------------------------------ */
-/* Dynamic backtrace support */
-
-/* Logic to pick which backtrace functions to try.
- * Two cases to allow for debuggers that might not dump the proper thread
-*/
-#if GASNETI_THREADS && HAVE_BACKTRACE
-  /* Since we have libc support, only enable debuggers that do OK w/ threads. */
-  #define GASNETI_BT_EXECINFO	&gasneti_bt_execinfo
-  #if defined(GDB_PATH) && !GASNETI_NO_FORK
-    #define GASNETI_BT_GDB	&gasneti_bt_gdb
-  #endif
-  #if defined(LADEBUG_PATH) && !GASNETI_NO_FORK
-    #define GASNETI_BT_LADEBUG	&gasneti_bt_ladebug
-  #endif
-#else
-  /* Either no threads or no libc support, enable any debugger we might have. */
-  #if HAVE_BACKTRACE
-    #define GASNETI_BT_EXECINFO	&gasneti_bt_execinfo
-  #endif
-  #if defined(GDB_PATH) && !GASNETI_NO_FORK
-    #define GASNETI_BT_GDB	&gasneti_bt_gdb
-  #endif
-  #if defined(LADEBUG_PATH) && !GASNETI_NO_FORK
-    #define GASNETI_BT_LADEBUG	&gasneti_bt_ladebug
-  #endif
-  #if defined(DBX_PATH) && !GASNETI_NO_FORK
-    #define GASNETI_BT_DBX	&gasneti_bt_dbx
-  #endif
-#endif
-
-/* Format for labelling output lines */
-#ifndef GASNETI_BT_LABEL_FMT
-  #define GASNETI_BT_LABEL_FMT "[%d] "
-#endif
-
-#if !GASNETI_NO_FORK
-/* Execute system w/ stdout redirected to 'fd' and std{in,err} to /dev/null */
-static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
-  int rc;
-  int saved_stdin, saved_stdout, saved_stderr;
-
-  /* Redirect output to 'fd' and std{in,err} to /dev/null */
-  saved_stdin = dup(STDIN_FILENO);
-  saved_stdout = dup(STDOUT_FILENO);
-  saved_stderr = dup(STDERR_FILENO);
-  dup2(stdout_fd, STDOUT_FILENO);
-  rc = open("/dev/null", O_WRONLY); dup2(rc, STDERR_FILENO); close(rc);
-  rc = open("/dev/null", O_RDONLY); dup2(rc, STDIN_FILENO); close(rc);
-
-  /* Run the command */
-  rc = system(cmd);
-
-  /* Restore I/O */
-  dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
-  dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
-  dup2(saved_stdin, STDIN_FILENO); close(saved_stdin);
-  return rc;
-}
-#endif
-
-#ifdef GASNETI_BT_LADEBUG
-  static int gasneti_bt_ladebug(int fd) {
-    #if GASNETI_THREADS
-      const char fmt[] = "echo 'set $stoponattach; attach %d; show thread *; where thread *; quit' | %s '%s'"; 
-    #else
-      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s '%s'"; 
-    #endif
-    static char cmd[1024];
-    /* Try to be smart if not in same place as at configure time */
-    const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
-    int rc = sprintf(cmd, fmt, (int)getpid(), ladebug, gasneti_exename);
-    if (rc < 0) return -1;
-    return gasneti_system_redirected(cmd, fd);
-  }
-#endif
-
-#ifdef GASNETI_BT_DBX
-  static int gasneti_bt_dbx(int fd) {
-    /* dbx's thread support is poor and not easily scriptable */
-    const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
-    static char cmd[1024];
-    const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
-    int rc = sprintf(cmd, fmt, (int)getpid(), dbx, gasneti_exename);
-    if (rc < 0) return -1;
-    return gasneti_system_redirected(cmd, fd);
-  }
-#endif
-
-#ifdef GASNETI_BT_GDB
-  static int gasneti_bt_gdb(int fd) {
-    /* Change "backtrace" to "backtrace full" to also see local vars from each frame */
-    #if GASNETI_THREADS
-      const char commands[] = "info threads\nthread apply all backtrace\ndetach\nquit\n";
-    #else
-      const char commands[] = "backtrace\ndetach\nquit\n";
-    #endif
-    const char fmt[] = "%s -nx -batch -x %s '%s' %d";
-    static char cmd[1024];
-    char filename[255];
-    const char *gdb = (access(GDB_PATH, X_OK) ? "gdb" : GDB_PATH);
-    int rc;
-
-    /* Build gdb commands file, since it won't take commands on stdin */
-    {
-      int tmpfd, len;
-
-      if (getenv("TMPDIR")) strcpy(filename,getenv("TMPDIR"));
-      else strcpy(filename,"/tmp");
-      strcat(filename,"/gasnet_XXXXXX");
-      tmpfd = mkstemp(filename);
-      if (tmpfd < 0) return -1;
-
-      len = sizeof(commands) - 1;
-      rc = write(tmpfd, commands, len);
-      if (rc != len) return -1;
-
-      rc = close(tmpfd);
-      if (rc < 0) return -1;
-    }
-
-    rc = sprintf(cmd, fmt, gdb, filename, gasneti_exename, (int)getpid());
-    if (rc < 0) return -1;
-
-    rc = gasneti_system_redirected(cmd, fd);
-
-    (void)unlink(filename);
-
-    return rc;
-  }
-#endif
-
-#ifdef GASNETI_BT_EXECINFO
-  static int gasneti_bt_execinfo(int fd) {
-    #define MAXBT 1024
-    static void *btaddrs[MAXBT];
-    int entries;
-    char **fnnames = NULL;
-    int i;
-    entries = backtrace(btaddrs, MAXBT);
-    #if HAVE_BACKTRACE_SYMBOLS
-      fnnames = backtrace_symbols(btaddrs, entries);
-    #endif
-    for (i=0; i < entries; i++) {
-      FILE *xlate;
-      #define XLBUF 1024
-      static char xlstr[XLBUF];
-      static char linebuf[XLBUF];
-      int len;
-      xlstr[0] = '\0';
-      #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
-        /* use addr2line when available to retrieve symbolic info */
-        { static char cmd[255];
-          sprintf(cmd,"%s -f -e '%s' %p", ADDR2LINE_PATH, gasneti_exename, btaddrs[i]);
-          xlate = popen(cmd, "r");
-          if (xlate) {
-            char *p = xlstr;
-            int sz = XLBUF;
-            while (fgets(p, sz, xlate)) {
-              p += strlen(p) - 1;
-              if (*p != '\n') p++;
-              strcpy(p, " ");
-              p += strlen(p);
-            }
-            pclose(xlate);
-          }
-        }
-      #endif
-      sprintf(linebuf, "%i: %s ", i, (fnnames?fnnames[i]:""));
-      write(fd, linebuf, strlen(linebuf));
-      write(fd, xlstr, strlen(xlstr));
-      write(fd, "\n", 1);
-    }
-    /* if (fnnames) free(fnnames); */
-    return 0;
-  }
-#endif
-
-/* "best effort" to produce a backtrace
- * Returns 0 on apparent success, non-zero otherwise.
- * NOTE: If fd corresponds to a FILE*, caller should fflush() it first.
- */
-int _gasneti_print_backtrace(int fd) {
-  /* declare fn_table as static array of const pointer to function(int) returning int */
-  static int (* const fn_table[])(int) = {
-    #ifdef GASNETI_BT_LADEBUG
-      GASNETI_BT_LADEBUG,
-    #endif
-    #ifdef GASNETI_BT_GDB
-      GASNETI_BT_GDB,
-    #endif
-    #ifdef GASNETI_BT_DBX
-      GASNETI_BT_DBX,
-    #endif
-    #ifdef GASNETI_BT_EXECINFO
-      GASNETI_BT_EXECINFO,
-    #endif
-    NULL	/* Avoids empty initializer and trailing commas */
-  };
-  static gasneti_mutex_t btlock = GASNETI_MUTEX_INITIALIZER;
-  int count = (sizeof(fn_table)/sizeof(fn_table[0])) - 1; /* excludes the NULL */
-  gasneti_sighandlerfn_t old_ABRT, old_ILL, old_SEGV, old_BUS, old_FPE;
-  int retval = 1;
-  int i;
-
-  /* Save signal handlers to avoid recursion */
-  old_ABRT = (gasneti_sighandlerfn_t)signal(SIGABRT, SIG_DFL);
-  old_ILL  = (gasneti_sighandlerfn_t)signal(SIGILL,  SIG_DFL);
-  old_SEGV = (gasneti_sighandlerfn_t)signal(SIGSEGV, SIG_DFL);
-  old_BUS  = (gasneti_sighandlerfn_t)signal(SIGBUS,  SIG_DFL);
-  old_FPE  = (gasneti_sighandlerfn_t)signal(SIGFPE,  SIG_DFL);
-
-  if (!gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0)) {
-    if (count) {
-      /* XXX: Should this be going to the caller-provided fd instead of stderr? */
-      fprintf(stderr, "NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. \n");
-      fflush(stderr);
-    } else {
-      /* We don't support any backtrace methods, so avoid false advertising. */
-    }
-    retval = 1;
-  } else {
-    FILE *file;
-
-    gasneti_mutex_lock(&btlock);
-
-    /* Create a tmpfile to hold the backtrace */
-    file = tmpfile ();
-
-    if (file) {
-      int tmpfd = fileno(file);
-      /* Loop over table until success or end */
-      for (i = 0; i < count; ++i) {
-        retval = (*fn_table[i])(tmpfd);
-        if (retval == 0) {
-	  static char linebuf[1024];
-	  char *p;
-	  int len;
-          int tracefd = -1;
-          FILE *tracefp = NULL;
-#if GASNET_TRACE
-          tracefp = gasneti_tracefile;
-	  if (tracefp) tracefd = fileno(tracefp);
-#endif
-          sprintf(linebuf, GASNETI_BT_LABEL_FMT, (int)gasneti_mynode);
-          len = strlen(linebuf);
-          p = linebuf + len;
-	  len = sizeof(linebuf) - len;
-
-	  /* Send to requested destination (and tracefile if any) */
-	  if (tracefd >= 0) {
-	    GASNETI_TRACE_PRINTF(U,("========== BEGIN BACKTRACE ==========")); fflush(tracefp);
-	  }
-	  rewind(file);
-	  while (fgets(p, len, file)) {
-	    write(fd, linebuf, strlen(linebuf)); /* w/ node prefix */
-	    if (tracefd >= 0) {
-	      write(tracefd, p, strlen(p)); /* w/o node prefix */
-	    }
-	  }
-	  if (tracefd >= 0) {
-	    GASNETI_TRACE_PRINTF(U,("========== END BACKTRACE ==========")); fflush(tracefp);
-          }
-          break;
-        } else {
-	  rewind(file);
-        }
-      }
-
-      fclose(file);
-    }
-
-    gasneti_mutex_unlock(&btlock);
-  }
-
-  signal(SIGABRT, old_ABRT);
-  signal(SIGILL,  old_ILL);
-  signal(SIGSEGV, old_SEGV);
-  signal(SIGBUS,  old_BUS);
-  signal(SIGFPE,  old_FPE);
-
-  return retval;
-}
-
-int (* gasneti_print_backtrace)(int) = &_gasneti_print_backtrace;
 
 /* ------------------------------------------------------------------------------------ */
 static void gasneti_check_portable_conduit() { /* check for portable conduit abuse */
@@ -1344,12 +1036,13 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
     if_pf (ret == NULL) {
       if (allowfail) {
         if_pt (gasneti_attach_done) gasnet_resume_interrupts();
-        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%i): %s",
-                                (int)nbytes, (curloc == NULL ? (const char *)"" : curloc)));
+        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%lu): %s",
+                                (unsigned long)nbytes, (curloc == NULL ? (const char *)"" : curloc)));
         return NULL;
       }
-      gasneti_fatalerror("Debug malloc(%d) failed (%lu bytes in use, in %lu objects): %s", 
-        (int)nbytes, (unsigned long)(gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
+      gasneti_fatalerror("Debug malloc(%lu) failed (%lu bytes in use, in %lu objects): %s", 
+                     (unsigned long)nbytes, 
+                     (unsigned long)(gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
                      (unsigned long)(gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
                      (curloc == NULL ? (const char *)"" : curloc));
     } else {
