@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/08/09 21:18:35 $
- * $Revision: 1.79.10.10 $
+ *     $Date: 2006/08/09 22:31:13 $
+ * $Revision: 1.79.10.11 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1018,10 +1018,6 @@ extern int gasnetc_AMPoll() {
 	}
     }
     
-#if GASNETC_LAPI_RDMA
-    /* Reap some put notifications.  Do one round for now*/
-    gasnetc_lapi_poll_tag_table(GASNETC_LAPI_MAX_TAGS);
-#endif
     return GASNET_OK;
 }
 
