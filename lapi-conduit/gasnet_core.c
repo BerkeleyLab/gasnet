@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/01/27 02:30:54 $
- * $Revision: 1.79.10.9 $
+ *     $Date: 2006/08/09 21:18:35 $
+ * $Revision: 1.79.10.10 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,12 @@
 #define GASNETC_VERBOSE_EXIT 0
 #endif
 
+/* Because I haven't updated in a while and can't build with
+   tracing on, here's my own tracing macro.  Later I'll do
+   a search/replace */
+#define GLTRACE(ignore_me,x) 
+/*#define GLTRACE(ignore_me,x) printf##x*/
+
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
 
@@ -52,8 +58,8 @@ lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
 lapi_remote_cxt_t *gasnetc_remote_ctxts = NULL;
 lapi_user_pvo_t **gasnetc_pvo_table = NULL;
 lapi_long_t *gasnetc_segbase_table = NULL;
-void *gasnetc_lapi_local_target_counters = NULL;
-int **gasnetc_lapi_completion_ptrs = NULL;
+int *gasnetc_lapi_local_target_counters = NULL;
+lapi_cntr_t **gasnetc_lapi_completion_ptrs = NULL;
 lapi_long_t *gasnetc_lapi_target_counter_directory = NULL;
 gasnetc_lapi_pvo **gasnetc_lapi_pvo_free_list;
 gasnetc_lapi_pvo **gasnetc_lapi_pvo_pool;  /* So that we can free at end */
@@ -162,9 +168,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     /* (###) add code here to bootstrap the nodes for your conduit */
     memset(&gasnetc_lapi_info, 0, sizeof(lapi_info_t));
-    gasnetc_lapi_info.err_hndlr = gasnetc_lapi_err_handler;
+    /* Parry: TODO - Don't kill on all errors */
+    /*gasnetc_lapi_info.err_hndlr = gasnetc_lapi_err_handler;*/
     {
 	int rc = LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
+        GLTRACE(C,("LAPI Init done\n"));
 	if (rc != LAPI_SUCCESS) {
 	    const char *errmsg = "\n*** GASNet FATAL ERROR: In the initialization of the LAPI communication layer\n\n"
 		"This application must be run using the poe job scheduler with the following options: \n"
@@ -264,7 +272,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 	/* polling mode, turn off interrupts */
 	GASNETC_LCHECK(LAPI_Senv(gasnetc_lapi_context, INTERRUPT_SET, 0));
     }
-
+ 
     #if GASNET_NDEBUG
       GASNETC_LCHECK(LAPI_Senv(gasnetc_lapi_context, ERROR_CHK, 0));   /* Turn error checking off */
     #endif
@@ -405,7 +413,9 @@ int gasnetc_lapi_done=2;
  */
  
 int gasnetc_lapi_N[GASNETC_LAPI_MAX_TAGS];
-
+lapi_rdma_notification_t util_notifiers[GASNETC_LAPI_MAX_TAGS];
+extern lapi_long_t *gasnete_put_hndlr_table;
+void gasnete_setup_put_hndlr();
 void gasnetc_lapi_rcallback(lapi_handle_t *hndl, void *sinfo, int *src)
 {
 	/* Update the remote location to signify completion of this
@@ -418,39 +428,46 @@ void gasnetc_lapi_rcallback(lapi_handle_t *hndl, void *sinfo, int *src)
      * Paul mentioned that using Rmw might help us with debugging:
      *  Check to see of the value returned is actually gasnetc_lapi_occupied
      */
-     int *remote_address = (int *) (gasnetc_lapi_target_counter_directory[*src]+(*((int *) sinfo)));
+     int *remote_address = (int *) gasnetc_lapi_target_counter_directory[*src];
+     int remote_index = (*((int *) sinfo));
+     remote_address += remote_index;
+   
+     /*GLTRACE(C,("gasnetc_lapi_rcallback: on node = %d sending to %d tag=%d address = %ld\n",gasneti_mynode,*src,*((int *)sinfo), (lapi_long_t) remote_address));*/
+#if 1
+    GASNETC_LCHECK(LAPI_Amsend(*hndl, *src, (void *) gasnete_put_hndlr_table[*src], &remote_index, sizeof(int), NULL, NULL, NULL, NULL, NULL));
+#else
 #if 1
     GASNETC_LCHECK(LAPI_Put(*hndl, *src, sizeof(int), remote_address, &gasnetc_lapi_done, NULL, NULL, NULL));
 #else
     GASNETC_LCHECK(LAPI_Rmw(*hndl, SWAP, *src, remote_address, &gasnetc_lapi_done, NULL, NULL));
+#endif
 #endif
 }
 
 void gasnetc_lapi_register_rcallbacks()
 {
   int i;
-  lapi_rdma_notification_t util_notifier;
-  
   /* Do the deed */
   for(i=0;i < GASNETC_LAPI_MAX_TAGS;i++) {
     gasnetc_lapi_N[i]=i;
-    util_notifier.Util_type = LAPI_REGISTER_NOTIFICATION;
-    util_notifier.rdma_tag = i;
-    util_notifier.flags = LAPI_RCALLBACK;
-    util_notifier.cntr = NULL;
-    util_notifier.callback = gasnetc_lapi_rcallback;
-    util_notifier.sinfo = (void *) (gasnetc_lapi_N + i);
-    GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &util_notifier));
+    util_notifiers[i].Util_type = LAPI_REGISTER_NOTIFICATION;
+    util_notifiers[i].rdma_tag = i;
+    util_notifiers[i].flags = LAPI_RCALLBACK;
+    util_notifiers[i].cntr = NULL;
+    util_notifiers[i].callback = gasnetc_lapi_rcallback;
+    util_notifiers[i].sinfo = (void *) (&(gasnetc_lapi_N[i]));
+    GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(util_notifiers[i]))));
   }
   
   /* Also set up the crazy table for target notification */
-  
-  gasnetc_lapi_local_target_counters = (void *) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int));
-  gasnetc_lapi_completion_ptrs = (int **) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int *));
+  gasnetc_lapi_local_target_counters = (int *) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int));
+  gasnetc_lapi_completion_ptrs = (lapi_cntr_t **) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(lapi_cntr_t *));
   bzero(gasnetc_lapi_local_target_counters, GASNETC_LAPI_MAX_TAGS*sizeof(int));
+  bzero(gasnetc_lapi_completion_ptrs, GASNETC_LAPI_MAX_TAGS*sizeof(lapi_cntr_t *));
   gasnetc_lapi_target_counter_directory = (lapi_long_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_long_t));
-  GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, gasnetc_lapi_local_target_counters,
+  GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) gasnetc_lapi_local_target_counters,
 				     gasnetc_lapi_target_counter_directory));
+  gasnete_setup_put_hndlr();
 }
 #endif
 
@@ -560,21 +577,27 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
          int i=0;
 	 /* Break up the segment */
 	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
+         GLTRACE(C,("gasnetc_attach: node = %d num_pvos = %d extent = %d segment size = %d segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(lapi_long_t) segbase));
 	 lapi_get_pvo_t *gasnetc_node_pvo_list = gasneti_malloc(num_pvos*sizeof(lapi_get_pvo_t));
+         bzero(gasnetc_node_pvo_list,num_pvos*sizeof(lapi_get_pvo_t));
          uintptr_t tmp_offset=0;
 	 while(tmp_offset < segsize) {
 	 	/* Attempt to get a PVO for this section */
 	 	gasnetc_node_pvo_list[i].Util_type = LAPI_XLATE_ADDRESS;
 	 	gasnetc_node_pvo_list[i].length = ((tmp_offset + GASNETC_LAPI_PVO_EXTENT) < segsize) ? GASNETC_LAPI_PVO_EXTENT :
-		  segsize - i*GASNETC_LAPI_PVO_EXTENT;
+		  (segsize - i*GASNETC_LAPI_PVO_EXTENT);
 	 	gasnetc_node_pvo_list[i].usr_pvo = 0;
-	 	gasnetc_node_pvo_list[i].address = segbase + i*GASNETC_LAPI_PVO_EXTENT;
+	 	gasnetc_node_pvo_list[i].address = (void *) (((lapi_long_t) segbase) + i*GASNETC_LAPI_PVO_EXTENT);
 	 	gasnetc_node_pvo_list[i].operation = LAPI_RDMA_ACQUIRE;									
-	 	GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (gasnetc_node_pvo_list + i)));
+	 	GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_node_pvo_list[i]))));
+                GLTRACE(C,("gasnetc_attach: node = %d i=%d usr_pvo=%ld (size=%ld) length=%d address=%ld segbase=%ld\n",gasneti_mynode,i,gasnetc_node_pvo_list[i].usr_pvo,sizeof(lapi_user_pvo_t),gasnetc_node_pvo_list[i].length,(lapi_long_t) gasnetc_node_pvo_list[i].address,(lapi_long_t) segbase));
 	 	tmp_offset += GASNETC_LAPI_PVO_EXTENT;
 	 	i++;
 	 }
 	 
+    for(i=0;i < num_pvos;i++) {
+      GLTRACE(C,("after getting node %d gasnetc_node_pvo_list[%d].usr_pvo = %ld\n",gasneti_mynode, i,(lapi_long_t)( gasnetc_node_pvo_list[i].usr_pvo)));
+    }		
 
 	 
     /* Exchange PVOs with everybody else so that given a
@@ -592,25 +615,74 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     
     for(i=0;i < num_pvos;i++) {
       gasnetc_pvo_table[i] = (lapi_user_pvo_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_user_pvo_t));
+      bzero(gasnetc_pvo_table[i],gasneti_nodes*sizeof(lapi_user_pvo_t));
     }
 	  
     /* Exchange
      */
 	  
     for(i=0;i < num_pvos;i++) {
-      GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) gasnetc_node_pvo_list[i].usr_pvo,
-					 gasnetc_pvo_table + i));
+      GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) (gasnetc_node_pvo_list[i].usr_pvo),
+					 gasnetc_pvo_table[i]));
     }		
 
+    GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
     /* Get rCtxts, the connections to remote nodes */
     gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t));
     for(i=0;i < gasneti_nodes;i++) {
-      gasnetc_remote_ctxts[i].Util_type = LAPI_REMOTE_RCXT;
-      gasnetc_remote_ctxts[i].operation = LAPI_RDMA_ACQUIRE;
-      gasnetc_remote_ctxts[i].dest = i;
-      GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (gasnetc_remote_ctxts + i)));
+      /* This will give an error if you try to get a remote context for yourself */
+      if(i != gasneti_mynode) {
+        gasnetc_remote_ctxts[i].Util_type = LAPI_REMOTE_RCXT;
+        gasnetc_remote_ctxts[i].operation = LAPI_RDMA_ACQUIRE;
+        gasnetc_remote_ctxts[i].dest = i;
+        GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_remote_ctxts[i]))));
+        GLTRACE(C,("node %d got rCtxt for node %d (%d) (%ld)\n",gasneti_mynode,i,gasnetc_remote_ctxts[i].usr_rcxt,sizeof(lapi_user_cxt_t)));
+      }
     }
+
+    GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
 	  
+#if 0
+    /* Try to send something simple to make sure everything works */
+    {
+      double *dseg = (double *) segbase;
+      int target = gasneti_mynode-1;
+      lapi_xfer_t   xfer_struct;   /* Data structure for the Xfer call */
+      lapi_cntr_t   org_cntr;
+      int val;
+      GASNETC_LCHECK((LAPI_Setcntr(gasnetc_lapi_context,&org_cntr,0)));
+      if(target < 0) {
+        target = gasneti_nodes-1;
+      }
+      dseg[0] = (2*(gasneti_mynode) + 1);
+      dseg[1] = -99999999;
+      printf("test: %d my dseg before = [%lf %lf] target=%d (%d nodes)\n",gasneti_mynode,dseg[0],dseg[1],target,gasneti_nodes);
+      GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
+
+      xfer_struct.HwXfer.Xfer_type    = LAPI_RDMA_XFER;
+      xfer_struct.HwXfer.tgt          = target;
+      xfer_struct.HwXfer.op           = LAPI_RDMA_GET;
+      xfer_struct.HwXfer.rdma_tag     = 0;
+      xfer_struct.HwXfer.remote_cxt   = gasnetc_remote_ctxts[target].usr_rcxt;
+      /*xfer_struct.HwXfer.src_pvo      = gasnetc_node_pvo_list[0].usr_pvo;*/
+      xfer_struct.HwXfer.src_pvo      = gasnetc_pvo_table[0][gasneti_mynode];
+      xfer_struct.HwXfer.tgt_pvo      = gasnetc_pvo_table[0][target];
+      printf("test: %d src pvo: %ld target pvo: %ld\n",gasneti_mynode, gasnetc_node_pvo_list[0].usr_pvo,gasnetc_pvo_table[0][target]);
+      xfer_struct.HwXfer.src_offset   = sizeof(double);
+      xfer_struct.HwXfer.tgt_offset   = 0;
+      xfer_struct.HwXfer.len          = (ulong) sizeof(double);
+      xfer_struct.HwXfer.shdlr        = (scompl_hndlr_t *) NULL;
+      xfer_struct.HwXfer.sinfo        = (void *) NULL;
+      xfer_struct.HwXfer.org_cntr     = &org_cntr;
+      GASNETC_LCHECK (LAPI_Xfer (gasnetc_lapi_context, &xfer_struct));
+      GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, &org_cntr,1, &val)));
+      GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
+      printf("test: %d my dseg after = [%lf %lf] should be [%lf %d] val=%d\n",gasneti_mynode,dseg[0],dseg[1],dseg[0],2*target+1,val);
+      
+    }
+#endif  
+    GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
+    GLTRACE(C,("gasnetc_attach: %d exchanging base addresses\n",gasneti_mynode));
     /* Finally, exchange the base addresses */
     gasnetc_segbase_table = gasneti_malloc(gasneti_nodes*sizeof(lapi_long_t));
     GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) segbase, gasnetc_segbase_table));
@@ -630,7 +702,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     } 
     
     /* Finally, really, set up the bounce buffers */
+    GLTRACE(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
     gasnete_lapi_setup_nb();
+
+    /* One last, and I mean it this time, thing to do
+       Set up the remote callbacks so that we can get notified when puts complete */
+    GLTRACE(C,("gasnetc_attach: %d callback registration\n",gasneti_mynode));
+    gasnetc_lapi_register_rcallbacks();
+
+    GLTRACE(C,("gasnetc_attach: %d init done\n",gasneti_mynode));
+    /* Make sure we're all done */
+    GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
     }
 #endif
 #else
@@ -687,7 +769,9 @@ void gasnetc_lapi_free()
    new_pvo.usr_pvo = gasnetc_node_pvo_list[i].usr_pvo;
    new_pvo.address = 0;
    new_pvo.operation = LAPI_RDMA_RELEASE;
-   GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &new_pvo)); 
+   // FOR NOW, TODO 
+   // TODO
+   // GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &new_pvo)); 
   }
   gasneti_free(gasnetc_node_pvo_list);
   for(i=0;i < gasnetc_num_pvos;i++) {
@@ -1772,8 +1856,13 @@ void gasnetc_lapi_err_handler(lapi_handle_t *context, int *error_code,
     char msg[LAPI_MAX_ERR_STRING];
 
     LAPI_Msg_string(*error_code,msg);
+    if(*error_code != 640) {
     gasneti_fatalerror("Async LAPI Error on node %d from task %d of type %s code %d [%s]\n",
 		       *src,*taskid,err_type_str[*error_type],*error_code,msg);
+    } else {
+    printf("Async LAPI Error on node %d from task %d of type %s code %d [%s]\n",
+		       *src,*taskid,err_type_str[*error_type],*error_code,msg);
+    }
 }
 
 /* --------------------------------------------------------------------------

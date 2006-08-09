@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2005/12/15 06:21:31 $
- * $Revision: 1.20.8.1 $
+ *     $Date: 2006/08/09 21:18:35 $
+ * $Revision: 1.20.8.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,6 +27,14 @@
 #define GASNETI_DIRECT_WAIT_SYNCNB 1
 #define GASNETI_DIRECT_WAIT_SYNCNB_SOME 1
 #define GASNETI_DIRECT_WAIT_SYNCNB_ALL 1
+#define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1 
+#define GASNETI_DIRECT_WAIT_SYNCNBI_ALL 1
+#endif
+
+#if GASNETC_LAPI_RDMA
+#define GASNETI_DIRECT_WAIT_SYNCNB 1
+#define GASNETI_DIRECT_WAIT_SYNCNB_ALL 1
+#define GASNETI_DIRECT_WAIT_SYNCNBI_GETS 1 
 #define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1 
 #define GASNETI_DIRECT_WAIT_SYNCNBI_ALL 1
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/01/27 02:30:54 $
- * $Revision: 1.40.12.4 $
+ *     $Date: 2006/08/09 21:18:35 $
+ * $Revision: 1.40.12.5 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -364,7 +364,7 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNETC_LAPI_RDMA
-#define GASNETC_LAPI_PVO_EXTENT (32L*1024L*1024L)
+#define GASNETC_LAPI_PVO_EXTENT (16L*1024L*1024L)
 #define GASNETC_LAPI_RDMA_GET_TAG (-1)
 #define GASNETC_MAX_PVOS 1024
 #define GASNETC_LAPI_MAX_TAGS 1024
@@ -379,8 +379,8 @@ extern lapi_get_pvo_t *gasnetc_node_pvo_list;
 extern lapi_remote_cxt_t *gasnetc_remote_ctxts;
 extern lapi_user_pvo_t **gasnetc_pvo_table;
 extern lapi_long_t *gasnetc_segbase_table;
-extern void *gasnetc_lapi_local_target_counters;
-extern int **gasnetc_lapi_completion_ptrs;
+extern int *gasnetc_lapi_local_target_counters;
+extern lapi_cntr_t **gasnetc_lapi_completion_ptrs;
 extern lapi_long_t *gasnetc_lapi_target_counter_directory;
 extern gasnetc_lapi_pvo **gasnetc_lapi_pvo_free_list;
 extern gasnetc_lapi_pvo **gasnetc_lapi_pvo_pool;  /* So that we can free at end */

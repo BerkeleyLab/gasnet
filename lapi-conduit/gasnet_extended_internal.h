@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/01/25 11:04:37 $
- * $Revision: 1.13.12.9 $
+ *     $Date: 2006/08/09 21:18:35 $
+ * $Revision: 1.13.12.10 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -101,7 +101,7 @@ typedef struct _gasnete_eop_t {
     int          initiated_cnt;
 #if GASNETC_LAPI_RDMA
   lapi_cntr_t *origin_counter;          /* For gets */
-  int completion_counter;      /* For puts, not a lapi_cntr_t because we do the updates ourselves */
+  lapi_cntr_t completion_counter;      /* For puts */
   gasnetc_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
   struct _gasnete_eop_t *next; /* In list of IOPs */
@@ -110,6 +110,7 @@ typedef struct _gasnete_eop_t {
   void *buffer;
   int length;  /* For bounce buffer transfers */
   int get_p;
+  int local_p; /* So that purely local operations can be easily handled */
 #endif
     lapi_cntr_t  cntr;
 } gasnete_eop_t;
@@ -153,7 +154,7 @@ typedef struct _gasnete_iop_t {
 
     lapi_cntr_t      get_cntr;
     lapi_cntr_t      put_cntr;
-    int rdma_put_cntr;
+    lapi_cntr_t      rdma_put_cntr;
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
@@ -258,8 +259,8 @@ extern lapi_get_pvo_t *gasnetc_node_pvo_list;
 extern lapi_remote_cxt_t *gasnetc_remote_ctxts;
 extern lapi_user_pvo_t **gasnetc_pvo_table;
 extern lapi_long_t *gasnetc_segbase_table;
-extern void *gasnetc_local_target_counters;
-extern int **gasnetc_lapi_completion_ptrs;
+extern int *gasnetc_local_target_counters;
+extern lapi_cntr_t **gasnetc_lapi_completion_ptrs;
 extern lapi_long_t *gasnetc_lapi_target_counter_directory;
 extern gasnetc_lapi_pvo **gasnetc_lapi_pvo_free_list;
 extern gasnetc_lapi_pvo **gasnetc_lapi_pvo_pool;
