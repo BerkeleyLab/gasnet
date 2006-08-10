@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/08/09 22:31:13 $
- * $Revision: 1.79.10.11 $
+ *     $Date: 2006/08/10 06:22:09 $
+ * $Revision: 1.79.10.12 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -65,6 +65,8 @@ gasnetc_lapi_pvo **gasnetc_lapi_pvo_free_list;
 gasnetc_lapi_pvo **gasnetc_lapi_pvo_pool;  /* So that we can free at end */
 extern void gasnete_lapi_setup_nb();
 extern void gasnete_lapi_free_nb();
+/* In case people call exit before attach */
+int gasnetc_lapi_rdma_initialized = 0;
 #endif
 
 /* This is the official core AM handler table.  All registered
@@ -168,8 +170,8 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     /* (###) add code here to bootstrap the nodes for your conduit */
     memset(&gasnetc_lapi_info, 0, sizeof(lapi_info_t));
-    /* Parry: TODO - Don't kill on all errors */
-    /*gasnetc_lapi_info.err_hndlr = gasnetc_lapi_err_handler;*/
+
+    gasnetc_lapi_info.err_hndlr = gasnetc_lapi_err_handler;
     {
 	int rc = LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
         GLTRACE(C,("LAPI Init done\n"));
@@ -713,6 +715,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     GLTRACE(C,("gasnetc_attach: %d init done\n",gasneti_mynode));
     /* Make sure we're all done */
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
+    gasnetc_lapi_rdma_initialized = 1;
     }
 #endif
 #else
@@ -804,7 +807,9 @@ static void gasnetc_exit_cleanup(void) {
 #endif
 
 #if GASNETC_LAPI_RDMA
-    gasnetc_lapi_free();
+    if(gasnetc_lapi_rdma_initialized) {
+      gasnetc_lapi_free();
+    }
 #endif
     gasneti_flush_streams();
     gasneti_trace_finish();

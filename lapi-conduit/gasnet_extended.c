@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/08/10 01:16:23 $
- * $Revision: 1.42.12.16 $
+ *     $Date: 2006/08/10 06:22:09 $
+ * $Revision: 1.42.12.17 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1328,6 +1328,20 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     uhdr.nbytes = nbytes;
 	
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
+#if GASNETC_LAPI_RDMA
+    gasneti_suspend_spinpollers();
+    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &(op->completion_counter), 0));
+    op->num_transfers = 1;
+    op->get_p = 0;
+    op->network_buffer_id = NULL;
+    op->pvo_list = NULL;
+    op->local_p = 0;
+    GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
+			       gasnete_remote_memset_hh[node],
+			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
+			       NULL, &o_cntr, &(op->completion_counter)));
+    gasneti_resume_spinpollers();
+#else
     gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
 			       gasnete_remote_memset_hh[node],
@@ -1336,6 +1350,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     gasneti_resume_spinpollers();
    
     op->initiated_cnt++;
+#endif
     /* must insure operation has completed locally since uhdr is a stack variable.
      * This will ALMOST ALWAYS be true in the case of such a small message */
     GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
@@ -1726,13 +1741,19 @@ extern void gasnete_memset_nbi (gasnet_node_t node, void *dest, int val,
     uhdr.nbytes = nbytes;
 	
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
+#if GASNETC_LAPI_RDMA
+    GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
+			       gasnete_remote_memset_hh[node],
+			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
+			       NULL, &o_cntr, &(op->rdma_put_cntr)));
+#else
     gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
 			       gasnete_remote_memset_hh[node],
 			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
 			       NULL, &o_cntr, &op->put_cntr));
     gasneti_resume_spinpollers();
-   
+#endif   
     op->initiated_put_cnt++;
     /* must insure operation has completed locally since uhdr is a stack variable.
      * This will ALMOST ALWAYS be true in the case of such a small message */
