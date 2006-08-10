@@ -130,4 +130,6 @@ TODO List Once We Have a Machine
 - Local firehose (improved FAST & LARGE)
 - Remote firehose (EVERYTHING)
 - Revisit current AM implementation
+- Check that resources get reaped as soon as possible
+- Tests with threads
 

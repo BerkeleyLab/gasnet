@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/08/09 21:18:35 $
- * $Revision: 1.42.12.15 $
+ *     $Date: 2006/08/10 01:16:23 $
+ * $Revision: 1.42.12.16 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -867,13 +867,13 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
       GLTRACE(C,("gasnete_lapi_do_rdma: got a network buffer pvo=%ld offset=%d id=%d\n",nb_id->pvo,nb_id->offset,nb_id->id)); 
       /* Copy in for puts */
       if(!new_eop->get_p) {
-        memcpy(nb_id->data,origin,nbytes);
+        memcpy(nb_id->data,(void *) local_p_to_long,nbytes);
       }
 
       /* Put id in eop so that we can tell if someone stole it */
       new_eop->network_buffer_id = nb_id;
       new_eop->nbid = nb_id->id;
-      new_eop->buffer = origin;
+      new_eop->buffer = (void *) local_p_to_long;
       new_eop->length = nbytes;
 
       /* Also put eop in id so we're all a big happy family */
