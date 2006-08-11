@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/08/10 06:22:09 $
- * $Revision: 1.42.12.17 $
+ *     $Date: 2006/08/11 20:56:34 $
+ * $Revision: 1.42.12.18 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -592,7 +592,6 @@ int gasnetc_lapi_get_unallocated_tag()
   boolean_t result;
   while(1) {
     /* Try to reap any you find */
-	
     current_loc =  (atomic_p) (gasnetc_lapi_local_target_counters + i);
 #if 0
     old_val = gasnetc_lapi_done; 
@@ -610,6 +609,7 @@ int gasnetc_lapi_get_unallocated_tag()
     } else {
       i = (i == (GASNETC_LAPI_MAX_TAGS-1)) ? 0 : i+1;
     }
+    gasneti_AMPoll();
   }
 
 }
@@ -784,7 +784,7 @@ void gasnete_setup_put_hndlr()
 extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void *origin, size_t nbytes, int op, lapi_cntr_t *origin_counter, gasnete_iop_t *iop GASNETE_THREAD_FARG)
 {
   lapi_long_t remote_p_to_long;
-  lapi_remote_cxt_t rcxt = gasnetc_remote_ctxts[node];
+  lapi_remote_cxt_t rcxt;
   lapi_xfer_t xfer_struct;	/* From the LAPI docs, the structure holding all the information needed for an RDMA */
   int total_transfers = 0;
   size_t nbytes_transferred = 0;
@@ -799,6 +799,10 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
   int using_network_buffer = 0;
   int length_to_boundary, length_to_remote_boundary, chunk_remaining, source_offset, remote_offset;
 
+  rcxt = gasnetc_remote_ctxts[node][gasnetc_lapi_current_rctxt[node]];
+  /* Bump up gasnetc_lapi_current_rctxt[node] */
+  /* TODO:  need to do this atomically (maybe best effort is ok) in the presence of threads */
+  gasnetc_lapi_current_rctxt[node] = (gasnetc_lapi_current_rctxt[node]+1)%gasnetc_rctxts_per_node;
   if(op == LAPI_RDMA_GET) {
     remote_p_to_long = (lapi_long_t) origin;
     local_p_to_long = (lapi_long_t) dest;
@@ -1447,7 +1451,7 @@ extern void gasnete_wait_syncnb(gasnet_handle_t handle)
 	gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
         gasnete_eop_check(eop);
         if(eop->local_p) {
-          return;
+          goto END;
         }
 	if(eop->get_p) {
           GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, eop->origin_counter,eop->num_transfers,&cnt)));
@@ -1474,6 +1478,10 @@ extern void gasnete_wait_syncnb(gasnet_handle_t handle)
       gasnete_lapi_free_eop_list(iop->puts);
       iop->puts = iop->gets = NULL;
     }
+END:
+    gasneti_sync_reads();
+    gasnete_op_free(handle);
+  
 }
 
 extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles)

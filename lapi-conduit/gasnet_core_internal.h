@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/08/09 21:18:35 $
- * $Revision: 1.40.12.5 $
+ *     $Date: 2006/08/11 20:56:34 $
+ * $Revision: 1.40.12.6 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -376,7 +376,8 @@ typedef struct _gasnetc_lapi_pvo_struct {
 
 extern int gasnetc_num_pvos;
 extern lapi_get_pvo_t *gasnetc_node_pvo_list;
-extern lapi_remote_cxt_t *gasnetc_remote_ctxts;
+extern lapi_remote_cxt_t **gasnetc_remote_ctxts;
+extern int *gasnetc_lapi_current_rctxt;
 extern lapi_user_pvo_t **gasnetc_pvo_table;
 extern lapi_long_t *gasnetc_segbase_table;
 extern int *gasnetc_lapi_local_target_counters;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/08/10 06:22:09 $
- * $Revision: 1.79.10.12 $
+ *     $Date: 2006/08/11 20:56:34 $
+ * $Revision: 1.79.10.13 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,7 +55,7 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
 
 int gasnetc_num_pvos;
 lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
-lapi_remote_cxt_t *gasnetc_remote_ctxts = NULL;
+lapi_remote_cxt_t **gasnetc_remote_ctxts = NULL;
 lapi_user_pvo_t **gasnetc_pvo_table = NULL;
 lapi_long_t *gasnetc_segbase_table = NULL;
 int *gasnetc_lapi_local_target_counters = NULL;
@@ -67,6 +67,9 @@ extern void gasnete_lapi_setup_nb();
 extern void gasnete_lapi_free_nb();
 /* In case people call exit before attach */
 int gasnetc_lapi_rdma_initialized = 0;
+/* For opening up some concurrency in multiple transfers to the same node */
+int gasnetc_rctxts_per_node = 1;
+int *gasnetc_lapi_current_rctxt;
 #endif
 
 /* This is the official core AM handler table.  All registered
@@ -577,6 +580,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 {
 	 int num_pvos;
          int i=0;
+         int j=0;
+
 	 /* Break up the segment */
 	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
          GLTRACE(C,("gasnetc_attach: node = %d num_pvos = %d extent = %d segment size = %d segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(lapi_long_t) segbase));
@@ -630,15 +635,25 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
     /* Get rCtxts, the connections to remote nodes */
-    gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t));
+    gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t *));
+    gasnetc_lapi_current_rctxt = gasneti_malloc(gasneti_nodes*sizeof(int));
+    bzero(gasnetc_lapi_current_rctxt,gasneti_nodes*sizeof(int));
+
+    /* Too verbose? */
+    gasnetc_rctxts_per_node = (int) gasneti_getenv_int_withdefault("GASNET_LAPI_RCTXTS_PER_NODE",1,0);
+
     for(i=0;i < gasneti_nodes;i++) {
       /* This will give an error if you try to get a remote context for yourself */
+      gasnetc_remote_ctxts[i] = gasneti_malloc(gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
+      bzero(gasnetc_remote_ctxts[i],gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
       if(i != gasneti_mynode) {
-        gasnetc_remote_ctxts[i].Util_type = LAPI_REMOTE_RCXT;
-        gasnetc_remote_ctxts[i].operation = LAPI_RDMA_ACQUIRE;
-        gasnetc_remote_ctxts[i].dest = i;
-        GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_remote_ctxts[i]))));
-        GLTRACE(C,("node %d got rCtxt for node %d (%d) (%ld)\n",gasneti_mynode,i,gasnetc_remote_ctxts[i].usr_rcxt,sizeof(lapi_user_cxt_t)));
+        for(j=0;j < gasnetc_rctxts_per_node;j++) {
+          gasnetc_remote_ctxts[i][j].Util_type = LAPI_REMOTE_RCXT;
+          gasnetc_remote_ctxts[i][j].operation = LAPI_RDMA_ACQUIRE;
+          gasnetc_remote_ctxts[i][j].dest = i;
+          GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_remote_ctxts[i][j]))));
+          GLTRACE(C,("node %d got rCtxt for node %d (number %d) (%d) (%ld)\n",gasneti_mynode,i,j,gasnetc_remote_ctxts[i][j].usr_rcxt,sizeof(lapi_user_cxt_t)));
+        }
       }
     }
 
@@ -665,7 +680,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       xfer_struct.HwXfer.tgt          = target;
       xfer_struct.HwXfer.op           = LAPI_RDMA_GET;
       xfer_struct.HwXfer.rdma_tag     = 0;
-      xfer_struct.HwXfer.remote_cxt   = gasnetc_remote_ctxts[target].usr_rcxt;
+      xfer_struct.HwXfer.remote_cxt   = gasnetc_remote_ctxts[target][0].usr_rcxt;
       /*xfer_struct.HwXfer.src_pvo      = gasnetc_node_pvo_list[0].usr_pvo;*/
       xfer_struct.HwXfer.src_pvo      = gasnetc_pvo_table[0][gasneti_mynode];
       xfer_struct.HwXfer.tgt_pvo      = gasnetc_pvo_table[0][target];

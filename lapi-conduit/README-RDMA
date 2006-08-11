@@ -41,8 +41,7 @@ Bounce buffers are used for transfers shorter than
 gasnete_pin_threshold.  For longer transfers,
 the regions are lined up, i.e. the source PVO boundaries are matched
 to target PVO boundaries.  The source regions are then pinned using 
-this
-decomposition and the LAPI_Xfer() calls are made.
+this decomposition and the LAPI_Xfer() calls are made.
 
 Completion
 ----------
@@ -51,8 +50,7 @@ Here the origin counter is sufficient.  Upon completion all the source
 out of segment registrations are freed.
 
 [Improvements (probably mandatory for any kind of performance):
-Use firehose to manage source pinning
-Use pre-pinned bounce buffers for smaller operations, etc.]
+Use firehose to manage source pinning etc.]
 
 PUT Operations
 ==============
@@ -68,13 +66,20 @@ with a different sinfo for each tag).  Each tag is associated with a
 word at the initiator.  For PUT operations the initiator gets a free
 word from an array indexed by tag.  This location in the array is
 atomically set to OCCUPIED.  This tag is then placed in the rdma_tag
-field of the HwXfer struct.  Of course, at setup time, the pointers to
-the arrays at the initiators are exchanged using LAPI_Address_Init64()
-calls.  When the remote node receives the chunk of the put, the
-callback is executed with (source, tag) as arguments.  This lets it
-look up the pointer associated with the initiator and tag, then
-changes the initiator entry to DONE.  Initiators "reap" these done
-flags to ensure remote completion.
+field of the HwXfer struct.  In addition the completion pointer is
+placed at the corresponding part in an array of completion pointers.
+When the remote node receives the data of the put, the
+callback is executed with (source, tag) as arguments.  
+This lets it call an AM at the source with the tag.  The AM just
+increments the completion pointer and sets the tag location back to EMPTY.
+
+[Alternative: In addition to the array of tags, pre-allocate an 
+array of completion pointers.]
+
+the target.  The initiator can pull this table periodically (some
+intelligence is needed here).  This has the advantage of aggregating
+not just the chunks of a single transfer, but multiple transfers as
+well.  More investigation definitely needed]
 
 [Alternative: Use LAPI_Fence() to ensure completion.  However, this 
 completes
@@ -120,6 +125,12 @@ transfer, the entry is placed back on the free list.  If the
 free list is empty, the initiator attempts to steal an unsynced
 entry from the active list (pointers to origin counters are
 also provided for the check).  
+
+Tuning parameters
+=================
+
+GASNET_LAPI_RCTXTS_PER_NODE - a (small) integer specifying how many
+remote contexts to open up to each peer.  Default value: 1
 
 TODO List Once We Have a Machine
 ================================
