@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/08/20 10:53:10 $
- * $Revision: 1.30 $
+ *     $Date: 2006/08/11 00:53:56 $
+ * $Revision: 1.30.2.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,6 +48,7 @@ typedef uint8_t gasnet_handler_t;
         CNT(C, AMREPLY_SYS, cnt)                  \
         CNT(C, AMREQUEST_SYS_HANDLER, cnt)        \
         CNT(C, AMREPLY_SYS_HANDLER, cnt)          \
+        VAL(C, RDMA_PUT_IN_MOVE, bytes)           \
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
         VAL(C, RDMA_PUT_ZEROCP, bytes)            \
@@ -63,7 +64,7 @@ typedef uint8_t gasnet_handler_t;
 	TIME(C, RCV_THREAD_WAKE, time awake)      \
 	CNT(C, GET_BBUF, cnt)                     \
 	TIME(C, GET_BBUF_STALL, stalled time)     \
-	CNT(C, ALLOC_SBUF, cnt)                   \
+	VAL(C, ALLOC_SREQ, sreqs)                 \
 	VAL(C, POST_SR, segments)                 \
 	CNT(C, POST_INLINE_SR, cnt)               \
 	TIME(C, POST_SR_STALL_CQ, stalled time)   \
@@ -75,6 +76,9 @@ typedef uint8_t gasnet_handler_t;
 	TIME(C, FIREHOSE_MOVE, processing time)   \
 	VAL(C, FIREHOSE_PIN, pages)               \
 	VAL(C, FIREHOSE_UNPIN, pages)
+
+#define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
+extern void gasnetc_fatalsignal_callback(int sig);
 
 /*
  * The VAPI conduit may have a network progress thread, even for GASNET_SEQ
@@ -88,12 +92,12 @@ typedef uint8_t gasnet_handler_t;
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
 
-#if defined(__APPLE__) && defined(__MACH__) && !GASNET_SEQ
+#if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
-#if defined(__PGI)
+#if PLATFORM_COMPILER_PGI
   /* VAPI headers rely on the non-portable u_int*_t names
      PGI lacks these, so translate them to the versions guaranteed by the C99 spec and portable_inttypes
    */
