@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2005/08/12 08:06:56 $
-# $Revision: 1.54 $
+#     $Date: 2006/08/11 00:53:05 $
+# $Revision: 1.54.4.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,7 +9,7 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 # Directories for automake to recurse into:
-SUBDIRS =            \
+SUBDIRS = .          \
 	config-aux   \
         other
 
@@ -34,14 +34,20 @@ docdir = $(datadir)/doc/gasnet
 headers =                  \
         gasnet.h           \
 	gasnet_ammacros.h  \
+	gasnet_asm.h       \
 	gasnet_atomicops.h \
+	gasnet_atomic_bits.h \
         gasnet_basic.h     \
+        gasnet_coll.h      \
         gasnet_handler.h   \
         gasnet_help.h      \
 	gasnet_membar.h    \
+	gasnet_syncops.h   \
         gasnet_timer.h     \
 	gasnet_tools.h     \
-	gasnet_trace.h     
+	gasnet_toolhelp.h  \
+	gasnet_trace.h     \
+        gasnet_vis.h      
 
 EXTRA_DIST =              \
         README            \
@@ -60,12 +66,39 @@ EXTRA_DIST =              \
         gasnet_internal.h \
         gasnet_internal.c \
         gasnet_mmap.c  	  \
+        gasnet_diagnostic.c \
+        gasnet_tools.c    \
         gasnet_trace.c
 #       tests handled below
 
 include_HEADERS = $(headers)
 
 force:
+
+#-------------------------------------------------------
+# libgasnet_tools goop
+
+if HAVE_PTHREAD
+libgasnet_tools_par_a_SOURCES =
+threaded_libraries = libgasnet_tools-par.a 
+endif
+libgasnet_tools_seq_a_SOURCES =
+libraries = libgasnet_tools-seq.a $(threaded_libraries)
+
+# leading - prevents distclean failures
+-include $(top_builddir)/other/Makefile-libgasnet.mak
+
+libgasnet_tools-seq.a: $(libgasnet_tools_dependencies)
+	@$(MAKE) do-libgasnet_tools-seq
+
+libgasnet_tools-par.a: $(libgasnet_tools_dependencies)
+	@$(MAKE) do-libgasnet_tools-par
+
+lib_LIBRARIES = $(libraries)
+#-------------------------------------------------------
+
+Makefile: $(srcdir)/Makefile.in $(top_builddir)/other/Makefile-libgasnet.mak
+	cd $(top_builddir) && CONFIG_FILES=$@ CONFIG_HEADERS= ./config.status
 
 # echo an arbitrary make/environment variable
 echovar: force
@@ -138,25 +171,41 @@ CLEANFILES = $(TESTLOG)
 recurse_local = $(CONDUITS:%=%-recurse)
 $(recurse_local):
 	@cd `echo $@ | sed s/-recurse//`-conduit && $(MAKE) $(DO_WHAT)
-all-local:
-	@$(MAKE) $(recurse_local) DO_WHAT=all
+# conduit subdirectories that should be made, even when the conduit is disabled
+SPECIAL_SUBDIRS = mpi-conduit/contrib
+recurse_special:
+	@for dir in $(SPECIAL_SUBDIRS) ; do \
+	  if test -f $$dir/Makefile ; then \
+	    cd $$dir && $(MAKE) $(DO_WHAT) || exit $$? ; \
+	  fi ; \
+	 done
+all-local: $(lib_LIBRARIES)
+	@$(MAKE) $(recurse_local) DO_WHAT=$${DO_WHAT=all}
+	@$(MAKE) recurse_special  DO_WHAT=$${DO_WHAT=all}
 clean-local:
 	@if test -f Makefile -a -f smp-conduit/Makefile; then \
 	  $(MAKE) $(recurse_local) DO_WHAT=clean || exit $$? ; \
 	 fi
+	@$(MAKE) recurse_special DO_WHAT=clean
+check-local: check-exports
+seq par parsync:
+	@$(MAKE) $(recurse_local) DO_WHAT=$@
 check tests-clean:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
 	@cd "$(top_builddir)/other" && $(MAKE) $@
-install-data-local:
+install-data-local: 
 	@$(MAKE) $(recurse_local) DO_WHAT=install-data
+	@$(MAKE) recurse_special DO_WHAT=install-data
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
 	cp -f $(top_srcdir)/README $(DESTDIR)$(docdir)/README
 	cp -f $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref
 	cp -f $(top_srcdir)/license.txt $(DESTDIR)$(docdir)/license.txt
 install-exec-local:
 	@$(MAKE) $(recurse_local) DO_WHAT=install-exec
-uninstall-local:
+	@$(MAKE) recurse_special DO_WHAT=install-exec
+uninstall-local: 
 	@$(MAKE) $(recurse_local) DO_WHAT=uninstall
+	@$(MAKE) recurse_special DO_WHAT=uninstall
 	rm -Rf $(DESTDIR)$(docdir)
 
 # automake 1.4 doesn't automatically make distclean in DIST_SUBDIRS
@@ -169,6 +218,7 @@ distclean-local:
 	     ( cd "$$dir" && $(MAKE) distclean ) || exit 1; \
 	   fi;                                              \
 	 done
+	@$(MAKE) recurse_special DO_WHAT=distclean
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
@@ -192,5 +242,4 @@ dist-hook:
         done
 	rm -Rf `find $(distdir) -name CVS -type d -print`
 	rm -f `find $(distdir) -name .#\* -print`
-
 

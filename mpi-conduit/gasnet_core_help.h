@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_help.h,v $
- *     $Date: 2005/02/12 11:29:25 $
- * $Revision: 1.4 $
+ *     $Date: 2006/08/11 00:53:19 $
+ * $Revision: 1.4.6.1 $
  * Description: GASNet MPI conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,10 +13,10 @@
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

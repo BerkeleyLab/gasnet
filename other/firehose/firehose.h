@@ -1,14 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2005/05/24 21:08:43 $
- * $Revision: 1.16 $
+ *     $Date: 2006/08/11 00:53:33 $
+ * $Revision: 1.16.6.1 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 #ifndef FIREHOSE_H
 #define FIREHOSE_H
-#include <firehose_fwd.h>
 #include <gasnet_internal.h>
+#include <firehose_fwd.h>
 
 struct _firehose_private_t;
 typedef struct _firehose_private_t	firehose_private_t;
@@ -728,6 +728,21 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
 typedef void (*firehose_completed_fn_t)
 	     (void *context, const firehose_request_t *req, int allLocalHit);
 
+/***********************************
+ * firehose_remotecallback_args_fn_t
+ ***********************************
+ * Type for function called to assemble args for the remote callback.
+ *
+ * The callback is run with a context pointer passed into one of the
+ * remote pin functions, and a pointer to space to initialize.  The
+ * callback must return the number of bytes written, which must not
+ * exceed sizeof(firehose_remotecallback_args_t) but may be smaller.
+ *
+ * AM-handler context: Never called in AM handler context.
+ */
+typedef size_t (*firehose_remotecallback_args_fn_t)
+	       (void *context, firehose_remotecallback_args_t *args);
+
 /**********************
  * Firehose Remote Pin
  **********************
@@ -750,14 +765,13 @@ typedef void (*firehose_completed_fn_t)
  * a destination node.
  *
  * If FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK is set, the client must pass
- * as 'remote_args', a valid pointer to type remotecallback_args_t as
- * defined in firehose_fwd.h.  The contents of this type is copied over
- * in the firehose move (if one is requred) and passed to the remote
- * callback when firehose_remote_callback() is invoked.  The contents
- * of 'remote_args' are copied before firehose_remote_pin() returns,
- * making the memory reusable immediately.  If the request can be
- * satisfied from local tables, no network communication will take
- * place.  In that case, the remote callback is NOT run.  If the
+ * as 'remote_args_callback' a valid function pointer of type
+ * firehose_remotecallback_args_fn_t.  If an AM needs to be sent to a
+ * remote node to complete the pinning, this calback will be invoked
+ * before firehose_remote_pin() returns, to construct the arguments
+ * to pass when firehose_remote_callback() is invoked.  If the request
+ * can be satisfied from local tables, no network communication will
+ * take place.  In that case, the remote callback is NOT run.  If the
  * flag FIREHOSE_FLAG_RETURN_IF_PINNED is set, this case is indicated
  * by a non-NULL return value.  If FIREHOSE_FLAG_RETURN_IF_PINNED is
  * not set, a non-zero value of 'allLocalHit' passed to the completion
@@ -772,7 +786,7 @@ typedef void (*firehose_completed_fn_t)
 extern const firehose_request_t *
 firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		    uint32_t flags, firehose_request_t *req,
-		    firehose_remotecallback_args_t *remote_args,
+		    firehose_remotecallback_args_fn_t remote_args_callback,
 		    firehose_completed_fn_t callback, void *context);
 
 /**************************

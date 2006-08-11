@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/06/09 03:07:03 $
- * $Revision: 1.110 $
+ *     $Date: 2006/08/11 00:53:05 $
+ * $Revision: 1.110.4.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

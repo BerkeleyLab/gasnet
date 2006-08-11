@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v $
-#     $Date: 2005/04/29 23:59:26 $
-# $Revision: 1.32 $
+#     $Date: 2006/08/11 00:53:19 $
+# $Revision: 1.32.6.1 $
 # Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -40,7 +40,7 @@ CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h
 # that should force libgasnet rebuild on update
 CONDUIT_EXTRADEPS = $(top_builddir)/other/ammpi/libammpi.a
 
-$(top_builddir)/other/ammpi/libammpi.a:
+$(top_builddir)/other/ammpi/libammpi.a: force
 	cd $(top_builddir)/other/ammpi && $(MAKE) libammpi.a
 
 # additional object files to be included in libgasnet that need to be compiled 

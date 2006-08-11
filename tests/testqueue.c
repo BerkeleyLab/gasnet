@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.7 $
+ *     $Date: 2006/08/11 00:53:49 $
+ * $Revision: 1.7.6.1 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -11,10 +11,6 @@
  */
 
 #include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 int maxsz = 0;
 #ifndef TEST_SEGSZ
   #define TEST_SEGSZ_EXPR ((uintptr_t)maxsz)
@@ -45,13 +41,13 @@ gasnet_handle_t *handles;
 gasnett_atomic_t amcount = gasnett_atomic_init(0);
 
 void ping_shorthandler(gasnet_token_t token) {
-  gasnett_atomic_increment(&amcount);
+  gasnett_atomic_increment(&amcount,0);
 }
 void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&amcount);
+  gasnett_atomic_increment(&amcount,0);
 }
 void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&amcount);
+  gasnett_atomic_increment(&amcount,0);
 }
 
 gasnet_handlerentry_t htable[] = { 
@@ -133,8 +129,21 @@ int main(int argc, char **argv) {
       } else break;
     }
     if (fullduplexmode && firstlastmode) help = 1;
-    if (help || argc > arg+3) {
-        printf("Usage: %s [-in|-out|-a|-f] (iters) (maxdepth) (maxsz)\n"
+    if (argc > arg+3) help = 1;
+
+    if (argc > arg) { iters = atoi(argv[arg]); arg++; }
+    if (!iters) iters = 10;
+    if (argc > arg) { maxdepth = atoi(argv[arg]); arg++; }
+    if (!maxdepth) maxdepth = 1024; /* 1024 default */
+    if (argc > arg) { maxsz = atoi(argv[arg]); arg++; }
+    if (!maxsz) maxsz = 2*1024*1024; /* 2 MB default */
+
+    #ifdef GASNET_SEGMENT_EVERYTHING
+      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
+    #endif
+    GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), 
+                              TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    test_init("testqueue",1,"[-in|-out|-a|-f] (iters) (maxdepth) (maxsz)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "  memory is in the GASNet segment or not (default it not).\n"
                "  The -a option enables full-duplex mode, where all nodes send.\n"
@@ -150,18 +159,8 @@ int main(int argc, char **argv) {
                "   -b : Test bulk put/gets\n"
                "   -i : Test implicit-handle put/gets\n"
                "   -e : Test explicit-handle put/gets\n"
-               "   -k : Test blocking put/gets\n"
-               ,
-               argv[0]);
-        gasnet_exit(1);
-    }
-
-    if (argc > arg) { iters = atoi(argv[arg]); arg++; }
-    if (!iters) iters = 10;
-    if (argc > arg) { maxdepth = atoi(argv[arg]); arg++; }
-    if (!maxdepth) maxdepth = 1024; /* 1024 default */
-    if (argc > arg) { maxsz = atoi(argv[arg]); arg++; }
-    if (!maxsz) maxsz = 2*1024*1024; /* 2 MB default */
+               "   -k : Test blocking put/gets\n");
+    if (help) test_usage();
 
     min_payload = 1;
     max_payload = maxsz;
@@ -225,12 +224,6 @@ int main(int argc, char **argv) {
     }
     multisender = 1; /* messes up output on some systems */
 
-    #ifdef GASNET_SEGMENT_EVERYTHING
-      if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
-    #endif
-    GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), 
-                              TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testqueue",1);
     
     myseg = TEST_SEG(myproc);
     tgtmem = TEST_SEG(peerproc);
@@ -322,10 +315,10 @@ int main(int argc, char **argv) {
               min = MIN(min,thistime);                                      \
               max = MAX(max,thistime);                                      \
             }                                                               \
-            { double avgus = gasnett_ticks_to_us(total) /                   \
+            { double avgus = gasnett_ticks_to_ns(total) / 1000.0 /          \
                              (double)iters / (double)depth;                 \
-              double minus = gasnett_ticks_to_us(min) / (double)depth;      \
-              double maxus = gasnett_ticks_to_us(max) / (double)depth;      \
+              double minus = gasnett_ticks_to_ns(min) / 1000.0 / (double)depth; \
+              double maxus = gasnett_ticks_to_ns(max) / 1000.0 / (double)depth; \
               int prec;                                                     \
               if (avgus < 1000.0) prec = 3;                                 \
               else if (avgus < 10000.0) prec = 2;                           \
@@ -428,32 +421,32 @@ void do_blockingputgets() {
 }
 void do_amtests() {
     if (do_amshort) {
-      gasnett_atomic_set(&amcount, 0);
+      gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestShort0", 
                  gasnet_AMRequestShort0(peerproc, hidx_ping_shorthandler), (void)0,
                 { assert(iamrecver);
-                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount) == depth); 
-                  gasnett_atomic_set(&amcount, 0); }, 
+                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
+                  gasnett_atomic_set(&amcount, 0, 0); }, 
                  min_payload);
     }
 
     if (do_ammedium) {
-      gasnett_atomic_set(&amcount, 0);
+      gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestMedium0", 
                  gasnet_AMRequestMedium0(peerproc, hidx_ping_medhandler, msgbuf, payload), (void)0,
                 { assert(iamrecver);
-                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount) == depth); 
-                  gasnett_atomic_set(&amcount, 0); }, 
+                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
+                  gasnett_atomic_set(&amcount, 0, 0); }, 
                  gasnet_AMMaxMedium());
     }
 
     if (do_amlong) {
-      gasnett_atomic_set(&amcount, 0);
+      gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestLong0", 
                  gasnet_AMRequestLong0(peerproc, hidx_ping_medhandler, msgbuf, payload, tgtmem), (void)0,
                 { assert(iamrecver);
-                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount) == depth); 
-                  gasnett_atomic_set(&amcount, 0); }, 
+                  GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
+                  gasnett_atomic_set(&amcount, 0, 0); }, 
                  gasnet_AMMaxLongRequest());
     }
 }

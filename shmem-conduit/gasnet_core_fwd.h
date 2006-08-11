@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2005/08/20 10:53:04 $
- * $Revision: 1.9 $
+ *     $Date: 2006/08/11 00:53:43 $
+ * $Revision: 1.9.2.1 $
  * Description: GASNet header for shmem conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,13 +46,44 @@ typedef uint32_t        gasnet_handler_t;
 #define _GASNET_TOKEN_T
 typedef uintptr_t    gasnet_token_t;
 
-//#if !defined(GASNET_SEGMENT_EVERYTHING) && (defined(SGI_SHMEM) || defined(CRAYX1))
-#if (defined(SGI_SHMEM) || defined(CRAYX1))
+/*#if !defined(GASNET_SEGMENT_EVERYTHING) && (defined(SGI_SHMEM) || PLATFORM_ARCH_CRAYX1)*/
+#if (defined(SGI_SHMEM) || PLATFORM_ARCH_CRAYX1)
   #define GASNETC_GLOBAL_ADDRESS
   #define GASNETE_GLOBAL_ADDRESS
 #else
   #undef GASNETC_GLOBAL_ADDRESS
   #undef GASNETE_GLOBAL_ADDRESS
+#endif
+
+/* -------------------------------------------------------------------- */
+/*
+ * These settings are based on benchmarks executed over various implementations
+ * of shmem, and can be reproduced by the shmem_core.c file in contrib/
+ */
+/*
+ * Quadrics has higher latency and is hence more sensitive to remote atomic
+ * opeartions.  Turns out randomly chosing an index in the shared queue
+ * provides much better performance without impacting performance under high
+ * contention.
+ */
+#ifdef QUADRICS_SHMEM
+  #define GASNETC_VECTORIZE
+
+/*
+ * Cray does very well with the mswap operation, which essentially allows us to
+ * reduce the unsuccessful AMPoll case to a single word read (if queue <= 64).
+ */
+#elif defined(CRAY_SHMEM) 
+  #define GASNETC_VECTORIZE		_Pragma("_CRI concurrent")
+  #define GASNETE_SHMEM_BARRIER
+
+/* 
+ * SGI does not implement shmem_int_mswap (even though it exists in the header
+ * file!).  We use the put-based mechanism instead.
+ */
+#elif defined(SGI_SHMEM)
+  #define GASNETC_VECTORIZE
+  #define GASNETE_SHMEM_BARRIER
 #endif
 
 #ifdef SGI_SHMEM

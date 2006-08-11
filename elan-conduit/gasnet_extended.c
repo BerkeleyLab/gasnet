@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2005/07/18 19:24:04 $
- * $Revision: 1.64 $
+ *     $Date: 2006/08/11 00:53:10 $
+ * $Revision: 1.64.4.1 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,12 +12,13 @@
 #include <gasnet_handler.h>
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
 
-static gasnete_threaddata_t *gasnete_threadtable[256] = { 0 };
+gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
 static int gasnete_numthreads = 0;
+static int gasnete_nbi_throttle = 0;
 static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  static gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
+  GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
 #endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
@@ -81,12 +82,12 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
       use AM ref-ext
 
   barrier:
-    if !GASNETE_USE_ELAN_BARRIER
+    if GASNET_BARRIER != ELANFAST && GASNET_BARRIER != ELANSLOW
       use AM (extended ref)
     else
       register a poll callback function at startup to ensure polling 
        during hardware barrier
-      if GASNETE_FAST_ELAN_BARRIER and barrier anonymous
+      if GASNET_BARRIER==ELANFAST and barrier anonymous
         mismatchers report to all nodes
         hardware elan barrier
       else
@@ -96,58 +97,6 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 */
 
 /* ------------------------------------------------------------------------------------ */
-/*
-  Tuning Parameters
-  =================
-*/
-#define GASNETE_MAX_COPYBUFFER_SZ  1048576    /* largest temp buffer we'll allocate for put/get */
-
-#ifndef GASNETE_DEFAULT_NBI_THROTTLE
-  #define GASNETE_DEFAULT_NBI_THROTTLE 1024
-#endif
-static int gasnete_nbi_throttle = 0;
-
-/* the size threshold where gets/puts stop using medium messages and start using longs */
-#ifndef GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
-#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gasnet_AMMaxMedium()
-#endif
-
-/* true if we should try to use Long replies in gets (only possible if dest falls in segment) */
-#ifndef GASNETE_USE_LONG_GETS
-#define GASNETE_USE_LONG_GETS 1
-#endif
-
-/* true if we should use elan put/get (setting to zero means all put/gets use AM only) */
-#ifndef GASNETE_USE_ELAN_PUTGET
-#define GASNETE_USE_ELAN_PUTGET 1
-#endif
-
-/* true to use elan hardware supported barrier */
-#ifndef GASNETE_USE_ELAN_BARRIER
-  #define GASNETE_USE_ELAN_BARRIER 1
-#endif
-
-/* true to "bend" the rules of barrier to improve performance
-   (may deadlock if threads disagree on named/anon barrier flags) */
-#ifndef GASNETE_FAST_ELAN_BARRIER
-  #define GASNETE_FAST_ELAN_BARRIER 1
-#endif
-
-/* Ratio of elan pollfn callbacks to true AMPolls while barrier blocking
-   must be power of two : BEWARE - raising this value hurts attentiveness at barriers
-*/
-#ifndef GASNETE_BARRIERBLOCKING_POLLFREQ
-#if GASNETC_ELAN3
-  #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
-#else
-  #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
-#endif
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-#if GASNETE_USE_ELAN_BARRIER
-  extern void gasnete_barrier_init();
-#endif
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 #if GASNETE_USE_ELAN_PUTGET
@@ -183,8 +132,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     idx = gasnete_numthreads;
     gasnete_numthreads++;
   gasnet_hsl_unlock(&threadtable_lock);
+  gasneti_assert(GASNETI_MAX_THREADS <= 256);
   #if GASNETI_CLIENT_THREADS
-    if (idx >= 256) gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=256)");
+    if (idx >= GASNETI_MAX_THREADS) 
+      gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
   #else
     gasneti_assert(idx == 0);
   #endif
@@ -219,8 +170,6 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     gasneti_threadkey_set(gasnete_threaddata, threaddata);
     return threaddata;
   }
-#else
-  #define gasnete_mythread() (gasnete_threadtable[0])
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -238,7 +187,7 @@ static void gasnete_check_config() {
 
 extern void gasnete_init() {
   static int firstcall = 1;
-  char default_nbi_throttle[80];
+  int default_nbi_throttle = GASNETE_DEFAULT_NBI_THROTTLE;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
   gasneti_assert(firstcall); /*  make sure we haven't been called before */
   firstcall = 0;
@@ -247,17 +196,16 @@ extern void gasnete_init() {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-  strcpy(default_nbi_throttle, _STRINGIFY(GASNETE_DEFAULT_NBI_THROTTLE));
   #if GASNETE_MULTI_PGCTRL
     { int i;
-      int depth = atoi(gasneti_getenv_withdefault("GASNET_NETWORKDEPTH", "1024"));
+      int depth = gasnett_getenv_int_withdefault("GASNET_NETWORKDEPTH", 1024, 0);
       gasnete_elan_pgctrl_cnt = GASNETI_ALIGNUP(depth, GASNETC_PGCTRL_THROTTLE)
                                  / GASNETC_PGCTRL_THROTTLE;
       if (depth < 1 || gasnete_elan_pgctrl_cnt > GASNETE_NUMPGCTRL_CNTMAX)
         gasneti_fatalerror("Illegal value for GASNET_NETWORKDEPTH - must be in 1..%i", 
                            GASNETE_NUMPGCTRL_CNTMAX*GASNETC_PGCTRL_THROTTLE);
       depth = gasnete_elan_pgctrl_cnt*GASNETC_PGCTRL_THROTTLE;
-      sprintf(default_nbi_throttle, "%i", depth);
+      default_nbi_throttle = depth;
       for (i = 0; i < gasnete_elan_pgctrl_cnt; i++) {
         void *qMem = NULL;
         #if ELAN_VERSION_GE(1,4,8) && GASNETE_PGCTRL_PGVSUPPORT
@@ -285,8 +233,7 @@ extern void gasnete_init() {
     }
   #endif
 
-  gasnete_nbi_throttle = atoi(
-    gasneti_getenv_withdefault("GASNET_NBI_THROTTLE", default_nbi_throttle));
+  gasnete_nbi_throttle = gasnett_getenv_int_withdefault("GASNET_NBI_THROTTLE", default_nbi_throttle, 0);
   if (gasnete_nbi_throttle < 1) gasnete_nbi_throttle = GASNETE_DEFAULT_NBI_THROTTLE;
 
   { gasnete_threaddata_t *threaddata = NULL;
@@ -305,7 +252,11 @@ extern void gasnete_init() {
     gasnete_op_free((gasnete_op_t *)eop);
   }
 
+  /* Initialize barrier resources */
   gasnete_barrier_init();
+
+  /* Initialize VIS subsystem */
+  gasnete_vis_init();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -338,6 +289,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
     buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
+    GASNETE_ASSERT_ALIGNED(buf);
     for (i=0; i < 256; i++) {
       gasnete_eopaddr_t addr;
       addr.bufferidx = bufidx;
@@ -393,7 +345,8 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
       for (i=0;i<(bufidx==255?255:256);i++) {                                   
         gasnete_eop_t *eop;                                   
         gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
-        eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
+        eop = GASNETE_EOPADDR_TO_PTR(thread,addr);           
+        GASNETE_ASSERT_ALIGNED(eop);
         gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
         gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);                 
         gasneti_assert(eop->threadidx == threadidx);                  
@@ -431,8 +384,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   iop->next = NULL;
   iop->initiated_get_cnt = 0;
   iop->initiated_put_cnt = 0;
-  gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
-  gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
+  gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
+  gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
 
   evtbin_data = (ELAN_EVENT **)(iop+1);
   gasnete_evtbin_init(&(iop->putbin), gasnete_nbi_throttle, evtbin_data);
@@ -460,7 +413,7 @@ int gasnete_op_isdone(gasnete_op_t *op, int have_elanLock) {
     gasnete_eop_check((gasnete_eop_t *)op);
     if (OPSTATE(op) == OPSTATE_COMPLETE) {
       gasneti_sync_reads();
-      return TRUE;
+      return 1;
     }
     cat = OPCAT(op);
     switch (cat) {
@@ -491,16 +444,17 @@ int gasnete_op_isdone(gasnete_op_t *op, int have_elanLock) {
       case OPCAT_AMGET:
       case OPCAT_AMPUT:
       case OPCAT_MEMSET:
-        return FALSE;
-      default: abort();
+      case OPCAT_OTHER:
+        return 0;
+      default: gasneti_fatalerror("unrecognized op category");
     }
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
     gasnete_iop_check(iop);
     if (gasnete_iop_gets_done(iop) && gasnete_iop_puts_done(iop)) {
       gasneti_sync_reads();
-      return TRUE;
-    } else return FALSE;
+      return 1;
+    } else return 0;
   }
 }
 
@@ -514,8 +468,8 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
-    if (isget) gasneti_weakatomic_increment(&(iop->completed_get_cnt));
-    else gasneti_weakatomic_increment(&(iop->completed_put_cnt));
+    if (isget) gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
+    else gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
   }
 }
 
@@ -539,7 +493,44 @@ void gasnete_op_free(gasnete_op_t *op) {
     thread->iop_free = iop;
   }
 }
-
+/* ------------------------------------------------------------------------------------ */
+/* GASNET-Internal OP Interface */
+gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE) {
+  gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD,OPCAT_AMGET);
+  return (gasneti_eop_t *)op;
+}
+gasnet_handle_t gasneti_eop_to_handle(gasneti_eop_t *eop) {
+  return GASNETE_OP_TO_HANDLE(eop);
+}
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  gasnete_iop_check(op);
+  if (isget) op->initiated_get_cnt += noperations;
+  else       op->initiated_put_cnt += noperations;
+  gasnete_iop_check(op);
+  return (gasneti_iop_t *)op;
+}
+void gasneti_eop_markdone(gasneti_eop_t *eop) {
+  gasnete_op_markdone((gasnete_op_t *)eop, 0);
+}
+void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
+  gasnete_iop_t *op = (gasnete_iop_t *)iop;
+  gasneti_weakatomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
+  gasnete_iop_check(op);
+  if (noperations == 1) gasneti_weakatomic_increment(pctr, 0);
+  else {
+    #if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
+      gasneti_weakatomic_add(pctr, noperations, 0);
+    #else /* yuk */
+      while (noperations) {
+        gasneti_weakatomic_increment(pctr, 0);
+        noperations--;
+      }
+    #endif
+  }
+  gasnete_iop_check(op);
+}
 /* ------------------------------------------------------------------------------------ */
 /*
   Non-blocking memory-to-memory transfers (explicit handle)
@@ -572,7 +563,7 @@ static int gasnete_warned_nbp_AM = 0;
   _GASNETE_WARN_NOTADDRESSABLE(mem_AM, "Exhausted the libelan main memory heap trying to get a bounce buffer", "active messages")
 
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_get_reqh_inner)
+GASNETI_INLINE(gasnete_get_reqh_inner)
 void gasnete_get_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
   gasneti_assert(nbytes <= gasnet_AMMaxMedium());
@@ -585,7 +576,7 @@ SHORT_HANDLER(gasnete_get_reqh,4,7,
               (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_get_reph_inner)
+GASNETI_INLINE(gasnete_get_reph_inner)
 void gasnete_get_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *op) {
@@ -597,7 +588,7 @@ MEDIUM_HANDLER(gasnete_get_reph,2,4,
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)    ),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_getlong_reqh_inner)
+GASNETI_INLINE(gasnete_getlong_reqh_inner)
 void gasnete_getlong_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
 
@@ -610,7 +601,7 @@ SHORT_HANDLER(gasnete_getlong_reqh,4,7,
               (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_getlong_reph_inner)
+GASNETI_INLINE(gasnete_getlong_reph_inner)
 void gasnete_getlong_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes, 
   void *op) {
@@ -621,7 +612,7 @@ LONG_HANDLER(gasnete_getlong_reph,1,2,
               (token,addr,nbytes, UNPACK(a0)     ),
               (token,addr,nbytes, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_put_reqh_inner)
+GASNETI_INLINE(gasnete_put_reqh_inner)
 void gasnete_put_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *op) {
@@ -635,7 +626,7 @@ MEDIUM_HANDLER(gasnete_put_reqh,2,4,
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)     ),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_putlong_reqh_inner)
+GASNETI_INLINE(gasnete_putlong_reqh_inner)
 void gasnete_putlong_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *op) {
@@ -648,7 +639,7 @@ LONG_HANDLER(gasnete_putlong_reqh,1,2,
               (token,addr,nbytes, UNPACK(a0)     ),
               (token,addr,nbytes, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_memset_reqh_inner)
+GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
   memset(dest, (int)(uint32_t)val, nbytes);
@@ -661,7 +652,7 @@ SHORT_HANDLER(gasnete_memset_reqh,4,6,
               (token, a0, a1, UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_markdone_reph_inner)
+GASNETI_INLINE(gasnete_markdone_reph_inner)
 void gasnete_markdone_reph_inner(gasnet_token_t token, 
   void *op) {
   gasnete_op_markdone((gasnete_op_t *)op, 0); /*  assumes this is a put or explicit */
@@ -739,7 +730,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   }
 }
 
-GASNET_INLINE_MODIFIER(gasnete_put_nb_inner)
+GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
 #if GASNETE_USE_ELAN_PUTGET
   LOCK_ELAN_WEAK();
@@ -865,12 +856,12 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
   Synchronization for explicit-handle non-blocking operations:
   ===========================================================
 */
-GASNET_INLINE_MODIFIER(gasnete_try_syncnb_inner)
+GASNETI_INLINE(gasnete_try_syncnb_inner)
 int gasnete_try_syncnb_inner(gasnet_handle_t handle) {
   ASSERT_ELAN_UNLOCKED();
   if (GASNETE_HANDLE_IS_OP(handle)) {
     gasnete_op_t *op = GASNETE_HANDLE_TO_OP(handle);
-    if (gasnete_op_isdone(op, FALSE)) {
+    if (gasnete_op_isdone(op, 0)) {
       gasnete_op_free(op);
       return GASNET_OK;
     }
@@ -893,11 +884,11 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
            so avoid it when not strictly necessary  */
  #if 0
   int val = gasnete_try_syncnb_inner(handle);
-  if_pf (val == GASNET_ERR_NOT_READY) GASNETE_SAFE(gasneti_AMPoll());
+  if_pf (val == GASNET_ERR_NOT_READY) GASNETI_SAFE(gasneti_AMPoll());
   return val;
  #else
   if (gasnete_try_syncnb_inner(handle) == GASNET_OK) return GASNET_OK;
-  GASNETE_SAFE(gasneti_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
   return GASNET_ERR_NOT_READY;
  #endif
 #else
@@ -1016,7 +1007,7 @@ static gasnete_eop_t * gasnete_putgetbblist_pending(gasnete_eop_t *eoplist) {
     gasneti_assert(OPCAT(op) == OPCAT_ELANGETBB || OPCAT(op) == OPCAT_ELANPUTBB);
     gasneti_assert(eoplist->bouncebuf);
     next = eoplist->bouncebuf->next;
-    if (gasnete_op_isdone(op, TRUE)) {
+    if (gasnete_op_isdone(op, 1)) {
       gasnete_op_free(op);
     }
     else 
@@ -1136,7 +1127,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   }
 }
 
-GASNET_INLINE_MODIFIER(gasnete_put_nbi_inner)
+GASNETI_INLINE(gasnete_put_nbi_inner)
 void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const iop = mythread->current_iop;
@@ -1307,43 +1298,43 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 static int gasnete_iop_gets_done(gasnete_iop_t *iop) {
   ASSERT_ELAN_UNLOCKED();
-  if (gasneti_weakatomic_read(&(iop->completed_get_cnt)) == iop->initiated_get_cnt) {
-    int retval = TRUE;
+  if (gasneti_weakatomic_read(&(iop->completed_get_cnt), 0) == iop->initiated_get_cnt) {
+    int retval = 1;
     if_pf (iop->initiated_get_cnt > 65000) { /* make sure we don't overflow the counters */
-      gasneti_weakatomic_set(&(iop->completed_get_cnt), 0);
+      gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
       iop->initiated_get_cnt = 0;
     }
     if (iop->getbin.evt_cnt || iop->elan_getbb_list) {
         LOCK_ELAN_WEAK();
           if (!gasnete_evtbin_done(&(iop->getbin))) 
-            retval = FALSE;
+            retval = 0;
           if ((iop->elan_getbb_list = gasnete_putgetbblist_pending(iop->elan_getbb_list)) != NULL) 
-            retval = FALSE;
+            retval = 0;
         UNLOCK_ELAN_WEAK();
     }
     return retval;
   }
-  return FALSE;
+  return 0;
 }
 static int gasnete_iop_puts_done(gasnete_iop_t *iop) {
   ASSERT_ELAN_UNLOCKED();
-  if (gasneti_weakatomic_read(&(iop->completed_put_cnt)) == iop->initiated_put_cnt) {
-    int retval = TRUE;
+  if (gasneti_weakatomic_read(&(iop->completed_put_cnt), 0) == iop->initiated_put_cnt) {
+    int retval = 1;
     if_pf (iop->initiated_put_cnt > 65000) { /* make sure we don't overflow the counters */
-      gasneti_weakatomic_set(&(iop->completed_put_cnt), 0);
+      gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
       iop->initiated_put_cnt = 0;
     }
     if (iop->putbin.evt_cnt || iop->elan_putbb_list) {
         LOCK_ELAN_WEAK();
           if (!gasnete_evtbin_done(&(iop->putbin))) 
-            retval = FALSE;
+            retval = 0;
           if ((iop->elan_putbb_list = gasnete_putgetbblist_pending(iop->elan_putbb_list)) != NULL) 
-            retval = FALSE;
+            retval = 0;
         UNLOCK_ELAN_WEAK();
     }
     return retval;
   }
-  return FALSE;
+  return 0;
 }
 
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
@@ -1479,23 +1470,33 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   Barriers:
   =========
 */
-#if !GASNETE_USE_ELAN_BARRIER
-  /* use reference implementation of barrier */
-  #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
-  #define gasnete_refbarrier_init    gasnete_barrier_init
-  #define gasnete_refbarrier_notify  gasnete_barrier_notify
-  #define gasnete_refbarrier_wait    gasnete_barrier_wait
-  #define gasnete_refbarrier_try     gasnete_barrier_try
-  #include "gasnet_extended_refbarrier.c"
-  #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
+static void gasnete_elanbarrier_init();
+static void gasnete_elanbarrier_notify(int id, int flags);
+static int gasnete_elanbarrier_wait(int id, int flags);
+static int gasnete_elanbarrier_try(int id, int flags);
+int gasnete_elanbarrier_fast = 0;
+
+#define GASNETE_BARRIER_DEFAULT "ELANFAST"
+#define GASNETE_BARRIER_INIT() do {                         \
+    if (GASNETE_ISBARRIER("ELANFAST")) {                    \
+      gasnete_elanbarrier_fast = 1;                         \
+      gasnete_barrier_notify = &gasnete_elanbarrier_notify; \
+      gasnete_barrier_wait =   &gasnete_elanbarrier_wait;   \
+      gasnete_barrier_try =    &gasnete_elanbarrier_try;    \
+      gasnete_elanbarrier_init();                           \
+    } else if (GASNETE_ISBARRIER("ELANSLOW")) {             \
+      gasnete_barrier_notify = &gasnete_elanbarrier_notify; \
+      gasnete_barrier_wait =   &gasnete_elanbarrier_wait;   \
+      gasnete_barrier_try =    &gasnete_elanbarrier_try;    \
+      gasnete_elanbarrier_init();                           \
+    }                                                       \
+  } while (0)
+
+/* allow reference implementation of barrier */
+#define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
+#include "gasnet_extended_refbarrier.c"
+#undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 /* ------------------------------------------------------------------------------------ */
-#else /* GASNETE_USE_ELAN_BARRIER */
-
-#if GASNETI_STATS_OR_TRACE
-  static gasneti_stattime_t barrier_notifytime; /* for statistical purposes */ 
-#endif
-static enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate = OUTSIDE_BARRIER;
-
 #ifdef ELAN_VER_1_2
   typedef int (*ELAN_POLLFN)(void *handle, unsigned int *ready);
   extern void elan_addPollFn(ELAN_STATE *elan_state, ELAN_POLLFN, void *handle);
@@ -1540,7 +1541,7 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
   return 0; /* return 0 => don't delay the elan blocking */
 }
 
-extern void gasnete_barrier_init() {
+static void gasnete_elanbarrier_init() {
   #ifdef ELAN_VER_1_2
     barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, 6*sizeof(gasnete_barrier_state_t));
   #else
@@ -1557,7 +1558,7 @@ extern void gasnete_barrier_init() {
   #endif
 }
 
-extern void gasnete_barrier_notify(int id, int flags) {
+static void gasnete_elanbarrier_notify(int id, int flags) {
   int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == INSIDE_BARRIER) 
@@ -1566,7 +1567,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
 
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
   #if GASNETI_STATS_OR_TRACE
-    barrier_notifytime = GASNETI_STATTIME_NOW_IFENABLED(B);
+    barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
 
   /* algorithm: three state boxes per phase
@@ -1587,13 +1588,13 @@ extern void gasnete_barrier_notify(int id, int flags) {
       /* Bug 1021: only this thread may poll inside a barrier, 
          otherwise we get poll reentrancy, which causes all sorts of problems */
     barrier_blocking = 1; /* allow polling while inside blocking barriers */
-    #if GASNETE_FAST_ELAN_BARRIER
-      /* the GASNETE_FAST_ELAN_BARRIER algorithm requires all threads agree on 
-         whether the flags indicate a named or anonymous barrier 
-         (otherwise it may deadlock or fail to detect a mismatch)
-         Turning off GASNETE_FAST_ELAN_BARRIER gives a slower, strictly spec-compliant barrier
-      */
-      if (flags & GASNET_BARRIERFLAG_ANONYMOUS) {
+    /* the GASNETE_FAST_ELAN_BARRIER algorithm requires all threads agree on 
+       whether the flags indicate a named or anonymous barrier 
+       (otherwise it may deadlock or fail to detect a mismatch)
+       Turning off GASNETE_FAST_ELAN_BARRIER gives a slower, strictly spec-compliant barrier
+    */
+    if (gasnete_elanbarrier_fast &&
+        flags & GASNET_BARRIERFLAG_ANONYMOUS) { /* elanfast anon barrier */
         if_pf(flags & GASNET_BARRIERFLAG_MISMATCH) { /* notify all of local mismatch */
           int i;
           barrier_state[phase+2].barrier_flags = GASNET_BARRIERFLAG_MISMATCH;
@@ -1604,16 +1605,15 @@ extern void gasnete_barrier_notify(int id, int flags) {
           }
         }
         elan_hgsync(GROUP()); 
-      } else
-    #endif
-      { int root = 0;
-      tryagain:
-        if (gasnet_mynode() == root) barrier_state[phase] = barrier_state[phase+2];
-        elan_hbcast(GROUP(), &(barrier_state[phase]), 
-          sizeof(gasnete_barrier_state_t), root, GASNETC_ELAN_GLOBAL_DEST);
-      #if !GASNETE_FAST_ELAN_BARRIER
-        if_pf (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
-               (barrier_state[phase].barrier_flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
+    } else { /* named barrier or elanslow barrier */ 
+      int root = 0;
+    tryagain:
+      if (gasnet_mynode() == root) barrier_state[phase] = barrier_state[phase+2];
+      elan_hbcast(GROUP(), &(barrier_state[phase]), 
+        sizeof(gasnete_barrier_state_t), root, GASNETC_ELAN_GLOBAL_DEST);
+      if_pf (!gasnete_elanbarrier_fast &&
+            !(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
+             (barrier_state[phase].barrier_flags & GASNET_BARRIERFLAG_ANONYMOUS)) {
           int i;
           /* broadcaster was anonymous and I am not - reelect a broadcast root */
           gasneti_assert(root == 0 && gasnet_mynode() != 0);
@@ -1627,8 +1627,7 @@ extern void gasnete_barrier_notify(int id, int flags) {
                                         (int *)&(barrier_state[phase+4].barrier_flags),
                                         sizeof(int), i), ELAN_POLL_EVENT);
           }
-        } else 
-      #endif
+      } else {
         if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && 
                barrier_state[phase].barrier_value != id) || 
               (flags & GASNET_BARRIERFLAG_MISMATCH)) { /* detected a mismatch - tell everybody */
@@ -1640,8 +1639,9 @@ extern void gasnete_barrier_notify(int id, int flags) {
                                         sizeof(int), i), ELAN_POLL_EVENT);
           }
         }
-        elan_hgsync(GROUP()); 
-      #if !GASNETE_FAST_ELAN_BARRIER
+      }
+      elan_hgsync(GROUP()); 
+      if (!gasnete_elanbarrier_fast) {
         /* check for a reelection */
         if_pf (barrier_state[phase+4].barrier_flags) {
           gasneti_assert(root == 0);
@@ -1652,8 +1652,8 @@ extern void gasnete_barrier_notify(int id, int flags) {
           gasneti_assert(root > 0 && root < gasnet_nodes());
           goto tryagain;
         }
-      #endif
       }
+    }
     barrier_blocking = 0; 
     UNLOCK_ELAN_WEAK();
   } 
@@ -1663,10 +1663,10 @@ extern void gasnete_barrier_notify(int id, int flags) {
   gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
-extern int gasnete_barrier_wait(int id, int flags) {
+static int gasnete_elanbarrier_wait(int id, int flags) {
   int phase;
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t wait_start = GASNETI_STATTIME_NOW_IFENABLED(B);
+    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
@@ -1674,7 +1674,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
   phase = barrier_phase;
   barrier_phase = !phase;
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_STATTIME_NOW()-barrier_notifytime);
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,gasneti_ticks_now()-barrier_notifytime);
 
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,0);
 
@@ -1690,7 +1690,7 @@ extern int gasnete_barrier_wait(int id, int flags) {
     return GASNET_OK;
 }
 
-extern int gasnete_barrier_try(int id, int flags) {
+static int gasnete_elanbarrier_try(int id, int flags) {
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
@@ -1698,7 +1698,6 @@ extern int gasnete_barrier_try(int id, int flags) {
   GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
   return gasnete_barrier_wait(id, flags);
 }
-#endif
 /* ------------------------------------------------------------------------------------ */
 /*
   Vector, Indexed & Strided:
@@ -1706,9 +1705,7 @@ extern int gasnete_barrier_try(int id, int flags) {
 */
 
 /* use reference implementation of scatter/gather and strided */
-#define GASNETI_GASNET_EXTENDED_VIS_C 1
-#include "gasnet_extended_refvis.c"
-#undef GASNETI_GASNET_EXTENDED_VIS_C
+#include "gasnet_extended_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1717,9 +1714,7 @@ extern int gasnete_barrier_try(int id, int flags) {
 */
 
 /* use reference implementation of collectives */
-#define GASNETI_GASNET_EXTENDED_COLL_C 1
-#include "gasnet_extended_refcoll.c"
-#undef GASNETI_GASNET_EXTENDED_COLL_C
+#include "gasnet_extended_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -1731,10 +1726,10 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
-    GASNETE_REFVIS_HANDLERS(),
+    GASNETE_REFVIS_HANDLERS()
   #endif
   #ifdef GASNETE_REFCOLL_HANDLERS
-    GASNETE_REFCOLL_HANDLERS(),
+    GASNETE_REFCOLL_HANDLERS()
   #endif
 
   /* ptr-width independent handlers */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2005/07/18 02:56:45 $
- * $Revision: 1.35 $
+ *     $Date: 2006/08/11 00:53:10 $
+ * $Revision: 1.35.4.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,25 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+
+#if PLATFORM_COMPILER_PGI
+  /* this workaround enables use of PGI with the libelan headers */
+  #ifndef __GNUC__
+    #define __GNUC__ 3
+    #define GASNETC_PGI_ELAN_GNUC 1
+  #endif
+  #if PLATFORM_ARCH_X86_64 && !defined(__x86_64)
+    #define __x86_64 1
+    #define GASNETC_PGI_ELAN_X8664 1
+  #endif
+  #include <qsnet/fence.h>
+  #if GASNETC_PGI_ELAN_GNUC
+    #undef __GNUC__
+  #endif
+  #if GASNETC_PGI_ELAN_X8664
+    #undef __x86_64
+  #endif
+#endif
 
 #include <elan/elan.h>
 
@@ -64,7 +83,11 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #define BASE()  (gasnetc_elan_base)
 #define STATE() (gasnetc_elan_state)
 #define GROUP() (gasnetc_elan_group)
+#ifdef GASNETC_ELAN4
+#define CTX()   ((ELAN4_CTX *)gasnetc_elan_ctx)
+#else
 #define CTX()   ((ELAN3_CTX *)gasnetc_elan_ctx)
+#endif
 #define TPORT() (gasnetc_elan_tport)
 
 #define GASNETI_EADDRFMT "0x%08x"
@@ -145,7 +168,7 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #endif
 
 #ifndef GASNETC_ELAN_MAPS_ENTIRE_VM
-  #if defined(GASNETC_ELAN4) || defined(GASNETI_PTR32)
+  #if defined(GASNETC_ELAN4) || PLATFORM_ARCH_32
     /* elan4 has a 64-bit thread processor and always maps the entire host VM space.
        Quadrics confirms elan_addressable() should always return true on elan4.
        (although the elan/main VA's may differ).  
@@ -195,8 +218,8 @@ extern ELAN_TPORT *gasnetc_elan_tport;
 #if GASNETC_USE_SIGNALING_EXIT
   extern gasneti_atomic_t gasnetc_remoteexitflag;
   extern gasneti_atomic_t gasnetc_remoteexitrecvd; 
-  #define GASNETC_EXITINPROGRESS()       (gasneti_atomic_read(&gasnetc_remoteexitflag) != 1)
-  #define GASNETC_REMOTEEXITINPROGRESS() (gasneti_atomic_read(&gasnetc_remoteexitrecvd) != 0)
+  #define GASNETC_EXITINPROGRESS()       (gasneti_atomic_read(&gasnetc_remoteexitflag, 0) != 1)
+  #define GASNETC_REMOTEEXITINPROGRESS() (gasneti_atomic_read(&gasnetc_remoteexitrecvd, GASNETI_ATOMIC_RMB_PRE) != 0)
 #else 
   #define GASNETC_EXITINPROGRESS() 0
   #define GASNETC_REMOTEEXITINPROGRESS() 0
@@ -234,7 +257,7 @@ typedef struct {
 extern int gasnete_evtbin_done(gasnete_evtbin_t *bin);
 extern void gasnete_evtbin_save(gasnete_evtbin_t *bin, ELAN_EVENT *evt);
 /* init evtbin with space of sizeof(ELAN_EVENT *)*sz */
-GASNET_INLINE_MODIFIER(gasnete_evtbin_init)
+GASNETI_INLINE(gasnete_evtbin_init)
 void gasnete_evtbin_init(gasnete_evtbin_t *bin, uint16_t sz, ELAN_EVENT **space) {
   bin->evt_cnt = 0;
   bin->evt_sz = sz;
@@ -279,7 +302,7 @@ void gasnete_evtbin_init(gasnete_evtbin_t *bin, uint16_t sz, ELAN_EVENT **space)
      this is a probabalistic heuristic anyhow 
      TODO: does assigning per-thread ELAN_PGCTRL's reduce locking contention in libelan?
    */
-  GASNET_INLINE_MODIFIER(gasnetc_next_PGCTRL)
+  GASNETI_INLINE(gasnetc_next_PGCTRL)
   ELAN_PGCTRL *gasnetc_next_PGCTRL() {
     int myidx = _gasnete_elan_pgctrl_cur;
     int newidx = myidx+1;

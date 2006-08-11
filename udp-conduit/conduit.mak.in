@@ -9,7 +9,7 @@
 
 # AMUDP is C++-based, which requires us to link using the C++ compiler
 GASNET_LD_OVERRIDE = @CXX@
-GASNET_LDFLAGS_OVERRIDE = @CXXFLAGS@ @LDFLAGS@
+GASNET_LDFLAGS_OVERRIDE = @CXXFLAGS@ @LDFLAGS@ @cxxLDFLAGS@
 
 # hooks for using AMUDP library from within build tree ###NOINSTALL###
 # (nothing additional required for installed copy)     ###NOINSTALL###

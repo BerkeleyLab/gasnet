@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testbarrierlate.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.8 $
+ *     $Date: 2006/08/11 00:53:49 $
+ * $Revision: 1.8.6.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,19 +22,22 @@ int main(int argc, char **argv) {
   int64_t delay_loops = 0;
   int j, i = 0;
   int pause_len;
+  int pollcnt = 0;
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testbarrierlate",1);
+  test_init("testbarrierlate",1,"(iters) (pollcnt)");
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
 
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;
+  if (argc > 2) pollcnt = atoi(argv[2]);
+  if (argc > 3) test_usage();
 
   if (mynode == 0) {
-      printf("Running barrier late arrival test with %i iterations...\n",iters);
+      printf("Running barrier late arrival test with %i iterations, pollcnt=%i...\n",iters, pollcnt);
       fflush(stdout);
   }
   BARRIER();
@@ -63,7 +66,7 @@ int main(int argc, char **argv) {
    * calibration is iterative.)
    */
   BARRIER();
-  pause_len = 1 + 2 * (total + 999999)/1000000;
+  pause_len = 1 + 4 * (total + 999999)/1000000;
 
   if (mynode == 0) {
       struct delay_s *p = (struct delay_s *)TEST_MYSEG();
@@ -71,8 +74,8 @@ int main(int argc, char **argv) {
       start = TIME();
       printf("Calibrating delay loop (expect at least a %d sec pause)...\n", pause_len);
       fflush(stdout);
-      p->delay_us = total;	/* delay at least one full barrier time */
-      p->delay_loops = test_calibrate_delay(iters, &(p->delay_us));
+      p->delay_us = 2*total;	/* delay at least two full barrier times */
+      p->delay_loops = test_calibrate_delay(iters, pollcnt, &(p->delay_us));
   } else {
       sleep(pause_len);
   }
@@ -101,7 +104,7 @@ int main(int argc, char **argv) {
     start = TIME();
     for (i=0; i < iters; i++) {
       if (j == mynode) {
-        test_delay(delay_loops);
+        test_delay(delay_loops, pollcnt);
       }
       gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
       GASNET_Safe(gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS)); 
@@ -144,7 +147,7 @@ int main(int argc, char **argv) {
     for (i=0; i < iters; i++) {
       gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
       if (j == mynode) {
-        test_delay(delay_loops);
+        test_delay(delay_loops, pollcnt);
       }
       GASNET_Safe(gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS)); 
     }

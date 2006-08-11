@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2005/08/08 03:05:08 $
- * $Revision: 1.34 $
+ *     $Date: 2006/08/11 00:53:05 $
+ * $Revision: 1.34.4.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,21 +17,34 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 
-#if defined(IRIX)
-  #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_SGI_ANYADDR | MAP_AUTORESRV)
+#if PLATFORM_OS_IRIX
+  #ifdef MAP_SGI_ANYADDR /* allow mmap to use 'reserved' 256MB region on O2k */
+    #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_SGI_ANYADDR | MAP_AUTORESRV)
+  #else
+    #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
+  #endif
   #define GASNETI_MMAP_FILE "/dev/zero"
-#elif defined(__crayx1)
+#elif PLATFORM_ARCH_CRAYX1
   #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
   #define GASNETI_MMAP_FILE "/dev/zero"
-#elif defined(_CRAYT3E)
+#elif PLATFORM_ARCH_CRAYT3E
   #error mmap not supported on Cray-T3E
-#elif defined(CYGWIN)
+#elif PLATFORM_OS_CYGWIN
   #error mmap not supported on Cygwin - it doesnt work properly
-#elif defined(HPUX)
+#elif PLATFORM_OS_HPUX
   #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE | MAP_PRIVATE)
   #define GASNETI_MMAP_NOTFIXED_FLAG MAP_VARIABLE
-#else
-  #define GASNETI_MMAP_FLAGS (MAP_ANON | MAP_PRIVATE)
+#endif
+
+#ifndef GASNETI_MMAP_FLAGS
+  #ifndef GASNETI_MMAP_NORESERVE
+    #ifdef MAP_NORESERVE /* bug 1358: try to avoid allocating swap space, if possible */
+      #define GASNETI_MMAP_NORESERVE  MAP_NORESERVE
+    #else
+      #define GASNETI_MMAP_NORESERVE  0
+    #endif
+  #endif
+  #define GASNETI_MMAP_FLAGS (MAP_ANON | MAP_PRIVATE | GASNETI_MMAP_NORESERVE)
 #endif
 
 #ifndef GASNETI_MMAP_FIXED_FLAG
@@ -44,7 +57,7 @@
 /* ------------------------------------------------------------------------------------ */
 static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   static int gasneti_mmapfd = -1;
-  gasneti_stattime_t t1, t2;
+  gasneti_tick_t t1, t2;
   void	*ptr;
 
   #ifdef GASNETI_MMAP_FILE
@@ -55,25 +68,25 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
     }
   #endif
 
-  t1 = GASNETI_STATTIME_NOW();
+  t1 = gasneti_ticks_now();
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), 
       (GASNETI_MMAP_FLAGS | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG)), 
       gasneti_mmapfd, 0);
-  t2 = GASNETI_STATTIME_NOW();
+  t2 = gasneti_ticks_now();
 
   GASNETI_TRACE_PRINTF(C, 
-      ("mmap %s("GASNETI_LADDRFMT", %lu): %dus => "GASNETI_LADDRFMT"%s%s\n", 
+      ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
         (segbase == NULL?"":"fixed"),
         GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
-        (unsigned int) GASNETI_STATTIME_TO_US(t2-t1),
+        gasneti_ticks_to_ns(t2-t1)/1000.0,
         GASNETI_LADDRSTR(ptr),
         (ptr == MAP_FAILED?"  MAP_FAILED: ":""),
         (ptr == MAP_FAILED?strerror(errno):"")));
 
   if (ptr == MAP_FAILED && errno != ENOMEM) {
-    #if defined(CYGWIN)
+    #if PLATFORM_OS_CYGWIN
       if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
-    #elif defined(SOLARIS)
+    #elif PLATFORM_OS_SOLARIS
       if (errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
     #endif
     gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
@@ -99,10 +112,10 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
-  gasneti_stattime_t t1, t2;
+  gasneti_tick_t t1, t2;
   gasneti_assert(segsize > 0);
-  t1 = GASNETI_STATTIME_NOW();
-    #if 0 && defined(OSF) /* doesn't seem to help */
+  t1 = gasneti_ticks_now();
+    #if 0 && PLATFORM_OS_TRU64 /* doesn't seem to help */
       /* invalidate the pages before unmap to avoid write-back penalty */
       if (madvise(segbase, segsize, MADV_DONTNEED))
         gasneti_fatalerror("madvise("GASNETI_LADDRFMT",%lu) failed: %s\n",
@@ -114,11 +127,11 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
     if (munmap(segbase, segsize) != 0) 
       gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
 	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
-  t2 = GASNETI_STATTIME_NOW();
+  t2 = gasneti_ticks_now();
 
-  GASNETI_TRACE_PRINTF(D,("munmap("GASNETI_LADDRFMT", %lu): %dus\n", 
+  GASNETI_TRACE_PRINTF(D,("munmap("GASNETI_LADDRFMT", %lu): %.3fus\n", 
      GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
-     (unsigned int) GASNETI_STATTIME_TO_US(t2-t1)) );
+     gasneti_ticks_to_ns(t2-t1)/1000.0) );
 }
 /* ------------------------------------------------------------------------------------ */
 /* binary search for segment - returns location, not mmaped */
@@ -200,7 +213,7 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
     si.size = maxsz;
     mmaped = 1;
   } else { /* use a search to find largest possible */
-    #if defined(OSF)
+    #if PLATFORM_OS_TRU64
       /* linear descending search best on systems with 
          fast mmap-failed and very slow unmap and/or mmap-succeed */
       si = gasneti_mmap_lineardesc_segsrch(maxsz);
@@ -261,7 +274,7 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
     { const char *envstr = gasneti_getenv("GASNET_MAX_SEGSIZE");
       if (envstr) { tmp = gasneti_parse_int(envstr, 1); is_dflt = 0; }
     }
-    #ifdef GASNETI_PTR32
+    #if PLATFORM_ARCH_32
       /* need to be careful about 32-bit overflow: hard limit is 2^32 - pagesz */
       result = MIN(tmp,(uint32_t)-1);
     #else
@@ -623,16 +636,33 @@ static int gasneti_auxseg_numfns;
 #if GASNET_DEBUG
   gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info) {
     gasneti_auxseg_request_t retval;
-    int i;
+    static gasnet_seginfo_t *auxseg_save = NULL;
+    int i, selftest=0;
     retval.minsz = 213;
     retval.optimalsz = 463;
-    if (auxseg_info == NULL) return retval;
-    for (i=0; i < gasneti_nodes; i++) {
-      gasneti_assert(auxseg_info[i].addr);
-      gasneti_assert(auxseg_info[i].size >= retval.minsz);
-      gasneti_assert(auxseg_info[i].size <= retval.optimalsz);
+    if (auxseg_info == NULL) return retval; /* initial query */
+    if (auxseg_info == (void*)(uintptr_t)-1) { /* self test */
+      selftest = 1;
+      gasneti_assert(auxseg_save);
+    } else { /* auxseg granted */
+      gasneti_assert(!auxseg_save);
+      auxseg_save = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+      memcpy(auxseg_save, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
     }
-    memset(auxseg_info[gasneti_mynode].addr, 0x3F, auxseg_info[gasneti_mynode].size);
+    for (i=0; i < gasneti_nodes; i++) {
+      gasneti_assert(auxseg_save[i].addr);
+      gasneti_assert(((uintptr_t)auxseg_save[i].addr) % GASNETI_CACHE_LINE_BYTES == 0);
+      gasneti_assert(((uintptr_t)auxseg_save[i].addr) % 8 == 0);
+      gasneti_assert(auxseg_save[i].size >= retval.minsz);
+      gasneti_assert(auxseg_save[i].size <= retval.optimalsz);
+    }
+    for (i=0; i < auxseg_save[gasneti_mynode].size; i++) {
+      uint8_t *p = (uint8_t *)auxseg_save[gasneti_mynode].addr;
+      #define AUXSEG_TESTVAL(i) ((uint8_t)(8|((i+0x3F)^(i>>8))))
+      if (selftest) gasneti_assert(p[i] == AUXSEG_TESTVAL(i));
+      else p[i] = AUXSEG_TESTVAL(i);
+      #undef AUXSEG_TESTVAL
+    }
     return retval;
   }
 #endif
@@ -703,8 +733,7 @@ void gasneti_auxseg_init() {
         gasneti_assert(nbytes == sizeof(gasnet_seginfo_t));
         gasneti_assert(_gasneti_auxseg_everything != NULL);
         _gasneti_auxseg_everything[srcid] = *(gasnet_seginfo_t *)buf;
-        gasneti_local_wmb();
-        gasneti_atomic_increment(&_gasneti_auxseg_gatherdone);
+        gasneti_atomic_increment(&_gasneti_auxseg_gatherdone, GASNETI_ATOMIC_REL);
         break;
       case 1:
         gasneti_assert(srcid == 0);
@@ -712,8 +741,7 @@ void gasneti_auxseg_init() {
         gasneti_assert(nbytes % sizeof(gasnet_seginfo_t) == 0);
         gasneti_assert(_gasneti_auxseg_everything != NULL);
         memcpy((void *)(_gasneti_auxseg_everything+offset), buf, nbytes);
-        gasneti_local_wmb();
-        gasneti_atomic_increment(&_gasneti_auxseg_bcastdone);
+        gasneti_atomic_increment(&_gasneti_auxseg_bcastdone, GASNETI_ATOMIC_REL);
         break;
     }
   }
@@ -769,7 +797,7 @@ void gasneti_auxseg_attach() {
     GASNETI_SAFE(gasnet_AMRequestMedium2(0, _hidx_gasnetc_auxseg_reqh, 
                   (void *)(_gasneti_auxseg_everything+gasneti_mynode), sizeof(gasnet_seginfo_t), 0, 0));
     if (gasnet_mynode() == 0) {
-      GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_gatherdone) == (int)gasnet_nodes());
+      GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_gatherdone, 0) == (int)gasnet_nodes());
       for (i=0; i < gasneti_nodes; i++) {
         for (j=0; j < chunks; j++) {
           GASNETI_SAFE(gasnet_AMRequestMedium2(i, _hidx_gasnetc_auxseg_reqh, 
@@ -778,7 +806,7 @@ void gasneti_auxseg_attach() {
         }
       }
     }
-    GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_bcastdone) == (int)chunks);
+    GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_bcastdone, 0) == (int)chunks);
     si = (gasnet_seginfo_t *)_gasneti_auxseg_everything;
   }
   #else
@@ -859,79 +887,5 @@ void gasneti_auxseg_attach() {
   }
   gasneti_free(si);
   
-}
-
-/* ------------------------------------------------------------------------------------ */
-#ifdef _SC_PHYS_PAGES
-  /* if the sysconf exists, try to use it */
-  static uint64_t _gasneti_getPhysMemSysconf(void) {
-    long pages = sysconf(_SC_PHYS_PAGES);
-    if (pages < 0) pages = 0;
-    return (((uint64_t)pages)*GASNET_PAGESIZE);
-  }
-#else
-  #define _gasneti_getPhysMemSysconf() 0
-#endif
-#if defined(__APPLE__) || defined(__FreeBSD__)
-  #include <sys/types.h>
-  #include <sys/sysctl.h>
-#endif
-uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
-  uint64_t retval = _gasneti_getPhysMemSysconf();
-  if (retval) return retval;
-  #ifdef __linux__
-    #define _BUFSZ        120
-    { FILE *fp;
-      char line[_BUFSZ+1];
-
-      if ((fp = fopen("/proc/meminfo", "r")) == NULL)
-        gasneti_fatalerror("Failed to open /proc/meminfo in gasneti_getPhysMemSz()");
-
-      while (fgets(line, _BUFSZ, fp)) {
-        unsigned long memul = 0;
-        unsigned long long memull = 0;
-        /* MemTotal: on 2.4 and 2.6 kernels - preferred because less chance of scanf overflow */
-        if (sscanf(line, "MemTotal: %lu kB", &memul) > 0 && memul > 0) {
-          retval = ((uint64_t)memul) * 1024;
-        }
-        /* Mem: only on 2.4 kernels */
-        else if (sscanf(line, "Mem: %llu", &memull) > 0 && memull > 0 && !retval) {
-          retval = (uint64_t)memull;
-        }
-      }
-      fclose(fp);
-    }
-    #undef _BUFSZ
-  #elif defined(__APPLE__) || defined(__FreeBSD__)
-    { /* see "man 3 sysctl" */    
-      int mib[2];
-      size_t len = 0;
-      mib[0] = CTL_HW;
-      mib[1] = HW_PHYSMEM;
-      sysctl(mib, 2, NULL, &len, NULL, 0);
-      switch (len) { /* accomodate both 32 and 64-bit systems */
-        case 4: { 
-          uint32_t retval32 = 0;
-          if (sysctl(mib, 2, &retval32, &len, NULL, 0)) 
-            gasneti_fatalerror("sysctl(CTL_HW.HW_PHYSMEM) failed: %s(%i)",strerror(errno),errno);
-          if (retval32) retval = (uint64_t)retval32;
-          break;
-        }
-        case 8:
-          if (sysctl(mib, 2, &retval, &len, NULL, 0)) 
-            gasneti_fatalerror("sysctl(CTL_HW.HW_PHYSMEM) failed: %s(%i)",strerror(errno),errno);
-          break;
-        default:
-          gasneti_fatalerror("sysctl(CTL_HW.HW_PHYSMEM) failed to get required size, got len=%i: %s(%i)",
-            (int)len, strerror(errno), errno);
-      }
-    }
-  #else  /* unknown OS */
-    { }
-  #endif
-
-  if (!retval && failureIsFatal) 
-    gasneti_fatalerror("Failed to determine physical memory size in gasneti_getPhysMemSz()");
-  return retval;
 }
 /* ------------------------------------------------------------------------------------ */

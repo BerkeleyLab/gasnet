@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/02/17 13:18:59 $
- * $Revision: 1.13 $
+ *     $Date: 2006/08/11 00:53:17 $
+ * $Revision: 1.13.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,13 +60,6 @@ typedef struct {
 #define GASNETE_BARRIER_BYPASS_LOOPBACK_AMSEND 1
 #endif
 
-/* implement barrier synchronization using LAPI Gfence
-   makes barrier_notify entirely blocking
- */
-#ifndef GASNETE_BARRIER_USE_GFENCE
-#define GASNETE_BARRIER_USE_GFENCE 1
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 typedef uint8_t gasnete_threadidx_t;
 
@@ -114,12 +107,16 @@ typedef struct _gasnete_iop_t {
 
     lapi_cntr_t      get_cntr;
     lapi_cntr_t      put_cntr;
+
+    gasneti_weakatomic_t get_aux_cntr;
+    gasneti_weakatomic_t put_aux_cntr;
 } gasnete_iop_t;
 
 /* ------------------------------------------------------------------------------------ */
 typedef struct _gasnete_threaddata_t {
     void *gasnetc_threaddata;     /* pointer reserved for use by the core */
     void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
+    void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
 
     gasnete_threadidx_t threadidx;
 
@@ -140,7 +137,7 @@ typedef struct _gasnete_threaddata_t {
 #define OPTYPE_EXPLICIT               0x00  /*  gasnete_eop_new() relies on this value */
 #define OPTYPE_IMPLICIT               0x80
 #define OPTYPE(op) ((op)->flags & 0x80)
-GASNET_INLINE_MODIFIER(SET_OPTYPE)
+GASNETI_INLINE(SET_OPTYPE)
     void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
     op->flags = (op->flags & 0x7F) | (type & 0x80);
 }
@@ -150,7 +147,7 @@ GASNET_INLINE_MODIFIER(SET_OPTYPE)
 #define OPSTATE_INFLIGHT  1
 #define OPSTATE_COMPLETE  2
 #define OPSTATE(op) ((op)->flags & 0x03) 
-GASNET_INLINE_MODIFIER(SET_OPSTATE)
+GASNETI_INLINE(SET_OPSTATE)
     void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
     op->flags = (op->flags & 0xFC) | (state & 0x03);
   /* RACE: If we are marking the op COMPLETE, don't assert for completion
@@ -178,13 +175,16 @@ void gasnete_op_free(gasnete_op_t *op);
 
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */
-  #define gasnete_eop_check(eop) do {                                \
-    gasnete_threaddata_t * _th;                                      \
-    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
-    gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
-                   OPSTATE(eop) == OPSTATE_COMPLETE);                \
-    _th = gasnete_threadtable[(eop)->threadidx];                     \
-    gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
+  #define gasnete_eop_check(eop) do {                                     \
+    gasnete_threaddata_t * _th;                                           \
+    int _temp;                                                            \
+    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                       \
+    gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||                    \
+                   OPSTATE(eop) == OPSTATE_COMPLETE);                     \
+    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&_temp)); \
+    gasneti_assert(_temp <= eop->initiated_cnt);                          \
+    _th = gasnete_threadtable[(eop)->threadidx];                          \
+    gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);      \
   } while (0)
   #define gasnete_iop_check(iop) do {                                             \
     int _temp;                                                                    \
@@ -197,6 +197,8 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            \
     GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); \
     gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->get_aux_cntr, 0) >= 0);           \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->put_aux_cntr, 0) >= 0);           \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
 #else
@@ -210,5 +212,8 @@ void gasnete_op_free(gasnete_op_t *op);
 /* ------------------------------------------------------------------------------------ */
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
+#define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
+#define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
 
 #endif

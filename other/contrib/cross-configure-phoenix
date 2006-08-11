@@ -26,6 +26,7 @@ HOST_CFLAGS="-g -O2" ; export HOST_CFLAGS
 # Host C++ compiler - required by Titanium, not required for UPC or GASNet
 HOST_CXX='g++' ; export HOST_CXX  
 HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
+cxxLDFLAGS='-static' ; export cxxLDFLAGS  # link statically for simplicity
 
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine

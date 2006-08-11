@@ -1,19 +1,11 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.osf1.alpha,v $
-#     $Date: 2004/08/26 04:53:48 $
-# $Revision: 1.2 $
+#     $Date: 2006/08/11 00:53:25 $
+# $Revision: 1.2.16.1 $
 # Description: IBM SP2 Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
-# Get default settings for everything
-include Makefile.common
-
-# disable ILP32 tests
-testprograms_ILP32only =
-apputils_flags = -DAPPUTILS_OMIT_READWRITE
-
-# additional defines
-# must include, minimally, a define to identify the platform
-platform_defines = -DUNIX -DOSF -DALPHA
+# additional defines required to build on this platform
+platform_defines = 
 
 # ------- optional, changed from template ---------
 # additional libraries and/or library directories

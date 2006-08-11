@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2005/08/08 02:20:34 $
- * $Revision: 1.29 $
+ *     $Date: 2006/08/11 00:53:33 $
+ * $Revision: 1.29.4.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,7 +40,7 @@
 typedef uintptr_t	fh_uint_t;
 typedef intptr_t	fh_int_t;
 
-extern gasnet_node_t	fh_mynode;
+extern int fh_verbose;
 
 /* 
  * Locks
@@ -159,7 +159,7 @@ extern int	*fhc_RemoteVictimFifoBuckets;
  * table (for both remote and local pins).
  */
 
-#if SIZEOF_VOID_P == 4
+#if PLATFORM_ARCH_32
 typedef uint16_t	fh_refc_uint_t;
 #else
 typedef uint32_t	fh_refc_uint_t;
@@ -176,14 +176,15 @@ fh_refc_t;
 /*
  * Bucket and private types
  */
-#define DEBUG_BUCKETS
+#if GASNET_DEBUG
+  #define DEBUG_BUCKETS
+#endif
 #ifdef DEBUG_BUCKETS
   typedef enum { fh_local_fifo, fh_remote_fifo, fh_pending, fh_pending_commit, fh_used, fh_unused }
   fh_bstate_t;
   #define FH_BSTATE_ASSERT(entry, state) gasneti_assert((entry)->fh_state == state)
   #define FH_BSTATE_SET(entry, state)	 (entry)->fh_state = state
-  #define FH_BSTATE(entry)		 (entry)->fh_state
-  #else
+#else
   #define FH_BSTATE_ASSERT(entry, state)
   #define FH_BSTATE_SET(entry, state)
 #endif
@@ -205,6 +206,7 @@ struct _firehose_private_t {
 
 	#ifdef DEBUG_BUCKETS
 	fh_bstate_t	fh_state;
+	int		prepinned;
 	#endif
 
 	/* Region-specific additional fields: */
@@ -539,8 +541,6 @@ fh_callback_t;
 #define FH_CALLBACK_TYPE_COMPLETION	0x02
 #define FH_CALLBACK_TYPE_PENDING	0x04
 
-/* The remote callback type is pretty page-specific right now, waiting for
- * firehose-region to catch up before making a "standard" remote_callback_t */
 typedef
 struct _fh_remote_callback_t {
 	uint32_t		flags;
@@ -584,7 +584,7 @@ void	fh_release_local_region(firehose_request_t *);
 void	fh_acquire_remote_region(firehose_request_t *req,
 				firehose_completed_fn_t callback, 
 				void *context, uint32_t flags,
-		        	firehose_remotecallback_args_t *remote_args);
+		        	firehose_remotecallback_args_fn_t args_fn);
 void	fh_commit_try_remote_region(firehose_request_t *);
 void	fh_release_remote_region(firehose_request_t *);
 int	fh_move_request(gasnet_node_t node,
@@ -616,14 +616,14 @@ extern gasnet_handlerentry_t fh_am_handlers[];
 int	fh_FreeVictim(int count, firehose_region_t *reg,
 			fh_fifoq_t *fifo_head);
 
-GASNET_INLINE_MODIFIER(fhi_FreeVictimLocal)
+GASNETI_INLINE(fhi_FreeVictimLocal)
 int fhi_FreeVictimLocal(int count, firehose_region_t *reg)
 {
 	gasneti_assert(count <= fhc_LocalVictimFifoBuckets);
 	return fh_FreeVictim(count, reg, &fh_LocalFifo);
 }
 
-GASNET_INLINE_MODIFIER(fhi_FreeVictimRemote)
+GASNETI_INLINE(fhi_FreeVictimRemote)
 int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 {
 	gasneti_assert(count <= fhc_RemoteVictimFifoBuckets[node]);
@@ -701,7 +701,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 	do {								\
 		char	msg[64];					\
 		fh_refc_t *rp = FH_BUCKET_REFC(bd);			\
-		if (FH_PRIV_NODE(bd) != fh_mynode) {			\
+		if (FH_PRIV_NODE(bd) != gasneti_mynode) {			\
 			if (FH_IS_REMOTE_PENDING(bd)) 			\
 				sprintf(msg, "rrefc=%d PENDING",	\
 				    rp->refc_r);			\
@@ -720,7 +720,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 		GASNETI_TRACE_PRINTF(C,					\
 		    ("Firehose Bucket %s %s node=%d,addr="              \
 		     GASNETI_LADDRFMT",%s", #bmsg,                      \
-		     FH_PRIV_NODE(bd) == fh_mynode ? "Local ":"Remote", \
+		     FH_PRIV_NODE(bd) == gasneti_mynode ? "Local ":"Remote", \
 		     (int) FH_PRIV_NODE(bd),                            \
 		     GASNETI_LADDRSTR(FH_BADDR(bd)), msg));		\
 	} while (0)
@@ -738,6 +738,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
 #define FH_NUMPINNED_TRACE_LOCAL
 #define FH_NUMPINNED_TRACE_REMOTE
 #endif
+
 
 /*
  * Conduit Features	gm-conduit	vapi-conduit	sci-conduit

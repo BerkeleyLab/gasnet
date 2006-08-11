@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2005/06/29 22:51:17 $
- * $Revision: 1.7 $
+ *     $Date: 2006/08/11 00:53:56 $
+ * $Revision: 1.7.4.1 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -41,53 +41,63 @@ firehose_move_callback(gasnet_node_t node,
     EVAPI_fmr_map_t map;
     EVAPI_fmr_hndl_t *handles;
     int repin_num;
-    int i;
+    int h, i;
 
     map.page_array_len = 0;
 
-    /* Perform all the unpins with a single unmap call: */
+    /* Perform all the unpins with a single unmap call per HCA: */
     if (unpin_num) {
       handles = alloca(unpin_num * sizeof(EVAPI_fmr_hndl_t));
-      for (i = 0; i < unpin_num; ++i) {
-	GASNETC_TRACE_UNPIN(&unpin_list[i]);
-	handles[i] = unpin_list[i].client.handle;
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+        for (i = 0; i < unpin_num; ++i) {
+	  if (h == 0) { GASNETC_TRACE_UNPIN(&unpin_list[i]); }
+	  handles[i] = unpin_list[i].client.handle[h];
+        }
+        vstat = EVAPI_unmap_fmr(gasnetc_hca[h].handle, unpin_num, handles);
+        GASNETC_VAPI_CHECK(vstat, "from EVAPI_unmap_fmr");
       }
-      vstat = EVAPI_unmap_fmr(gasnetc_hca, unpin_num, handles);
-      GASNETC_VAPI_CHECK(vstat, "from EVAPI_unmap_fmr");
     }
 
     /* Reuse the unmapped FMRs where possible */
     repin_num = MIN(unpin_num, pin_num);
     for (i = 0; i < repin_num; i++) {
-	pin_list[i].client.handle = unpin_list[i].client.handle;
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+	pin_list[i].client.handle[h] = unpin_list[i].client.handle[h];
+      }
     }
     
     /* Destroy excess FMRs (if any) */
     for (i = repin_num; i < unpin_num; i++) {
-      vstat = EVAPI_free_fmr(gasnetc_hca, unpin_list[i].client.handle);
-      GASNETC_VAPI_CHECK(vstat, "from EVAPI_free_fmr");
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+        vstat = EVAPI_free_fmr(gasnetc_hca[h].handle, unpin_list[i].client.handle[h]);
+        GASNETC_VAPI_CHECK(vstat, "from EVAPI_free_fmr");
+      }
     }
 
     /* Allocate more FMRs (if needed) */
     for (i = repin_num; i < pin_num; i++) {
-      vstat = EVAPI_alloc_fmr(gasnetc_hca, &gasnetc_fmr_props,
-			      &(pin_list[i].client.handle));
-      GASNETC_VAPI_CHECK(vstat, "from EVAPI_alloc_fmr");
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+        vstat = EVAPI_alloc_fmr(gasnetc_hca[h].handle, &gasnetc_hca[h].fmr_props,
+			        &(pin_list[i].client.handle[h]));
+        GASNETC_VAPI_CHECK(vstat, "from EVAPI_alloc_fmr");
+      }
     }
 
     /* Now perform all the mappings */
     for (i = 0; i < pin_num; i++) {
-	firehose_region_t *region = pin_list + i;
+      firehose_region_t *region = pin_list + i;
 
-	gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
-	gasneti_assert(region->len % GASNET_PAGESIZE == 0);
+      gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+      gasneti_assert(region->len % GASNET_PAGESIZE == 0);
 
-	map.start = (uintptr_t)region->addr;
-	map.size  = region->len;
-        vstat = EVAPI_map_fmr(gasnetc_hca, region->client.handle, &map,
-			      &(region->client.lkey), &(region->client.rkey));
+      map.start = (uintptr_t)region->addr;
+      map.size  = region->len;
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+        vstat = EVAPI_map_fmr(gasnetc_hca[h].handle, region->client.handle[h], &map,
+			      &(region->client.lkey[h]), &(region->client.rkey[h]));
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_map_fmr");
-	GASNETC_TRACE_PIN(&pin_list[i]);
+      }
+      GASNETC_TRACE_PIN(&pin_list[i]);
     }
 
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
@@ -99,73 +109,75 @@ firehose_move_callback(gasnet_node_t node,
     VAPI_ret_t    vstat;
     VAPI_mr_t     mr_in;
     int repin_num;
-    int i;
+    int h, i;
 
     mr_in.type    = VAPI_MR;
-    mr_in.pd_hndl = gasnetc_pd;
     mr_in.acl     = VAPI_EN_LOCAL_WRITE |
 		    VAPI_EN_REMOTE_WRITE |
 		    VAPI_EN_REMOTE_READ;
 
-    /* Perform replacements where possible */
     repin_num = MIN(unpin_num, pin_num);
+
+    /* Take care of any unpairable unpins first */
+    for (i = repin_num; i < unpin_num; i++) {
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+	vstat = VAPI_deregister_mr(gasnetc_hca[h].handle,
+				   unpin_list[i].client.handle[h]);
+        GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr");
+      }
+      GASNETC_TRACE_UNPIN(&unpin_list[i]);
+    }
+
+    /* Perform replacements where possible */
     for (i = 0; i < repin_num; i++) {
-	firehose_region_t *region = pin_list + i;
-	firehose_client_t *client = &region->client;
-	VAPI_mr_hndl_t old_handle = unpin_list[i].client.handle;
-	VAPI_mr_t mr_out;
+      firehose_region_t *region = pin_list + i;
+      firehose_client_t *client = &region->client;
+      VAPI_mr_t mr_out;
 
-	gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
-	gasneti_assert(region->len % GASNET_PAGESIZE == 0);
+      gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+      gasneti_assert(region->len % GASNET_PAGESIZE == 0);
 
-	mr_in.start = (uintptr_t)region->addr;
-	mr_in.size  = region->len;
+      mr_in.start = (uintptr_t)region->addr;
+      mr_in.size  = region->len;
 
-	vstat = VAPI_reregister_mr(gasnetc_hca, old_handle,
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+	mr_in.pd_hndl = gasnetc_hca[h].pd;
+
+	vstat = VAPI_reregister_mr(gasnetc_hca[h].handle,
+				   unpin_list[i].client.handle[h],
 				   VAPI_MR_CHANGE_TRANS,
-				   &mr_in, &client->handle, &mr_out);
+				   &mr_in, &client->handle[h], &mr_out);
         GASNETC_VAPI_CHECK(vstat, "from VAPI_reregister_mr");
-	GASNETC_TRACE_UNPIN(&unpin_list[i]);
-	GASNETC_TRACE_PIN(&pin_list[i]);
 
-	client->lkey     = mr_out.l_key;
-	client->rkey     = mr_out.r_key;
+	client->lkey[h]     = mr_out.l_key;
+	client->rkey[h]     = mr_out.r_key;
+      }
+      GASNETC_TRACE_UNPIN(&unpin_list[i]);
+      GASNETC_TRACE_PIN(&pin_list[i]);
     }
-    unpin_list += repin_num;
-    unpin_num -= repin_num;
-    pin_list += repin_num;
-    pin_num -= repin_num;
 
-    /* Take care of any "left over".
-     * Note that we can't have entries left in *both* lists */
-    if (unpin_num) {
-        for (i = 0; i < unpin_num; i++) {
-	    VAPI_mr_hndl_t old_handle = unpin_list[i].client.handle;
+    /* Take care of any unpairable pins */
+    for (i = repin_num; i < pin_num; i++) {
+      firehose_region_t *region = pin_list + i;
+      firehose_client_t *client = &region->client;
+      VAPI_mr_t mr_out;
+    
+      gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+      gasneti_assert(region->len % GASNET_PAGESIZE == 0);
+    
+      mr_in.start = (uintptr_t)region->addr;
+      mr_in.size  = region->len;
+    
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+	mr_in.pd_hndl = gasnetc_hca[h].pd;
 
-	    vstat = VAPI_deregister_mr(gasnetc_hca, old_handle);
-            GASNETC_VAPI_CHECK(vstat, "from VAPI_deregister_mr");
-	    GASNETC_TRACE_UNPIN(&unpin_list[i]);
-        }
-    }
-    else if (pin_num) {
-        for (i = 0; i < pin_num; i++) {
-	    firehose_region_t *region = pin_list + i;
-	    firehose_client_t *client = &region->client;
-	    VAPI_mr_t mr_out;
+	vstat = VAPI_register_mr(gasnetc_hca[h].handle, &mr_in, &client->handle[h], &mr_out);
+        GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr");
     
-	    gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
-	    gasneti_assert(region->len % GASNET_PAGESIZE == 0);
-    
-	    mr_in.start = (uintptr_t)region->addr;
-	    mr_in.size  = region->len;
-    
-	    vstat = VAPI_register_mr(gasnetc_hca, &mr_in, &client->handle, &mr_out);
-            GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr");
-	    GASNETC_TRACE_PIN(&pin_list[i]);
-    
-	    client->lkey     = mr_out.l_key;
-	    client->rkey     = mr_out.r_key;
-	}
+	client->lkey[h]     = mr_out.l_key;
+	client->rkey[h]     = mr_out.r_key;
+      }
+      GASNETC_TRACE_PIN(&pin_list[i]);
     }
 
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
@@ -178,7 +190,18 @@ firehose_remote_callback(gasnet_node_t node,
                          const firehose_region_t *pin_list, size_t num_pinned,
                          firehose_remotecallback_args_t *args)
 {
-    /* DO NOTHING.  IF WE GET CALLED WE COMPLAIN. */
-    gasneti_fatalerror("attempted to call firehose_remote_callback()");
-    return -1;
+    #if GASNETC_PIN_SEGMENT
+	/* DO NOTHING.  IF WE GET CALLED WE COMPLAIN. */
+	gasneti_fatalerror("invalid attempted to call firehose_remote_callback()");
+	return -1;
+    #else
+	/* Memcpy payload into place */
+	gasneti_assert(args != NULL);
+	gasneti_assert(args->addr != NULL);
+	gasneti_assert(args->len > 0);
+	gasneti_assert(args->len <= gasnetc_putinmove_limit);
+	memcpy(args->addr, args->data, args->len);
+	gasneti_sync_writes();
+	return 0;
+    #endif
 }

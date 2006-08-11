@@ -1,7 +1,7 @@
 README file for ssh-spawner
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.4 $
+$Revision: 1.4.10.1 $
 
 See vapi-conduit for an example of how to use this code in a conduit.
 
@@ -49,6 +49,9 @@ When using the ssh-spawner, the following apply:
     GASNET_SSH_OPTIONS="-o 'StrictHostKeyChecking no'"
   The parsing of the value follows the same rules for quotes (both
   single and double) and backslash as most shells.
+
++ The environment variable GASNET_SSH_REMOTE_PATH can be set to
+  specify the working directory (defaults to current).
 
 + Users of OpenSSH should NOT add "-f" to GASNET_SSH_OPTIONS.  Doing
   so causes the spawner to mistakenly believe that a process it

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testlatencyM.c,v $
- *     $Date: 2005/07/24 05:01:47 $
- * $Revision: 1.11 $
+ *     $Date: 2006/08/11 00:53:29 $
+ * $Revision: 1.11.4.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,7 +27,7 @@ static void ping_request_handler(void *token, void *msg, int nbytes) {
   #endif
 
   AM_Safe(AM_Reply0(token, PING_REP_HANDLER));
-  }
+}
 
 static void ping_reply_handler(void *token) {
 
@@ -36,21 +36,20 @@ static void ping_reply_handler(void *token) {
   #endif
 
   numleft--;
-  }
+}
 
 void mywait(int polling) {
   if (polling) { /* poll until everyone done */
     while (numleft) {
       AM_Safe(AM_Poll(eb));
-      }
     }
-  else {
+  } else {
     while (numleft) {
       AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
       AM_Safe(AM_WaitSema(eb));
       AM_Safe(AM_Poll(eb));
-      }
     }
+  }
 }
 
 /* usage: testlatency  numprocs  spawnfn  iters  P/B msgsz
@@ -64,13 +63,8 @@ int main(int argc, char **argv) {
   int msgsz = 0;
   char *msg=NULL;
 
-  CHECKARGS(argc, argv, 1, 3, "iters (Poll/Block) (msgsize)");
+  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 3, "iters (Poll/Block) (msgsize)");
 
-  AMX_VerboseErrors = 1;
-
-  /* call startup */
-  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
-                            0, &networkpid, &eb, &ep));
   /* setup handlers */
   AM_Safe(AM_SetHandler(ep, PING_REQ_HANDLER, ping_request_handler));
   AM_Safe(AM_SetHandler(ep, PING_REP_HANDLER, ping_reply_handler));
@@ -88,8 +82,8 @@ int main(int argc, char **argv) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
       default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
-      }
     }
+  }
 
   if (argc > 3) msgsz = atoi(argv[3]);
   if (!msgsz) msgsz = 1;
@@ -117,8 +111,8 @@ int main(int argc, char **argv) {
       #endif
       AM_Safe(AM_RequestI0(ep, 0, PING_REQ_HANDLER, msg, msgsz));
       mywait(polling);
-      }
     }
+  }
   
   end = getCurrentTimeMicrosec();
 
@@ -137,5 +131,5 @@ int main(int argc, char **argv) {
   AM_Safe(AMX_SPMDExit(0));
 
   return 0;
-  }
+}
 /* ------------------------------------------------------------------------------------ */

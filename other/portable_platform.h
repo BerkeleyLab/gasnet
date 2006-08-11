@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/08/05 11:22:26 $
- * $Revision: 1.8 $
+ *     $Date: 2006/08/11 00:53:23 $
+ * $Revision: 1.8.2.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */

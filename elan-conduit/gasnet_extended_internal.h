@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2005/04/28 02:54:26 $
- * $Revision: 1.21 $
+ *     $Date: 2006/08/11 00:53:10 $
+ * $Revision: 1.21.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -84,6 +84,7 @@ typedef struct _gasnete_iop_t {
 typedef struct _gasnete_threaddata_t {
   void *gasnetc_threaddata;     /* pointer reserved for use by the core - MUST be first */
   void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
+  void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
 
   gasnete_threadidx_t threadidx;
 
@@ -104,7 +105,7 @@ typedef struct _gasnete_threaddata_t {
 #define OPTYPE_EXPLICIT               0x00  /*  gasnete_eop_new() relies on this value */
 #define OPTYPE_IMPLICIT               0x80
 #define OPTYPE(op) ((op)->flags & 0x80)
-GASNET_INLINE_MODIFIER(SET_OPTYPE)
+GASNETI_INLINE(SET_OPTYPE)
 void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
   op->flags = (op->flags & 0x7F) | (type & 0x80);
 }
@@ -114,7 +115,7 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 #define OPSTATE_INFLIGHT  1
 #define OPSTATE_COMPLETE  2
 #define OPSTATE(op) ((op)->flags & 0x03) 
-GASNET_INLINE_MODIFIER(SET_OPSTATE)
+GASNETI_INLINE(SET_OPSTATE)
 void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
   /* RACE: If we are marking the op COMPLETE, don't assert for completion
@@ -130,10 +131,10 @@ void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
 #define OPCAT_AMGET     3
 #define OPCAT_AMPUT     4
 #define OPCAT_MEMSET    5
-#define OPCAT_RESERVED6 6 /* unused */
+#define OPCAT_OTHER     6 /* gasnet-internal op interface */
 #define OPCAT_RESERVED7 7 /* unused */
 #define OPCAT(op) (((op)->flags >> 2) & 0x07)
-GASNET_INLINE_MODIFIER(SET_OPCAT)
+GASNETI_INLINE(SET_OPCAT)
 void SET_OPCAT(gasnete_eop_t *op, uint8_t cat) {
   op->flags = (op->flags & 0xE3) | ((cat & 0x07) << 2);
   gasneti_assert(OPCAT(op) == cat);
@@ -182,10 +183,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt)); \
+    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)
@@ -200,16 +201,17 @@ void gasnete_op_free(gasnete_op_t *op);
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#define _hidx_gasnete_ambarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
-#define _hidx_gasnete_ambarrier_done_reqh   (GASNETE_HANDLER_BASE+1)
-#define _hidx_gasnete_get_reqh              (GASNETE_HANDLER_BASE+2)
-#define _hidx_gasnete_get_reph              (GASNETE_HANDLER_BASE+3)
-#define _hidx_gasnete_getlong_reqh          (GASNETE_HANDLER_BASE+4)
-#define _hidx_gasnete_getlong_reph          (GASNETE_HANDLER_BASE+5)
-#define _hidx_gasnete_put_reqh              (GASNETE_HANDLER_BASE+6)
-#define _hidx_gasnete_putlong_reqh          (GASNETE_HANDLER_BASE+7)
-#define _hidx_gasnete_memset_reqh           (GASNETE_HANDLER_BASE+8)
-#define _hidx_gasnete_markdone_reph         (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
+#define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_get_reqh               (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_get_reph               (GASNETE_HANDLER_BASE+4)
+#define _hidx_gasnete_getlong_reqh           (GASNETE_HANDLER_BASE+5)
+#define _hidx_gasnete_getlong_reph           (GASNETE_HANDLER_BASE+6)
+#define _hidx_gasnete_put_reqh               (GASNETE_HANDLER_BASE+7)
+#define _hidx_gasnete_putlong_reqh           (GASNETE_HANDLER_BASE+8)
+#define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+10)
 
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 

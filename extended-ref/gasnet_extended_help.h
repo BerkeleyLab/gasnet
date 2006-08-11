@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2005/07/29 01:19:23 $
- * $Revision: 1.28 $
+ *     $Date: 2006/08/11 00:53:12 $
+ * $Revision: 1.28.4.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,25 +13,25 @@
 #ifndef _GASNET_EXTENDED_HELP_H
 #define _GASNET_EXTENDED_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 
 /* ------------------------------------------------------------------------------------ */
+#ifndef GASNETI_MAX_THREADS
+/* cannot exceed 256, but some conduits may set it to less */
+#define GASNETI_MAX_THREADS 256
+#endif
 
-#if GASNETI_CLIENT_THREADS
+#ifndef _GASNETE_MYTHREAD
   struct _gasnete_threaddata_t;
-  extern struct _gasnete_threaddata_t *gasnete_mythread() __attribute__ ((const));
-  #if defined(__xlC__)
-    #if 0
-      /* this should work according to the &*@&#$! IBM compiler docs, 
-         but of course it doesn't... */
-      #pragma options pure=gasnete_mythread
-    #else
-      #pragma isolated_call(gasnete_mythread)
-    #endif
+  #if GASNETI_CLIENT_THREADS
+    extern struct _gasnete_threaddata_t *gasnete_mythread() GASNETI_CONST;
+    GASNETI_CONSTP(gasnete_mythread)
+  #else
+    extern struct _gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
+    #define gasnete_mythread() (gasnete_threadtable[0])
   #endif
-  /* TODO: mark gasnete_mythread() as a pure function for other compilers */
 #endif
 
 /* gasnete_islocal() is used by put/get fns to decide whether shared memory on 
@@ -48,33 +48,118 @@ BEGIN_EXTERNC
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-#if defined(_CRAYC) || (SIZEOF_SHORT > 2)  /* deal with Cray's crappy lack of 16-bit types */
-  #define OMIT_WHEN_MISSING_16BIT(code) 
-#else
-  #define OMIT_WHEN_MISSING_16BIT(code) code
+/* bug 1389: need to prevent bad optimizations on GASNETE_FAST_ALIGNED_MEMCPY due to
+   ansi-aliasing rules added in C99 that foolishly outlaw type-punning. 
+   Exploit a union of all possible base types of the given size as a loophole in the rules.
+   Other options include forcing gasneti_compiler_fence before&after the type-punning,
+   globally disabling ansi aliasing using compiler flags, or redundantly copying the 
+   first byte of the value as a (char *) (last is not guaranteed to work)
+ */
+typedef union {
+  uint8_t u8; /* might be a compiler builtin type */
+  #if SIZEOF_CHAR == 1
+    char _c;
+  #endif
+  #if SIZEOF_SHORT == 1
+    short _s;
+  #endif
+} gasnete_anytype8_t;
+
+#ifndef INTTYPES_16BIT_MISSING
+typedef union {
+  uint16_t u16; /* might be a compiler builtin type */
+  gasnete_anytype8_t _at8; /* necessary for structs of two 8-bit types */
+  #if SIZEOF_SHORT == 2
+    short _s;
+  #endif
+  #if SIZEOF_INT == 2
+    int _i;
+  #endif
+} gasnete_anytype16_t;
 #endif
+
+typedef union {
+  uint32_t u32; /* might be a compiler builtin type */
+  #ifndef INTTYPES_16BIT_MISSING
+    gasnete_anytype16_t _at16; /* necessary for structs of two 16-bit types */
+  #endif
+  #if SIZEOF_SHORT == 4
+    short _s;
+  #endif
+  #if SIZEOF_INT == 4
+    int _i;
+  #endif
+  #if SIZEOF_LONG == 4
+    long _l;
+  #endif
+  #if SIZEOF_FLOAT == 4
+    float _4;
+  #endif
+  #if SIZEOF_VOID_P == 4
+    void *_p;
+    intptr_t _ip; /* might be a compiler builtin type */
+  #endif
+} gasnete_anytype32_t;
+
+typedef union {
+  uint64_t u64; /* might be a compiler builtin type */
+  gasnete_anytype32_t _at32; /* necessary for structs of two 32-bit types */
+  #if SIZEOF_INT == 8
+    int _i;
+  #endif
+  #if SIZEOF_LONG == 8
+    long _l;
+  #endif
+  #if SIZEOF_LONG_LONG == 8
+    long long _ll;
+  #endif
+  #if SIZEOF_DOUBLE == 8
+    double _4;
+  #endif
+  #if SIZEOF_VOID_P == 8
+    void *_p;
+    intptr_t _ip; /* might be a compiler builtin type */
+  #endif
+} gasnete_anytype64_t;
+
+#if INTTYPES_16BIT_MISSING  /* deal with Cray's annoying lack of 16-bit types on some platforms */
+  #define GASNETE_OMIT_WHEN_MISSING_16BIT(code) 
+#else
+  #define GASNETE_OMIT_WHEN_MISSING_16BIT(code) code
+#endif
+
+#if PLATFORM_ARCH_CRAYT3E /* T3E ridiculously sets the sizes of all unions above to 8 bytes */
+  #define gasnete_anytype8_t  uint8_t
+  #define gasnete_anytype32_t uint32_t
+  #define gasnete_anytype64_t uint64_t
+  #define GASNETE_ANYTYPE_LVAL(ptr,bits) (*((gasnete_anytype##bits##_t *)(ptr)))
+#else
+  #define GASNETE_ANYTYPE_LVAL(ptr,bits) (((gasnete_anytype##bits##_t *)(ptr))->u##bits)
+#endif
+
 /*  undefined results if the regions are overlapping */
 #define GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes) do { \
   switch(nbytes) {                                          \
     case 0:                                                 \
       break;                                                \
-    case sizeof(uint8_t):                                   \
-      *((uint8_t *)(dest)) = *((uint8_t *)(src));           \
+    case 1:  *((gasnete_anytype8_t *)(dest)) =              \
+             *((gasnete_anytype8_t *)(src));                \
       break;                                                \
-  OMIT_WHEN_MISSING_16BIT(                                  \
-    case sizeof(uint16_t):                                  \
-      *((uint16_t *)(dest)) = *((uint16_t *)(src));         \
+  GASNETE_OMIT_WHEN_MISSING_16BIT(                          \
+    case 2:  *((gasnete_anytype16_t *)(dest)) =             \
+             *((gasnete_anytype16_t *)(src));               \
       break;                                                \
   )                                                         \
-    case sizeof(uint32_t):                                  \
-      *((uint32_t *)(dest)) = *((uint32_t *)(src));         \
+    case 4:  *((gasnete_anytype32_t *)(dest)) =             \
+             *((gasnete_anytype32_t *)(src));               \
       break;                                                \
-    case sizeof(uint64_t):                                  \
-      *((uint64_t *)(dest)) = *((uint64_t *)(src));         \
+    case 8:  *((gasnete_anytype64_t *)(dest)) =             \
+             *((gasnete_anytype64_t *)(src));               \
       break;                                                \
     default:                                                \
       memcpy(dest, src, nbytes);                            \
-  } } while(0)
+  }                                                         \
+  } while(0)
 
 #define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
 
@@ -91,27 +176,44 @@ BEGIN_EXTERNC
    8*nbytes low-order bits of value, written with the endianness appropriate 
    for an nbytes integral value on the current architecture
    */
-#define GASNETE_VALUE_ASSIGN(dest, value, nbytes) do {                  \
-  switch (nbytes) {                                                     \
-    case 0:                                                             \
-      break;                                                            \
-    case sizeof(uint8_t):                                               \
-      *((uint8_t *)(dest)) = (uint8_t)(value);                          \
-      break;                                                            \
-  OMIT_WHEN_MISSING_16BIT(                                              \
-    case sizeof(uint16_t):                                              \
-      *((uint16_t *)(dest)) = (uint16_t)(value);                        \
-      break;                                                            \
-  )                                                                     \
-    case sizeof(uint32_t):                                              \
-      *((uint32_t *)(dest)) = (uint32_t)(value);                        \
-      break;                                                            \
-    case sizeof(uint64_t):                                              \
-      *((uint64_t *)(dest)) = (uint64_t)(value);                        \
-      break;                                                            \
-    default:  /* no such native nbytes integral type */                 \
-      memcpy((dest), GASNETE_STARTOFBITS(&(value),nbytes), nbytes);     \
-  } } while (0)
+#define GASNETE_VALUE_ASSIGN(dest, value, nbytes) do {              \
+  switch (nbytes) {                                                 \
+    case 0:                                                         \
+      break;                                                        \
+    case 1: GASNETE_ANYTYPE_LVAL(dest,8) = (uint8_t)(value);        \
+      break;                                                        \
+  GASNETE_OMIT_WHEN_MISSING_16BIT(                                  \
+    case 2: GASNETE_ANYTYPE_LVAL(dest,16) = (uint16_t)(value);      \
+      break;                                                        \
+  )                                                                 \
+    case 4: GASNETE_ANYTYPE_LVAL(dest,32) = (uint32_t)(value);      \
+      break;                                                        \
+    case 8: GASNETE_ANYTYPE_LVAL(dest,64) = (uint64_t)(value);      \
+      break;                                                        \
+    default:  /* no such native nbytes integral type */             \
+      memcpy((dest), GASNETE_STARTOFBITS(&(value),nbytes), nbytes); \
+  }                                                                 \
+  } while (0)
+
+/* interpret *src as a ptr to an nbytes type,
+   and return the value as a gasnet_register_value_t */
+#define GASNETE_VALUE_RETURN(src, nbytes) do {                               \
+    gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t)); \
+    switch (nbytes) {                                                        \
+      case 1: return (gasnet_register_value_t)GASNETE_ANYTYPE_LVAL(src,8);   \
+    GASNETE_OMIT_WHEN_MISSING_16BIT(                                         \
+      case 2: return (gasnet_register_value_t)GASNETE_ANYTYPE_LVAL(src,16);  \
+    )                                                                        \
+      case 4: return (gasnet_register_value_t)GASNETE_ANYTYPE_LVAL(src,32);  \
+      case 8: return (gasnet_register_value_t)GASNETE_ANYTYPE_LVAL(src,64);  \
+      default: { /* no such native nbytes integral type */                   \
+          gasnet_register_value_t result = 0;                                \
+          memcpy(GASNETE_STARTOFBITS(&result,nbytes), src, nbytes);          \
+          return result;                                                     \
+      }                                                                      \
+    }                                                                        \
+  } while (0)
+
 
 #if GASNET_NDEBUG
   #define gasnete_aligncheck(ptr,nbytes)
@@ -136,7 +238,7 @@ BEGIN_EXTERNC
          */                                                                             \
         switch (nbytes) {                                                               \
           case 1: *(uint8_t *)p = 0; break;                                             \
-        OMIT_WHEN_MISSING_16BIT(                                                        \
+        GASNETE_OMIT_WHEN_MISSING_16BIT(                                                \
           case 2: *(uint16_t *)p = 0; break;                                            \
         )                                                                               \
           case 4: *(uint32_t *)p = 0; break;                                            \
@@ -176,15 +278,20 @@ BEGIN_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 /* thread-id optimization support */
 #ifdef GASNETI_THREADINFO_OPT
-  #define GASNETE_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _threadinfo
+  #if GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
+    #define GASNETE_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _threadinfo
+  #else
+    #define GASNETE_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _threadinfo
+  #endif
   #define GASNETE_THREAD_FARG         , GASNETE_THREAD_FARG_ALONE
   #define GASNETE_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
   #define GASNETE_THREAD_GET          , GASNETE_THREAD_GET_ALONE
   #define GASNETE_THREAD_PASS_ALONE   (_threadinfo)
   #define GASNETE_THREAD_PASS         , GASNETE_THREAD_PASS_ALONE
+  #define GASNETE_THREAD_LOOKUP       GASNETE_THREAD_FARG_ALONE = GASNETE_THREAD_GET_ALONE;
   #define GASNETE_THREAD_SWALLOW(x)
   #define GASNETE_TISTARTOFBITS(ptr,nbytes,ti) GASNETE_STARTOFBITS(ptr,nbytes)
-  #define GASNETE_MYTHREAD            ((gasnete_threaddata_t *)_threadinfo)
+  #define GASNETE_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
 #else
   #define GASNETE_THREAD_FARG_ALONE   
   #define GASNETE_THREAD_FARG         
@@ -192,6 +299,7 @@ BEGIN_EXTERNC
   #define GASNETE_THREAD_GET         
   #define GASNETE_THREAD_PASS_ALONE   
   #define GASNETE_THREAD_PASS         
+  #define GASNETE_THREAD_LOOKUP
   #define GASNETE_THREAD_SWALLOW(x)
   #define GASNETE_TISTARTOFBITS       GASNETE_STARTOFBITS
   #define GASNETE_MYTHREAD            (gasnete_mythread())
@@ -202,6 +310,6 @@ BEGIN_EXTERNC
   #include <gasnet_extended_help_extra.h>
 #endif
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

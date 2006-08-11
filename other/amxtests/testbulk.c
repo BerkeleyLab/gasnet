@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testbulk.c,v $
- *     $Date: 2005/08/15 06:28:48 $
- * $Revision: 1.9 $
+ *     $Date: 2006/08/11 00:53:29 $
+ * $Revision: 1.9.2.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,13 +37,10 @@ static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
     /*  verify the result */
     { int i;
       for (i = 0; i < nbytes/4; i++) {
-        if (recvdbuf[i] != (uint32_t)i) {
-          printf("%i: ERROR: mismatched data recvdbuf[%i]=%i\n", myproc, i, (int)recvdbuf[i]);
-          fflush(stdout);
-          abort();
-          }
-        }
+        if (recvdbuf[i] != (uint32_t)i) 
+          AMX_FatalErr("%i: ERROR: mismatched data recvdbuf[%i]=%i\n", myproc, i, (int)recvdbuf[i]);
       }
+    }
   #endif
 
   #if VERBOSE
@@ -53,7 +50,7 @@ static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
 
   AM_Safe(AM_Reply0(token, BULK_REP_HANDLER));
   done++;
-  }
+}
 
 static void bulk_reply_handler(void *token, int ctr, int dest, int val) {
   /* assert(done < 2*nummsgs); */
@@ -62,7 +59,7 @@ static void bulk_reply_handler(void *token, int ctr, int dest, int val) {
     printf("%i: bulk_reply_handler()\n", myproc); fflush(stdout);
   #endif
   done++;
-  }
+}
 
 int main(int argc, char **argv) {
   eb_t eb;
@@ -75,13 +72,7 @@ int main(int argc, char **argv) {
   uint32_t *srcmem;
   int iters = 0;
 
-  AMX_VerboseErrors = 1;
-
-  CHECKARGS(argc, argv, 1, 4, "iters (bulkmsgsize) (Poll/Block) (Half/Full)");
-
-  /* call startup */
-  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
-                            0, &networkpid, &eb, &ep));
+  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 4, "iters (bulkmsgsize) (Poll/Block) (Half/Full)");
 
   /* setup handlers */
   AM_Safe(AM_SetHandler(ep, BULK_REQ_HANDLER, bulk_request_handler));
@@ -102,18 +93,18 @@ int main(int argc, char **argv) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
       default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
-      }
     }
+  }
   if (argc > 4) {
     switch(argv[4][0]) {
       case 'h': case 'H': fullduplex = 0; break;
       case 'f': case 'F': fullduplex = 1; break;
       default: printf("duplex must be H or F..\n"); AMX_SPMDExit(1);
-      }
     }
+  }
   if (!fullduplex && numprocs > 1 && numprocs % 2 != 0) {
      printf("half duplex requires an even number of processors\n"); AMX_SPMDExit(1);
-    }
+  }
   msg_size = (size > AM_MaxLong() ? AM_MaxLong() : size);
   nummsgs = (size % AM_MaxLong() == 0 ? size / AM_MaxLong() : (size / AM_MaxLong())+1);
   srcmem = (uint32_t *)malloc(msg_size);
@@ -128,7 +119,7 @@ int main(int argc, char **argv) {
     int i;
     int numints = msg_size/4;
     for (i=0; i < numints; i++) srcmem[i] = i;
-    }
+  }
 
   AM_Safe(AMX_SPMDBarrier());
 
@@ -148,9 +139,9 @@ int main(int argc, char **argv) {
 	        printf("%i: sending request...", myproc); fflush(stdout);
         #endif
 	      AM_Safe(AM_RequestXfer1(ep, rightguy, 100, BULK_REQ_HANDLER, srcmem, msg_size, 666));
-        }
       }
     }
+  }
 
   { int expectedmsgs = nummsgs*iters;
     if (numprocs == 1 || fullduplex) expectedmsgs *= 2;
@@ -158,7 +149,7 @@ int main(int argc, char **argv) {
     if (polling) { /* poll until everyone done */
       while (done<expectedmsgs) {
         AM_Safe(AM_Poll(eb));
-        }
+      }
     } else {
       while (done<expectedmsgs) {
         AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
@@ -185,5 +176,5 @@ int main(int argc, char **argv) {
   AM_Safe(AMX_SPMDExit(0));
 
   return 0;
-  }
+}
 /* ------------------------------------------------------------------------------------ */

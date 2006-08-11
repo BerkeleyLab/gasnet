@@ -1,19 +1,17 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.standalone,v $
-#     $Date: 2005/08/22 09:30:26 $
-# $Revision: 1.21 $
+#     $Date: 2006/08/11 00:53:25 $
+# $Revision: 1.21.2.1 $
 # Description: Makefile for AMMPI
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
-
-# leave these lines alone
-testprograms_ILP32only_all = testgetput testreadwrite
-testprograms_ILP32only = $(testprograms_ILP32only_all)
+srcdir = .
+include $(srcdir)/Makefile.common # leave this line alone
 
 # Uncomment one of the two lines below to get debug or release configuration 
 #ccflags = $(set_debug_ccflags)
 ccflags = $(set_opt_ccflags)
 
 # Set host system to the appropriate value to get the right prebaked Makefile
-HOSTSYSTEM=$(OSTYPE).$(MACHTYPE)
+HOSTSYSTEM=generic
 include Makefile.$(HOSTSYSTEM)
 
 #-------------------------------------------------------------------------------------
@@ -38,15 +36,26 @@ testprograms =                  \
     testlatencyM                \
     testping                    \
     testreduce                  \
-    $(testprograms_ILP32only)
+    testgetput                  \
+    testreadwrite
 
 # all the library objects and headers
 objects=ammpi_ep.o ammpi_reqrep.o ammpi_spmd.o 
-headers=Makefile* ammpi.h ammpi_internal.h ammpi_spmd.h
+headers=$(srcdir)/Makefile* $(srcdir)/ammpi.h $(srcdir)/ammpi_internal.h $(srcdir)/ammpi_spmd.h
 
-.PHONY: all tests clean veryclean
+.PHONY: all banner tests clean veryclean
 
-all: libammpi.a
+all: banner libammpi.a
+
+banner:
+	@if test "$(HOSTSYSTEM)" = "generic" ; then                                                  \
+           OSTYPE="$${OSTYPE:-OSTYPE}" ; export OSTYPE ;                                             \
+           MACHTYPE="$${MACHTYPE:-MACHTYPE}" ; export MACHTYPE ;                                     \
+           echo "WARNING: Using Makefile.generic. " ;                                                \
+           echo " If this build fails, try selecting one of the platform-specific makefiles, eg: " ; \
+           echo " $(MAKE) HOSTSYSTEM=$$OSTYPE.$$MACHTYPE" ;                                          \
+	 fi
+
 
 # ---------- AMMPI library -------------
 libammpi.a: $(objects)
@@ -55,7 +64,7 @@ libammpi.a: $(objects)
 
 # ---------- build targets -------------
 # main target
-tests: apputils.o $(testprograms)
+tests: banner apputils.o $(testprograms)
 
 # method to convert .cpp to .o (more reliable than ".cpp.o" method)
 test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
@@ -67,7 +76,7 @@ tests-clean:
 apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
 	$(Ccompile) -DAMMPI -I$(testdir) $(testdir)/apputils.c -o apputils.o
 
-%.o : %.c $(headers)
+%.o : $(srcdir)/%.c $(headers)
 	$(Ccompile) $< -o $@
 
 # delete compiling byproducts
@@ -75,24 +84,8 @@ clean:
 	rm -f *.o core gmon.out
 
 veryclean: clean 
-	rm -f $(testprograms) $(testprograms_ILP32only_all) libammpi.a
+	rm -f $(testprograms) libammpi.a
 	@echo Done verycleaning.
-
-# make a distribution
-amxdist:
-	@sh -x -c ' \
-         VERSION=`grep "#define AMMPI_LIBRARY_VERSION" $(srcdir)/ammpi.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
-         export VERSION ; \
-         echo "+++ Building distribution for AMMPI version $${VERSION} +++" && \
-         rm -Rf ammpi$${VERSION}.tar.gz ammpi$${VERSION} && \
-         mkdir ammpi$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.[ch]* $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h ammpi$${VERSION} && \
-         rm -f ammpi$${VERSION}/Makefile.in ammpi$${VERSION}/Makefile.titanium && \
-         mv ammpi$${VERSION}/Makefile.standalone ammpi$${VERSION}/Makefile && \
-         tar -cvhf ammpi$${VERSION}.tar ammpi$${VERSION} && gzip -9 ammpi$${VERSION}.tar && \
-         rm -Rf ammpi$${VERSION} && \
-         echo "+++ ammpi$${VERSION}.tar.gz is ready for distribution +++" \
-        '
 
 # ---------- test programs -------------
 test% : test%.o apputils.o libammpi.a $(libufxp)

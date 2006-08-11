@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmpi.c,v $
- *     $Date: 2004/10/23 09:59:18 $
- * $Revision: 1.9 $
+ *     $Date: 2006/08/11 00:53:49 $
+ * $Revision: 1.9.8.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,6 @@
 #include <mpi.h>
 
 #define TEST_MPI 1
-#define HAVE_MPI 1  /* required for using mpi.h w/ mpi-conduit/AMMPI */
 #include "testthreads.c"
 
 static char *MPI_ErrorName(int errval) {
@@ -110,15 +109,17 @@ void attach_test_mpi() {
     MPI_SAFE(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
     MPI_SAFE(MPI_Comm_size(MPI_COMM_WORLD, &mpinodes));
     printf("GASNet node %i == MPI node %i\n", (int)gasnet_mynode(), rank);
-    assert(mpinodes == gasnet_nodes() && rank >= 0 && rank < mpinodes);
+    if (gasnet_mynode() != rank) 
+      printf("WARNING: Node numbering between GASNet and MPI do not coincide\n");
+    assert_always(mpinodes == gasnet_nodes() && rank >= 0 && rank < mpinodes);
     gasnet_node = gasnet_mynode();
     MPI_SAFE(MPI_Allgather(&gasnet_node,sizeof(int),MPI_BYTE,
                            mpirank_to_gasnetnode,sizeof(int),MPI_BYTE,
                            MPI_COMM_WORLD));
-    assert(mpirank_to_gasnetnode[rank] == gasnet_mynode());
+    assert_always(mpirank_to_gasnetnode[rank] == gasnet_mynode());
     for (i = 0; i < mpinodes; i++) gasnetnode_to_mpirank[i] = -1;
     for (i = 0; i < mpinodes; i++) gasnetnode_to_mpirank[mpirank_to_gasnetnode[i]] = i;
-    for (i = 0; i < mpinodes; i++) assert(gasnetnode_to_mpirank[i] != -1);
+    for (i = 0; i < mpinodes; i++) assert_always(gasnetnode_to_mpirank[i] != -1);
 
     tot_threads = threads_num * gasnet_nodes();
     mpi_recvhandle = test_malloc(sizeof(MPI_Request)*tot_threads);
@@ -336,10 +337,8 @@ void test_mpi(threaddata_t *tdata) {
 
     /* verify */
     for (i=0; i < sz; i++) {
-      if (sendbuf[i] != recvbuf[i]) {
-        fprintf(stderr,"ERROR: mismatch at element %i in MPI test.", i);
-        abort();
-      }
+      if (sendbuf[i] != recvbuf[i])
+        FATALERR("mismatch at element %i in MPI test.", i);
     }
 
     test_free(sendbuf);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_hash.c,v $
- *     $Date: 2005/05/25 03:42:40 $
- * $Revision: 1.10 $
+ *     $Date: 2006/08/11 00:53:33 $
+ * $Revision: 1.10.6.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,7 +83,7 @@ inthash(fh_int_t key)
 */
 
 #if 1
-GASNET_INLINE_MODIFIER(inthash)
+GASNETI_INLINE(inthash)
 int
 inthash(fh_int_t key)
 {
@@ -96,7 +96,7 @@ inthash(fh_int_t key)
 	return (int) key;
 }
 #else
-GASNET_INLINE_MODIFIER(inthash)
+GASNETI_INLINE(inthash)
 int
 inthash(fh_int_t key)
 {
@@ -253,6 +253,24 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 	}
 }
 
+/* 
+ * Apply a given function to all entries in the hash.
+ * Deletion of the entry from the function is OK.
+ */
+void fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg)
+{
+	fh_int_t i;
+
+	for (i = 0; i < hash->fh_entries; ++i) {
+		void *val = hash->fh_table[i];
+		while (val != NULL) {
+			void *next = ((fh_dummy_entry_t *) val)->hash_next;
+			(*fn)(val, arg);
+			val = next;
+		}
+	}
+}
+
 #ifdef FIREHOSE_REGION
 /* Additional functionality required for FIREHOSE_REGION, which
  * can have multiple hash entries with identical key.
@@ -318,23 +336,4 @@ fh_hash_replace(fh_hash_t *hash, void *val, void *newval)
 		cur = next;
 	}
 }
-
-/* 
- * Apply a given function to all entries in the hash.
- * Deletion of the entry from the function is OK.
- */
-void fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg)
-{
-	fh_int_t i;
-
-	for (i = 0; i < hash->fh_entries; ++i) {
-		void *val = hash->fh_table[i];
-		while (val != NULL) {
-			void *next = ((fh_dummy_entry_t *) val)->hash_next;
-			(*fn)(val, arg);
-			val = next;
-		}
-	}
-}
-
 #endif /* defined(FIREHOSE_REGION) */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2005/08/08 02:20:34 $
- * $Revision: 1.25 $
+ *     $Date: 2006/08/11 00:53:33 $
+ * $Revision: 1.25.4.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,6 +47,9 @@ static FH_STAILQ_HEAD(_fhi_regpool_list_t, _fhi_RegionPool_t) fhi_regpool_list;
 static int fhi_regpool_num = 0;
 static int fhi_regpool_numbig = 0;
 
+/* Misc */
+int fh_verbose = 0;
+
 /* ##################################################################### */
 /* PUBLIC FIREHOSE INTERFACE                                             */
 /* ##################################################################### */
@@ -75,7 +78,6 @@ static int fhi_regpool_numbig = 0;
  *     calls fh_release_local_region() or fh_release_remote_region()
  */
 
-gasnet_node_t	fh_mynode = (gasnet_node_t)-1;
 uint32_t	fhi_InitFlags = 0;
 
 extern void
@@ -84,6 +86,8 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
               size_t num_reg, uint32_t flags, firehose_info_t *info)
 {
 	int	i;
+
+	fh_verbose = gasneti_getenv_yesno_withdefault("GASNET_FIREHOSE_VERBOSE", 0);
 
 	/* Make sure the refc field in buckets can also be used as a FIFO
 	 * pointer */
@@ -111,8 +115,6 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 
 	FH_TABLE_LOCK;
 
-	fh_mynode = gasnet_mynode();
-
 	/* Initialize the local firehose FIFO queue */
 	FH_TAILQ_INIT(&fh_LocalFifo);
 
@@ -125,12 +127,12 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
         /* Allocate the per-node FIFOs and counters */
 	if (!(flags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
 		fh_RemoteNodeFifo = (fh_fifoq_t *) 
-			gasneti_malloc(gasnet_nodes() * sizeof(fh_fifoq_t));
+			gasneti_malloc(gasneti_nodes * sizeof(fh_fifoq_t));
 		fhc_RemoteBucketsUsed = (int *)
-			gasneti_malloc(gasnet_nodes() * sizeof(int));
+			gasneti_malloc(gasneti_nodes * sizeof(int));
 		fhc_RemoteVictimFifoBuckets = (int *)
-			gasneti_malloc(gasnet_nodes() * sizeof(int));
-		for (i = 0; i < gasnet_nodes(); i++) {
+			gasneti_malloc(gasneti_nodes * sizeof(int));
+		for (i = 0; i < gasneti_nodes; i++) {
 			FH_TAILQ_INIT(&fh_RemoteNodeFifo[i]);
 			fhc_RemoteBucketsUsed[i] = 0;
 			fhc_RemoteVictimFifoBuckets[i] = 0;
@@ -261,11 +263,13 @@ firehose_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *ureq)
 	FH_TABLE_LOCK;
 
 	req         = fh_request_new(ureq);
-	req->node   = fh_mynode;
+	req->node   = gasneti_mynode;
 	req->addr   = FH_ADDR_ALIGN(addr);
 	req->len    = FH_SIZE_ALIGN(addr,nbytes);
 	req->flags |= FH_FLAG_PINNED;
+	GASNETI_TRACE_EVENT_VAL(C,FH_LOCAL_PIN,(req->len >> FH_BUCKET_SHIFT));
 
+	/* HIT/MISS tracing is done in fh_acquire_local_region() */
 	fh_acquire_local_region(req);
 
 	FH_TABLE_UNLOCK;
@@ -280,16 +284,21 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 
 	addr = FH_ADDR_ALIGN(addr);
 	len  = FH_SIZE_ALIGN(addr,len);
+	GASNETI_TRACE_EVENT_VAL(C,FH_TRY_LOCAL_PIN,(len >> FH_BUCKET_SHIFT));
 
 	FH_TABLE_LOCK;
-	if (fh_region_ispinned(fh_mynode, addr, len)) {
+	if (fh_region_ispinned(gasneti_mynode, addr, len)) {
 		req         = fh_request_new(ureq);
-		req->node   = fh_mynode;
+		req->node   = gasneti_mynode;
 		req->addr   = addr;
 		req->len    = len;
 		req->flags |= FH_FLAG_PINNED;
 
 		fh_commit_try_local_region(req);
+		GASNETI_TRACE_EVENT(C,FH_TRY_LOCAL_HIT);
+	}
+	else {
+		GASNETI_TRACE_EVENT(C,FH_TRY_LOCAL_MISS);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -304,16 +313,21 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
 
 	addr = FH_ADDR_ALIGN(addr);
 	len  = FH_SIZE_ALIGN(addr,len);
+	GASNETI_TRACE_EVENT_VAL(C,FH_PARTIAL_LOCAL_PIN,(len >> FH_BUCKET_SHIFT));
 
 	FH_TABLE_LOCK;
-	if (fh_region_partial(fh_mynode, &addr, &len)) {
+	if (fh_region_partial(gasneti_mynode, &addr, &len)) {
 		req         = fh_request_new(ureq);
-		req->node   = fh_mynode;
+		req->node   = gasneti_mynode;
 		req->addr   = addr;
 		req->len    = len;
 		req->flags |= FH_FLAG_PINNED;
 
 		fh_commit_try_local_region(req);
+		GASNETI_TRACE_EVENT(C,FH_PARTIAL_LOCAL_HIT);
+	}
+	else {
+		GASNETI_TRACE_EVENT(C,FH_PARTIAL_LOCAL_MISS);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -323,15 +337,15 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
 extern const firehose_request_t *
 firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		    uint32_t flags, firehose_request_t *ureq,
-		    firehose_remotecallback_args_t *remote_args,
+		    firehose_remotecallback_args_fn_t remote_args_callback,
 		    firehose_completed_fn_t callback, void *context)
 {
 	firehose_request_t	*req = NULL;
 
-	if_pf (node == fh_mynode)
+	if_pf (node == gasneti_mynode)
 		gasneti_fatalerror("Cannot request a Remote pin on a local node.");
 
-	gasneti_assert(remote_args == NULL ? 1 : 
+	gasneti_assert(remote_args_callback == NULL ? 1 : 
 		       (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK));
 
 	FH_TABLE_LOCK;
@@ -340,8 +354,9 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	req->node = node;
 	req->addr = FH_ADDR_ALIGN(addr); 
 	req->len  = FH_SIZE_ALIGN(addr,len);
+	GASNETI_TRACE_EVENT_VAL(C,FH_REMOTE_PIN,(req->len >> FH_BUCKET_SHIFT));
 
-	fh_acquire_remote_region(req, callback, context, flags, remote_args);
+	fh_acquire_remote_region(req, callback, context, flags, remote_args_callback);
 
 	/* Note that fh_acquire_remote_region unlocks before returning */
 	FH_TABLE_ASSERT_UNLOCKED;
@@ -351,6 +366,7 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		 * callback or return to user.  If it could not be pinned, the
 		 * callback will be subsequently called from within the
 		 * firehose library */
+		GASNETI_TRACE_EVENT(C, FH_REMOTE_HIT);
 
 		if (flags & FIREHOSE_FLAG_RETURN_IF_PINNED) {
 			return req;
@@ -360,6 +376,12 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 			    ("Firehose callback req=%p", req));
 			callback(context, req, 1);
 		}
+	}
+	else if (req->flags & FH_FLAG_INFLIGHT) {
+		GASNETI_TRACE_EVENT(C, FH_REMOTE_MISS);
+	}
+	else {
+		GASNETI_TRACE_EVENT(C, FH_REMOTE_PENDING);
 	}
 
 	return NULL;
@@ -371,11 +393,12 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 {
 	firehose_request_t	*req = NULL;
 
-	if_pf (node == fh_mynode)
+	if_pf (node == gasneti_mynode)
 		gasneti_fatalerror("Cannot request a Remote pin on a local node.");
 
 	addr = FH_ADDR_ALIGN(addr);
 	len  = FH_SIZE_ALIGN(addr,len);
+	GASNETI_TRACE_EVENT_VAL(C,FH_TRY_REMOTE_PIN,(len >> FH_BUCKET_SHIFT));
 
 	FH_TABLE_LOCK;
 
@@ -386,6 +409,10 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 		req->len  = len;
 
 		fh_commit_try_remote_region(req);
+		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_HIT);
+	}
+	else {
+		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_MISS);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -399,11 +426,12 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
 {
 	firehose_request_t	*req = NULL;
 
-	if_pf (node == fh_mynode)
+	if_pf (node == gasneti_mynode)
 		gasneti_fatalerror("Cannot request a Remote pin on a local node.");
 
 	addr = FH_ADDR_ALIGN(addr);
 	len  = FH_SIZE_ALIGN(addr,len);
+	GASNETI_TRACE_EVENT_VAL(C,FH_PARTIAL_REMOTE_PIN,(len >> FH_BUCKET_SHIFT));
 
 	FH_TABLE_LOCK;
 
@@ -414,6 +442,10 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
 		req->len  = len;
 
 		fh_commit_try_remote_region(req);
+		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_HIT);
+	}
+	else {
+		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_MISS);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -425,12 +457,14 @@ firehose_release(firehose_request_t const **reqs, int numreqs)
 {
 	int			i;
 
+	GASNETI_TRACE_EVENT_VAL(C, FH_RELEASE, numreqs);
+
 	FH_TABLE_LOCK;
 
 	for (i = 0; i < numreqs; i++) {
 		gasneti_assert(!(reqs[i]->flags & FH_FLAG_PENDING));
 
-		if (reqs[i]->node == fh_mynode)
+		if (reqs[i]->node == gasneti_mynode)
 			fh_release_local_region(
 				(firehose_request_t *) reqs[i]);
 		else
@@ -505,6 +539,8 @@ fh_request_new(firehose_request_t *ureq)
 	else {
 		firehose_request_t	*buf;
 		int			 i;
+
+		GASNETI_STAT_EVENT_VAL(C, FH_REQUEST_ALLOC, FH_REQUEST_ALLOC_PERIDX);
 
 		if (fh_request_bufidx == 256)
 			gasneti_fatalerror("Firehose: Ran out "
@@ -750,8 +786,8 @@ fh_priv_acquire_remote(gasnet_node_t node, firehose_private_t *entry)
 	gasneti_assert(entry != NULL);
 
 	/* If the bucket is a remote bucket, the node cannot be equal to
-	 * fh_mynode */
-	gasneti_assert(node != fh_mynode);
+	 * gasneti_mynode */
+	gasneti_assert(node != gasneti_mynode);
 
 	if (FH_IS_REMOTE_FIFO(entry)) {
 	    FH_BSTATE_ASSERT(entry, fh_remote_fifo);
@@ -845,7 +881,7 @@ fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
 	/* The bucket is a remote bucket, and it cannot contain any local
 	 * refcounts.  Also, it should not be pending as pending buckets are
 	 * handled separately */
-	gasneti_assert(node != fh_mynode);
+	gasneti_assert(node != gasneti_mynode);
 	gasneti_assert(FH_IS_REMOTE_INUSE(entry));
 	gasneti_assert(rp->refc_r > 0);
 

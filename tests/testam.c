@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.24 $
+ *     $Date: 2006/08/11 00:53:49 $
+ * $Revision: 1.24.6.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,7 +24,7 @@ void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt
       char nodestr[10];
       if (gasnet_nodes() > 2) sprintf(nodestr,"%i: ",mynode);
       else nodestr[0] = '\0';
-      printf("%s%-46s: %6.3f sec %8.3f us",
+      printf("%c: %s%-46s: %6.3f sec %8.3f us", TEST_SECTION_NAME(),
         nodestr, desc, ((double)totaltime)/1000000, ((double)totaltime)/iters);
       if (sz) printf("  %7.3f MB/s", 
         (((double)sz)*(rt?2:1)*iters/(1024*1024)) / (((double)totaltime)/1000000));
@@ -141,10 +141,12 @@ int main(int argc, char **argv) {
   if (!iters) iters = 1000;
   if (argc > 2) maxsz = atoi(argv[2]);
   if (!maxsz) maxsz = 2*1024*1024;
+  if (argc > 3) TEST_SECTION_PARSE(argv[3]);
 
   GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
                             TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testam", 1);
+  test_init("testam", 1, "(iters) (maxsz) (test_sections)");
+  if (argc > 4) test_usage();
   mynode = gasnet_mynode();
 
   TEST_PRINT_CONDUITINFO();
@@ -167,8 +169,8 @@ int main(int argc, char **argv) {
 
   if (mynode == 0) {
       printf("Running AM performance test with %i iterations...\n",iters);
-      printf("Msg Sz  Description                             Total time   Avg. time   Bandwidth\n"
-             "------  -----------                             ----------   ---------   ---------\n");
+      printf("   Msg Sz  Description                             Total time   Avg. time   Bandwidth\n"
+             "   ------  -----------                             ----------   ---------   ---------\n");
       fflush(stdout);
   }
 
@@ -197,7 +199,7 @@ void doAMShort() {
     }
     BARRIER();
     /* ------------------------------------------------------------------------------------ */
-    if (sender) {
+    if (TEST_SECTION_BEGIN_ENABLED() && sender) {
       int64_t start = TIME();
       flag = -1;
       for (i=0; i < iters; i++) {
@@ -209,7 +211,7 @@ void doAMShort() {
 
     BARRIER();
     /* ------------------------------------------------------------------------------------ */
-    {
+    if (TEST_SECTION_ENABLED()) {
       int64_t start = TIME();
       flag = -1;
       BARRIER();
@@ -235,11 +237,12 @@ void doAMShort() {
         }
       }
       report("        AMShort     ping-pong roundtrip ReqReq",TIME() - start, iters, 0, 1);
-    }
 
     if (mynode == 0) { printf("\n"); fflush(stdout); }
+    }
     BARRIER();
     /* ------------------------------------------------------------------------------------ */
+   if (TEST_SECTION_ENABLED()) {
     if (sender) {
       int64_t start = TIME();
       flag = 0;
@@ -258,9 +261,10 @@ void doAMShort() {
     }
 
     if (mynode == 0) { printf("\n"); fflush(stdout); }
+   }
     BARRIER();
     /* ------------------------------------------------------------------------------------ */
-    if (sender) {
+    if (TEST_SECTION_ENABLED() && sender) {
       int64_t start = TIME();
       flag = 0;
       for (i=0; i < iters; i++) {
@@ -268,9 +272,9 @@ void doAMShort() {
       }
       GASNET_BLOCKUNTIL(flag == iters);
       report("        AMShort     flood     roundtrip ReqRep",TIME() - start, iters, 0, 1);
-    }
 
-    if (mynode == 0) { printf("\n"); fflush(stdout); }
+      if (mynode == 0) { printf("\n"); fflush(stdout); }
+    }
     BARRIER();
 }
 
@@ -298,7 +302,8 @@ void doAMShort() {
     }                                                                            \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    { uintptr_t sz;                                                              \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
+      uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQREP; ) {                                          \
         sprintf(msg, "%7llu "DESC_STR" ping-pong roundtrip ReqRep",              \
@@ -316,11 +321,12 @@ void doAMShort() {
         BARRIER();                                                               \
         ADVANCESZ(sz, MAXREQREP);                                                \
       }                                                                          \
+      if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
     }                                                                            \
-    if (mynode == 0) { printf("\n"); fflush(stdout); }                           \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    { uintptr_t sz;                                                              \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
+      uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
         sprintf(msg, "%7llu "DESC_STR" ping-pong roundtrip ReqReq",              \
@@ -356,11 +362,12 @@ void doAMShort() {
         BARRIER();                                                               \
         ADVANCESZ(sz, MAXREQ);                                                   \
       }                                                                          \
+      if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
     }                                                                            \
-    if (mynode == 0) { printf("\n"); fflush(stdout); }                           \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    { uintptr_t sz;                                                              \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
+      uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
         flag = 0;                                                                \
@@ -382,11 +389,12 @@ void doAMShort() {
         BARRIER();                                                               \
         ADVANCESZ(sz, MAXREQ);                                                   \
       }                                                                          \
+      if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
     }                                                                            \
-    if (mynode == 0) { printf("\n"); fflush(stdout); }                           \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    { uintptr_t sz;                                                              \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
+      uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQREP; ) {                                          \
         sprintf(msg, "%7llu "DESC_STR" flood     roundtrip ReqRep",              \
@@ -404,8 +412,8 @@ void doAMShort() {
         BARRIER();                                                               \
         ADVANCESZ(sz, MAXREQREP);                                                \
       }                                                                          \
+      if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
     }                                                                            \
-    if (mynode == 0) { printf("\n"); fflush(stdout); }                           \
     BARRIER();                                                                   \
   } while (0)
 

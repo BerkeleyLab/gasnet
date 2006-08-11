@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2005/08/27 00:57:27 $
- * $Revision: 1.62 $
+ *     $Date: 2006/08/11 00:53:49 $
+ * $Revision: 1.62.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,14 +23,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
-#ifdef IRIX
-#define signal(a,b) bsd_signal(a,b)
-#endif
+#include <ctype.h>
 
 #if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
   #include <pthread.h>
@@ -43,14 +39,107 @@
     #define NDEBUG 1
   #endif
 #endif
-#include <assert.h>
 
-#if defined(__DECCXX) && defined(NDEBUG) 
-  /* bug 1206: workaround a broken assert.h header in Compaq C++ */
-  #undef assert
+/* bug 1206: several systems (notably Compaq C++ and OSX gcc) have an assert.h header 
+   which is broken in one or more subtle ways. Don't trust the system assert.h. */
+#include <assert.h>
+#undef assert
+
+GASNETT_BEGIN_EXTERNC
+
+#define assert_always(expr) \
+    ((expr) ? (void)0 : (void)FATALERR("Assertion failure: %s", #expr))
+
+#ifdef NDEBUG
   #define assert(x) ((void)0)
+#else
+  #define assert(x) assert_always(x)
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+/* generic message output utility
+   test_makeMsg(baseformatargs, msgpred, isfatal, msgeval): 
+     baseformatargs - parenthesized printf-style argument defining the generic stem
+     msgpred - predicate which must evaluate to true to perform message output (eg 1 for always)
+     isfatal - non-zero to request an abort after the message output
+     msgeval - expression which is evaluated in a critical section, 
+               immediately before each message output (or 0 for none)
+ */
+#define test_makeMsg(baseformatargs, msgpred, isfatal, msgeval)     \
+  ( _test_makeErrMsg baseformatargs ,                               \
+    ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
+    (void)(_test_fatalmsg = (isfatal)),                             \
+    _test_doErrMsg )
+
+/* define several useful messaging macros */
+static int test_errs = 0;
+#ifdef TEST_GASNET_H
+  #define MSG   test_makeMsg(("node %i/%i %s\n", (int)gasnet_mynode(), (int)gasnet_nodes(), "%s"), 1, 0, \
+                             GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
+  #define MSG0  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0), 0, \
+                             GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
+  #define TERR(isfatal)                                                                                        \
+                test_makeMsg(("ERROR: node %i/%i %s (at %s:%i)\n",                                             \
+                              (int)gasnet_mynode(), (int)gasnet_nodes(), "%s",__FILE__, __LINE__), 1, isfatal, \
+                             (test_errs++, GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__)))
+  #define THREAD_MSG0(id)  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0 && id == 0), 0, 0)
+  #define THREAD_ERR(id)   test_makeMsg(("ERROR: node %i/%i thread %i: %s (at %s:%i)\n", \
+                              (int)gasnet_mynode(), (int)gasnet_nodes(),id, "%s", __FILE__, __LINE__), 1, 0, test_errs++)
+#else
+  #define MSG   test_makeMsg(("%s\n","%s"), 1, 0, 0)
+  #define MSG0  MSG
+  #define TERR(isfatal) test_makeMsg(("ERROR: %s (at %s:%i)\n","%s",__FILE__, __LINE__), 1, isfatal, test_errs++)
+  #define THREAD_MSG0(id)  test_makeMsg(("%s\n","%s"), (id == 0), 0, 0)
+  #define THREAD_ERR(id)   test_makeMsg(("ERROR: thread %i: %s (at %s:%i)\n", \
+                              id, "%s", __FILE__, __LINE__), 1, 0, test_errs++)
+#endif
+#define ERR      TERR(0)
+#define FATALERR TERR(1)
+
+#define _TEST_MSG_BUFSZ 1024
+static char _test_baseformat[_TEST_MSG_BUFSZ];
+static volatile int _test_squashmsg = 0;
+static volatile int _test_fatalmsg = 0;
+#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
+  static pthread_mutex_t _test_msg_lock = PTHREAD_MUTEX_INITIALIZER;
+  #define _test_LOCKMSG()   pthread_mutex_lock(&_test_msg_lock)
+  #define _test_UNLOCKMSG() pthread_mutex_unlock(&_test_msg_lock)
+#else
+  #define _test_LOCKMSG()   ((void)0)
+  #define _test_UNLOCKMSG() ((void)0)
+#endif
+GASNETT_FORMAT_PRINTF(_test_doErrMsg,1,2,
+static void _test_doErrMsg(const char *format, ...)) {
+  if (_test_squashmsg) _test_squashmsg = 0; 
+  else {
+    char output[_TEST_MSG_BUFSZ];
+    va_list argptr;
+    va_start(argptr, format); /*  pass in last argument */
+      { int sz = vsnprintf(output, _TEST_MSG_BUFSZ, format, argptr);
+        if (sz >= (_TEST_MSG_BUFSZ-5) || sz < 0) strcpy(output+(_TEST_MSG_BUFSZ-5),"...");
+      }
+    va_end(argptr);
+    printf(_test_baseformat, output); 
+    GASNETT_TRACE_PRINTF(_test_baseformat, output);
+    fflush(stdout);
+  }
+  if (_test_fatalmsg) {
+    fflush(NULL);
+    sleep(1);
+    abort();
+  }
+  _test_UNLOCKMSG();
+}
+GASNETT_FORMAT_PRINTF(_test_makeErrMsg,1,2,
+static void _test_makeErrMsg(const char *format, ...)) {
+  va_list argptr;
+  _test_LOCKMSG();
+  va_start(argptr, format); /*  pass in last argument */
+    { int sz = vsnprintf(_test_baseformat, _TEST_MSG_BUFSZ, format, argptr);
+      if (sz >= (_TEST_MSG_BUFSZ-5) || sz < 0) strcpy(_test_baseformat+(_TEST_MSG_BUFSZ-5),"...");
+    }
+  va_end(argptr);
+}
 /* ------------------------------------------------------------------------------------ */
 /* misc tools */
 
@@ -62,20 +151,12 @@
   #define MAX(x,y) ((x)>(y)?(x):(y))
 #endif
 
-static uint64_t test_checksum(void *p, int numbytes) {
- uint8_t *buf = (uint8_t *)p;
- uint64_t result = 0;
- int i;
- for (i=0;i<numbytes;i++) {
-   result = ((result << 8) | ((result >> 56) & 0xFF) ) ^ *buf;
-   buf++;
- }
- return result;
-}
+#define test_checksum gasnett_checksum
 
 #define PAGESZ GASNETT_PAGESIZE
 #define alignup(a,b) ((((a)+(b)-1)/(b))*(b))
 #define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
+#define aligndown(a,b) (((a)/(b))*(b))
 
 static int _test_rand(int low, int high) {
   int result;
@@ -92,112 +173,37 @@ static int _test_rand(int low, int high) {
 #define TEST_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
 #define TEST_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
 
-#define check_zeroret(op) do {                                  \
-  int _retval = (op);                                           \
-  if_pf(_retval) MSG(#op": %s(%i)",strerror(_retval), _retval); \
+#define check_zeroret(op) do {                                       \
+  int _retval = (op);                                                \
+  if_pf(_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
 } while (0)
 
-#define check_nzeroret(op) do {                                  \
-  int _retval = (op);                                            \
-  if_pf(!_retval) MSG(#op": %s(%i)",strerror(_retval), _retval); \
+#define check_nzeroret(op) do {                                       \
+  int _retval = (op);                                                 \
+  if_pf(!_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
 } while (0)
+
+static char test_section;
+static char test_sections[255];
+
+#define TEST_SECTION_BEGIN()        ((void)(!test_section ? test_section = 'A' : test_section++))
+#define TEST_SECTION_ENABLED()      ((!test_sections[0] || strchr(test_sections, test_section)))
+#define TEST_SECTION_BEGIN_ENABLED() (TEST_SECTION_BEGIN(), TEST_SECTION_ENABLED())
+#define TEST_SECTION_NAME() ((char)test_section)
+#define TEST_SECTION_PARSE(arg) do {       \
+      const char *p = (arg);               \
+      char *q = test_sections;             \
+      while (*p) *(q++) = toupper(*(p++)); \
+    } while (0)
 
 /* ------------------------------------------------------------------------------------ */
 /* timing - TIME() returns a microsecond time-stamp */
 
 #ifdef FORCE_GETTIMEOFDAY
-  static int64_t mygetMicrosecondTimeStamp(void) {
-      int64_t retval;
-      struct timeval tv;
-      if (gettimeofday(&tv, NULL)) {
-	  perror("gettimeofday");
-	  abort();
-      }
-      retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
-      return retval;
-  }
-  #define TIME() mygetMicrosecondTimeStamp()
+  #define TIME() gasnett_gettimeofday_us()
 #else
   #define TIME() gasnett_ticks_to_us(gasnett_ticks_now()) 
 #endif
-
-/* ------------------------------------------------------------------------------------ */
-/* generic message output utility
-   test_makeMsg(baseformatargs, msgpred, msgeval): 
-     baseformatargs - parenthesized printf-style argument defining the generic stem
-     msgpred - predicate which must evaluate to true to perform message output (eg 1 for always)
-     msgeval - expression which is evaluated in a critical section, 
-               immediately before each message output (or 0 for none)
- */
-#define test_makeMsg(baseformatargs, msgpred, msgeval)              \
-  ( _test_makeErrMsg baseformatargs ,                               \
-    ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
-    _test_doErrMsg )
-
-/* define several useful messaging macros */
-int test_errs;
-#ifdef TEST_GASNET_H
-  #define MSG   test_makeMsg(("node %i/%i %s\n", (int)gasnet_mynode(), (int)gasnet_nodes(), "%s"), 1, \
-                             GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
-  #define MSG0  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0), \
-                             GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
-  #define ERR   test_makeMsg(("ERROR: node %i/%i %s (at %s:%i)\n",                                    \
-                              (int)gasnet_mynode(), (int)gasnet_nodes(), "%s",__FILE__, __LINE__), 1, \
-                             (test_errs++, GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__)))
-#else
-  #define MSG   test_makeMsg(("%s\n","%s"), 1, 0)
-  #define MSG0  MSG
-  #define ERR   test_makeMsg(("ERROR: %s (at %s:%i)\n","%s",__FILE__, __LINE__), 1, test_errs++)
-#endif
-
-#if defined(_AIX) && defined(__cplusplus)
-  /* AIX's stdio.h won't provide prototypes for snprintf() and vsnprintf()
-   * by default since they are in C99 but not C89.
-   */
-  extern int snprintf(char * s, size_t n, const char * format, ...)
-					__attribute__((__format__ (__printf__, 3, 4)));
-  extern int vsnprintf(char * s, size_t n, const char * format, va_list ap)
-					__attribute__((__format__ (__printf__, 3, 0)));
-#endif
-
-#define _TEST_MSG_BUFSZ 1024
-static char _test_baseformat[_TEST_MSG_BUFSZ];
-static volatile int _test_squashmsg = 0;
-#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
-  pthread_mutex_t _test_msg_lock = PTHREAD_MUTEX_INITIALIZER;
-  #define _test_LOCKMSG()   pthread_mutex_lock(&_test_msg_lock)
-  #define _test_UNLOCKMSG() pthread_mutex_unlock(&_test_msg_lock)
-#else
-  #define _test_LOCKMSG()   ((void)0)
-  #define _test_UNLOCKMSG() ((void)0)
-#endif
-static void _test_doErrMsg(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-static void _test_doErrMsg(const char *format, ...) {
-  if (_test_squashmsg) _test_squashmsg = 0;
-  else {
-    char output[_TEST_MSG_BUFSZ];
-    va_list argptr;
-    va_start(argptr, format); /*  pass in last argument */
-      { int sz = vsnprintf(output, _TEST_MSG_BUFSZ, format, argptr);
-        if (sz >= (_TEST_MSG_BUFSZ-5) || sz < 0) strcpy(output+(_TEST_MSG_BUFSZ-5),"...");
-      }
-    va_end(argptr);
-    printf(_test_baseformat, output); 
-    GASNETT_TRACE_PRINTF(_test_baseformat, output);
-    fflush(stdout);
-  }
-  _test_UNLOCKMSG();
-}
-static void _test_makeErrMsg(const char *format, ...) __attribute__((__format__ (__printf__, 1, 2)));
-static void _test_makeErrMsg(const char *format, ...) {
-  va_list argptr;
-  _test_LOCKMSG();
-  va_start(argptr, format); /*  pass in last argument */
-    { int sz = vsnprintf(_test_baseformat, _TEST_MSG_BUFSZ, format, argptr);
-      if (sz >= (_TEST_MSG_BUFSZ-5) || sz < 0) strcpy(_test_baseformat+(_TEST_MSG_BUFSZ-5),"...");
-    }
-  va_end(argptr);
-}
 
 /* ------------------------------------------------------------------------------------ */
 /* memory management */
@@ -215,10 +221,7 @@ static void *_test_malloc(size_t sz, const char *curloc) {
   test_hold_interrupts();
   ptr = malloc(sz);
   test_resume_interrupts();
-  if (ptr == NULL) {
-    fprintf(stderr,"*** ERROR: Failed to malloc(%i) bytes at %s\n",(int)sz,curloc);
-    abort();
-  }
+  if (ptr == NULL) FATALERR("Failed to malloc(%i) bytes at %s\n",(int)sz,curloc);
   return ptr;
 }
 static void *_test_calloc(size_t sz, const char *curloc) {
@@ -260,7 +263,7 @@ static void test_free(void *ptr) {
 #ifdef TEST_DELAY
 /* NOTE: If you #define TEST_DELAY, be certain Makefile.in shows you depend on delay.o */
 
-extern void test_delay(int64_t n);	 /* in delay.o */
+extern void test_delay(int64_t n, int pollcnt);	 /* in delay.o */
 
 /* smallest number of delay loops to try in calibration */
 #ifndef TEST_DELAY_LOOP_MIN
@@ -272,13 +275,13 @@ extern void test_delay(int64_t n);	 /* in delay.o */
 #endif
 
 /* Compute the number of loops needed to get no less that the specified delay
- * when executing "test_delay(loops)" excatly 'iters' times.
+ * when executing "test_delay(loops, pollcnt)" exactly 'iters' times.
  *
  * Returns the number of loops needed and overwrites the argument with the
  * actual achieved delay for 'iters' calls to "delay(*time_p)".
  * The 'time_p' is given in microseconds.
  */
-static int64_t test_calibrate_delay(int iters, int64_t *time_p) 
+static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p) 
 {
 	int64_t begin, end, time;
 	float target = *time_p;
@@ -302,18 +305,16 @@ static int64_t test_calibrate_delay(int iters, int64_t *time_p)
 		}
 
 		begin = TIME();
-		for (i = 0; i < iters; i++) { test_delay(loops); }
+		for (i = 0; i < iters; i++) { test_delay(loops, pollcnt); }
 		end = TIME();
 		time = end - begin;
                 assert(time >= 0);
                 if (time == 0) ratio = 2.0;/* handle systems with very high granularity clocks */
                 else ratio = target / (float)time;
                 caliters++;
-                if (caliters > TEST_DELAY_CALIBRATION_LIMIT) {
-                  fprintf(stderr,"ERROR: test_calibrate_delay(%i,%i) failed to converge after %i iterations.\n",
-                          iters, (int)*time_p, iters);
-                  abort();
-                }
+                if (caliters > TEST_DELAY_CALIBRATION_LIMIT)
+                  FATALERR("test_calibrate_delay(%i,%i,%i) failed to converge after %i iterations.\n",
+                          iters, pollcnt, (int)*time_p, iters);
               #if 0
                 printf("loops=%llu\n",(unsigned long long)loops); fflush(stdout);
                 printf("ratio=%f target=%f time=%llu\n",ratio,target,(unsigned long long)time); fflush(stdout);
@@ -333,9 +334,15 @@ static int64_t test_calibrate_delay(int iters, int64_t *time_p)
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
   #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CORE_NAME_STR "-uni"
 #else
+  #if GASNETI_CROSS_COMPILING
+    #define GASNETI_TOOLS_CONDUIT "MPI"
+    #define TEST_TITANIUM_BACKEND "mpi-cluster-uniprocess"
+  #else
+    #define GASNETI_TOOLS_CONDUIT "SMP"
+    #define TEST_TITANIUM_BACKEND "sequential"
+  #endif
   #define TEST_CONFIG_STRING \
-    "RELEASE=x,SPEC=x,CONDUIT=SMP-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
-  #define TEST_TITANIUM_BACKEND "sequential"
+    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
 #endif
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
@@ -351,7 +358,7 @@ GASNETT_IDENT(GASNetT_IdentString_link_compiletime,
 GASNETT_IDENT(GASNetT_IdentString_HeapSz, 
  "$UPCRDefaultHeapSizes: UPC_SHARED_HEAP_OFFSET=0 UPC_SHARED_HEAP_SIZE=0 $");
 GASNETT_IDENT(GASNetT_IdentString_PthCnt, "$UPCRDefaultPthreadCount: 1 $");
-#ifdef GASNETI_PTR32
+#if PLATFORM_ARCH_32
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=( $");
 #else
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=, $");
@@ -362,6 +369,42 @@ GASNETT_IDENT(GASNetT_TiBackend_IdentString,
  "$TitaniumBackend: " TEST_TITANIUM_BACKEND " $");
 GASNETT_IDENT(GASNetT_TiCompiler_IdentString, 
  "$TitaniumCompilerFlags: *** GASNet test *** -g $");
+#endif
+
+#if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
+/* create numthreads pthreads to call start_routine. 
+   if threadarg_arr is NULL, then a unique 0-based integer threadid is passed as arg to start_routine
+   else threadarg_arr is an array of numthreads opaque datastructures of size threadarg_elemsz bytes each,
+     and each thread recieves a pointer to a unique element of this array as the arg to start_routine
+   then join the threads and add any non-zero results to test_errs
+ */
+static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(void *), 
+                                      void *threadarg_arr, size_t threadarg_elemsz) {
+    int i;
+    uint8_t *threadarg_pos = (uint8_t *)threadarg_arr;
+    pthread_t *threadid = (pthread_t *)test_malloc(sizeof(pthread_t)*numthreads);
+    #ifdef HAVE_PTHREAD_SETCONCURRENCY
+      pthread_setconcurrency(numthreads);
+    #endif
+
+    for(i=0;i<numthreads;i++) {
+      void *threadarg;
+      pthread_attr_t attr;   
+      pthread_attr_init(&attr);   
+      pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM); /* ignore failures */
+      if (threadarg_arr == NULL) threadarg = (void *)(uintptr_t)i;
+      else { threadarg = threadarg_pos; threadarg_pos += threadarg_elemsz; }
+      check_zeroret(pthread_create(&threadid[i], &attr, start_routine, threadarg));
+      check_zeroret(pthread_attr_destroy(&attr));
+    }
+
+    for(i=0;i<numthreads;i++) {
+      void *retval = NULL;
+      check_zeroret(pthread_join(threadid[i], &retval));
+      test_errs += (intptr_t)retval;
+    }
+    test_free(threadid);
+  }
 #endif
 
 /* ------------------------------------------------------------------------------------ *
@@ -396,51 +439,91 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
 
 #if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
   /* Cheap (but functional!) pthread + gasnet barrier */
-  void test_pthread_barrier(unsigned int local_pthread_count, int doGASNetbarrier) {
+  #if PLATFORM_ARCH_CRAYX1 || PLATFORM_OS_CYGWIN
+    /* pthread_cond is unreliable on some versions of these OS's - use semaphores */
+    #include <semaphore.h>
+    static void test_pthread_barrier(unsigned int local_pthread_count, int doGASNetbarrier) {
       static pthread_mutex_t barrier_mutex = PTHREAD_MUTEX_INITIALIZER;
-      static pthread_cond_t barrier_cond = PTHREAD_COND_INITIALIZER;
+      static volatile int phase = 0;
+      static volatile unsigned int barrier_count = 0;
+      static sem_t sem[2];
+      check_zeroret(pthread_mutex_lock(&barrier_mutex));
+      { int myphase = phase;
+        static volatile int firsttime = 1;
+        if (firsttime) {
+          check_zeroret(sem_init(&sem[0], 0, 0));
+          check_zeroret(sem_init(&sem[1], 0, 0));
+          firsttime = 0;
+        }
+        barrier_count++;
+        if (barrier_count < local_pthread_count) { 
+          check_zeroret(pthread_mutex_unlock(&barrier_mutex));
+          check_zeroret(sem_wait(&sem[myphase]));
+        } else {
+          int i;
+          if (doGASNetbarrier) BARRIER();
+          barrier_count = 0;
+          phase = !phase;
+          check_zeroret(pthread_mutex_unlock(&barrier_mutex));
+          for (i=0; i < local_pthread_count-1; i++) {
+            check_zeroret(sem_post(&sem[myphase]));
+          }
+        }
+      }
+    }
+  #else
+    static void test_pthread_barrier(unsigned int local_pthread_count, int doGASNetbarrier) {
+      static pthread_cond_t barrier_cond[2] = /* must be phased on some OS's (HPUX) */
+        { PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER };
+      static pthread_mutex_t barrier_mutex[2] = 
+        { PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER };
       static volatile unsigned int barrier_count = 0;
       static int volatile phase = 0;
-      check_zeroret(pthread_mutex_lock(&barrier_mutex));
-      #ifdef __crayx1
-        /* this should not be necessary, but broken pthreads impl on x1 
-            segfaults in pthread_cond_broadcast otherwise */
-        { static int firsttime = 1;
-          if (firsttime) {
-            check_zeroret(pthread_cond_init(&barrier_cond, NULL));
-            firsttime = 0;
-          }  
-        }
-      #endif
+      check_zeroret(pthread_mutex_lock(&barrier_mutex[phase]));
       barrier_count++;
       if (barrier_count < local_pthread_count) {
         int myphase = phase;
         while (myphase == phase) {
-          check_zeroret(pthread_cond_wait(&barrier_cond, &barrier_mutex));
+          check_zeroret(pthread_cond_wait(&barrier_cond[phase], &barrier_mutex[phase]));
         }
       } else {  
         /* Now do the gasnet barrier */
         if (doGASNetbarrier) BARRIER();
         barrier_count = 0;
         phase = !phase;
-        check_zeroret(pthread_cond_broadcast(&barrier_cond));
+        check_zeroret(pthread_cond_broadcast(&barrier_cond[!phase]));
       }       
-      check_zeroret(pthread_mutex_unlock(&barrier_mutex));
-  }
+      check_zeroret(pthread_mutex_unlock(&barrier_mutex[!phase]));
+    }
+  #endif
   #define PTHREAD_BARRIER(local_pthread_count)      \
     test_pthread_barrier(local_pthread_count, 1)
   #define PTHREAD_LOCALBARRIER(local_pthread_count) \
     test_pthread_barrier(local_pthread_count, 0)
 #else
-  #define PTHREAD_BARRIER(local_pthread_count) do {               \
-    MSG("ERROR: cannot call PTHREAD_BARRIER in GASNET_SEQ mode"); \
-    abort();                                                      \
+  #define PTHREAD_BARRIER(local_pthread_count) do { \
+    PTHREAD_LOCALBARRIER(local_pthread_count);      \
+    BARRIER();                                      \
   } while (0)
   #define PTHREAD_LOCALBARRIER(local_pthread_count) do {          \
-    MSG("ERROR: cannot call PTHREAD_BARRIER in GASNET_SEQ mode"); \
-    abort();                                                      \
+    if (local_pthread_count != 1)                                 \
+      FATALERR("cannot call PTHREAD_BARRIER in GASNET_SEQ mode"); \
   } while (0)
 #endif
+
+static int test_collinit = 0;
+#define TEST_COLL_INIT() do {          \
+    if (!test_collinit) {              \
+      gasnet_coll_init(0, 0, 0, 0, 0); \
+      test_collinit = 1;               \
+    }                                  \
+  } while(0)
+/* cheap and simple broadcast operation */
+#define TEST_BCAST(dst, rootid, src, sz) do {                         \
+  TEST_COLL_INIT();                                                   \
+  gasnet_coll_broadcast(0, (dst), (rootid), (src), (sz),              \
+   GASNET_COLL_LOCAL|GASNET_COLL_IN_ALLSYNC|GASNET_COLL_OUT_ALLSYNC); \
+} while (0)
 
 /* ------------------------------------------------------------------------------------ */
 /* standard messages */
@@ -449,6 +532,11 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     const char *debug = "";
     const char *trace = "";
     const char *stats = "";
+    const char *atomics = "";
+    const char *true_weak = "";
+    const char *semas = "";
+    const char *membars = "";
+    const char *timers = "";
     #ifdef GASNET_DEBUG
       debug = "debugging ";
     #endif
@@ -458,22 +546,46 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     #ifdef GASNET_STATS
       stats = "statistical collection ";
     #endif
-    if (*debug || *trace || *stats) {
+    #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS)
+      atomics = "        FORCED mutex-based atomicops\n";
+    #elif defined(GASNETI_FORCE_OS_ATOMICOPS)
+      atomics = "        FORCED os-provided atomicops\n";
+    #endif
+    #ifdef GASNETI_FORCE_TRUE_WEAKATOMICS
+      true_weak = "        FORCED atomics in sequential code\n";
+    #endif
+    #ifdef GASNETI_FORCE_GENERIC_SEMAPHORES
+      semas = "        FORCED mutex-based semaphores\n";
+    #endif
+    #if defined(GASNETI_FORCE_YIELD_MEMBARS)
+      membars = "        FORCED sched_yield() in memory barriers\n";
+    #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
+      membars = "        FORCED non-inlined memory barriers\n";
+    #endif
+    #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+      timers = "        FORCED timers using gettimeofday()\n";
+    #elif defined(GASNETI_FORCE_POSIX_REALTIME)
+      timers = "        FORCED timers using clock_gettime()\n";
+    #endif
+    if (*debug || *trace || *stats || *atomics || *true_weak || *semas || *membars || *timers) {
       fflush(NULL);
       fprintf(stdout,
         "-----------------------------------------------------------------------\n"
         " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
         "\n"
         " GASNet was configured and built with these optional features enabled:\n"
-        "        %s%s%senabled\n"
+	"%s%s%s%s%s%s%s%s%s%s"
         " This usually has a SERIOUS impact on performance, so you should NOT\n"
         " trust any performance numbers reported in this run!!!\n"
         " You should configure and build from scratch without the configure\n"
         " flags that enable the optional additional checking/reporting.\n"
         "\n"
         " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
-        "-----------------------------------------------------------------------\n"
-        ,debug,trace,stats);
+        "-----------------------------------------------------------------------\n",
+        (/* Leading white space: */ (*debug || *trace || *stats) ? "        " : ""),
+        debug, trace, stats,
+        (/* Trailing white space: */ (*debug || *trace || *stats) ? "\n" : ""),
+        atomics, true_weak, semas, membars, timers);
       fflush(NULL);
     }
   }
@@ -493,6 +605,14 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     (int)gasnet_AMMaxLongRequest(),                                \
     (int)gasnet_AMMaxLongReply());                                 \
   } while (0)
+
+#if defined(GASNET_SEQ)
+  #define TEST_PARSEQ SEQ
+#elif defined(GASNET_PAR)
+  #define TEST_PARSEQ PAR
+#elif defined(GASNET_PARSYNC)
+  #define TEST_PARSEQ PARSYNC
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* segment management */
@@ -541,8 +661,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
 #endif
 
 #ifdef GASNET_SEGMENT_EVERYTHING
-  static gasnet_seginfo_t *_test_seginfo = NULL;
+  static gasnet_seginfo_t *_test_seginfo;
   #define TEST_SEG(node) (assert(_test_seginfo), _test_seginfo[node].addr)
+  #define TEST_SEGINFO() (assert(_test_seginfo), (gasnet_seginfo_t const *)_test_seginfo)
   /* following trivially handles the case where static data is aligned
      across the nodes, and also works on X-1 where the static data is
      misaligned across nodes. 
@@ -558,8 +679,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     gasnet_AMGetMsgSource(token, &srcid);
     assert(srcid < gasnet_nodes());
     _test_seginfo[srcid] = *(gasnet_seginfo_t *)buf;
-    gasnett_local_wmb();
-    gasnett_atomic_increment(&_test_seggather_done);
+    gasnett_atomic_increment(&_test_seggather_done, GASNETT_ATOMIC_REL);
   }
   static int _test_segbcast_idx;
   static int _test_segbcast_done = 0;
@@ -605,7 +725,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     BARRIER();
     GASNET_Safe(gasnet_AMRequestMedium0(0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t)));
     if (gasnet_mynode() == 0) {
-      GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done) == (int)gasnet_nodes());
+      GASNET_BLOCKUNTIL((int)gasnett_atomic_read(&_test_seggather_done, 0) == (int)gasnet_nodes());
       for (i=0; i < (int)gasnet_nodes(); i++) {
         GASNET_Safe(gasnet_AMRequestMedium0(i, _test_segbcast_idx, _test_seginfo, gasnet_nodes()*sizeof(gasnet_seginfo_t)));
       }
@@ -613,32 +733,33 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     GASNET_BLOCKUNTIL(_test_segbcast_done);
     BARRIER();
     for (i=0; i < (int)gasnet_nodes(); i++) {
-      assert(_test_seginfo[i].size >= TEST_SEGSZ);
-      assert((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
+      assert_always(_test_seginfo[i].size >= TEST_SEGSZ);
+      assert_always((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
     }
     return result;
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
 #else
+  static gasnet_seginfo_t *_test_seginfo;
   static void *_test_getseg(gasnet_node_t node) {
-    static gasnet_seginfo_t *si = NULL;
-    if (si == NULL) {
+    if (_test_seginfo == NULL) {
       gasnet_node_t i;
       gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
       GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
       for (i=0; i < gasnet_nodes(); i++) {
-        assert(s[i].size >= TEST_SEGSZ);
-        assert(((uintptr_t)s[i].size) % PAGESZ == 0);
+        assert_always(s[i].size >= TEST_SEGSZ);
+        assert_always(((uintptr_t)s[i].size) % PAGESZ == 0);
         #if GASNET_ALIGNED_SEGMENTS == 1
-          assert(s[i].addr == s[0].addr);
+          assert_always(s[i].addr == s[0].addr);
         #endif
       }
-      si = s;
+      _test_seginfo = s;
     }
-    return si[node].addr;
+    return _test_seginfo[node].addr;
   }
   #define TEST_SEG(node) (_test_getseg(node))
+  #define TEST_SEGINFO() (assert(_test_seginfo), (gasnet_seginfo_t const *)_test_seginfo)
 #endif
 
 #define TEST_MYSEG()          (TEST_SEG(gasnet_mynode()))
@@ -646,26 +767,11 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
 #endif /* TEST_GASNET_H */
 /* ------------------------------------------------------------------------------------ */
 /* test initialization boilerplate */
-#if defined(__alpha) || defined(_CRAYT3E)
-  #define TEST_SIG_INIT() do {                          \
-      if (signal(SIGFPE, SIG_IGN) == SIG_ERR)           \
-        { perror("signal(SIGFPE, SIG_IGN)"); abort(); } \
-  } while (0)
+#if PLATFORM_ARCH_ALPHA || PLATFORM_ARCH_CRAYT3E
+  #define TEST_SIG_INIT() gasnett_reghandler(SIGFPE, SIG_IGN)
 #else
   #define TEST_SIG_INIT()
 #endif
-
-static int test_getenv_yesno(const char *key, int deflt) {
-  #ifdef TEST_GASNET_H
-    const char *p = gasnet_getenv(key);
-  #else
-    const char *p = getenv(key);
-  #endif
-  if (!p) return deflt;
-  if (!*p) return 1; /* empty == yes */
-  if (*p == 'Y' || *p == 'y' || atoi(p)) return 1;
-  return 0;
-}
 
 static void TEST_GENERICS_WARNING() {
   #ifdef TEST_GASNET_H
@@ -689,8 +795,44 @@ static void TEST_GENERICS_WARNING() {
   }
 }
 
-static void _test_init(const char *testname, int reports_performance, int early) {
+static const char *_test_usagestr = NULL;
+static const char *_test_testname = NULL;
+static const char *_test_argvzero = NULL;
+static void _test_usage(int early) {
+  #ifdef TEST_GASNET_H
+    if (gasnet_mynode() == 0) {
+      fprintf(stderr, "%s %s\n", _test_testname, GASNET_CONFIG_STRING);
+      fprintf(stderr, "Usage: %s %s%s", _test_argvzero, _test_usagestr,
+        (_test_usagestr[strlen(_test_usagestr)-1] == '\n' ? "" : "\n"));
+      fflush(NULL);
+      sleep(1);
+      gasnet_exit(1);
+    } else { /* wait to die */
+      if (early) while(1) gasnett_sched_yield();
+      else BARRIER();
+    }
+  #else
+      fprintf(stderr, "%s %s\n", _test_testname, GASNETT_CONFIG_STRING);
+      fprintf(stderr, "Usage: %s %s%s", _test_argvzero, _test_usagestr,
+        (_test_usagestr[strlen(_test_usagestr)-1] == '\n' ? "" : "\n"));
+      fflush(NULL);
+      sleep(1);
+      exit(1);
+  #endif
+}
+#define test_usage() _test_usage(0)
+static void _test_init(const char *testname, int reports_performance, int early,
+                       int argc, const char * const *argv, const char *usagestr) {
   /* convenient place to put inits we want in all tests */
+  int i;
+  _test_usagestr = strdup(usagestr);
+  _test_testname = strdup(testname);
+  _test_argvzero = strdup(argv[0]);
+  for (i = 0; i < argc; i++) { /* check for standard help option */
+    if (!strcmp(argv[i],"-h") || !strcmp(argv[i],"--h") || 
+        !strcmp(argv[i],"-help") || !strcmp(argv[i],"--help")) _test_usage(early);
+  }
+
   TEST_SIG_INIT();
   #ifdef TEST_GASNET_H
     if (!early) BARRIER();
@@ -699,26 +841,61 @@ static void _test_init(const char *testname, int reports_performance, int early)
       TEST_GENERICS_WARNING();
       if (gasnet_mynode() == 0)
         fprintf(stdout, "Timer granularity: <= %.3f us, overhead: ~ %.3f us\n",
-                       gasnett_timer_granularityus(), gasnett_timer_overheadus());
+                       gasnett_tick_granularityus(), gasnett_tick_overheadus());
       fflush(NULL);
     }
-    if (test_getenv_yesno("GASNET_TEST_POLITE_SYNC",0)) {
+    if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) {
       MSG0("WARNING: GASNET_TEST_POLITE_SYNC is set - enabling  \"polite\", low-performance synchronization algorithms");
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
     }
-    MSG0("=====> %s nprocs=%d config=%s",
-        testname, (int)gasnet_nodes(), GASNET_CONFIG_STRING);
+    MSG0("=====> %s nprocs=%d config=%s compiler=%s/%s sys=%s",
+        testname, (int)gasnet_nodes(), GASNET_CONFIG_STRING,
+        _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
+        GASNETT_SYSTEM_TUPLE);
     if (!early) {
+      char hostname[255];
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
+      if (!gethostname(hostname,255)) {
+        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
+        fflush(NULL);
+        BARRIER();
+      }
     }
   #else
-    MSG0("=====> %s config=%s",
-        testname, GASNETT_CONFIG_STRING);
+    { char hostname[255];
+      MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
+          testname, GASNETT_CONFIG_STRING,
+          _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
+          GASNETT_SYSTEM_TUPLE);
+      if (!gethostname(hostname,255)) {
+        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
+        fflush(NULL);
+      }
+    }
   #endif
-  if (test_getenv_yesno("GASNET_VERBOSEENV",0)) MSG("%s running...", testname);
+  if (gasnett_verboseenv()) MSG("%s running...", testname);
 }
-#define test_init(testname, reports_performance) _test_init(testname, reports_performance, 0)
-#define test_init_early(testname, reports_performance) _test_init(testname, reports_performance, 1)
+#define test_init(testname, reports_performance, usagestr) \
+       _test_init(testname, reports_performance, 0, argc, (const char * const *)argv, usagestr)
+#define test_init_early(testname, reports_performance, usagestr) \
+       _test_init(testname, reports_performance, 1, argc, (const char * const *)argv, usagestr)
+
+
+#define TEST_TRACING_MACROS() do {                                                 \
+  const char *file; unsigned int line;                                             \
+  GASNETT_TRACE_GETSOURCELINE(&file, &line);                                       \
+  GASNETT_TRACE_SETSOURCELINE(file, line);                                         \
+  GASNETT_TRACE_FREEZESOURCELINE();                                                \
+  GASNETT_TRACE_UNFREEZESOURCELINE();                                              \
+  if (GASNETT_TRACE_ENABLED)                                                       \
+    GASNETT_TRACE_PRINTF("TEST_TRACING_MACROS: GASNETT_TRACE_PRINTF()");           \
+  GASNETT_TRACE_PRINTF_FORCE("TEST_TRACING_MACROS: GASNETT_TRACE_PRINTF_FORCE()"); \
+  GASNETT_TRACE_SETMASK(GASNETT_TRACE_GETMASK());                                  \
+  GASNETT_STATS_SETMASK(GASNETT_STATS_GETMASK());                                  \
+  GASNETT_TRACE_SET_TRACELOCAL(GASNETT_TRACE_GET_TRACELOCAL());                    \
+} while (0)
+
+GASNETT_END_EXTERNC
 
 #endif

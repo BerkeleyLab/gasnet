@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2005/07/03 14:33:33 $
- * $Revision: 1.22 $
+ *     $Date: 2006/08/11 00:53:17 $
+ * $Revision: 1.22.4.1 $
  * Description: GASNet header for lapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #include <gasnet_core_help.h>
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -31,6 +31,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 #define gasnet_attach gasnetc_attach
 
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
+GASNETI_NORETURNP(gasnetc_exit)
 #define gasnet_exit gasnetc_exit
 
 /* ------------------------------------------------------------------------------------ */
@@ -59,7 +60,7 @@ typedef struct _gasnet_hsl_t {
   gasnetc_spinlock_t lock;
 
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t acquiretime;
+    gasneti_tick_t acquiretime;
   #endif
 
   #if GASNETC_USE_INTERRUPTS
@@ -173,7 +174,7 @@ extern int gasnetc_AMPoll();
 
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif
 

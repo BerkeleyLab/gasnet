@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.common,v $
-#     $Date: 2004/08/26 04:53:50 $
-# $Revision: 1.5 $
+#     $Date: 2006/08/11 00:53:27 $
+# $Revision: 1.5.14.1 $
 # Description: Platform-independent variable init, overridden by pre-baked makefiles
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -36,6 +36,7 @@ cxxoptflags = -O3 $(otherflags)
 # system utilities
 ranlib = ranlib
 ar = ar
+PERL = perl
 
 # paths to platform-dependent helpers
 glunix_includes  := $(shell /usr/bin/test -e /usr/now/bin/glurun && echo "-I/usr/now/include -DGLUNIX")
@@ -46,4 +47,6 @@ ueth_libraries	 := $(shell csh -c 'if ("`hostname`" == "whomp") echo "$(uethlibn
 
 # To be set by pre-baked makefiles:
 platform_defines = 
+platform_ldflags =
 platform_libraries = 
+

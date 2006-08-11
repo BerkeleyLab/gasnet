@@ -1,6 +1,6 @@
 GASNet udp-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.4 $
+$Revision: 1.4.8.1 $
 
 User Information:
 -----------------
@@ -231,10 +231,6 @@ supported. Unlike AMMPI (which is limited to MPI-1.1's functionality), AMUDP
 provides a fully functional job management system (which runs on the spawning
 console), which means that udp-conduit provides very robust job exit behavior -
 it passes all testexit tests and should never leave zombie processes.
-
-udp-conduit currently passes all the GASNet tests on Linux and Cygwin, but I'm
-leaving it disabled by default for now until I've had a chance to further test
-the portability.
 
 Current limitations:
 * AMUDP is implemented in C++ (fairly straightforward C++ with no templates,

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_internal.h,v $
- *     $Date: 2005/08/04 13:51:25 $
- * $Revision: 1.9 $
+ *     $Date: 2006/08/11 00:53:43 $
+ * $Revision: 1.9.4.1 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,37 +20,6 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
-
-/* -------------------------------------------------------------------- */
-/*
- * These settings are based on benchmarks executed over various implementations
- * of shmem, and can be reproduced by the shmem_core.c file in contrib/
- */
-/*
- * Quadrics has higher latency and is hence more sensitive to remote atomic
- * opeartions.  Turns out randomly chosing an index in the shared queue
- * provides much better performance without impacting performance under high
- * contention.
- */
-#ifdef QUADRICS_SHMEM
-#define GASNETC_VECTORIZE
-
-/*
- * Cray does very well with the mswap operation, which essentially allows us to
- * reduce the unsuccessful AMPoll case to a single word read (if queue <= 64).
- */
-#elif defined(CRAY_SHMEM) 
-#define GASNETC_VECTORIZE		_Pragma("_CRI concurrent")
-#define GASNETE_SHMEM_BARRIER
-
-/* 
- * SGI does not implement shmem_int_mswap (even though it exists in the header
- * file!).  We use the put-based mechanism instead.
- */
-#elif defined(SGI_SHMEM)
-#define GASNETC_VECTORIZE
-#define GASNETE_SHMEM_BARRIER
-#endif
 
 /* -------------------------------------------------------------------- */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
@@ -118,7 +87,7 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 /*
  * AMQUEUE DEPTH and maximum sizes
  */
-#ifdef CRAYX1
+#if PLATFORM_ARCH_CRAYX1
   #define GASNETC_AMQUEUE_DEFAULT_DEPTH 32 /* allow polling with a single bitfield load */
 #else
   #define GASNETC_AMQUEUE_DEFAULT_DEPTH 64
@@ -195,7 +164,7 @@ extern volatile long	gasnetc_amq_reqfields[GASNETC_AMQUEUE_MAX_FIELDS];
 extern long		gasnetc_amq_numfields;
 #endif
 
-GASNET_INLINE_MODIFIER(gasnetc_AMQueueAcquire)
+GASNETI_INLINE(gasnetc_AMQueueAcquire)
 int gasnetc_AMQueueAcquire(gasnet_node_t pe, int reqrep) {
     int	idx;
     const int isreply = (reqrep == GASNETC_REPLY_T);
@@ -221,7 +190,7 @@ int gasnetc_AMQueueAcquire(gasnet_node_t pe, int reqrep) {
     return idx;
 }
 
-GASNET_INLINE_MODIFIER(gasnetc_AMQueueRelease)
+GASNETI_INLINE(gasnetc_AMQueueRelease)
 void gasnetc_AMQueueRelease(gasnet_node_t pe, int idx)
 {
   #ifdef CRAY_SHMEM

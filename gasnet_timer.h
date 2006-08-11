@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2005/08/25 10:36:25 $
- * $Revision: 1.43 $
+ *     $Date: 2006/08/11 00:53:06 $
+ * $Revision: 1.43.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,15 +13,13 @@
 #ifndef _GASNET_TIMER_H
 #define _GASNET_TIMER_H
 
-/* all of this to support gasneti_getMicrosecondTimeStamp */
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <errno.h>
+/* general includes (to avoid repetition below) */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* High-performance system timer library 
@@ -29,56 +27,42 @@ BEGIN_EXTERNC
   Implements high-granularity, low-overhead timers using system-specific support, where available
 
   Interface:
-    gasneti_stattime_t - timer datatype representing an integer number of "ticks"
+    gasneti_tick_t - timer datatype representing an integer number of "ticks"
       where a "tick" has a system-specific interpretation
       safe to be handled using integer operations (+,-,<,>,==)
-    GASNETI_STATTIME_NOW() - returns the current tick count as a gasneti_stattime_t
-    GASNETI_STATTIME_TO_US(stattime) - convert ticks to microseconds as a uint64_t
-    GASNETI_STATTIME_MIN - a value representing the minimum value storable in a gasneti_stattime_t
-    GASNETI_STATTIME_MAX - a value representing the maximum value storable in a gasneti_stattime_t
+    gasneti_tick_t gasneti_ticks_now() - returns the current tick count 
+      note that tick values are THREAD-specific, and do NOT represent a globally-synchronized timer.
+      In specific, tick values are very likely to have a different base value across nodes, and 
+      might even advance at substantially different rates on different nodes.
+      Therefore tick values and tick intervals from different threads should never be directly compared or 
+      arithmetically combined, without first converting the relevant tick intervals to wall time intervals.
+    gasneti_ticks_to_ns(gasneti_tick_t ticks) - convert ticks to nanoseconds as a uint64_t
+    GASNETI_TICK_MIN - a value representing the minimum value storable in a gasneti_tick_t
+    GASNETI_TICK_MAX - a value representing the maximum value storable in a gasneti_tick_t
 */
 
-/* completely portable (low-performance) microsecond granularity wall-clock timer */
-GASNET_INLINE_MODIFIER(gasneti_getMicrosecondTimeStamp)
-int64_t gasneti_getMicrosecondTimeStamp(void) {
-  int64_t retval;
-  struct timeval tv;
-  retry:
-  if (gettimeofday(&tv, NULL)) {
-      perror("gettimeofday");
-      abort();
-  }
-  retval = ((int64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
-  #ifdef __crayx1
-    /* fix an empirically observed bug in UNICOS gettimeofday(),
-       which occasionally returns ridiculously incorrect values
-       SPR 728120, fixed in kernel 2.4.34 
-     */
-    if_pf(retval < (((int64_t)3) << 48)) goto retry;
-  #endif
-  return retval;
-}
-
 #if defined(GASNETC_CONDUIT_SPECIFIC_TIMERS)
-  #if !defined(GASNETI_STATTIME_TO_US) || !defined(GASNETI_STATTIME_NOW)
+  #if !defined(gasneti_ticks_to_ns) || !defined(gasneti_ticks_now)
+    /* conduit-specific timers must be implemented using a macro */
     #error Incomplete conduit-specific timer impl.
   #endif
-#elif defined(AIX)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_AIX
   #include <sys/time.h>
   #include <sys/systemcfg.h>
 
   /* we want to avoid expensive divide and conversion operations during collection, 
      but timebasestruct_t structs are too difficult to perform arithmetic on
      we stuff the internal cycle counter into a 64-bit holder and expand to realtime later */
-  typedef uint64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  gasneti_stattime_t gasneti_stattime_now() {
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
     timebasestruct_t t;
     read_real_time(&t,TIMEBASE_SZ);
     return (((uint64_t)t.tb_high) << 32) | ((uint64_t)t.tb_low);
   }
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
     timebasestruct_t t;
     gasneti_assert((read_real_time(&t,TIMEBASE_SZ), 
                    t.flag == RTC_POWER_PC)); /* otherwise timer arithmetic (min/max/sum) is compromised */
@@ -86,60 +70,69 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
     t.tb_high = (uint32_t)(st >> 32);
     t.tb_low =  (uint32_t)(st);
     time_base_to_time(&t,TIMEBASE_SZ);
-    return (((uint64_t)t.tb_high) * 1000000) + (t.tb_low/1000);
+    return (((uint64_t)t.tb_high) * 1000000000) + t.tb_low;
   }
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif defined(CRAYT3E) || defined(CRAYX1)
-  #if defined(CRAYT3E) 
-    #include <sys/machinfo.h>
-    /* 75 Mhz sys. clock, according to docs */
-    #define GASNETI_UNICOS_SYS_CLOCK 75 
-  #elif defined(CRAYX1)
-    #include <intrinsics.h>
-    /* 100 Mhz sys. clock, according to Fortran IRTC_RATE() */
-    #define GASNETI_UNICOS_SYS_CLOCK 100
-  #endif
-  #ifdef __GNUC__
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_CRAYT3E || PLATFORM_ARCH_CRAYX1
+  typedef uint64_t gasneti_tick_t;
+  #if PLATFORM_COMPILER_GNU
     #define _rtc rtclock
   #else
-    long    _rtc();
+    extern long _rtc();
   #endif
 
-  typedef uint64_t gasneti_stattime_t;
+  #define gasneti_ticks_now()      (_rtc())
 
-  #if 0
-    #define GASNETI_STATTIME_TO_US(st)  ((st) * 1000000 / GetMachineInfo(mi_hz))
-  #else
-    /* 75 Mhz sys. clock */
-    #define GASNETI_STATTIME_TO_US(st)  ((st) / GASNETI_UNICOS_SYS_CLOCK)
+  #if PLATFORM_ARCH_CRAYT3E || defined(GASNETI_UNICOS_SYS_CLOCK)
+    #include <sys/machinfo.h>
+    #ifndef GASNETI_UNICOS_SYS_CLOCK /* T3E has 75 Mhz sys. clock */
+    #define GASNETI_UNICOS_SYS_CLOCK 75000000
+    #endif
+    #define gasneti_ticks_to_ns(st)  ((gasneti_tick_t)(((gasneti_tick_t)(st)) * (1000000000.0 / GASNETI_UNICOS_SYS_CLOCK)))
+  #elif PLATFORM_ARCH_CRAYX1
+    #include <intrinsics.h>
+    extern long IRTC_RATE();
+    /* 100 or 113 Mhz sys. clock, depending on hardware */
+    GASNETI_INLINE(gasneti_ticks_to_ns)
+    uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+      static int gasneti_rtc_rate_set = 0;
+      static double gasneti_rtc_rate;
+      if_pf (!gasneti_rtc_rate_set) {
+        long const rateval = IRTC_RATE();
+        gasneti_assert(rateval > 1E6 && rateval < 1E12); /* sanity check */
+        gasneti_rtc_rate = 1000000000.0 / rateval;
+        gasneti_local_wmb();
+        gasneti_rtc_rate_set = 1;
+      }
+      return st * gasneti_rtc_rate;
+    }
   #endif
-  #define GASNETI_STATTIME_NOW()      (_rtc())
-#elif defined(IRIX)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_IRIX
   #include <time.h>
   #include <sys/ptimers.h>
 
-  typedef uint64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  gasneti_stattime_t gasneti_stattime_now() {
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
     struct timespec t;
-    if (clock_gettime(CLOCK_SGI_CYCLE, &t) == -1) abort();
+    gasneti_assert_zeroret(clock_gettime(CLOCK_SGI_CYCLE, &t));
     return ((((uint64_t)t.tv_sec) & 0xFFFF) * 1000000000) + t.tv_nsec;
   }
-  #define GASNETI_STATTIME_TO_US(st)  ((st)/1000)
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif defined(__MTA__)
+  #define gasneti_ticks_to_ns(st)  (st)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_MTA
   #include <sys/mta_task.h>
   #include <machine/mtaops.h>
 
-  typedef int64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t ticks) {
+  typedef int64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t ticks) {
     static int firsttime = 1;
     static double adjust;
     if_pf(firsttime) {
       double freq = mta_clock_freq();
-      adjust = 1000000.0/freq;
+      adjust = 1.0E9/freq;
       gasneti_sync_writes();
       firsttime = 0;
       #if 0
@@ -149,115 +142,214 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
     } else gasneti_sync_reads();
     return (uint64_t)(((double)ticks) * adjust);
   }
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (MTA_CLOCK(0))
-  #define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)(((uint64_t)-1)>>1))
-#elif defined(SOLARIS)
+  #define gasneti_ticks_now()      (MTA_CLOCK(0))
+  #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_SOLARIS
 #if 1
   /* workaround bizarre failures on gcc 3.2.1 - seems they sometimes use a
      union to implement longlong_t and hence hrtime_t, and the test to
      determine this is (__STDC__ - 0 == 0) which is totally bogus */
-  typedef uint64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  gasneti_stattime_t gasneti_stattime_now() {
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
     hrtime_t t = gethrtime();
-    return *(gasneti_stattime_t *)&t;
+    return *(gasneti_tick_t *)&t;
   }
-  #define GASNETI_STATTIME_TO_US(st)  ((st)/1000)
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
+  #define gasneti_ticks_to_ns(st)  (st)
 #else
-  typedef hrtime_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
-    gasneti_assert(sizeof(gasneti_stattime_t) == 8);
-    return (*(uint64_t*)&st)/1000;
+  typedef hrtime_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+    gasneti_assert(sizeof(gasneti_tick_t) == 8);
+    return *(uint64_t*)&st;
   }
-  #define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)(((uint64_t)-1)>>1))
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (gethrtime())
+  #define gasneti_ticks_now()      (gethrtime())
+  #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
 #endif
-#elif defined(__linux__) && (defined(__GNUC__) || defined(__INTEL_COMPILER)) && \
-     (defined(__i386__) || defined(__x86_64__) || defined(__ia64__))
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <math.h>
-  #if defined(__ia64__) && defined(__INTEL_COMPILER)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_CATAMOUNT && PLATFORM_COMPILER_PGI && !PGI_WITH_REAL_ASM && 0 /* DISABLED */
+  #include <catamount/dclock.h>
+  typedef uint64_t gasneti_tick_t;
+  #define gasneti_ticks_to_ns(st)  (st)
+  #define gasneti_ticks_now()      ((gasneti_tick_t)(dclock()*1E9))
+/* ------------------------------------------------------------------------------------ */
+#elif GASNETI_ARCH_ALTIX
+  /* use IA-PC HPET (High Precision Event Timers) */
+  #define GASNETI_HPET_MMAP 1
+  #include <sys/ioctl.h>
+  #include <sys/types.h>
+  #include <sys/stat.h>
+  #include <sys/mman.h>
+  #include <fcntl.h>
+  #include <unistd.h>
+  #include <sn/mmtimer.h> 
+  typedef uint64_t gasneti_tick_t;
+  /* EXTERNC here fixes a mysterious C++ linkage error on davinci */
+  GASNETI_EXTERNC double gasneti_timer_tick; /* tick conversion factor */
+  GASNETI_EXTERNC int gasneti_timer_fd; /* HPET device file descriptor */
+  GASNETI_EXTERNC volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
+  GASNETI_NEVER_INLINE(gasneti_timer_init,
+  static volatile uint64_t *gasneti_timer_init()) {
+    if_pf (!gasneti_tick_p) {
+      int result;
+      uint64_t val = 0;
+      if ((gasneti_timer_fd = open(MMTIMER_FULLNAME, O_RDONLY)) == -1) 
+         gasneti_fatalerror("failed to open %s", MMTIMER_FULLNAME);
+      if ((result = ioctl(gasneti_timer_fd, MMTIMER_GETFREQ, &val)) == -ENOSYS) 
+         gasneti_fatalerror("failed to MMTIMER_GETFREQ");
+      gasneti_assert(val >= 10000000); /* 10 MHz min reqd by spec */
+      gasneti_timer_tick = 1.0E9 / val;
+      gasneti_assert(gasneti_timer_tick != 0.0);
+      #if GASNETI_HPET_MMAP
+      { void *loc;
+        int offset; 
+        gasneti_assert_always(ioctl(gasneti_timer_fd, MMTIMER_MMAPAVAIL, 0) == 1);
+        offset = ioctl(gasneti_timer_fd, MMTIMER_GETOFFSET, 0); /* fetch offset of counter in mmap page */
+        gasneti_assert_always(offset >= 0 && offset < GASNETI_PAGESIZE-8);
+        loc = mmap(NULL, GASNETI_PAGESIZE, PROT_READ, MAP_PRIVATE, gasneti_timer_fd, 0);
+        if (loc == NULL || loc == MAP_FAILED) 
+          gasneti_fatalerror("failed to mmap MMTIMER: %s",strerror(errno));
+        close(gasneti_timer_fd); /* fd is no longer required */
+        gasneti_timer_fd = -1;
+        gasneti_sync_writes();
+        gasneti_tick_p = (uint64_t *)(((char*)loc) + offset);
+      }
+      #else
+        gasneti_sync_writes();
+        gasneti_tick_p = (volatile uint64_t *)1;
+      #endif
+    } else gasneti_sync_reads();
+    return gasneti_tick_p;
+  }
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
+    volatile uint64_t *ptr = gasneti_tick_p; 
+    if_pf (!ptr) ptr = gasneti_timer_init();
+    #if GASNETI_HPET_MMAP
+      return *ptr;
+    #else /* use ioctl - this works, but is actually slower than gettimeofday */
+    { uint64_t val = 0;
+      int result;
+      #if GASNET_DEBUG
+        result = ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &val);
+        if_pf (result == -ENOSYS) gasneti_fatalerror("failed to MMTIMER_GETCOUNTER: %i %s", result, strerror(result));
+      #else
+        ioctl(gasneti_timer_fd, MMTIMER_GETCOUNTER, &val); 
+      #endif
+      return (gasneti_tick_t)val;
+    }
+    #endif
+  }
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+    gasneti_assert(gasneti_tick_p);
+    return (uint64_t)(st * gasneti_timer_tick);
+  }
+#elif (PLATFORM_OS_LINUX || PLATFORM_OS_CATAMOUNT) && \
+     (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
+      PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY) && \
+     (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64) && \
+      !GASNETI_ARCH_ALTIX /* bug 1622 */
+  #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
     #include <ia64intrin.h>
   #endif
-  typedef uint64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  uint64_t gasneti_stattime_now (void) {
+  #if PLATFORM_OS_CATAMOUNT
+    extern unsigned int __cpu_mhz; /* system provided */
+  #endif
+  typedef uint64_t gasneti_tick_t;
+ #if PLATFORM_COMPILER_PGI && !PGI_WITH_REAL_ASM
+   #if PLATFORM_ARCH_X86
+     #define GASNETI_TICKS_NOW_BODY GASNETI_ASM("rdtsc");
+   #elif PLATFORM_ARCH_X86_64
+     #define GASNETI_TICKS_NOW_BODY                   \
+		GASNETI_ASM( "xor %rax, %rax	\n\t" \
+			     "rdtsc		\n\t" \
+			     "shl $32, %rdx	\n\t" \
+			     "or %rdx, %rax" );
+   #elif PLATFORM_ARCH_IA64
+     /* For completeness. */
+     #define GASNETI_TICKS_NOW_BODY \
+		GASNETI_ASM( "mov.m r8=ar.itc;" );
+   #endif
+ #elif PGI_WITH_REAL_ASM && defined(__cplusplus)
+  #define GASNETI_USING_SLOW_TIMERS 1
+ #else
+  GASNETI_INLINE(gasneti_ticks_now)
+  uint64_t gasneti_ticks_now (void) {
     uint64_t ret;
-    #if defined(__i386__)
-      __asm__ __volatile__("rdtsc"
-                           : "=A" (ret)
-                           : /* no inputs */); 
-    #elif defined(__ia64__) && defined(__INTEL_COMPILER)
-      ret = (uint64_t)__getReg(_IA64_REG_AR_ITC);
-    #elif defined(__ia64__) 
-      __asm__ __volatile__("mov %0=ar.itc" 
-                           : "=r"(ret) 
-                           : /* no inputs */);
-    #elif defined(__x86_64__)
+    #if PLATFORM_ARCH_X86_64 || (PLATFORM_ARCH_X86 && PGI_WITH_REAL_ASM)
       uint32_t lo, hi;
       __asm__ __volatile__("rdtsc"
                            : "=a" (lo), "=d" (hi)
                            : /* no inputs */); 
       ret = ((uint64_t)lo) | (((uint64_t)hi)<<32);
+    #elif PLATFORM_ARCH_X86
+      #if PLATFORM_COMPILER_TINY
+      __asm__ __volatile__("rdtsc" : "=A" (ret)); 
+      #else
+      __asm__ __volatile__("rdtsc"
+                           : "=A" (ret)
+                           : /* no inputs */); 
+      #endif
+    #elif PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
+      ret = (uint64_t)__getReg(_IA64_REG_AR_ITC);
+    #elif PLATFORM_ARCH_IA64
+      __asm__ __volatile__("mov %0=ar.itc" 
+                           : "=r"(ret) 
+                           : /* no inputs */);
     #else
       #error "unsupported CPU"
     #endif
     return ret;
   } 
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+ #endif
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
     static int firstTime = 1;
-    static double Tick = 0.0;
+    static double Tick = 0.0; /* inverse GHz */
     if_pf (firstTime) {
+     #if PLATFORM_OS_CATAMOUNT /* lacks /proc filesystem */
+        Tick = 1000.0 / __cpu_mhz;
+     #else
       FILE *fp = fopen("/proc/cpuinfo","r");
       char input[255];
-      if (!fp) {
-        fprintf(stderr,"*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
-        abort();
-      }
+      if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
       while (!feof(fp) && fgets(input, 255, fp)) {
+      #if PLATFORM_ARCH_IA64 /* itc and cpu need not run at the same rate */
+        if (strstr(input,"itc MHz")) {
+      #else
         if (strstr(input,"cpu MHz")) {
+      #endif
           char *p = strchr(input,':');
 	  double MHz = 0.0;
           if (p) MHz = atof(p+1);
           gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
-          Tick = 1. / MHz;
+          Tick = 1000. / MHz;
           break;
         }
       }
       fclose(fp);
+     #endif
       gasneti_assert(Tick != 0.0);
       gasneti_sync_writes();
       firstTime = 0;
     } else gasneti_sync_reads();
     return (uint64_t)(st * Tick);
   }
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif defined(__PPC__) && \
-      ( defined(__GNUC__) || defined(__xlC__) ) && \
-      ( defined(__linux__) || defined(__blrts__) )
-  /* 
-   * This code uses the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs.
-   */
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <string.h>
-  #include <math.h>
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_POWERPC && \
+      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC ) && \
+      ( PLATFORM_OS_LINUX || PLATFORM_OS_BLRTS )
+  /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
-  typedef uint64_t gasneti_stattime_t;
- #ifdef __GNUC__
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  uint64_t gasneti_stattime_now (void) {
+  typedef uint64_t gasneti_tick_t;
+ #if PLATFORM_COMPILER_GNU
+  GASNETI_INLINE(gasneti_ticks_now)
+  uint64_t gasneti_ticks_now(void) {
     uint64_t ret;
-    #if defined(__PPC64__)
+    #if PLATFORM_ARCH_64
       __asm__ __volatile__("mftb %0"
                            : "=r" (ret)
                            : /* no inputs */); 
@@ -276,31 +368,31 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
     #endif
     return ret;
   } 
- #elif defined(__xlC__)
-   #if defined(__PPC64__)
-      static uint64_t gasneti_stattime_now (void);
-      #pragma mc_func gasneti_stattime_now {  \
+ #elif PLATFORM_COMPILER_XLC
+   #if PLATFORM_ARCH_64
+      static uint64_t gasneti_ticks_now(void);
+      #pragma mc_func gasneti_ticks_now {  \
         "7c6c42e6"      /* mftb r3         */ \
         /* RETURN counter in r3 */            \
       }
-      #pragma reg_killed_by gasneti_stattime_now 
+      #pragma reg_killed_by gasneti_ticks_now 
    #else
-      static uint32_t gasneti_mftb_low (void);
+      static uint32_t gasneti_mftb_low(void);
       #pragma mc_func gasneti_mftb_low {  \
         "7c6c42e6"      /* mftb r3     */ \
         /* RETURN counter in r3 */        \
       }
       #pragma reg_killed_by gasneti_mftb_low 
       
-      static uint32_t gasneti_mftb_high (void);
+      static uint32_t gasneti_mftb_high(void);
       #pragma mc_func gasneti_mftb_high {  \
         "7c6d42e6"      /* mftbu r3     */ \
         /* RETURN counter in r3 */         \
       }
       #pragma reg_killed_by gasneti_mftb_high 
       
-      GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-      uint64_t gasneti_stattime_now (void) {
+      GASNETI_INLINE(gasneti_ticks_now)
+      uint64_t gasneti_ticks_now(void) {
         register uint32_t hi, hi2, lo;
         /* Note we must read hi twice to protect against wrap of lo */
         do {
@@ -312,13 +404,13 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       } 
    #endif
  #endif
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
     static int firstTime = 1;
     static double Tick = 0.0;
     if_pf (firstTime) {
       uint32_t freq;
-     #ifdef __blrts__
+     #if PLATFORM_OS_BLRTS
       /* don't know how to query this, so hard-code it for now */
       freq = 700000000;
      #else 
@@ -327,43 +419,31 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
       FILE *fp = NULL;
       double MHz = 0.0;
       char fname[128];
-      if (!dp) {
-        fprintf(stderr,"*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s\n",strerror(errno));
-        abort();
-      }
+      if (!dp) gasneti_fatalerror("*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s",strerror(errno));
       do {
         de = readdir(dp);
 	if (de && (de->d_name == strstr(de->d_name, "PowerPC,"))) {
 	  break;
 	}
       } while (de);
-      if (!de) {
-        fprintf(stderr,"*** ERROR: Failure to find a PowerPC CPU in /proc/device-tree/cpus\n");
-	abort();
-      }
+      if (!de) gasneti_fatalerror("*** ERROR: Failure to find a PowerPC CPU in /proc/device-tree/cpus");
       snprintf(fname, sizeof(fname), "/proc/device-tree/cpus/%s/timebase-frequency", de->d_name);
       closedir(dp);
       fp = fopen(fname, "r");
-      if (!fp) {
-	fprintf(stderr,"*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
-	abort();
-      }
-      if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) {
-        fprintf(stderr,"*** ERROR: Failure to read timebase frequency from '%s': %s\n", fname,strerror(errno));
-	abort();
-      }
+      if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
+      if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) 
+        gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", fname, strerror(errno));
       fclose(fp);
      #endif
       gasneti_assert(freq > 1000000 && freq < 1000000000); /* ensure it looks reasonable (1MHz to 1Ghz) */
-      Tick = 1.0e6 / freq;
+      Tick = 1.0e9 / freq;
       gasneti_sync_writes();
       firstTime = 0;
     } else gasneti_sync_reads();
     return (uint64_t)(st * Tick);
   }
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif 0 && defined(OSF)
+/* ------------------------------------------------------------------------------------ */
+#elif 0 && PLATFORM_OS_TRU64
   /* the precision for this is no better than gettimeofday (~1 ms) */
   /* TODO: use elan real-time counter, or rpcc instruction (which returns
      a 32-bit cycle count that wraps too quickly to be useful by itself)
@@ -371,16 +451,16 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
    */
   #include <time.h>
 
-  typedef uint64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  gasneti_stattime_t gasneti_stattime_now() {
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
     struct timespec t;
-    if (clock_gettime(CLOCK_REALTIME, &t) == -1) abort();
+    gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME, &t));
     return ((((uint64_t)t.tv_sec) & 0xFFFF) * 1000000000) + t.tv_nsec;
   }
-  #define GASNETI_STATTIME_TO_US(st)  ((st)/1000)
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif defined(CYGWIN)
+  #define gasneti_ticks_to_ns(st)  (st)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_CYGWIN
   #include <windows.h>
   /* note: QueryPerformanceCounter is a Win32 system call and thus has ~1us overhead
      Most systems have a QueryPerformanceFrequency() == 3,579,545, which is the
@@ -392,67 +472,121 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
      See http://www.geisswerks.com/ryan/FAQS/timing.html
          http://softwareforums.intel.com/ids/board/message?board.id=16&message.id=1509
   */
-  typedef uint64_t gasneti_stattime_t;
-  GASNET_INLINE_MODIFIER(gasneti_stattime_now)
-  gasneti_stattime_t gasneti_stattime_now() {
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
     LARGE_INTEGER val;
-    if_pf (!QueryPerformanceCounter(&val)) abort();
+    gasneti_assert_nzeroret(QueryPerformanceCounter(&val));
     gasneti_assert(val.QuadPart > 0);
-    return (gasneti_stattime_t)val.QuadPart;
+    return (gasneti_tick_t)val.QuadPart;
   }
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
     static int firsttime = 1;
     static double freq = 0;
     if_pf (firsttime) {
       LARGE_INTEGER temp;
-      if (!QueryPerformanceFrequency(&temp)) abort();
-      freq = ((double)temp.QuadPart) / 1000000.0;
+      gasneti_assert_nzeroret(QueryPerformanceFrequency(&temp));
+      freq = ((double)temp.QuadPart) / 1.0E9;
       freq = 1 / freq;
       gasneti_sync_writes();
       firsttime = 0;
     } else gasneti_sync_reads();
     return (uint64_t)(st * freq);
   }
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#elif defined(__APPLE__) && defined(__MACH__)
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_OS_DARWIN
   /* See http://developer.apple.com/qa/qa2004/qa1398.html */
   #include <mach/mach_time.h>
-  typedef uint64_t gasneti_stattime_t;
-  #define gasneti_stattime_now() mach_absolute_time()
-  GASNET_INLINE_MODIFIER(gasneti_stattime_to_us)
-  uint64_t gasneti_stattime_to_us(gasneti_stattime_t st) {
+  typedef uint64_t gasneti_tick_t;
+  #define gasneti_ticks_now() mach_absolute_time()
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
     static int firsttime = 1;
     static double freq = 0;
     if_pf (firsttime) {
       mach_timebase_info_data_t tb;
-      if (mach_timebase_info(&tb)) abort();
-      freq = 1.e-3 * ((double)tb.numer) / ((double)tb.denom);
+      gasneti_assert_zeroret(mach_timebase_info(&tb));
+      freq = ((double)tb.numer) / ((double)tb.denom);
       gasneti_sync_writes();
       firsttime = 0;
     } else gasneti_sync_reads();
     return (uint64_t)(st * freq);
   }
-  #define GASNETI_STATTIME_TO_US(st)  (gasneti_stattime_to_us(st))
-  #define GASNETI_STATTIME_NOW()      (gasneti_stattime_now())
-#else
-  #define GASNETI_USING_GETTIMEOFDAY
+/* ------------------------------------------------------------------------------------ */
+#elif defined(_POSIX_TIMERS) && 0
+  /* POSIX realtime support - disabled for now because haven't found anywhere that it 
+     outperforms gettimeofday, and it usually requires an additional library */
+  #define GASNETI_USING_POSIX_REALTIME 1
+/* ------------------------------------------------------------------------------------ */
+#else /* use slow, portable timers */
+  #define GASNETI_USING_GETTIMEOFDAY 1
+#endif
+/* ------------------------------------------------------------------------------------ */
+/* completely portable (low-performance) microsecond granularity wall-clock time */
+extern uint64_t gasneti_gettimeofday_us(void);
+
+/* portable implementations */
+#if defined(GASNETI_FORCE_GETTIMEOFDAY) || defined(GASNETI_USING_GETTIMEOFDAY)
+  #undef GASNETI_USING_GETTIMEOFDAY
+  #define GASNETI_USING_GETTIMEOFDAY 1
   /* portable microsecond granularity wall-clock timer */
-  typedef uint64_t gasneti_stattime_t;
-  #define GASNETI_STATTIME_TO_US(st)  (st)
-  #define GASNETI_STATTIME_NOW()      ((gasneti_stattime_t)gasneti_getMicrosecondTimeStamp())
+  typedef uint64_t _gasneti_tick_t;
+  #undef gasneti_tick_t
+  #define gasneti_tick_t _gasneti_tick_t
+  #undef gasneti_ticks_to_ns
+  #define gasneti_ticks_to_ns(st)  (((gasneti_tick_t)(st))*1000)
+  #undef gasneti_ticks_now
+  #define gasneti_ticks_now()      ((gasneti_tick_t)gasneti_gettimeofday_us())
+#elif defined(GASNETI_FORCE_POSIX_REALTIME) || defined(GASNETI_USING_POSIX_REALTIME)
+  #include <time.h>
+  #undef GASNETI_USING_POSIX_REALTIME 
+  #define GASNETI_USING_POSIX_REALTIME 1
+  typedef uint64_t _gasneti_tick_t;
+  #undef gasneti_tick_t
+  #define gasneti_tick_t _gasneti_tick_t
+  GASNETI_INLINE(gasneti_ticks_now_posixrt)
+  gasneti_tick_t gasneti_ticks_now_posixrt() {
+    struct timespec tm;
+    #if defined(_POSIX_MONOTONIC_CLOCK) && 0 
+      /* this is probably the better timer to use, but 
+         some implementations define the symbol and then fail at runtime */
+      gasneti_assert_zeroret(clock_gettime(CLOCK_MONOTONIC,&tm));
+    #else
+      gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME,&tm));
+    #endif
+    return tm.tv_sec*((uint64_t)1E9)+tm.tv_nsec;
+  }
+  #undef gasneti_ticks_now
+  #define gasneti_ticks_now() gasneti_ticks_now_posixrt()
+  #undef gasneti_ticks_to_ns
+  #define gasneti_ticks_to_ns(st)  (st)
 #endif
 
-#ifndef GASNETI_STATTIME_MIN
-#define GASNETI_STATTIME_MIN        ((gasneti_stattime_t)0)
-#endif
-#ifndef GASNETI_STATTIME_MAX
-#define GASNETI_STATTIME_MAX        ((gasneti_stattime_t)-1)
+#if defined(GASNETI_USING_SLOW_TIMERS) || defined(GASNETI_TICKS_NOW_BODY)
+  GASNETI_EXTERNC void gasneti_slow_ticks_now(void);
+  #define gasneti_ticks_now()    ((*(gasneti_tick_t (*)(void))(&gasneti_slow_ticks_now))())
 #endif
 
-#ifdef GASNETI_USING_GETTIMEOFDAY
-  #define GASNETI_TIMER_CONFIG   timers_os
+#ifndef GASNETI_TICK_MIN
+#define GASNETI_TICK_MIN        ((gasneti_tick_t)0)
+#endif
+#ifndef GASNETI_TICK_MAX
+#define GASNETI_TICK_MAX        ((gasneti_tick_t)-1)
+#endif
+
+#if GASNETI_USING_GETTIMEOFDAY
+  #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+    #define GASNETI_TIMER_CONFIG   timers_forced_os
+  #else
+    #define GASNETI_TIMER_CONFIG   timers_os
+  #endif
+#elif GASNETI_USING_POSIX_REALTIME
+  #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+    #define GASNETI_TIMER_CONFIG   timers_forced_posixrt
+  #else
+    #define GASNETI_TIMER_CONFIG   timers_posixrt
+  #endif
 #else
   #define GASNETI_TIMER_CONFIG   timers_native
 #endif
@@ -467,56 +601,11 @@ int64_t gasneti_getMicrosecondTimeStamp(void) {
    When measuring an event of length (L) using two surrounding timer calls,
    the measured time interval will be: L + overhead +- granularity
 */
-#define GASNETI_STATTIME_GRANULARITY() gasneti_stattime_metric(0)
-#define GASNETI_STATTIME_OVERHEAD()    gasneti_stattime_metric(1)
-#if defined(_INCLUDED_GASNET_H) 
-  extern double *_gasneti_stattime_metric;
-#else
- #if !defined(__cplusplus)
-  /* use a tentative definition, so all files can share the same metric
-     data structures, and to ensure we pay the timing overhead at most once per run */
-  extern double *_gasneti_stattime_metric;
-  double *_gasneti_stattime_metric; 
- #else
-  /* C++ outlaws tentative definitions, and we have no other place to 
-     reliably place this data in gasnet_tools mode. 
-     So we're forced to place it in each compilation unit and possibly
-     pay one timing overhead for each compilation unit that asks
-   */
-  static double *_gasneti_stattime_metric; 
- #endif
-#endif
-GASNET_INLINE_MODIFIER(gasneti_stattime_metric)
-double gasneti_stattime_metric(unsigned int idx) {
-  gasneti_assert(idx <= 1);
-  if_pf (_gasneti_stattime_metric == NULL) {
-    int i, ticks, iters = 1000, minticks = 10;
-    double *_tmp_metric;
-    gasneti_stattime_t min = GASNETI_STATTIME_MAX;
-    gasneti_stattime_t start = GASNETI_STATTIME_NOW();
-    gasneti_stattime_t last = start;
-    for (i=0,ticks=0; i < iters || ticks < minticks; i++) {
-      gasneti_stattime_t x = GASNETI_STATTIME_NOW();
-      gasneti_stattime_t curr = (x - last);
-      if_pt (curr > 0) { 
-        ticks++;
-        if_pf (curr < min) min = curr;
-      }
-      last = x;
-    }
-    _tmp_metric = (double *)malloc(2*sizeof(double));
-    gasneti_assert(_tmp_metric != NULL);
-    /* granularity */
-    _tmp_metric[0] = ((double)GASNETI_STATTIME_TO_US(min*1000))/1000.0;
-    /* overhead */
-    _tmp_metric[1] = ((double)(GASNETI_STATTIME_TO_US(last - start)))/i;
-    gasneti_sync_writes();
-    _gasneti_stattime_metric = _tmp_metric;
-  } else gasneti_sync_reads();
-  return _gasneti_stattime_metric[idx];
-}
+extern double gasneti_tick_metric(int idx);
+#define gasneti_tick_granularity() gasneti_tick_metric(0)
+#define gasneti_tick_overhead()    gasneti_tick_metric(1)
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

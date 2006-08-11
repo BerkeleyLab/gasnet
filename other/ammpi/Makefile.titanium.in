@@ -1,12 +1,11 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.titanium.in,v $
-#     $Date: 2005/08/22 09:30:26 $
-# $Revision: 1.11 $
+#     $Date: 2006/08/11 00:53:25 $
+# $Revision: 1.11.2.1 $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
 # variables added here should also go in Makefile.common, and vice-versa
 
-srcdir = . # passed in on command-line
 altincdir = $(srcdir)/..
 testdir = $(srcdir)/../amxtests
 
@@ -22,11 +21,10 @@ MPIRUN_CMD = @MPIRUN_CMD@
 # system utilities
 ranlib = @RANLIB@
 ar = @AR@
+PERL = @PERL@
 
 # stuff normally set by the pre-baked makefiles
 platform_defines = @TIC_MACHINE_DEFINES@ @INTTYPES_DEFINES@ -DUNIX
 platform_libraries = @LIBS@ @MPI_LIBS@
 platform_ldflags = @LDFLAGS@
 
-@PLATFORM_ILP32_FALSE@  testprograms_ILP32only =
-@PLATFORM_ILP32_FALSE@  apputils_flags = -DAPPUTILS_OMIT_READWRITE

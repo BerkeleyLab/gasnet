@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2005/08/09 12:06:34 $
- * $Revision: 1.79 $
+ *     $Date: 2006/08/11 00:53:17 $
+ * $Revision: 1.79.4.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -146,13 +146,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     {
 	int rc = LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
 	if (rc != LAPI_SUCCESS) {
-	    const char *errmsg = "\n*** GASNet FATAL ERROR: In the initialization of the LAPI communication layer\n\n"
+          gasneti_fatalerror("In the initialization of the LAPI communication layer\n\n"
 		"This application must be run using the poe job scheduler with the following options: \n"
 		"  poe appname -euilib us -msg_api lapi -rmpool 1 -procs nproc -nodes numnodes args...\n"
-		"See the IBM poe documentation for details\n\n[NOTE: Error code %d at line %d in file %s]\n\n";
-	    fprintf(stderr,errmsg,rc,__LINE__,__FILE__);
-	    fflush(stderr);
-	    abort();
+		"See the IBM poe documentation for details\n\n[NOTE: Error code %d at line %d in file %s]\n\n",
+                rc,__LINE__,__FILE__);
 	}
     }
 
@@ -403,6 +401,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ------------------------------------------------------------------------------------ */
     /*  register handlers */
+    { int i;
+      for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
+        gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+    }
     { /*  core API handlers */
 	gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
 	int len = 0;
@@ -1465,13 +1467,13 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 
     {
 #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
+    gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
 #endif
     
     gasnetc_spinlock_lock(&(hsl->lock));
 
 #if GASNETI_STATS_OR_TRACE
-    hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+    hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
     GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
 #endif
     }
@@ -1496,7 +1498,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-    GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
+    GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
 
     gasnetc_spinlock_unlock(&(hsl->lock));
 }
@@ -1510,7 +1512,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
     if (locked) {
       #if GASNETI_STATS_OR_TRACE
-        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+        hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
         /* conduits with interrupt-based handler dispatch need to add code here to

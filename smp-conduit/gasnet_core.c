@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2005/08/09 12:06:58 $
- * $Revision: 1.39 $
+ *     $Date: 2006/08/11 00:53:45 $
+ * $Revision: 1.39.4.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -211,6 +211,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
+  { int i;
+    for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
+      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+  }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;
@@ -332,7 +336,6 @@ extern void gasnetc_exit(int exitcode) {
            after raising a SIGQUIT to inform the client of the exit
   */
   gasneti_killmyprocess(exitcode);
-  abort();
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -376,7 +379,7 @@ extern int gasnetc_AMPoll() {
   ================================
 */
 
-GASNET_INLINE_MODIFIER(gasnetc_ReqRepGeneric)
+GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          int dest, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
@@ -431,7 +434,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,dest_ptr,nbytes);
       }
     break;
-    default: abort();
+    default: gasneti_fatalerror("bad AM category");
   }
   #if GASNET_DEBUG  
     desc->handlerRunning = 0;
@@ -659,7 +662,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 
   {
     #if GASNETI_STATS_OR_TRACE
-      gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
+      gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
       while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
@@ -667,7 +670,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_mutex_lock(&(hsl->lock));
     #endif
     #if GASNETI_STATS_OR_TRACE
-      hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
     #endif
   }
@@ -692,7 +695,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
@@ -706,7 +709,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
     if (locked) {
       #if GASNETI_STATS_OR_TRACE
-        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+        hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
         /* conduits with interrupt-based handler dispatch need to add code here to 
