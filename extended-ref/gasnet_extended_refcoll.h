@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2006/08/11 00:53:12 $
- * $Revision: 1.1.10.1 $
+ *     $Date: 2006/08/15 03:45:05 $
+ * $Revision: 1.1.10.2 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,7 @@
 #define _GASNET_EXTENDED_REFCOLL_H
 
 #include <gasnet_handler.h>
+#include <gasnet_coll_trees.h>
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Parameters *** */

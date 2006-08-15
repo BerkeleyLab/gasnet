@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_coll.h,v $
- *     $Date: 2005/05/12 19:16:19 $
- * $Revision: 1.22 $
+ *     $Date: 2006/08/15 03:45:05 $
+ * $Revision: 1.22.6.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,7 @@
 
 #ifndef _GASNET_EXTENDED_COLL_H
 #define _GASNET_EXTENDED_COLL_H
+#include "gasnet_trees.h"
 
 /*---------------------------------------------------------------------------------*/
 /* Flag values: */
@@ -1525,17 +1526,15 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
  * Start of generic framework for tree-based reference implementations
  *---------------------------------------------------------------------------------*/
 
+
+/******** This code is now hoisted into gasnet_trees.h*************/
+#if 0
 typedef enum {
     GASNETE_COLL_TREE_KIND_CHAIN,
     GASNETE_COLL_TREE_KIND_BINARY,
     GASNETE_COLL_TREE_KIND_BINOMIAL,
     GASNETE_COLL_TREE_KIND_SEQUENTIAL,
-#if 0
-    GASNETE_COLL_TREE_KIND_CHAIN_SMP,
-    GASNETE_COLL_TREE_KIND_BINARY_SMP,
-    GASNETE_COLL_TREE_KIND_BINOMIAL_SMP,
-    GASNETE_COLL_TREE_KIND_SEQUENTIAL_SMP,
-#endif
+	GASNETE_COLL_TREE_KIND_NARY,
 #ifdef GASNETE_COLL_TREE_KIND_ENUM_EXTRA
     GASNETE_COLL_TREE_KIND_ENUM_EXTRA
 #endif
@@ -1548,12 +1547,18 @@ typedef struct {
     int			child_id;       /* I am which element of parent's child_list? */
     int			child_count;
     gasnet_node_t	*child_list;
-    /* used only as keys when caching: */
+    gasnet_node_t  *
+	
+  /* used only as keys when caching: */
     gasnete_coll_tree_kind_t	kind;
     gasnet_node_t		root;
     gasneti_weakatomic_t	ref_count;
 } gasnete_coll_tree_geom_t;
-                                                                                                              
+     
+#endif
+
+/**************************************************/
+																											                                                                                                           
 /* Data for a given tree-based operation */
 struct gasnete_coll_tree_data_t_ {
     uint32_t			pipe_seg_size;

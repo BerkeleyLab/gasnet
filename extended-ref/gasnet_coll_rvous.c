@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2006/08/11 00:53:12 $
- * $Revision: 1.29.6.1 $
+ *     $Date: 2006/08/15 03:45:05 $
+ * $Revision: 1.29.6.2 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,10 @@
 #include <gasnet_extended_refcoll.h>
 #include <gasnet_coll.h>
 #include <gasnet_vis.h>
+
+/*TEMPORARY ... change it up later*/
+#include <gasnet_coll_trees.c>
+
 
 /*---------------------------------------------------------------------------------*/
 /* Forward decls and macros */
@@ -1692,318 +1696,6 @@ extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count 
 
 uint32_t gasnete_coll_pipe_seg_size = 1024;
 
-/* XXX: should per-team */
-static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t kind, gasnet_node_t root) {
-  #define START(lev) ((1 << (lev))-1)
-  #define ACT2REL(actrank, root) ( (actrank >= root) ? actrank - root : actrank - root + gasneti_nodes )
-  #define REL2ACT(relrank, root) (((relrank < (gasneti_nodes-root)) ? relrank + root : relrank + root - gasneti_nodes))
-  gasnete_coll_tree_geom_t *geom = NULL;
-  int relrank = ACT2REL(gasneti_mynode, root);
-
-  geom = gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
-  geom->kind = kind;
-  geom->root = root;
-  gasneti_weakatomic_set(&(geom->ref_count), 1, 0);
-
-  geom->parent = (gasnet_node_t)(-1);
-  geom->child_id = -1;
-
-  switch(kind) {
-    case GASNETE_COLL_TREE_KIND_CHAIN:
-      if (relrank!=(gasneti_nodes-1)) {
-	geom->child_count = 1;
-	geom->child_list = (gasnet_node_t *)gasneti_malloc(sizeof(gasnet_node_t));
-	geom->child_list[0] = REL2ACT(relrank+1,root);
-      } else {
-	geom->child_count = 0;
-	geom->child_list = NULL;
-      }
-      if (relrank==0) {
-	geom->parent = (gasnet_node_t)-1;
-      } else {
-	geom->parent = REL2ACT(relrank-1,root);
-      }
-      geom->child_id = 0; /*only one child by def*/
-      break;
-
-    case GASNETE_COLL_TREE_KIND_BINARY:
-    {
-      int level;
-      int tchild0;
-      int tchild1;
-
-      level = 0;
-      while(1) { /* has to terminate because of the semantics of the loop  */
-	if (relrank >= START(level) && relrank < START(level+1)) {
-	  break;
-	} else {
-	  level++;
-	}
-      }
-      if (relrank!=0) {
-	/* we expect to recieve from some one */
-	int relparent = (relrank-START(level))/2 + START(level-1);
-	geom->parent = REL2ACT(relparent,root);
-	geom->child_id = (relrank+1)%2; /*odd nodes are left child even are right*/
-      } else {
-	/* geom->parent = -1;  by default */
-	/* geom->child_id = -1;  by default */
-      }
-      /* so now the level of the current node is set. */
-      /* now we figure out where to expect the message from */
-      /* special case is the root */
-      /* now we need to set the 2 destinations */
-      tchild0= (relrank - START(level))*2 + START(level+1);
-      tchild1= tchild0+1;
-      if (tchild0<gasneti_nodes && tchild1<gasneti_nodes) {
-	geom->child_count = 2;
-	geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t)*2);
-	geom->child_list[0] = REL2ACT(tchild0,root);
-	geom->child_list[1] = REL2ACT(tchild1,root);
-      } else if (tchild0<gasneti_nodes && tchild1>=gasneti_nodes) {
-	geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t));
-	geom->child_count = 1;
-	geom->child_list[0] = REL2ACT(tchild0,root);
-      } else if (tchild0>=gasneti_nodes && tchild1<gasneti_nodes) {
-	geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t));
-	geom->child_count = 1;
-	geom->child_list[0] = REL2ACT(tchild1,root);
-      } else {
-	geom->child_count = 0;
-	geom->child_list = NULL;
-      }
-      break;
-    }
-
-    case GASNETE_COLL_TREE_KIND_BINOMIAL:
-    {
-      gasnet_node_t child, src;
-      gasnet_node_t temp_dest_list[8*sizeof(gasnet_node_t)];
-      int mask = 1;
-      gasnet_node_t num_child=0;
-
-      mask = 0x1;
-      while (mask < gasneti_nodes) {
-	if (relrank & mask) {
-	  src = (gasneti_mynode >= mask) ? (gasneti_mynode - mask)
-					 : (gasneti_mynode + (gasneti_nodes - mask));
-	  geom->parent = src;
-	  break;
-	}
-	mask <<= 1;
-      }
-
-      mask >>= 1;
-      while (mask > 0) {
-	if (relrank + mask < gasneti_nodes) {
-	  child = gasneti_mynode + mask;
-	  if (child >= gasneti_nodes) child -= gasneti_nodes;
-	  temp_dest_list[num_child]=child;
-	  num_child++;
-	}
-	mask >>= 1;
-      }
-      if (num_child > 0) {
-	geom->child_list = (gasnet_node_t *)gasneti_malloc(sizeof(gasnet_node_t )*num_child);
-	for (child = 0; child<(num_child); child++) {
-	  geom->child_list[child] = temp_dest_list[child];
-	}
-      } else {
-	geom->child_list = NULL;
-      }
-
-      if (relrank != 0) {
-	int id, i, j;
-	i = relrank - ACT2REL(src, root);
-	/* compute floor(log_base_2(i)): */
-	for (j=1, id=0; (i-j) >= j; ++id, j = j<<1) {/*nothing*/}
-	geom->child_id = id;
-      } else {
-	/* geom->child_id = -1; by default */
-      }
-      geom->child_count = num_child;
-    }
-    break;
-
-    case GASNETE_COLL_TREE_KIND_SEQUENTIAL:
-    {
-      int i=0;
-      if (gasneti_mynode ==  root) {
-	geom->parent = (gasnet_node_t)-1;
-	geom->child_count = gasneti_nodes-1;
-	if (gasneti_nodes > 1) {
-	  geom->child_list = (gasnet_node_t *)gasneti_malloc(sizeof(gasnet_node_t)*(gasneti_nodes-1));
-	}
-	for (i=0; i<gasneti_nodes-1; i++) {
-	  geom->child_list[i] = REL2ACT(i+1,root);
-	}
-      } else {
-	geom->parent = root;
-	geom->child_count = 0;
-	geom->child_list = NULL;
-      }
-      geom->child_id = relrank-1;
-    }
-    break;
-
-#if 0
-    case GASNETE_COLL_TREE_KIND_CHAIN_SMP:
-    {
-      int i;
-      gasnet_node_t num_child = 0;
-
-      if (relrank % procs_per_node == 0) {
-	int start;
-	if (relrank!=0) {
-	  geom->parent = relrank - procs_per_node;
-	} else {
-	  geom->parent = (gasnet_node_t)-1;
-	}
-	if (relrank + procs_per_node < gasneti_nodes) {
-	  num_child++;
-	}
-	for (i=1; i<procs_per_node; i++) {
-	  if (relrank+i < gasneti_nodes) {
-	    num_child++;
-	  }
-	}
-	if (num_child > 0) {
-	  geom->child_list = (gasnet_node_t *)gasneti_malloc(sizeof(gasnet_node_t)*num_child);
-	  if (relrank+procs_per_node < gasneti_nodes) {
-	    geom->child_list[0] = REL2ACT(relrank+procs_per_node, root);
-	    start = 1;
-	  } else {
-	    start = 0;
-	  }
-	  for (i=start; i<num_child; i++) {
-	    if (start == 0) {
-	      geom->child_list[i] = REL2ACT(relrank+i+1, root);
-	    } else {
-	      geom->child_list[i] = REL2ACT(relrank+i, root);
-	    }
-	  }
-	}
-      } else {
-	geom->parent = (relrank / procs_per_node)*procs_per_node;
-	num_child = 0;
-	geom->child_list = NULL;
-      }
-      geom->child_count = num_child;
-      break;
-    }
-
-    case GASNETE_COLL_TREE_KIND_BINARY_SMP:
-    {
-      gasnet_node_t num_child = 0;
-      if (relrank%procs_per_node==0) {
-	int level;
-	int tchild0;
-	int tchild1;
-	int smprelrank = relrank/procs_per_node;
-	level = 0;
-	while(1) { /* has to terminate because of the semantics of the loop */
- 	  if (smprelrank >= START(level) && smprelrank < START(level+1)) {
- 	    break;
- 	  } else {
- 	    level++;
-	  }
-	}
-	if (relrank!=0) {
- 	  /* we expect to recieve from some one */
- 	  geom->parent = ((smprelrank-START(level))/2 + START(level-1))*procs_per_node;
- 	  geom->parent = REL2ACT(geom->parent,root);
-	} else {
- 	  geom->parent = (gasnet_node_t)-1;
-	}
-	/* so now the level of the current node is set. */
-	/* now we figure out where to expect the message from */
-	/* special case is the root */
-	/* now we need to set the 2 destinations */
-
-	tchild0= (smprelrank - START(level))*2 + START(level+1);
-	tchild1= tchild0+1;
-	tchild0 *= procs_per_node;
-	tchild1 *= procs_per_node;
-	if (tchild0<gasneti_nodes && tchild1<gasneti_nodes) {
- 	  num_child = 2;
- 	  for (i=1; i<procs_per_node; i++) {
- 	    if (relrank + i < gasneti_nodes) {
- 	      num_child++;
- 	    }
- 	  }
- 	  geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t)*num_child);
-
- 	  geom->child_list[0] = REL2ACT(tchild0,root);
- 	  geom->child_list[1] = REL2ACT(tchild1,root);
-
- 	  for (i=2; i<num_child; i++) {
- 	    geom->child_list[i] = REL2ACT(relrank+i, root);
- 	  }
-	} else if (tchild0<gasneti_nodes && tchild1>=gasneti_nodes) {
- 	  num_child = 1;
- 	  for (i=1; i<procs_per_node; i++) {
- 	    if (relrank + i < gasneti_nodes) {
- 	      num_child++;
- 	    }
- 	  }
- 	  geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t)*num_child);
- 	  geom->child_list[0] = REL2ACT(tchild0,root);
- 	  for (i=1; i<num_child; i++) {
- 	    geom->child_list[i] = REL2ACT(relrank+i, root);
- 	  }
-	} else if (tchild0>=gasneti_nodes && tchild1<gasneti_nodes) {
- 	  num_child = 1;
- 	  for (i=1; i<procs_per_node; i++) {
- 	    if (relrank + i < gasneti_nodes) {
- 	      num_child++;
- 	    }
- 	  }
- 	  geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t)*num_child);
- 	  geom->child_list[0] = REL2ACT(tchild1,root);
- 	  for (i=1; i<num_child; i++) {
- 	    geom->child_list[i] = REL2ACT(relrank+i, root);
- 	  }
-	} else {
- 	  num_child = 0;
- 	  for (i=1; i<procs_per_node; i++) {
- 	    if (relrank + i < gasneti_nodes) {
- 	      num_child++;
- 	    }
- 	  }
- 	  geom->child_list = (gasnet_node_t *) gasneti_malloc(sizeof(gasnet_node_t)*num_child);
- 	  geom->child_list[0] = REL2ACT(tchild1,root);
- 	  for (i=0; i<num_child; i++) {
- 	    geom->child_list[i] = REL2ACT(relrank+i, root);
- 	  }
-	}
-      } else {
-	geom->parent = (relrank / procs_per_node)*procs_per_node;
-	num_child = 0;
-	geom->child_list = NULL;
-      }
-      geom->child_id = /*???*/;
-      geom->child_count = num_child;
-      break;
-    }
-#endif
-
-    default:
-#ifdef GASNETE_COLL_TREE_GEOM_INIT_EXTRA
-      /* Hook to add additional cases.  Return 0 if kind was unrecongnized. */
-      if (!GASNETE_COLL_TREE_GEOM_INIT_EXTRA(geom, kind, root))
-#endif
-      {
-        gasneti_fatalerror("unknown, invalid or unimplemented tree type");
-      }
-  }
-
-
-  return geom;
-  #undef START
-  #undef ACT2REL
-  #undef REL2ACT
-}
-
 /* No locks needed.
  * If ref_count reaches zero then it must not appear in the cache and
  * therefore cannot receive additional references.
@@ -2013,12 +1705,28 @@ static void gasnete_coll_tree_geom_put(gasnete_coll_tree_geom_t *geom) {
     if (geom->child_list) {
       gasneti_free(geom->child_list);
     }
+	if(geom->sibling_list) {
+	   gasneti_free(geom->sibling_list);
+	}
+	if(geom->sibling_subtree_sizes) {
+	   gasneti_free(geom->sibling_subtree_sizes);
+	}
+	if(geom->subtree_sizes) {
+	   gasneti_free(geom->subtree_sizes);
+	}
+	if(geom->subtree) {
+	   gasneti_free(geom->subtree);
+	}
+    if(geom->dissem_order) {
+	   gasneti_free(geom->dissem_order);
+	}
+
     gasneti_free(geom);
   }
 }
 
 /* XXX: should per-team */
-static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_kind_t kind, gasnet_node_t root) {
+static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_kind_t kind, gasnet_node_t root, int fanout) {
   /* Simple 1-element (trivially LRU) cache */
   /* XXX: larger and more complex cache is desired */
   static gasneti_mutex_t gasnete_coll_geom_lock = GASNETI_MUTEX_INITIALIZER;
@@ -2031,10 +1739,10 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_ki
 
     if_pf (geom == NULL) {
       /* only happens on first call */
-      geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, root);
+      geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, fanout, root, 1);
     } else if_pf ((geom->kind != kind) || (geom->root != root)) {
       gasnete_coll_tree_geom_put(geom);
-      geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, root);
+      geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, fanout, root, 1);
     }
 
     gasneti_weakatomic_increment(&(geom->ref_count), 0);
@@ -2057,7 +1765,7 @@ extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t
 
   data->pipe_seg_size = gasnete_coll_pipe_seg_size ? gasnete_coll_pipe_seg_size : 1024;
   data->sent_bytes = 0;
-  data->geom = gasnete_coll_tree_geom_get(kind, root);
+  data->geom = gasnete_coll_tree_geom_get(kind, root, GASNETE_COLL_DEFAULT_FANOUT);
 
   return data;
 }
@@ -2526,7 +2234,7 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
       }
 
       /* Send ack to my parent */
-      gasnete_coll_p2p_change_state(op, tree->geom->parent, tree->geom->child_id+1, 1);
+      gasnete_coll_p2p_change_state(op, tree->geom->parent, tree->geom->sibling_id+1, 1);
       /* Sent my address to my children so they can issue their gets */
       for (child=0; child < tree->geom->child_count; child++) {
 	gasnete_coll_p2p_eager_addr(op, tree->geom->child_list[child], args->dst, 0, 1);
@@ -2805,7 +2513,7 @@ static int gasnete_coll_pf_bcast_TreeGetPipe(gasnete_coll_op_t *op GASNETE_THREA
 	data->state = 1;	/* still more data to recv */
 	break;
       } else {
-	gasnete_coll_p2p_change_state(op, tree->geom->parent, tree->geom->child_id+1, args->nbytes);
+	gasnete_coll_p2p_change_state(op, tree->geom->parent, tree->geom->sibling_id+1, args->nbytes);
 	data->state = 3;
       }
 

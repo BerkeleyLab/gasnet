@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2006/08/11 00:53:05 $
- * $Revision: 1.22.6.1 $
+ *     $Date: 2006/08/15 03:45:03 $
+ * $Revision: 1.22.6.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2145,35 +2145,38 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
 /*---------------------------------------------------------------------------------*
  * Start of generic framework for tree-based reference implementations
  *---------------------------------------------------------------------------------*/
+#include <gasnet_coll_trees.h>
 
-typedef enum {
-    GASNETE_COLL_TREE_KIND_CHAIN,
-    GASNETE_COLL_TREE_KIND_BINARY,
-    GASNETE_COLL_TREE_KIND_BINOMIAL,
-    GASNETE_COLL_TREE_KIND_SEQUENTIAL,
 #if 0
-    GASNETE_COLL_TREE_KIND_CHAIN_SMP,
-    GASNETE_COLL_TREE_KIND_BINARY_SMP,
-    GASNETE_COLL_TREE_KIND_BINOMIAL_SMP,
-    GASNETE_COLL_TREE_KIND_SEQUENTIAL_SMP,
-#endif
-#ifdef GASNETE_COLL_TREE_KIND_ENUM_EXTRA
-    GASNETE_COLL_TREE_KIND_ENUM_EXTRA
-#endif
-    GASNETE_COLL_TREE_KIND_INVALID
-} gasnete_coll_tree_kind_t;
-                                                                                                              
-/* Local view of the layout of a tree */
-typedef struct {
-    gasnet_node_t	parent;
-    int			child_id;       /* I am which element of parent's child_list? */
-    int			child_count;
-    gasnet_node_t	*child_list;
-    /* used only as keys when caching: */
-    gasnete_coll_tree_kind_t	kind;
-    gasnet_node_t		root;
-    gasneti_weakatomic_t	ref_count;
+typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE} gasnete_coll_tree_kind_t;
+
+typedef struct gasnete_coll_tree_geom_t_ {
+  /*** tree structure metadata*****/
+  gasnete_coll_tree_kind_t kind;
+  int fanout;
+  int root;					
+  int threads_per_node;
+  
+  /** tree geometry**/
+  int parent; /*parent of this node*/
+  int child_count; /*number of children*/
+  int *child_list; /*list of children*/
+  
+  /** sibling information**/
+  int num_siblings;
+  int *sibling_list; /*list of siblings*/
+  int *sibling_subtree_sizes; /*sizes of the subtrees under the siblings*/
+  int sibling_id; /*my sibling number*/
+  
+  /*** subtree information***/
+  int *subtree_sizes;
+  int *subtree;
+  int subtree_count;
+
+  int *dissem_order;
+  int dissem_count;
 } gasnete_coll_tree_geom_t;
+#endif
                                                                                                               
 /* Data for a given tree-based operation */
 struct gasnete_coll_tree_data_t_ {
@@ -2181,7 +2184,8 @@ struct gasnete_coll_tree_data_t_ {
     uint32_t			sent_bytes;
     gasnete_coll_tree_geom_t	*geom;
 };
-                                                                                                              
+
+                                                                                                            
 extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t rootnode GASNETE_THREAD_FARG);
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG);
 
