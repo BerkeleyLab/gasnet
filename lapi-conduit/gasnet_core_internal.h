@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/08/11 20:56:34 $
- * $Revision: 1.40.12.6 $
+ *     $Date: 2006/08/15 03:32:39 $
+ * $Revision: 1.40.12.7 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -371,6 +371,7 @@ typedef void (*gasnetc_HandlerLong)  (gasnet_token_t token, void *buf, size_t nb
 
 typedef struct _gasnetc_lapi_pvo_struct {
   lapi_user_pvo_t pvo;
+  int num_waiting;
   struct _gasnetc_lapi_pvo_struct *next;
 } gasnetc_lapi_pvo;
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/08/11 20:56:34 $
- * $Revision: 1.13.12.11 $
+ *     $Date: 2006/08/15 03:32:39 $
+ * $Revision: 1.13.12.12 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -102,13 +102,9 @@ typedef struct _gasnete_eop_t {
 #if GASNETC_LAPI_RDMA
   lapi_cntr_t *origin_counter;          /* For gets */
   lapi_cntr_t completion_counter;      /* For puts */
-  gasnetc_lapi_pvo *pvo_list;   /* Because we pin sources like crazy */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
-  struct _gasnete_eop_t *next; /* In list of IOPs */
   struct _gasnete_lapi_nb_struct *network_buffer_id;
   int nbid;
-  void *buffer;
-  int length;  /* For bounce buffer transfers */
   int get_p;
   int local_p; /* So that purely local operations can be easily handled */
 #endif
@@ -124,13 +120,10 @@ typedef struct _gasnete_lapi_nb_struct {
 #endif
   void *data;
   int offset;
-  int id;                /* So that it can easily be reassigned */
-  lapi_cntr_t *origin_counter;          /* When this counter reaches 0, we can reassign this buffer */
-#if 0
-  int *origin_counter;   /* When this counter reaches 0, we can reassign this buffer */
-#endif
-  int in_flight;
-  gasnete_eop_t *eop;
+  int num_waiting; /* New counter */
+  void *user_buffer;
+  size_t user_length;
+  int get_p;
   struct _gasnete_lapi_nb_struct *next; 
   struct _gasnete_lapi_nb_struct *prev; 
 } gasnete_lapi_nb;
@@ -143,10 +136,6 @@ typedef struct _gasnete_iop_t {
     int initiated_get_cnt;     /*  count of get ops initiated */
     int initiated_put_cnt;     /*  count of put ops initiated */
 
-#if GASNETC_LAPI_RDMA
-    gasnete_eop_t *gets;
-    gasnete_eop_t *puts;
-#endif
     struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
     /*  make sure the counters live on different cache lines for SMP's */
