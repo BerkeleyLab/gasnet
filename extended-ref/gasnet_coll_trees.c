@@ -195,10 +195,10 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
       
       mask >>= 1;
       while (mask > 0) {
-        if (gasnete_coll_tree_mythread + mask < gasnete_coll_tree_threads) {
-          child = gasnete_coll_tree_mythread + mask;
+        if (relrank + mask < gasnete_coll_tree_threads) {
+          child = relrank + mask;
           if (child >= gasnete_coll_tree_threads) child -= gasnete_coll_tree_threads;
-          temp_dest_list[num_child]=child;
+          temp_dest_list[num_child]=REL2ACT(child,root);
           num_child++;
         }
         mask >>= 1;
@@ -247,7 +247,7 @@ gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_tree_geom_t *geom, int
     
     /*use the resultant tree to deduce the children (which are our siblings)*/
     *num_siblings = temp->child_count;
-    
+   
     ret_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t) * (*num_siblings));
     
     /*create deep copy of sibling_list*/
@@ -353,7 +353,7 @@ void gasnete_coll_set_sibling_info(gasnete_coll_tree_geom_t *geom, int gasnete_c
 gasnete_coll_tree_geom_t* gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t kind, int fanout, int root, int threads_per_node){
    gasnete_coll_tree_geom_t* geom;
   
-    geom = gasnete_coll_build_tree(kind, fanout, root, gasneti_mynode, gasneti_nodes, threads_per_node);
+   geom = gasnete_coll_build_tree(kind, fanout, root, gasneti_mynode, gasneti_nodes, threads_per_node);
    gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);
    gasnete_coll_set_sub_tree_info(geom, gasneti_mynode, gasneti_nodes);
    gasnete_coll_set_sibling_info(geom, gasneti_mynode, gasneti_nodes);
