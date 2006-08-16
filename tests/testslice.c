@@ -18,24 +18,10 @@ void assert_eq(char *x, char *y, int len, int start, int i, int j, char *msg)
     }
   }
   if(error) {
-    printf("FAILURE %s outer iteration %d inner iteration %d starting point = %d length = %d FAILURE\n",msg,i,j,start,len);
+    ERR("FAILURE %s outer iteration %d inner iteration %d starting point = %d length = %d FAILURE\n",msg,i,j,start,len);
   } else {
-    printf("SUCCESS %s outer iteration %d inner iteration %d starting point = %d length = %d SUCCESS\n",msg,i,j,start,len);
+    MSG("SUCCESS %s outer iteration %d inner iteration %d starting point = %d length = %d SUCCESS\n",msg,i,j,start,len);
   }
-}
-
-/* Stolen from test.h */
-/* Get the pointers to the beginning of the segments on the nodes */
-
-static void *get_seg(gasnet_node_t node) {
-  static gasnet_seginfo_t *si = NULL;
-  if (si == NULL) {
-    gasnet_node_t i;
-    gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
-    GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
-    si = s;
-  }
-  return si[node].addr;
 }
 
 int main(int argc, char **argv)
@@ -90,8 +76,8 @@ int main(int argc, char **argv)
 
     /* Big loop performing the following */
     if(sender_p) {
-      local_base = get_seg(0);
-      target_base = get_seg(1);
+      local_base = TEST_SEG(0);
+      target_base = TEST_SEG(1);
       for(i=0;i < outer_iterations;i++) {
         /* Pick a starting point anywhere in the segment */
         int starting_point = TEST_RAND(0,(segsize-1));
