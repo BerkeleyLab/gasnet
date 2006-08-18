@@ -11,11 +11,16 @@ VPATH=$(srcdir)
 thread_defines = @GASNET_THREAD_DEFINES@
 SEPARATE_CC = @SEPARATE_CC@
 
+@USE_PLPA_TRUE@PLPA_INCLUDES = -I$(top_srcdir)/other/plpa/src/libplpa
+@USE_PLPA_TRUE@PLPA_SOURCES  = $(top_srcdir)/other/plpa/src/libplpa/plpa_api_probe.c \
+@USE_PLPA_TRUE@                $(top_srcdir)/other/plpa/src/libplpa/plpa_dispatch.c
+
 TOOLLIBINCLUDES =         \
         -I$(srcdir)       \
         -I$(top_srcdir)   \
         -I$(top_builddir) \
-        -I$(top_srcdir)/other 
+        -I$(top_srcdir)/other \
+	$(PLPA_INCLUDES)
 
 LIBINCLUDES = $(TOOLLIBINCLUDES) \
         -I$(top_srcdir)/extended-ref  
@@ -48,8 +53,9 @@ LIBCFLAGS =                       \
 	$${keeptmps:+@KEEPTMP_CFLAGS@} \
 	$(MANUAL_LIBCFLAGS)
 
-libgasnet_tools_sources =           \
-	$(top_srcdir)/gasnet_tools.c	  
+libgasnet_tools_sources =            \
+	$(top_srcdir)/gasnet_tools.c \
+	$(PLPA_SOURCES)
 
 libgasnet_sources =                                         \
         $(CONDUIT_SOURCELIST)                               \

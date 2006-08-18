@@ -14,6 +14,9 @@
 # This file is a clone of plpa.m4, with GASNet-specific modifications.
 #
 # ChangeLog for GASNet-specific modifications:
+# * 2006.08.18: Paul Hargrove <PHHargrove@lbl.gov>
+#   + DISABLE use of AM_CONDITIONAL - we don't use the Makefiles and
+#     need to avoid the configure time complaint if we build w/o PLPA.
 # * 2006.08.17: Paul Hargrove <PHHargrove@lbl.gov>
 #   + Disable AC_ARG_* calls - we don't need them and don't want their
 #       help mesages in the GASNet configure help.
@@ -23,6 +26,7 @@
 
 AC_DEFUN([DISABLED_AC_ARG_ENABLE],[])
 AC_DEFUN([DISABLED_AC_ARG_WITH],[])
+AC_DEFUN([DISABLED_AM_CONDITIONAL],[])
 
 # Main PLPA m4 macro, to be invoked by the user
 #
@@ -149,7 +153,7 @@ AC_DEFUN([_PLPA_INIT],[
 
     # Are we building as standalone or included?
     AC_MSG_CHECKING([for PLPA building mode])
-    AM_CONDITIONAL([PLPA_BUILD_STANDALONE], [test "$plpa_mode" = "standalone"])
+    DISABLED_AM_CONDITIONAL([PLPA_BUILD_STANDALONE], [test "$plpa_mode" = "standalone"])
     AC_MSG_RESULT([$plpa_mode])
 
     # What prefix are we using?

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/08/07 18:18:13 $
- * $Revision: 1.177 $
+ *     $Date: 2006/08/18 19:08:25 $
+ * $Revision: 1.177.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1187,14 +1187,11 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
 }
 /* ------------------------------------------------------------------------------------ */
 /* CPU affinity control */
-#if HAVE_SCHED_SETAFFINITY
-  #include <sched.h>
+#if HAVE_PLPA
+  #include "plpa.h"
 #endif
 void gasneti_set_affinity_default(int rank) {
-  #if !HAVE_SCHED_SETAFFINITY
-    /* NO-OP */
-    return;
-  #else
+  #if HAVE_PLPA
     int cpus = gasneti_cpu_count();
 
     if_pf (cpus == 0) {
@@ -1205,30 +1202,18 @@ void gasneti_set_affinity_default(int rank) {
         fflush(stderr);
       }
       /* becomes a NO-OP */
+    } else if (cpus == 1) {
+      /* NO-OP on single-processor platform */
     } else {
-	int local_rank = rank % cpus;
-      #if GASNET_SCHED_SETAFFINITY_ARGS == 1
-	unsigned long int *mask;
-	const int bits_per_long = 8*sizeof(*mask);
-	int len = (cpus + bits_per_long - 1) / bits_per_long;
-	mask = calloc(len, sizeof(*mask));
-	mask[local_rank / bits_per_long] = 1 << (local_rank % bits_per_long);
-        gasneti_assert_zeroret(sched_setaffinity(0, len*sizeof(*mask), mask));
-	free(mask);
-      #elif GASNET_SCHED_SETAFFINITY_ARGS == 2
-        cpu_set_t mask;
-        memset(&mask,0,sizeof(mask)); /* in place of CPU_ZERO which is sometimes broken */
-        CPU_SET(local_rank % cpus, &mask);
-        gasneti_assert_zeroret(sched_setaffinity(0, &mask));
-      #elif GASNET_SCHED_SETAFFINITY_ARGS == 3
-        cpu_set_t mask;
-        memset(&mask,0,sizeof(mask)); /* in place of CPU_ZERO which is sometimes broken */
-        CPU_SET(local_rank % cpus, &mask);
-        gasneti_assert_zeroret(sched_setaffinity(0, sizeof(mask), &mask));
-      #else
-	#error "Unknown sched_setaffinity prototype"
-      #endif
+      int local_rank = rank % cpus;
+      gasneti_plpa_cpu_set_t mask;
+      PLPA_CPU_ZERO(&mask);
+      PLPA_CPU_SET(local_rank, &mask);
+      gasneti_assert_zeroret(gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask));
     }
+  #else
+    /* No implementation -> NO-OP */
+    return;
   #endif
 }
 #ifndef GASNETC_SET_AFFINITY
