@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/07/18 00:16:28 $
- * $Revision: 1.172 $
+ *     $Date: 2006/06/30 02:49:08 $
+ * $Revision: 1.171.4.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,6 +56,13 @@ GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
 
 /* Limit on size of prepinned regions */
 #define GASNETC_DEFAULT_PIN_MAXSZ	(256*1024)
+
+/* Use of rcv thread */
+#ifndef GASNETC_DEFAULT_RCV_THREAD
+  #define GASNETC_DEFAULT_RCV_THREAD	GASNETC_VAPI_RCV_THREAD
+#elif GASNETC_DEFAULT_RCV_THREAD && !GASNETC_VAPI_RCV_THREAD
+  #error "GASNETC_DEFAULT_RCV_THREAD and GASNETC_VAPI_RCV_THREAD conflict"
+#endif
 
 /* Use of multiple QPs */
 #define GASNETC_DEFAULT_NUM_QPS			0	/* 0 = one per HCA */
@@ -152,6 +159,7 @@ static void gasnetc_check_config() {
 
   gasneti_assert_always(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert_always(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
+  gasneti_assert_always(GASNETC_AMRDMA_DEPTH <= 32); /* ACKs encoded in a 32-bit mask */
 }
 
 extern void gasnetc_unpin(gasnetc_memreg_t *reg) {
@@ -395,7 +403,7 @@ static int gasnetc_load_settings(void) {
       gasneti_fatalerror("GASNET_PUTINMOVE_LIMIT (%lu) is larger than the max permitted (%lu)", (unsigned long)gasnetc_putinmove_limit, (unsigned long)GASNETC_PUTINMOVE_LIMIT_MAX);
     }
   #endif
-  gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", 0);
+  gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", GASNETC_DEFAULT_RCV_THREAD); /* Bug 1012 - right default? */
 
   /* Verify correctness/sanity of values */
   if (gasnetc_use_rcv_thread && !GASNETC_VAPI_RCV_THREAD) {
@@ -1068,6 +1076,28 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* post recv buffers and other local initialization */
     for (i = 0; i < gasneti_nodes; ++i) {
       gasnetc_sndrcv_init_peer(i);
+    }
+
+    /* exchange AM-over-RDMA data */
+    {
+      typedef struct { uintptr_t addr; VAPI_rkey_t rkey; } my_exchg_t;
+      my_exchg_t *in = gasneti_calloc(ceps, sizeof(my_exchg_t));
+      my_exchg_t *out = gasneti_calloc(ceps, sizeof(my_exchg_t));
+
+      for (i = 0; i < ceps; ++i) {
+        if (i/gasnetc_num_qps == gasneti_mynode) continue;
+	in[i].addr = (uintptr_t)gasnetc_cep[i].amrdma_loc;
+	in[i].rkey = gasnetc_cep[i].hca->amrdma_reg.rkey;
+      }
+      gasneti_bootstrapAlltoall(in, gasnetc_num_qps*sizeof(my_exchg_t), out);
+      for (i = 0; i < ceps; ++i) {
+        if (i/gasnetc_num_qps == gasneti_mynode) continue;
+	gasnetc_cep[i].amrdma_rem = out[i].addr;
+	gasnetc_cep[i].keys.amrdma_rkey = out[i].rkey;
+      }
+
+      gasneti_free(in);
+      gasneti_free(out);
     }
 
     /* advance INIT -> RTR */
