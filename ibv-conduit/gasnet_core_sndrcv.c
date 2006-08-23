@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/08/03 23:22:40 $
- * $Revision: 1.190 $
+ *     $Date: 2006/08/23 10:57:23 $
+ * $Revision: 1.190.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -572,7 +572,7 @@ GASNETI_NEVER_INLINE(gasnetc_dump_cqs,
 void gasnetc_dump_cqs(VAPI_wc_desc_t *comp, gasnetc_hca_t *hca, const int is_snd)) {
   static gasnet_hsl_t lock = GASNET_HSL_INITIALIZER;
   VAPI_ret_t vstat;
-  IB_comp_status_t status = 0;
+  VAPI_wc_status_t status = VAPI_SUCCESS;
   int count = 0;
   const char *label;
 
