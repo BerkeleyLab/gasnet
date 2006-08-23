@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/08/19 00:03:19 $
-# $Revision: 1.387 $
+#     $Date: 2006/08/23 10:57:15 $
+# $Revision: 1.387.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.387 $)
+AC_REVISION($Revision: 1.387.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -857,7 +857,11 @@ else
 fi
 if test "$GASNETI_CACHE_LINE_BYTES" = "" ; then
   GASNETI_CACHE_LINE_BYTES=128
-  GASNET_MSG_WARN([Unable to automatically detect a shared data cache line size (either system load too high, pthreads is broken or this is not a cache-coherent SMP).  Using a safe default size of $GASNETI_CACHE_LINE_BYTES])
+  if test "$cross_compiling" = "no"; then
+    GASNET_MSG_WARN([Unable to automatically detect a shared data cache line size (either system load too high, pthreads is broken or this is not a cache-coherent SMP).  Using a safe default size of $GASNETI_CACHE_LINE_BYTES])
+  else
+    GASNET_MSG_WARN([Unable to automatically detect a shared data cache line size when cross compiling.  Using a safe default size of $GASNETI_CACHE_LINE_BYTES])
+  fi
 fi
 AC_DEFINE_UNQUOTED(GASNETI_CACHE_LINE_BYTES,$GASNETI_CACHE_LINE_BYTES)
 case "$GASNETI_CACHE_LINE_BYTES" in
@@ -2472,9 +2476,14 @@ if test "$use_dbx" != no; then
   fi
 fi
 
-AC_CHECK_HEADERS(ucontext.h)
-if test "$ac_cv_header_ucontext_h" = "yes" ; then
-  AC_CHECK_FUNCS(printstack)
+GASNET_IF_ENABLED_WITH_AUTO(backtrace-printstack, support backtrace via printstack (auto-detected),
+                 [use_printstack="yes"], [use_printstack="no"], [use_printstack="try"])
+if test "$use_printstack" != no; then
+  have_printstack=no
+  AC_CHECK_HEADERS(ucontext.h, [AC_CHECK_FUNC(printstack, [have_printstack=yes; AC_DEFINE(HAVE_PRINTSTACK)])])
+  if test "$use_printstack$have_printstack" = yesno; then
+    AC_MSG_ERROR(User requested --enable-backtrace-printstack but printstack support was not found.)
+  fi
 fi
 
 

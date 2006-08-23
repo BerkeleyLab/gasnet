@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/08/11 20:03:26 $
- * $Revision: 1.102 $
+ *     $Date: 2006/08/23 10:57:21 $
+ * $Revision: 1.102.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -853,26 +853,19 @@ static void _test_init(const char *testname, int reports_performance, int early,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     if (!early) {
-      char hostname[255];
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-        BARRIER();
-      }
+      MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+      fflush(NULL);
+      BARRIER();
     }
   #else
-    { char hostname[255];
-      MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
+    MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
           testname, GASNETT_CONFIG_STRING,
           _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
           GASNETT_SYSTEM_TUPLE);
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-      }
-    }
+    MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+    fflush(NULL);
   #endif
   if (gasnett_verboseenv()) MSG("%s running...", testname);
 }

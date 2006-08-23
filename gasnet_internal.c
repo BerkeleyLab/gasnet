@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2006/08/11 19:04:50 $
- * $Revision: 1.181 $
+ *     $Date: 2006/08/23 10:57:15 $
+ * $Revision: 1.181.4.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -331,8 +331,7 @@ void gasneti_defaultSignalHandler(int sig) {
         signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
       fflush(stderr);
 
-      if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0))
-        gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
+      gasnett_freezeForDebuggerErr(); /* allow freeze */
 
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
 
@@ -665,14 +664,18 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
 
 /* ------------------------------------------------------------------------------------ */
 static void gasneti_check_portable_conduit() { /* check for portable conduit abuse */
-  char myconduit[80];
-  char *m = myconduit;
-  strcpy(myconduit, GASNET_CORE_NAME_STR);
-  strcat(myconduit, "/");
-  strcat(myconduit, GASNET_EXTENDED_NAME_STR);
-  while (*m) { *m = tolower(*m); m++; }
-  #define GASNETI_PORTABLE_CONDUIT(name) (!strcmp(name,"mpi/reference") || !strcmp(name,"udp/reference"))
-  if (GASNETI_PORTABLE_CONDUIT(myconduit)) {
+  char mycore[80], myext[80];
+  char const *mn = GASNET_CORE_NAME_STR;
+  char *m;
+  m = mycore; while (*mn) { *m = tolower(*mn); m++; mn++; }
+  *m = '\0';
+  mn = GASNET_EXTENDED_NAME_STR;
+  m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
+  *m = '\0';
+  if ( /* is a portable network conduit */
+      (!strcmp("mpi",mycore) && !strcmp("reference",myext)) || 
+      (!strcmp("udp",mycore) && !strcmp("reference",myext))
+      ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
     char reason[255];
@@ -686,7 +689,9 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
         int len = strcspn(p,GASNETI_CONDUITS_DELIM);
         strncpy(name, p, len);
         name[len] = 0;
-        if (!GASNETI_PORTABLE_CONDUIT(name) && strcmp(name,"smp")) {
+        if (strcmp(name,"mpi") && 
+            strcmp(name,"udp") && 
+            strcmp(name,"smp")) { /* not a portable conduit */
           if (strlen(natives)) strcat(natives,", ");
           strcat(natives,name);
         }
@@ -741,13 +746,11 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
       }
     }
     if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasnet_mynode() == 0) {
-      char *p = strchr(myconduit,'/');
-      if (p) *p = 0;
       fprintf(stderr,"WARNING: Using GASNet's %s-conduit, which exists for portability convenience.\n"
                      "%s\n"
                      "WARNING: You should *really* use the high-performance native GASNet conduit\n"
                      "WARNING: if communication performance is at all important in this program run.\n",
-              myconduit, reason);
+              mycore, reason);
       fflush(stderr);
     }
   }

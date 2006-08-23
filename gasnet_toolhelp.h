@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2006/08/09 10:11:33 $
- * $Revision: 1.13 $
+ *     $Date: 2006/08/23 10:57:15 $
+ * $Revision: 1.13.6.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -111,6 +111,7 @@ GASNETI_NORETURNP(gasneti_fatalerror)
 extern void gasneti_killmyprocess(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasneti_killmyprocess)
 
+extern void gasneti_freezeForDebuggerErr(); /* freeze iff user enabled error freezing */
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname);
 extern volatile int gasnet_frozen; /* export to simplify debugger restart */ 
 extern void gasneti_backtrace_init(const char *exename);
@@ -124,13 +125,15 @@ extern int gasneti_cpu_count();
 
 extern void gasneti_set_affinity(int rank);
 
+const char *gasneti_gethostname(); /* returns the current host name - dies with an error on failure */
+
 extern int gasneti_isLittleEndian();
 
 typedef void (*gasneti_sighandlerfn_t)(int);
 gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp);
 
 /* return a fast but simple/insecure 64-bit checksum of arbitrary data */
-extern uint64_t gasneti_checksum(void *p, int numbytes);
+extern uint64_t gasneti_checksum(const void *p, int numbytes);
 
 /* ------------------------------------------------------------------------------------ */
 /* Error checking system mutexes -
