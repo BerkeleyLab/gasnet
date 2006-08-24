@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/07/19 17:54:55 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2006/08/24 16:37:15 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,13 +39,10 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
+	CNT(C, PUTGET_THROTTLE, count)       \
 	CNT(C, EOP_ALLOC, count)             \
 	CNT(C, EOP_FREE, count)              \
 	CNT(C, EOP_BUCKETS, cnt)             \
-	CNT(C, BB_ALLOC, count)              \
-	CNT(C, BB_FREE, count)               \
-	CNT(C, TMPMD_ALLOC, count)           \
-	CNT(C, TMPMD_FREE, count)            \
 	CNT(C, GET_NB_RAR, count)            \
 	CNT(C, GET_NB_BB, count)             \
 	CNT(C, GET_NB_TMPMD, count)          \
@@ -59,6 +56,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 	CNT(C, PUT_NBI_BB, count)            \
 	CNT(C, PUT_NBI_TMPMD, count)
 
+
 /* When defining a Portals Event Queue, we have the option of installing
  * an event handler for the Queue that will be executed for each event
  * when other queues are polled.  There are restrictions on the operations
@@ -70,10 +68,10 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  * function.
  * MLW: 07/10/2006: USE of EQ handler does not seem to work.  Hangs.
  */
-#ifndef GASNETE_USE_EQ_HANDLER
-extern void gasnete_portals_poll();
+#ifndef GASNETC_USE_EQ_HANDLER
+extern void gasnetc_portals_poll();
 #define GASNETE_PROGRESSFN_EXTRA(FN)					\
-  FN(gasnete_pf_portals_poll, BOOLEAN, gasnete_portals_poll)
+  FN(gasnete_pf_portals_poll, BOOLEAN, gasnetc_portals_poll)
 #endif
 
 /* Define an extended API exit function to cleanup Portals

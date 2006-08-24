@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2006/07/18 02:04:32 $
-# $Revision: 1.1.2.2 $
+#     $Date: 2006/08/24 16:37:15 $
+# $Revision: 1.1.2.3 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -20,26 +20,27 @@ SUBDIRS = .
 # include all headers, documentation, etc. 
 # and any subdirectories not containing Makefile.am's
 CONDUIT_FILELIST =           \
-      gasnet_extended.c    \
+      gasnet_core.c          \
+      gasnet_core.h          \
+      gasnet_core_fwd.h      \
+      gasnet_core_help.h     \
+      gasnet_core_internal.h \
+      gasnet_extended.c      \
       gasnet_extended_internal.h \
-      gasnet_extended_fwd.h
-
-# ORIG.. will be needed later
-#      gasnet_core.c          
-#      gasnet_core.h          
-#      gasnet_core_fwd.h      
-#      gasnet_core_help.h     
-#      gasnet_core_internal.h 
+      gasnet_extended_fwd.h  \
+      gasnet_portals.h       \
+      gasnet_portals.c
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
 CONDUIT_SOURCELIST =          \
-      $(top_srcdir)/mpi-conduit/gasnet_core.c \
+      $(srcdir)/gasnet_core.c \
+      $(srcdir)/gasnet_portals.c \
       $(srcdir)/gasnet_extended.c
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/mpi-conduit -I$(top_srcdir)/other/ammpi -I$(PORTALS_INC_DIR) -I$(CATAMOUNT_INC_DIR)
+CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi -I$(PORTALS_INC_DIR) -I$(CATAMOUNT_INC_DIR)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h 
@@ -47,7 +48,7 @@ CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
 CONDUIT_EXTRADEPS =             \
-      $(top_srcdir)/mpi-conduit/gasnet_core.c  $(top_builddir)/other/ammpi/libammpi.a
+      $(top_builddir)/other/ammpi/libammpi.a
 
 $(top_builddir)/other/ammpi/libammpi.a: force
 	cd $(top_builddir)/other/ammpi && $(MAKE) libammpi.a

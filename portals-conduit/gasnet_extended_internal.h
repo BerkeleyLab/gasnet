@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/07/19 17:54:55 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2006/08/24 16:37:15 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,7 +11,6 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
-#include <portals/portals3.h>
 
 /* ------------------------------------------------------------------------------------ */
 typedef uint8_t gasnete_threadidx_t;
@@ -37,6 +36,7 @@ typedef struct _gasnete_op_t {
   gasnete_opaddr_t addr;          /*  next cell while in free list, my own opaddr_t while in use */
 } gasnete_op_t;
 
+extern const gasnete_opaddr_t OPADDR_NIL;
 #define gasnete_opaddr_equal(addr1,addr2) ((addr1).fulladdr == (addr2).fulladdr)
 #define gasnete_opaddr_isnil(addr) ((addr).fulladdr == OPADDR_NIL.fulladdr)
 
@@ -164,6 +164,17 @@ void gasnete_op_free(gasnete_op_t *op);
        (threaddata)->iop_bufs[(opaddr).bufferidx] + (opaddr).opidx)
 
 
+GASNETI_INLINE(gasnete_opaddr_to_ptr)
+gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr_t opaddr)
+{
+  gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
+  return ((threadid & OPTYPE_IMPLICIT)  == OPTYPE_IMPLICIT
+	  ? (gasnete_op_t*)(GASNETE_IOPADDR_TO_PTR(th,opaddr))
+	  : (gasnete_op_t*)(GASNETE_EOPADDR_TO_PTR(th,opaddr))
+	  );
+}
+
+
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */
   #define gasnete_eop_check(eop) do {                                \
@@ -195,156 +206,6 @@ void gasnete_op_free(gasnete_op_t *op);
 
 /*  1 = scatter newly allocated eops across cache lines to reduce false sharing */
 #define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
-
-/* ------------------------------------------------------------------------------------ */
-/* MLW:  Support for Portals 3.0 */
-
-/* Max transfer size SHOULD be defined by portals, but apparently is not */
-#ifdef PTL_MAX_TRANS_SZ
-#define GASNETE_PTL_MAX_TRANS_SZ PTL_MAX_TRANS_SZ
-#else
-#define GASNETE_PTL_MAX_TRANS_SZ 2147483648UL
-#endif
-
-/* Types of GASNET Portals Memory Descriptors */
-#define GASNETE_RARAM_MD 0
-#define GASNETE_BB_MD    1
-#define GASNETE_TMP_MD   2
-
-/* Portals Access table not implemented on XT3 */
-#define GASNETE_PTL_AC_ID  0
-
-/* We need Cray to reserve two table entries for UPC/GASNET
- * We believe these two are currently not used.
- */
-#define GASNETE_PTL_RAR_PTE 38
-#define GASNETE_PTL_AM_PTE 39
-
-/* Values that are encoded in the MBITs of Portals Data Transfer ops */
-#define GASNETE_PTL_IGNORE_BITS  0xFFFFFFFFFFFFFFF0
-#define GASNETE_PTL_RAR_BITS     0x00
-#define GASNETE_PTL_RARAM_BITS   0x01
-#define GASNETE_PTL_REQRB_BITS   0x03
-#define GASNETE_PTL_CB_BITS      0x03
-#define GASNETE_PTL_REQSB_BITS   0x02
-#define GASNETE_PTL_BB_BITS      0x02
-
-/* Operation type */
-#define GASNETE_PTL_MSG_PUT      0x10
-#define GASNETE_PTL_MSG_GET      0x20
-#define GASNETE_PTL_MSG_AM       0x40
-/* DOLC - Do Local Completion flag.  Indicates to event handler that it must
- * decrement the local completion counter for this gasnet operation
- */
-#define GASNETE_PTL_MSG_DOLC     0x80
-
-#define GASNETE_MASK_UPPER32     0xFFFFFFFF00000000
-#define GASNETE_MASK_LOWER32     0x00000000FFFFFFFF
-#define GASNETE_MASK_OPBITS      0x00000000FFFFFF00
-#define GASNETE_MASK_BYTE0       0x00000000000000FF
-#define GASNETE_MASK_BYTE1       0x000000000000FF00
-#define GASNETE_MASK_BYTE2       0x0000000000FF0000
-#define GASNETE_MASK_BYTE3       0x00000000FF000000
-#define GASNETE_MASK_BYTE4       0x000000FF00000000
-#define GASNETE_MASK_BYTE5       0x0000FF0000000000
-#define GASNETE_MASK_BYTE6       0x00FF000000000000
-#define GASNETE_MASK_BYTE7       0xFF00000000000000
-
-#define GASNETE_PTLSAFE(fncall) do {                                         \
-   int _retcode = (fncall);                                                  \
-   if_pf (_retcode != (int)PTL_OK) {                                         \
-     gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n"   \
-        "  while calling: %s\n"                                              \
-        "  at %s",                                                           \
-        ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
-   }                                                                         \
- } while (0)
-
-
-/* */
-#define GASNETE_PTL_MBITS_ENCODE_HANDLE(mbits,op) \
-    do { mbits |= ((0xFF & op->threadidx) << 24) | ((op->addr.fulladdr & 0xFFFF)<<8); } while (0)
-
-GASNETI_INLINE(gasnete_set_mbits_lowbits)
-void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnete_op_t *op)
-{
-  /* The format is 0x00000000TTAAAAMM
-   * Where TT   = threadid with eop/iop encoding in most significant bit
-   *       AAAA = EOP/IOP opaddr bits
-   *       MM   = message type and match bits
-   */
-    uint32_t th_b   = ( ((uint32_t)op->threadidx) << 24)    & 0xFF000000;
-    uint32_t addr_b = ( ((uint32_t)op->addr.fulladdr) << 8) & 0x00FFFF00;
-    uint32_t m_b    = ( (uint32_t)msg_type )                & 0x000000FF;
-    *mbits = (GASNETE_MASK_UPPER32 & *mbits) | (GASNETE_MASK_LOWER32 & (ptl_match_bits_t)(th_b | addr_b | m_b));
-    GASNETI_TRACE_PRINTF(C,("set lowbits th = 0x%x, addr = 0x%x, type = 0x%x, bits = 0x%llx",th_b,addr_b,m_b,*mbits));
-}
-
-GASNETI_INLINE(gasnete_get_mbits_lowbits)
-void gasnete_get_mbits_lowbits(ptl_match_bits_t mbits, uint8_t *threadid,
-			       uint8_t *msg_type, gasnete_opaddr_t *addr)
-{
-    uint32_t lb    = (uint32_t)(GASNETE_MASK_LOWER32 & mbits);
-    *threadid      = (uint8_t)(lb >> 24);
-    addr->fulladdr = (uint16_t)((lb & 0x00FFFF00) >> 8);
-    *msg_type      = (uint8_t)(lb & 0x000000FF);
-    GASNETI_TRACE_PRINTF(C,("get bits = 0x%lx, th = 0x%x, addr = 0x%x, type = 0x%x",(unsigned long)mbits,*threadid,addr->fulladdr,*msg_type));
-}
-
-extern ptl_process_id_t gasnete_ptl_nodeid(gasnet_node_t node);
-
-/* -----------------------------------------------------------------------------------
- * A dumb chunk allocator used for put/get bounce buffer
- * WARNING: Not a thread-safe freelist implementation!!!
- * Will have to re-implement for multi-threaded (Linux) XT3
- */
-#define GASNETE_BB_CHUNKSIZE 1024
-#define GASNETE_BB_NUM_CHUNK 1024
-extern ptl_handle_md_t gasnete_rar_md;
-extern ptl_handle_md_t gasnete_bb_md;
-typedef union _gasnete_bb_chunk {
-    uint8_t chunk[GASNETE_BB_CHUNKSIZE];
-    union _gasnete_bb_chunk *next;
-} gasnete_bb_chunk_t;
-
-extern gasnete_bb_chunk_t *gasnete_bb_freelist;
-extern void* gasnete_bb_start;
-extern ptl_handle_md_t  gasnete_bb_md_h;
-extern int gasnete_bb_chunk_alloc(size_t nbytes, ptl_size_t *offset);
-extern void gasnete_bb_init(size_t nchunks);
-extern void gasnete_bb_remove(void);
-extern void gasnete_bb_chunk_free(ptl_size_t offset);
-
-#if 0
-GASNETI_INLINE(gasnete_bb_chunk_free)
-void gasnete_bb_chunk_free(ptl_size_t offset)
-{
-    gasnete_bb_chunk_t *p = (gasnete_bb_chunk_t*)((uint8_t*)gasnete_bb_start + offset);
-    p->next = gasnete_bb_freelist;
-    gasnete_bb_freelist = p;
-
-    GASNETI_TRACE_EVENT(C, BB_FREE);
-}
-#endif
-
-extern void gasnete_portals_init(void);
-extern ptl_handle_md_t gasnete_alloc_tmpmd(void* dest, size_t nbytes);
-extern void gasnete_event_handler(ptl_event_t *ev);
-
-#define GASNETE_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
-
-GASNETI_INLINE(gasnete_in_local_rar)
-int gasnete_in_local_rar(uint8_t* pstart, size_t n)
-{
-  uint8_t *pend  = pstart + n;
-  uint8_t *start = (uint8_t*)gasneti_seginfo[gasneti_mynode].addr;
-  uint8_t *end   = start + gasneti_seginfo[gasneti_mynode].size;
-
-  return (pstart >= start) && (pend <= end);
-}
-
-/* Number of temporary Portals MDs in use at any time */
-#define GASNETE_MAX_TMP_MDS 1024
 
 
 /* ------------------------------------------------------------------------------------ */

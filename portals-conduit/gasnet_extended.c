@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/08/08 16:36:46 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2006/08/24 16:37:15 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,9 +9,7 @@
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
-
-/* Needed for bootstrap */
-#include <catamount/cnos_mpi_os.h>
+#include <gasnet_portals.h>
 
 GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
@@ -23,18 +21,11 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
   static gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
 #endif
-static const gasnete_opaddr_t OPADDR_NIL = { { 0xFF, 0xFF } };
+const gasnete_opaddr_t OPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
-/* MLW: Not defined in API but exists in Portals implementation */
-extern char* ptl_event_str[];
-static ptl_process_id_t *ptl_procid_map = NULL;
-#if GASNETE_USE_EQ_HANDLER
-  #define GASNETE_EQ_HANDLER gasnete_event_handler
-#else
-  #define GASNETE_EQ_HANDLER NULL
-#endif
 
+#if 0
 GASNETI_INLINE(gasnete_opaddr_to_ptr)
 gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr_t opaddr)
 {
@@ -44,6 +35,7 @@ gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr
 	  : (gasnete_op_t*)(GASNETE_EOPADDR_TO_PTR(th,opaddr))
 	  );
 }
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -72,9 +64,8 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   gasnete_threaddata_t *threaddata = NULL;
   int idx;
   gasnet_hsl_lock(&threadtable_lock);
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata, gasnete_numthreads = %i",gasnete_numthreads));
-    idx = gasnete_numthreads;
-    gasnete_numthreads++;
+  idx = gasnete_numthreads;
+  gasnete_numthreads++;
   gasnet_hsl_unlock(&threadtable_lock);
   gasneti_assert(GASNETI_MAX_THREADS <= 256);
   #if GASNETI_CLIENT_THREADS
@@ -86,7 +77,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   gasneti_assert(gasnete_threadtable[idx] == NULL);
 
   threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata, threaddata = 0x%lx",(uintptr_t)threaddata));
+  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata: idx=%i, numthreads=%i, threaddata=0x%lx",idx,gasnete_numthreads,(uintptr_t)threaddata));
 
   threaddata->threadidx = idx;
   threaddata->eop_free = OPADDR_NIL;
@@ -99,14 +90,9 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   threaddata->current_iop = NULL;
 
   gasneti_weakatomic_set(&(threaddata->local_completion_count), 0, 0);
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata, local_compltion_count set"));
-
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata, idx = %i",idx));
   gasnete_threadtable[idx] = threaddata;
 
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata, (pre) current_iop = 0x%lx",(uintptr_t)(threaddata->current_iop)));
   threaddata->current_iop = gasnete_iop_new(threaddata);
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata, (post) current_iop = 0x%lx",(uintptr_t)(threaddata->current_iop)));
 
   return threaddata;
 }
@@ -136,7 +122,6 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 static void gasnete_check_config() {
   gasneti_check_config_postattach();
 
-  gasneti_assert_always(sizeof(gasnete_bb_chunk_t) == GASNETE_BB_CHUNKSIZE);
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
   gasneti_assert_always(gasnete_opaddr_isnil(OPADDR_NIL));
 }
@@ -155,7 +140,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
 #if GASNETI_STATS_OR_TRACE
     thread->eop_inuse++;
     if (thread->eop_inuse > thread->eop_hwm) thread->eop_hwm = thread->eop_inuse;
-    GASNETI_TRACE_PRINTF(C,("EOP_NEW: avail, inuse = %d, hwm = %d eop = 0x%lx",thread->eop_inuse,thread->eop_hwm,(uintptr_t)eop));
+    GASNETI_TRACE_PRINTF(C,("EOP_NEW: inuse = %d, hwm = %d eop = 0x%lx",thread->eop_inuse,thread->eop_hwm,(uintptr_t)eop));
 #endif
     GASNETI_TRACE_EVENT(C,EOP_ALLOC);
     thread->eop_free = eop->addr;   /* next eop in freelist */
@@ -253,7 +238,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   if_pt (thread->iop_free) {
     gasnete_iop_t *iop = thread->iop_free;
 
-    GASNETI_TRACE_PRINTF(C,("gasnete_iop_new: avail, iop = 0x%lx",(uintptr_t)iop));
+    GASNETI_TRACE_PRINTF(C,("gasnete_iop: iop = 0x%lx",(uintptr_t)iop));
 
     thread->iop_free = iop->next;    
     iop->next = NULL;                
@@ -362,7 +347,7 @@ void gasnete_op_free(gasnete_op_t *op) {
     thread->eop_free = addr;
 #if GASNETI_STATS_OR_TRACE
     thread->eop_inuse--;
-    GASNETI_TRACE_PRINTF(C,("EOP_FREE: inuse = %d, eop = 0x%lx",thread->eop_inuse,(uintptr_t)eop));
+    GASNETI_TRACE_PRINTF(C,("EOP_FREE: inuse = %d, eop = 0x%lx",thread->eop_inuse,(uintptr_t)op));
     GASNETI_TRACE_EVENT(C,EOP_FREE);
 #endif
   } else {
@@ -371,6 +356,7 @@ void gasnete_op_free(gasnete_op_t *op) {
     iop->next = thread->iop_free;
     thread->iop_free = iop;
     SET_OPSTATE((gasnete_op_t*)iop, OPSTATE_FREE);
+    GASNETI_TRACE_PRINTF(C,("IOP_FREE: iop = 0x%lx",(uintptr_t)op));
   }
 }
 /* ------------------------------------------------------------------------------------ */
@@ -408,284 +394,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   }
   gasnete_iop_check(op);
 }
-/* ------------------------------------------------------------------------------------ */
-/* Portals data objects used in this extended API implementation */
-ptl_handle_ni_t gasnete_ni_h;              /* the network interface handle */
-ptl_handle_md_t gasnete_rar_md_h;          /* Handle to RAR Memory Descriptor */
-ptl_handle_md_t gasnete_raram_md_h;        /* Handle to RARAM Memory Descriptor */
-ptl_handle_md_t gasnete_bb_md_h;           /* Handle to Bounce Buffer Memory Descriptor */
-ptl_handle_eq_t gasnete_eq_h;              /* Handle to the combined Event Queue */
-static const char* gasnete_md_name[] = {"RARAM_MD","BB_MD","TMP_MD"};
-
-/* WARNING: Not a thread-safe freelist implementation!!!
- * Can easily have one thread pulling something off the list while a portals
- * event handler, executing in another thread is putting a chunk back on the list.
- * Leave as is, for now, but must re-implement for Linux XT3.
- */
-static int gasnete_bb_numchunk = GASNETE_BB_NUM_CHUNK;
-gasnete_bb_chunk_t *gasnete_bb_freelist;
-void* gasnete_bb_start;
-#if GASNETI_STATS_OR_TRACE
-static int gasnete_bb_inuse = 0;
-static int gasnete_bb_hwm = 0;
-#endif
-
-/* We limit the number of temporary memory descriptors in use at any time.
- * If over the limit, allocator will poll until the number of outstanding tmp mds
- * drops below the limit.
- */
-static int gasnete_max_tmpmd = GASNETE_MAX_TMP_MDS;
-static gasneti_weakatomic_t gasnete_tmpmd_count;
-#if GASNETI_STATS_OR_TRACE
-static int gasnete_tmpmd_hwm = 0;
-#endif
-
-#define GASNETE_MAX_POLL_EVENTS 40
-static int gasnete_max_poll_events = GASNETE_MAX_POLL_EVENTS;
-
-/* Set the number of put or get operations that can occur before we force
- * a polling operation to process events
- */
-static int gasnete_putget_maxpoll = 6;
-gasneti_weakatomic_t gasnete_putget_poll_cnt;
-
-/* ------------------------------------------------------------------------------------ */
-/* Trivial chunk allocator for bounce buffer
- */
-void gasnete_bb_init(size_t nchunks)
-{
-  gasnete_bb_chunk_t *start;
-  int i;
-  ptl_md_t bb_md;
-  size_t nbytes = nchunks * sizeof(gasnete_bb_chunk_t);
-
-  start = (gasnete_bb_chunk_t*)gasneti_malloc(nbytes);
-  if (start == NULL) {
-    gasneti_fatalerror("failed to alloc bounce buffer at %s",gasneti_current_loc);
-  }
-  gasnete_bb_start = (void*)start;
-  gasnete_bb_freelist = NULL;
-  for (i = 0; i < nchunks; i++) {
-    start->next = gasnete_bb_freelist;
-    gasnete_bb_freelist = start;
-    start++;
-  }
-
-  /* Do we construct our own event queue or share with others? */
-
-  /* construct a memory descriptor for the bounce buffer */
-  bb_md.start = (void*)gasnete_bb_start;
-  bb_md.length = nbytes;
-  bb_md.threshold = PTL_MD_THRESH_INF;
-  bb_md.max_size = 0;
-  /* free-floating md that is src of put or dest of get.  Disable start ops */
-  bb_md.options = PTL_MD_EVENT_START_DISABLE;
-  bb_md.user_ptr = (void*)(uint64_t)GASNETE_BB_MD;
-  bb_md.eq_handle = gasnete_eq_h;
-
-  /* register the md and get handle */
-  GASNETE_PTLSAFE(PtlMDBind(gasnete_ni_h, bb_md, PTL_RETAIN, &gasnete_bb_md_h));
-}
-
-void gasnete_bb_remove()
-{
-  int nchunk = 0;
-  gasnete_bb_chunk_t *p = gasnete_bb_freelist;
-
-  /* check for allocated chunks */
-  while (p != NULL) {
-    nchunk++;
-    p = p->next;
-  }
-  GASNETI_TRACE_PRINTF(C,("BB_Remove: %d free chunks, expected %d",nchunk,gasnete_bb_numchunk));
-  gasneti_assert(nchunk == gasnete_bb_numchunk);
-
-  /* remove Portals MD */
-  GASNETE_PTLSAFE(PtlMDUnlink(gasnete_bb_md_h));
-
-  gasneti_free(gasnete_bb_start);
-
-}
-
-int gasnete_bb_chunk_alloc(size_t nbytes, ptl_size_t *offset)
-{
-    gasnete_bb_chunk_t *p;
-    int poll_max = 2;
-    int cnt = 0;
-    
-    if (nbytes > GASNETE_BB_CHUNKSIZE) return 0;
-    while ((gasnete_bb_freelist == NULL) && cnt < poll_max) {
-      /* poll npoll times, to see if slot frees up */
-      GASNETI_SAFE(gasneti_AMPoll());
-      cnt++;
-    }
-    if (gasnete_bb_freelist == NULL) return 0;
-    p = gasnete_bb_freelist;
-    gasnete_bb_freelist = p->next;
-    *offset = ((uint8_t*)p - (uint8_t*)gasnete_bb_start);
-#if GASNETI_STATS_OR_TRACE
-    gasnete_bb_inuse++;
-    if (gasnete_bb_inuse > gasnete_bb_hwm) gasnete_bb_hwm = gasnete_bb_inuse;
-    GASNETI_TRACE_PRINTF(C,("BB_ALLOC: inuse = %d, hwm = %d, offset=%ul",gasnete_bb_inuse,gasnete_bb_hwm,(unsigned long)*offset));
-    GASNETI_TRACE_EVENT(C, BB_ALLOC);
-#endif
-
-    return 1;
-}
-
-void gasnete_bb_chunk_free(ptl_size_t offset)
-{
-    gasnete_bb_chunk_t *p = (gasnete_bb_chunk_t*)((uint8_t*)gasnete_bb_start + offset);
-    p->next = gasnete_bb_freelist;
-    gasnete_bb_freelist = p;
-#if GASNETI_STATS_OR_TRACE
-    gasnete_bb_inuse--;
-    GASNETI_TRACE_EVENT(C, BB_FREE);
-#endif
-}
-
-void gasnete_portals_init(void)
-{
-  /* Set up my RAR MDs */
-  void* rar_start   = gasneti_seginfo[gasneti_mynode].addr;
-  size_t rar_len    = gasneti_seginfo[gasneti_mynode].size;
-  ptl_md_t          md;
-  ptl_process_id_t  match_id;
-  ptl_handle_me_t   gasnete_rar_mle_h;
-  ptl_handle_me_t   gasnete_raram_mle_h;
-  ptl_interface_t   ptl_iface;
-  int               use_bridge = PTL_BRIDGE_QK;
-  int               use_nal = PTL_IFACE_SS;
-  ptl_size_t        eq_len;
-  int               rc;
-  cnos_nidpid_map_t *cnos_map;
-  int               my_rank, my_size;
-  ptl_process_id_t  my_id;
-  int               i;
-
-  /* read Portals specific env vars */
-  gasnete_bb_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_NUM_BB",
-							    (int64_t)GASNETE_BB_NUM_CHUNK,0);
-  gasnete_max_tmpmd = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_NUM_TMPMD",
-							  (int64_t)GASNETE_MAX_TMP_MDS,0);
-  gasnete_max_poll_events = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MAX_POLL",
-							  (int64_t)GASNETE_MAX_POLL_EVENTS,0);
-  gasnete_putget_maxpoll = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUTGET_MAX",
-							  (int64_t)gasnete_putget_maxpoll,0);
-  
-  GASNETI_TRACE_PRINTF(C,("Portals_Init: num_bb = %d, max tmp_md = %d, max poll = %d",(int)gasnete_bb_numchunk,(int)gasnete_max_tmpmd,gasnete_max_poll_events));
-
-  /* Init the temp md counter to zero */
-  gasneti_weakatomic_set(&gasnete_tmpmd_count, 0, 0);
-
-  /* keep a counter of number of puts/gets since last poll */
-  gasneti_weakatomic_set(&gasnete_putget_poll_cnt, 0, 0);
-
-  /* construct the interface */
-  /* Hmm, how was it constructed for MPI? Will I get different ni? */
-  ptl_iface = IFACE_FROM_BRIDGE_AND_NALID(use_bridge,use_nal);
-
-  /* Get the network handle */
-  rc = PtlNIInit(ptl_iface, PTL_PID_ANY, NULL, NULL, &gasnete_ni_h);
-  switch (rc) {
-  case PTL_OK:
-  case PTL_IFACE_DUP:
-    break;
-  default:
-    gasneti_fatalerror("GASNet Portals failed on call to PtlNiInit:\n"
-		       "  iface_type = %x error=%s (%i)\n"
-		       "  at: %s\n",ptl_iface,ptl_err_str[rc],rc,gasneti_current_loc);
-  }
-
-  /* Get my process info, does it match? */
-  GASNETE_PTLSAFE(PtlGetId(gasnete_ni_h,&my_id));
-  my_rank = cnos_get_rank();
-  my_size = cnos_get_size();
-  gasneti_assert_always(my_rank == gasneti_mynode);
-  gasneti_assert_always(my_size == gasneti_nodes);
-  
-  /* get process to portals address mapping */
-  if (cnos_launcher() == CNOS_LAUNCHER_APRUN) {
-    short port = my_id.pid;
-    int   rc;
-    if((rc=cnos_register_ptlpid(port))) {
-      gasneti_fatalerror("cnos_register_ptlpid returned %d",rc);
-    }
-    cnos_get_nidpid_map(&cnos_map);
-  } else if (cnos_launcher() == CNOS_LAUNCHER_YOD) {
-    if (my_size != cnos_get_nidpid_map(&cnos_map)) {
-      gasneti_fatalerror("cnos_get_nidpid_map size != %d",my_size);
-    }
-  } else {
-    gasneti_fatalerror("Unknown Launcher = %d",cnos_launcher());
-  }
-  gasneti_assert_always(cnos_map[my_rank].nid == my_id.nid);
-  gasneti_assert_always(cnos_map[my_rank].pid == my_id.pid);
-  ptl_procid_map = (ptl_process_id_t*)gasneti_malloc(my_size * sizeof(ptl_process_id_t));
-  for (i = 0; i < my_size; i++) {
-    ptl_procid_map[i].nid = cnos_map[i].nid;
-    ptl_procid_map[i].pid = cnos_map[i].pid;
-  }
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
-
-  /* Insert a MLE at the head of the list */
-  GASNETE_PTLSAFE(PtlMEAttach(gasnete_ni_h, GASNETE_PTL_RAR_PTE, match_id, GASNETE_PTL_RAR_BITS,
-			      GASNETE_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_BEFORE, &gasnete_rar_mle_h));
-
-  /* The RAR does not generate events, but will produce ACKs */
-  md.start = rar_start;
-  md.length = rar_len;
-  md.threshold = PTL_MD_THRESH_INF;
-  md.max_size = 0;
-  md.options = PTL_MD_OP_PUT | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE |
-    PTL_MD_EVENT_START_DISABLE | PTL_MD_EVENT_END_DISABLE;
-  md.user_ptr = 0;
-  md.eq_handle = PTL_EQ_NONE;
-
-  /* Attach this as first Match-list entry in portals table at index RAR_PTE */
-  GASNETE_PTLSAFE(PtlMDAttach(gasnete_rar_mle_h, md, PTL_RETAIN, &gasnete_rar_md_h));
-
-  /* On first cut, lets just create a single EQ for all of the MDs that will
-   * generate events.  This includes:
-   * BounceBuffer:  number = 2*num_chunks;
-   * RARAM:         unknown ... scale with num procs? what scaling factor?
-   * TMPMD:         2*max number of tmpmds
-   */
-  eq_len = 2*(gasnete_bb_numchunk + gasnete_max_tmpmd + 10*gasneti_nodes);
-
-  GASNETE_PTLSAFE(PtlEQAlloc(gasnete_ni_h, eq_len, GASNETE_EQ_HANDLER, &gasnete_eq_h));
-
-  /* We create another md to cover the same RAR region but this one will have
-   * an EQ.  We will use it as the source MD of a Put or dest MD of a get
-   * in the case when the src/dest happens to lie within the RAR.
-   * We could make this free-floating but will need it attached to an MLE
-   * in the future, when used as the data target of an AM Long
-   */
-  md.start = rar_start;
-  md.length = rar_len;
-  md.threshold = PTL_MD_THRESH_INF;
-  md.max_size = 0;
-  md.options = PTL_MD_OP_PUT | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE |
-    PTL_MD_EVENT_START_DISABLE;
-  md.user_ptr = (uint64_t)GASNETE_RARAM_MD;
-  md.eq_handle = gasnete_eq_h;
-
-  GASNETE_PTLSAFE(PtlMEInsert(gasnete_rar_mle_h, match_id, GASNETE_PTL_RARAM_BITS,
-			      GASNETE_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
-			      &gasnete_raram_mle_h));
-  GASNETE_PTLSAFE(PtlMDAttach(gasnete_raram_mle_h, md, PTL_RETAIN, &gasnete_raram_md_h));
-
-  /* Now, init the Bounce Buffer */
-  gasnete_bb_init(gasnete_bb_numchunk);
-
-#ifndef GASNETE_USE_EQ_HANDLER
-  /* Enable the progress function */
-  GASNETI_TRACE_PRINTF(C,("Enabling Portals polling function (No EQ Handler)"));
-  GASNETI_PROGRESSFNS_ENABLE(gasnete_pf_portals_poll,BOOLEAN);
-#endif
-}
 
 extern void gasnete_init() {
   static int firstcall = 1;
@@ -697,7 +405,7 @@ extern void gasnete_init() {
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
-#if 1
+#if 0
   GASNETI_TRACE_PRINTF(C,("Sizeof(int) = %i",(int)sizeof(int)));
   GASNETI_TRACE_PRINTF(C,("Sizeof(long) = %i",(int)sizeof(long)));
   GASNETI_TRACE_PRINTF(C,("Sizeof(long long) = %i",(int)sizeof(long long)));
@@ -714,7 +422,6 @@ extern void gasnete_init() {
       threaddata = gasnete_mythread(); 
     #else
       /* register only thread (required) */
-      GASNETI_TRACE_PRINTF(C,("gasnete_init: about to call gasnete_new_threadata()"));
       threaddata = gasnete_new_threaddata();
     #endif
 
@@ -728,9 +435,6 @@ extern void gasnete_init() {
     gasnete_op_free((gasnete_op_t *)iop);
   }
 
-  /* MLW: Allocate Portals resources */
-  gasnete_portals_init();
-  
   /* Initialize barrier resources */
   gasnete_barrier_init();
 
@@ -743,20 +447,7 @@ extern void gasnete_init() {
  */
 void gasnete_exit(int exitcode)
 {
-  GASNETI_TRACE_PRINTF(C,("gasnete_exit: outstanding tmp_mds = %d",gasneti_weakatomic_read(&gasnete_tmpmd_count,0)));
-
-  /* remove the RAR and RARAM.  Note that MLE's will be removed by this as well */
-  GASNETE_PTLSAFE(PtlMDUnlink(gasnete_rar_md_h));
-  GASNETE_PTLSAFE(PtlMDUnlink(gasnete_raram_md_h));
-
-  /* release the bounce buffer */
-  gasnete_bb_remove();
-
-  /* free the event queue */
-  GASNETE_PTLSAFE(PtlEQFree(gasnete_eq_h));
-
-  GASNETI_TRACE_PRINTF(C,("leaving gasnete_exit"));
-  
+  GASNETI_TRACE_PRINTF(C,("gasnete_exit"));
 }
 
 /* 
@@ -768,218 +459,10 @@ void gasnete_trace_finish(void)
   for (i=0; i < gasnete_numthreads; i++) {
     GASNETI_STATS_PRINTF(C,("Thread %i, EOP HWM = %i\n",i,gasnete_threadtable[i]->eop_hwm));
   }
-  GASNETI_STATS_PRINTF(C,("Bounce Buffer High Water Mark = %i\n",gasnete_bb_hwm));
-  GASNETI_STATS_PRINTF(C,("TMPMD High Water Mark = %i\n",gasnete_tmpmd_hwm));
 }
 
-/* Allocate a temp md to be used as the source of a Put or destination
- * of a Get operation.  MD to be free floating, not target of remote op.
- */
-ptl_handle_md_t gasnete_alloc_tmpmd(void* dest, size_t nbytes)
-{
-  ptl_md_t md;
-  ptl_handle_md_t md_h;
 
-  /* Want to limit the number of tmp MDs in operation at once.
-   * Poll until number of outstanding TMP MDs is less than limit.
-   */
-  GASNETI_TRACE_PRINTF(C,("Alloc_Tmpmd: num TmpMD outstanding = %d",gasneti_weakatomic_read(&gasnete_tmpmd_count,0)));
-  gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_tmpmd_count,0) >= gasnete_max_tmpmd) );
 
-  gasneti_weakatomic_increment(&gasnete_tmpmd_count,0);
-  md.start = dest;
-  md.length = nbytes;
-  md.threshold = PTL_MD_THRESH_INF;
-  md.max_size = 0;
-  md.options = PTL_MD_EVENT_START_DISABLE;
-  md.user_ptr = (void*)(uint64_t)GASNETE_TMP_MD;
-  md.eq_handle = gasnete_eq_h;
-
-  GASNETE_PTLSAFE(PtlMDBind(gasnete_ni_h, md, PTL_RETAIN, &md_h));
-
-#if GASNETI_STATS_OR_TRACE
-      {
-	int inuse = (int)gasneti_weakatomic_read(&gasnete_tmpmd_count,0);
-	if (gasnete_tmpmd_hwm < inuse) gasnete_tmpmd_hwm = inuse;
-	GASNETI_TRACE_PRINTF(C,("ALLOC TMPMD at 0x%p, len=%d, inuse=%d, hwm=%d",dest,nbytes,inuse,gasnete_tmpmd_hwm));
-	GASNETI_TRACE_EVENT(C, TMPMD_ALLOC);
-      }
-#endif
-
-  return md_h;
-}
-
-/* Extended API polling function.  Process the event queue.
- * This gets called by gasneti_AMPoll() after checking for incoming MPI messages 
- * In the current (extended API-only) implementation, we only have one event queue,
- * so just check it and run appropriate handler
- */
-
-void gasnete_portals_poll(void)
-{
-  ptl_event_t ev;
-  int rc;
-  int processed = 0;
-  int finished = 0;
-
-  /* Reset the putget counter, since we are about to poll... */
-  gasneti_weakatomic_set(&gasnete_putget_poll_cnt, 0, 0);
-
-  /* Note that PtlEQGet is just a user-space call and will see if anything is
-   * on the list without diving into the kernel to see if any unprocessed events
-   * are waiting.  Try it first.  If multiple exist, run them back to back since they
-   * release resources.
-   */
-  while (! finished) {
-    rc = PtlEQGet( gasnete_eq_h, &ev);
-    switch (rc) {
-    case PTL_OK:
-      GASNETI_TRACE_PRINTF(C,("Q Handler: Got event %s from PtlEQGet",ptl_event_str[ev.type]));
-      gasnete_event_handler(&ev);
-      processed++;
-      if (processed > gasnete_max_poll_events) finished = 1;
-      break;
-    case PTL_EQ_EMPTY:
-      finished = 1;
-      break;
-    default:
-      gasneti_fatalerror("GASNet Portals Error in PtlEQGet: %s (%i)\n at %s\n",
-			 ptl_err_str[rc],rc,gasneti_current_loc);
-      break;
-    }
-  }
-
-  if (processed == 0) {
-    /* No easy pickings... try polling, which may enter the kernel */
-    int which = 0;
-    int timeout = 0;       /* number of usec to wait */
-    rc = PtlEQPoll(&gasnete_eq_h,1,timeout,&ev,&which);
-    switch (rc) {
-    case PTL_OK:
-      GASNETI_TRACE_PRINTF(C,("Q Handler: Got event %s from PtlEQPoll",ptl_event_str[ev.type]));
-      gasnete_event_handler(&ev);
-      break;
-    case PTL_EQ_EMPTY:
-      break;
-    default:
-      gasneti_fatalerror("GASNet Portals Error in PtlEQPoll: %s (%i)\n at %s\n",
-			 ptl_err_str[rc],rc,gasneti_current_loc);
-      break;
-    }
-  }
-}
-
-/*
- * We use a single event handler for all the MDs, the "which_md" arg will
- * be set to:
- *    GASNETE_BB_MD:     if the event occured on the Bounce Buffer MD
- *    GASENTE_RARAM_MD:  if the event occured on the RARAM MD
- *    GASENTE_TMP_MD:    if the event occured on a temporary MD
- */
-void gasnete_event_handler(ptl_event_t *ev)
-{
-  ptl_size_t offset = ev->offset;
-  ptl_match_bits_t   mbits = ev->match_bits;
-  gasnete_threadidx_t threadid;
-  gasnete_opaddr_t addr;
-  uint8_t msg_type;
-  gasnete_op_t *op;
-  unsigned int which_md = (unsigned int)(uintptr_t)ev->md.user_ptr;
-
-  gasneti_assert(which_md < 3);
-
-  /* we should never truncate a message */
-  gasneti_assert(ev->rlength == ev->mlength);
-
-  gasnete_get_mbits_lowbits(mbits, &threadid, &msg_type, &addr);
-  GASNETI_TRACE_PRINTF(C,("EV_handler for event %s on MD %s",ptl_event_str[ev->type],gasnete_md_name[which_md]));
-  GASNETI_TRACE_PRINTF(C,("EV_handler offset = %i, mbits = 0x%lx, msg_type = 0x%x",(int)offset,(uint64_t)mbits,msg_type));
-
-  switch (ev->type) {
-  case PTL_EVENT_SEND_END:
-    /* Work around for Portals implementation bug.  Spec says PTL_EVENT_SEND_END should
-     * only occur for Put operations, not Get, but we are getting them.
-     * Disambiguate using our own MSG flag in the match bits
-     */
-    if (msg_type & GASNETE_PTL_MSG_PUT) {
-      if (msg_type & GASNETE_PTL_MSG_DOLC) {
-	gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
-	gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
-      }
-      if (which_md == GASNETE_BB_MD) {
-	/* A Put operation through a bounce buffer has completed locally. return chunk. */
-	gasnete_bb_chunk_free(offset);
-	GASNETI_TRACE_PRINTF(C,("EV_handler freed BB chunk for Put at offset 0x%x",offset));
-      }
-    }
-    /* Ignore this event for GET messages */
-    break;
-	
-  case PTL_EVENT_ACK:
-    /* A Put operation has completed remotely */
-    gasneti_assert(msg_type & GASNETE_PTL_MSG_PUT);
-    op = gasnete_opaddr_to_ptr(threadid, addr);
-    if (which_md == GASNETE_TMP_MD) {
-      GASNETE_PTLSAFE(PtlMDUnlink(ev->md_handle));
-      gasneti_weakatomic_decrement(&gasnete_tmpmd_count,0);
-
-#if GASNETI_STATS_OR_TRACE
-      {
-	int inuse = (int)gasneti_weakatomic_read(&gasnete_tmpmd_count,0);
-	GASNETI_TRACE_PRINTF(C,("FREE TMPMD at 0x%p, len=%d, inuse=%d",ev->md.start,ev->rlength,inuse));
-	GASNETI_TRACE_EVENT(C, TMPMD_FREE);
-      }
-#endif
-    }
-    /* mark the put (isget=0) operation complete */
-    gasnete_op_markdone(op, 0 /* !isget */);
-    break;
-	
-  case PTL_EVENT_REPLY_END:
-    /* extract the operation pointer from the match_bits */
-    gasneti_assert(msg_type & GASNETE_PTL_MSG_GET);
-    gasneti_assert(ev->rlength == ev->mlength);
-    op = gasnete_opaddr_to_ptr(threadid, addr);
-
-    if (which_md == GASNETE_BB_MD) {
-      /* A Get operation through a bounce buffer has completed.  Copy and reclaim */
-      /* The dest addr is contained in first part of chunk, just in front of p */
-      uint8_t *pdata = ((uint8_t*)ev->md.start + offset);
-      uint8_t *q = pdata - sizeof(void*);
-      void *dest;
-      /* q points to location where real destination address is stored */
-      dest = (void*)*(uintptr_t*)q;
-      GASNETI_TRACE_PRINTF(C,("EV_handler copying %i bytes from bb 0x%lx to 0x%lx",ev->mlength,(uintptr_t)pdata,(uintptr_t)dest));
-      memcpy(dest,pdata,ev->mlength);
-      /* free the bounce buffer */
-      offset -= sizeof(void*);
-      gasnete_bb_chunk_free(offset);
-    } else if (which_md == GASNETE_TMP_MD) {
-      /* unlink the md */
-      GASNETE_PTLSAFE(PtlMDUnlink(ev->md_handle));
-      gasneti_weakatomic_decrement(&gasnete_tmpmd_count,0);
-
-#if GASNETI_STATS_OR_TRACE
-      {
-	int inuse = (int)gasneti_weakatomic_read(&gasnete_tmpmd_count,0);
-	GASNETI_TRACE_PRINTF(C,("FREE TMPMD at 0x%p, len=%d, inuse=%d",ev->md.start,ev->rlength,inuse));
-	GASNETI_TRACE_EVENT(C, TMPMD_FREE);
-      }
-#endif
-    }
-
-    /* mark the get (isget=1) operation complete */
-    gasnete_op_markdone(op, 1);
-    break;
-	
-  default:
-    /* unexpected (erronous) event occurred */
-    gasneti_fatalerror("GASNet Portals Unexpected event type in gasnete_event_handler:\n"
-		       "  %s [%i]\n  at %s\n",ptl_event_str[ev->type],ev->type,
-		       gasneti_current_loc);
-  }
-
-}
 
 
 /* ------------------------------------------------------------------------------------ */
@@ -1143,56 +626,81 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
               (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
 
+#define LOCBUF_RAR 0
+#define LOCBUF_BB  1
+#define LOCBUF_TMP 2
+#if GASNETI_STATS_OR_TRACE
+#define SET_LOCBUF(loc,val) do { loc = val; } while(0)
+#else
+#define SET_LOCBUF(loc,val) 
+#endif
+static const char* locbuf_name[] = {"RAR","BB","TMP"};
+
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  if (nbytes <= GASNETE_PTL_MAX_TRANS_SZ) {
+  if (nbytes <= GASNETC_PTL_MAX_TRANS_SZ) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
     ptl_size_t local_offset = 0;
-    ptl_size_t remote_offset = GASNETE_PTL_OFFSET(node,src);
+    ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,src);
     ptl_handle_md_t md_h;
-    ptl_process_id_t target_id = ptl_procid_map[node];
-    ptl_ac_index_t ac_index = GASNETE_PTL_AC_ID;
+    ptl_process_id_t target_id = gasnetc_procid_map[node];
+    ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
     ptl_match_bits_t match_bits = 0UL;
-    uint8_t lbits = GASNETE_PTL_RAR_BITS | GASNETE_PTL_MSG_GET;
+    uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_GET;
+    int local_buf;
+
+    /* stall here if too many puts/gets in progress */
+    if (gasnete_putget_limit > 0) {
+      int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
+      if (inflight > gasnete_putget_limit) {
+	GASNETI_TRACE_PRINTF(G,("get_nb: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
+	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
+      }
+      gasneti_weakatomic_increment(&gasnete_putget_inflight,0);
+    }
+
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
     /* Determine destination MD for Ptl Get */
-    if (gasnete_in_local_rar(dest,nbytes)) {
-      md_h = gasnete_raram_md_h;
-      local_offset = GASNETE_PTL_OFFSET(gasneti_mynode,dest);
-      GASNETI_TRACE_PRINTF(G,("get_nb: into local rar at %i",(int)local_offset));
+    if (gasnetc_in_local_rar(dest,nbytes)) {
+      md_h = gasnetc_RARAM_md_h;
+      local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
       GASNETI_TRACE_EVENT(C, GET_NB_RAR);
-    } else if ( (nbytes <= (GASNETE_BB_CHUNKSIZE - (sizeof(void*))))  &&
-		gasnete_bb_chunk_alloc(nbytes, &local_offset) ) {
+      SET_LOCBUF(local_buf,LOCBUF_RAR);
+    } else if ( (nbytes <= (GASNETC_CHUNKSIZE - (sizeof(void*))))  &&
+		gasnetc_chunk_alloc(&gasnetc_ReqSB, nbytes, &local_offset) ) {
       /* Encode dest addr in BB chunk for later copy */
       void* bb;
-      md_h = gasnete_bb_md_h;
+      md_h = gasnetc_ReqSB.md_h;
       /* get the addr of the start of the chunk */
-      bb = ((uint8_t*)gasnete_bb_start + local_offset);
+      bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
       /* store the dest address at this location */
       *(uintptr_t*)bb = (uintptr_t)dest;
       /* Let portals use the rest of the chunk */
       local_offset += sizeof(void*);
-      GASNETI_TRACE_PRINTF(G,("get_nb: into bb at 0x%lx offset %i",(uintptr_t)bb,(int)local_offset));
       GASNETI_TRACE_EVENT(C, GET_NB_BB);
+      SET_LOCBUF(local_buf,LOCBUF_BB);
 
     } else {
       /* alloc a temp md for the destination region */
-      md_h = gasnete_alloc_tmpmd(dest, nbytes);
+      md_h = gasnetc_alloc_tmpmd(dest, nbytes, gasnetc_EQ_h);
       local_offset = 0;
-      GASNETI_TRACE_PRINTF(G,("get_nb: into tmpmd, dest= 0x%lx",(uintptr_t)dest));
       GASNETI_TRACE_EVENT(C, GET_NB_TMPMD);
+      SET_LOCBUF(local_buf,LOCBUF_TMP);
     }
 
-    GASNETI_TRACE_PRINTF(G,("get_nb: match_bits = 0x%lx, remote_off=%i",(uint64_t)match_bits,(int)remote_offset));
+    GASNETI_TRACE_PRINTF(G,("get_nb: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
     /* Issue Ptl Get operation */
-    GASNETE_PTLSAFE(PtlGetRegion(md_h, local_offset, nbytes, target_id, GASNETE_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
+    GASNETC_PTLSAFE(PtlGetRegion(md_h, local_offset, nbytes, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
 
-    if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_maxpoll-1) {
-      /* this will reset gasnete_putget_poll_cnt to zero */
-      gasnete_portals_poll();
-    } else {
-      /* bump the put/get counter */
-      gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
+    if (gasnete_putget_poll > 0) {
+      if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll-1) {
+	/* this will reset gasnete_putget_poll_cnt to zero */
+	gasnetc_portals_poll();
+      } else {
+	/* bump the put/get counter */
+	gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
+      }
     }
 
     return (gasnet_handle_t)op;
@@ -1207,69 +715,82 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
 GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  if (nbytes <= GASNETE_PTL_MAX_TRANS_SZ) {
+  if (nbytes <= GASNETC_PTL_MAX_TRANS_SZ) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *op = gasnete_eop_new(mythread);
     ptl_size_t local_offset = 0;
-    ptl_size_t remote_offset = GASNETE_PTL_OFFSET(node,dest);
+    ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,dest);
     ptl_handle_md_t md_h;
-    ptl_process_id_t target_id = ptl_procid_map[node];
-    ptl_ac_index_t ac_index = GASNETE_PTL_AC_ID;
+    ptl_process_id_t target_id = gasnetc_procid_map[node];
+    ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
     ptl_match_bits_t match_bits = 0ULL;
-    uint8_t lbits = GASNETE_PTL_RAR_BITS | GASNETE_PTL_MSG_PUT;
+    uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
     int wait_for_local_completion = 0;
     ptl_hdr_data_t hdr_data = 0;
+    int local_buf;
 
     gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
 
+    /* stall here if too many puts/gets in progress */
+    if (gasnete_putget_limit > 0) {
+      int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
+      if (inflight > gasnete_putget_limit) {
+	GASNETI_TRACE_PRINTF(P,("put_nb: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
+	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
+      }
+      gasneti_weakatomic_increment(&gasnete_putget_inflight,0);
+    }
+
     /* Determine destination MD for Ptl Put */
-    if (gasnete_in_local_rar(src,nbytes)) {
-      md_h = gasnete_raram_md_h;
-      local_offset = GASNETE_PTL_OFFSET(gasneti_mynode,src);
+    if (gasnetc_in_local_rar(src,nbytes)) {
+      md_h = gasnetc_RARAM_md_h;
+      local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
       if (! isbulk) wait_for_local_completion = 1;
-      GASNETI_TRACE_PRINTF(P,("put_nb: from local rar at %i",(int)local_offset));
       GASNETI_TRACE_EVENT(C, PUT_NB_RAR);
-    } else if ( (nbytes <= GASNETE_BB_CHUNKSIZE)  &&
-		gasnete_bb_chunk_alloc(nbytes, &local_offset) ) {
+      SET_LOCBUF(local_buf,LOCBUF_RAR);
+    } else if ( (nbytes <= GASNETC_CHUNKSIZE)  &&
+		gasnetc_chunk_alloc(&gasnetc_ReqSB,nbytes, &local_offset) ) {
       void* bb;
-      md_h = gasnete_bb_md_h;
+      md_h = gasnetc_ReqSB.md_h;
       /* get the addr of the start of the chunk */
-      bb = ((uint8_t*)gasnete_bb_start + local_offset);
+      bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
       /* copy the src data to the bounce buffer */
       memcpy(bb,src,nbytes);
-      GASNETI_TRACE_PRINTF(P,("put_nb: from bb at 0x%lx offset %i",(uintptr_t)bb,(int)local_offset));
       GASNETI_TRACE_EVENT(C, PUT_NB_BB);
+      SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the source region */
-      md_h = gasnete_alloc_tmpmd(src, nbytes);
+      md_h = gasnetc_alloc_tmpmd(src, nbytes, gasnetc_EQ_h);
       local_offset = 0;
       if (! isbulk) wait_for_local_completion = 1;
-      GASNETI_TRACE_PRINTF(P,("put_nb: from tmpmd, src= 0x%lx",(uintptr_t)src));
       GASNETI_TRACE_EVENT(C, PUT_NB_TMPMD);
+      SET_LOCBUF(local_buf,LOCBUF_TMP);
     }
     if (wait_for_local_completion) {
       /* increment local completion flag and indicate to event handler to decrement */
       gasneti_weakatomic_increment(&(mythread->local_completion_count), 0);
-      lbits |= GASNETE_PTL_MSG_DOLC;
+      lbits |= GASNETC_PTL_MSG_DOLC;
     }
 
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
-    GASNETI_TRACE_PRINTF(P,("put_nb: match_bits = 0x%lx, remote_off=%i",(uint64_t)match_bits,(int)remote_offset));
+    GASNETI_TRACE_PRINTF(P,("put_nb: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
+
     /* Issue Ptl Get operation */
-    GASNETE_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETE_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
+    GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 
     /* bump the put/get counter */
-    gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
+    if (gasnete_putget_poll) gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
 
     /* poll here for local completion in non-bulk or non-bb case */
     if (wait_for_local_completion) {
       gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
     }
 
-    if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_maxpoll) {
+    if (gasnete_putget_poll && (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll)) {
       /* this will reset gasnete_putget_poll_cnt to zero */
-      gasnete_portals_poll();
+      gasnetc_portals_poll();
     }
 
     return (gasnet_handle_t)op;
@@ -1383,60 +904,82 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
-  ptl_process_id_t target_id = ptl_procid_map[node];
+  ptl_process_id_t target_id = gasnetc_procid_map[node];
   ptl_handle_md_t md_h;
-  ptl_ac_index_t ac_index = GASNETE_PTL_AC_ID;
+  ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
   ptl_size_t local_offset;
   ptl_size_t remote_offset;
   ptl_match_bits_t match_bits = 0ULL;
-  uint8_t lbits = GASNETE_PTL_RAR_BITS | GASNETE_PTL_MSG_GET;
+  uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_GET;
+  int local_buf;
 
   gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
-
   gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
+
+  /* Max transfer size is large, this loop will almost always execute exactly once */
   while (nbytes > 0) {
-    size_t toget = MIN(nbytes,GASNETE_PTL_MAX_TRANS_SZ);
+    size_t toget = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
+
+    /* stall here if too many puts/gets in progress */
+    if (gasnete_putget_limit > 0) {
+      int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
+      if (inflight > gasnete_putget_limit) {
+	GASNETI_TRACE_PRINTF(G,("get_nbi: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
+	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
+      }
+      gasneti_weakatomic_increment(&gasnete_putget_inflight,0);
+    }
+
     local_offset = 0;
-    remote_offset = GASNETE_PTL_OFFSET(node,src);
+    remote_offset = GASNETC_PTL_OFFSET(node,src);
     /* encode gasnet handle into match bits, upper bits ignored */
     /* Determine destination MD for Ptl Get */
-    if (gasnete_in_local_rar(dest,toget)) {
-      md_h = gasnete_raram_md_h;
-      local_offset = GASNETE_PTL_OFFSET(gasneti_mynode,dest);
+    if (gasnetc_in_local_rar(dest,toget)) {
+      md_h = gasnetc_RARAM_md_h;
+      local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
       GASNETI_TRACE_EVENT(C, GET_NBI_RAR);
-    } else if ( (toget <= (GASNETE_BB_CHUNKSIZE - (sizeof(void*))))  &&
-		gasnete_bb_chunk_alloc(toget, &local_offset) ) {
+      SET_LOCBUF(local_buf,LOCBUF_RAR);
+    } else if ( (toget <= (GASNETC_CHUNKSIZE - (sizeof(void*))))  &&
+		gasnetc_chunk_alloc(&gasnetc_ReqSB,toget, &local_offset) ) {
       /* Encode dest addr in BB chunk for later copy */
       void* bb;
-      md_h = gasnete_bb_md_h;
+      md_h = gasnetc_ReqSB.md_h;
       /* get the addr of the start of the chunk */
-      bb = ((uint8_t*)gasnete_bb_start + local_offset);
+      bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
       /* store the dest address at this location */
       *(uintptr_t*)bb = (uintptr_t)dest;
       /* Let portals use the rest of the chunk */
       local_offset += sizeof(void*);
       GASNETI_TRACE_EVENT(C, GET_NBI_BB);
+      SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the destination region */
-      md_h = gasnete_alloc_tmpmd(dest, toget);
+      md_h = gasnetc_alloc_tmpmd(dest, toget, gasnetc_EQ_h);
       local_offset = 0;
       GASNETI_TRACE_EVENT(C, GET_NBI_TMPMD);
+      SET_LOCBUF(local_buf,LOCBUF_TMP);
     }
+
     /* Issue Ptl Get operation */
+    GASNETI_TRACE_PRINTF(G,("get_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, nbytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
     op->initiated_get_cnt++;
-    GASNETE_PTLSAFE(PtlGetRegion(md_h, local_offset, toget, target_id, GASNETE_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
+    GASNETC_PTLSAFE(PtlGetRegion(md_h, local_offset, toget, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
     nbytes -= toget;
     dest = ((uint8_t*)dest + toget);
     src = ((uint8_t*)src + toget);
 
-
-    if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_maxpoll-1) {
-      /* this will reset gasnete_putget_poll_cnt to zero */
-      gasnete_portals_poll();
-    } else {
-      /* bump the put/get counter */
-      gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
+    /* Make sure we poll occasionally */
+    if (gasnete_putget_poll) {
+      if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll-1) {
+	/* this will reset gasnete_putget_poll_cnt to zero */
+	gasnetc_portals_poll();
+      } else {
+	/* bump the put/get counter */
+	gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
+      }
     }
+    
   }
   return;
 }
@@ -1446,61 +989,78 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   ptl_handle_md_t md_h;
-  ptl_process_id_t target_id = ptl_procid_map[node];
-  ptl_ac_index_t ac_index = GASNETE_PTL_AC_ID;
+  ptl_process_id_t target_id = gasnetc_procid_map[node];
+  ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
   ptl_match_bits_t match_bits = 0ULL;
   int wait_for_local_completion = 0;
   ptl_hdr_data_t hdr_data = 0;
-
-  static int use_put_nbi_bb = 1;
+  int local_buf;
 
   gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
 
+  /* Max transfer size is large, this loop will almost always execute exactly once */
   while (nbytes > 0) {
-    size_t toput = MIN(nbytes,GASNETE_PTL_MAX_TRANS_SZ);
+    size_t toput = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     ptl_size_t local_offset = 0;
-    ptl_size_t remote_offset = GASNETE_PTL_OFFSET(node,dest);
-    uint8_t lbits = GASNETE_PTL_RAR_BITS | GASNETE_PTL_MSG_PUT;
+    ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,dest);
+    uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
+
+    /* stall here if too many puts/gets in progress */
+    if (gasnete_putget_limit > 0) {
+      int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
+      if (inflight > gasnete_putget_limit) {
+	GASNETI_TRACE_PRINTF(P,("put_nbi: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
+	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
+      }
+      gasneti_weakatomic_increment(&gasnete_putget_inflight,0);
+    }
 
     /* Determine destination MD for Ptl Get */
-    if (gasnete_in_local_rar(src,toput)) {
-      md_h = gasnete_raram_md_h;
-      local_offset = GASNETE_PTL_OFFSET(gasneti_mynode,src);
+    if (gasnetc_in_local_rar(src,toput)) {
+      md_h = gasnetc_RARAM_md_h;
+      local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
+      SET_LOCBUF(local_buf,LOCBUF_RAR);
       if (! isbulk) {
 	wait_for_local_completion = 1;
-	lbits |= GASNETE_PTL_MSG_DOLC;
+	lbits |= GASNETC_PTL_MSG_DOLC;
 	gasneti_weakatomic_increment(&(mythread->local_completion_count), 0);
       }
       GASNETI_TRACE_EVENT(C, PUT_NBI_RAR);
-    } else if ( use_put_nbi_bb && (toput <= GASNETE_BB_CHUNKSIZE)  &&
-		gasnete_bb_chunk_alloc(toput, &local_offset) ) {
+    } else if ( (toput <= GASNETC_CHUNKSIZE)  &&
+		gasnetc_chunk_alloc(&gasnetc_ReqSB,toput, &local_offset) ) {
       /* Encode dest addr in BB chunk for later copy */
       void* bb;
-      md_h = gasnete_bb_md_h;
+      md_h = gasnetc_ReqSB.md_h;
       /* get the addr of the start of the chunk */
-      bb = ((uint8_t*)gasnete_bb_start + local_offset);
+      bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
       /* copy the src data to the bounce buffer */
       memcpy(bb,src,toput);
       GASNETI_TRACE_EVENT(C, PUT_NBI_BB);
+      SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the source region */
-      md_h = gasnete_alloc_tmpmd(src, toput);
+      md_h = gasnetc_alloc_tmpmd(src, toput, gasnetc_EQ_h);
       local_offset = 0;
       if (! isbulk) {
 	wait_for_local_completion = 1;
-	lbits |= GASNETE_PTL_MSG_DOLC;
+	lbits |= GASNETC_PTL_MSG_DOLC;
 	gasneti_weakatomic_increment(&(mythread->local_completion_count), 0);
       }
       GASNETI_TRACE_EVENT(C, PUT_NBI_TMPMD);
+      SET_LOCBUF(local_buf,LOCBUF_TMP);
     }
+
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
+    GASNETI_TRACE_PRINTF(P,("put_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
+
     /* Issue Ptl Put operation */
     op->initiated_put_cnt++;
-    GASNETE_PTLSAFE(PtlPutRegion(md_h, local_offset, toput, PTL_ACK_REQ, target_id, GASNETE_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
+    GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, toput, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 
     /* bump the put/get counter */
-    gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
+    if (gasnete_putget_poll) gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
 
     nbytes -= toput;
     src = ((uint8_t*)src + toput);
@@ -1512,9 +1072,9 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
   }
 
-  if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_maxpoll) {
+  if (gasnete_putget_poll && (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll)) {
     /* this will reset gasnete_putget_poll_cnt to zero */
-    gasnete_portals_poll();
+    gasnetc_portals_poll();
   }
 }
 
