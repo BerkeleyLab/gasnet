@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/08/08 16:36:22 $
-dnl $Revision: 1.88.2.3 $
+dnl     $Date: 2006/08/24 16:49:27 $
+dnl $Revision: 1.88.2.4 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1162,6 +1162,8 @@ void * thread_start (void *arg) {
   tlocal += 1;
   if (pthread_mutex_unlock (&lock)) { exit (2); }
   *return_val = tlocal;
+  /* detect an Intel 9.0/9.1 bug on x86/Linux (n2001) */
+  if (misc != 0 || misc2 != 0) *return_val = -1;
   return return_val;
 }
 ],[

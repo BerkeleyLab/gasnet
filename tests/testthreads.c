@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.21.10.1 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.21.10.2 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -11,16 +11,6 @@
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
-
-#include "gasnet.h"
-#include "gasnet_tools.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <pthread.h>
 
 #include "test.h"
 
@@ -285,14 +275,14 @@ threadmain(void *args)
 	testfunc_t	func;
 	threaddata_t	*td = (threaddata_t *) args;
 
-	srand((unsigned int) time(0) * td->tid);
+	TEST_SRAND(((int)TIME()) * td->tid);
 
 	thread_barrier();
 
 	MSG("tid=%3d> starting.", td->tid);
 
 	for (i = 0; i < iters; i++) {
-		idx = rand() % functions_num;
+		idx = TEST_RAND(0,functions_num-1);
 		func = test_functions[idx];
 		assert(func != NULL);
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2006/08/08 16:36:49 $
- * $Revision: 1.36.2.2 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.36.2.3 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -532,30 +532,30 @@ void doit5(int partner, int *partnerseg) {
    * the atomics (especially from c++ when testgasnet is built as textcxx).
    * This is distinct from testtools, which checks that these "do the right thing".
    */
-  { gasneti_atomic_t val = gasneti_atomic_init(1);
-    gasneti_atomic_val_t utmp = gasneti_atomic_read(&val, 0);
-    gasneti_atomic_sval_t stmp = gasneti_atomic_signed(utmp);
-    gasneti_atomic_set(&val, stmp, 0);
-    gasneti_atomic_increment(&val, 0);
-    gasneti_atomic_decrement(&val, 0);
-    (void)gasneti_atomic_decrement_and_test(&val, 0);
-    #ifdef GASNETI_HAVE_ATOMIC_CAS
-      (void)gasneti_atomic_compare_and_swap(&val, 0, 1 ,0);
+  { gasnett_atomic_t val = gasnett_atomic_init(1);
+    gasnett_atomic_val_t utmp = gasnett_atomic_read(&val, 0);
+    gasnett_atomic_sval_t stmp = gasnett_atomic_signed(utmp);
+    gasnett_atomic_set(&val, stmp, 0);
+    gasnett_atomic_increment(&val, 0);
+    gasnett_atomic_decrement(&val, 0);
+    (void)gasnett_atomic_decrement_and_test(&val, 0);
+    #ifdef gasnett_HAVE_ATOMIC_CAS
+      (void)gasnett_atomic_compare_and_swap(&val, 0, 1 ,0);
     #endif
-    #ifdef GASNETI_HAVE_ATOMIC_ADD_SUB
-      (void)gasneti_atomic_add(&val, 2 ,0);
-      (void)gasneti_atomic_subtract(&val, 1 ,0);
+    #ifdef gasnett_HAVE_ATOMIC_ADD_SUB
+      (void)gasnett_atomic_add(&val, 2 ,0);
+      (void)gasnett_atomic_subtract(&val, 1 ,0);
     #endif
   }
-  { gasneti_atomic32_t val32 = gasneti_atomic32_init(1);
-    uint32_t tmp32 = gasneti_atomic32_read(&val32, 0);
-    gasneti_atomic32_set(&val32, tmp32, 0);
-    (void)gasneti_atomic32_compare_and_swap(&val32, 0, 1 ,0);
+  { gasnett_atomic32_t val32 = gasnett_atomic32_init(1);
+    uint32_t tmp32 = gasnett_atomic32_read(&val32, 0);
+    gasnett_atomic32_set(&val32, tmp32, 0);
+    (void)gasnett_atomic32_compare_and_swap(&val32, 0, 1 ,0);
   }
-  { gasneti_atomic64_t val64 = gasneti_atomic64_init(1);
-    uint64_t tmp64 = gasneti_atomic64_read(&val64, 0);
-    gasneti_atomic64_set(&val64, tmp64, 0);
-    (void)gasneti_atomic64_compare_and_swap(&val64, 0, 1 ,0);
+  { gasnett_atomic64_t val64 = gasnett_atomic64_init(1);
+    uint64_t tmp64 = gasnett_atomic64_read(&val64, 0);
+    gasnett_atomic64_set(&val64, tmp64, 0);
+    (void)gasnett_atomic64_compare_and_swap(&val64, 0, 1 ,0);
   }
   
   BARRIER();

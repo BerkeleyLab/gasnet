@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/07/10 23:57:01 $
- * $Revision: 1.63.4.2 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.63.4.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,8 +23,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <sys/time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -467,7 +465,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
           barrier_count = 0;
           phase = !phase;
           check_zeroret(pthread_mutex_unlock(&barrier_mutex));
-          for (i=0; i < local_pthread_count-1; i++) {
+          for (i=0; i < (int)(local_pthread_count-1); i++) {
             check_zeroret(sem_post(&sem[myphase]));
           }
         }
@@ -855,26 +853,19 @@ static void _test_init(const char *testname, int reports_performance, int early,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     if (!early) {
-      char hostname[255];
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-        BARRIER();
-      }
+      MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+      fflush(NULL);
+      BARRIER();
     }
   #else
-    { char hostname[255];
-      MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
+    MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
           testname, GASNETT_CONFIG_STRING,
           _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
           GASNETT_SYSTEM_TUPLE);
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-      }
-    }
+    MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+    fflush(NULL);
   #endif
   if (gasnett_verboseenv()) MSG("%s running...", testname);
 }

@@ -1,12 +1,13 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/07/10 23:56:37 $
-# $Revision: 1.54.8.2 $
+#     $Date: 2006/08/24 16:49:27 $
+# $Revision: 1.54.8.3 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
+ACLOCAL_AMFLAGS = -I other/plpa/config
 
 # Directories for automake to recurse into:
 SUBDIRS = .          \

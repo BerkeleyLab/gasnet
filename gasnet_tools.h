@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/08/08 16:36:23 $
- * $Revision: 1.52.2.4 $
+ *     $Date: 2006/08/24 16:49:27 $
+ * $Revision: 1.52.2.5 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -275,8 +275,10 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_checksum        gasneti_checksum
 #define gasnett_isLittleEndian  gasneti_isLittleEndian
 #define gasnett_set_affinity    gasneti_set_affinity
+#define gasnett_gethostname     gasneti_gethostname
 #define gasnett_spinloop_hint   gasneti_spinloop_hint
 #define gasnett_freezeForDebuggerNow gasneti_freezeForDebuggerNow
+#define gasnett_freezeForDebuggerErr gasneti_freezeForDebuggerErr
 #define gasnett_backtrace_init gasneti_backtrace_init
 #define gasnett_print_backtrace gasneti_print_backtrace
 #define gasnett_print_backtrace_ifenabled gasneti_print_backtrace_ifenabled
@@ -316,10 +318,17 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf)(const char *format, ...));
   GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf_force,1,2,
   GASNETT_TENTATIVE_EXTERN void (*_gasnett_trace_printf_force)(const char *format, ...));
-  #define GASNETT_TRACE_PRINTF \
-          (*(_gasnett_trace_printf?_gasnett_trace_printf:&_gasnett_trace_printf_noop))
-  #define GASNETT_TRACE_PRINTF_FORCE \
-          (*(_gasnett_trace_printf_force?_gasnett_trace_printf_force:&_gasnett_trace_printf_noop))
+  #if PLATFORM_COMPILER_PGI /* bug 1703 - workaround a PGI bug using Gnu-style variadic macros which PGI supports */
+    #define GASNETT_TRACE_PRINTF(args...) \
+            (_gasnett_trace_printf ? _gasnett_trace_printf(args) : _gasnett_trace_printf_noop(args))
+    #define GASNETT_TRACE_PRINTF_FORCE(args...) \
+            (_gasnett_trace_printf_force ? _gasnett_trace_printf_force(args) : _gasnett_trace_printf_noop(args))
+  #else
+    #define GASNETT_TRACE_PRINTF \
+            (*(_gasnett_trace_printf?_gasnett_trace_printf:&_gasnett_trace_printf_noop))
+    #define GASNETT_TRACE_PRINTF_FORCE \
+            (*(_gasnett_trace_printf_force?_gasnett_trace_printf_force:&_gasnett_trace_printf_noop))
+  #endif
 
   #ifdef _INCLUDED_GASNET_H
     #define GASNETT_TRACE_ENABLED       GASNETI_TRACE_ENABLED(H)

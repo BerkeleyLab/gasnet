@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testalign.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.15.10.1 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.15.10.2 $
  * Description: GASNet get/put alignment-sensitivity test
  *   measures flood throughput of GASNet gets and puts
  *   over varying payload alignments and fixed payload size
@@ -8,13 +8,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "test.h"
 
 #define DEFAULT_SZ	(32*1024)

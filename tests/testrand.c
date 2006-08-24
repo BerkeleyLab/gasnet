@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testrand.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.12.10.1 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.12.10.2 $
  * Description: GASNet get/put performance test
  *   measures measures the total time to write to each page of the
  *   remote test segment, using blocking puts in a random order.
@@ -18,8 +18,6 @@
 *************************************************************/
 
 #include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ

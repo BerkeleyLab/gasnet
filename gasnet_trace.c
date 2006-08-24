@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2006/08/08 16:36:23 $
- * $Revision: 1.121.2.3 $
+ *     $Date: 2006/08/24 16:49:27 $
+ * $Revision: 1.121.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,19 +21,6 @@
 #include <string.h>
 #include <errno.h>
 
-/* get MAXHOSTNAMELEN */
-#if PLATFORM_OS_SOLARIS
-#include <netdb.h>
-#else
-#include <sys/param.h>
-#endif 
-#ifndef MAXHOSTNAMELEN
-  #ifdef HOST_NAME_MAX
-    #define MAXHOSTNAMELEN HOST_NAME_MAX
-  #else
-    #define MAXHOSTNAMELEN 1024 /* give up */
-  #endif
-#endif
 /* ------------------------------------------------------------------------------------ */
 /* GASNet Tracing and Statistics */
 
@@ -696,15 +683,13 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
   { time_t ltime;
     int i;
-    char hostname[MAXHOSTNAMELEN];
     char temp[1024];
     char *p;
     time(&ltime); 
     strcpy(temp, ctime(&ltime));
     if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
-    gethostname(hostname, MAXHOSTNAMELEN);
     gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
-      gasneti_exename, (int)getpid(), hostname, temp);
+      gasneti_exename, (int)getpid(), gasnett_gethostname(), temp);
     p = temp;
     for (i=0; i < *pargc; i++) { 
       char *q = (*pargv)[i];

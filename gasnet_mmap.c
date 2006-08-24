@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/06/06 22:34:58 $
- * $Revision: 1.35.2.1 $
+ *     $Date: 2006/08/24 16:49:27 $
+ * $Revision: 1.35.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -349,6 +349,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       uintptr_t minsize = (uintptr_t)-1;
       uintptr_t minend = (uintptr_t)-1;
       uintptr_t maxheapend = 0;
+      char segstats[255];
       /* compute various stats across nodes */
       for (i=0;i < gasneti_nodes; i++) {
         if (gasneti_segexch[i].heapend > maxheapend)
@@ -362,21 +363,33 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
         if ((uintptr_t)gasneti_segexch[i].seginfo.addr + gasneti_segexch[i].seginfo.size < minend)
           minend = (uintptr_t)gasneti_segexch[i].seginfo.addr + gasneti_segexch[i].seginfo.size;
       }
-      GASNETI_TRACE_PRINTF(C, ("Segment stats: "
+      sprintf(segstats,"Segment stats: "
           "maxsize = %lu   "
           "minsize = %lu   "
           "maxbase = "GASNETI_LADDRFMT"   "
           "minend = "GASNETI_LADDRFMT"   "
           "maxheapend = "GASNETI_LADDRFMT"   ",
           (unsigned long)maxsize, (unsigned long)minsize,
-          GASNETI_LADDRSTR(maxbase), GASNETI_LADDRSTR(minend), GASNETI_LADDRSTR(maxheapend)
-          ));
+          GASNETI_LADDRSTR(maxbase), GASNETI_LADDRSTR(minend), GASNETI_LADDRSTR(maxheapend));
+      GASNETI_TRACE_PRINTF(C, (segstats));
 
       gasneti_maxheapend = maxheapend;
       gasneti_maxbase = maxbase;
       #if GASNET_ALIGNED_SEGMENTS
         if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
-          GASNETI_TRACE_PRINTF(I, ("WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()"));
+          const char *wmsg = "WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()";
+          GASNETI_TRACE_PRINTF(I, (wmsg));
+          if (!gasneti_mynode && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+            fprintf(stderr, "%s\n%s\n", wmsg, segstats);
+            for (i=0;i < gasneti_nodes; i++) {
+              fprintf(stderr, " %i: seg=["GASNETI_LADDRFMT","GASNETI_LADDRFMT"]"
+                              " size=%lu heapend="GASNETI_LADDRFMT"\n", i,
+                      GASNETI_LADDRSTR(gasneti_segexch[i].seginfo.addr), 
+                      GASNETI_LADDRSTR(((uintptr_t)gasneti_segexch[i].seginfo.addr)+gasneti_segexch[i].seginfo.size), 
+                      (unsigned long)gasneti_segexch[i].seginfo.size,
+                      GASNETI_LADDRSTR(gasneti_segexch[i].heapend));
+            }
+          }
           gasneti_MaxLocalSegmentSize = 0;
           gasneti_MaxGlobalSegmentSize = 0;
         } else {

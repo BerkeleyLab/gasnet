@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.11.8.1 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.11.8.2 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,12 +16,6 @@
 
 #include "gasnet.h"
 #include "gasnet_handler.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <math.h>
 uintptr_t maxsegmentsz;
 #ifndef TEST_SEGSZ

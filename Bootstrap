@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
-#     $Date: 2006/06/06 22:34:57 $
-# $Revision: 1.16.2.1 $
+#     $Date: 2006/08/24 16:49:27 $
+# $Revision: 1.16.2.2 $
 # Description: GASNet developer Bootstrap script
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -109,7 +109,7 @@ set -x
     rm -Rf autom4te*.cache
 set +x
 
-    CMD="aclocal" ; eval $DOIT
+    CMD="aclocal -I other/plpa/config" ; eval $DOIT
     CMD="autoheader" ; eval $DOIT
     CMD="autoconf" ; eval $DOIT
 

@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.66.4.4 $
+$Revision: 1.66.4.5 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -689,9 +689,13 @@ All GASNet conduit code is required to meet the following coding standards:
   the standardized platform macros provided by other/portable_platform.h, not ad-hoc
   vendor or compiler-provided preprocessor macros.
 
-* Conduit code should never make assumptions about integer data type sizes. In cases that
+* Code should never make assumptions about integer data type sizes. In cases that
   call for a specific size integral type, the (u)int(sz)_t types provided by
   other/portable_inttypes.h should always be used (eg "uint64_t" = unsigned 64-bit int).
+
+* Do NOT make assumptions about the width of values stored in type "gasneti_atomic_t".
+  On some platforms the width may be neither 32 nor 64 bits.
+  See gasnet_atomicops.h for complete documentation. 
 
 * Learn how to use the tracing macros and use them to trace interesting
   events in your conduit. They're invaluable for debugging mysterious behavior.
@@ -720,6 +724,8 @@ All GASNet conduit code is required to meet the following coding standards:
 
 * Perl code should only use features and modules available in all installations
   of Perl 5.005+.
+
+* Test code should follow these standards and also those listed in tests/README
 
 GASNet porting guide
 ====================

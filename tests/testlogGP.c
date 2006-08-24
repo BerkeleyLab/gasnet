@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlogGP.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.26.10.1 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.26.10.2 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -8,14 +8,6 @@
  * Copyright 2002, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
-
-#include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <time.h>
 
 #define TEST_DELAY 1
 #include "test.h"

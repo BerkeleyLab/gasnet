@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2006/06/06 22:35:19 $
-# $Revision: 1.25.8.1 $
+#     $Date: 2006/08/24 16:49:38 $
+# $Revision: 1.25.8.2 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -20,6 +20,7 @@ EXTRA_DIST =        \
 	firehose    \
 	ssh-spawner \
 	mpi-spawner \
+	plpa        \
 	detect-cachesz.c 
 # 	exclude these from distribution for now
 # 	cross-configure-help.c

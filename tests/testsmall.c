@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.35.10.1 $
+ *     $Date: 2006/08/24 16:49:50 $
+ * $Revision: 1.35.10.2 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -9,13 +9,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <fcntl.h>
 int maxsz = 0;
 #ifndef TEST_SEGSZ
   #define TEST_SEGSZ_EXPR (2*MAX(PAGESZ,(uintptr_t)maxsz))

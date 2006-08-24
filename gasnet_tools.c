@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/08/08 16:36:23 $
- * $Revision: 1.140.2.4 $
+ *     $Date: 2006/08/24 16:49:27 $
+ * $Revision: 1.140.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -282,9 +282,7 @@ extern void gasneti_fatalerror(const char *msg, ...) {
     fflush(stderr);
   va_end(argptr);
 
-  /* allow freeze */
-  if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0))
-    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
+  gasnett_freezeForDebuggerErr(); /* allow freeze */
 
   /* try to get a pre-signal backtrace, which may be more precise */
   if (!gasneti_print_backtrace_ifenabled(STDERR_FILENO)) 
@@ -368,17 +366,29 @@ static void _freezeForDebugger(int depth) {
   }
 }
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname) {
-  char name[255];
-  gethostname(name, 255);
   fprintf(stderr,"Process frozen for debugger: host=%s  pid=%i\n"
                  "To unfreeze, attach a debugger and set '%s' to 0, or send a "
                  GASNETI_UNFREEZE_SIGNAL_STR "\n", 
-                 name, (int)getpid(), flagsymname); 
+                 gasnett_gethostname(), (int)getpid(), flagsymname); 
   fflush(stderr);
   _gasneti_freeze_flag = flag;
   *_gasneti_freeze_flag = 1;
   gasneti_local_wmb();
   _freezeForDebugger(0);
+}
+
+static int gasneti_freezeonerr_isinit = 0;
+static int gasneti_freezeonerr_userenabled = 0;
+static void gasneti_freezeForDebuggerErr_init() {
+  gasneti_freezeonerr_userenabled = gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0);
+  gasneti_local_wmb();
+  gasneti_freezeonerr_isinit = 1;
+}
+extern void gasneti_freezeForDebuggerErr() {
+  if (!gasneti_freezeonerr_isinit) gasneti_freezeForDebuggerErr_init();
+  else gasneti_local_rmb();
+  if (gasneti_freezeonerr_userenabled)
+    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
 }
 /* ------------------------------------------------------------------------------------ */
 /* Dynamic backtrace support */
@@ -398,6 +408,9 @@ extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsym
 #endif
 #if defined(DBX_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_DBX	&gasneti_bt_dbx
+#endif
+#if defined(IDB_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_IDB	&gasneti_bt_idb
 #endif
 
 #if !GASNETI_NO_FORK
@@ -450,6 +463,21 @@ static char gasneti_exename_bt[255];
     static char cmd[1024];
     const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), dbx, gasneti_exename_bt);
+    if (rc < 0) return -1;
+    return gasneti_system_redirected(cmd, fd);
+  }
+#endif
+
+#ifdef GASNETI_BT_IDB
+  static int gasneti_bt_idb(int fd) {
+    #if GASNETI_THREADS
+      const char fmt[] = "echo 'set $stoponattach; attach %d; where thread all; quit' | %s -dbx -quiet '%s'"; 
+    #else
+      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'"; 
+    #endif
+    static char cmd[1024];
+    const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
+    int rc = sprintf(cmd, fmt, (int)getpid(), idb, gasneti_exename_bt);
     if (rc < 0) return -1;
     return gasneti_system_redirected(cmd, fd);
   }
@@ -565,6 +593,9 @@ static struct {
   #ifdef GASNETI_BT_PRINTSTACK
   { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
   #endif
+  #ifdef GASNETI_BT_IDB
+  { "IDB", GASNETI_BT_IDB, 1 },
+  #endif
   { NULL, NULL, 0 } /* Avoids empty initializer and trailing commas */
 };
 static int const gasneti_backtrace_mechanism_count = /* excludes the NULL */
@@ -605,6 +636,7 @@ extern void gasneti_backtrace_init(const char *exename) {
   }
 
   gasneti_backtrace_isinit = 1;
+  gasneti_freezeForDebuggerErr_init();
 }
 
 /* "best effort" to produce a backtrace
@@ -715,8 +747,8 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
 }
 int (*gasneti_print_backtrace_ifenabled)(int fd) = &_gasneti_print_backtrace_ifenabled;
 /* ------------------------------------------------------------------------------------ */
-extern uint64_t gasneti_checksum(void *p, int numbytes) {
- uint8_t *buf = (uint8_t *)p;
+extern uint64_t gasneti_checksum(const void *p, int numbytes) {
+ uint8_t const *buf = p;
  uint64_t result = 0;
  int i;
  for (i=0;i<numbytes;i++) {
@@ -1187,15 +1219,13 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
 }
 /* ------------------------------------------------------------------------------------ */
 /* CPU affinity control */
-#if HAVE_SCHED_SETAFFINITY
-  #include <sched.h>
+#if HAVE_PLPA
+  #include "plpa.h"
 #endif
 void gasneti_set_affinity_default(int rank) {
-  #if !HAVE_SCHED_SETAFFINITY
-    /* NO-OP */
-    return;
-  #else
+  #if HAVE_PLPA
     int cpus = gasneti_cpu_count();
+    gasneti_plpa_cpu_set_t mask;
 
     if_pf (cpus == 0) {
       static int once = 1;
@@ -1205,30 +1235,26 @@ void gasneti_set_affinity_default(int rank) {
         fflush(stderr);
       }
       /* becomes a NO-OP */
-    } else {
-	int local_rank = rank % cpus;
-      #if GASNET_SCHED_SETAFFINITY_ARGS == 1
-	unsigned long int *mask;
-	const int bits_per_long = 8*sizeof(*mask);
-	int len = (cpus + bits_per_long - 1) / bits_per_long;
-	mask = calloc(len, sizeof(*mask));
-	mask[local_rank / bits_per_long] = 1 << (local_rank % bits_per_long);
-        gasneti_assert_zeroret(sched_setaffinity(0, len*sizeof(*mask), mask));
-	free(mask);
-      #elif GASNET_SCHED_SETAFFINITY_ARGS == 2
-        cpu_set_t mask;
-        memset(&mask,0,sizeof(mask)); /* in place of CPU_ZERO which is sometimes broken */
-        CPU_SET(local_rank % cpus, &mask);
-        gasneti_assert_zeroret(sched_setaffinity(0, &mask));
-      #elif GASNET_SCHED_SETAFFINITY_ARGS == 3
-        cpu_set_t mask;
-        memset(&mask,0,sizeof(mask)); /* in place of CPU_ZERO which is sometimes broken */
-        CPU_SET(local_rank % cpus, &mask);
-        gasneti_assert_zeroret(sched_setaffinity(0, sizeof(mask), &mask));
-      #else
-	#error "Unknown sched_setaffinity prototype"
-      #endif
+      return;
     }
+    
+    /* Try a GET first to check for support */
+    if_pf (ENOSYS == gasneti_plpa_sched_getaffinity(0, sizeof(mask), &mask)) {
+      /* becomes a NO-OP */
+      return;
+    }
+    
+    if (cpus == 1) {
+      /* NO-OP on single-processor platform */
+    } else {
+      int local_rank = rank % cpus;
+      PLPA_CPU_ZERO(&mask);
+      PLPA_CPU_SET(local_rank, &mask);
+      gasneti_assert_zeroret(gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask));
+    }
+  #else
+    /* No implementation -> NO-OP */
+    return;
   #endif
 }
 #ifndef GASNETC_SET_AFFINITY
@@ -1239,5 +1265,34 @@ void gasneti_set_affinity_default(int rank) {
 void gasneti_set_affinity(int rank) {
   GASNETT_TRACE_PRINTF("gasnett_set_affinity(%d)", rank);
   GASNETC_SET_AFFINITY(rank);
+}
+/* ------------------------------------------------------------------------------------ */
+/* hostname query */
+/* get MAXHOSTNAMELEN */ 
+#if PLATFORM_OS_SOLARIS 
+#include <netdb.h>
+#else
+#include <sys/param.h>
+#endif 
+#ifndef MAXHOSTNAMELEN
+  #ifdef HOST_NAME_MAX
+    #define MAXHOSTNAMELEN HOST_NAME_MAX
+  #else
+    #define MAXHOSTNAMELEN 1024 /* give up */
+  #endif
+#endif
+const char *gasneti_gethostname() {
+  static gasneti_mutex_t hnmutex = GASNETI_MUTEX_INITIALIZER;
+  static int firsttime = 1;
+  static char hostname[MAXHOSTNAMELEN];
+  gasneti_mutex_lock(&hnmutex);
+    if (firsttime) {
+      if (gethostname(hostname, MAXHOSTNAMELEN))
+        gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
+      hostname[MAXHOSTNAMELEN - 1] = '\0';
+      firsttime = 0;
+    }
+  gasneti_mutex_unlock(&hnmutex);
+  return hostname;
 }
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/08/08 16:36:22 $
- * $Revision: 1.238.2.3 $
+ *     $Date: 2006/08/24 16:49:27 $
+ * $Revision: 1.238.2.4 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -224,7 +224,7 @@
       #define _gasneti_atomic32_decrement_and_test(p) \
                                           (InterlockedDecrement((LONG *)&((p)->ctr)) == 0)
       #define _gasneti_atomic32_compare_and_swap(p,oval,nval) \
-	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
+	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (LONG)(oval))
       #define _gasneti_atomic32_fetchadd(p, op) InterlockedExchangeAdd((LONG *)&((p)->ctr), op)
 
       #if PLATFORM_ARCH_64 /* TODO: Identify ILP32 running on 64-bit CPU */
@@ -238,7 +238,7 @@
         #define _gasneti_atomic64_decrement_and_test(p) \
                                           (InterlockedDecrement64((LONGLONG *)&((p)->ctr)) == 0)
         #define _gasneti_atomic64_compare_and_swap(p,oval,nval) \
-	     (InterlockedCompareExchange64((LONGLONG *)&((p)->ctr),nval,oval) == (oval))
+	     (InterlockedCompareExchange64((LONGLONG *)&((p)->ctr),nval,oval) == (LONGLONG)(oval))
         #define _gasneti_atomic64_fetchadd(p, op) InterlockedExchangeAdd64((LONGLONG *)&((p)->ctr), op)
       #endif
 
@@ -1580,6 +1580,21 @@
    #endif
   /* ------------------------------------------------------------------------------------ */
   #elif PLATFORM_ARCH_POWERPC
+    /* Possibly enable "hybrid" 64-bit atomics for MacOSX and AIX: */
+    #if (PLATFORM_OS_DARWIN && defined(GASNETI_ARCH_PPC64)) || \
+	(PLATFORM_OS_AIX && PLATFORM_ARCH_64)
+      /* We are running on a 64-bit capable CPU/OS, however...
+       * + Apple's ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
+       * + AIX's ABI only guarantees 4-byte minimum aligment for doubles.
+       * Our "contract" with the developer says atomic64_t works on 64-bit types without any
+       * extra alignment.  So, we need to use mutex-based atomics when not aligned.
+       *
+       * See bug 1595 for more info.
+       * See also bug 1619 for why we can't use hybrid atomics with PLATFORM_ARCH_32+PLATFORM_OS_AIX.
+       */
+      #define GASNETI_HYBRID_ATOMIC64	1
+    #endif
+
     #if PLATFORM_COMPILER_XLC
       #define GASNETI_HAVE_ATOMIC32_T 1
       typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
@@ -1673,7 +1688,7 @@
         #pragma reg_killed_by gasneti_atomic64_swap_not cr0, gr0
         #define _gasneti_atomic64_compare_and_swap(p, oldval, newval) \
 					(gasneti_atomic64_swap_not(p, oldval, newval) == 0)
-      #elif defined(GASNETI_ARCH_PPC64) /* ILP32 on 64-bit CPU */
+      #elif defined(GASNETI_HYBRID_ATOMIC64) /* ILP32 on 64-bit CPU */
 	#define GASNETI_HAVE_ATOMIC64_T 1
         typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
         #define _gasneti_atomic64_init(_v)	{ (_v) }
@@ -1808,7 +1823,7 @@
 		: "cr0");
           return (result == 0);
         } 
-      #elif defined(GASNETI_ARCH_PPC64) /* ILP32 on 64-bit CPU */
+      #elif defined(GASNETI_HYBRID_ATOMIC64) /* ILP32 on 64-bit CPU */
 	#define GASNETI_HAVE_ATOMIC64_T 1
         typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
         #define _gasneti_atomic64_init(_v)	{ (_v) }
@@ -1862,18 +1877,6 @@
       /* Using default fences as we have none in our asms */
     #else
       #error Unrecognized PowerPC - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
-    #endif
-
-    /* Compiler-independent "fix-up" for MacOSX and AIX: */
-    #if defined(GASNETI_ARCH_PPC64) && (PLATFORM_OS_DARWIN || PLATFORM_OS_AIX)
-      /* We are running on a 64-bit capable CPU, however...
-       * Apple's ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
-       * AIX's ABI only guarantees 4-byte minimum aligment for doubles.
-       * Since our "contract" with the developer says atomic64_t works on 64-bit types without
-       * any extra alignment, we need to use mutex-based atomics when not aligned to ensure atomicity.
-       * See bug 1595 for more info.
-       */
-      #define GASNETI_HYBRID_ATOMIC64	1
     #endif
   /* ------------------------------------------------------------------------------------ */
   #elif PLATFORM_ARCH_MIPS

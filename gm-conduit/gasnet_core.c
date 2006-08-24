@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2006/06/06 22:35:09 $
- * $Revision: 1.97.4.1 $
+ * $Date: 2006/08/24 16:49:30 $
+ * $Revision: 1.97.4.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -2654,7 +2654,8 @@ gasnetc_getconf_conffile()
 	FILE		*fp;
 	char		line[128];
 	char		gmconf[128], *gmconfenv;
-	char		gmhost[128], hostname[MAXHOSTNAMELEN+1];
+	char		gmhost[128];
+        const char *hostname = gasnett_gethostname();
 	char		**hostnames;
 	char		*homedir;
 	int		lnum = 0, gmportnum, i;
@@ -2670,9 +2671,6 @@ gasnetc_getconf_conffile()
 		snprintf(gmconf, 128, "%s", gmconfenv);
 	else
 		snprintf(gmconf, 128, "%s/.gmpi/conf", homedir);
-
-	if (gethostname(hostname, 128) < 0)
-		gasneti_fatalerror("Couldn't get local hostname");
 
 	if ((fp = fopen(gmconf, "r")) == NULL) {
 		fprintf(stderr, "Couldn't open GMPI configuration file\n: %s", 
@@ -2711,8 +2709,8 @@ gasnetc_getconf_conffile()
 		else if (lnum <= numnodes) {
 			if ((sscanf(line,"%s %d\n",gmhost,&gmportnum)) == 2) {
 				if (gmportnum < 1 || gmportnum > 7)
-					gasneti_fatalerror(
-					    "Invalid GM port");
+					gasneti_fatalerror("(%s) Invalid GM port: %i",
+                                           gasnett_gethostname(),gmportnum);
 
 				gasneti_assert(gmhost != NULL);
 
@@ -2738,19 +2736,16 @@ gasnetc_getconf_conffile()
 	fclose(fp);
 
 	if (numnodes == 0 || thisnode == -1)
-		gasneti_fatalerror("could not find myself in GMPI config file");
+		gasneti_fatalerror("(%s) could not find myself in GMPI config file", gasnett_gethostname());
 	gm_init();
 	status = 
 		gm_open(&p, GASNETC_DEFAULT_GM_BOARD_NUM, thisport,"GASNet/GM", 
 		    (enum gm_api_version)GM_API_VERSION_1_4);
-	if (status != GM_SUCCESS) {
-		char	msg[64];
-		sprintf(msg, "could not open GM port %d", thisport);
-		gasneti_fatalerror(msg);
-	}
+	if (status != GM_SUCCESS) 
+		gasneti_fatalerror("(%s) could not open GM port %d", gasnett_gethostname(), thisport);
 	status = gm_get_node_id(p, (unsigned int *) &thisid);
 	if (status != GM_SUCCESS)
-		gasneti_fatalerror("could not get GM node id!");
+		gasneti_fatalerror("(%s) could not get GM node id!", gasnett_gethostname());
 
 	_gmc.port = p;
 
@@ -2760,7 +2755,7 @@ gasnetc_getconf_conffile()
 	/* GM2 only stores local node ids, so a global has to be obtained */
 	if (gm_node_id_to_global_id(_gmc.port, temp_id, &(_gmc.my_id)) 
 	    != GM_SUCCESS)
-		gasneti_fatalerror("Couldn't get GM global node id");
+		gasneti_fatalerror("(%s) Couldn't get GM global node id", gasnett_gethostname());
 #endif
 
 	for (i = 0; i < numnodes; i++) {
@@ -2771,7 +2766,7 @@ gasnetc_getconf_conffile()
 			fprintf(stderr, "%s (%d) has no id! Check mapper\n",
 			    hostnames[i],
 			    _gmc.gm_nodes[i].id);
-			gasneti_fatalerror("Unknown GMid or GM mapper down");
+			gasneti_fatalerror("(%s) Unknown GMid or GM mapper down", gasnett_gethostname());
 		}
 		_gmc.gm_nodes_rev[i].port = _gmc.gm_nodes[i].port;
 		_gmc.gm_nodes_rev[i].node = (gasnet_node_t) i;
