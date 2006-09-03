@@ -1,34 +1,44 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2006/08/19 00:03:21 $
-# $Revision: 1.27 $
+#     $Date: 2006/09/03 13:22:39 $
+# $Revision: 1.27.4.1 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
 
-SUBDIRS =          \
+# GASNET_TOOLSONLY_TRUE_BEGIN
+# CONDUITMODE_SUBDIRS =
+# CONDUITMODE_EXTRADIST =
+# GASNET_TOOLSONLY_TRUE_END
+# GASNET_TOOLSONLY_FALSE_BEGIN
+CONDUITMODE_SUBDIRS = \
         ammpi      \
 	amudp	   \
 	contrib    \
 	testspawn
-
-
-EXTRA_DIST =        \
+CONDUITMODE_EXTRADIST = \
 	amxtests    \
 	firehose    \
 	ssh-spawner \
 	mpi-spawner \
-	plpa        \
-	detect-cachesz.c 
-# 	exclude these from distribution for now
-# 	cross-configure-help.c
+  # 	exclude these from distribution for now
+  # 	cross-configure-help.c
+# GASNET_TOOLSONLY_FALSE_END
+SUBDIRS = $(CONDUITMODE_SUBDIRS)
+
+EXTRA_DIST =        			\
+        $(CONDUITMODE_EXTRADIST) 	\
+	plpa        			\
+	detect-cachesz.c 		\
+	tools-toggle.pl
 
 include_HEADERS = \
 	portable_inttypes.h \
 	portable_platform.h
 
+if CONDUIT_MODE
 if USE_UDP_CONDUIT                           
   UDP_dir=$(top_builddir)/other/amudp
 endif
@@ -41,8 +51,11 @@ tests tests-clean run-tests check-exports:
 	@list='$(testdirs)'; for dir in $$list ; do \
 	  ( cd "$$dir" && $(MAKE) $@ ) || exit $$?; \
 	done
+CONDUITMODE_TARGETS = Makefile-conduit.mak
+endif
 
-all-local: Makefile-conduit.mak perlstart
+all-local: $(CONDUITMODE_TARGETS) perlstart
+
 
 .PHONY: force clean tests tests-clean run-tests
 

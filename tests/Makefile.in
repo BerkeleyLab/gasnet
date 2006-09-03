@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2006/08/20 00:03:12 $
-# $Revision: 1.96 $
+#     $Date: 2006/09/03 13:22:41 $
+# $Revision: 1.96.2.1 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -323,7 +323,7 @@ KEEPTMP_CFLAGS = $(patsubst %,@KEEPTMP_CFLAGS@,$(KEEPTMPS))
 @HAVE_PTHREAD_FALSE@      TESTTOOLS_TOOLLIB = -L@TOP_BUILDDIR@ -l$(TESTTOOLS_TOOLLIB_NAME)
 TOOLS_CPPFLAGS = $(TESTTOOLS_DEBUGFLAGS) $(TESTTOOLS_THREADFLAGS)
 testtools: force
-	@cd .. && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
+	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
 	@CC@ @CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
 	@CC@ @CFLAGS@ @MISC_CFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
@@ -334,7 +334,7 @@ testtoolscxx: force
 		echo "ERROR: testtoolscxx target requested, but no c++ compiler is configured"; \
 		exit 1; \
 	 fi
-	@cd .. && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
+	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
 	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CXXFLAGS) -c -o $@.o $(srcdir)/$@.cc
 	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )

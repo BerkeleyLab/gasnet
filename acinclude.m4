@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/08/26 09:41:42 $
-dnl $Revision: 1.113 $
+dnl     $Date: 2006/09/03 13:22:36 $
+dnl $Revision: 1.113.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -487,11 +487,13 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   
   AC_MSG_CHECKING(for $1 in environment)
 
-  dnl create the help prompt just once
+  dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
+   ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
     AC_ARG_WITH(lowerdashname, 
        GASNET_OPTION_HELP(with-[]lowerdashname[]=, value for [$1]), 
       [], [])
+   ])
   ])
   define(with_expanded_[$1], [set])
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
-#     $Date: 2006/08/19 00:03:19 $
-# $Revision: 1.20 $
+#     $Date: 2006/09/03 13:22:36 $
+# $Revision: 1.20.4.1 $
 # Description: GASNet developer Bootstrap script
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -13,6 +13,7 @@ srcdir=`dirname $0`
 TIME=
 CONFIRM=0
 NOTOOLCHECK=0
+TOOLSONLYMODE=0
 autofilter="perl -0 -pe 's/^(autoheader.*?: )?WARN.+auxiliary files(.|\n)+WARN.+documentation.\n//m' \
                  | perl -pe 's/^.*?AC_PROG_LEX invoked multiple times.*?\n?$//g' \
                  | perl -0 -pe 's/^((.*?AC_CONFIG_SUBDIRS.*?\n)+([^ ]* the top level\n)?)*//g'"
@@ -33,6 +34,7 @@ for arg in "$@"; do
     n) NOTOOLCHECK=1 ;; # legacy
     -p) ;; # used by Titanium Bootstrap - ignore
     -P) ;; # used by Titanium Bootstrap - ignore
+    -o) TOOLSONLYMODE=1 ;;
     -t) TIME='/usr/bin/time'
 	if test ! -x "$TIME" ; then
 	  TIME=
@@ -108,6 +110,18 @@ set -x
     cd $srcdir
     rm -Rf autom4te*.cache
 set +x
+
+    TOOLSONLYFLAG=$srcdir/.gasnet_toolsonly_mode
+    TOOLSONLYFILES="$srcdir/configure.in $srcdir/Makefile.am $srcdir/other/Makefile.am"
+    if test "$TOOLSONLYMODE" = 1 -a ! -f "$TOOLSONLYFLAG" ; then
+      echo "+ Switching source archive to GASNet tools-only mode"
+      eval perl $srcdir/other/tools-toggle.pl -y $TOOLSONLYFILES
+      touch "$TOOLSONLYFLAG"
+    elif test "$TOOLSONLYMODE" = 0 -a -f "$TOOLSONLYFLAG" ; then
+      echo "+ Switching source archive back from GASNet tools-only mode to regular mode"
+      eval perl $srcdir/other/tools-toggle.pl -n $TOOLSONLYFILES
+      rm -f "$TOOLSONLYFLAG"
+    fi
 
     CMD="aclocal -I other/plpa/config" ; eval $DOIT
     CMD="autoheader" ; eval $DOIT
