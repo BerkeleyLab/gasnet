@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/09/03 13:22:36 $
-# $Revision: 1.403.2.1 $
+#     $Date: 2006/09/03 13:45:34 $
+# $Revision: 1.403.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.403.2.1 $)
+AC_REVISION($Revision: 1.403.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1311,9 +1311,8 @@ if test $enabled_udp = yes; then
 
   AC_LANG_RESTORE
 
-  if test $supported_amudp = yes; then
-    # detect libraries necessary for udp-* backends
-    GASNET_PUSHVAR(LIBS,"")
+  # detect libraries necessary for udp-* backends
+  GASNET_PUSHVAR(LIBS,"")
       AC_SEARCH_LIBS(socket, socket, have_udp=yes, have_udp=no)
       AC_SEARCH_LIBS(gethostbyname, nsl, , have_udp=no)
       GASNET_UDP_LIBS="$GASNET_UDP_LIBS $LIBS"
@@ -1331,10 +1330,8 @@ if test $enabled_udp = yes; then
 	    GASNET_MSG_WARN(build test failed: I don't know how to build UDP programs on your system)
 	    have_udp=no
 	fi
-      fi
-
-    GASNET_POPVAR(LIBS)
-  fi
+    fi
+  GASNET_POPVAR(LIBS)
 fi
 AM_CONDITIONAL(HAVE_CXX, test "$have_cxx" = 1)
 AC_SUBST(GASNET_UDP_LIBS)
