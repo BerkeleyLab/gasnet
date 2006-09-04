@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/09/03 13:45:34 $
-# $Revision: 1.66.2.2 $
+#     $Date: 2006/09/04 00:40:44 $
+# $Revision: 1.66.2.3 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -184,13 +184,15 @@ do-end-tests:
 CLEANFILES = $(TESTLOG) 
 else
 TOOLSONLY_CHECK = run-tests
+TOOLSONLY_TESTS = testtools
 test: tests
 tests: force
 	@$(MAKE) -f $(top_builddir)/tests/Makefile \
 	        GASNET_INCLUDES="-I@TOP_BUILDDIR@ -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/other" \
-		testtools
+		$(TOOLSONLY_TESTS)
 run-tests: tests
 	./testtools
+CLEANFILES = $(TOOLSONLY_TESTS)
 endif
 
 # Build, clean, install, uninstall, etc. the conduits - in parallel if possible.

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2006/09/03 13:22:39 $
-# $Revision: 1.27.4.1 $
+#     $Date: 2006/09/04 00:40:46 $
+# $Revision: 1.27.4.2 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -30,7 +30,6 @@ SUBDIRS = $(CONDUITMODE_SUBDIRS)
 
 EXTRA_DIST =        			\
         $(CONDUITMODE_EXTRADIST) 	\
-	plpa        			\
 	detect-cachesz.c 		\
 	tools-toggle.pl
 
@@ -53,6 +52,12 @@ tests tests-clean run-tests check-exports:
 	done
 CONDUITMODE_TARGETS = Makefile-conduit.mak
 endif
+
+# If we add plpa to EXTRA_DIST, then automake-1.9 tries to package
+# plpa/config/acinclude.m4 more than once.
+dist-hook:
+	rm -f $(distdir)/plpa/config/acinclude.m4
+	cp -pR $(srcdir)/plpa $(distdir)/
 
 all-local: $(CONDUITMODE_TARGETS) perlstart
 
