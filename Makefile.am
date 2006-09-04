@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/09/04 00:40:44 $
-# $Revision: 1.66.2.3 $
+#     $Date: 2006/09/04 01:53:10 $
+# $Revision: 1.66.2.4 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -271,7 +271,7 @@ distclean-local:
 	recurse_special $(recurse_local)
 
 if TOOLSONLY_MODE
-TESTDIST = README testtools.c test.h
+TESTDIST = README testtools.c test.h Makefile.in
 else
 TESTDIST = `find . -print`
 endif
