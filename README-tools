@@ -1,3 +1,128 @@
 README file for GASNet tools
 ============================
+by: Dan Bonachea <bonachea@cs.berkeley.edu>
+$Revision: 1.1.2.2 $
+
+The GASNet tools are a set of communication-independent utilities that are used
+to implement GASNet, and constitute a useful portability tool for GASNet
+clients and even for other portable software that might not require the GASNet
+communication services. The GASNet tools are available to all regular GASNet
+clients, and are also available in a stripped-down "tools-only" software
+distribution which is intended for bundling with third-party software that does
+not require communication services. This file documents both.
+
+Tools-Only Distribution Install Instructions
+============================================
+
+The GASNet_Tools distribution contains just the sources required to build and
+use the GASNet tools, without any GASNet conduit support. It can only be used
+in executables which do not link a GASNet conduit (which already provide the
+tools).
+
+* Step 1: Configure
+
+  Unpack the distribution and run:
+
+    configure (options)
+    
+  A few of the more important options available:
+
+  --help :  display all available configure options
+  --prefix=/install/path : set the directory where GASNet Tools will be installed
+  --enable-debug : Enables hundreds of system-wide sanity checks, at a cost in performance.
+                   Highly recommended during software development.
+  --disable-pthreads: Can be used to disable the thread-safe version of the tools.
+
+* Step 2: Build
+  
+  Use make to build the tools library:
+    
+    make
+    make check   (optional, but recommended - builds and runs a correctness test)
+
+* Step 3: Install
+
+  Use make to install the tools library:
+
+   make install
+
+* Step 4: Use the library
+
+  Once installed, client code should #include <gasnet_tools.h> from
+  $prefix/include and link the appropriate library in $prefix/lib.
+  Clients which use multiple pthreads should link the thread-safe library, 
+  and define GASNETT_THREAD_SAFE before including gasnet_tools.h, eg:
+  
+   cc -o myprogram myprogram.c -I$prefix/include -DGASNETT_THREAD_SAFE=1 \
+        -L$prefix/lib -lgasnet_tools-par -lpthreads
+
+  Where $prefix is the prefix passed during Step 1. 
+  
+  Clients which never use pthreads may link the single-threaded version of the
+  tools using -lgasnet_tools-seq and omitting the GASNETT_THREAD_SAFE define.
+
+GASNet Tools User Documentation
+===============================
+
+The remainder of this file documents the usage of GASNet tools, regardless of
+which distribution is in use.
+
+General Usage
+-------------
+
+* All clients of GASNet tools should #include <gasnet_tools.h> before any other header.
+  The only exception is programs that use both a GASNet conduit and GASNet
+  tools, which must include gasnet.h before gasnet_tools.h and must include
+  _both_ headers in any source files that need either header.
+
+* All of the supported public interfaces in GASNet tools are named using the
+  'gasnett_' or 'GASNETT_' prefix. Clients of GASNet tools should *ONLY* invoke
+  names with this prefix. Use of names with any other prefix (notably including
+  'gasneti_') is totally unsupported and subject to change and breakage without
+  notice.
+
+* The GASNet tools have been ported to all the platforms listed in the main
+  GASNet README. They may work on others as well. Please contact us if you have
+  a new platform you'd like to see supported.
+
+* For questions on using the GASNet tools, contact upc-devel@lbl.gov. 
+  It's especially recommended to contact us before bundling the tools in your
+  software package.
+
+Timers
+------
+
+Memory barriers
+---------------
+
+Atomic operations
+-----------------
+
+The atomic operations only expand to architecturally atomic instructions in
+GASNETT_THREAD_SAFE mode. In single-threaded mode, they all expand to
+appropriate regular (non-atomic) operations, which are often more efficient
+than their atomic equivalents and should be indistinguishable in behavior for
+programs with no concurrency.
+
+Portable platform defines
+-------------------------
+
+Portable fixed-width integer types
+----------------------------------
+
+Compiler annotations
+--------------------
+
+Thread-specific data
+--------------------
+
+Environment utilities
+---------------------
+
+Backtracing and debugger attach
+-------------------------------
+
+Miscellaneous tools
+-------------------
+
 
