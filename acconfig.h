@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/08/30 13:00:55 $ */
-/*  $Revision: 1.115 $ */
+/*      $Date: 2006/09/06 22:00:15 $ */
+/*  $Revision: 1.115.4.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -199,6 +199,12 @@
 #undef GASNETC_VAPI_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
 #undef GASNETC_VAPI_MAX_HCAS
+
+/* GASNet ibverbs-conduit features and bug work-arounds */
+#undef GASNETC_IBV_RCV_THREAD
+#undef GASNETC_IBV_MAX_HCAS
+#undef HAVE_IBV_GET_DEVICE_LIST
+#undef HAVE_IBV_GET_DEVICES
 
 /* GASNet lapi-conduit specific */
 #undef GASNETC_LAPI_FEDERATION

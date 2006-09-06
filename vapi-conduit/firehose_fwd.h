@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/firehose_fwd.h,v $
- *     $Date: 2005/12/16 21:59:04 $
- * $Revision: 1.10 $
+ *     $Date: 2006/09/06 22:00:18 $
+ * $Revision: 1.10.32.1 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -9,20 +9,10 @@
 #ifndef _VAPI_FIREHOSE_FWD_H
 #define _VAPI_FIREHOSE_FWD_H
 
-#include <vapi_types.h>
+#include <infiniband/verbs.h>
 
 /* Set this here because we need it to match */
 #define FH_BUCKET_SIZE	GASNET_PAGESIZE
-
-/* vapi offers "Fast Memory Regions".
- * They really are faster, so we use them by default when available */
-#ifndef FIREHOSE_VAPI_USE_FMR
-  #if HAVE_VAPI_FMR
-    #define FIREHOSE_VAPI_USE_FMR 1
-  #else
-    #define FIREHOSE_VAPI_USE_FMR 0
-  #endif
-#endif
 
 #ifndef GASNETC_VAPI_MAX_HCAS
   /* Undefined means no multi-rail support */
@@ -38,13 +28,9 @@
 /* vapi-conduit has a client_t */
 #define FIREHOSE_CLIENT_T
 typedef struct _firehose_client_t {
-    #if FIREHOSE_VAPI_USE_FMR
-      EVAPI_fmr_hndl_t handle[GASNETC_VAPI_MAX_HCAS];	/* used to release the region */
-    #else
-      VAPI_mr_hndl_t   handle[GASNETC_VAPI_MAX_HCAS];	/* used to release the region */
-    #endif
-    VAPI_lkey_t      lkey[GASNETC_VAPI_MAX_HCAS];	/* used for local access by HCA */
-    VAPI_rkey_t      rkey[GASNETC_VAPI_MAX_HCAS];	/* used for remote access by HCA */
+    struct ibv_mr *handle[GASNETC_VAPI_MAX_HCAS]; /* used to release the region */
+    uint32_t       lkey[GASNETC_VAPI_MAX_HCAS];   /* used for local access by HCA */
+    uint32_t       rkey[GASNETC_VAPI_MAX_HCAS];   /* used for remote access by HCA */
 } firehose_client_t;
 
 #ifndef GASNETC_PUTINMOVE_LIMIT_MAX

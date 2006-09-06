@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/09/05 20:56:41 $
-# $Revision: 1.405 $
+#     $Date: 2006/09/06 22:00:15 $
+# $Revision: 1.405.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.405 $)
+AC_REVISION($Revision: 1.405.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2028,6 +2028,154 @@ fi
 popdef([CONDUIT_DESC])
 
 #--------------------------------------------------------------------------------------------------------
+# IBVerbs configuration
+pushdef([CONDUIT_DESC],[OpenIB InfiniBand Verbs conduit (ibverbs)])
+GASNET_IF_ENABLED_WITH_AUTO(ibverbs, Enable/disable the CONDUIT_DESC (auto-detected),
+  [enabled_ibverbs=yes;force_ibverbs=yes],
+  enabled_ibverbs=no,
+  enabled_ibverbs=yes)
+if test "$force_ibverbs$have_pthread" = yesno; then
+  AC_MSG_ERROR([ibverbs-conduit requires pthread support but pthreads $pthread_reason])
+fi
+if test "$enabled_ibverbs$have_pthread" = yesno; then
+  enabled_ibverbs=no
+  GASNET_MSG_WARN([ibverbs-conduit requires pthread support but pthreads $pthread_reason - disabling ibverbs])
+fi
+if test "$force_ibverbs$have_mpi_compat$have_fork" = yesnono; then
+  AC_MSG_ERROR([ibverbs-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup])
+fi
+if test "$enabled_ibverbs$have_mpi_compat$have_fork" = yesnono; then
+  enabled_ibverbs=no
+  GASNET_MSG_WARN([ibverbs-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup - disabling ibverbs])
+fi
+if test "$enabled_ibverbs" = yes; then
+  # Start by assuming we do have IBVERBS
+  have_ibverbs=yes
+
+  # Start by finding a reasonable default
+  AC_PATH_PROGS(ibv_devinfo, ibv_devinfo)
+  if test -n "$ibv_devinfo"; then
+    ibv_guess=`dirname \`dirname $ibv_devinfo\``
+  else
+    ibv_guess=/usr
+  fi
+  GASNET_ENV_DEFAULT(IBVHOME, $ibv_guess)
+
+  GASNET_ENV_DEFAULT(IBV_INCLUDE, $IBVHOME/include)
+  GASNET_ENV_DEFAULT(IBV_LIBS, -libverbs)
+  # Note 'test -d $foo/.' works even if $foo is a symlink
+  if test x"$ac_cv_sizeof_void_p" = x8 -a -d $MTHOME/lib64/.; then
+    ibv_libdir_default=$IBVHOME/lib64
+  else
+    ibv_libdir_default=$IBVHOME/lib
+  fi
+  GASNET_ENV_DEFAULT(IBV_LIBDIR, $ibv_libdir_default)
+
+  # Since we are using firehose we need to disable certain optimizations.
+  # See bug #350 for an example of why firehose needs this.
+  # See bug #596 or #1031 for evidence that VAPI is affected by this.
+  # See bug #1052 for evidence that xlc is affected.
+  case "$gasnet_cv_cc_family" in
+    GNU) IBV_NO_ALIAS="-fno-strict-aliasing";;
+    Pathscale) IBV_NO_ALIAS="-fno-strict-aliasing";;
+    XLC) IBV_NO_ALIAS="-qnoansialias -qalias=addr";;
+      *) IBV_NO_ALIAS="";;
+  esac
+
+  # Try to compile and link a basic IBV program
+  AC_MSG_CHECKING(for working IB Verbs configuration)
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$IBV_INCLUDE $GASNET_THREAD_DEFINES")
+  GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
+  # try to compile and link a simple IBV program
+  AC_TRY_LINK( [
+    #include <infiniband/verbs.h>
+  ], [{
+    struct ibv_device device;
+    char *s = ibv_get_device_name(&device);
+    }], [ ibv_test_worked=yes ], [ ibv_test_worked=no GASNET_ERR_SAVE() ] )
+  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LIBS)
+  if test "$ibv_test_worked" = yes; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    have_ibverbs=no
+  fi
+
+  # Check for conflict
+  if test "$force_ibverbs$have_ibverbs" = yesno; then
+    GASNET_MSG_ERROR([User requested --enable-ibverbs but I don't know how to build IB Verbs programs for your system.])
+  fi
+
+  if test "$have_ibverbs" = yes; then
+
+    GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR")
+    AC_SEARCH_LIBS(ibv_get_device_list, ibverbs, AC_DEFINE(HAVE_IBV_GET_DEVICE_LIST))
+    AC_SEARCH_LIBS(ibv_get_devices, ibverbs, AC_DEFINE(HAVE_IBV_GET_DEVICES))
+    GASNET_POPVAR(LIBS)
+
+    GASNET_IF_ENABLED_WITH_AUTO(ibverbs-rcv-thread, [See vapi-conduit/README (enabled by default)], 
+      enabled_ibverbs_rcv_thread=yes, enabled_ibverbs_rcv_thread=no, enabled_ibverbs_rcv_thread=yes)
+      if test "$enabled_ibverbs_rcv_thread" = yes; then
+        AC_DEFINE(GASNETC_IBV_RCV_THREAD)
+      fi
+
+    GASNET_WITH(ibverbs-spawner,
+       [IB Verbs job spawner ("ssh" or "mpi", default is mpi when available)],
+       [case "$withval" in
+          ssh|mpi) GASNET_IBVERBS_SPAWNER_CONF=$withval
+	       ;;
+          yes) AC_MSG_ERROR([--with-ibverbs-spawner requires an argument ("ssh" or "mpi")])
+	       ;;
+          *)   AC_MSG_ERROR([--with-ibverbs-spawner argument must be "ssh" or "mpi"])
+	       ;;
+        esac],
+       [AC_MSG_ERROR([--with-ibverbs-spawner argument must be "ssh" or "mpi"])],
+       [if test "$have_mpi_compat" = yes; then
+          GASNET_IBVERBS_SPAWNER_CONF=mpi
+        else
+          GASNET_IBVERBS_SPAWNER_CONF=ssh
+        fi])
+    AC_SUBST(GASNET_IBVERBS_SPAWNER_CONF)
+    if test "$GASNET_IBVERBS_SPAWNER_CONF$have_mpi_compat" = mpino; then
+      AC_MSG_ERROR([--with-ibverbs-spawner=mpi requires MPI compatibility support which $mpi_reason])
+    fi
+    if test "$GASNET_IBVERBS_SPAWNER_CONF$have_fork" = sshno; then
+      AC_MSG_ERROR([--with-ibverbs-spawner=ssh requires fork() support which $fork_reason])
+    fi
+
+    gasnetc_ibverbs_max_hcas=2
+    GASNET_IF_ENABLED_WITH_AUTO(ibverbs-multirail, [Enable/disable IB Verbs over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ibv_multirail=yes, enabled_ibv_multirail=no, enabled_ibv_multirail=yes)
+    GASNET_WITH(ibverbs-max-hcas,
+       [maximum number of IB HCAs to open for multi-rail support (default is 2)],
+       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
+	  gasnetc_ibverbs_max_hcas="$withval"
+	else
+          AC_MSG_ERROR([--with-ibverbs-max-hcas requires a postive integer argument])
+        fi],
+       [AC_MSG_ERROR([--with-ibverbs-max-hcas requires a postive integer argument])],
+       [:])
+    if test "$enabled_ibv_multirail" = yes; then
+      AC_DEFINE_UNQUOTED(GASNETC_IBV_MAX_HCAS, $gasnetc_ibverbs_max_hcas)
+    fi
+  fi
+fi
+AC_SUBST(IBV_INCLUDE)
+AC_SUBST(IBV_LIBDIR)
+AC_SUBST(IBV_LIBS)
+AC_SUBST(IBV_NO_ALIAS)
+AM_CONDITIONAL(USE_IBVERBS_CONDUIT, test "$have_ibverbs" = yes)
+AM_CONDITIONAL(IBV_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
+AM_CONDITIONAL(IBV_RCV_THREAD,test "$enabled_ibverbs_rcv_thread" = yes)
+if test "$have_ibverbs" = yes ; then
+  CONDUITS="$CONDUITS ibverbs"
+  CONDUIT_REPORT(ON)
+else
+  CONDUIT_REPORT(OFF)
+fi
+popdef([CONDUIT_DESC])
+
+#--------------------------------------------------------------------------------------------------------
 # VAPI configuration
 
 pushdef([CONDUIT_DESC],[Mellanox InfiniBand/VAPI network conduit (vapi)])
@@ -2234,6 +2382,7 @@ else
   CONDUIT_REPORT(OFF)
 fi
 popdef([CONDUIT_DESC])
+
 #--------------------------------------------------------------------------------------------------------
 # Portals Conduit
 
@@ -2996,6 +3145,9 @@ vapi-conduit/Makefile
 vapi-conduit/conduit.mak
 vapi-conduit/contrib/Makefile
 vapi-conduit/contrib/gasnetrun_vapi
+
+ibverbs-conduit/Makefile
+ibverbs-conduit/conduit.mak
 
 shmem-conduit/Makefile
 shmem-conduit/conduit.mak
