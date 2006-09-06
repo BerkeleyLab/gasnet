@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2006/08/31 04:57:17 $
- * $Revision: 1.26 $
+ *     $Date: 2006/09/06 22:01:05 $
+ * $Revision: 1.26.2.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,8 +182,9 @@ void testSignalHandler(int sig) {
 }
 
 int main(int argc, char **argv) {
-  static char usagestr[4096];
-  char testdescstr[255];
+  #define MAXLINE 255
+  static char usagestr[MAXLINE*(NUMTEST+NUMCRASHTEST_WITH_PAR)];
+  char testdescstr[MAXLINE];
   gasnet_handlerentry_t htable[] = { 
     { hidx_exit_handler, test_exit_handler },
     { hidx_ping_handler, ping_handler },
@@ -198,20 +199,20 @@ int main(int argc, char **argv) {
     #endif
     strcat(usagestr, "\n\n Exit tests:\n");
     for (i = 0; i < NUMTEST; i++) {
-      char tmp[80];
-      sprintf(tmp,"  %3i: %s\n", i+1, testdesc[i]);
+      char tmp[MAXLINE];
+      snprintf(tmp,MAXLINE,"  %3i: %s\n", i+1, testdesc[i]);
       strcat(usagestr, tmp);
     }
     strcat(usagestr, "\n Crash tests:\n");
     for (i = 0; i < NUMCRASHTEST; i++) {
-      char tmp[80];
-      sprintf(tmp,"  %3i: %s\n", i+100, crashtestdesc[i]);
+      char tmp[MAXLINE];
+      snprintf(tmp,MAXLINE,"  %3i: %s\n", i+100, crashtestdesc[i]);
       strcat(usagestr, tmp);
     }
   #ifdef GASNET_PAR
     for (i = 0; i < NUMCRASHTEST; i++) {
-      char tmp[80];
-      sprintf(tmp,"  %3i: %s from one pthread, others in thread barrier\n", 
+      char tmp[MAXLINE];
+      snprintf(tmp,MAXLINE,"  %3i: %s from one pthread, others in thread barrier\n", 
                    (int)(i+100+NUMCRASHTEST), crashtestdesc[i]);
       strcat(usagestr, tmp);
     }

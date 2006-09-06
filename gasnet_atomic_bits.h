@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/09/01 21:15:18 $
- * $Revision: 1.248 $
+ *     $Date: 2006/09/06 22:00:59 $
+ * $Revision: 1.248.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -847,19 +847,37 @@
       uint32_t gasneti_atomic32_cmpxchg(uint32_t volatile *ptr, uint32_t oldval, uint32_t newval) {
         uint64_t tmp = oldval;
         __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(tmp));
-        __asm__ __volatile__ ("cmpxchg4.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("cmpxchg4.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "cmpxchg4.acq %0=[%1],%2,ar.ccv" : "=r"(tmp), "+r"(ptr) :  "r"(newval) );
+        #endif
         return (uint32_t) tmp;
       }
       GASNETI_INLINE(gasneti_atomic32_fetchandinc)
       uint32_t gasneti_atomic32_fetchandinc(uint32_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd4.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (1) );
+        #endif
         return (uint32_t) result;
       }
       GASNETI_INLINE(gasneti_atomic32_fetchanddec)
       uint32_t gasneti_atomic32_fetchanddec(uint32_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd4.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (-1) );
+        #endif
         return (uint32_t) result;
       }
 
@@ -867,19 +885,37 @@
       uint64_t gasneti_atomic64_cmpxchg(uint64_t volatile *ptr, uint64_t oldval, uint64_t newval) {
         uint64_t tmp = oldval;
         __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(tmp));
-        __asm__ __volatile__ ("cmpxchg8.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("cmpxchg8.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "cmpxchg8.acq %0=[%1],%2,ar.ccv" : "=r"(tmp), "+r"(ptr) :  "r"(newval) );
+        #endif
         return (uint64_t) tmp;
       }
       GASNETI_INLINE(gasneti_atomic64_fetchandinc)
       uint64_t gasneti_atomic64_fetchandinc(uint64_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd8.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (1) );
+        #endif
         return result;
       }
       GASNETI_INLINE(gasneti_atomic64_fetchanddec)
       uint64_t gasneti_atomic64_fetchanddec(uint64_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd8.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (-1) );
+        #endif
         return result;
       }
 

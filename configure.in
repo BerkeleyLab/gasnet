@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/09/03 13:45:34 $
-# $Revision: 1.403.2.2 $
+#     $Date: 2006/09/06 22:00:59 $
+# $Revision: 1.403.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.403.2.2 $)
+AC_REVISION($Revision: 1.403.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -977,7 +977,7 @@ AC_TRY_COMPILE([
 	/* Don't know, but fortunately don't currently care */
     #endif
   #else
-    /* N/A */
+    #error wrong CPU architecture
   #endif
 ], [AC_DEFINE(GASNETI_HAVE_X86_EBX)
     AC_MSG_RESULT(yes)
@@ -1705,9 +1705,6 @@ GASNET_IF_ENABLED(gm-rodata-workaround,
 	[gm_rodata_workaround=yes])
 AM_CONDITIONAL(GM_RODATA_WORKAROUND, test "$gm_rodata_workaround" = yes)
 CONDUIT_END([test "$enabled_gm$have_gm" = yesyes])
-if test "$enabled_gm$GASNETI_DISABLE_ALIGNED_SEGMENTS" = "yes1" ; then
-  GASNET_MSG_WARN([GM conduit does not support --disable-aligned-segments - ignoring for that conduit..])
-fi
 
 #--------------------------------------------------------------------------------------------------------
 # LAPI configuration

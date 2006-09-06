@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/09/04 01:53:10 $
-# $Revision: 1.66.2.4 $
+#     $Date: 2006/09/06 22:00:59 $
+# $Revision: 1.66.2.5 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -17,7 +17,9 @@ SUBDIRS = .          \
 # GASNET_TOOLSONLY_TRUE_BEGIN
 # CONDUITMODE_DIST_SUBDIRS = 
 # CONDUITMODE_headers = 
-# CONDUITMODE_EXTRA_DIST = README-tools
+# CONDUITMODE_EXTRA_DIST = 	\
+# 	README-tools 		\
+# 	.gasnet_toolsonly_mode 
 # GASNET_TOOLSONLY_TRUE_END
 # GASNET_TOOLSONLY_FALSE_BEGIN
   # Directories we manually recurse into:

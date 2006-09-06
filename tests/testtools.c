@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/08/26 08:03:05 $
- * $Revision: 1.73 $
+ *     $Date: 2006/09/06 22:01:05 $
+ * $Revision: 1.73.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
     int i;
     gasnett_tick_t begin, start, end;
     uint64_t beginref, startref, endref;
-    int timeiters = iters / 10;
+    int timeiters = MAX(1,iters / 10);
     gasnett_tick_t ticktimemin = GASNETT_TICK_MIN;
     gasnett_tick_t ticktimemax = GASNETT_TICK_MAX;
 
@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
         start = gasnett_ticks_now(); /* inner time point */
         startref = gasnett_gettimeofday_us();
       }
-      if (i % (timeiters/3) == 0) sleep(1); /* sleep wait */
+      if (i % MAX(1,timeiters/3) == 0) sleep(1); /* sleep wait */
       { /* busy wait */
         gasnett_tick_t last = start;
         do {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/07/17 20:05:22 $
- * $Revision: 1.112 $
+ *     $Date: 2006/09/06 22:00:59 $
+ * $Revision: 1.112.6.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -140,6 +140,9 @@
      #else
        #define gasneti_compiler_fence() _flush_globals() /* compiler intrinsic forces spills */
      #endif
+   #elif PLATFORM_COMPILER_GNU
+     /* Empty asm causes strange problems (bug 1735). */
+     #define gasneti_compiler_fence() GASNETI_ASM("NOP")
    #endif
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_X86

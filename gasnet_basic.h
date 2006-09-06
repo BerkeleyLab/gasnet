@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/08/08 09:56:37 $
- * $Revision: 1.80 $
+ *     $Date: 2006/09/06 22:00:59 $
+ * $Revision: 1.80.6.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -309,7 +309,7 @@
 #else
   #define GASNETI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
 #endif
-#if PLATFORM_COMPILER_GCC
+#if PLATFORM_COMPILER_GNU
   /* gcc allows format attribute on a pointer-to-function */
   #define GASNETI_FORMAT_PRINTF_FUNCPTR GASNETI_FORMAT_PRINTF
 #else
