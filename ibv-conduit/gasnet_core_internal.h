@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/04/19 19:55:33 $
- * $Revision: 1.134 $
+ *     $Date: 2006/09/06 22:00:18 $
+ * $Revision: 1.134.18.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,9 +19,7 @@
   #include <mpi-spawner/gasnet_bootstrap_internal.h>
 #endif
 
-#include <vapi.h>
-#include <evapi.h>
-#include <vapi_common.h>
+#include <infiniband/verbs.h>
 
 #if HAVE_MMAP
   #include <sys/mman.h> /* For MAP_FAILED */
@@ -33,9 +31,9 @@
 #define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES)-(SZ))
 
 /* check (even in optimized build) for VAPI errors */
-#define GASNETC_VAPI_CHECK(vstat,msg) \
-  if_pf ((vstat) != VAPI_OK) \
-    { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(vstat),(msg)); }
+#define GASNETC_VAPI_CHECK(rc,msg) \
+  if_pf ((rc) != 0) \
+    { gasneti_fatalerror("Unexpected error %d %s",(rc),(msg)); }
 
 /* check for exit in progress */
 extern gasneti_atomic_t gasnetc_exit_running;
@@ -227,20 +225,53 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 
 /* ------------------------------------------------------------------------------------ */
 
+/* THUNKS: */
+typedef uint32_t VAPI_lkey_t;
+typedef uint32_t VAPI_rkey_t;
+typedef uint32_t VAPI_qp_num_t;
+typedef uint16_t IB_lid_t;
+typedef uint8_t IB_port_t;
+typedef enum ibv_access_flags VAPI_mrw_acl_t;
+typedef struct ibv_mr *VAPI_mr_hndl_t;
+typedef struct ibv_context *VAPI_hca_hndl_t;
+typedef struct ibv_cq *VAPI_cq_hndl_t;
+typedef struct ibv_pd *VAPI_pd_hndl_t;
+typedef struct ibv_qp *VAPI_qp_hndl_t;
+typedef struct ibv_recv_wr VAPI_rr_desc_t;
+typedef struct ibv_send_wr VAPI_sr_desc_t;
+typedef struct ibv_sge VAPI_sg_lst_entry_t;
+typedef struct ibv_wc VAPI_wc_desc_t;
+typedef enum ibv_wc_status VAPI_wc_status_t;
+typedef enum ibv_wc_opcode VAPI_wc_opcode_t;
+typedef enum ibv_wr_opcode VAPI_wr_opcode_t;
+
+typedef struct ibv_device_attr VAPI_hca_cap_t;
+typedef struct ibv_port_attr VAPI_hca_port_t;
+
+typedef int VAPI_ret_t;			/* XXX: move into some call wrapper? */
+#define VAPI_OK 0
+
+typedef void *VAPI_hca_vendor_t;	/* XXX: fold into device_attr */
+typedef void *EVAPI_compl_handler_hndl_t; /* XXX: remove or replace w/ "channel" concept */
+
+#define PORT_DOWN IBV_PORT_DOWN
+#define PORT_INITIALIZE IBV_PORT_INIT
+#define PORT_ACTIVE IBV_PORT_ACTIVE
+#define PORT_ARMED IBV_PORT_ARMED
+
+#define VAPI_EN_LOCAL_WRITE IBV_ACCESS_LOCAL_WRITE
+#define VAPI_EN_REMOTE_WRITE IBV_ACCESS_REMOTE_WRITE
+#define VAPI_EN_REMOTE_READ IBV_ACCESS_REMOTE_READ
 
 /* Description of a pre-pinned memory region */
 typedef struct {
   VAPI_mr_hndl_t	handle;	/* used to release or modify the region */
-  VAPI_lkey_t		lkey;	/* used for local access by HCA */
-  VAPI_rkey_t		rkey;	/* used for remote access by HCA */
-  VAPI_hca_hndl_t	hca_hndl;
+  VAPI_lkey_t		lkey;	/* used for local access by HCA */	/* XXX: redundant */
+  VAPI_rkey_t		rkey;	/* used for remote access by HCA */	/* XXX: redundant */
+  VAPI_hca_hndl_t	hca_hndl;					/* XXX: redundant */
   uintptr_t		addr;
   size_t		len;
   uintptr_t		end;	/* inclusive */
-
-  /* requested values, before rounding by HCA */
-  void *		req_addr;
-  size_t		req_size;
 } gasnetc_memreg_t;
 
 /* Structure for an HCA */
@@ -259,9 +290,9 @@ typedef struct {
   EVAPI_fmr_t		fmr_props;
 #endif
   int			hca_index;
-  char			*hca_id;
+  const char		*hca_id;
   VAPI_hca_cap_t	hca_cap;
-  VAPI_hca_vendor_t	hca_vendor;
+  VAPI_hca_vendor_t	hca_vendor;	/* XXX: fold into hca_cap */
   int			qps; /* qps per peer */
   int			total_qps; /* total over all peers */
 
@@ -331,7 +362,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 /* General routines in gasnet_core.c */
 extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
 extern void gasnetc_unpin(gasnetc_memreg_t *reg);
-#define gasnetc_unmap(reg)	gasneti_munmap((reg)->req_addr, (reg)->req_size)
+#define gasnetc_unmap(reg)	gasneti_munmap((void *)((reg)->addr), (reg)->len)
 
 /* Global configuration variables */
 extern int		gasnetc_op_oust_limit;
