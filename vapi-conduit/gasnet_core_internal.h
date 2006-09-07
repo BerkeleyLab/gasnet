@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/09/07 01:11:23 $
- * $Revision: 1.134.18.3 $
+ *     $Date: 2006/09/07 03:32:44 $
+ * $Revision: 1.134.18.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -237,7 +237,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* Map VAPI and IBV type systems to a common gasnetc_ prefix */
+/* Map VAPI and IBV to a common gasnetc_ prefix */
 
 #ifdef XXX_BUILD_VAPI
   typedef VAPI_lkey_t		gasnetc_lkey_t;
@@ -260,6 +260,36 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   typedef VAPI_sr_desc_t	gasnetc_snd_wr_t;
   typedef VAPI_wc_desc_t	gasnetc_wc_t;
   typedef VAPI_sg_lst_entry_t	gasnetc_sge_t;
+
+  #define GASNETC_PORT_DOWN	PORT_DOWN
+  #define GASNETC_PORT_INIT	PORT_INITIALIZE
+  #define GASNETC_PORT_ACTIVE	PORT_ACTIVE
+  #define GASNETC_PORT_ARMED	PORT_ARMED
+  
+  #define GASNETC_ACL_LOC_WR	VAPI_EN_LOCAL_WRITE
+  #define GASNETC_ACL_REM_WR	VAPI_EN_REMOTE_WRITE
+  #define GASNETC_ACL_REM_RD	VAPI_EN_REMOTE_READ
+
+  #define GASNETC_INVAL_MR_HNDL	VAPI_INVAL_HNDL
+
+  #define GASNETC_WC_SUCCESS	IB_COMP_SUCCESS
+  #define GASNETC_WC_FLUSH_ERR	IB_COMP_WR_FLUSH_ERR
+  #define GASNETC_WC_RDMA_READ	VAPI_CQE_SQ_RDMA_READ
+  #define GASNETC_WC_RDMA_WRITE	VAPI_CQE_SQ_RDMA_WRITE
+  #define GASNETC_WC_SEND	VAPI_CQE_SQ_SEND_DATA
+
+  #define GASNETC_WR_RDMA_READ	VAPI_RDMA_READ
+  #define GASNETC_WR_RDMA_WRITE	VAPI_RDMA_WRITE
+  #define GASNETC_WR_SEND_WITH_IMM VAPI_SEND_WITH_IMM
+
+  #define gasnetc_close_hca(_hca)		EVAPI_release_hca_hndl(_hca)
+  #define gasnetc_dealloc_pd(_hca,_pd)		VAPI_dealloc_pd((_hca),(_pd))
+  #define gasnetc_poll_snd_cq(_hca,_comp_p)	VAPI_poll_cq((_hca)->handle,(_hca)->snd_cq,(_comp_p))
+  #define gasnetc_poll_rcv_cq(_hca,_comp_p)	VAPI_poll_cq((_hca)->handle,(_hca)->rcv_cq,(_comp_p))
+  #define gasnetc_peek_snd_cq(_hca,_num)	EVAPI_peek_cq((_hca)->handle,(_hca)->snd_cq,(_num))
+  #define gasnetc_peek_rcv_cq(_hca,_num)	EVAPI_peek_cq((_hca)->handle,(_hca)->rcv_cq,(_num))
+  #define gasnetc_destroy_cq(_hca,_cq)		VAPI_destroy_cq((_hca),(_cq))
+  #define gasnetc_destroy_qp(_hca,_qp)		VAPI_destroy_qp((_hca),(_qp))
 #else
   typedef uint32_t		gasnetc_lkey_t;
   typedef uint32_t		gasnetc_rkey_t;
@@ -281,20 +311,36 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   typedef struct ibv_send_wr	gasnetc_snd_wr_t;
   typedef struct ibv_wc		gasnetc_wc_t;
   typedef struct ibv_sge	gasnetc_sge_t;
-#endif
 
-/* ------------------------------------------------------------------------------------ */
-/* XXX: Need to map these and other constants to a GASNETC_ namespace */
-
-#ifndef XXX_BUILD_VAPI
-  #define PORT_DOWN		IBV_PORT_DOWN
-  #define PORT_INITIALIZE	IBV_PORT_INIT
-  #define PORT_ACTIVE		IBV_PORT_ACTIVE
-  #define PORT_ARMED		IBV_PORT_ARMED
+  #define GASNETC_PORT_DOWN	IBV_PORT_DOWN
+  #define GASNETC_PORT_INIT	IBV_PORT_INIT
+  #define GASNETC_PORT_ACTIVE	IBV_PORT_ACTIVE
+  #define GASNETC_PORT_ARMED	IBV_PORT_ARMED
   
-  #define VAPI_EN_LOCAL_WRITE	IBV_ACCESS_LOCAL_WRITE
-  #define VAPI_EN_REMOTE_WRITE	IBV_ACCESS_REMOTE_WRITE
-  #define VAPI_EN_REMOTE_READ	IBV_ACCESS_REMOTE_READ
+  #define GASNETC_ACL_LOC_WR	IBV_ACCESS_LOCAL_WRITE
+  #define GASNETC_ACL_REM_WR	IBV_ACCESS_REMOTE_WRITE
+  #define GASNETC_ACL_REM_RD	IBV_ACCESS_REMOTE_READ
+
+  #define GASNETC_INVAL_MR_HNDL	NULL
+
+  #define GASNETC_WC_SUCCESS	IBV_WC_SUCCESS
+  #define GASNETC_WC_FLUSH_ERR	IBV_WC_WR_FLUSH_ERR
+  #define GASNETC_WC_RDMA_READ	IBV_WC_RDMA_READ
+  #define GASNETC_WC_RDMA_WRITE	IBV_WC_RDMA_WRITE
+  #define GASNETC_WC_SEND	IBV_WC_SEND
+
+  #define GASNETC_WR_RDMA_READ	IBV_WR_RDMA_READ
+  #define GASNETC_WR_RDMA_WRITE	IBV_WR_RDMA_WRITE
+  #define GASNETC_WR_SEND_WITH_IMM IBV_WR_SEND_WITH_IMM
+
+  #define gasnetc_close_hca(_hca)		((void)ibv_close_device(_hca))
+  #define gasnetc_dealloc_pd(_hca,_pd)		((void)ibv_dealloc_pd(_pd))
+  #define gasnetc_poll_snd_cq(_hca,_comp_p)	ibv_poll_cq((_hca)->snd_cq,1,(_comp_p))
+  #define gasnetc_poll_rcv_cq(_hca,_comp_p)	ibv_poll_cq((_hca)->rcv_cq,1,(_comp_p))
+  #define gasnetc_peek_snd_cq(_hca,_num)	ERROR___no_peek_cq_support
+  #define gasnetc_peek_rcv_cq(_hca,_num)	ERROR___no_peek_cq_support
+  #define gasnetc_destroy_cq(_hca,_cq)		ibv_destroy_cq(_cq)
+  #define gasnetc_destroy_qp(_hca,_qp)		ibv_destroy_qp(_qp)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
