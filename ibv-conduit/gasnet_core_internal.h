@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/09/07 00:27:47 $
- * $Revision: 1.134.18.2 $
+ *     $Date: 2006/09/07 01:11:23 $
+ * $Revision: 1.134.18.3 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,7 +39,7 @@
 /* check (even in optimized build) for VAPI errors */
 #ifdef XXX_BUILD_VAPI
   #define GASNETC_VAPI_CHECK(rc,msg) \
-    if_pf ((rc) != VAPI_OK) \
+    if_pf ((rc) != 0) \
       { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(rc),(msg)); }
 #else
   #define GASNETC_VAPI_CHECK(rc,msg) \
@@ -237,37 +237,56 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Map VAPI and IBV type systems to a common gasnetc_ prefix */
+
+#ifdef XXX_BUILD_VAPI
+  typedef VAPI_lkey_t		gasnetc_lkey_t;
+  typedef VAPI_rkey_t		gasnetc_rkey_t;
+  typedef IB_port_t		gasnetc_port_t;
+  typedef VAPI_mrw_acl_t	gasnetc_acl_t;
+  typedef VAPI_wc_status_t	gasnetc_wc_status_t;
+  typedef VAPI_wr_opcode_t	gasnetc_wr_opcode_t;
+
+  typedef VAPI_hca_hndl_t	gasnetc_hca_hndl_t;
+  typedef VAPI_pd_hndl_t	gasnetc_pd_hndl_t;
+  typedef VAPI_mr_hndl_t	gasnetc_mr_hndl_t;
+  typedef VAPI_cq_hndl_t	gasnetc_cq_hndl_t;
+  typedef VAPI_qp_hndl_t	gasnetc_qp_hndl_t;
+  
+  typedef VAPI_hca_cap_t	gasnetc_hca_cap_t;
+  typedef VAPI_hca_port_t	gasnetc_hca_port_t;
+
+  typedef VAPI_rr_desc_t	gasnetc_rcv_wr_t;
+  typedef VAPI_sr_desc_t	gasnetc_snd_wr_t;
+  typedef VAPI_wc_desc_t	gasnetc_wc_t;
+  typedef VAPI_sg_lst_entry_t	gasnetc_sge_t;
+#else
+  typedef uint32_t		gasnetc_lkey_t;
+  typedef uint32_t		gasnetc_rkey_t;
+  typedef uint8_t		gasnetc_port_t;
+  typedef enum ibv_access_flags	gasnetc_acl_t;
+  typedef enum ibv_wc_status	gasnetc_wc_status_t;
+  typedef enum ibv_wr_opcode	gasnetc_wr_opcode_t;
+
+  typedef struct ibv_context	*gasnetc_hca_hndl_t;
+  typedef struct ibv_pd		*gasnetc_pd_hndl_t;
+  typedef struct ibv_mr		*gasnetc_mr_hndl_t;
+  typedef struct ibv_cq		*gasnetc_cq_hndl_t;
+  typedef struct ibv_qp		*gasnetc_qp_hndl_t;
+  
+  typedef struct ibv_device_attr gasnetc_hca_cap_t;
+  typedef struct ibv_port_attr	gasnetc_hca_port_t;
+
+  typedef struct ibv_recv_wr	gasnetc_rcv_wr_t;
+  typedef struct ibv_send_wr	gasnetc_snd_wr_t;
+  typedef struct ibv_wc		gasnetc_wc_t;
+  typedef struct ibv_sge	gasnetc_sge_t;
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+/* XXX: Need to map these and other constants to a GASNETC_ namespace */
 
 #ifndef XXX_BUILD_VAPI
-  /* THUNKS: */
-  typedef uint32_t VAPI_lkey_t;
-  typedef uint32_t VAPI_rkey_t;
-  typedef uint32_t VAPI_qp_num_t;
-  typedef uint16_t IB_lid_t;
-  typedef uint8_t IB_port_t;
-  typedef enum ibv_access_flags VAPI_mrw_acl_t;
-  typedef struct ibv_mr *VAPI_mr_hndl_t;
-  typedef struct ibv_context *VAPI_hca_hndl_t;
-  typedef struct ibv_cq *VAPI_cq_hndl_t;
-  typedef struct ibv_pd *VAPI_pd_hndl_t;
-  typedef struct ibv_qp *VAPI_qp_hndl_t;
-  typedef struct ibv_recv_wr VAPI_rr_desc_t;
-  typedef struct ibv_send_wr VAPI_sr_desc_t;
-  typedef struct ibv_sge VAPI_sg_lst_entry_t;
-  typedef struct ibv_wc VAPI_wc_desc_t;
-  typedef enum ibv_wc_status VAPI_wc_status_t;
-  typedef enum ibv_wc_opcode VAPI_wc_opcode_t;
-  typedef enum ibv_wr_opcode VAPI_wr_opcode_t;
-  
-  typedef struct ibv_device_attr VAPI_hca_cap_t;
-  typedef struct ibv_port_attr VAPI_hca_port_t;
-  
-  typedef int VAPI_ret_t;			/* XXX: move into some call wrapper(s)? */
-  #define VAPI_OK 0				/* XXX: move into some call wrapper(s)? */
-  
-  typedef void *VAPI_hca_vendor_t;	/* XXX: fold into device_attr */
-  typedef void *EVAPI_compl_handler_hndl_t; /* XXX: remove or replace w/ "channel" concept */
-  
   #define PORT_DOWN		IBV_PORT_DOWN
   #define PORT_INITIALIZE	IBV_PORT_INIT
   #define PORT_ACTIVE		IBV_PORT_ACTIVE
@@ -278,12 +297,14 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define VAPI_EN_REMOTE_READ	IBV_ACCESS_REMOTE_READ
 #endif
 
+/* ------------------------------------------------------------------------------------ */
+
 /* Description of a pre-pinned memory region */
 typedef struct {
-  VAPI_mr_hndl_t	handle;	/* used to release or modify the region */
-  VAPI_lkey_t		lkey;	/* used for local access by HCA */	/* XXX: redundant w/ ibv */
-  VAPI_rkey_t		rkey;	/* used for remote access by HCA */	/* XXX: redundant w/ ibv */
-  VAPI_hca_hndl_t	hca_hndl;					/* XXX: redundant w/ ibv */
+  gasnetc_mr_hndl_t	handle;	/* used to release or modify the region */
+  gasnetc_lkey_t	lkey;	/* used for local access by HCA */	/* XXX: redundant w/ ibv */
+  gasnetc_rkey_t	rkey;	/* used for remote access by HCA */	/* XXX: redundant w/ ibv */
+  gasnetc_hca_hndl_t	hca_hndl;					/* XXX: redundant w/ ibv */
   uintptr_t		addr;
   size_t		len;
   uintptr_t		end;	/* inclusive */
@@ -291,22 +312,22 @@ typedef struct {
 
 /* Structure for an HCA */
 typedef struct {
-  VAPI_hca_hndl_t	handle;
+  gasnetc_hca_hndl_t	handle;
   gasnetc_memreg_t	rcv_reg;
   gasnetc_memreg_t	snd_reg;
 #if GASNETC_PIN_SEGMENT
   gasnetc_memreg_t	*seg_reg;
-  VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time */
+  gasnetc_rkey_t	*rkeys;	/* RKey(s) registered at attach time */
 #endif
-  VAPI_cq_hndl_t	rcv_cq;
-  VAPI_cq_hndl_t	snd_cq;
-  VAPI_pd_hndl_t	pd;
+  gasnetc_cq_hndl_t	rcv_cq;
+  gasnetc_cq_hndl_t	snd_cq;
+  gasnetc_pd_hndl_t	pd;
 #if FIREHOSE_VAPI_USE_FMR
   EVAPI_fmr_t		fmr_props;
 #endif
   int			hca_index;
   const char		*hca_id;
-  VAPI_hca_cap_t	hca_cap;
+  gasnetc_hca_cap_t	hca_cap;
 #ifdef XXX_BUILD_VAPI
   VAPI_hca_vendor_t	hca_vendor;
 #endif
@@ -316,19 +337,21 @@ typedef struct {
   void			*rbuf_alloc;
   gasneti_lifo_head_t	rbuf_freelist;
 
+#ifdef XXX_BUILD_VAPI
   /* Rcv thread */
   EVAPI_compl_handler_hndl_t rcv_handler;
   void			*rcv_thread_priv;
+#endif
 } gasnetc_hca_t;
 
 /* Keys in a cep, all replicated from other data */
 struct gasnetc_cep_keys_ {
 #if GASNETC_PIN_SEGMENT
   gasnetc_memreg_t	*seg_reg;
-  VAPI_rkey_t		*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
+  gasnetc_rkey_t	*rkeys;	/* RKey(s) registered at attach time (== uint32_t) */
 #endif
-  VAPI_lkey_t		rcv_lkey;
-  VAPI_lkey_t		snd_lkey;
+  gasnetc_lkey_t	rcv_lkey;
+  gasnetc_lkey_t	snd_lkey;
 };
 
 /* Structure for a cep (connection end-point) */
@@ -347,15 +370,15 @@ typedef struct {
   struct gasnetc_cep_keys_ keys;
   gasneti_lifo_head_t	*rbuf_freelist;	/* Source of rcv buffers for AMs */
   gasnetc_hca_t		*hca;
-  VAPI_qp_hndl_t	qp_handle;	/* == unsigned long */
-  VAPI_hca_hndl_t	hca_handle;	/* == uint32_t */
+  gasnetc_qp_hndl_t	qp_handle;
+  gasnetc_hca_hndl_t	hca_handle;
   int			hca_index;
   gasnetc_epid_t	epid;		/* == uint32_t */
   char			_pad1[GASNETC_CACHE_PAD(sizeof(struct gasnetc_cep_keys_) +
 						sizeof(gasneti_lifo_head_t*)+
 						sizeof(gasnetc_hca_t*)+
-						sizeof(VAPI_qp_hndl_t)+
-						sizeof(VAPI_hca_hndl_t)+
+						sizeof(gasnetc_qp_hndl_t)+
+						sizeof(gasnetc_hca_hndl_t)+
 						sizeof(int)+
 						sizeof(gasnetc_epid_t))];
 } gasnetc_cep_t;
@@ -377,7 +400,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				int numargs, gasnetc_counter_t *mem_oust, va_list argptr);
 
 /* General routines in gasnet_core.c */
-extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg);
+extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg);
 extern void gasnetc_unpin(gasnetc_memreg_t *reg);
 #define gasnetc_unmap(reg)	gasneti_munmap((void *)((reg)->addr), (reg)->len)
 
