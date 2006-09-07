@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2006/09/06 22:14:26 $
- * $Revision: 1.12.32.2 $
+ *     $Date: 2006/09/07 01:11:23 $
+ * $Revision: 1.12.32.3 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -37,7 +37,7 @@ firehose_move_callback(gasnet_node_t node,
 #if FIREHOSE_VAPI_USE_FMR
 {
     GASNETC_TRACE_WAIT_BEGIN();
-    VAPI_ret_t    vstat;
+    int vstat;
     EVAPI_fmr_map_t map;
     EVAPI_fmr_hndl_t *handles;
     int repin_num;
@@ -106,7 +106,7 @@ firehose_move_callback(gasnet_node_t node,
 #elif XXX_BUILD_VAPI
 {
     GASNETC_TRACE_WAIT_BEGIN();
-    VAPI_ret_t    vstat;
+    int           vstat;
     VAPI_mr_t     mr_in;
     int repin_num;
     int h, i;

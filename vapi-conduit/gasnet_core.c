@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/09/07 00:27:47 $
- * $Revision: 1.173.4.2 $
+ *     $Date: 2006/09/07 01:11:23 $
+ * $Revision: 1.173.4.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,8 +106,13 @@ firehose_info_t	gasnetc_firehose_info;
 
 /* Used only once, to exchange addresses at connection time */
 typedef struct _gasnetc_addr_t {
-  IB_lid_t	lid;
-  VAPI_qp_num_t	qp_num;
+  #ifdef XXX_BUILD_VAPI
+    VAPI_qp_num_t	qp_num;
+    IB_lid_t		lid;
+  #else
+    uint32_t		qp_num;
+    uint16_t		lid;
+  #endif
 } gasnetc_addr_t;
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
@@ -169,11 +174,11 @@ extern void gasnetc_unpin(gasnetc_memreg_t *reg) {
 #endif
 }
 
-extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg) {
+extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg) {
 #ifdef XXX_BUILD_VAPI
   VAPI_mr_t	mr_in;
   VAPI_mr_t	mr_out;
-  VAPI_ret_t	vstat;
+  int		vstat;
 
   gasneti_assert(((uintptr_t)addr % GASNET_PAGESIZE) == 0);
   gasneti_assert(((uintptr_t)size % GASNET_PAGESIZE) == 0);
@@ -214,7 +219,7 @@ extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_
 }
 
 static void *gasnetc_try_pin_inner(size_t size, gasnetc_memreg_t *reg) {
-  VAPI_ret_t vstat;
+  int vstat;
   void *addr;
   int h;
 
@@ -554,8 +559,8 @@ static void gasneti_bootstrapInit(int *argc_p, char ***argv_p,
 /* Info used while probing for HCAs/ports */
 typedef struct {
   int			hca_index;	/* Slot in gasnetc_hca[] */
-  IB_port_t		port_num;	/* Port number */
-  VAPI_hca_port_t	port;		/* Port info */
+  gasnetc_port_t	port_num;	/* Port number */
+  gasnetc_hca_port_t	port;		/* Port info */
   int			rd_atom;
 } gasnetc_port_info_t;
 typedef struct gasnetc_port_list_ {
@@ -733,8 +738,8 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
     const char *hca_name = ibv_get_device_name(hca_list[curr_hca]);
     int rc;
 #endif
-    VAPI_hca_hndl_t	hca_handle;
-    VAPI_hca_cap_t	hca_cap;
+    gasnetc_hca_hndl_t	hca_handle;
+    gasnetc_hca_cap_t	hca_cap;
     int found = 0;
     int curr_port;
 
@@ -864,7 +869,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_hca_t		*hca;
   gasnetc_addr_t	*local_addr;
   gasnetc_addr_t	*remote_addr;
-  VAPI_ret_t		vstat;
+  int			vstat;
   int			ceps;
   int 			num_ports;
   int 			h, i;
@@ -1679,15 +1684,15 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnetc_max_regs = (maxsize + gasnetc_pin_maxsz - 1) >> gasnetc_pin_maxsz_shift;
 
     /* pin the segment and exchange the RKeys, once per HCA */
-    { VAPI_rkey_t	*my_rkeys;
-      VAPI_ret_t	vstat;
+    { gasnetc_rkey_t	*my_rkeys;
+      int		vstat;
       int		j;
 
-      my_rkeys = gasneti_calloc(gasnetc_max_regs, sizeof(VAPI_rkey_t));
+      my_rkeys = gasneti_calloc(gasnetc_max_regs, sizeof(gasnetc_rkey_t));
       GASNETC_FOR_ALL_HCA(hca) {
         size_t		remain;
         uintptr_t		addr;
-        hca->rkeys = gasneti_calloc(gasneti_nodes*gasnetc_max_regs, sizeof(VAPI_rkey_t));
+        hca->rkeys = gasneti_calloc(gasneti_nodes*gasnetc_max_regs, sizeof(gasnetc_rkey_t));
         hca->seg_reg = gasneti_calloc(gasnetc_max_regs, sizeof(gasnetc_memreg_t));
 
         for (j = 0, addr = gasnetc_seg_start, remain = segsize; remain != 0; ++j) {
@@ -1702,7 +1707,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           gasneti_assert(j <= gasnetc_max_regs);
         }
 
-        gasneti_bootstrapExchange(my_rkeys, gasnetc_max_regs*sizeof(VAPI_rkey_t), hca->rkeys);
+        gasneti_bootstrapExchange(my_rkeys, gasnetc_max_regs*sizeof(gasnetc_rkey_t), hca->rkeys);
       }
       gasnetc_seg_reg_count = j;
       gasneti_free(my_rkeys);
