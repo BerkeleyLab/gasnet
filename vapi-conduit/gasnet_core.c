@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/09/06 22:00:18 $
- * $Revision: 1.173.4.1 $
+ *     $Date: 2006/09/07 00:27:47 $
+ * $Revision: 1.173.4.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,9 +71,14 @@ GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
 /*
   These calues cannot yet be overridden by environment variables.
 */
-#define GASNETC_QP_PATH_MTU		IBV_MTU_1024
+#ifdef XXX_BUILD_VAPI
+  #define GASNETC_QP_PATH_MTU		MTU1024
+  #define GASNETC_QP_MIN_RNR_TIMER	IB_RNR_NAK_TIMER_0_08
+#else
+  #define GASNETC_QP_PATH_MTU		IBV_MTU_1024
+  #define GASNETC_QP_MIN_RNR_TIMER	6	/*IB_RNR_NAK_TIMER_0_08*/
+#endif
 #define GASNETC_QP_STATIC_RATE		0
-#define GASNETC_QP_MIN_RNR_TIMER	6	/*IB_RNR_NAK_TIMER_0_08*/
 #define GASNETC_QP_RNR_RETRY		7	/* retry forever, but almost never happens */
 #define GASNETC_QP_TIMEOUT		18	/* about 1s */
 #define GASNETC_QP_RETRY_COUNT		7
@@ -155,11 +160,41 @@ static void gasnetc_check_config() {
 }
 
 extern void gasnetc_unpin(gasnetc_memreg_t *reg) {
+#ifdef XXX_BUILD_VAPI
+  int rc = VAPI_deregister_mr(reg->hca_hndl, reg->handle);
+  GASNETC_VAPI_CHECK(rc, "from VAPI_deregister_mr()");
+#else
   int rc = ibv_dereg_mr(reg->handle);
   GASNETC_VAPI_CHECK(rc, "from ibv_dereg_mr()");
+#endif
 }
 
 extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_mrw_acl_t acl, gasnetc_memreg_t *reg) {
+#ifdef XXX_BUILD_VAPI
+  VAPI_mr_t	mr_in;
+  VAPI_mr_t	mr_out;
+  VAPI_ret_t	vstat;
+
+  gasneti_assert(((uintptr_t)addr % GASNET_PAGESIZE) == 0);
+  gasneti_assert(((uintptr_t)size % GASNET_PAGESIZE) == 0);
+
+  mr_in.type    = VAPI_MR;
+  mr_in.start   = (uintptr_t)addr;
+  mr_in.size    = size;
+  mr_in.pd_hndl = hca->pd;
+  mr_in.acl     = acl;
+
+  vstat = VAPI_register_mr(hca->handle, &mr_in, &reg->handle, &mr_out);
+
+  reg->hca_hndl = hca->handle;
+  reg->lkey     = mr_out.l_key;
+  reg->rkey     = mr_out.r_key;
+  reg->addr     = mr_out.start;
+  reg->len      = mr_out.size;
+  reg->end      = mr_out.start + (mr_out.size - 1);
+
+  return vstat;
+#else
   gasneti_assert(((uintptr_t)addr % GASNET_PAGESIZE) == 0);
   gasneti_assert(((uintptr_t)size % GASNET_PAGESIZE) == 0);
 
@@ -175,6 +210,7 @@ extern VAPI_ret_t gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, VAPI_
   reg->end      = (uintptr_t)addr + (size - 1);
 
   return 0;
+#endif
 }
 
 static void *gasnetc_try_pin_inner(size_t size, gasnetc_memreg_t *reg) {
@@ -295,9 +331,17 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
+#ifndef XXX_BUILD_VAPI
   gasnetc_pin_info.regions = gasnetc_hca[0].hca_cap.max_mr;
+#else
+  gasnetc_pin_info.regions = gasnetc_hca[0].hca_cap.max_num_mr;
+#endif
   for (i = 1; i < gasnetc_num_hcas; ++i) {
+#ifndef XXX_BUILD_VAPI
     gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_hca[i].hca_cap.max_mr);
+#else
+    gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_hca[i].hca_cap.max_num_mr);
+#endif
   }
 
   if (do_probe) {
@@ -622,13 +666,19 @@ gasnetc_parse_ports(const char *p) {
 
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
 static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
-  gasnetc_port_info_t	*port_tbl;
+#ifdef XXX_BUILD_VAPI
+  VAPI_hca_id_t		*hca_ids;
+  u_int32_t		num_hcas;	/* Type specified by Mellanox */
+#else
   struct ibv_device	**hca_list;
   int			num_hcas;
+#endif
+  gasnetc_port_info_t	*port_tbl;
   int			max_ports = *port_count_p;
   int			port_count = 0;
   int			hca_count = 0;
   int			curr_hca;
+  int			rc;
 
   if (gasnetc_parse_ports(gasnetc_vapi_ports)) {
     GASNETI_TRACE_PRINTF(C,("Failed to parse GASNET_VAPI_PORTS='%s'", gasnetc_vapi_ports));
@@ -645,12 +695,24 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
 
   port_tbl = gasneti_calloc(max_ports, sizeof(gasnetc_port_info_t));
   num_hcas = 0; /* call will overwrite with actual count */
+#ifdef XXX_BUILD_VAPI
+  rc = EVAPI_list_hcas(0, &num_hcas, NULL);
+  if (((rc != VAPI_OK) && (rc != VAPI_EAGAIN)) || (num_hcas == 0)) {
+    GASNETI_TRACE_PRINTF(C,("Probe failed to locate any HCAs"));
+    gasnetc_clear_ports();
+    return NULL;
+  }
+  hca_ids = gasneti_calloc(num_hcas, sizeof(VAPI_hca_id_t));
+  rc = EVAPI_list_hcas(num_hcas, &num_hcas, hca_ids);
+  GASNETC_VAPI_CHECK(rc, "while enumerating HCAs");
+#else
   hca_list = ibv_get_device_list(&num_hcas);
   if ((hca_list == NULL) || (num_hcas == 0)) {
     GASNETI_TRACE_PRINTF(C,("Probe failed to locate any HCAs"));
     gasnetc_clear_ports();
     return NULL;
   }
+#endif
 
   if ((num_hcas > GASNETC_VAPI_MAX_HCAS) && (gasnetc_port_list == NULL)) {
     fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured with '--with-vapi-max-hcas="
@@ -664,18 +726,37 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
   for (curr_hca = 0;
        (hca_count < GASNETC_VAPI_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
        ++curr_hca) {
+#ifdef XXX_BUILD_VAPI
+    VAPI_hca_vendor_t	hca_vendor;
+    const char *hca_name = hca_ids[curr_hca];
+#else
     const char *hca_name = ibv_get_device_name(hca_list[curr_hca]);
+    int rc;
+#endif
     VAPI_hca_hndl_t	hca_handle;
     VAPI_hca_cap_t	hca_cap;
     int found = 0;
     int curr_port;
-    int rc;
 
     if (!gasnetc_match_port(hca_name, 0, 0)) {
       GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s' - no match in GASNET_VAPI_PORTS", hca_name));
       continue;
     }
 
+#ifdef XXX_BUILD_VAPI
+    rc = VAPI_open_hca(hca_ids[curr_hca], &hca_handle);
+    if (rc != VAPI_OK) {
+      rc = EVAPI_get_hca_hndl(hca_ids[curr_hca], &hca_handle);
+    }
+    if (rc == VAPI_OK) {
+      GASNETI_TRACE_PRINTF(C,("Probe found HCA '%s'", hca_ids[curr_hca]));
+    } else {
+      GASNETI_TRACE_PRINTF(C,("Probe failed to open HCA '%s'", hca_name));
+      continue;	/* OK, keep trying HCAs */
+    }
+    rc = VAPI_query_hca_cap(hca_handle, &hca_vendor, &hca_cap);
+    GASNETC_VAPI_CHECK(rc, "from VAPI_query_hca_cap()");
+#else
     hca_handle = ibv_open_device(hca_list[curr_hca]);
     if (hca_handle != NULL) {
       GASNETI_TRACE_PRINTF(C,("Probe found HCA '%s'", hca_name));
@@ -685,10 +766,15 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
     }
     rc = ibv_query_device(hca_handle, &hca_cap);
     GASNETC_VAPI_CHECK(rc, "from ibv_query_device()");
+#endif
 
     /* Loop over ports on the HCA (they start numbering at 1) */
     for (curr_port = 1;
+#ifdef XXX_BUILD_VAPI
+	 (port_count < max_ports) && (curr_port <= hca_cap.phys_port_num);
+#else
 	 (port_count < max_ports) && (curr_port <= hca_cap.phys_port_cnt);
+#endif
 	 ++curr_port) {
       gasnetc_port_info_t *this_port = &port_tbl[port_count];
 
@@ -697,14 +783,22 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
 	continue;
       }
 
+#ifdef XXX_BUILD_VAPI
+      (void)VAPI_query_hca_port_prop(hca_handle, curr_port, &this_port->port);
+#else
       (void)ibv_query_port(hca_handle, curr_port, &this_port->port);
+#endif
 
       if (this_port->port.state == PORT_ACTIVE) {
         ++port_count;
         ++found;
         this_port->port_num = curr_port;
         this_port->hca_index = hca_count;
+#ifdef XXX_BUILD_VAPI
+	this_port->rd_atom   = MIN(hca_cap.max_qp_init_rd_atom, hca_cap.max_qp_ous_rd_atom);
+#else
 	this_port->rd_atom   = MIN(hca_cap.max_qp_init_rd_atom, hca_cap.max_qp_rd_atom);
+#endif
         GASNETI_TRACE_PRINTF(C,("Probe found HCA '%s', port %d", hca_name, curr_port));
         (void)gasnetc_match_port(hca_name, curr_port, 1);
 	if (gasnetc_port_list == NULL) {
@@ -738,18 +832,26 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
       memset(hca, 0, sizeof(gasnetc_hca_t));
       hca->handle	= hca_handle;
       hca->hca_index	= hca_count;
-      hca->hca_id	= hca_name;
+      hca->hca_id	= gasneti_strdup(hca_name);
       hca->hca_cap	= hca_cap;
-      /*hca->hca_vendor	= hca_vendor;*/ /* XXX: fold into hca_cap */
+#ifdef XXX_BUILD_VAPI
+      hca->hca_vendor	= hca_vendor;
+#endif
 
       hca_count++;
     } else {
+#ifdef XXX_BUILD_VAPI
+      (void)EVAPI_release_hca_hndl(hca_handle);
+#else
       (void)ibv_close_device(hca_handle);
+#endif
     }
   }
   GASNETI_TRACE_PRINTF(C,("Probe found %d active port(s) on %d HCA(s)", port_count, hca_count));
   gasnetc_clear_ports();
+#ifndef XXX_BUILD_VAPI
   ibv_free_device_list(hca_list);
+#endif
 
   gasnetc_num_hcas = hca_count;
   *port_count_p = port_count;
@@ -848,6 +950,31 @@ static int gasnetc_init(int *argc, char ***argv) {
     hca = &gasnetc_hca[h];
     GASNETI_TRACE_PRINTF(C,("vapi-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
     GASNETI_TRACE_PRINTF(C,("  HCA id                   = '%s'", hca->hca_id));
+#ifdef XXX_BUILD_VAPI
+    GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_vendor.vendor_id));
+    GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_vendor.vendor_part_id));
+    GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_vendor.hw_ver));
+    GASNETI_TRACE_PRINTF(C,("  HCA firmware version     = 0x%x%08x", (unsigned int)(hca->hca_vendor.fw_ver >> 32), (unsigned int)(hca->hca_vendor.fw_ver & 0xffffffff)));
+    GASNETI_TRACE_PRINTF(C,("  max_num_qp               = %u", (unsigned int)hca->hca_cap.max_num_qp));
+    GASNETI_TRACE_PRINTF(C,("  max_qp_ous_wr            = %u", (unsigned int)hca->hca_cap.max_qp_ous_wr));
+    GASNETI_TRACE_PRINTF(C,("  max_num_sg_ent           = %u", (unsigned int)hca->hca_cap.max_num_sg_ent));
+    gasneti_assert_always(hca->hca_cap.max_num_sg_ent >= GASNETC_SND_SG);
+    gasneti_assert_always(hca->hca_cap.max_num_sg_ent >= 1);
+    #if 1 /* QP end points */
+      GASNETI_TRACE_PRINTF(C,("  max_qp_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_qp_init_rd_atom));
+      gasneti_assert_always(hca->hca_cap.max_qp_init_rd_atom >= 1);	/* RDMA Read support required */
+      GASNETI_TRACE_PRINTF(C,("  max_qp_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.max_qp_ous_rd_atom));
+      gasneti_assert_always(hca->hca_cap.max_qp_ous_rd_atom >= 1);	/* RDMA Read support required */
+    #else
+      GASNETI_TRACE_PRINTF(C,("  max_ee_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_ee_init_rd_atom));
+      gasneti_assert_always(hca->hca_cap.max_ee_init_rd_atom >= 1);	/* RDMA Read support required */
+      GASNETI_TRACE_PRINTF(C,("  max_ee_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.max_ee_ous_rd_atom));
+      gasneti_assert_always(hca->hca_cap.max_ee_ous_rd_atom >= 1);	/* RDMA Read support required */
+    #endif
+    GASNETI_TRACE_PRINTF(C,("  max_num_cq               = %u", (unsigned int)hca->hca_cap.max_num_cq));
+    gasneti_assert_always(hca->hca_cap.max_num_cq >= 2);
+    GASNETI_TRACE_PRINTF(C,("  max_num_ent_cq           = %u", (unsigned int)hca->hca_cap.max_num_ent_cq));
+#else
     GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_cap.vendor_id));
     GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_cap.vendor_part_id));
     GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_cap.hw_ver));
@@ -871,24 +998,75 @@ static int gasnetc_init(int *argc, char ***argv) {
     GASNETI_TRACE_PRINTF(C,("  max_cq               = %u", (unsigned int)hca->hca_cap.max_cq));
     gasneti_assert_always(hca->hca_cap.max_cq >= 2);
     GASNETI_TRACE_PRINTF(C,("  max_cqe           = %u", (unsigned int)hca->hca_cap.max_cqe));
+#endif
   
     /* Check for sufficient pinning resources */
     {
       int mr_needed = 2;		/* rcv bufs and snd bufs */
+      #if FIREHOSE_VAPI_USE_FMR
+        int fmr_needed = 0;	/* none by default */
+      #endif
   
       #if GASNETC_PIN_SEGMENT
         mr_needed++;		/* XXX: need more than 1 due to gasnetc_pin_maxsz */
       #endif
-      mr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* regular MRs needed for firehoses */
+      #if FIREHOSE_VAPI_USE_FMR
+        fmr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* FMRs needed for firehoses */
+      #else
+        mr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* regular MRs needed for firehoses */
+      #endif
   
+#ifdef XXX_BUILD_VAPI
+      GASNETI_TRACE_PRINTF(C,("  max_num_mr               = %u", (unsigned int)hca->hca_cap.max_num_mr));
+      gasneti_assert_always(hca->hca_cap.max_num_mr >=  mr_needed);
+#else
       GASNETI_TRACE_PRINTF(C,("  max_mr               = %u", (unsigned int)hca->hca_cap.max_mr));
       gasneti_assert_always(hca->hca_cap.max_mr >=  mr_needed);
+#endif
+      #if FIREHOSE_VAPI_USE_FMR
+        GASNETI_TRACE_PRINTF(C,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
+        gasneti_assert_always(hca->hca_cap.max_num_fmr >= fmr_needed);
+      #endif
     }
   
     /* Vendor-specific firmware checks */
-    if (hca->hca_cap.vendor_id == MT_MELLANOX_IEEE_VENDOR_ID) {
-/* NONE OF OUR KNOWN DEFECTS ARE PRESENT IN VERBS-CAPABLE FW */
+#ifdef XXX_BUILD_VAPI
+    if (hca->hca_vendor.vendor_id == MT_MELLANOX_IEEE_VENDOR_ID) {
+       int defect;
+
+      #if !GASNETC_VAPI_POLL_LOCK
+        /* For firmware < 3.0 there is a thread safety bug with VAPI_poll_cq(). */
+        defect = (hca->hca_vendor.fw_ver < (uint64_t)(0x300000000LL));
+        GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls      : %srequired for this firmware",
+			        defect ? "" : "not "));
+	if (defect) {
+	  GASNETI_RETURN_ERRR(RESOURCE, "\n"
+		  "Your HCA firmware is suspected to include a thread safety bug in\n"
+		  "VAPI_poll_cq(), which may cause hangs, crashes or incorrect results.\n"
+		  "You must either upgrade your firmware, or rebuild GASNet passing the\n"
+		  "flag '--enable-vapi-poll-lock' to configure.  See vapi-conduit/README.\n");
+	}
+      #endif
+
+      /* For some firmware there is a performance bug with EVAPI_post_inline_sr(). */
+      /* (1.18 <= fw_ver < 3.0) is known bad */
+      defect = (hca->hca_vendor.fw_ver >= (uint64_t)(0x100180000LL)) &&
+	       (hca->hca_vendor.fw_ver <  (uint64_t)(0x300000000LL));
+      if (defect && gasnetc_inline_limit) {
+	  fprintf(stderr,
+		  "WARNING: Your HCA firmware is suspected to include a performance defect\n"
+		  "when using EVAPI_post_inline_sr().  You may wish to either upgrade your\n"
+		  "firmware, or set GASNET_INLINESEND_LIMIT=0 in your environment.\n");
+      }
+    
+      GASNETI_TRACE_PRINTF(C,("  Inline perfomance defect : %ssuspected in this firmware",
+			      defect ? "" : "not "));
     }
+#else
+    if (hca->hca_cap.vendor_id == MT_MELLANOX_IEEE_VENDOR_ID) {
+      /* NONE OF OUR KNOWN DEFECTS ARE PRESENT IN IBV-CAPABLE FW */
+    }
+#endif
       
     /* Per-port: */
     for (i = 0; i < num_ports; ++i) {
@@ -910,22 +1088,46 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* sanity checks */
   GASNETC_FOR_ALL_HCA(hca) {
-    if_pf (gasneti_nodes*((gasnetc_num_qps+gasnetc_num_hcas-1)/gasnetc_num_hcas) > hca->hca_cap.max_qp) {
+    #ifdef XXX_BUILD_VAPI
+      unsigned int max_qp = hca->hca_cap.max_num_qp;
+      unsigned int max_qp_wr = hca->hca_cap.max_qp_ous_wr;
+    #else
+      unsigned int max_qp = hca->hca_cap.max_qp;
+      unsigned int max_qp_wr = hca->hca_cap.max_qp_wr;
+    #endif
+
+    if_pf (gasneti_nodes*((gasnetc_num_qps+gasnetc_num_hcas-1)/gasnetc_num_hcas) > max_qp) {
+#ifdef XXX_BUILD_VAPI
+      GASNETC_FOR_ALL_HCA(hca) { (void)EVAPI_release_hca_hndl(hca->handle); }
+#else
       GASNETC_FOR_ALL_HCA(hca) { (void)ibv_close_device(hca->handle); }
+#endif
       GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds HCA capabilities");
     }
-    if_pf (gasnetc_am_oust_pp * 2 > hca->hca_cap.max_qp_wr) {
+    if_pf (gasnetc_am_oust_pp * 2 > max_qp_wr) {
+#ifdef XXX_BUILD_VAPI
+      GASNETC_FOR_ALL_HCA(hca) { (void)EVAPI_release_hca_hndl(hca->handle); }
+#else
       GASNETC_FOR_ALL_HCA(hca) { (void)ibv_close_device(hca->handle); }
+#endif
       GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_PP exceeds HCA capabilities");
     }
-    if_pf (gasnetc_op_oust_pp > hca->hca_cap.max_qp_wr) {
+    if_pf (gasnetc_op_oust_pp > max_qp_wr) {
+#ifdef XXX_BUILD_VAPI
+      GASNETC_FOR_ALL_HCA(hca) { (void)EVAPI_release_hca_hndl(hca->handle); }
+#else
       GASNETC_FOR_ALL_HCA(hca) { (void)ibv_close_device(hca->handle); }
+#endif
       GASNETI_RETURN_ERRR(RESOURCE, "GASNET_NETWORKDEPTH_PP exceeds HCA capabilities");
     }
   }
   #if GASNETC_PIN_SEGMENT
     if_pf (gasnetc_max_msg_sz < gasnetc_pin_maxsz) {
+#ifdef XXX_BUILD_VAPI
+      GASNETC_FOR_ALL_HCA(hca) { (void)EVAPI_release_hca_hndl(hca->handle); }
+#else
       GASNETC_FOR_ALL_HCA(hca) { (void)ibv_close_device(hca->handle); }
+#endif
       GASNETI_RETURN_ERRR(RESOURCE, "GASNET_PIN_MAXSZ exceeds HCA capabilities");
     }
   #endif
@@ -933,21 +1135,68 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* get a pd for the QPs and memory registration */
   GASNETC_FOR_ALL_HCA(hca) {
+#ifdef XXX_BUILD_VAPI
+    vstat =  VAPI_alloc_pd(hca->handle, &hca->pd);
+    GASNETC_VAPI_CHECK(vstat, "from VAPI_alloc_pd()");
+#else
     hca->pd =  ibv_alloc_pd(hca->handle);
-    GASNETC_VAPI_CHECK((hca->pd == NULL), "from ibv_alloc_pd()");
+    GASNETC_VAPI_CHECK_PTR(hca->pd, "from ibv_alloc_pd()");
+#endif
   }
 
   /* allocate/initialize transport resources */
   i = gasnetc_sndrcv_init();
   if (i != GASNET_OK) {
     GASNETC_FOR_ALL_HCA(hca) {
+#ifdef XXX_BUILD_VAPI
+      (void)VAPI_dealloc_pd(hca->handle, hca->pd);
+      (void)EVAPI_release_hca_hndl(hca->handle);
+#else
       (void)ibv_dealloc_pd(hca->pd);
       (void)ibv_close_device(hca->handle);
+#endif
     }
     return i;
   }
 
   /* create all the endpoints */
+#ifdef XXX_BUILD_VAPI
+  {
+    gasnetc_cep_t *cep = &gasnetc_cep[0];
+    VAPI_qp_init_attr_t	qp_init_attr;
+    VAPI_qp_prop_t	qp_prop;
+
+    qp_init_attr.cap.max_oust_wr_rq = gasnetc_am_oust_pp * 2;
+    qp_init_attr.cap.max_oust_wr_sq = gasnetc_op_oust_pp;
+    qp_init_attr.cap.max_sg_size_rq = 1;
+    qp_init_attr.cap.max_sg_size_sq = GASNETC_SND_SG;
+    qp_init_attr.rdd_hndl           = 0;
+    qp_init_attr.rq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.sq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.ts_type            = VAPI_TS_RC;
+
+    for (i = 0; i < ceps; ++i) {
+      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+
+      hca = &gasnetc_hca[port_map[i]->hca_index];
+
+      cep[i].hca = hca;
+      cep[i].hca_handle = hca->handle;
+      cep[i].hca_index = hca->hca_index;
+
+      /* create the QP */
+      qp_init_attr.pd_hndl         = hca->pd;
+      qp_init_attr.rq_cq_hndl      = hca->rcv_cq;
+      qp_init_attr.sq_cq_hndl      = hca->snd_cq;
+      vstat = VAPI_create_qp(hca->handle, &qp_init_attr, &cep[i].qp_handle, &qp_prop);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_create_qp()");
+      gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
+      gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
+      local_addr[i].qp_num = qp_prop.qp_num;
+      local_addr[i].lid = port_map[i]->port.lid;
+    }
+  }
+#else
   {
     gasnetc_cep_t *cep = &gasnetc_cep[0];
     struct ibv_qp_init_attr	qp_init_attr;
@@ -971,43 +1220,68 @@ static int gasnetc_init(int *argc, char ***argv) {
       cep[i].hca_handle = hca->handle;
       cep[i].hca_index = hca->hca_index;
 
+      /* create the QP */
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
-
-      /* create the QP */
       cep[i].qp_handle = ibv_create_qp(hca->pd, &qp_init_attr);
-
-#if 0	/* XXX: Bring back these checks */
+      GASNETC_VAPI_CHECK_PTR(cep[i].qp_handle, "from ibv_create_qp()");
+  #if 0	/* XXX: Bring back these checks */
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
-#endif
-
-      local_addr[i].lid = port_map[i]->port.lid;
+  #endif
       local_addr[i].qp_num = cep[i].qp_handle->qp_num;
+      local_addr[i].lid = port_map[i]->port.lid;
     }
   }
+#endif
 
   /* exchange endpoint info for connecting */
   gasneti_bootstrapAlltoall(local_addr, gasnetc_num_qps*sizeof(gasnetc_addr_t), remote_addr);
 
   /* connect the endpoints */
   {
+#ifdef XXX_BUILD_VAPI
+    VAPI_qp_attr_t	qp_attr;
+    VAPI_qp_attr_mask_t	qp_mask;
+    VAPI_qp_cap_t	qp_cap;
+#else
     struct ibv_qp_attr	qp_attr;
     enum ibv_qp_attr_mask	qp_mask;
     int rc;
+#endif
 
     /* advance RST -> INIT */
+#ifdef XXX_BUILD_VAPI
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PKEY_IX);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PORT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_REMOTE_ATOMIC_FLAGS);
+    qp_attr.qp_state            = VAPI_INIT;
+    qp_attr.pkey_ix             = 0;
+    qp_attr.remote_atomic_flags = VAPI_EN_REM_WRITE | VAPI_EN_REM_READ;
+
+    for (i = 0; i < ceps; ++i) {
+      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      
+      qp_attr.port = port_map[i]->port_num;
+      vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(INIT)");
+    }
+#else
     qp_mask = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
     qp_attr.qp_state        = IBV_QPS_INIT;
     qp_attr.pkey_index      = 0;
     qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+
     for (i = 0; i < ceps; ++i) {
       if (i/gasnetc_num_qps == gasneti_mynode) continue;
       
       qp_attr.port_num = port_map[i]->port_num;
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
-      GASNETC_VAPI_CHECK(vstat, "from ibv_modify_qp(INIT)");
+      GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(INIT)");
     }
+#endif
 
     /* post recv buffers and other local initialization */
     for (i = 0; i < gasneti_nodes; ++i) {
@@ -1015,12 +1289,40 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 
     /* advance INIT -> RTR */
+#ifdef XXX_BUILD_VAPI
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_AV);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PATH_MTU);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RQ_PSN);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_OUS_RD_ATOM);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_DEST_QP_NUM);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_MIN_RNR_TIMER);
+    qp_attr.qp_state         = VAPI_RTR;
+    qp_attr.av.sl            = 0;
+    qp_attr.av.grh_flag      = 0;
+    qp_attr.av.static_rate   = GASNETC_QP_STATIC_RATE;
+    qp_attr.av.src_path_bits = 0;
+    qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
+    for (i = 0; i < ceps; ++i) {
+      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+
+      qp_attr.qp_ous_rd_atom = port_map[i]->rd_atom;
+      qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
+      qp_attr.rq_psn         = i;
+      qp_attr.av.dlid        = remote_addr[i].lid;
+      qp_attr.dest_qp_num    = remote_addr[i].qp_num;
+      vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTR)");
+    }
+#else
     qp_mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_RQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC | IBV_QP_DEST_QPN | IBV_QP_MIN_RNR_TIMER;
     qp_attr.qp_state         = IBV_QPS_RTR;
     qp_attr.ah_attr.sl            = 0;
     qp_attr.ah_attr.is_global     = 0;
     qp_attr.ah_attr.static_rate   = GASNETC_QP_STATIC_RATE;
     qp_attr.ah_attr.src_path_bits = 0;
+
     qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
     for (i = 0; i < ceps; ++i) {
       if (i/gasnetc_num_qps == gasneti_mynode) continue;
@@ -1033,11 +1335,39 @@ static int gasnetc_init(int *argc, char ***argv) {
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
       GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(RTR)");
     }
+#endif
 
     /* QPs must reach RTR before their peer can advance to RTS */
     gasneti_bootstrapBarrier();
 
     /* advance RTR -> RTS */
+#ifdef XXX_BUILD_VAPI
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_SQ_PSN);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_TIMEOUT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RETRY_COUNT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_RNR_RETRY);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_OUS_DST_RD_ATOM);
+    qp_attr.qp_state         = VAPI_RTS;
+    qp_attr.timeout          = GASNETC_QP_TIMEOUT;
+    qp_attr.retry_count      = GASNETC_QP_RETRY_COUNT;
+    qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
+    for (i = 0; i < ceps; ++i) {
+      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+
+      qp_attr.sq_psn           = gasneti_mynode*gasnetc_num_qps + (i % gasnetc_num_qps);
+      qp_attr.ous_dst_rd_atom  = port_map[i]->rd_atom;
+      vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
+      GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTS)");
+      if (qp_cap.max_inline_data_sq < gasnetc_inline_limit) {
+	fprintf(stderr,
+		"WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
+		(int)gasnetc_inline_limit, (int)qp_cap.max_inline_data_sq);
+        gasnetc_inline_limit = qp_cap.max_inline_data_sq;
+      }
+    }
+#else
     qp_mask = IBV_QP_STATE | IBV_QP_SQ_PSN | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_MAX_DEST_RD_ATOMIC;
     qp_attr.qp_state         = IBV_QPS_RTS;
     qp_attr.timeout          = GASNETC_QP_TIMEOUT;
@@ -1057,6 +1387,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         gasnetc_inline_limit = qp_attr.cap.max_inline_data;
       }
     }
+#endif
   }
 
   gasneti_free(port_map);
@@ -1403,7 +1734,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     prereg[0].addr             = gasnetc_hca[0].snd_reg.addr;
     prereg[0].len              = gasnetc_hca[0].snd_reg.len;
     GASNETC_FOR_ALL_HCA_INDEX(h) {
+#ifndef XXX_BUILD_VAPI
       prereg[0].client.handle[h] = NULL;	/* unreg must fail */
+#else
+      prereg[0].client.handle[h] = VAPI_INVAL_HNDL;	/* unreg must fail */
+#endif
       prereg[0].client.lkey[h]   = gasnetc_hca[h].snd_reg.lkey;
       prereg[0].client.rkey[h]   = gasnetc_hca[h].snd_reg.rkey;
     }
@@ -1413,7 +1748,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	prereg[reg_count].addr             = gasnetc_hca[0].rcv_reg.addr;
 	prereg[reg_count].len              = gasnetc_hca[0].rcv_reg.len;
         GASNETC_FOR_ALL_HCA_INDEX(h) {
+#ifndef XXX_BUILD_VAPI
 	  prereg[reg_count].client.handle[h] = NULL;	/* unreg must fail */
+#else
+	  prereg[reg_count].client.handle[h] = VAPI_INVAL_HNDL;	/* unreg must fail */
+#endif
 	  prereg[reg_count].client.lkey[h]   = gasnetc_hca[h].rcv_reg.lkey;
 	  prereg[reg_count].client.rkey[h]   = gasnetc_hca[h].rcv_reg.rkey;
 	}
@@ -1953,6 +2292,15 @@ static void gasnetc_exit_body(void) {
 #endif
     }
     GASNETC_FOR_ALL_HCA(hca) {
+#ifdef XXX_BUILD_VAPI
+      GASNETC_EXIT_STATE("in VAPI_dealloc_pd()");
+      (void)VAPI_dealloc_pd(hca->handle, hca->pd);
+      if (!gasnetc_use_rcv_thread)	{
+        /* can't release if we could possibly be inside the RCV thread */
+        GASNETC_EXIT_STATE("in EVAPI_release_hca_hndl()");
+        (void)EVAPI_release_hca_hndl(hca->handle);
+      }
+#else
       GASNETC_EXIT_STATE("in ibv_dealloc_pd()");
       (void)ibv_dealloc_pd(hca->pd);
       if (!gasnetc_use_rcv_thread)	{
@@ -1960,6 +2308,7 @@ static void gasnetc_exit_body(void) {
         GASNETC_EXIT_STATE("in ibv_close_device()");
         (void)ibv_close_device(hca->handle);
       }
+#endif
     }
   }
 
