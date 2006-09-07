@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/09/07 20:36:53 $
- * $Revision: 1.134.18.5 $
+ *     $Date: 2006/09/07 21:35:02 $
+ * $Revision: 1.134.18.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -243,6 +243,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_IB_CHOOSE(X,Y)		X
 
   #define gasnetc_close_hca(_hca)		EVAPI_release_hca_hndl(_hca)
+  #define gasnetc_alloc_pd(_hca)		VAPI_alloc_pd((_hca)->handle, &((_hca)->pd))
   #define gasnetc_dealloc_pd(_hca,_pd)		VAPI_dealloc_pd((_hca),(_pd))
   #define gasnetc_poll_snd_cq(_hca,_comp_p)	VAPI_poll_cq((_hca)->handle,(_hca)->snd_cq,(_comp_p))
   #define gasnetc_poll_rcv_cq(_hca,_comp_p)	VAPI_poll_cq((_hca)->handle,(_hca)->rcv_cq,(_comp_p))
@@ -256,6 +257,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_IB_CHOOSE(X,Y)		Y
 
   #define gasnetc_close_hca(_hca)		((void)ibv_close_device(_hca))
+  #define gasnetc_alloc_pd(_hca)		(((_hca)->pd = ibv_alloc_pd((_hca)->handle)) == NULL)
   #define gasnetc_dealloc_pd(_hca,_pd)		((void)ibv_dealloc_pd(_pd))
   #define gasnetc_poll_snd_cq(_hca,_comp_p)	ibv_poll_cq((_hca)->snd_cq,1,(_comp_p))
   #define gasnetc_poll_rcv_cq(_hca,_comp_p)	ibv_poll_cq((_hca)->rcv_cq,1,(_comp_p))
@@ -320,10 +322,13 @@ typedef GASNETC_IB_CHOOSE(VAPI_sg_lst_entry_t,	struct ibv_sge)		gasnetc_sge_t;
 
 /* Field names in gasnetc_hca_cap_t */
 #define gasnetc_f_max_mr	GASNETC_IB_CHOOSE(max_num_mr,		max_mr)
-#define gasnetc_f_max_qp	GASNETC_IB_CHOOSE(max_num_mr,		max_qp)
-#define gasnetc_f_max_cqe	GASNETC_IB_CHOOSE(max_num_mr,		max_cqe)
+#define gasnetc_f_max_qp	GASNETC_IB_CHOOSE(max_num_qp,		max_qp)
+#define gasnetc_f_max_cq	GASNETC_IB_CHOOSE(max_num_cq,		max_cq)
+#define gasnetc_f_max_cqe	GASNETC_IB_CHOOSE(max_num_ent_cq,	max_cqe)
+#define gasnetc_f_max_sge	GASNETC_IB_CHOOSE(max_num_sg_ent,	max_sge)
 #define gasnetc_f_max_qp_wr	GASNETC_IB_CHOOSE(max_qp_ous_wr,	max_qp_wr)
 #define gasnetc_f_max_qp_rd_atom GASNETC_IB_CHOOSE(max_qp_ous_rd_atom,	max_qp_rd_atom)
+#define gasnetc_f_max_ee_rd_atom GASNETC_IB_CHOOSE(max_ee_ous_rd_atom,	max_ee_rd_atom)
 #define gasnetc_f_phys_port_cnt	GASNETC_IB_CHOOSE(phys_port_num,	phys_port_cnt)
 
 /* Field names in work requests and the associated scatter/gather lists */
@@ -341,9 +346,6 @@ typedef struct {
   gasnetc_mr_hndl_t	handle;	/* used to release or modify the region */
   gasnetc_lkey_t	lkey;	/* used for local access by HCA */
   gasnetc_rkey_t	rkey;	/* used for remote access by HCA */
-#ifdef XXX_BUILD_VAPI
-  gasnetc_hca_hndl_t	hca_hndl;
-#endif
   uintptr_t		addr;
   size_t		len;
   uintptr_t		end;	/* inclusive */
@@ -444,7 +446,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
 /* General routines in gasnet_core.c */
 extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg);
-extern void gasnetc_unpin(gasnetc_memreg_t *reg);
+extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg);
 #define gasnetc_unmap(reg)	gasneti_munmap((void *)((reg)->addr), (reg)->len)
 
 /* Global configuration variables */

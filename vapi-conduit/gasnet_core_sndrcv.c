@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/09/07 20:36:53 $
- * $Revision: 1.192.4.5 $
+ *     $Date: 2006/09/07 21:35:02 $
+ * $Revision: 1.192.4.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -2663,7 +2663,7 @@ extern int gasnetc_sndrcv_init(void) {
 		          GASNETC_ACL_LOC_WR, &gasnetc_hca[h].snd_reg);
       if (vstat != 0) {
 	for (h -= 1; h >= 0; --h) {
-	  gasnetc_unpin(&gasnetc_hca[h].snd_reg);
+	  gasnetc_unpin(&gasnetc_hca[h], &gasnetc_hca[h].snd_reg);
 	}
         gasneti_munmap(buf, size);
         buf = NULL;
@@ -2680,7 +2680,7 @@ extern int gasnetc_sndrcv_init(void) {
         }
 #endif
         gasneti_free(hca->rbuf_alloc);
-        gasnetc_unpin(&hca->rcv_reg);
+        gasnetc_unpin(hca, &hca->rcv_reg);
         gasnetc_unmap(&hca->rcv_reg);
       }
       (void)gasnetc_destroy_cq(hca->handle, hca->snd_cq);
@@ -2796,9 +2796,9 @@ extern void gasnetc_sndrcv_fini(void) {
       }
 #endif
 
-      gasnetc_unpin(&hca->rcv_reg);
+      gasnetc_unpin(hca, &hca->rcv_reg);
       gasnetc_unmap(&hca->rcv_reg);
-      gasnetc_unpin(&hca->snd_reg);
+      gasnetc_unpin(hca, &hca->snd_reg);
       gasnetc_unmap(&hca->snd_reg);
 
       gasneti_free(hca->rbuf_alloc);
