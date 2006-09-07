@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/09/07 03:32:44 $
- * $Revision: 1.134.18.4 $
+ *     $Date: 2006/09/07 20:36:53 $
+ * $Revision: 1.134.18.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -240,47 +240,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* Map VAPI and IBV to a common gasnetc_ prefix */
 
 #ifdef XXX_BUILD_VAPI
-  typedef VAPI_lkey_t		gasnetc_lkey_t;
-  typedef VAPI_rkey_t		gasnetc_rkey_t;
-  typedef IB_port_t		gasnetc_port_t;
-  typedef VAPI_mrw_acl_t	gasnetc_acl_t;
-  typedef VAPI_wc_status_t	gasnetc_wc_status_t;
-  typedef VAPI_wr_opcode_t	gasnetc_wr_opcode_t;
-
-  typedef VAPI_hca_hndl_t	gasnetc_hca_hndl_t;
-  typedef VAPI_pd_hndl_t	gasnetc_pd_hndl_t;
-  typedef VAPI_mr_hndl_t	gasnetc_mr_hndl_t;
-  typedef VAPI_cq_hndl_t	gasnetc_cq_hndl_t;
-  typedef VAPI_qp_hndl_t	gasnetc_qp_hndl_t;
-  
-  typedef VAPI_hca_cap_t	gasnetc_hca_cap_t;
-  typedef VAPI_hca_port_t	gasnetc_hca_port_t;
-
-  typedef VAPI_rr_desc_t	gasnetc_rcv_wr_t;
-  typedef VAPI_sr_desc_t	gasnetc_snd_wr_t;
-  typedef VAPI_wc_desc_t	gasnetc_wc_t;
-  typedef VAPI_sg_lst_entry_t	gasnetc_sge_t;
-
-  #define GASNETC_PORT_DOWN	PORT_DOWN
-  #define GASNETC_PORT_INIT	PORT_INITIALIZE
-  #define GASNETC_PORT_ACTIVE	PORT_ACTIVE
-  #define GASNETC_PORT_ARMED	PORT_ARMED
-  
-  #define GASNETC_ACL_LOC_WR	VAPI_EN_LOCAL_WRITE
-  #define GASNETC_ACL_REM_WR	VAPI_EN_REMOTE_WRITE
-  #define GASNETC_ACL_REM_RD	VAPI_EN_REMOTE_READ
-
-  #define GASNETC_INVAL_MR_HNDL	VAPI_INVAL_HNDL
-
-  #define GASNETC_WC_SUCCESS	IB_COMP_SUCCESS
-  #define GASNETC_WC_FLUSH_ERR	IB_COMP_WR_FLUSH_ERR
-  #define GASNETC_WC_RDMA_READ	VAPI_CQE_SQ_RDMA_READ
-  #define GASNETC_WC_RDMA_WRITE	VAPI_CQE_SQ_RDMA_WRITE
-  #define GASNETC_WC_SEND	VAPI_CQE_SQ_SEND_DATA
-
-  #define GASNETC_WR_RDMA_READ	VAPI_RDMA_READ
-  #define GASNETC_WR_RDMA_WRITE	VAPI_RDMA_WRITE
-  #define GASNETC_WR_SEND_WITH_IMM VAPI_SEND_WITH_IMM
+  #define GASNETC_IB_CHOOSE(X,Y)		X
 
   #define gasnetc_close_hca(_hca)		EVAPI_release_hca_hndl(_hca)
   #define gasnetc_dealloc_pd(_hca,_pd)		VAPI_dealloc_pd((_hca),(_pd))
@@ -290,48 +250,10 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define gasnetc_peek_rcv_cq(_hca,_num)	EVAPI_peek_cq((_hca)->handle,(_hca)->rcv_cq,(_num))
   #define gasnetc_destroy_cq(_hca,_cq)		VAPI_destroy_cq((_hca),(_cq))
   #define gasnetc_destroy_qp(_hca,_qp)		VAPI_destroy_qp((_hca),(_qp))
+  #define gasnetc_dereg_mr(_hca,_mr)		VAPI_deregister_mr((_hca),(_mr))
+  #define gasnetc_query_port(_hca,_num,_port_p)	VAPI_query_hca_port_prop((_hca),(_num),(_port_p))
 #else
-  typedef uint32_t		gasnetc_lkey_t;
-  typedef uint32_t		gasnetc_rkey_t;
-  typedef uint8_t		gasnetc_port_t;
-  typedef enum ibv_access_flags	gasnetc_acl_t;
-  typedef enum ibv_wc_status	gasnetc_wc_status_t;
-  typedef enum ibv_wr_opcode	gasnetc_wr_opcode_t;
-
-  typedef struct ibv_context	*gasnetc_hca_hndl_t;
-  typedef struct ibv_pd		*gasnetc_pd_hndl_t;
-  typedef struct ibv_mr		*gasnetc_mr_hndl_t;
-  typedef struct ibv_cq		*gasnetc_cq_hndl_t;
-  typedef struct ibv_qp		*gasnetc_qp_hndl_t;
-  
-  typedef struct ibv_device_attr gasnetc_hca_cap_t;
-  typedef struct ibv_port_attr	gasnetc_hca_port_t;
-
-  typedef struct ibv_recv_wr	gasnetc_rcv_wr_t;
-  typedef struct ibv_send_wr	gasnetc_snd_wr_t;
-  typedef struct ibv_wc		gasnetc_wc_t;
-  typedef struct ibv_sge	gasnetc_sge_t;
-
-  #define GASNETC_PORT_DOWN	IBV_PORT_DOWN
-  #define GASNETC_PORT_INIT	IBV_PORT_INIT
-  #define GASNETC_PORT_ACTIVE	IBV_PORT_ACTIVE
-  #define GASNETC_PORT_ARMED	IBV_PORT_ARMED
-  
-  #define GASNETC_ACL_LOC_WR	IBV_ACCESS_LOCAL_WRITE
-  #define GASNETC_ACL_REM_WR	IBV_ACCESS_REMOTE_WRITE
-  #define GASNETC_ACL_REM_RD	IBV_ACCESS_REMOTE_READ
-
-  #define GASNETC_INVAL_MR_HNDL	NULL
-
-  #define GASNETC_WC_SUCCESS	IBV_WC_SUCCESS
-  #define GASNETC_WC_FLUSH_ERR	IBV_WC_WR_FLUSH_ERR
-  #define GASNETC_WC_RDMA_READ	IBV_WC_RDMA_READ
-  #define GASNETC_WC_RDMA_WRITE	IBV_WC_RDMA_WRITE
-  #define GASNETC_WC_SEND	IBV_WC_SEND
-
-  #define GASNETC_WR_RDMA_READ	IBV_WR_RDMA_READ
-  #define GASNETC_WR_RDMA_WRITE	IBV_WR_RDMA_WRITE
-  #define GASNETC_WR_SEND_WITH_IMM IBV_WR_SEND_WITH_IMM
+  #define GASNETC_IB_CHOOSE(X,Y)		Y
 
   #define gasnetc_close_hca(_hca)		((void)ibv_close_device(_hca))
   #define gasnetc_dealloc_pd(_hca,_pd)		((void)ibv_dealloc_pd(_pd))
@@ -341,16 +263,87 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define gasnetc_peek_rcv_cq(_hca,_num)	ERROR___no_peek_cq_support
   #define gasnetc_destroy_cq(_hca,_cq)		ibv_destroy_cq(_cq)
   #define gasnetc_destroy_qp(_hca,_qp)		ibv_destroy_qp(_qp)
+  #define gasnetc_dereg_mr(_hca,_mr)		ibv_dereg_mr(_mr)
+  #define gasnetc_query_port(_hca,_num,_port_p)	ibv_query_port((_hca),(_num),(_port_p))
 #endif
+
+/* Constants */
+#define GASNETC_PORT_DOWN	GASNETC_IB_CHOOSE(PORT_DOWN,		IBV_PORT_DOWN)
+#define GASNETC_PORT_INIT	GASNETC_IB_CHOOSE(PORT_INITIALIZE,	IBV_PORT_INIT)
+#define GASNETC_PORT_ACTIVE	GASNETC_IB_CHOOSE(PORT_ACTIVE,		IBV_PORT_ACTIVE)
+#define GASNETC_PORT_ARMED	GASNETC_IB_CHOOSE(PORT_ARMED,		IBV_PORT_ARMED)
+
+#define GASNETC_ACL_LOC_WR	GASNETC_IB_CHOOSE(VAPI_EN_LOCAL_WRITE,	IBV_ACCESS_LOCAL_WRITE)
+#define GASNETC_ACL_REM_WR	GASNETC_IB_CHOOSE(VAPI_EN_REMOTE_WRITE,	IBV_ACCESS_REMOTE_WRITE)
+#define GASNETC_ACL_REM_RD	GASNETC_IB_CHOOSE(VAPI_EN_REMOTE_READ,	IBV_ACCESS_REMOTE_READ)
+
+#define GASNETC_INVAL_MR_HNDL	GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL,	NULL)
+
+#define GASNETC_WC_SUCCESS	GASNETC_IB_CHOOSE(IB_COMP_SUCCESS,	IBV_WC_SUCCESS)
+#define GASNETC_WC_FLUSH_ERR	GASNETC_IB_CHOOSE(IB_COMP_WR_FLUSH_ERR,	IBV_WC_WR_FLUSH_ERR)
+#define GASNETC_WC_RDMA_READ	GASNETC_IB_CHOOSE(VAPI_CQE_SQ_RDMA_READ,IBV_WC_RDMA_READ)
+#define GASNETC_WC_RDMA_WRITE	GASNETC_IB_CHOOSE(VAPI_CQE_SQ_RDMA_WRITE,IBV_WC_RDMA_WRITE)
+#define GASNETC_WC_SEND		GASNETC_IB_CHOOSE(VAPI_CQE_SQ_SEND_DATA, IBV_WC_SEND)
+
+#define GASNETC_WR_RDMA_READ	GASNETC_IB_CHOOSE(VAPI_RDMA_READ,	IBV_WR_RDMA_READ)
+#define GASNETC_WR_RDMA_WRITE	GASNETC_IB_CHOOSE(VAPI_RDMA_WRITE,	IBV_WR_RDMA_WRITE)
+#define GASNETC_WR_SEND_WITH_IMM GASNETC_IB_CHOOSE(VAPI_SEND_WITH_IMM,	IBV_WR_SEND_WITH_IMM)
+
+#define GASNETC_POLL_CQ_OK	GASNETC_IB_CHOOSE(VAPI_OK,		1)
+#define GASNETC_POLL_CQ_EMPTY	GASNETC_IB_CHOOSE(VAPI_CQ_EMPTY,	0)
+
+/* Integer types */
+typedef GASNETC_IB_CHOOSE(VAPI_lkey_t,		uint32_t)		gasnetc_lkey_t;
+typedef GASNETC_IB_CHOOSE(VAPI_rkey_t,		uint32_t)		gasnetc_rkey_t;
+typedef GASNETC_IB_CHOOSE(IB_port_t,		uint8_t)		gasnetc_port_t;
+typedef GASNETC_IB_CHOOSE(VAPI_mrw_acl_t,	enum ibv_access_flags)	gasnetc_acl_t;
+typedef GASNETC_IB_CHOOSE(VAPI_wc_status_t,	enum ibv_wc_status)	gasnetc_wc_status_t;
+typedef GASNETC_IB_CHOOSE(VAPI_wr_opcode_t,	enum ibv_wr_opcode)	gasnetc_wr_opcode_t;
+typedef GASNETC_IB_CHOOSE(VAPI_cqe_num_t,	int)			gasnetc_cqe_cnt_t;
+
+/* Handle types */
+typedef GASNETC_IB_CHOOSE(VAPI_hca_hndl_t,	struct ibv_context *)	gasnetc_hca_hndl_t;
+typedef GASNETC_IB_CHOOSE(VAPI_pd_hndl_t,	struct ibv_pd *)	gasnetc_pd_hndl_t;
+typedef GASNETC_IB_CHOOSE(VAPI_mr_hndl_t,	struct ibv_mr *)	gasnetc_mr_hndl_t;
+typedef GASNETC_IB_CHOOSE(VAPI_cq_hndl_t,	struct ibv_cq *)	gasnetc_cq_hndl_t;
+typedef GASNETC_IB_CHOOSE(VAPI_qp_hndl_t,	struct ibv_qp *)	gasnetc_qp_hndl_t;
+  
+/* Attribute/capability structs */
+typedef GASNETC_IB_CHOOSE(VAPI_hca_cap_t,	struct ibv_device_attr)	gasnetc_hca_cap_t;
+typedef GASNETC_IB_CHOOSE(VAPI_hca_port_t,	struct ibv_port_attr)	gasnetc_hca_port_t;
+
+/* Work requests and related stucts */
+typedef GASNETC_IB_CHOOSE(VAPI_rr_desc_t,	struct ibv_recv_wr)	gasnetc_rcv_wr_t;
+typedef GASNETC_IB_CHOOSE(VAPI_sr_desc_t,	struct ibv_send_wr)	gasnetc_snd_wr_t;
+typedef GASNETC_IB_CHOOSE(VAPI_wc_desc_t,	struct ibv_wc)		gasnetc_wc_t;
+typedef GASNETC_IB_CHOOSE(VAPI_sg_lst_entry_t,	struct ibv_sge)		gasnetc_sge_t;
+
+/* Field names in gasnetc_hca_cap_t */
+#define gasnetc_f_max_mr	GASNETC_IB_CHOOSE(max_num_mr,		max_mr)
+#define gasnetc_f_max_qp	GASNETC_IB_CHOOSE(max_num_mr,		max_qp)
+#define gasnetc_f_max_cqe	GASNETC_IB_CHOOSE(max_num_mr,		max_cqe)
+#define gasnetc_f_max_qp_wr	GASNETC_IB_CHOOSE(max_qp_ous_wr,	max_qp_wr)
+#define gasnetc_f_max_qp_rd_atom GASNETC_IB_CHOOSE(max_qp_ous_rd_atom,	max_qp_rd_atom)
+#define gasnetc_f_phys_port_cnt	GASNETC_IB_CHOOSE(phys_port_num,	phys_port_cnt)
+
+/* Field names in work requests and the associated scatter/gather lists */
+#define gasnetc_f_wr_id		GASNETC_IB_CHOOSE(id,			wr_id)
+#define gasnetc_f_wr_num_sge	GASNETC_IB_CHOOSE(sg_lst_len,		num_sge)
+#define gasnetc_f_wr_sg_list	GASNETC_IB_CHOOSE(sg_lst_p,		sg_list)
+#define gasnetc_f_wr_rem_addr	GASNETC_IB_CHOOSE(remote_addr,		wr.rdma.remote_addr)
+#define gasnetc_f_wr_rkey	GASNETC_IB_CHOOSE(r_key,		wr.rdma.rkey)
+#define gasnetc_f_sg_len	GASNETC_IB_CHOOSE(len,			length)
 
 /* ------------------------------------------------------------------------------------ */
 
 /* Description of a pre-pinned memory region */
 typedef struct {
   gasnetc_mr_hndl_t	handle;	/* used to release or modify the region */
-  gasnetc_lkey_t	lkey;	/* used for local access by HCA */	/* XXX: redundant w/ ibv */
-  gasnetc_rkey_t	rkey;	/* used for remote access by HCA */	/* XXX: redundant w/ ibv */
-  gasnetc_hca_hndl_t	hca_hndl;					/* XXX: redundant w/ ibv */
+  gasnetc_lkey_t	lkey;	/* used for local access by HCA */
+  gasnetc_rkey_t	rkey;	/* used for remote access by HCA */
+#ifdef XXX_BUILD_VAPI
+  gasnetc_hca_hndl_t	hca_hndl;
+#endif
   uintptr_t		addr;
   size_t		len;
   uintptr_t		end;	/* inclusive */
@@ -376,6 +369,8 @@ typedef struct {
   gasnetc_hca_cap_t	hca_cap;
 #ifdef XXX_BUILD_VAPI
   VAPI_hca_vendor_t	hca_vendor;
+#else
+  /* Part of hca_cap under ibv */
 #endif
   int			qps; /* qps per peer */
   int			total_qps; /* total over all peers */
@@ -387,6 +382,8 @@ typedef struct {
   /* Rcv thread */
   EVAPI_compl_handler_hndl_t rcv_handler;
   void			*rcv_thread_priv;
+#else
+  /* No progress thread under ibv */
 #endif
 } gasnetc_hca_t;
 
