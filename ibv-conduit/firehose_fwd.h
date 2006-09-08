@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/firehose_fwd.h,v $
- *     $Date: 2006/09/06 22:38:44 $
- * $Revision: 1.10.32.2 $
+ *     $Date: 2006/09/08 22:52:52 $
+ * $Revision: 1.10.32.3 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -9,7 +9,20 @@
 #ifndef _VAPI_FIREHOSE_FWD_H
 #define _VAPI_FIREHOSE_FWD_H
 
-#if XXX_BUILD_VAPI
+#if !defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
+  #define GASNETC_IB_VAPI       /* Default */
+#endif
+#if defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
+  #undef GASNETC_IB_VAPI
+  #define GASNETC_IB_VAPI 1
+#elif !defined(GASNETC_IB_VAPI) && defined(GASNETC_IB_VERBS)
+  #undef GASNETC_IB_VERBS
+  #define GASNETC_IB_VERBS 1
+#else
+  #error "Only one of GASNETC_IB_VAPI or GASNETC_IB_VERBS may be defined"
+#endif
+
+#if GASNETC_IB_VAPI
   #include <vapi_types.h>
   #ifndef FIREHOSE_VAPI_USE_FMR
     /* Some versions of VAPI offer "Fast Memory Regions".
@@ -27,11 +40,13 @@
   #endif
   #define _FIREHOSE_VAPI_LKEY_T		VAPI_lkey_t
   #define _FIREHOSE_VAPI_RKEY_T		VAPI_rkey_t
-#else 
+#elif GASNETC_IB_VERBS
   #include <infiniband/verbs.h>
   #define _FIREHOSE_VAPI_MR_HNDL_T	struct ibv_mr *
   #define _FIREHOSE_VAPI_LKEY_T		uint32_t
   #define _FIREHOSE_VAPI_RKEY_T		uint32_t
+#else
+  #error "Unknown IB API"
 #endif
 
 /* Set this here because we need it to match */
