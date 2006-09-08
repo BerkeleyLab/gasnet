@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/09/07 21:35:02 $
- * $Revision: 1.134.18.6 $
+ *     $Date: 2006/09/08 22:52:52 $
+ * $Revision: 1.134.18.7 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,12 +14,17 @@
 #include <gasnet_internal.h>
 #include <firehose.h>
 
+/* Check that firehose_fwd.h picked an IB API for us */
+#if !defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
+  #error "One of GASNETC_IB_VAPI or GASNETC_IB_VERBS must be defined"
+#endif
+
 #include <ssh-spawner/gasnet_bootstrap_internal.h>
 #if HAVE_MPI_SPAWNER
   #include <mpi-spawner/gasnet_bootstrap_internal.h>
 #endif
 
-#ifdef XXX_BUILD_VAPI
+#if GASNETC_IB_VAPI
   #include <vapi.h>
   #include <evapi.h>
   #include <vapi_common.h>
@@ -37,7 +42,7 @@
 #define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES)-(SZ))
 
 /* check (even in optimized build) for VAPI errors */
-#ifdef XXX_BUILD_VAPI
+#if GASNETC_IB_VAPI
   #define GASNETC_VAPI_CHECK(rc,msg) \
     if_pf ((rc) != 0) \
       { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(rc),(msg)); }
@@ -239,7 +244,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* ------------------------------------------------------------------------------------ */
 /* Map VAPI and IBV to a common gasnetc_ prefix */
 
-#ifdef XXX_BUILD_VAPI
+#if GASNETC_IB_VAPI
   #define GASNETC_IB_CHOOSE(X,Y)		X
 
   #define gasnetc_close_hca(_hca)		EVAPI_release_hca_hndl(_hca)
@@ -369,7 +374,7 @@ typedef struct {
   int			hca_index;
   const char		*hca_id;
   gasnetc_hca_cap_t	hca_cap;
-#ifdef XXX_BUILD_VAPI
+#if GASNETC_IB_VAPI
   VAPI_hca_vendor_t	hca_vendor;
 #else
   /* Part of hca_cap under ibv */
@@ -380,7 +385,7 @@ typedef struct {
   void			*rbuf_alloc;
   gasneti_lifo_head_t	rbuf_freelist;
 
-#ifdef XXX_BUILD_VAPI
+#if GASNETC_IB_VAPI
   /* Rcv thread */
   EVAPI_compl_handler_hndl_t rcv_handler;
   void			*rcv_thread_priv;
