@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2006/09/07 01:11:23 $
- * $Revision: 1.12.32.3 $
+ *     $Date: 2006/09/08 22:52:52 $
+ * $Revision: 1.12.32.4 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -103,7 +103,7 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
-#elif XXX_BUILD_VAPI
+#elif GASNETC_IB_VAPI
 {
     GASNETC_TRACE_WAIT_BEGIN();
     int           vstat;
@@ -183,7 +183,7 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
-#else
+#elif GASNETC_IB_VERBS
 {
     GASNETC_TRACE_WAIT_BEGIN();
     int    rc;
@@ -225,6 +225,8 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
+#else
+  #error "Unknown IB API"
 #endif
 
 extern int
