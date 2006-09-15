@@ -1,7 +1,7 @@
 README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.41 $
+$Revision: 1.41.24.1 $
 
 @ TOC: @
 @ Section: Job Spawning @
@@ -222,7 +222,7 @@ $Revision: 1.41 $
     Note that if '--disable-vapi-rcv-thread' was specified at build time
     then the extra thread is unavailable and this environment variable
     is ignored.
-    Currently the default is enabled (1), but this is subject to change
+    Currently the default is disabled (0), but this is subject to change
     in a future version.
 
   Protocol configuration:
