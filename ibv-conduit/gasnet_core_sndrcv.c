@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/09/15 00:32:54 $
- * $Revision: 1.189.4.10 $
+ *     $Date: 2006/09/20 18:20:48 $
+ * $Revision: 1.189.4.11 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1039,50 +1039,7 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, int limit, gasnetc_rbuf_t **spar
 
 GASNETI_INLINE(gasnetc_amrdma_zeros)
 int gasnetc_amrdma_zeros(uint32_t flags, const void *buf, unsigned int length) {
-  volatile unsigned long *p = (volatile unsigned long *)buf;
-  #if SIZEOF_LONG == 8
-    int full_words = length >> 3;
-  #elif SIZEOF_LONG == 4
-    int full_words = length >> 2;
-  #endif
-  int zeros = !(flags & (0xff << 24)) +
-	      !(flags & (0xff << 16)) +
-	      !(flags & (0xff << 8)) +
-	      !(flags & 0xff);
-
-  gasneti_assert(!((uintptr_t)p & (sizeof(unsigned long) - 1))); /* word aligned */
-
-  while (full_words--) {
-    unsigned long tmp = *(p++);
-    zeros +=
-    #if SIZEOF_LONG == 8
-	     !(tmp & (0xffUL << 56)) +
-	     !(tmp & (0xffUL << 48)) +
-	     !(tmp & (0xffUL << 40)) +
-	     !(tmp & (0xffUL << 32)) +
-    #endif
-	     !(tmp & (0xff << 24)) +
-	     !(tmp & (0xff << 16)) +
-	     !(tmp & (0xff << 8)) +
-	     !(tmp & 0xff);
-  }
-
-  { volatile uint8_t *q = (volatile uint8_t *)p;
-    switch (length & (sizeof(unsigned long) - 1)) {
-    #if SIZEOF_LONG == 8
-      case 7: if (*(q++) == 0) ++zeros;
-      case 6: if (*(q++) == 0) ++zeros;
-      case 5: if (*(q++) == 0) ++zeros;
-      case 4: if (*(q++) == 0) ++zeros;
-    #endif
-      case 3: if (*(q++) == 0) ++zeros;
-      case 2: if (*(q++) == 0) ++zeros;
-      case 1: if (*(q++) == 0) ++zeros;
-      case 0: (void)0;
-    }
-  }
-
-  return zeros;
+  return gasneti_count0s_uint32_t(flags) + gasneti_count0s(buf, length);
 }
 
 GASNETI_INLINE(gasnetc_rcv_amrdma)
