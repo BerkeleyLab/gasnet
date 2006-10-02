@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2006/08/11 00:53:05 $
- * $Revision: 1.39.2.1 $
+ *     $Date: 2006/10/02 19:08:40 $
+ * $Revision: 1.39.2.2 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,9 +11,8 @@
 #define _IN_GASNET_H
 #define _INCLUDED_GASNET_H
 #ifdef _INCLUDED_GASNET_TOOLS_H
-  #error Applications that use both GASNet and GASNet tools must   \
-         include gasnet.h before gasnet_tools.h and must include   \
-         _both_ headers in any files that need either header
+  #error Objects that use both GASNet and GASNet tools must   \
+         include gasnet.h before gasnet_tools.h 
 #endif
 #if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_IN_GASNET_INTERNAL_H)
   #error Internal GASNet code should not directly include gasnet.h, just gasnet_internal.h
@@ -26,6 +25,13 @@
 
 /* autoconf-generated configuration header */
 #include <gasnet_config.h>
+
+/* public spec version numbers */
+#define GASNET_SPEC_VERSION_MAJOR GASNETI_SPEC_VERSION_MAJOR
+#define GASNET_SPEC_VERSION_MINOR GASNETI_SPEC_VERSION_MINOR
+
+/*  legacy name for major spec version number */
+#define GASNET_VERSION GASNET_SPEC_VERSION_MAJOR
 
 /* ------------------------------------------------------------------------------------ */
 /* check threading configuration */
@@ -144,6 +150,9 @@
   #error bad defn of GASNETI_CONDUIT_THREADS
 #endif
 
+/* GASNETI_THREADS = Threads exist at conduit and/or client level, 
+                     and/or compiling for a tools-only client with thread-safety
+*/
 #if GASNETI_CLIENT_THREADS || GASNETI_CONDUIT_THREADS
   #define GASNETI_THREADS 1
 #elif defined(GASNETI_THREADS)
@@ -161,15 +170,6 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* constants */
-#ifndef GASNET_VERSION
-  /*  an integer representing the major version of the GASNet spec to which this implementation complies */
-  #define GASNET_VERSION 1
-#endif
-
-#ifndef GASNETI_RELEASE_VERSION
-  /* the public distribution release identifier */
-  #define GASNETI_RELEASE_VERSION 1.7
-#endif
 
 #ifndef GASNET_MAXNODES
   /*  an integer representing the maximum number of nodes supported in a single GASNet job */
@@ -332,10 +332,11 @@ GASNETI_END_EXTERNC
   #endif
   #define GASNET_CONFIG_STRING                                            \
              "RELEASE=" _STRINGIFY(GASNETI_RELEASE_VERSION) ","           \
-             "SPEC=" _STRINGIFY(GASNET_VERSION) ","                       \
-             "CONDUIT="                                                   \
-             GASNET_CORE_NAME_STR "-" GASNET_CORE_VERSION_STR "/"         \
-             GASNET_EXTENDED_NAME_STR "-" GASNET_EXTENDED_VERSION_STR "," \
+             "SPEC=" _STRINGIFY(GASNET_SPEC_VERSION_MAJOR) "."            \
+             _STRINGIFY(GASNET_SPEC_VERSION_MINOR) ","                    \
+             "CONDUIT=" GASNET_CONDUIT_NAME_STR "("                       \
+             GASNET_CORE_NAME_STR"-"GASNET_CORE_VERSION_STR "/"           \
+             GASNET_EXTENDED_NAME_STR"-"GASNET_EXTENDED_VERSION_STR "),"  \
              "THREADMODEL=" _STRINGIFY(GASNETI_THREAD_MODEL) ","          \
              "SEGMENT=" _STRINGIFY(GASNETI_SEGMENT_CONFIG) ","            \
              "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) ","                    \

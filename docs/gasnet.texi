@@ -1,8 +1,8 @@
 \input texinfo   @c -*-texinfo-*-
 @c %**start of header
 @c   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/gasnet.texi,v $
-@c     $Date: 2006/08/11 00:53:08 $
-@c $Revision: 1.38.4.1 $
+@c     $Date: 2006/10/02 19:08:44 $
+@c $Revision: 1.38.4.2 $
 @c Description: GASNet specification
 @c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 @c Terms of use are as specified in license.txt
@@ -164,9 +164,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2006/08/11 00:53:08 $
+@subtitle $Date: 2006/10/02 19:08:44 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.38.4.1 $ 
+@subtitle $Revision: 1.38.4.2 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://gasnet.cs.berkeley.edu/}
 
@@ -204,8 +204,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2006/08/11 00:53:08 $
-@*$Revision: 1.38.4.1 $ 
+@*$Date: 2006/10/02 19:08:44 $
+@*$Revision: 1.38.4.2 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -477,10 +477,24 @@ in @code{gasnet_attach()}
 @section Compile-time constants
 
 @ftable @code
-@item GASNET_VERSION
-an integer representing the major version of the GASNet spec to which this 
-implementation complies. Implementations of this version of the 
-specification should set this value to the integer 1
+@item GASNET_SPEC_VERSION_MAJOR
+@item GASNET_SPEC_VERSION_MINOR
+Integral values corresponding to the major and minor version numbers of the GASNet
+specification version adhered to by a particular implementation. The minor version is
+incremented whenever new functionality is added to the specification without breaking backward compatibility.
+The major version is incremented whenever specification changes require breaking backward compatibility.
+The title page of this document provides the specification version
+corresponding to this version of the specification.
+
+@item GASNET_RELEASE_VERSION_MAJOR
+@item GASNET_RELEASE_VERSION_MINOR
+@item GASNET_RELEASE_VERSION_PATCH
+Integral values corresponding to the major, minor and patch version numbers of the release
+identifiers corresponding to the packaging on an implementation of GASNet.
+The significance of these values is implementation-defined.
+
+@item GASNET_VERSION (deprecated)
+equivalent to GASNET_SPEC_VERSION_MAJOR
 
 @item GASNET_CONFIG_STRING
 a string representing any the relevant GASNet compile-time configuration settings 

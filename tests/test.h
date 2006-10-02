@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/08/11 00:53:49 $
- * $Revision: 1.62.2.1 $
+ *     $Date: 2006/10/02 19:09:14 $
+ * $Revision: 1.62.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -332,7 +332,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 #ifndef TEST_OMIT_CONFIGSTRINGS
 #ifdef TEST_GASNET_H
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
-  #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CORE_NAME_STR "-uni"
+  #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CONDUIT_NAME_STR "-uni"
 #else
   #if GASNETI_CROSS_COMPILING
     #define GASNETI_TOOLS_CONDUIT "MPI"
@@ -342,7 +342,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
     #define TEST_TITANIUM_BACKEND "sequential"
   #endif
   #define TEST_CONFIG_STRING \
-    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
+    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"("GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x),THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
 #endif
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
@@ -465,7 +465,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
           barrier_count = 0;
           phase = !phase;
           check_zeroret(pthread_mutex_unlock(&barrier_mutex));
-          for (i=0; i < local_pthread_count-1; i++) {
+          for (i=0; i < (int)(local_pthread_count-1); i++) {
             check_zeroret(sem_post(&sem[myphase]));
           }
         }
@@ -853,26 +853,19 @@ static void _test_init(const char *testname, int reports_performance, int early,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     if (!early) {
-      char hostname[255];
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-        BARRIER();
-      }
+      MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+      fflush(NULL);
+      BARRIER();
     }
   #else
-    { char hostname[255];
-      MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
+    MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
           testname, GASNETT_CONFIG_STRING,
           _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
           GASNETT_SYSTEM_TUPLE);
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-      }
-    }
+    MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+    fflush(NULL);
   #endif
   if (gasnett_verboseenv()) MSG("%s running...", testname);
 }

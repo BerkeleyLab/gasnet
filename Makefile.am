@@ -1,77 +1,101 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/08/11 00:53:05 $
-# $Revision: 1.54.4.1 $
+#     $Date: 2006/10/02 19:08:40 $
+# $Revision: 1.54.4.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4
+ACLOCAL_AMFLAGS = -I other/plpa/config
 
 # Directories for automake to recurse into:
 SUBDIRS = .          \
 	config-aux   \
         other
 
-# Directories we manually recurse into:
-CONDUIT_DIRS =       \
-        elan-conduit \
-        gm-conduit   \
-        lapi-conduit \
-	mpi-conduit  \
-	sci-conduit  \
-	shmem-conduit  \
-	smp-conduit  \
-	udp-conduit  \
-	vapi-conduit
+# GASNET_TOOLSONLY_TRUE_BEGIN
+# CONDUITMODE_DIST_SUBDIRS = 
+# CONDUITMODE_headers = 
+# CONDUITMODE_EXTRA_DIST = 	\
+# 	.gasnet_toolsonly_mode 
+# GASNET_TOOLSONLY_TRUE_END
+# GASNET_TOOLSONLY_FALSE_BEGIN
+  # Directories we manually recurse into:
+CONDUITMODE_DIST_SUBDIRS =    	\
+	elan-conduit 		\
+	gm-conduit   		\
+	lapi-conduit 		\
+	mpi-conduit  		\
+	sci-conduit  		\
+	shmem-conduit  		\
+	smp-conduit  		\
+	udp-conduit  		\
+	vapi-conduit 		\
+	portals-conduit
+CONDUITMODE_headers = 		\
+	gasnet.h           	\
+	gasnet_ammacros.h  	\
+	gasnet_coll.h      	\
+	gasnet_handler.h   	\
+	gasnet_trace.h     	\
+	gasnet_vis.h      
+CONDUITMODE_EXTRA_DIST =    	\
+	docs              	\
+	extended-ref      	\
+	template-conduit  	\
+	gasnet_internal.h 	\
+	gasnet_internal.c 	\
+	gasnet_mmap.c  	  	\
+	gasnet_diagnostic.c 	\
+	gasnet_trace.c
+# GASNET_TOOLSONLY_FALSE_END
 
-DIST_SUBDIRS = $(SUBDIRS) $(CONDUIT_DIRS)
+DIST_SUBDIRS = $(SUBDIRS) $(CONDUITMODE_DIST_SUBDIRS)
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)
 docdir = $(datadir)/doc/gasnet
 
-headers =                  \
-        gasnet.h           \
-	gasnet_ammacros.h  \
-	gasnet_asm.h       \
-	gasnet_atomicops.h \
-	gasnet_atomic_bits.h \
-        gasnet_basic.h     \
-        gasnet_coll.h      \
-        gasnet_handler.h   \
-        gasnet_help.h      \
-	gasnet_membar.h    \
-	gasnet_syncops.h   \
-        gasnet_timer.h     \
-	gasnet_tools.h     \
-	gasnet_toolhelp.h  \
-	gasnet_trace.h     \
-        gasnet_vis.h      
+headers =                  	\
+        $(CONDUITMODE_headers) 	\
+	gasnet_asm.h       	\
+	gasnet_atomicops.h 	\
+	gasnet_atomic_bits.h 	\
+        gasnet_basic.h     	\
+        gasnet_help.h      	\
+	gasnet_membar.h    	\
+	gasnet_syncops.h   	\
+        gasnet_timer.h     	\
+	gasnet_tools.h     	\
+	gasnet_toolhelp.h  	
 
-EXTRA_DIST =              \
-        README            \
-	ChangeLog	  \
-	license.txt       \
-	docs              \
-        extended-ref      \
-	template-conduit  \
-	.autom4te.cfg     \
-        Bootstrap         \
-        unBootstrap       \
-        configure.in      \
-        acconfig.h        \
-        acinclude.m4      \
-        $(headers)        \
-        gasnet_internal.h \
-        gasnet_internal.c \
-        gasnet_mmap.c  	  \
-        gasnet_diagnostic.c \
-        gasnet_tools.c    \
-        gasnet_trace.c
+EXTRA_DIST =              		\
+	README				\
+ 	README-tools 			\
+	ChangeLog	  		\
+	license.txt       		\
+	.autom4te.cfg     		\
+        Bootstrap         		\
+        unBootstrap       		\
+        configure.in      		\
+        acconfig.h        		\
+        acinclude.m4      		\
+        $(headers)        		\
+        gasnet_tools.c    		\
+	$(CONDUITMODE_EXTRA_DIST)
 #       tests handled below
 
 include_HEADERS = $(headers)
+
+INSTALL_DOCS =			\
+	README			\
+	README-tools		\
+	license.txt		\
+	docs/gasnet.txt		\
+	docs/gasnet.html	\
+	docs/gasnet.pdf		\
+	docs/gasnet.ps	
 
 force:
 
@@ -97,13 +121,18 @@ libgasnet_tools-par.a: $(libgasnet_tools_dependencies)
 lib_LIBRARIES = $(libraries)
 #-------------------------------------------------------
 
-Makefile: $(srcdir)/Makefile.in $(top_builddir)/other/Makefile-libgasnet.mak
+# bug1758: cannot depend on $(top_builddir)/other/Makefile-libgasnet.mak here,
+#  as that will cause a failure during distclean on some make versions
+#  make should automatically introduce the desired dependency on Makefile-libgasnet.mak.in
+#  due to the include operation above
+Makefile: $(srcdir)/Makefile.in 
 	cd $(top_builddir) && CONFIG_FILES=$@ CONFIG_HEADERS= ./config.status
 
 # echo an arbitrary make/environment variable
 echovar: force
 	@echo $(VARNAME)=\"$($(VARNAME))\"
-	
+
+if CONDUIT_MODE
 test: tests-seq
 tests: tests-seq
 
@@ -158,19 +187,33 @@ do-end-tests:
 	  tail +2 $$testlog ; \
 	  echo "$$line" ; \
 	fi
-
 CLEANFILES = $(TESTLOG) 
+else
+TOOLSONLY_CHECK = run-tests
+TOOLSONLY_TESTS = testtools
+test: tests
+tests: force
+	@$(MAKE) -f $(top_builddir)/tests/Makefile \
+	        GASNET_INCLUDES="-I@TOP_BUILDDIR@ -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/other" \
+		$(TOOLSONLY_TESTS)
+run-tests: tests
+	./testtools
+CLEANFILES = $(TOOLSONLY_TESTS)
+endif
 
 # Build, clean, install, uninstall, etc. the conduits - in parallel if possible.
 # Instead of automake's loop over subdir, we expand to one target per subdir.
 # Care is taken w/ the 'clean-local' rule in case distclean has wiped the 
 # local or conduit Makefiles (order depends on the version of automake).
+# The same goes for 'distclean-local' rule.
 # Note that if ($VAR:%=%FOO) doesn't work for a given make, then we are
 # reduced to using actual conduit names as PHONY targets, but the rule for
 # $(recurse_local) is tailored to work correctly regardless.
-recurse_local = $(CONDUITS:%=%-recurse)
+recurse_local = $(CONDUITS:%=%-recurse) recurse_local_dummy
 $(recurse_local):
-	@cd `echo $@ | sed s/-recurse//`-conduit && $(MAKE) $(DO_WHAT)
+	@if test "$@" != "recurse_local_dummy" ; then \
+	  cd `echo $@ | sed s/-recurse//`-conduit && $(MAKE) $(DO_WHAT) || exit $$? ; \
+	 fi
 # conduit subdirectories that should be made, even when the conduit is disabled
 SPECIAL_SUBDIRS = mpi-conduit/contrib
 recurse_special:
@@ -187,19 +230,25 @@ clean-local:
 	  $(MAKE) $(recurse_local) DO_WHAT=clean || exit $$? ; \
 	 fi
 	@$(MAKE) recurse_special DO_WHAT=clean
-check-local: check-exports
+check-local: check-exports $(TOOLSONLY_CHECK)
 seq par parsync:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
 check tests-clean:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
 	@cd "$(top_builddir)/other" && $(MAKE) $@
+
 install-data-local: 
 	@$(MAKE) $(recurse_local) DO_WHAT=install-data
 	@$(MAKE) recurse_special DO_WHAT=install-data
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
-	cp -f $(top_srcdir)/README $(DESTDIR)$(docdir)/README
-	cp -f $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref
-	cp -f $(top_srcdir)/license.txt $(DESTDIR)$(docdir)/license.txt
+	if test -f $(top_srcdir)/extended-ref/README ; then \
+	  cp -f $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
+	fi
+	for file in $(INSTALL_DOCS) ; do \
+	  if test -f $(top_srcdir)/$$file ; then \
+	    cp -f $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
+	  fi ; \
+	done
 install-exec-local:
 	@$(MAKE) $(recurse_local) DO_WHAT=install-exec
 	@$(MAKE) recurse_special DO_WHAT=install-exec
@@ -218,13 +267,20 @@ distclean-local:
 	     ( cd "$$dir" && $(MAKE) distclean ) || exit 1; \
 	   fi;                                              \
 	 done
-	@$(MAKE) recurse_special DO_WHAT=distclean
+	@if test -f Makefile; then                   \
+	  $(MAKE) recurse_special DO_WHAT=distclean; \
+	 fi
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
         run-tests-seq run-tests-par run-tests-parsync                 \
-	$(recurse_local)
+	recurse_special $(recurse_local)
 
+if TOOLSONLY_MODE
+TESTDIST = README testtools.c test.h Makefile.in
+else
+TESTDIST = `find . -print`
+endif
 
 dist-hook:
 	if test -f $(distdir)/docs/Makefile ; then \
@@ -232,7 +288,7 @@ dist-hook:
         fi
 	mkdir -p $(distdir)/tests  # need this special hack to handle tests or distcheck will fail
 	fulldistdir=`cd $(distdir) ; @PWD_PROG@` export fulldistdir ; \
-        cd $(srcdir)/tests ; for file in `find . -print` ; do \
+        cd $(srcdir)/tests ; for file in $(TESTDIST) ; do \
  	  if test -d $$file -a ! -d $$fulldistdir/tests/$$file ; then \
 	     mkdir -p $$fulldistdir/tests/$$file || exit $$? ; \
           fi; \

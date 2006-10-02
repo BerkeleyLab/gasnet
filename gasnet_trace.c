@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2006/08/11 00:53:06 $
- * $Revision: 1.117.2.1 $
+ *     $Date: 2006/10/02 19:08:41 $
+ * $Revision: 1.117.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,19 +21,6 @@
 #include <string.h>
 #include <errno.h>
 
-/* get MAXHOSTNAMELEN */
-#if PLATFORM_OS_SOLARIS
-#include <netdb.h>
-#else
-#include <sys/param.h>
-#endif 
-#ifndef MAXHOSTNAMELEN
-  #ifdef HOST_NAME_MAX
-    #define MAXHOSTNAMELEN HOST_NAME_MAX
-  #else
-    #define MAXHOSTNAMELEN 1024 /* give up */
-  #endif
-#endif
 /* ------------------------------------------------------------------------------------ */
 /* GASNet Tracing and Statistics */
 
@@ -58,7 +45,9 @@ FILE *gasneti_statsfile = NULL;
 static gasneti_tick_t starttime;
 
 #if GASNET_STATS
-  gasnett_stats_callback_t gasnett_stats_callback = NULL;
+  void (*gasnett_stats_callback)(
+    GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
+  ) = NULL;
 #endif
 
 
@@ -90,8 +79,11 @@ int (*_gasnett_trace_enabled)(char tracecat) = &_gasnett_trace_enabled_body;
   static void _gasnett_trace_printf_force_body(const char *format, ...)) {
     _GASNETT_TRACE_PRINTF_DOIT(U);
   }
-  void (*_gasnett_trace_printf)(const char *format, ...) = _gasnett_trace_printf_body;
-  void (*_gasnett_trace_printf_force)(const char *format, ...) = _gasnett_trace_printf_force_body;
+  GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf,1,2,
+  void (*_gasnett_trace_printf)(const char *format, ...)) = _gasnett_trace_printf_body;
+  GASNETT_FORMAT_PRINTF_FUNCPTR(_gasnett_trace_printf_force,1,2,
+  void (*_gasnett_trace_printf_force)(const char *format, ...)) = _gasnett_trace_printf_force_body;
+
   #undef _GASNETT_TRACE_PRINTF_DOIT
   #undef TMPBUFSZ
 #endif
@@ -696,15 +688,13 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
   { time_t ltime;
     int i;
-    char hostname[MAXHOSTNAMELEN];
     char temp[1024];
     char *p;
     time(&ltime); 
     strcpy(temp, ctime(&ltime));
     if (temp[strlen(temp)-1] == '\n') temp[strlen(temp)-1] = '\0';
-    gethostname(hostname, MAXHOSTNAMELEN);
     gasneti_tracestats_printf("Program %s (pid=%i) starting on %s at: %s", 
-      gasneti_exename, (int)getpid(), hostname, temp);
+      gasneti_exename, (int)getpid(), gasnett_gethostname(), temp);
     p = temp;
     for (i=0; i < *pargc; i++) { 
       char *q = (*pargv)[i];
@@ -812,98 +802,81 @@ extern void gasneti_trace_finish() {
       #define DUMP_CTR(type,name,desc)                     \
         if (GASNETI_STATS_ENABLED(type)) {                 \
           gasneti_statctr_t *p = &gasneti_stat_ctr_##name; \
-          gasneti_stats_printf(" %-25s %6i",               \
-                  #name" "#desc":", (int)*p);              \
+          gasneti_stats_printf(" %-25s %6llu",             \
+                #name" "#desc":", (unsigned long long)*p); \
           AGGRNAME(ctr,type) += *p;                        \
         }
-      #define DUMP_INTVAL(type,name,desc)                                          \
-        if (GASNETI_STATS_ENABLED(type)) {                                         \
-          gasneti_stat_intval_t *p = &gasneti_stat_intval_##name;                  \
-          const char *pdesc = #desc;                                               \
-          if (!p->count)                                                           \
-            gasneti_stats_printf(" %-25s %6i", #name":", 0);                       \
-          else                                                                     \
-            gasneti_stats_printf(" %-25s %6i  avg/min/max/total %s = %i/%i/%i/%i", \
-                  #name":", (int)p->count,                                         \
-                  pdesc,                                                           \
-                  (int)CALC_AVG(p->sumval,p->count),                               \
-                  (int)p->minval,                                                  \
-                  (int)p->maxval,                                                  \
-                  (int)p->sumval);                                                 \
-          ACCUM((&AGGRNAME(intval,type)), p);                                      \
+      #define DUMP_INTVAL(type,name,desc)                           \
+        if (GASNETI_STATS_ENABLED(type)) {                          \
+          gasneti_stat_intval_t *p = &gasneti_stat_intval_##name;   \
+          const char *pdesc = #desc;                                \
+          if (!p->count)                                            \
+            gasneti_stats_printf(" %-25s %6i", #name":", 0);        \
+          else                                                      \
+            gasneti_stats_printf(" %-25s %6llu  avg/min/max/total"  \
+                                 " %s = %llu/%llu/%llu/%llu",       \
+                  #name":", (unsigned long long)p->count,           \
+                  pdesc,                                            \
+                  (unsigned long long)CALC_AVG(p->sumval,p->count), \
+                  (unsigned long long)p->minval,                    \
+                  (unsigned long long)p->maxval,                    \
+                  (unsigned long long)p->sumval);                   \
+          ACCUM((&AGGRNAME(intval,type)), p);                       \
         }
-      #define DUMP_TIMEVAL(type,name,desc)                                              \
-        if (GASNETI_STATS_ENABLED(type)) {                                              \
-          gasneti_stat_timeval_t *p = &gasneti_stat_timeval_##name;                     \
-          const char *pdesc = #desc;                                                    \
-          if (!p->count)                                                                \
-            gasneti_stats_printf(" %-25s %6i", #name":", 0);                            \
-          else                                                                          \
-            gasneti_stats_printf(" %-25s %6i  avg/min/max/total %s (us) = %.3f/%.3f/%.3f/%.3f", \
-                  #name":", (int)p->count,                                              \
-                  pdesc,                                                                \
-                  gasneti_ticks_to_ns(CALC_AVG(p->sumval, p->count))/1000.0,         \
-                  gasneti_ticks_to_ns(p->minval)/1000.0,                             \
-                  gasneti_ticks_to_ns(p->maxval)/1000.0,                             \
-                  gasneti_ticks_to_ns(p->sumval)/1000.0);                            \
-          ACCUM((&AGGRNAME(timeval,type)), p);                                          \
+      #define DUMP_TIMEVAL(type,name,desc)                                   \
+        if (GASNETI_STATS_ENABLED(type)) {                                   \
+          gasneti_stat_timeval_t *p = &gasneti_stat_timeval_##name;          \
+          const char *pdesc = #desc;                                         \
+          if (!p->count)                                                     \
+            gasneti_stats_printf(" %-25s %6i", #name":", 0);                 \
+          else                                                               \
+            gasneti_stats_printf(" %-25s %6llu  avg/min/max/total"           \
+                                 " %s (us) = %.3f/%.3f/%.3f/%.3f",           \
+                  #name":", (unsigned long long)p->count,                    \
+                  pdesc,                                                     \
+                  gasneti_ticks_to_ns(CALC_AVG(p->sumval, p->count))/1000.0, \
+                  gasneti_ticks_to_ns(p->minval)/1000.0,                     \
+                  gasneti_ticks_to_ns(p->maxval)/1000.0,                     \
+                  gasneti_ticks_to_ns(p->sumval)/1000.0);                    \
+          ACCUM((&AGGRNAME(timeval,type)), p);                               \
         }
 
       GASNETI_ALL_STATS(DUMP_CTR, DUMP_INTVAL, DUMP_TIMEVAL);
 
       gasneti_stats_printf(" ");
       gasneti_stats_printf(" ");
-
-      if (GASNETI_STATS_ENABLED(G)) {
-        gasneti_stat_intval_t *p = &AGGRNAME(intval,G);
-        if (!p->count)
-          gasneti_stats_printf("%-25s  %6i","Total gets:",0);
-        else
-          gasneti_stats_printf("%-25s  %6i  avg/min/max/total sz = %i/%i/%i/%i", "Total gets:",
-            (int)p->count,
-            (int)CALC_AVG(p->sumval, p->count),
-            (int)p->minval,
-            (int)p->maxval,
-            (int)p->sumval);
-      }
-      if (GASNETI_STATS_ENABLED(P)) {
-        gasneti_stat_intval_t *p = &AGGRNAME(intval,P);
-        if (!p->count)
-          gasneti_stats_printf("%-25s  %6i","Total puts:",0);
-        else
-          gasneti_stats_printf("%-25s  %6i  avg/min/max/total sz = %i/%i/%i/%i", "Total puts:",
-            (int)p->count,
-            (int)CALC_AVG(p->sumval, p->count),
-            (int)p->minval,
-            (int)p->maxval,
-            (int)p->sumval);
-      }
-      if (GASNETI_STATS_ENABLED(W)) {
-        gasneti_stat_intval_t *w = &AGGRNAME(intval,W);
-        if (!w->count)
-          gasneti_stats_printf("%-25s  %6i","Total collectives:",0);
-        else
-          gasneti_stats_printf("%-25s  %6i  avg/min/max/total sz = %i/%i/%i/%i", "Total collectives:",
-            (int)w->count,
-            (int)CALC_AVG(w->sumval, w->count),
-            (int)w->minval,
-            (int)w->maxval,
-            (int)w->sumval);
-      }
+      #define DUMP_AGGR_SZ(type,name) do {                                      \
+        if (GASNETI_STATS_ENABLED(type)) {                                      \
+          gasneti_stat_intval_t *p = &AGGRNAME(intval,type);                    \
+          if (!p->count)                                                        \
+            gasneti_stats_printf("%-25s  %6i","Total "#name":",0);              \
+          else                                                                  \
+            gasneti_stats_printf("%-25s  %6llu  avg/min/max/total"              \
+                                 " sz = %llu/%llu/%llu/%llu", "Total "#name":", \
+              (unsigned long long)p->count,                                     \
+              (unsigned long long)CALC_AVG(p->sumval, p->count),                \
+              (unsigned long long)p->minval,                                    \
+              (unsigned long long)p->maxval,                                    \
+              (unsigned long long)p->sumval);                                   \
+        }                                                                       \
+      } while (0)
+      DUMP_AGGR_SZ(G,gets);
+      DUMP_AGGR_SZ(P,puts);
+      DUMP_AGGR_SZ(W,collectives);
       if (GASNETI_STATS_ENABLED(S)) {
         gasneti_stat_intval_t *try_succ = &AGGRNAME(intval,S);
         gasneti_stat_timeval_t *wait_time = &AGGRNAME(timeval,S);
         if (!try_succ->count)
           gasneti_stats_printf("%-25s  %6i","Total try sync. calls:",0);
         else
-          gasneti_stats_printf("%-25s  %6i  try success rate = %f%%  \n",
-            "Total try sync. calls:",  ((int)try_succ->count),
+          gasneti_stats_printf("%-25s  %6llu  try success rate = %f%%  \n",
+            "Total try sync. calls:",  (unsigned long long)try_succ->count,
             (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
         if (!wait_time->count)
           gasneti_stats_printf("%-25s  %6i","Total wait sync. calls:",0);
         else
-          gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total wait sync. calls:", ((int)wait_time->count),
+          gasneti_stats_printf("%-25s  %6llu  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
+            "Total wait sync. calls:", (unsigned long long)wait_time->count,
             gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
             gasneti_ticks_to_ns(wait_time->minval)/1000.0,
             gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
@@ -915,21 +888,21 @@ extern void gasneti_trace_finish() {
         if (!try_succ->count)
           gasneti_stats_printf("%-25s  %6i","Total coll. try syncs:",0);
         else
-          gasneti_stats_printf("%-25s  %6i  collective try success rate = %f%%  \n",
-            "Total coll. try syncs:",  ((int)try_succ->count),
+          gasneti_stats_printf("%-25s  %6llu  collective try success rate = %f%%  \n",
+            "Total coll. try syncs:",  (unsigned long long)try_succ->count,
             (float)(CALC_AVG((float)try_succ->sumval, try_succ->count) * 100.0));
         if (!wait_time->count)
           gasneti_stats_printf("%-25s  %6i","Total coll. wait syncs:",0);
         else
-          gasneti_stats_printf("%-25s  %6i  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
-            "Total coll. wait syncs:", ((int)wait_time->count),
+          gasneti_stats_printf("%-25s  %6llu  avg/min/max/total waittime (us) = %.3f/%.3f/%.3f/%.3f", 
+            "Total coll. wait syncs:", (unsigned long long)wait_time->count,
             gasneti_ticks_to_ns(CALC_AVG(wait_time->sumval, wait_time->count))/1000.0,
             gasneti_ticks_to_ns(wait_time->minval)/1000.0,
             gasneti_ticks_to_ns(wait_time->maxval)/1000.0,
             gasneti_ticks_to_ns(wait_time->sumval)/1000.0);
       }
       if (GASNETI_STATS_ENABLED(A)) 
-        gasneti_stats_printf("%-25s  %6i", "Total AM's:", (int)AGGRNAME(ctr,A));
+        gasneti_stats_printf("%-25s  %6llu", "Total AM's:", (unsigned long long)AGGRNAME(ctr,A));
 
       gasneti_stats_printf("--------------------------------------------------------------------------------");
     }

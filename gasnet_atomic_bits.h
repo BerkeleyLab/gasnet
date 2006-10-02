@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/08/11 00:53:05 $
- * $Revision: 1.240.2.1 $
+ *     $Date: 2006/10/02 19:08:40 $
+ * $Revision: 1.240.2.2 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,7 @@
 #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS) || /* for debugging */                \
     PLATFORM_ARCH_CRAYT3E    || /* T3E seems to have no atomic ops */              \
     PLATFORM_ARCH_NECSX      || /* NEC SX-6 atomics not available to user code? */ \
-    PLATFORM_COMPILER_LCC    || /* not implemented - lacks 64-bit ints */          \
+    PLATFORM_COMPILER_LCC    || /* not implemented - lacks inline asm */           \
     PLATFORM_ARCH_MICROBLAZE   /* no atomic instructions */
   #define GASNETI_USE_GENERIC_ATOMICOPS
 #elif defined(GASNETI_FORCE_OS_ATOMICOPS) || /* for debugging */ \
@@ -224,7 +224,7 @@
       #define _gasneti_atomic32_decrement_and_test(p) \
                                           (InterlockedDecrement((LONG *)&((p)->ctr)) == 0)
       #define _gasneti_atomic32_compare_and_swap(p,oval,nval) \
-	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (oval))
+	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (LONG)(oval))
       #define _gasneti_atomic32_fetchadd(p, op) InterlockedExchangeAdd((LONG *)&((p)->ctr), op)
 
       #if PLATFORM_ARCH_64 /* TODO: Identify ILP32 running on 64-bit CPU */
@@ -238,7 +238,7 @@
         #define _gasneti_atomic64_decrement_and_test(p) \
                                           (InterlockedDecrement64((LONGLONG *)&((p)->ctr)) == 0)
         #define _gasneti_atomic64_compare_and_swap(p,oval,nval) \
-	     (InterlockedCompareExchange64((LONGLONG *)&((p)->ctr),nval,oval) == (oval))
+	     (InterlockedCompareExchange64((LONGLONG *)&((p)->ctr),nval,oval) == (LONGLONG)(oval))
         #define _gasneti_atomic64_fetchadd(p, op) InterlockedExchangeAdd64((LONGLONG *)&((p)->ctr), op)
       #endif
 
@@ -315,9 +315,9 @@
    * Not using GENERIC (mutex) or OS-provided atomics, so provide our own based on the
    * CPU and compiler support for inline assembly code
    * ------------------------------------------------------------------------------------ */
-  #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 /* x86 and Athlon/Opteron */
+  #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 /* x86 and Athlon64/Opteron */
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
-        PLATFORM_COMPILER_PATHSCALE || PGI_WITH_REAL_ASM || PLATFORM_COMPILER_TINY
+        PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_THREADSAFE || PLATFORM_COMPILER_TINY
      #define GASNETI_HAVE_ATOMIC32_T 1
      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
      #define _gasneti_atomic32_init(v)      { (v) }
@@ -326,11 +326,6 @@
      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
      #define _gasneti_atomic64_init(v)      { (v) }
 
-     #if PLATFORM_COMPILER_PGI_CXX && PGI_WITH_REAL_ASM /* PGI C++ lacks inline assembly */
-        #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
-        #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
-        #define GASNETI_USING_SLOW_ATOMICS 1
-     #else
       #if PLATFORM_COMPILER_PATHSCALE
         /* Pathscale optimizer is buggy and fails to clobber memory output location correctly
            unless we include an extraneous full memory clobber 
@@ -372,7 +367,11 @@
 	          : "=m" (v->ctr), "=qm" (retval)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
+	#if PLATFORM_COMPILER_PGI
+          return retval & 0xFF;	/* Bug 1754 */
+	#else
           return retval;
+	#endif
       }
       #define _gasneti_atomic32_decrement_and_test _gasneti_atomic32_decrement_and_test
 
@@ -387,7 +386,11 @@
 		: "=qm" (retval), "=m" (v->ctr), "=a" (readval)
 		: "r" (newval), "m" (v->ctr), "a" (oldval)
 		: "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-        return (int)retval;
+	#if PLATFORM_COMPILER_PGI
+          return retval & 0xFF;	/* Bug 1754 */
+	#else
+          return retval;
+	#endif
       }
 
       GASNETI_INLINE(gasneti_atomic32_fetchadd)
@@ -407,15 +410,16 @@
       }
       #define _gasneti_atomic32_fetchadd gasneti_atomic32_fetchadd
 
-      /* 64-bit differ between x86 and amd64: */
-      #if PLATFORM_ARCH_X86_64 /* x86 and Athlon/Opteron */
+      /* 64-bit differ between x86 and x86-64: */
+      #if PLATFORM_ARCH_X86_64 /* Athlon64/Opteron */
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
 
         #if PLATFORM_COMPILER_VERSION_LT(2,3,0)
 	  /* A "dirty hack" for bug 1620 because pathcc < 2.3 botches the 64-bit asm */
           #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY\
-	    GASNETI_ASM( "movq     %rsi, %rax		\n\t" \
+	    GASNETI_ASM_SPECIAL(                        \
+		         "movq     %rsi, %rax		\n\t" \
 		         GASNETI_X86_LOCK_PREFIX	\
 		         "cmpxchgq %rdx, (%rdi)		\n\t" \
 		         "sete     %cl			\n\t" \
@@ -436,11 +440,17 @@
 		    : "=q" (retval), "=m" (p->ctr), "=a" (readval)
 		    : "r" (newval), "m" (p->ctr), "a" (oldval)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-            return (int)retval;
+	  #if PLATFORM_COMPILER_PGI
+            return retval & 0xFF;	/* Bug 1754 */
+	  #else
+            return retval;
+	  #endif
           }
         #endif
-      #elif !PLATFORM_COMPILER_TINY
-	/* To perform read and set atomically on x86 requires use of the locked
+      #elif !(PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_PGI) && GASNETI_HAVE_X86_EBX
+	/* "Normal" ILP32 case:
+	 *
+	 * To perform read and set atomically on x86 requires use of the locked
 	 * 8-byte c-a-s instruction.  This is the only atomic 64-bit operation
 	 * available on this architecture.  Note that we need the lock prefix
 	 * even on a uniprocessor to ensure that we are signal safe.
@@ -456,8 +466,7 @@
 	 *   observed to always use (ebx,ecx).  Nothing documents either behavior, so we
 	 *   must use the 'xchgl' unconditionally. ]
 	 *
-	 * For compilers like tinyC that don't deal well w/ 64-bit arguments to asms
-	 * see the #else clause below.
+	 * See the following #elif/#else clauses for slight variants.
 	 */
         #define gasneti_atomic64_align 4 /* only need 4-byte alignment, not the default 8 */
         GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
@@ -505,15 +514,81 @@
 	  return retval;
 	}
 	#define gasneti_atomic64_read gasneti_atomic64_read
-      #else /* Tiny CC */
-	/* Everything here works like the case above, except that we break everything
+      #elif !GASNETI_HAVE_X86_EBX
+	/* Much the same as the "normal" ILP32 case, but w/ save and restore of EBX.
+	 * This is achieved by passing the "other" 64-bit value in ECX and a second
+ 	 * register of the compiler's choosing, which is then swapped w/ EBX.
+	 *
+	 * We also need to take care that the cmpxchg8b intruction won't get a
+	 * GOT-relative address argument - since EBX doesn't hold the GOT pointer
+	 * at the time it is executed.  This is done by loading the address into
+	 * a register rather than giving it as an "m".
+	 *
+	 * Alas, if we try to add an "m" output for the target location, gcc thinks
+	 * it needs to allocate another register for it.  Having none left, it gives
+	 * up at this point.  So, we need to list "memory" in the clobbers instead.
+	 */
+        #define gasneti_atomic64_align 4 /* only need 4-byte alignment, not the default 8 */
+        GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
+        int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
+	  register uint32_t newlo = (uint32_t)newval;
+	  register uint32_t newhi = (uint32_t)(newval >> 32);
+          __asm__ __volatile__ (
+		    "xchgl	%2, %%ebx	\n\t"
+		    "lock;			"
+		    "cmpxchg8b	(%3)		\n\t"
+		    "sete	%b1		\n\t"
+		    "andl	$255, %k1	\n\t"
+		    "movl	%2, %%ebx	"
+		    : "+&A" (oldval), "+&c" (newhi), "+&r" (newlo)
+		    : "r" (&p->ctr)
+		    : "cc", "memory");
+          return newhi;
+        }
+        GASNETI_INLINE(gasneti_atomic64_set)
+        void gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t v, int flags) {
+	  register uint64_t oldval = p->ctr;
+	  register uint32_t newlo = (uint32_t)v;
+	  register uint32_t newhi = (uint32_t)(v >> 32);
+          __asm__ __volatile__ (
+		    "xchgl	%1, %%ebx	\n\t"
+		    "0:				\n\t"
+		    "lock;			"
+		    "cmpxchg8b	(%3)		\n\t"
+		    "jnz	0b		\n\t"
+		    "movl	%1, %%ebx	"
+		    : "+&A" (oldval), "+&r" (newlo)
+		    : "c" (newhi), "r" (&p->ctr)
+		    : "cc", "memory");
+	}
+	#define gasneti_atomic64_set gasneti_atomic64_set
+        GASNETI_INLINE(gasneti_atomic64_read)
+        uint64_t gasneti_atomic64_read(gasneti_atomic64_t *p, int flags) {
+	  register uint64_t retval = p->ctr;
+	  register uint32_t save_ebx, ecx;
+          __asm__ __volatile__ (
+		    "movl	%%ebx, %2	\n\t"
+		    "0:				\n\t"
+		    "movl	%%eax, %%ebx	\n\t"
+		    "movl	%%edx, %%ecx	\n\t"
+		    "lock;			"
+		    "cmpxchg8b	(%3)		\n\t"
+		    "jnz	0b		\n\t"
+		    "movl	%2, %%ebx	"
+		    : "+&A" (retval), "=&c" (ecx), "=&r" (save_ebx)
+		    : "r" (&p->ctr)
+		    : "cc");
+	  return retval;
+	}
+	#define gasneti_atomic64_read gasneti_atomic64_read
+      #else /* Tiny CC and PGI */
+	/* Everything here works like the "normal" ILP32 case, except that we break everything
 	 * down in to nice bite-sized (4-bytes actually) chunks and explictly assign
 	 * them to registers A through D.
 	 */
         #define gasneti_atomic64_align 4 /* only need 4-byte alignment, not the default 8 */
         GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
         int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-	  register uint64_t retval = newval;
 	  register uint32_t oldlo = (uint32_t)(oldval & 0xFFFFFFFF);
 	  register uint32_t oldhi = (uint32_t)(oldval >> 32);
 	  register uint32_t newlo = (uint32_t)(newval & 0xFFFFFFFF);
@@ -559,7 +634,7 @@
 		    "lock;			"
 		    "cmpxchg8b	%0		\n\t"
 		    "jnz	0b		"
-		    : "=m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "&b" (tmplo), "&c" (tmphi)
+		    : "=m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "=&b" (tmplo), "=&c" (tmphi)
 		    : /* no inputs */
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
 	  return ((uint64_t)rethi << 32) | ((uint64_t)retlo);
@@ -569,8 +644,7 @@
 
       /* x86 and x86_64 include full memory fence in locked RMW insns */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
-     #endif /* !slow atomics */
-    #elif PLATFORM_COMPILER_SUN || PLATFORM_COMPILER_PGI
+    #elif PLATFORM_COMPILER_SUN || PLATFORM_COMPILER_PGI_C
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
       #if PLATFORM_ARCH_X86_64
         #define _gasneti_atomic_addr		"(%rdi)"
@@ -592,24 +666,28 @@
       #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
 
       #define GASNETI_ATOMIC32_INCREMENT_BODY				\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "incl " _gasneti_atomic_addr )
 
       #define GASNETI_ATOMIC32_DECREMENT_BODY				\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "decl " _gasneti_atomic_addr )
 
       #define GASNETI_ATOMIC32_DECREMENT_AND_TEST_BODY			\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "decl " _gasneti_atomic_addr			"\n\t" \
 		       "sete %cl					\n\t" \
 		       "movzbl %cl, %eax" )
 
       #define GASNETI_ATOMIC32_COMPARE_AND_SWAP_BODY			\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       _gasneti_atomic_load_arg2			\
 		       GASNETI_X86_LOCK_PREFIX				\
@@ -623,13 +701,15 @@
        * work is done in C code that the optimizer can discard.
        */
       #define GASNETI_ATOMIC32_FETCHADD_BODY				\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       GASNETI_X86_LOCK_PREFIX				\
 		       "xadd %eax, " _gasneti_atomic_addr	)
     #else
       #define GASNETI_ATOMIC32_ADD_BODY					\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       "movl %eax, %edx					\n\t" \
 		       GASNETI_X86_LOCK_PREFIX				\
@@ -637,7 +717,8 @@
 		       "addl %edx, %eax"	)
 
       #define GASNETI_ATOMIC32_SUBTRACT_BODY				\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       "movl %eax, %edx					\n\t" \
 		       "negl %eax					\n\t" \
@@ -664,13 +745,14 @@
       typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
       #define _gasneti_atomic64_init(v)      { (v) }
 
-      /* 64-bit differ between x86 and amd64: */
-      #if PLATFORM_ARCH_X86_64 /* x86 and Athlon/Opteron */
+      /* 64-bit differ between x86 and x86-64: */
+      #if PLATFORM_ARCH_X86_64 /* Athlon64/Opteron */
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
 
         #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY			\
-	  GASNETI_ASM( _gasneti_atomic_load_arg0			\
+	  GASNETI_ASM_SPECIAL(                                          \
+		       _gasneti_atomic_load_arg0			\
 		       _gasneti_atomic_load_arg1			\
 		       _gasneti_atomic_load_arg2			\
 		       GASNETI_X86_LOCK_PREFIX				\
@@ -681,9 +763,10 @@
         #define GASNETI_ATOMIC64_SPECIALS                                        \
 	  GASNETI_SPECIAL_ASM_DEFN(_gasneti_special_atomic64_compare_and_swap,   \
 				   GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY)
-      #else
+      #else /* x86 */
         #define GASNETI_ATOMIC64_READ_BODY     				\
-	  GASNETI_ASM( "pushl     %edi					\n\t" \
+	  GASNETI_ASM_SPECIAL(                                          \
+		       "pushl     %edi					\n\t" \
 		       "movl      8(%ebp), %edi				\n\t" \
 		       "pushl     %ebx					\n" \
 		       "movl      0(%edi), %eax				\n\t" \
@@ -698,7 +781,8 @@
 		       "popl      %edi" )
 
         #define GASNETI_ATOMIC64_SET_BODY     				\
-	  GASNETI_ASM( "pushl     %edi					\n\t" \
+	  GASNETI_ASM_SPECIAL(                                          \
+		       "pushl     %edi					\n\t" \
 		       "movl      8(%ebp), %edi				\n\t" \
 		       "pushl     %ebx					\n" \
 		       "movl      0(%edi), %eax				\n\t" \
@@ -713,7 +797,8 @@
 		       "popl      %edi" )
 
         #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY			\
-	  GASNETI_ASM( "pushl     %edi					\n\t" \
+	  GASNETI_ASM_SPECIAL(                                          \
+		       "pushl     %edi					\n\t" \
 		       "movl      8(%ebp), %edi				\n\t" \
 		       "pushl     %ebx					\n" \
 		       "movl      12(%ebp), %eax			\n\t" \
@@ -741,6 +826,24 @@
 
       /* x86 and x86_64 include full memory fence in locked RMW insns */
       #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
+    #elif PLATFORM_COMPILER_PGI_CXX
+      /* pgCC w/o threadsafe GNU-style asm():
+       * Here we must use the slow atomics since we don't know if the library has been
+       * built w/ native or "special" atomics support.
+       * See bug 1752 for discussion of how this might be avoided.
+       */
+      /* XXX: Only works because both possible library versions use these representations. */
+      #define GASNETI_HAVE_ATOMIC32_T 1
+      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
+      #define _gasneti_atomic32_init(v)      { (v) }
+
+      #define GASNETI_HAVE_ATOMIC64_T 1
+      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
+      #define _gasneti_atomic64_init(v)      { (v) }
+
+      #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
+      #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
+      #define GASNETI_USING_SLOW_ATOMICS 1
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif
@@ -780,19 +883,37 @@
       uint32_t gasneti_atomic32_cmpxchg(uint32_t volatile *ptr, uint32_t oldval, uint32_t newval) {
         uint64_t tmp = oldval;
         __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(tmp));
-        __asm__ __volatile__ ("cmpxchg4.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("cmpxchg4.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "cmpxchg4.acq %0=[%1],%2,ar.ccv" : "=r"(tmp), "+r"(ptr) :  "r"(newval) );
+        #endif
         return (uint32_t) tmp;
       }
       GASNETI_INLINE(gasneti_atomic32_fetchandinc)
       uint32_t gasneti_atomic32_fetchandinc(uint32_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd4.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (1) );
+        #endif
         return (uint32_t) result;
       }
       GASNETI_INLINE(gasneti_atomic32_fetchanddec)
       uint32_t gasneti_atomic32_fetchanddec(uint32_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd4.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd4.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (-1) );
+        #endif
         return (uint32_t) result;
       }
 
@@ -800,19 +921,37 @@
       uint64_t gasneti_atomic64_cmpxchg(uint64_t volatile *ptr, uint64_t oldval, uint64_t newval) {
         uint64_t tmp = oldval;
         __asm__ __volatile__ ("mov ar.ccv=%0;;" :: "rO"(tmp));
-        __asm__ __volatile__ ("cmpxchg8.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("cmpxchg8.acq %0=[%1],%2,ar.ccv" : "=r"(tmp) : "r"(ptr), "r"(newval) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "cmpxchg8.acq %0=[%1],%2,ar.ccv" : "=r"(tmp), "+r"(ptr) :  "r"(newval) );
+        #endif
         return (uint64_t) tmp;
       }
       GASNETI_INLINE(gasneti_atomic64_fetchandinc)
       uint64_t gasneti_atomic64_fetchandinc(uint64_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd8.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (1) );
+        #endif
         return result;
       }
       GASNETI_INLINE(gasneti_atomic64_fetchanddec)
       uint64_t gasneti_atomic64_fetchanddec(uint64_t volatile *ptr) {
         uint64_t result;
-        asm volatile ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        __asm__ __volatile__ 
+        #if PLATFORM_ARCH_64
+            ("fetchadd8.acq %0=[%1],%2" : "=r"(result) : "r"(ptr), "i" (-1) );
+        #else
+            ("addp4 %1=0,%1;;\n\t"
+             "fetchadd8.acq %0=[%1],%2" : "=r"(result), "+r"(ptr) :  "i" (-1) );
+        #endif
         return result;
       }
 
@@ -1153,7 +1292,7 @@
         /* Default impls of inc, dec, dec-and-test, add and sub */
 
         #define GASNETI_ATOMIC32_COMPARE_AND_SWAP_BODY					\
-	    GASNETI_ASM(								\
+	    GASNETI_ASM_SPECIAL(                        \
 		/* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */	\
 		     "cas	[%i0], %i1, %i2		\n\t"				\
 		/* retval = (oldval == newval) ? 1 : 0				*/	\
@@ -1162,7 +1301,7 @@
 		     "subx	%g0, -1, %i0 " )	      /* Subtract w/ carry */
 
         #define GASNETI_ATOMIC32_FETCHADD_BODY /* see gcc asm, above, for more detail */	\
-	    GASNETI_ASM(								\
+	    GASNETI_ASM_SPECIAL(                        \
 		/* oldval = *addr;						*/	\
 		     "ld	[%i0], %g1		\n"				\
 		/* while (!cas(addr, oldval, oldval + op)) { oldval = *addr; }	*/	\
@@ -1189,7 +1328,7 @@
           #define _gasneti_atomic64_read(p)      ((p)->ctr)
           #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
           #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY				\
-	    GASNETI_ASM(								\
+	    GASNETI_ASM_SPECIAL(							\
 		/* if (*addr == oldval) SWAP(*addr,newval); else newval = *addr; */	\
 		     "casx	[%i0], %i1, %i2		\n\t"				\
 		/* retval = (oldval == newval) ? 1 : 0				*/	\
@@ -1202,15 +1341,15 @@
         #else
           /* ILP32 on a 64-bit CPU. */
           #define GASNETI_ATOMIC64_SET_BODY /* see gcc asm, above, for explanation */	\
-	    GASNETI_ASM(								\
+	    GASNETI_ASM_SPECIAL(							\
 		     "mov	%i1, %o2		\n\t"				\
 		     "mov	%i2, %o3		\n\t"				\
 		     "std	%o2, [%i0]" )
           #define GASNETI_ATOMIC64_READ_BODY /* see gcc asm, above, for explanation */	\
-	    GASNETI_ASM(								\
+	    GASNETI_ASM_SPECIAL(							\
 		     "ldd	[%i0], %i0 " );
           #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY /* see gcc asm, above, for explanation */ \
-	    GASNETI_ASM(								\
+	    GASNETI_ASM_SPECIAL(							\
 		     "sllx	%i3, 32, %o1		\n\t"				\
 		     "sllx	%i1, 32, %g1		\n\t"				\
 		     "or	%o1, %i4, %o1		\n\t"				\
@@ -1241,13 +1380,20 @@
       #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1
       #define gasneti_atomic_align 4
       #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_SUN
-        /* Only 31 bits: */
+        #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
+          /* Only 31 bits: */
+          #define GASNETI_ATOMIC_MAX		((uint32_t)0x7FFFFFFFU)
+          #define GASNETI_ATOMIC_SIGNED_MIN	((int32_t)0xC0000000)
+          #define GASNETI_ATOMIC_SIGNED_MAX	((int32_t)0x3FFFFFFF)
+          #define gasneti_atomic_signed(val)	(((int32_t)((val)<<1))>>1)
+        #else
+          /* Full 32 bits: */
+          #define GASNETI_ATOMIC_MAX		((uint32_t)0xFFFFFFFFU)
+          #define GASNETI_ATOMIC_SIGNED_MIN	((int32_t)0x80000000)
+          #define GASNETI_ATOMIC_SIGNED_MAX	((int32_t)0x7FFFFFFF)
+        #endif
         typedef uint32_t                        gasneti_atomic_val_t;
         typedef int32_t                         gasneti_atomic_sval_t;
-        #define GASNETI_ATOMIC_MAX		((uint32_t)0x7FFFFFFFU)
-        #define GASNETI_ATOMIC_SIGNED_MIN	((int32_t)0xC0000000)
-        #define GASNETI_ATOMIC_SIGNED_MAX	((int32_t)0x3FFFFFFF)
-        #define gasneti_atomic_signed(val)	(((int32_t)((val)<<1))>>1)
 
         #define GASNETI_ATOMIC_PRESENT    ((uint32_t)0x80000000)
         #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
@@ -1373,28 +1519,44 @@
     /* all we get is atomic load-and-clear, but that's actually just barely enough  */
     #define GASNETI_ATOMICOPS_NOT_SIGNALSAFE 1 /* not signal-safe because of "checkout" semantics */
     #define GASNETI_HAVE_PRIVATE_ATOMIC_T 1
-    #define gasneti_atomic_align 8
-    /* The load-and-clear requires 16-byte alignment.  Therefore the type (and its
-     * initializer) replicate the value field 4 times.  The actual ops will only use
-     * the one of them that turns out to be 16-byte aligned.
-     */
-    typedef struct { volatile uint64_t initflag; volatile uint32_t _ctr[4]; char _pad; } gasneti_atomic_t;
-    #define GASNETI_ATOMIC_PRESENT    ((uint32_t)0x80000000)
-    #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
-    #define _gasneti_atomic_init(v)      {    \
+    #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
+      /* Only 31 bits, w/ 8-byte alignment: */
+      #define GASNETI_ATOMIC_MAX		((uint32_t)0x7FFFFFFFU)
+      #define GASNETI_ATOMIC_SIGNED_MIN		((int32_t)0xC0000000)
+      #define GASNETI_ATOMIC_SIGNED_MAX		((int32_t)0x3FFFFFFF)
+      #define gasneti_atomic_signed(val)	(((int32_t)((val)<<1))>>1)
+      #define gasneti_atomic_align 8
+    #else
+      /* Full 32 bits, w/ 4-byte alignment: */
+      #define GASNETI_ATOMIC_MAX		((uint32_t)0xFFFFFFFFU)
+      #define GASNETI_ATOMIC_SIGNED_MIN		((int32_t)0x80000000)
+      #define GASNETI_ATOMIC_SIGNED_MAX		((int32_t)0x7FFFFFFF)
+      #define gasneti_atomic_align 4
+    #endif
+    #ifndef _PA_RISC2_0
+      /* The load-and-clear requires 16-byte alignment.  Therefore the type (and its
+       * initializer) replicate the value field 4 times.  The actual ops will only use
+       * the one of them that turns out to be 16-byte aligned.
+       */
+      typedef struct { volatile uint64_t initflag; volatile uint32_t _ctr[4]; char _pad; } gasneti_atomic_t;
+      #define _gasneti_atomic_init(v)      {    \
             GASNETI_ATOMIC_INIT_MAGIC,       \
             { (GASNETI_ATOMIC_PRESENT|(v)),  \
               (GASNETI_ATOMIC_PRESENT|(v)),  \
               (GASNETI_ATOMIC_PRESENT|(v)),  \
               (GASNETI_ATOMIC_PRESENT|(v)) } \
             }
-    /* Only 31 bits: */
+      #define GASNETI_ATOMIC_CTR(p)     ((volatile uint32_t *)GASNETI_ALIGNUP(&(p->_ctr),16))
+    #else
+      /* The load-and-clear requires only 4-byte alignment for PA-RISC 2.0 */
+      typedef struct { volatile uint64_t initflag; volatile uint32_t _ctr; char _pad; } gasneti_atomic_t;
+      #define _gasneti_atomic_init(v)   { GASNETI_ATOMIC_INIT_MAGIC, (GASNETI_ATOMIC_PRESENT|(v)) } 
+      #define GASNETI_ATOMIC_CTR(p)     (&(p->_ctr))
+    #endif
+    #define GASNETI_ATOMIC_PRESENT    ((uint32_t)0x80000000)
+    #define GASNETI_ATOMIC_INIT_MAGIC ((uint64_t)0x8BDEF66BAD1E3F3AULL)
     typedef uint32_t gasneti_atomic_val_t;
     typedef int32_t gasneti_atomic_sval_t;
-    #define GASNETI_ATOMIC_MAX		((uint32_t)0x7FFFFFFFU)
-    #define GASNETI_ATOMIC_SIGNED_MIN	((int32_t)0xC0000000)
-    #define GASNETI_ATOMIC_SIGNED_MAX	((int32_t)0x3FFFFFFF)
-    #define gasneti_atomic_signed(val)	(((int32_t)((val)<<1))>>1)
 
     #if PLATFORM_COMPILER_HP_CXX
       #define GASNETI_HAVE_ATOMIC_CAS 1		/* Explicit */
@@ -1405,20 +1567,24 @@
       uint32_t gasneti_loadandclear_32(uint32_t volatile *v) {
         register uint32_t volatile * addr = (uint32_t volatile *)v;
         register uint32_t val = 0;
-        gasneti_assert(!(((uintptr_t)addr) & 0xF)); /* ldcws requires 16-byte alignment */
+        #ifndef _PA_RISC2_0
+          gasneti_assert(!(((uintptr_t)addr) & 0xF)); /* ldcws requires 16-byte alignment */
+        #else
+          gasneti_assert(!(((uintptr_t)addr) & 0x3)); /* ldcws requires 4-byte alignment */
+        #endif
         *(volatile char *)(v+1) = 0; /* fetch this cache line as a dirty word - speeds up ldcw */
         #if PLATFORM_COMPILER_GNU
           __asm__ __volatile__ ( 
           #if 0
-            "ldcws %1, %0 \n"  
+            "ldcws 0(%2), %0 \n"  
             /* should be using "ldcws,co" here for better performance, 
                but GNU assembler rejects it (works with system assembler) 
              */
           #else
-            "ldcw,co %1, %0 \n"  
+            "ldcw,co 0(%2), %0 \n"  
             /* this alternate, undocumented pseudo-op instruction appears to do the right thing */
           #endif
-            : "=r"(val), "=m" (*addr) );
+            : "=r"(val), "=m" (*addr) : "r" (addr), "m" (*addr));
         #elif PLATFORM_COMPILER_HP_C
           _asm("LDCWS,CO",0,0,addr,val);
         #else
@@ -1426,7 +1592,6 @@
         #endif
         return val;
       }
-      #define GASNETI_ATOMIC_CTR(p)     ((volatile uint32_t *)GASNETI_ALIGNUP(&(p->_ctr),16))
       /* would like to use gasneti_waituntil here, but it requires libgasnet for waitmode */
       #define gasneti_atomic_spinuntil(cond) do {       \
               while (!(cond)) gasneti_compiler_fence(); \
@@ -1483,7 +1648,7 @@
       }
 
       /* Default impls of inc, dec, dec-and-test, add and sub */
-      #define gasneti_atomic_fetchandadd gasneti_atomic_fetchandadd_32
+      #define _gasneti_atomic_fetchadd gasneti_atomic_fetchandadd_32
 
       GASNETI_INLINE(_gasneti_atomic_compare_and_swap)
       int _gasneti_atomic_compare_and_swap(gasneti_atomic_t *p, uint32_t oldval, uint32_t newval) {
@@ -1580,6 +1745,21 @@
    #endif
   /* ------------------------------------------------------------------------------------ */
   #elif PLATFORM_ARCH_POWERPC
+    /* Possibly enable "hybrid" 64-bit atomics for MacOSX and AIX: */
+    #if (PLATFORM_OS_DARWIN && defined(GASNETI_ARCH_PPC64)) || \
+	(PLATFORM_OS_AIX && PLATFORM_ARCH_64)
+      /* We are running on a 64-bit capable CPU/OS, however...
+       * + Apple's ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
+       * + AIX's ABI only guarantees 4-byte minimum aligment for doubles.
+       * Our "contract" with the developer says atomic64_t works on 64-bit types without any
+       * extra alignment.  So, we need to use mutex-based atomics when not aligned.
+       *
+       * See bug 1595 for more info.
+       * See also bug 1619 for why we can't use hybrid atomics with PLATFORM_ARCH_32+PLATFORM_OS_AIX.
+       */
+      #define GASNETI_HYBRID_ATOMIC64	1
+    #endif
+
     #if PLATFORM_COMPILER_XLC
       #define GASNETI_HAVE_ATOMIC32_T 1
       typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
@@ -1673,7 +1853,7 @@
         #pragma reg_killed_by gasneti_atomic64_swap_not cr0, gr0
         #define _gasneti_atomic64_compare_and_swap(p, oldval, newval) \
 					(gasneti_atomic64_swap_not(p, oldval, newval) == 0)
-      #elif defined(GASNETI_ARCH_PPC64) /* ILP32 on 64-bit CPU */
+      #elif defined(GASNETI_HYBRID_ATOMIC64) /* ILP32 on 64-bit CPU */
 	#define GASNETI_HAVE_ATOMIC64_T 1
         typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
         #define _gasneti_atomic64_init(_v)	{ (_v) }
@@ -1808,7 +1988,7 @@
 		: "cr0");
           return (result == 0);
         } 
-      #elif defined(GASNETI_ARCH_PPC64) /* ILP32 on 64-bit CPU */
+      #elif defined(GASNETI_HYBRID_ATOMIC64) /* ILP32 on 64-bit CPU */
 	#define GASNETI_HAVE_ATOMIC64_T 1
         typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
         #define _gasneti_atomic64_init(_v)	{ (_v) }
@@ -1862,18 +2042,6 @@
       /* Using default fences as we have none in our asms */
     #else
       #error Unrecognized PowerPC - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
-    #endif
-
-    /* Compiler-independent "fix-up" for MacOSX and AIX: */
-    #if defined(GASNETI_ARCH_PPC64) && (PLATFORM_OS_DARWIN || PLATFORM_OS_AIX)
-      /* We are running on a 64-bit capable CPU, however...
-       * Apple's ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
-       * AIX's ABI only guarantees 4-byte minimum aligment for doubles.
-       * Since our "contract" with the developer says atomic64_t works on 64-bit types without
-       * any extra alignment, we need to use mutex-based atomics when not aligned to ensure atomicity.
-       * See bug 1595 for more info.
-       */
-      #define GASNETI_HYBRID_ATOMIC64	1
     #endif
   /* ------------------------------------------------------------------------------------ */
   #elif PLATFORM_ARCH_MIPS
@@ -1999,7 +2167,7 @@
 /* Define configuration-dependent choice of locks for generic atomics (if any) */
 
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
-  #if defined(_INCLUDED_GASNET_H) && (GASNET_PAR || GASNETI_CONDUIT_THREADS)
+  #if defined(_INCLUDED_GASNET_H) && GASNETI_USE_TRUE_MUTEXES
     /* Case I: Real HSLs in a gasnet client */
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
 		gasnet_hsl_t * const lock = gasneti_hsl_atomic_hash_lookup((void *)ptr)
@@ -2026,7 +2194,7 @@
     #endif
   #elif defined(_INCLUDED_GASNET_H)
     /* Case II: Empty HSLs in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */
-  #elif GASNETT_THREAD_SAFE
+  #elif GASNETI_USE_TRUE_MUTEXES /* thread-safe tools-only client OR forced true mutexes */
     /* Case III: a version for pthreads which is independent of GASNet HSL's */
     #include <pthread.h>
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \

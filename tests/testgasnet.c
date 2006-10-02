@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2006/08/11 00:53:49 $
- * $Revision: 1.32.6.1 $
+ *     $Date: 2006/10/02 19:09:14 $
+ * $Revision: 1.32.6.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -199,6 +199,16 @@ int main(int argc, char **argv) {
 
 
   TEST_PRINT_CONDUITINFO();
+
+  { int smaj = GASNET_SPEC_VERSION_MAJOR;
+    int smin = GASNET_SPEC_VERSION_MINOR;
+    int rmaj = GASNET_RELEASE_VERSION_MAJOR;
+    int rmin = GASNET_RELEASE_VERSION_MINOR;
+    int rpat = GASNET_RELEASE_VERSION_PATCH;
+    int smaj2 = GASNET_VERSION;
+    assert_always(smaj > 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
+    assert_always(smaj == smaj2);
+  }
 
   { int i;
     printf("my args: argc=%i argv=[", argc);
@@ -539,10 +549,10 @@ void doit5(int partner, int *partnerseg) {
     gasnett_atomic_increment(&val, 0);
     gasnett_atomic_decrement(&val, 0);
     (void)gasnett_atomic_decrement_and_test(&val, 0);
-    #ifdef gasnett_HAVE_ATOMIC_CAS
+    #ifdef GASNETT_HAVE_ATOMIC_CAS
       (void)gasnett_atomic_compare_and_swap(&val, 0, 1 ,0);
     #endif
-    #ifdef gasnett_HAVE_ATOMIC_ADD_SUB
+    #ifdef GASNETT_HAVE_ATOMIC_ADD_SUB
       (void)gasnett_atomic_add(&val, 2 ,0);
       (void)gasnett_atomic_subtract(&val, 1 ,0);
     #endif

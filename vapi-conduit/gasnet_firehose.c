@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2006/08/11 00:53:56 $
- * $Revision: 1.7.4.1 $
+ *     $Date: 2006/10/02 19:09:18 $
+ * $Revision: 1.7.4.2 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -37,7 +37,7 @@ firehose_move_callback(gasnet_node_t node,
 #if FIREHOSE_VAPI_USE_FMR
 {
     GASNETC_TRACE_WAIT_BEGIN();
-    VAPI_ret_t    vstat;
+    int vstat;
     EVAPI_fmr_map_t map;
     EVAPI_fmr_hndl_t *handles;
     int repin_num;
@@ -103,10 +103,10 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
-#else
+#elif GASNETC_IB_VAPI
 {
     GASNETC_TRACE_WAIT_BEGIN();
-    VAPI_ret_t    vstat;
+    int           vstat;
     VAPI_mr_t     mr_in;
     int repin_num;
     int h, i;
@@ -183,6 +183,50 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
+#elif GASNETC_IB_VERBS
+{
+    GASNETC_TRACE_WAIT_BEGIN();
+    int    rc;
+    int h, i;
+
+    const enum ibv_access_flags access = 
+		IBV_ACCESS_LOCAL_WRITE |
+		IBV_ACCESS_REMOTE_WRITE |
+		IBV_ACCESS_REMOTE_READ;
+
+
+    /* Take care of any unpins first */
+    for (i = 0; i < unpin_num; i++) {
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+	rc = ibv_dereg_mr(unpin_list[i].client.handle[h]);
+        GASNETC_VAPI_CHECK(rc, "from ibv_dereg_mr");
+      }
+      GASNETC_TRACE_UNPIN(&unpin_list[i]);
+    }
+
+    /* Take care of any pins */
+    for (i = 0; i < pin_num; i++) {
+      firehose_region_t *region = pin_list + i;
+      firehose_client_t *client = &region->client;
+    
+      gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
+      gasneti_assert(region->len % GASNET_PAGESIZE == 0);
+    
+      GASNETC_FOR_ALL_HCA_INDEX(h) {
+        client->handle[h] = ibv_reg_mr(gasnetc_hca[h].pd, (void*)(uintptr_t)region->addr, region->len, access);
+	if_pf (client->handle[h] == NULL) gasneti_fatalerror("ibv_reg_mr failed");
+    
+	client->lkey[h]     = client->handle[h]->lkey;
+	client->rkey[h]     = client->handle[h]->rkey;
+      }
+      GASNETC_TRACE_PIN(&pin_list[i]);
+    }
+
+    GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
+    return 0;
+}
+#else
+  #error "Unknown IB API"
 #endif
 
 extern int

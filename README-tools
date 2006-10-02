@@ -2,7 +2,7 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.6 $
+$Revision: 1.6.2.1 $
 GASNet tools specification version: 1.0
 
 The GASNet tools are a set of communication-independent utilities that are used

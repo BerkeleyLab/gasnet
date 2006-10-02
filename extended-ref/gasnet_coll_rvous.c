@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2006/08/15 03:45:05 $
- * $Revision: 1.29.6.2 $
+ *     $Date: 2006/10/02 19:08:48 $
+ * $Revision: 1.29.6.3 $
  * Description: Reference implemetation of GASNet Collectives
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1731,7 +1731,6 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_ki
   /* XXX: larger and more complex cache is desired */
   static gasneti_mutex_t gasnete_coll_geom_lock = GASNETI_MUTEX_INITIALIZER;
   static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_cache = NULL;
-
   gasnete_coll_tree_geom_t *geom;
 
   gasneti_mutex_lock(&gasnete_coll_geom_lock);
@@ -1755,7 +1754,7 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_ki
 extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t root GASNETE_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnete_coll_tree_data_t *data = NULL;
-
+ 
   if_pf (td->tree_data_freelist == NULL) {
     data = gasneti_malloc(sizeof(gasnete_coll_tree_data_t));
   } else {
@@ -2592,12 +2591,13 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
   #if GASNET_PAR
   /* Thread-local addr(s) - forward to bcastM_nb() */
   if (flags & GASNET_COLL_LOCAL) {
+	fprintf(stderr, "%d> %d> here\n", gasnete_mythread(), gasneti_mynode);
     return gasnete_coll_broadcastM_nb(team, &dst, srcimage, src, nbytes,
 				      flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                       GASNETE_THREAD_PASS);
   }
   #endif
-
+	     /* return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);*/
   /* "Discover" in-segment flags if needed/possible */
   flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes, 1, srcimage, src, nbytes);
 
@@ -2608,7 +2608,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
-    return gasnete_coll_bcast_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags,  GASNETE_COLL_BINOMIAL_TREE, sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2616,12 +2616,12 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
        */
       return gasnete_coll_bcast_RVGet(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
     } else {
-      return gasnete_coll_bcast_Get(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      return gasnete_coll_bcast_TreeGet(team, dst, srcimage, src, nbytes, flags,  GASNETE_COLL_BINOMIAL_TREE, sequence GASNETE_THREAD_PASS);
     }
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     if (flags & GASNET_COLL_SINGLE) {
       /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
-      return gasnete_coll_bcast_Put(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, nbytes, flags,  GASNETE_COLL_BINOMIAL_TREE, sequence GASNETE_THREAD_PASS);
     } else {
       /* XXX: could do better w/ RVPut since dst is writtable */
       return gasnete_coll_bcast_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);

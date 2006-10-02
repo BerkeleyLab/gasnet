@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2006/08/11 00:53:05 $
- * $Revision: 1.85.4.1 $
+ *     $Date: 2006/10/02 19:08:41 $
+ * $Revision: 1.85.4.2 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -401,6 +401,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), __FILE__, __LINE__);     \
     fflush(stderr);                                                          \
     }                                                                        \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                         \
   return GASNET_ERR_ ## type;                                                \
   } while (0)
 #define GASNETI_RETURN_ERRF(type, fromfn) do {                                     \
@@ -412,6 +413,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), #fromfn, __FILE__, __LINE__);  \
     fflush(stderr);                                                                \
     }                                                                              \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                               \
   return GASNET_ERR_ ## type;                                                      \
   } while (0)
 #define GASNETI_RETURN_ERRR(type, reason) do {                                             \
@@ -423,6 +425,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), __FILE__, __LINE__, reason);           \
     fflush(stderr);                                                                        \
     }                                                                                      \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                                       \
   return GASNET_ERR_ ## type;                                                              \
   } while (0)
 #define GASNETI_RETURN_ERRFR(type, fromfn, reason) do {                                    \
@@ -435,6 +438,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), #fromfn, __FILE__, __LINE__, reason);  \
     fflush(stderr);                                                                        \
     }                                                                                      \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                                       \
   return GASNET_ERR_ ## type;                                                              \
   } while (0)
 

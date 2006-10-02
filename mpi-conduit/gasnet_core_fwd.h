@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2006/08/11 00:53:19 $
- * $Revision: 1.23.2.1 $
+ *     $Date: 2006/10/02 19:08:54 $
+ * $Revision: 1.23.2.2 $
  * Description: GASNet header for MPI conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,11 +17,15 @@
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         MPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
+#define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
+#define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_MPI       1
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#ifndef GASNET_ALIGNED_SEGMENTS
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#else
   /* mpi-conduit supports both aligned and un-aligned */
   #if defined(HAVE_MMAP) && !PLATFORM_ARCH_CRAYX1
     #define GASNET_ALIGNED_SEGMENTS   1  
@@ -72,7 +76,7 @@ extern void gasnetc_fatalsignal_callback(int sig);
 /* hook getSegmentInfo for NIS check */
 #define _GASNET_GETSEGMENTINFO
 struct gasneti_seginfo_s;
-extern int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
+GASNETI_EXTERNC int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
 #define gasnet_getSegmentInfo(seginfo_table, numentries) \
         gasnetc_getSegmentInfo(seginfo_table, numentries)
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/08/11 00:53:06 $
- * $Revision: 1.121.2.1 $
+ *     $Date: 2006/10/02 19:08:41 $
+ * $Revision: 1.121.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h> /* gasneti_system_redirected_coprocess */
 #include <fcntl.h>
 #include <time.h> /* gasneti_gettimeofday_us */
 #include <sys/time.h> /* gasneti_gettimeofday_us */
@@ -282,9 +283,7 @@ extern void gasneti_fatalerror(const char *msg, ...) {
     fflush(stderr);
   va_end(argptr);
 
-  /* allow freeze */
-  if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0))
-    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
+  gasnett_freezeForDebuggerErr(); /* allow freeze */
 
   /* try to get a pre-signal backtrace, which may be more precise */
   if (!gasneti_print_backtrace_ifenabled(STDERR_FILENO)) 
@@ -311,9 +310,7 @@ extern void gasneti_flush_streams() {
     gasneti_fatalerror("failed to flush stderr: %s", strerror(errno));
   fsync(STDOUT_FILENO); /* ignore errors for output is a console */
   fsync(STDERR_FILENO); /* ignore errors for output is a console */
-  #if !PLATFORM_OS_CATAMOUNT
-    sync();
-  #endif
+  gasneti_filesystem_sync();
   gasneti_sched_yield();
 }
 extern void gasneti_close_streams() {
@@ -368,17 +365,29 @@ static void _freezeForDebugger(int depth) {
   }
 }
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname) {
-  char name[255];
-  gethostname(name, 255);
   fprintf(stderr,"Process frozen for debugger: host=%s  pid=%i\n"
                  "To unfreeze, attach a debugger and set '%s' to 0, or send a "
                  GASNETI_UNFREEZE_SIGNAL_STR "\n", 
-                 name, (int)getpid(), flagsymname); 
+                 gasnett_gethostname(), (int)getpid(), flagsymname); 
   fflush(stderr);
   _gasneti_freeze_flag = flag;
   *_gasneti_freeze_flag = 1;
   gasneti_local_wmb();
   _freezeForDebugger(0);
+}
+
+static int gasneti_freezeonerr_isinit = 0;
+static int gasneti_freezeonerr_userenabled = 0;
+static void gasneti_freezeForDebuggerErr_init() {
+  gasneti_freezeonerr_userenabled = gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0);
+  gasneti_local_wmb();
+  gasneti_freezeonerr_isinit = 1;
+}
+extern void gasneti_freezeForDebuggerErr() {
+  if (!gasneti_freezeonerr_isinit) gasneti_freezeForDebuggerErr_init();
+  else gasneti_local_rmb();
+  if (gasneti_freezeonerr_userenabled)
+    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
 }
 /* ------------------------------------------------------------------------------------ */
 /* Dynamic backtrace support */
@@ -399,12 +408,24 @@ extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsym
 #if defined(DBX_PATH) && !GASNETI_NO_FORK
   #define GASNETI_BT_DBX	&gasneti_bt_dbx
 #endif
+#if defined(IDB_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_IDB	&gasneti_bt_idb
+#endif
+#if defined(PGDBG_PATH) && !GASNETI_NO_FORK
+  #define GASNETI_BT_PGDBG	&gasneti_bt_pgdbg
+#endif
 
 #if !GASNETI_NO_FORK
 /* Execute system w/ stdout redirected to 'fd' and std{in,err} to /dev/null */
 static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
   int rc;
   int saved_stdin, saved_stdout, saved_stderr;
+  off_t beginpos, endpos;
+
+  write(stdout_fd, cmd, strlen(cmd));
+  write(stdout_fd, "\n", 1);
+
+  beginpos = lseek(stdout_fd, 0, SEEK_CUR); /* fetch current position */
 
   /* Redirect output to 'fd' and std{in,err} to /dev/null */
   saved_stdin = dup(STDIN_FILENO);
@@ -417,10 +438,79 @@ static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
   /* Run the command */
   rc = system(cmd);
 
+  endpos = lseek(stdout_fd, 0, SEEK_CUR); /* fetch current position */
+  if (beginpos > 0 && endpos > 0 && (beginpos == endpos)) {
+    rc = -1; /* command failed to generate output - consider it a failure */
+  }
+
   /* Restore I/O */
   dup2(saved_stdout, STDOUT_FILENO); close(saved_stdout);
   dup2(saved_stderr, STDERR_FILENO); close(saved_stderr);
   dup2(saved_stdin, STDIN_FILENO); close(saved_stdin);
+
+  return rc;
+}
+
+static volatile int gasneti_bt_complete_flag = 0;
+static void gasneti_bt_complete_handler(int sig) {
+  gasneti_bt_complete_flag = 1;
+}
+/* Fork a co-process to execute gasneti_system_redirected with the supplied arguments, 
+   and wait for completion in a manner which avoids placing the wait system call on the 
+   top of the target process's stack (because it confuses some stackwalkers) */
+static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
+  FILE *file;
+  int tmpfd;
+  int rc = 0;
+  pid_t parentpid = getpid();
+
+  /* Create a tmpfile to communicate with the child */
+  file = tmpfile();
+  if (!file) return -1;
+  tmpfd = fileno(file);
+
+  { /* setup the parent to sleep */
+    gasneti_sighandlerfn_t old_sigh = gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, gasneti_bt_complete_handler);
+    volatile int i=0;
+    if (!fork()) { /* the child - debugger co-process launcher */
+      int retval = gasneti_system_redirected(cmd, tmpfd);
+      if (retval) { /* system call failed - nuke the output */
+        ftruncate(tmpfd, 0);
+      } 
+      gasneti_filesystem_sync(); /* flush output */
+      kill(parentpid, GASNETI_UNFREEZE_SIGNAL); /* signal the parent of completion */
+      gasneti_killmyprocess(0); /* die */
+    } else { /* the parent - our debugger target */
+      struct stat tmpstat;
+      while (!gasneti_bt_complete_flag) {
+        i++;
+        gasneti_sched_yield(); /* sched_yield seems to be friendlier than sleep() for stack-walkers */
+      }
+      /* awakened */
+      gasneti_reghandler(GASNETI_UNFREEZE_SIGNAL, old_sigh);
+      if (fstat(tmpfd, &tmpstat)) rc = -1; /* never happens? */
+      else if (tmpstat.st_size == 0) rc = -1; /* child process spawn failed */
+      else if (lseek(tmpfd, 0, SEEK_SET)) rc = -1;
+      else {
+        static char tmpbuf[255];
+        size_t bytes = tmpstat.st_size;
+        while ((bytes = read(tmpfd, &tmpbuf, sizeof(tmpbuf))) > 0 ||
+               (bytes == -1 && errno == EINTR)) {
+          if (bytes > 0) {
+            int retval;
+            tryagain:
+              retval = write(stdout_fd, tmpbuf, bytes);
+              if (retval == -1) {
+                if (errno == EINTR) goto tryagain;
+                else { rc = -1; break; } /* write error */
+              }
+          }
+        }
+        if (bytes == -1) rc = -1; /* read error occurred */
+      }
+    }
+  }
+  fclose(file); /* close and delete temp file */
   return rc;
 }
 #endif
@@ -455,13 +545,43 @@ static char gasneti_exename_bt[255];
   }
 #endif
 
+#ifdef GASNETI_BT_IDB
+  static int gasneti_bt_idb(int fd) {
+    #if GASNETI_THREADS
+      const char fmt[] = "echo 'set $stoponattach; attach %d; where thread all; quit' | %s -dbx -quiet '%s'"; 
+    #else
+      const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'"; 
+    #endif
+    static char cmd[1024];
+    const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
+    int rc = sprintf(cmd, fmt, (int)getpid(), idb, gasneti_exename_bt);
+    if (rc < 0) return -1;
+    return gasneti_system_redirected_coprocess(cmd, fd);
+  }
+#endif
+
+#ifdef GASNETI_BT_PGDBG
+  static int gasneti_bt_pgdbg(int fd) {
+    #if GASNETI_THREADS
+      const char fmt[] = "%s -text -c 'attach %i %s ; threads ; [all] where ; detach ; quit'";
+    #else
+      const char fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
+    #endif
+    static char cmd[1024];
+    const char *pgdbg = (access(PGDBG_PATH, X_OK) ? "pgdbg" : PGDBG_PATH);
+    int rc = sprintf(cmd, fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
+    if (rc < 0) return -1;
+    return gasneti_system_redirected_coprocess(cmd, fd);
+  }
+#endif
+
 #ifdef GASNETI_BT_GDB
   static int gasneti_bt_gdb(int fd) {
     /* Change "backtrace" to "backtrace full" to also see local vars from each frame */
     #if GASNETI_THREADS
-      const char commands[] = "info threads\nthread apply all backtrace\ndetach\nquit\n";
+      const char commands[] = "info threads\nthread apply all backtrace 50\ndetach\nquit\n";
     #else
-      const char commands[] = "backtrace\ndetach\nquit\n";
+      const char commands[] = "backtrace 50\ndetach\nquit\n";
     #endif
     const char fmt[] = "%s -nx -batch -x %s '%s' %d";
     static char cmd[1024];
@@ -548,7 +668,8 @@ static char gasneti_exename_bt[255];
 static struct {
   const char *name;        /* upper-case display name of backtrace function */
   int (* const fnp)(int);   /* pointer to backtrace function */
-  const int threadsupport; /* does backtrace function handle threads correctly? */
+  const int threadsupport; /* does backtrace function handle threads correctly? 
+                              -ie backtrace the calling thread and optionally others as well */
 } gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_LADEBUG
   { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
@@ -564,6 +685,12 @@ static struct {
   #endif
   #ifdef GASNETI_BT_PRINTSTACK
   { "PRINTSTACK", GASNETI_BT_PRINTSTACK, 1 },
+  #endif
+  #ifdef GASNETI_BT_IDB
+  { "IDB", GASNETI_BT_IDB, 1 },
+  #endif
+  #ifdef GASNETI_BT_PGDBG
+  { "PGDBG", GASNETI_BT_PGDBG, 1 },
   #endif
   { NULL, NULL, 0 } /* Avoids empty initializer and trailing commas */
 };
@@ -605,6 +732,7 @@ extern void gasneti_backtrace_init(const char *exename) {
   }
 
   gasneti_backtrace_isinit = 1;
+  gasneti_freezeForDebuggerErr_init();
 }
 
 /* "best effort" to produce a backtrace
@@ -715,8 +843,8 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
 }
 int (*gasneti_print_backtrace_ifenabled)(int fd) = &_gasneti_print_backtrace_ifenabled;
 /* ------------------------------------------------------------------------------------ */
-extern uint64_t gasneti_checksum(void *p, int numbytes) {
- uint8_t *buf = (uint8_t *)p;
+extern uint64_t gasneti_checksum(const void *p, int numbytes) {
+ uint8_t const *buf = p;
  uint64_t result = 0;
  int i;
  for (i=0;i<numbytes;i++) {
@@ -1121,6 +1249,8 @@ extern int gasneti_cpu_count() {
 #if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
   #include <sys/types.h>
   #include <sys/sysctl.h>
+#elif PLATFORM_OS_CATAMOUNT
+  #include <catamount/catmalloc.h>
 #endif
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
@@ -1177,6 +1307,16 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
       long int val = sysconf(_SC_AIX_REALMEM);
       if (val > 0) retval = (1024 * (uint64_t)val);
     }
+  #elif PLATFORM_OS_CATAMOUNT
+    { static uint64_t result = 0; /* call is expensive, so amortize */
+      if (!result) {
+        size_t fragments;
+        unsigned long total_free, largest_free, total_used;
+        gasneti_assert_zeroret(heap_info(&fragments, &total_free, &largest_free, &total_used));
+        result = total_free + total_used;
+     }
+     retval = result;
+    }
   #else  /* unknown OS */
     { }
   #endif
@@ -1187,15 +1327,13 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
 }
 /* ------------------------------------------------------------------------------------ */
 /* CPU affinity control */
-#if HAVE_SCHED_SETAFFINITY
-  #include <sched.h>
+#if HAVE_PLPA
+  #include "plpa.h"
 #endif
 void gasneti_set_affinity_default(int rank) {
-  #if !HAVE_SCHED_SETAFFINITY
-    /* NO-OP */
-    return;
-  #else
+  #if HAVE_PLPA
     int cpus = gasneti_cpu_count();
+    gasneti_plpa_cpu_set_t mask;
 
     if_pf (cpus == 0) {
       static int once = 1;
@@ -1205,30 +1343,26 @@ void gasneti_set_affinity_default(int rank) {
         fflush(stderr);
       }
       /* becomes a NO-OP */
-    } else {
-	int local_rank = rank % cpus;
-      #if GASNET_SCHED_SETAFFINITY_ARGS == 1
-	unsigned long int *mask;
-	const int bits_per_long = 8*sizeof(*mask);
-	int len = (cpus + bits_per_long - 1) / bits_per_long;
-	mask = calloc(len, sizeof(*mask));
-	mask[local_rank / bits_per_long] = 1 << (local_rank % bits_per_long);
-        gasneti_assert_zeroret(sched_setaffinity(0, len*sizeof(*mask), mask));
-	free(mask);
-      #elif GASNET_SCHED_SETAFFINITY_ARGS == 2
-        cpu_set_t mask;
-        memset(&mask,0,sizeof(mask)); /* in place of CPU_ZERO which is sometimes broken */
-        CPU_SET(local_rank % cpus, &mask);
-        gasneti_assert_zeroret(sched_setaffinity(0, &mask));
-      #elif GASNET_SCHED_SETAFFINITY_ARGS == 3
-        cpu_set_t mask;
-        memset(&mask,0,sizeof(mask)); /* in place of CPU_ZERO which is sometimes broken */
-        CPU_SET(local_rank % cpus, &mask);
-        gasneti_assert_zeroret(sched_setaffinity(0, sizeof(mask), &mask));
-      #else
-	#error "Unknown sched_setaffinity prototype"
-      #endif
+      return;
     }
+    
+    /* Try a GET first to check for support */
+    if_pf (ENOSYS == gasneti_plpa_sched_getaffinity(0, sizeof(mask), &mask)) {
+      /* becomes a NO-OP */
+      return;
+    }
+    
+    if (cpus == 1) {
+      /* NO-OP on single-processor platform */
+    } else {
+      int local_rank = rank % cpus;
+      PLPA_CPU_ZERO(&mask);
+      PLPA_CPU_SET(local_rank, &mask);
+      gasneti_assert_zeroret(gasneti_plpa_sched_setaffinity(0, sizeof(mask), &mask));
+    }
+  #else
+    /* No implementation -> NO-OP */
+    return;
   #endif
 }
 #ifndef GASNETC_SET_AFFINITY
@@ -1241,3 +1375,325 @@ void gasneti_set_affinity(int rank) {
   GASNETC_SET_AFFINITY(rank);
 }
 /* ------------------------------------------------------------------------------------ */
+/* hostname query */
+/* get MAXHOSTNAMELEN */ 
+#if PLATFORM_OS_SOLARIS 
+#include <netdb.h>
+#else
+#include <sys/param.h>
+#endif 
+#ifndef MAXHOSTNAMELEN
+  #ifdef HOST_NAME_MAX
+    #define MAXHOSTNAMELEN HOST_NAME_MAX
+  #else
+    #define MAXHOSTNAMELEN 1024 /* give up */
+  #endif
+#endif
+const char *gasneti_gethostname() {
+  static gasneti_mutex_t hnmutex = GASNETI_MUTEX_INITIALIZER;
+  static int firsttime = 1;
+  static char hostname[MAXHOSTNAMELEN];
+  gasneti_mutex_lock(&hnmutex);
+    if (firsttime) {
+      if (gethostname(hostname, MAXHOSTNAMELEN))
+        gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
+      hostname[MAXHOSTNAMELEN - 1] = '\0';
+      firsttime = 0;
+    }
+  gasneti_mutex_unlock(&hnmutex);
+  return hostname;
+}
+/* ------------------------------------------------------------------------------------ */
+/* Count zero bytes in a region w/ or w/o a memcpy() */
+/* These implementations use full-word reads and writes where possible */
+
+#if PLATFORM_ARCH_64
+  #define gasneti_count0s_word_shift 3 /* multiply or divide by 8 */
+  #define gasneti_count0s_xform_limit 16
+#else
+  #define gasneti_count0s_word_shift 2 /* multiply or divide by 4 */
+  #define gasneti_count0s_xform_limit 32
+#endif
+
+/* Given a word, set the least-significant bit of each non-zero byte, zeroing all other bits */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_xform1) GASNETI_CONST
+uintptr_t gasneti_count0s_xform1(uintptr_t x) {
+  x |= (x >> 4);
+  x |= (x >> 2);
+  x |= (x >> 1);
+  #if PLATFORM_ARCH_64
+    return (x & 0x0101010101010101UL);
+  #else
+    return (x & 0x01010101UL);
+  #endif
+}
+
+/* Given a sum of words generated by xform1, sum the least-significant bits of the bytes
+ * into a single value.  The sum of xform1-results must not include more than 255 counts. */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_xform2) GASNETI_CONST
+uintptr_t gasneti_count0s_xform2(uintptr_t x) {
+ #if PLATFORM_ARCH_64
+  x += (x >> 32);
+ #endif
+  x += (x >> 16);
+  x += (x >> 8);
+  return (x & 0xff);
+}
+
+/* Count non-zero bytes in a word-aligned region */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_nzs_aligned_region) GASNETI_PURE
+size_t gasneti_count0s_nzs_aligned_region(const uintptr_t *p, size_t words) {
+  size_t non_zeros = 0;
+  int i;
+
+  while (words & ~(gasneti_count0s_xform_limit - 1)) {
+    uintptr_t partial = 0;
+    for (i = 0; i < gasneti_count0s_xform_limit; ++i) {
+      partial += gasneti_count0s_xform1(*(p++));
+    }
+    non_zeros += gasneti_count0s_xform2(partial);
+    words -= gasneti_count0s_xform_limit;
+  }
+  {
+    uintptr_t partial = 0;
+    for (i = 0; i < words; ++i) {
+      partial += gasneti_count0s_xform1(*(p++));
+    }
+    non_zeros += gasneti_count0s_xform2(partial);
+  }
+
+  return non_zeros;
+}
+
+/* Count non-zero bytes in a word */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_nzs_word) GASNETI_CONST
+int gasneti_count0s_nzs_word(uintptr_t x) {
+  return gasneti_count0s_xform2(gasneti_count0s_xform1(x));
+}
+
+/* Copy and count non-zero bytes w/o any alignment requirement */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_bytes)
+int gasneti_count0s_copy_bytes(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t bytes) {
+  int non_zeros = 0;
+  uint8_t *d = dst;
+  const uint8_t *s = src;
+  gasneti_assert(bytes < SIZEOF_VOID_P);
+
+  switch (bytes) {
+  #if PLATFORM_ARCH_64
+    case 7: non_zeros  = !!(*(d++) = *(s++));
+    case 6: non_zeros += !!(*(d++) = *(s++));
+    case 5: non_zeros += !!(*(d++) = *(s++));
+    case 4: non_zeros += !!(*(d++) = *(s++));
+    case 3: non_zeros += !!(*(d++) = *(s++));
+  #else
+    case 3: non_zeros  = !!(*(d++) = *(s++));
+  #endif
+    case 2: non_zeros += !!(*(d++) = *(s++));
+    case 1: non_zeros += !!(*(d++) = *(s++));
+  }
+  return non_zeros;
+}
+
+/* Copy and count non-zero bytes w/ both dst and src word-aligned */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_dstsrc_aligned)
+size_t gasneti_count0s_copy_dstsrc_aligned(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t words) {
+  size_t non_zeros = 0;
+  uintptr_t *d = dst;
+  const uintptr_t *s = src;
+  int i;
+
+  gasneti_assert(!((uintptr_t)dst & (SIZEOF_VOID_P - 1)));
+  gasneti_assert(!((uintptr_t)src & (SIZEOF_VOID_P - 1)));
+
+  while (words & ~(gasneti_count0s_xform_limit - 1)) {
+    uintptr_t partial = 0;
+    for (i = 0; i < gasneti_count0s_xform_limit; ++i) {
+      partial += gasneti_count0s_xform1((*(d++) = *(s++)));
+    }
+    non_zeros += gasneti_count0s_xform2(partial);
+    words -= gasneti_count0s_xform_limit;
+  }
+  {
+    uintptr_t partial = 0;
+    for (i = 0; i < words; ++i) {
+      partial += gasneti_count0s_xform1((*(d++) = *(s++)));
+    }
+    non_zeros += gasneti_count0s_xform2(partial);
+  }
+
+  return non_zeros;
+}
+
+/* Copy and count non-zero bytes w/ dst word-aligned, but not src */
+GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_dst_aligned)
+size_t gasneti_count0s_copy_dst_aligned(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t words) {
+  #if PLATFORM_ARCH_LITTLE_ENDIAN
+    #define GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1) (((w0)>>(s0)) | ((w1)<<(s1)))
+  #else
+    #define GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1) (((w0)<<(s0)) | ((w1)>>(s1)))
+  #endif
+  const uintptr_t *s = (uintptr_t *)GASNETI_ALIGNDOWN(src, SIZEOF_VOID_P);
+  const size_t s0 = ((uintptr_t)src & (SIZEOF_VOID_P - 1)) << 3;
+  const size_t s1 = (SIZEOF_VOID_P * 8) - s0;
+  uintptr_t *d = dst;
+  uintptr_t w0;
+  size_t non_zeros = 0;
+  int i;
+  
+  gasneti_assert(!((uintptr_t)dst & (SIZEOF_VOID_P - 1)));
+  gasneti_assert(((uintptr_t)src & (SIZEOF_VOID_P - 1)));
+
+  /* XXX: Options for reducing the bottle neck in GASNETI_MEMCPY0_MERGE()
+   *
+   * 1) Consider an outer 3- or 7-way switch on alignment.  Doing so would allow for
+   *    fixed-count shifts which might be cheaper than variable count.
+   *
+   * 2) Consider splitting _MERGE(), to perform the shift of w0 as soon as it is available.
+   *    Doing so would benefit x86, x86_64 and PA-RISC which must reload a fixed shift-count
+   *    register to perform a variable-count shift.  However, keeping the form with both of
+   *    the shifts and the OR together benefits machines w/ powerful extract/deposit/merge
+   *    instructions.  Use of macros could hide the differences.
+   *
+   * 3) Consider arch-specific asm().  For x86 and x86_64 the SHLD or SHRD instructions
+   *    would be appropriate.  Others have similar (or more powerful) merging operations
+   *    that have no C equivalents.
+   * 3.5) Search for compiler-specific C constructs that may generate the merge instructions.
+   */
+
+  w0 = *(s++);
+  while (words & ~(gasneti_count0s_xform_limit - 1)) {
+    uintptr_t partial = 0;
+    for (i = 0; i < gasneti_count0s_xform_limit; ++i) {
+      const uintptr_t w1 = *(s++);
+      partial += gasneti_count0s_xform1((*(d++) = GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1)));
+      w0 = w1;
+    }
+    non_zeros += gasneti_count0s_xform2(partial);
+    words -= gasneti_count0s_xform_limit;
+  }
+  {
+    uintptr_t partial = 0;
+    for (i = 0; i < words; ++i) {
+      const uintptr_t w1 = *(s++);
+      partial += gasneti_count0s_xform1((*(d++) = GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1)));
+      w0 = w1;
+    }
+    non_zeros += gasneti_count0s_xform2(partial);
+  }
+
+  return non_zeros;
+}
+
+extern size_t
+gasneti_count0s_copy(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t bytes) {
+#if 0 /* Naive byte-oriented loop */
+  size_t zeros = 0;
+  uint8_t *d = dst;
+  const uint8_t *s = src;
+  while (bytes--) zeros += !(*(d++) = *(s++));
+  return zeros;
+#else /* Carefully optimized (but still portable) word-oriented loop */
+  size_t tmp, remain, zeros;
+  const uint8_t *s;
+  uint8_t *d;
+  
+  /* Short cut on less than full word, simplifying the logic below */
+  if (bytes < SIZEOF_VOID_P) {
+    return (bytes - gasneti_count0s_copy_bytes(dst, src, bytes));
+  }
+
+  s = (uint8_t *)src;
+  d = (uint8_t *)dst;
+  remain = zeros = bytes;
+
+  /* Copy by bytes until dst is aligned */
+  tmp = ((uintptr_t)dst & (SIZEOF_VOID_P - 1));
+  if (tmp) {
+    tmp = SIZEOF_VOID_P - tmp;
+    zeros -= gasneti_count0s_copy_bytes(d, s, tmp); 
+    d += tmp;
+    s += tmp;
+    remain -= tmp;
+  }
+
+  /* Copy full words of dst */
+  tmp = remain >> gasneti_count0s_word_shift;
+  if ((uintptr_t)s & (SIZEOF_VOID_P - 1)) {
+    zeros -= gasneti_count0s_copy_dst_aligned(d, s, tmp);
+  } else {
+    zeros -= gasneti_count0s_copy_dstsrc_aligned(d, s, tmp);
+  }
+  d += tmp << gasneti_count0s_word_shift;
+  s += tmp << gasneti_count0s_word_shift;
+ 
+  /* Copy any remainder by bytes until done */
+  tmp = remain & (SIZEOF_VOID_P - 1);
+  zeros -= gasneti_count0s_copy_bytes(d, s, tmp); 
+#endif
+
+  return zeros;
+}
+  
+size_t
+gasneti_count0s(const void * src, size_t bytes) {
+#if 0 /* Naive byte-oriented loop */
+  const uint8_t *s = src;
+  size_t zeros = 0;
+  while (bytes--) { zeros += !*(s++); }
+#else /* Carefully optimized (but still portable) word-oriented loop */
+ #if PLATFORM_ARCH_64
+  static const uintptr_t keep_lsb[8] = {
+          0x0000000000000000UL, 0x00000000000000ffUL, 0x000000000000ffffUL, 0x0000000000ffffffUL,
+          0x00000000ffffffffUL, 0x000000ffffffffffUL, 0x0000ffffffffffffUL, 0x00ffffffffffffffUL};
+  static const uintptr_t keep_msb[8] = {
+          0x0000000000000000UL, 0xff00000000000000UL, 0xffff000000000000UL, 0xffffff0000000000UL,
+          0xffffffff00000000UL, 0xffffffffff000000UL, 0xffffffffffff0000UL, 0xffffffffffffff00UL};
+ #else
+  static const uintptr_t keep_lsb[4] = {0x00000000UL, 0x000000ffUL, 0x0000ffffUL, 0x00ffffffUL};
+  static const uintptr_t keep_msb[4] = {0x00000000UL, 0xff000000UL, 0xffff0000UL, 0xffffff00UL};
+ #endif
+  const uintptr_t *s;
+  size_t zeros, tmp;
+
+  /* Short cut on less than full word, simplifying the logic below */
+  if (bytes < SIZEOF_VOID_P) {
+    const uint8_t *s8 = src;
+    zeros = 0;
+    while (bytes--) { zeros += !*(s8++); }
+    return zeros;
+  }
+
+  s = (uintptr_t *)GASNETI_ALIGNUP(src, SIZEOF_VOID_P);
+  zeros = bytes;
+
+  /* Count partial leading word (if any) */
+  tmp = (uintptr_t)s - (uintptr_t)src;
+  if (tmp) {
+    #if PLATFORM_ARCH_LITTLE_ENDIAN
+      zeros -= gasneti_count0s_nzs_word(*(s-1) & keep_msb[tmp]);
+    #else
+      zeros -= gasneti_count0s_nzs_word(*(s-1) & keep_lsb[tmp]);
+    #endif
+
+    bytes -= tmp;
+  }
+
+  /* Count full words of src */
+  tmp = bytes >> gasneti_count0s_word_shift;
+  zeros -= gasneti_count0s_nzs_aligned_region(s, tmp);
+  s += tmp;
+ 
+  /* Count partial trailing word (if any) */
+  tmp = bytes & (SIZEOF_VOID_P - 1);
+  #if PLATFORM_ARCH_LITTLE_ENDIAN
+    zeros -= gasneti_count0s_nzs_word(*s & keep_lsb[tmp]);
+  #else
+    zeros -= gasneti_count0s_nzs_word(*s & keep_msb[tmp]);
+  #endif
+#endif
+
+  return zeros;
+}
+/* ------------------------------------------------------------------------------------ */
+

@@ -1,32 +1,60 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.9.2.1 $
+$Revision: 1.9.2.2 $
 
 ----------------------------------------------------------------------
 ?-?-2006 : Release 1.8
 
 * New conduits added:
+  - portals-conduit: High-performance conduit using the Portals communication
+    interface on the Cray XT-3. Initial implementation uses MPI-based active 
+    messages and a Portals-based extended API.
 
 * New platform support:
   - New ports: MacOSX/x86, MacOSX/PPC64, Cray XD1 and ucLinux/MicroBlaze
 
 * Misc changes:  
-  - Change default timer granularity to nanoseconds, adding _ticks_to_ns()
-  - Implement automatic backtrace generation on crash
-  - Add --help option to all tests
+  - Add --help option to all GASNet tests
   - Add internal diagnostic tests
   - Add progress functions
+  - Add --disable-aligned-segments configure flag for clusters with disaligned VM
   - Fix ansi-aliasing violations on small local put/get copies
   - Default to allocate-first-touch for segment mmap on Linux and Solaris
+  - Many performance and functionality improvements to the GASNet collectives
+  - Move most config-related defines off compile line into gasnet_config.h
+  - Reorganize source files for faster and more robust builds
+  - Barrier algorithm can now be selected at runtime using GASNET_BARRIER 
+  - Standardize and simplify our preprocessor platform detection logic system-wide
   - Many, many bug fixes, for both specific conduits and general platform
     portability. See http://upc-bugs.lbl.gov for complete details.    
 
+* GASNet tools support:
+  - Add a conduit-independent library implementing the GASNet portability tools - 
+    which include portable high-performance timers, atomic operations, memory barriers,
+    C compiler annotations, uniform platform identification macros, reliable 
+    fixed-width integer types, thread-specific data, and other misc tools.
+  - Add Portable Linux Processor Affinity (PLPA) library for gasnett_set_affinity
+  - Implement automatic backtrace generation on crash for several popular debuggers
+  - Change default timer granularity to nanoseconds, adding _ticks_to_ns()
+  - Add __thread (TLS) implementations of gasnett_threadkey
+
+* Expanded local atomic operations support:
+  - Add native support for additional compilers, notably including many C++ compilers
+  - Add fetch-and-add and fetch-and-subtract operations
+  - Add 32-bit and 64-bit fixed-width atomic types
+  - Add explicit control of memory fence behavior
+  - Add constants defining the range of the atomic type
+  - Add uniform support for use of the atomic type for signed values
+
 * General performance improvements:
   - split-phase barriers on most conduits now make progress during any GASNet call
+  - initial packing implementations of the GASNet non-contiguous (vector, indexed,
+    and strided) put/get functions (currently off by default)
 
 * InfiniBand/VAPI:
   - Implement multi-port and multi-rail striping support
   - Improvements to firehose region management heuristics
+  - VAPI recv thread is now disabled by default (but still available via env setting)
 
 * MPI:
   - Significant performance and stability improvements on mpi-conduit,
@@ -40,7 +68,10 @@ $Revision: 1.9.2.1 $
   - Add workaround for an IBM MPI ordering bug that could cause deadlock
     under heavy communication patterns.
   - Other misc tuning along the primary control paths and new tuning knobs
-  
+
+* Ethernet/UDP:
+  - Add cross-platform spawn support for cross-compiled targets
+
 ----------------------------------------------------------------------
 08-20-2005 : Release 1.6
 

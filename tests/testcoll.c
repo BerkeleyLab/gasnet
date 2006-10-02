@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2006/08/11 00:53:49 $
- * $Revision: 1.22.6.1 $
+ *     $Date: 2006/10/02 19:09:14 $
+ * $Revision: 1.22.6.2 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -423,7 +423,8 @@ void *thread_main(void *arg) {
   td->hndl = test_malloc(iters*sizeof(gasnet_coll_handle_t));
 
   /* Run w/ root = (first, middle, last) w/o duplication */
-  for (i = 0; i < 3; ++i) {
+  /* for (i = 0; i < 3; ++i) { */
+  for(i=0; i<3; i++) {
     int root;
 
     if (i == 0) {
