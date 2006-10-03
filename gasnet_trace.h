@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/08/08 16:36:23 $
- * $Revision: 1.46.2.3 $
+ *     $Date: 2006/10/03 19:15:53 $
+ * $Revision: 1.46.2.4 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -260,7 +260,9 @@ GASNETI_BEGIN_EXTERNC
 
 #if GASNET_STATS
   typedef void (*gasnett_stats_callback_t)(void (*)(const char *, ...));
-  extern gasnett_stats_callback_t gasnett_stats_callback;
+  GASNETI_TENTATIVE_EXTERN void (*gasnett_stats_callback)(
+    GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
+  );
 #endif
 
 #define GASNETI_TRACE_WAITSYNC_END(name) \

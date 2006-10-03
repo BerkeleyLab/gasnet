@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/08/24 16:37:15 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2006/10/03 19:16:16 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,7 @@
 #include <signal.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
-GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
+GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
 static void gasnetc_atexit(void);
@@ -323,6 +323,15 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     #endif
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
+
+#if 0
+    {
+      int i;
+      for (i=0; i< gasneti_nodes; i++) {
+	GASNETI_TRACE_PRINTF(C,("SEG_INIT: [%d]: Node=%i  Addr=%p  Size=%lld",gasneti_mynode,i,gasneti_seginfo[i].addr,(long long)gasneti_seginfo[i].size));
+      }
+    }
+#endif
 
     /*  AMMPI allows arbitrary registration with no further action  */
     if (segsize) {

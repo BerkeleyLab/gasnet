@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/08/24 16:49:27 $
- * $Revision: 1.52.2.5 $
+ *     $Date: 2006/10/03 19:15:53 $
+ * $Revision: 1.52.2.6 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,9 +11,8 @@
 #define _INCLUDED_GASNET_TOOLS_H
 #if !defined(_INCLUDED_GASNET_H) && \
     (defined(GASNET_SEQ) || defined(GASNET_PARSYNC) || defined(GASNET_PAR))
-  #error Applications that use both GASNet and GASNet tools must   \
-         include gasnet.h before gasnet_tools.h and must include   \
-         _both_ headers in ALL files that need either header  
+  #error Objects that use both GASNet and GASNet tools must   \
+         include gasnet.h before gasnet_tools.h 
 #endif
 
 /* Recognized definitions:
@@ -30,22 +29,32 @@
   #ifdef _INCLUDED_GASNET_H
     #error GASNETT_LITE_MODE not supported for libgasnet clients
   #endif
-#elif defined(GASNETT_THREAD_SAFE)
-  #undef GASNETT_THREAD_SAFE
-  #define GASNETT_THREAD_SAFE 1
-  #define GASNETT_THREAD_MODEL PAR
-#elif defined(GASNET_PARSYNC) || defined(GASNET_PAR) ||           \
+#elif defined(GASNETT_THREAD_SAFE) ||                             \
+      defined(GASNET_PARSYNC) || defined(GASNET_PAR) ||           \
       (!defined(GASNET_SEQ) && !defined(GASNETI_THREAD_SINGLE) && \
        (defined(_REENTRANT) || defined(_THREAD_SAFE) ||           \
         defined(PTHREAD_MUTEX_INITIALIZER)))
+  #undef GASNETT_THREAD_SAFE
   #define GASNETT_THREAD_SAFE 1
   #define GASNETT_THREAD_MODEL PAR
+  /* headers should test for GASNETI_THREADS, not GASNETT_THREAD_SAFE */
+  #ifndef GASNETI_THREADS 
+  #define GASNETI_THREADS 1
+  #endif
 #else
   #undef GASNETT_THREAD_SAFE
   #define GASNETT_THREAD_MODEL SEQ
 #endif
 
 #include <gasnet_config.h>
+
+/* public spec version numbers */
+#define GASNETT_SPEC_VERSION_MAJOR GASNETIT_SPEC_VERSION_MAJOR
+#define GASNETT_SPEC_VERSION_MINOR GASNETIT_SPEC_VERSION_MINOR
+#define GASNETT_RELEASE_VERSION_MAJOR GASNET_RELEASE_VERSION_MAJOR
+#define GASNETT_RELEASE_VERSION_MINOR GASNET_RELEASE_VERSION_MINOR
+#define GASNETT_RELEASE_VERSION_PATCH GASNET_RELEASE_VERSION_PATCH
+
 #include <gasnet_basic.h>
 #include <gasnet_toolhelp.h>
 
@@ -162,7 +171,7 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_ATOMIC_SIGNED_MIN		GASNETI_ATOMIC_SIGNED_MIN
 #define GASNETT_ATOMIC_SIGNED_MAX		GASNETI_ATOMIC_SIGNED_MAX
 
-#if GASNETT_THREAD_SAFE
+#if GASNETI_THREADS
   /* PAR, PARSYNC and thread-safe tools clients */
   #define gasnett_atomic_t               gasneti_atomic_t
   #define gasnett_atomic_read(p,f)       gasneti_atomic_read(p,f)
@@ -282,6 +291,11 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_backtrace_init gasneti_backtrace_init
 #define gasnett_print_backtrace gasneti_print_backtrace
 #define gasnett_print_backtrace_ifenabled gasneti_print_backtrace_ifenabled
+#define gasnett_count0s_copy    gasneti_count0s_copy
+#define gasnett_count0s         gasneti_count0s
+#define gasnett_count0s_uintptr_t gasneti_count0s_uintptr_t
+#define gasnett_count0s_uint32_t  gasneti_count0s_uint32_t
+#define gasnett_count0s_uint64_t  gasneti_count0s_uint64_t
 
 #define GASNETT_THREADKEY_DECLARE                 GASNETI_THREADKEY_DECLARE
 #define GASNETT_THREADKEY_DEFINE                  GASNETI_THREADKEY_DEFINE
@@ -440,6 +454,9 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 #define GASNETT_PTR_CONFIG            GASNETI_PTR_CONFIG
 
 #define _GASNETT_LITE_CONFIG_STRING              \
+       "RELEASE=" _STRINGIFY(GASNETI_RELEASE_VERSION) "," \
+       "SPEC=" _STRINGIFY(GASNETT_SPEC_VERSION_MAJOR) "." \
+               _STRINGIFY(GASNETT_SPEC_VERSION_MINOR) "," \
        "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) "," \
        _STRINGIFY(GASNETT_DEBUG_CONFIG) ","      \
        _STRINGIFY(GASNETT_THREAD_MODEL) ","      \

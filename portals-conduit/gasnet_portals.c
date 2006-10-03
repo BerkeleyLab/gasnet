@@ -46,7 +46,7 @@ ptl_process_id_t *gasnetc_procid_map = NULL;
 
 gasnetc_conn_t *gasnetc_conn_state = NULL;
 
-int use_AM_portals = 0;
+int gasnetc_use_AM_portals = 0;
 
 /* ------------------------------------------------------------------------------------ */
 /* The number of GASNet Put or Get operations that can occur before a poll to the
@@ -61,7 +61,7 @@ gasneti_weakatomic_t gasnete_putget_poll_cnt;
  * and each Get also generates two (although only should generate one).
  */
 gasneti_weakatomic_t gasnete_putget_inflight;
-int gasnete_putget_limit = 500;
+int gasnete_putget_limit = 255;
 
 
 int gasnetc_max_poll_events = GASNETC_MAX_POLL_EVENTS;
@@ -269,7 +269,7 @@ static void TMPMD_event(ptl_event_t *ev)
  * Handle events on one of the Request Send Buffer
  *  SEND_END => Put (and Get) local completion.
  *                - Ignore for AM Request sends
- *                - Ignore for Gets (Cray gens these in violation of spec)
+ *                - Ignore for Gets (Cray Portals gens these in violation of spec)
  *                - If non-bulk Put, increment local completion counter and free chunk.
  *       ACK => Put through bounce buffer completed.  
  *                - NOTE: AMs will not generate ACKs.
@@ -706,7 +706,7 @@ extern int gasnetc_chunk_alloc(gasnetc_chunkalloc_t *allocator, size_t nbytes, p
 #if GASNETI_STATS_OR_TRACE
     allocator->inuse++;
     if (allocator->inuse > allocator->hwm) allocator->hwm = allocator->inuse;
-    GASNETI_TRACE_PRINTF(C,("CHUNK_ALLOC: name %s, inuse = %d, hwm = %d, offset=%ul",allocator->name,allocator->inuse,allocator->hwm,(unsigned long)*offset));
+    GASNETI_TRACE_PRINTF(C,("CHUNK_ALLOC: name %s, inuse = %d, hwm = %d, offset=%lu",allocator->name,allocator->inuse,allocator->hwm,(unsigned long)*offset));
     GASNETI_TRACE_EVENT(C, CHUNK_ALLOC);
 #endif
 
@@ -727,7 +727,7 @@ extern void gasnetc_chunk_free(gasnetc_chunkalloc_t *allocator, ptl_size_t offse
     allocator->freelist = p;
 #if GASNETI_STATS_OR_TRACE
     allocator->inuse--;
-    GASNETI_TRACE_PRINTF(C,("CHUNK_FREE: name %s, inuse = %d, hwm = %d, offset=%ul",allocator->name,allocator->inuse,allocator->hwm,(unsigned long)offset));
+    GASNETI_TRACE_PRINTF(C,("CHUNK_FREE: name %s, inuse = %d, hwm = %d, offset=%lu",allocator->name,allocator->inuse,allocator->hwm,(unsigned long)offset));
     GASNETI_TRACE_EVENT(C, CHUNK_FREE);
 #endif
 }
@@ -834,7 +834,7 @@ extern void gasnetc_portals_init(void)
 				(int64_t)gasnete_putget_poll,0);
   gasnete_putget_limit = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUTGET_LIMIT",
 				(int64_t)gasnete_putget_limit,0);
-  use_AM_portals = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_DO_AM",(int64_t)use_AM_portals,0);
+  gasnetc_use_AM_portals = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_DO_AM",(int64_t)gasnetc_use_AM_portals,0);
 				
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_Pool_size = %d",gasnetc_ReqRB_pool_size));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_numchunk  = %d",(int)gasnetc_ReqRB_numchunk));
@@ -844,7 +844,7 @@ extern void gasnetc_portals_init(void)
   GASNETI_TRACE_PRINTF(C,("Portals_Init: max_poll_events = %d",gasnetc_max_poll_events));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: putget_per_poll = %d",gasnete_putget_poll));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: putget_limit    = %d",gasnete_putget_limit));
-  GASNETI_TRACE_PRINTF(C,("Portals_Init: use_AM_portals  = %d",use_AM_portals));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: use_AM_portals  = %d",gasnetc_use_AM_portals));
 
   /* Init the temp md counter to zero */
   gasneti_weakatomic_set(&gasnetc_tmpmd_count, 0, 0);
@@ -877,19 +877,8 @@ extern void gasnetc_portals_init(void)
   gasneti_assert_always(my_size == gasneti_nodes);
   
   /* get process to portals address mapping */
-  if (cnos_launcher() == CNOS_LAUNCHER_APRUN) {
-    short port = my_id.pid;
-    int   rc;
-    if((rc=cnos_register_ptlpid(port))) {
-      gasneti_fatalerror("cnos_register_ptlpid returned %d",rc);
-    }
-    cnos_get_nidpid_map(&cnos_map);
-  } else if (cnos_launcher() == CNOS_LAUNCHER_YOD) {
-    if (my_size != cnos_get_nidpid_map(&cnos_map)) {
-      gasneti_fatalerror("cnos_get_nidpid_map size != %d",my_size);
-    }
-  } else {
-    gasneti_fatalerror("Unknown Launcher = %d",cnos_launcher());
+  if (my_size != cnos_get_nidpid_map(&cnos_map)) {
+    gasneti_fatalerror("cnos_get_nidpid_map size != %d",my_size);
   }
   gasneti_assert_always(cnos_map[my_rank].nid == my_id.nid);
   gasneti_assert_always(cnos_map[my_rank].pid == my_id.pid);
@@ -908,7 +897,7 @@ extern void gasnetc_portals_init(void)
    * RARAM:         unknown ... scale with num procs? what scaling factor?
    * TMPMD:         2*max number of tmpmds
    */
-  if (use_AM_portals) {
+  if (gasnetc_use_AM_portals) {
     num_chunk = gasnetc_ReqSB_numchunk + gasnetc_RplSB_numchunk 
       + gasnetc_ReqRB_pool_size*gasnetc_ReqRB_numchunk;
   } else {
@@ -927,7 +916,7 @@ extern void gasnetc_portals_init(void)
   eq_len += 100;
 
   GASNETI_TRACE_PRINTF(C,("Constructing EQ with %d entries",eq_len));
-#if 1
+#if 0
   if (gasneti_mynode == 0) {
     printf("MAX_POLL_EVENTS = %i\n",gasnetc_max_poll_events);
     printf("PUTGET_MAXPOLL  = %i\n",gasnete_putget_poll);
@@ -941,7 +930,7 @@ extern void gasnetc_portals_init(void)
   RAR_init();
   ReqSB_init();
 
-  if (use_AM_portals) {
+  if (gasnetc_use_AM_portals) {
     ReqRB_init();
     RplSB_init();
   }
@@ -962,7 +951,7 @@ extern void gasnetc_portals_init(void)
 extern void gasnetc_portals_exit()
 {
 
-  if (use_AM_portals) {
+  if (gasnetc_use_AM_portals) {
     RplSB_exit();
     ReqRB_exit();
   }

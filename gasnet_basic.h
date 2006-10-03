@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/08/08 16:36:23 $
- * $Revision: 1.47.2.2 $
+ *     $Date: 2006/10/03 19:15:52 $
+ * $Revision: 1.47.2.3 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -127,6 +127,10 @@
 #endif
 
 /* special GCC features */
+#if PLATFORM_COMPILER_PGI && defined(__attribute__)
+#undef __attribute__ /* bug 1766: undo a stupid, gcc-centric definition from Linux sys/cdefs.h */
+#endif
+
 #if ( ! defined(GASNETI_HAVE_GCC_ATTRIBUTE) || defined(__cplusplus) ) && \
     ! defined (__GNUC__) && ! defined (__attribute__)
   #define __attribute__(flags)
@@ -309,7 +313,7 @@
 #else
   #define GASNETI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
 #endif
-#if PLATFORM_COMPILER_GCC
+#if PLATFORM_COMPILER_GNU
   /* gcc allows format attribute on a pointer-to-function */
   #define GASNETI_FORMAT_PRINTF_FUNCPTR GASNETI_FORMAT_PRINTF
 #else
@@ -406,8 +410,8 @@
    The macros may expand to nothing, so the argument must not have side effects.
  */
 #if HAVE_BUILTIN_PREFETCH
-  #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((P),0)
-  #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((P),1)
+  #define GASNETI_PREFETCH_READ_HINT(P) __builtin_prefetch((void *)(P),0)
+  #define GASNETI_PREFETCH_WRITE_HINT(P) __builtin_prefetch((void *)(P),1)
 #else
   #define GASNETI_PREFETCH_READ_HINT(P)
   #define GASNETI_PREFETCH_WRITE_HINT(P)

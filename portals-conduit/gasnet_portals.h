@@ -83,7 +83,7 @@ typedef struct foobar_rec {
 } gasnetc_ptl_token_t;
 
 /* Flag to determine if we use Portals or MPI for AMs */
-extern int use_AM_portals;
+extern int gasnetc_use_AM_portals;
 
 #define GASNETC_PTLSAFE(fncall) do {                                         \
    int _retcode = (fncall);                                                  \

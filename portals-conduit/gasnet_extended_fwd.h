@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/08/24 16:37:15 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2006/10/03 19:16:16 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,7 +69,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  * MLW: 07/10/2006: USE of EQ handler does not seem to work.  Hangs.
  */
 #ifndef GASNETC_USE_EQ_HANDLER
-extern void gasnetc_portals_poll();
+GASNETI_EXTERNC void gasnetc_portals_poll();
 #define GASNETE_PROGRESSFN_EXTRA(FN)					\
   FN(gasnete_pf_portals_poll, BOOLEAN, gasnetc_portals_poll)
 #endif

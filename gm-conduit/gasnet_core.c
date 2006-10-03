@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2006/08/24 16:49:30 $
- * $Revision: 1.97.4.2 $
+ * $Date: 2006/10/03 19:16:02 $
+ * $Revision: 1.97.4.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -16,10 +16,8 @@
 #include <unistd.h>
 #include <signal.h>
 
-GASNETI_IDENT(gasnetc_IdentString_Version, 
-		"$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
-GASNETI_IDENT(gasnetc_IdentString_ConduitName, 
-		"$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
+GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
+GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 uintptr_t	gasnetc_MaxPinnableMemory = 0;
 

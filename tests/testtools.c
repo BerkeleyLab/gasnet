@@ -1,13 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/08/24 16:49:50 $
- * $Revision: 1.32.2.3 $
+ *     $Date: 2006/10/03 19:16:26 $
+ * $Revision: 1.32.2.4 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #define TEST_GASNET_TOOLS_ONLY
-#define GASNETT_MAIN
 #include "test.h"
 
 /* specifically omit gasnet.h/test.h to test independence */
@@ -86,7 +85,6 @@ GASNETT_THREADKEY_DEFINE(partest_key2);
 } while (0)
 
 int main(int argc, char **argv) {
-
   test_init("testtools", 0,"(iters) (num_threads) (tests_to_run)");
 
   if (argc > 1) iters = atoi(argv[1]);
@@ -115,6 +113,14 @@ int main(int argc, char **argv) {
   #else
     #error must #define exactly one of PLATFORM_ARCH_32 or PLATFORM_ARCH_64
   #endif
+
+  { int smaj = GASNETT_SPEC_VERSION_MAJOR;
+    int smin = GASNETT_SPEC_VERSION_MINOR;
+    int rmaj = GASNETT_RELEASE_VERSION_MAJOR;
+    int rmin = GASNETT_RELEASE_VERSION_MINOR;
+    int rpat = GASNETT_RELEASE_VERSION_PATCH;
+    assert_always(smaj > 0 && smin >= 0 && rmaj > 0 && rmin >= 0 && rpat >= 0);
+  }
 
   #if defined(GASNETT_PAGESIZE) && defined(GASNETT_PAGESHIFT)
     if (0x1 << GASNETT_PAGESHIFT != GASNETT_PAGESIZE)
@@ -171,8 +177,9 @@ int main(int argc, char **argv) {
   TEST_HEADER("Testing high-performance timers...")
   { /* high performance timers */
     int i;
-    gasnett_tick_t start, end;
-    uint64_t startref, endref;
+    gasnett_tick_t begin, start, end;
+    uint64_t beginref, startref, endref;
+    int timeiters = MAX(1,iters / 10);
     gasnett_tick_t ticktimemin = GASNETT_TICK_MIN;
     gasnett_tick_t ticktimemax = GASNETT_TICK_MAX;
 
@@ -180,14 +187,21 @@ int main(int argc, char **argv) {
     if (!(gasnett_ticks_now() > ticktimemin)) ERR("!(now > min)");
     if (!(gasnett_ticks_now() < ticktimemax)) ERR("!(now < max)");
 
-    for (i=0; i < iters/10; i++) {
+    begin = gasnett_ticks_now();  /* outer time point */
+    beginref = gasnett_gettimeofday_us();
+    for (i=0; i < timeiters; i++) {
       int time, timeref;
-      start = gasnett_ticks_now();
-      startref = gasnett_gettimeofday_us();
-      if (i % (iters/3) == 0) sleep(1); /* sleep wait */
-      else { /* busy wait */
-        gasnett_tick_t last = gasnett_ticks_now();
-        while (gasnett_ticks_to_us(last-start) < 100000) {
+      if (i == timeiters - 1) {
+        start = begin; /* use outer time point for base of last iteration */
+        startref = beginref;
+      } else {
+        start = gasnett_ticks_now(); /* inner time point */
+        startref = gasnett_gettimeofday_us();
+      }
+      if (i % MAX(1,timeiters/3) == 0) sleep(1); /* sleep wait */
+      { /* busy wait */
+        gasnett_tick_t last = start;
+        do {
           gasnett_tick_t next = gasnett_ticks_now();
           if (next < last) 
             ERR("gasnett_ticks_to_us not monotonic! !(%llu <= %llu)",
@@ -200,7 +214,7 @@ int main(int argc, char **argv) {
                  (unsigned long long)next, (unsigned long long)GASNETT_TICK_MAX);
           d_junk *= 1.0001;
           last = next;
-        }
+        } while (gasnett_ticks_to_us(last-start) < 100000);
       }
       end = gasnett_ticks_now();
       endref = gasnett_gettimeofday_us();
@@ -230,6 +244,56 @@ int main(int argc, char **argv) {
         /*granularity < 0.5*overhead)*/
         ERR("nonsensical timer overhead/granularity measurements:\n"
              "  overhead: %.3fus  granularity: %.3fus\n",overhead, granularity);
+  }
+
+  TEST_HEADER("Testing zero-byte counting...")
+  { /* gasnett_count0s*() */
+    static const char src[24] = { '\0', '1',  '\0', '2', '\0', '3', '\0', '4',
+                                  '5',  '6',  '7',  '8', '\0', '9', '\0', 'a',
+                                  'b',  '\0', 'c',  'd', 'e',  'f', 'g',  'h' };
+    char dst_guarded[24+16];
+    char *dst = dst_guarded+8;
+    int l, i, j, k, z0, z1, z2;
+
+    for (i=0;i<8;++i) { /* src alignment */
+      for (j=0;j<8;++j) { /* dst alignment */
+        for (l=0;l<16;++l) { /* length */
+          memset(dst_guarded, 0, sizeof(dst_guarded));
+	  z0 = gasnett_count0s_copy(dst+j, src+i, l);
+	  if (memcmp(dst+j, src+i, l)) ERR("memory mismatch from gasnett_count0s_copy(dst+%i, src+%i, %i)",i,j,l);
+	  z1 = gasnett_count0s(dst+j, l);
+	  for (z2=0,k=0;k<l;++k) { z2 += !dst[j+k]; }
+	  if (z0 != z2) ERR("incorrect return value from gasnett_count0s_copy(dst+%i, src+%i, %i) (got %i want %i)",i,j,l,z0,z2);
+	  if (z1 != z2) ERR("incorrect return value from gasnett_count0s(dst+%i, %i) src+%i (got %i want %i)",j,l,i,z1,z0);
+	  if (dst[j-1] || dst[j+l])
+	    ERR("memory clobbered by gasnett_count0s_copy(dst+%i, src+%i, %i)",i,j,l);
+        }
+      }
+    }
+
+    for (i=0;i<8*sizeof(uintptr_t);++i) {
+      uintptr_t val = ((uintptr_t)1) << i;
+      if (gasnett_count0s_uintptr_t(val) != (sizeof(uintptr_t) - 1))
+        ERR("incorrect return from gasnett_count0s_uintptr_t(1<<%i)", i);
+    }
+    if (gasnett_count0s_uintptr_t(0) != sizeof(uintptr_t))
+      ERR("incorrect return from gasnett_count0s_uintptr_t(0)");
+
+    for (i=0;i<32;++i) {
+      uint32_t val = ((uint32_t)1) << i;
+      if (gasnett_count0s_uint32_t(val) != 3)
+        ERR("incorrect return from gasnett_count0s_uint32_t(1<<%i)", i);
+    }
+    if (gasnett_count0s_uint32_t(0) != 4)
+      ERR("incorrect return from gasnett_count0s_uint32_t(0)");
+
+    for (i=0;i<64;++i) {
+      uint64_t val = ((uint64_t)1) << i;
+      if (gasnett_count0s_uint64_t(val) != 7)
+        ERR("incorrect return from gasnett_count0s_uint64_t(1<<%i)", i);
+    }
+    if (gasnett_count0s_uint64_t(0) != 8)
+      ERR("incorrect return from gasnett_count0s_uint64_t(0)");
   }
 
   TEST_HEADER("Testing local membar...")

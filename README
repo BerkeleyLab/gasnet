@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.66.4.5 $
+$Revision: 1.66.4.6 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -26,9 +26,9 @@ option when maintaining several build trees on the same source tree).
     --help - display all available configure options
     --prefix=/install/path - set the directory where GASNet will be installed
     --enable-debug - build GASNet in a debugging mode. This turns on C-level
-      debugger options and also enables extensive error checking in the MPI 
-      conduit (and others), which is useful for debugging GASNet clients 
-      (but should not be used for performance testing). 
+      debugger options and also enables extensive error and sanity checking 
+      system-wide, which is highly recommended for developing and debugging 
+      GASNet clients (but should not be used for performance testing). 
     --enable-trace - turn on GASNet tracing (see usage info below)
     --enable-stats - turn on GASNet statistical collection (see usage info below)
     --enable-segment-{fast,large,everything} - select a GASNet segment 
@@ -168,7 +168,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT,MPICH2)
 
     * MacOSX/PowerPC/{gcc,xlc}/32,64: smp, udp, mpi, vapi
-    * MacOSX/x86/gcc/32: smp, udp, #
+    * MacOSX/x86/{gcc,icc}/32: smp, udp, mpi
 
     * Unicos/Cray-T3e/CrayC/64: smp, udp, mpi %
  
@@ -261,6 +261,23 @@ application-specific support.
  of environment variable values/command-line arguments. Some GASNet spawners 
  automatically encode shell meta-characters passing through non-GASNet spawn scripts, 
  in to order to ensure their safe delivery to the GASNet client program.
+
+* GASNET_BARRIER - select the communication algorithm for use in GASNet barriers.
+ Values AMDISSEM and AMCENTRAL are available on all conduits, and many conduits
+ have additional network-specific barrier algorithms documented in conduit READMEs.
+
+* GASNET_VIS_AMPIPE - set to 1 to enable packing of most non-contiguous
+ put/gets into AMMediums, with each packet of size approx MaxMedium (the only
+ exception being cases where both sides happen to be fully contiguous, in
+ which case we skip packing). This support is currently experimental, and thus
+ disabled by default.
+
+* GASNET_VIS_MAXCHUNK - limits the max size of a strided or indexed chunk which
+ will be packed by AM pipelining. Defaults to the size that will fit in one MaxMedium
+
+* GASNET_VIS_REMOTECONTIG - enables a pack & RDMA algorithm for gather puts and
+ scatter gets - ie cases that are locally non-contiguous but remotely
+ contiguous. Currently unsafe for use on gm and vapi conduits, thus disabled by default.
 
 * see conduit-specific documentation in conduit directories for more settings
 
@@ -695,7 +712,11 @@ All GASNet conduit code is required to meet the following coding standards:
 
 * Do NOT make assumptions about the width of values stored in type "gasneti_atomic_t".
   On some platforms the width may be neither 32 nor 64 bits.
-  See gasnet_atomicops.h for complete documentation. 
+  See README-tools for complete documentation. 
+
+* Conduit code may use any of the GASNet tools documented in README-tools, but should
+  use the gasneti_ version when referring to these tools in public headers, because
+  gasnet_tools.h is not included by gasnet.h.
 
 * Learn how to use the tracing macros and use them to trace interesting
   events in your conduit. They're invaluable for debugging mysterious behavior.

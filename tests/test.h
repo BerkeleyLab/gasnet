@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/08/24 16:49:50 $
- * $Revision: 1.63.4.3 $
+ *     $Date: 2006/10/03 19:16:26 $
+ * $Revision: 1.63.4.4 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -332,7 +332,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 #ifndef TEST_OMIT_CONFIGSTRINGS
 #ifdef TEST_GASNET_H
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
-  #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CORE_NAME_STR "-uni"
+  #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CONDUIT_NAME_STR "-uni"
 #else
   #if GASNETI_CROSS_COMPILING
     #define GASNETI_TOOLS_CONDUIT "MPI"
@@ -342,7 +342,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
     #define TEST_TITANIUM_BACKEND "sequential"
   #endif
   #define TEST_CONFIG_STRING \
-    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
+    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"("GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x),THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
 #endif
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 

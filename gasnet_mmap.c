@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/08/24 16:49:27 $
- * $Revision: 1.35.2.2 $
+ *     $Date: 2006/10/03 19:15:53 $
+ * $Revision: 1.35.2.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -258,6 +258,14 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
 /* ------------------------------------------------------------------------------------ */
 #endif /* HAVE_MMAP */
 
+#if defined(GASNETI_MMAP_MAX_SIZE)
+  GASNETI_IDENT(gasneti_IdentString_DefaultMaxSegsize, 
+                "$GASNetDefaultMaxSegsize: " _STRINGIFY(GASNETI_MMAP_MAX_SIZE) " $");
+#elif defined(GASNETI_MALLOCSEGMENT_MAX_SIZE)
+  GASNETI_IDENT(gasneti_IdentString_DefaultMaxSegsize, 
+                "$GASNetDefaultMaxSegsize: " _STRINGIFY(GASNETI_MALLOCSEGMENT_MAX_SIZE) " $");
+#endif
+
 /* return user-selected limit for the max segment size, as gleaned from several sources */
 uint64_t gasnet_max_segsize; /* intentional tentative definition, to allow client override */
 uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
@@ -377,7 +385,8 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       gasneti_maxbase = maxbase;
       #if GASNET_ALIGNED_SEGMENTS
         if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
-          const char *wmsg = "WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()";
+          const char *wmsg = "WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()"
+            ": perhaps you need to re-configure with --disable-aligned-segments";
           GASNETI_TRACE_PRINTF(I, (wmsg));
           if (!gasneti_mynode && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
             fprintf(stderr, "%s\n%s\n", wmsg, segstats);
@@ -435,6 +444,16 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   gasneti_assert(gasneti_segexch);
   gasneti_memcheck(gasneti_segexch);
 
+  #ifndef GASNETI_SEGMENT_DISALIGN_BIAS
+    #if GASNET_DEBUG && !GASNET_ALIGNED_SEGMENTS
+      /* force segment disalignment for debugging purposes */
+      #define GASNETI_SEGMENT_DISALIGN_BIAS \
+            ((GASNET_PAGESIZE < 1024*1024)?(GASNET_PAGESIZE*(gasneti_mynode%2)):0)
+    #else
+      #define GASNETI_SEGMENT_DISALIGN_BIAS 0
+    #endif
+  #endif
+
   #ifdef HAVE_MMAP
   { /* TODO: this assumes heap grows up */
     uintptr_t topofheap;
@@ -472,9 +491,20 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     #else
       topofheap = gasneti_myheapend;
       #if GASNETI_USE_HIGHSEGMENT
-        segbase = (void *)((uintptr_t)gasneti_segment.addr + gasneti_segment.size - segsize);
+        segbase = (void *)((uintptr_t)gasneti_segment.addr + 
+                           gasneti_segment.size - segsize);
+        if (gasneti_segment.size - segsize >= GASNETI_SEGMENT_DISALIGN_BIAS) {
+          segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
+        } else {
+          segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
+          segsize -= GASNETI_SEGMENT_DISALIGN_BIAS;
+        }
       #else
         segbase = gasneti_segment.addr;
+        if (gasneti_segment.size > GASNETI_SEGMENT_DISALIGN_BIAS) {
+          segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
+          segsize = MIN(segsize,gasneti_segment.size - GASNETI_SEGMENT_DISALIGN_BIAS);
+        }
       #endif
     #endif
 
@@ -514,13 +544,16 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   }
   #else /* !HAVE_MMAP */
     /* for the T3E, and other platforms which don't support mmap */
-    segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE);
+    segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE + GASNETI_SEGMENT_DISALIGN_BIAS);
     while (!segbase) {
       segsize = GASNETI_PAGE_ALIGNDOWN(segsize/2);
       if (segsize == 0) break; 
-      segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE);
+      segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE + GASNETI_SEGMENT_DISALIGN_BIAS);
     }
-    if (segbase) segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
+    if (segbase) {
+      segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
+      segbase = (void *)(((uintptr_t)segbase)+GASNETI_SEGMENT_DISALIGN_BIAS);
+    }
   #endif
   gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
   gasneti_assert(segsize % GASNET_PAGESIZE == 0);

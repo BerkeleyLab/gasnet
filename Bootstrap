@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
-#     $Date: 2006/08/24 16:49:27 $
-# $Revision: 1.16.2.2 $
+#     $Date: 2006/10/03 19:15:52 $
+# $Revision: 1.16.2.3 $
 # Description: GASNet developer Bootstrap script
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -13,6 +13,7 @@ srcdir=`dirname $0`
 TIME=
 CONFIRM=0
 NOTOOLCHECK=0
+TOOLSONLYMODE=0
 autofilter="perl -0 -pe 's/^(autoheader.*?: )?WARN.+auxiliary files(.|\n)+WARN.+documentation.\n//m' \
                  | perl -pe 's/^.*?AC_PROG_LEX invoked multiple times.*?\n?$//g' \
                  | perl -0 -pe 's/^((.*?AC_CONFIG_SUBDIRS.*?\n)+([^ ]* the top level\n)?)*//g'"
@@ -24,6 +25,7 @@ for arg in "$@"; do
     	echo " -t  time autotool commands"
     	echo " -y  force a Bootstrap, even if it looks unnecessary"
     	echo " -n  no checks for autotool presence and versions"
+	echo " -o  Bootstrap for tools-only distribution (default is conduit-mode)"
 	exit 1
     	;;
     -v) autofilter=cat ;;
@@ -33,6 +35,7 @@ for arg in "$@"; do
     n) NOTOOLCHECK=1 ;; # legacy
     -p) ;; # used by Titanium Bootstrap - ignore
     -P) ;; # used by Titanium Bootstrap - ignore
+    -o) TOOLSONLYMODE=1 ;;
     -t) TIME='/usr/bin/time'
 	if test ! -x "$TIME" ; then
 	  TIME=
@@ -109,8 +112,31 @@ set -x
     rm -Rf autom4te*.cache
 set +x
 
+    TOOLSONLYFLAG=$srcdir/.gasnet_toolsonly_mode
+    TOOLSONLYFILES="$srcdir/configure.in $srcdir/Makefile.am $srcdir/other/Makefile.am"
+    if test "$TOOLSONLYMODE" = 1 -a ! -f "$TOOLSONLYFLAG" ; then
+      echo "+ Switching source archive to GASNet tools-only mode"
+      eval perl $srcdir/other/tools-toggle.pl -y $TOOLSONLYFILES
+      touch "$TOOLSONLYFLAG"
+    elif test "$TOOLSONLYMODE" = 0 -a -f "$TOOLSONLYFLAG" ; then
+      if test ! -d "$srcdir/template-conduit" ; then
+        echo "+ WARNING: Attempted a conduit-mode Bootstrap, but conduit sources appear to be missing."
+        echo "+ WARNING: Assuming you meant to include the -o option for a tools-only distribution."
+      else
+        echo "+ Switching source archive back from GASNet tools-only mode to regular mode"
+        eval perl $srcdir/other/tools-toggle.pl -n $TOOLSONLYFILES
+        rm -f "$TOOLSONLYFLAG"
+      fi
+    fi
+
     CMD="aclocal -I other/plpa/config" ; eval $DOIT
     CMD="autoheader" ; eval $DOIT
+    set -x
+      # autoheader omits updating the header if it thinks nothing has changed, 
+      # but automake's dependency checks are stronger (include aclocal.m4, which just changed)
+      # ensure the header looks up-to-date (autoheader -f option not version portable)
+      touch gasnet_config.h.in
+    set +x
     CMD="autoconf" ; eval $DOIT
 
 set -x

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2006/08/08 16:36:22 $
- * $Revision: 1.78.2.2 $
+ *     $Date: 2006/10/03 19:15:52 $
+ * $Revision: 1.78.2.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,119 +16,18 @@
 /* ------------------------------------------------------------------------------------ */
 /* Portable atomic operations
    --------------------------
-   These provide a special datatype (gasneti_atomic_t) representing an atomically
-    updated unsigned integer value and a set of atomic ops
-   Atomicity is guaranteed only if ALL accesses to the gasneti_atomic_t data happen
-    through the provided operations (i.e. it is an error to directly access the
-    contents of a gasneti_atomic_t), and if the gasneti_atomic_t data is only
-    addressable by the current process (e.g. not in a System V shared memory segment)
-   It is also an error to access an unintialized gasneti_atomic_t with any operation
-    other than gasneti_atomic_set().
-   We define an unsigned type (gasneti_atomic_val_t) and a signed type
-   (gasneti_atomic_sval_t) and provide the following operations on all platforms:
 
-    gasneti_atomic_init(gasneti_atomic_val_t v)
-        Static initializer (macro) for an gasneti_atomic_t to value v.
-
-    void gasneti_atomic_set(gasneti_atomic_t *p,
-                            gasneti_atomic_val_t v,
-                            int flags);
-        Atomically sets *p to value v.
-
-    gasneti_atomic_val_t gasneti_atomic_read(gasneti_atomic_t *p, int flags);
-        Atomically read and return the value of *p.
-
-    void gasneti_atomic_increment(gasneti_atomic_t *p, int flags);
-        Atomically increment *p (no return value).
-
-    void gasneti_atomic_decrement(gasneti_atomic_t *p, int flags);
-        Atomically decrement *p (no return value).
-
-    int gasneti_atomic_decrement_and_test(gasneti_atomic_t *p, int flags);
-        Atomically decrement *p, return non-zero iff the new value is 0.
-
-
-   Semi-portable atomic operations
-   --------------------------------
-   These useful operations are available on most, but not all, platforms.
-
-    gasneti_atomic_val_t gasneti_atomic_add(gasneti_atomic_t *p,
-                                            gasneti_atomic_val_t op,
-                                            int flags);
-    gasneti_atomic_val_t gasneti_atomic_subtract(gasneti_atomic_t *p,
-                                                 gasneti_atomic_val_t op,
-                                                 int flags);
-
-     These implement atomic addition and subtraction, where op must be non-negative.
-     The result is platform dependent if the value of op is negative or out of the
-     range of gasneti_atomic_val_t, or if the resulting value is out of range.
-     Both return the value after the addition or subtraction.
-
-    GASNETI_HAVE_ATOMIC_ADD_SUB will be defined to 1 when these operations are available.
-    They are always either both available, or neither is available.
-
-    int gasneti_atomic_compare_and_swap(gasneti_atomic_t *p,
-                                        gasneti_atomic_val_t oldval,
-                                        gasneti_atomic_val_t newval,
-                                        int flags);
-
-     This operation is the atomic equivalent of:
-      if (*p == oldval) {
-        *p = newval;
-        return NONZERO;
-      } else {
-        return 0;
-      }
-
-     GASNETI_HAVE_ATOMIC_CAS will be defined to 1 when this operation is available
-
-
-   Range of atomic type
-   --------------------
-   Internally an atomic type is an unsigned type of at least 24-bits.  No special
-   action is needed to store signed values via gasneti_atomic_set(), however because
-   the type may use less than a full word, gasneti_atomic_signed() is provided to
-   perform any required sign extension if a value read from a gasneti_atomic_t is
-   to be used as a signed type.
-
-    gasneti_atomic_signed(v)      Converts a gasneti_atomic_val_t returned by
-                                  gasneti_atomic_{read,add,subtract} to a signed
-                                  gasneti_atomic_sval_t.
-    GASNETI_ATOMIC_MAX            The largest representable unsigned value
-                                  (the smallest representable unsigned value is always 0).
-    GASNETI_ATOMIC_SIGNED_MIN     The smallest (most negative) representable signed value.
-    GASNETI_ATOMIC_SIGNED_MAX     The largest (most positive) representable signed value.
-
-   The atomic type is guaranteed to wrap around at it's minimum and maximum values in
-   the normal manner expected of two's-complement integers.  This includes the 'oldval'
-   and 'newval' arguments to gasneti_atomic_compare_and_swap(), and the 'v' arguments
-   to gasneti_atomic_init() and gasneti_atomic_set() which are wrapped (not clipped)
-   to the proper range prior to assignment (for 'newval' and 'v') or comparison (for
-   'oldval').
-
-
-   Memory fence properties of atomic operations
-   --------------------------------------------
-   NOTE: Atomic operations have no default memory fence properties, as this
-   varies by platform.  Every atomic operation except _init() includes a 'flags'
-   argument to indicate the caller's minimum fence requirements.
-   Depending on the platform, the implementation may use fences stronger than
-   those requested, but never weaker.
-
-
-   Storage of atomic type
-   ----------------------
-   Internally an atomic type may use storage significantly larger than the number
-   of significant bits.  This additional space may be needed, for instance, to
-   meet platform-specific alignment constraints, or to hold a mutex on platforms
-   lacking any other means of ensuring atomicity.
-
+   see README-tools for general usage information
 
    Signal safety of atomic operations
    ----------------------------------
-   On most, but not all, platforms these atomic operations are signal safe.  On
-   the few platforms where this is not the case GASNETI_ATOMICOPS_NOT_SIGNALSAFE
+   On most, but not all, platforms, operations on gasneti_atomic_t are signal safe.  
+   On the few platforms where this is not the case GASNETI_ATOMICOPS_NOT_SIGNALSAFE
    will be defined to 1.
+
+   Similarly, GASNETI_ATOMIC32_NOT_SIGNALSAFE and GASNETI_ATOMIC64_NOT_SIGNALSAFE
+   are defined to 1 IFF the implementation of the fixed-width atomics is not signal-safe.
+   Note that these two are set independently.
 
    Mutexes
    -------
@@ -136,40 +35,9 @@
    implemented using mutexes.  Therefore, one may wish to consider using other
    algorithms when this symbol is defined.
 
-
-
-   Fixed-width types
-   -----------------
-   The following fixed-width (32- and 64-bit) types/operations are available
-   on all platforms.  These are guaranteed to consume exactly the "natural"
-   storage, without padding or any extra alignment.  However, one or both may
-   use mutexes or lack signal-safety, even where gasneti_atomic_t does not.
-
-    + gasneti_atomic32_t
-    + gasneti_atomic64_t
-        Typedef
-    + gasneti_atomic32_init(uint32_t v)
-    + gasneti_atomic64_init(uint64_t v)
-        Static initializer (macro).
-    + void gasneti_atomic32_set(gasneti_atomic32_t *p, uint32_t v, int flags);
-    + void gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t v, int flags);
-        Atomically sets *p to value v.
-    + uint32_t gasneti_atomic32_read(gasneti_atomic32_t *p, int flags);
-    + uint64_t gasneti_atomic64_read(gasneti_atomic64_t *p, int flags);
-        Atomically read and return the value of *p.
-    + int gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *p, uint32_t oldval,
-                                            uint32_t newval, int flags);
-    + int gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval,
-                                            uint64_t newval, int flags);
-        Atomic compare-and-swap of *p from oldval to newval.
-    + GASNETI_USE_GENERIC_ATOMIC32
-    + GASNETI_USE_GENERIC_ATOMIC64
-        Defined IFF implementation uses mutexes.
-        Note that these two are set independently.
-    + GASNETI_ATOMIC32_NOT_SIGNALSAFE
-    + GASNETI_ATOMIC64_NOT_SIGNALSAFE
-        Defined IFF implementation is not signal-safe.
-        Note that these two are set independently.
+   Similarly, GASNETI_USE_GENERIC_ATOMIC32 and GASNETI_USE_GENERIC_ATOMIC64
+   are defined to 1 IFF the implementation of the fixed-width atomics uses mutexes.
+   Note that these two are set independently.
 
  */
 
@@ -862,18 +730,18 @@
   do {                                                              \
     stem##t * const __p = (p);                                      \
     const int __flags = (f);                                        \
-    GASNETI_ATOMIC_CHECKALIGN(stem,p);                              \
+    GASNETI_ATOMIC_CHECKALIGN(stem,__p);                            \
     _gasneti_##group##_fence_before_set(__p,__flags)                \
-    _func((p),(v));                                                 \
+    _func(__p,(v));                                                 \
     _gasneti_##group##_fence_after_set(__p,__flags)                 \
   } while (0)
 #define GASNETI_ATOMIC_FENCED_INCDEC(group,_func,stem,p,f)          \
   do {                                                              \
     stem##t * const __p = (p);                                      \
     const int __flags = (f);                                        \
-    GASNETI_ATOMIC_CHECKALIGN(stem,p);                              \
+    GASNETI_ATOMIC_CHECKALIGN(stem,__p);                            \
     _gasneti_##group##_fence_before_rmw(__p,__flags)                \
-    _func(p);                                                       \
+    _func(__p);                                                     \
     _gasneti_##group##_fence_after_rmw(__p,__flags)                 \
   } while (0)
 

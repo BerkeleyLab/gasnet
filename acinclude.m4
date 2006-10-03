@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/08/24 16:49:27 $
-dnl $Revision: 1.88.2.4 $
+dnl     $Date: 2006/10/03 19:15:52 $
+dnl $Revision: 1.88.2.5 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -487,11 +487,13 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   
   AC_MSG_CHECKING(for $1 in environment)
 
-  dnl create the help prompt just once
+  dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
+   ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
     AC_ARG_WITH(lowerdashname, 
        GASNET_OPTION_HELP(with-[]lowerdashname[]=, value for [$1]), 
       [], [])
+   ])
   ])
   define(with_expanded_[$1], [set])
 
@@ -572,6 +574,28 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   AC_SUBST(BUILD_IS_SRC)
   SYSTEM_NAME="`hostname`"
   AC_SUBST(SYSTEM_NAME)
+  case "$target" in 
+   # Apple gcc has -arch options for cross-compilation, but target binaries may still work due to Rosetta (making our cross-compilation support unnecessary)
+   # ensure we report the correct target tuple
+   *-apple-darwin*)
+     _GASNET_GCCVER=`${CC:-gcc} -v 2>&1`
+     _GASNET_GCCISAPPLE=`echo "$_GASNET_GCCVER" | grep 'gcc version' | grep 'Apple Computer'`
+     _GASNET_GCCTARGET=`echo "$_GASNET_GCCVER" | /usr/bin/perl -ne 'print \[$]1 if (m/--target=(\S+)/);'`
+     _GASNET_GCCCPU=`echo "$_GASNET_GCCVER" | /usr/bin/perl -ne 'print \[$]1 if (m/--target=([[^-]]+)/);'`
+     if test "$_GASNET_GCCISAPPLE" -a "$_GASNET_GCCTARGET" -a "$_GASNET_GCCCPU" ; then
+        case "$target" in
+         $_GASNET_GCCCPU-*) ;; 
+         *) 
+         GASNET_MSG_WARN([Apple gcc is cross-compiling for $_GASNET_GCCTARGET, readjusting configure target])
+         target="$_GASNET_GCCTARGET" 
+         target_alias="$target" 
+         ac_cv_target="$target" 
+         ac_cv_target_alias="$target" 
+         target_cpu="$_GASNET_GCCCPU" 
+        esac
+     fi
+     ;;
+  esac
   SYSTEM_TUPLE="$target"
   AC_SUBST(SYSTEM_TUPLE)
   AC_MSG_RESULT( system info:      $SYSTEM_NAME $SYSTEM_TUPLE)
@@ -2045,6 +2069,7 @@ dnl compile the program given by headers and body
 dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename of generated object
 dnl else, run action-failure
 AC_DEFUN([GASNET_COMPILE_EXAMINE], [
+AC_REQUIRE([AC_OBJEXT])
 GASNET_FUN_BEGIN([$0(...)])
   cat >conftest.$ac_ext <<"EOF"
 #include "confdefs.h"
@@ -2061,9 +2086,9 @@ EOF
        ac_status=$?
        echo "$as_me:$LINENO: \$? = $ac_status" >&5
        (exit $ac_status); } && \
-       test -f conftest.o ; then
-    GASNET_PUSHVAR(GASNET_EXAMINE_BIN,"gasnet-examine-bin-$LINENO.o")
-    mv conftest.o $GASNET_EXAMINE_BIN
+       test -f conftest.${ac_objext} ; then
+    GASNET_PUSHVAR(GASNET_EXAMINE_BIN,"gasnet-examine-bin-$LINENO.${ac_objext}")
+    mv conftest.${ac_objext} $GASNET_EXAMINE_BIN
     $3
     rm -f $GASNET_EXAMINE_BIN
     GASNET_POPVAR(GASNET_EXAMINE_BIN)

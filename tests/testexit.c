@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2006/08/08 16:36:49 $
- * $Revision: 1.16.10.2 $
+ *     $Date: 2006/10/03 19:16:26 $
+ * $Revision: 1.16.10.3 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,6 +58,12 @@ const char *crashtestdesc[] = {
   "floating-point exception"
 };
 #define NUMCRASHTEST (sizeof(crashtestdesc)/sizeof(char*))
+#ifdef GASNET_PAR
+#define NUMCRASHTEST_WITH_PAR (NUMCRASHTEST*2)
+#else
+#define NUMCRASHTEST_WITH_PAR NUMCRASHTEST
+#endif
+void do_crash_test(int crashid);
 
 #define hidx_exit_handler		201
 #define hidx_noop_handler               202
@@ -146,7 +152,13 @@ void *workerthread(void *args) {
         }
       }
       break;
-    default:FATALERR("bad test id");
+    default:
+      if (testid >= 100 && testid < 100+NUMCRASHTEST) {
+        if (mythread == 0) do_crash_test(testid);
+        thread_barrier();
+      } else {
+        FATALERR("bad test id");
+      }
   }
 
   /* if we ever reach here, something really bad happenned */
@@ -170,8 +182,9 @@ void testSignalHandler(int sig) {
 }
 
 int main(int argc, char **argv) {
-  static char usagestr[4096];
-  char testdescstr[255];
+  #define MAXLINE 255
+  static char usagestr[MAXLINE*(NUMTEST+NUMCRASHTEST_WITH_PAR)];
+  char testdescstr[MAXLINE];
   gasnet_handlerentry_t htable[] = { 
     { hidx_exit_handler, test_exit_handler },
     { hidx_ping_handler, ping_handler },
@@ -180,24 +193,33 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   { int i;
-    sprintf(usagestr,"(exittestnum:1..%i | crashtestnum:100..%i)", (int)NUMTEST, (int)(100+NUMCRASHTEST-1));
+    sprintf(usagestr,"(exittestnum:1..%i | crashtestnum:100..%i)", (int)NUMTEST, (int)(100+NUMCRASHTEST_WITH_PAR-1));
     #ifdef GASNET_PAR
       strcat(usagestr, " (num_pthreads)");
     #endif
     strcat(usagestr, "\n\n Exit tests:\n");
     for (i = 0; i < NUMTEST; i++) {
-      char tmp[80];
-      sprintf(tmp,"  %3i: %s\n", i+1, testdesc[i]);
+      char tmp[MAXLINE];
+      snprintf(tmp,MAXLINE,"  %3i: %s\n", i+1, testdesc[i]);
       strcat(usagestr, tmp);
     }
     strcat(usagestr, "\n Crash tests:\n");
     for (i = 0; i < NUMCRASHTEST; i++) {
-      char tmp[80];
-      sprintf(tmp,"  %3i: %s\n", i+100, crashtestdesc[i]);
+      char tmp[MAXLINE];
+      snprintf(tmp,MAXLINE,"  %3i: %s\n", i+100, crashtestdesc[i]);
       strcat(usagestr, tmp);
     }
+  #ifdef GASNET_PAR
+    for (i = 0; i < NUMCRASHTEST; i++) {
+      char tmp[MAXLINE];
+      snprintf(tmp,MAXLINE,"  %3i: %s from one pthread, others in thread barrier\n", 
+                   (int)(i+100+NUMCRASHTEST), crashtestdesc[i]);
+      strcat(usagestr, tmp);
+    }
+  #endif
   }
   test_init_early("testexit",0,usagestr);
+  MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -215,12 +237,18 @@ int main(int argc, char **argv) {
   #endif
   if (argc > 0 || testid <= 0 || 
       (testid > NUMTEST && testid < 100) || 
-      (testid >= 100+NUMCRASHTEST) || 
+      (testid >= 100+NUMCRASHTEST_WITH_PAR) || 
       numpthreads <= 1) test_usage();
 
-  sprintf(testdescstr, "Running exit test %i: %s",testid,
-         (testid < 100 ? testdesc[testid-1] : crashtestdesc[testid-100]));
-
+  if (testid < 100) {
+    sprintf(testdescstr, "Running exit test %i: %s",testid, testdesc[testid-1]);
+  } else if (testid-100<NUMCRASHTEST) {
+    sprintf(testdescstr, "Running crash test %i: %s",testid, 
+            crashtestdesc[testid-100]);
+  } else {
+    sprintf(testdescstr, "Running crash test %i: %s from one pthread, others in thread barrier",testid, 
+      crashtestdesc[testid-100-NUMCRASHTEST]);
+  }
   if (testid == 6 || testid == 7) {
     MSG0(testdescstr);
     gasnett_sched_yield();
@@ -303,7 +331,28 @@ int main(int argc, char **argv) {
       break;
     }
   #endif
+  default: 
+      if (testid >= 100 && testid < 100+NUMCRASHTEST) {
+        do_crash_test(testid);
+      }
+    #ifdef GASNET_PAR
+      else if (testid >= 100+NUMCRASHTEST && testid < 100+2*NUMCRASHTEST) {
+        testid -= NUMCRASHTEST;
+        test_createandjoin_pthreads(numpthreads, &workerthread, NULL, 0);
+      }
+    #endif
+      else {
+        FATALERR("bad test id: %i", testid);
+      }
+  }
 
+  /* if we ever reach here, something really bad happenned */
+  FATALERR("TEST FAILED!!");
+  return 0;
+}
+
+void do_crash_test(int crashid) {
+  switch(crashid) {
     case 100:
       if (mynode == nodes-1) { sleep(1); gasnett_print_backtrace(STDERR_FILENO); }
       BARRIER();
@@ -374,10 +423,6 @@ int main(int argc, char **argv) {
       }
       BARRIER();
       break;
-    default: FATALERR("bad testid");
+    default: FATALERR("bad test id: %i", crashid);
   }
-
-  /* if we ever reach here, something really bad happenned */
-  FATALERR("TEST FAILED!!");
-  return 0;
 }

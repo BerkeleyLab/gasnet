@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/08/24 16:37:15 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2006/10/03 19:16:16 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,7 +21,7 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
   static gasneti_threadkey_t gasnete_threaddata = GASNETI_THREADKEY_INITIALIZER;
 #endif
-const gasnete_opaddr_t OPADDR_NIL = { { 0xFF, 0xFF } };
+const gasnete_opaddr_t gasnete_opaddr_nil = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 
@@ -80,7 +80,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata: idx=%i, numthreads=%i, threaddata=0x%lx",idx,gasnete_numthreads,(uintptr_t)threaddata));
 
   threaddata->threadidx = idx;
-  threaddata->eop_free = OPADDR_NIL;
+  threaddata->eop_free = gasnete_opaddr_nil;
 #if GASNETI_STATS_OR_TRACE
   threaddata->eop_inuse = 0;
   threaddata->eop_hwm = 0;
@@ -123,7 +123,7 @@ static void gasnete_check_config() {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
-  gasneti_assert_always(gasnete_opaddr_isnil(OPADDR_NIL));
+  gasneti_assert_always(gasnete_opaddr_isnil(gasnete_opaddr_nil));
 }
 
 
@@ -188,9 +188,9 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
       #ifdef GASNETE_EOP_MOD
         buf[223].addr.opidx = 255; /* modular arithmetic messes up this one */
       #endif
-      buf[255].addr = OPADDR_NIL;
+      buf[255].addr = gasnete_opaddr_nil;
     #else
-      buf[255].addr = OPADDR_NIL;
+      buf[255].addr = gasnete_opaddr_nil;
     #endif
     thread->eop_bufs[bufidx] = buf;
     head.bufferidx = bufidx;
@@ -648,11 +648,13 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_GET;
     int local_buf;
 
+    gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
+
     /* stall here if too many puts/gets in progress */
     if (gasnete_putget_limit > 0) {
       int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
       if (inflight > gasnete_putget_limit) {
-	GASNETI_TRACE_PRINTF(G,("get_nb: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_PRINTF(C,("get_nb: throttling, inflight=%i",inflight));
 	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
 	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
       }
@@ -689,7 +691,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
       SET_LOCBUF(local_buf,LOCBUF_TMP);
     }
 
-    GASNETI_TRACE_PRINTF(G,("get_nb: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
+    GASNETI_TRACE_PRINTF(C,("get_nb: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
     /* Issue Ptl Get operation */
     GASNETC_PTLSAFE(PtlGetRegion(md_h, local_offset, nbytes, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
 
@@ -729,13 +731,15 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     ptl_hdr_data_t hdr_data = 0;
     int local_buf;
 
+    gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
+
     gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
 
     /* stall here if too many puts/gets in progress */
     if (gasnete_putget_limit > 0) {
       int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
       if (inflight > gasnete_putget_limit) {
-	GASNETI_TRACE_PRINTF(P,("put_nb: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_PRINTF(C,("put_nb: throttling, inflight=%i",inflight));
 	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
 	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
       }
@@ -775,7 +779,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
-    GASNETI_TRACE_PRINTF(P,("put_nb: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
+    GASNETI_TRACE_PRINTF(C,("put_nb: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
 
     /* Issue Ptl Get operation */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
@@ -924,7 +928,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     if (gasnete_putget_limit > 0) {
       int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
       if (inflight > gasnete_putget_limit) {
-	GASNETI_TRACE_PRINTF(G,("get_nbi: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_PRINTF(C,("get_nbi: throttling, inflight=%i",inflight));
 	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
 	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
       }
@@ -933,6 +937,8 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 
     local_offset = 0;
     remote_offset = GASNETC_PTL_OFFSET(node,src);
+    gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
+
     /* encode gasnet handle into match bits, upper bits ignored */
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(dest,toget)) {
@@ -962,7 +968,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     }
 
     /* Issue Ptl Get operation */
-    GASNETI_TRACE_PRINTF(G,("get_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, nbytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
+    GASNETI_TRACE_PRINTF(C,("get_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, nbytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
     op->initiated_get_cnt++;
     GASNETC_PTLSAFE(PtlGetRegion(md_h, local_offset, toget, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
     nbytes -= toget;
@@ -1005,11 +1011,13 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,dest);
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
 
+    gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
+
     /* stall here if too many puts/gets in progress */
     if (gasnete_putget_limit > 0) {
       int inflight = gasneti_weakatomic_read(&gasnete_putget_inflight, 0);
       if (inflight > gasnete_putget_limit) {
-	GASNETI_TRACE_PRINTF(P,("put_nbi: throttling, inflight=%i",inflight));
+	GASNETI_TRACE_PRINTF(C,("put_nbi: throttling, inflight=%i",inflight));
 	GASNETI_TRACE_EVENT(C, PUTGET_THROTTLE);
 	gasneti_pollwhile( (gasneti_weakatomic_read(&gasnete_putget_inflight,0) > gasnete_putget_limit) );
       }
@@ -1053,7 +1061,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
-    GASNETI_TRACE_PRINTF(P,("put_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%i, remote_off=%i, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(int)local_offset,(int)remote_offset,(int)nbytes));
+    GASNETI_TRACE_PRINTF(C,("put_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
 
     /* Issue Ptl Put operation */
     op->initiated_put_cnt++;

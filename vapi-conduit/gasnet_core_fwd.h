@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2006/06/06 22:35:55 $
- * $Revision: 1.31.2.1 $
+ *     $Date: 2006/10/03 19:16:30 $
+ * $Revision: 1.31.2.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,6 +26,8 @@
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         VAPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
+#define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
+#define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_VAPI      1
 
 /* This is the limit on the LID space... */
@@ -39,7 +41,12 @@ typedef uint8_t gasnet_handler_t;
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#define GASNET_ALIGNED_SEGMENTS   1
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#else
+  #define GASNET_ALIGNED_SEGMENTS   1 
+#endif
+
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
