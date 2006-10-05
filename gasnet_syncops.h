@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2006/10/02 19:08:41 $
- * $Revision: 1.38.6.2 $
+ *     $Date: 2006/10/05 00:00:44 $
+ * $Revision: 1.38.6.3 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

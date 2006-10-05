@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2006/10/02 19:09:12 $
- * $Revision: 1.52.4.2 $
+ *     $Date: 2006/10/05 00:01:25 $
+ * $Revision: 1.52.4.3 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

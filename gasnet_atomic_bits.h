@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/10/02 19:08:40 $
- * $Revision: 1.240.2.2 $
+ *     $Date: 2006/10/05 00:00:43 $
+ * $Revision: 1.240.2.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2006/10/02 19:09:14 $
- * $Revision: 1.16.6.2 $
+ *     $Date: 2006/10/05 00:01:27 $
+ * $Revision: 1.16.6.3 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

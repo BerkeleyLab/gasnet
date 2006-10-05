@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/10/02 19:08:40 $
-# $Revision: 1.290.2.2 $
+#     $Date: 2006/10/05 00:00:43 $
+# $Revision: 1.290.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.290.2.2 $)
+AC_REVISION($Revision: 1.290.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/10/02 19:08:46 $
- * $Revision: 1.63.4.2 $
+ *     $Date: 2006/10/05 00:00:49 $
+ * $Revision: 1.63.4.3 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

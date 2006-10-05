@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/10/02 19:08:52 $
- * $Revision: 1.79.4.2 $
+ *     $Date: 2006/10/05 00:00:55 $
+ * $Revision: 1.79.4.3 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

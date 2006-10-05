@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/10/02 19:08:41 $
- * $Revision: 1.121.2.2 $
+ *     $Date: 2006/10/05 00:00:44 $
+ * $Revision: 1.121.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

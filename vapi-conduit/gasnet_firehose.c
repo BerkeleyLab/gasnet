@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_firehose.c,v $
- *     $Date: 2006/10/02 19:09:18 $
- * $Revision: 1.7.4.2 $
+ *     $Date: 2006/10/05 00:01:31 $
+ * $Revision: 1.7.4.3 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt

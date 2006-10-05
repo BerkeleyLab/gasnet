@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/08/30 12:00:17 $
- * $Revision: 1.3 $
+ *     $Date: 2006/10/05 00:01:17 $
+ * $Revision: 1.3.6.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

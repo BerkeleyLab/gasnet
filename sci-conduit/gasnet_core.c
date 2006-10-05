@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/10/02 19:09:06 $
- * $Revision: 1.18.4.2 $
+ *     $Date: 2006/10/05 00:01:19 $
+ * $Revision: 1.18.4.3 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>

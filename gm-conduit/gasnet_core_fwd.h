@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2006/10/02 19:08:50 $
- * $Revision: 1.28.2.1 $
+ * $Date: 2006/10/05 00:00:53 $
+ * $Revision: 1.28.2.2 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>

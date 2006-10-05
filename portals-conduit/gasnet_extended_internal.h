@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/09/01 19:37:19 $
- * $Revision: 1.4 $
+ *     $Date: 2006/10/05 00:01:17 $
+ * $Revision: 1.4.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

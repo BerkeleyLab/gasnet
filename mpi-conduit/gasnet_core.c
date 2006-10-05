@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2006/10/02 19:08:54 $
- * $Revision: 1.65.4.2 $
+ *     $Date: 2006/10/05 00:00:57 $
+ * $Revision: 1.65.4.3 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
