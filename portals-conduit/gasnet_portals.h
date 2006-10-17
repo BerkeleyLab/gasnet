@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <portals/portals3.h>
 #include <gasnet_internal.h>
+#include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
@@ -38,7 +39,7 @@
 #define GASNETC_PTL_AM_PTE 39
 
 /* Values that are encoded in the MBITs of Portals Data Transfer ops */
-#define GASNETC_PTL_IGNORE_BITS  0xFFFFFFFFFFFFFFF0
+#define GASNETC_PTL_IGNORE_BITS  0xFFFFFFFFFFFFFFF0ULL
 #define GASNETC_PTL_RAR_BITS     0x00
 #define GASNETC_PTL_RARAM_BITS   0x01
 #define GASNETC_PTL_REQRB_BITS   0x03
@@ -54,22 +55,52 @@
  */
 #define GASNETC_PTL_MSG_DOLC     0x80
 
-#define GASNETC_MASK_UPPER32     0xFFFFFFFF00000000
-#define GASNETC_MASK_LOWER32     0x00000000FFFFFFFF
-#define GASNETC_MASK_OPBITS      0x00000000FFFFFF00
-#define GASNETC_MASK_BYTE0       0x00000000000000FF
-#define GASNETC_MASK_BYTE1       0x000000000000FF00
-#define GASNETC_MASK_BYTE2       0x0000000000FF0000
-#define GASNETC_MASK_BYTE3       0x00000000FF000000
-#define GASNETC_MASK_BYTE4       0x000000FF00000000
-#define GASNETC_MASK_BYTE5       0x0000FF0000000000
-#define GASNETC_MASK_BYTE6       0x00FF000000000000
-#define GASNETC_MASK_BYTE7       0xFF00000000000000
+#define GASNETC_PTL_AM_SHORT     0x01
+#define GASNETC_PTL_AM_MEDIUM    0x02
+#define GASNETC_PTL_AM_LONG      0x04
+#define GASNETC_PTL_AM_REQUEST   0x08
+#define GASNETC_PTL_AM_REPLY     0x10
+#define GASNETC_PTL_AM_ASYNC     0x11
+
+
+#define GASNETC_MASK_UPPER32     0xFFFFFFFF00000000ULL
+#define GASNETC_MASK_LOWER32     0x00000000FFFFFFFFULL
+#define GASNETC_MASK_OPBITS      0x00000000FFFFFF00ULL
+#define GASNETC_MASK_BYTE0       0x00000000000000FFULL
+#define GASNETC_MASK_BYTE1       0x000000000000FF00ULL
+#define GASNETC_MASK_BYTE2       0x0000000000FF0000ULL
+#define GASNETC_MASK_BYTE3       0x00000000FF000000ULL
+#define GASNETC_MASK_BYTE4       0x000000FF00000000ULL
+#define GASNETC_MASK_BYTE5       0x0000FF0000000000ULL
+#define GASNETC_MASK_BYTE6       0x00FF000000000000ULL
+#define GASNETC_MASK_BYTE7       0xFF00000000000000ULL
+
+/* x is a uint64_t and a and b are int32_t */
+#define GASNETC_PACK_INT_UPPER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_LOWER32) | ((uint64_t)(rhs) << 32)
+#define GASNETC_PACK_INT_LOWER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_UPPER32) | ((uint64_t)(rhs) & GASNETC_MASK_LOWER32)
+#define GASNETC_PACK_2INT(x,up,low) x = ((uint64_t)(up)<<32) | ((uint64_t)(low) & GASNETC_MASK_LOWER32)
+
+#define GASNETC_UNPACK_UPPER(x) (int32_t)((x)>>32)
+#define GASNETC_UNPACK_LOWER(x) (int32_t)((x)&GASNETC_MASK_LOWER32)
+#define GASNETC_UNPACK_2INT(x,up,low) do { \
+    up = GASNETC_UNPACK_UPPER(x); \
+    low = GASNETC_UNPACK_LOWER(x); \
+  } while (0)
+
+#define GASNETC_COMMON_AMSTART(state,offset) do {	  \
+    /* poll until dest node is out of recovery */ \
+    gasneti_pollwhile( gasneti_weakatomic_read(&(state)->in_recovery, 0) ); \
+    /* poll until local node has enough resources to send an AM */ \
+    /* MLW: INSERT PROPER CODE HERE */
+    /* Allocate a send buffer */ \
+    while (gasnetc_chunk_alloc(&gasnetc_reqSB, GASNETC_CHUNKSIZE, &(local)) == 0) {}; \
+  } while (0)
 
 /* gasnet state used for AM send squelch */
 typedef struct gconrec {
-  int AM_pending;
-  int in_recovery;
+  gasneti_weakatomic_t AM_pending;
+  gasneti_weakatomic_t in_recovery;
+  uint32_t   long_id;  /* a counter that is incremented for each AM Long issued */
 } gasnetc_conn_t;
 /* array of connection states */
 extern gasnetc_conn_t *gasnetc_conn_state;
@@ -80,6 +111,7 @@ typedef struct foobar_rec {
   uint32_t          rplsb_offset;
   uint32_t          initiator_offset;
   ptl_process_id_t  initiator;
+  gasnet_node_t     srcnode;
 } gasnetc_ptl_token_t;
 
 /* Flag to determine if we use Portals or MPI for AMs */
@@ -120,8 +152,13 @@ gasneti_weakatomic_t gasnetc_tmpmd_count;
 int gasnetc_tmpmd_hwm;
 #endif
 
+extern int gasnetc_io_buffer_size;
+extern void* gasnetc_flush_buffer;
+
 /* An array of Portals Proc IDs used to determine network address of nodes */
+extern ptl_process_id_t  gasnetc_myid;
 extern ptl_process_id_t *gasnetc_procid_map;
+extern ptl_uid_t         gasnetc_uid;
 
 /* An array of strings that name the Portals events
  * MLW: Not defined in API but exists in Portals implementation
@@ -140,16 +177,23 @@ typedef union _gasnetc_chunk {
     union _gasnetc_chunk *next;
 } gasnetc_chunk_t;
 
+/* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
-  void *start;                   /* starting address */
-  size_t nbytes;                 /* Total length, in bytes */
-  int    numchunks;              /* total number of chunks */
-  gasnetc_chunk_t *freelist;     /* Start of free list of chunks */
-  ptl_handle_md_t md_h;          /* If used as a memory descriptor */
-  const char *name;              /* string for diagnostics */
-  int  inuse;                    /* number of chunks currently in use */
-  int  hwm;                      /* max number ever in use */
-} gasnetc_chunkalloc_t;
+  size_t alignment;                    /* alignment (power of 2) */
+  size_t nbytes;                       /* number of bytes in buffer after alignment */
+  void*  actual_start;                 /* returned by allocator */
+  void*  start;                        /* aligned start */
+  ptl_handle_md_t  md_h;               /* The Portals memory descriptor handler */
+  ptl_handle_me_t  me_h;               /* The Portals match-list entry handle (if used) */
+  const char *name;                    /* string used for diagnostics */
+  int use_chunks;                      /* Is the buffer under control of a chunk allocator? */
+
+  /* The following fields are only used in the case of a chunk allocator */
+  int numchunks;                       /* number of chunks in buffer */
+  int inuse;                           /* number of chunks currently in use */
+  int hwm;                             /* High water mark of chunk use */
+  gasnetc_chunk_t *freelist;           /* chunk freelist */
+} gasnetc_PtlBuffer_t;
 
 /* configurable sizes for Portals buffers */
 extern int gasnetc_ReqRB_pool_size;
@@ -157,15 +201,15 @@ extern size_t gasnetc_ReqRB_numchunk;         /* Number of chunks in each ReqRB 
 extern size_t gasnetc_ReqSB_numchunk;         /* Number of chunks to alloc for ReqSB */
 extern size_t gasnetc_RplSB_numchunk;         /* Number of chunks to alloc for RplSB */
 
-extern gasnetc_chunkalloc_t gasnetc_ReqSB;
-extern gasnetc_chunkalloc_t gasnetc_RplSB;
-
+extern gasnetc_PtlBuffer_t gasnetc_ReqSB;
+extern gasnetc_PtlBuffer_t gasnetc_RplSB;
+extern gasnetc_PtlBuffer_t *gasnetc_ReqRB;   /* an array of buffers */
+extern gasnetc_PtlBuffer_t gasnetc_RAR;
+extern gasnetc_PtlBuffer_t gasnetc_RARAM;
+extern gasnetc_PtlBuffer_t gasnetc_CB;
 
 /* handles to Portals network interface, memory descriptors and event queues */
 extern ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
-extern ptl_handle_md_t gasnetc_RAR_md_h;          /* Handle to RAR Memory Descriptor */
-extern ptl_handle_md_t gasnetc_RARAM_md_h;        /* Handle to RARAM Memory Descriptor */
-extern ptl_handle_md_t gasnetc_CB_md_h;           /* the catch-basin memory descriptor */
 extern ptl_handle_eq_t gasnetc_EQ_h;              /* Handle to the combined Event Queue */
 
 #define GASNETC_MAX_POLL_EVENTS 40
@@ -242,13 +286,19 @@ int gasnetc_in_local_rar(uint8_t* pstart, size_t n)
 
 /* Functions we export to the core and extended API */
 /* MLW: some of these may not have to be exported */
-extern int gasnetc_chunk_alloc(gasnetc_chunkalloc_t *allocator, size_t nbytes, ptl_size_t *offset);
-extern void gasnetc_chunk_free(gasnetc_chunkalloc_t *allocator, ptl_size_t offset);
+extern void* gasnetc_aligned_malloc(size_t bytes, uint32_t alignment, void **allocated_start);
+extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
+extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
 extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle_eq_t eq_h);
 extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h);
-extern void gasnetc_portals_init(void);
+extern void gasnetc_init_portals_network(void);
+extern void gasnetc_bootstrapBarrier(void *src, size_t len, void *dest, int rootnode);
+extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
+extern void gasnetc_init_portals_resources(void);
 extern void gasnetc_portals_exit();
 extern void gasnetc_portals_poll(void);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
+
+SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
 #endif

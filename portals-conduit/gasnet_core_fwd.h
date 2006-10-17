@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2006/10/03 19:16:16 $
- * $Revision: 1.1.2.2 $
- * Description: GASNet header for MPI conduit core (forward definitions)
+ *     $Date: 2006/10/17 18:06:56 $
+ * $Revision: 1.1.2.3 $
+ * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
@@ -13,11 +13,11 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.7
+#define GASNET_CORE_VERSION      0.1
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
-#define GASNET_CORE_NAME         MPI
+#define GASNET_CORE_NAME         PORTALS
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
-#define GASNET_CONDUIT_NAME      PORTALS
+#define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_PORTALS 1
 
@@ -26,64 +26,31 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
   #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
-  /* mpi-conduit supports both aligned and un-aligned */
-  #if defined(HAVE_MMAP) && !PLATFORM_ARCH_CRAYX1
-    #define GASNET_ALIGNED_SEGMENTS   1  
-  #else
-    #define GASNET_ALIGNED_SEGMENTS   0
-  #endif
+  #define GASNET_ALIGNED_SEGMENTS   0
 #endif
-
-/* WARNING: Do not define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET for this hybrid since
- * Portals requires in-segment Put/Get
- */
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc
    */
-/* #define GASNETI_CONDUIT_THREADS 1 */
+#if 0
+#define GASNETI_CONDUIT_THREADS 1
+#endif
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-/* #define GASNETC_USE_INTERRUPTS 1 */
-
-  /* enable usage correctness checking on HSL's and no-interrupt sections */
-#ifndef GASNETC_HSL_ERRCHECK
-  #if GASNET_DEBUG
-    #define GASNETC_HSL_ERRCHECK 1
-  #else
-    #define GASNETC_HSL_ERRCHECK 0
-  #endif
+#if 0
+#define GASNETC_USE_INTERRUPTS 1
 #endif
-
-/*  override default error values to use those defined by AMMPI */
-#define _GASNET_ERRORS
-#define _GASNET_ERR_BASE 10000
-#define GASNET_ERR_NOT_INIT             1
-#define GASNET_ERR_RESOURCE             3
-#define GASNET_ERR_BAD_ARG              2
-#define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
-#define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)     \
-	CNT(C, CHUNK_ALLOC, count)              \
-	CNT(C, CHUNK_FREE, count)               \
-	CNT(C, TMPMD_ALLOC, count)              \
-	CNT(C, TMPMD_FREE, count)               \
-	VAL(C, EVENT_CNT, numreaped)
-
-#define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
-extern void gasnetc_fatalsignal_callback(int sig);
-
-/* hook getSegmentInfo for NIS check */
-#define _GASNET_GETSEGMENTINFO
-struct gasneti_seginfo_s;
-GASNETI_EXTERNC int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
-#define gasnet_getSegmentInfo(seginfo_table, numentries) \
-        gasnetc_getSegmentInfo(seginfo_table, numentries)
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+        CNT(C, CHUNK_ALLOC, count)              \
+        CNT(C, CHUNK_FREE, count)               \
+        CNT(C, TMPMD_ALLOC, count)              \
+        CNT(C, TMPMD_FREE, count)               \
+        VAL(C, EVENT_CNT, numreaped)
 
 #endif

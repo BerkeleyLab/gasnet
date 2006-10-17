@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/10/03 19:16:16 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2006/10/17 18:06:56 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -527,82 +527,6 @@ void gasnete_trace_finish(void)
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_get_reqh_inner)
-void gasnete_get_reqh_inner(gasnet_token_t token, 
-  gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
-  gasneti_assert(nbytes <= gasnet_AMMaxMedium());
-  GASNETI_SAFE(
-    MEDIUM_REP(2,4,(token, gasneti_handleridx(gasnete_get_reph),
-                  src, nbytes, 
-                  PACK(dest), PACK(op))));
-}
-SHORT_HANDLER(gasnete_get_reqh,4,7, 
-              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
-/* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_get_reph_inner)
-void gasnete_get_reph_inner(gasnet_token_t token, 
-  void *addr, size_t nbytes,
-  void *dest, void *op) {
-  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_sync_writes();
-  gasnete_op_markdone((gasnete_op_t *)op, 1);
-}
-MEDIUM_HANDLER(gasnete_get_reph,2,4,
-              (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)    ),
-              (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
-/* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_getlong_reqh_inner)
-void gasnete_getlong_reqh_inner(gasnet_token_t token, 
-  gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
-
-  GASNETI_SAFE(
-    LONG_REP(1,2,(token, gasneti_handleridx(gasnete_getlong_reph),
-                  src, nbytes, dest,
-                  PACK(op))));
-}
-SHORT_HANDLER(gasnete_getlong_reqh,4,7, 
-              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
-/* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_getlong_reph_inner)
-void gasnete_getlong_reph_inner(gasnet_token_t token, 
-  void *addr, size_t nbytes, 
-  void *op) {
-  gasneti_sync_writes();
-  gasnete_op_markdone((gasnete_op_t *)op, 1);
-}
-LONG_HANDLER(gasnete_getlong_reph,1,2,
-              (token,addr,nbytes, UNPACK(a0)     ),
-              (token,addr,nbytes, UNPACK2(a0, a1)));
-/* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_put_reqh_inner)
-void gasnete_put_reqh_inner(gasnet_token_t token, 
-  void *addr, size_t nbytes,
-  void *dest, void *op) {
-  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
-  gasneti_sync_writes();
-  GASNETI_SAFE(
-    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
-                  PACK(op))));
-}
-MEDIUM_HANDLER(gasnete_put_reqh,2,4, 
-              (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)     ),
-              (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
-/* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasnete_putlong_reqh_inner)
-void gasnete_putlong_reqh_inner(gasnet_token_t token, 
-  void *addr, size_t nbytes,
-  void *op) {
-  gasneti_sync_writes();
-  GASNETI_SAFE(
-    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
-                  PACK(op))));
-}
-LONG_HANDLER(gasnete_putlong_reqh,1,2, 
-              (token,addr,nbytes, UNPACK(a0)     ),
-              (token,addr,nbytes, UNPACK2(a0, a1)));
-/* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
@@ -789,8 +713,8 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     /* poll here for local completion in non-bulk or non-bb case */
     if (wait_for_local_completion) {
-      gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
-    }
+      gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) ); 
+   }
 
     if (gasnete_putget_poll && (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll)) {
       /* this will reset gasnete_putget_poll_cnt to zero */
@@ -1294,12 +1218,6 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */
-  gasneti_handler_tableentry_with_bits(gasnete_get_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_get_reph),
-  gasneti_handler_tableentry_with_bits(gasnete_getlong_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_getlong_reph),
-  gasneti_handler_tableentry_with_bits(gasnete_put_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_putlong_reqh),
   gasneti_handler_tableentry_with_bits(gasnete_memset_reqh),
   gasneti_handler_tableentry_with_bits(gasnete_markdone_reph),
 

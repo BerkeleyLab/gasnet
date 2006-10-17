@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2006/10/03 19:16:16 $
-# $Revision: 1.1.2.4 $
+#     $Date: 2006/10/17 18:06:56 $
+# $Revision: 1.1.2.5 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -32,23 +32,19 @@ CONDUIT_FILELIST =           \
 # to be compiled into libgasnet on the compiler command line
 CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
-      $(srcdir)/gasnet_portals.c \
-      $(srcdir)/gasnet_extended.c
+      $(srcdir)/gasnet_extended.c \
+      $(srcdir)/gasnet_portals.c
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi -I@PORTALS_INCLUDE@ -I@CATAMOUNT_INCLUDE@
+CONDUIT_EXTRALIBCFLAGS = -I@PORTALS_INCLUDE@ -I@CATAMOUNT_INCLUDE@
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h 
+CONDUIT_EXTRAHEADERS = 
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS =             \
-      $(top_builddir)/other/ammpi/libammpi.a
-
-$(top_builddir)/other/ammpi/libammpi.a: force
-	cd $(top_builddir)/other/ammpi && $(MAKE) libammpi.a
+CONDUIT_EXTRADEPS = 
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
@@ -61,7 +57,6 @@ CONDUIT_SPECIAL_OBJS =
 #   %N = requested node count
 #   %A = program arguments
 #CONDUIT_RUNCMD = mpirun -np %N %P %A
-#CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N %P %A
 CONDUIT_RUNCMD = yod -np %N %P %A
 
 # conduit-specific tests in ../tests directory

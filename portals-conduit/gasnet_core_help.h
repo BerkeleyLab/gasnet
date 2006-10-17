@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2006/08/24 16:37:15 $
- * $Revision: 1.1.2.1 $
- * Description: GASNet MPI conduit core Header Helpers (Internal code, not for client use)
+ *     $Date: 2006/10/17 18:06:56 $
+ * $Revision: 1.1.2.2 $
+ * Description: GASNet PORTALS conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
