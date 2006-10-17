@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/10/16 19:23:57 $
- * $Revision: 1.261 $
+ *     $Date: 2006/10/17 13:15:45 $
+ * $Revision: 1.261.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -447,7 +447,9 @@
 	  #endif
           }
         #endif
-      #elif !(PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_PGI) && GASNETI_HAVE_X86_EBX
+      #elif GASNETI_HAVE_X86_EBX && \
+            !PLATFORM_COMPILER_TINY && !PLATFORM_COMPILER_PGI && \
+            !(PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_LT(3,0,0)) /* bug 1790 */
 	/* "Normal" ILP32 case:
 	 *
 	 * To perform read and set atomically on x86 requires use of the locked
@@ -598,8 +600,8 @@
 		    "cmpxchg8b	%0		\n\t"
 		    "sete	%b1		\n\t"
 		    "andl	$255, %1"
-		    : "=m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
-		    : "m" (p->ctr), "b" (newlo), "c" (newhi)
+                    : "+m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
+                    : "b" (newlo), "c" (newhi)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
           return oldlo;
         }
@@ -615,7 +617,7 @@
 		    "lock;			"
 		    "cmpxchg8b	%0		\n\t"
 		    "jnz	0b		"
-		    : "=m" (p->ctr), "+&a" (oldlo),  "+&d" (oldhi)
+		    : "+m" (p->ctr), "+&a" (oldlo),  "+&d" (oldhi)
 		    : "b" (newlo), "c" (newhi)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
 	}
@@ -634,7 +636,7 @@
 		    "lock;			"
 		    "cmpxchg8b	%0		\n\t"
 		    "jnz	0b		"
-		    : "=m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "=&b" (tmplo), "=&c" (tmphi)
+		    : "+m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "=&b" (tmplo), "=&c" (tmphi)
 		    : /* no inputs */
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
 	  return ((uint64_t)rethi << 32) | ((uint64_t)retlo);
