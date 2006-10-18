@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_fwd.h,v $
- *     $Date: 2006/08/11 00:53:12 $
- * $Revision: 1.21.2.1 $
+ *     $Date: 2006/10/18 22:45:56 $
+ * $Revision: 1.21.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,4 +34,3 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
 
 #endif
-

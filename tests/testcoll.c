@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2006/10/02 19:09:14 $
- * $Revision: 1.22.6.2 $
+ *     $Date: 2006/10/18 22:45:58 $
+ * $Revision: 1.22.6.3 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -424,7 +424,7 @@ void *thread_main(void *arg) {
 
   /* Run w/ root = (first, middle, last) w/o duplication */
   /* for (i = 0; i < 3; ++i) { */
-  for(i=0; i<3; i++) {
+  for(i=0; i<1; i++) {
     int root;
 
     if (i == 0) {
@@ -502,7 +502,7 @@ int main(int argc, char **argv)
       gasnet_set_waitmode(GASNET_WAIT_BLOCK);
     }
 #endif
-
+    
     /* get SPMD info */
     myproc = gasnet_mynode();
     numprocs = gasnet_nodes();
@@ -512,7 +512,7 @@ int main(int argc, char **argv)
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     test_init("testcoll",0,"(iters) (threadcnt)");
     if (argc > 3) test_usage();
-    
+
     MSG0("Running coll test(s) with %d iterations.", iters);
 
     R = test_malloc(iters*sizeof(int));
@@ -576,7 +576,7 @@ int main(int argc, char **argv)
     }
 
     BARRIER();
-
+    
 #if GASNET_PAR
     MSG("Forking %d gasnet threads", threads);
     {

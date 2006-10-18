@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2006/10/05 00:00:44 $
- * $Revision: 1.22.6.4 $
+ *     $Date: 2006/10/18 22:45:54 $
+ * $Revision: 1.22.6.5 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -243,6 +243,10 @@ struct gasnete_coll_team_t_ {
     /* read-only fields: */
     uint32_t			team_id;
 
+
+	/* place to insert scratch space information*/
+	gasnet_seginfo_t *scratch_segs;
+	
     /* XXX: Design not complete yet */
 
     /* Hook for conduit-specific extensions/overrides */
@@ -1951,6 +1955,7 @@ struct gasnete_coll_generic_data_t_ {
     gasnete_coll_consensus_t		in_barrier;
     gasnete_coll_consensus_t		out_barrier;
     gasnete_coll_p2p_t			*p2p;
+	gasnete_coll_tree_data_t *tree_info;
     gasnet_handle_t			handle;
     gasnet_coll_handle_t		coll_handle;
     void				*private_data;
@@ -2062,7 +2067,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
                                   gasnet_image_t srcimage, void *src,
                                   size_t nbytes, int flags,
                                   gasnete_coll_poll_fn poll_fn, int options,
-                                  void *private_data, uint32_t sequence
+                                  gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                   GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -2071,7 +2076,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
                                    gasnet_image_t srcimage, void *src,
                                    size_t nbytes, int flags,
                                    gasnete_coll_poll_fn poll_fn, int options,
-                                   void *private_data, uint32_t sequence
+                                   gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                    GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
