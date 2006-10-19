@@ -10,16 +10,15 @@ int gasnete_coll_build_tree_mypow(int base, int pow) {
   }
     return ret;
 }
-
-int gasnete_coll_build_tree_mylog(int base, int num) {
-  int ret=1;
-  int mult = base;
-  while (num > mult) {
+int gasnete_coll_build_tree_mylog2(unsigned int num) {
+  unsigned int ret=0;
+  while (num >= 1) {
     ret++;
-    mult*=base;
+    num = num >> 1;
   }
-  return ret;
+  return MAX(1,ret);
 }
+
 
 void gasnete_coll_print_tree(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread) {
   int i;
@@ -190,8 +189,10 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
       gasnet_node_t *temp_dest_list;
       int mask = 1;
       int num_child=0;
-      temp_dest_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*gasnete_coll_build_tree_mylog(2,GASNET_MAXNODES));
-      mask = 0x1;
+	  /*assume that the number of GASNET_NODES will fit into an unsigned 32-bit int as specified in gasnet.h*/
+	  /*thus i assume there will be a max of 2^32 = 4,294,967,296 GASNET_NODES*/
+      temp_dest_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*sizeof(gasnete_coll_tree_threads));
+     mask = 0x1;
       while (mask < gasnete_coll_tree_threads) {
         if (relrank & mask) {
           src = (gasnete_coll_tree_mythread >= mask) ? (gasnete_coll_tree_mythread - mask)

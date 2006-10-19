@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2006/10/18 22:45:56 $
- * $Revision: 1.29.6.4 $
+ *     $Date: 2006/10/19 02:07:24 $
+ * $Revision: 1.29.6.5 $
  * Description: Reference implemetation of GASNet Collectives 
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1621,8 +1621,8 @@ extern void gasnete_coll_generic_free(gasnete_coll_generic_data_t *data GASNETE_
 	/*THERE IS A MAJOR BUG HERE ... THAT IS CAUSING the TESTCOLL TO FAIL*/
 	/*Still trying to track down how to fix it. I suspect the problem is with how the data objects are reused
 	 but i have not been able to prove it yet. -Rajesh Nishtala (10/18/06)*/
-/*		gasnete_coll_tree_free(data->tree_info GASNETE_THREAD_PASS);
-		data->tree_info=NULL; */
+		gasnete_coll_tree_free(data->tree_info GASNETE_THREAD_PASS);
+		data->tree_info=NULL; 
 	}
 
 	if (data->options & GASNETE_COLL_GENERIC_OPT_P2P) {
@@ -1771,16 +1771,18 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_get(gasnete_coll_tree_ki
   static gasneti_mutex_t gasnete_coll_geom_lock = GASNETI_MUTEX_INITIALIZER;
   static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_cache = NULL;
   gasnete_coll_tree_geom_t *geom;
-
+	/* fix scalability here by shifting tree around and add fanout to cache.*/
   gasneti_mutex_lock(&gasnete_coll_geom_lock);
     geom = gasnete_coll_tree_geom_cache;
 
-    if_pf (geom == NULL) {
-      /* only happens on first call */
+	if_pf (geom == NULL) {
+      /* only happens on first call  */
       geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, fanout, root, 1);
-    } else if_pf ((geom->kind != kind) || (geom->root != root)) {
+	  gasneti_weakatomic_set(&(geom->ref_count), 0, 0);
+	 } else if_pf ((geom->kind != kind) || (geom->root != root)) {
       gasnete_coll_tree_geom_put(geom);
       geom = gasnete_coll_tree_geom_cache = gasnete_coll_tree_geom_init(kind, fanout, root, 1);
+	  gasneti_weakatomic_set(&(geom->ref_count), 0, 0);
     }
 
     gasneti_weakatomic_increment(&(geom->ref_count), 0);
@@ -1795,14 +1797,14 @@ static gasnet_hsl_t gasnete_coll_tree_lock = GASNET_HSL_INITIALIZER;
 extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t root GASNETE_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnete_coll_tree_data_t *data = NULL;
- 
+ /* lock aquisition and free in tree init*/
   if_pf (td->tree_data_freelist == NULL) {
     data = gasneti_malloc(sizeof(gasnete_coll_tree_data_t));
   } else {
     data = td->tree_data_freelist;
     td->tree_data_freelist = *(gasnete_coll_tree_data_t **)data;
   }
-
+ /* unlock aquisition and free in tree init*/
   data->pipe_seg_size = gasnete_coll_pipe_seg_size ? gasnete_coll_pipe_seg_size : 1024;
   data->sent_bytes = 0;
   data->geom = gasnete_coll_tree_geom_get(kind, root, GASNETE_COLL_DEFAULT_FANOUT);
@@ -1815,7 +1817,9 @@ extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnet_hsl_lock(&gasnete_coll_tree_lock);
   gasneti_assert(tree->geom!=NULL);
-  gasnete_coll_tree_geom_put(tree->geom);
+  /*Don't free the geometry here becuase we might reuse it later*/
+  /*only free the geometry if we know that the piece of memory it occupies needs to get tossed*/
+ /* gasnete_coll_tree_geom_put(tree->geom);*/
   *(gasnete_coll_tree_data_t **)tree = td->tree_data_freelist;
   td->tree_data_freelist = tree;
   gasnet_hsl_unlock(&gasnete_coll_tree_lock);
