@@ -44,8 +44,7 @@ The first type of tree that we discuss is an N-ary tree. In this tree structure 
 Another variation on N-ary trees is the binomial tree.  I'll fill this section in later. The formal definition is as follows:
 An ordered tree of order $k \geq 0$, that is $B_k$, has a root with $k$ children where the $i^{th}$ child is binomial tree of order $k-i$.
 
-\subsubsection{Data Structures}
-In order to enable the tree based data structures we need to maintain the tree topology information at each node. 
+\subsubsection{Data Structures} In order to enable the tree based data structures we need to maintain the tree topology information at each node. 
 Table~\ref{tab:treeinfo} shows the data we keep on each node regarding the tree geometry. Notice that if the tree geometry changes then a different geometry object will hold the data. Thus if we are in situation where we have multiple outstanding collectives, each with a different source then there will be one tree geometry object for each distinct geometry that is inflight. However if two different collectives utilize the same geometry then there is no need to allocate multiple geometries.
 
 \begin{table}[htdp]
@@ -75,7 +74,11 @@ subtree count & a count of the total number of descendants & " \\ \hline
 \label{tab:treeinfo}
 \end{table}%
 
-The construction of the tree geometry can not be in the critical path of the code and needs to be performed during setup time or other non critical regions of the code. The allocation of the data structures is straightforward however in order to realize the subtree sizes we will have to run some Depth First Search algorithms across the nodes outlined in the next section.
+The construction of the tree geometry can not be in the critical path of the code and needs to be performed during setup time or other non critical regions of the code. The allocation of the data structures is straightforward however in order to realize the subtree sizes we will have to run some Depth First Search algorithms across the nodes outlined in the next section. 
+
+There are two versions of the tree that are possible to show. One where it is a ``local" view of the tree and another ``global" view of the tree. A ''local view" of the tree implies that each node will only know the data presented in Table~\ref{tab:treeinfo} and not care what the view is for the other nodes. In a ``global" view of the tree one can imagine that every node knows the full geometry of the tree. Each storage mechanisms has its advantages and disadvantages.
+
+\textbf{INSERT MORE ON THE ADVANTAGES AND DISADVANTAGES}
 
 
 \subsubsection{Dissemination}
@@ -85,9 +88,12 @@ Bruck's algorithms for all exchanges and barriers will also be enabled. Bruck's 
 \subsubsection{Caching}
 We have outlined earlier that tree construction is an expensive process and thus cannot be in the critical path for any piece of code. However it also wasteful to build all possible trees for all possible applications. Therefore our initial implementation will be based on a caching mechanism which will use a lazy tree creation process. On the first request for a particular geometry (tree type, fanout, and root tuple) the implementation will create that geometry. However all subsequent calls to that tree geometry will use that allocated geometry.  A separate but similar caching structure will be used to keep track of the various Bruck's orders for arbitrary radices. 
 
+The interface to the cache will be as follows: Each new collective call will request a local view of the tree that contains the information given in Table~\ref{tab:treeinfo} and can access the fields through accessor macros. The request will be of the form (tree type, fanout, root, team). Once the client has been issued a ``local" view of the tree geometry it is then responsible for freeing that local view through freeing routines provided by the cache. 
+
 \noindent \textbf{Implementation Details}
 
-Since we expect the number of trees (and dissemination orders) that any given application will use to be small we will encode this caching structure as a linked list however make it easy to replace it with a hash table once the time is right. Note that in the future this entire code of picking the correct tree will be replaced by the auto-tuning module so it needs to be able to be amenable to that mechanism. 
+Since we expect the number of trees (and dissemination orders) that any given application will use to be small we will encode this caching structure as a linked list however make it easy to replace it with a hash table once the time is right. Note that in the future this entire code of picking the correct tree will be replaced by the auto-tuning module so it needs to be able to be amenable to that mechanism. Initially this mechanism will be the simplest one can imagine. 
+
 
 \subsubsection{Tree Construction Algorithms}
 
