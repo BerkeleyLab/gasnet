@@ -3,6 +3,12 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #include <gasnet_coll.h>
 
+/*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t*/
+#define GASNETE_COLL_TREE_GEOM_PARENT(GEOM) (GEOM->parent)
+#define GASNETE_COLL_TREE_GEOM_CHILD_COUNT(GEOM) (GEOM->child_count)
+#define GASNETE_COLL_TREE_GEOM_CHILDREN(GEOM) (GEOM->child_list)
+#define GASNETE_COLL_TREE_GEOM_SIBLING_ID(GEOM) (GEOM->sibling_id)
+
 /* a local view of the tree goemetry */
 struct gasnete_coll_local_tree_geom_t_ {
   int allocated;
@@ -39,7 +45,7 @@ struct gasnete_coll_tree_geom_t_ {
    */
    gasnete_coll_tree_geom_t *next;
    gasnete_coll_tree_geom_t *prev;
- //  gasneti_weakatomic_t	ref_count;
+ /* gasneti_weakatomic_t	ref_count; */
    
    /*an array of local views that represents the global view*/
    gasnete_coll_local_tree_geom_t **local_views; 
@@ -69,6 +75,6 @@ struct gasnete_coll_tree_geom_t_ {
 
 
 gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_kind_t kind, gasnet_node_t root, int fanout, gasnete_coll_team_t team);
-
+void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 
 #endif

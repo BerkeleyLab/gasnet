@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2006/10/20 01:48:29 $
- * $Revision: 1.29.6.6 $
+ *     $Date: 2006/10/20 05:07:39 $
+ * $Revision: 1.29.6.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1764,6 +1764,7 @@ extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 //  gasnet_hsl_lock(&gasnete_coll_tree_lock);
+	gasnete_coll_local_tree_geom_release(tree->geom);
   *(gasnete_coll_tree_data_t **)tree = td->tree_data_freelist;
   td->tree_data_freelist = tree;
  // gasnet_hsl_unlock(&gasnete_coll_tree_lock);
@@ -2123,14 +2124,14 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
 
     case 1:
       if (gasneti_mynode == args->srcnode) {
-	for (child = 0; child < tree->geom->child_count; child++) {
-	  gasnete_coll_p2p_signalling_put(op, tree->geom->child_list[child], args->dst, args->src, args->nbytes, 0, 1);
+	for (child = 0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->dst, args->src, args->nbytes, 0, 1);
 	}
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
-	for (child = 0; child < tree->geom->child_count; child++) {
-	  gasnete_coll_p2p_signalling_put(op, tree->geom->child_list[child], args->dst, args->src, args->nbytes, 0, 1);
+	for (child = 0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->dst, args->src, args->nbytes, 0, 1);
 	}
       } else {
 	break;	/* Waiting for parent to push data and signal */
@@ -2202,8 +2203,8 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
     case 1:
       if (gasneti_mynode == args->srcnode) {
 		      /* Sent my address to my children so they can issue their gets */
-        for (child=0; child < tree->geom->child_count; child++) {
-	  gasnete_coll_p2p_eager_addr(op, tree->geom->child_list[child], args->src, 0, 1);
+        for (child=0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	  gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->src, 0, 1);
         }
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
 	    treeget_old_state = data->state;
@@ -2213,7 +2214,7 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
 	if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
 	/* I have address from my parent, so perform a get */
 	gasneti_sync_reads();
-	data->handle = gasnete_get_nb_bulk(args->dst, tree->geom->parent,
+	data->handle = gasnete_get_nb_bulk(args->dst, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom),
 					   *(void **)data->p2p->data,
 					   args->nbytes GASNETE_THREAD_PASS);
 	gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
@@ -2231,10 +2232,10 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
       }
 
       /* Send ack to my parent */
-      gasnete_coll_p2p_change_state(op, tree->geom->parent, tree->geom->sibling_id+1, 1);
+      gasnete_coll_p2p_change_state(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom), GASNETE_COLL_TREE_GEOM_SIBLING_ID(tree->geom)+1, 1);
       /* Sent my address to my children so they can issue their gets */
-      for (child=0; child < tree->geom->child_count; child++) {
-	gasnete_coll_p2p_eager_addr(op, tree->geom->child_list[child], args->dst, 0, 1);
+      for (child=0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->dst, 0, 1);
       }
 	  treeget_old_state = data->state;
       data->state = 3;
@@ -2243,7 +2244,7 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
     case 3:	/* Wait for all children to ack */
     {
       int done = 1;
-      for (i=1; i <= tree->geom->child_count; i++) {
+      for (i=1; i <= GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); i++) {
 	if (data->p2p->state[i] == 0) {
 	  done = 0;
 	  break;
@@ -2317,15 +2318,15 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
 
     case 1:	/* Data movement */
       if (gasneti_mynode == args->srcnode) {
-	for (child=0;child<tree->geom->child_count; child++){
-	  gasnete_coll_p2p_eager_put(op, tree->geom->child_list[child], args->src, args->nbytes, 0, 1);
+	for (child=0;child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++){
+	  gasnete_coll_p2p_eager_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->src, args->nbytes, 0, 1);
 	}
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, data->p2p->data, args->nbytes);
-	for (child=0;child<tree->geom->child_count;child++) {
-	  gasnete_coll_p2p_eager_put(op, tree->geom->child_list[child], args->dst, args->nbytes, 0, 1);
+	for (child=0;child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);child++) {
+	  gasnete_coll_p2p_eager_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->dst, args->nbytes, 0, 1);
 	}
       } else {
 	 break;	/* Stalled until data arrives */
@@ -2399,9 +2400,9 @@ static int gasnete_coll_pf_bcast_sig_TreePutPipe(gasnete_coll_op_t *op GASNETE_T
       if (gasneti_mynode == args->srcnode) {
 	for (i=0; i<args->nbytes; i+=tree->pipe_seg_size) {
 	  int msgsize = MIN(tree->pipe_seg_size, args->nbytes-tree->sent_bytes);
-	  for (child=0; child<tree->geom->child_count; child++) {
-	    /*  printf(stderr, "%d sending to %d\n", gasneti_mynode, tree->geom->child_list[child]); */
-	    gasnete_coll_p2p_signalling_put(op, tree->geom->child_list[child], (char*)args->dst+i, (char*)args->src+i, msgsize, 0, i+msgsize);
+	  for (child=0; child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	    /*  printf(stderr, "%d sending to %d\n", gasneti_mynode, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child]); */
+	    gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], (char*)args->dst+i, (char*)args->src+i, msgsize, 0, i+msgsize);
 	  }
 	  GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
 	  tree->sent_bytes += msgsize;
@@ -2411,8 +2412,8 @@ static int gasnete_coll_pf_bcast_sig_TreePutPipe(gasnete_coll_op_t *op GASNETE_T
 	int msgsize = MIN(tree->pipe_seg_size, args->nbytes-tree->sent_bytes);
 
 	gasneti_sync_reads();
-	for (child = 0; child<tree->geom->child_count; child++) {
-	  gasnete_coll_p2p_signalling_put(op, tree->geom->child_list[child], (char*)args->dst+tree->sent_bytes,
+	for (child = 0; child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], (char*)args->dst+tree->sent_bytes,
 					  (char*)args->dst+tree->sent_bytes, msgsize, 0, tree->sent_bytes+msgsize);
 	}
 	tree->sent_bytes += msgsize;
@@ -2468,8 +2469,8 @@ static int gasnete_coll_pf_bcast_TreeGetPipe(gasnete_coll_op_t *op GASNETE_THREA
 
     case 1:
       if (gasneti_mynode == args->srcnode) {
-	for (child=0; child<tree->geom->child_count; child++) {
-	  gasnete_coll_p2p_eager_addr(op, tree->geom->child_list[child], args->src, 0, args->nbytes);
+	for (child=0; child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	  gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->src, 0, args->nbytes);
 	}
 
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
@@ -2482,7 +2483,7 @@ static int gasnete_coll_pf_bcast_TreeGetPipe(gasnete_coll_op_t *op GASNETE_THREA
 	gasneti_sync_reads();
 
 	data->handle =
-	  gasnete_get_nb_bulk((char*)(args->dst)+tree->sent_bytes, tree->geom->parent,
+	  gasnete_get_nb_bulk((char*)(args->dst)+tree->sent_bytes, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom),
 			      ((char*)(*(void **)data->p2p->data))+tree->sent_bytes,
 			      MIN(args->nbytes-tree->sent_bytes, gasnete_coll_pipe_seg_size)
 			      GASNETE_THREAD_PASS);
@@ -2499,22 +2500,22 @@ static int gasnete_coll_pf_bcast_TreeGetPipe(gasnete_coll_op_t *op GASNETE_THREA
       }
 
       if (tree->sent_bytes == 0) { /*first message*/
-	for (child=0; child<tree->geom->child_count; child++) {
-	  gasnete_coll_p2p_eager_addr(op, tree->geom->child_list[child], args->dst, 0, MIN(args->nbytes-tree->sent_bytes, gasnete_coll_pipe_seg_size));
+	for (child=0; child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	  gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->dst, 0, MIN(args->nbytes-tree->sent_bytes, gasnete_coll_pipe_seg_size));
 	}
       }
 
       tree->sent_bytes+=MIN(args->nbytes-tree->sent_bytes, gasnete_coll_pipe_seg_size);
 
-      for (child=0; child<tree->geom->child_count; child++) {
-	gasnete_coll_p2p_change_state(op, tree->geom->child_list[child], 0, tree->sent_bytes);
+      for (child=0; child<GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
+	gasnete_coll_p2p_change_state(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], 0, tree->sent_bytes);
       }
 
       if (tree->sent_bytes<args->nbytes) {
 	data->state = 1;	/* still more data to recv */
 	break;
       } else {
-	gasnete_coll_p2p_change_state(op, tree->geom->parent, tree->geom->sibling_id+1, args->nbytes);
+	gasnete_coll_p2p_change_state(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom), GASNETE_COLL_TREE_GEOM_SIBLING_ID(tree->geom)+1, args->nbytes);
 	data->state = 3;
       }
 
@@ -2522,7 +2523,7 @@ static int gasnete_coll_pf_bcast_TreeGetPipe(gasnete_coll_op_t *op GASNETE_THREA
     case 3: /* wait for all child nodes to acknowledge recpt */
     {
       int done = 1;
-      for (i=1; i<=tree->geom->child_count; i++) {
+      for (i=1; i<=GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); i++) {
 	if (data->p2p->state[i]!=args->nbytes) {
 	  done = 0;
 	  break;
