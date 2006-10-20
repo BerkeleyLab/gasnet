@@ -3,11 +3,11 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #include <gasnet_coll.h>
 
-/*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t*/
-#define GASNETE_COLL_TREE_GEOM_PARENT(GEOM) (GEOM->parent)
-#define GASNETE_COLL_TREE_GEOM_CHILD_COUNT(GEOM) (GEOM->child_count)
-#define GASNETE_COLL_TREE_GEOM_CHILDREN(GEOM) (GEOM->child_list)
-#define GASNETE_COLL_TREE_GEOM_SIBLING_ID(GEOM) (GEOM->sibling_id)
+/*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
+#define GASNETE_COLL_TREE_GEOM_PARENT(GEOM) ((GEOM)->parent)
+#define GASNETE_COLL_TREE_GEOM_CHILD_COUNT(GEOM) ((GEOM)->child_count)
+#define GASNETE_COLL_TREE_GEOM_CHILDREN(GEOM) ((GEOM)->child_list)
+#define GASNETE_COLL_TREE_GEOM_SIBLING_ID(GEOM) ((GEOM)->sibling_id)
 
 /* a local view of the tree goemetry */
 struct gasnete_coll_local_tree_geom_t_ {
