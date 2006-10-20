@@ -1,20 +1,15 @@
 #ifndef ALREADY_SEEN_GASNET_COLL_TREES_H 
 #define ALREADY_SEEN_GASNET_COLL_TREES_H 1
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
+#include <gasnet_coll.h>
 
-
-typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE} gasnete_coll_tree_kind_t;
-
-typedef struct gasnete_coll_tree_geom_t_ {
-  /*** tree structure metadata*****/
-  gasnete_coll_tree_kind_t kind;
-  int fanout;
-  gasnet_node_t root;					
-  int threads_per_node;
-  gasneti_weakatomic_t	ref_count;
-
-  
+/* a local view of the tree goemetry */
+struct gasnete_coll_local_tree_geom_t_ {
+  int allocated;
   /** tree geometry**/
+  int fanout;
+  int root;
+  int kind;
   gasnet_node_t parent; /*parent of this node*/
   int child_count; /*number of children*/
   gasnet_node_t *child_list; /*list of children*/
@@ -22,7 +17,7 @@ typedef struct gasnete_coll_tree_geom_t_ {
   /** sibling information**/
   int num_siblings;
   gasnet_node_t *sibling_list; /*list of siblings*/
-  int *sibling_subtree_sizes; /*sizes of the subtrees under the siblings*/
+  int *sibling_subtree_sizes; /*sizes of the subtrees under the siblings useful in gather/scatter/reduce*/
   int sibling_id; /*my sibling number*/
   
   /*** subtree information***/
@@ -32,21 +27,48 @@ typedef struct gasnete_coll_tree_geom_t_ {
 
   gasnet_node_t *dissem_order;
   int dissem_count;
-} gasnete_coll_tree_geom_t;
+  
+} ;
 
+/*for now i will only assume that one gasnet thread will be involved in the tree communication 
+ and thus assume no locks are needed since only one given thread in a node will ever access the tree*/
+ 
+struct gasnete_coll_tree_geom_t_ {
+   /* linked list pointers 
+	  used in the caching of tree geometries
+   */
+   gasnete_coll_tree_geom_t *next;
+   gasnete_coll_tree_geom_t *prev;
+ //  gasneti_weakatomic_t	ref_count;
+   
+   /*an array of local views that represents the global view*/
+   gasnete_coll_local_tree_geom_t **local_views; 
+   int local_views_allocated;
+   
+   /*** tree structure metadata*****/
+   gasnete_coll_tree_kind_t kind;
+   int fanout;
+	/* don't need a root argument here since local_views[i] gives a tree rooted at i*/
+ };
 
 
 /* 
    build a full tree with the tree type root and fanout
    the fanout is only applicable for nary trees
-   the function allocates and returns a tree geometry object
+ 
+   This routine first checks the cache for the object
+       If the tree type fanout pair exists look in the localviews array and return the appropriate pointer
+	   Else 
+			if none of the local views are alloc create exactly one geometry at local_views[root]
+			else create them all 
+			
+  (implementation note ... we might change this so that we allocate all the local views)
+  (we might need to construct the intermediary views as we run the DFS for some of hte trees so 
+  (may as well save the time and do it at one shot)
 */
 
 
-gasnete_coll_tree_geom_t* gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t kind, int fanout, int root, int threads_per_node);
+gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_kind_t kind, gasnet_node_t root, int fanout, gasnete_coll_team_t team);
 
 
-/*destroy the tree object*/
-
-/*void free_tree(gasnete_coll_tree_geom_t *obj);*/
 #endif

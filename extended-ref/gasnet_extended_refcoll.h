@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2006/08/15 03:45:05 $
- * $Revision: 1.1.10.2 $
+ *     $Date: 2006/10/20 01:48:29 $
+ * $Revision: 1.1.10.3 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,5 +58,11 @@
   GASNETE_COLL_P2P_HANDLERS()                        
 
 /*---------------------------------------------------------------------------------*/
+/* Data for a given tree-based operation */
+struct gasnete_coll_tree_data_t_ {
+    uint32_t			pipe_seg_size;
+    uint32_t			sent_bytes;
+    gasnete_coll_local_tree_geom_t	*geom;
+};
 
 #endif

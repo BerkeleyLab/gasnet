@@ -20,10 +20,9 @@ int gasnete_coll_build_tree_mylog2(unsigned int num) {
 }
 
 
-void gasnete_coll_print_tree(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread) {
+void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread) {
   int i;
   if(gasnete_coll_tree_mythread ==0) 
-    fprintf(stderr, "0> tree type: %d\n", geom->kind);
   fprintf(stderr, "%d> parent: %d\n", gasnete_coll_tree_mythread, geom->parent);
   for(i=0; i<geom->child_count; i++) {
     fprintf(stderr, "%d> child %d: %d\n", gasnete_coll_tree_mythread, i, geom->child_list[i]);
@@ -34,7 +33,7 @@ void gasnete_coll_print_tree(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tr
   }
 }
 
-void gasnete_coll_set_dissemination_order(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
   
   int i = gasnete_coll_tree_threads;
   int k;
@@ -80,7 +79,7 @@ int gasnete_coll_build_tree_START(int level, int fanout) {
 
 
 
-gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind, int fanout, int root, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads, int threads_per_node) {
+gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind, int fanout, int root, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads, int threads_per_node) {
   
 #define ACT2REL(actrank, root) ( (actrank >= root) ? actrank - root : actrank \
 - root + gasnete_coll_tree_threads )
@@ -88,7 +87,7 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
 + root : relrank + root - gasnete_coll_tree_threads)) 
   
   int relrank = ACT2REL(gasnete_coll_tree_mythread, root);
-  gasnete_coll_tree_geom_t *geom = NULL;
+  gasnete_coll_local_tree_geom_t *geom = NULL;
   int numnodes = gasnete_coll_tree_threads / threads_per_node;
   int mynode = relrank / threads_per_node;
   if(root%threads_per_node!=0 && gasnete_coll_tree_mythread==0) {
@@ -96,14 +95,10 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
     fprintf(stderr, "TREE WARNING: use threads_per_node = 1 instead\n");
   
   }
-  geom = (gasnete_coll_tree_geom_t*)gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
+  geom = (gasnete_coll_local_tree_geom_t*)gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t));
   
 
   geom->parent = -1;
-  geom->threads_per_node = threads_per_node;
-  geom->kind = kind;
-  geom->root = root;
-  geom->fanout = fanout;
   /*initialize num_sibllings to zero so it can be set externally if need be*/
  
   geom->num_siblings = 0;
@@ -118,7 +113,6 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
 	gasnet_node_t *tchild;
 	int i,j;
 	level = 0;
-	geom->fanout = fanout;
 	tchild = (gasnet_node_t*)gasneti_malloc(sizeof(gasnet_node_t)*fanout);
 	while(1) { 
 	  /* has to terminate because of the semantics of the loop  */
@@ -230,7 +224,7 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
 	
       } 
       geom->child_count = num_child;
-      geom->fanout = gasnete_coll_tree_threads;
+     // geom->fanout = gasnete_coll_tree_threads;
       gasneti_free(temp_dest_list);
 
 	}
@@ -246,15 +240,15 @@ gasnete_coll_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind
 
 
 
-gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads, int *num_siblings, int *sibling_id) {
-  gasnete_coll_tree_geom_t *temp;
+gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads, int *num_siblings, int *sibling_id) {
+  gasnete_coll_local_tree_geom_t *temp;
   int i;
   gasnet_node_t *ret_list;
   
   if(gasnete_coll_tree_mythread!=geom->root) {
     /*build a temporary tree with our parent as the root*/
     temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root,
-		      geom->parent, gasnete_coll_tree_threads, geom->threads_per_node);
+		      geom->parent, gasnete_coll_tree_threads, 1);
     
     /*use the resultant tree to deduce the children (which are our siblings)*/
     *num_siblings = temp->child_count;
@@ -291,10 +285,10 @@ gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_tree_geom_t *geom, int
 
 
 
-void gasnete_coll_get_sub_tree_helper(gasnete_coll_tree_geom_t *geom, int subtreeroot, int gasnete_coll_tree_threads, 
+void gasnete_coll_get_sub_tree_helper(gasnete_coll_local_tree_geom_t *geom, int subtreeroot, int gasnete_coll_tree_threads, 
 			 gasnet_node_t *list, int *num_added) {
   /*add this node to the list and update the number_added*/
-  gasnete_coll_tree_geom_t *temp;
+  gasnete_coll_local_tree_geom_t *temp;
   int i;
   
   list[*num_added] = subtreeroot;
@@ -302,7 +296,7 @@ void gasnete_coll_get_sub_tree_helper(gasnete_coll_tree_geom_t *geom, int subtre
   
   /* for each child recursively run the depth first search */
   temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root, 
-		    subtreeroot, gasnete_coll_tree_threads, geom->threads_per_node);
+		    subtreeroot, gasnete_coll_tree_threads, 1);
   for(i=0; i<temp->child_count; i++) {
     gasnete_coll_get_sub_tree_helper(geom, temp->child_list[i], gasnete_coll_tree_threads,
 			list, num_added);
@@ -312,7 +306,7 @@ void gasnete_coll_get_sub_tree_helper(gasnete_coll_tree_geom_t *geom, int subtre
 }
 
 /*run depth first seach to get the list of children*/
-gasnet_node_t *gasnete_coll_get_sub_tree(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads,
+gasnet_node_t *gasnete_coll_get_sub_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads,
 		  int *child_count) {
   
   gasnet_node_t *child_list;
@@ -329,7 +323,7 @@ gasnet_node_t *gasnete_coll_get_sub_tree(gasnete_coll_tree_geom_t *geom, int gas
 }
 
 
-void gasnete_coll_set_sub_tree_info(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_sub_tree_info(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
   int i;
   if(geom->child_count > 0) {
 	geom->subtree_sizes = (int*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
@@ -349,7 +343,7 @@ void gasnete_coll_set_sub_tree_info(gasnete_coll_tree_geom_t *geom, int gasnete_
 }
 
 
-void gasnete_coll_set_sibling_info(gasnete_coll_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_sibling_info(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
   gasnet_node_t *list;
   int i;
   list =gasnete_coll_get_sibling_list(geom, gasnete_coll_tree_mythread, gasnete_coll_tree_threads, &(geom->num_siblings), &(geom->sibling_id));
@@ -364,7 +358,7 @@ void gasnete_coll_set_sibling_info(gasnete_coll_tree_geom_t *geom, int gasnete_c
   }
 }
 
-
+#if 0
 gasnete_coll_tree_geom_t* gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t kind, int fanout, int root, int threads_per_node){
    gasnete_coll_tree_geom_t* geom;
   fprintf(stderr, "%d> setting up tree geom\n", gasneti_mynode);
@@ -376,19 +370,137 @@ gasnete_coll_tree_geom_t* gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t k
 	gasnete_coll_print_tree(geom, gasneti_mynode);
    return geom;
 }
+#endif
 
+/* create a local view of the tree */
+/* args: kind: what kind hte tree is
+		 fanout: fanout for an nary tree
+		 root: the root relative to this team
+				 thus if the members of this team are  1 2 4 8 9 and we want a tree rooted at 4 we'd need to pass in 3
+		 a team argument
+*/
+gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_kind_t kind, int fanout, int rootrank, gasnete_coll_team_t team)  {
+	 gasnete_coll_local_tree_geom_t* geom;
+  fprintf(stderr, "%d> setting up tree geom\n", gasneti_mynode);
+  
+   geom = gasnete_coll_build_tree(kind, fanout, rootrank, team->myrank, team->total_ranks, 1);
+     // gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);
+  // gasnete_coll_set_sub_tree_info(geom, gasneti_mynode, gasneti_nodes);
+  // gasnete_coll_set_sibling_info(geom, gasneti_mynode, gasneti_nodes);
+	gasnete_coll_print_tree(geom, gasneti_mynode);
+   geom->root = rootrank;
+   geom->kind = kind;
+   geom->fanout = fanout;
+   geom->allocated = 1;
+	return geom;
+}
+
+
+/*---------------------------------------------------------------------------------*/
+/* Operations to access the tree geometry cache */
+
+uint32_t gasnete_coll_pipe_seg_size = 1024;
+
+/*
+	Just keep track of the number of refs to an object for debug reasons
+	However according to our design we will never free a geometry that is created
+	It will be leaked away once the GASNet program finishes.
+*/
 #if 0
-void gasnete_coll_free_tree(gasnete_coll_tree_geom_t *obj) {
-  if(obj->child_count > 0) { 
-    gasneti_free(obj->child_list);
-    gasneti_free(obj->subtree_sizes);
-    gasneti_free(obj->subtree);
-  }
-  if(obj->num_siblings>0) {
-    gasneti_free(obj->sibling_list);
-    gasneti_free(obj->sibling_subtree_sizes);
-  }
-  gasneti_free(obj->dissem_order);
-  gasneti_free(obj);
+static void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
+	gasneti_weakatomic_decrement(&(geom->ref_count), 0);
 }
 #endif
+
+/* the helper function goes through the cache and then either returns the appropriate geometry
+   or returns NULL indicating that the tree needs to be appended to the end of the cache 
+*/
+static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_coll_tree_kind_t in_kind, int in_fanout, gasnete_coll_tree_geom_t *geom_cache) {
+  gasnete_coll_tree_geom_t *curr_geom = geom_cache;
+  while(curr_geom != NULL) {
+	if(curr_geom->kind == in_kind) {
+		if(in_kind == GASNETE_COLL_BINOMIAL_TREE || curr_geom->fanout == in_fanout) 
+			return curr_geom;
+		else
+			curr_geom = curr_geom->next;
+	}
+	curr_geom = curr_geom->next;
+  }
+  /*we've reached the end of the list without finding a match*/
+  return NULL;
+
+}
+/* XXX: should per-team */
+
+/*
+	this routine will initially just return a pointer into a localview and create one if needed. 
+	it will do the simple thing and not create new views and just keep reusing old views as needed
+*/
+gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_kind_t kind, gasnet_node_t root, int fanout, gasnete_coll_team_t team) {
+	gasnete_coll_tree_geom_t *geom_cache_head = team->tree_geom_cache_head;
+	gasnete_coll_tree_geom_t *geom_cache_tail = team->tree_geom_cache_tail;
+
+	gasnete_coll_tree_geom_t *curr_geom;
+	curr_geom = gasnete_coll_tree_geom_fetch_helper(kind, fanout, geom_cache_head);
+	if(curr_geom == NULL) {
+		int i;
+		fprintf(stderr, "%d> new tree: %d kind %d fanout\n",gasneti_mynode, kind, fanout);
+		/* allocate new geometry */
+		curr_geom = (gasnete_coll_tree_geom_t *) gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
+		curr_geom->local_views = (gasnete_coll_local_tree_geom_t**) 
+									gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t*)*team->total_ranks);
+		for(i=0; i<team->total_ranks; i++) {
+			curr_geom->local_views[i] = NULL;
+		}
+		curr_geom->next = NULL;
+		curr_geom->kind = kind;
+		curr_geom->fanout = fanout;
+
+		/* link it into the cache*/
+		if(geom_cache_head == NULL) {
+			/*cache is empty*/
+			curr_geom->prev = NULL;
+			team->tree_geom_cache_head = curr_geom;
+			team->tree_geom_cache_tail = curr_geom;
+		} else {
+			team->tree_geom_cache_tail->next = curr_geom;
+			curr_geom->prev = team->tree_geom_cache_tail;
+			team->tree_geom_cache_tail = curr_geom;
+		}
+		curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(kind, fanout, root, team);
+		return curr_geom->local_views[root];
+		/* create local view for the root that we request */
+	} else {
+		/* if it is already allocated for root go ahead and return it ... this should be the fast path*/
+		
+		if(curr_geom->local_views[root] == NULL) {
+			fprintf(stderr, "%d> tree found: %d kind %d fanout\n", gasneti_mynode, kind, fanout);
+			fprintf(stderr, "%d> new root: %d\n", gasneti_mynode, root); 
+		  curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(kind, fanout, root, team);
+#if 0		  
+			  /* create all the local views */
+		   int i;
+		   for(i=0; i<team->total_ranks; i++) {
+				/* some local views might have already been allocated 
+				   through other intermediary steps*/
+				if(curr_geom->local_views[i] == NULL) {
+					curr_geom->local_views[i] = gasnete_coll_tree_geom_create_local(kind, fanout, i, team);
+					
+				} 
+		   }
+#endif
+		}
+		return curr_geom->local_views[root];
+	}
+	/*shouldn't get here*/
+	return NULL;
+}
+
+void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom) {
+	
+	/* for now don't do anything since we will reuse all our geometries*/
+	
+}
+
+
+

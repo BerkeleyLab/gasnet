@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2006/10/18 22:45:54 $
- * $Revision: 1.22.6.5 $
+ *     $Date: 2006/10/20 01:48:27 $
+ * $Revision: 1.22.6.6 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,8 +73,17 @@ typedef union gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
 struct gasnete_coll_generic_data_t_;
 typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
 
+typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE} gasnete_coll_tree_kind_t;
+
 struct gasnete_coll_tree_data_t_;
 typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
+
+struct gasnete_coll_local_tree_geom_t_;
+typedef struct gasnete_coll_local_tree_geom_t_ gasnete_coll_local_tree_geom_t;
+
+struct gasnete_coll_tree_geom_t_;
+typedef struct gasnete_coll_tree_geom_t_ gasnete_coll_tree_geom_t;
+
 
 /*---------------------------------------------------------------------------------*/
 
@@ -222,15 +231,23 @@ typedef struct {
     unsigned int		flags;
 } gasnet_coll_fn_entry_t;
 
-/*---------------------------------------------------------------------------------*/
-
 /* Handle type for collective teams: */
 #ifndef GASNETE_COLL_TEAMS_OVERRIDE
     struct gasnete_coll_team_t_;
     typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
     typedef gasnete_coll_team_t gasnet_team_handle_t;
-    #define GASNET_TEAM_ALL	NULL
+	/*change this so even the TEAM_ALL has a default team allocated rather than NULL*/
+    gasnete_coll_team_t GASNET_TEAM_ALL;
 #endif
+
+/*---------------------------------------------------------------------------------*
+ * Start of generic framework for tree-based reference implementations
+ *---------------------------------------------------------------------------------*/
+#include <gasnet_coll_trees.h>
+                                                                                                              
+
+/*---------------------------------------------------------------------------------*/
+
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
@@ -242,18 +259,37 @@ struct gasnete_coll_team_t_ {
 
     /* read-only fields: */
     uint32_t			team_id;
-
+	int					global_team;
+	
 
 	/* place to insert scratch space information*/
 	gasnet_seginfo_t *scratch_segs;
 	
+	/* tree geometry cache, each team should have its own cache .... */
+	gasnete_coll_tree_geom_t *tree_geom_cache_head;
+	gasnete_coll_tree_geom_t *tree_geom_cache_tail;
+	
+	/*my relative node id in this team*/
+	gasnet_node_t myrank;
+	
+	/*total number of members in this team*/
+	int total_ranks;
+	
+	/*map of relative nodes in this team to actual nodes*/
+	/*for TEAM_ALL this will just be a one-to-one mapping */
+	/*not worrying about this yet*/
+	/*gasnet_node_t *node_map; */
     /* XXX: Design not complete yet */
 
     /* Hook for conduit-specific extensions/overrides */
     #ifdef GASNETE_COLL_TEAM_EXTRA
       GASNETE_COLL_TEAM_EXTRA
     #endif
+
+	
+
 };
+
 
 /*---------------------------------------------------------------------------------*/
 
@@ -2147,51 +2183,10 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
                                   void *private_data, uint32_t sequence
                                   GASNETE_THREAD_FARG);
 
-/*---------------------------------------------------------------------------------*
- * Start of generic framework for tree-based reference implementations
- *---------------------------------------------------------------------------------*/
-#include <gasnet_coll_trees.h>
 
-#if 0
-typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE} gasnete_coll_tree_kind_t;
-
-typedef struct gasnete_coll_tree_geom_t_ {
-  /*** tree structure metadata*****/
-  gasnete_coll_tree_kind_t kind;
-  int fanout;
-  int root;					
-  int threads_per_node;
-  
-  /** tree geometry**/
-  int parent; /*parent of this node*/
-  int child_count; /*number of children*/
-  int *child_list; /*list of children*/
-  
-  /** sibling information**/
-  int num_siblings;
-  int *sibling_list; /*list of siblings*/
-  int *sibling_subtree_sizes; /*sizes of the subtrees under the siblings*/
-  int sibling_id; /*my sibling number*/
-  
-  /*** subtree information***/
-  int *subtree_sizes;
-  int *subtree;
-  int subtree_count;
-
-  int *dissem_order;
-  int dissem_count;
-} gasnete_coll_tree_geom_t;
-#endif
-                                                                                                              
-/* Data for a given tree-based operation */
-struct gasnete_coll_tree_data_t_ {
-    uint32_t			pipe_seg_size;
-    uint32_t			sent_bytes;
-    gasnete_coll_tree_geom_t	*geom;
-};
 
                                                                                                             
-extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, gasnet_node_t rootnode GASNETE_THREAD_FARG);
+extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, int fanout, gasnet_node_t rootnode, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*
