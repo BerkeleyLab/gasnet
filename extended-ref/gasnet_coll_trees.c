@@ -381,13 +381,16 @@ gasnete_coll_tree_geom_t* gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t k
 */
 gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_kind_t kind, int fanout, int rootrank, gasnete_coll_team_t team)  {
 	 gasnete_coll_local_tree_geom_t* geom;
+  #if GASNET_COLL_TREE_DEBUG
   fprintf(stderr, "%d> setting up tree geom\n", gasneti_mynode);
-  
+#endif  
    geom = gasnete_coll_build_tree(kind, fanout, rootrank, team->myrank, team->total_ranks, 1);
      // gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);
   // gasnete_coll_set_sub_tree_info(geom, gasneti_mynode, gasneti_nodes);
   // gasnete_coll_set_sibling_info(geom, gasneti_mynode, gasneti_nodes);
+	#if GASNET_COLL_TREE_DEBUG
 	gasnete_coll_print_tree(geom, gasneti_mynode);
+#endif
    geom->root = rootrank;
    geom->kind = kind;
    geom->fanout = fanout;
@@ -444,7 +447,9 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 	curr_geom = gasnete_coll_tree_geom_fetch_helper(kind, fanout, geom_cache_head);
 	if(curr_geom == NULL) {
 		int i;
+		#if GASNET_COLL_TREE_DEBUG
 		fprintf(stderr, "%d> new tree: %d kind %d fanout\n",gasneti_mynode, kind, fanout);
+		#endif
 		/* allocate new geometry */
 		curr_geom = (gasnete_coll_tree_geom_t *) gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
 		curr_geom->local_views = (gasnete_coll_local_tree_geom_t**) 
@@ -474,8 +479,10 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 		/* if it is already allocated for root go ahead and return it ... this should be the fast path*/
 		
 		if(curr_geom->local_views[root] == NULL) {
+		#if GASNET_COLL_TREE_DEBUG
 			fprintf(stderr, "%d> tree found: %d kind %d fanout\n", gasneti_mynode, kind, fanout);
 			fprintf(stderr, "%d> new root: %d\n", gasneti_mynode, root); 
+			#endif
 		  curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(kind, fanout, root, team);
 #if 0		  
 			  /* create all the local views */

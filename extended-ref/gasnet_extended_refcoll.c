@@ -1,11 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2006/10/20 05:07:39 $
- * $Revision: 1.29.6.7 $
+ *     $Date: 2006/10/20 18:03:38 $
+ * $Revision: 1.29.6.8 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
+#define GASNET_COLL_TREE_DEBUG 0
 #include <gasnet_internal.h>
 #include <gasnet_coll.h>
 #include <gasnet_extended_refcoll.h>
@@ -2179,7 +2180,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on all nodes */
 /* Naturally IN_MYSYNC, OUT_MYSYNC */
 /* size is unbounded */
-int treeget_old_state;
+
 static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
@@ -2187,16 +2188,13 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
   int result = 0;
   int i;
   int child;
-   //if(treeget_old_state != data->state) 
-   //fprintf(stderr, "%d> mystate: %d\n", gasneti_mynode, data->state);
-
+  
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
 	  !gasnete_coll_generic_insync(data)) {
 	break;
       }
-	  treeget_old_state = data->state;
       data->state = 1;
 
 
@@ -2207,8 +2205,7 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
 	  gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->src, 0, 1);
         }
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
-	    treeget_old_state = data->state;
-        data->state = 3;
+	    data->state = 3;
 	break;	/* skip state 2 */
       } else if (data->p2p->state[0]){
 	if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
@@ -2221,8 +2218,7 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
       } else {
 	break;
       }
-	  treeget_old_state = data->state;
-      data->state = 2;
+  data->state = 2;
 
 
     case 2:
@@ -2237,7 +2233,6 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
       for (child=0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
 	gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], args->dst, 0, 1);
       }
-	  treeget_old_state = data->state;
       data->state = 3;
 
 
@@ -2252,8 +2247,7 @@ static int gasnete_coll_pf_bcast_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_FA
       }
 
       if (done) {
-	  treeget_old_state = data->state;
-
+	
 	data->state = 4;
       } else {
 	break;
@@ -2284,8 +2278,9 @@ gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
-		
+		#if GASNET_COLL_TREE_DEBUG
 	    fprintf(stderr, "%d> TreeGet %d\n", gasneti_mynode, (int)nbytes);
+		#endif
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreeGet, options,
 					    gasnete_coll_tree_init(kind, GASNETE_COLL_DEFAULT_FANOUT,
@@ -2610,7 +2605,9 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
+	 #if GASNET_COLL_TREE_DEBUG
 	 fprintf(stderr, "%d> Tree Eager %d\n", gasneti_mynode, (int) nbytes);
+	 #endif
 	 #if 1
 	return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags,  GASNETE_COLL_BINOMIAL_TREE, sequence GASNETE_THREAD_PASS);
 	
@@ -2621,7 +2618,9 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     if (flags & GASNET_COLL_SINGLE) {
       /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
+#if GASNET_COLL_TREE_DEBUG
 	   fprintf(stderr, "%d> TreePut %d\n", gasneti_mynode, (int) nbytes);
+#endif
       #if USE_COLL_TREE
 	  return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, nbytes, flags,  GASNETE_COLL_BINOMIAL_TREE, sequence GASNETE_THREAD_PASS);
 	  #else
@@ -2640,16 +2639,22 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
       return gasnete_coll_bcast_RVGet(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
 	  #endif
     } else {
+	#if GASNET_COLL_TREE_DEBUG
 	   fprintf(stderr, "%d> Get %d\n", gasneti_mynode, (int)nbytes);
+#endif
 	  return gasnete_coll_bcast_Get(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
 	}
   }  else {
+  #if GASNET_COLL_TREE_DEBUG
 	  fprintf(stderr, "%d> RVous %d\n", gasneti_mynode, (int) nbytes);
+#endif
       /* XXX: could do better w/ RVPut since dst is writtable */
       return gasnete_coll_bcast_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
     }
   } else {
+  #if GASNET_COLL_TREE_DEBUG
   fprintf(stderr, "%d> RVous2 %d\n", gasneti_mynode,(int) nbytes);
+  #endif
     /* If we reach here then neither src nor dst is in-segment */
     return gasnete_coll_bcast_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   }
