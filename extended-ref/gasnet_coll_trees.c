@@ -22,7 +22,7 @@ int gasnete_coll_build_tree_mylog2(unsigned int num) {
 
 void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread) {
   int i;
-  if(gasnete_coll_tree_mythread ==0) 
+
   fprintf(stderr, "%d> parent: %d\n", gasnete_coll_tree_mythread, geom->parent);
   for(i=0; i<geom->child_count; i++) {
     fprintf(stderr, "%d> child %d: %d\n", gasnete_coll_tree_mythread, i, geom->child_list[i]);
@@ -363,11 +363,11 @@ gasnete_coll_tree_geom_t* gasnete_coll_tree_geom_init(gasnete_coll_tree_kind_t k
    gasnete_coll_tree_geom_t* geom;
   fprintf(stderr, "%d> setting up tree geom\n", gasneti_mynode);
    geom = gasnete_coll_build_tree(kind, fanout, root, gasneti_mynode, gasneti_nodes, threads_per_node);
-   
-  // gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);
   // gasnete_coll_set_sub_tree_info(geom, gasneti_mynode, gasneti_nodes);
   // gasnete_coll_set_sibling_info(geom, gasneti_mynode, gasneti_nodes);
-	gasnete_coll_print_tree(geom, gasneti_mynode);
+ 
+  // gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);
+  	gasnete_coll_print_tree(geom, gasneti_mynode);
    return geom;
 }
 #endif
@@ -386,8 +386,8 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
 #endif  
    geom = gasnete_coll_build_tree(kind, fanout, rootrank, team->myrank, team->total_ranks, 1);
      // gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);
-  // gasnete_coll_set_sub_tree_info(geom, gasneti_mynode, gasneti_nodes);
-  // gasnete_coll_set_sibling_info(geom, gasneti_mynode, gasneti_nodes);
+   //  gasnete_coll_set_sub_tree_info(geom, team->myrank, team->total_ranks);
+   // gasnete_coll_set_sibling_info(geom, team->myrank, team->total_ranks);
 	#if GASNET_COLL_TREE_DEBUG
 	gasnete_coll_print_tree(geom, gasneti_mynode);
 #endif
