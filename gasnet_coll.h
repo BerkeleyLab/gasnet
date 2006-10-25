@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2006/10/20 01:48:27 $
- * $Revision: 1.22.6.6 $
+ *     $Date: 2006/10/25 20:05:53 $
+ * $Revision: 1.22.6.7 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,6 +83,13 @@ typedef struct gasnete_coll_local_tree_geom_t_ gasnete_coll_local_tree_geom_t;
 
 struct gasnete_coll_tree_geom_t_;
 typedef struct gasnete_coll_tree_geom_t_ gasnete_coll_tree_geom_t;
+
+struct gasnete_coll_op_status_t_;
+typedef struct gasnete_coll_op_status_t_ gasnete_coll_op_status_t;
+
+
+struct gasnete_coll_scratch_status_t_;
+typedef struct gasnete_coll_scratch_status_t_ gasnete_coll_scratch_status_t;
 
 
 /*---------------------------------------------------------------------------------*/
@@ -262,9 +269,7 @@ struct gasnete_coll_team_t_ {
 	int					global_team;
 	
 
-	/* place to insert scratch space information*/
-	gasnet_seginfo_t *scratch_segs;
-	
+		
 	/* tree geometry cache, each team should have its own cache .... */
 	gasnete_coll_tree_geom_t *tree_geom_cache_head;
 	gasnete_coll_tree_geom_t *tree_geom_cache_tail;
@@ -274,6 +279,13 @@ struct gasnete_coll_team_t_ {
 	
 	/*total number of members in this team*/
 	int total_ranks;
+
+	/* scratch segments allocated on team creation*/
+	gasnet_seginfo_t *scratch_segs;
+
+	/*scratch space management*/
+	gasnete_coll_scratch_status_t* scratch_status;
+	
 	
 	/*map of relative nodes in this team to actual nodes*/
 	/*for TEAM_ALL this will just be a one-to-one mapping */
@@ -303,6 +315,9 @@ struct gasnete_coll_op_t_ {
 	/* Default implementation of coll_ops active list */
 	gasnete_coll_op_t	*active_next, **active_prev_p;
     #endif
+	
+	/* a list of the ops for the scratch list management*/
+	gasnete_coll_op_t *scratch_next, *scratch_prev;
 
     /* Linkage used by aggregation.
      * Access is serialized by specification+client: */

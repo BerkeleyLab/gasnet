@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/10/18 22:45:54 $
- * $Revision: 1.34.4.4 $
+ *     $Date: 2006/10/25 20:05:53 $
+ * $Revision: 1.34.4.5 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -658,11 +658,12 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 #endif
 /* extended-ref auxseg fns */
 #ifndef GASNETE_AUXSEG_FNS
-#define GASNETE_AUXSEG_FNS() GASNETE_COLL_AUXSEG_FNS
+#define GASNETE_AUXSEG_FNS() 
 #endif
 
 gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info);
-
+/* this is not a good spot for this declaration ... but need to ask dan where to stick this*/
+gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 gasneti_auxsegregfn_t gasneti_auxsegfns[] = {
   GASNETC_AUXSEG_FNS()
   GASNETE_AUXSEG_FNS()

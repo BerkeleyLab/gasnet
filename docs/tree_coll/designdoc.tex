@@ -115,6 +115,11 @@ Since each node assumes a fixed tree geometry between barrier calls the parent n
 
 Upon team creation each team will  need to provide a local buffer that will be used for the scratch space for that team. Having scratch space for different teams interfere adds unneeded complexity to the implementation. However for the primordial GASNET\_TEAM\_ALL we will carve up a segment of the \texttt{auxseg} and use that for the initial scratch space. 
 
+Since the scratch space management will be on a per-team basis each team will need to keep track of the scratch positions of all the children so that each node knows where to send the data into the child'
+s scratch space. However since there is a limited amount of buffer space available an ``out-of-band" mechanism also needs to be created to ensure that scratch space is reused. Upon a collective that requires an \texttt{OUT\_ALL\_SYNC} semantics we can use it to reset the buffers since it can be assumed that the collective call will not complete (and thus new collectives will not be issued) until the current collective is complete. When dealing with non-blocking collectives this implies that after the sync has returned (not the initiation) from the all sync collective the scratch space can be reset. 
+
+We will also assume that the scratch space can be reset on a barrier. The main implementation problems that could arise are nonblocking collective calls initiated before a barrier and a sync taking place after taht given barrier. Thus to simplify the initial implementation we will assume that \textit{there will be no barriers betweeen a nonblocking collective initiation and a nonblocking collective sync}. This restriction could be lifted later. 
+
 \subsubsection{Logging}
 \textbf{This section describes a possible future implementation that will relax some of the requirement for a fixed geometry between barrier calls.}
 

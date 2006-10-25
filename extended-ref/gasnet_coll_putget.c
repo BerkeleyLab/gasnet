@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2006/10/20 18:03:38 $
- * $Revision: 1.29.6.8 $
+ *     $Date: 2006/10/25 20:05:57 $
+ * $Revision: 1.29.6.9 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,6 +14,7 @@
 
 /*TEMPORARY ... change it up later*/
 #include <gasnet_coll_trees.c>
+#include <gasnet_coll_scratch.c>
 
 
 /*---------------------------------------------------------------------------------*/
@@ -944,7 +945,10 @@ void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
       gasneti_mutex_lock(&gasnete_coll_active_lock);
       next = gasnete_coll_active_next(op);
       if (poll_result != 0) {
-        gasnete_coll_op_complete(op, poll_result GASNETE_THREAD_PASS);
+        /*if the op was using any scratch space indicate that the scratch is free to overwrite*/
+		/*update my head and tail of the scratch space*/
+		gasnete_coll_op_complete(op, poll_result GASNETE_THREAD_PASS);
+		
       }
       gasneti_mutex_unlock(&gasnete_coll_active_lock);
 
@@ -955,36 +959,31 @@ void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
     gasneti_mutex_unlock(&poll_lock);
   }
 }
+ static gasnet_seginfo_t *gasnete_coll_auxseg_save = NULL;
   gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
     gasneti_auxseg_request_t retval;
-    static gasnet_seginfo_t *auxseg_save = NULL;
+   
     int i, selftest=0;
-    retval.minsz = 213;
-    retval.optimalsz = 463;
-    if (auxseg_info == NULL){
+    retval.minsz = GASNETE_COLL_MIN_SCRATCH_SIZE;
+    retval.optimalsz = GASNETE_COLL_OPT_SCRATCH_SIZE;
+	if (auxseg_info == NULL){
 		return retval; /* initial query */
-	}
+	}	
      else { /* auxseg granted */
-      gasneti_assert(!auxseg_save);
-      auxseg_save = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-      memcpy(auxseg_save, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+      gasneti_assert(!gasnete_coll_auxseg_save);
+      gasnete_coll_auxseg_save = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+      memcpy(gasnete_coll_auxseg_save, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
     }
-    for (i=0; i < gasneti_nodes; i++) {
-      gasneti_assert(auxseg_save[i].addr);
-      gasneti_assert(((uintptr_t)auxseg_save[i].addr) % GASNETI_CACHE_LINE_BYTES == 0);
-      gasneti_assert(((uintptr_t)auxseg_save[i].addr) % 8 == 0);
-      gasneti_assert(auxseg_save[i].size >= retval.minsz);
-      gasneti_assert(auxseg_save[i].size <= retval.optimalsz);
-    }
-    for (i=0; i < auxseg_save[gasneti_mynode].size; i++) {
-      uint8_t *p = (uint8_t *)auxseg_save[gasneti_mynode].addr;
-      #define AUXSEG_TESTVAL(i) ((uint8_t)(8|((i+0x3F)^(i>>8))))
-      if (selftest) gasneti_assert(p[i] == AUXSEG_TESTVAL(i));
-      else p[i] = AUXSEG_TESTVAL(i);
-      #undef AUXSEG_TESTVAL
-    }
+
     return retval;
   }
+
+void (*gasnete_coll_old_barrier_notify)(int id, int flags); 
+
+void gasnete_coll_barrier_notify_callback(int id, int flags) {
+	(*gasnete_coll_old_barrier_notify)(id,flags);
+	GASNET_TEAM_ALL->scratch_status->perform_reset = 1;
+}
 
 extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
 			      gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
@@ -1135,10 +1134,14 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   GASNET_TEAM_ALL->tree_geom_cache_tail = NULL;
   GASNET_TEAM_ALL->myrank = gasneti_mynode;
   GASNET_TEAM_ALL->total_ranks = gasneti_nodes;
-  /*set up seginfo from aux seg ... NULL for now*/
-  GASNET_TEAM_ALL->scratch_segs = NULL;
-  
-   gasnete_coll_init_done = 1;
+  GASNET_TEAM_ALL->scratch_segs = gasnete_coll_auxseg_save;
+  gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_ALL);
+  /*change the barrier code*/
+  gasnete_coll_old_barrier_notify = gasnete_barrier_notify;
+  gasnete_barrier_notify = gasnete_coll_barrier_notify_callback;
+  gasnete_coll_init_done = 1;
+   
+   
 }
 
 /*---------------------------------------------------------------------------------*/

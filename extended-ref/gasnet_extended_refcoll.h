@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2006/10/20 01:48:29 $
- * $Revision: 1.1.10.3 $
+ *     $Date: 2006/10/25 20:05:57 $
+ * $Revision: 1.1.10.4 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,7 @@
 
 #include <gasnet_handler.h>
 #include <gasnet_coll_trees.h>
+#include <gasnet_coll_scratch.h>
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Parameters *** */
@@ -55,7 +56,7 @@
   /* ptr-width dependent handlers */                         \
   /*  gasneti_handler_tableentry_with_bits(gasnete__reqh) */ \
                                                              \
-  GASNETE_COLL_P2P_HANDLERS()                        
+  GASNETE_COLL_P2P_HANDLERS() GASNETE_COLL_SCRATCH_HANDLERS()                      
 
 /*---------------------------------------------------------------------------------*/
 /* Data for a given tree-based operation */
@@ -64,5 +65,9 @@ struct gasnete_coll_tree_data_t_ {
     uint32_t			sent_bytes;
     gasnete_coll_local_tree_geom_t	*geom;
 };
-
+#define GASNETE_COLL_MIN_SCRATCH_SIZE 8192
+#define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
+#ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
+#define GASNETE_COLL_OPT_SCRATCH_SIZE 65536
+#endif
 #endif
