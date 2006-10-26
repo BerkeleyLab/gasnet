@@ -45,7 +45,6 @@ void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in) {
 void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in) {
 	gasnete_coll_op_info_t *temp;
 	int i;
-	
 	/*reset all the node_status back to 0*/		
 	for(i=0; i<in->team->total_ranks; i++) {
 		in->node_status[i].head = 0; 
@@ -162,7 +161,7 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, uint64_t tail) 
 			
 	}
 }
-void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout, gasnet_node_t root,
+uint64_t gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout, gasnet_node_t root,
 				 gasnete_coll_team_t team, gasnet_coll_handle_t op_handle, uint32_t incoming_size, uint32_t seqnum,
 								 int numpeers, gasnet_node_t *in_peers GASNETE_THREAD_FARG) {
 	
@@ -171,6 +170,7 @@ void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout,
 	gasnete_coll_node_scratch_status_t node_stat;
 	uint32_t my_head_pos;
 	uint32_t my_tail_pos;
+	uint64_t retpos;
 	
 	/*if the incoming size is greater than the total allocated scratch space signal an error*/
 	if(incoming_size > team->scratch_segs[team->myrank].size) {
@@ -241,9 +241,12 @@ void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout,
 			gasnete_coll_scratch_send_updates(team,0);
 			stat->node_status[team->myrank].head = 0;
 			gasnett_atomic64_set(&(stat->node_status[team->myrank].tail),0,0);
+			retpos = 0;
 	   } else {
 			/* advance scratch pointers and move on*/
+			retpos = stat->node_status[team->myrank].head;
 			stat->node_status[team->myrank].head += incoming_size;
+			
 	
 	   }
 	} else { /* tail position is farther ahead than head */
@@ -255,10 +258,12 @@ void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout,
 			gasnete_coll_scratch_send_updates(team,0);
 			stat->node_status[team->myrank].head = 0;
 			gasnett_atomic64_set(&(stat->node_status[team->myrank].tail),0,0);
-
+			retpos = 0;
 		} else {
 			/* adcance scratch pointers and move on*/
+			retpos = stat->node_status[team->myrank].head;
 			stat->node_status[team->myrank].head += incoming_size;
+			
 		}
 	}
 	
@@ -286,11 +291,12 @@ void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout,
 		stat->active_scratch_op_tail = new_op;
 		
 	}
+	return retpos;
 }
 
 
 uint64_t gasnete_coll_get_scratch_pos(gasnet_node_t dst, uint32_t req_size, gasnete_coll_tree_kind_t tree_type, 
-					   int fanout, gasnet_node_t root, gasnete_coll_team_t team, int seq GASNETE_THREAD_FARG) {
+					   int fanout, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG) {
 	gasnete_coll_scratch_status_t *stat= team->scratch_status;
 	uint64_t dst_head_pos; 
 	uint64_t dst_tail_pos; 

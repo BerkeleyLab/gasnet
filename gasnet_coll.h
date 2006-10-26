@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2006/10/26 01:57:29 $
- * $Revision: 1.22.6.8 $
+ *     $Date: 2006/10/26 20:39:17 $
+ * $Revision: 1.22.6.9 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -342,6 +342,10 @@ struct gasnete_coll_op_t_ {
     void			*data;
     gasnete_coll_poll_fn	poll_fn;
 
+	/*positioons of the valide scratch space for this operation on the peers*/
+	uint64_t *scratchpos;
+	uint64_t myscratchpos;
+	
     /* Hook for conduit-specific extensions/overrides */
     #ifdef GASNETE_COLL_OP_EXTRA
       GASNETE_COLL_OP_EXTRA

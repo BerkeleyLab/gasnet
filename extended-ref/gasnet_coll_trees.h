@@ -10,7 +10,7 @@
 #define GASNETE_COLL_TREE_GEOM_CHILDREN(GEOM) ((GEOM)->child_list)
 #define GASNETE_COLL_TREE_GEOM_SIBLING_ID(GEOM) ((GEOM)->sibling_id)
 #define GASNETE_COLL_TREE_GEOM_KIND(GEOM) ((GEOM)->kind)
-#define GASNETE_COLL_TREE_GEOM_FANOUT(GEOM) ((GEOM)->fanout);
+#define GASNETE_COLL_TREE_GEOM_FANOUT(GEOM) ((GEOM)->fanout)
 
 /* a local view of the tree goemetry */
 struct gasnete_coll_local_tree_geom_t_ {
