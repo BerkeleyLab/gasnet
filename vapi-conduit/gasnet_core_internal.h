@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/10/26 05:14:56 $
- * $Revision: 1.134.12.8 $
+ *     $Date: 2006/10/26 18:46:02 $
+ * $Revision: 1.134.12.9 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -368,12 +368,13 @@ typedef struct {
 	uint32_t	immediate_data;
 } gasnetc_amrdma_hdr_t;
 
-/* XXX: need env var overrides for DEPTH and MAX */
+/* XXX: need env var overrides for MAX_PEERS, DEPTH and MAX */
 #define GASNETC_AMRDMA_DEPTH	32	/* Power-of-2 */
 #define GASNETC_AMRDMA_PAD	(GASNETC_ALIGNUP(sizeof(gasnetc_amrdma_hdr_t),8)-sizeof(gasnetc_amrdma_hdr_t))
 #define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
 #define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */
 #define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ - GASNETC_AMRDMA_PAD)
+#define GASNETC_AMRDMA_MAX_PEERS 32
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 
 /* Forward decl */
@@ -419,7 +420,7 @@ typedef struct {
 
   /* AM-over-RMDA */
   gasnetc_memreg_t	amrdma_reg;
-  gasnetc_amrdma_buf_t	*amrdma_next;
+  gasneti_lifo_head_t	amrdma_freelist;
   struct {
     gasnet_node_t	count;
     gasnetc_cep_t	**cep;
@@ -453,7 +454,6 @@ struct gasnetc_cep_t_ {
 	gasneti_weakatomic_t	ack;
   } am_flow;
   struct {	/* AM-over-RDMA local state */
-	int			may_send;
 	gasneti_weakatomic_t	send_head, send_tail;
         gasneti_weakatomic_t	recv_in_use; /* A weak spinlock */
 	#if (GASNETC_AMRDMA_DEPTH > 1)
