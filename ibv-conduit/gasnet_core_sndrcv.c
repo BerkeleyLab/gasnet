@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/10/26 05:14:56 $
- * $Revision: 1.189.4.12 $
+ *     $Date: 2006/10/26 18:46:02 $
+ * $Revision: 1.189.4.13 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1610,7 +1610,7 @@ int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
   uint32_t send_tail;
 
   gasneti_assert(msg_len != 0);
-  if ((msg_len > GASNETC_AMRDMA_MAX) || (!cep->amrdma.may_send)) {
+  if (!cep->amrdma_rem || (msg_len > GASNETC_AMRDMA_MAX)) {
     return -1;
   }
 
@@ -2923,13 +2923,14 @@ extern int gasnetc_sndrcv_init(void) {
 #endif
       
       /* Init space for AM-over-RDMA rcv-peer list */
-      hca->amrdma_rcv.count = 0;
-      hca->amrdma_rcv.cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
 
-      /* Allocate & pin space for AM-over-RDMA */
-      {
-	size_t alloc_size = hca->total_qps * (GASNETC_AMRDMA_SZ * GASNETC_AMRDMA_DEPTH);
+      /* Initialize resources for AM-over-RDMA */
+      hca->amrdma_rcv.count = 0;
+      if (GASNETC_AMRDMA_MAX_PEERS) {
+	const gasnet_node_t max_peers = MIN(hca->total_qps, GASNETC_AMRDMA_MAX_PEERS);
+	size_t alloc_size = max_peers * (GASNETC_AMRDMA_SZ * GASNETC_AMRDMA_DEPTH);
 	void *buf = gasneti_mmap(alloc_size);
+
         if_pf (buf == MAP_FAILED) {
           buf = NULL;
         } else {
@@ -2943,8 +2944,14 @@ extern int gasnetc_sndrcv_init(void) {
 	  /* XXX: unwind here? */
 	  gasneti_fatalerror("Unable to allocate pinned memory for AM-over-RDMA");
         }
-	/* Hand out buffers offset from page base to get full-word alignment of msg */
-        hca->amrdma_next = (gasnetc_amrdma_buf_t *)((uintptr_t)buf + GASNETC_AMRDMA_PAD);
+	buf = (void *)((uintptr_t)buf + GASNETC_AMRDMA_PAD); /* offset base to get 8-byte alignment of msg */
+        gasneti_lifo_init(&hca->amrdma_freelist);
+	for (i = 0; i < max_peers; ++i) {
+	  gasneti_lifo_push(&hca->amrdma_freelist, buf);
+	  buf = (void *)((uintptr_t)buf + (GASNETC_AMRDMA_SZ * GASNETC_AMRDMA_DEPTH));
+	}
+
+        hca->amrdma_rcv.cep = gasneti_calloc(max_peers, sizeof(gasnetc_cep_t *));
       }
     }
   }
@@ -3052,18 +3059,20 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       gasneti_weakatomic_set(&cep->amrdma.send_head, GASNETC_AMRDMA_DEPTH, 0);
       gasneti_weakatomic_set(&cep->amrdma.send_tail, 0, 0);
       gasneti_weakatomic_set(&cep->amrdma.recv_count, 0, 0);
-      cep->amrdma_loc = hca->amrdma_next;
-      for (j = 0; j < GASNETC_AMRDMA_DEPTH; ++j) {
-	gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)cep->amrdma_loc[j];
-	hdr->length = hdr->zeros = 0;
-	hdr->length_again = hdr->zeros_again = -1;
+      /* XXX: The following will move/change for variable peer sets. */
+      /* For now the first N end-points up to the MAX_PEERS limit are our "hot" peers. */
+      cep->amrdma_loc = gasneti_lifo_pop(&hca->amrdma_freelist);
+      if (cep->amrdma_loc != NULL) {
+	gasneti_assert(hca->amrdma_rcv.count < MIN(hca->total_qps, GASNETC_AMRDMA_MAX_PEERS));
+	gasneti_assert(sizeof(gasnetc_amrdma_hdr_t) >= sizeof(void *)); /* nothing remains uninitialized */
+        for (j = 0; j < GASNETC_AMRDMA_DEPTH; ++j) {
+	  gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)cep->amrdma_loc[j];
+	  hdr->length       = hdr->zeros       = 0;
+	  hdr->length_again = hdr->zeros_again = ~0;
+        }
+        gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
+        hca->amrdma_rcv.cep[hca->amrdma_rcv.count++] = cep;
       }
-      hca->amrdma_next += GASNETC_AMRDMA_DEPTH;
-      gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
-      /* XXX: the following must go away for variable peer sets */
-      cep->amrdma.may_send = 1;
-      hca->amrdma_rcv.cep[hca->amrdma_rcv.count++] = cep;
-      gasneti_assert(hca->amrdma_rcv.count <= hca->total_qps);
 
       /* Prepost one rcv buffer for each possible incomming request */
       for (j = 0; j < gasnetc_am_oust_pp; ++j) {
