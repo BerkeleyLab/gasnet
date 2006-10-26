@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/09/20 18:20:48 $
- * $Revision: 1.189.4.11 $
+ *     $Date: 2006/10/26 05:14:56 $
+ * $Revision: 1.189.4.12 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1179,15 +1179,10 @@ GASNETI_INLINE(gasnetc_poll_rcv_hca)
 void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
   gasneti_assert(limit > 0);
   { /* Poll for AM-over-RDMA */
-    int i, j;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      gasnetc_cep_t *cep = gasnetc_node2cep[i];
-      if (i == gasneti_mynode) continue;
-      for (j = 0; j < gasnetc_num_qps; ++j, ++cep) {
-        if (cep->hca == hca) { /* Better way? */
-	  if (gasnetc_rcv_amrdma(cep) && (--limit ==0)) { return; }
-        }
-      }
+    /* BUG1652: full solution may require atomicity here */
+    gasnet_node_t i;
+    for (i = 0; i < hca->amrdma_rcv.count; ++i) {
+      if (gasnetc_rcv_amrdma(hca->amrdma_rcv.cep[i]) && (--limit == 0)) { return; }
     }
   }
   { /* Poll for AM in recv CQ */
@@ -1615,7 +1610,9 @@ int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
   uint32_t send_tail;
 
   gasneti_assert(msg_len != 0);
-  if (msg_len > GASNETC_AMRDMA_MAX) { return -1; }
+  if ((msg_len > GASNETC_AMRDMA_MAX) || (!cep->amrdma.may_send)) {
+    return -1;
+  }
 
   while (1) {
     send_tail = gasneti_weakatomic_read(&cep->amrdma.send_tail, 0);
@@ -2925,10 +2922,13 @@ extern int gasnetc_sndrcv_init(void) {
       }
 #endif
       
+      /* Init space for AM-over-RDMA rcv-peer list */
+      hca->amrdma_rcv.count = 0;
+      hca->amrdma_rcv.cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
+
       /* Allocate & pin space for AM-over-RDMA */
       {
-	size_t alloc_size = (gasneti_nodes - 1) * gasnetc_num_qps *
-	       				(GASNETC_AMRDMA_SZ * GASNETC_AMRDMA_DEPTH);
+	size_t alloc_size = hca->total_qps * (GASNETC_AMRDMA_SZ * GASNETC_AMRDMA_DEPTH);
 	void *buf = gasneti_mmap(alloc_size);
         if_pf (buf == MAP_FAILED) {
           buf = NULL;
@@ -3060,6 +3060,10 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       }
       hca->amrdma_next += GASNETC_AMRDMA_DEPTH;
       gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
+      /* XXX: the following must go away for variable peer sets */
+      cep->amrdma.may_send = 1;
+      hca->amrdma_rcv.cep[hca->amrdma_rcv.count++] = cep;
+      gasneti_assert(hca->amrdma_rcv.count <= hca->total_qps);
 
       /* Prepost one rcv buffer for each possible incomming request */
       for (j = 0; j < gasnetc_am_oust_pp; ++j) {
