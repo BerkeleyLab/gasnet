@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/09/15 00:32:54 $
- * $Revision: 1.134.12.7 $
+ *     $Date: 2006/10/26 05:14:56 $
+ * $Revision: 1.134.12.8 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -376,6 +376,10 @@ typedef struct {
 #define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ - GASNETC_AMRDMA_PAD)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 
+/* Forward decl */
+struct gasnetc_cep_t_;
+typedef struct gasnetc_cep_t_ gasnetc_cep_t;
+
 /* Structure for an HCA */
 typedef struct {
   gasnetc_hca_hndl_t	handle;
@@ -416,6 +420,10 @@ typedef struct {
   /* AM-over-RMDA */
   gasnetc_memreg_t	amrdma_reg;
   gasnetc_amrdma_buf_t	*amrdma_next;
+  struct {
+    gasnet_node_t	count;
+    gasnetc_cep_t	**cep;
+  }	  amrdma_rcv;
 } gasnetc_hca_t;
 
 /* Keys in a cep, all replicated from other data */
@@ -430,7 +438,7 @@ struct gasnetc_cep_keys_ {
 };
 
 /* Structure for a cep (connection end-point) */
-typedef struct {
+struct gasnetc_cep_t_ {
   char			_pad0[GASNETI_CACHE_LINE_BYTES];
 
   /* Read/write fields */
@@ -445,8 +453,9 @@ typedef struct {
 	gasneti_weakatomic_t	ack;
   } am_flow;
   struct {	/* AM-over-RDMA local state */
-        gasneti_weakatomic_t	recv_in_use; /* A weak spinlock */
+	int			may_send;
 	gasneti_weakatomic_t	send_head, send_tail;
+        gasneti_weakatomic_t	recv_in_use; /* A weak spinlock */
 	#if (GASNETC_AMRDMA_DEPTH > 1)
 	  gasneti_weakatomic_t	recv_count;
 	#endif
@@ -466,7 +475,7 @@ typedef struct {
   uintptr_t		amrdma_rem;
 
   char			_pad2[GASNETI_CACHE_LINE_BYTES];
-} gasnetc_cep_t;
+};
 
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_sndrcv_init(void);
