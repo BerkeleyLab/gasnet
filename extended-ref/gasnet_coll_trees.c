@@ -460,7 +460,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 		curr_geom->next = NULL;
 		curr_geom->kind = kind;
 		curr_geom->fanout = fanout;
-
+	/*	curr_geom->root = root; */
 		/* link it into the cache*/
 		if(geom_cache_head == NULL) {
 			/*cache is empty*/

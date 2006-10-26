@@ -44,8 +44,8 @@ struct gasnete_coll_op_info_t_ {
 	int tree_fanout;
 	gasnet_node_t root;
 	
-	/* a pointer to the actual op so that we can do a wait sync on it */
-	gasnete_coll_op_t *op; 
+	/* a pointer to the actual op handle so that we can do a wait sync on it */
+	gasnet_coll_handle_t op_handle; 
 	
 	/*amount of scratch space used locally*/
 	uint32_t local_scratch_used;
@@ -107,8 +107,8 @@ void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in);
 	
 */
 void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout, gasnet_node_t root,
-								 gasnete_coll_team_t team, gasnete_coll_op_t *op, uint32_t incoming_size, uint32_t seqnum,
-								 int numpeers, gasnet_node_t *peers);
+								 gasnete_coll_team_t team, gasnet_coll_handle_t op, uint32_t incoming_size, uint32_t seqnum,
+								 int numpeers, gasnet_node_t *peers GASNETE_THREAD_FARG);
 
 /* 
    Get the latest pointer and advance the scratch space view 
@@ -116,7 +116,7 @@ void gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout,
    the child updates my view of that child
 */
 uint64_t gasnete_coll_get_scratch_pos(gasnet_node_t child, uint32_t req_size, gasnete_coll_tree_kind_t tree_type, 
-					   int fanout, gasnet_node_t root, gasnete_coll_team_t team, int seq);
+					   int fanout, gasnet_node_t root, gasnete_coll_team_t team, int seq GASNETE_THREAD_FARG);
 
 /* 
 	This function will be called from within gasnet_coll_poll so it needs to be done quickly
