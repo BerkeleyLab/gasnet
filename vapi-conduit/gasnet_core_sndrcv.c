@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/10/26 18:46:02 $
- * $Revision: 1.189.4.13 $
+ *     $Date: 2006/10/27 01:50:48 $
+ * $Revision: 1.189.4.14 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1053,8 +1053,10 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   volatile gasnetc_amrdma_hdr_t *hdr = (volatile gasnetc_amrdma_hdr_t *)cep->amrdma_loc[recv_slot];
   gasnetc_buffer_t * const msg_in = (gasnetc_buffer_t *)((uintptr_t)hdr + sizeof(*hdr));
   gasnetc_rbuf_t rbuf;
-  //uint8_t _buf[8 + GASNETC_AMRDMA_MAX];
-  //gasnetc_buffer_t * const msg = (gasnetc_buffer_t *)GASNETI_ALIGNUP(_buf, 8);
+#if 0
+  uint8_t _buf[8 + GASNETC_AMRDMA_MAX];
+  gasnetc_buffer_t * const msg = (gasnetc_buffer_t *)GASNETI_ALIGNUP(_buf, 8);
+#endif
   uint32_t seq, flags, mask;
   int numargs;
   int i;
@@ -2860,6 +2862,8 @@ extern int gasnetc_sndrcv_init(void) {
     gasneti_assert(act_size >= rcv_count);
     /* We don't set rcv_count = act_size here, as that could nearly double the memory allocated below */
 
+    gasneti_lifo_init(&hca->amrdma_freelist);
+
     if (gasneti_nodes > 1) {
 #if GASNETC_IB_VAPI
       if (gasnetc_use_rcv_thread) {
@@ -2922,8 +2926,6 @@ extern int gasnetc_sndrcv_init(void) {
       }
 #endif
       
-      /* Init space for AM-over-RDMA rcv-peer list */
-
       /* Initialize resources for AM-over-RDMA */
       hca->amrdma_rcv.count = 0;
       if (GASNETC_AMRDMA_MAX_PEERS) {
@@ -2945,7 +2947,6 @@ extern int gasnetc_sndrcv_init(void) {
 	  gasneti_fatalerror("Unable to allocate pinned memory for AM-over-RDMA");
         }
 	buf = (void *)((uintptr_t)buf + GASNETC_AMRDMA_PAD); /* offset base to get 8-byte alignment of msg */
-        gasneti_lifo_init(&hca->amrdma_freelist);
 	for (i = 0; i < max_peers; ++i) {
 	  gasneti_lifo_push(&hca->amrdma_freelist, buf);
 	  buf = (void *)((uintptr_t)buf + (GASNETC_AMRDMA_SZ * GASNETC_AMRDMA_DEPTH));
