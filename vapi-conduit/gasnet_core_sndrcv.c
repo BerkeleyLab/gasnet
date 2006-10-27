@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/10/27 21:52:57 $
- * $Revision: 1.189.4.15 $
+ *     $Date: 2006/10/27 23:39:44 $
+ * $Revision: 1.189.4.16 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -902,6 +902,25 @@ gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
   return cep;
 }
 
+GASNETI_INLINE (gasnetc_hidden_ack)
+void gasnetc_hidden_ack(gasnetc_rbuf_t *rbuf, gasnetc_cep_t *cep) {
+  /* A race might result in sending non-coalesced ACKs if a Request
+   * or Reply in another thread picks up one we expect to find.
+   * However, we'll always send the correct total number of credits
+   * and we'll never have more than gasnetc_am_credits_slack delayed.
+   */
+  uint32_t old;
+  do {
+    old = gasneti_weakatomic_read(&cep->am_flow.credit, 0);
+    if (old >= gasnetc_am_credits_slack) {
+      /* MUST send back a reply */
+      GASNETI_SAFE(gasnetc_ReplySystem((gasnet_token_t)rbuf, NULL,
+				        gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */));
+      break;
+    }
+  } while (!gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, old, old+1, 0));
+}
+
 GASNETI_INLINE(gasnetc_rcv_am)
 void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t emergency_spare;
@@ -954,23 +973,8 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
     gasnetc_processPacket(cep, rbuf, flags);
 
     /* Finalize flow control */
-    /* XXX: should force reply on (sndrcv+rdma) >= slack */
     if_pf (rbuf->rbuf_needReply) {
-      /* A race might result in sending non-coalesced ACKs if a Request
-       * or Reply in another thread picks up one we expect to find.
-       * However, we'll always send the correct total number of credits
-       * and we'll never have more than gasnetc_am_credits_slack delayed.
-       */
-      uint32_t old;
-      do {
-	old = gasneti_weakatomic_read(&cep->am_flow.credit, 0);
-	if (old >= gasnetc_am_credits_slack) {
-	  /* MUST send back a reply */
-	  GASNETI_SAFE(gasnetc_ReplySystem((gasnet_token_t)rbuf, NULL,
-					   gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */));
-	  break;
-	}
-      } while (!gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, old, old+1, 0));
+      gasnetc_hidden_ack(rbuf, cep);
     }
 
     /* Free the temporary buffer, if any */
@@ -1151,19 +1155,10 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
   gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, GASNETI_ATOMIC_REL);
   gasneti_weakatomic_increment(&cep->am_flow.ack, 0);
+
   /* Finalize flow control */
-  /* XXX: should force reply on (sndrcv+rdma) >= slack */
-  if (rbuf.rbuf_needReply) {
-    uint32_t old;
-    do {
-      old = gasneti_weakatomic_read(&cep->am_flow.credit, 0);
-      if (old >= gasnetc_am_credits_slack) {
-	/* MUST send back a reply */
-	GASNETI_SAFE(gasnetc_ReplySystem((gasnet_token_t)&rbuf, NULL,
-					 gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */));
-	break;
-      }
-    } while (!gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, old, old+1, 0));
+  if_pf (rbuf.rbuf_needReply) {
+    gasnetc_hidden_ack(&rbuf, cep);
   }
   
   return 1;
