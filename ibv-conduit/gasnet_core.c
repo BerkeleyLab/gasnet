@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/10/28 01:27:14 $
- * $Revision: 1.171.4.3 $
+ *     $Date: 2006/10/28 20:59:42 $
+ * $Revision: 1.171.4.3.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1719,8 +1719,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnetc_fh_align_mask = gasnetc_fh_align - 1;
   }
 
+#if 0	/* DISABLED to allow collectives work to specify the "hot" peers. */
   /* exchange AM-over-RDMA data */
   gasnetc_amrdma_init(gasneti_nodes, NULL);
+#endif
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
