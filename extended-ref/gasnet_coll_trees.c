@@ -1,5 +1,20 @@
 #include "gasnet_coll_trees.h"
-/* accessor functions */
+
+
+/* external code to force a tree type (for testing purposes only)*/
+gasnete_coll_tree_kind_t gasnete_coll_current_tree_kind;
+int gasnete_coll_current_fanout;
+
+void gasnete_coll_set_tree_kind(char *str) {
+  if(strcmp(str, "GASNET_BINOMIAL_TREE")==0) {
+    gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
+  } else {
+    gasnete_coll_current_tree_kind = GASNETE_COLL_NARY_TREE;
+  }
+}
+void gasnete_coll_set_fanout(int fanout) {
+  gasnete_coll_current_fanout = fanout;
+}
 
 /* tree building code*/
 int gasnete_coll_build_tree_mypow(int base, int pow) {
@@ -447,8 +462,8 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 	curr_geom = gasnete_coll_tree_geom_fetch_helper(kind, fanout, geom_cache_head);
 	if(curr_geom == NULL) {
 		int i;
-		#if GASNET_COLL_TREE_DEBUG
-		fprintf(stderr, "%d> new tree: %d kind %d fanout\n",gasneti_mynode, kind, fanout);
+		#if 1
+		if(gasneti_mynode ==0) fprintf(stderr, "%d> new tree: %d kind %d fanout\n",gasneti_mynode, kind, fanout);
 		#endif
 		/* allocate new geometry */
 		curr_geom = (gasnete_coll_tree_geom_t *) gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
@@ -479,9 +494,9 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 		/* if it is already allocated for root go ahead and return it ... this should be the fast path*/
 		
 		if(curr_geom->local_views[root] == NULL) {
-		#if GASNET_COLL_TREE_DEBUG
-			fprintf(stderr, "%d> tree found: %d kind %d fanout\n", gasneti_mynode, kind, fanout);
-			fprintf(stderr, "%d> new root: %d\n", gasneti_mynode, root); 
+		#if 1
+		  if(gasneti_mynode==0) fprintf(stderr, "%d> tree found: %d kind %d fanout\n", gasneti_mynode, kind, fanout);
+		  if(gasneti_mynode==0) fprintf(stderr, "%d> new root: %d\n", gasneti_mynode, root); 
 			#endif
 		  curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(kind, fanout, root, team);
 #if 0		  
@@ -497,6 +512,8 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 		   }
 #endif
 		}
+		
+		if(gasneti_mynode==0) fprintf(stderr, "%d> tree found: kind: %d fanout: %d root: %d\n", gasneti_mynode, kind, fanout,root);
 		return curr_geom->local_views[root];
 	}
 	/*shouldn't get here*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2006/10/28 01:24:23 $
- * $Revision: 1.22.6.10 $
+ *     $Date: 2006/10/28 17:13:35 $
+ * $Revision: 1.22.6.11 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -253,6 +253,9 @@ typedef struct {
  * Start of generic framework for tree-based reference implementations
  *---------------------------------------------------------------------------------*/
 #include <gasnet_coll_trees.h>
+
+#define gasnet_coll_set_tree_kind(STR) gasnete_coll_set_tree_kind((STR))
+#define gasnet_coll_set_fanout(FANOUT) gasnete_coll_set_fanout((FANOUT))
                                                                                                               
 
 /*---------------------------------------------------------------------------------*/

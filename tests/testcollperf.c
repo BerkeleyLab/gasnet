@@ -24,6 +24,7 @@
 
 #define COLL_BARRIER 1
 #define NO_COLL_BARRIER 0
+#define VERIFY_RESULT 1
 int datasize;
 int numprocs;
 int iters = 0;
@@ -110,7 +111,7 @@ void run_bcast_test(int flags, int use_barrier) {
 		end =  gasnett_ticks_now() - begin;
 		
 		/*verify that the data got there */
-		#if 1
+		#if VERIFY_RESULT
 		for(j=0; j<iters; j++) {
 			for(i=0; i<datasize; i++) {
 				if(B[j*datasize+i] != j*datasize+i) {
@@ -130,7 +131,7 @@ void run_bcast_test(int flags, int use_barrier) {
 		}
 		#endif	
 	} /*end changing root*/
-	MSG("bcast: %s datasize: %d bytes time: %g microseconds", flagstr, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters);
+	//	MSG("bcast: %s datasize: %d bytes time: %g microseconds", flagstr, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters);
 	BARRIER();
 	
 } /*end function*/
@@ -141,6 +142,7 @@ int main(int argc, char **argv)
 	gasnet_node_t myproc, i;
 	int j;
 	
+
 	
 	/*startup*/
 	GASNET_Safe(gasnet_init(&argc, &argv));
@@ -163,7 +165,7 @@ int main(int argc, char **argv)
 #endif
 		default:  test_usage();
 	}
-	MSG0("test_segsz_req %d", TEST_SEGSZ_REQUEST);
+
 	GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 	gasnet_coll_init(NULL, 0, NULL, 0, 0);
 	
@@ -176,9 +178,32 @@ int main(int argc, char **argv)
 	/*	run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, COLL_BARRIER);
 		run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER);
 		run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER); */
+	gasnet_coll_set_tree_kind("GASNET_BINOMIAL_TREE");
 	run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER);
+	gasnet_coll_set_tree_kind("GASNET_NARY_TREE");
+	gasnet_coll_set_fanout(1);
+	run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER);
+	gasnet_coll_set_fanout(2);
+	run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER);
+
+	
+	gasnet_coll_set_tree_kind("GASNET_BINOMIAL_TREE");
 	run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER);
+	gasnet_coll_set_tree_kind("GASNET_NARY_TREE");
+	
+	gasnet_coll_set_fanout(1);
+	run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER);
+	
+	
+
+	gasnet_coll_set_tree_kind("GASNET_BINOMIAL_TREE");
 	run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER);
+	
+	gasnet_coll_set_tree_kind("GASNET_NARY_TREE");
+	gasnet_coll_set_fanout(1);
+	run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER);
+	
+	
 	gasnet_exit(0);
 	return 0;
 }

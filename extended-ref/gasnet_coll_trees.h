@@ -3,6 +3,7 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #include <gasnet_coll.h>
 
+
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
 #define GASNETE_COLL_TREE_GEOM_PARENT(GEOM) ((GEOM)->parent)
@@ -79,5 +80,9 @@ struct gasnete_coll_tree_geom_t_ {
 
 gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_kind_t kind, gasnet_node_t root, int fanout, gasnete_coll_team_t team);
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
+
+/*testing functions*/
+void gasnete_coll_set_tree_kind(char *treestr);
+void gasnete_coll_set_fanout(int fanout);
 
 #endif
