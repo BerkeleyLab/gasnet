@@ -19,7 +19,7 @@
 #else
 #define DEFAULT_THREADS 1
 #endif
-
+#define TEST_SEGSZ_EXPR (sizeof(int)*(datasize*iters*2))
 #define WARM_ITERS MIN(4,iters)
 
 #define COLL_BARRIER 1
@@ -110,10 +110,11 @@ void run_bcast_test(int flags, int use_barrier) {
 		end =  gasnett_ticks_now() - begin;
 		
 		/*verify that the data got there */
+		#if 1
 		for(j=0; j<iters; j++) {
 			for(i=0; i<datasize; i++) {
 				if(B[j*datasize+i] != j*datasize+i) {
-					MSG("ERROR: broadcast validation failed expected %d got %d", j*datasize+i, B[j*datasize+i]);              
+					MSG("ERROR: broadcast validation failed (j=%d,i=%d) expected %d got %d", j,i,j*datasize+i, B[j*datasize+i]);              
 					if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
 						MSG("running no/no\n");
 					} else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
@@ -126,7 +127,8 @@ void run_bcast_test(int flags, int use_barrier) {
 					gasnet_exit(1);             
 				} 
 			}	
-		}	
+		}
+		#endif	
 	} /*end changing root*/
 	MSG("bcast: %s datasize: %d bytes time: %g microseconds", flagstr, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters);
 	BARRIER();
@@ -161,6 +163,7 @@ int main(int argc, char **argv)
 #endif
 		default:  test_usage();
 	}
+	MSG0("test_segsz_req %d", TEST_SEGSZ_REQUEST);
 	GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 	gasnet_coll_init(NULL, 0, NULL, 0, 0);
 	

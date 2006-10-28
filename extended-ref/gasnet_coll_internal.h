@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2006/10/26 20:39:17 $
- * $Revision: 1.22.6.9 $
+ *     $Date: 2006/10/28 01:24:23 $
+ * $Revision: 1.22.6.10 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,6 +41,8 @@ GASNETI_BEGIN_EXTERNC
   #define GASNETE_COLL_THREAD_LOCAL	(1<<29)
 #endif
 #define GASNETE_COLL_SUBORDINATE	(1<<30)
+#define GASNETE_COLL_USE_SCRATCH    (1<<28)
+#define GASNETE_COLL_USE_TREE		(1<<27)
 
 #define GASNETE_COLL_IN_MODE(flags) \
 	((flags) & (GASNET_COLL_IN_NOSYNC  | GASNET_COLL_IN_MYSYNC  | GASNET_COLL_IN_ALLSYNC))

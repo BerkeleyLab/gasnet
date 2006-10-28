@@ -20,6 +20,8 @@
 #define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
 
 
+struct gasnete_coll_scratch_req_t_;
+typedef struct gasnete_coll_scratch_req_t_ gasnete_coll_scratch_req_t;
 
 struct gasnete_coll_node_scratch_status_t_;
 typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_status_t;
@@ -27,7 +29,25 @@ typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_sta
 struct gasnete_coll_op_info_t_;
 typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;
 
+struct gasnete_coll_scratch_req_t_ {
+	gasnete_coll_tree_kind_t tree_type;
+	int fanout;
+	gasnet_node_t root;
+	gasnete_coll_team_t team;
 
+	
+	/*information for all the data for which i am the target*/
+	int num_in_peers;
+	gasnet_node_t *in_peers;
+	/*this is the sum incoming space of all the peers sending to me*/
+	uint32_t incoming_size; 
+	
+	/*information for all the data for which i am an initiator*/
+	int num_out_peers; 
+	gasnet_node_t *out_peers;
+	uint32_t *out_sizes;
+	
+};
 struct gasnete_coll_node_scratch_status_t_  {
 	/*head and tail of the circular buffer that represents the active scratch space on a particular node*/
 	uint64_t head;
@@ -106,17 +126,15 @@ void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in);
 	send the parent an updated view of the tail so that they can restart their algorithm
 	
 */
-uint64_t gasnete_coll_new_scratch_op(gasnete_coll_tree_kind_t tree_type, int fanout, gasnet_node_t root,
-								 gasnete_coll_team_t team, gasnet_coll_handle_t op_handle, uint32_t incoming_size, uint32_t seqnum,
-								 int numpeers, gasnet_node_t *peers GASNETE_THREAD_FARG);
+uint64_t gasnete_coll_scratch_new_op(gasnete_coll_scratch_req_t *scratch_req, uint32_t seq, gasnet_coll_handle_t op_handle  GASNETE_THREAD_FARG);
 
 /* 
    Get the latest pointer and advance the scratch space view 
    if i notice that there isn't enough scratch space available i have to wait until
    the child updates my view of that child
 */
-uint64_t gasnete_coll_get_scratch_pos(gasnet_node_t child, uint32_t req_size, gasnete_coll_tree_kind_t tree_type, 
-					   int fanout, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+
+uint64_t *gasnete_coll_scratch_get_peer_pos(gasnete_coll_scratch_req_t *scratch_req GASNETE_THREAD_FARG);
 
 /* 
 	This function will be called from within gasnet_coll_poll so it needs to be done quickly
@@ -124,7 +142,7 @@ uint64_t gasnete_coll_get_scratch_pos(gasnet_node_t child, uint32_t req_size, ga
 	Then it will take that sequence number and mark it as finished.
 */
 
-void gasnete_coll_free_scratch(gasnete_coll_team_t team, uint32_t seqnum);
+void gasnete_coll_free_scratch(gasnete_coll_op_t *op);
 /*four args: team id, node id, seq number, head, tail*/
 SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 4);
 #define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh),
