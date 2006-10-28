@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2006/10/28 17:13:37 $
- * $Revision: 1.29.6.14 $
+ *     $Date: 2006/10/28 18:15:28 $
+ * $Revision: 1.29.6.15 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -993,6 +993,7 @@ void gasnete_coll_barrier_notify_callback(int id, int flags) {
 	
 	/*** Begin Custom Code that will hook into all the barriers **/
 	GASNET_TEAM_ALL->scratch_status->perform_reset = 1;
+	GASNET_TEAM_ALL->scratch_status->first_collective = 1;
 	/**** End Custom Code **/
 }
 

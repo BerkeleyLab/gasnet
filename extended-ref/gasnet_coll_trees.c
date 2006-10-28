@@ -441,8 +441,8 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_col
 			return curr_geom;
 		else
 			curr_geom = curr_geom->next;
-	}
-	curr_geom = curr_geom->next;
+	} else
+		curr_geom = curr_geom->next;
   }
   /*we've reached the end of the list without finding a match*/
   return NULL;
@@ -462,7 +462,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 	curr_geom = gasnete_coll_tree_geom_fetch_helper(kind, fanout, geom_cache_head);
 	if(curr_geom == NULL) {
 		int i;
-		#if 1
+		#if 0
 		if(gasneti_mynode ==0) fprintf(stderr, "%d> new tree: %d kind %d fanout\n",gasneti_mynode, kind, fanout);
 		#endif
 		/* allocate new geometry */
@@ -494,7 +494,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 		/* if it is already allocated for root go ahead and return it ... this should be the fast path*/
 		
 		if(curr_geom->local_views[root] == NULL) {
-		#if 1
+		#if 0
 		  if(gasneti_mynode==0) fprintf(stderr, "%d> tree found: %d kind %d fanout\n", gasneti_mynode, kind, fanout);
 		  if(gasneti_mynode==0) fprintf(stderr, "%d> new root: %d\n", gasneti_mynode, root); 
 			#endif
@@ -512,8 +512,9 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 		   }
 #endif
 		}
-		
+		#if 0
 		if(gasneti_mynode==0) fprintf(stderr, "%d> tree found: kind: %d fanout: %d root: %d\n", gasneti_mynode, kind, fanout,root);
+		#endif
 		return curr_geom->local_views[root];
 	}
 	/*shouldn't get here*/

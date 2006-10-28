@@ -97,6 +97,8 @@ struct gasnete_coll_scratch_status_t_ {
 	gasnet_node_t curr_root;
 
 	uint8_t perform_reset;
+	
+	/*an indicator telling you whether the upcoming collective op is the first after a barrier*/
 	uint8_t first_collective;
 	
 	/*nodes that will send to me*/

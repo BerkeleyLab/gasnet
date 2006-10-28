@@ -185,38 +185,6 @@ uint64_t gasnete_coll_scratch_new_op(gasnete_coll_scratch_req_t *scratch_req, ui
 	
 	/*first time around register the tree geometry that is used*/
 	
-	if((stat->first_collective==0) && ((stat->curr_root !=scratch_req->root) || (stat->curr_tree_type !=scratch_req->tree_type))) {
-		/* perform barrier and reset scratch */
-		gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
-		gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
-		/*the barrier will have the call to trip the stat->perform_reset so need to do it twice*/
-		stat->curr_root = scratch_req->root;
-		stat->curr_tree_type = scratch_req->tree_type;
-		stat->curr_tree_fanout = scratch_req->fanout;
-		stat->numpeers = scratch_req->num_in_peers;
-		if(scratch_req->num_in_peers>0) {
-			stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-			GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-		} else {
-			stat->peers = NULL;
-		}
-	} else if((stat->first_collective==0) && ((stat->curr_tree_type == GASNETE_COLL_NARY_TREE) && (stat->curr_tree_fanout != scratch_req->fanout))) {
-		/* perform barrier and reset scratch */
-		gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
-		gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
-		/*the barrier will have hte call to trip the stat->perform_reset flag so no need to do it twice*/
-		stat->curr_root = scratch_req->root;
-		stat->curr_tree_type = scratch_req->tree_type;
-		stat->curr_tree_fanout = scratch_req->fanout;
-		stat->numpeers = scratch_req->num_in_peers;
-		if(scratch_req->num_in_peers>0) {
-			stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-			GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-		} else {
-			stat->peers = NULL;
-		}
-	} else { /* tree geometry has not changed between last op and this op */
-	}
 	if(stat->first_collective==1) {
 		stat->curr_root = scratch_req->root;
 		stat->curr_tree_type = scratch_req->tree_type;
@@ -229,8 +197,27 @@ uint64_t gasnete_coll_scratch_new_op(gasnete_coll_scratch_req_t *scratch_req, ui
 			stat->peers = NULL;
 		}
 		stat->first_collective=0;
+	}   else if((stat->curr_root !=scratch_req->root) || 
+		 (stat->curr_tree_type !=scratch_req->tree_type) ||
+		 ((stat->curr_tree_type == GASNETE_COLL_NARY_TREE) && 
+		  (stat->curr_tree_fanout != scratch_req->fanout))) {
+		if(gasneti_mynode ==0) fprintf(stderr, "TREE CHANGE w/o BARRIER! inserting barrier and reseting scratch\n");
+		/* perform barrier and reset scratch */
+		gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+		gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+		/*the barrier will have the call to trip the stat->perform_reset so we avoid the explicit call to reset here*/
+		stat->curr_root = scratch_req->root;
+		stat->curr_tree_type = scratch_req->tree_type;
+		stat->curr_tree_fanout = scratch_req->fanout;
+		stat->numpeers = scratch_req->num_in_peers;
+		if(scratch_req->num_in_peers>0) {
+			stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
+			GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
+		} else {
+			stat->peers = NULL;
+		}
+	}	else { /* tree geometry has not changed between last op and this op */
 	}
-	
 	
 	/*if we saw a barrier or out all_sync between our last op and this one perform the reset*/
 	if(stat->perform_reset == 1) {
