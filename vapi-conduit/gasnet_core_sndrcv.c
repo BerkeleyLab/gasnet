@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/10/27 23:39:44 $
- * $Revision: 1.189.4.16 $
+ *     $Date: 2006/10/28 01:27:14 $
+ * $Revision: 1.189.4.17 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3040,20 +3040,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       gasneti_weakatomic_set(&cep->amrdma.send_head, GASNETC_AMRDMA_DEPTH, 0);
       gasneti_weakatomic_set(&cep->amrdma.send_tail, 0, 0);
       gasneti_weakatomic_set(&cep->amrdma.recv_count, 0, 0);
-      /* XXX: The following will move/change for variable peer sets. */
-      /* For now the first N end-points up to the MAX_PEERS limit are our "hot" peers. */
-      cep->amrdma_loc = gasneti_lifo_pop(&hca->amrdma_freelist);
-      if (cep->amrdma_loc != NULL) {
-	gasneti_assert(hca->amrdma_rcv.count < MIN(hca->total_qps, GASNETC_AMRDMA_MAX_PEERS));
-	gasneti_assert(sizeof(gasnetc_amrdma_hdr_t) >= sizeof(void *)); /* nothing remains uninitialized */
-        for (j = 0; j < GASNETC_AMRDMA_DEPTH; ++j) {
-	  gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)cep->amrdma_loc[j];
-	  hdr->length       = hdr->zeros       = 0;
-	  hdr->length_again = hdr->zeros_again = ~0;
-        }
-        gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
-        hca->amrdma_rcv.cep[hca->amrdma_rcv.count++] = cep;
-      }
+      cep->amrdma_loc = NULL;
 
       /* Prepost one rcv buffer for each possible incomming request */
       for (j = 0; j < gasnetc_am_oust_pp; ++j) {
