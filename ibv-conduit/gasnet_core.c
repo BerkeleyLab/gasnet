@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/09/15 00:32:54 $
- * $Revision: 1.171.4.2 $
+ *     $Date: 2006/10/28 01:27:14 $
+ * $Revision: 1.171.4.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1205,28 +1205,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasnetc_sndrcv_init_peer(i);
     }
 
-    /* exchange AM-over-RDMA data */
-    {
-      typedef struct { uintptr_t addr; VAPI_rkey_t rkey; } my_exchg_t;
-      my_exchg_t *in = gasneti_calloc(ceps, sizeof(my_exchg_t));
-      my_exchg_t *out = gasneti_calloc(ceps, sizeof(my_exchg_t));
-
-      for (i = 0; i < ceps; ++i) {
-        if (i/gasnetc_num_qps == gasneti_mynode) continue;
-	in[i].addr = (uintptr_t)gasnetc_cep[i].amrdma_loc;
-	in[i].rkey = gasnetc_cep[i].hca->amrdma_reg.rkey;
-      }
-      gasneti_bootstrapAlltoall(in, gasnetc_num_qps*sizeof(my_exchg_t), out);
-      for (i = 0; i < ceps; ++i) {
-        if (i/gasnetc_num_qps == gasneti_mynode) continue;
-	gasnetc_cep[i].amrdma_rem = out[i].addr;
-	gasnetc_cep[i].keys.amrdma_rkey = out[i].rkey;
-      }
-
-      gasneti_free(in);
-      gasneti_free(out);
-    }
-
     /* advance INIT -> RTR */
 #if GASNETC_IB_VAPI
     QP_ATTR_MASK_CLR_ALL(qp_mask);
@@ -1740,6 +1718,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
     gasnetc_fh_align_mask = gasnetc_fh_align - 1;
   }
+
+  /* exchange AM-over-RDMA data */
+  gasnetc_amrdma_init(gasneti_nodes, NULL);
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
@@ -2674,6 +2655,57 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
   }
 }
 #endif
+/* ------------------------------------------------------------------------------------ */
+/*
+  Misc: setup for AM-over-RDMA
+  ============================
+*/
+
+/* Passing NULL for the "peers" array yields the default dense case */
+extern void gasnetc_amrdma_init(int peer_count, gasnet_node_t *peers) {
+  const int ceps = gasneti_nodes * gasnetc_num_qps;
+  typedef struct { uintptr_t addr; VAPI_rkey_t rkey; } my_exchg_t;
+  my_exchg_t *in = gasneti_calloc(ceps, sizeof(my_exchg_t));
+  my_exchg_t *out = gasneti_calloc(ceps, sizeof(my_exchg_t));
+  int i, j;
+ 
+  for (j = 0; j < peer_count; ++j) {
+    const gasnet_node_t n = peers ? peers[j] : j;
+    const int index = n * gasnetc_num_qps;
+    gasnetc_cep_t *cep = &(gasnetc_cep[index]);
+    gasnetc_hca_t *hca = cep->hca;
+
+    if (n == gasneti_mynode) continue;
+
+    cep->amrdma_loc = gasneti_lifo_pop(&hca->amrdma_freelist);
+    if (cep->amrdma_loc == NULL) break; /* No more */
+
+    gasneti_assert(hca->amrdma_rcv.count < MIN(hca->total_qps, GASNETC_AMRDMA_MAX_PEERS));
+    gasneti_assert(sizeof(gasnetc_amrdma_hdr_t) >= sizeof(void *)); /* nothing remains uninitialized */
+    for (i = 0; i < GASNETC_AMRDMA_DEPTH; ++i) {
+      gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)cep->amrdma_loc[i];
+      hdr->length       = hdr->zeros       = 0;
+      hdr->length_again = hdr->zeros_again = ~0;
+    }
+    gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
+    hca->amrdma_rcv.cep[hca->amrdma_rcv.count++] = cep;
+
+    in[index].addr = (uintptr_t)cep->amrdma_loc;
+    in[index].rkey = hca->amrdma_reg.rkey;
+  }
+
+  /* Communicate info w/ peers */
+  gasneti_bootstrapAlltoall(in, gasnetc_num_qps*sizeof(my_exchg_t), out);
+  for (i = 0; i < ceps; ++i) {
+    if (i/gasnetc_num_qps == gasneti_mynode) continue;
+    gasnetc_cep[i].amrdma_rem = out[i].addr;
+    gasnetc_cep[i].keys.amrdma_rkey = out[i].rkey;
+  }
+
+  gasneti_free(in);
+  gasneti_free(out);
+}
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Private Handlers:
