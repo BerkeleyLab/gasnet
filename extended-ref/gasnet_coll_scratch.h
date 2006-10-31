@@ -30,81 +30,82 @@ struct gasnete_coll_op_info_t_;
 typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;
 
 struct gasnete_coll_scratch_req_t_ {
-	gasnete_coll_tree_kind_t tree_type;
-	int fanout;
-	gasnet_node_t root;
-	gasnete_coll_team_t team;
-
-	
-	/*information for all the data for which i am the target*/
-	int num_in_peers;
-	gasnet_node_t *in_peers;
-	/*this is the sum incoming space of all the peers sending to me*/
-	uint32_t incoming_size; 
-	
-	/*information for all the data for which i am an initiator*/
-	int num_out_peers; 
-	gasnet_node_t *out_peers;
-	uint32_t *out_sizes;
-	
+  gasnete_coll_tree_kind_t tree_type;
+  int fanout;
+  gasnet_node_t root;
+  gasnete_coll_team_t team;
+  
+  
+  /*information for all the data for which i am the target*/
+  int num_in_peers;
+  gasnet_node_t *in_peers;
+  /*this is the sum incoming space of all the peers sending to me*/
+  uint32_t incoming_size; 
+  
+  /*information for all the data for which i am an initiator*/
+  int num_out_peers; 
+  gasnet_node_t *out_peers;
+  uint32_t *out_sizes;
+  
 };
 struct gasnete_coll_node_scratch_status_t_  {
-	/*head and tail of the circular buffer that represents the active scratch space on a particular node*/
-	uint64_t head;
-	
-	/*since the tail is the only one that gets updated by the active message handlers it needs to be the atomic one*/
-	gasnett_atomic64_t tail;
+  /*head and tail of the circular buffer that represents the active scratch space on a particular node*/
+  uint64_t head;
+  
+  /*since the tail is the only one that gets updated by the active message handlers it needs to be the atomic one*/
+  gasnett_atomic64_t tail;
+  gasnett_atomic_t new_val;
 };
 
 struct gasnete_coll_op_info_t_ {
-	gasnete_coll_op_info_t *next;
-	gasnete_coll_op_info_t *prev;
-	
-	gasnete_coll_tree_kind_t tree_type;
-	int tree_fanout;
-	gasnet_node_t root;
-	
-	/* a pointer to the actual op handle so that we can do a wait sync on it */
-	gasnet_coll_handle_t op_handle; 
-	
-	/*amount of scratch space used locally*/
-	uint32_t local_scratch_used;
-	
-	uint32_t seq_number;
-	
-	/*is this operation finished*/
-	int done;
-
+  gasnete_coll_op_info_t *next;
+  gasnete_coll_op_info_t *prev;
+  
+  gasnete_coll_tree_kind_t tree_type;
+  int tree_fanout;
+  gasnet_node_t root;
+  
+  /* a pointer to the actual op handle so that we can do a wait sync on it */
+  gasnet_coll_handle_t op_handle; 
+  
+  /*amount of scratch space used locally*/
+  uint32_t local_scratch_used;
+  
+  /* the original seq number attahced to that op*/
+  uint32_t seq_number;
+  
+  /*is this operation finished*/
+  int done;
+  
 };
 
 /*this structure describes an operation info*/
 struct gasnete_coll_scratch_status_t_ {
-	/*creates an array of node statuses*/
-	/* for now allocate something that is gasneti_nodes in length*/
-	/* could change this later*/
-	gasnete_coll_node_scratch_status_t *node_status;
-	
-	
-	
-	/* a list of the active ops that use the scratch space*/
-	gasnete_coll_op_info_t *active_scratch_op_head;
-	gasnete_coll_op_info_t *active_scratch_op_tail;
+  /*creates an array of node statuses*/
+  /* for now allocate something that is gasneti_nodes in length*/
+  /* could change this later*/
+  gasnete_coll_node_scratch_status_t *node_status;
+  
+  /* a list of the active ops that use the scratch space*/
+  gasnete_coll_op_info_t *active_scratch_op_head;
+  gasnete_coll_op_info_t *active_scratch_op_tail;
+  
+  gasnete_coll_team_t team;
+  
+  gasnete_coll_tree_kind_t curr_tree_type;
+  int curr_tree_fanout;
+  gasnet_node_t curr_root;
+  
+  uint8_t perform_reset;
+  
+  /*an indicator telling you whether the upcoming collective op is the first after a barrier*/
+  uint8_t first_collective;
+  
+  /*nodes that will send to me*/
+  int numpeers;
+  gasnet_node_t *peers;
+  
 
-	gasnete_coll_team_t team;
-	
-	gasnete_coll_tree_kind_t curr_tree_type;
-	int curr_tree_fanout;
-	gasnet_node_t curr_root;
-
-	uint8_t perform_reset;
-	
-	/*an indicator telling you whether the upcoming collective op is the first after a barrier*/
-	uint8_t first_collective;
-	
-	/*nodes that will send to me*/
-	int numpeers;
-	gasnet_node_t *peers;
-	
 };
 
 void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team);
@@ -148,6 +149,5 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op);
 /*four args: team id, node id, seq number, head, tail*/
 SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 4);
 #define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh),
- extern void
-  gasnete_coll_wait_sync(gasnet_coll_handle_t handle GASNETE_THREAD_FARG);
+
 #endif

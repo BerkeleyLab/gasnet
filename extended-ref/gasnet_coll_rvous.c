@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2006/10/28 18:15:28 $
- * $Revision: 1.29.6.15 $
+ *     $Date: 2006/10/31 07:56:01 $
+ * $Revision: 1.29.6.16 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -854,8 +854,8 @@ extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
     void gasnete_coll_op_complete(gasnete_coll_op_t *op, int poll_result GASNETE_THREAD_FARG) {
 
       if (poll_result & GASNETE_COLL_OP_COMPLETE) {
-		/*free up the scratch space used by this op*/
-		 gasnete_coll_free_scratch(op);
+	/*free up the scratch space used by this op*/
+	gasnete_coll_free_scratch(op);
 	if_pt (op->handle != GASNET_COLL_INVALID_HANDLE) {
 	    /* Normal case, just signal the handle */
 	    gasnete_coll_handle_signal(op->handle GASNETE_THREAD_PASS);
@@ -993,7 +993,7 @@ void gasnete_coll_barrier_notify_callback(int id, int flags) {
 	
 	/*** Begin Custom Code that will hook into all the barriers **/
 	GASNET_TEAM_ALL->scratch_status->perform_reset = 1;
-	GASNET_TEAM_ALL->scratch_status->first_collective = 1;
+	//	GASNET_TEAM_ALL->scratch_status->first_collective = 1;
 	/**** End Custom Code **/
 }
 
@@ -1743,14 +1743,20 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 		  if it isn't NULL then it means that we want to call it with scratch
 		  MAKE SURE TO SETUP SCRATCH BEFORE THE OP IS SET TO BE ACTIVE
 		  */
-	  if(scratch_req != NULL) {
+      if(scratch_req != NULL) {
+	/* this operation could potentially send updates clearing scratch space on other nodes */
 		op->myscratchpos = gasnete_coll_scratch_new_op(scratch_req, sequence, handle GASNETE_THREAD_PASS);
-/*		fprintf(stderr, "%d> for this collective i will read from %d\n", gasneti_mynode, (int)op->myscratchpos); */
+#if GASNET_DEBUG		
+		fprintf(stderr, "%d> for this collective i will read from %d\n", gasneti_mynode, (int)op->myscratchpos); 
+#endif
+		/* this operation could potentially stall for incoming scratch clears*/
 		op->scratchpos = gasnete_coll_scratch_get_peer_pos(scratch_req GASNETE_THREAD_PASS);
+#if GASNET_DEBUG
 		for(i=0; i<scratch_req->num_out_peers; i++) {
-/*			fprintf(stderr, "%d> for this collective i will write to %d\n", gasneti_mynode, (int)op->scratchpos[i]); */
-		
+		  fprintf(stderr, "%d> for this collective i will write to %d\n", gasneti_mynode, (int)op->scratchpos[i]); 
+		  
 		}
+#endif
 	  } else {
 		op->scratchpos = NULL;
 	 }
@@ -2229,12 +2235,12 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
   int child;
 
   switch (data->state) {
-	case 0: /*alloc scratch*/
-		data->state = 1;
-		
-    case 1:	/* Optional IN barrier */
-      if (!gasnete_coll_generic_all_threads(data) ||
-	  !gasnete_coll_generic_insync(data)) {
+  case 0: /*alloc scratch*/
+    data->state = 1;
+    
+  case 1:	/* Optional IN barrier */
+    if (!gasnete_coll_generic_all_threads(data) ||
+	!gasnete_coll_generic_insync(data)) {
 	break;
       } 
       data->state = 2;
@@ -2243,15 +2249,20 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
     case 2:
       if (gasneti_mynode == args->srcnode) {
 	for (child = 0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
-	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], op->team->scratch_segs[child].addr+op->scratchpos[child], args->src, args->nbytes, 0, 1);
+	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], 
+					  op->team->scratch_segs[child].addr+op->scratchpos[child], args->src, args->nbytes, 0, 1);
 	}
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
+	
 	for (child = 0; child < GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom); child++) {
-	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], op->team->scratch_segs[child].addr+op->scratchpos[child], op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes, 0, 1);
+	  gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom)[child], 
+					  op->team->scratch_segs[child].addr+op->scratchpos[child], 
+					  op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes, 0, 1);
 	}
 	GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes);
+
       } else {
 	break;	/* Waiting for parent to push data and signal */
       }
@@ -2761,17 +2772,23 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
-    /*	 if(gasneti_mynode ==0) fprintf(stderr, "%d> using tree eager for %d bytes\n", gasneti_mynode, (int)nbytes); */
+#if GASNET_DEBUG
+    	 if(gasneti_mynode ==0) fprintf(stderr, "%d> using tree eager for %d bytes\n", gasneti_mynode, (int)nbytes); 
+#endif
     return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags, gasnete_coll_current_tree_kind, sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     if (flags & GASNET_COLL_SINGLE) {
       /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
       if(flags & (GASNET_COLL_IN_NOSYNC)) {
-	/* if(gasneti_mynode ==0) fprintf(stderr, "%d> no/no using tree put for %d bytes\n", gasneti_mynode, (int)nbytes);  */
+#if GASNET_DEBUG	
+ if(gasneti_mynode ==0) fprintf(stderr, "%d> no/no using tree put for %d bytes\n", gasneti_mynode, (int)nbytes); 
+#endif 
 	return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, nbytes, flags, gasnete_coll_current_tree_kind, sequence GASNETE_THREAD_PASS);
       }
       else {
-	/*if(gasneti_mynode ==0) fprintf(stderr, "%d> my my or all all using tree put scratch for %d bytes\n", gasneti_mynode, (int)nbytes); */
+#if GASNET_DEBUG	
+if(gasneti_mynode ==0) fprintf(stderr, "%d> my my or all all using tree put scratch for %d bytes\n", gasneti_mynode, (int)nbytes);
+#endif 
 	return gasnete_coll_bcast_TreePutScratch(team, dst, srcimage, src, nbytes, flags, gasnete_coll_current_tree_kind, sequence GASNETE_THREAD_PASS);
       }
     } else {

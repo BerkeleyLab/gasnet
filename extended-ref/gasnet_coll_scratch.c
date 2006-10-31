@@ -7,85 +7,89 @@
  *
  */
 
+
 #include "gasnet_coll_scratch.h"
 void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
-	gasnete_coll_scratch_status_t *stat;
-	int i;
-	
-	stat = (gasnete_coll_scratch_status_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_status_t));
-	stat->node_status = (gasnete_coll_node_scratch_status_t*)gasneti_malloc(sizeof(gasnete_coll_node_scratch_status_t)*team->total_ranks);
-	
-	stat->active_scratch_op_head = NULL;
-	stat->active_scratch_op_tail = NULL;
-	stat->team = team;
-	stat->perform_reset = 0;
-	stat->numpeers = 0;
-	stat->peers = NULL;
-	stat->first_collective = 1;
-	for(i=0; i<team->total_ranks; i++) {
-		stat->node_status[i].head = 0;
-		gasnett_atomic64_set(&(stat->node_status[i].tail),0,0); 
-	}
-	team->scratch_status = stat;
-	
+  gasnete_coll_scratch_status_t *stat;
+  int i;
+  
+  stat = (gasnete_coll_scratch_status_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_status_t));
+  stat->node_status = (gasnete_coll_node_scratch_status_t*)gasneti_malloc(sizeof(gasnete_coll_node_scratch_status_t)*team->total_ranks);
+  
+  stat->active_scratch_op_head = NULL;
+  stat->active_scratch_op_tail = NULL;
+  stat->team = team;
+  stat->perform_reset = 0;
+  stat->numpeers = 0;
+  stat->peers = NULL;
+  stat->first_collective = 1;
+  for(i=0; i<team->total_ranks; i++) {
+    stat->node_status[i].head = 0;
+    gasnett_atomic64_set(&(stat->node_status[i].tail),0,0); 
+    gasnett_atomic_set(&(stat->node_status[i].new_val),0,0);
+  }
+  team->scratch_status = stat;
+ 
 }
 
 
 void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in) {
-	if(in !=NULL) {
-		/*throws away the log*/
-		gasnete_coll_reset_scratch_status(in);
-		gasneti_free(in->node_status);
-		gasneti_free(in);
-	}
+  if(in !=NULL) {
+    /*throws away the log*/
+    gasnete_coll_reset_scratch_status(in);
+    gasneti_free(in->node_status);
+    gasneti_free(in);
+  }
 }
 
 /* reset the scratch status ... change later to use a proper free list ... for now just use malloc and free*/
 void gasnete_coll_scratch_wait_for_all_ops(gasnete_coll_team_t team GASNETE_THREAD_FARG) {
-	gasnete_coll_scratch_status_t* stat = team->scratch_status;
-	gasnete_coll_op_info_t *temp;	
-/*	fprintf(stderr, "%d> waiting for all ops to drain\n", gasneti_mynode); */
-	while(stat->active_scratch_op_head!=NULL) {
-		temp = stat->active_scratch_op_head;
-		if(temp->done != 1) 
-			gasnete_coll_wait_sync(temp->op_handle GASNETE_THREAD_PASS);
-		stat->active_scratch_op_head = stat->active_scratch_op_head->next;
-		gasneti_free(temp);
-	}
-/*	fprintf(stderr, "%d> all ops drained\n", gasneti_mynode); */
-	stat->active_scratch_op_head = NULL;	
-	stat->active_scratch_op_tail = NULL;
+  gasnete_coll_scratch_status_t* stat = team->scratch_status;
+  gasnete_coll_op_info_t *temp;	
+  /*	fprintf(stderr, "%d> waiting for all ops to drain\n", gasneti_mynode); */
+  while(stat->active_scratch_op_head!=NULL) {
+    temp = stat->active_scratch_op_head;
+    if(temp->done != 1) {
+      gasnete_coll_wait_sync(temp->op_handle GASNETE_THREAD_PASS);
+      temp->done = 1;
+    }
+    stat->active_scratch_op_head = stat->active_scratch_op_head->next;
+    gasneti_free(temp);
+  }
+  /*	fprintf(stderr, "%d> all ops drained\n", gasneti_mynode); */
+  stat->active_scratch_op_head = NULL;	
+  stat->active_scratch_op_tail = NULL;
 }
 
 void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in) {
-	gasnete_coll_op_info_t *temp;
-	int i;
-	 gasnete_coll_scratch_wait_for_all_ops(in->team);
-	/*reset all the node_status back to 0*/		
-	for(i=0; i<in->team->total_ranks; i++) {
-		in->node_status[i].head = 0; 
-		gasnett_atomic64_set(&(in->node_status[i].tail),0,0); 
-
-	}
+  gasnete_coll_op_info_t *temp;
+  int i;
+  gasnete_coll_scratch_wait_for_all_ops(in->team);
+  /*reset all the node_status back to 0*/		
+  for(i=0; i<in->team->total_ranks; i++) {
+    in->node_status[i].head = 0; 
+    gasnett_atomic64_set(&(in->node_status[i].tail),0,0); 
+    gasnett_atomic_set(&(in->node_status[i].new_val),0,0);
+  }
 
 #if 0	
-	temp = in->active_scratch_op_head;
-	while(temp !=NULL) {
-		in->active_scratch_op_head = in->active_scratch_op_head->next;
-		gasneti_free(temp);
-		temp = in->active_scratch_op_head;
-	}
-	in->active_scratch_op_head = NULL;
-	in->active_scratch_op_tail = NULL;
+  temp = in->active_scratch_op_head;
+  while(temp !=NULL) {
+    in->active_scratch_op_head = in->active_scratch_op_head->next;
+    gasneti_free(temp);
+    temp = in->active_scratch_op_head;
+  }
+  in->active_scratch_op_head = NULL;
+  in->active_scratch_op_tail = NULL;
 #endif	
-	/*
-	  notice that we do not throw away the pending status updates since the dst nodes could have sent
-	  the updates for the next barrier phase and therefore throwing htem away is incorrect.
+  /*
+    notice that we do not throw away the pending status updates since the dst nodes could have sent
+    the updates for the next barrier phase and therefore throwing htem away is incorrect.
 	  
-	  Since the dst's view is consistent with our own applying the updates in order will still yield the correct
-	  result
-	*/
-	in->perform_reset = 0;
+    Since the dst's view is consistent with our own applying the updates in order will still yield the correct
+    result
+  */
+  in->perform_reset = 0;
 }
 
 /* 
@@ -98,286 +102,280 @@ void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in) {
 
 #if 0
 gansete_coll_node_scratch_status_t gasnete_coll_scratch_wait_for_ops(gasnete_coll_team_t team, uint32_t incoming_size GASNETE_THREAD_FARG) {
-	gansete_coll_node_scratch_status_t	retval;
-	gasnete_coll_scratch_status_t* stat = team->scratch_status;
-	gasnete_coll_op_info_t *temp;	
-	uint32_t oldtail;
+  gansete_coll_node_scratch_status_t	retval;
+  gasnete_coll_scratch_status_t* stat = team->scratch_status;
+  gasnete_coll_op_info_t *temp;	
+  uint32_t oldtail;
 	
-	uint32_t scratch_freed =0;
+  uint32_t scratch_freed =0;
 	
-	retval = stat->node_status[team->myrank];
-	oldtail = retval.tail;
-	/* we will create a simplicial scheme for now and then modify it later*/
-	/* first check whether going from the current tail to the end of the scratch space is enough 
-	   for the requested size.
-     */
-	 if(stat->node_status[team->myrank].tail + incoming_size > stat->scratch_segs[team->myrank].size) {
-	   temp = stat->active_scratch_op_tail;
+  retval = stat->node_status[team->myrank];
+  oldtail = retval.tail;
+  /* we will create a simplicial scheme for now and then modify it later*/
+  /* first check whether going from the current tail to the end of the scratch space is enough 
+     for the requested size.
+  */
+  if(stat->node_status[team->myrank].tail + incoming_size > stat->scratch_segs[team->myrank].size) {
+    temp = stat->active_scratch_op_tail;
 	
-	   while(scratch_freed < incoming_size) {
-		  /*Wait for the op to complete*/
-		  gasnete_coll_wait_sync(temp->op->handle GASNETE_THREAD_PASS);
-		  /* op is done so we can reclaim the scratch space from it and remove it from the active op list*/
-	      stat->active_scratch_op_tail = stat->active_scratch_op_tail->prev;
-	      scratch_freed += temp->local_scratch_used;
-		  retval.tail += local_scratch_used;
-		  gasneti_free(temp);
+    while(scratch_freed < incoming_size) {
+      /*Wait for the op to complete*/
+      gasnete_coll_wait_sync(temp->op->handle GASNETE_THREAD_PASS);
+      /* op is done so we can reclaim the scratch space from it and remove it from the active op list*/
+      stat->active_scratch_op_tail = stat->active_scratch_op_tail->prev;
+      scratch_freed += temp->local_scratch_used;
+      retval.tail += local_scratch_used;
+      gasneti_free(temp);
 
-		  temp = temp->prev;
-		}
-	   }
-	   retval.head = oldtail;
-	   return retval;
-	} else {
-		/* wait for all the ops to clear out and reset the head and tail to 0*/
-		while(stat->active_scratch_head!=NULL) {
-			temp = stat->active_scratch_head;
-			gasnete_coll_waitsync(temp->op->handle GASNETE_THREAD_FARG);
-			stat->active_scratch_head = stat->active_scratch_head->next;
-			free(temp);
-		}
-		retval.head = 0;
-		retval.tail = 0;
-		return retval;
-	}
-	gasneti_fatalerror("%d> shoudl never get here in wait for ops\n", gasneti_mynode);
+      temp = temp->prev;
+    }
+  }
+  retval.head = oldtail;
+  return retval;
 }
 #endif
 
 /*
   This operation in essance advances the position of my scratch position
   If this operation would advance the head past the tail (or advance the head past the end of the buffer)
-	Look through the list of ops that have been registered on this scratch space and advance the tail through 
-	all the ops the have finished
-	(we also implicitly know that the parent is in the exact same situation)
-	send the parent an updated view of the tail so that they can restart their algorithm
+  Look through the list of ops that have been registered on this scratch space and advance the tail through 
+  all the ops the have finished
+  (we also implicitly know that the parent is in the exact same situation)
+  send the parent an updated view of the tail so that they can restart their algorithm
 	
 */
 
 void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, uint64_t tail) {
-	int i;
-	
-	/*Becareful with the teams here and how the peer list is specified*/
-	/*for gasnet team all it doesn't matter but in other cases it does*/
-	gasnete_coll_scratch_status_t *stat = team->scratch_status;
-	for(i=0; i<stat->numpeers; i++) {
-/*		fprintf(stderr, "%d> sending %d  a clear signal\n", gasneti_mynode,stat->peers[i]); */
-			GASNETI_SAFE(SHORT_REQ(4,4,(stat->peers[i],gasneti_handleridx(gasnete_coll_scratch_update_reqh),
-										team->team_id, team->myrank, GASNETI_HIWORD(tail), GASNETI_LOWORD(tail))));
-			
-	}
+  int i;
+  
+  /*Becareful with the teams here and how the peer list is specified*/
+  /*for gasnet team all it doesn't matter but in other cases it does*/
+  gasnete_coll_scratch_status_t *stat = team->scratch_status;
+  for(i=0; i<stat->numpeers; i++) {
+    /*		fprintf(stderr, "%d> sending %d  a clear signal\n", gasneti_mynode,stat->peers[i]); */
+    GASNETI_SAFE(SHORT_REQ(4,4,(stat->peers[i],gasneti_handleridx(gasnete_coll_scratch_update_reqh),
+				team->team_id, team->myrank, GASNETI_HIWORD(tail), GASNETI_LOWORD(tail))));
+    
+  }
 }
 uint64_t gasnete_coll_scratch_new_op(gasnete_coll_scratch_req_t *scratch_req, uint32_t seq, gasnet_coll_handle_t op_handle GASNETE_THREAD_FARG) {
-	
-	gasnete_coll_scratch_status_t *stat = scratch_req->team->scratch_status;
-	gasnete_coll_op_info_t *new_op;
-	gasnete_coll_node_scratch_status_t node_stat;
-	uint32_t my_head_pos;
-	uint32_t my_tail_pos;
-	uint64_t retpos;
-	/*if the incoming size is greater than the total allocated scratch space signal an error*/
-	if(scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
-		gasneti_fatalerror("%d> collective requires temporary storage (%d bytes) is greater than total scratch space (%d bytes) \n consider using pipelined algorithms or increasing size of collective scratch space\n", scratch_req->team->myrank, (int)scratch_req->incoming_size, (int)scratch_req->team->scratch_segs[0].size); 
-	}
-	my_head_pos = stat->node_status[scratch_req->team->myrank].head;
-	my_tail_pos = gasnett_atomic64_read(&(stat->node_status[scratch_req->team->myrank].tail),0);
-
-	
-	/*first time around register the tree geometry that is used*/
-	
-	if(stat->first_collective==1) {
-		stat->curr_root = scratch_req->root;
-		stat->curr_tree_type = scratch_req->tree_type;
-		stat->curr_tree_fanout = scratch_req->fanout;
-		stat->numpeers = scratch_req->num_in_peers;
-		if(scratch_req->num_in_peers>0) {
-			stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-			GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-		} else {
-			stat->peers = NULL;
-		}
-		stat->first_collective=0;
-	}   else if((stat->curr_root !=scratch_req->root) || 
-		 (stat->curr_tree_type !=scratch_req->tree_type) ||
-		 ((stat->curr_tree_type == GASNETE_COLL_NARY_TREE) && 
-		  (stat->curr_tree_fanout != scratch_req->fanout))) {
-		if(gasneti_mynode ==0) fprintf(stderr, "TREE CHANGE w/o BARRIER! inserting barrier and reseting scratch\n");
-		/* perform barrier and reset scratch */
-		gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
-		gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
-		/*the barrier will have the call to trip the stat->perform_reset so we avoid the explicit call to reset here*/
-		stat->curr_root = scratch_req->root;
-		stat->curr_tree_type = scratch_req->tree_type;
-		stat->curr_tree_fanout = scratch_req->fanout;
-		stat->numpeers = scratch_req->num_in_peers;
-		if(scratch_req->num_in_peers>0) {
-			stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-			GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
-		} else {
-			stat->peers = NULL;
-		}
-	}	else { /* tree geometry has not changed between last op and this op */
-	}
-	
-	/*if we saw a barrier or out all_sync between our last op and this one perform the reset*/
-	if(stat->perform_reset == 1) {
-		gasnete_coll_reset_scratch_status(stat);
-	}
-	if(my_head_pos >= my_tail_pos) {
-		/* if the tail is behind or equal to the head then check to see if there is enough scratch space to the end*/
-	   if(my_head_pos + scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
-			/* wait for collective ops to clear <-- this function will update the head and the tail*/
-			gasnete_coll_scratch_wait_for_all_ops(scratch_req->team GASNETE_THREAD_PASS);
-			/* send a message to peers sending to me for updating my head and tail pointers */
-			gasnete_coll_scratch_send_updates(scratch_req->team,0);
-			stat->node_status[scratch_req->team->myrank].head = scratch_req->incoming_size;
-			gasnett_atomic64_set(&(stat->node_status[scratch_req->team->myrank].tail),0,0);
-			retpos = 0;
-	   } else {
-			/* advance scratch pointers and move on*/
-			retpos = stat->node_status[scratch_req->team->myrank].head;
-			stat->node_status[scratch_req->team->myrank].head += scratch_req->incoming_size;
-			
-	
-	   }
-	} else { /* tail position is farther ahead than head */
-	    /*check to see if there is enough space between the head and the tail.*/
-		if(my_head_pos + scratch_req->incoming_size > my_tail_pos) {
-			/* wait for collective ops to clear <-- this function will update the head and the tail*/
-			gasnete_coll_scratch_wait_for_all_ops(scratch_req->team GASNETE_THREAD_PASS);
-			/* send a message to peers sending to me for updating my head and tail pointers */
-			gasnete_coll_scratch_send_updates(scratch_req->team,0);
-			stat->node_status[scratch_req->team->myrank].head = scratch_req->incoming_size;
-			gasnett_atomic64_set(&(stat->node_status[scratch_req->team->myrank].tail),0,0);
-			retpos = 0;
-		} else {
-			/* adcance scratch pointers and move on*/
-			retpos = stat->node_status[scratch_req->team->myrank].head;
-			stat->node_status[scratch_req->team->myrank].head += scratch_req->incoming_size;
-			
-		}
-	}
-	
-	/* allocate a new op */
-	new_op = (gasnete_coll_op_info_t*) gasneti_malloc(sizeof(gasnete_coll_op_info_t));
-	new_op->next = NULL;
-	new_op->prev = NULL;
-	new_op->tree_type  = scratch_req->tree_type;
-	new_op->tree_fanout = scratch_req->fanout;
-	new_op->root = scratch_req->root;
-	new_op->local_scratch_used = scratch_req->incoming_size;
-	new_op->op_handle = op_handle;
-	new_op->seq_number = seq;
-	new_op->done = 0;
-
-	/*link the new op in on the tail*/
-	if(stat->active_scratch_op_head == NULL) {
-		stat->active_scratch_op_head = stat->active_scratch_op_tail = new_op;
-		new_op->next = NULL;
-		new_op->prev = NULL;
-	}  else {
-		new_op->next = NULL;
-		new_op->prev = stat->active_scratch_op_tail;
-		stat->active_scratch_op_tail->next = new_op;
-		stat->active_scratch_op_tail = new_op;
-		
-	}
-	return retpos;
+  
+  gasnete_coll_scratch_status_t *stat = scratch_req->team->scratch_status;
+  gasnete_coll_op_info_t *new_op;
+  gasnete_coll_node_scratch_status_t node_stat;
+  uint32_t my_head_pos;
+  uint32_t my_tail_pos;
+  uint64_t retpos;
+  /*if the incoming size is greater than the total allocated scratch space signal an error*/
+  if(scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
+    gasneti_fatalerror("%d> collective requires temporary storage (%d bytes) is greater than total scratch space (%d bytes) \n consider using pipelined algorithms or increasing size of collective scratch space\n", scratch_req->team->myrank, (int)scratch_req->incoming_size, (int)scratch_req->team->scratch_segs[0].size); 
+  }
+  my_head_pos = stat->node_status[scratch_req->team->myrank].head;
+  my_tail_pos = gasnett_atomic64_read(&(stat->node_status[scratch_req->team->myrank].tail),0);
+  
+  
+  /*first time around register the tree geometry that is used*/
+  
+  if(stat->first_collective==1) {
+    stat->curr_root = scratch_req->root;
+    stat->curr_tree_type = scratch_req->tree_type;
+    stat->curr_tree_fanout = scratch_req->fanout;
+    stat->numpeers = scratch_req->num_in_peers;
+    if(scratch_req->num_in_peers>0) {
+      stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
+      GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
+    } else {
+      stat->peers = NULL;
+    }
+    stat->first_collective=0;
+  }   else if((stat->curr_root !=scratch_req->root) || 
+	      (stat->curr_tree_type !=scratch_req->tree_type) ||
+	      ((stat->curr_tree_type == GASNETE_COLL_NARY_TREE) && 
+	       (stat->curr_tree_fanout != scratch_req->fanout))) {
+#if GASNET_DEBUG		
+    if(gasneti_mynode ==0) fprintf(stderr, "TREE CHANGE w/o BARRIER! inserting barrier and reseting scratch\n");
+#endif
+    /* perform barrier and reset scratch */
+    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    /*the barrier will have the call to trip the stat->perform_reset so we avoid the explicit call to reset here*/
+    stat->curr_root = scratch_req->root;
+    stat->curr_tree_type = scratch_req->tree_type;
+    stat->curr_tree_fanout = scratch_req->fanout;
+    stat->numpeers = scratch_req->num_in_peers;
+    if(scratch_req->num_in_peers>0) {
+      stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
+      GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
+    } else {
+      stat->peers = NULL;
+    }
+  }	else { /* tree geometry has not changed between last op and this op */
+  }
+  
+  /*if we saw a barrier or out all_sync between our last op and this one perform the reset*/
+  if(stat->perform_reset == 1) {
+    gasnete_coll_reset_scratch_status(stat);
+  }
+  if(my_head_pos >= my_tail_pos) {
+    /* if the tail is behind or equal to the head then check to see if there is enough scratch space to the end*/
+    if(my_head_pos + scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
+      
+      /* wait for collective ops to clear <-- this function will update the head and the tail*/
+      gasnete_coll_scratch_wait_for_all_ops(scratch_req->team GASNETE_THREAD_PASS);
+      /* send a message to peers sending to me for updating my head and tail pointers */
+      gasnete_coll_scratch_send_updates(scratch_req->team,0);
+      stat->node_status[scratch_req->team->myrank].head = scratch_req->incoming_size;
+      gasnett_atomic64_set(&(stat->node_status[scratch_req->team->myrank].tail),0,0);
+      retpos = 0;
+    } else {
+      /* advance scratch pointers and move on*/
+      retpos = stat->node_status[scratch_req->team->myrank].head;
+      stat->node_status[scratch_req->team->myrank].head += scratch_req->incoming_size;
+      
+      
+    }
+  } else { /* tail position is farther ahead than head */
+    /*check to see if there is enough space between the head and the tail.*/
+    if(my_head_pos + scratch_req->incoming_size > my_tail_pos) {
+      /* wait for collective ops to clear <-- this function will update the head and the tail*/
+      gasnete_coll_scratch_wait_for_all_ops(scratch_req->team GASNETE_THREAD_PASS);
+      /* send a message to peers sending to me for updating my head and tail pointers */
+      gasnete_coll_scratch_send_updates(scratch_req->team,0);
+      stat->node_status[scratch_req->team->myrank].head = scratch_req->incoming_size;
+      gasnett_atomic64_set(&(stat->node_status[scratch_req->team->myrank].tail),0,0);
+      retpos = 0;
+    } else {
+      /* adcance scratch pointers and move on*/
+      retpos = stat->node_status[scratch_req->team->myrank].head;
+      stat->node_status[scratch_req->team->myrank].head += scratch_req->incoming_size;
+      
+    }
+  }
+  
+  /* allocate a new op */
+  new_op = (gasnete_coll_op_info_t*) gasneti_malloc(sizeof(gasnete_coll_op_info_t));
+  new_op->next = NULL;
+  new_op->prev = NULL;
+  new_op->tree_type  = scratch_req->tree_type;
+  new_op->tree_fanout = scratch_req->fanout;
+  new_op->root = scratch_req->root;
+  new_op->local_scratch_used = scratch_req->incoming_size;
+  new_op->op_handle = op_handle;
+  new_op->seq_number = seq;
+  new_op->done = 0;
+ 
+  /*link the new op in on the tail*/
+  if(stat->active_scratch_op_head == NULL) {
+    stat->active_scratch_op_head = stat->active_scratch_op_tail = new_op;
+    new_op->next = NULL;
+    new_op->prev = NULL;
+  }  else {
+    new_op->next = NULL;
+    new_op->prev = stat->active_scratch_op_tail;
+    stat->active_scratch_op_tail->next = new_op;
+    stat->active_scratch_op_tail = new_op;
+   
+  }
+  return retpos;
 }
 
 
 uint64_t gasnete_coll_scratch_get_pos(gasnet_node_t dst, uint32_t req_size, gasnete_coll_tree_kind_t tree_type, 
-					   int fanout, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG) {
-	gasnete_coll_scratch_status_t *stat= team->scratch_status;
-	uint64_t dst_head_pos; 
-	uint64_t dst_tail_pos; 
-	uint32_t retpos;
-	
-	if(req_size > team->scratch_segs[dst].size) {
-		gasneti_fatalerror("%d> collective temporary storage request(%d bytes) on dst %d is greater than total scratch space (%d bytes) \n consider using pipelined algorithms or increasing size of collective scratch space\n", team->myrank, (int)req_size, dst, (int)team->scratch_segs[dst].size); 
-	}
-	dst_head_pos = stat->node_status[dst].head;
-	dst_tail_pos = gasnett_atomic64_read(&(stat->node_status[dst].tail),0);
+				      int fanout, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG) {
+  gasnete_coll_scratch_status_t *stat= team->scratch_status;
+  uint64_t dst_head_pos; 
+  uint64_t dst_tail_pos; 
+  uint32_t retpos;
+  
+  if(req_size > team->scratch_segs[dst].size) {
+    gasneti_fatalerror("%d> collective temporary storage request(%d bytes) on dst %d is greater than total scratch space (%d bytes) \n consider using pipelined algorithms or increasing size of collective scratch space\n", team->myrank, (int)req_size, dst, (int)team->scratch_segs[dst].size); 
+  }
+  dst_head_pos = stat->node_status[dst].head;
+  dst_tail_pos = gasnett_atomic64_read(&(stat->node_status[dst].tail),0);
+  
+  /* 
+   no need to cehck the tree goemetry here since all nodes will call register themselves on
+   the scratch space before requesting scratch space on dstren
+  */
+  if(dst_head_pos >= dst_tail_pos) {
+    /* if the tail is behind or equal to the head then check to see if there is enough scratch space to the end*/
+    if(dst_head_pos + req_size > team->scratch_segs[dst].size) {
+      /* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
+      /*			fprintf(stderr, "%d> waiting for %d to send a clear signal\n", gasneti_mynode, dst); */
+      while(gasnett_atomic_read(&(stat->node_status[dst].new_val),0) == 0) gasnet_AMPoll();
+      gasnett_atomic_set(&(stat->node_status[dst].new_val),0,0);
+      /*			fprintf(stderr, "%d> got a clear signal from %d\n", gasneti_mynode, dst); */
+      stat->node_status[dst].head = req_size;
+      return 0;
+    } else {
+      retpos = stat->node_status[dst].head;
+      stat->node_status[dst].head += req_size;
+      return retpos;
+    }
+  } else { /* tail position is farther ahead than head */
+    /*check to see if there is enough space between the head and the tail.*/
+    if(dst_head_pos + req_size > dst_tail_pos) {
+      /* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
+      /* for now wait for the tail set to drop back to 0*/
+      /*		fprintf(stderr, "%d> waiting for %d to send a clear signal\n", gasneti_mynode, dst); */
+      while(gasnett_atomic_read(&(stat->node_status[dst].new_val),0) == 0) gasnet_AMPoll();
+      gasnett_atomic_set(&(stat->node_status[dst].new_val),0,0);
 
-	/* 
-	   no need to cehck the tree goemetry here since all nodes will call register themselves on
-	   the scratch space before requesting scratch space on dstren
-	*/
-	if(dst_head_pos >= dst_tail_pos) {
-		/* if the tail is behind or equal to the head then check to see if there is enough scratch space to the end*/
-	   if(dst_head_pos + req_size > team->scratch_segs[dst].size) {
-			/* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
-/*			fprintf(stderr, "%d> waiting for %d to send a clear signal\n", gasneti_mynode, dst); */
-			while(gasnett_atomic64_read(&(stat->node_status[dst].tail),0) !=0) gasnet_AMPoll();
-/*			fprintf(stderr, "%d> got a clear signal from %d\n", gasneti_mynode, dst); */
-			stat->node_status[dst].head = req_size;
-			return 0;
-	   } else {
-			retpos = stat->node_status[dst].head;
-			stat->node_status[dst].head += req_size;
-			return retpos;
-	   }
-	} else { /* tail position is farther ahead than head */
-	    /*check to see if there is enough space between the head and the tail.*/
-		if(dst_head_pos + req_size > dst_tail_pos) {
-			/* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
-			/* for now wait for the tail set to drop back to 0*/
-	/*		fprintf(stderr, "%d> waiting for %d to send a clear signal\n", gasneti_mynode, dst); */
-			while(gasnett_atomic64_read(&(stat->node_status[dst].tail),0) !=0);
-			stat->node_status[dst].head = req_size;
-			return 0;
-		} else {
-			/* allocate scratch and move on*/
-			retpos = stat->node_status[dst].head;
-			stat->node_status[dst].head += req_size;
-			return retpos;
-
-		}
-	} 
-	gasneti_fatalerror("%d> should never get here in scratch get pos.\n", team->myrank);
-	return -1;
+      return 0;
+    } else {
+      /* allocate scratch and move on*/
+      retpos = stat->node_status[dst].head;
+      stat->node_status[dst].head += req_size;
+      return retpos;
+      
+    }
+  } 
+  gasneti_fatalerror("%d> should never get here in scratch get pos.\n", team->myrank);
+  return -1;
 }
 
 void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
-	uint32_t seqnum = op->sequence;
-	gasnete_coll_scratch_status_t *stat= op->team->scratch_status;
-	gasnete_coll_op_info_t *temp = stat->active_scratch_op_head;
-
-	/*walk through the history of ops and mark the corresponding op as done*/
-	while(temp != NULL) {
-		if(temp->seq_number == seqnum) {
-			temp->done = 1;
-			break;
-		} else {
-			temp = temp->next;
-		}
-	}
+  uint32_t seqnum = op->sequence;
+  gasnete_coll_scratch_status_t *stat= op->team->scratch_status;
+  gasnete_coll_op_info_t *temp = stat->active_scratch_op_head;
+  
+  /*walk through the history of ops and mark the corresponding op as done*/
+  while(temp != NULL) {
+    if(temp->seq_number == seqnum) {
+      temp->done = 1;
+      break;
+    } else {
+      temp = temp->next;
+    }
+  }
 }
 
 uint64_t *gasnete_coll_scratch_get_peer_pos(gasnete_coll_scratch_req_t *scratch_req GASNETE_THREAD_FARG) {
-	uint64_t* ret;
-	int i;
-	ret = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*scratch_req->num_out_peers);
-	for(i=0; i<scratch_req->num_out_peers; i++) {
-		ret[i] = gasnete_coll_scratch_get_pos(scratch_req->out_peers[i], scratch_req->out_sizes[i],
-									 scratch_req->tree_type, scratch_req->fanout, scratch_req->root,
-									 scratch_req->team GASNETE_THREAD_PASS);
-	}
-	return ret;
+  uint64_t* ret;
+  int i;
+  ret = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*scratch_req->num_out_peers);
+  for(i=0; i<scratch_req->num_out_peers; i++) {
+    ret[i] = gasnete_coll_scratch_get_pos(scratch_req->out_peers[i], scratch_req->out_sizes[i],
+					  scratch_req->tree_type, scratch_req->fanout, scratch_req->root,
+					  scratch_req->team GASNETE_THREAD_PASS);
+  }
+  return ret;
 }
 
 void gasnete_coll_scratch_update_reqh(gasnet_token_t token,
-		    gasnet_handlerarg_t teamid,
-			gasnet_handlerarg_t node,
-			gasnet_handlerarg_t tail_high,
-			gasnet_handlerarg_t tail_low) {
-	gasnete_coll_team_t team;
-	gasnete_coll_scratch_status_t *stat;
-	uint64_t tail;
-
-	team = gasnete_coll_team_lookup(teamid);
-	stat = team->scratch_status;
-	/* create a new status and attach it on to the update list*/
-	tail = GASNETI_MAKEWORD(tail_high, tail_low);
-	gasnett_atomic64_set(&(stat->node_status[node].tail),tail,0);
+				      gasnet_handlerarg_t teamid,
+				      gasnet_handlerarg_t node,
+				      gasnet_handlerarg_t tail_high,
+				      gasnet_handlerarg_t tail_low) {
+  gasnete_coll_team_t team;
+  gasnete_coll_scratch_status_t *stat;
+  uint64_t tail;
+  
+  team = gasnete_coll_team_lookup(teamid);
+  stat = team->scratch_status;
+  /* create a new status and attach it on to the update list*/
+  tail = GASNETI_MAKEWORD(tail_high, tail_low);
+ 
+  gasnett_atomic64_set(&(stat->node_status[node].tail),tail,0);
+  gasnett_atomic_set(&(stat->node_status[node].new_val),1,0);
 }
