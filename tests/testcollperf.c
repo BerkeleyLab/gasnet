@@ -113,7 +113,7 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   }
 #endif	
 	
-  MSG("exchange syncflags: %s radix: (%d) datasize: %ld bytes time: %g microseconds", flagstr, dissem_radix, (datasize*sizeof(int)), (double)gasnett_ticks_to_us(end)/iters);
+  MSG0("exchange syncflags: %s radix: (%d) datasize: %ld bytes time: %g microseconds", flagstr, dissem_radix, (datasize*sizeof(int)), (double)gasnett_ticks_to_us(end)/iters);
   BARRIER();
 	
 	
@@ -125,8 +125,10 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   int *C; /*other*/
   int i,j;
   char flagstr[20];
-  gasnett_tick_t begin, end;
+  gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
   gasnet_node_t root, mynode;
+
+  
   mynode = gasnet_mynode();
   assert(gasnet_getMaxLocalSegmentSize() > 2*datasize*iters*sizeof(int));
   /*allocate array to be datasize*iters ints out of the aligned segment*/
@@ -186,10 +188,18 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
     begin = gasnett_ticks_now();
     for(j=0; j<iters; j++) {
       gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*j, root, A+datasize*j, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-		  
+      if(use_barrier){
+	barrier_begin = gasnett_ticks_now();
+	BARRIER();
+	barrier_end += gasnett_ticks_now() - barrier_begin;
+      }
     }
-		
-    BARRIER();
+    
+    if(!use_barrier) {
+      barrier_begin = gasnett_ticks_now();
+      BARRIER();
+      barrier_end += gasnett_ticks_now() - barrier_begin;
+    }
     end =  gasnett_ticks_now() - begin;
 		
     /*verify that the data got there */
@@ -214,8 +224,11 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
 #endif	
   } /*end changing root*/
 
-  MSG("bcast syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes time: %g microseconds", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters);
-
+  if(use_barrier) {
+    MSG0("bcast-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+  } else {
+    MSG0("bcast-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+  }
   BARRIER();
 	
 } /*end function*/
@@ -261,28 +274,34 @@ int main(int argc, char **argv)
 	
   run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
 
-  run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
+  /*  run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
 		 (char*)"GASNET_BINOMIAL_TREE", 0);
 
   for(i=1; i<=gasnet_nodes(); i++) {
     run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
 		   (char*)"GASNET_NARY_TREE", i);
-  }  
-	
+		   } */ 
+  
   run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
 		 (char*)"GASNET_BINOMIAL_TREE", 0); 
   for(i=1; i<=gasnet_nodes(); i++) {
     run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
 		   (char*)"GASNET_NARY_TREE", i);
+  }
+  run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
+		 (char*)"GASNET_BINOMIAL_TREE", 0); 
+  for(i=1; i<=gasnet_nodes(); i++) {
+    run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
+		   (char*)"GASNET_NARY_TREE", i);
   } 
 	
-  run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, 
+  /*  run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, 
 		 (char*)"GASNET_BINOMIAL_TREE", 0);
   for(i=1; i<=gasnet_nodes(); i++) {
 
     run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, 
 		   (char*)"GASNET_NARY_TREE", i);
-  }
+		   } */
 
 	
   MSG("tests finished successfully");
