@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2006/08/11 00:53:27 $
- * $Revision: 1.16.2.1 $
+ *     $Date: 2006/11/04 02:26:29 $
+ * $Revision: 1.16.2.2 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -206,7 +206,8 @@ extern int AMUDP_growSocketBufferSize(ep_t ep, int targetsize,
       AMUDP_Warn("getsockopt(SOL_SOCKET, %s) on UDP socket failed: %s",paramname,strerror(errno));
     #endif
     initialsize = 65535;
-  }
+  } 
+  ep->socketRecvBufferSize = initialsize; /* ensure ep->socketRecvBufferSize is always initialized */
 
   targetsize = MAX(initialsize, targetsize); /* never shrink buffer */
 
@@ -343,8 +344,9 @@ static int AMUDP_AllocateEndpointBuffers(ep_t ep) {
     if (2*PD+1 > 65535) return FALSE; /* would overflow rxNumBufs */
     /* one extra rx buffer for ease of implementing circular rx buf
      * one for temporary buffer
+     * allocate using calloc to prevent valgrind warnings for sending phantom padding argument
      */
-    pool = (amudp_buf_t *)AMUDP_malloc((4 * PD + 2) * sizeof(amudp_buf_t));
+    pool = (amudp_buf_t *)AMUDP_calloc((4 * PD + 2), sizeof(amudp_buf_t));
     if (!pool) return FALSE;
     ep->requestBuf = pool;
     ep->replyBuf = &pool[PD];
@@ -578,6 +580,8 @@ extern int AM_AllocateEndpoint(eb_t bundle, ep_t *endp, en_t *endpoint_name) {
     ep->P = 0; 
     ep->depth = -1;
     ep->PD = 0;
+    ep->preHandlerCallback = NULL; 
+    ep->postHandlerCallback = NULL;
 
     ep->stats = AMUDP_initial_stats;
   }

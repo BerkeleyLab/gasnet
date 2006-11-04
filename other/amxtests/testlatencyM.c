@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testlatencyM.c,v $
- *     $Date: 2006/08/11 00:53:29 $
- * $Revision: 1.11.4.1 $
+ *     $Date: 2006/11/04 02:26:31 $
+ * $Revision: 1.11.4.2 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   if (myproc == 0 && numprocs > 1) numleft = (numprocs-1)*iters;
   AM_Safe(AMX_SPMDBarrier());
 
-  msg = (char *)malloc(msgsz);
+  msg = (char *)calloc(1,msgsz);
 
   begin = getCurrentTimeMicrosec();
 

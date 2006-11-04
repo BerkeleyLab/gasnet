@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2006/10/05 00:00:43 $
- * $Revision: 1.240.2.3 $
+ *     $Date: 2006/11/04 02:26:11 $
+ * $Revision: 1.240.2.4 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -415,7 +415,7 @@
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
 
-        #if PLATFORM_COMPILER_VERSION_LT(2,3,0)
+        #if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(2,3,0)
 	  /* A "dirty hack" for bug 1620 because pathcc < 2.3 botches the 64-bit asm */
           #define GASNETI_ATOMIC64_COMPARE_AND_SWAP_BODY\
 	    GASNETI_ASM_SPECIAL(                        \
@@ -447,7 +447,9 @@
 	  #endif
           }
         #endif
-      #elif !(PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_PGI) && GASNETI_HAVE_X86_EBX
+      #elif GASNETI_HAVE_X86_EBX && \
+            !PLATFORM_COMPILER_TINY && !PLATFORM_COMPILER_PGI && \
+            !(PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_LT(3,0,0)) /* bug 1790 */
 	/* "Normal" ILP32 case:
 	 *
 	 * To perform read and set atomically on x86 requires use of the locked
@@ -581,10 +583,13 @@
 	  return retval;
 	}
 	#define gasneti_atomic64_read gasneti_atomic64_read
-      #else /* Tiny CC and PGI */
+      #else /* Tiny CC, PGI and (GCC < 3.0.0) */
 	/* Everything here works like the "normal" ILP32 case, except that we break everything
 	 * down in to nice bite-sized (4-bytes actually) chunks and explictly assign
 	 * them to registers A through D.
+	 * This is needed for TCC and PGI that lack (or have buggy) support for the "A" constraint.
+	 * This is used for older GCC that complain about too many reloads for the "normal" case.
+	 * Also to, appease older GCC, we use "+m" where "=m" is sufficient/correct (see bug 1790).
 	 */
         #define gasneti_atomic64_align 4 /* only need 4-byte alignment, not the default 8 */
         GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
@@ -598,8 +603,8 @@
 		    "cmpxchg8b	%0		\n\t"
 		    "sete	%b1		\n\t"
 		    "andl	$255, %1"
-		    : "=m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
-		    : "m" (p->ctr), "b" (newlo), "c" (newhi)
+                    : "+m" (p->ctr), "+&a" (oldlo), "+&d" (oldhi)
+                    : "b" (newlo), "c" (newhi)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
           return oldlo;
         }
@@ -615,7 +620,7 @@
 		    "lock;			"
 		    "cmpxchg8b	%0		\n\t"
 		    "jnz	0b		"
-		    : "=m" (p->ctr), "+&a" (oldlo),  "+&d" (oldhi)
+		    : "+m" (p->ctr), "+&a" (oldlo),  "+&d" (oldhi)
 		    : "b" (newlo), "c" (newhi)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
 	}
@@ -634,7 +639,7 @@
 		    "lock;			"
 		    "cmpxchg8b	%0		\n\t"
 		    "jnz	0b		"
-		    : "=m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "=&b" (tmplo), "=&c" (tmphi)
+		    : "+m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "=&b" (tmplo), "=&c" (tmphi)
 		    : /* no inputs */
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
 	  return ((uint64_t)rethi << 32) | ((uint64_t)retlo);
@@ -2258,6 +2263,7 @@
           uintptr_t val = (uintptr_t)addr;                                \
           /* Step 0. Initialization check */                              \
           if_pf (!stem##tbl_mask) stem##tbl_init();                       \
+          else gasneti_local_rmb();                                       \
           /* Step 1.  Mask out the bits within a single cache line */     \
           val &= ~(((uintptr_t)1 << GASNETI_CACHE_LINE_SHIFT) - 1);       \
           /* Step 2. Fold with xor so all bits influence the lowest 8 */  \

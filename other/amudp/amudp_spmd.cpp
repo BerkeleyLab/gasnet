@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2006/10/05 00:01:07 $
- * $Revision: 1.24.2.3 $
+ *     $Date: 2006/11/04 02:26:29 $
+ * $Revision: 1.24.2.4 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -408,6 +408,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
 
     // setup bootstrap info 
     AMUDP_SPMDBootstrapInfo_t bootstrapinfo;
+    memset(&bootstrapinfo, 0, sizeof(bootstrapinfo)); // prevent valgrind warnings about sending uninit padding
     bootstrapinfo.numprocs = hton32(AMUDP_SPMDNUMPROCS);
     bootstrapinfo.depth = hton32(networkdepth);
 

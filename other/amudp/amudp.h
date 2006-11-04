@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2006/08/11 00:53:27 $
- * $Revision: 1.27.2.1 $
+ *     $Date: 2006/11/04 02:26:29 $
+ * $Revision: 1.27.2.2 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -24,7 +24,7 @@
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
 
-#define AMUDP_LIBRARY_VERSION      3.3
+#define AMUDP_LIBRARY_VERSION      3.4
 #define AMUDP_LIBRARY_VERSION_STR  _STRINGIFY(AMUDP_LIBRARY_VERSION)
 
 /* naming policy:

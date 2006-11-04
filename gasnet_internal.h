@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2006/10/05 00:00:44 $
- * $Revision: 1.85.4.3 $
+ *     $Date: 2006/11/04 02:26:11 $
+ * $Revision: 1.85.4.4 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -295,14 +295,19 @@ void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t mynode
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
 
 /* signature for internally-registered functions that need auxseg space -
-   space in the gasnet-registered heap which is hidden from the client
-   each function is called twice:
-   first call is between init/attach with auxseg_info == NULL, 
+   space in the gasnet-registered heap which is hidden from the client.
+   The callback is registered by adding the function pointer to GASNET*_AUXSEG_FNS()
+   Each registered function is called twice by the GASNet framework at startup:
+   * first callback is a "how much space do you want" query
+    it occurs between init/attach with auxseg_info == NULL, 
     function should return the absolute minimum and desired auxseg space
     currently, all nodes MUST return the same value (may be relaxed in the future)
-   second call is after attach and before gasnete_init, with auxseg_info
-    set to the array (gasnet_nodes() elements) of auxseg components on each node.
-    callee must copy the array if it wants to keep it
+   * second callback is "ok, here's what you got"
+    it happens after attach and before gasnete_init, with auxseg_info
+    set to the array (gasnet_nodes() elements) of auxseg components on each node
+    indicating the space assigned to this auxseg consumer.
+    callee must copy the array of metadata if it wants to keep it 
+    (the seg space it references is permanent)
  */
 typedef struct {
   uintptr_t minsz;

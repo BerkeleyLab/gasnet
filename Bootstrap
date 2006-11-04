@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Bootstrap,v $
-#     $Date: 2006/10/05 00:00:43 $
-# $Revision: 1.15.4.3 $
+#     $Date: 2006/11/04 02:26:11 $
+# $Revision: 1.15.4.4 $
 # Description: GASNet developer Bootstrap script
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -83,7 +83,7 @@ fi
 if test "$NOTOOLCHECK" != "1" ; then
 missing=
 for autotool in autoconf autoheader automake aclocal m4 ; do
-  info=`( $autotool --version 2>/dev/null || echo 'Not found' ) | head -1`
+  info=`( $autotool --version 2>/dev/null < /dev/null || echo 'Not found' ) | head -1`
   if test "$info" != "Not found" ; then
     info="$info, in `which $autotool`"
   elif "$autotool" != "m4" ; then

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/10/05 00:01:27 $
- * $Revision: 1.62.2.3 $
+ *     $Date: 2006/11/04 02:26:35 $
+ * $Revision: 1.62.2.4 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -347,8 +347,20 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
  "$GASNetConfig: (<link>) " TEST_CONFIG_STRING " $");
-GASNETT_IDENT(GASNetT_IdentString_link_UPCRConfig,
- "$UPCRConfig: (<link>) " TEST_CONFIG_STRING ",SHMEM=pthreads,dynamicthreads $");
+#ifndef HAVE_PTHREAD_H
+  /* for systems lacking pthread support - ensure upcrun never tries to use it */
+  GASNETT_IDENT(GASNetT_IdentString_link_UPCRConfig,
+   "$UPCRConfig: (<link>) " TEST_CONFIG_STRING ",SHMEM=none,SHAREDPTRREP=packed,dynamicthreads $");
+#else 
+  /* unconditionally mimic pthreads, to ensure harness -pthreads=T -threads=N will run us 
+     (otherwise upcrun will give an error about no -pthreads support)
+     such a setup will only run the gasnet test on N/T nodes (as opposed to N as one might like)
+     but the alternative is not to run at all. harness -nopthreads does not have this problem.
+   */
+  GASNETT_IDENT(GASNetT_IdentString_link_UPCRConfig,
+   "$UPCRConfig: (<link>) " TEST_CONFIG_STRING ",SHMEM=pthreads,SHAREDPTRREP=packed,dynamicthreads $");
+  GASNETT_IDENT(GASNetT_IdentString_PthCnt, "$UPCRDefaultPthreadCount: 1 $");
+#endif
 GASNETT_IDENT(GASNetT_IdentString_link_upcver, 
  "$UPCVersion: (<link>) *** GASNet test *** $");
 GASNETT_IDENT(GASNetT_IdentString_link_compileline, 
@@ -357,7 +369,6 @@ GASNETT_IDENT(GASNetT_IdentString_link_compiletime,
  "$UPCCompileTime: (<link>) " __DATE__ " " __TIME__ " $");
 GASNETT_IDENT(GASNetT_IdentString_HeapSz, 
  "$UPCRDefaultHeapSizes: UPC_SHARED_HEAP_OFFSET=0 UPC_SHARED_HEAP_SIZE=0 $");
-GASNETT_IDENT(GASNetT_IdentString_PthCnt, "$UPCRDefaultPthreadCount: 1 $");
 #if PLATFORM_ARCH_32
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=( $");
 #else

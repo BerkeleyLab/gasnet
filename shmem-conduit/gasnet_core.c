@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2006/10/05 00:01:21 $
- * $Revision: 1.22.4.3 $
+ *     $Date: 2006/11/04 02:26:33 $
+ * $Revision: 1.22.4.4 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1428,6 +1428,10 @@ gasnetc_SHMallocSegmentSearch()
           gasnet_max_segsize = maxsz; 
         }
         maxsz = GASNETI_MMAP_LIMIT;
+        #if GASNETI_ARCH_ALTIX
+            /* alignup here in case user requested a non-power of two size */
+	    maxsz = gasnetc_alignup_pow2(maxsz);
+        #endif
 
         if (gasnetc_verbose_spawn && gasneti_mynode == 0)
 		printf("maxsiz = %lu (%.2f GB), pagesize=%d\n\n", 
@@ -1447,8 +1451,8 @@ gasnetc_SHMallocSegmentSearch()
 	{
 	    uintptr_t alloc_perthread;
 	    double  frac;
-
-	    alloc_perthread = gasnetc_aligndown_pow2(maxsz);
+ 
+	    alloc_perthread = maxsz;
 
 	    starttime = gasneti_ticks_now();
 	    si.addr = NULL;

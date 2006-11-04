@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/10/05 00:00:43 $
-# $Revision: 1.290.2.3 $
+#     $Date: 2006/11/04 02:26:11 $
+# $Revision: 1.290.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.290.2.3 $)
+AC_REVISION($Revision: 1.290.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -26,11 +26,11 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[7])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[1])
+AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[8])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[0])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[6])
+AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 AC_DEFUN([GASNETT_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[0])
@@ -45,7 +45,7 @@ dnl GASNET_TOOLSONLY_TRUE_BEGIN
 dnl AM_INIT_AUTOMAKE(GASNet_Tools, GASNET_RELEASE_VERSION_D, no-define)
 dnl GASNET_TOOLSONLY_TRUE_END
 
-AC_PREFIX_DEFAULT(/usr/local)
+AC_PREFIX_DEFAULT(/usr/local/gasnet)
 AM_CONFIG_HEADER(gasnet_config.h)
 
 GASNET_START_CONFIGURE([AWK])
@@ -196,7 +196,7 @@ case "$gasnet_cv_cc_family" in
           ], [ AC_MSG_RESULT(ok) # keep -Winline
           ], [ AC_MSG_RESULT(buggy)
                CFLAGS="$noninlineCFLAGS" # remove -Winline
-          ], [ AC_MSG_ERROR(failure when detecting buggy -Winline)])
+          ], [ GASNET_MSG_ERROR(failure when detecting buggy -Winline)])
         ])
 
         CCOPTFLAGS="$CFLAGS"
@@ -456,7 +456,12 @@ case "$gasnet_cv_cc_family" in
   HP)  MISC_CPPFLAGS="+W67" ;; # unrecognized #pragma upc
   GNU)
     case "$target_os" in
-      darwin*) MISC_CPPFLAGS="-no-cpp-precomp -Wno-long-double" ;; 
+      darwin*) # add some options which are specific to the Apple Inc version of gcc
+        GASNET_TRY_CFLAG([-no-cpp-precomp],
+	                 [MISC_CPPFLAGS="$MISC_CPPFLAGS -no-cpp-precomp"])
+        GASNET_TRY_CFLAG([-Wno-long-double],
+	                 [MISC_CPPFLAGS="$MISC_CPPFLAGS -Wno-long-double"])
+      ;; 
     esac ;;
   *)  MISC_CPPFLAGS="" ;;
 esac
@@ -602,16 +607,25 @@ GASNET_CHECK_GCC_ATTRIBUTE([__pure__],
 GASNET_CHECK_GCC_ATTRIBUTE([__format__],
             [__attribute__((__format__ (__printf__, 1, 2))) void dummy(const char *fmt,...) { }])
 
+AC_MSG_CHECKING(for __attribute__((__format__)) on function pointers)
+GASNET_TRY_CCOMPILE_WITHWARN([
+    __attribute__((__format__ (__printf__, 1, 2))) extern void (*dummy)(const char *fmt,...);
+    ], [], [
+      AC_MSG_RESULT(yes)
+      AC_DEFINE(GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT_FUNCPTR)
+    ],[ AC_MSG_RESULT([no/warning]) ],[ AC_MSG_RESULT([no/error]) 
+])
+
 GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
-GASNET_TRY_CACHE_EXTRACT_STR(PLATFORM_COMPILER_IDSTR, PLATFORM_COMPILER_IDSTR,
-  [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_IDSTR ], GASNETI_PLATFORM_COMPILER_IDSTR)
-AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_IDSTR,$GASNETI_PLATFORM_COMPILER_IDSTR)
-GASNET_TRY_CACHE_EXTRACT_EXPR(PLATFORM_COMPILER_ID, PLATFORM_COMPILER_ID,
-  [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_ID ], GASNETI_PLATFORM_COMPILER_ID)
-AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_ID,$GASNETI_PLATFORM_COMPILER_ID)
-GASNET_TRY_CACHE_EXTRACT_EXPR(PLATFORM_COMPILER_VERSION, PLATFORM_COMPILER_VERSION,
-  [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_VERSION ], GASNETI_PLATFORM_COMPILER_VERSION)
-AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_VERSION,$GASNETI_PLATFORM_COMPILER_VERSION)
+AC_DEFUN([GASNET_GET_PLATFORM_COMPILER], [
+  GASNET_TRY_CACHE_EXTRACT_$2(PLATFORM_COMPILER_$1, PLATFORM_COMPILER_$1,
+    [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_$1 ], GASNETI_PLATFORM_COMPILER_$1)
+  AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_$1,$GASNETI_PLATFORM_COMPILER_$1)
+])
+GASNET_GET_PLATFORM_COMPILER([IDSTR],[STR])
+GASNET_GET_PLATFORM_COMPILER([FAMILYID],[EXPR])
+GASNET_GET_PLATFORM_COMPILER([ID],[EXPR])
+GASNET_GET_PLATFORM_COMPILER([VERSION],[EXPR])
 GASNET_POPVAR(CPPFLAGS)
 
 GASNET_POPVAR(CFLAGS)
@@ -726,7 +740,7 @@ case "$target_os" in
         case "$target" in
           *-catamount-*) 
 	    GASNET_IFDEF(__LIBCATAMOUNT__,[],[
-	      AC_MSG_ERROR([Compiling for a catamount target, but __LIBCATAMOUNT__ is not predefined! Are you using the right compiler? (perhaps try mpicc)])
+	      GASNET_MSG_ERROR([Compiling for a catamount target, but __LIBCATAMOUNT__ is not predefined! Are you using the right compiler? (perhaps try mpicc)])
 	    ])
           ;;
         esac
@@ -737,8 +751,18 @@ case "$target_os" in
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   freebsd*) 
-	GASNET_THREAD_DEFINES="-D_REENTRANT"
-        GASNET_THREAD_LIBS="-pthread" # bug 1205: do not explicitly select threading lib
+        # bug 1781: FreeBSD requires version-dependent magic to get a working pthread library
+        OS_RELDATE="`/sbin/sysctl -n kern.osreldate 2>/dev/null`"
+        if test "$OS_RELDATE" -lt "500016"; then
+              GASNET_THREAD_DEFINES="-D_THREAD_SAFE"
+              GASNET_THREAD_LIBS="-pthread"
+        elif test "$OS_RELDATE" -lt "502102"; then
+              GASNET_THREAD_DEFINES="-D_THREAD_SAFE"
+              GASNET_THREAD_LIBS="-lc_r"
+        else
+              GASNET_THREAD_DEFINES="-D_THREAD_SAFE" # optional? 
+              GASNET_THREAD_LIBS="-pthread"
+        fi
 	;;
   netbsd*) 
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
@@ -1547,7 +1571,7 @@ _GASNET_EOF
     if eval $compile 2>&5 && test -s $MPIHELPER_OBJ ; then
 	AC_MSG_RESULT(ok)
     else
-	AC_MSG_ERROR(failed while building MPI helper object)
+	GASNET_MSG_ERROR(failed while building MPI helper object)
     fi
 
     AC_MSG_CHECKING(for working MPI configuration)
@@ -1985,7 +2009,7 @@ if test $enabled_elan = yes; then
     fi
     AC_MSG_RESULT("${majorver}.${minorver}.${subver}")
     if test "$majorver" = "" -o "$minorver" = "" -o "$subver" = "" ; then
-      AC_MSG_ERROR(["libelan present, but unable to determine libelan version"])
+      GASNET_MSG_ERROR(["libelan present, but unable to determine libelan version"])
     fi
     AC_DEFINE_UNQUOTED(ELAN_VERSION_MAJOR, $majorver)
     AC_DEFINE_UNQUOTED(ELAN_VERSION_MINOR, $minorver)
@@ -2750,6 +2774,16 @@ fi
 esac
 if test "$HAVE_MMAP" != "0" ; then
   AC_DEFINE(HAVE_MMAP)
+  # bug 1763: find the right mmap flags (which may be enum values or const vars)
+  GASNET_TRY_CACHE_LINK([for MAP_NORESERVE],map_noreserve,
+     [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_NORESERVE, 0, 0); ],
+     [ AC_DEFINE(HAVE_MAP_NORESERVE) ] )
+  GASNET_TRY_CACHE_LINK([for MAP_ANONYMOUS],map_anonymous,
+     [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANONYMOUS, 0, 0); ],
+     [ AC_DEFINE(HAVE_MAP_ANONYMOUS) ] )
+  GASNET_TRY_CACHE_LINK([for MAP_ANON],map_anon,
+     [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
+     [ AC_DEFINE(HAVE_MAP_ANON) ] )
 fi
 
 case "$target" in

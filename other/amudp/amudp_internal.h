@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2006/08/11 00:53:27 $
- * $Revision: 1.21.4.1 $
+ *     $Date: 2006/11/04 02:26:29 $
+ * $Revision: 1.21.4.2 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -70,6 +70,9 @@
 #define AMUDP_MAX_RECVMSGS_PER_POLL                10  /* max number of waiting messages serviced per poll (0 for unlimited) 
                                                           we actually service up to MAX(AMUDP_MAX_RECVMSGS_PER_POLL, network_depth)
                                                           to prevent unnecessary retransmits (where the awaited reply is sitting in recv buffer) */
+#if AMUDP_DEBUG
+#define USE_CLEAR_UNUSED_SPACE 1  /* clear any padding sent in AMs, to prevent valgrind warnings */
+#endif
 
 #define AMUDP_INITIAL_NUMENDPOINTS 1    /* initial size of bundle endpoint table */
 

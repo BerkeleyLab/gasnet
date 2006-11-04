@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlarge.c,v $
- *     $Date: 2006/08/11 00:53:49 $
- * $Revision: 1.38.6.1 $
+ *     $Date: 2006/11/04 02:26:35 $
+ * $Revision: 1.38.6.2 $
  * Description: GASNet bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet bulk gets and puts
@@ -371,7 +371,7 @@ int main(int argc, char **argv)
         if (insegment) {
 	    msgbuf = (void *) myseg;
         } else {
-	    alloc = (void *) test_malloc(maxsz+PAGESZ);
+	    alloc = (void *) test_calloc(maxsz+PAGESZ,1); /* calloc prevents valgrind warnings */
             msgbuf = (void *) alignup(((uintptr_t)alloc), PAGESZ); /* ensure page alignment of base */
         }
         assert(((uintptr_t)msgbuf) % PAGESZ == 0);

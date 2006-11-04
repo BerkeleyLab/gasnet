@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/10/05 00:00:43 $ */
-/*  $Revision: 1.62.2.3 $ */
+/*      $Date: 2006/11/04 02:26:11 $ */
+/*  $Revision: 1.62.2.4 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -42,9 +42,11 @@
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
 
 /* identification of the compiler used at configure time */
 #undef GASNETI_PLATFORM_COMPILER_IDSTR
+#undef GASNETI_PLATFORM_COMPILER_FAMILYID
 #undef GASNETI_PLATFORM_COMPILER_ID
 #undef GASNETI_PLATFORM_COMPILER_VERSION
 
@@ -62,6 +64,11 @@
 
 /* have mmap() */
 #undef HAVE_MMAP
+
+/* mmap supporting flags */
+#undef HAVE_MAP_NORESERVE
+#undef HAVE_MAP_ANON
+#undef HAVE_MAP_ANONYMOUS
 
 /* --with-segment-mmap-max value (if given) */
 #undef GASNETI_MMAP_MAX_SIZE

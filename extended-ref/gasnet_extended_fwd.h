@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_fwd.h,v $
- *     $Date: 2006/10/18 22:45:56 $
- * $Revision: 1.21.2.2 $
+ *     $Date: 2006/11/04 02:26:16 $
+ * $Revision: 1.21.2.3 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.7
+#define GASNET_EXTENDED_VERSION      GASNET_RELEASE_VERSION_MAJOR.GASNET_RELEASE_VERSION_MINOR
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         REFERENCE
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)

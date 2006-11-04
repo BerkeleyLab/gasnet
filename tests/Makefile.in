@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2006/10/26 20:39:23 $
-# $Revision: 1.71.4.4 $
+#     $Date: 2006/11/04 02:26:35 $
+# $Revision: 1.71.4.5 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -88,6 +88,7 @@ testprograms_parsync =  \
 testprograms_par =  \
 	testthreads \
 	testcontend \
+	testlockcontend \
 	$(MPI_TESTS_PAR)
 
 testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par) $(MPI_TESTS) $(CXX_TESTS)
