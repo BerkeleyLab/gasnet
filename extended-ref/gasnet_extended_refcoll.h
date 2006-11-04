@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2006/11/04 01:50:39 $
- * $Revision: 1.1.10.5 $
+ *     $Date: 2006/11/04 05:58:28 $
+ * $Revision: 1.1.10.6 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,13 +22,14 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-coll handlers */
 #ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 124
+#define GASNETE_COLL_HANDLER_BASE 123
 #endif
 
 #define _hidx_gasnete_coll_p2p_memcpy_reqh  (GASNETE_COLL_HANDLER_BASE+0)
 #define _hidx_gasnete_coll_p2p_short_reqh   (GASNETE_COLL_HANDLER_BASE+1)
 #define _hidx_gasnete_coll_p2p_med_reqh	    (GASNETE_COLL_HANDLER_BASE+2)
 #define _hidx_gasnete_coll_p2p_long_reqh    (GASNETE_COLL_HANDLER_BASE+3)
+#define _hidx_gasnete_coll_p2p_med_tree_reqh (GASNETE_COLL_HANDLER_BASE+4)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -38,12 +39,14 @@
   SHORT_HANDLER_NOBITS_DECL(gasnete_coll_p2p_short_reqh, 5);
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_reqh,6);
   LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_long_reqh,5);
+  MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_tree_reqh,1);
 
   #define GASNETE_COLL_P2P_HANDLERS() \
       gasneti_handler_tableentry_with_bits(gasnete_coll_p2p_memcpy_reqh), \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_short_reqh),    \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_reqh),      \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_long_reqh),
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_long_reqh),     \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_tree_reqh), 
 
 #elif !defined(GASNETE_COLL_P2P_HANDLERS)
   #define GASNETE_COLL_P2P_HANDLERS()
