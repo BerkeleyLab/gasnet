@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2006/10/28 17:13:35 $
- * $Revision: 1.22.6.11 $
+ *     $Date: 2006/11/04 01:50:37 $
+ * $Revision: 1.22.6.12 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -86,9 +86,14 @@ typedef struct gasnete_coll_local_tree_geom_t_ gasnete_coll_local_tree_geom_t;
 struct gasnete_coll_tree_geom_t_;
 typedef struct gasnete_coll_tree_geom_t_ gasnete_coll_tree_geom_t;
 
+struct gasnete_coll_dissem_vector_t_;
+typedef struct gasnete_coll_dissem_vector_t_ gasnete_coll_dissem_vector_t;
+
+struct gasnete_coll_dissem_info_t_;
+typedef struct gasnete_coll_dissem_info_t_ gasnete_coll_dissem_info_t;
+
 struct gasnete_coll_op_status_t_;
 typedef struct gasnete_coll_op_status_t_ gasnete_coll_op_status_t;
-
 
 struct gasnete_coll_scratch_status_t_;
 typedef struct gasnete_coll_scratch_status_t_ gasnete_coll_scratch_status_t;
@@ -278,6 +283,10 @@ struct gasnete_coll_team_t_ {
 	/* tree geometry cache, each team should have its own cache .... */
 	gasnete_coll_tree_geom_t *tree_geom_cache_head;
 	gasnete_coll_tree_geom_t *tree_geom_cache_tail;
+	
+	/*dissem geometry cache, each team should have its own  ... */
+	gasnete_coll_dissem_info_t *dissem_cache_head;
+	gasnete_coll_dissem_info_t *dissem_cache_tail;
 	
 	/*my relative node id in this team*/
 	gasnet_node_t myrank;
@@ -2016,6 +2025,7 @@ struct gasnete_coll_generic_data_t_ {
     gasnete_coll_consensus_t		out_barrier;
     gasnete_coll_p2p_t			*p2p;
 	gasnete_coll_tree_data_t *tree_info;
+	gasnete_coll_dissem_info_t *dissem_info;
     gasnet_handle_t			handle;
     gasnet_coll_handle_t		coll_handle;
     void				*private_data;
@@ -2196,7 +2206,7 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  void *dst, void *src,
                                  size_t nbytes, int flags,
                                  gasnete_coll_poll_fn poll_fn, int options,
-                                 void *private_data, uint32_t sequence
+                                 void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence
                                  GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -2204,7 +2214,7 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
                                   void * const dstlist[], void * const srclist[],
                                   size_t nbytes, int flags,
                                   gasnete_coll_poll_fn poll_fn, int options,
-                                  void *private_data, uint32_t sequence
+                                  void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence
                                   GASNETE_THREAD_FARG);
 
 

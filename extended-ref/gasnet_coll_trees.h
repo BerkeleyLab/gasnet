@@ -1,6 +1,7 @@
 #ifndef ALREADY_SEEN_GASNET_COLL_TREES_H 
 #define ALREADY_SEEN_GASNET_COLL_TREES_H 1
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
+#define  GASNETE_COLL_DEFAULT_RADIX 2
 #include <gasnet_coll.h>
 
 
@@ -84,5 +85,41 @@ void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 /*testing functions*/
 void gasnete_coll_set_tree_kind(char *treestr);
 void gasnete_coll_set_fanout(int fanout);
+
+
+/******** Dissemination Ordering **********/
+#define GASNETE_COLL_DISSEM_GET_TOTAL_PHASES(DISSEM_INFO) ((DISSEM_INFO)->dissemination_phases)
+#define GASNETE_COLL_DISSEM_GET_RADIX(DISSEM_INFO) ((DISSEM_INFO)->dissemination_radix)
+#define GASNETE_COLL_DISSEM_MAX_BLOCKS(DISSEM_INFO) ((DISSEM_INFO)->max_dissem_blocks)
+#define GASNETE_COLL_DISSEM_NBLOCKS(DISSEM_INFO) ((DISSEM_INFO)->n_blocks)
+#define GASNETE_COLL_DISSEM_ALL_REDUCE_OK(DISSEM_INFO) ((DISSEM_INFO)->all_reduce_ok)
+#define GASNETE_COLL_DISSEM_GET_PEERS(DISSEM_INFO, PHASE) ((DISSEM_INFO)->barrier_order[(PHASE)].elem_list)
+#define GASNETE_COLL_DISSEM_GET_PEER_COUNT(DISSEM_INFO, PHASE) ((DISSEM_INFO)->barrier_order[(PHASE)].n)
+
+
+struct gasnete_coll_dissem_vector_t_{
+  gasnet_node_t *elem_list;
+  int n;
+};
+struct gasnete_coll_dissem_info_t_ {
+  gasnete_coll_dissem_info_t *prev;
+  gasnete_coll_dissem_info_t *next;
+  gasnete_coll_dissem_vector_t *barrier_order;
+  gasnete_coll_dissem_vector_t *all_reduce_order;
+  int dissemination_phases; /*log_radix(THREADS)*/
+  int dissemination_radix;
+  int max_dissem_blocks;
+ 
+  /*an array that holds the number of blocks we send in each phase of the 
+    dissemination all to all. Used to capture when nblocks is 1 to avoid copies*/
+  int *n_blocks; 
+  /*whether this dissem obj is designed to run the all_reduce*/
+  /*only true when power of two proc count AND radix is 2*/
+  int all_reduce_ok; 
+};
+
+gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_coll_team_t team);
+void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t* obj, gasnete_coll_team_t team);
+/*****************************************/
 
 #endif

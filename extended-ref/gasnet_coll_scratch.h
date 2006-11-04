@@ -30,23 +30,34 @@ struct gasnete_coll_op_info_t_;
 typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;
 
 struct gasnete_coll_scratch_req_t_ {
-  gasnete_coll_tree_kind_t tree_type;
-  int fanout;
-  gasnet_node_t root;
-  gasnete_coll_team_t team;
-  
-  
-  /*information for all the data for which i am the target*/
-  int num_in_peers;
-  gasnet_node_t *in_peers;
-  /*this is the sum incoming space of all the peers sending to me*/
-  uint32_t incoming_size; 
-  
-  /*information for all the data for which i am an initiator*/
-  int num_out_peers; 
-  gasnet_node_t *out_peers;
-  uint32_t *out_sizes;
-  
+
+	gasnete_coll_tree_kind_t tree_type;
+	int fanout;
+	gasnet_node_t root;
+	gasnete_coll_team_t team;
+	/*notice that we don't need to keep track of the dissemination radix since we don't do anything withit */
+
+	/* whether this is a tree op where peers are fixed from phase to phase*/
+	int tree_op;
+	
+		
+	/*this is the sum incoming space of all the peers sending to me*/
+	/*for now, for non treeops this is the amount of data that everyone is requesting*/
+	uint32_t incoming_size; 
+	
+	/*information for all the data for which i am the target*/
+	/*for non tree ops these values*/
+	int num_in_peers;
+	gasnet_node_t *in_peers;
+
+	
+	/*information for all the data for which i am an initiator*/
+	/*for non tree ops this information is not used*/
+	int num_out_peers; 
+	gasnet_node_t *out_peers;
+	uint32_t *out_sizes;
+	
+
 };
 struct gasnete_coll_node_scratch_status_t_  {
   /*head and tail of the circular buffer that represents the active scratch space on a particular node*/
@@ -58,25 +69,28 @@ struct gasnete_coll_node_scratch_status_t_  {
 };
 
 struct gasnete_coll_op_info_t_ {
-  gasnete_coll_op_info_t *next;
-  gasnete_coll_op_info_t *prev;
-  
-  gasnete_coll_tree_kind_t tree_type;
-  int tree_fanout;
-  gasnet_node_t root;
-  
-  /* a pointer to the actual op handle so that we can do a wait sync on it */
-  gasnet_coll_handle_t op_handle; 
-  
-  /*amount of scratch space used locally*/
-  uint32_t local_scratch_used;
-  
-  /* the original seq number attahced to that op*/
-  uint32_t seq_number;
-  
-  /*is this operation finished*/
-  int done;
-  
+
+	gasnete_coll_op_info_t *next;
+	gasnete_coll_op_info_t *prev;
+	
+	gasnete_coll_tree_kind_t tree_type;
+	int tree_fanout;
+	gasnet_node_t root;
+	
+	int tree_op;
+	
+	/* a pointer to the actual op handle so that we can do a wait sync on it */
+	gasnet_coll_handle_t op_handle; 
+	
+	/*amount of scratch space used locally*/
+	uint32_t local_scratch_used;
+	
+	uint32_t seq_number;
+	
+	/*is this operation finished*/
+	int done;
+
+
 };
 
 /*this structure describes an operation info*/
