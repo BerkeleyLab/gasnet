@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2006/11/04 02:26:35 $
-# $Revision: 1.71.4.5 $
+#     $Date: 2006/11/05 20:49:36 $
+# $Revision: 1.71.4.6 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -33,6 +33,7 @@ CXX_TESTS = testcxx testtoolscxx
 # non-GASNet plain MPI tests
 MPI1_TESTS = 			\
 	testmpiperf 		\
+	testmpicollperf         \
 	testmpinbr		\
 	testosumpi_bw  		\
 	testosumpi_bw2 		\
