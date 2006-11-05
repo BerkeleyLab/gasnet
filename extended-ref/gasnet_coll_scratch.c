@@ -274,9 +274,11 @@ uint64_t gasnete_coll_scratch_tree_get_pos(gasnet_node_t dst, uint32_t req_size,
     /* if the tail is behind or equal to the head then check to see if there is enough scratch space to the end*/
     if(dst_head_pos + req_size > team->scratch_segs[dst].size) {
       /* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
-      /*			fprintf(stderr, "%d> waiting for %d to send a clear signal\n", gasneti_mynode, dst); */
-      while(gasnett_atomic64_read(&(stat->node_status[dst].tail),0) !=0) gasnet_AMPoll();
-      /*			fprintf(stderr, "%d> got a clear signal from %d\n", gasneti_mynode, dst); */
+   
+      /*XXX Use compare and Swap here*/
+      while(gasnett_atomic64_read(&(stat->node_status[dst].new_val),0) ==0) gasnet_AMPoll();
+      gasnett_atomic64_set(&(stat->node_status[dst].new_val),0,0);
+   
       stat->node_status[dst].head = req_size;
       return 0;
     } else {
@@ -289,8 +291,11 @@ uint64_t gasnete_coll_scratch_tree_get_pos(gasnet_node_t dst, uint32_t req_size,
     if(dst_head_pos + req_size > dst_tail_pos) {
       /* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
       /* for now wait for the tail set to drop back to 0*/
-      /*		fprintf(stderr, "%d> waiting for %d to send a clear signal\n", gasneti_mynode, dst); */
-      while(gasnett_atomic64_read(&(stat->node_status[dst].tail),0) !=0);
+      
+      /*XXX Use compare and Swap here*/
+      while(gasnett_atomic64_read(&(stat->node_status[dst].new_val),0) ==0) gasnet_AMPoll();
+      gasnett_atomic64_set(&(stat->node_status[dst].new_val),0,0);
+
       stat->node_status[dst].head = req_size;
       return 0;
     } else {
@@ -349,7 +354,8 @@ void gasnete_coll_scratch_update_reqh(gasnet_token_t token,
   stat = team->scratch_status;
   /* create a new status and attach it on to the update list*/
   tail = GASNETI_MAKEWORD(tail_high, tail_low);
-  gasnett_atomic64_set(&(stat->node_status[node].tail),tail,0);
+  /* for now signal the new val as 1*/
+  gasnett_atomic64_set(&(stat->node_status[node].new_val),1,0);
 }
 
 /**** Dissem Ops *****/

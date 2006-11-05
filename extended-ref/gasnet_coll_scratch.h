@@ -48,7 +48,7 @@ struct gasnete_coll_scratch_req_t_ {
 	/*information for all the data for which i am the target*/
 	/*for non tree ops these values*/
 	int num_in_peers;
-	gasnet_node_t *in_peers;
+  gasnet_node_t *in_peers;
 
 	
 	/*information for all the data for which i am an initiator*/
