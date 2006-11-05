@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2006/11/04 02:26:11 $
- * $Revision: 1.22.6.13 $
+ *     $Date: 2006/11/05 07:58:09 $
+ * $Revision: 1.22.6.14 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -380,13 +380,13 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 /*---------------------------------------------------------------------------------*/
 /* Type for point-to-point synchronization */
 
-#ifndef GASNETE_COLL_P2P_EAGER_SCALE
+#ifndef GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT
     /* Number of bytes per-image to allocate for eager data */
-    #define GASNETE_COLL_P2P_EAGER_SCALE	16
+    #define GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT	16
 #endif
-#ifndef GASNETE_COLL_P2P_EAGER_MIN
+#ifndef GASNETE_COLL_P2P_EAGER_MIN_DEFAULT
     /* Minumum number of bytes to allocate for eager data */
-    #define GASNETE_COLL_P2P_EAGER_MIN		16
+    #define GASNETE_COLL_P2P_EAGER_MIN_DEFAULT		16
 #endif
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
@@ -403,6 +403,7 @@ extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
 	/* Volatile arrays of data and state for the point-to-point synchronization */
 	uint8_t			*data;
 	volatile uint32_t	*state;
+	gasneti_weakatomic_t	counter;
 
 	/* Handler-safe lock (if needed) */
 	gasnet_hsl_t		lock;

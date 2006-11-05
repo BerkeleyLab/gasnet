@@ -188,11 +188,13 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
     begin = gasnett_ticks_now();
     for(j=0; j<iters; j++) {
       gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*j, root, A+datasize*j, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
+      #if 0
       if(use_barrier){
 	barrier_begin = gasnett_ticks_now();
 	BARRIER();
 	barrier_end += gasnett_ticks_now() - barrier_begin;
       }
+      #endif
     }
     
     if(!use_barrier) {
@@ -225,9 +227,9 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } /*end changing root*/
 
   if(use_barrier) {
-    MSG0("bcast-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+    MSG("bcast-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
   } else {
-    MSG0("bcast-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+    MSG("bcast-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
   }
   BARRIER();
 	
@@ -238,7 +240,7 @@ int main(int argc, char **argv)
 	
   gasnet_node_t myproc, i;
   int j;
-	
+  int tree_fanout=0;
 	
 	
   /*startup*/
@@ -256,8 +258,10 @@ int main(int argc, char **argv)
     datasize = atoi(argv[1]); iters = 1000; break;
   case 3: /*size and iteration count*/
     datasize = atoi(argv[1]); iters = atoi(argv[2]); break; 
+  case 4:
+    datasize = atoi(argv[1]); iters= atoi(argv[2]); tree_fanout = atoi(argv[3]); break;
 #if GASNET_PAR
-  case 4: /*size, iteration count, and threads */
+  case 5: /*size, iteration count, and threads */
     datasize = atoi(argv[1]); iters = atoi(argv[2]); threads = atoi(argv[3]); break;
 #endif
   default:  test_usage();
@@ -271,38 +275,44 @@ int main(int argc, char **argv)
   test_init("testcollperf", 1, "size (iters) (threadcnt)");
 	
   BARRIER();
-	
-  run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
+  
+  /*  run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);*/
 
   /*  run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
 		 (char*)"GASNET_BINOMIAL_TREE", 0);
-
+		 
   for(i=1; i<=gasnet_nodes(); i++) {
     run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
 		   (char*)"GASNET_NARY_TREE", i);
-		   } */ 
-  
-  run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		 (char*)"GASNET_BINOMIAL_TREE", 0); 
-  for(i=1; i<=gasnet_nodes(); i++) {
+		   } 
+  */ 
+  if(tree_fanout == 0) {
     run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		   (char*)"GASNET_NARY_TREE", i);
-  }
-  run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
+		   (char*)"GASNET_BINOMIAL_TREE", 0); 
+     run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
 		 (char*)"GASNET_BINOMIAL_TREE", 0); 
-  for(i=1; i<=gasnet_nodes(); i++) {
-    run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
-		   (char*)"GASNET_NARY_TREE", i);
-  } 
-	
+ 
+  } else {
+    /*for(i=tree_fanout; i<=tree_fanout; i++) {*/
+      /*  for(i=1; i<=gasnet_nodes(); i++) {*/
+      run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
+		     (char*)"GASNET_NARY_TREE", tree_fanout);
+      run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
+		       (char*)"GASNET_NARY_TREE", tree_fanout);
+      /*}*/
+    
+  }
+
+    
   /*  run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, 
 		 (char*)"GASNET_BINOMIAL_TREE", 0);
-  for(i=1; i<=gasnet_nodes(); i++) {
+		 for(i=1; i<=gasnet_nodes(); i++) {
 
     run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, 
 		   (char*)"GASNET_NARY_TREE", i);
-		   } */
-
+		   } 
+  */
+  
 	
   MSG("tests finished successfully");
   gasnet_exit(0);
