@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/11/05 04:03:19 $
- * $Revision: 1.189.4.17.2.1 $
+ *     $Date: 2006/11/05 04:12:24 $
+ * $Revision: 1.189.4.17.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1058,18 +1058,22 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   int i;
   int length, checksum;
 
+#if GASNETI_THREADS
   if (gasneti_weakatomic_read(&cep->amrdma.recv_in_use, 0) ||
       (hdr->length != hdr->length_again) ||
       !gasneti_weakatomic_compare_and_swap(&cep->amrdma.recv_in_use, 0, 1, GASNETI_ATOMIC_ACQ)) {
     /* Another thread is working on this slot or no AM is waiting */
     return 0;
   }
+#endif
   
   /* Must recheck with lock bit held */
   if_pf (((length = hdr->length) != hdr->length_again) ||
          ((checksum = hdr->zeros) != hdr->zeros_again)) {
+#if GASNETI_THREADS
     /* Release our lock */
     gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0);
+#endif
     return 0;
   }
 
@@ -1082,7 +1086,9 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
     if (zeros != checksum) {
       gasneti_assert(zeros > checksum); /* Too few zeros is impossible. */
       /* Too many zeros = recv incomplete */
+#if GASNETI_THREADS
       gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, 0); /* Release our lock */
+#endif
       return 0;
     }
   }
@@ -1153,7 +1159,9 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   hdr->immediate_data = 0;
   memset(msg_in, 0, length);
 
+#if GASNETI_THREADS
   gasneti_weakatomic_set(&cep->amrdma.recv_in_use, 0, GASNETI_ATOMIC_REL);
+#endif
   gasneti_weakatomic_increment(&cep->am_flow.ack, 0);
 
   /* Finalize flow control */
