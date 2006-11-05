@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/10/28 01:27:14 $
- * $Revision: 1.189.4.17 $
+ *     $Date: 2006/11/05 04:02:40 $
+ * $Revision: 1.189.4.18 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1603,12 +1603,18 @@ int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
     return -1;
   }
 
+#if GASNETI_THREADS
   while (1) {
     send_tail = gasneti_weakatomic_read(&cep->amrdma.send_tail, 0);
     if (send_tail == gasneti_weakatomic_read(&cep->amrdma.send_head, 0)) { return -1; }
     if (gasneti_weakatomic_compare_and_swap(&cep->amrdma.send_tail, send_tail, send_tail + 1, 0)) { break; }
     GASNETI_WAITHOOK();
   }
+#else
+  send_tail = gasneti_weakatomic_read(&cep->amrdma.send_tail, 0);
+  if (send_tail == gasneti_weakatomic_read(&cep->amrdma.send_head, 0)) { return -1; }
+  gasneti_weakatomic_increment(&cep->amrdma.send_tail, 0);
+#endif
 
   return (send_tail % GASNETC_AMRDMA_DEPTH);
 }
@@ -1921,13 +1927,20 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       uint32_t credits;
 
       /* "Grab" info w/ atomic load-and-clear operations: */
+#if GASNETI_THREADS
       do {
         acks = gasneti_weakatomic_read(&cep->am_flow.ack, 0);
       } while (acks && !gasneti_weakatomic_compare_and_swap(&cep->am_flow.ack, acks, 0, 0));
-      gasneti_assert(acks <= 255);
       do {
         credits = gasneti_weakatomic_read(&cep->am_flow.credit, 0);
       } while (credits && !gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, credits, 0, 0));
+#else
+      acks = gasneti_weakatomic_read(&cep->am_flow.ack, 0);
+      gasneti_weakatomic_set(&cep->am_flow.ack, 0, 0);
+      credits = gasneti_weakatomic_read(&cep->am_flow.credit, 0);
+      gasneti_weakatomic_set(&cep->am_flow.credit, 0, 0);
+#endif
+      gasneti_assert(acks <= 255);
       gasneti_assert(credits <= 255);
 
       args[0] = credits | (acks << 8);
