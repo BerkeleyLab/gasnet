@@ -20,14 +20,19 @@
 #define DEFAULT_THREADS 1
 #endif
 /*max size in ints*/
-#define MAX_SIZE 512
-#define DEFAULT_ITERS 10
+#define MAX_SIZE 2048
+#define DEFAULT_ITERS 1000
 #define MAX_TREE_FANOUT 10
 #ifndef MIN
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #endif
 #define TEST_SEGSZ_EXPR (sizeof(int)*(2048*iters*gasnet_nodes()*2))
 #define WARM_ITERS MIN(4,iters)
+
+#if GASNET_ALIGNED_SEGMENTS
+#else
+  #error "THIS TEST ASSUMES ALIGNED SEGMENTS!"
+#endif
 
 #define COLL_BARRIER 1
 #define NO_COLL_BARRIER 0
@@ -134,18 +139,13 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   char flagstr[20];
   gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
   gasnet_node_t root, mynode;
-#if GASNET_ALIGNED_SEGMENENTS
-  MSG("segments aligned");
-#else
-  #error "THIS TEST ASSUMES ALIGNED SEGMENTS!"
-#endif
   mynode = gasnet_mynode();
   assert(gasnet_getMaxLocalSegmentSize() > 2*MAX_SIZE*iters*sizeof(int));
   /*allocate array to be datasize*iters ints out of the aligned segment*/
   A = (int*) TEST_MYSEG();
   B = (int*) A + datasize*iters;
   C = (int*) B + datasize*iters;
-  MSG("%p %p", A, B);
+ 
   gasnet_coll_set_tree_kind(tree_type);
   gasnet_coll_set_fanout(fanout);
   BARRIER();
