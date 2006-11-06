@@ -276,8 +276,8 @@ uint64_t gasnete_coll_scratch_tree_get_pos(gasnet_node_t dst, uint32_t req_size,
       /* wait for dst to send updates of head and tail pointers <-- function will update head and tail pointers*/
    
       /*XXX Use compare and Swap here*/
-      while(gasnett_atomic64_read(&(stat->node_status[dst].new_val),0) ==0) gasnet_AMPoll();
-      gasnett_atomic64_set(&(stat->node_status[dst].new_val),0,0);
+      while(gasnett_atomic_read(&(stat->node_status[dst].new_val),0) ==0) gasnet_AMPoll();
+      gasnett_atomic_set(&(stat->node_status[dst].new_val),0,0);
    
       stat->node_status[dst].head = req_size;
       return 0;
@@ -293,8 +293,8 @@ uint64_t gasnete_coll_scratch_tree_get_pos(gasnet_node_t dst, uint32_t req_size,
       /* for now wait for the tail set to drop back to 0*/
       
       /*XXX Use compare and Swap here*/
-      while(gasnett_atomic64_read(&(stat->node_status[dst].new_val),0) ==0) gasnet_AMPoll();
-      gasnett_atomic64_set(&(stat->node_status[dst].new_val),0,0);
+      while(gasnett_atomic_read(&(stat->node_status[dst].new_val),0) ==0) gasnet_AMPoll();
+      gasnett_atomic_set(&(stat->node_status[dst].new_val),0,0);
 
       stat->node_status[dst].head = req_size;
       return 0;
@@ -355,7 +355,7 @@ void gasnete_coll_scratch_update_reqh(gasnet_token_t token,
   /* create a new status and attach it on to the update list*/
   tail = GASNETI_MAKEWORD(tail_high, tail_low);
   /* for now signal the new val as 1*/
-  gasnett_atomic64_set(&(stat->node_status[node].new_val),1,0);
+  gasnett_atomic_set(&(stat->node_status[node].new_val),1,0);
 }
 
 /**** Dissem Ops *****/

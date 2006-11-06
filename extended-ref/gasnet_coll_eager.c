@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2006/11/05 20:33:04 $
- * $Revision: 1.29.6.22 $
+ *     $Date: 2006/11/06 03:41:05 $
+ * $Revision: 1.29.6.23 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -6018,7 +6018,7 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
 				     0, 0, src, nbytes*gasneti_nodes);
 
   /* XXX: need more implementations to choose from here */
-  if(nbytes > 256) {
+  if(nbytes > gasnete_coll_p2p_eager_min) {
     return gasnete_coll_exchg_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   } else {
     return gasnete_coll_exchg_Dissem(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
