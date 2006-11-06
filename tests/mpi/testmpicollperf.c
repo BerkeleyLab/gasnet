@@ -3,13 +3,13 @@
 #include<mpi.h>
 
 
-#define REPS 100
+#define REPS 1000
 int MYTHREAD;
 int THREADS;
 
 void print_usage(char *prog) {
   if(MYTHREAD==0) {
-    fprintf(stderr, "usage: %s elem_per_thread iters\n", prog); 
+    fprintf(stderr, "usage: %s (iters)\n", prog); 
   }
   MPI_Barrier(MPI_COMM_WORLD);
 }
@@ -381,12 +381,12 @@ int main(int argc, char **argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &MYTHREAD);
   MPI_Comm_size(MPI_COMM_WORLD, &THREADS);
 
-  if(argc!=3) {
-    print_usage(argv[0]);
-    exit(1);
+  
+  switch(argc) {
+  case 1: iters=1000; break;
+  case 2: iters=atoi(argv[1]); break;
+  case 3: print_usage(argv[0]); MPI_Finalize(); return 1; break;
   }
-  elem_per_thread = atoi(argv[1]);
-  iters = atoi(argv[2]);
   MPI_Barrier(MPI_COMM_WORLD);
   start_time = MPI_Wtime();
   for(i=0; i<REPS*10; i++) {
@@ -396,10 +396,12 @@ int main(int argc, char **argv) {
   if(MYTHREAD==0) {
     fprintf(stdout, "%d> barrier mpi %.3f\n", MYTHREAD, ((stop_time - start_time)*1e6)/(REPS*10));
   }  
-
-  run_bcast_test(elem_per_thread, iters, 1);
-  run_bcast_test(elem_per_thread, iters, 0);
-  run_all_to_all_test(elem_per_thread, iters);
+  
+  for(elem_per_thread = 1; elem_per_thread<=2048; elem_per_thread*=2) {
+    run_bcast_test(elem_per_thread, iters, 1);
+    run_bcast_test(elem_per_thread, iters, 0);
+    run_all_to_all_test(elem_per_thread, iters);
+  }
   
   MPI_Barrier(MPI_COMM_WORLD);
   return 0;
