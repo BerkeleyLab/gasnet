@@ -281,7 +281,7 @@ void run_all_to_all_test(int elem_per_thread, int iters) {
     
 
    } 
-  for(i=0; i<elem_per_thread*THREADS*iters; i++) {
+  for(i=0; i<elem_per_thread*THREADS; i++) {
     src[i] = (MYTHREAD+1);
   }
    MPI_Barrier(MPI_COMM_WORLD);
