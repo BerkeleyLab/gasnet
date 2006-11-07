@@ -72,7 +72,6 @@ int threads = DEFAULT_THREADS; /* per node */
 void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   int *A; /*source*/
   int *B; /*destination*/
-  int *C; /*other*/
   
   int i,j,k,nodes,iteroffset;
   char flagstr[20];
@@ -87,10 +86,8 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   A = (int*) TEST_MYSEG();
 #if VERIFICATION_MODE
   B = (int*) A + datasize*gasnet_nodes()*iters;
-  C = (int*) B + datasize*gasnet_nodes()*iters;
 #else
   B = (int*) A + datasize*gasnet_nodes();
-  C = (int*) B + datasize*gasnet_nodes();
 #endif
   assert(dissem_radix == 2);
   if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
@@ -111,7 +108,7 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   for(j=0; j<iters; j++) {
     iteroffset = j;
 #else
-    iteroffset=1;
+    iteroffset=0;
 #endif
     
     for(k=0; k<gasnet_nodes(); k++) {
@@ -124,6 +121,7 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
 #if VERIFICATION_MODE
   }
 #endif
+
 #if VERIFICATION_MODE
 #else
   
@@ -141,7 +139,7 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
 #if VERIFICATION_MODE
 #define ITER_OFFSET (j)
 #else
-#define ITER_OFFSET 1
+#define ITER_OFFSET 0
 #endif
     gasnet_coll_exchange(GASNET_TEAM_ALL, B+datasize*nodes*ITER_OFFSET, 
 			 A+datasize*nodes*ITER_OFFSET, 
@@ -244,7 +242,7 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
 #if VERIFICATION_MODE
       for(j=0; j<iters; j++) {
 #else
-	j=1;
+	j=0;
 #endif
 	for(i=0; i<datasize; i++) {
 	  A[j*datasize+i] = j*datasize+i;
@@ -259,7 +257,7 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
 #if VERIFICATION_MODE     
       for(j=0; j<iters; j++) {
 #else
-	j=1;
+	j=0;
 #endif
 
 	for(i=0; i<datasize; i++) {
@@ -276,7 +274,7 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
 #else		
     BARRIER();
     for(j=0; j<WARM_ITERS; j++) {
-      gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize, root, A+datasize, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
+      gasnet_coll_broadcast(GASNET_TEAM_ALL, B, root, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
       BARRIER();
     }
 #endif	
@@ -287,7 +285,7 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
 #if VERIFICATION_MODE
       #define ITER_OFFSET (j)
 #else
-      #define ITER_OFFSET 1
+      #define ITER_OFFSET 0
 #endif
       gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*ITER_OFFSET, root, A+datasize*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
 
