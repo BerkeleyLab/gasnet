@@ -104,7 +104,6 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
 
   /* fill in the source data with live values*/
 #if VERIFICATION_MODE
-
   for(j=0; j<iters; j++) {
     iteroffset = j;
 #else
@@ -126,7 +125,7 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
 #else
   
   for(j=0; j<WARM_ITERS; j++) {
-    gasnet_coll_exchange(GASNET_TEAM_ALL, B+datasize*nodes, A+datasize*nodes, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
+    gasnet_coll_exchange(GASNET_TEAM_ALL, B, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
   }
 	
   BARRIER();
@@ -364,8 +363,8 @@ int main(int argc, char **argv)
   
   BARRIER();
   
-  for(datasize=1; datasize<=MAX_SIZE; datasize = datasize*2) {
-    run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
+  for(datasize=MAX_SIZE; datasize<=MAX_SIZE; datasize = datasize*2) {
+      run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
     
     if(!run_all) {
       if(tree_fanout == 0) {
