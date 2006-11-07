@@ -27,18 +27,18 @@ void run_bcast_test(int elem_per_thread, int iters, int use_barrier) {
   double *barrier_times;
   int i;
 
-  src = (int*) malloc(sizeof(int)*elem_per_thread*iters);
+  src = (int*) malloc(sizeof(int)*elem_per_thread);
   if(MYTHREAD==0) {
     coll_times = (double*) malloc(sizeof(double)*THREADS);
     barrier_times = (double*) malloc(sizeof(double)*THREADS);
     
     
-    for(i=0; i<elem_per_thread*iters; i++) {
+    for(i=0; i<elem_per_thread; i++) {
        src[i] = (i+1);
      }
   } 
   for(i=0; i<10; i++) {
-    MPI_Bcast(src+i*elem_per_thread, elem_per_thread, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(src, elem_per_thread, MPI_INT, 0, MPI_COMM_WORLD);
 
     /*start_time = MPI_Wtime();    
       MPI_Barrier(MPI_COMM_WORLD);
@@ -49,7 +49,7 @@ void run_bcast_test(int elem_per_thread, int iters, int use_barrier) {
    
    coll_start_time = MPI_Wtime();
    for(i=0; i<iters; i++) {
-     MPI_Bcast(src+i*elem_per_thread, elem_per_thread, MPI_INT, 0, MPI_COMM_WORLD);
+     MPI_Bcast(src, elem_per_thread, MPI_INT, 0, MPI_COMM_WORLD);
      if(use_barrier) {
        start_time = MPI_Wtime();
        MPI_Barrier(MPI_COMM_WORLD);
@@ -271,8 +271,8 @@ void run_all_to_all_test(int elem_per_thread, int iters) {
   int i;
 
   
-  dest = (int*) malloc(sizeof(int)*elem_per_thread*THREADS*iters);
-  src = (int*) malloc(sizeof(int)*elem_per_thread*THREADS*iters);
+  dest = (int*) malloc(sizeof(int)*elem_per_thread*THREADS);
+  src = (int*) malloc(sizeof(int)*elem_per_thread*THREADS);
   if(MYTHREAD==0) {
 
     coll_times = (double*) malloc(sizeof(double)*THREADS);
@@ -287,7 +287,7 @@ void run_all_to_all_test(int elem_per_thread, int iters) {
    MPI_Barrier(MPI_COMM_WORLD);
    
    for(i=0; i<10; i++) {
-     MPI_Alltoall(src+i*elem_per_thread*THREADS, elem_per_thread, MPI_INT, dest+i*elem_per_thread*THREADS, elem_per_thread, MPI_INT, 
+     MPI_Alltoall(src, elem_per_thread, MPI_INT, dest, elem_per_thread, MPI_INT, 
 		 MPI_COMM_WORLD);
      MPI_Barrier(MPI_COMM_WORLD);
    }
@@ -296,7 +296,7 @@ void run_all_to_all_test(int elem_per_thread, int iters) {
    
    coll_start_time = MPI_Wtime();
    for(i=0; i<iters; i++) {
-     MPI_Alltoall(src+i*elem_per_thread*THREADS, elem_per_thread, MPI_INT, dest+i*elem_per_thread*THREADS, elem_per_thread, MPI_INT, 
+     MPI_Alltoall(src, elem_per_thread, MPI_INT, dest, elem_per_thread, MPI_INT, 
 		 MPI_COMM_WORLD);
 
    }
@@ -383,7 +383,7 @@ int main(int argc, char **argv) {
 
   
   switch(argc) {
-  case 1: iters=1000; break;
+  case 1: iters=10000; break;
   case 2: iters=atoi(argv[1]); break;
   case 3: print_usage(argv[0]); MPI_Finalize(); return 1; break;
   }
@@ -404,5 +404,6 @@ int main(int argc, char **argv) {
   }
   
   MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Finalize();
   return 0;
 }

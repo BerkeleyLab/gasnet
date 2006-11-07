@@ -14,19 +14,34 @@
 #include "gasnet.h"
 #include "gasnet_coll.h"
 
+
+#define VERIFICATION_MODE 0
+
+#if VERIFICATION_MODE
+#define VERIFY_RESULT 1
+#define MAX_SIZE 512
+#define DEFAULT_ITERS 100
+#define TEST_SEGSZ_EXPR (sizeof(int)*(MAX_SIZE*iters*gasnet_nodes()*2))
+#else
+#define VERIFY_RESULT 0
+#define MAX_SIZE 2048
+#define DEFAULT_ITERS 10000
+#define TEST_SEGSZ_EXPR (sizeof(int)*(MAX_SIZE*gasnet_nodes()*2))
+#endif
+
+#define MAX_TREE_FANOUT 10
+
 #if GASNET_PAR
 #define DEFAULT_THREADS 2
 #else
 #define DEFAULT_THREADS 1
 #endif
 /*max size in ints*/
-#define MAX_SIZE 2048
-#define DEFAULT_ITERS 1000
-#define MAX_TREE_FANOUT 10
+
 #ifndef MIN
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #endif
-#define TEST_SEGSZ_EXPR (sizeof(int)*(2048*iters*gasnet_nodes()*2))
+
 #define WARM_ITERS MIN(4,iters)
 
 #if GASNET_ALIGNED_SEGMENTS
@@ -36,7 +51,7 @@
 
 #define COLL_BARRIER 1
 #define NO_COLL_BARRIER 0
-#define VERIFY_RESULT 1
+
 int datasize;
 int numprocs;
 
@@ -58,7 +73,8 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   int *A; /*source*/
   int *B; /*destination*/
   int *C; /*other*/
-  int i,j,k,nodes;
+  
+  int i,j,k,nodes,iteroffset;
   char flagstr[20];
   gasnett_tick_t begin, end;
   gasnet_node_t root, mynode;
@@ -69,8 +85,13 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   /*allocate array to be datasize*iters ints out of the aligned segment*/
   BARRIER();
   A = (int*) TEST_MYSEG();
+#if VERIFICATION_MODE
   B = (int*) A + datasize*gasnet_nodes()*iters;
   C = (int*) B + datasize*gasnet_nodes()*iters;
+#else
+  B = (int*) A + datasize*gasnet_nodes();
+  C = (int*) B + datasize*gasnet_nodes();
+#endif
   assert(dissem_radix == 2);
   if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
     sprintf(flagstr, "no/no");
@@ -81,26 +102,57 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   } else {
     MSG0("wtf\n");
   }
+  
+
+
   /* fill in the source data with live values*/
+#if VERIFICATION_MODE
+
   for(j=0; j<iters; j++) {
+    iteroffset = j;
+#else
+    iteroffset=1;
+#endif
+    
     for(k=0; k<gasnet_nodes(); k++) {
       for(i=0; i<datasize; i++) {
-	A[j*datasize*nodes+k*datasize+i] = j*datasize*nodes+mynode*datasize+(i+1)*10;
-	B[j*datasize*nodes+k*datasize+i] = -1;
+	A[iteroffset*datasize*nodes+k*datasize+i] = iteroffset*datasize*nodes+mynode*datasize+(i+1)*10;
+	B[iteroffset*datasize*nodes+k*datasize+i] = -1;
       }
     }
+    
+#if VERIFICATION_MODE
+  }
+#endif
+#if VERIFICATION_MODE
+#else
+  
+  for(j=0; j<WARM_ITERS; j++) {
+    gasnet_coll_exchange(GASNET_TEAM_ALL, B+datasize*nodes, A+datasize*nodes, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
   }
 	
+  BARRIER();
+  
+#endif
+  
   BARRIER();		
   begin = gasnett_ticks_now();
   for(j=0; j<iters; j++) {
-    gasnet_coll_exchange(GASNET_TEAM_ALL, B+datasize*nodes*j, A+datasize*nodes*j, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
+#if VERIFICATION_MODE
+#define ITER_OFFSET (j)
+#else
+#define ITER_OFFSET 1
+#endif
+    gasnet_coll_exchange(GASNET_TEAM_ALL, B+datasize*nodes*ITER_OFFSET, 
+			 A+datasize*nodes*ITER_OFFSET, 
+			 datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
   }
 	
   BARRIER();
   end =  gasnett_ticks_now() - begin;
 	
   /*verify that the data got there */
+
 #if VERIFY_RESULT
   for(j=0; j<iters; j++) {
     for(k=0; k<nodes; k++) {
@@ -143,8 +195,13 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   assert(gasnet_getMaxLocalSegmentSize() > 2*MAX_SIZE*iters*sizeof(int));
   /*allocate array to be datasize*iters ints out of the aligned segment*/
   A = (int*) TEST_MYSEG();
+#if VERIFICATION_MODE
   B = (int*) A + datasize*iters;
   C = (int*) B + datasize*iters;
+#else
+  B = (int*) A + datasize;
+  C = (int*) B + datasize;
+#endif
  
   gasnet_coll_set_tree_kind(tree_type);
   gasnet_coll_set_fanout(fanout);
@@ -181,42 +238,67 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
       if (gasnet_nodes() < 2) continue;
       root = images - 1;
     }
-		
+    
     if(mynode == root) {
       /* fill in the source data with live values*/
+#if VERIFICATION_MODE
       for(j=0; j<iters; j++) {
+#else
+	j=1;
+#endif
 	for(i=0; i<datasize; i++) {
 	  A[j*datasize+i] = j*datasize+i;
 	  B[j*datasize+i] = -1;
 	}
+#if VERIFICATION_MODE
       }
-    } else { 
+#endif
+    }
+    else { 
       /* fill in source data with -1 */
+#if VERIFICATION_MODE     
       for(j=0; j<iters; j++) {
+#else
+	j=1;
+#endif
+
 	for(i=0; i<datasize; i++) {
 	  B[j*datasize+i] = -1;
 	}
+
+#if VERIFICATION_MODE
       }
+#endif
 			
     }
-		
+
+#if VERIFICATION_MODE
+#else		
     BARRIER();
     for(j=0; j<WARM_ITERS; j++) {
-      gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*j, root, A+datasize*j, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
+      gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize, root, A+datasize, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
       BARRIER();
     }
-		
+#endif	
+
     BARRIER();		
     begin = gasnett_ticks_now();
     for(j=0; j<iters; j++) {
-      gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*j, root, A+datasize*j, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      #if 0
+#if VERIFICATION_MODE
+      #define ITER_OFFSET (j)
+#else
+      #define ITER_OFFSET 1
+#endif
+      gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*ITER_OFFSET, root, A+datasize*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
+
+      /* prefer a an IN_ALL_SYNC rather than an explicit barrier*/
+#if 0
       if(use_barrier){
 	barrier_begin = gasnett_ticks_now();
 	BARRIER();
 	barrier_end += gasnett_ticks_now() - barrier_begin;
       }
-      #endif
+#endif
     }
     
     if(!use_barrier) {
@@ -285,7 +367,7 @@ int main(int argc, char **argv)
   BARRIER();
   
   for(datasize=1; datasize<=MAX_SIZE; datasize = datasize*2) {
-/*     run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2); */
+    run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
     
     if(!run_all) {
       if(tree_fanout == 0) {
