@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/11/08 20:29:54 $
- * $Revision: 1.134.12.12 $
+ *     $Date: 2006/11/08 23:04:51 $
+ * $Revision: 1.134.12.13 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -368,14 +368,16 @@ typedef struct {
 	uint32_t	immediate_data;
 } gasnetc_amrdma_hdr_t;
 
-/* XXX: need env var overrides for MAX_PEERS, DEPTH and MAX */
-#define GASNETC_AMRDMA_DEPTH	32	/* Power-of-2 */
 #define GASNETC_AMRDMA_PAD	(GASNETC_ALIGNUP(sizeof(gasnetc_amrdma_hdr_t),8)-sizeof(gasnetc_amrdma_hdr_t))
 #define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
-#define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */
-#define GASNETC_AMRDMA_MAX	(GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ - GASNETC_AMRDMA_PAD)
-#define GASNETC_AMRDMA_MAX_PEERS 32
+#define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */  /* XXX: should determine automatically */
+#define GASNETC_AMRDMA_SZ_LG2	12 /* log-base-2(GASNETC_AMRDMA_SZ) */
+#define GASNETC_AMRDMA_LIMIT_MAX (GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ - GASNETC_AMRDMA_PAD)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
+
+#define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 0	/* XXX: disabled by default */
+#define GASNETC_DEFAULT_AMRDMA_DEPTH	32	/* Power-of-2 */
+#define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
 
 /* Forward decl */
 struct gasnetc_cep_t_;
@@ -455,9 +457,7 @@ struct gasnetc_cep_t_ {
   struct {	/* AM-over-RDMA local state */
 	gasneti_weakatomic_t	send_head, send_tail;
         gasneti_weakatomic_t	recv_in_use; /* A weak spinlock */
-	#if (GASNETC_AMRDMA_DEPTH > 1)
-	  gasneti_weakatomic_t	recv_count;
-	#endif
+	gasneti_weakatomic_t	recv_count;
   } amrdma;
 
   char			_pad1[GASNETI_CACHE_LINE_BYTES];
@@ -518,6 +518,10 @@ extern size_t		gasnetc_bounce_limit;
 #else
   #define GASNETC_USE_FIREHOSE	1
 #endif
+extern int		gasnetc_amrdma_max_peers;
+extern size_t		gasnetc_amrdma_limit;
+extern int		gasnetc_amrdma_depth;
+extern int		gasnetc_amrdma_slot_mask;
 
 /* Global variables */
 extern int		gasnetc_num_hcas;
