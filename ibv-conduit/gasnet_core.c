@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/11/08 20:29:54 $
- * $Revision: 1.171.4.4 $
+ *     $Date: 2006/11/08 23:04:51 $
+ * $Revision: 1.171.4.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -157,7 +157,6 @@ static void gasnetc_check_config() {
 
   gasneti_assert_always(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert_always(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
-  gasneti_assert_always(GASNETC_AMRDMA_DEPTH <= 32); /* ACKs encoded in a 32-bit mask */
 }
 
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
@@ -401,6 +400,19 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
+  GASNETC_ENVINT(gasnetc_amrdma_max_peers, GASNET_AMRDMA_MAX_PEERS, GASNETC_DEFAULT_AMRDMA_MAX_PEERS, 0, 0);
+  GASNETC_ENVINT(gasnetc_amrdma_limit, GASNET_AMRDMA_LIMIT, GASNETC_DEFAULT_AMRDMA_LIMIT, 0, 1);
+  if_pf (gasnetc_amrdma_limit > GASNETC_AMRDMA_LIMIT_MAX) {
+    fprintf(stderr,
+            "WARNING: GASNET_AMRDMA_LIMIT reduced to from the requested value, %d, to the maximum supported value, %d.)\n",
+            (int)gasnetc_amrdma_limit, (int)GASNETC_AMRDMA_LIMIT_MAX);
+    gasnetc_amrdma_limit = GASNETC_AMRDMA_LIMIT_MAX;
+  }
+  GASNETC_ENVINT(gasnetc_amrdma_depth, GASNET_AMRDMA_DEPTH, GASNETC_DEFAULT_AMRDMA_DEPTH, 0, 0);
+  if_pf (!GASNETI_POWEROFTWO(gasnetc_amrdma_depth)) {
+    gasneti_fatalerror("GASNET_AMRDMA_DEPTH (%d) is not a power of 2", gasnetc_amrdma_depth);
+  }
+  gasnetc_amrdma_slot_mask = (gasnetc_amrdma_depth - 1);
 
   #if GASNETC_PIN_SEGMENT
   { long tmp;
@@ -504,6 +516,9 @@ static int gasnetc_load_settings(void) {
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
 #endif
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
 #if GASNETC_VAPI_RCV_THREAD
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
@@ -2675,9 +2690,10 @@ gasnetc_amrdma_init_one(gasnet_node_t n, gasnetc_amrdma_exchg_t *in) {
     cep->amrdma_loc = gasneti_lifo_pop(&hca->amrdma_freelist);
     if (cep->amrdma_loc == NULL) return NULL; /* No more */
 
-    gasneti_assert(hca->amrdma_rcv.count < MIN(hca->total_qps, GASNETC_AMRDMA_MAX_PEERS));
+    gasneti_assert(hca->amrdma_rcv.count < hca->total_qps);
+    gasneti_assert(hca->amrdma_rcv.count < gasnetc_amrdma_max_peers);
     gasneti_assert(sizeof(gasnetc_amrdma_hdr_t) >= sizeof(void *)); /* nothing remains uninitialized */
-    for (i = 0; i < GASNETC_AMRDMA_DEPTH; ++i) {
+    for (i = 0; i < gasnetc_amrdma_depth; ++i) {
       gasnetc_amrdma_hdr_t *hdr = (gasnetc_amrdma_hdr_t *)cep->amrdma_loc[i];
       hdr->length       = hdr->zeros       = 0;
       hdr->length_again = hdr->zeros_again = ~0;
