@@ -44,7 +44,8 @@ The first type of tree that we discuss is an N-ary tree. In this tree structure 
 Another variation on N-ary trees is the binomial tree.  I'll fill this section in later. The formal definition is as follows:
 An ordered tree of order $k \geq 0$, that is $B_k$, has a root with $k$ children where the $i^{th}$ child is binomial tree of order $k-i$.
 
-\subsubsection{Data Structures} In order to enable the tree based data structures we need to maintain the tree topology information at each node. 
+\subsubsection{Data Structures}
+In order to enable the tree based data structures we need to maintain the tree topology information at each node. 
 Table~\ref{tab:treeinfo} shows the data we keep on each node regarding the tree geometry. Notice that if the tree geometry changes then a different geometry object will hold the data. Thus if we are in situation where we have multiple outstanding collectives, each with a different source then there will be one tree geometry object for each distinct geometry that is inflight. However if two different collectives utilize the same geometry then there is no need to allocate multiple geometries.
 
 \begin{table}[htdp]
@@ -74,11 +75,7 @@ subtree count & a count of the total number of descendants & " \\ \hline
 \label{tab:treeinfo}
 \end{table}%
 
-The construction of the tree geometry can not be in the critical path of the code and needs to be performed during setup time or other non critical regions of the code. The allocation of the data structures is straightforward however in order to realize the subtree sizes we will have to run some Depth First Search algorithms across the nodes outlined in the next section. 
-
-There are two versions of the tree that are possible to show. One where it is a ``local" view of the tree and another ``global" view of the tree. A ''local view" of the tree implies that each node will only know the data presented in Table~\ref{tab:treeinfo} and not care what the view is for the other nodes. In a ``global" view of the tree one can imagine that every node knows the full geometry of the tree. Each storage mechanisms has its advantages and disadvantages.
-
-\textbf{INSERT MORE ON THE ADVANTAGES AND DISADVANTAGES}
+The construction of the tree geometry can not be in the critical path of the code and needs to be performed during setup time or other non critical regions of the code. The allocation of the data structures is straightforward however in order to realize the subtree sizes we will have to run some Depth First Search algorithms across the nodes outlined in the next section.
 
 
 \subsubsection{Dissemination}
@@ -88,11 +85,43 @@ Bruck's algorithms for all exchanges and barriers will also be enabled. Bruck's 
 \subsubsection{Caching}
 We have outlined earlier that tree construction is an expensive process and thus cannot be in the critical path for any piece of code. However it also wasteful to build all possible trees for all possible applications. Therefore our initial implementation will be based on a caching mechanism which will use a lazy tree creation process. On the first request for a particular geometry (tree type, fanout, and root tuple) the implementation will create that geometry. However all subsequent calls to that tree geometry will use that allocated geometry.  A separate but similar caching structure will be used to keep track of the various Bruck's orders for arbitrary radices. 
 
-The interface to the cache will be as follows: Each new collective call will request a local view of the tree that contains the information given in Table~\ref{tab:treeinfo} and can access the fields through accessor macros. The request will be of the form (tree type, fanout, root, team). Once the client has been issued a ``local" view of the tree geometry it is then responsible for freeing that local view through freeing routines provided by the cache. 
+\noindent \textbf{Implementation Requirements}
 
-\noindent \textbf{Implementation Details}
+Since we expect the number of trees (and dissemination orders) that any given application will use to be small we will encode this caching structure as a linked list however make it easy to replace it with a hash table once the time is right. Note that in the future this entire code of picking the correct tree will be replaced by the auto-tuning module so it needs to be able to be amenable to that mechanism. 
 
-Since we expect the number of trees (and dissemination orders) that any given application will use to be small we will encode this caching structure as a linked list however make it easy to replace it with a hash table once the time is right. Note that in the future this entire code of picking the correct tree will be replaced by the auto-tuning module so it needs to be able to be amenable to that mechanism. Initially this mechanism will be the simplest one can imagine. 
+\noindent \textbf{Current Implementation}
+
+The geometry cache currently operates on and stores ``local views" of various tree geometries. A local view comprises of the parent, a list of children, and a list of siblings. The geometry cache is a completely local structure, i.e. none of the nodes share any aspects of the tree creation or storage. When a request for a particular $<$tree geometry, root node$>$ combination is made the cache first checks to see if that call has been made before. If it has it looks up the appropriate local view and returns it. If the view has not yet been created it will go through the process of creating this new geometry and local view and storing the item in the cache and of course return it. 
+
+We have a two-level data structure that holds the various local views. The first level stores the tree geometry, (i.e. whether the geometry is a binomial, binary, flat tree, etc etc). These geometries are linked together through a linked list. For each particular geometry type, we store create an array of pointers, the length is set to the total GASNet image count, to different local views. The lookup and retrieval algorithm is given in Algorithm~\ref{geomcachefetch}.
+
+\begin{algorithm}[h]
+\begin{algorithmic}[1]
+\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair
+\STATE Output: A local view of the tree
+\STATE $c \leftarrow$ the head of the geometry cache
+\WHILE{$c \neq \emptyset$}
+\IF{$tree\_geometry\_in = c.tree\_geometry$} 
+ \STATE /* Tree Geometry Found Check Root*/
+ \IF{$c.local\_views[root\_in]$ = $\emptyset$}
+ \STATE /* Tree Geometry Found but local view not yet created */
+ \STATE $lv \leftarrow$ \texttt{CreateLocalView(tree\_geometry\_in, root\_in)}
+ \STATE $c.local\_views[root\_in] \leftarrow lv$
+ \ENDIF
+ \STATE return $c.local\_views[root\_in]$
+ \ENDIF
+ \STATE $c \leftarrow c.next$
+\ENDWHILE
+\STATE /* Tree Geometry Not Found*/
+\STATE $tg \leftarrow$ \texttt{InitializeEmptyTreeGeometryListNode()}
+\STATE Attach $tg$ to the end of the current cache list
+\STATE $lv \leftarrow$ \texttt{CreateLocalView(tree\_geometry\_in, root\_in)}
+ \STATE $tg.local\_views[root\_in] \leftarrow lv$
+  \STATE return $tg.local\_views[root\_in]$
+  \end{algorithmic}
+\caption{Tree Geometry Cache Lookup }
+\label{geomcachefetch}
+\end{algorithm}
 
 
 \subsubsection{Tree Construction Algorithms}
@@ -104,21 +133,98 @@ The data movement collectives (except Broadcast and All-Gather) rely on each pro
 
 In order to simplify this complexity we make a few key assumptions. The first is that we only need to worry about outstanding collectives and live buffer space between barrier phases. At barriers in the user code we can take the time to complete all data movement of collectives that have been explicitly synched thus slightly simplifying the problem. Another, possibly weaker, assumption we make is on the structure of the trees. We assume that within barrier phases the peers that any given node does not change. If it does our algorithms will require more time in the critical path to manage the scratch space.  
 
-\subsection{Scratch Space Mangement}
+\subsection{Distributed Scratch Space Mangement}
 \textbf{The following sections describes design decisions that have been made for an initial implementation of the collectives and they will eventually be improved before a full release of the collectives.}
 
-Each node will first allocate a circular buffer that will be used for scratch space during the collective calls. At each barrier call we know that we can reset this circular buffer since the completion of the data movement will be enforced. The initial implementation will assume that only one type of tree geometry (i.e. a root id / tree type tuple) \footnote{and possibly collective communication?} will occur between barrier calls. If the user decides to relax this assumption a barrier will be inserted to enforce this guarantee (see Logging Section about how this will get relaxed later). 
+Each node will first allocate a circular buffer that will be used for scratch space during the collective calls. At each barrier call we know that we can reset this circular buffer since the completion of the data movement will be enforced. The initial implementation will assume that only one type of tree geometry (i.e. a root id / tree type tuple) will occur between barrier calls. If the user decides to relax this assumption a barrier will be inserted to enforce this guarantee (see Logging Section about how this will get relaxed later). 
 
-Since each node assumes a fixed tree geometry between barrier calls the parent node can constantly update where the next available buffer slot in the children is. This also allows the parent to know when it is about to overun data it has sent to the children that has not yet been acknowledged. Thus when a parent sees that is about to overrun child's buffer space it has to wait for the child to signal the amount of scratch space that has been consumed. Similarly a child keeps track of the last time it has sent an ok-to-send ack to its parent and what the buffer spot is. Once a child realizes that it is approaching a limit about where the parent \textit{thinks} the last consumed piece of data is, it needs to send a message acknowledging the safe reuse of data slots and signaling the last piece of data that it is safe to overwrite. Thus If the data is getting consumed quickly this should not be a big issue. (think about how this propagates backwards). 
+Since each node assumes a fixed tree geometry between barrier calls the parent node can constantly update where the next available buffer slot in the children is \footnote{Note that I use the parent/child terminology loosly to discuss peers in communication. All the mechanisms here work just as well for non tree topologies. However for simplicity of explanation I will stick to using a parent/child relationship where parent is defined to be the origin of a message and child is defined to be the destination of a message} This also allows the parent to know when it is about to overun data it has sent to the children that has not yet been acknowledged. Thus when a parent sees that is about to overrun child's buffer space it has to wait for the child to signal the amount of scratch space that has been consumed. Similarly a child keeps track of the last time it has sent an ok-to-send ack to its parent and what the buffer spot is. Once a child realizes that it is approaching a limit about where the parent \textit{thinks} the last consumed piece of data is, it needs to send a message acknowledging the safe reuse of data slots and signaling the last piece of data that it is safe to overwrite. Thus If the data is getting consumed quickly this should not be a big issue. (think about how this propagates backwards). 
 
-Since the scratch space management will be on a per-team basis each team will need to keep track of the scratch positions of all the children so that each node knows where to send the data into the child'
-s scratch space. However since there is a limited amount of buffer space available an ``out-of-band" mechanism also needs to be created to ensure that scratch space is reused. Upon a collective that requires an \texttt{OUT\_ALL\_SYNC} semantics we can use it to reset the buffers since it can be assumed that the collective call will not complete (and thus new collectives will not be issued) until the current collective is complete. When dealing with non-blocking collectives this implies that after the sync has returned (not the initiation) from the all sync collective the scratch space can be reset. 
 
-We will also assume that the scratch space can be reset on a barrier. The main implementation problems that could arise are nonblocking collective calls initiated before a barrier and a sync taking place after that given barrier. Thus to simplify the initial implementation we will assume that \textit{there will be no barriers between a nonblocking collective initiation and a nonblocking collective sync}. This restriction could be lifted later. 
+\noindent \textbf{Implementation Requirements}
 
-\noindent \textbf{Implementation Details}
+Upon team creation each team will  need to provide a local buffer that will be used for the scratch space for that team. Having scratch space for different teams interfere adds unneeded complexity to the implementation. However for the primordial GASNET\_TEAM\_ALL we will carve up a segment of the \texttt{auxseg} and use that for the initial scratch space. Each team will need to allocate its own set of buffers. 
 
-Upon team creation each team will  need to provide a local buffer that will be used for the scratch space for that team. Having scratch space for different teams interfere adds unneeded complexity to the implementation. However for the primordial GASNET\_TEAM\_ALL we will carve up a segment of the \texttt{auxseg} and use that for the initial scratch space. 
+\noindent \textbf{Interface}
+
+The current interface to the distributed scratch space management is based on each collective operation registering itself with the scratch space. When an operation registers itself it provides the $<$\texttt{tree geometry, root}$>$ tuple along with the size of the collective. The registration function returns the position of your local scratch space. Once a given operation registers itself with the scratch space it can then query the scratch space manager to find out the location to write of other peers. These positions and queries will mostly be done locally since we can calculate this information based on the tree geometry in use.
+
+\noindent \textbf{Current Implementation}
+The act of registration allows a thread to see if it is going to overrun its local buffer it then needs to check to see which part of the buffer can be reused and send that information to the initiator. The act of asking for where to write on a target's scratch space will cause one to block waiting for the target to send us information.
+ 
+Currently we do not implement a full circular buffer.  If a child realizes it is reaching the end of the scratch space, it will wait for all the outstanding collective operations to clear and then reset its scratch space and send a message to its parent. Analogously, if a parent thinks it can't put to its child's buffer space it will wait for the child to send a ``clear" message. In future, we need to be able to clear individual operations and not wait for \textit{all} the operations before indicating that \textit{any} of the scratch space is reusable. 
+
+The current implementation registration of operations is given in Algorithm~\ref{registerscratchop} while the algorithm for getting the peer's position is given in Algorithm~\ref{getscratchpeerpos}.
+
+\begin{algorithm}[h]
+\begin{algorithmic}[1]
+\STATE Wait for all outstanding scratch operations to finish
+\FOR{$i= 0$; $i < total\_nodes$; $i++$} 
+\STATE set scratch position for node $i$ to $0$
+\ENDFOR
+\end{algorithmic}
+\caption{PerformScratchReset}
+\label{registerscratchop}
+\end{algorithm}
+
+
+
+\begin{algorithm}[h]
+\begin{algorithmic}[1]
+\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair along with a size $s$
+\STATE Output: The location on local scratch space where to expect data for this operation
+\STATE /* The barrier code has been modified to set a bit $barrier\_reset$ indicating that a barrier requests a reset of the scratch space whenever possible*/
+\STATE $perform\_reset \leftarrow false$
+\IF{this is the first collective after a barrier}
+\STATE set the meta data indicating the tree geometry and root that are valid for the current barrier phase of the scratch space 
+\ELSIF{the tree geometry has changed between the last op and this one}
+\STATE BARRIER
+\STATE set the meta data indicating the tree geometry and root that are valid for the current barrier phase of the scratch space 
+\ELSE
+\STATE /* tree geometry is unchanged .. nothing to do*/
+\ENDIF
+\IF{$barrier\_reset$}
+\STATE \texttt{PerformScratchReset()}
+\STATE $barrier\_reset \leftarrow false$
+\ENDIF
+%\IF{$my\_scratch\_head\_pos \geq my\_scratch\_tail\_pos$} 
+\IF{$my\_scratch\_head\_pos + s >$ total local scratch size}
+\STATE Wait for all previous collective operations registered on this scratch space to finish
+\STATE Send a reset message to any node who will send to my scratch space
+\STATE $my\_scratch\_head\_pos \leftarrow s$
+\STATE  $retval \leftarrow 0$
+\ELSE
+\STATE $retval \leftarrow my\_scratch\_head\_pos$
+\STATE $my\_scratch\_head\_pos \leftarrow my\_scratch\_head\_pos + s$
+\ENDIF
+\STATE allocate a operation and attach it to the list of active operations
+\STATE return $retval$
+
+\end{algorithmic}
+\caption{Register New Collective Operation }
+\label{registerscratchop}
+\end{algorithm}
+
+\begin{algorithm}[h]
+\begin{algorithmic}[1]
+\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair along with a size $s$ and a node $n$
+\STATE Output: The location on node $n$'s scratch space 
+\STATE $d \leftarrow$ current local estimate of $n$'s scratch position head
+\IF{$d+s >$ total\_scratch\_size at node $n$}
+\STATE Wait for $n$ to send a reset signal
+\STATE set our local estimate of $n$'s scratch position head to $s$. 
+\STATE return 0
+\ELSE
+\STATE $retval \leftarrow d$
+\STATE increment the current local estimate of $n$'s scratch position head by $s$
+\STATE return $retval$
+\ENDIF
+\end{algorithmic}
+\caption{GetPeerScratchPosition}
+\label{getscratchpeerpos}
+\end{algorithm}
+
+
 
 
 
@@ -127,6 +233,8 @@ Upon team creation each team will  need to provide a local buffer that will be u
 
 Each node will eventually keep a log of the collectives run between barrier phases. On each collective call a log entry will be created that contains the collective operation, the size of the collective, the root of the collective (if there is one), and the geometry that was used to disseminate the information. Thus there will be a list of log entries. When a new geometry is used the log will be replayed to find out the status of children/parents scratch space. Thus when the collective call changes midstream the critical path will incur a penalty of log playback (it will  be important to see how the performance of this compares to a full barrier). The full ideas behind this approach will be flushed out in later revisions of this document.
 
+
+\newpage
 \subsection{Synchronization Mechanisms}
 One of the big advantages the synchronization flags are that they allow a looser synchronization (and thus more functionality and novel semantics) than what MPI allows. However these synchronization flags increase the complexity of the collectives interface and implementation. The UPC (and therefore the GASNet) specification for collectives encourages three different input synchronization flags and three different output synchronization flags. 
 
