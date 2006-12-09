@@ -147,14 +147,15 @@ Upon team creation each team will  need to provide a local buffer that will be u
 
 \noindent \textbf{Interface}
 
-The current interface to the distributed scratch space management is based on each collective operation registering itself with the scratch space. When an operation registers itself it provides the $<$\texttt{tree geometry, root}$>$ tuple along with the size of the collective. The registration function returns the position of your local scratch space. Once a given operation registers itself with the scratch space it can then query the scratch space manager to find out the location to write of other peers. These positions and queries will mostly be done locally since we can calculate this information based on the tree geometry in use.
+The current interface to the distributed scratch space management is based on each collective operation registering itself with the scratch space. When an operation registers itself it provides the $<$\texttt{tree geometry, root}$>$ tuple along with the size of the collective. The registration function returns the position of your local scratch space and that of the peers you want to communicate with. These positions and queries will mostly be done locally since we can calculate this information based on the tree geometry in use.
 
 \noindent \textbf{Current Implementation}
 The act of registration allows a thread to see if it is going to overrun its local buffer it then needs to check to see which part of the buffer can be reused and send that information to the initiator. The act of asking for where to write on a target's scratch space will cause one to block waiting for the target to send us information.
  
 Currently we do not implement a full circular buffer.  If a child realizes it is reaching the end of the scratch space, it will wait for all the outstanding collective operations to clear and then reset its scratch space and send a message to its parent. Analogously, if a parent thinks it can't put to its child's buffer space it will wait for the child to send a ``clear" message. In future, we need to be able to clear individual operations and not wait for \textit{all} the operations before indicating that \textit{any} of the scratch space is reusable. 
 
-The current implementation registration of operations is given in Algorithm~\ref{registerscratchop} while the algorithm for getting the peer's position is given in Algorithm~\ref{getscratchpeerpos}.
+The current implementation registration of operations is given in Algorithm~\ref{registerscratchop}.
+% while the algorithm for getting the peer's position is given in Algorithm~\ref{getscratchpeerpos}.
 
 \begin{algorithm}[h]
 \begin{algorithmic}[1]
@@ -171,60 +172,78 @@ The current implementation registration of operations is given in Algorithm~\ref
 
 \begin{algorithm}[h]
 \begin{algorithmic}[1]
-\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair along with a size $s$
+\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair along with a vector of sizes $s$ 
+\STATE $s$ is a vector of length $numpeers+self$ /*scalable*/
 \STATE Output: The location on local scratch space where to expect data for this operation
-\STATE /* The barrier code has been modified to set a bit $barrier\_reset$ indicating that a barrier requests a reset of the scratch space whenever possible*/
-\STATE $perform\_reset \leftarrow false$
-\IF{this is the first collective after a barrier}
+\STATE /* $barrier\_rest$ is ONLY set by BARRIER when tree geometry changes ... or ... When the CLIENT calls a barrier ... no internal barriers can trigger this flag otherwise we will get race conditions since collectives may issue barriers within the waits.*/
+\IF{$barrier\_reset$}
 \STATE set the meta data indicating the tree geometry and root that are valid for the current barrier phase of the scratch space 
 \ELSIF{the tree geometry has changed between the last op and this one}
-\STATE BARRIER
+\STATE Wait for all previous collective operations registered on this scratch space to finish
+\STATE \texttt{InternalBARRIER}
+\STATE $barrier\_rest \leftarrow true$ 
 \STATE set the meta data indicating the tree geometry and root that are valid for the current barrier phase of the scratch space 
 \ELSE
 \STATE /* tree geometry is unchanged .. nothing to do*/
 \ENDIF
 \IF{$barrier\_reset$}
-\STATE \texttt{PerformScratchReset()}
+\STATE \texttt{PerformResetForSelfAndPeers(tree\_geometry\_in)}
 \STATE $barrier\_reset \leftarrow false$
-\ENDIF
+\STATE $retval \leftarrow 0$
+\STATE $my\_scratch\_head\_pos \leftarrow s[myimage]$
+%\ENDIF
 %\IF{$my\_scratch\_head\_pos \geq my\_scratch\_tail\_pos$} 
-\IF{$my\_scratch\_head\_pos + s >$ total local scratch size}
+%\IF{$my\_scratch\_head\_pos + s >$ total local scratch size}
+\ELSIF{my space overflows \textbf{or} any peer overflows}
 \STATE Wait for all previous collective operations registered on this scratch space to finish
-\STATE Send a reset message to any node who will send to my scratch space
-\STATE $my\_scratch\_head\_pos \leftarrow s$
+\IF{my space overflows} 
+\STATE Send ResetComplete to peers
+\ENDIF
+\IF{any peer overflows}
+\STATE Wait for ResetComplete from those peers
+\ENDIF
+\STATE \texttt{PerformResetForWhoeverOverflowed(list of peers who overflowed)}
+\STATE $my\_scratch\_head\_pos \leftarrow s[myimage]$
 \STATE  $retval \leftarrow 0$
 \ELSE
 \STATE $retval \leftarrow my\_scratch\_head\_pos$
-\STATE $my\_scratch\_head\_pos \leftarrow my\_scratch\_head\_pos + s$
+\STATE $my\_scratch\_head\_pos \leftarrow my\_scratch\_head\_pos + s[myimage]$
 \ENDIF
 \STATE allocate a operation and attach it to the list of active operations
 \STATE return $retval$
 
 \end{algorithmic}
-\caption{Register New Collective Operation }
+\caption{Register New Collective Operation (Conservative) }
 \label{registerscratchop}
-\end{algorithm}
+\end{algorithm}%\begin{algorithm}[h]
+%\begin{algorithmic}[1]
+%\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair along with a size $s$ and a node $n$
+%\STATE Output: The location on node $n$'s scratch space 
+%\STATE $d \leftarrow$ current local estimate of $n$'s scratch position head
+%\IF{$d+s >$ total\_scratch\_size at node $n$}
+%\STATE Wait for $n$ to send a reset signal
+%\STATE set our local estimate of $n$'s scratch position head to $s$. 
+%\STATE return 0
+%\ELSE
+%\STATE $retval \leftarrow d$
+%\STATE increment the current local estimate of $n$'s scratch position head by $s$
+%\STATE return $retval$
+%\ENDIF
+%\end{algorithmic}
+%\caption{GetPeerScratchPosition}
+%\label{getscratchpeerpos}
+%\end{algorithm}
 
-\begin{algorithm}[h]
-\begin{algorithmic}[1]
-\STATE Input: A $<$\texttt{tree\_geometry\_in, root\_in}$>$ request pair along with a size $s$ and a node $n$
-\STATE Output: The location on node $n$'s scratch space 
-\STATE $d \leftarrow$ current local estimate of $n$'s scratch position head
-\IF{$d+s >$ total\_scratch\_size at node $n$}
-\STATE Wait for $n$ to send a reset signal
-\STATE set our local estimate of $n$'s scratch position head to $s$. 
-\STATE return 0
-\ELSE
-\STATE $retval \leftarrow d$
-\STATE increment the current local estimate of $n$'s scratch position head by $s$
-\STATE return $retval$
-\ENDIF
-\end{algorithmic}
-\caption{GetPeerScratchPosition}
-\label{getscratchpeerpos}
-\end{algorithm}
-
-
+\noindent \textbf{Notes and Todo}
+\begin{enumerate}
+\item Change all internal barriers to save and restore barrier state
+\item Document Loudly that when an internal barrier within the collective does not set the $barrier\_reset$ flag.
+\item Assert Lock on Tree Geometry Creation
+\item Take a look at what needs to be done on Init
+\item How to change so all CPUs call local bcast or local scatter
+\item Per thread hooks and initiator 
+\item ... don't focus on performance for large procs yet ... 
+\end{enumerate}
 
 
 
@@ -309,4 +328,59 @@ For certain algorithms such as all-gather-all, we can actually piggy back the me
 %\input{alltoall}
 %\input{allgather}
 
+
+\section{Teams}
+\subsection{ToDo List and Random Ideas}
+\begin{enumerate}
+\item Keep Team Hierarchy
+\item Reference Count Groups
+\end{enumerate}
+
+\subsection{Group Operators}
+All these operations are non-collective.
+\begin{itemize}
+\item Constant: image\_t IMAGE\_UNDEFINED 0xffffff ?
+\item GlobalVar: GroupEmpty
+
+\item image\_t GroupSize(Group)
+\item image\_t GroupSizeOnNode(Group, node\_t node)
+
+\item image\_t GroupMyImage(Group)
+\item GroupTranslateImages(Group From, Group To, image\_t *input\_vec, image\_t *output\_vec, image\_t vec\_len) 
+
+\item node\_t GroupImageToNode(Group, image\_t rank)
+\item void GroupNodeToImages(Group, node\_t in\_node, image\_t *outimages)
+\item enum\{Ident (same rank and order), Similar (ident but permuted), UnEqual\}  GroupCompare(GroupA, GroupB)
+
+\item group\_t GroupFromTeam(team\_handle\_t)
+
+\item group\_t GroupIncl(Group, image\_t * in\_images, image\_t image\_count)
+\item group\_t GroupExcl(Group, image\_t * in\_images, image\_t image\_count)
+
+\item group\_t GroupDiff(GroupA, GroupB)
+\item group\_t GroupIntersect(GroupA, GroupB)
+\item group\_t GroupUnion(GroupA, GroupB)
+\item size_t GroupToNodeSegSize(Group)
+
+\item GroupRangeIncl (maybe: scalability) ???
+\item GroupRangeExcl (maybe: scalability) ???
+\item void GroupFree(Group)
+\end{itemize}
+
+\subsection{Team Operators}
+Team Creation is collective across the parent group.
+\begin{itemize}
+\item GlobalVar: TEAM\_ALL
+\item team\_handle\_t TeamSplit(team\_handle\_t parent, image\_t color, image\_t image, void *local\_seg\_space):
+\\ Here note that the local\_scratch space is passed by one image in the node and not all of them.
+\item team\_handle\_t TeamFromGroup(team\_handle\_t parent, Group, void *local\_seg\_space)
+\\ Here note that the local\_scratch space is passed by one image in the node and not all of them. This is a wrapper around TeamSplit.
+
+\item (TeamSplit is sufficient for Team Duplicate)
+\item image\_t TeamMyImage(team\_handle\_t)
+\item image\_t TeamSize(team\_handle\_t)
+\item void* TeamFree(team\_handle\_t) \\ Once TeamFree is done ... passed back what it passed in.
+
+\item No TeamCompare (can just do pointer comparison on Teams)
+\end{itemize}
 \end{document}
