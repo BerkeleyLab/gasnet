@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/12/12 18:14:41 $
- * $Revision: 1.187.2.1 $
+ *     $Date: 2006/12/12 21:53:28 $
+ * $Revision: 1.187.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -424,6 +424,17 @@ static int gasnetc_load_settings(void) {
   }
   gasnetc_amrdma_slot_mask = (gasnetc_amrdma_depth - 1);
 
+  GASNETC_ENVINT(gasnetc_amrdma_cycle, GASNET_AMRDMA_CYCLE, GASNETC_DEFAULT_AMRDMA_CYCLE, 0, 0);
+  if_pf (!GASNETI_POWEROFTWO(gasnetc_amrdma_cycle)) {
+    gasneti_fatalerror("GASNET_AMRDMA_CYCLE (%d) is not a power of 2", gasnetc_amrdma_cycle);
+  }
+  if_pf (gasnetc_amrdma_cycle > (GASNETI_ATOMIC_MAX >> 2)) {
+    fprintf(stderr,
+            "WARNING: GASNET_AMRDMA_CYCLE reduced from the requested value, 0x%lx, to the maximum supported value, 0x%lx.\n",
+            (unsigned long)gasnetc_amrdma_cycle, (unsigned long)(GASNETI_ATOMIC_MAX >> 2));
+    gasnetc_amrdma_cycle = (GASNETI_ATOMIC_MAX >> 2);
+  }
+
   #if GASNETC_PIN_SEGMENT
   { long tmp;
 
@@ -529,6 +540,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
 #if GASNETC_VAPI_RCV_THREAD
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
@@ -925,7 +937,11 @@ static int gasnetc_init(int *argc, char ***argv) {
       int j;
       for (j = 0; j < gasnetc_num_qps; ++j, ++i) {
         port_map[i] = &port_tbl[j % num_ports];
-	++(gasnetc_hca[port_map[i]->hca_index].total_qps);
+        hca = &gasnetc_hca[port_map[i]->hca_index];
+	hca->total_qps++;
+        gasnetc_cep[i].hca = hca;
+        gasnetc_cep[i].hca_handle = hca->handle;
+        gasnetc_cep[i].hca_index = hca->hca_index;
       }
     }
   }
@@ -937,6 +953,16 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   } else {
     GASNETC_FOR_ALL_HCA(hca) {
+      int j;
+      hca->cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
+      for (i = j = 0; i < ceps; ++i) {
+        if (i/gasnetc_num_qps == gasneti_mynode) {
+          i += gasnetc_num_qps - 1;
+        } else if (gasnetc_cep[i].hca == hca) {
+          hca->cep[j++] = &gasnetc_cep[i];
+        }
+      }
+      gasneti_assert(j == hca->total_qps);
       hca->qps = hca->total_qps / (gasneti_nodes - 1);
     }
   }
@@ -1120,13 +1146,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     for (i = 0; i < ceps; ++i) {
       if (i/gasnetc_num_qps == gasneti_mynode) continue;
 
-      hca = &gasnetc_hca[port_map[i]->hca_index];
-
-      cep[i].hca = hca;
-      cep[i].hca_handle = hca->handle;
-      cep[i].hca_index = hca->hca_index;
-
       /* create the QP */
+      hca = cep[i].hca;
       qp_init_attr.pd_hndl         = hca->pd;
       qp_init_attr.rq_cq_hndl      = hca->rcv_cq;
       qp_init_attr.sq_cq_hndl      = hca->snd_cq;
@@ -1158,13 +1179,8 @@ static int gasnetc_init(int *argc, char ***argv) {
 
       if (i/gasnetc_num_qps == gasneti_mynode) continue;
 
-      hca = &gasnetc_hca[port_map[i]->hca_index];
-
-      cep[i].hca = hca;
-      cep[i].hca_handle = hca->handle;
-      cep[i].hca_index = hca->hca_index;
-
       /* create the QP */
+      hca = cep[i].hca;
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
       while (1) {	/* No query for max_inline_data limit */
