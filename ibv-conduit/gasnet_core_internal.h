@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/12/09 07:54:55 $
- * $Revision: 1.145 $
+ *     $Date: 2006/12/12 18:14:41 $
+ * $Revision: 1.145.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -382,6 +382,7 @@ typedef struct {
 	uint32_t	immediate_data;
 } gasnetc_amrdma_hdr_t;
 
+#define GASNETC_AMRDMA_CYCLE	256	/* Number of AM rcvs before triggering hot-peer heuristic */
 #define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
 #define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */  /* XXX: should determine automatically */
 #define GASNETC_AMRDMA_SZ_LG2	12 /* log-base-2(GASNETC_AMRDMA_SZ) */
@@ -438,7 +439,7 @@ typedef struct {
   gasnetc_memreg_t	amrdma_reg;
   gasneti_lifo_head_t	amrdma_freelist;
   struct {
-    gasnet_node_t	count;
+    gasneti_weakatomic_t count;
     gasnetc_cep_t	**cep;
   }	  amrdma_rcv;
 } gasnetc_hca_t;
@@ -481,9 +482,7 @@ struct gasnetc_cep_t_ {
 	  char			    _pad[GASNETI_CACHE_LINE_BYTES];
         }			recv_busy[GASNETC_AMRDMA_DEPTH_MAX]; /* A weak spinlock */
 #endif
-#if 0	/* XXX: Not yet implemented */
-	gasneti_weakatomic_t	eligable;
-#endif
+	gasneti_weakatomic_t	eligable;	/* Number of AMs small enough for AMRDMA */
   } amrdma;
 
   char			_pad1[GASNETI_CACHE_LINE_BYTES];
