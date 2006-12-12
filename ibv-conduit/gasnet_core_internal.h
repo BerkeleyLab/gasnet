@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/12/12 18:14:41 $
- * $Revision: 1.145.2.1 $
+ *     $Date: 2006/12/12 21:53:28 $
+ * $Revision: 1.145.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -382,7 +382,6 @@ typedef struct {
 	uint32_t	immediate_data;
 } gasnetc_amrdma_hdr_t;
 
-#define GASNETC_AMRDMA_CYCLE	256	/* Number of AM rcvs before triggering hot-peer heuristic */
 #define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
 #define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */  /* XXX: should determine automatically */
 #define GASNETC_AMRDMA_SZ_LG2	12 /* log-base-2(GASNETC_AMRDMA_SZ) */
@@ -393,10 +392,17 @@ typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 #define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
 #define GASNETC_DEFAULT_AMRDMA_DEPTH	GASNETC_AMRDMA_DEPTH_MAX
 #define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
+#define GASNETC_DEFAULT_AMRDMA_CYCLE	256	/* Number of AM rcvs before triggering hot-peer heuristic */
 
 /* Forward decl */
 struct gasnetc_cep_t_;
 typedef struct gasnetc_cep_t_ gasnetc_cep_t;
+
+/* Struct for assignment of AMRDMA peers */
+typedef struct gasnetc_amrdma_balance_tbl_t_ {
+  gasneti_weakatomic_val_t	count;
+  gasnetc_cep_t			*cep;
+} gasnetc_amrdma_balance_tbl_t;
 
 /* Structure for an HCA */
 typedef struct {
@@ -424,6 +430,8 @@ typedef struct {
   int			qps; /* qps per peer */
   int			total_qps; /* total over all peers */
 
+  gasnetc_cep_t		**cep; /* array of ptrs to all ceps */
+
   void			*rbuf_alloc;
   gasneti_lifo_head_t	rbuf_freelist;
 
@@ -442,6 +450,13 @@ typedef struct {
     gasneti_weakatomic_t count;
     gasnetc_cep_t	**cep;
   }	  amrdma_rcv;
+  struct {
+    gasneti_weakatomic_t	count;
+    gasneti_weakatomic_val_t	mask;
+    gasneti_mutex_t		lock;
+    gasneti_weakatomic_val_t	floor;
+    gasnetc_amrdma_balance_tbl_t *table;
+  }	  amrdma_balance;
 } gasnetc_hca_t;
 
 /* Keys in a cep, all replicated from other data */
@@ -548,6 +563,8 @@ extern int		gasnetc_amrdma_max_peers;
 extern size_t		gasnetc_amrdma_limit;
 extern int		gasnetc_amrdma_depth;
 extern int		gasnetc_amrdma_slot_mask;
+extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
+
 
 /* Global variables */
 extern int		gasnetc_num_hcas;
