@@ -11,10 +11,13 @@
 % alternative title
 
 \title{Collective Communication and Synchronization Design Document}
-\author{Rajesh Nishtala\\
-    \emph{rajeshn@cs.berkeley.edu} \\
-    Computer Science Division, University of California at Berkeley \\ \\
+\author{Rajesh Nishtala, Dan Bonachea, Paul Hargrove\\
+    \emph{rajeshn@cs.berkeley.edu, bonachea@cs.berkeley.edu, PHHargrove@lbl.gov} \\\\
+    Computer Science Division, University of California at Berkeley \\ 
+    Future Technologies Group, Lawrence Berkeley National Lab\\ \\
     Preliminary Work: For Internal Distribution Only}
+\maketitle
+
 % Keywords (for submission)
 % Networking: Interconnects
 % Networking: Message Passing
@@ -23,8 +26,7 @@
 \newcommand{\REM}[1]{}
 %\newcommand{\listalgorithmname}{List of Algorithms}
 % Only temporarily put a table of contents in here
-%\input{ms-cover}
-\maketitle
+
 %\tableofcontents
 %\newpage
 %\listofalgorithms
@@ -328,7 +330,7 @@ For certain algorithms such as all-gather-all, we can actually piggy back the me
 %\input{alltoall}
 %\input{allgather}
 
-
+\REM{
 \section{Teams}
 \subsection{ToDo List and Random Ideas}
 \begin{enumerate}
@@ -383,4 +385,5 @@ Team Creation is collective across the parent group.
 
 \item No TeamCompare (can just do pointer comparison on Teams)
 \end{itemize}
+}
 \end{document}
