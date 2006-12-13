@@ -1,7 +1,7 @@
 README file for vapi-conduit
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.43 $
+$Revision: 1.43.2.1 $
 
 @ TOC: @
 @ Section: Job Spawning @
@@ -447,7 +447,20 @@ $Revision: 1.43 $
     cost AM traffic, but at the cost of increased memory consumption and
     greater overhead each time that vapi-conduit polls for AM traffic.
     The current default is 0 - which disables AMRDMA.
-    The current algorithm for selecting AMRDMA peers is very simplistic.
+
+  + GASNET_AMRDMA_CYCLE
+    This environment variable, which must be zero or a power or two, sets
+    the number of AM receives between (re)assignments of AMRDMA peers.
+    The current algorithm for selecting AMRDMA peers is very simplistic
+    and will never revoke AMRDMA status once granted to a given peer.
+    An overly large value will result in a long period of time before any
+    peers may be assigned AMRDMA status, while an overly short value may
+    select peers based on initialization activities which don't reflect the
+    communication pattern of the remainder of the run.
+    A value of zero will disable AMRDMA.
+    A value of one will result in selecting the first GASNET_AMRDMA_MAX_PEERS
+    peers from which AMs are received.
+    The current default is 8192.
 
   Firehose configuration:
   These parameters must be equal across all nodes, and the behavior
