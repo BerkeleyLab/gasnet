@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/12/13 00:58:16 $
- * $Revision: 1.211.2.3 $
+ *     $Date: 2006/12/13 01:36:56 $
+ * $Revision: 1.211.2.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -637,11 +637,11 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   
   rbuf->rbuf_handlerRunning = 0;
 
-  if_pt (cep && cep->hca->amrdma_balance.mask) { /* Check for AMRDMA hot-peer heuristic, unless loopback */
+  if_pt (cep && gasneti_attach_done) { /* Check for AMRDMA hot-peer heuristic, unless loopback */
     gasnetc_hca_t * const hca = cep->hca;
     gasneti_weakatomic_val_t interval = gasneti_weakatomic_add(&hca->amrdma_balance.count, 1, 0);
 
-    if_pf (!(interval & hca->amrdma_balance.mask) && !gasneti_mutex_trylock(&hca->amrdma_balance.lock)) {
+    if_pf (!(interval & hca->amrdma_balance.mask) && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)) {
       /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
       #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
       /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
@@ -705,10 +705,10 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
       if (gasneti_weakatomic_read(&hca->amrdma_rcv.count, 0) == hca->amrdma_rcv.max_peers) {
         /* Disable this logic if the limit has been reached (since we lack REVOKE)*/
-	hca->amrdma_balance.mask = 0;
+	return; /* YES - we really mean to return w/o unlocking */
       }
 
-      gasneti_mutex_unlock(&hca->amrdma_balance.lock);
+      gasneti_spinlock_unlock(&hca->amrdma_balance.lock);
     }
   }
 }
@@ -3104,7 +3104,7 @@ extern int gasnetc_sndrcv_init(void) {
 
         gasneti_weakatomic_set(&hca->amrdma_balance.count, 0, 0);
         hca->amrdma_balance.mask = gasnetc_amrdma_cycle ? (gasnetc_amrdma_cycle - 1) : 0;
-        gasneti_mutex_init(&hca->amrdma_balance.lock);
+        gasneti_spinlock_init(&hca->amrdma_balance.lock);
         hca->amrdma_balance.floor = 1;
         hca->amrdma_balance.table = gasneti_calloc(hca->total_qps, sizeof(gasnetc_amrdma_balance_tbl_t));
       }
