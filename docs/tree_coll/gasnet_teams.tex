@@ -25,9 +25,9 @@
 
 
 \section{Introduction}
-In a variety of applications the use of collective communication is a very important for both expressing the communication pattern of the application as well as achieving the best performance. However, one of the fundamental aspects that makes the collectives useful is the ability to use them on a subset (or \textit{team}) of the processors rather than all the processors in the program. This document will focus on the design and implementation of these teams within \gasnet as well as the API for these teams. 
+In a variety of applications the use of collective communication is very important for both expressing the communication pattern of the application as well as achieving the best performance. However, one of the fundamental aspects that makes the collectives useful is the ability to use them on a subset (or \textit{team}) of the processors rather than all the processors in the program. This document will focus on the design and implementation of these teams within \gasnet as well as the API that exposes them to applications or libraries that use \gasnet. 
 
-Since \gasnet allows this hierarchical declaration of nodes and images we must be careful about the terminology we use and how we compare this to MPI. Henceforth, we will use ``node" to refer to a \gasnet process. Each of these \gasnet nodes can potentially contain many  \gasnet images (which can be implemented on top of different threads if one chooses). The distinction allows one to perform shared memory communication optimizations across various images in the same node since they will share the same address space. In MPI parlance this hierarchy is not explicit and thus all the threads of control visibile to the application are at the same level which we will call tasks. Our teams will consist of \gasnet images rather than nodes since we want different threads in the same process to be a part of different teams. 
+Since \gasnet allows hierarchical declaration of nodes and images we must be careful about the terminology we use and how we compare our implementation with MPI's. Henceforth, we will use ``node" to refer to a \gasnet process. Each of these \gasnet nodes can potentially contain many  \gasnet images (which can be implemented on top of different threads if one chooses). The distinction allows one to perform shared memory communication optimizations across various images within the same node since they will share the same address space. In MPI parlance this hierarchy is not explicit and thus all the threads of control visibile to the application are at the same level which we will call ``tasks." Our teams will consist of \gasnet images rather than nodes since we want different threads in the same process to be a part of different teams. We will allow images to have their own relative ranks within different teams but the \gasnet node identifier will remain fixed throughout the life of the program. 
 
 \section{Design Goals}
 \begin{itemize}
@@ -48,7 +48,7 @@ The problem of communication with a subset of the processors is certainly not a 
 \begin{itemize}
 \item \textbf{Communicators:} As stated above, the notion of an MPI communicator is very similar to our concept of teams, modulo some of the differences stated below. A team, like a communicator, is a set of \gasnet images along with a preallocated set of buffer space and communication meta data (e.g. a distributed buffer space manager) to allow fast collective communication across the various members of the team. 
 
-\item \textbf{Groups:} We will also adopt the idea of an MPI Group into \gasnet. The primary function of a \gasnet group is to allow easy team construction. The process of creating a team is an expensive process due to the setup of all the required meta-data. However the notion of a group is a much simpler object. It is merely a set of images without the additional meta data necessary for communication and synchronization. Since groups are much simpler than teams their construction and modification can be done using much simpler and therefore more efficient operations. Thus the general model, like MPI, will be to build up a group based on the different operations provided in the API and then construct a team around a group once the group has been finalized. 
+\item \textbf{Groups:} We will also adopt the idea of an MPI Group into \gasnet. The primary function of a \gasnet group is to allow easy team construction. The process of creating a team is an expensive process due to the setup of all the required meta-data. Since a group merely an ordered set of images without the additional meta data necessary for communication and synchronization their construction and modification can be done using much simpler, and therefore more efficient, operations. Thus the general model, like MPI, will be to build up a group based on the different operations provided in the API and then construct a team around a group once the group has been finalized. 
   
 %\item \textbf{API:} Our initial API for both teams and groups have been heavily adopted from the MPI. However as we will show there are a few differences that need to be addressed. 
 
@@ -58,7 +58,7 @@ The problem of communication with a subset of the processors is certainly not a 
 \begin{itemize}
 \item \textbf{\gasnet Images:} As stated above the biggest difference (especially in the implementation) that needs to be addressed is the difference between a node an image and how these relate to the teams. MPI does not have this problem since there is no notion of a hierarchical structure between MPI tasks; they are all at the same level. 
 
-\item \textbf{Scratch Space:} \gasnet has an explicit segment which allows one to take advantage of some very important communication optimizations (e.g. RDMA) in one-sided operations. Since we wish to leverage some of these same optimizations in the collectives, the collectives (and thus teams) will need to reclaim some of the space that has been provided to the end user to provide the best possible performance. The auxiliary scratch space for the initial GASNET\_TEAM\_ALL will be handled directly within \gasnet so  that it isn't visible to the end user, however further team construction will necessitate the user explicitly managing these buffers.
+\item \textbf{Scratch Space:} \gasnet has an explicit segment which allows one to take advantage of some very important communication optimizations (e.g. RDMA) in one-sided operations. Since we wish to leverage some of these same optimizations in the collectives, the collectives (and thus teams) will need to reclaim some of the space that has been allocated to the end user to provide the best possible performance. The auxiliary scratch space for the initial GASNET\_TEAM\_ALL will be handled directly within \gasnet so  that it isn't visible to the end user, however further team construction will necessitate the user explicitly managing these buffers.
 
 %Note that since \gasnet is indented as a compiler target, this will probably not be exposed to final end users and will only be relevant to writers of a runtime
 
@@ -90,13 +90,13 @@ A \gasnet group is defined as an ordered set of \gasnet images that will take pa
 
 \item \texttt{\image\ gasnet\_group\_size\_on\_node(\grouparg, \nodearg)} \\ Returns the number of images on node $n$ that are a part $g$. 
 
-\item \texttt{\image\ gasnet\_group\_my\_image(\grouparg)} \\ Returns my relative image number on $g$. 
+\item \texttt{\image\ gasnet\_group\_my\_image(\grouparg)} \\ Returns my relative image rank on $g$. 
 
-\item \texttt{void gasnet\_group\_translate\_images(\group\ A, \group\ B,\\ \image\ *input\_vec, \image\ *output\_vec, \image\ vec\_len)} \\ Given a set of input images in $input\_vec$ from group $A$ the function will translate them to their appropriate relative ranks in $B$. If some images do not exist in node $B$, then they the array slot will be filled with GASNET\_IMAGE\_UNDEFINED.
+\item \texttt{void gasnet\_group\_translate\_images(\group\ A, \group\ B,\\ \image\ *input\_vec, \image\ *output\_vec, \image\ vec\_len)} \\ Given a set of input images in $input\_vec$ from group $A$ the function will translate them to their corresponding relative ranks in $B$. If some images do not exist in node $B$, then they the array slot will be filled with GASNET\_IMAGE\_UNDEFINED.
 
 \item \texttt{\node\ gasnet\_group\_image\_to\_node(\grouparg, \imagearg)} \\ Given a relative rank $i$ in $g$, the function returns the node $n$ that contains the image. 
 
-\item \texttt{void gasnet\_group\_node\_to\_images(\grouparg, \nodearg, \image\ *outimages)} \\ Fills the output array $outimages$ with the images of $g$ that are on $n$. Use \texttt{gasnet\_group\_size\_on\_node} to get the count of how many elements this function will return. 
+\item \texttt{void gasnet\_group\_node\_to\_images(\grouparg, \\ \nodearg, \image\ *outimages)} \\ Fills the output array $outimages$ with the images of $g$ that are on $n$. Use \texttt{gasnet\_group\_size\_on\_node} to get the count of how many elements this function will return. 
 
 \item \texttt{enum\{GASNET\_GROUP\_IDENT , GASNET\_GROUP\_SIMILAR, GASNET\_GROUP\_UNEQUAL\} \\ gasnet\_group\_compare(\group\ a, \group\ b)} 
 \\ This function returns one of three values:  \begin{enumerate}
@@ -110,7 +110,7 @@ A \gasnet group is defined as an ordered set of \gasnet images that will take pa
 \item \texttt{\group\ gasnet\_group\_incl(\grouparg, \image\ * in\_images, \image\ image\_count)} \\ Returns a group that contains all the images in $g$ along with the images in $in\_images$ appended to the end. 
 
 \item \texttt{\group\ gasnet\_group\_excl(\grouparg, \image\ * in\_images, \image\ image\_count)} \\ 
-Returns a \texttt{\group} that removes the images contained in $in\_images$ from $g$. 
+Returns a \texttt{\group} that removes the images contained in $in\_images$ from $g$. The ordering of the remaining images from $g$ will not change. 
 
 \item \texttt{\group\ gasnet\_group\_diff(\group\ A, \group\ B)} \\ Returns a \texttt{\group} that is the set difference of $A$ and $B$. The resultant set will be all the images of $A$ that are not in $B$, ordered by their relative rankings in $A$. 
 
@@ -118,9 +118,9 @@ Returns a \texttt{\group} that removes the images contained in $in\_images$ from
 
 \item \texttt{\group\ gasnet\_group\_union(\group\ A, \group\ B)} \\ Returns a \texttt{\group} that is the set union of $A$ and $B$.  The images of $A$ are placed before the images of $B$ in the ordering. 
 
-\item \texttt{size\_t gasnet\_group\_to\_node\_seg\_size(\grouparg)} \\ Given a group $g$ the function returns the amount of scratch space a team constructed with $g$ will return on the node that the function is called on. 
+\item \texttt{size\_t gasnet\_group\_to\_node\_seg\_size(\grouparg)} \\ Given a group $g$ the function returns the amount of scratch space a team constructed with $g$ will need on the node that the function is called on. 
 
-\item \texttt{size\_t gasnet\_split\_to\_node\_seg\_size(\teamarg, \image\ color, \image\ relrank)} \\ This is the only group like function that must be a collective call. It will return the amount of space required for scratch on the calling node in order to perform a split of the team $t$ with the corresponding $color$ and $relrank$ arguments that one would use for the \texttt{gasnet\_team\_split()} function that will be relrank below.  If there are multiple teams that will be created the function will return a valid size for the scratch space for one represantative image on each node. A nonzero return value indicates that this image has been chosen to allocate scratch space for the corresponding team split. 
+\item \texttt{size\_t gasnet\_split\_to\_node\_seg\_size(\teamarg, \image\ color, \image\ relrank)} \\ This is the only group-like function that must be a collective call. It will return the amount of space required for scratch on the calling node in order to perform a split of the team $t$ with the corresponding $color$ and $relrank$ arguments that one would use for the \texttt{gasnet\_team\_split()} function that will be relrank below.  If there are multiple teams that will be created on the same node, the function will return a valid size for the scratch space for one representative image from each of the teams that will reside on the node. A nonzero return value indicates that this image has been chosen to allocate scratch space for the corresponding team split. 
 
 %\item GroupRangeIncl (maybe: scalability) ???
 %\item GroupRangeExcl (maybe: scalability) ???
@@ -133,13 +133,13 @@ Returns a \texttt{\group} that removes the images contained in $in\_images$ from
 Team Creation is collective across the parent group.
 \begin{itemize}
 \item GlobalVar: \texttt{GASNET\_TEAM\_ALL}  \\ Initial team that all images are a part of. Comparable to MPI\_COMM\_WORLD. 
-\item \texttt{\team\ gasnet\_team\_split(\teamarg, \\ \image\ color, \image\ relrank, void *local\_seg\_space)} \\ This function splits the team $t$ based on the $color$ and $relrank$ arguments. All images that call the function with the same $color$ argument will be separated into the same team. The $relrank$ argument specifies the relative position of the image within the new team. If multiple images call the split function with the same color and relrank argument the results are undefined. Note that the local\_seg\_space must be malloced if the corresponding call to \texttt{gasnet\_split\_to\_node\_seg\_size()} returned a nonzero value. One can pass GASNET\_IMAGE\_UNDEFINED to the relrank to indicate that the image is not to be part of any team. 
+\item \texttt{\team\ gasnet\_team\_split(\teamarg, \\ \image\ color, \image\ relrank, void *local\_seg\_space)} \\ This function splits the team $t$ based on the $color$ and $relrank$ arguments. All images that call the function with the same $color$ argument will be separated into the same team. The $relrank$ argument specifies the relative position of the image within the new team. If multiple images call the split function with the same color and relrank argument the results are undefined. Note that an image is responsible for allocating the local\_seg\_space if the corresponding call to \texttt{gasnet\_split\_to\_node\_seg\_size()} returned a nonzero value. One can pass GASNET\_IMAGE\_UNDEFINED to the $relrank$ to indicate that the image is not to be part of any team. 
 
 \item \texttt{\team\ gasnet\_team\_from\_group(\teamarg, \\\grouparg, void\ *local\_seg\_space)}
-\\ This function will create a child team of $t$ from the group $g$ with the given scratch space.  
+\\ This function will create a child team of $t$ from the group $g$ with the given scratch space.  The results are undefined if all members of $g$ are not part of $t$. 
 %\item (TeamSplit is sufficient for Team Duplicate)
 
-\item \texttt{\image\ gasnet\_team\_my\_image(\teamarg)} \\ Given a team the function returns a relative rank of the calling image within the $t$. If the calling image is not containted in $t$ then GASNET\_IMAGE\_UNDEFINED is returned. 
+\item \texttt{\image\ gasnet\_team\_my\_image(\teamarg)} \\ Given a team the function returns a relative rank of the calling image within $t$. If the calling image is not containted in $t$ then GASNET\_IMAGE\_UNDEFINED is returned. 
 
 \item \texttt{\image\ gasnet\_team\_size(\teamarg)} \\ Returns the number of images in $t$. 
 
@@ -147,6 +147,7 @@ Team Creation is collective across the parent group.
 
 %\item No TeamCompare (can just do pointer comparison on Teams)
 \end{itemize}
+
 
 
 
