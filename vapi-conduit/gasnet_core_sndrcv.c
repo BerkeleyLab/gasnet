@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/12/13 02:05:32 $
- * $Revision: 1.211.2.5 $
+ *     $Date: 2006/12/13 03:28:47 $
+ * $Revision: 1.211.2.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -530,6 +530,83 @@ static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
   }
 }
 
+void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
+  gasnetc_hca_t * const hca = cep->hca;
+  gasneti_weakatomic_val_t interval = gasneti_weakatomic_add(&hca->amrdma_balance.count, 1, 0);
+
+  gasneti_weakatomic_increment(&cep->amrdma.eligable, 0);
+
+  if_pf (!(interval & hca->amrdma_balance.mask) && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)) {
+    /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
+    #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
+    /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
+    #define GASNETC_AMRDMA_BOOST(FLOOR)	((FLOOR)>>1)
+
+    gasnetc_amrdma_balance_tbl_t *tbl = hca->amrdma_balance.table;
+    int tbl_size = 0;
+    int i;
+
+    /* Pass 1: Collect all peers w/ counts >= floor, while also "decaying" the counters.
+     * This is the only part that should be O(gasnet_nodes) on average.
+     */
+    for (i = 0; i < hca->total_qps; ++i) {
+      gasneti_weakatomic_val_t x, y;
+
+      cep = hca->cep[i];
+      x = gasneti_weakatomic_read(&cep->amrdma.eligable, 0);
+      y = GASNETC_AMRDMA_REDUCE(x);
+      gasneti_weakatomic_subtract(&cep->amrdma.eligable, y, 0);
+
+      if (x >= hca->amrdma_balance.floor) {
+        tbl[tbl_size].count = x - y;
+        tbl[tbl_size].cep = cep;
+        tbl_size++;
+      }
+    }
+
+    /* Pass 2: "Select" the top hca->amrdma_rcv.max_peers peers and
+     * find the new floor (the min count from among the selected peers).
+     */
+    if (tbl_size > hca->amrdma_rcv.max_peers) {
+      gasnetc_do_select(hca, tbl_size);
+      tbl_size = hca->amrdma_rcv.max_peers;
+      /* XXX: we know the current selection mechanism will leave the table sorted. */
+      hca->amrdma_balance.floor = tbl[tbl_size-1].count + GASNETC_AMRDMA_BOOST(tbl[tbl_size-1].count);
+    } else if (tbl_size == hca->amrdma_rcv.max_peers) {
+      /* "select" the entire table, and find MIN for new floor */
+      gasneti_weakatomic_val_t new_floor = tbl[0].count;
+      for (i = 1; i < tbl_size; ++i) {
+        new_floor = MIN(new_floor, tbl[i].count);
+      }
+      hca->amrdma_balance.floor = new_floor + GASNETC_AMRDMA_BOOST(new_floor);
+    } else {
+      /* "select" the entire table, but leave the floor unchanged */
+    }
+
+    /* Pass 3:
+     * + Grant any newly selected peers
+     * + "Boost" the selected peers to encourage re-selection on the next pass
+     */
+    {
+      gasneti_weakatomic_val_t boost = GASNETC_AMRDMA_BOOST(hca->amrdma_balance.floor);
+      for (i = 0; i < tbl_size; ++i) {
+        cep = tbl[i].cep;
+        if (!cep->amrdma_loc) {
+          gasnetc_amrdma_grant(hca, cep);
+        }
+        gasneti_weakatomic_add(&cep->amrdma.eligable, boost, 0);
+      }
+    }
+
+    if (gasneti_weakatomic_read(&hca->amrdma_rcv.count, 0) == hca->amrdma_rcv.max_peers) {
+      /* Disable this logic if the limit has been reached (since we lack REVOKE)*/
+      return; /* YES - we really mean to return w/o unlocking */
+    }
+
+    gasneti_spinlock_unlock(&hca->amrdma_balance.lock);
+  }
+}
+
 /* GASNETI_INLINE(gasnetc_processPacket) */
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags) {
   gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
@@ -636,81 +713,6 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   }
   
   rbuf->rbuf_handlerRunning = 0;
-
-  if_pt (cep && gasneti_attach_done && gasnetc_amrdma_max_peers) { /* Check for AMRDMA hot-peer heuristic, unless loopback */
-    gasnetc_hca_t * const hca = cep->hca;
-    gasneti_weakatomic_val_t interval = gasneti_weakatomic_add(&hca->amrdma_balance.count, 1, 0);
-
-    if_pf (!(interval & hca->amrdma_balance.mask) && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)) {
-      /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
-      #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
-      /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
-      #define GASNETC_AMRDMA_BOOST(FLOOR)	((FLOOR)>>1)
-
-      gasnetc_amrdma_balance_tbl_t *tbl = hca->amrdma_balance.table;
-      int tbl_size = 0;
-      int i;
-
-      /* Pass 1: Collect all peers w/ counts >= floor, while also "decaying" the counters.
-       * This is the only part that should be O(gasnet_nodes) on average.
-       */
-      for (i = 0; i < hca->total_qps; ++i) {
-	gasneti_weakatomic_val_t x, y;
-
-	cep = hca->cep[i];
-	x = gasneti_weakatomic_read(&cep->amrdma.eligable, 0);
-	y = GASNETC_AMRDMA_REDUCE(x);
-	gasneti_weakatomic_subtract(&cep->amrdma.eligable, y, 0);
-
-	if (x >= hca->amrdma_balance.floor) {
-	  tbl[tbl_size].count = x - y;
-	  tbl[tbl_size].cep = cep;
-	  tbl_size++;
-	}
-      }
-
-      /* Pass 2: "Select" the top hca->amrdma_rcv.max_peers peers and
-       * find the new floor (the min count from among the selected peers).
-       */
-      if (tbl_size > hca->amrdma_rcv.max_peers) {
-	gasnetc_do_select(hca, tbl_size);
-	tbl_size = hca->amrdma_rcv.max_peers;
-        /* XXX: we know the current selection mechanism will leave the table sorted. */
-        hca->amrdma_balance.floor = tbl[tbl_size-1].count + GASNETC_AMRDMA_BOOST(tbl[tbl_size-1].count);
-      } else if (tbl_size == hca->amrdma_rcv.max_peers) {
-	/* "select" the entire table, and find MIN for new floor */
-        gasneti_weakatomic_val_t new_floor = tbl[0].count;
-        for (i = 1; i < tbl_size; ++i) {
-	  new_floor = MIN(new_floor, tbl[i].count);
-        }
-        hca->amrdma_balance.floor = new_floor + GASNETC_AMRDMA_BOOST(new_floor);
-      } else {
-	/* "select" the entire table, but leave the floor unchanged */
-      }
-
-      /* Pass 3:
-       * + Grant any newly selected peers
-       * + "Boost" the selected peers to encourage re-selection on the next pass
-       */
-      {
-	gasneti_weakatomic_val_t boost = GASNETC_AMRDMA_BOOST(hca->amrdma_balance.floor);
-        for (i = 0; i < tbl_size; ++i) {
-	  cep = tbl[i].cep;
-	  if (!cep->amrdma_loc) {
-	    gasnetc_amrdma_grant(hca, cep);
-	  }
-	  gasneti_weakatomic_add(&cep->amrdma.eligable, boost, 0);
-        }
-      }
-
-      if (gasneti_weakatomic_read(&hca->amrdma_rcv.count, 0) == hca->amrdma_rcv.max_peers) {
-        /* Disable this logic if the limit has been reached (since we lack REVOKE)*/
-	return; /* YES - we really mean to return w/o unlocking */
-      }
-
-      gasneti_spinlock_unlock(&hca->amrdma_balance.lock);
-    }
-  }
 }
 
 #if GASNETC_SND_REAP_COLLECT
@@ -1077,9 +1079,6 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t *spare;
 
   GASNETC_STAT_EVENT(RCV_AM_SNDRCV);
-  if (comp->byte_len <= gasnetc_amrdma_limit) {
-    gasneti_weakatomic_increment(&cep->amrdma.eligable, 0);
-  }
 
   if (GASNETC_MSG_ISREPLY(flags)) {
 #if GASNETI_STATS_OR_TRACE
@@ -1131,6 +1130,10 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
     if_pf (!spare) {
       gasneti_free((void *)(uintptr_t)emergency_spare.rr_sg.addr);
     }
+  }
+
+  if ((comp->byte_len <= gasnetc_amrdma_limit) && gasneti_attach_done && gasnetc_amrdma_max_peers) {
+    gasnetc_amrdma_eligable(cep);
   }
 }
 
@@ -1247,7 +1250,6 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   gasneti_weakatomic_increment(&cep->amrdma.recv_head, 0);
 #endif
 
-  gasneti_weakatomic_increment(&cep->amrdma.eligable, 0);
   GASNETC_STAT_EVENT(RCV_AM_RDMA);
 
   rbuf.cep = cep;
@@ -1302,6 +1304,9 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
     gasnetc_hidden_ack(&rbuf, cep);
   }
   
+  gasneti_assert(gasneti_attach_done && gasnetc_amrdma_max_peers);
+  gasnetc_amrdma_eligable(cep);
+
   return 1;
 }
 
