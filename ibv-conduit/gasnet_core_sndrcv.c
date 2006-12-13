@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/12/13 01:36:56 $
- * $Revision: 1.211.2.4 $
+ *     $Date: 2006/12/13 02:05:32 $
+ * $Revision: 1.211.2.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -637,7 +637,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   
   rbuf->rbuf_handlerRunning = 0;
 
-  if_pt (cep && gasneti_attach_done) { /* Check for AMRDMA hot-peer heuristic, unless loopback */
+  if_pt (cep && gasneti_attach_done && gasnetc_amrdma_max_peers) { /* Check for AMRDMA hot-peer heuristic, unless loopback */
     gasnetc_hca_t * const hca = cep->hca;
     gasneti_weakatomic_val_t interval = gasneti_weakatomic_add(&hca->amrdma_balance.count, 1, 0);
 
