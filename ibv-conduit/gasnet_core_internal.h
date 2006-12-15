@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/12/13 01:36:56 $
- * $Revision: 1.145.2.4 $
+ *     $Date: 2006/12/15 23:09:54 $
+ * $Revision: 1.145.2.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,8 +15,8 @@
 #include <firehose.h>
 
 /* Check that firehose_fwd.h picked an IB API for us */
-#if !defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
-  #error "One of GASNETC_IB_VAPI or GASNETC_IB_VERBS must be defined"
+#if !defined(GASNET_CONDUIT_VAPI) && !defined(GASNET_CONDUIT_IBV)
+  #error "One of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
 #endif
 
 #include <ssh-spawner/gasnet_bootstrap_internal.h>
@@ -24,13 +24,11 @@
   #include <mpi-spawner/gasnet_bootstrap_internal.h>
 #endif
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #include <vapi.h>
   #include <evapi.h>
   #include <vapi_common.h>
 #else
-  #undef GASNETC_VAPI_RCV_THREAD
-  #define GASNETC_VAPI_RCV_THREAD 0
   #include <infiniband/verbs.h>
 #endif
 
@@ -52,7 +50,7 @@
 #endif
 
 /* check (even in optimized build) for VAPI errors */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #define GASNETC_VAPI_CHECK(rc,msg) \
     if_pf ((rc) != 0) \
       { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(rc),(msg)); }
@@ -202,8 +200,15 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_SND_SG	4
 
 /* Defined non-zero in gasnet_config.h to enable a progress thread for receiving AMs . */
-#ifndef GASNETC_VAPI_RCV_THREAD
-  #define GASNETC_VAPI_RCV_THREAD	0
+#if GASNET_CONDUIT_VAPI
+  #ifndef GASNETC_VAPI_RCV_THREAD
+    #define GASNETC_IB_RCV_THREAD	0
+  #else
+    #define GASNETC_IB_RCV_THREAD	1
+  #endif
+#else
+  /* XXX: rcv thread not yet implemented for IBV */
+  #define GASNETC_IB_RCV_THREAD 0
 #endif
 
 /* maximum number of ops reaped from the send CQ per poll */
@@ -240,11 +245,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_CLI_PAR	0
 #endif
 
-#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_VAPI_RCV_THREAD)
+#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_IB_RCV_THREAD)
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETC_VAPI_MAX_HCAS > 1
+#if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
 #else
@@ -255,7 +260,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* ------------------------------------------------------------------------------------ */
 /* Map VAPI and IBV to a common gasnetc_ prefix */
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #define GASNETC_IB_CHOOSE(X,Y)		X
 
   #define gasnetc_close_hca(_hca)		EVAPI_release_hca_hndl(_hca)
@@ -423,7 +428,7 @@ typedef struct {
   int			hca_index;
   const char		*hca_id;
   gasnetc_hca_cap_t	hca_cap;
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   VAPI_hca_vendor_t	hca_vendor;
 #else
   /* Part of hca_cap under ibv */
@@ -436,7 +441,7 @@ typedef struct {
   void			*rbuf_alloc;
   gasneti_lifo_head_t	rbuf_freelist;
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   /* Rcv thread */
   EVAPI_compl_handler_hndl_t rcv_handler;
   void			*rcv_thread_priv;
@@ -570,7 +575,7 @@ extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
 
 /* Global variables */
 extern int		gasnetc_num_hcas;
-extern gasnetc_hca_t	gasnetc_hca[GASNETC_VAPI_MAX_HCAS];
+extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern gasnetc_cep_t	*gasnetc_cep;
 extern uintptr_t	gasnetc_max_msg_sz;
 #if GASNETC_PIN_SEGMENT
