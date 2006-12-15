@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2006/11/09 00:51:30 $
- * $Revision: 1.39 $
+ *     $Date: 2006/12/15 18:08:25 $
+ * $Revision: 1.39.4.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,14 +21,18 @@
   #undef VAPI
 #endif
 
-
 #define GASNET_CORE_VERSION      1.8
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
-#define GASNET_CORE_NAME         VAPI
+#if defined(GASNET_CONDUIT_VAPI)
+  #define GASNET_CORE_NAME         VAPI
+#elif defined(GASNET_CONDUIT_IBV)
+  #define GASNET_CORE_NAME         IBV
+#else
+  #error "Exactly one of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
+#endif
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
-#define GASNET_CONDUIT_VAPI      1
 
 /* This is the limit on the LID space... */
 #define GASNET_MAXNODES	16384
@@ -106,7 +110,7 @@ extern void gasnetc_fatalsignal_callback(int sig);
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
-#if PLATFORM_COMPILER_PGI
+#if PLATFORM_COMPILER_PGI && GASNET_CONDUIT_VAPI
   /* VAPI headers rely on the non-portable u_int*_t names
      PGI lacks these, so translate them to the versions guaranteed by the C99 spec and portable_inttypes
    */
