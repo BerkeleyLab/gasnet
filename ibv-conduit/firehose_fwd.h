@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/firehose_fwd.h,v $
- *     $Date: 2006/12/04 17:18:02 $
- * $Revision: 1.13 $
+ *     $Date: 2006/12/15 18:08:25 $
+ * $Revision: 1.13.4.1 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -9,17 +9,17 @@
 #ifndef _VAPI_FIREHOSE_FWD_H
 #define _VAPI_FIREHOSE_FWD_H
 
-#if defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
-  #undef GASNETC_IB_VAPI
-  #define GASNETC_IB_VAPI 1
-#elif !defined(GASNETC_IB_VAPI) && defined(GASNETC_IB_VERBS)
-  #undef GASNETC_IB_VERBS
-  #define GASNETC_IB_VERBS 1
+#if defined(GASNET_CONDUIT_VAPI) && !defined(GASNET_CONDUIT_IBV)
+  #undef GASNET_CONDUIT_VAPI
+  #define GASNET_CONDUIT_VAPI 1
+#elif !defined(GASNET_CONDUIT_VAPI) && defined(GASNET_CONDUIT_IBV)
+  #undef GASNET_CONDUIT_IBV
+  #define GASNET_CONDUIT_IBV 1
 #else
-  #error "Exactly one of GASNETC_IB_VAPI or GASNETC_IB_VERBS must be defined"
+  #error "Exactly one of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
 #endif
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #if PLATFORM_COMPILER_SUN_C
     /* Supress warnings about out-of-range constants in an enum (an explict 0xFFFFFFFF) */
     #pragma error_messages(off, E_ENUM_VAL_OVERFLOWS_INT_MAX)
@@ -44,7 +44,7 @@
   #endif
   #define _FIREHOSE_VAPI_LKEY_T		VAPI_lkey_t
   #define _FIREHOSE_VAPI_RKEY_T		VAPI_rkey_t
-#elif GASNETC_IB_VERBS
+#elif GASNET_CONDUIT_IBV
   #include <infiniband/verbs.h>
   #define _FIREHOSE_VAPI_MR_HNDL_T	struct ibv_mr *
   #define _FIREHOSE_VAPI_LKEY_T		uint32_t
