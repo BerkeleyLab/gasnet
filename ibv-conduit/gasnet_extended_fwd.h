@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2006/11/01 23:11:49 $
- * $Revision: 1.18 $
+ *     $Date: 2006/12/15 23:09:54 $
+ * $Revision: 1.18.4.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,7 +17,13 @@
 
 #define GASNET_EXTENDED_VERSION      1.8
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
-#define GASNET_EXTENDED_NAME         VAPI
+#if GASNET_CONDUIT_VAPI
+  #define GASNET_EXTENDED_NAME         VAPI
+#elif GASNET_CONDUIT_IBV
+  #define GASNET_EXTENDED_NAME         IBV
+#else
+  #error "Exactly one of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
+#endif
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 
