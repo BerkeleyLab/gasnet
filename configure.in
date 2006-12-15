@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/12/15 18:08:23 $
-# $Revision: 1.431.2.1 $
+#     $Date: 2006/12/15 19:05:02 $
+# $Revision: 1.431.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.431.2.1 $)
+AC_REVISION($Revision: 1.431.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2174,62 +2174,8 @@ if test "$enabled_vapi" = yes; then
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(LIBS)
 
-    # Collect some VAPI-specifc configure options
-    GASNET_IF_ENABLED_WITH_AUTO(vapi-poll-lock, [See vapi-conduit/README (disabled by default)], 
-      enabled_vapi_poll_lock=yes, enabled_vapi_poll_lock=no, enabled_vapi_poll_lock=no)
-      if test "$enabled_vapi_poll_lock" = yes; then
-        AC_DEFINE(GASNETC_VAPI_POLL_LOCK)
-      fi
-
-    GASNET_IF_ENABLED_WITH_AUTO(vapi-rcv-thread, [See vapi-conduit/README (enabled by default if pthreads available)], 
-      [enabled_vapi_rcv_thread=yes
-       if test "$have_pthread" = no; then
-         AC_MSG_ERROR([--enable-vapi-rcv-thread requires pthread support but pthreads $pthread_reason])
-       fi],
-      [enabled_vapi_rcv_thread=no],
-      [enabled_vapi_rcv_thread=$have_pthread])
-      if test "$enabled_vapi_rcv_thread" = yes; then
-        AC_DEFINE(GASNETC_VAPI_RCV_THREAD)
-      fi
-
-    GASNET_WITH(vapi-spawner,
-       [VAPI job spawner ("ssh" or "mpi", default is mpi when available)],
-       [case "$withval" in
-          ssh|mpi) GASNET_VAPI_SPAWNER_CONF=$withval
-	       ;;
-          yes) AC_MSG_ERROR([--with-vapi-spawner requires an argument ("ssh" or "mpi")])
-	       ;;
-          *)   AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])
-	       ;;
-        esac],
-       [AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])],
-       [if test "$have_mpi_compat" = yes; then
-          GASNET_VAPI_SPAWNER_CONF=mpi
-        else
-          GASNET_VAPI_SPAWNER_CONF=ssh
-        fi])
-    AC_SUBST(GASNET_VAPI_SPAWNER_CONF)
-    if test "$GASNET_VAPI_SPAWNER_CONF$have_mpi_compat" = mpino; then
-      AC_MSG_ERROR([--with-vapi-spawner=mpi requires MPI compatibility support which $mpi_reason])
-    fi
-    if test "$GASNET_VAPI_SPAWNER_CONF$have_fork" = sshno; then
-      AC_MSG_ERROR([--with-vapi-spawner=ssh requires fork() support which $fork_reason])
-    fi
-
-    gasnetc_vapi_max_hcas=2
-    GASNET_IF_ENABLED_WITH_AUTO(vapi-multirail, [Enable/disable vapi over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_vapi_multirail=yes, enabled_vapi_multirail=no, enabled_vapi_multirail=yes)
-    GASNET_WITH(vapi-max-hcas,
-       [maximum number of VAPI HCAs to open for multi-rail support (default is 2)],
-       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
-	  gasnetc_vapi_max_hcas="$withval"
-	else
-          AC_MSG_ERROR([--with-vapi-max-hcas requires a postive integer argument])
-        fi],
-       [AC_MSG_ERROR([--with-vapi-max-hcas requires a postive integer argument])],
-       [:])
-    if test "$enabled_vapi_multirail" = yes; then
-      AC_DEFINE_UNQUOTED(GASNETC_VAPI_MAX_HCAS, $gasnetc_vapi_max_hcas)
-    fi
+    # Collect IB-specifc configure options
+    GASNET_IB_OPTIONS(VAPI)
   fi
 fi
 AC_SUBST(VAPI_INCLUDE)
@@ -2317,64 +2263,8 @@ if test "$enabled_ibv" = yes; then
     #AC_SEARCH_LIBS(ibv_get_devices, ibverbs, AC_DEFINE(HAVE_IBV_GET_DEVICES))
     #GASNET_POPVAR(LIBS)
 
-# XXX: MUST FACTOR THIS!!!
-
-    # Collect some VAPI-specifc configure options
-    GASNET_IF_ENABLED_WITH_AUTO(vapi-poll-lock, [See vapi-conduit/README (disabled by default)], 
-      enabled_vapi_poll_lock=yes, enabled_vapi_poll_lock=no, enabled_vapi_poll_lock=no)
-      if test "$enabled_vapi_poll_lock" = yes; then
-        AC_DEFINE(GASNETC_VAPI_POLL_LOCK)
-      fi
-
-    GASNET_IF_ENABLED_WITH_AUTO(vapi-rcv-thread, [See vapi-conduit/README (enabled by default if pthreads available)], 
-      [enabled_vapi_rcv_thread=yes
-       if test "$have_pthread" = no; then
-         AC_MSG_ERROR([--enable-vapi-rcv-thread requires pthread support but pthreads $pthread_reason])
-       fi],
-      [enabled_vapi_rcv_thread=no],
-      [enabled_vapi_rcv_thread=$have_pthread])
-      if test "$enabled_vapi_rcv_thread" = yes; then
-        AC_DEFINE(GASNETC_VAPI_RCV_THREAD)
-      fi
-
-    GASNET_WITH(vapi-spawner,
-       [VAPI job spawner ("ssh" or "mpi", default is mpi when available)],
-       [case "$withval" in
-          ssh|mpi) GASNET_VAPI_SPAWNER_CONF=$withval
-	       ;;
-          yes) AC_MSG_ERROR([--with-vapi-spawner requires an argument ("ssh" or "mpi")])
-	       ;;
-          *)   AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])
-	       ;;
-        esac],
-       [AC_MSG_ERROR([--with-vapi-spawner argument must be "ssh" or "mpi"])],
-       [if test "$have_mpi_compat" = yes; then
-          GASNET_VAPI_SPAWNER_CONF=mpi
-        else
-          GASNET_VAPI_SPAWNER_CONF=ssh
-        fi])
-    AC_SUBST(GASNET_VAPI_SPAWNER_CONF)
-    if test "$GASNET_VAPI_SPAWNER_CONF$have_mpi_compat" = mpino; then
-      AC_MSG_ERROR([--with-vapi-spawner=mpi requires MPI compatibility support which $mpi_reason])
-    fi
-    if test "$GASNET_VAPI_SPAWNER_CONF$have_fork" = sshno; then
-      AC_MSG_ERROR([--with-vapi-spawner=ssh requires fork() support which $fork_reason])
-    fi
-
-    gasnetc_vapi_max_hcas=2
-    GASNET_IF_ENABLED_WITH_AUTO(vapi-multirail, [Enable/disable vapi over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_vapi_multirail=yes, enabled_vapi_multirail=no, enabled_vapi_multirail=yes)
-    GASNET_WITH(vapi-max-hcas,
-       [maximum number of VAPI HCAs to open for multi-rail support (default is 2)],
-       [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
-	  gasnetc_vapi_max_hcas="$withval"
-	else
-          AC_MSG_ERROR([--with-vapi-max-hcas requires a postive integer argument])
-        fi],
-       [AC_MSG_ERROR([--with-vapi-max-hcas requires a postive integer argument])],
-       [:])
-    if test "$enabled_vapi_multirail" = yes; then
-      AC_DEFINE_UNQUOTED(GASNETC_VAPI_MAX_HCAS, $gasnetc_vapi_max_hcas)
-    fi
+    # Collect IB-specifc configure options
+    GASNET_IB_OPTIONS(IBV)
   fi
 fi
 AC_SUBST(IBV_INCLUDE)

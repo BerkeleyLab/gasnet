@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/12/13 23:33:02 $
-dnl $Revision: 1.121 $
+dnl     $Date: 2006/12/15 19:05:02 $
+dnl $Revision: 1.121.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -2246,4 +2246,91 @@ GASNET_FUN_BEGIN([$0])
   GASNET_ENV_DEFAULT(FH_CFLAGS, [$fh_cflags_default])
   AC_SUBST(FH_CFLAGS)
 GASNET_FUN_END([$0])
+])
+
+dnl GASNET_IB_OPTIONS(family)
+dnl Parse IB-specific configure arguments common to VAPI and IBV conduits
+AC_DEFUN([GASNET_IB_OPTIONS],[
+  GASNET_FUN_BEGIN([$0($1)])
+  pushdef([lowername],translit($1,'A-Z','a-z'))
+  pushdef([uppername],translit($1,'a-z','A-Z'))
+  pushdef([enabled_ib_poll_lock],enabled_[]lowername[]_poll_lock)
+  pushdef([enabled_ib_rcv_thread],enabled_[]lowername[]_rcv_thread)
+  pushdef([enabled_ib_multirail],enabled_[]lowername[]_multirail)
+  pushdef([gasnetc_ib_max_hcas],gasnetc_[]lowername[]_max_hcas)
+  pushdef([gasnet_ib_spawner_conf],gasnet_[]lowername[]_spawner_conf)
+  pushdef([GASNETC_IB_POLL_LOCK],GASNETC_[]uppername[]_POLL_LOCK)
+  pushdef([GASNETC_IB_RCV_THREAD],GASNETC_[]uppername[]_RCV_THREAD)
+  pushdef([GASNETC_IB_MAX_HCAS],GASNETC_[]uppername[]_MAX_HCAS)
+  pushdef([GASNET_IB_SPAWNER_CONF],GASNET_[]uppername[]_SPAWNER_CONF)
+
+  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
+    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no, enabled_ib_poll_lock=no)
+    if test "$enabled_ib_poll_lock" = yes; then
+      AC_DEFINE(GASNETC_IB_POLL_LOCK)
+    fi
+
+  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-rcv-thread, [See vapi-conduit/README (enabled by default if pthreads available)], 
+    [enabled_ib_rcv_thread=yes
+     if test "$have_pthread" = no; then
+       AC_MSG_ERROR([--enable-[]lowername[]-rcv-thread requires pthread support but pthreads $pthread_reason])
+     fi],
+    [enabled_ib_rcv_thread=no],
+    [enabled_ib_rcv_thread=$have_pthread])
+    if test "$enabled_ib_rcv_thread" = yes; then
+      AC_DEFINE(GASNETC_IB_RCV_THREAD)
+    fi
+
+  GASNET_WITH(lowername[]-spawner,
+     [uppername job spawner ("ssh" or "mpi", default is mpi when available)],
+     [case "$withval" in
+        ssh|mpi) gasnet_ib_spawner_conf=$withval
+             ;;
+        yes) AC_MSG_ERROR([--with-[]lowername[]-spawner requires an argument ("ssh" or "mpi")])
+             ;;
+        *)   AC_MSG_ERROR([--with-[]lowername[]-spawner argument must be "ssh" or "mpi"])
+             ;;
+      esac],
+     [AC_MSG_ERROR([--with-[]lowername[]-spawner argument must be "ssh" or "mpi"])],
+     [if test "$have_mpi_compat" = yes; then
+        gasnet_ib_spawner_conf=mpi
+      else
+        gasnet_ib_spawner_conf=ssh
+      fi])
+  if test "$gasnet_ib_spawner_conf$have_mpi_compat" = mpino; then
+    AC_MSG_ERROR([--with-[]lowername[]-spawner=mpi requires MPI compatibility support which $mpi_reason])
+  fi
+  if test "$gasnet_ib_spawner_conf$have_fork" = sshno; then
+    AC_MSG_ERROR([--with-[]lowername[]-spawner=ssh requires fork() support which $fork_reason])
+  fi
+  GASNET_IB_SPAWNER_CONF=$gasnet_ib_spawner_conf
+  AC_SUBST(GASNET_IB_SPAWNER_CONF)
+
+  gasnetc_ib_max_hcas=2
+  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-multirail, [Enable/disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=yes, enabled_ib_multirail=no, enabled_ib_multirail=yes)
+  GASNET_WITH(lowername[]-max-hcas,
+     [maximum number of uppername HCAs to open for multi-rail support (default is 2)],
+     [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
+        gasnetc_ib_max_hcas="$withval"
+      else
+        AC_MSG_ERROR([--with-[]lowername[]-max-hcas requires a postive integer argument])
+      fi],
+     [AC_MSG_ERROR([--with-[]lowername[]-max-hcas requires a postive integer argument])],
+     [:])
+  if test "$enabled_ib_multirail" = yes; then
+    AC_DEFINE_UNQUOTED(GASNETC_IB_MAX_HCAS, $gasnetc_ib_max_hcas)
+  fi
+
+  popdef([lowername])
+  popdef([uppername])
+  popdef([enabled_ib_poll_lock])
+  popdef([enabled_ib_rcv_thread])
+  popdef([enabled_ib_multirail])
+  popdef([gasnetc_ib_max_hcas])
+  popdef([gasnet_ib_spawner_conf])
+  popdef([GASNETC_IB_POLL_LOCK])
+  popdef([GASNETC_IB_RCV_THREAD])
+  popdef([GASNETC_IB_MAX_HCAS])
+  popdef([GASNET_IB_SPAWNER_CONF])
+  GASNET_FUN_END([$0($1)])
 ])
