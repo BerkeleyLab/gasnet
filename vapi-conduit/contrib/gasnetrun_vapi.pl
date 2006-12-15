@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/contrib/Attic/gasnetrun_vapi.pl,v $
-#     $Date: 2006/12/15 20:06:23 $
-# $Revision: 1.5.50.1 $
-# Description: GASNet VAPI spawner
+#     $Date: 2006/12/15 20:13:58 $
+# $Revision: 1.5.50.2 $
+# Description: GASNet VAPI and IBV spawner
 # Terms of use are as specified in license.txt
 
 require 5.004;
@@ -20,7 +20,8 @@ my $exepath = undef;
 my $exeindex = undef;
 my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
-my $spawner = $ENV{'GASNET_VAPI_SPAWNER'};
+my $spawner = $ENV{'GASNET_IB_SPAWNER'};
+my $conduit = $ENV{'GASNET_IB_CONDUIT'};
 
 sub usage
 {
@@ -124,7 +125,7 @@ sub fullpath($)
     if (!defined($spawner)) {
         usage "Option -spawner was not given and no default is set\n"
     }
-    if (($spawner eq 'MPI') && !$ENV{VAPI_BOOTSTRAP_MPI}) {
+    if (($spawner eq 'MPI') && !$ENV{GASNET_IB_BOOTSTRAP_MPI}) {
         usage "Spawner is set to MPI, but MPI support was not compiled in\n"
     }
 
@@ -150,8 +151,7 @@ sub fullpath($)
 	{   local $/ = '$'; # use $ as the line break symbol
             while (<FILE>) {
                 next unless(/^GASNet/);
-		if (/GASNetConduitName: VAPI $/) { $is_gasnet = 1; next; }
-		if (/GASNetConduitName: IBV $/) { $is_gasnet = 1; next; }
+		if (/GASNetConduitName: $conduit $/) { $is_gasnet = 1; next; }
                 if (/$pattern/o) { $found = 1; last; }
             }
         }
