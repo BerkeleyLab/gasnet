@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/12/15 18:08:25 $
- * $Revision: 1.187.4.1 $
+ *     $Date: 2006/12/15 19:42:04 $
+ * $Revision: 1.187.4.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,7 +100,7 @@ GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
 /* ------------------------------------------------------------------------------------ */
 
 int		gasnetc_num_hcas = 1;
-gasnetc_hca_t	gasnetc_hca[GASNETC_VAPI_MAX_HCAS];
+gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 gasnetc_cep_t	*gasnetc_cep;
 uintptr_t	gasnetc_max_msg_sz;
 
@@ -247,7 +247,7 @@ static uintptr_t gasnetc_trypin(uintptr_t limit, uintptr_t step) {
   int h;
 
   if (limit != 0) {
-    gasnetc_memreg_t reg[GASNETC_VAPI_MAX_HCAS];
+    gasnetc_memreg_t reg[GASNETC_IB_MAX_HCAS];
     step = MIN(limit, step);
     if (gasnetc_try_pin_inner(step, reg) != NULL) {
       size = step + gasnetc_trypin(limit - step, step);
@@ -449,7 +449,7 @@ static int gasnetc_load_settings(void) {
   gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", 0);
 
   /* Verify correctness/sanity of values */
-  if (gasnetc_use_rcv_thread && !GASNETC_VAPI_RCV_THREAD) {
+  if (gasnetc_use_rcv_thread && !GASNETC_IB_RCV_THREAD) {
     gasneti_fatalerror("AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
   }
 #if GASNETC_FH_OPTIONAL
@@ -491,10 +491,12 @@ static int gasnetc_load_settings(void) {
 
   /* Report */
   GASNETI_TRACE_PRINTF(C,("vapi-conduit build time configuration settings = {"));
-  GASNETI_TRACE_PRINTF(C,("  AM receives in internal thread %sabled (GASNETC_VAPI_RCV_THREAD)",
-				GASNETC_VAPI_RCV_THREAD ? "en" : "dis"));
-#if GASNETC_VAPI_POLL_LOCK
+  GASNETI_TRACE_PRINTF(C,("  AM receives in internal thread %sabled (GASNETC_" GASNET_CONDUIT_NAME_STR"_RCV_THREAD)",
+				GASNETC_IB_RCV_THREAD ? "en" : "dis"));
+#if GASNET_CONDUIT_VAPI && GASNETC_VAPI_POLL_LOCK
   GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-vapi-poll-lock)"));
+#elif GASNET_CONDUIT_IBV && GASNETC_IBV_POLL_LOCK
+  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
 #else
   GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            NO (default)"));
 #endif
@@ -504,14 +506,15 @@ static int gasnetc_load_settings(void) {
 				GASNETC_RCV_REAP_LIMIT));
   GASNETI_TRACE_PRINTF(C,  ("}"));
 
-  GASNETI_TRACE_PRINTF(C,("vapi-conduit run time configuration settings = {"));
 #if GASNET_CONDUIT_VAPI
+  GASNETI_TRACE_PRINTF(C,("vapi-conduit run time configuration settings = {"));
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
     GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = '%s'", gasnetc_vapi_ports));
   } else {
     GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = empty or unset (probe all)"));
   }
 #else
+  GASNETI_TRACE_PRINTF(C,("ibv-conduit run time configuration settings = {"));
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
     GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = '%s'", gasnetc_vapi_ports));
   } else {
@@ -543,7 +546,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
-#if GASNETC_VAPI_RCV_THREAD
+#if GASNETC_IB_RCV_THREAD
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
 #else
@@ -741,16 +744,16 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
   }
 #endif
 
-  if ((num_hcas > GASNETC_VAPI_MAX_HCAS) && (gasnetc_port_list == NULL)) {
+  if ((num_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL)) {
 #if GASNET_CONDUIT_VAPI
     fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured with '--with-vapi-max-hcas="
-		    _STRINGIFY(GASNETC_VAPI_MAX_HCAS) "'.  To utilize all your HCAs, you should "
+		    _STRINGIFY(GASNETC_IB_MAX_HCAS) "'.  To utilize all your HCAs, you should "
 		    "reconfigure GASNet with '--with-vapi-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_VAPI_PORTS as described in the file "
 		    "'gasnet/vapi-conduit/README'.\n", num_hcas, num_hcas);
 #else
     fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured with '--with-ibv-max-hcas="
-		    _STRINGIFY(GASNETC_VAPI_MAX_HCAS) "'.  To utilize all your HCAs, you should "
+		    _STRINGIFY(GASNETC_IB_MAX_HCAS) "'.  To utilize all your HCAs, you should "
 		    "reconfigure GASNet with '--with-ibv-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
 		    "'gasnet/vapi-conduit/README'.\n", num_hcas, num_hcas);
@@ -759,7 +762,7 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
 
   /* Loop over VAPI's list of HCAs */
   for (curr_hca = 0;
-       (hca_count < GASNETC_VAPI_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
+       (hca_count < GASNETC_IB_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
        ++curr_hca) {
 #if GASNET_CONDUIT_VAPI
     VAPI_hca_vendor_t	hca_vendor;
@@ -924,7 +927,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
   if (!num_ports || (port_tbl == NULL)) {
     if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
-      GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports given in GASNETC_VAPI_PORTS");
+      GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports given in " GASNET_VAPI_PORTS_STR);
     } else {
       GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports");
     }
@@ -1679,7 +1682,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           vstat = gasnetc_pin(hca, (void *)addr, len,
 			      GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR | GASNETC_ACL_REM_RD,
 			      &hca->seg_reg[j]);
-          GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr(segment)");
+          GASNETC_VAPI_CHECK(vstat, "when registering the segment");
 	  my_rkeys[j] = hca->seg_reg[j].rkey;
 	  addr += len;
 	  remain -= len;
