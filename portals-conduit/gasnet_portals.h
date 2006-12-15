@@ -10,6 +10,9 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
+/* Needed for bootstrap */
+#include <catamount/cnos_mpi_os.h>
+
 /* ------------------------------------------------------------------------------------ */
 /* MLW:  Support for Portals 3.0 */
 
@@ -62,7 +65,10 @@
 #define GASNETC_PTL_AM_REPLY     0x10
 #define GASNETC_PTL_AM_ASYNC     0x11
 
+/* Token flag values */
+#define GASNETC_PTL_REPLY_SENT   0x01
 
+/* Masks used in constructing 64-bit bit fields */
 #define GASNETC_MASK_UPPER32     0xFFFFFFFF00000000ULL
 #define GASNETC_MASK_LOWER32     0x00000000FFFFFFFFULL
 #define GASNETC_MASK_OPBITS      0x00000000FFFFFF00ULL
@@ -83,36 +89,43 @@
 #define GASNETC_UNPACK_UPPER(x) (int32_t)((x)>>32)
 #define GASNETC_UNPACK_LOWER(x) (int32_t)((x)&GASNETC_MASK_LOWER32)
 #define GASNETC_UNPACK_2INT(x,up,low) do { \
-    up = GASNETC_UNPACK_UPPER(x); \
-    low = GASNETC_UNPACK_LOWER(x); \
+    (up) = GASNETC_UNPACK_UPPER(x);	   \
+    (low) = GASNETC_UNPACK_LOWER(x);	   \
   } while (0)
-
-#define GASNETC_COMMON_AMSTART(state,offset) do {	  \
-    /* poll until dest node is out of recovery */ \
-    gasneti_pollwhile( gasneti_weakatomic_read(&(state)->in_recovery, 0) ); \
-    /* poll until local node has enough resources to send an AM */ \
-    /* MLW: INSERT PROPER CODE HERE */
-    /* Allocate a send buffer */ \
-    while (gasnetc_chunk_alloc(&gasnetc_reqSB, GASNETC_CHUNKSIZE, &(local)) == 0) {}; \
-  } while (0)
-
-/* gasnet state used for AM send squelch */
-typedef struct gconrec {
-  gasneti_weakatomic_t AM_pending;
-  gasneti_weakatomic_t in_recovery;
-  uint32_t   long_id;  /* a counter that is incremented for each AM Long issued */
-} gasnetc_conn_t;
-/* array of connection states */
-extern gasnetc_conn_t *gasnetc_conn_state;
 
 /* AM tokens used by portals */
-typedef struct foobar_rec {
+typedef struct token_rec {
   uint8_t           flags;
   uint32_t          rplsb_offset;
   uint32_t          initiator_offset;
   ptl_process_id_t  initiator;
   gasnet_node_t     srcnode;
 } gasnetc_ptl_token_t;
+
+#define GASNETC_LID_DATA_HERE    0x1;
+#define GASNETC_LID_HEADER_HERE  0x2;
+/* data cached by Long Put or AM Long Header */
+typedef struct gasnetc_amlongcache_rec {
+  uint8_t             flags;
+  gasnet_handler_t    ghandler;
+  uint32_t            dest_lid;
+  uint32_t            initiator_offset;
+  uint32_t            narg;
+  struct gasnetc_amlongcache_rec *next;
+  void               *data;
+  ptl_size_t          datalen;
+  gasnet_handlerarg_t args[];
+} gasnetc_amlongcache_t;
+
+/* gasnet state used for AM send squelch */
+typedef struct gconrec {
+  gasneti_weakatomic_t AM_pending;
+  gasneti_weakatomic_t in_recovery;
+  uint32_t   src_lid;  /* a counter that is incremented for each AM Long issued */
+  gasnetc_amlongcache_t *lids;
+} gasnetc_conn_t;
+/* array of connection states */
+extern gasnetc_conn_t *gasnetc_conn_state;
 
 /* Flag to determine if we use Portals or MPI for AMs */
 extern int gasnetc_use_AM_portals;
@@ -202,7 +215,8 @@ extern size_t gasnetc_ReqSB_numchunk;         /* Number of chunks to alloc for R
 extern size_t gasnetc_RplSB_numchunk;         /* Number of chunks to alloc for RplSB */
 
 extern gasnetc_PtlBuffer_t gasnetc_ReqSB;
-extern gasnetc_PtlBuffer_t gasnetc_RplSB;
+extern gasnetc_PtlBuffer_t gasnetc_RplSB;    /* MLW: Can elim this, and alloc a per-thread buffer and MD
+					      * No need for an EQ since will only use it to send */
 extern gasnetc_PtlBuffer_t *gasnetc_ReqRB;   /* an array of buffers */
 extern gasnetc_PtlBuffer_t gasnetc_RAR;
 extern gasnetc_PtlBuffer_t gasnetc_RARAM;
@@ -231,6 +245,15 @@ extern gasneti_weakatomic_t gasnete_putget_poll_cnt;
  */
 extern gasneti_weakatomic_t gasnete_putget_inflight;
 extern int gasnete_putget_limit;
+
+#define GASNETC_COMMON_AMSTART(state,offset) do {	  \
+    /* poll until dest node is out of recovery */ \
+    gasneti_pollwhile( gasneti_weakatomic_read(&((state)->in_recovery), 0) ); \
+    /* poll until local node has enough resources to send an AM */ \
+    /* MLW: INSERT PROPER CODE HERE */ \
+    /* Allocate a send buffer (Note that chunk_alloc will poll internally) */ \
+    while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) == 0) {}; \
+  } while (0)
 
 #define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
 #define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
@@ -284,21 +307,27 @@ int gasnetc_in_local_rar(uint8_t* pstart, size_t n)
 }
 #define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
+/* prototype for gasnet handler functions */
+typedef void (*gasnetc_handler_fn_t)();
+extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
+
 /* Functions we export to the core and extended API */
 /* MLW: some of these may not have to be exported */
-extern void* gasnetc_aligned_malloc(size_t bytes, uint32_t alignment, void **allocated_start);
 extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
 extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
 extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle_eq_t eq_h);
 extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h);
 extern void gasnetc_init_portals_network(void);
-extern void gasnetc_bootstrapBarrier(void *src, size_t len, void *dest, int rootnode);
+extern uintptr_t gasnetc_portalsMaxPinMem(void);
+extern void gasnetc_bootstrapBarrier(void);
+extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 extern void gasnetc_init_portals_resources(void);
 extern void gasnetc_portals_exit();
 extern void gasnetc_portals_poll(void);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
+extern void gasnetc_testBootExch(void);
 
 SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
 #endif

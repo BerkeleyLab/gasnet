@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2006/10/17 18:06:56 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2006/12/15 01:31:49 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,7 +46,7 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)     \
         CNT(C, CHUNK_ALLOC, count)              \
         CNT(C, CHUNK_FREE, count)               \
         CNT(C, TMPMD_ALLOC, count)              \

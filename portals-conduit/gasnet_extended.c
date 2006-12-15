@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/10/17 18:06:56 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2006/12/15 01:31:49 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -589,7 +589,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(dest,nbytes)) {
-      md_h = gasnetc_RARAM_md_h;
+      md_h = gasnetc_RARAM.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
       GASNETI_TRACE_EVENT(C, GET_NB_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
@@ -672,7 +672,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     /* Determine destination MD for Ptl Put */
     if (gasnetc_in_local_rar(src,nbytes)) {
-      md_h = gasnetc_RARAM_md_h;
+      md_h = gasnetc_RARAM.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
       if (! isbulk) wait_for_local_completion = 1;
       GASNETI_TRACE_EVENT(C, PUT_NB_RAR);
@@ -866,7 +866,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     /* encode gasnet handle into match bits, upper bits ignored */
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(dest,toget)) {
-      md_h = gasnetc_RARAM_md_h;
+      md_h = gasnetc_RARAM.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
       GASNETI_TRACE_EVENT(C, GET_NBI_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
@@ -950,7 +950,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(src,toput)) {
-      md_h = gasnetc_RARAM_md_h;
+      md_h = gasnetc_RARAM.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
       if (! isbulk) {

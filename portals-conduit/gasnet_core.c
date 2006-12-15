@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/10/17 18:06:56 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2006/12/15 01:31:49 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -24,15 +24,16 @@ static void gasnetc_atexit(void);
 static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
+#if 0
+/* MLW: remove? */
 #if GASNETC_HSL_ERRCHECK || GASNET_TRACE
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
                                          void *buf, size_t nbytes, int numargs, uint32_t *args);
   extern void gasnetc_leavingHandler_hook(ammpi_category_t cat, int isReq);
 #endif
-
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -47,18 +48,6 @@ static void gasnetc_check_config() {
    * and/or segment sizes */ 
 
   gasneti_assert_always(sizeof(gasnetc_chunk_t) == GASNETC_CHUNKSIZE);
-}
-
-static void gasnetc_bootstrapBarrier() {
-  /* Implementation of external barrier
-     this barrier should not rely on AM or the GASNet API because it's used 
-     during bootstrapping before such things are fully functional
-     It need not be particularly efficient, because we only call it a few times
-     and only during bootstrapping - it just has to work correctly
-   */
-
-  /* Catamount only! */
-  cnos_barrier();
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -78,7 +67,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* setup portals network */
   gasneti_mynode = cnos_get_rank();
   gasneti_nodes = cnos_get_size();
+  printf("gasnetc_init: Mynode = %d, Total Nodes = %d\n",gasneti_mynode,gasneti_nodes);
   gasnetc_init_portals_network();
+  printf("[%d] after gasnetc_init_portals_network()\n",gasneti_mynode);
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -106,7 +97,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     #error Bad segment config
   #endif
 
-#if 1  /* MLW: enabled this, but not sure if I need it.  MPI conduit uses it but that is generic. */
+#if 0  /* MLW: tested this, and it seems Cray does propogate env on XT3 */
     /* Enable this if you wish to use the default GASNet services for broadcasting 
         the environment from one compute node to all the others (for use in gasnet_getenv(),
         which needs to return environment variable values from the "spawning console").
@@ -123,7 +114,7 @@ static int gasnetc_init(int *argc, char ***argv) {
                                    &gasnetc_bootstrapExchange, &gasnetc_bootstrapBroadcast);
   #endif
 
-  gasneti_init_done = 1;  
+  gasneti_init_done = 1;
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 
@@ -193,6 +184,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
                           numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
+  printf("[%d] gasnetc_attach segsize = %lu, max_local = %lu, max_global = %lu\n",
+	 gasneti_mynode,(unsigned long)segsize,
+	 (unsigned long)gasnet_getMaxLocalSegmentSize(),
+	 (unsigned long)gasnet_getMaxGlobalSegmentSize()
+	 );
+
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
   if (gasneti_attach_done) 
@@ -216,6 +213,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
   { int i;
+    GASNETI_TRACE_PRINTF(C,("Registering %d default AM Handlers",GASNETC_MAX_NUMHANDLERS));
     for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
       gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
   }
@@ -225,6 +223,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].fnptr) len++; /* calc len */
+    GASNETI_TRACE_PRINTF(C,("Registering %d core Handlers",len));
     if (gasnetc_reghandlers(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
@@ -236,6 +235,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].fnptr) len++; /* calc len */
+    GASNETI_TRACE_PRINTF(C,("Registering %d Extended API Handlers",len));
     if (gasnetc_reghandlers(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
@@ -252,6 +252,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /*  second pass - fill in dontcare-index handlers */
     if (gasnetc_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
+    GASNETI_TRACE_PRINTF(C,("Registering %d Client Handlers",numentries));
 
     gasneti_assert(numreg1 + numreg2 == numentries);
   }
@@ -273,6 +274,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     if (segsize == 0) segbase = NULL; /* no segment */
     else {
       gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+      segbase = gasneti_seginfo[gasneti_mynode].addr;
+      printf("[%d] After segmentAttach base = %p, size = %llu  sbase = %p, ssize=%llu\n",
+	     gasneti_mynode,
+	     segbase,(unsigned long long)segsize,
+	     gasneti_seginfo[gasneti_mynode].addr,
+	     (unsigned long long)gasneti_seginfo[gasneti_mynode].size);
       gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
       gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
@@ -302,10 +309,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* Init all the portals resources to allow for AMs, puts and gets */
   gasnetc_init_portals_resources();
 
+  printf("[%d] before gasnete_init()\n",gasneti_mynode);
   gasnete_init(); /* init the extended API */
+  printf("[%d] after gasnete_init()\n",gasneti_mynode);
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();
+
+  printf("[%d] Leaving gasnetc_attach()\n",gasneti_mynode);
 
   return GASNET_OK;
 }
@@ -375,6 +386,7 @@ extern int gasnetc_AMPoll() {
 GASNETI_INLINE(gasnetc_noop_reph_inner)
 void gasnetc_noop_reph_inner(gasnet_token_t token)
 {
+  GASNETI_TRACE_PRINTF(C,("Running No-Op Handler"));
 }
 SHORT_HANDLER(gasnetc_noop_reph,0,0,
               (token),
@@ -392,27 +404,30 @@ SHORT_HANDLER(gasnetc_noop_reph,0,0,
       \
       /* Construct hdr_data */  \
       va_start(argptr, numargs); /*  pass in last argument */  \
+      iarg = 0; /* MLW Debug */ \
       if (numargs > 0) {  \
 	/* arg 0 into upper 32 bits of hdr_data */  \
 	g_arg0 = va_arg(argptr,gasnet_handlerarg_t);  \
 	numargs--;  \
+	harg[iarg++] = g_arg0; /* MLW DEBUG */	\
       }  \
       if (numargs > 0) {  \
 	/* arg 1 into lower 32 bits of hdr_data */  \
 	g_arg1 = va_arg(argptr,gasnet_handlerarg_t);  \
 	numargs--;  \
+	harg[iarg++] = g_arg1; /* MLW DEBUG */	\
       }  \
       GASNETC_PACK_2INT(hdr_data,g_arg0,g_arg1);  \
       \
       /* First, put our gasnet node number as first item in data payload */  \
-      memcpy(data,&gasneti_node,sizeof(gasnet_node_t));  \
-      data += sizeof(gasneti_node);  \
+      memcpy(data,&gasneti_mynode,sizeof(gasnet_node_t));  \
+      data += sizeof(gasnet_node_t);  \
       \
       /* load remaining args to data payload area, insure proper alignment and padding */  \
       msg_bytes = sizeof(gasnet_node_t) + numargs*sizeof(gasnet_handlerarg_t);  \
-      msg_bytes += msg_bytes % sizeof(double);  \
       while (numargs > 0) {  \
 	g_arg0 = va_arg(argptr,gasnet_handlerarg_t);  \
+	harg[iarg++] = g_arg0; /* MLW DEBUG */		     \
 	memcpy(data, &g_arg0, sizeof(gasnet_handlerarg_t));  \
 	data += sizeof(gasnet_handlerarg_t);  \
 	numargs--;  \
@@ -434,8 +449,14 @@ extern int gasnetc_AMRequestShortM(
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data;
   ptl_size_t         msg_bytes;
-  gasnetc_conn_t    *state = gasnetc_conn_state + dest;
+  int                pad;
+  gasnetc_conn_t    *state = &gasnetc_conn_state[dest];
   uint8_t           *data;
+  gasnet_handlerarg_t harg[16]; int iarg; /* MLW: debug */
+
+
+  GASNETI_TRACE_PRINTF(C,("AMReq_Short to %d with handler %d and %d args",
+			  dest,(int)handler,numargs));
 
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
 
@@ -446,6 +467,14 @@ extern int gasnetc_AMRequestShortM(
   data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
 
   GASNETC_REQUEST_PACK_ARGS(GASNETC_PTL_AM_SHORT);
+
+  /* pad if necessary */
+  pad = msg_bytes % sizeof(double);
+  pad = (pad == 0 ? 0 : sizeof(double)-pad);
+  msg_bytes += pad;
+  GASNETI_TRACE_PRINTF(C,("AMReq_Short to %d with pad = %d msg_bytes=%d",dest,pad,(int)msg_bytes));
+
+  gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -470,10 +499,13 @@ extern int gasnetc_AMRequestMediumM(
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data;
   gasnetc_conn_t    *state = gasnetc_conn_state + dest;
-  int                add_pad;
+  int                add_pad1, add_pad2;
   int                msg_bytes;
   int                hndlr_bytes = nbytes;  /* this will fit for medium message */
   uint8_t           *data;
+  gasnet_handlerarg_t harg[16]; int iarg; /* MLW: debug */
+
+  GASNETI_TRACE_PRINTF(C,("AMReq_Medium to %d with handler %d and %d args",dest,(int)handler,numargs));
 
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
 
@@ -482,8 +514,16 @@ extern int gasnetc_AMRequestMediumM(
 
   /* get the addr of the start of the chunk */
   data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
+  gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
 
   GASNETC_REQUEST_PACK_ARGS(GASNETC_PTL_AM_MEDIUM);
+
+  {
+    int i;
+    for (i = 0; i < iarg; i++) {
+      GASNETI_TRACE_PRINTF(C,("AMReq_Medium arg[%d] = %d",i,harg[i]));
+    }
+  }
 
   /* send number of bytes in handler payload */
   memcpy(data,&hndlr_bytes,sizeof(int));
@@ -491,15 +531,21 @@ extern int gasnetc_AMRequestMediumM(
   msg_bytes += sizeof(int);
 
   /* align to 8-byte boundary and add handler payload*/
-  add_pad = msg_bytes % sizeof(double);
-  data += add_pad;
+  add_pad1 = msg_bytes % sizeof(double);
+  add_pad1 = (add_pad1 == 0 ? 0 : sizeof(double)-add_pad1);
+  data += add_pad1;
   memcpy(data,source_addr,hndlr_bytes);
-  msg_bytes += add_pad + hndlr_bytes;
+  msg_bytes += add_pad1 + hndlr_bytes;
 
   /* insure message length is multiple of 8 bytes */
-  msg_bytes += (msg_bytes % sizeof(double));
+  add_pad2 = (msg_bytes % sizeof(double));
+  add_pad2 = (add_pad2 == 0 ? 0 : sizeof(double)-add_pad2);
+  msg_bytes += add_pad2;
 
-  gasneti_assert(msg_bytes <= GASNETC_CHUNK_SIZE);
+  GASNETI_TRACE_PRINTF(C,("AMReq_Medium: add_pad1=%d, add_pad2=%d, msg_bytes=%d",add_pad1,add_pad2,msg_bytes));
+
+  gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
+  gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -523,8 +569,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   va_end(argptr);
+
+  gasneti_fatalerror("gasnetc_AMRequestLongM not implemented");
   GASNETI_RETURN(retval);
 }
   
@@ -543,8 +591,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   va_end(argptr);
+  gasneti_fatalerror("gasnetc_AMRequestLongAsyncM not implemented");
   GASNETI_RETURN(retval);
 }
 
@@ -553,7 +602,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       gasnet_handlerarg_t g_arg0 = 0; \
       gasnet_handlerarg_t g_arg1 = 0; \
       /* Construct match bits, send back to initiator chunk in ReqSB */ \
-      mbits = ((uint64_t)((amtype) | GASNETC_AM_REPLY) << 24)    \
+      mbits = ((uint64_t)((amtype) | GASNETC_PTL_AM_REPLY) << 24)    \
 	| ( ((uint64_t)numargs & GASNETC_MASK_BYTE0) << 16) | ((uint64_t)handler << 8)  \
 	| GASNETC_PTL_REQSB_BITS  | GASNETC_PTL_MSG_AM;  \
       \
@@ -578,12 +627,10 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       }  \
       GASNETC_PACK_INT_UPPER(mbits,g_arg0);  \
       \
-      /* total number of bytes in message payload is: */  \
-      msg_bytes = sizeof(gasnet_node_t) + numargs*sizeof(gasnet_handlerarg_t);  \
-      \
       /* First data item is our gasnet node id */  \
-      memcpy(data, gasneti_node, sizeof(gasnet_node_t));  \
+      memcpy(data, &gasneti_mynode, sizeof(gasnet_node_t));  \
       data += sizeof(gasnet_node_t);  \
+      msg_bytes = sizeof(gasnet_node_t); \
       \
       /* remaining handler arguments */  \
       /* Note: both source and target buffer are known to be 8-byte aligned, so not padding */  \
@@ -591,6 +638,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	g_arg0 = va_arg(argptr, gasnet_handlerarg_t);  \
 	memcpy(data,&g_arg0, sizeof(gasnet_handlerarg_t));  \
 	data += sizeof(gasnet_handlerarg_t);  \
+	msg_bytes += sizeof(gasnet_handlerarg_t);  \
 	numargs--;  \
       }  \
       va_end(argptr);  \
@@ -603,7 +651,7 @@ extern int gasnetc_AMReplyShortM(
   int retval;
   va_list argptr; 
   gasnetc_ptl_token_t *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t         local_offset = ptok->rpl_offset;
+  ptl_size_t         local_offset = ptok->rplsb_offset;
   ptl_size_t         remote_offset = ptok->initiator_offset;
   ptl_handle_md_t    md_h = gasnetc_RplSB.md_h;
   ptl_process_id_t   target_id = ptok->initiator;
@@ -611,7 +659,10 @@ extern int gasnetc_AMReplyShortM(
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data = 0;
   ptl_size_t         msg_bytes = 0;
-  uint8_t           *data = (uint8_t*)md_h.start + local_offset;
+  uint8_t           *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+
+  GASNETI_TRACE_PRINTF(C,("AMReply_Short to %d with handler %d and %d args",
+			  ptok->srcnode,(int)handler,numargs));
 
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
 
@@ -633,7 +684,7 @@ extern int gasnetc_AMReplyMediumM(
   int retval;
   va_list argptr;
   gasnetc_ptl_token_t *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t         local_offset = ptok->rpl_offset;
+  ptl_size_t         local_offset = ptok->rplsb_offset;
   ptl_size_t         remote_offset = ptok->initiator_offset;
   ptl_handle_md_t    md_h = gasnetc_RplSB.md_h;
   ptl_process_id_t   target_id = ptok->initiator;
@@ -641,19 +692,28 @@ extern int gasnetc_AMReplyMediumM(
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data = 0;
   ptl_size_t         msg_bytes;
-  uint8_t           *data = (uint8_t*)md_h.start + local_offset;
+  int                payload_bytes = nbytes;
+  uint8_t           *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+  int                pad;
+
+  GASNETI_TRACE_PRINTF(C,("AMReply_Medium to %d with handler %d and %d args %d byte payload",ptok->srcnode,(int)handler,numargs,(int)nbytes));
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
 
   GASNETC_REPLY_PACK_ARGS(GASNETC_PTL_AM_MEDIUM);
 
+  memcpy(data,&payload_bytes,sizeof(int));
+  msg_bytes += sizeof(int);
+
   /* advance buffer for 8-byte alignment */
-  add_pad = (msg_bytes % sizeof(double));
-  data += add_pad;
-  msg_bytes += add_pad + nbytes;
+  pad = msg_bytes % sizeof(double);
+  data += pad;
+  msg_bytes += pad + nbytes;
 
   /* copy handler data payload here */
-  memcpy(data,source_address,nbytes);
+  memcpy(data,source_addr,nbytes);
+
+  GASNETI_TRACE_PRINTF(C,("AMReply_Medium to %d msg_bytes=%d pad=%d",ptok->srcnode,(int)msg_bytes,pad));
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -679,8 +739,9 @@ extern int gasnetc_AMReplyLongM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   va_end(argptr);
+  gasneti_fatalerror("gasnetc_AMReplyLongM not implemented");
   GASNETI_RETURN(retval);
 }
 
