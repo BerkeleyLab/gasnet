@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2006/12/13 23:33:06 $
-# $Revision: 1.41 $
+#     $Date: 2006/12/15 18:08:25 $
+# $Revision: 1.41.2.1 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -87,7 +87,7 @@ CONDUIT_SOURCELIST =                 \
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
 CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(mpi_defines)\
-			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines)
+			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines) -DGASNET_CONDUIT_VAPI
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)

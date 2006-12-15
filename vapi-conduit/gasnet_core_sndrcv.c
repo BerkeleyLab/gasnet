@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/12/11 22:58:42 $
- * $Revision: 1.211 $
+ *     $Date: 2006/12/15 18:08:25 $
+ * $Revision: 1.211.4.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -310,7 +310,7 @@ static int
 gasnetc_create_cq(gasnetc_hca_hndl_t hca_hndl, gasnetc_cqe_cnt_t req_size,
 		  gasnetc_cq_hndl_t *cq_p, gasnetc_cqe_cnt_t *act_size)
 {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   return VAPI_create_cq(hca_hndl, req_size, cq_p, act_size);
 #else
   gasnetc_cq_hndl_t result = ibv_create_cq(hca_hndl, req_size, NULL, NULL, 0);
@@ -440,7 +440,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
 			  rbuf, gasnetc_epid2node(cep->epid),
 			  gasnetc_epid2qpi(cep->epid) - 1, cep->hca_index,
 			  (unsigned int)(rbuf->rr_sg.lkey)));
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   vstat = VAPI_post_rr(cep->hca_handle, cep->qp_handle, &rbuf->rr_desc);
 #else
   {
@@ -1422,7 +1422,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
 
   /* setup some invariant fields */
   sr_desc[0].gasnetc_f_wr_id = (uintptr_t)sreq;
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   sr_desc[0].comp_type = VAPI_SIGNALED;
   sr_desc[0].set_se    = 0;
   sr_desc[0].fence     = 0;
@@ -1438,7 +1438,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
   }
 
   /* Post it */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   if (is_inline) {
     vstat = EVAPI_post_inline_sr(cep->hca_handle, cep->qp_handle, sr_desc);
   } else {
@@ -2874,7 +2874,7 @@ extern int gasnetc_sndrcv_init(void) {
     gasneti_lifo_init(&hca->amrdma_freelist);
 
     if (gasneti_nodes > 1) {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
       if (gasnetc_use_rcv_thread) {
         /* create the RCV thread */
         vstat = EVAPI_set_comp_eventh(hca->handle, hca->rcv_cq, &gasnetc_rcv_thread,
@@ -2916,7 +2916,7 @@ extern int gasnetc_sndrcv_init(void) {
         rbuf->rr_desc.gasnetc_f_wr_num_sge = 1;
         rbuf->rr_desc.gasnetc_f_wr_sg_list = &rbuf->rr_sg;
         rbuf->rr_desc.gasnetc_f_wr_id      = (uintptr_t)rbuf;	/* CQE will point back to this request */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
         rbuf->rr_desc.opcode     = VAPI_RECEIVE;
         rbuf->rr_desc.comp_type  = VAPI_SIGNALED;
 #else
@@ -2928,7 +2928,7 @@ extern int gasnetc_sndrcv_init(void) {
   
         rbuf = (gasnetc_rbuf_t *)((uintptr_t)rbuf + padded_size);
       }
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
       if (gasnetc_use_rcv_thread) {
         hca->rcv_thread_priv = gasneti_lifo_pop(&hca->rbuf_freelist);
         gasneti_assert(hca->rcv_thread_priv != NULL);
@@ -3005,7 +3005,7 @@ extern int gasnetc_sndrcv_init(void) {
   if_pf (buf == NULL) {
     GASNETC_FOR_ALL_HCA(hca) {
       if (gasneti_nodes > 1) {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
         if (gasnetc_use_rcv_thread) {
 	  vstat = EVAPI_clear_comp_eventh(hca->handle, hca->rcv_handler);
         }
@@ -3140,7 +3140,7 @@ extern void gasnetc_sndrcv_fini(void) {
 
   GASNETC_FOR_ALL_HCA(hca) {
     if (gasneti_nodes > 1) {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
       if (gasnetc_use_rcv_thread) {
         vstat = EVAPI_clear_comp_eventh(hca->handle, hca->rcv_handler);
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_clear_comp_eventh()");
