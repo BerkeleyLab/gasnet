@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/contrib/Attic/gasnetrun_vapi.pl,v $
-#     $Date: 2005/08/29 21:12:32 $
-# $Revision: 1.5 $
+#     $Date: 2006/12/15 20:06:23 $
+# $Revision: 1.5.50.1 $
 # Description: GASNet VAPI spawner
 # Terms of use are as specified in license.txt
 
@@ -151,6 +151,7 @@ sub fullpath($)
             while (<FILE>) {
                 next unless(/^GASNet/);
 		if (/GASNetConduitName: VAPI $/) { $is_gasnet = 1; next; }
+		if (/GASNetConduitName: IBV $/) { $is_gasnet = 1; next; }
                 if (/$pattern/o) { $found = 1; last; }
             }
         }
