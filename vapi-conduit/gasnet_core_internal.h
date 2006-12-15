@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/12/15 18:08:25 $
- * $Revision: 1.145.4.1 $
+ *     $Date: 2006/12/15 19:42:04 $
+ * $Revision: 1.145.4.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,8 +29,6 @@
   #include <evapi.h>
   #include <vapi_common.h>
 #else
-  #undef GASNETC_VAPI_RCV_THREAD
-  #define GASNETC_VAPI_RCV_THREAD 0
   #include <infiniband/verbs.h>
 #endif
 
@@ -201,8 +199,15 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_SND_SG	4
 
 /* Defined non-zero in gasnet_config.h to enable a progress thread for receiving AMs . */
-#ifndef GASNETC_VAPI_RCV_THREAD
-  #define GASNETC_VAPI_RCV_THREAD	0
+#if GASNET_CONDUIT_VAPI
+  #ifndef GASNETC_VAPI_RCV_THREAD
+    #define GASNETC_IB_RCV_THREAD	0
+  #else
+    #define GASNETC_IB_RCV_THREAD	1
+  #endif
+#else
+  /* XXX: rcv thread not yet implemented for IBV */
+  #define GASNETC_IB_RCV_THREAD 0
 #endif
 
 /* maximum number of ops reaped from the send CQ per poll */
@@ -239,11 +244,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_CLI_PAR	0
 #endif
 
-#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_VAPI_RCV_THREAD)
+#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_IB_RCV_THREAD)
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETC_VAPI_MAX_HCAS > 1
+#if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
 #else
@@ -552,7 +557,7 @@ extern int		gasnetc_amrdma_slot_mask;
 
 /* Global variables */
 extern int		gasnetc_num_hcas;
-extern gasnetc_hca_t	gasnetc_hca[GASNETC_VAPI_MAX_HCAS];
+extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern gasnetc_cep_t	*gasnetc_cep;
 extern uintptr_t	gasnetc_max_msg_sz;
 #if GASNETC_PIN_SEGMENT

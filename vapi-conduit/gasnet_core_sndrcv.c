@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2006/12/15 18:08:25 $
- * $Revision: 1.211.4.1 $
+ *     $Date: 2006/12/15 19:42:04 $
+ * $Revision: 1.211.4.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -60,7 +60,7 @@ size_t					gasnetc_packedlong_limit;
   size_t				gasnetc_putinmove_limit;
   size_t				gasnetc_putinmove_limit_adjusted = 0;
 #endif
-int					gasnetc_use_rcv_thread = GASNETC_VAPI_RCV_THREAD;
+int					gasnetc_use_rcv_thread = GASNETC_IB_RCV_THREAD;
 #if GASNETC_FH_OPTIONAL
   int					gasnetc_use_firehose = 1;
 #endif
@@ -338,7 +338,7 @@ gasnetc_create_cq(gasnetc_hca_hndl_t hca_hndl, gasnetc_cqe_cnt_t req_size,
 #define GASNETC_RCV_LKEY(_cep)		((_cep)->keys.rcv_lkey)
 #define GASNETC_SEG_LKEY(_cep, _index)	((_cep)->keys.seg_reg[_index].lkey)
 #define GASNETC_SEG_RKEY(_cep, _index)	((_cep)->keys.rkeys[_index])
-#if GASNETC_VAPI_MAX_HCAS > 1
+#if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_FH_RKEY(_cep, _fhptr)	((_fhptr)->client.rkey[(_cep)->hca_index])
   #define GASNETC_FH_LKEY(_cep, _fhptr)	((_fhptr)->client.lkey[(_cep)->hca_index])
 #else
@@ -410,7 +410,8 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
              | ((hand)                 )))
 
 /* Work around apparent thread-safety bug in VAPI_poll_cq (and peek as well?) */
-#if GASNETC_VAPI_POLL_LOCK
+#if (GASNET_CONDUIT_VAPI && GASNETC_VAPI_POLL_LOCK) || \
+    (GASNET_CONDUIT_IBV && GASNETC_IBV_POLL_LOCK)
   static gasneti_mutex_t gasnetc_cq_poll_lock = GASNETI_MUTEX_INITIALIZER;
   #define CQ_LOCK	gasneti_mutex_lock(&gasnetc_cq_poll_lock);
   #define CQ_UNLOCK	gasneti_mutex_unlock(&gasnetc_cq_poll_lock);
@@ -679,7 +680,7 @@ static int gasnetc_snd_reap(int limit) {
     const firehose_request_t *fh_ptrs[GASNETC_SND_REAP_LIMIT * GASNETC_MAX_FH];
   #endif
 
-  #if GASNETC_VAPI_MAX_HCAS > 1
+  #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
     gasnetc_hca_t *hca;
     static volatile int index = 0;
@@ -837,7 +838,7 @@ static int gasnetc_snd_reap(int limit) {
 GASNETI_INLINE(gasnetc_epid_select_qpi)
 gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
 				       gasnetc_wr_opcode_t op, size_t len) {
-#if GASNETC_VAPI_MAX_HCAS > 1
+#if GASNETC_IB_MAX_HCAS > 1
   gasnetc_epid_t qpi = gasnetc_epid2qpi(epid);
 
   if_pt (qpi == 0) {
@@ -1201,7 +1202,7 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
 GASNETI_INLINE(gasnetc_do_poll)
 void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   if (poll_rcv) {
-  #if GASNETC_VAPI_MAX_HCAS > 1
+  #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
     gasnetc_hca_t *hca;
     static volatile int index = 0;
@@ -1580,7 +1581,7 @@ void gasnetc_snd_post_list(gasnetc_sreq_t *sreq, int count, gasnetc_snd_wr_t *sr
 static void gasnetc_rcv_thread(gasnetc_hca_hndl_t	hca_hndl,
 			       gasnetc_cq_hndl_t	cq_hndl,
 			       void			*context) {
-#if GASNETC_VAPI_RCV_THREAD
+#if GASNETC_IB_RCV_THREAD
   GASNETC_TRACE_WAIT_BEGIN();
   gasnetc_hca_t *hca = context;
   int vstat;

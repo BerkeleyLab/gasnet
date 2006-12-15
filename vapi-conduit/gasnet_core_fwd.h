@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2006/12/15 18:08:25 $
- * $Revision: 1.39.4.1 $
+ *     $Date: 2006/12/15 19:42:04 $
+ * $Revision: 1.39.4.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -95,8 +95,9 @@ extern void gasnetc_fatalsignal_callback(int sig);
 
 /*
  * The VAPI conduit may have a network progress thread, even for GASNET_SEQ
+ * XXX: no progress thread for IBV yet
  */
-#if GASNETC_VAPI_RCV_THREAD
+#if GASNET_CONDUIT_VAPI && GASNETC_VAPI_RCV_THREAD
   #define GASNETI_CONDUIT_THREADS 1
 #endif
 
