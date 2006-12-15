@@ -1,18 +1,32 @@
-README file for vapi-conduit
-================================
+README file for vapi-conduit and ibv-conduit
+============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.43.2.1 $
+$Revision: 1.43.2.2 $
 
 @ TOC: @
+@ Section: VAPI vs IBV @
 @ Section: Job Spawning @
 @ Section: Multi-rail Support @
 @ Section: Runtime Configuration @
 @ Section: Core API @
 @ Section: Extended API @
 @ Section: Graceful exits @
-@ Section: TO DO @
 @ Section: References @
 
+
+@ Section: VAPI vs IBV @
+
+  The same source code is used to build GASNet's support for the two
+  popular InfiniBand APIs:
+  + VAPI: The "Verbs API" from Mellanox
+  + IBV: The "IB Verbs" from the OpenFabrics Alliance (aka OpenIB)
+
+  Unless stated otherwise, everything in this document applies to
+  both vapi-conduit and ibv-conduit.  For clarity (and due to
+  history) this document consistenty talks about VAPI.  However,
+  anywhere "vapi" or "VAPI" appears in the name of a configuration
+  option, environment variable, or command, one may substitute "ibv"
+  or "IBV" to obtain the equivalent to be used with ibv-conduit.
 
 @ Section: Job Spawning @
   
@@ -112,7 +126,7 @@ $Revision: 1.43.2.1 $
 
 @ Section: Build-time Configuration @
 
-  By default vapi-conduit ensures network attentiveness (timely
+  Vapi-conduit can ensures good network attentiveness (timely
   processing of incoming AMs) by spawning an extra thread that
   remains blocked until the arrival of an Active Message.  One
   can disable this thread by configuring GASNet with the flag
@@ -163,7 +177,7 @@ $Revision: 1.43.2.1 $
     result in a run-time warning.
 
   + GASNET_NUM_QPS
-    This variable gives the number of VAPI Queue Pairs (QPs) over which to 
+    This variable gives the number of IB Queue Pairs (QPs) over which to 
     stripe traffic between each pair of peers.  This can yield an increase
     in throughput and bandwidth when multiple physical ports are used
     on one or more adapters.
@@ -198,8 +212,9 @@ $Revision: 1.43.2.1 $
       less than the number of entries in GASNET_VAPI_PORTS, ports
       are openned in the order detected, regardless of their order
       in GASNET_VAPI_PORTS
-    Note that the 'vstat' utility in most IB distributions will list
-    the available HCAs and the status of their ports.
+    Note that in most VAPI distributions the 'vstat' utility will list
+    the available HCAs and the status of their ports, while for IBV the
+    equivalent is 'ibv_devices'.
     The default is no filter.
 
   Software configuration settings:
@@ -224,6 +239,8 @@ $Revision: 1.43.2.1 $
     is ignored.
     Currently the default is disabled (0), but this is subject to change
     in a future version.
+    In ibv-conduit only, this option is currently ignored and the thread
+    is never used.
 
   Protocol configuration:
   The following environment variables control the selection of protocols
@@ -869,57 +886,6 @@ round trips for the remote exit request/reply, for a total of 4*N-2 AMs
 sent.
 
 The average case is somewhere between these two.
-
-@ Section: TO DO @
-
-+ Value gets move as follows:
-  - From network to bounce buffer
-  - From bounce buffer to _gasnet_valget_op_t or automatic variable
-  - From memory to return from function
-  The bounce buffer is a little harder to eliminate than for the puts,
-  unless we can allocate the _gasnet_valget_op_t in pinned memory.  One
-  way to do this might be for the _gasnet_valget_op_t to be placed IN
-  the bounce buffer, but that creates a problem with long-lived bounce
-  buffers with non-blocking gets.  This _will_ work, however, for blocking
-  value gets.
-
-+ Can use "notifn" to make the progress thread only wake if there are
-  multiple outstanding recvs.  This could, for instance, wake only if
-  we reach the RNR state (or maybe are one event shy of it).
- 
-+ There is DDR memory on the board, which is at least 2.5 times faster
-  than host memory from the point-of-view of the network.  The down side
-  is that it is both slower and non-cachable from the host.  However, it
-  might be sensible to use it for some purposes.  In particular bounce
-  buffers don't need to be cachable.  So, the bounce buffers could move
-  to the HCA.
-
-  I speculate that the result could be an increase in overhead, due to
-  the host-copy going to slower memory.  However, I expect that the total
-  end-to-end latency may be reduced slightly and less cache pollution will
-  occur.  Additionally the "background" copy by the HCA will not cause
-  traffic on either the PCI or memory bus - reducing resource contention
-  during the time one may wish to overlap computation.
-
-    PUT Case I: 
-      CPU copies host_mem->host_mem
-      HCA copies host_mem->HCA_mem
-      HCA sends from HCA_mem to network
-    PUT Case II:
-      CPU copies host_mem->HCA_mem
-      HCA copies HCA_mem->HCA_mem (Might be omitted?)
-      HCA sends from HCA_mem to network
- 
-    GET Case I:
-      HCA recvs to HCA_mem
-      HCA copies HCA_mem->host_mem
-      CPU copies host_mem->host_mem
-    GET Case II:
-      HCA recvs to HCA_mem
-      HCA copies HCA_mem->HCA_mem (Might be omitted?)
-      CPU copies HCA_mem->host_mem
-
-  Of course I can't get a program to allocate from HCA memory!
 
 @ Section: References @
 
