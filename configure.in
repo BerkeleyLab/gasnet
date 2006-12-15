@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2006/12/15 19:05:02 $
-# $Revision: 1.431.2.2 $
+#     $Date: 2006/12/15 20:31:54 $
+# $Revision: 1.431.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.431.2.2 $)
+AC_REVISION($Revision: 1.431.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2989,6 +2989,7 @@ GASNET_FIX_EXEC(gm-conduit/contrib/gasnetrun_gm)
 GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
+GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
 
 if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -3057,6 +3058,7 @@ vapi-conduit/contrib/gasnetrun_vapi
 ibv-conduit/Makefile
 ibv-conduit/conduit.mak
 ibv-conduit/contrib/Makefile
+ibv-conduit/contrib/gasnetrun_ibv
 
 shmem-conduit/Makefile
 shmem-conduit/conduit.mak
