@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/12/13 00:58:16 $
- * $Revision: 1.187.2.3 $
+ *     $Date: 2006/12/15 23:09:54 $
+ * $Revision: 1.187.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@ GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
 #define GASNETC_DEFAULT_NUM_QPS			0	/* 0 = one per HCA */
 
 /* Protocol switch points */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #define GASNETC_DEFAULT_INLINESEND_LIMIT	72
 #else
   #define GASNETC_DEFAULT_INLINESEND_LIMIT	256
@@ -75,7 +75,7 @@ GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
 /*
   These calues cannot yet be overridden by environment variables.
 */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #define GASNETC_QP_PATH_MTU		MTU1024
   #define GASNETC_QP_MIN_RNR_TIMER	IB_RNR_NAK_TIMER_0_08
 #else
@@ -91,10 +91,16 @@ GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
   #define MT_MELLANOX_IEEE_VENDOR_ID      0x02c9
 #endif
 
+#if GASNET_CONDUIT_VAPI
+  #define GASNET_VAPI_PORTS_STR "GASNET_VAPI_PORTS"
+#else
+  #define GASNET_VAPI_PORTS_STR "GASNET_IBV_PORTS"
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 int		gasnetc_num_hcas = 1;
-gasnetc_hca_t	gasnetc_hca[GASNETC_VAPI_MAX_HCAS];
+gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 gasnetc_cep_t	*gasnetc_cep;
 uintptr_t	gasnetc_max_msg_sz;
 
@@ -169,7 +175,7 @@ extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
 }
 
 extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg) {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   VAPI_mr_t	mr_in;
   VAPI_mr_t	mr_out;
   int		vstat;
@@ -241,7 +247,7 @@ static uintptr_t gasnetc_trypin(uintptr_t limit, uintptr_t step) {
   int h;
 
   if (limit != 0) {
-    gasnetc_memreg_t reg[GASNETC_VAPI_MAX_HCAS];
+    gasnetc_memreg_t reg[GASNETC_IB_MAX_HCAS];
     step = MIN(limit, step);
     if (gasnetc_try_pin_inner(step, reg) != NULL) {
       size = step + gasnetc_trypin(limit - step, step);
@@ -385,7 +391,7 @@ static int gasnetc_load_settings(void) {
     fprintf(stderr, "WARNING: GASNET_PORT_NUM set in environment, but ignored.  See gasnet/vapi-conduit/README.\n");
   }
 
-  gasnetc_vapi_ports = gasneti_getenv_withdefault("GASNET_VAPI_PORTS", GASNETC_DEFAULT_VAPI_PORTS);
+  gasnetc_vapi_ports = gasneti_getenv_withdefault(GASNET_VAPI_PORTS_STR, GASNETC_DEFAULT_VAPI_PORTS);
 
   #define GASNETC_ENVINT(program_var, env_key, default_val, minval, is_mem) do {     \
       int64_t _tmp = gasneti_getenv_int_withdefault(#env_key, default_val, is_mem);  \
@@ -454,8 +460,8 @@ static int gasnetc_load_settings(void) {
   gasnetc_use_rcv_thread = gasneti_getenv_yesno_withdefault("GASNET_RCV_THREAD", 0);
 
   /* Verify correctness/sanity of values */
-  if (gasnetc_use_rcv_thread && !GASNETC_VAPI_RCV_THREAD) {
-    gasneti_fatalerror("VAPI AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
+  if (gasnetc_use_rcv_thread && !GASNETC_IB_RCV_THREAD) {
+    gasneti_fatalerror("AM receive thread enabled by environment variable GASNET_RCV_THREAD, but was disabled at GASNet build time");
   }
 #if GASNETC_FH_OPTIONAL
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
@@ -496,10 +502,12 @@ static int gasnetc_load_settings(void) {
 
   /* Report */
   GASNETI_TRACE_PRINTF(C,("vapi-conduit build time configuration settings = {"));
-  GASNETI_TRACE_PRINTF(C,("  AM receives in internal thread %sabled (GASNETC_VAPI_RCV_THREAD)",
-				GASNETC_VAPI_RCV_THREAD ? "en" : "dis"));
-#if GASNETC_VAPI_POLL_LOCK
+  GASNETI_TRACE_PRINTF(C,("  AM receives in internal thread %sabled (GASNETC_" GASNET_CONDUIT_NAME_STR"_RCV_THREAD)",
+				GASNETC_IB_RCV_THREAD ? "en" : "dis"));
+#if GASNET_CONDUIT_VAPI && GASNETC_VAPI_POLL_LOCK
   GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-vapi-poll-lock)"));
+#elif GASNET_CONDUIT_IBV && GASNETC_IBV_POLL_LOCK
+  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
 #else
   GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            NO (default)"));
 #endif
@@ -509,12 +517,21 @@ static int gasnetc_load_settings(void) {
 				GASNETC_RCV_REAP_LIMIT));
   GASNETI_TRACE_PRINTF(C,  ("}"));
 
+#if GASNET_CONDUIT_VAPI
   GASNETI_TRACE_PRINTF(C,("vapi-conduit run time configuration settings = {"));
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
     GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = '%s'", gasnetc_vapi_ports));
   } else {
     GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = empty or unset (probe all)"));
   }
+#else
+  GASNETI_TRACE_PRINTF(C,("ibv-conduit run time configuration settings = {"));
+  if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
+    GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = '%s'", gasnetc_vapi_ports));
+  } else {
+    GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = empty or unset (probe all)"));
+  }
+#endif
   if (gasnetc_num_qps) {
     GASNETI_TRACE_PRINTF(C,  ("  GASNET_NUM_QPS                  = %d", gasnetc_num_qps));
   } else {
@@ -541,7 +558,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
-#if GASNETC_VAPI_RCV_THREAD
+#if GASNETC_IB_RCV_THREAD
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
 #else
@@ -635,9 +652,9 @@ gasnetc_clear_ports(void) {
     gasnetc_port_list_t *next = curr->next;
     if (curr->matched == 0) {
       if (curr->port) {
-        GASNETI_TRACE_PRINTF(C,("Probe left element '%s:%d' of GASNET_VAPI_PORTS unused", curr->id, curr->port));
+        GASNETI_TRACE_PRINTF(C,("Probe left element '%s:%d' of " GASNET_VAPI_PORTS_STR " unused", curr->id, curr->port));
       } else {
-        GASNETI_TRACE_PRINTF(C,("Probe left element '%s' of GASNET_VAPI_PORTS unused", curr->id));
+        GASNETI_TRACE_PRINTF(C,("Probe left element '%s' of " GASNET_VAPI_PORTS_STR " unused", curr->id));
       }
     }
     gasneti_free(curr->id);
@@ -691,7 +708,7 @@ gasnetc_parse_ports(const char *p) {
 
 /* Try to find up to *port_count_p ACTIVE ports, replacing w/ the actual count */
 static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   VAPI_hca_id_t		*hca_ids;
   u_int32_t		num_hcas;	/* Type specified by Mellanox */
 #else
@@ -706,7 +723,7 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
   int			rc;
 
   if (gasnetc_parse_ports(gasnetc_vapi_ports)) {
-    GASNETI_TRACE_PRINTF(C,("Failed to parse GASNET_VAPI_PORTS='%s'", gasnetc_vapi_ports));
+    GASNETI_TRACE_PRINTF(C,("Failed to parse " GASNET_VAPI_PORTS_STR "='%s'", gasnetc_vapi_ports));
     gasnetc_clear_ports();
     return NULL;
   }
@@ -720,7 +737,7 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
 
   port_tbl = gasneti_calloc(max_ports, sizeof(gasnetc_port_info_t));
   num_hcas = 0; /* call will overwrite with actual count */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   rc = EVAPI_list_hcas(0, &num_hcas, NULL);
   if (((rc != VAPI_OK) && (rc != VAPI_EAGAIN)) || (num_hcas == 0)) {
     GASNETI_TRACE_PRINTF(C,("Probe failed to locate any HCAs"));
@@ -739,19 +756,27 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
   }
 #endif
 
-  if ((num_hcas > GASNETC_VAPI_MAX_HCAS) && (gasnetc_port_list == NULL)) {
+  if ((num_hcas > GASNETC_IB_MAX_HCAS) && (gasnetc_port_list == NULL)) {
+#if GASNET_CONDUIT_VAPI
     fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured with '--with-vapi-max-hcas="
-		    _STRINGIFY(GASNETC_VAPI_MAX_HCAS) "'.  To utilize all your HCAs, you should "
+		    _STRINGIFY(GASNETC_IB_MAX_HCAS) "'.  To utilize all your HCAs, you should "
 		    "reconfigure GASNet with '--with-vapi-max-hcas=%d'.  You can silence this warning "
 		    "by setting the environment variable GASNET_VAPI_PORTS as described in the file "
 		    "'gasnet/vapi-conduit/README'.\n", num_hcas, num_hcas);
+#else
+    fprintf(stderr, "WARNING: Found %d IB HCAs, but GASNet was configured with '--with-ibv-max-hcas="
+		    _STRINGIFY(GASNETC_IB_MAX_HCAS) "'.  To utilize all your HCAs, you should "
+		    "reconfigure GASNet with '--with-ibv-max-hcas=%d'.  You can silence this warning "
+		    "by setting the environment variable GASNET_IBV_PORTS as described in the file "
+		    "'gasnet/vapi-conduit/README'.\n", num_hcas, num_hcas);
+#endif
   }
 
   /* Loop over VAPI's list of HCAs */
   for (curr_hca = 0;
-       (hca_count < GASNETC_VAPI_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
+       (hca_count < GASNETC_IB_MAX_HCAS) && (port_count < max_ports) && (curr_hca < num_hcas);
        ++curr_hca) {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     VAPI_hca_vendor_t	hca_vendor;
     const char *hca_name = hca_ids[curr_hca];
 #else
@@ -764,11 +789,11 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
     int curr_port;
 
     if (!gasnetc_match_port(hca_name, 0, 0)) {
-      GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s' - no match in GASNET_VAPI_PORTS", hca_name));
+      GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s' - no match in " GASNET_VAPI_PORTS_STR, hca_name));
       continue;
     }
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     rc = VAPI_open_hca(hca_ids[curr_hca], &hca_handle);
     if (rc != VAPI_OK) {
       rc = EVAPI_get_hca_hndl(hca_ids[curr_hca], &hca_handle);
@@ -800,7 +825,7 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
       gasnetc_port_info_t *this_port = &port_tbl[port_count];
 
       if (!gasnetc_match_port(hca_name, curr_port, 0)) {
-        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - no match in GASNET_VAPI_PORTS", hca_name, curr_port));
+        GASNETI_TRACE_PRINTF(C,("Probe skipping HCA '%s', port %d - no match in " GASNET_VAPI_PORTS_STR, hca_name, curr_port));
 	continue;
       }
 
@@ -847,7 +872,7 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
       hca->hca_index	= hca_count;
       hca->hca_id	= gasneti_strdup(hca_name);
       hca->hca_cap	= hca_cap;
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
       hca->hca_vendor	= hca_vendor;
 #endif
 
@@ -858,7 +883,7 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
   }
   GASNETI_TRACE_PRINTF(C,("Probe found %d active port(s) on %d HCA(s)", port_count, hca_count));
   gasnetc_clear_ports();
-#if GASNETC_IB_VERBS
+#if GASNET_CONDUIT_IBV
   ibv_free_device_list(hca_list);
 #endif
 
@@ -914,7 +939,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
   if (!num_ports || (port_tbl == NULL)) {
     if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
-      GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports given in GASNETC_VAPI_PORTS");
+      GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports given in " GASNET_VAPI_PORTS_STR);
     } else {
       GASNETI_RETURN_ERRR(RESOURCE, "unable to open any HCA ports");
     }
@@ -974,7 +999,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     hca = &gasnetc_hca[h];
     GASNETI_TRACE_PRINTF(C,("vapi-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
     GASNETI_TRACE_PRINTF(C,("  HCA id                   = '%s'", hca->hca_id));
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_vendor.vendor_id));
     GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_vendor.vendor_part_id));
     GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_vendor.hw_ver));
@@ -1030,7 +1055,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   
     /* Vendor-specific firmware checks */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     if (hca->hca_vendor.vendor_id == MT_MELLANOX_IEEE_VENDOR_ID) {
        int defect;
 
@@ -1129,7 +1154,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
   /* create all the endpoints */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   {
     gasnetc_cep_t *cep = &gasnetc_cep[0];
     VAPI_qp_init_attr_t	qp_init_attr;
@@ -1210,7 +1235,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* connect the endpoints */
   {
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     VAPI_qp_attr_t	qp_attr;
     VAPI_qp_attr_mask_t	qp_mask;
     VAPI_qp_cap_t	qp_cap;
@@ -1221,7 +1246,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
 
     /* advance RST -> INIT */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     QP_ATTR_MASK_CLR_ALL(qp_mask);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PKEY_IX);
@@ -1259,7 +1284,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 
     /* advance INIT -> RTR */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     QP_ATTR_MASK_CLR_ALL(qp_mask);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_AV);
@@ -1312,7 +1337,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_bootstrapBarrier();
 
     /* advance RTR -> RTS */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
     QP_ATTR_MASK_CLR_ALL(qp_mask);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_SQ_PSN);
@@ -1674,7 +1699,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           vstat = gasnetc_pin(hca, (void *)addr, len,
 			      GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR | GASNETC_ACL_REM_RD,
 			      &hca->seg_reg[j]);
-          GASNETC_VAPI_CHECK(vstat, "from VAPI_register_mr(segment)");
+          GASNETC_VAPI_CHECK(vstat, "when registering the segment");
 	  my_rkeys[j] = hca->seg_reg[j].rkey;
 	  addr += len;
 	  remain -= len;
