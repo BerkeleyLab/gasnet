@@ -5,14 +5,14 @@
 gasnete_coll_tree_kind_t gasnete_coll_current_tree_kind;
 int gasnete_coll_current_fanout;
 
-void gasnete_coll_set_tree_kind(char *str) {
+void gasnet_coll_set_tree_kind(char *str) {
   if(strcmp(str, "GASNET_BINOMIAL_TREE")==0) {
     gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
   } else {
     gasnete_coll_current_tree_kind = GASNETE_COLL_NARY_TREE;
   }
 }
-void gasnete_coll_set_fanout(int fanout) {
+void gasnet_coll_set_fanout(int fanout) {
   gasnete_coll_current_fanout = fanout;
 }
 

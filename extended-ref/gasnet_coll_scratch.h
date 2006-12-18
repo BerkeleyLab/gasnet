@@ -12,12 +12,6 @@
 #ifndef __GASNET_COLL_SCRATCH_H__
 #define __GASNET_COLL_SCRATCH_H__ 1
 
-#define GASNETE_COLL_NUM_SCRATCH_HANDLERS 1
-#ifndef GASNETE_COLL_SCRATCH_HANDLER_BASE
-#define GASNETE_COLL_SCRATCH_HANDLER_BASE (GASNETE_COLL_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
-#endif
-
-#define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
 
 
 struct gasnete_coll_scratch_req_t_;
@@ -160,8 +154,5 @@ uint64_t *gasnete_coll_scratch_get_peer_pos(gasnete_coll_scratch_req_t *scratch_
 */
 
 void gasnete_coll_free_scratch(gasnete_coll_op_t *op);
-/*four args: team id, node id, seq number, head, tail*/
-SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 4);
-#define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh),
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2006/11/05 07:58:11 $
- * $Revision: 1.1.10.7 $
+ *     $Date: 2006/12/18 19:35:09 $
+ * $Revision: 1.1.10.8 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,8 +10,6 @@
 #define _GASNET_EXTENDED_REFCOLL_H
 
 #include <gasnet_handler.h>
-#include <gasnet_coll_trees.h>
-#include <gasnet_coll_scratch.h>
 
 /*---------------------------------------------------------------------------------*/
 /* ***  Parameters *** */
@@ -33,6 +31,15 @@
 #define _hidx_gasnete_coll_p2p_advance_reqh (GASNETE_COLL_HANDLER_BASE+5)
 
 /*---------------------------------------------------------------------------------*/
+/*four args: team id, node id, seq number, head, tail*/
+#define GASNETE_COLL_NUM_SCRATCH_HANDLERS 1
+#ifndef GASNETE_COLL_SCRATCH_HANDLER_BASE
+#define GASNETE_COLL_SCRATCH_HANDLER_BASE (GASNETE_COLL_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
+#endif
+
+#define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
+
+
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
 
@@ -55,6 +62,12 @@
   #define GASNETE_COLL_P2P_HANDLERS()
 #endif
 
+#ifndef GASNETE_COLL_SCRATCH_OVERRIDE
+SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 4);
+#define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh),
+#endif
+
+
 #define GASNETE_REFCOLL_HANDLERS()                           \
   /* ptr-width independent handlers */                       \
   /*  gasneti_handler_tableentry_no_bits(gasnete__reqh) */   \
@@ -63,18 +76,4 @@
   /*  gasneti_handler_tableentry_with_bits(gasnete__reqh) */ \
                                                              \
   GASNETE_COLL_P2P_HANDLERS() GASNETE_COLL_SCRATCH_HANDLERS()                      
-
-/*---------------------------------------------------------------------------------*/
-/* Data for a given tree-based operation */
-struct gasnete_coll_tree_data_t_ {
-    uint32_t			pipe_seg_size;
-    uint32_t			sent_bytes;
-    gasnete_coll_local_tree_geom_t	*geom;
-};
-#define GASNETE_COLL_MIN_SCRATCH_SIZE 8192
-#define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
-#ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
-/*set defult to 1 MB*/
-#define GASNETE_COLL_OPT_SCRATCH_SIZE (1*(1024*1024))
-#endif
 #endif

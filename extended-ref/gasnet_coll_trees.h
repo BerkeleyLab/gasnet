@@ -1,8 +1,14 @@
 #ifndef ALREADY_SEEN_GASNET_COLL_TREES_H 
 #define ALREADY_SEEN_GASNET_COLL_TREES_H 1
+
+#include <gasnet_coll.h>
+#include <gasnet_coll_internal.h>
+#include <gasnet_extended_refcoll.h>
+
+
+
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #define  GASNETE_COLL_DEFAULT_RADIX 2
-#include <gasnet_coll.h>
 
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
@@ -83,8 +89,8 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 
 /*testing functions*/
-void gasnete_coll_set_tree_kind(char *treestr);
-void gasnete_coll_set_fanout(int fanout);
+void gasnet_coll_set_tree_kind(char *treestr);
+void gasnet_coll_set_fanout(int fanout);
 
 
 /******** Dissemination Ordering **********/
