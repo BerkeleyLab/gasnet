@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.43.2.2 $
+$Revision: 1.43.2.3 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -449,6 +449,7 @@ $Revision: 1.43.2.2 $
     be sent via the AMRDMA path.  The software overhead on both the sender
     and receiver grow with the message size.  So, as the message size grows
     the use of AMRDMA eventually costs more than the snd/rcv alternative.
+    A value of zero will disable AMRDMA.
     The current default is 4K minus some overheads.
 
   + GASNET_AMRDMA_DEPTH
@@ -467,7 +468,8 @@ $Revision: 1.43.2.2 $
 
   + GASNET_AMRDMA_CYCLE
     This environment variable, which must be zero or a power or two, sets
-    the number of AM receives between (re)assignments of AMRDMA peers.
+    the period between (re)assignments of AMRDMA peers, as measured by
+    of the number of AMs received of size <= GASNET_AMRDMA_LIMIT.
     The current algorithm for selecting AMRDMA peers is very simplistic
     and will never revoke AMRDMA status once granted to a given peer.
     An overly large value will result in a long period of time before any
