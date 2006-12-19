@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/12/15 23:09:54 $
- * $Revision: 1.145.2.5 $
+ *     $Date: 2006/12/19 00:46:03 $
+ * $Revision: 1.145.2.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -313,6 +313,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_WC_RDMA_READ	GASNETC_IB_CHOOSE(VAPI_CQE_SQ_RDMA_READ,IBV_WC_RDMA_READ)
 #define GASNETC_WC_RDMA_WRITE	GASNETC_IB_CHOOSE(VAPI_CQE_SQ_RDMA_WRITE,IBV_WC_RDMA_WRITE)
 #define GASNETC_WC_SEND		GASNETC_IB_CHOOSE(VAPI_CQE_SQ_SEND_DATA, IBV_WC_SEND)
+#define GASNETC_WC_RETRY_EXC_ERR GASNETC_IB_CHOOSE(VAPI_RETRY_EXC_ERR, IBV_WC_RETRY_EXC_ERR)
 
 #define GASNETC_WR_RDMA_READ	GASNETC_IB_CHOOSE(VAPI_RDMA_READ,	IBV_WR_RDMA_READ)
 #define GASNETC_WR_RDMA_WRITE	GASNETC_IB_CHOOSE(VAPI_RDMA_WRITE,	IBV_WR_RDMA_WRITE)
