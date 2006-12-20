@@ -53,6 +53,7 @@
 #define GASNETC_PTL_MSG_PUT      0x10
 #define GASNETC_PTL_MSG_GET      0x20
 #define GASNETC_PTL_MSG_AM       0x40
+#define GASNETC_PTL_MSG_AMDATA   0x80
 /* DOLC - Do Local Completion flag.  Indicates to event handler that it must
  * decrement the local completion counter for this gasnet operation
  */
@@ -62,8 +63,7 @@
 #define GASNETC_PTL_AM_MEDIUM    0x02
 #define GASNETC_PTL_AM_LONG      0x04
 #define GASNETC_PTL_AM_REQUEST   0x08
-#define GASNETC_PTL_AM_REPLY     0x10
-#define GASNETC_PTL_AM_ASYNC     0x11
+#define GASNETC_PTL_AM_PACKED    0x10
 
 /* Token flag values */
 #define GASNETC_PTL_REPLY_SENT   0x01
@@ -82,8 +82,8 @@
 #define GASNETC_MASK_BYTE7       0xFF00000000000000ULL
 
 /* x is a uint64_t and a and b are int32_t */
-#define GASNETC_PACK_INT_UPPER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_LOWER32) | ((uint64_t)(rhs) << 32)
-#define GASNETC_PACK_INT_LOWER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_UPPER32) | ((uint64_t)(rhs) & GASNETC_MASK_LOWER32)
+#define GASNETC_PACK_UPPER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_LOWER32) | ((uint64_t)(rhs) << 32)
+#define GASNETC_PACK_LOWER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_UPPER32) | ((uint64_t)(rhs) & GASNETC_MASK_LOWER32)
 #define GASNETC_PACK_2INT(x,up,low) x = ((uint64_t)(up)<<32) | ((uint64_t)(low) & GASNETC_MASK_LOWER32)
 
 #define GASNETC_UNPACK_UPPER(x) (int32_t)((x)>>32)
@@ -92,6 +92,11 @@
     (up) = GASNETC_UNPACK_UPPER(x);	   \
     (low) = GASNETC_UNPACK_LOWER(x);	   \
   } while (0)
+
+#define GASNETC_COMPUTE_DOUBLE_PAD(n,pad) do { \
+    int p = (n) % sizeof(double);  \
+    pad = (p == 0 ? 0 : sizeof(double)-p);  \
+  } while(0)
 
 /* AM tokens used by portals */
 typedef struct token_rec {
@@ -168,10 +173,19 @@ int gasnetc_tmpmd_hwm;
 extern int gasnetc_io_buffer_size;
 extern void* gasnetc_flush_buffer;
 
-/* An array of Portals Proc IDs used to determine network address of nodes */
+/* An array of Portals Proc IDs used to determine network address of nodes
+ * Also used as elements in a hash table, for reverse lookup of ptl_process_id_t
+ * structures to gasnet_node_t.
+ */
+typedef struct gasnetc_procrec {
+  gasnet_node_t     node_id;
+  ptl_process_id_t  ptl_id;
+  struct gasnetc_procrec *next;  /* linked list for hash table reverse lookup */
+} gasnetc_procid_t;
+
 extern ptl_process_id_t  gasnetc_myid;
-extern ptl_process_id_t *gasnetc_procid_map;
 extern ptl_uid_t         gasnetc_uid;
+extern ptl_procid_t     *gasnetc_procid_map;
 
 /* An array of strings that name the Portals events
  * MLW: Not defined in API but exists in Portals implementation
@@ -255,6 +269,21 @@ extern int gasnete_putget_limit;
     while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) == 0) {}; \
   } while (0)
 
+#define GASNETC_PACK_AM_MBITS(mbits, offset, amtype, narg, hndlr, targ_mbits) \
+    (mbits) = ((uint64_t)(offset) << 32) | ((uint64_t)(amtype) << 24)	\
+      | ( ((uint64_t)(narg) & GASNETC_MASK_BYTE0) << 16) | ((uint64_t)(hndlr) << 8) \
+      | (targ_mbits)
+
+#define PACK_SHORT_MED_HDR(hdr,srcnode,arg0) \
+  (hdr) = ((uint64_t)(srcnode) << 32) | ((uint64_t)(arg0) & GASNETC_MASK_LOWER32)
+
+#define UNPACK_SHORT_MED_HDR(hdr,srcnode,arg0) do { \
+    srcnode = (uint32_t)((uint64_t)(hdr) >> 32); \
+    arg0 = (int32_t)((uint64_t)(hdr) & GASNETC_MACK_LOWER32); \
+    while(0)
+
+  (hdr) = ((uint64_t)(srcnode) << 32) | ((uint64_t)(arg0) & GASNETC_MASK_LOWER32)
+
 #define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
 #define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
 
@@ -328,6 +357,7 @@ extern void gasnetc_portals_poll(void);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern void gasnetc_testBootExch(void);
+extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
 
 SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
 #endif

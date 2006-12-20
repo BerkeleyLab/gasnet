@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/12/15 01:31:49 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2006/12/20 01:11:27 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -566,7 +566,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     ptl_size_t local_offset = 0;
     ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,src);
     ptl_handle_md_t md_h;
-    ptl_process_id_t target_id = gasnetc_procid_map[node];
+    ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
     ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
     ptl_match_bits_t match_bits = 0UL;
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_GET;
@@ -647,7 +647,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     ptl_size_t local_offset = 0;
     ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,dest);
     ptl_handle_md_t md_h;
-    ptl_process_id_t target_id = gasnetc_procid_map[node];
+    ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
     ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
     ptl_match_bits_t match_bits = 0ULL;
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
@@ -705,7 +705,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
     GASNETI_TRACE_PRINTF(C,("put_nb: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
 
-    /* Issue Ptl Get operation */
+    /* Issue Ptl Put operation */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 
     /* bump the put/get counter */
@@ -832,7 +832,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
-  ptl_process_id_t target_id = gasnetc_procid_map[node];
+  ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
   ptl_handle_md_t md_h;
   ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
   ptl_size_t local_offset;
@@ -919,7 +919,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   ptl_handle_md_t md_h;
-  ptl_process_id_t target_id = gasnetc_procid_map[node];
+  ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
   ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
   ptl_match_bits_t match_bits = 0ULL;
   int wait_for_local_completion = 0;
