@@ -65,6 +65,13 @@ gasneti_weakatomic_t gasnete_putget_poll_cnt;
 gasneti_weakatomic_t gasnete_putget_inflight;
 int gasnete_putget_limit = 255;
 
+/* used in AMLong Request operations when issuing a non-packed data put operation.
+ * AMLongRequest must poll until this counter drops to zero, indicating that
+ * message is off-node and client can overwrite source data region.
+ * NOTE: Not used in AMLongRequestAsync.
+ * NOTE: Also not used in AMLongReply.
+ */
+gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
 
 int gasnetc_max_poll_events = GASNETC_MAX_POLL_EVENTS;
 
@@ -78,11 +85,15 @@ const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","REQSB_MD","REQRB_MD","RPLS
 /* Forward reference for ReqRB event handler */
 static void ReqRB_event(ptl_event_t *ev);
 
-/* Search the lid cache for this object.
+/* ------------------------------------------------------------------------------------
+ * Search the lid cache for this object.
  * If not found, create one, add to list and return it, setting found = false.
  * If found, remove from list and return, setting found = true;
- * Must be called with list locked.  Call must unlock.
- */
+ * This is a worker function that should ONLY be called from 
+ *        get_lid_object_from_data 
+ *  -OR-  get_lid_object_from_header
+ * Lid cache must be locked before this is called, caller must unlock.
+ * --------------------------------------------------------------------------------- */
 static int get_or_insert_lid(gasnet_node_t src, uint32_t lid, int numarg, gasnetc_amlongcache_t **obj)
 {
   gasnetc_amlongcache_t *p, *prev;
@@ -132,7 +143,8 @@ static int get_or_insert_lid(gasnet_node_t src, uint32_t lid, int numarg, gasnet
   return 0;
 }
 
-/* Search the lid cache from this src node for a matching object.
+/* ------------------------------------------------------------------------------------
+ * Search the lid cache from this src node for a matching object.
  * This call is made when the data portion of an AM Long arrives in the RARAM.
  * If found
  *     - remove from cache and return it
@@ -142,7 +154,8 @@ static int get_or_insert_lid(gasnet_node_t src, uint32_t lid, int numarg, gasnet
  *     - alloc new object and insert into cache.
  *     - set data fields as per arguments.
  *     - return NULL.
- */
+ *
+ * --------------------------------------------------------------------------------- */
 static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t lid, void* dataptr, size_t datalen)
 {
   gasnetc_amlongcache_t *obj;
@@ -162,7 +175,8 @@ static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t 
   return NULL;
 }
 
-/* Search the lid cache from this src node for a matching object.
+/* ------------------------------------------------------------------------------------
+ * Search the lid cache from this src node for a matching object.
  * This call is made when the Header portion of an AM Long arrives in either ReqRB or ReqSB.
  * If found
  *     - remove from cache and return it
@@ -172,7 +186,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t 
  *     - alloc new object and insert into cache.
  *     - set data fields as per arguments.
  *     - return NULL.
- */
+ * --------------------------------------------------------------------------------- */
 static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, int nargs, gasnet_handlerarg_t *args)
 {
   gasnetc_amlongcache_t *obj;
@@ -200,10 +214,23 @@ static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_
   return NULL;
 }
 
-/* An AM Short handler function execution is requested.  All the data necessary
- * to exec the function is contained in the event record.
- * Crack the mbits and hdr_data fields and execute the function
- */
+/* ------------------------------------------------------------------------------------
+ * Unpack the data from the event structure and execute the Request or Reply AM Short
+ * handler function.
+ * isReq is true if this is an AM Short Request, false for a Reply.
+ *
+ * NOTE: the lower 32 bits of the match_bits have already been unpacked.
+ * For a Request: upper 32 bits of match_bits = offset in sender ReqSB.
+ * For a   Reply: upper 32 bits of match_bits = arg2
+ * For both a request and reply:
+ *   hdr_data:      [arg0 << 32 | arg1]
+ *   Data Payload:  [remaining args]
+ * NOTES:
+ *   - message should be sizeof(double) aligned.
+ * This function is called from:
+ * - ReqRB_event in response to the arrival of an AM Short Request
+ * - ReqSB_event in response to the arrival of an AM Short Reply
+ * --------------------------------------------------------------------------------- */
 static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghandler)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
@@ -270,6 +297,24 @@ static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int gha
   }
 }
 
+/* ------------------------------------------------------------------------------------
+ * Unpack the data from the event structure and execute the Request or Reply AM Medium
+ * handler function.
+ * isReq is true if this is an AM Medium Request, false for a Reply.
+ *
+ * NOTE: the lower 32 bits of the match_bits have already been unpacked.
+ * For a Request: upper 32 bits of match_bits = offset in sender ReqSB.
+ * For a   Reply: upper 32 bits of match_bits = arg2
+ * For both a request and reply:
+ *   hdr_data:      [arg0 << 32 | arg1]
+ *   Data Payload:  [remaining args][data payload length][pad][data payload]
+ * NOTES:
+ *   - message should be sizeof(double) aligned.
+ *   - pad insures data payload is sizeof(double) aligned.
+ * This function is called from:
+ * - ReqRB_event in response to the arrival of an AM Medium Request
+ * - ReqSB_event in response to the arrival of an AM Medium Reply
+ * --------------------------------------------------------------------------------- */
 static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int ghandler)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
@@ -348,6 +393,22 @@ static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gh
   }
 }
 
+/* ------------------------------------------------------------------------------------
+ * Unpack the data from the event structure and attempt to execute the AM Long handler.
+ * This routine will be called from both Request and Reply AMs, isReq=true of Request.
+ * In general, AM Longs require two messages, a data payload sent directly to the RAR
+ * and a header send to ReqRB (for a Request) or ReqSB (for a Reply).  isHeader=true
+ * if this function is called in response to a header message, and false if in response
+ * to the arrival of a data message.  The last to arrive will execute the requested handler.
+ * The first to arrive will cache its metadata in a LID cache that the second can retrieve.
+ * AMLong messages with small data payloads may have the payload packed with the header
+ * message (and no data message).  isPacked=true if a packed message.
+ * Note that if isHeader=false, the numarg and ghandler arguments are not used.
+ * In summary, this function is called from:
+ * - RARAM_event: in response to a Request or Reply AMLong data packet arrival.
+ * - ReqRB_event: in response to an AM Long Header Request message.
+ * - ReqSB_event: in response to an AM Long Header Reply message.
+ * --------------------------------------------------------------------------------- */
 static void exec_amlong_handler(int isReq, int isHeader, int isPacked,
 				ptl_event_t *ev, int numarg, int ghandler)
 {
@@ -461,8 +522,6 @@ static void exec_amlong_handler(int isReq, int isHeader, int isPacked,
 #error  HELP!!! Double check this, need RplSB if Request, but when to alloc?
 
 }
-
-
 
 /* ------------------------------------------------------------------------------------
  * Allocate memory with a given byte alignment.
@@ -684,6 +743,17 @@ static void RARAM_event(ptl_event_t *ev)
     if ((msg_type & GASNETC_PTL_MSG_PUT) && (msg_type & GASNETC_PTL_MSG_DOLC)) {
       gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
       gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
+    } else if (msg_type & GASNETC_PTL_AMDATA) {
+      uint32_t tag = (uint32_t)((mbits >> 8) & GASNETC_MASK_BYTE0);
+      switch (tag) {
+      case 0: /* do nothing */
+	break;
+      case 1:
+	gasneti_weakatomic_decrement(&gasnetc_amlongReq_datacnt, 0);
+	break;
+      default:
+	gasneti_fatalerror("RARAM_event on SEND_END for AMLong Data, tag = %u",tag);
+      }
     }
     break;
   case PTL_EVENT_ACK:
@@ -751,6 +821,20 @@ static void TMPMD_event(ptl_event_t *ev)
     if ((msg_type & GASNETC_PTL_MSG_PUT) && (msg_type & GASNETC_PTL_MSG_DOLC)) {
       gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
       gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
+    } else if (msg_type & GASNETC_PTL_AMDATA) {
+      uint32_t tag = (uint32_t)((mbits >> 8) & GASNETC_MASK_BYTE0);
+      switch (tag) {
+      case 0: /* do nothing */
+	break;
+      case 1:
+	gasneti_weakatomic_decrement(&gasnetc_amlongReq_datacnt, 0);
+	break;
+      default:
+	gasneti_fatalerror("TMPMD_event on SEND_END for AMLong Data, tag = %u",tag);
+      }
+      /* unlink the tmp MD used in the AM Long data put */
+      gasnetc_free_tmpmd(ev->md_handle);
+      
     }
     break;
   case PTL_EVENT_ACK:
@@ -1309,6 +1393,17 @@ static void ReqSB_exit()
  * These are exported to both the Core and Extended API implementations.
  * ================================================================================= */
 
+
+/* ---------------------------------------------------------------------------------
+ * Allocate a new LID = "Long ID" for a new AMLong Request or Reply operation
+ * --------------------------------------------------------------------------------- */
+extern uint32_t gasnetc_new_lid(gasnet_node_t dest)
+{
+  /* NEED TO LOCK ALLOCATION OF NEW LID */
+  uint32_t newlid = gasnetc_conn_state[dest].src_lid++;
+  return newlid;
+}
+
 /* ---------------------------------------------------------------------------------
  * Setup the portals network so that we can begin communicating
  *   - Get the Portals network-interface handle.  
@@ -1424,9 +1519,12 @@ extern void gasnetc_init_portals_network(void)
     gasneti_assert(sum == gasneti_nodes);
     avg = ((double)sum)/((double)HASHTABLE_SIZE);
     GASNETI_TRACE_PRINTF(C,("Table stats: NumZero=%d, AvgLen=%6.2f, MinLen=%d, MaxLen=%d",numzero,avg,mincnt,maxcnt));
-    }
   }
 #endif
+
+  /* init weakatomic vars */
+  gasneti_weakatomic_set(&gasnetc_amlongReq_datacnt, 0, 0);
+
 }
 
 /* Function to convert a ptl_process_id_t to a GASNet Node id */
@@ -1444,13 +1542,57 @@ extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc)
   return -1;
 }
 
+
+/* ---------------------------------------------------------------------------------
+ * Function to issue data Put of AM Request Long payload to remote RAR.
+ * If local data source is in RAR, use the RARAM MD.
+ * If not, alloc a TMP MD, which will be unlinked by the event handlers.
+ * If !sync, no need for caller to wait for put is off-node before returning.
+ * If sync, bump amlongdata_cnt.  Event handler will decrement counter.
+ * and caller will poll until zero.
+ * mbits = [unused 32 bits ][24 bits for sync_flag][4 bits for msg type][4 bits for matching]
+ * hdr_data = [unused 32 bits][32 bit lid]
+ * msg_type = MSG_AMDATA
+ * sync_flag = 1 if sync
+ * sync_flag = 0, if !sync
+ * --------------------------------------------------------------------------------- */
+extern void gasnetc_amlong_datasend(int sync, uint32_t lid, gasnet_node_t dest, void *src_addr,
+				    size_t nbytes, void* dest_addr)
+{
+  ptl_handle_md_t  md_h;
+  ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
+  ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
+  ptl_match_bits_t match_bits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARAM_BITS;
+  ptl_size_t local_offset = 0;
+  ptl_size_t remote_offset = GASNETC_PTL_OFFSET(node,dest_addr);
+  ptl_hdr_data_t hdr_data = (ptl_hdr_data_t)lid;
+
+  if (sync) {
+    gasneti_assert(gasneti_weakatomic_read(&gasnetc_amlongReq_datacnt, 0) == 0);
+  }
+
+  if (gasnetc_in_local_rar(src_addr,nbytes)) {
+    md_h = gasnetc_RARAM.md_h;
+    local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
+  } else {
+    /* alloc a temp md for the source region */
+    md_h = gasnetc_alloc_tmpmd(src_addr, nbytes, gasnetc_EQ_h);
+    local_offset = 0;
+  }
+  if (sync) {
+    match_bits |= (0x1<<8);    /* signal to event handler to decr Req counter */
+    gasneti_weakatomic_increment(&gasnetc_amlongReq_datacnt, 0);
+  }
+    
+  /* Issue Ptl Put operation */
+  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
+}
+
+/* ---------------------------------------------------------------------------------
+ * Bootstrap barrier function.
+ * Just use cnos_barrier on XT3, but might have to init it first.
+ * --------------------------------------------------------------------------------- */
 extern void gasnetc_bootstrapBarrier() {
-  /* Implementation of external barrier
-     this barrier should not rely on AM or the GASNet API because it's used 
-     during bootstrapping before such things are fully functional
-     It need not be particularly efficient, because we only call it a few times
-     and only during bootstrapping - it just has to work correctly
-   */
   static int gasnetc_bootstrapBarrierCnt = 0;
 
 #ifdef CNLinux
@@ -1887,8 +2029,8 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle
    */
   GASNETI_TRACE_PRINTF(C,("Alloc_Tmpmd: num TmpMD outstanding = %d",gasneti_weakatomic_read(&gasnetc_tmpmd_count,0)));
   gasneti_pollwhile( (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd) );
-
   gasneti_weakatomic_increment(&gasnetc_tmpmd_count,0);
+
   md.start = dest;
   md.length = nbytes;
   md.threshold = PTL_MD_THRESH_INF;
@@ -1904,12 +2046,12 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &md_h));
 
 #if GASNETI_STATS_OR_TRACE
-      {
+  {
 	int inuse = (int)gasneti_weakatomic_read(&gasnetc_tmpmd_count,0);
 	if (gasnetc_tmpmd_hwm < inuse) gasnetc_tmpmd_hwm = inuse;
 	GASNETI_TRACE_PRINTF(C,("ALLOC TMPMD at 0x%p, len=%d, inuse=%d, hwm=%d",dest,(int)nbytes,inuse,gasnetc_tmpmd_hwm));
 	GASNETI_TRACE_EVENT(C, TMPMD_ALLOC);
-      }
+  }
 #endif
 
   return md_h;
@@ -2121,6 +2263,52 @@ extern void gasnetc_portals_poll(void)
     }
   }
   GASNETI_TRACE_EVENT_VAL(C, EVENT_CNT, processed);
+}
+
+/* ------------------------------------------------------------------------------------
+ * Attempt to get an event from the specified event queue.
+ * Return 1=true if successful, 0 otherwise.
+ * ev points to the event structure to be filled in.
+ * --------------------------------------------------------------------------------- */
+extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
+{
+  ptl_event_t ev;
+  int rc;
+  int which = 0;
+  int timeout = 0;       /* number of usec to wait */
+
+  /* Note that PtlEQGet is just a user-space call and will see if anything is
+   * on the list without diving into the kernel to see if any unprocessed events
+   * are waiting.  Try it first.  If multiple exist, run them back to back since they
+   * release resources.
+   */
+  rc = PtlEQGet( eq_h, ev);
+  switch (rc) {
+  case PTL_OK:
+    return 1;
+    break;
+  case PTL_EQ_EMPTY:
+    break;
+  default:
+    gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQGet: %s (%i)\n at %s\n",
+		       ptl_err_str[rc],rc,gasneti_current_loc);
+    break;
+  }
+
+  /* No easy pickings... try polling, which may enter the kernel */
+  rc = PtlEQPoll(&eq_h,1,timeout,ev,&which);
+  switch (rc) {
+  case PTL_OK:
+    return 1;
+    break;
+  case PTL_EQ_EMPTY:
+    break;
+  default:
+    gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQPoll: %s (%i)\n at %s\n",
+		       ptl_err_str[rc],rc,gasneti_current_loc);
+    break;
+  }
+  return 0;
 }
 
 

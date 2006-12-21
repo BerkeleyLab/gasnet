@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/12/20 01:11:27 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2006/12/21 02:08:50 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -555,7 +555,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   uint64_t             targ_mbits = GASNETC_PTL_REQRB_BITS  | GASNETC_PTL_MSG_AM;
   int                  isPacked = (nbytes < GASNETC_MAX_AMLONG_PACKED);
   gasnet_handlerarg_t  garg0 = 0;
-  gasnet_handlerarg_t  garg1 = 0;
+  uint32_t             lid;
   ptl_match_bits_t     mbits;
   ptl_hdr_data_t       hdr_data;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
@@ -582,11 +582,11 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   if (isPacked) {
     /* pack message length in place of lid */
-    garg1 = nbytes;
+    lid = nbytes;
   } else {
-    garg1 = gasnetc_new_lid(dest);
+    lid = gasnetc_new_lid(dest);
   }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
+  GASNETC_PACK_2INT(hdr_data,garg0,lid);
 
   /* pack remaining args in data payload */
   for (i=1; i < numargs; i++) {
@@ -620,8 +620,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     
   } else {
 
-    /* first issue data put message and get handle */
-    gasneti_fatalerror("gasnetc_AMRequestLongM non-packed not implemented");
+    /* first issue data put message and request sync */
+    gasnetc_amlong_datasend(1,lid,dest,source_addr,nbytes,dest_addr);
 
     /* now complete header message */
     /* pad so that message length is multiple of double */
@@ -635,8 +635,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
     /* now wait for data put to complete locally */
-    gasneti_fatalerror("gasnetc_AMRequestLongM non-packed not implemented");
-    
+    gasneti_pollwhile( gasneti_weakatomic_read(&gasnetc_amlongReq_datacnt, 0) > 0 );
   }
   
   gasneti_weakatomic_increment(&state->AM_pending,0);
@@ -661,7 +660,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   uint64_t             targ_mbits = GASNETC_PTL_REQRB_BITS  | GASNETC_PTL_MSG_AM;
   int                  isPacked = (nbytes < GASNETC_MAX_AMLONG_PACKED);
   gasnet_handlerarg_t  garg0 = 0;
-  gasnet_handlerarg_t  garg1 = 0;
+  uint32_t             lid;
   ptl_match_bits_t     mbits;
   ptl_hdr_data_t       hdr_data;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
@@ -687,11 +686,11 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   if (isPacked) {
     /* pack message length in place of lid */
-    garg1 = nbytes;
+    lid = nbytes;
   } else {
-    garg1 = gasnetc_new_lid(dest);
+    lid = gasnetc_new_lid(dest);
   }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
+  GASNETC_PACK_2INT(hdr_data,garg0,lid);
 
   /* pack remaining args in data payload */
   for (i=1; i < numargs; i++) {
@@ -725,8 +724,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     
   } else {
 
-    /* first issue data put message and get handle */
-    gasneti_fatalerror("gasnetc_AMRequestLongM non-packed not implemented");
+    /* first issue data put message and dont request a sync flag */
+    gasnetc_amlong_datasend(0,lid,dest,source_addr,nbytes,dest_addr);
 
     /* now complete header message */
     /* pad so that message length is multiple of double */
@@ -740,7 +739,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
     /* Dont wait for Data Put to complete */
-    gasneti_fatalerror("gasnetc_AMRequestLongM non-packed not implemented");
     
   }
   
@@ -898,7 +896,7 @@ extern int gasnetc_AMReplyLongM(
   uint64_t              amtype = GASNETC_PTL_AM_LONG;
   uint64_t              targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
   gasnet_handlerarg_t   garg0 = 0;
-  gasnet_handlerarg_t   garg1 = 0;
+  uint32_t              lid;
   int                   isPacked = (nbytes < GASNETC_MAX_AMLONG_PACKED);
   ptl_match_bits_t      mbits;
   ptl_hdr_data_t        hdr_data = 0;
@@ -917,15 +915,15 @@ extern int gasnetc_AMReplyLongM(
 
   if (isPacked) {
     /* pack message length in place of lid */
-    garg1 = nbytes;
+    lid = nbytes;
   } else {
-    garg1 = gasnetc_new_lid(dest);
+    lid = gasnetc_new_lid(dest);
   }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
+  GASNETC_PACK_2INT(hdr_data,garg0,lid);
 
   /* pack second arg in upper bits of mbits */
-  if (numargs > 1) garg1 = va_arg(argptr,gasnet_handlerarg_t);
-  GASNETC_PACK_AM_MBITS(mbits,garg1,amtype,numargs,handler,targ_mbits);
+  if (numargs > 1) garg0 = va_arg(argptr,gasnet_handlerarg_t);
+  GASNETC_PACK_AM_MBITS(mbits,garg0,amtype,numargs,handler,targ_mbits);
 
   /* pack remaining args in data payload */
   for (i=1; i < numargs; i++) {
@@ -959,8 +957,27 @@ extern int gasnetc_AMReplyLongM(
     
   } else {
 
-    /* first issue data put message and get handle */
-    gasneti_fatalerror("gasnetc_AMRequestLongM non-packed not implemented");
+    /* AM Reply is always executed while polling, need to wait until data payload is
+     * off-node before returning, but dont want to poll recursively.
+     * Alloc tmp eq and md to cover src region, issue Put, then poll only on this
+     * tmp eq for Put local completion.
+     * NOTE: May be able to relax this and poll over other EQs as well.
+     */
+    int dp_eq_len = 2;
+    ptl_handle_md_t dp_md_h;
+    ptl_handle_eq_t dp_eq_h;
+    ptl_event_t ev;
+    ptl_match_bits_t dp_mbits = GASNETC_PTL_RARAM_BITS;
+    ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(node,dest_addr);
+    int finished = 0;
+    ptl_hdr_data_t dp_hdr_data = (ptl_hdr_data_t) lid;
+
+    /* alloc a short eq and a tmpmd to cover source region */
+    GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, dp_eq_len, NULL, &dp_eq_h));
+    dp_md_h = gasnetc_alloc_tmpmd(0,source_addr,nbytes,dp_eq_h);
+
+    /* issue data put message */
+    GASNETC_PTLSAFE(PtlPut(dp_md_h,PTL_NOACK_REQ,target_id,GASNETC_PTL_RAR_PTE, ac_index, dp_mbits, remote_dataoffset, dp_hdr_data));
 
     /* now complete header message */
     /* pad so that message length is multiple of double */
@@ -973,16 +990,24 @@ extern int gasnetc_AMReplyLongM(
     /* send message */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
-    /* now wait for data put to complete locally */
-    gasneti_fatalerror("gasnetc_AMRequestLongM non-packed not implemented");
-    
+    /* poll only on our local eq */
+    while (!finished) {
+      if (gasnetc_get_event(dp_eq_h, &ev)) {
+	if (ev.type == PTL_EVENT_SEND_END) {
+	  finished = 1;
+	} else {
+	  gasneti_fatalerror("gasnetc_AMReplyLong: got %s event on tmp EQ at %s",ptl_event_str[ev.type],gasneti_current_loc);
+	}
+      }
+    }
+    GASNETC_PTLSAFE(PtlMDUnlink(dp_md_h));
+    GASNETC_PTLSAFE(PtlEQFree(dp_eq_h));
   }
 
   /* Indicate to reply code that AM did in fact send a reply message */
   ptok->flags |= GASNETC_PTL_REPLY_SENT;
 
-  gasneti_fatalerror("gasnetc_AMReplyLongM not implemented");
-  GASNETI_RETURN(retval);
+  GASNETI_RETURN(GASNET_OK);
 }
 
 /* ------------------------------------------------------------------------------------ */

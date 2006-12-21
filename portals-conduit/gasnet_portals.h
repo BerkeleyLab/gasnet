@@ -251,6 +251,15 @@ extern int gasnetc_max_poll_events;
 extern int gasnete_putget_poll;
 extern gasneti_weakatomic_t gasnete_putget_poll_cnt;
 
+/* Var used for sync operation in AMLong Request and AMLong Reply.
+ * The call must not return until the data payload can be modified
+ * by the client.  The AMLong Request or Reply will set this var
+ * and the event handler will unset it when the SEND_END event for
+ * the data message is processed.
+ * NOTE: need this to be thread specific?
+ */
+extern gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
+
 /* Vars that limit total number of put/get operations in flight at any time
  * originating from this node.
  * We allocate enough events to handle the limit, assuing 2 events per put/get.
@@ -358,6 +367,10 @@ extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern void gasnetc_testBootExch(void);
 extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
+extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev);
+extern void gasnetc_amlong_datasend(int sync, uint32_t lid, gasnet_node_t dest, void *src_addr,
+				    size_t nbytes, void* dest_addr);
+extern uint32_t gasnetc_new_lid(gasnet_node_t dest);
 
 SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
 #endif
