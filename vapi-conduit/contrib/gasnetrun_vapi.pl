@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/contrib/Attic/gasnetrun_vapi.pl,v $
-#     $Date: 2006/12/15 23:09:56 $
-# $Revision: 1.5.48.1 $
+#     $Date: 2006/12/21 08:42:05 $
+# $Revision: 1.5.48.2 $
 # Description: GASNet VAPI and IBV spawner
 # Terms of use are as specified in license.txt
 
@@ -180,12 +180,17 @@ sub fullpath($)
           die "error running $mpi:\n $@ $err\n";
         }
     } elsif ($spawner eq 'SSH') {
+	my $wrapper = ($exeindex > 1) ? join ' ',
+					     map { s/'/'\\''/g; "'".$_."'"; }
+						 splice @ARGV, 0, $exeindex-1
+				      : undef;
 	my @extra_args = grep { defined($_); } ('-GASNET-SPAWN-master',
 						$verbose ? '-v' : undef,
+						$wrapper ? ('-W'.$wrapper) : undef,
 						"$numproc" . ($numnode ? ":$numnode" : ''),
 						'--');
 	my @cmd = @ARGV;
-	splice @cmd, $exeindex, 0, @extra_args;
+	splice @cmd, 1, 0, @extra_args;
 	print("gasnetrun: running: ", join(' ', @cmd), "\n") if ($verbose);
 	unless ($dryrun) { exec(@cmd) or die "failed to exec $exebase\n"; }
     } else {
