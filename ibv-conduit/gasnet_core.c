@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2006/12/15 23:09:54 $
- * $Revision: 1.187.2.4 $
+ *     $Date: 2006/12/21 08:42:03 $
+ * $Revision: 1.187.2.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1050,6 +1050,9 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_assert_always(hca->hca_cap.gasnetc_f_max_mr >=  mr_needed);
       #if FIREHOSE_VAPI_USE_FMR
         GASNETI_TRACE_PRINTF(C,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
+	if_pf (hca->hca_cap.max_num_fmr == 0) {
+	  gasneti_fatalerror("GASNet's vapi-conduit was configured to use FMRs, but libvapi reports none available.  You must pass the --disable-vapi-fmr flag to configure.");
+	}
         gasneti_assert_always(hca->hca_cap.max_num_fmr >= fmr_needed);
       #endif
     }
