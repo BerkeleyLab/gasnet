@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/12/21 02:08:50 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2006/12/22 01:02:14 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -476,7 +476,7 @@ extern int gasnetc_AMRequestMediumM(
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data;
   gasnetc_conn_t    *state = gasnetc_conn_state + dest;
-  int                pad1, pad2;
+  int                i, pad1, pad2;
   int                msg_bytes = 0;
   int32_t            hndlr_bytes = nbytes;  /* this will fit for medium message */
   uint8_t           *data;
@@ -502,7 +502,7 @@ extern int gasnetc_AMRequestMediumM(
 
   /* pack remaining args in data payload */
   for (i=2; i < numargs; i++) {
-    garg0 = = va_arg(argptr,gasnet_handlerarg_t);
+    garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
@@ -519,7 +519,7 @@ extern int gasnetc_AMRequestMediumM(
   msg_bytes += pad1;
 
   /* copy data payload */
-  mdmcpy(data,source_addr,hndlr_bytes);
+  memcpy(data,source_addr,hndlr_bytes);
   msg_bytes += hndlr_bytes;
 
   /* pad so that entire payload is multiple of double */
@@ -559,7 +559,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   ptl_match_bits_t     mbits;
   ptl_hdr_data_t       hdr_data;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
-  int                  pad;
+  int                  i, pad;
   int                  msg_bytes = 0;
   uint8_t             *data;
 
@@ -590,7 +590,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   /* pack remaining args in data payload */
   for (i=1; i < numargs; i++) {
-    garg0 = = va_arg(argptr,gasnet_handlerarg_t);
+    garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
@@ -604,7 +604,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     msg_bytes += sizeof(void*);
 
     /* copy the data payload */
-    memcpy(data,source_address,nbytes);
+    memcpy(data,source_addr,nbytes);
     data += nbytes;
     msg_bytes += nbytes;
 
@@ -664,7 +664,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   ptl_match_bits_t     mbits;
   ptl_hdr_data_t       hdr_data;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
-  int                  pad;
+  int                  i, pad;
   int                  msg_bytes = 0;
   uint8_t             *data;
 
@@ -694,7 +694,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   /* pack remaining args in data payload */
   for (i=1; i < numargs; i++) {
-    garg0 = = va_arg(argptr,gasnet_handlerarg_t);
+    garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
@@ -708,7 +708,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     msg_bytes += sizeof(void*);
 
     /* copy the data payload */
-    memcpy(data,source_address,nbytes);
+    memcpy(data,source_addr,nbytes);
     data += nbytes;
     msg_bytes += nbytes;
 
@@ -769,6 +769,7 @@ extern int gasnetc_AMReplyShortM(
   ptl_hdr_data_t       hdr_data = 0;
   ptl_size_t           msg_bytes = 0;
   uint8_t             *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+  int                  i;
 
   GASNETI_TRACE_PRINTF(C,("AMReply_Short to %d with handler %d and %d args",
 			  ptok->srcnode,(int)handler,numargs));
@@ -793,10 +794,6 @@ extern int gasnetc_AMReplyShortM(
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
-
-  /* pad message length to be multiple of sizeof(double) */
-  GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
-  msg_bytes += pad;
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -830,7 +827,7 @@ extern int gasnetc_AMReplyMediumM(
   ptl_size_t            msg_bytes;
   int32_t               payload_bytes = nbytes;
   uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
-  int                   pad;
+  int                   i, pad;
 
   GASNETI_TRACE_PRINTF(C,("AMReply_Medium to %d with handler %d and %d args %d byte payload",ptok->srcnode,(int)handler,numargs,(int)nbytes));
 
@@ -903,7 +900,8 @@ extern int gasnetc_AMReplyLongM(
   ptl_size_t            msg_bytes;
   int32_t               payload_bytes = nbytes;
   uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
-  int                   pad;
+  int                   i, pad;
+  gasnet_node_t         dest = ptok->srcnode;
 
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
 
@@ -927,7 +925,7 @@ extern int gasnetc_AMReplyLongM(
 
   /* pack remaining args in data payload */
   for (i=1; i < numargs; i++) {
-    garg0 = = va_arg(argptr,gasnet_handlerarg_t);
+    garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
@@ -941,13 +939,9 @@ extern int gasnetc_AMReplyLongM(
     msg_bytes += sizeof(void*);
 
     /* copy the data payload */
-    memcpy(data,source_address,nbytes);
+    memcpy(data,source_addr,nbytes);
     data += nbytes;
     msg_bytes += nbytes;
-
-    /* pad so that message length is multiple of double */
-    GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
-    msg_bytes += pad;
 
     gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
@@ -968,23 +962,18 @@ extern int gasnetc_AMReplyLongM(
     ptl_handle_eq_t dp_eq_h;
     ptl_event_t ev;
     ptl_match_bits_t dp_mbits = GASNETC_PTL_RARAM_BITS;
-    ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(node,dest_addr);
+    ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(dest,dest_addr);
     int finished = 0;
     ptl_hdr_data_t dp_hdr_data = (ptl_hdr_data_t) lid;
 
     /* alloc a short eq and a tmpmd to cover source region */
     GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, dp_eq_len, NULL, &dp_eq_h));
-    dp_md_h = gasnetc_alloc_tmpmd(0,source_addr,nbytes,dp_eq_h);
+    dp_md_h = gasnetc_alloc_tmpmd(source_addr,nbytes,dp_eq_h);
 
     /* issue data put message */
     GASNETC_PTLSAFE(PtlPut(dp_md_h,PTL_NOACK_REQ,target_id,GASNETC_PTL_RAR_PTE, ac_index, dp_mbits, remote_dataoffset, dp_hdr_data));
 
     /* now complete header message */
-    /* pad so that message length is multiple of double */
-    GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
-    msg_bytes += pad;
-
-    gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
     /* send message */

@@ -183,9 +183,9 @@ typedef struct gasnetc_procrec {
   struct gasnetc_procrec *next;  /* linked list for hash table reverse lookup */
 } gasnetc_procid_t;
 
-extern ptl_process_id_t  gasnetc_myid;
-extern ptl_uid_t         gasnetc_uid;
-extern ptl_procid_t     *gasnetc_procid_map;
+extern ptl_process_id_t    gasnetc_myid;
+extern ptl_uid_t           gasnetc_uid;
+extern gasnetc_procid_t   *gasnetc_procid_map;
 
 /* An array of strings that name the Portals events
  * MLW: Not defined in API but exists in Portals implementation
@@ -212,7 +212,7 @@ typedef struct {
   void*  start;                        /* aligned start */
   ptl_handle_md_t  md_h;               /* The Portals memory descriptor handler */
   ptl_handle_me_t  me_h;               /* The Portals match-list entry handle (if used) */
-  const char *name;                    /* string used for diagnostics */
+  char *name;                          /* string used for diagnostics */
   int use_chunks;                      /* Is the buffer under control of a chunk allocator? */
 
   /* The following fields are only used in the case of a chunk allocator */
@@ -239,6 +239,9 @@ extern gasnetc_PtlBuffer_t gasnetc_CB;
 /* handles to Portals network interface, memory descriptors and event queues */
 extern ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
 extern ptl_handle_eq_t gasnetc_EQ_h;              /* Handle to the combined Event Queue */
+
+/* MLW: Refine this ... just an estimate */
+#define GASNETC_MAX_AMLONG_PACKED (GASNETC_CHUNKSIZE - 20*32)
 
 #define GASNETC_MAX_POLL_EVENTS 40
 extern int gasnetc_max_poll_events;
@@ -290,8 +293,6 @@ extern int gasnete_putget_limit;
     srcnode = (uint32_t)((uint64_t)(hdr) >> 32); \
     arg0 = (int32_t)((uint64_t)(hdr) & GASNETC_MACK_LOWER32); \
     while(0)
-
-  (hdr) = ((uint64_t)(srcnode) << 32) | ((uint64_t)(arg0) & GASNETC_MASK_LOWER32)
 
 #define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
 #define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
