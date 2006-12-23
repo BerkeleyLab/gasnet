@@ -30,9 +30,11 @@ gasnetc_PtlBuffer_t gasnetc_CB;
 /* And the Remote Access Region, covered by two buffers */
 gasnetc_PtlBuffer_t gasnetc_RAR;
 gasnetc_PtlBuffer_t gasnetc_RARAM;
+gasnetc_PtlBuffer_t gasnetc_RARARC;
 
 ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
-ptl_handle_eq_t gasnetc_EQ_h;              /* Handle to the combined Event Queue */
+ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
+ptl_handle_eq_t gasnetc_BUF_EQ_h;          /* Handle to the Buffer Event Queue */
 
 /* We limit the number of temporary memory descriptors in use at any time.
  * If over the limit, allocator will poll until the number of outstanding tmp mds
@@ -79,7 +81,7 @@ gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
 int gasnetc_max_poll_events = GASNETC_MAX_POLL_EVENTS;
 
 
-const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD"};
+const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD"};
 
 /* =================================================================================
  * This top portion of the file is where file-scope worker routines are located.
@@ -249,7 +251,7 @@ static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int gha
 
   if (isReq) {
     ptl_size_t rpl_offset;
-    if (!gasnetc_chunk_alloc(&gasnetc_RplSB, GASNETC_CHUNKSIZE, &rpl_offset)) {
+    if (!gasnetc_chunk_alloc(&gasnetc_RplSB, GASNETC_CHUNKSIZE, &rpl_offset, GASNETC_NO_POLL)) {
       gasneti_fatalerror("No RplSB chunks avail in ReqRB event handler");
     }
     /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
@@ -336,7 +338,7 @@ static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gh
 
   if (isReq) {
     ptl_size_t rpl_offset;
-    if (!gasnetc_chunk_alloc(&gasnetc_RplSB, GASNETC_CHUNKSIZE, &rpl_offset)) {
+    if (!gasnetc_chunk_alloc(&gasnetc_RplSB, GASNETC_CHUNKSIZE, &rpl_offset, GASNETC_NO_POLL)) {
       gasneti_fatalerror("No RplSB chunks avail in ReqRB event handler");
     }
     /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
@@ -435,7 +437,7 @@ static void exec_amlong_handler(int isReq, int isHeader, int isPacked,
 
   if (isReq && isHeader) {
     ptl_size_t rpl_offset;
-    if (!gasnetc_chunk_alloc(&gasnetc_RplSB, GASNETC_CHUNKSIZE, &rpl_offset)) {
+    if (!gasnetc_chunk_alloc(&gasnetc_RplSB, GASNETC_CHUNKSIZE, &rpl_offset, GASNETC_NO_POLL)) {
       gasneti_fatalerror("No RplSB chunks avail in ReqRB event handler");
     }
     /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
@@ -713,14 +715,8 @@ static void ReqRB_refresh(uintptr_t start_addr)
 /* ---------------------------------------------------------------------------------
  * Handle events on the local RARAM Memory Descriptor
  * Used as :
- *   - source of GASNet Puts or dest of Gets when data region happens to lie in RAR.
- *   - source of AM_Long when data region happens to lie in RAR.
  *   - dest of AM_Long data segment.
  * Events:
- *  SEND_END => Put (or Get) local completion
- *       ACK => GASNet Put completed remotely.  Mark operation as complete.
- *              NOTE: AMs dont request ACKs
- * REPLY_END => GASNet Get completed.  Mark operation as complete.
  *   PUT_END => Data portion of AM_Long arrived.  Extract LID and see if header has
  *              also arrived.  If so, call GASNet handler, else insert LID in LID table.
  * --------------------------------------------------------------------------------- */
@@ -728,20 +724,55 @@ static void RARAM_event(ptl_event_t *ev)
 {
   ptl_size_t offset = ev->offset;
   ptl_match_bits_t   mbits = ev->match_bits;
-  gasnete_threadidx_t threadid;
-  gasnete_opaddr_t addr;
-  uint8_t msg_type, amflag, numarg, ghandler;
-  gasnete_op_t *op;
+  uint8_t msg_type;
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("RARAM event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
 
   /* extract the lower bits based on message type */
-  if (msg_type & GASNETC_PTL_MSG_AM) {
-    gasnetc_get_am_lowbits(mbits, &amflag, &numarg, &ghandler);
-  } else {
-    gasnete_get_op_lowbits(mbits, &threadid, &addr);
+  gasneti_assert(msg_type & GASNETC_PTL_MSG_AMDATA);
+
+  /* we never truncate on this MD */
+  gasneti_assert(ev->rlength == ev->mlength);
+
+  switch (ev->type) {
+
+  case PTL_EVENT_PUT_END:
+    /* Must be data packet of AM Long */
+    /* isReq=true, isHeader=false, isPacked=false, numargs and ghandler in lid cache */
+    exec_amlong_handler(1,0,0,ev,1,-1);
+    break;
+
+  default:
+    gasneti_fatalerror("Invalid event %s on RARAM",ptl_event_str[ev->type]);
   }
+}
+
+/* ---------------------------------------------------------------------------------
+ * Handle events on the local RARSRC Memory Descriptor
+ * Used as :
+ *   - source of GASNet Puts or dest of Gets when data region happens to lie in RAR.
+ *   - source of AM_Long when data region happens to lie in RAR.
+ * Events:
+ *  SEND_END => Put (or Get) local completion
+ *       ACK => GASNet Put completed remotely.  Mark operation as complete.
+ *              NOTE: AMs dont request ACKs
+ * REPLY_END => GASNet Get completed.  Mark operation as complete.
+ * --------------------------------------------------------------------------------- */
+static void RARSRC_event(ptl_event_t *ev)
+{
+  ptl_size_t offset = ev->offset;
+  ptl_match_bits_t   mbits = ev->match_bits;
+  gasnete_threadidx_t threadid;
+  gasnete_opaddr_t addr;
+  uint8_t msg_type;
+  gasnete_op_t *op;
+
+  msg_type = GASNETC_GET_MSG_TYPE(mbits);
+  GASNETI_TRACE_PRINTF(C,("RARSRC event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
+
+  /* extract the lower bits based on message type */
+  gasnete_get_op_lowbits(mbits, &threadid, &addr);
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
@@ -761,7 +792,7 @@ static void RARAM_event(ptl_event_t *ev)
 	gasneti_weakatomic_decrement(&gasnetc_amlongReq_datacnt, 0);
 	break;
       default:
-	gasneti_fatalerror("RARAM_event on SEND_END for AMLong Data, tag = %u",tag);
+	gasneti_fatalerror("RARSRC_event on SEND_END for AMLong Data, tag = %u",tag);
       }
     }
     break;
@@ -783,14 +814,8 @@ static void RARAM_event(ptl_event_t *ev)
     gasnete_op_markdone(op, 1);
     break;
 
-  case PTL_EVENT_PUT_END:
-    /* Must be data packet of AM Long */
-    /* isReq=true, isHeader=false, isPacked=false, numargs and ghandler in lid cache */
-    exec_amlong_handler(1,0,0,ev,1,-1);
-    break;
-
   default:
-    gasneti_fatalerror("Invalid event %s on RARAM",ptl_event_str[ev->type]);
+    gasneti_fatalerror("Invalid event %s on RARSRC",ptl_event_str[ev->type]);
   }
 }
 
@@ -1146,14 +1171,17 @@ static void CB_event(ptl_event_t *ev)
 
 /* ---------------------------------------------------------------------------------
  * Construct the memory descriptors that cover the Remote Access Region.
- * There are two Memory Descriptors:
+ * There are three Memory Descriptors that cover this region:
  *   - RAR_MD covers the region but has no event queue.  It is the target of
  *     remote Put and Get operations.
- *   - RARAM_MD also covers the RAR, but this MD is associated with an event
- *     queue.  This MD is used for the data payload Puts of AM_Long operations
- *     as well as the src/dest of Put/Get operations when the src/dest happen
- *     to lie in the local RAR (and we need the events to complete the ops).
- * Both are linked on the GASNETC_RAR_PTE portals table entry list.
+ *   - RARSRC_MD is a free floating MD used in the following cases:
+ *     (1) Src of Extended Put when src region lies in local RAR
+ *     (2) Dest of Extended Get
+ *     (3) Src of AMLong Data Put when src region lies in local RAR.
+ *   - RARAM_MD also covers the RAR.  This MD is associated with an event
+ *     queue and is used as the target of AMLong Request and Reply Data messages.
+ *     Receipt of a PUT_END on this MD causes the execution of an AMLong handler.
+ * Both RAR_MD and RARAM_MD are linked on the GASNETC_RAR_PTE portals table entry list.
  * --------------------------------------------------------------------------------- */
 static void RAR_init()
 {
@@ -1209,20 +1237,40 @@ static void RAR_init()
   md.length = rar_len;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
-  md.options = PTL_MD_OP_PUT | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE |
-    PTL_MD_EVENT_START_DISABLE;
+  md.options = PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uint64_t)GASNETC_RARAM_MD;
 #else
   md.user_ptr = (void*)RARAM_event;
 #endif
-  md.eq_handle = gasnetc_EQ_h;
+  md.eq_handle = gasnetc_AM_EQ_h;
 
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RAR.me_h, match_id, GASNETC_PTL_RARAM_BITS,
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
 			      &gasnetc_RARAM.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RARAM.me_h, md, PTL_RETAIN, &gasnetc_RARAM.md_h));
 
+  /* free floating MD */
+  gasnetc_RARSRC.start = rar_start;
+  gasnetc_RARSRC.nbytes = rar_len;
+  gasnetc_RARSRC.alignment = GASNET_PAGESIZE;
+  gasnetc_RARSRC.actual_start = NULL;      /* this gets lost in gasneti_segmentattach, so cant free */
+  gasnetc_RARSRC.name = "RARSRC";
+  gasnetc_RARSRC.use_chunks = 0;
+
+  md.start = rar_start;
+  md.length = rar_len;
+  md.threshold = PTL_MD_THRESH_INF;
+  md.max_size = 0;
+  md.options = PTL_MD_OP_PUT | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
+#if GASNETC_USE_EQ_HANDLER
+  md.user_ptr = (void*)(uint64_t)GASNETC_RARSRC_MD;
+#else
+  md.user_ptr = (void*)RARSRC_event;
+#endif
+  md.eq_handle = gasnetc_BUF_EQ_h;
+
+  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_UNLINK, &gasnetc_RARSRC.md_h));
 }
 
 /* ------------------------------------------------------------------------------------
@@ -1234,6 +1282,7 @@ static void RAR_exit()
   /* these will automatically unlink the match-list entries as well */
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_RAR.md_h));
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_RARAM.md_h));
+  GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_RARSRC.md_h));
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1259,7 +1308,7 @@ static void RplSB_init()
 #else
   md.user_ptr = (void*)RplSB_event;
 #endif
-  md.eq_handle = gasnetc_EQ_h;
+  md.eq_handle = gasnetc_BUF_EQ_h;
 
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_RplSB.md_h));
   GASNETI_TRACE_PRINTF(C,("RplSB_init: %s %lu chunks md=%lu",gasnetc_RplSB.name,(ulong)gasnetc_RplSB_numchunk,(ulong)gasnetc_RplSB.md_h));
@@ -1318,7 +1367,7 @@ static void ReqRB_init()
 #else
     md.user_ptr = (void*)ReqRB_event;
 #endif
-    md.eq_handle = gasnetc_EQ_h;
+    md.eq_handle = gasnetc_AM_EQ_h;
 
     if (i == 0) {
       /* make first in list */
@@ -1346,7 +1395,7 @@ static void ReqRB_init()
 #else
   md.user_ptr = (void*)CB_event;
 #endif
-  md.eq_handle = gasnetc_EQ_h;
+  md.eq_handle = gasnetc_AM_EQ_h;
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_ReqRB[gasnetc_ReqRB_pool_size-1].me_h, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_CB.me_h, md, PTL_RETAIN, &gasnetc_CB.md_h));
 
@@ -1402,7 +1451,7 @@ static void ReqSB_init()
 #else
   md.user_ptr = (void*)ReqSB_event;
 #endif
-  md.eq_handle = gasnetc_EQ_h;
+  md.eq_handle = gasnetc_BUF_EQ_h;
 
   /* Insert this after the Catch-Basin ME entry (at end of list) */
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, match_id, GASNETC_PTL_REQSB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
@@ -1578,7 +1627,7 @@ extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc)
 
 /* ---------------------------------------------------------------------------------
  * Function to issue data Put of AM Request Long payload to remote RAR.
- * If local data source is in RAR, use the RARAM MD.
+ * If local data source is in RAR, use the RARSRC MD.
  * If not, alloc a TMP MD, which will be unlinked by the event handlers.
  * If !sync, no need for caller to wait for put is off-node before returning.
  * If sync, bump amlongdata_cnt.  Event handler will decrement counter.
@@ -1605,7 +1654,7 @@ extern void gasnetc_amlong_datasend(int sync, uint32_t lid, gasnet_node_t dest, 
   }
 
   if (gasnetc_in_local_rar(src_addr,nbytes)) {
-    md_h = gasnetc_RARAM.md_h;
+    md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src_addr);
   } else {
     /* alloc a temp md for the source region */
@@ -1994,10 +2043,10 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
 /* ---------------------------------------------------------------------------------
  * get a chunk from the allocator.
  * returns 1=TRUE on success, 0=FAIL if not able to satisfly request.
- * Will poll network a bounded number of times if necessary to alloc chunk.
- * MLW: may want input flag to control this.
+ * May poll network a bounded number of times (with given poll_type)
  * --------------------------------------------------------------------------------- */
-extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset)
+extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
+			       gasnetc_pollflag_t poll_type)
 {
     gasnetc_chunk_t *p;
     int poll_max = 2;
@@ -2010,7 +2059,11 @@ extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size
     }
     while ((buf->freelist == NULL) && cnt < poll_max) {
       /* poll npoll times, to see if slot frees up */
-      GASNETI_SAFE(gasneti_AMPoll());
+      if (poll_type == GASNETC_FULL_POLL) {
+	GASNETI_SAFE(gasneti_AMPoll());
+      } else if (poll_type == GASNETC_SAFE_POLL) {
+	gasnetc_poll(poll_type);
+      }
       cnt++;
     }
     if (buf->freelist == NULL) return 0;
@@ -2049,10 +2102,9 @@ extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset)
 /* ---------------------------------------------------------------------------------
  * Allocate a temp md to be used as the source of a Put or destination
  * of a Get operation.  MD to be free floating, not target of remote op.
- * MLW: Can make more general by specifying OPTIONS as arg.  May need this
- *      for CB recovery.
+ * Associated with Buffer EQ, which is always safe to poll against.
  * --------------------------------------------------------------------------------- */
-extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes, ptl_handle_eq_t eq_h)
+extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes)
 {
   ptl_md_t md;
   ptl_handle_md_t md_h;
@@ -2061,7 +2113,9 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes, ptl_handl
    * Poll until number of outstanding TMP MDs is less than limit.
    */
   GASNETI_TRACE_PRINTF(C,("Alloc_Tmpmd: num TmpMD outstanding = %d",gasneti_weakatomic_read(&gasnetc_tmpmd_count,0)));
-  gasneti_pollwhile( (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd) );
+  while( gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd ) {
+    gasnetc_portals_poll(GASNETC_SAFE_POLL);
+  }
   gasneti_weakatomic_increment(&gasnetc_tmpmd_count,0);
 
   md.start = start;
@@ -2074,7 +2128,7 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes, ptl_handl
 #else
   md.user_ptr = (void*)TMPMD_event;
 #endif
-  md.eq_handle = eq_h;
+  md.eq_handle = gasnetc_BUF_EQ_h;
 
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &md_h));
 
@@ -2165,12 +2219,20 @@ extern void gasnetc_init_portals_resources(void)
     gasnetc_conn_state[i].lids = NULL;
   }
 
-  /* On first cut, lets just create a single EQ for all of the MDs that will
-   * generate events.  This includes:
-   * BounceBuffer:  number = 2*num_chunks;
-   * RARAM:         unknown ... scale with num procs? what scaling factor?
-   * TMPMD:         2*max number of tmpmds
+  /* Create two EQs:
+   * gasnetc_BUF_EQ_h:  Used to reclaim buffer space.  Always safe to poll on this
+   *    since it never consumes additional resources and never resursively polls.
+   *    Bound to the following MDs:  RplSB, TMPMDs, RARSRC and ReqSB.
+   *    Size = Num RplSB chunks + 2* max num TMPMDs + 2* max num ReqSB Chunks + N RAR Puts.
+   *    Counter will record the number of events in use at any time, will have to SAFE_POLL
+   *    in case where num events would cause overflow.
+   * gasnetc_AM_EQ_h:   Used to process AM Request messages.  Cannot poll on this
+   *    eq unless there are at least one RplSB and one TMPMD buffer available.
+   *    Bound to the following MDs:  ReqRB, RARAM.
+   *    Size = Num AMLong data puts + Num AM Requests
    */
+
+#error MLW: Stopped here.  Need to alloc EQs.
   num_chunk = gasnetc_ReqSB_numchunk + gasnetc_RplSB_numchunk 
     + gasnetc_ReqRB_pool_size*gasnetc_ReqRB_numchunk;
   eq_len = 2*(num_chunk + gasnetc_max_tmpmd);
@@ -2224,7 +2286,8 @@ extern void gasnetc_portals_exit()
   RAR_exit();
 
   /* remove the event queues */
-  GASNETC_PTLSAFE(PtlEQFree(gasnetc_EQ_h));
+  GASNETC_PTLSAFE(PtlEQFree(gasnetc_BUF_EQ_h));
+  GASNETC_PTLSAFE(PtlEQFree(gasnetc_AM_EQ_h));
 
   /* free the proc id map */
   gasneti_free(gasnetc_procid_map);
@@ -2240,9 +2303,11 @@ extern void gasnetc_portals_exit()
  * This gets called by gasneti_AMPoll() after checking for incoming MPI messages 
  * In the current implementation, we only have one event queue,
  * so just check it and run appropriate handler
+
+ * Use poll_type to decide which EQs to poll
  */
 
-extern void gasnetc_portals_poll(void)
+extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 {
   ptl_event_t ev;
   int rc;
@@ -2276,6 +2341,8 @@ extern void gasnetc_portals_poll(void)
     }
   }
 
+#if 0
+  /* eq_bench benchmark says its never useful to call Poll, unless want to block for a while */
   if (processed == 0) {
     /* No easy pickings... try polling, which may enter the kernel */
     int which = 0;
@@ -2295,6 +2362,8 @@ extern void gasnetc_portals_poll(void)
       break;
     }
   }
+#endif
+
   GASNETI_TRACE_EVENT_VAL(C, EVENT_CNT, processed);
 }
 
@@ -2359,6 +2428,10 @@ extern void gasnetc_event_handler(ptl_event_t *ev)
   switch (which_md) {
   case GASNETC_RARAM_MD:
     RARAM_event(ev);
+    break;
+
+  case GASNETC_RARSRC_MD:
+    RARSRC_event(ev);
     break;
 
   case GASNETC_REQSB_MD:

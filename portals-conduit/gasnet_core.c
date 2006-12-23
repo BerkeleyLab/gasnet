@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/12/22 01:02:14 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2006/12/23 01:43:27 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -371,7 +371,7 @@ extern int gasnetc_AMPoll() {
   int retval;
   GASNETI_CHECKATTACH();
 
-  gasnetc_portals_poll();
+  gasnetc_portals_poll(GASNETC_FULL_POLL);
 
   return GASNET_OK;
 }
@@ -423,7 +423,6 @@ extern int gasnetc_AMRequestShortM(
   /* get the addr of the start of the chunk */
   data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
 
-
   /* construct the match bits */
   GASNETC_PACK_AM_MBITS(mbits,local_offset,amtype,numargs,handler,targ_mbits);
 
@@ -438,6 +437,7 @@ extern int gasnetc_AMRequestShortM(
   for (i=2; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -504,6 +504,7 @@ extern int gasnetc_AMRequestMediumM(
   for (i=2; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -592,6 +593,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   for (i=1; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -696,6 +698,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   for (i=1; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -791,6 +794,7 @@ extern int gasnetc_AMReplyShortM(
   for (i=2; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -824,7 +828,7 @@ extern int gasnetc_AMReplyMediumM(
   gasnet_handlerarg_t   garg2 = 0;
   ptl_match_bits_t      mbits;
   ptl_hdr_data_t        hdr_data = 0;
-  ptl_size_t            msg_bytes;
+  ptl_size_t            msg_bytes = 0;
   int32_t               payload_bytes = nbytes;
   uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
   int                   i, pad;
@@ -848,6 +852,7 @@ extern int gasnetc_AMReplyMediumM(
   for (i=2; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -897,7 +902,7 @@ extern int gasnetc_AMReplyLongM(
   int                   isPacked = (nbytes < GASNETC_MAX_AMLONG_PACKED);
   ptl_match_bits_t      mbits;
   ptl_hdr_data_t        hdr_data = 0;
-  ptl_size_t            msg_bytes;
+  ptl_size_t            msg_bytes = 0;
   int32_t               payload_bytes = nbytes;
   uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
   int                   i, pad;
@@ -924,9 +929,10 @@ extern int gasnetc_AMReplyLongM(
   GASNETC_PACK_AM_MBITS(mbits,garg0,amtype,numargs,handler,targ_mbits);
 
   /* pack remaining args in data payload */
-  for (i=1; i < numargs; i++) {
+  for (i=2; i < numargs; i++) {
     garg0 = va_arg(argptr,gasnet_handlerarg_t);
     memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -943,7 +949,6 @@ extern int gasnetc_AMReplyLongM(
     data += nbytes;
     msg_bytes += nbytes;
 
-    gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
     /* send message */

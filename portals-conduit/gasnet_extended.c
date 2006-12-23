@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/12/20 01:11:27 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2006/12/23 01:43:27 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -594,7 +594,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
       GASNETI_TRACE_EVENT(C, GET_NB_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
     } else if ( (nbytes <= (GASNETC_CHUNKSIZE - (sizeof(void*))))  &&
-		gasnetc_chunk_alloc(&gasnetc_ReqSB, nbytes, &local_offset) ) {
+		gasnetc_chunk_alloc(&gasnetc_ReqSB, nbytes, &local_offset, GASNETC_SAFE_POLL) ) {
       /* Encode dest addr in BB chunk for later copy */
       void* bb;
       md_h = gasnetc_ReqSB.md_h;
@@ -622,7 +622,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     if (gasnete_putget_poll > 0) {
       if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll-1) {
 	/* this will reset gasnete_putget_poll_cnt to zero */
-	gasnetc_portals_poll();
+	gasnetc_portals_poll(GASNETC_FULL_POLL);
       } else {
 	/* bump the put/get counter */
 	gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
@@ -678,7 +678,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       GASNETI_TRACE_EVENT(C, PUT_NB_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
     } else if ( (nbytes <= GASNETC_CHUNKSIZE)  &&
-		gasnetc_chunk_alloc(&gasnetc_ReqSB,nbytes, &local_offset) ) {
+		gasnetc_chunk_alloc(&gasnetc_ReqSB,nbytes, &local_offset, GASNETC_SAFE_POLL) ) {
       void* bb;
       md_h = gasnetc_ReqSB.md_h;
       /* get the addr of the start of the chunk */
@@ -718,7 +718,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     if (gasnete_putget_poll && (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll)) {
       /* this will reset gasnete_putget_poll_cnt to zero */
-      gasnetc_portals_poll();
+      gasnetc_portals_poll(GASNETC_FULL_POLL);
     }
 
     return (gasnet_handle_t)op;
@@ -871,7 +871,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
       GASNETI_TRACE_EVENT(C, GET_NBI_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
     } else if ( (toget <= (GASNETC_CHUNKSIZE - (sizeof(void*))))  &&
-		gasnetc_chunk_alloc(&gasnetc_ReqSB,toget, &local_offset) ) {
+		gasnetc_chunk_alloc(&gasnetc_ReqSB,toget, &local_offset, GASNETC_SAFE_POLL) ) {
       /* Encode dest addr in BB chunk for later copy */
       void* bb;
       md_h = gasnetc_ReqSB.md_h;
@@ -903,7 +903,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     if (gasnete_putget_poll) {
       if (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll-1) {
 	/* this will reset gasnete_putget_poll_cnt to zero */
-	gasnetc_portals_poll();
+	gasnetc_portals_poll(GASNETC_FULL_POLL);
       } else {
 	/* bump the put/get counter */
 	gasneti_weakatomic_increment(&gasnete_putget_poll_cnt, 0);
@@ -960,7 +960,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       }
       GASNETI_TRACE_EVENT(C, PUT_NBI_RAR);
     } else if ( (toput <= GASNETC_CHUNKSIZE)  &&
-		gasnetc_chunk_alloc(&gasnetc_ReqSB,toput, &local_offset) ) {
+		gasnetc_chunk_alloc(&gasnetc_ReqSB,toput, &local_offset, GASNETC_SAFE_POLL) ) {
       /* Encode dest addr in BB chunk for later copy */
       void* bb;
       md_h = gasnetc_ReqSB.md_h;
@@ -1006,7 +1006,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 
   if (gasnete_putget_poll && (gasneti_weakatomic_read(&gasnete_putget_poll_cnt,0) > gasnete_putget_poll)) {
     /* this will reset gasnete_putget_poll_cnt to zero */
-    gasnetc_portals_poll();
+    gasnetc_portals_poll(GASNETC_FULL_POLL);
   }
 }
 

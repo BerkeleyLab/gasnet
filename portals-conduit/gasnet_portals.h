@@ -148,6 +148,7 @@ extern int gasnetc_use_AM_portals;
 /* Types of GASNET Portals Memory Descriptors */
 enum { GASNETC_RAR_MD,
        GASNETC_RARAM_MD,
+       GASNETC_RARSRC_MD,
        GASNETC_REQSB_MD,
        GASNETC_REQRB_MD,
        GASNETC_RPLSB_MD,
@@ -234,14 +235,18 @@ extern gasnetc_PtlBuffer_t gasnetc_RplSB;    /* MLW: Can elim this, and alloc a 
 extern gasnetc_PtlBuffer_t *gasnetc_ReqRB;   /* an array of buffers */
 extern gasnetc_PtlBuffer_t gasnetc_RAR;
 extern gasnetc_PtlBuffer_t gasnetc_RARAM;
+extern gasnetc_PtlBuffer_t gasnetc_RARSRC;
 extern gasnetc_PtlBuffer_t gasnetc_CB;
 
 /* handles to Portals network interface, memory descriptors and event queues */
 extern ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
-extern ptl_handle_eq_t gasnetc_EQ_h;              /* Handle to the combined Event Queue */
+extern ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
+extern ptl_handle_eq_t gasnetc_BUF_EQ_h;          /* Handle to the Buffer Event Queue */
 
 /* MLW: Refine this ... just an estimate */
 #define GASNETC_MAX_AMLONG_PACKED (GASNETC_CHUNKSIZE - 20*32)
+
+typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_pollflag_t;
 
 #define GASNETC_MAX_POLL_EVENTS 40
 extern int gasnetc_max_poll_events;
@@ -278,7 +283,7 @@ extern int gasnete_putget_limit;
     /* poll until local node has enough resources to send an AM */ \
     /* MLW: INSERT PROPER CODE HERE */ \
     /* Allocate a send buffer (Note that chunk_alloc will poll internally) */ \
-    while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) == 0) {}; \
+    while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset), GASNETC_FULL_POLL) == 0) {}; \
   } while (0)
 
 #define GASNETC_PACK_AM_MBITS(mbits, offset, amtype, narg, hndlr, targ_mbits) \
@@ -363,7 +368,7 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 extern void gasnetc_init_portals_resources(void);
 extern void gasnetc_portals_exit();
-extern void gasnetc_portals_poll(void);
+extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern void gasnetc_testBootExch(void);
