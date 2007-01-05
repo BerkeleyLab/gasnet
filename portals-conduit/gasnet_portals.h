@@ -32,6 +32,9 @@
 #define GASNETC_PTL_MAX_TRANS_SZ 2147483648UL
 #endif
 
+/* types of polling */
+typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_pollflag_t;
+
 /* Portals Access table not implemented on XT3 */
 #define GASNETC_PTL_AC_ID  0
 
@@ -54,44 +57,81 @@
 #define GASNETC_PTL_MSG_GET      0x20
 #define GASNETC_PTL_MSG_AM       0x40
 #define GASNETC_PTL_MSG_AMDATA   0x80
-/* DOLC - Do Local Completion flag.  Indicates to event handler that it must
- * decrement the local completion counter for this gasnet operation
- */
 #define GASNETC_PTL_MSG_DOLC     0x80
+/* DOLC - Do Local Completion flag for Extended API Puts/Gets.
+ * Can occupy same bit as AMDATA flag since is only used when PUT or GET
+ * Indicates to event handler that it must decrement the local completion counter
+ * for this gasnet operation
+ */
 
+/* Additional flags used for Active Messages */
 #define GASNETC_PTL_AM_SHORT     0x01
 #define GASNETC_PTL_AM_MEDIUM    0x02
 #define GASNETC_PTL_AM_LONG      0x04
 #define GASNETC_PTL_AM_REQUEST   0x08
 #define GASNETC_PTL_AM_PACKED    0x10
+#define GASNETC_PTL_AM_SYNC      0x20
 
 /* Token flag values */
 #define GASNETC_PTL_REPLY_SENT   0x01
 
 /* Masks used in constructing 64-bit bit fields */
-#define GASNETC_MASK_UPPER32     0xFFFFFFFF00000000ULL
-#define GASNETC_MASK_LOWER32     0x00000000FFFFFFFFULL
-#define GASNETC_MASK_OPBITS      0x00000000FFFFFF00ULL
-#define GASNETC_MASK_BYTE0       0x00000000000000FFULL
-#define GASNETC_MASK_BYTE1       0x000000000000FF00ULL
-#define GASNETC_MASK_BYTE2       0x0000000000FF0000ULL
-#define GASNETC_MASK_BYTE3       0x00000000FF000000ULL
-#define GASNETC_MASK_BYTE4       0x000000FF00000000ULL
-#define GASNETC_MASK_BYTE5       0x0000FF0000000000ULL
-#define GASNETC_MASK_BYTE6       0x00FF000000000000ULL
-#define GASNETC_MASK_BYTE7       0xFF00000000000000ULL
+#define GASNETC_SELECT_UPPER32     0xFFFFFFFF00000000ULL
+#define GASNETC_SELECT_LOWER32     0x00000000FFFFFFFFULL
+#define GASNETC_SELECT_OPBITS      0x00000000FFFFFF00ULL
+#define GASNETC_SELECT_BYTE0       0x00000000000000FFULL
+#define GASNETC_SELECT_BYTE1       0x000000000000FF00ULL
+#define GASNETC_SELECT_BYTE2       0x0000000000FF0000ULL
+#define GASNETC_SELECT_BYTE3       0x00000000FF000000ULL
+#define GASNETC_SELECT_BYTE4       0x000000FF00000000ULL
+#define GASNETC_SELECT_BYTE5       0x0000FF0000000000ULL
+#define GASNETC_SELECT_BYTE6       0x00FF000000000000ULL
+#define GASNETC_SELECT_BYTE7       0xFF00000000000000ULL
 
 /* x is a uint64_t and a and b are int32_t */
-#define GASNETC_PACK_UPPER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_LOWER32) | ((uint64_t)(rhs) << 32)
-#define GASNETC_PACK_LOWER(lhs,rhs) lhs = ((lhs) & GASNETC_MASK_UPPER32) | ((uint64_t)(rhs) & GASNETC_MASK_LOWER32)
-#define GASNETC_PACK_2INT(x,up,low) x = ((uint64_t)(up)<<32) | ((uint64_t)(low) & GASNETC_MASK_LOWER32)
+#define GASNETC_PACK_UPPER(lhs,rhs) lhs = ((lhs) & GASNETC_SELECT_LOWER32) | ((uint64_t)(rhs) << 32)
+#define GASNETC_PACK_LOWER(lhs,rhs) lhs = ((lhs) & GASNETC_SELECT_UPPER32) | ((uint64_t)(rhs) & GASNETC_SELECT_LOWER32)
+#define GASNETC_PACK_2INT(x,up,low) x = ((uint64_t)(up)<<32) | ((uint64_t)(low) & GASNETC_SELECT_LOWER32)
 
 #define GASNETC_UNPACK_UPPER(x) (int32_t)((x)>>32)
-#define GASNETC_UNPACK_LOWER(x) (int32_t)((x)&GASNETC_MASK_LOWER32)
+#define GASNETC_UNPACK_LOWER(x) (int32_t)((x)&GASNETC_SELECT_LOWER32)
 #define GASNETC_UNPACK_2INT(x,up,low) do { \
     (up) = GASNETC_UNPACK_UPPER(x);	   \
     (low) = GASNETC_UNPACK_LOWER(x);	   \
   } while (0)
+
+#define GASNETC_COMMON_AMSTART(state,offset) do {	  \
+    /* poll until dest node is out of recovery */ \
+    gasneti_pollwhile( gasneti_weakatomic_read(&((state)->in_recovery), 0) ); \
+    /* poll until local node has enough resources to send an AM */ \
+    gasneti_AMPoll(); /* MLW: Insure at least one full poll before AM */ \
+    /* Allocate a send buffer (Note that chunk_alloc will poll internally) */ \
+    while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset), GASNETC_FULL_POLL) == 0) {}; \
+  } while (0)
+
+#define GASNETC_PACK_AM_MBITS(mbits, offset, numarg, hndlr, amflag, targ_mbits) \
+    (mbits) = ((uint64_t)(offset) << 32) | ( ((uint64_t)(numarg) & GASNETC_SELECT_BYTE0) << 24) \
+      | ((uint64_t)(hndlr) << 16) | ((uint64_t)(amflag) << 8) | (uint64_t)(targ_mbits)
+
+#define GASNETC_UNPACK_AM_MBITS(mbits, offset, numarg, hndlr, amflag, targ_mbits) do { \
+    (offset)     = ((mbits)>>32;                             \
+    (numarg)     = ((mbits)&GASNETC_SELECT_BYTE3)>>24;       \
+    (hndlr)      = ((mbits)&GASNETC_SELECT_BYTE2)>>16;       \
+    (amflag)     = ((mbits)&GASNETC_SELECT_BYTE1)>>8;        \
+    (targ_mbits) =  (mbits)&GASNETC_SELECT_BYTE0;            \
+  } while(0)
+
+#define GASNETC_GET_AM_LOWBITS(mbits,numarg,ghndlr,amflag) do { \
+    (numarg) = ((mbits)&GASNETC_SELECT_BYTE3) >> 24;    \
+    (ghndlr) = ((mbits)&GASNETC_SELECT_BYTE2) >> 16;    \
+    (amflag) = ((mbits)&GASNETC_SELECT_BYTE1) >>  8;    \
+  } while(0)
+
+#define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
+#define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
+
+#define GASNETE_PTL_MBITS_ENCODE_HANDLE(mbits,op) \
+    do { mbits |= ((0xFF & op->threadidx) << 24) | ((op->addr.fulladdr & 0xFFFF)<<8); } while (0)
 
 #define GASNETC_COMPUTE_DOUBLE_PAD(n,pad) do { \
     int p = (n) % sizeof(double);  \
@@ -101,14 +141,14 @@
 /* AM tokens used by portals */
 typedef struct token_rec {
   uint8_t           flags;
-  uint32_t          rplsb_offset;
   uint32_t          initiator_offset;
+  ptl_size_t        rplsb_offset;
   ptl_process_id_t  initiator;
   gasnet_node_t     srcnode;
 } gasnetc_ptl_token_t;
 
-#define GASNETC_LID_DATA_HERE    0x1;
-#define GASNETC_LID_HEADER_HERE  0x2;
+#define GASNETC_LID_DATA_HERE    0x1
+#define GASNETC_LID_HEADER_HERE  0x2
 /* data cached by Long Put or AM Long Header */
 typedef struct gasnetc_amlongcache_rec {
   uint8_t             flags;
@@ -118,7 +158,7 @@ typedef struct gasnetc_amlongcache_rec {
   uint32_t            narg;
   struct gasnetc_amlongcache_rec *next;
   void               *data;
-  ptl_size_t          datalen;
+  size_t              datalen;
   gasnet_handlerarg_t args[];
 } gasnetc_amlongcache_t;
 
@@ -243,10 +283,8 @@ extern ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handl
 extern ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
 extern ptl_handle_eq_t gasnetc_BUF_EQ_h;          /* Handle to the Buffer Event Queue */
 
-/* MLW: Refine this ... just an estimate */
-#define GASNETC_MAX_AMLONG_PACKED (GASNETC_CHUNKSIZE - 20*32)
-
-typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_pollflag_t;
+/* max packed am data field = 1024 - 15*4 - 8  (max of 15 args + 8 bytes for destaddr, no pad) */
+#define GASNETC_MAX_AMLONG_PACKED 956
 
 #define GASNETC_MAX_POLL_EVENTS 40
 extern int gasnetc_max_poll_events;
@@ -277,34 +315,6 @@ extern gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
 extern gasneti_weakatomic_t gasnete_putget_inflight;
 extern int gasnete_putget_limit;
 
-#define GASNETC_COMMON_AMSTART(state,offset) do {	  \
-    /* poll until dest node is out of recovery */ \
-    gasneti_pollwhile( gasneti_weakatomic_read(&((state)->in_recovery), 0) ); \
-    /* poll until local node has enough resources to send an AM */ \
-    /* MLW: INSERT PROPER CODE HERE */ \
-    /* Allocate a send buffer (Note that chunk_alloc will poll internally) */ \
-    while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset), GASNETC_FULL_POLL) == 0) {}; \
-  } while (0)
-
-#define GASNETC_PACK_AM_MBITS(mbits, offset, amtype, narg, hndlr, targ_mbits) \
-    (mbits) = ((uint64_t)(offset) << 32) | ((uint64_t)(amtype) << 24)	\
-      | ( ((uint64_t)(narg) & GASNETC_MASK_BYTE0) << 16) | ((uint64_t)(hndlr) << 8) \
-      | (targ_mbits)
-
-#define PACK_SHORT_MED_HDR(hdr,srcnode,arg0) \
-  (hdr) = ((uint64_t)(srcnode) << 32) | ((uint64_t)(arg0) & GASNETC_MASK_LOWER32)
-
-#define UNPACK_SHORT_MED_HDR(hdr,srcnode,arg0) do { \
-    srcnode = (uint32_t)((uint64_t)(hdr) >> 32); \
-    arg0 = (int32_t)((uint64_t)(hdr) & GASNETC_MACK_LOWER32); \
-    while(0)
-
-#define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
-#define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
-
-#define GASNETE_PTL_MBITS_ENCODE_HANDLE(mbits,op) \
-    do { mbits |= ((0xFF & op->threadidx) << 24) | ((op->addr.fulladdr & 0xFFFF)<<8); } while (0)
-
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
 void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnete_op_t *op)
 {
@@ -316,25 +326,15 @@ void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnet
     uint32_t th_b   = ( ((uint32_t)op->threadidx) << 24)    & 0xFF000000;
     uint32_t addr_b = ( ((uint32_t)op->addr.fulladdr) << 8) & 0x00FFFF00;
     uint32_t m_b    = ( (uint32_t)msg_type )                & 0x000000FF;
-    *mbits = (GASNETC_MASK_UPPER32 & *mbits) | (GASNETC_MASK_LOWER32 & (ptl_match_bits_t)(th_b | addr_b | m_b));
+    *mbits = (GASNETC_SELECT_UPPER32 & *mbits) | (GASNETC_SELECT_LOWER32 & (ptl_match_bits_t)(th_b | addr_b | m_b));
     GASNETI_TRACE_PRINTF(C,("set lowbits th = 0x%x, addr = 0x%x, type = 0x%x, bits = 0x%llx",th_b,addr_b,m_b,*mbits));
-}
-
-GASNETI_INLINE(gasnetc_get_am_lowbits)
-void gasnetc_get_am_lowbits(ptl_match_bits_t mbits, uint8_t *amflag, uint8_t *numarg, uint8_t *ghndlr)
-{
-    uint32_t lb    = (uint32_t)(GASNETC_MASK_LOWER32 & mbits);
-    *amflag        = (uint8_t)(lb >> 24);
-    *numarg        = (uint8_t)((lb & 0x00FF0000) >> 16);
-    *ghndlr        = (uint8_t)((lb & 0x0000FF00) >> 8);
-    GASNETI_TRACE_PRINTF(C,("get am bits=0x%lx, flag=0x%x, numarg=0x%x, hndlr=0x%x",(unsigned long)mbits,*amflag,*numarg,*ghndlr));
 }
 
 GASNETI_INLINE(gasnete_get_op_lowbits)
 void gasnete_get_op_lowbits(ptl_match_bits_t mbits, uint8_t *threadid, gasnete_opaddr_t *addr)
 			    
 {
-    uint32_t lb    = (uint32_t)(GASNETC_MASK_LOWER32 & mbits);
+    uint32_t lb    = (uint32_t)(GASNETC_SELECT_LOWER32 & mbits);
     *threadid      = (uint8_t)(lb >> 24);
     addr->fulladdr = (uint16_t)((lb & 0x00FFFF00) >> 8);
     GASNETI_TRACE_PRINTF(C,("get bits = 0x%lx, th = 0x%x, addr = 0x%x",(unsigned long)mbits,*threadid,addr->fulladdr));
@@ -357,7 +357,7 @@ extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
 
 /* Functions we export to the core and extended API */
 /* MLW: some of these may not have to be exported */
-extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
+extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset, gasnetc_pollflag_t poll_type);
 extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
 extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle_eq_t eq_h);
 extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h);
@@ -367,6 +367,7 @@ extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 extern void gasnetc_init_portals_resources(void);
+extern void gasnetc_portals_preexit(int do_trace);
 extern void gasnetc_portals_exit();
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
@@ -374,7 +375,7 @@ extern void gasnetc_ptl_trace_finish(void);
 extern void gasnetc_testBootExch(void);
 extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
 extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev);
-extern void gasnetc_amlong_datasend(int sync, uint32_t lid, gasnet_node_t dest, void *src_addr,
+extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest, void *src_addr,
 				    size_t nbytes, void* dest_addr);
 extern uint32_t gasnetc_new_lid(gasnet_node_t dest);
 

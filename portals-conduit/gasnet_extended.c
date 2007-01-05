@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/12/23 01:43:27 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2007/01/05 19:41:05 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -202,15 +202,6 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
       int i;
       int seen[256];
       gasnete_opaddr_t addr = thread->eop_free;
-
-      #if 0
-      if (gasneti_mynode == 0)
-        for (i=0;i<256;i++) {                                   
-          fprintf(stderr,"%i:  %i: next=%i\n",gasneti_mynode,i,buf[i].addr.opidx);
-          fflush(stderr);
-        }
-        sleep(5);
-      #endif
 
       gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
@@ -589,7 +580,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(dest,nbytes)) {
-      md_h = gasnetc_RARAM.md_h;
+      md_h = gasnetc_RARSRC.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
       GASNETI_TRACE_EVENT(C, GET_NB_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
@@ -609,7 +600,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
     } else {
       /* alloc a temp md for the destination region */
-      md_h = gasnetc_alloc_tmpmd(dest, nbytes, gasnetc_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(dest, nbytes, gasnetc_BUF_EQ_h);
       local_offset = 0;
       GASNETI_TRACE_EVENT(C, GET_NB_TMPMD);
       SET_LOCBUF(local_buf,LOCBUF_TMP);
@@ -672,7 +663,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     /* Determine destination MD for Ptl Put */
     if (gasnetc_in_local_rar(src,nbytes)) {
-      md_h = gasnetc_RARAM.md_h;
+      md_h = gasnetc_RARSRC.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
       if (! isbulk) wait_for_local_completion = 1;
       GASNETI_TRACE_EVENT(C, PUT_NB_RAR);
@@ -689,7 +680,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the source region */
-      md_h = gasnetc_alloc_tmpmd(src, nbytes, gasnetc_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(src, nbytes, gasnetc_BUF_EQ_h);
       local_offset = 0;
       if (! isbulk) wait_for_local_completion = 1;
       GASNETI_TRACE_EVENT(C, PUT_NB_TMPMD);
@@ -866,7 +857,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     /* encode gasnet handle into match bits, upper bits ignored */
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(dest,toget)) {
-      md_h = gasnetc_RARAM.md_h;
+      md_h = gasnetc_RARSRC.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
       GASNETI_TRACE_EVENT(C, GET_NBI_RAR);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
@@ -885,7 +876,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the destination region */
-      md_h = gasnetc_alloc_tmpmd(dest, toget, gasnetc_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(dest, toget, gasnetc_BUF_EQ_h);
       local_offset = 0;
       GASNETI_TRACE_EVENT(C, GET_NBI_TMPMD);
       SET_LOCBUF(local_buf,LOCBUF_TMP);
@@ -950,7 +941,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(src,toput)) {
-      md_h = gasnetc_RARAM.md_h;
+      md_h = gasnetc_RARSRC.md_h;
       local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
       SET_LOCBUF(local_buf,LOCBUF_RAR);
       if (! isbulk) {
@@ -972,7 +963,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the source region */
-      md_h = gasnetc_alloc_tmpmd(src, toput, gasnetc_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(src, toput, gasnetc_BUF_EQ_h);
       local_offset = 0;
       if (! isbulk) {
 	wait_for_local_completion = 1;
