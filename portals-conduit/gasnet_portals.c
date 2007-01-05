@@ -806,8 +806,9 @@ static void RARAM_event(ptl_event_t *ev)
   switch (ev->type) {
 
   case PTL_EVENT_PUT_END:
-    /* Must be data packet of AM Long */
-    exec_amlong_data(isReq, ev);
+    /* Must be data packet of AM Long Request */
+    gasneti_assert( isReq );
+    exec_amlong_data(1, ev);
     break;
 
   default:
@@ -819,12 +820,14 @@ static void RARAM_event(ptl_event_t *ev)
  * Handle events on the local RARSRC Memory Descriptor
  * Used as :
  *   - source of GASNet Puts or dest of Gets when data region happens to lie in RAR.
- *   - source of AM_Long when data region happens to lie in RAR.
+ *   - source of AM_Long Request messages when data region happens to lie in RAR.
+ *   - dest of AM_Long Reply messages
  * Events:
  *  SEND_END => Put (or Get) local completion
  *       ACK => GASNet Put completed remotely.  Mark operation as complete.
  *              NOTE: AMs dont request ACKs
  * REPLY_END => GASNet Get completed.  Mark operation as complete.
+ * PUT_END   => AM Long Reply Data message has arrived, may execute handler.
  * --------------------------------------------------------------------------------- */
 static void RARSRC_event(ptl_event_t *ev)
 {
@@ -860,6 +863,18 @@ static void RARSRC_event(ptl_event_t *ev)
       }
     }
     break;
+
+  case PTL_EVENT_PUT_END:
+    /* Must be a AM Long Reply data message */
+    {
+      uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
+      gasneti_assert( msg_type & GASNETC_PTL_MSG_AMDATA);
+      gasneti_assert( !( amflag & GASNETC_PTL_AM_REQUEST) );
+      GASNETI_TRACE_PRINTF(C,("RARSRC_event PUT_END for AMDATA send with amflag = %lu",amflag));
+      exec_amlong_data(0, ev);
+    }
+    break;
+
   case PTL_EVENT_ACK:
     /* InSegment Put (from local RAR) */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_PUT);
@@ -1008,8 +1023,8 @@ static void ReqSB_event(ptl_event_t *ev)
       }
       gasnetc_chunk_free(&gasnetc_ReqSB,offset);
     }
-
     break;
+
   case PTL_EVENT_ACK:
     /* Put bounced through ReqSB, mark op complete */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_PUT);
@@ -1320,7 +1335,7 @@ static void RAR_init()
   md.length = rar_len;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
-  md.options = PTL_MD_EVENT_START_DISABLE;
+  md.options = PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uint64_t)GASNETC_RARSRC_MD;
 #else
@@ -1328,7 +1343,14 @@ static void RAR_init()
 #endif
   md.eq_handle = gasnetc_BUF_EQ_h;
 
+  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RARAM.me_h, match_id, GASNETC_PTL_RARSRC_BITS,
+			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
+			      &gasnetc_RARSRC.me_h));
+  GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RARSRC.me_h, md, PTL_RETAIN, &gasnetc_RARSRC.md_h));
+
+#if 0
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_UNLINK, &gasnetc_RARSRC.md_h));
+#endif
 }
 
 /* ------------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/01/05 19:41:05 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2007/01/05 23:09:40 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -1001,12 +1001,13 @@ extern int gasnetc_AMReplyLongM(
      * Alloc tmp eq and md to cover src region, issue Put, then poll only on this
      * tmp eq for Put local completion.
      * NOTE: May be able to relax this and poll over other EQs as well.
+     * NOTE: Data Reply sent to RARSRC MD !!!
      */
     int dp_eq_len = 2;
     ptl_handle_md_t dp_md_h;
     ptl_handle_eq_t dp_eq_h;
     ptl_event_t ev;
-    ptl_match_bits_t dp_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARAM_BITS;
+    ptl_match_bits_t dp_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS;
     ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(dest,dest_addr);
     ptl_hdr_data_t dp_hdr_data = (ptl_hdr_data_t) lid;
 
