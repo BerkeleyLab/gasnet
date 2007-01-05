@@ -34,7 +34,7 @@ gasnetc_PtlBuffer_t gasnetc_RARSRC;
 
 ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
 ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
-ptl_handle_eq_t gasnetc_BUF_EQ_h;          /* Handle to the Buffer Event Queue */
+ptl_handle_eq_t gasnetc_SAFE_EQ_h;          /* Handle to the Buffer Event Queue */
 
 /* We limit the number of temporary memory descriptors in use at any time.
  * If over the limit, allocator will poll until the number of outstanding tmp mds
@@ -1294,15 +1294,12 @@ static void RAR_init()
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RAR.me_h, md, PTL_RETAIN, &gasnetc_RAR.md_h));
 
   /* We create another md to cover the same RAR region but this one will have
-   * an EQ.  We will use it as the source MD of a Put or dest MD of a get
-   * in the case when the src/dest happens to lie within the RAR.
-   * We could make this free-floating but will need it attached to an MLE
-   * in the future, when used as the data target of an AM Long
+   * receive AM Long Request Data messages and be on the AM_EQ event queue.
    */
   gasnetc_RARAM.start = rar_start;
   gasnetc_RARAM.nbytes = rar_len;
-  gasnetc_RAR.alignment = GASNET_PAGESIZE;
-  gasnetc_RAR.actual_start = NULL;      /* this gets lost in gasneti_segmentattach, so cant free */
+  gasnetc_RARAM.alignment = GASNET_PAGESIZE;
+  gasnetc_RARAM.actual_start = NULL;      /* this gets lost in gasneti_segmentattach, so cant free */
   gasnetc_RARAM.name = gasneti_strdup("RARAM");
   gasnetc_RARAM.use_chunks = 0;
 
@@ -1323,7 +1320,14 @@ static void RAR_init()
 			      &gasnetc_RARAM.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RARAM.me_h, md, PTL_RETAIN, &gasnetc_RARAM.md_h));
 
-  /* free floating MD */
+  /* We create a third md to cover the same RAR region but this one will 
+   * be used in the following cases:
+   *   - Source of Put or AM Long Request/Reply when data happens to lie in local RAR
+   *   - Dest of Get when happens to lie in local RAR
+   *   - Destination of AM Long Reply Data message.
+   * All events on this MD will not consume additional resources, and will serve to
+   * reclaim resources, and so it is put on the SAFE_EQ.
+   */
   gasnetc_RARSRC.start = rar_start;
   gasnetc_RARSRC.nbytes = rar_len;
   gasnetc_RARSRC.alignment = GASNET_PAGESIZE;
@@ -1341,7 +1345,7 @@ static void RAR_init()
 #else
   md.user_ptr = (void*)RARSRC_event;
 #endif
-  md.eq_handle = gasnetc_BUF_EQ_h;
+  md.eq_handle = gasnetc_SAFE_EQ_h;
 
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RARAM.me_h, match_id, GASNETC_PTL_RARSRC_BITS,
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
@@ -1388,7 +1392,7 @@ static void RplSB_init()
 #else
   md.user_ptr = (void*)RplSB_event;
 #endif
-  md.eq_handle = gasnetc_BUF_EQ_h;
+  md.eq_handle = gasnetc_SAFE_EQ_h;
 
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_RplSB.md_h));
   GASNETI_TRACE_PRINTF(C,("RplSB_init: %s %lu chunks md=%lu",gasnetc_RplSB.name,(ulong)gasnetc_RplSB_numchunk,(ulong)gasnetc_RplSB.md_h));
@@ -1475,7 +1479,7 @@ static void ReqRB_init()
 #else
   md.user_ptr = (void*)CB_event;
 #endif
-  md.eq_handle = gasnetc_BUF_EQ_h;
+  md.eq_handle = gasnetc_SAFE_EQ_h;
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_ReqRB[gasnetc_ReqRB_pool_size-1].me_h, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_CB.me_h, md, PTL_RETAIN, &gasnetc_CB.md_h));
 
@@ -1531,7 +1535,7 @@ static void ReqSB_init()
 #else
   md.user_ptr = (void*)ReqSB_event;
 #endif
-  md.eq_handle = gasnetc_BUF_EQ_h;
+  md.eq_handle = gasnetc_SAFE_EQ_h;
 
   /* Insert this after the Catch-Basin ME entry (at end of list) */
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, match_id, GASNETC_PTL_REQSB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
@@ -1736,7 +1740,7 @@ extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_no
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src_addr);
   } else {
     /* alloc a temp md for the source region */
-    md_h = gasnetc_alloc_tmpmd(src_addr, nbytes, gasnetc_BUF_EQ_h);
+    md_h = gasnetc_alloc_tmpmd(src_addr, nbytes, gasnetc_SAFE_EQ_h);
     local_offset = 0;
   }
 
@@ -2257,7 +2261,7 @@ extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h)
 extern void gasnetc_init_portals_resources(void)
 {
   /* Set up my RAR MDs */
-  ptl_size_t        num_buf_events, num_am_events;
+  ptl_size_t        num_safe_events, num_am_events;
   int               rc;
   int               i;
 
@@ -2305,7 +2309,7 @@ extern void gasnetc_init_portals_resources(void)
   }
 
   /* Create two EQs:
-   * gasnetc_BUF_EQ_h:  Used to reclaim buffer space.  Always safe to poll on this
+   * gasnetc_SAFE_EQ_h:  Used to reclaim buffer space.  Always safe to poll on this
    *    since it never consumes additional resources and never resursively polls.
    *    Bound to the following MDs:  RplSB, TMPMDs, RARSRC and ReqSB.
    *    Size = Num RplSB chunks + 2* max num TMPMDs + 2* max num ReqSB Chunks + N RAR Puts.
@@ -2317,14 +2321,14 @@ extern void gasnetc_init_portals_resources(void)
    *    Size = Num AMLong data puts + Num AM Requests
    */
 
-  num_buf_events = 2*gasnetc_ReqSB_numchunk + gasnetc_RplSB_numchunk
+  num_safe_events = 2*gasnetc_ReqSB_numchunk + gasnetc_RplSB_numchunk
     + 2*gasnetc_max_tmpmd + 2*gasnete_putget_limit + 4*gasneti_nodes + 100;
   num_am_events = 4*gasnetc_ReqRB_pool_size*gasnetc_ReqRB_numchunk + 2*gasneti_nodes + 100;
 
-  GASNETI_TRACE_PRINTF(C,("Constructing BUF EQ with %ld entries",(long)num_buf_events));
-  GASNETI_TRACE_PRINTF(C,("Constructing AM  EQ with %ld entries",(long)num_am_events));
+  GASNETI_TRACE_PRINTF(C,("Constructing SAFE EQ with %ld entries",(long)num_safe_events));
+  GASNETI_TRACE_PRINTF(C,("Constructing AM   EQ with %ld entries",(long)num_am_events));
 
-  GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_buf_events, GASNETC_EQ_HANDLER, &gasnetc_BUF_EQ_h));
+  GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_safe_events, GASNETC_EQ_HANDLER, &gasnetc_SAFE_EQ_h));
   GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_am_events, GASNETC_EQ_HANDLER, &gasnetc_AM_EQ_h));
 
   RAR_init();
@@ -2342,10 +2346,10 @@ extern void gasnetc_init_portals_resources(void)
 }
 
 /* ---------------------------------------------------------------------------------
- * Release Portals resources
- *   - The proc_id map
- *   - Remove MDs and match-list entries
- *   - Free the buffers used for bounce, send/recv
+ * Pre-exit function
+ * Attempts to poll until all local resources have been reclaimed,
+ * otherwise errors can occur when the resources are released.
+ * MLW: Currently not in use.
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_portals_preexit(int do_trace)
 {
@@ -2365,6 +2369,13 @@ extern void gasnetc_portals_preexit(int do_trace)
     iter++;
   } 
 }
+
+/* ---------------------------------------------------------------------------------
+ * Release Portals resources
+ *   - The proc_id map
+ *   - Remove MDs and match-list entries
+ *   - Free the buffers used for bounce, send/recv
+ * --------------------------------------------------------------------------------- */
 extern void gasnetc_portals_exit()
 {
 
@@ -2375,7 +2386,7 @@ extern void gasnetc_portals_exit()
   RAR_exit();
 
   /* remove the event queues */
-  GASNETC_PTLSAFE(PtlEQFree(gasnetc_BUF_EQ_h));
+  GASNETC_PTLSAFE(PtlEQFree(gasnetc_SAFE_EQ_h));
   GASNETC_PTLSAFE(PtlEQFree(gasnetc_AM_EQ_h));
 
   /* free the proc id map */
@@ -2390,12 +2401,8 @@ extern void gasnetc_portals_exit()
 
 /* ------------------------------------------------------------------------------------
  * --------------------------------------------------------------------------------- */
-/* Portals polling function.  Process the event queue.
- * This gets called by gasneti_AMPoll() after checking for incoming MPI messages 
- * In the current implementation, we only have one event queue,
- * so just check it and run appropriate handler
-
- * Use poll_type to decide which EQs to poll
+/* Portals polling function.  Process the event queues.
+ * 
  */
 
 static const char* poll_name[] = {"NO_POLL","SAFE_POLL","FULL_POLL"};
@@ -2404,37 +2411,38 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   int processed = 0;
   ptl_event_t ev;
 
-#if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
-  static int poll_level = 0;
-  poll_level++;
-  GASNETI_TRACE_PRINTF(C,("Enter Poll with %s, level %d",poll_name[poll_type],poll_level));
-#endif
-
   /* should never be called with NO_POLL */
   gasneti_assert(poll_type != GASNETC_NO_POLL);
 
   /* Reset the putget counter, since we are about to poll... */
   gasneti_weakatomic_set(&gasnete_putget_poll_cnt, 0, 0);
 
-  /* always try to get an event from the BUF eq first */
-  if ( gasnetc_get_event(gasnetc_BUF_EQ_h, &ev) ) {
-    GASNETI_TRACE_PRINTF(C,("Got event %s from BUF_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
+#if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
+  static int poll_level = 0;
+  poll_level++;
+  GASNETI_TRACE_PRINTF(C,("Enter Poll with %s, level %d",poll_name[poll_type],poll_level));
+#endif
+
+  /* always try to get an event from the SAFE eq first */
+  if ( gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev) ) {
+    GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
     GASNETC_CALL_EQ_HANDLER(ev);
     processed++;
   }
 
   if (poll_type == GASNETC_FULL_POLL) {
-    /* must have a RplSB before polling for an AM */
-    /* MLW: NOT THREAD SAFE */
-    while (gasnetc_RplSB.freelist == NULL) {
-      if (! gasnetc_get_event(gasnetc_BUF_EQ_h, &ev)) {
-	GASNETC_PTLSAFE(PtlEQWait(gasnetc_BUF_EQ_h, &ev));
+    /* must have a RplSB chunk avail and at least one tmpmd before polling for an AM */
+    /* MLW: NOT THREAD SAFE - need a better way to determine if RplSB Chunk available */
+    while ((gasnetc_RplSB.freelist == NULL) || (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd)) {
+      if (! gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev)) {
+	GASNETC_PTLSAFE(PtlEQWait(gasnetc_SAFE_EQ_h, &ev));
       }
-      GASNETI_TRACE_PRINTF(C,("Got event %s from BUF_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
+      GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
       GASNETC_CALL_EQ_HANDLER(ev);
       processed++;
     }
 
+    /* Finally, we can process an AM event */
     if ( gasnetc_get_event(gasnetc_AM_EQ_h, &ev) ) {
       GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits));
       GASNETC_CALL_EQ_HANDLER(ev);
@@ -2471,26 +2479,6 @@ extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
 		       ptl_err_str[rc],rc,gasneti_current_loc);
     break;
   }
-
-#if 0
-  {
-    int which = 0;
-    int timeout = 0;       /* number of usec to wait */
-    /* No easy pickings... try polling, which may enter the kernel */
-    rc = PtlEQPoll(&eq_h,1,timeout,ev,&which);
-    switch (rc) {
-    case PTL_OK:
-      return 1;
-      break;
-    case PTL_EQ_EMPTY:
-      break;
-    default:
-      gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQPoll: %s (%i)\n at %s\n",
-			 ptl_err_str[rc],rc,gasneti_current_loc);
-      break;
-    }
-  }
-#endif
 
   return 0;
 }

@@ -282,7 +282,7 @@ extern gasnetc_PtlBuffer_t gasnetc_CB;
 /* handles to Portals network interface, memory descriptors and event queues */
 extern ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
 extern ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
-extern ptl_handle_eq_t gasnetc_BUF_EQ_h;          /* Handle to the Buffer Event Queue */
+extern ptl_handle_eq_t gasnetc_SAFE_EQ_h;         /* Handle to the SAFE Event Queue */
 
 /* max packed am data field = 1024 - 15*4 - 8  (max of 15 args + 8 bytes for destaddr, no pad) */
 #define GASNETC_MAX_AMLONG_PACKED 956

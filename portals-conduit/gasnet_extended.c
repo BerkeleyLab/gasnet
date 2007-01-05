@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/01/05 19:41:05 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2007/01/05 23:57:44 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -600,7 +600,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
     } else {
       /* alloc a temp md for the destination region */
-      md_h = gasnetc_alloc_tmpmd(dest, nbytes, gasnetc_BUF_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(dest, nbytes, gasnetc_SAFE_EQ_h);
       local_offset = 0;
       GASNETI_TRACE_EVENT(C, GET_NB_TMPMD);
       SET_LOCBUF(local_buf,LOCBUF_TMP);
@@ -680,7 +680,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the source region */
-      md_h = gasnetc_alloc_tmpmd(src, nbytes, gasnetc_BUF_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(src, nbytes, gasnetc_SAFE_EQ_h);
       local_offset = 0;
       if (! isbulk) wait_for_local_completion = 1;
       GASNETI_TRACE_EVENT(C, PUT_NB_TMPMD);
@@ -876,7 +876,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the destination region */
-      md_h = gasnetc_alloc_tmpmd(dest, toget, gasnetc_BUF_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(dest, toget, gasnetc_SAFE_EQ_h);
       local_offset = 0;
       GASNETI_TRACE_EVENT(C, GET_NBI_TMPMD);
       SET_LOCBUF(local_buf,LOCBUF_TMP);
@@ -963,7 +963,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
       /* alloc a temp md for the source region */
-      md_h = gasnetc_alloc_tmpmd(src, toput, gasnetc_BUF_EQ_h);
+      md_h = gasnetc_alloc_tmpmd(src, toput, gasnetc_SAFE_EQ_h);
       local_offset = 0;
       if (! isbulk) {
 	wait_for_local_completion = 1;
