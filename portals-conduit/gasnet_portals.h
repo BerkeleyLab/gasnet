@@ -101,13 +101,27 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
     (low) = GASNETC_UNPACK_LOWER(x);	   \
   } while (0)
 
-#define GASNETC_COMMON_AMSTART(state,offset) do {	  \
-    /* poll until dest node is out of recovery */ \
-    gasneti_pollwhile( gasneti_weakatomic_read(&((state)->in_recovery), 0) ); \
-    /* poll until local node has enough resources to send an AM */ \
-    gasneti_AMPoll(); /* MLW: Insure at least one full poll before AM */ \
-    /* Allocate a send buffer (Note that chunk_alloc will poll internally) */ \
-    while (gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset), GASNETC_FULL_POLL) == 0) {}; \
+/* Before starting an AM Request, poll until certain conditions are met */
+#define GASNETC_COMMON_AMREQ_START(state,offset) do {	                \
+    int pollcnt = 0;							\
+    while (gasneti_weakatomic_read(&((state)->in_recovery), 0)) {	\
+      pollcnt++;							\
+      gasneti_AMPoll();							\
+    }									\
+    if (gasnetc_msg_limit > 0) {					\
+      while (gasneti_weakatomic_read(&gasnetc_msg_inflight,0) >= gasnetc_msg_limit) { \
+	pollcnt++;							\
+	GASNETI_TRACE_EVENT(C, MSG_THROTTLE);				\
+	gasneti_AMPoll();						\
+      }									\
+    }									\
+    /* Allocate a send buffer */					\
+    while (!gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) ) { \
+      pollcnt++;							\
+      gasneti_AMPoll();							\
+    }									\
+    /* MLW: Insure at least one full poll before AM */			\
+    if (pollcnt == 0) gasneti_AMPoll();					\
   } while (0)
 
 #define GASNETC_PACK_AM_MBITS(mbits, offset, numarg, hndlr, amflag, targ_mbits) \
@@ -131,13 +145,12 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
 #define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
 #define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
 
-#define GASNETE_PTL_MBITS_ENCODE_HANDLE(mbits,op) \
-    do { mbits |= ((0xFF & op->threadidx) << 24) | ((op->addr.fulladdr & 0xFFFF)<<8); } while (0)
-
 #define GASNETC_COMPUTE_DOUBLE_PAD(n,pad) do { \
     int p = (n) % sizeof(double);  \
     pad = (p == 0 ? 0 : sizeof(double)-p);  \
   } while(0)
+
+#define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
 /* AM tokens used by portals */
 typedef struct token_rec {
@@ -290,14 +303,6 @@ extern ptl_handle_eq_t gasnetc_SAFE_EQ_h;         /* Handle to the SAFE Event Qu
 #define GASNETC_MAX_POLL_EVENTS 40
 extern int gasnetc_max_poll_events;
 
-/* Vars that insure polling progress when issuing large numbers of Put/Get
- * operations without intermediate sync calls.
- *    putget_poll_cnt = number of put/get calls since last poll
- *    putget_poll     = number of allowed put/get calls between poll calls
- */
-extern int gasnete_putget_poll;
-extern gasneti_weakatomic_t gasnete_putget_poll_cnt;
-
 /* Var used for sync operation in AMLong Request and AMLong Reply.
  * The call must not return until the data payload can be modified
  * by the client.  The AMLong Request or Reply will set this var
@@ -307,14 +312,20 @@ extern gasneti_weakatomic_t gasnete_putget_poll_cnt;
  */
 extern gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
 
-/* Vars that limit total number of put/get operations in flight at any time
+/* Vars that limit total number of Portals operations in flight at any time
  * originating from this node.
+ * Performance decreases when too many messages are inflight so we try to
+ * limit the number we initiate.
+ * The inflight counter is incremented each time a Portals Put or Get operation
+ * is initiated, it is decremented when a Put completes locally or when
+ * a Get completes.
  * We allocate enough events to handle the limit, assuing 2 events per put/get.
- *    putget_inflight = number of put/get operations that are outstanding
- *    putget_limit    = number of allowed put/get operations allowed at any one time
+ *    msg_inflight = number of Portals operations that are outstanding
+ *    msg_limit    = Max number of in-flight Portals operations allowed at any one time
+ * NOTE: msg_limit = 0 means there is no limit
  */
-extern gasneti_weakatomic_t gasnete_putget_inflight;
-extern int gasnete_putget_limit;
+extern gasneti_weakatomic_t gasnetc_msg_inflight;
+extern int gasnetc_msg_limit;
 
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
 void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnete_op_t *op)
@@ -350,7 +361,6 @@ int gasnetc_in_local_rar(uint8_t* pstart, size_t n)
 
   return (pstart >= start) && (pend <= end);
 }
-#define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
 /* prototype for gasnet handler functions */
 typedef void (*gasnetc_handler_fn_t)();
@@ -358,7 +368,9 @@ extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
 
 /* Functions we export to the core and extended API */
 /* MLW: some of these may not have to be exported */
-extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset, gasnetc_pollflag_t poll_type);
+extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
+extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
+					int pollcnt, gasnetc_pollflag_t poll_type);
 extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
 extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle_eq_t eq_h);
 extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h);
@@ -379,6 +391,11 @@ extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev);
 extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest, void *src_addr,
 				    size_t nbytes, void* dest_addr);
 extern uint32_t gasnetc_new_lid(gasnet_node_t dest);
+extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
+extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc, gasneti_weakatomic_t *lcc,
+			   gasnetc_pollflag_t pollflag);
 
 SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2007/01/05 19:41:05 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2007/01/08 23:27:04 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,22 +39,9 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
-	CNT(C, PUTGET_THROTTLE, count)       \
 	CNT(C, EOP_ALLOC, count)             \
 	CNT(C, EOP_FREE, count)              \
-	CNT(C, EOP_BUCKETS, cnt)             \
-	CNT(C, GET_NB_RAR, count)            \
-	CNT(C, GET_NB_BB, count)             \
-	CNT(C, GET_NB_TMPMD, count)          \
-	CNT(C, GET_NBI_RAR, count)           \
-	CNT(C, GET_NBI_BB, count)            \
-	CNT(C, GET_NBI_TMPMD, count)         \
-	CNT(C, PUT_NB_RAR, count)            \
-	CNT(C, PUT_NB_BB, count)             \
-	CNT(C, PUT_NB_TMPMD, count)          \
-	CNT(C, PUT_NBI_RAR, count)           \
-	CNT(C, PUT_NBI_BB, count)            \
-	CNT(C, PUT_NBI_TMPMD, count)
+	CNT(C, EOP_BUCKETS, cnt)
 
 
 /* When defining a Portals Event Queue, we have the option of installing
