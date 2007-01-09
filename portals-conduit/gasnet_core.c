@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/01/09 19:16:32 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2007/01/09 23:10:44 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -25,15 +25,6 @@ static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
-
-#if 0
-/* MLW: remove? */
-#if GASNETC_HSL_ERRCHECK || GASNET_TRACE
-  extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
-                                         void *buf, size_t nbytes, int numargs, uint32_t *args);
-  extern void gasnetc_leavingHandler_hook(ammpi_category_t cat, int isReq);
-#endif
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -958,14 +949,18 @@ extern int gasnetc_AMReplyLongM(
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
     /* poll only on our local eq */
+    /* MLW: could probably SAFE poll here */
+#if 1
+    while( !gasnetc_get_event(dp_eq_h, &ev) ) {
+      gasnetc_portals_poll(GASNETC_SAFE_POLL);
+    }
+#else
     GASNETC_PTLSAFE(PtlEQWait(dp_eq_h, &ev));
+#endif
     if (ev.type != PTL_EVENT_SEND_END) {
       gasneti_fatalerror("gasnetc_AMReplyLong: got %s event on tmp EQ at %s",ptl_event_str[ev.type],gasneti_current_loc);
     }
     gasnetc_free_tmpmd(dp_md_h);
-    if (gasnetc_get_event(dp_eq_h,&ev)) {
-      GASNETI_TRACE_PRINTF(C,("AMReplyLong: got EXTRA event %s on tmp EQ after MD unlink",ptl_event_str[ev.type]));
-    }
     GASNETC_PTLSAFE(PtlEQFree(dp_eq_h));
   }
 

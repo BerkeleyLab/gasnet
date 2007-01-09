@@ -77,11 +77,9 @@ int gasnetc_msg_limit = 250;
  * message is off-node and client can overwrite source data region.
  * NOTE: Not used in AMLongRequestAsync.
  * NOTE: Also not used in AMLongReply.
+ * MLW: Threadsafety issue, should be a per-thread variable?
  */
 gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
-
-int gasnetc_max_poll_events = GASNETC_MAX_POLL_EVENTS;
-
 
 const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD"};
 
@@ -282,8 +280,6 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
 
   /* set data pointer */
   data = (uint8_t*)ev->md.start + ev->offset;
-
-  GASNETI_TRACE_PRINTF(C,("exec_amshort: isReq=%d, numarg=%d, hndlr=%d",isReq,numarg,ghandler));
 
   /* insure our data pointer is aligned for a double */
   gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
@@ -633,13 +629,6 @@ static void* gasnetc_aligned_alloc(size_t nbytes, uint32_t alignment, void **all
 static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t nbytes, uint32_t alignment)
 {
   buf->name = gasneti_strdup(name);
-#if 0
-  {
-    int len = strlen(name) + 1;
-    buf->name = (char*)gasneti_malloc(len);
-    strncpy(buf->name,name,len);
-  }
-#endif
   buf->alignment = alignment;
   buf->nbytes = nbytes;
   if (nbytes > 0) {
@@ -671,13 +660,6 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_chunk_init for %s with %lu chunks",name,(ulong)nchunks));
   buf->name = gasneti_strdup(name);
-#if 0
-  {
-    int len = strlen(name) + 1;
-    buf->name = (char*)gasneti_malloc(len);
-    strncpy(buf->name,name,len);
-  }
-#endif
   buf->alignment = GASNETC_CHUNKSIZE;
   buf->nbytes = nbytes;
   buf->start = gasnetc_aligned_alloc(nbytes,buf->alignment,&buf->actual_start);
@@ -703,21 +685,6 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
  * --------------------------------------------------------------------------------- */
 static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 {
-  if (buf->use_chunks) {
-    int nchunk = 0;
-    gasnetc_chunk_t *p = buf->freelist;
-
-#if GASNET_DEBUG
-    /* check for allocated chunks */
-    while (p != NULL) {
-      nchunk++;
-      p = p->next;
-    }
-    GASNETI_TRACE_PRINTF(C,("gasnetc_buf_free: %d free chunks, expected %d for %s",nchunk,buf->numchunks,buf->name));
-    gasneti_assert(nchunk == buf->numchunks);
-#endif
-  }
-
   gasneti_free(buf->name);
   if (buf->actual_start != NULL) {
     gasneti_free(buf->actual_start);
@@ -854,10 +821,8 @@ static void RARSRC_event(ptl_event_t *ev)
       gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
     } else if (msg_type & GASNETC_PTL_MSG_AMDATA) {
       uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
-      GASNETI_TRACE_PRINTF(C,("RARSRC_event for AMDATA send with amflag = %lu",amflag));
       if (amflag & GASNETC_PTL_AM_SYNC) {
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
-	GASNETI_TRACE_PRINTF(C,("RARSRC_event for AMDATA send decrementing datacnt"));
 	gasneti_weakatomic_decrement(&gasnetc_amlongReq_datacnt, 0);
       }
     }
@@ -870,7 +835,6 @@ static void RARSRC_event(ptl_event_t *ev)
       uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
       gasneti_assert( msg_type & GASNETC_PTL_MSG_AMDATA);
       gasneti_assert( !( amflag & GASNETC_PTL_AM_REQUEST) );
-      GASNETI_TRACE_PRINTF(C,("RARSRC_event PUT_END for AMDATA send with amflag = %lu",amflag));
       if (exec_amlong_data(0, ev)) {
 	/* ran the reply handler, just completed AM that originated on this node */
 	gasnet_node_t srcnode = gasnetc_get_nodeid(&ev->initiator);
@@ -942,10 +906,8 @@ static void TMPMD_event(ptl_event_t *ev)
       gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
     } else if (msg_type & GASNETC_PTL_MSG_AMDATA) {
       uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
-      GASNETI_TRACE_PRINTF(C,("TMPMD_event for AMDATA send with amflag = %lu",amflag));
       if (amflag & GASNETC_PTL_AM_SYNC) {
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
-	GASNETI_TRACE_PRINTF(C,("TMPMD_event for AMDATA send decrementing datacnt"));
 	gasneti_weakatomic_decrement(&gasnetc_amlongReq_datacnt, 0);
       }
       /* unlink the tmp MD used in the AM Long data put */
@@ -1050,8 +1012,6 @@ static void ReqSB_event(ptl_event_t *ev)
     q = pdata - sizeof(void*);
     /* q points to location where real destination address is stored */
     dest = (void*)*(uintptr_t*)q;
-    GASNETI_TRACE_PRINTF(C,("EV_handler copying %l bytes from bb 0x%lx to 0x%lx",
-                            (long)ev->mlength,(uintptr_t)pdata,(uintptr_t)dest));
     memcpy(dest,pdata,ev->mlength);
     /* free the bounce buffer */
     offset -= sizeof(void*);
@@ -1350,10 +1310,6 @@ static void RAR_init()
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
 			      &gasnetc_RARSRC.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RARSRC.me_h, md, PTL_RETAIN, &gasnetc_RARSRC.md_h));
-
-#if 0
-  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_UNLINK, &gasnetc_RARSRC.md_h));
-#endif
 }
 
 /* ------------------------------------------------------------------------------------
@@ -1376,8 +1332,6 @@ static void RAR_exit()
 static void RplSB_init()
 {
   ptl_md_t md;
-
-  GASNETI_TRACE_PRINTF(C,("RplSB_init"));
 
   gasnetc_chunk_init(&gasnetc_RplSB, "RplSB", gasnetc_RplSB_numchunk);
 
@@ -1427,8 +1381,6 @@ static void ReqRB_init()
   ptl_handle_me_t me_h;
   ptl_process_id_t  match_id;
   char name[32];
-
-  GASNETI_TRACE_PRINTF(C,("ReqRB_init"));
 
   match_id.nid = PTL_NID_ANY;
   match_id.pid = PTL_PID_ANY;
@@ -1520,7 +1472,6 @@ static void ReqSB_init()
   match_id.nid = PTL_NID_ANY;
   match_id.pid = PTL_PID_ANY;
 
-  GASNETI_TRACE_PRINTF(C,("ReqSB_init"));
   gasnetc_chunk_init(p, "ReqSB", gasnetc_ReqSB_numchunk);
 
   /* construct a memory descriptor for the Request Send Buffer and attach to AM PTE */
@@ -1738,8 +1689,8 @@ extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_no
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src_addr);
   } else {
-    /* alloc a temp md for the source region */
-    md_h = gasnetc_alloc_tmpmd(src_addr, nbytes, gasnetc_SAFE_EQ_h);
+    /* alloc a temp md for the source region, SAFE poll until it happens */
+    md_h = gasnetc_alloc_tmpmd_withpoll(src_addr, nbytes, gasnetc_SAFE_EQ_h);
     local_offset = 0;
   }
 
@@ -1750,7 +1701,6 @@ extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_no
     gasneti_assert(gasneti_weakatomic_read(&gasnetc_amlongReq_datacnt, 0) == 0);
     gasneti_weakatomic_increment(&gasnetc_amlongReq_datacnt, 0);
     val = gasneti_weakatomic_read(&gasnetc_amlongReq_datacnt, 0);
-    GASNETI_TRACE_PRINTF(C,("datasend: set amlongReq_datacnt to %d",val));
   }
     
   GASNETI_TRACE_PRINTF(C,("datasend: to node=%d isReq=%d lid=%d nbytes=%d rem_off=%lu, mbits=0x%lx",(int)dest,isReq,lid,(int)nbytes,(unsigned long)remote_offset,(ulong)match_bits));
@@ -1989,7 +1939,7 @@ extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
   GASNETI_TRACE_PRINTF(C,("bootExch exit"));
 }
 
-
+#if 0
 extern void gasnetc_testBootExch(void)
 {
   char *src = (char*)gasneti_malloc(gasneti_nodes*4*sizeof(char));
@@ -2039,6 +1989,7 @@ extern void gasnetc_testBootExch(void)
   gasneti_free(dest);
 
 }
+#endif
 
 /* ---------------------------------------------------------------------------------
  * Function to determine if a chunk of memory of the given size can be allocated
@@ -2174,18 +2125,21 @@ extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes,
     gasneti_assert(pollmax > 0);
     gasneti_assert(poll_type != GASNETC_NO_POLL);
 
+    gotone = gasnetc_chunk_alloc(buf,nbytes,offset);
+    if (gotone) return gotone;
+
     /* poll up to pollmax times, waiting for chunk to free-up */
-    do {
-      gotone = gasnetc_chunk_alloc(buf,nbytes,offset);
-      if (gotone) break;
-      
+    while (cnt < pollmax) {
       if (poll_type == GASNETC_FULL_POLL) {
 	GASNETI_SAFE(gasneti_AMPoll());
       } else if (poll_type == GASNETC_SAFE_POLL) {
 	gasnetc_portals_poll(poll_type);
       }
       cnt++;
-    } while (cnt < pollmax);
+
+      gotone = gasnetc_chunk_alloc(buf,nbytes,offset);
+      if (gotone) break;
+    }
 
     return gotone;
 }
@@ -2212,22 +2166,19 @@ extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset)
 /* ---------------------------------------------------------------------------------
  * Allocate a temp md to be used as the source of a Put or destination
  * of a Get operation.  MD to be free floating, not target of remote op.
- * Associated with Buffer EQ, which is always safe to poll against.
+ * Associated with eq_h Event Queue (usually the SAFE_EQ).
+ * NOTE: this will always alloc a tmpmd, event if over limit.
+ * See gasnetc_try_alloc_tmpmd or gasnetc_alloc_tmpmd_withpoll for more resource
+ * friendly versions.
  * --------------------------------------------------------------------------------- */
 extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes, ptl_handle_eq_t eq_h)
 {
   ptl_md_t md;
   ptl_handle_md_t md_h;
 
-  /* Want to limit the number of tmp MDs in operation at once.
-   * Poll until number of outstanding TMP MDs is less than limit.
-   */
   GASNETI_TRACE_PRINTF(C,("Alloc_Tmpmd: num TmpMD outstanding = %d",gasneti_weakatomic_read(&gasnetc_tmpmd_count,0)));
-  while( gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd ) {
-    gasnetc_portals_poll(GASNETC_SAFE_POLL);
-  }
-  gasneti_weakatomic_increment(&gasnetc_tmpmd_count,0);
 
+  gasneti_weakatomic_increment(&gasnetc_tmpmd_count,0);
   md.start = start;
   md.length = nbytes;
   md.threshold = PTL_MD_THRESH_INF;
@@ -2273,18 +2224,14 @@ extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h)
 
 /* ---------------------------------------------------------------------------------
  * Initialize all the Portals resources for GASNet:
- *   - Read portals-related env vars to adjust buffer sizes and polling counts
- *   - Allocate the event queues:  Only using one for now
- *   - Allocate the buffers for bounce, send/recv regions
- *   - Construct match-list entries and memory descriptors for bounce, send/recv space
- *     and RAR (Segment already allocated and initialized).
+ *   - Read portals-related env vars to adjust buffer sizes
+ *   - Allocate the event queues
+ *   - Allocate all the Portals buffers and match list entries.
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_init_portals_resources(void)
 {
-  /* Set up my RAR MDs */
-  ptl_size_t        num_safe_events, num_am_events;
-  int               rc;
-  int               i;
+  ptl_size_t   num_safe_events, num_am_events;
+  int          i, rc;
 
   /* read Portals specific env vars */
   gasnetc_ReqRB_pool_size = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_POOLSZ",
@@ -2297,8 +2244,6 @@ extern void gasnetc_init_portals_resources(void)
 				(int64_t)gasnetc_RplSB_numchunk,0);
   gasnetc_max_tmpmd = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_NUM_TMPMD",
 			   (int64_t)GASNETC_MAX_TMP_MDS,0);
-  gasnetc_max_poll_events = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MAX_POLL_EVENTS",
-				 (int64_t)GASNETC_MAX_POLL_EVENTS,0);
   gasnetc_msg_limit = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MSG_LIMIT",
 				(int64_t)gasnetc_msg_limit,0);
 				
@@ -2307,7 +2252,6 @@ extern void gasnetc_init_portals_resources(void)
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqSB_numchunk  = %d",(int)gasnetc_ReqSB_numchunk));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: RplSB_numchunk  = %d",(int)gasnetc_RplSB_numchunk));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: max_tmpmd       = %d",gasnetc_max_tmpmd));
-  GASNETI_TRACE_PRINTF(C,("Portals_Init: max_poll_events = %d",gasnetc_max_poll_events));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: msg_limit       = %d",gasnetc_msg_limit));
 
   /* Init the temp md counter to zero */
@@ -2445,22 +2389,18 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   }
 
   if (poll_type == GASNETC_FULL_POLL) {
-    /* must have a RplSB chunk avail and at least one tmpmd before polling for an AM */
-    /* MLW: NOT THREAD SAFE - need a better way to determine if RplSB Chunk available */
-    while ((gasnetc_RplSB.freelist == NULL) || (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd)) {
-      if (! gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev)) {
-	GASNETC_PTLSAFE(PtlEQWait(gasnetc_SAFE_EQ_h, &ev));
-      }
-      GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
-      GASNETC_CALL_EQ_HANDLER(ev);
-      processed++;
-    }
+    /* check if resources available to run an AM Request
+     * If not, we rely on caller to continue polling */
+    if ( (gasnetc_RplSB.freelist != NULL) &&  /* MLW: need threadsafe way to check this */
+	 (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) < gasnetc_max_tmpmd) &&
+	 (gasnetc_msg_limit == 0 || (gasneti_weakatomic_read(&gasnetc_msg_inflight,0) < gasnetc_msg_limit)) ) {
 
-    /* Finally, we can process an AM event */
-    if ( gasnetc_get_event(gasnetc_AM_EQ_h, &ev) ) {
-      GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits));
-      GASNETC_CALL_EQ_HANDLER(ev);
-      processed++;
+      /* enough resources to poll AM Queue */
+      if (gasnetc_get_event(gasnetc_AM_EQ_h, &ev) ) {
+	GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits));
+	GASNETC_CALL_EQ_HANDLER(ev);
+	processed++;
+      }
     }
   }
 
@@ -2599,7 +2539,7 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
     GASNETI_TRACE_EVENT(C, GET_RAR);
   } else if ( (nbytes <= (GASNETC_CHUNKSIZE - (sizeof(void*))))  &&
-	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB, nbytes, &local_offset, 2, GASNETC_SAFE_POLL) ) {
+	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB, nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     /* Encode dest addr in BB chunk for later copy */
     void* bb;
     md_h = gasnetc_ReqSB.md_h;
@@ -2612,7 +2552,7 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else {
     /* alloc a temp md for the destination region */
-    md_h = gasnetc_alloc_tmpmd(dest, nbytes, gasnetc_SAFE_EQ_h);
+    md_h = gasnetc_alloc_tmpmd_withpoll(dest, nbytes, gasnetc_SAFE_EQ_h);
     local_offset = 0;
     GASNETI_TRACE_EVENT(C, GET_TMPMD);
   }
@@ -2681,7 +2621,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_RAR);
   } else if ( (nbytes <= GASNETC_CHUNKSIZE)  &&
-	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 2, GASNETC_SAFE_POLL) ) {
+	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     void* bb;
     md_h = gasnetc_ReqSB.md_h;
     /* get the addr of the start of the chunk */
@@ -2691,7 +2631,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
     /* alloc a temp md for the source region */
-    md_h = gasnetc_alloc_tmpmd(src, nbytes, gasnetc_SAFE_EQ_h);
+    md_h = gasnetc_alloc_tmpmd_withpoll(src, nbytes, gasnetc_SAFE_EQ_h);
     local_offset = 0;
     if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_TMPMD);

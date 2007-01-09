@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/01/08 23:27:04 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2007/01/09 23:10:44 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -460,43 +460,17 @@ void gasnete_trace_finish(void)
  * gasnet_put(_bulk) is translated to a gasnete_put_nb(_bulk) + sync
  * gasnet_get(_bulk) is translated to a gasnete_get_nb(_bulk) + sync
  *
- * gasnete_put_nb(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMMedium(payload)
- *    else if nbytes < AMMaxLongRequest
- *      AMLongRequest(payload)
- *    else
- *      gasnete_put_nbi(_bulk)(payload)
+ * The current implementation uses Portals Put/Get operations to send
+ * the data.  A 24 bit representation of the handle is stored in bits
+ * 8:31 of the Portals match_bits.
+ * The source MD of a Put is:
+ *   (1) The RARSRC if the source lies in the local RAR.
+ *   (2) Copied though a pre-pinned bounce buffer (ReqSB Chunk) if the
+ *       size is small enough and a buffer exists.
+ *   (3) A temporary MD is allocated for the source if the above two
+ *       cases do not hole.
  *
- * gasnete_get_nb(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMSmall request + AMMedium(payload) reply
- *    else
- *      gasnete_get_nbi(_bulk)()
- *
- * gasnete_put_nbi(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMMedium(payload)
- *    else if nbytes < AMMaxLongRequest
- *      AMLongRequest(payload)
- *    else
- *      chunks of AMMaxLongRequest with AMLongRequest()
- *      AMLongRequestAsync is used instead of AMLongRequest for put_bulk
- *
- * gasnete_get_nbi(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMSmall request + AMMedium(payload) reply
- *    else
- *      chunks of AMMaxMedium with AMSmall request + AMMedium() reply
- *
- * The current implementation uses AMLongs for large puts because the 
- * destination is guaranteed to fall within the registered GASNet segment.
- * The spec allows gets to be received anywhere into the virtual memory space,
- * so we can only use AMLong when the destination happens to fall within the 
- * segment - GASNETE_USE_LONG_GETS indicates whether or not we should try to do this.
- * (conduits which can support AMLongs to areas outside the segment
- * could improve on this through the use of this conduit-specific information).
- * 
+ * A similar algorithm is used for the destination MD of a Get.
  */
 
 /* ------------------------------------------------------------------------------------ */
@@ -537,11 +511,11 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
 
-    /* full poll before sending a message */
-    gasneti_AMPoll();
-
     /* issue the actual Portals Get */
     gasnetc_getmsg(dest,node,src,nbytes,match_bits,GASNETC_FULL_POLL);
+
+    /* full poll after sending a message */
+    gasneti_AMPoll();
 
     return (gasnet_handle_t)op;
   } else {
@@ -566,13 +540,13 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
 
-    /* full poll before sending a message */
-    gasneti_AMPoll();
-
     /* send the message, polling first if necessary */
     gasnetc_putmsg(dest,node,src,nbytes,match_bits,isbulk, &wait_for_local_completion,
 		   &(mythread->local_completion_count), GASNETC_FULL_POLL);
     
+    /* full poll after sending a message */
+    gasneti_AMPoll();
+
     /* poll here for local completion in non-bulk or non-bb case */
     if (wait_for_local_completion) {
       gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) ); 
@@ -699,9 +673,6 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   while (nbytes > 0) {
     size_t toget = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
 
-    /* full poll before sending a message */
-    gasneti_AMPoll();
-
     /* issue the get */
     op->initiated_get_cnt++;
     gasnetc_getmsg(dest,node,src,toget,match_bits,GASNETC_FULL_POLL);
@@ -710,6 +681,8 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     dest = ((uint8_t*)dest + toget);
     src = ((uint8_t*)src + toget);
 
+    /* full poll after sending a message */
+    gasneti_AMPoll();
   }
   return;
 }
@@ -732,9 +705,6 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   while (nbytes > 0) {
     size_t toput = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
 
-    /* full poll before sending a message */
-    gasneti_AMPoll();
-
     /* Issue Ptl Put operation */
     op->initiated_put_cnt++;
     gasnetc_putmsg(dest,node,src,toput,match_bits,isbulk,&wait_for_local_completion,
@@ -743,6 +713,9 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     nbytes -= toput;
     src = ((uint8_t*)src + toput);
     dest = ((uint8_t*)dest + toput);
+
+    /* full poll after sending a message */
+    gasneti_AMPoll();
   }
 
   /* poll here for local completion in non-bulk or non-bb case */

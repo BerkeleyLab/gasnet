@@ -33,14 +33,14 @@
 typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_pollflag_t;
 
 /* Macro that checks error condition of Portals calls */
-#define GASNETC_PTLSAFE(fncall) do {                                         \
-   int _retcode = (fncall);                                                  \
-   if_pf (_retcode != (int)PTL_OK) {                                         \
-     gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n"   \
-        "  while calling: %s\n"                                              \
-        "  at %s",                                                           \
-        ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
-   }                                                                         \
+#define GASNETC_PTLSAFE(fncall) do {					\
+    int _retcode = (fncall);						\
+    if_pf (_retcode != (int)PTL_OK) {					\
+      gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n" \
+			 "  while calling: %s\n"			\
+			 "  at %s",					\
+			 ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
+    }									\
  } while (0)
 
 /* Portals Access table not implemented on XT3 */
@@ -137,25 +137,25 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
       | ((uint64_t)(hndlr) << 16) | ((uint64_t)(amflag) << 8) | (uint64_t)(targ_mbits)
 
 #define GASNETC_UNPACK_AM_MBITS(mbits, offset, numarg, hndlr, amflag, targ_mbits) do { \
-    (offset)     = ((mbits)>>32;                             \
-    (numarg)     = ((mbits)&GASNETC_SELECT_BYTE3)>>24;       \
-    (hndlr)      = ((mbits)&GASNETC_SELECT_BYTE2)>>16;       \
-    (amflag)     = ((mbits)&GASNETC_SELECT_BYTE1)>>8;        \
-    (targ_mbits) =  (mbits)&GASNETC_SELECT_BYTE0;            \
+    offset     = (mbits)>>32;						\
+    numarg     = ((mbits)&GASNETC_SELECT_BYTE3)>>24;			\
+    hndlr      = ((mbits)&GASNETC_SELECT_BYTE2)>>16;			\
+    amflag     = ((mbits)&GASNETC_SELECT_BYTE1)>>8;			\
+    targ_mbits =  (mbits)&GASNETC_SELECT_BYTE0;				\
   } while(0)
 
 #define GASNETC_GET_AM_LOWBITS(mbits,numarg,ghndlr,amflag) do { \
-    (numarg) = ((mbits)&GASNETC_SELECT_BYTE3) >> 24;    \
-    (ghndlr) = ((mbits)&GASNETC_SELECT_BYTE2) >> 16;    \
-    (amflag) = ((mbits)&GASNETC_SELECT_BYTE1) >>  8;    \
+    numarg = ((mbits)&GASNETC_SELECT_BYTE3) >> 24;		\
+    ghndlr = ((mbits)&GASNETC_SELECT_BYTE2) >> 16;		\
+    amflag = ((mbits)&GASNETC_SELECT_BYTE1) >>  8;		\
   } while(0)
 
 #define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
 #define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
 
-#define GASNETC_COMPUTE_DOUBLE_PAD(n,pad) do { \
-    int p = (n) % sizeof(double);  \
-    pad = (p == 0 ? 0 : sizeof(double)-p);  \
+#define GASNETC_COMPUTE_DOUBLE_PAD(n,pad) do {	\
+    int p = (n) % sizeof(double);		\
+    pad = (p == 0 ? 0 : sizeof(double)-p);	\
   } while(0)
 
 #define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
@@ -317,9 +317,6 @@ extern ptl_handle_eq_t gasnetc_SAFE_EQ_h;         /* Handle to the SAFE Event Qu
 /* max packed am data field = 1024 - 15*4 - 8  (max of 15 args + 8 bytes for destaddr, no pad) */
 #define GASNETC_MAX_AMLONG_PACKED 956
 
-#define GASNETC_MAX_POLL_EVENTS 40
-extern int gasnetc_max_poll_events;
-
 /* Var used for sync operation in AMLong Request and AMLong Reply.
  * The call must not return until the data payload can be modified
  * by the client.  The AMLong Request or Reply will set this var
@@ -344,6 +341,41 @@ extern gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
 extern gasneti_weakatomic_t gasnetc_msg_inflight;
 extern int gasnetc_msg_limit;
 
+
+/* prototype for gasnet handler functions */
+typedef void (*gasnetc_handler_fn_t)();
+extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
+
+/* Functions we export to the core and extended API */
+extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
+extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
+					int pollcnt, gasnetc_pollflag_t poll_type);
+extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
+extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle_eq_t eq_h);
+extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h);
+extern void gasnetc_init_portals_network(void);
+extern uintptr_t gasnetc_portalsMaxPinMem(void);
+extern void gasnetc_bootstrapBarrier(void);
+extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
+extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
+extern void gasnetc_init_portals_resources(void);
+extern void gasnetc_portals_preexit(int do_trace);
+extern void gasnetc_portals_exit();
+extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
+extern void gasnetc_event_handler(ptl_event_t *ev);
+extern void gasnetc_ptl_trace_finish(void);
+extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
+extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev);
+extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest,
+				    void *src_addr, size_t nbytes, void* dest_addr);
+extern uint32_t gasnetc_new_lid(gasnet_node_t dest);
+extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
+extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc,
+			   gasneti_weakatomic_t *lcc, gasnetc_pollflag_t pollflag);
+
+/* Inline Function Definitions */
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
 void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnete_op_t *op)
 {
@@ -379,40 +411,24 @@ int gasnetc_in_local_rar(uint8_t* pstart, size_t n)
   return (pstart >= start) && (pend <= end);
 }
 
-/* prototype for gasnet handler functions */
-typedef void (*gasnetc_handler_fn_t)();
-extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
+GASNETI_INLINE(gasnetc_try_alloc_tmpmd)
+int gasnetc_try_alloc_tmpmd(void* start, size_t nbytes, ptl_handle_eq_t eq_h, ptl_handle_md_t *md_h)
+{
+  if ((gasnetc_max_tmpmd == 0) || (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) < gasnetc_max_tmpmd)) {
+    *md_h = gasnetc_alloc_tmpmd(start,nbytes,eq_h);
+    return 1;
+  }
+  return 0;
+}
 
-/* Functions we export to the core and extended API */
-/* MLW: some of these may not have to be exported */
-extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
-extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
-					int pollcnt, gasnetc_pollflag_t poll_type);
-extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
-extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes, ptl_handle_eq_t eq_h);
-extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h);
-extern void gasnetc_init_portals_network(void);
-extern uintptr_t gasnetc_portalsMaxPinMem(void);
-extern void gasnetc_bootstrapBarrier(void);
-extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
-extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
-extern void gasnetc_init_portals_resources(void);
-extern void gasnetc_portals_preexit(int do_trace);
-extern void gasnetc_portals_exit();
-extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
-extern void gasnetc_event_handler(ptl_event_t *ev);
-extern void gasnetc_ptl_trace_finish(void);
-extern void gasnetc_testBootExch(void);
-extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
-extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev);
-extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest, void *src_addr,
-				    size_t nbytes, void* dest_addr);
-extern uint32_t gasnetc_new_lid(gasnet_node_t dest);
-extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
-			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
-extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
-			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc, gasneti_weakatomic_t *lcc,
-			   gasnetc_pollflag_t pollflag);
+GASNETI_INLINE(gasnetc_alloc_tmpmd_withpoll)
+ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes, ptl_handle_eq_t eq_h)
+{
+  while (gasnetc_max_tmpmd && (gasneti_weakatomic_read(&gasnetc_tmpmd_count,0) >= gasnetc_max_tmpmd)) {
+    gasnetc_portals_poll(GASNETC_SAFE_POLL);
+  }
+  return gasnetc_alloc_tmpmd(start, nbytes, eq_h);
+}
 
 SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
 #endif
