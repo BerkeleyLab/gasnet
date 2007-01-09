@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2007/01/09 19:16:44 $
- * $Revision: 1.63.4.5 $
+ *     $Date: 2007/01/09 21:31:27 $
+ * $Revision: 1.63.4.6 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -615,15 +615,15 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
   MSG0("%s conduit: v%s GASNET_ALIGNED_SEGMENTS=%i\n"              \
        " gasnet_AMMaxArgs():        %i\n"                          \
        " gasnet_AMMaxMedium():      %i\n"                          \
-       " gasnet_AMMaxLongRequest(): %i\n"                          \
-       " gasnet_AMMaxLongReply():   %i"                            \
+       " gasnet_AMMaxLongRequest(): %ld\n"                         \
+       " gasnet_AMMaxLongReply():   %ld"                           \
     ,                                                              \
     _STRINGIFY(GASNET_CORE_NAME), _STRINGIFY(GASNET_CORE_VERSION), \
     GASNET_ALIGNED_SEGMENTS,                                       \
     (int)gasnet_AMMaxArgs(),                                       \
     (int)gasnet_AMMaxMedium(),                                     \
-    (int)gasnet_AMMaxLongRequest(),                                \
-    (int)gasnet_AMMaxLongReply());                                 \
+    (long)gasnet_AMMaxLongRequest(),                               \
+    (long)gasnet_AMMaxLongReply());                                \
   } while (0)
 
 #if defined(GASNET_SEQ)
