@@ -35,6 +35,17 @@
 /* types of polling */
 typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_pollflag_t;
 
+/* Macro that checks error condition of Portals calls */
+#define GASNETC_PTLSAFE(fncall) do {                                         \
+   int _retcode = (fncall);                                                  \
+   if_pf (_retcode != (int)PTL_OK) {                                         \
+     gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n"   \
+        "  while calling: %s\n"                                              \
+        "  at %s",                                                           \
+        ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
+   }                                                                         \
+ } while (0)
+
 /* Portals Access table not implemented on XT3 */
 #define GASNETC_PTL_AC_ID  0
 
@@ -109,7 +120,7 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
       gasneti_AMPoll();							\
     }									\
     if (gasnetc_msg_limit > 0) {					\
-      while (gasneti_weakatomic_read(&gasnetc_msg_inflight,0) >= gasnetc_msg_limit) { \
+      while (gasneti_weakatomic_read(&gasnetc_msg_inflight,0) > gasnetc_msg_limit) { \
 	pollcnt++;							\
 	GASNETI_TRACE_EVENT(C, MSG_THROTTLE);				\
 	gasneti_AMPoll();						\
@@ -152,6 +163,25 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
 
 #define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
+/* Macro to decrement the AM_pending field of a connection state record
+ * We just completed an AM operation
+ * If node is in recovery, no other thread will be accessing AM_pending, all
+ * at best would be polling on in_recovery.  So, if about to come out of
+ * recovery state, decrement AM_pending first
+ */
+#define DECREMENT_AM_PENDING(state) do {	\
+    if (gasneti_weakatomic_read(&state->in_recovery, 0)) {		\
+      int pending = (int)gasneti_weakatomic_read(&state->AM_pending, 0); \
+      gasneti_weakatomic_decrement(&state->AM_pending,0);		\
+      if (pending == 1) {						\
+	/* all AMs to this target complete, no longer in recovery */	\
+	gasneti_weakatomic_set(&state->in_recovery, 0, 0);		\
+      }									\
+    } else {								\
+      gasneti_weakatomic_decrement(&state->AM_pending,0);		\
+    }									\
+  } while(0)
+
 /* AM tokens used by portals */
 typedef struct token_rec {
   uint8_t           flags;
@@ -188,16 +218,6 @@ extern gasnetc_conn_t *gasnetc_conn_state;
 
 /* Flag to determine if we use Portals or MPI for AMs */
 extern int gasnetc_use_AM_portals;
-
-#define GASNETC_PTLSAFE(fncall) do {                                         \
-   int _retcode = (fncall);                                                  \
-   if_pf (_retcode != (int)PTL_OK) {                                         \
-     gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n"   \
-        "  while calling: %s\n"                                              \
-        "  at %s",                                                           \
-        ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
-   }                                                                         \
- } while (0)
 
 /* Types of GASNET Portals Memory Descriptors */
 enum { GASNETC_RAR_MD,

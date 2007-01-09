@@ -226,6 +226,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_
  * Unpack the data from the event structure and execute the Request or Reply AM Short
  * handler function.
  * isReq is true if this is an AM Short Request, false for a Reply.
+ * Return TRUE if we executed a handler (should always be true for AM Short)
  *
  * NOTE: the lower 32 bits of the match_bits have already been unpacked.
  * For a Request: upper 32 bits of match_bits = offset in sender ReqSB.
@@ -239,7 +240,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_
  * - ReqRB_event in response to the arrival of an AM Short Request
  * - ReqSB_event in response to the arrival of an AM Short Reply
  * --------------------------------------------------------------------------------- */
-static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghandler)
+static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghandler)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
   gasnetc_ptl_token_t tok;
@@ -285,19 +286,6 @@ static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int gha
     data += sizeof(gasnet_handlerarg_t);
   }
 
-#ifdef GASNET_DEBUG
-  {
-    if (numarg == 0) {
-      GASNETI_TRACE_PRINTF(C,("Running Short %s handler %d with No Args",(isReq ? "Request" : "Reply"),(int)ghandler));
-    } else {
-      int i;
-      for (i = 0; i < numarg; i++) {
-	GASNETI_TRACE_PRINTF(C,("Running Short %s handler %d Arg[%d]=%x",(isReq ? "Request" : "Reply"),(int)ghandler,i,args[i]));
-      }
-    }
-  }
-#endif
-
   GASNETI_RUN_HANDLER_SHORT(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg);
 
   if (isReq && !(tok.flags & GASNETC_PTL_REPLY_SENT)) {
@@ -305,12 +293,15 @@ static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int gha
 		 SHORT_REP(0,0, (token , gasneti_handleridx(gasnetc_noop_reph)) )
 		 );
   }
+
+  return 1;
 }
 
 /* ------------------------------------------------------------------------------------
  * Unpack the data from the event structure and execute the Request or Reply AM Medium
  * handler function.
  * isReq is true if this is an AM Medium Request, false for a Reply.
+ * Return TRUE if we executed a handler (always true for AM Medium)
  *
  * NOTE: the lower 32 bits of the match_bits have already been unpacked.
  * For a Request: upper 32 bits of match_bits = offset in sender ReqSB.
@@ -325,7 +316,7 @@ static void exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int gha
  * - ReqRB_event in response to the arrival of an AM Medium Request
  * - ReqSB_event in response to the arrival of an AM Medium Reply
  * --------------------------------------------------------------------------------- */
-static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int ghandler)
+static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int ghandler)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
   gasnetc_ptl_token_t tok;
@@ -380,18 +371,6 @@ static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gh
   data += pad;
   bytes_so_far += pad;
 
-  GASNETI_TRACE_PRINTF(C,("exec_ammedium: isReq=%d, numarg=%d, hndlr=%d, nbytes=%d",isReq,numarg,ghandler,(int)nbytes));
-
-#ifdef GASNET_DEBUG
-  {
-    GASNETI_TRACE_PRINTF(C,("Running Medium %s handler %d with %d byte payload",(isReq ? "Request" : "Reply"),(int)ghandler,payload_bytes));
-    int i;
-    for (i = 0; i < numarg; i++) {
-      GASNETI_TRACE_PRINTF(C,("Running Medium %s handler %d Arg[%d]=%x",(isReq ? "Request" : "Reply"),(int)ghandler,i,args[i]));
-    }
-  }
-#endif
-
   GASNETI_RUN_HANDLER_MEDIUM(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg, data, nbytes);
 
   if (isReq && !(tok.flags & GASNETC_PTL_REPLY_SENT)) {
@@ -399,10 +378,14 @@ static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gh
 		 SHORT_REP(0,0, (token , gasneti_handleridx(gasnetc_noop_reph)) )
 		 );
   }
+
+  return 1;
 }
 
 /* ------------------------------------------------------------------------------------
  * Unpack the data from the event structure and attempt to execute the AM Long handler.
+ * Return true if we executed the gasnet handler function
+ *
  * This routine will be called from both Request and Reply AMs, isReq=true of Request.
  * In general, AM Longs require two messages, a data payload sent directly to the RAR
  * and a header send to ReqRB (for a Request) or ReqSB (for a Reply).  This function
@@ -416,7 +399,7 @@ static void exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gh
  * - ReqRB_event: in response to an AM Long Header Request message.
  * - ReqSB_event: in response to an AM Long Header Reply message.
  * --------------------------------------------------------------------------------- */
-static void exec_amlong_header(int isReq, int isPacked,
+static int exec_amlong_header(int isReq, int isPacked,
 			       ptl_event_t *ev, int numarg, int ghandler)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
@@ -432,6 +415,7 @@ static void exec_amlong_header(int isReq, int isPacked,
   int      bytes_so_far = 0;
   void    *dest;
   int      check_reply = isReq;  /* AM Request must reply for Portals Conduit */
+  int      ran_handler = 0;
 
   tok.flags = 0;
   tok.initiator = ev->initiator;
@@ -483,6 +467,8 @@ static void exec_amlong_header(int isReq, int isPacked,
     }
     GASNETI_RUN_HANDLER_LONG(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg, dest, nbytes);
 
+    ran_handler = 1;
+
   } else {
 
     /* called from Header packet, but not a packed message, check if data message has arrived */
@@ -497,6 +483,8 @@ static void exec_amlong_header(int isReq, int isPacked,
       }
       GASNETI_TRACE_PRINTF(C,("exec_amlong_header, second to arrive: isReq=%d, numarg=%d, hndlr=%d, nbytes=%d",isReq,numarg,ghandler,(int)p->datalen));
       GASNETI_RUN_HANDLER_LONG(isReq, ghandler ,gasnetc_handler[ghandler], token, args, numarg, p->data, p->datalen);
+
+      ran_handler = 1;
 
       /* free the lid object, it has already been removed from the list */
       gasneti_free(p);
@@ -519,10 +507,13 @@ static void exec_amlong_header(int isReq, int isPacked,
 		 );
   }
 
+  return ran_handler;
 }
 
 /* ------------------------------------------------------------------------------------
  * Unpack the data from the event structure and attempt to execute the AM Long handler.
+ * Return TRUE if we ran the gasnet handler.
+ * 
  * This routine will be called from both Request and Reply AMs, isReq=true of Request.
  * In general, AM Longs require two messages, a data payload sent directly to the RAR
  * and a header send to ReqRB (for a Request) or ReqSB (for a Reply).  This function
@@ -532,7 +523,7 @@ static void exec_amlong_header(int isReq, int isPacked,
  * This function is called from:
  * - RARAM_event: in response to a Request or Reply AMLong data packet arrival.
  * --------------------------------------------------------------------------------- */
-static void exec_amlong_data(int isReq, ptl_event_t *ev)
+static int  exec_amlong_data(int isReq, ptl_event_t *ev)
 {
   gasnetc_ptl_token_t tok;
   gasnet_token_t token = (gasnet_token_t)&tok;
@@ -543,6 +534,7 @@ static void exec_amlong_data(int isReq, ptl_event_t *ev)
   void    *dest;
   uint8_t* dataaddr = (uint8_t*)ev->md.start + ev->offset;
   size_t   datalen = ev->mlength;
+  int      ran_handler = 0;
 
   tok.flags = 0;
   tok.initiator = ev->initiator;
@@ -562,9 +554,12 @@ static void exec_amlong_data(int isReq, ptl_event_t *ev)
       }
       tok.initiator_offset = p->initiator_offset;
     }
-    GASNETI_TRACE_PRINTF(C,("exec_amlong_data, running handler, isReq=%d, lid=%d, nargs=%d, hndlr=%d",isReq,lid,p->narg,p->ghandler));
+
+    GASNETI_TRACE_PRINTF(C,("exec_amlong_data, second to arrive, running handler isReq=%d, lid=%d",isReq,lid));
     GASNETI_RUN_HANDLER_LONG(isReq, p->ghandler ,gasnetc_handler[p->ghandler], token, p->args, p->narg, dataaddr, datalen);
 
+    ran_handler = 1;
+    
     /* free the lid object, it has already been removed from the list */
     gasneti_free(p);
 
@@ -580,8 +575,7 @@ static void exec_amlong_data(int isReq, ptl_event_t *ev)
     }
   } 
 
-  /* otherwise, first to arrive, cant run handler until header arrives */
-
+  return ran_handler;
 }
 
 /* ------------------------------------------------------------------------------------
@@ -785,6 +779,7 @@ static void RARAM_event(ptl_event_t *ev)
   uint8_t msg_type;
   uint64_t amflag = ((mbits & GASNETC_SELECT_BYTE1) >> 8);
   int isReq = (amflag & GASNETC_PTL_AM_REQUEST);
+  int ran_handler;
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("RARAM event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x, amflag=%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type,(uint32_t)amflag));
@@ -863,11 +858,17 @@ static void RARSRC_event(ptl_event_t *ev)
   case PTL_EVENT_PUT_END:
     /* Must be a AM Long Reply data message */
     {
+      int ran_handler;
       uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
       gasneti_assert( msg_type & GASNETC_PTL_MSG_AMDATA);
       gasneti_assert( !( amflag & GASNETC_PTL_AM_REQUEST) );
       GASNETI_TRACE_PRINTF(C,("RARSRC_event PUT_END for AMDATA send with amflag = %lu",amflag));
-      exec_amlong_data(0, ev);
+      if (exec_amlong_data(0, ev)) {
+	/* ran the reply handler, just completed AM that originated on this node */
+	gasnet_node_t srcnode = gasnetc_get_nodeid(&ev->initiator);
+	gasnetc_conn_t  *state = &gasnetc_conn_state[srcnode];
+	DECREMENT_AM_PENDING(state);
+      }
     }
     break;
 
@@ -995,6 +996,7 @@ static void ReqSB_event(ptl_event_t *ev)
   gasnetc_conn_t      *state;
   int pending;
   gasnet_node_t srcnode;
+  int ran_handler = 0;
 
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
@@ -1053,6 +1055,7 @@ static void ReqSB_event(ptl_event_t *ev)
   case PTL_EVENT_GET_END:
     /* CB Recovery of dropped AM Request, stop all further AMs to this node */
     srcnode = gasnetc_get_nodeid(&ev->initiator);
+    state = &gasnetc_conn_state[srcnode];
     gasneti_weakatomic_set(&state->in_recovery, 0, 0);
     /* dealloc the chunk */
     gasnetc_chunk_free(&gasnetc_ReqSB,offset);
@@ -1066,14 +1069,14 @@ static void ReqSB_event(ptl_event_t *ev)
     /* This is an AM reply from a previous request */
     /* who sent us this message? */
     if (amflag & GASNETC_PTL_AM_SHORT) {
-      exec_amshort_handler(0,ev,numarg,ghandler);
+      ran_handler = exec_amshort_handler(0,ev,numarg,ghandler);
     } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
-      exec_ammedium_handler(0,ev,numarg,ghandler);
+      ran_handler = exec_ammedium_handler(0,ev,numarg,ghandler);
     } else if (amflag & GASNETC_PTL_AM_LONG) {
       int is_packed = amflag & GASNETC_PTL_AM_PACKED;
       gasneti_assert(! (amflag & GASNETC_PTL_AM_REQUEST) );
       /* isReq = 0, only Replies come into ReqSB */
-      exec_amlong_header(0,is_packed,ev,numarg,ghandler);
+      ran_handler = exec_amlong_header(0,is_packed,ev,numarg,ghandler);
     } else {
       gasneti_fatalerror("ReqSB: Invalid amflag from mbits = %lx",(uint64_t)mbits);
     }
@@ -1081,23 +1084,11 @@ static void ReqSB_event(ptl_event_t *ev)
     /* dealloc the chunk */
     gasnetc_chunk_free(&gasnetc_ReqSB,offset);
 
-    /* MLW: race condition here ???
-     * Completed AM operation, update connection state
-     * If node is in recovery, no other thread will be accessing AM_pending, all
-     * at best would be polling on in_recovery.  So, if about to come out of
-     * recovery state, decrement AM_pending first
-     */
-    srcnode = gasnetc_get_nodeid(&ev->initiator);
-    state = &gasnetc_conn_state[srcnode];
-    if (gasneti_weakatomic_read(&state->in_recovery, 0)) {
-      int pending = (int)gasneti_weakatomic_read(&state->AM_pending, 0);
-      gasneti_weakatomic_decrement(&state->AM_pending,0);
-      if (pending == 1) {
-	/* all AMs to this target complete, no longer in recovery */
-	gasneti_weakatomic_set(&state->in_recovery, 0, 0);
-      }
-    } else {
-      gasneti_weakatomic_decrement(&state->AM_pending,0);
+    if (ran_handler) {
+      /* just completed an AM message that originated on this node */
+      srcnode = gasnetc_get_nodeid(&ev->initiator);
+      state = &gasnetc_conn_state[srcnode];
+      DECREMENT_AM_PENDING(state);
     }
     break;
 
