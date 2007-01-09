@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2006/10/03 19:15:53 $
- * $Revision: 1.5.2.6 $
+ *     $Date: 2007/01/09 19:15:52 $
+ * $Revision: 1.5.2.7 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -474,6 +474,19 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
  */
 typedef char *(gasneti_getenv_fn_t)(const char *keyname);
 extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
+
+
+/* ------------------------------------------------------------------------------------ */
+/* Attempt to maximize allowable cpu and memory resource limits for this
+ * process, silently ignoring any errors
+ * return non-zero on success */
+int gasnett_maximize_rlimits();
+/* maximize a particular rlimit, and return non-zero on success.
+   For portability, this should be called within an ifdef to ensure 
+   the specified RLIMIT_ constant exists
+ */
+int gasnett_maximize_rlimit(int res, const char *lim_desc);
+
 /* ------------------------------------------------------------------------------------ */
 
 #if PLATFORM_OS_AIX

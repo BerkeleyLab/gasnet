@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2006/06/06 22:35:31 $
- * $Revision: 1.26.2.1 $
+ *     $Date: 2007/01/09 19:16:28 $
+ * $Revision: 1.26.2.2 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -740,6 +740,9 @@ fh_priv_acquire_local(int local_ref, firehose_private_t *entry)
 		/* Bucket started in state "B" and is
 		 * now entering state (local_ref ? "C" : "E")
 		 */
+		#if PLATFORM_COMPILER_SUN_C
+		  gasneti_compiler_fence(); /* Work around bug 1857 */
+		#endif
 		FH_TAILQ_REMOVE(&fh_LocalFifo, entry);
 		FH_BSTATE_ASSERT(entry, fh_local_fifo);
 

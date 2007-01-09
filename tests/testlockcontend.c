@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlockcontend.c,v $
- *     $Date: 2006/10/03 19:16:26 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2007/01/09 19:16:44 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet lock performance test
  *   Measures the overhead associated with contended locks
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -18,7 +18,13 @@ int iters=0;
 void *myseg = NULL;
 int accuracy = 0;
 int maxthreads = 2;
+int threads = 1;
 
+void header(const char *desc) {
+      printf("\n---- %s ----\n"
+             "   Threads    Total time    Avg. time\n"
+             "   -------    ----------    ---------\n", desc);
+}
 void report(int threads, int64_t totaltime, int iters) {
       char format[80];
       sprintf(format, "%c:  %%6i     %%%i.%if s  %%%i.%if us\n", 
@@ -31,7 +37,10 @@ void report(int threads, int64_t totaltime, int iters) {
 gasnett_tick_t ticktime() { return gasnett_ticks_now(); }
 uint64_t tickcvt(gasnett_tick_t ticks) { return gasnett_ticks_to_ns(ticks); }
 
-void* thread_fn(void*);
+void* thread_fn1(void*);
+void* thread_fn2(void*);
+void* thread_fn3(void*);
+void* thread_fn4(void*);
 
 /* ------------------------------------------------------------------------------------ */
 /* This tester measures the performance of contended HSLs and pthread mutexes.
@@ -66,7 +75,26 @@ int main(int argc, char **argv) {
     printf("Running locks performance test with 1..%i threads and %i iterations...\n",maxthreads,iters);
     fflush(stdout);
     MSG0("Spawning pthreads...");
-    test_createandjoin_pthreads(maxthreads, &thread_fn, NULL, 0);
+    if (TEST_SECTION_BEGIN_ENABLED()) {
+      header("lock/unlock contended pthread mutex (others in thread barrier)");
+      test_createandjoin_pthreads(threads = maxthreads, &thread_fn1, NULL, 0);
+    }
+    if (TEST_SECTION_BEGIN_ENABLED()) {
+      header("lock/unlock contended HSL (others in thread barrier)");
+      test_createandjoin_pthreads(threads = maxthreads, &thread_fn2, NULL, 0);
+    }
+    if (TEST_SECTION_BEGIN_ENABLED()) {
+      header("lock/unlock contended pthread mutex (no other threads)");
+      for (threads=1; threads<=maxthreads; ++threads) {
+	test_createandjoin_pthreads(threads, &thread_fn3, NULL, 0);
+      }
+    }
+    if (TEST_SECTION_BEGIN_ENABLED()) {
+      header("lock/unlock contended HSL (no other threads)");
+      for (threads=1; threads<=maxthreads; ++threads) {
+	test_createandjoin_pthreads(threads, &thread_fn4, NULL, 0);
+      }
+    }
   }
 
   BARRIER();
@@ -76,32 +104,7 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-#define TIME_OPERATION(id, desc, op, altop)                     \
-do {                                                            \
-  if (!id) TEST_SECTION_BEGIN();                                \
-  PTHREAD_LOCALBARRIER(maxthreads);                             \
-  if (TEST_SECTION_ENABLED())                                   \
-  { int i, _thr, _iters = iters, _warmupiters = MAX(1,iters/10);\
-    gasnett_tick_t start,end;  /* use ticks interface */        \
-    if (!id) {                                                  \
-      printf("\n---- %s ----\n"                                 \
-             "   Threads    Total time    Avg. time\n"          \
-             "   -------    ----------    ---------\n", desc);  \
-    }                                                           \
-    for (i=0; i < _warmupiters; i++) { op; } /* warm-up */      \
-    for (_thr = 1; _thr <= maxthreads; ++_thr) {                \
-      PTHREAD_LOCALBARRIER(maxthreads);                         \
-      start = ticktime();                                       \
-      if (id < _thr) for (i=0; i < _iters; i++) { op; }         \
-      else { altop; }                                           \
-      PTHREAD_LOCALBARRIER(maxthreads);                         \
-      end = ticktime();                                         \
-      if (!id)                                                  \
-        report(_thr, tickcvt(end - start), iters);              \
-    }                                                           \
-  }                                                             \
-} while (0)
-
+/* ------------------------------------------------------------------------------------ */
 #undef MSG0
 #undef ERR
 #define MSG0 THREAD_MSG0(id)
@@ -110,15 +113,63 @@ do {                                                            \
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 gasnet_hsl_t hsl = GASNET_HSL_INITIALIZER;
 
-void * thread_fn(void *arg) { GASNET_BEGIN_FUNCTION();
+/* ------------------------------------------------------------------------------------ */
+#define TIME_OPERATION_SOME(id, op)                             \
+do {                                                            \
+  PTHREAD_LOCALBARRIER(threads);                                \
+  { int i, _thr, _iters = iters, _warmupiters = MAX(1,iters/10);\
+    gasnett_tick_t start,end;  /* use ticks interface */        \
+    for (i=0; i < _warmupiters; i++) { op; } /* warm-up */      \
+    for (_thr = 1; _thr <= threads; ++_thr) {                   \
+      PTHREAD_LOCALBARRIER(threads);                            \
+      start = ticktime();                                       \
+      if (id < _thr) for (i=0; i < _iters; i++) { op; }         \
+      PTHREAD_LOCALBARRIER(threads);                            \
+      end = ticktime();                                         \
+      if (!id)                                                  \
+        report(_thr, tickcvt(end - start), iters);              \
+    }                                                           \
+  }                                                             \
+} while (0)
+
+void * thread_fn1(void *arg) { GASNET_BEGIN_FUNCTION();
   int id = (int)(uintptr_t)arg;
- 
-  TIME_OPERATION(id, "lock/unlock contended pthread mutex (others in thread barrier)",
-		  { pthread_mutex_lock(&mutex); pthread_mutex_unlock(&mutex); }, {});
+  TIME_OPERATION_SOME(id, { pthread_mutex_lock(&mutex); pthread_mutex_unlock(&mutex); });
+  return NULL;
+}
 
-  TIME_OPERATION(id, "lock/unlock contended HSL (others in thread barrier)",
-		  { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); }, {});
+void * thread_fn2(void *arg) { GASNET_BEGIN_FUNCTION();
+  int id = (int)(uintptr_t)arg;
+  TIME_OPERATION_SOME(id, { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
+  return NULL;
+}
 
+/* ------------------------------------------------------------------------------------ */
+#define TIME_OPERATION_ALL(id, op)                              \
+do {                                                            \
+  PTHREAD_LOCALBARRIER(threads);                                \
+  { int i, _iters = iters, _warmupiters = MAX(1,iters/10);      \
+    gasnett_tick_t start,end;  /* use ticks interface */        \
+    for (i=0; i < _warmupiters; i++) { op; } /* warm-up */      \
+    PTHREAD_LOCALBARRIER(threads);                              \
+    start = ticktime();                                         \
+    for (i=0; i < _iters; i++) { op; }                          \
+    PTHREAD_LOCALBARRIER(threads);                              \
+    end = ticktime();                                           \
+    if (!id)                                                    \
+      report(threads, tickcvt(end - start), iters);             \
+  }                                                             \
+} while (0)
+
+void * thread_fn3(void *arg) { GASNET_BEGIN_FUNCTION();
+  int id = (int)(uintptr_t)arg;
+  TIME_OPERATION_ALL(id, { pthread_mutex_lock(&mutex); pthread_mutex_unlock(&mutex); });
+  return NULL;
+}
+
+void * thread_fn4(void *arg) { GASNET_BEGIN_FUNCTION();
+  int id = (int)(uintptr_t)arg;
+  TIME_OPERATION_ALL(id, { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
   return NULL;
 }
 /* ------------------------------------------------------------------------------------ */

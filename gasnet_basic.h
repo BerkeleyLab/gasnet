@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2006/10/03 19:15:52 $
- * $Revision: 1.47.2.3 $
+ *     $Date: 2007/01/09 19:15:52 $
+ * $Revision: 1.47.2.4 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,6 +25,15 @@
      this is permitted in certain VERY limited contexts, and activates conservative assumptions
    */
   #define GASNETI_CONFIGURE_MISMATCH 1
+#endif
+
+#if PLATFORM_COMPILER_FAMILYID != GASNETI_PLATFORM_COMPILER_FAMILYID || \
+    PLATFORM_COMPILER_VERSION != GASNETI_PLATFORM_COMPILER_VERSION
+  /* same as above, but ignore the C/C++ language distinction */
+  #define GASNETI_CONFIGURE_MISMATCH_IGNORELANG 1
+  #ifndef GASNETI_CONFIGURE_MISMATCH
+    #error inconsistent compiler detection logic
+  #endif
 #endif
 
 /* include files that may conflict with macros defined later */
@@ -53,7 +62,7 @@
   #define GASNETI_TENTATIVE_EXTERN 
 #endif
 
-#if defined(__cplusplus)
+#if defined(__cplusplus) || GASNETI_CONFIGURE_MISMATCH
   /* bug 1206: the restrict keyword is not part of the C++ spec, and many C++
      compilers lack it -- so define it away to nothing, which should always be safe */
   #undef GASNETI_RESTRICT
@@ -131,8 +140,11 @@
 #undef __attribute__ /* bug 1766: undo a stupid, gcc-centric definition from Linux sys/cdefs.h */
 #endif
 
-#if ( ! defined(GASNETI_HAVE_GCC_ATTRIBUTE) || defined(__cplusplus) ) && \
-    ! defined (__GNUC__) && ! defined (__attribute__)
+#if ! defined(GASNETI_HAVE_GCC_ATTRIBUTE) /* no attrib support */ || \
+      (defined(__GNUC__) && GASNETI_CONFIGURE_MISMATCH_IGNORELANG) /* unsafe to use attribs */ || \
+      (!defined(__GNUC__) && GASNETI_CONFIGURE_MISMATCH) /* unsafe to use attribs */            
+  /* disable all attributes */
+  #undef __attribute__
   #define __attribute__(flags)
 #endif
 
@@ -264,9 +276,9 @@
   #define GASNETI_PLEASE_INLINE(fnname) static
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
-#elif defined(STATIC_INLINE_WORKS)
+#elif defined(STATIC_INLINE_WORKS) && !GASNETI_CONFIGURE_MISMATCH
   #define GASNETI_PLEASE_INLINE(fnname) static CC_INLINE_MODIFIER
-#elif defined(CC_INLINE_MODIFIER)
+#elif defined(CC_INLINE_MODIFIER) && !GASNETI_CONFIGURE_MISMATCH
   #define GASNETI_PLEASE_INLINE(fnname) CC_INLINE_MODIFIER
 #else
   #define GASNETI_PLEASE_INLINE(fnname) static
@@ -313,7 +325,7 @@
 #else
   #define GASNETI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
 #endif
-#if PLATFORM_COMPILER_GNU
+#if GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
   /* gcc allows format attribute on a pointer-to-function */
   #define GASNETI_FORMAT_PRINTF_FUNCPTR GASNETI_FORMAT_PRINTF
 #else

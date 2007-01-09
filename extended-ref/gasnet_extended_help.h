@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2006/10/03 19:16:00 $
- * $Revision: 1.28.8.2 $
+ *     $Date: 2007/01/09 19:16:00 $
+ * $Revision: 1.28.8.3 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -162,6 +162,14 @@ typedef union {
   } while(0)
 
 #define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
+
+/* Wrapper around GASNETE_FAST_UNALIGNED_MEMCPY which becomes a no-op if src == dst */
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dest, src, nbytes) do { \
+    void *_dest = (dest);                                           \
+    const void *_src = (src);                                       \
+    if_pt (_dest != _src)                                           \
+        GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
+  } while (0)
 
 /* given the address of a gasnet_register_value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */

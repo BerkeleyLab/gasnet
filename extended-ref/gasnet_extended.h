@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2006/07/10 23:56:42 $
- * $Revision: 1.33.2.2 $
+ *     $Date: 2007/01/09 19:16:00 $
+ * $Revision: 1.33.2.3 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -796,12 +796,46 @@ extern int (*gasnete_barrier_wait)(int id, int flags);
 extern int (*gasnete_barrier_try)(int id, int flags);
 extern void gasnete_barrier_init();
 
-#define gasnet_barrier_notify(id, flags)  (gasneti_assert(gasnete_barrier_notify), \
-                                          (*gasnete_barrier_notify)(id, flags))
-#define gasnet_barrier_wait(id, flags)    (gasneti_assert(gasnete_barrier_wait), \
-                                          (*gasnete_barrier_wait)(id, flags))
-#define gasnet_barrier_try(id, flags)     (gasneti_assert(gasnete_barrier_try), \
-                                          (*gasnete_barrier_try)(id, flags))
+#if GASNETI_STATS_OR_TRACE
+extern gasneti_tick_t gasnete_barrier_notifytime;
+#endif
+
+GASNETI_INLINE(gasnet_barrier_notify)
+void gasnet_barrier_notify(int id, int flags) {
+  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
+  #if GASNETI_STATS_OR_TRACE
+    gasnete_barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
+  #endif
+
+  gasneti_assert(gasnete_barrier_notify);
+  (*gasnete_barrier_notify)(id, flags);
+}
+
+GASNETI_INLINE(gasnet_barrier_wait)
+int gasnet_barrier_wait(int id, int flags) {
+  #if GASNETI_STATS_OR_TRACE
+    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
+  #endif
+  int retval;
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
+  
+  gasneti_assert(gasnete_barrier_wait);
+  retval = (*gasnete_barrier_wait)(id, flags);
+ 
+  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
+  return retval;
+}
+
+GASNETI_INLINE(gasnet_barrier_try) GASNETI_WARN_UNUSED_RESULT
+int gasnet_barrier_try(int id, int flags) {
+  int retval;
+
+  gasneti_assert(gasnete_barrier_try);
+  retval = (*gasnete_barrier_try)(id, flags);
+
+  GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,(retval != GASNET_ERR_NOT_READY));
+  return retval;
+}
 
 /* ------------------------------------------------------------------------------------ */
 

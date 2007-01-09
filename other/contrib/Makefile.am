@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/Makefile.am,v $
-#     $Date: 2006/10/03 19:16:14 $
-# $Revision: 1.14.6.1 $
+#     $Date: 2007/01/09 19:16:26 $
+# $Revision: 1.14.6.2 $
 # Description: Makefile for GASNet other/contrib
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -10,15 +10,22 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 SUBDIRS = .
 
-EXTRA_DIST = $(dotpl_DATA) \
+EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
 	cross-configure-crayxt3
 # exclude these from distribution for now
 #	cross-configure-bgl \
-#	cross-configure-phantom \
-#	cross-configure-phoenix
+#	cross-configure-phoenix \
+#	cross-configure-k42ppc64 \
+#	cross-configure-osxi686 \
+#	cross-configure-osxppc64 \
+#	cross-configure-osxx86_64 \
+#	cross-configure-uclinux-microblaze
 
 dotpldir = $(bindir)
 dotpl_DATA = gasnet_trace.pl
+
+vgdir = $(libdir)/valgrind
+vg_DATA = gasnet.supp
 
 bin_SCRIPTS = gasnet_trace
 

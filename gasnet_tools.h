@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2006/10/03 19:15:53 $
- * $Revision: 1.52.2.6 $
+ *     $Date: 2007/01/09 19:15:53 $
+ * $Revision: 1.52.2.7 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,6 +92,16 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_CACHE_LINE_BYTES GASNETI_CACHE_LINE_BYTES
 #define GASNETT_SYSTEM_TUPLE     GASNETI_SYSTEM_TUPLE
 #define GASNETT_CONFIGURE_ARGS   GASNETI_CONFIGURE_ARGS
+
+#ifdef GASNETI_CONFIGURE_MISMATCH
+#define GASNETT_CONFIGURE_MISMATCH 1  /* indicate configure and build compilers mismatch */
+#endif
+
+/* platform identifiers for the compiler detected at *configure*-time */
+#define GASNETT_PLATFORM_COMPILER_IDSTR    _STRINGIFY(GASNETI_PLATFORM_COMPILER_IDSTR)
+#define GASNETT_PLATFORM_COMPILER_FAMILYID GASNETI_PLATFORM_COMPILER_FAMILYID
+#define GASNETT_PLATFORM_COMPILER_ID       GASNETI_PLATFORM_COMPILER_ID 
+#define GASNETT_PLATFORM_COMPILER_VERSION  GASNETI_PLATFORM_COMPILER_VERSION 
 
 /* various configure-detected C compiler features available in only some compilers */
 #define GASNETT_INLINE                  GASNETI_INLINE

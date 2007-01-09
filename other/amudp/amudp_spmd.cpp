@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2006/10/03 19:16:12 $
- * $Revision: 1.24.6.3 $
+ *     $Date: 2007/01/09 19:16:21 $
+ * $Revision: 1.24.6.4 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -17,7 +17,7 @@
 #else
   #include <unistd.h>
   #if PLATFORM_ARCH_CRAYT3E || PLATFORM_OS_SUPERUX || PLATFORM_OS_NETBSD || \
-      PLATFORM_OS_MTA || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT
+      PLATFORM_OS_MTA || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || PLATFORM_OS_OPENBSD
     /* these implement sched_yield() in libpthread only, which we may not want */
     #define sched_yield() sleep(0)
   #else
@@ -408,6 +408,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
 
     // setup bootstrap info 
     AMUDP_SPMDBootstrapInfo_t bootstrapinfo;
+    memset(&bootstrapinfo, 0, sizeof(bootstrapinfo)); // prevent valgrind warnings about sending uninit padding
     bootstrapinfo.numprocs = hton32(AMUDP_SPMDNUMPROCS);
     bootstrapinfo.depth = hton32(networkdepth);
 

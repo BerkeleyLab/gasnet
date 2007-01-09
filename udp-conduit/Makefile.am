@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v $
-#     $Date: 2006/06/06 22:35:53 $
-# $Revision: 1.17.6.1 $
+#     $Date: 2007/01/09 19:16:46 $
+# $Revision: 1.17.6.2 $
 # Description: Makefile for GASNet udp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -64,13 +64,19 @@ CONDUIT_TEST_MAKEARGS = MPI_TESTS="" MPI_TESTS_PAR=""
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_udp_par_a_SOURCES =
-libgasnet_udp_parsync_a_SOURCES =
-threaded_libraries = libgasnet-udp-par.a libgasnet-udp-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_udp_seq_a_SOURCES =
-libraries = libgasnet-udp-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-udp-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_udp_par_a_SOURCES =
+libraries_par = libgasnet-udp-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_udp_parsync_a_SOURCES =
+libraries_parsync = libgasnet-udp-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

@@ -1,4 +1,4 @@
-$Header: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/license.txt,v 1.2 2006/12/15 22:54:23 phargrov Exp $
+$Header: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/license.txt,v 1.2.2.1 2007/01/09 19:16:07 welcome Exp $
 All files in this directory (except where otherwise noted) are subject to the
 following licensing terms: 
 

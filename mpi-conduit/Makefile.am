@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v $
-#     $Date: 2006/06/06 22:35:15 $
-# $Revision: 1.32.10.1 $
+#     $Date: 2007/01/09 19:16:13 $
+# $Revision: 1.32.10.2 $
 # Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -60,13 +60,19 @@ CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_mpi_par_a_SOURCES =
-libgasnet_mpi_parsync_a_SOURCES =
-threaded_libraries = libgasnet-mpi-par.a libgasnet-mpi-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_mpi_seq_a_SOURCES =
-libraries = libgasnet-mpi-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-mpi-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_mpi_par_a_SOURCES =
+libraries_par = libgasnet-mpi-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_mpi_parsync_a_SOURCES =
+libraries_parsync = libgasnet-mpi-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

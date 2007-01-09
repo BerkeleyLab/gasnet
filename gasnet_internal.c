@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2006/10/03 19:15:52 $
- * $Revision: 1.140.2.6 $
+ *     $Date: 2007/01/09 19:15:52 $
+ * $Revision: 1.140.2.7 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@
 #include <fcntl.h>
 #include <signal.h>
 
-#if HAVE_MALLOC_H
+#if HAVE_MALLOC_H && !PLATFORM_OS_OPENBSD /* OpenBSD warns that malloc.h is obsolete */
   #include <malloc.h>
 #endif
 
@@ -718,12 +718,15 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
         #if PLATFORM_OS_AIX
           { "/dev/nampd0",         S_IFCHR, "IBM LAPI", 1 }, /* could also run lslpp -l | grep lapi */
         #endif
-        { "/dev/vipkl",          S_IFCHR, "InfiniBand", 2 },  /* Mellanox drivers */
-        { "/dev/ib_dsc",         S_IFCHR, "InfiniBand", 2 },  /* wotan - could also run system_profiler */
+        { "/dev/infiniband/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
+        { "/dev/vipkl",          S_IFCHR, "InfiniBand VAPI", 2 },  /* Mellanox drivers */
+        { "/dev/ib_dsc",         S_IFCHR, "InfiniBand VAPI", 2 },  /* wotan - could also run system_profiler */
         { "/dev/gm3",            S_IFCHR, "Myrinet", 3 }, /* could also look in /proc/devices and /proc/pci */
         { "/dev/elan3/control0", S_IFCHR, "Quadrics QsNetI", 4 },
         { "/dev/elan4/control0", S_IFCHR, "Quadrics QsNetII", 4 },
-        { "/proc/qsnet/version", S_IFREG, "Quadrics QsNet", 4 }
+        { "/proc/qsnet/version", S_IFREG, "Quadrics QsNet", 4 },
+        { "/dev/ukbridge",         S_IFCHR, "Cray XT", 5 },
+        { "/proc/portals/meminfo", S_IFREG, "Cray Portals", 5 }
       };
       int i, lim = sizeof(known_devs)/sizeof(known_devs[0]);
       for (i = 0; i < lim; i++) {
@@ -739,9 +742,9 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
       #if PLATFORM_ARCH_CRAYX1
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,"Cray X1");
-      #elif PLATFORM_OS_CATAMOUNT
+      #elif PLATFORM_OS_CATAMOUNT || PLATFORM_OS_CNL
         if (strlen(natives)) strcat(natives,", ");
-        strcat(natives,"Cray XT3");
+        strcat(natives,"Cray XT");
       #endif
       if (natives[0]) {
         sprintf(reason, "WARNING: This system appears to contain recognized network hardware: %s\n"

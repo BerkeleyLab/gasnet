@@ -9,8 +9,8 @@
 # NOTE: this relies on module-established PATH setting to automatically 
 # select the GCC or PGI-based MPI compilers, based on which PrgEnv is currently loaded
 # The same PrgEnv *must* be loaded when building and using the GASNet install
-CC='mpicc' ; export CC  # vanilla target C compiler
-CXX='mpicxx' ; export CXX  # vanilla target C++ compiler
+CC='cc -target=catamount' ; export CC  # vanilla target C compiler
+CXX='CC -target=catamount' ; export CXX  # vanilla target C++ compiler
 
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/ 
@@ -84,7 +84,7 @@ CROSS_SIGUSR1='10' ; export CROSS_SIGUSR1
 
 SRCDIR=`dirname $0`
 if test ! -f "$SRCDIR/configure" ; then
-  echo 'ERROR: The $0 script should be placed in the same directory as the configure script before execution'
+  echo "ERROR: The $0 script should be placed in the same directory as the configure script before execution"
   exit 1
 fi
 # Detect the build host machine type

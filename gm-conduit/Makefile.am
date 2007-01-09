@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v $
-#     $Date: 2006/06/06 22:35:09 $
-# $Revision: 1.53.10.1 $
+#     $Date: 2007/01/09 19:16:03 $
+# $Revision: 1.53.10.2 $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -79,7 +79,7 @@ endif
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @GM_NO_ALIAS@ -I$(fh_srcdir) $(mpi_cflags) $(rodata_flags) -I@GM_INCLUDE@ 
+CONDUIT_EXTRALIBCFLAGS = @FH_CFLAGS@ -I$(fh_srcdir) $(mpi_cflags) $(rodata_flags) -I@GM_INCLUDE@ 
 			 
 
 # additional conduit header files to install from external, non-standard directories
@@ -106,13 +106,19 @@ CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_gm_par_a_SOURCES =
-libgasnet_gm_parsync_a_SOURCES =
-threaded_libraries = libgasnet-gm-par.a libgasnet-gm-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_gm_seq_a_SOURCES =
-libraries = libgasnet-gm-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-gm-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_gm_par_a_SOURCES =
+libraries_par = libgasnet-gm-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_gm_parsync_a_SOURCES =
+libraries_parsync = libgasnet-gm-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

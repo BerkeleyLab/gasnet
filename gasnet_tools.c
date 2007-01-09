@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/10/03 19:15:53 $
- * $Revision: 1.140.2.6 $
+ *     $Date: 2007/01/09 19:15:52 $
+ * $Revision: 1.140.2.7 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,12 +39,19 @@
   #include <ucontext.h>
 #endif
 
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif
+
 #if PLATFORM_OS_IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
 
+
 #if PLATFORM_COMPILER_SUN_C
+  /* disable warnings triggerred by some macro idioms we use */
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 #if PLATFORM_OS_TRU64
@@ -515,7 +522,9 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 }
 #endif
 
-static char gasneti_exename_bt[255];
+#define GASNETI_BT_PATHSZ 1024 /* OpenBSD warns if this is smaller than 1024 */
+
+static char gasneti_exename_bt[GASNETI_BT_PATHSZ];
 
 #ifdef GASNETI_BT_LADEBUG
   static int gasneti_bt_ladebug(int fd) {
@@ -524,7 +533,7 @@ static char gasneti_exename_bt[255];
     #else
       const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s '%s'"; 
     #endif
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     /* Try to be smart if not in same place as at configure time */
     const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), ladebug, gasneti_exename_bt);
@@ -537,7 +546,7 @@ static char gasneti_exename_bt[255];
   static int gasneti_bt_dbx(int fd) {
     /* dbx's thread support is poor and not easily scriptable */
     const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), dbx, gasneti_exename_bt);
     if (rc < 0) return -1;
@@ -552,7 +561,7 @@ static char gasneti_exename_bt[255];
     #else
       const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'"; 
     #endif
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), idb, gasneti_exename_bt);
     if (rc < 0) return -1;
@@ -567,7 +576,7 @@ static char gasneti_exename_bt[255];
     #else
       const char fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
     #endif
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *pgdbg = (access(PGDBG_PATH, X_OK) ? "pgdbg" : PGDBG_PATH);
     int rc = sprintf(cmd, fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
     if (rc < 0) return -1;
@@ -584,8 +593,8 @@ static char gasneti_exename_bt[255];
       const char commands[] = "backtrace 50\ndetach\nquit\n";
     #endif
     const char fmt[] = "%s -nx -batch -x %s '%s' %d";
-    static char cmd[1024];
-    char filename[255];
+    static char cmd[sizeof(fmt) + 3*GASNETI_BT_PATHSZ];
+    char filename[GASNETI_BT_PATHSZ];
     const char *gdb = (access(GDB_PATH, X_OK) ? "gdb" : GDB_PATH);
     int rc;
 
@@ -638,8 +647,9 @@ static char gasneti_exename_bt[255];
       xlstr[0] = '\0';
       #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
         /* use addr2line when available to retrieve symbolic info */
-        { static char cmd[255];
-          sprintf(cmd,"%s -f -e '%s' %p", ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+        { const char fmt[] = "%s -f -e '%s' %p";
+          static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
+          sprintf(cmd, fmt, ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
           xlate = popen(cmd, "r");
           if (xlate) {
             char *p = xlstr;
@@ -702,7 +712,7 @@ static int gasneti_backtrace_userenabled = 0;
 static const char *gasneti_backtrace_list = 0;
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
 extern void gasneti_backtrace_init(const char *exename) {
-  char tmp[255];
+  char tmp[GASNETI_BT_PATHSZ];
   if (exename[0] == '/' || exename[0] == '\\') tmp[0] = '\0';
   else { getcwd(tmp, sizeof(tmp)); strcat(tmp,"/"); }
   strcat(tmp, exename);
@@ -1188,6 +1198,84 @@ extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defau
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* Resource limit control */
+
+int gasnett_maximize_rlimits() {
+   int success = 1;
+   struct res_s { int res; const char *desc; } res[] = {
+    #ifdef RLIMIT_CPU
+      { RLIMIT_CPU, "RLIMIT_CPU" },
+    #endif
+    #ifdef RLIMIT_DATA
+      { RLIMIT_DATA, "RLIMIT_DATA" },
+    #endif
+    #ifdef RLIMIT_RSS
+      { RLIMIT_RSS, "RLIMIT_RSS" },
+    #endif
+    #ifdef RLIMIT_STACK
+      { RLIMIT_STACK, "RLIMIT_STACK" },
+    #endif
+    #ifdef RLIMIT_AS
+      { RLIMIT_AS, "RLIMIT_AS" },
+    #endif
+  };
+  size_t idx; 
+  for (idx = 0; idx < sizeof(res)/sizeof(struct res_s); idx++) {
+    success &= gasnett_maximize_rlimit(res[idx].res, res[idx].desc);
+  }
+  return success;
+}
+int gasnett_maximize_rlimit(int res, const char *lim_desc) {
+  int success = 0;
+  #ifdef __USE_GNU
+    /* workaround an annoying glibc header bug, which erroneously declares get/setrlimit to take 
+       the enum type __rlimit_resource_t, instead of int as required by POSIX */
+    #define RLIM_CALL(fnname,structname) (*((int (*)(int,structname*))(void *)&fnname))
+  #else
+    #define RLIM_CALL(fnname,structname) fnname
+  #endif
+
+  #define SET_RLIMITS(structname, getrlimit, setrlimit) do {                                    \
+    structname oldval,newval;                                                                   \
+    if (RLIM_CALL(getrlimit,structname)(res, &oldval)) {                                        \
+      GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit: "#getrlimit"(%s) failed: %s",              \
+                              lim_desc, strerror(errno));                                       \
+    } else {                                                                                    \
+      char newvalstr[128];                                                                      \
+      newval = oldval;                                                                          \
+      if (newval.rlim_cur == RLIM_INFINITY ||                                                   \
+        newval.rlim_max == RLIM_INFINITY) {                                                     \
+        newval.rlim_cur = RLIM_INFINITY;                                                        \
+        strcpy(newvalstr, "RLIM_INFINITY");                                                     \
+      } else {                                                                                  \
+        gasneti_assert(newval.rlim_cur <= newval.rlim_max);                                     \
+        newval.rlim_cur = newval.rlim_max;                                                      \
+        sprintf(newvalstr, "%llu", (unsigned long long)newval.rlim_cur);                        \
+      }                                                                                         \
+      if (newval.rlim_cur != oldval.rlim_cur) {                                                 \
+        if (RLIM_CALL(setrlimit,structname)(res, &newval)) {                                    \
+          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit:                                        \
+            "#setrlimit"(%s, %s) failed: %s", lim_desc, newvalstr, strerror(errno));            \
+        } else {                                                                                \
+          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit:                                        \
+          "#setrlimit"(%s, %s) raised limit from %llu", lim_desc, newvalstr,                    \
+          (unsigned long long)oldval.rlim_cur);                                                 \
+          success = 1;                                                                          \
+        }                                                                                       \
+      }                                                                                         \
+    }                                                                                           \
+  } while (0)
+  #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
+    SET_RLIMITS(struct rlimit, getrlimit, setrlimit);
+  #endif
+  /* do 64-bit second, to favor the potentially higher limits */
+  #if defined(HAVE_GETRLIMIT64) && defined(HAVE_SETRLIMIT64)
+    SET_RLIMITS(struct rlimit64, getrlimit64, setrlimit64);
+  #endif
+  return success;
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* Physical CPU query */
 #if PLATFORM_OS_IRIX || PLATFORM_ARCH_CRAYX1
 #define _SC_NPROCESSORS_ONLN _SC_NPROC_ONLN
@@ -1196,7 +1284,7 @@ extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defau
 #elif PLATFORM_OS_HPUX
 #include <sys/param.h>
 #include <sys/pstat.h>
-#elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD
+#elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
@@ -1206,7 +1294,7 @@ extern int gasneti_cpu_count() {
   static int hwprocs = -1;
   if (hwprocs >= 0) return hwprocs;
 
-  #if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD
+  #if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
       {
         int mib[2];
         size_t len;
@@ -1246,7 +1334,7 @@ extern int gasneti_cpu_count() {
 #else
   #define _gasneti_getPhysMemSysconf() 0
 #endif
-#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
+#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
   #include <sys/types.h>
   #include <sys/sysctl.h>
 #elif PLATFORM_OS_CATAMOUNT
@@ -1278,7 +1366,7 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
       fclose(fp);
     }
     #undef _BUFSZ
-  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
+  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
     { /* see "man 3 sysctl" */    
       int mib[2];
       size_t len = 0;

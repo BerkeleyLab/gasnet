@@ -10,9 +10,6 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
-/* Needed for bootstrap */
-#include <catamount/cnos_mpi_os.h>
-
 /* ------------------------------------------------------------------------------------ */
 /* MLW:  Support for Portals 3.0 */
 

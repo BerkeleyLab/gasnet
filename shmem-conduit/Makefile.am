@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.6 2005/08/24 10:21:33 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/Makefile.am,v 1.6.6.1 2007/01/09 19:16:38 welcome Exp $
 # Description: Makefile for GASNet shmem conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -57,8 +57,23 @@ CONDUIT_RUNCMD = mpirun -np %N %P %A
 
 # -------- Do not modify anything below this line --------
 
+if BUILD_SEQ_LIBS
 libgasnet_shmem_seq_a_SOURCES =
-libraries = libgasnet-shmem-seq.a
+libraries_seq = libgasnet-shmem-seq.a
+endif
+# shmem-conduit does not support pthreads, due to shmem's lack of pthread safety
+CHECK_TEST_TARGET_OVERRIDE = tests-seq
+if ALWAYS_FALSECOND
+if BUILD_PAR_LIBS
+libgasnet_shmem_par_a_SOURCES =
+libraries_par = libgasnet-shmem-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_shmem_parsync_a_SOURCES =
+libraries_parsync = libgasnet-shmem-parsync.a
+endif
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 
@@ -67,8 +82,8 @@ libgasnet-shmem-seq.a: $(libgasnet_dependencies)
 
 if USE_SHMEM_CONDUIT  
 lib_LIBRARIES = $(libraries) 
-#all: do-all
-all: $(libraries) shmem-seq.mak
+# only make the seq fragment:
+all: $(lib_LIBRARIES) shmem-seq.mak
 clean-local: do-clean-local
 install-data-local: do-install-data-local
 uninstall-local: do-uninstall-local

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2006/08/24 16:49:50 $
- * $Revision: 1.21.2.3 $
+ *     $Date: 2007/01/09 19:16:44 $
+ * $Revision: 1.21.2.4 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -432,7 +432,7 @@ void doit7() { GASNET_BEGIN_FUNCTION();
       { gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            
         gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS); 
       });
-    if (gasnet_nodes() > 1)
+    if (TEST_SECTION_ENABLED() && (gasnet_nodes() > 1))
       MSG0("Note: this is actually the barrier time for %i nodes, "
            "since you're running with more than one node.\n", (int)gasnet_nodes());
 }

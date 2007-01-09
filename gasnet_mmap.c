@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/10/03 19:15:53 $
- * $Revision: 1.35.2.3 $
+ *     $Date: 2007/01/09 19:15:52 $
+ * $Revision: 1.35.2.4 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,13 +38,25 @@
 
 #ifndef GASNETI_MMAP_FLAGS
   #ifndef GASNETI_MMAP_NORESERVE
-    #ifdef MAP_NORESERVE /* bug 1358: try to avoid allocating swap space, if possible */
+    #if defined(MAP_NORESERVE) || defined(HAVE_MAP_NORESERVE)
+      /* bug 1358: try to avoid allocating swap space, if possible */
       #define GASNETI_MMAP_NORESERVE  MAP_NORESERVE
     #else
       #define GASNETI_MMAP_NORESERVE  0
     #endif
   #endif
-  #define GASNETI_MMAP_FLAGS (MAP_ANON | MAP_PRIVATE | GASNETI_MMAP_NORESERVE)
+  /* find an appropriate flag for anonymous mmap */
+  #if defined(MAP_ANONYMOUS) || defined(HAVE_MAP_ANONYMOUS)
+    #define GASNETI_MAP_ANONYMOUS MAP_ANONYMOUS
+  #elif defined(MAP_ANON) || defined(HAVE_MAP_ANON)
+    #define GASNETI_MAP_ANONYMOUS MAP_ANON
+  #else /* assume no direct capability exists, fall back on mapping /dev/zero */
+    #define GASNETI_MAP_ANONYMOUS 0
+    #ifndef GASNETI_MMAP_FILE
+    #define GASNETI_MMAP_FILE "/dev/zero"
+    #endif
+  #endif
+  #define GASNETI_MMAP_FLAGS (GASNETI_MAP_ANONYMOUS | MAP_PRIVATE | GASNETI_MMAP_NORESERVE)
 #endif
 
 #ifndef GASNETI_MMAP_FIXED_FLAG

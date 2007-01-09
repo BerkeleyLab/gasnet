@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_reqrep.cpp,v $
- *     $Date: 2006/08/08 16:36:41 $
- * $Revision: 1.32.6.2 $
+ *     $Date: 2007/01/09 19:16:21 $
+ * $Revision: 1.32.6.3 $
  * Description: AMUDP Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -246,7 +246,7 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   #define BROKEN_IOCTL 1
 #elif PLATFORM_OS_AIX || PLATFORM_OS_IRIX || PLATFORM_OS_HPUX || PLATFORM_OS_MTA || \
       PLATFORM_OS_TRU64 || PLATFORM_OS_DARWIN || PLATFORM_OS_SUPERUX || \
-      PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_UNICOS
+      PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD || PLATFORM_OS_UNICOS
   #define BROKEN_IOCTL 1 /*  seems these are broken too...  */
 #else 
   #define BROKEN_IOCTL 0 /*  at least Linux and Solaris work as documented */
@@ -456,7 +456,8 @@ static int AMUDP_HandleRequestTimeouts(ep_t ep, int numtocheck) {
 
   for (int i = 0; i < numtocheck; i++) {
     amudp_bufdesc_t* rd = &ep->requestDesc[curpos];
-    if_pf (rd->inuse && rd->timestamp <= now) {
+    if_pf (rd->inuse && rd->timestamp <= now && 
+           AMUDP_InitialRequestTimeout_us != AMUDP_TIMEOUT_INFINITE) {
       amudp_buf_t *basicbuf = &ep->requestBuf[curpos];
       amudp_buf_t *outgoingbuf = 
         (basicbuf->status.bulkBuffer ? 
@@ -468,15 +469,19 @@ static int AMUDP_HandleRequestTimeouts(ep_t ep, int numtocheck) {
       static int max_retryCount = 0;
       static int firsttime = 1;
       if (firsttime) {
-        uint32_t temp = AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC;
-        while (temp <= AMUDP_MAX_REQUESTTIMEOUT_MICROSEC) {
-          temp *= AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER;
-          max_retryCount++;
+        if (AMUDP_MaxRequestTimeout_us == AMUDP_TIMEOUT_INFINITE) {
+          max_retryCount = 0;
+        } else {
+          uint32_t temp = AMUDP_InitialRequestTimeout_us;
+          while (temp <= AMUDP_MaxRequestTimeout_us) {
+            temp *= AMUDP_RequestTimeoutBackoff;
+            max_retryCount++;
+          }
         }
-        initial_requesttimeout_cputicks = us2ticks(AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC);
+        initial_requesttimeout_cputicks = us2ticks(AMUDP_InitialRequestTimeout_us);
         firsttime = 0;
       }
-      if (retryCount >= max_retryCount) {
+      if (retryCount >= max_retryCount && max_retryCount) {
         /* we already waited too long - request is undeliverable */
         int isrequest = AMUDP_MSG_ISREQUEST(&outgoingbuf->Msg);
         amudp_category_t cat = AMUDP_MSG_CATEGORY(&outgoingbuf->Msg);
@@ -511,9 +516,6 @@ static int AMUDP_HandleRequestTimeouts(ep_t ep, int numtocheck) {
       } else {
         retryCount++;
         outgoingdesc->retryCount = retryCount;
-        amudp_cputick_t timetowait = initial_requesttimeout_cputicks * 
-             intpow(AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER, retryCount);
-        AMUDP_assert(initial_requesttimeout_cputicks != 0);
       
         /* retransmit */
         { /*  perform the send */
@@ -541,9 +543,11 @@ static int AMUDP_HandleRequestTimeouts(ep_t ep, int numtocheck) {
             AMUDP_STATS(ep->stats.RequestsRetransmitted[cat]++);
             AMUDP_STATS(ep->stats.RequestTotalBytesSent[cat] += packetlength);
           }
+
+          amudp_cputick_t timetowait = initial_requesttimeout_cputicks * 
+           intpow(AMUDP_RequestTimeoutBackoff, retryCount);
           outgoingdesc->timestamp = getCPUTicks() + timetowait;
         }
-
       }
     }
     curpos++;
@@ -1168,6 +1172,9 @@ static int AMUDP_RequestGeneric(amudp_category_t category,
     for (i = 0; i < numargs; i++) {
       args[i] = (uint32_t)va_arg(argptr, int); /* must be int due to default argument promotion */
     }
+    #if USE_CLEAR_UNUSED_SPACE
+      if (i < AMUDP_MAX_SHORT) args[i] = 0;
+    #endif
   }
 
   if (isloopback) { /* run handler synchronously */
@@ -1210,7 +1217,7 @@ static int AMUDP_RequestGeneric(amudp_category_t category,
 
     /* outgoingdesc->seqNum = !(outgoingdesc->seqNum); */ /* this gets handled by AMUDP_ServiceIncomingMessages */
     { amudp_cputick_t now = getCPUTicks();
-      uint32_t ustimeout = AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC;
+      uint32_t ustimeout = AMUDP_InitialRequestTimeout_us;
       /* we carefully use 32-bit datatypes here to avoid 64-bit multiply/divide */
       static uint32_t expectedusperbyte = 0; /* cache precomputed value */
       static amudp_cputick_t ticksperus = 0;
@@ -1221,6 +1228,10 @@ static int AMUDP_RequestGeneric(amudp_category_t category,
           (uint32_t)((2 * 1000000.0 / 1024.0) / AMUDP_ExpectedBandwidth);
         firsttime = 0;
       }
+     if (AMUDP_InitialRequestTimeout_us == AMUDP_TIMEOUT_INFINITE) {
+       outgoingdesc->timestamp = (amudp_cputick_t)-1;
+       outgoingdesc->retryCount = 0;
+     } else {
       uint32_t expectedus = (packetlength * expectedusperbyte);
       /* bulk transfers may have a noticeable wire delay, so we grow the initial timeout
        * accordingly to allow time for the transfer to arrive and be serviced
@@ -1229,13 +1240,13 @@ static int AMUDP_RequestGeneric(amudp_category_t category,
        */
       int retryCount = 0;
       outgoingdesc->transmitCount = 1;
-      while (ustimeout < expectedus &&
-        ustimeout < AMUDP_MAX_REQUESTTIMEOUT_MICROSEC) {
-        ustimeout *= AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER;
+      while (ustimeout < expectedus && ustimeout < AMUDP_MaxRequestTimeout_us) {
+        ustimeout *= AMUDP_RequestTimeoutBackoff;
         retryCount++;
       }
       outgoingdesc->timestamp = now + (((amudp_cputick_t)ustimeout)*ticksperus);
       outgoingdesc->retryCount = retryCount;
+     }
       #if AMUDP_COLLECT_LATENCY_STATS
         outgoingdesc->firstSendTime = now;
       #endif
@@ -1326,9 +1337,7 @@ static int AMUDP_ReplyGeneric(amudp_category_t category,
       args[i] = (uint32_t)va_arg(argptr, int); /* must be int due to default argument promotion */
     }
     #if USE_CLEAR_UNUSED_SPACE
-      for ( ; i < AMUDP_MAX_SHORT; i++) {
-        args[i] = 0;
-      }
+      if (i < AMUDP_MAX_SHORT) args[i] = 0;
     #endif
   }
 

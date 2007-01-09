@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/10/03 19:15:52 $ */
-/*  $Revision: 1.73.2.5 $ */
+/*      $Date: 2007/01/09 19:15:51 $ */
+/*  $Revision: 1.73.2.6 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -42,9 +42,11 @@
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
 
 /* identification of the compiler used at configure time */
 #undef GASNETI_PLATFORM_COMPILER_IDSTR
+#undef GASNETI_PLATFORM_COMPILER_FAMILYID
 #undef GASNETI_PLATFORM_COMPILER_ID
 #undef GASNETI_PLATFORM_COMPILER_VERSION
 
@@ -63,6 +65,11 @@
 /* have mmap() */
 #undef HAVE_MMAP
 
+/* mmap supporting flags */
+#undef HAVE_MAP_NORESERVE
+#undef HAVE_MAP_ANON
+#undef HAVE_MAP_ANONYMOUS
+
 /* --with-segment-mmap-max value (if given) */
 #undef GASNETI_MMAP_MAX_SIZE
 
@@ -77,6 +84,9 @@
 
 /* has sched_yield() */
 #undef HAVE_SCHED_YIELD
+
+/* have sysctl machdep.tsc_freq */
+#undef GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ
 
 /* has Portable Linux Processor Affinity */
 #undef HAVE_PLPA
@@ -209,6 +219,11 @@
 #undef GASNETC_VAPI_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
 #undef GASNETC_VAPI_MAX_HCAS
+
+/* GASNet ibv-conduit features and bug work-arounds */
+#undef GASNETC_IBV_POLL_LOCK
+#undef GASNETC_IBV_RCV_THREAD
+#undef GASNETC_IBV_MAX_HCAS
 
 /* GASNet lapi-conduit specific */
 #undef GASNETC_LAPI_FEDERATION

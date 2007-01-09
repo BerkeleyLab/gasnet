@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.11.10.1 $
+ *     $Date: 2007/01/09 19:16:44 $
+ * $Revision: 1.11.10.2 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -583,7 +583,7 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
                             gasnet_node_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   size_t dim = (desc->stridelevels+1);
-  size_t * const idx = test_calloc(sizeof(size_t), dim);
+  size_t * idx;
   size_t * const count = desc->count;
   size_t * const srcstrides = desc->srcstrides;
   size_t * const dststrides = desc->dststrides;
@@ -592,6 +592,8 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
   size_t curdim = 0;
   
   if (desc->totalsz == 0) return; /* empty */
+
+  idx = test_calloc(sizeof(size_t), dim);
 
   while (curdim < dim) {
 
@@ -652,6 +654,7 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
     }
     resultp++;
   }
+  test_free(idx);
 }
 #define verify_strided_desc_data(desc,result,context) do {                                             \
   if (verify) _verify_strided_desc_data_both((desc),(result),mynode,NULL,(context),__FILE__,__LINE__); \

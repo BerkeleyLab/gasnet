@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/10/03 19:16:08 $
- * $Revision: 1.6.2.3 $
+ *     $Date: 2007/01/09 19:16:17 $
+ * $Revision: 1.6.2.4 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -434,9 +434,17 @@
   #define PLATFORM_OS_CATAMOUNT 1
   #define PLATFORM_OS_FAMILYNAME CATAMOUNT
 
+#elif defined(__CRAYXT_COMPUTE_LINUX_TARGET)
+  #define PLATFORM_OS_CNL 1
+  #define PLATFORM_OS_FAMILYNAME CNL
+
 #elif defined(__blrts) || defined(__blrts__) || defined(__gnu_blrts__)
   #define PLATFORM_OS_BLRTS 1
   #define PLATFORM_OS_FAMILYNAME BLRTS
+
+#elif defined(__K42)
+  #define PLATFORM_OS_K42 1
+  #define PLATFORM_OS_FAMILYNAME K42
 
 #elif defined(__uClinux__)
   #define PLATFORM_OS_UCLINUX 1
@@ -469,6 +477,10 @@
 #elif defined(__NetBSD) || defined(__NetBSD__)
   #define PLATFORM_OS_NETBSD 1
   #define PLATFORM_OS_FAMILYNAME NETBSD
+
+#elif defined(__OpenBSD__)
+  #define PLATFORM_OS_OPENBSD 1
+  #define PLATFORM_OS_FAMILYNAME OPENBSD
 
 #elif defined(__sun) || defined(__sun__)
   #define PLATFORM_OS_SOLARIS 1
@@ -674,6 +686,7 @@
 /* ------------------------------------------------------------------------------------ */
 /* handy test code that can be parsed after preprocess or executed to show platform results */
 #ifdef PLATFORM_SHOW
+#include <stdio.h>
 const char *
 COMPILER_FAMILYNAME = _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME)
 , *
@@ -689,8 +702,12 @@ ARCH_FAMILYNAME = _STRINGIFY(PLATFORM_ARCH_FAMILYNAME)
 ;
 int main() {
   #define PLATFORM_DISP(x) printf("PLATFORM_"#x"=%s\n",x)
+  #define PLATFORM_DISPI(x) printf("PLATFORM_"#x"=%i\n",PLATFORM_##x)
+  #define PLATFORM_DISPX(x) printf("PLATFORM_"#x"=0x%x\n",PLATFORM_##x)
   PLATFORM_DISP(COMPILER_FAMILYNAME);
   PLATFORM_DISP(COMPILER_FAMILYID);
+  PLATFORM_DISPI(COMPILER_ID);
+  PLATFORM_DISPX(COMPILER_VERSION);
   PLATFORM_DISP(COMPILER_VERSION_STR);
   PLATFORM_DISP(COMPILER_IDSTR);
   PLATFORM_DISP(OS_FAMILYNAME);

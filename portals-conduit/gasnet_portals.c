@@ -5,6 +5,14 @@
 #include <gasnet_handler.h>
 #include <gasnet_portals.h>
 
+#if PLATFORM_OS_CATAMOUNT
+/* Needed for bootstrap */
+#include <catamount/cnos_mpi_os.h>
+#elif PLATFORM_OS_CNL
+#include <pctmbox.h>
+#else
+#error Unknown Portals OS
+#endif
 
 /* macros used for simple hash table lookup.  Only accessed in this file. */
 #define HASHTABLE_SIZE 512
@@ -1042,7 +1050,8 @@ static void ReqSB_event(ptl_event_t *ev)
     q = pdata - sizeof(void*);
     /* q points to location where real destination address is stored */
     dest = (void*)*(uintptr_t*)q;
-    GASNETI_TRACE_PRINTF(C,("EV_handler copying %lli bytes from bb 0x%lx to 0x%lx",(long long)ev->mlength,(uintptr_t)pdata,(uintptr_t)dest));
+    GASNETI_TRACE_PRINTF(C,("EV_handler copying %l bytes from bb 0x%lx to 0x%lx",
+                            (long)ev->mlength,(uintptr_t)pdata,(uintptr_t)dest));
     memcpy(dest,pdata,ev->mlength);
     /* free the bounce buffer */
     offset -= sizeof(void*);
@@ -1573,7 +1582,7 @@ static int gasnetc_io_buffer_size = 0;  /* was 1024 */
 extern void gasnetc_init_portals_network(void)
 {
   ptl_interface_t   ptl_iface;
-#ifdef CNLinux
+#if PLATFORM_OS_CNL
   int               use_bridge = PTL_BRIDGE_UK;
 #else
   int               use_bridge = PTL_BRIDGE_QK;
@@ -1612,7 +1621,7 @@ extern void gasnetc_init_portals_network(void)
   GASNETC_PTLSAFE(PtlGetUid(gasnetc_ni_h,&gasnetc_uid));
   GASNETC_PTLSAFE(PtlGetId(gasnetc_ni_h,&gasnetc_myid));
   
-#ifdef CNLinux
+#if PLATFORM_OS_CNL
   /* Assume APRUN launcher */
   if ((rc=cnos_register_ptlid(gasnetc_myid)) != 0) {
     gasneti_fatalerror("cnos_register_ptlid returned %d\n",rc);
@@ -1759,7 +1768,7 @@ extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_no
 extern void gasnetc_bootstrapBarrier() {
   static int gasnetc_bootstrapBarrierCnt = 0;
 
-#ifdef CNLinux
+#if PLATFORM_OS_CNL
   if (gasnetc_bootstrapBarrierCnt == 0) {
     /* First time, must init cnos barrier */
     cnos_barrier_init();

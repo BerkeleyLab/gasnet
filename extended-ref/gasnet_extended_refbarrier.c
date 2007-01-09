@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2006/07/10 23:56:42 $
- * $Revision: 1.28.4.2 $
+ *     $Date: 2007/01/09 19:16:00 $
+ * $Revision: 1.28.4.3 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,7 @@
 
 static enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate = OUTSIDE_BARRIER;
 #if GASNETI_STATS_OR_TRACE
-  static gasneti_tick_t barrier_notifytime; /* for statistical purposes */ 
+  gasneti_tick_t gasnete_barrier_notifytime; /* for statistical purposes */ 
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -209,10 +209,6 @@ static void gasnete_amdbarrier_notify(int id, int flags) {
   if_pf(barrier_splitstate == INSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if GASNETI_STATS_OR_TRACE
-    barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
 
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
    * bits locally as we do when passing over the network.
@@ -250,24 +246,17 @@ extern int gasnete_amdbarrier_wait(int id, int flags) {
   int retval = GASNET_OK;
   int i;
 
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
   int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   phase = amdbarrier_phase;
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_notifytime);
-
   if (amdbarrier_step == amdbarrier_size) { /* completed asynchronously before wait (via progressfns or try) */
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_notifytime);
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
   } else { /*  wait for response */
     GASNET_BLOCKUNTIL((gasnete_amdbarrier_kick(), amdbarrier_step == amdbarrier_size));
   }
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
 
   /* determine return value */
   if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && (gasnet_handlerarg_t)id != amdbarrier_value) || 
@@ -296,14 +285,8 @@ extern int gasnete_amdbarrier_try(int id, int flags) {
   GASNETI_SAFE(gasneti_AMPoll());
   gasnete_amdbarrier_kick();
 
-  if (amdbarrier_step == amdbarrier_size) {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
-    return gasnete_amdbarrier_wait(id, flags);
-  }
-  else {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,0);
-    return GASNET_ERR_NOT_READY;
-  }
+  if (amdbarrier_step == amdbarrier_size) return gasnete_amdbarrier_wait(id, flags);
+  else return GASNET_ERR_NOT_READY;
 }
 
 #define GASNETE_AMDBARRIER_HANDLERS()                                 \
@@ -419,11 +402,6 @@ extern void gasnete_amcbarrier_notify(int id, int flags) {
   if_pf(barrier_splitstate == INSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if GASNETI_STATS_OR_TRACE
-    barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
-
   /* If we are on an ILP64 platform, this cast will ensure we truncate the same
    * bits locally as we do when passing over the network.
    */
@@ -451,24 +429,18 @@ extern void gasnete_amcbarrier_notify(int id, int flags) {
 
 
 extern int gasnete_amcbarrier_wait(int id, int flags) {
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
   int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   phase = amcbarrier_phase;
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
 
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_notifytime);
 
   if (amcbarrier_response_done[phase]) { /* completed asynchronously before wait (via progressfns or try) */
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-barrier_notifytime);
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
   } else { /*  wait for response */
     GASNET_BLOCKUNTIL((gasnete_amcbarrier_kick(), amcbarrier_response_done[phase]));
   }
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
 
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
@@ -491,14 +463,8 @@ extern int gasnete_amcbarrier_try(int id, int flags) {
   GASNETI_SAFE(gasneti_AMPoll());
   gasnete_amcbarrier_kick();
 
-  if (amcbarrier_response_done[amcbarrier_phase]) {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
-    return gasnete_amcbarrier_wait(id, flags);
-  }
-  else {
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,0);
-    return GASNET_ERR_NOT_READY;
-  }
+  if (amcbarrier_response_done[amcbarrier_phase]) return gasnete_amcbarrier_wait(id, flags);
+  else return GASNET_ERR_NOT_READY;
 }
 
 #define GASNETE_AMCBARRIER_HANDLERS()                                 \

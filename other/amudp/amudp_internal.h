@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2006/08/08 16:36:41 $
- * $Revision: 1.21.8.2 $
+ *     $Date: 2007/01/09 19:16:21 $
+ * $Revision: 1.21.8.3 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -65,11 +65,20 @@
 #define AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER     2  /* timeout exponential backoff factor */
 #define AMUDP_MAX_REQUESTTIMEOUT_MICROSEC    30000000  /* max timeout before considered undeliverable */
 #define AMUDP_DEFAULT_EXPECTED_BANDWIDTH         1220  /* expected Kbytes/sec bandwidth: 1220 = 10Mbit LAN */
+#define AMUDP_TIMEOUT_INFINITE ((uint32_t)-1)
+extern uint32_t AMUDP_MaxRequestTimeout_us;
+extern uint32_t AMUDP_InitialRequestTimeout_us;
+extern uint32_t AMUDP_RequestTimeoutBackoff;
+extern uint32_t AMUDP_ExpectedBandwidth; /* expected half-duplex bandwidth in KBytes/sec */
+
 
 #define AMUDP_TIMEOUTS_CHECKED_EACH_POLL            1  /* number of timeout values we check upon each poll */
 #define AMUDP_MAX_RECVMSGS_PER_POLL                10  /* max number of waiting messages serviced per poll (0 for unlimited) 
                                                           we actually service up to MAX(AMUDP_MAX_RECVMSGS_PER_POLL, network_depth)
                                                           to prevent unnecessary retransmits (where the awaited reply is sitting in recv buffer) */
+#if AMUDP_DEBUG
+#define USE_CLEAR_UNUSED_SPACE 1  /* clear any padding sent in AMs, to prevent valgrind warnings */
+#endif
 
 #define AMUDP_INITIAL_NUMENDPOINTS 1    /* initial size of bundle endpoint table */
 

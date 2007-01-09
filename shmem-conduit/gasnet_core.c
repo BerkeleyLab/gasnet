@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2006/10/03 19:16:20 $
- * $Revision: 1.25.2.3 $
+ *     $Date: 2007/01/09 19:16:38 $
+ * $Revision: 1.25.2.4 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1232,7 +1232,16 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
-      while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
+      if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+        if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
+          while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+            gasneti_compiler_fence();
+            gasneti_spinloop_hint();
+          }
+        } else {
+          gasneti_mutex_lock(&(hsl->lock));
+        }
+      }
     #else
       gasneti_mutex_lock(&(hsl->lock));
     #endif
@@ -1428,6 +1437,10 @@ gasnetc_SHMallocSegmentSearch()
           gasnet_max_segsize = maxsz; 
         }
         maxsz = GASNETI_MMAP_LIMIT;
+        #if GASNETI_ARCH_ALTIX
+            /* alignup here in case user requested a non-power of two size */
+	    maxsz = gasnetc_alignup_pow2(maxsz);
+        #endif
 
         if (gasnetc_verbose_spawn && gasneti_mynode == 0)
 		printf("maxsiz = %lu (%.2f GB), pagesize=%d\n\n", 
@@ -1447,8 +1460,8 @@ gasnetc_SHMallocSegmentSearch()
 	{
 	    uintptr_t alloc_perthread;
 	    double  frac;
-
-	    alloc_perthread = gasnetc_aligndown_pow2(maxsz);
+ 
+	    alloc_perthread = maxsz;
 
 	    starttime = gasneti_ticks_now();
 	    si.addr = NULL;

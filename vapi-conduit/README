@@ -1,18 +1,32 @@
-README file for vapi-conduit
-================================
+README file for vapi-conduit and ibv-conduit
+============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.34.2.2 $
+$Revision: 1.34.2.3 $
 
 @ TOC: @
+@ Section: VAPI vs IBV @
 @ Section: Job Spawning @
 @ Section: Multi-rail Support @
 @ Section: Runtime Configuration @
 @ Section: Core API @
 @ Section: Extended API @
 @ Section: Graceful exits @
-@ Section: TO DO @
 @ Section: References @
 
+
+@ Section: VAPI vs IBV @
+
+  The same source code is used to build GASNet's support for the two
+  popular InfiniBand APIs:
+  + VAPI: The "Verbs API" from Mellanox
+  + IBV: The "IB Verbs" from the OpenFabrics Alliance (aka OpenIB)
+
+  Unless stated otherwise, everything in this document applies to
+  both vapi-conduit and ibv-conduit.  For clarity (and due to
+  history) this document consistenty talks about VAPI.  However,
+  anywhere "vapi" or "VAPI" appears in the name of a configuration
+  option, environment variable, or command, one may substitute "ibv"
+  or "IBV" to obtain the equivalent to be used with ibv-conduit.
 
 @ Section: Job Spawning @
   
@@ -112,7 +126,7 @@ $Revision: 1.34.2.2 $
 
 @ Section: Build-time Configuration @
 
-  By default vapi-conduit ensures network attentiveness (timely
+  Vapi-conduit can ensures good network attentiveness (timely
   processing of incoming AMs) by spawning an extra thread that
   remains blocked until the arrival of an Active Message.  One
   can disable this thread by configuring GASNet with the flag
@@ -163,7 +177,7 @@ $Revision: 1.34.2.2 $
     result in a run-time warning.
 
   + GASNET_NUM_QPS
-    This variable gives the number of VAPI Queue Pairs (QPs) over which to 
+    This variable gives the number of IB Queue Pairs (QPs) over which to 
     stripe traffic between each pair of peers.  This can yield an increase
     in throughput and bandwidth when multiple physical ports are used
     on one or more adapters.
@@ -198,8 +212,9 @@ $Revision: 1.34.2.2 $
       less than the number of entries in GASNET_VAPI_PORTS, ports
       are openned in the order detected, regardless of their order
       in GASNET_VAPI_PORTS
-    Note that the 'vstat' utility in most IB distributions will list
-    the available HCAs and the status of their ports.
+    Note that in most VAPI distributions the 'vstat' utility will list
+    the available HCAs and the status of their ports, while for IBV the
+    equivalent is 'ibv_devices'.
     The default is no filter.
 
   Software configuration settings:
@@ -224,6 +239,8 @@ $Revision: 1.34.2.2 $
     is ignored.
     Currently the default is disabled (0), but this is subject to change
     in a future version.
+    In ibv-conduit only, this option is currently ignored and the thread
+    is never used.
 
   Protocol configuration:
   The following environment variables control the selection of protocols
@@ -415,6 +432,55 @@ $Revision: 1.34.2.2 $
     The suffixes "K", "M" and "G" are interpreted as Kilobytes, Megabytes
     and Gigabytes respectively.  The current default is 256K.
    
+  AMRDMA configuration:
+  The following environment variables control the AM-over-RDMA code in
+  vapi-conduit.  These parameters must be equal across all nodes, and
+  the behavior otherwise is undefined.
+
+  As an optimization, vapi-conduit can send Active Message (AM) traffic
+  using RDMA PUT operations to buffers reserved for this purpose.  This
+  leads to a reduction in the end-to-end latency of such AM traffic, but
+  at the cost of increased memory usage and in the cost of a polling for
+  AMs (as done explicity in gasnet_AMPoll(), and implicitly in many
+  GASNet calls).
+
+  + GASNET_AMRDMA_LIMIT
+    This environment variable controls the maximum size of an AM that may
+    be sent via the AMRDMA path.  The software overhead on both the sender
+    and receiver grow with the message size.  So, as the message size grows
+    the use of AMRDMA eventually costs more than the snd/rcv alternative.
+    A value of zero will disable AMRDMA.
+    The current default is 4K minus some overheads.
+
+  + GASNET_AMRDMA_DEPTH
+    This environment variable controls the number of buffers (currently 4K
+    each) that are allocated per peer for receiving AMRDMA traffic.  Larger
+    values may potentially allow for more AMs in-flight before flow control
+    throttles the sender, but at the cost of increased memory consumption.
+    The current default is 32.
+
+  + GASNET_AMRDMA_MAX_PEERS
+    This environment variable limits the number of peers from which AMs may
+    be received over RDMA.  Larger values may potentially allow for lower
+    cost AM traffic, but at the cost of increased memory consumption and
+    greater overhead each time that vapi-conduit polls for AM traffic.
+    The current default is 0 - which disables AMRDMA.
+
+  + GASNET_AMRDMA_CYCLE
+    This environment variable, which must be zero or a power or two, sets
+    the period between (re)assignments of AMRDMA peers, as measured by
+    of the number of AMs received of size <= GASNET_AMRDMA_LIMIT.
+    The current algorithm for selecting AMRDMA peers is very simplistic
+    and will never revoke AMRDMA status once granted to a given peer.
+    An overly large value will result in a long period of time before any
+    peers may be assigned AMRDMA status, while an overly short value may
+    select peers based on initialization activities which don't reflect the
+    communication pattern of the remainder of the run.
+    A value of zero will disable AMRDMA.
+    A value of one will result in selecting the first GASNET_AMRDMA_MAX_PEERS
+    peers from which AMs are received.
+    The current default is 8192.
+
   Firehose configuration:
   These parameters must be equal across all nodes, and the behavior
   otherwise is undefined.
@@ -822,57 +888,6 @@ round trips for the remote exit request/reply, for a total of 4*N-2 AMs
 sent.
 
 The average case is somewhere between these two.
-
-@ Section: TO DO @
-
-+ Value gets move as follows:
-  - From network to bounce buffer
-  - From bounce buffer to _gasnet_valget_op_t or automatic variable
-  - From memory to return from function
-  The bounce buffer is a little harder to eliminate than for the puts,
-  unless we can allocate the _gasnet_valget_op_t in pinned memory.  One
-  way to do this might be for the _gasnet_valget_op_t to be placed IN
-  the bounce buffer, but that creates a problem with long-lived bounce
-  buffers with non-blocking gets.  This _will_ work, however, for blocking
-  value gets.
-
-+ Can use "notifn" to make the progress thread only wake if there are
-  multiple outstanding recvs.  This could, for instance, wake only if
-  we reach the RNR state (or maybe are one event shy of it).
- 
-+ There is DDR memory on the board, which is at least 2.5 times faster
-  than host memory from the point-of-view of the network.  The down side
-  is that it is both slower and non-cachable from the host.  However, it
-  might be sensible to use it for some purposes.  In particular bounce
-  buffers don't need to be cachable.  So, the bounce buffers could move
-  to the HCA.
-
-  I speculate that the result could be an increase in overhead, due to
-  the host-copy going to slower memory.  However, I expect that the total
-  end-to-end latency may be reduced slightly and less cache pollution will
-  occur.  Additionally the "background" copy by the HCA will not cause
-  traffic on either the PCI or memory bus - reducing resource contention
-  during the time one may wish to overlap computation.
-
-    PUT Case I: 
-      CPU copies host_mem->host_mem
-      HCA copies host_mem->HCA_mem
-      HCA sends from HCA_mem to network
-    PUT Case II:
-      CPU copies host_mem->HCA_mem
-      HCA copies HCA_mem->HCA_mem (Might be omitted?)
-      HCA sends from HCA_mem to network
- 
-    GET Case I:
-      HCA recvs to HCA_mem
-      HCA copies HCA_mem->host_mem
-      CPU copies host_mem->host_mem
-    GET Case II:
-      HCA recvs to HCA_mem
-      HCA copies HCA_mem->HCA_mem (Might be omitted?)
-      CPU copies HCA_mem->host_mem
-
-  Of course I can't get a program to allocate from HCA memory!
 
 @ Section: References @
 
