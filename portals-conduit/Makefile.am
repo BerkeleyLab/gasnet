@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/01/09 19:16:32 $
-# $Revision: 1.1.2.6 $
+#     $Date: 2007/01/10 00:53:26 $
+# $Revision: 1.1.2.7 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -37,7 +37,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@PORTALS_INCLUDE@ -I@CATAMOUNT_INCLUDE@
+CONDUIT_EXTRALIBCFLAGS = @PORTALS_INCLUDES@ 
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
