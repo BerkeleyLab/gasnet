@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/01/09 23:10:44 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2007/01/10 00:58:21 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -353,6 +353,10 @@ extern void gasnetc_exit(int exitcode) {
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
+
+  /* MLW: what does this do? */
+  raise(SIGKILL);
+
   gasneti_killmyprocess(exitcode);
   gasneti_fatalerror("killmyprocess failed to kill process in gasnetc_exit");
 }
@@ -381,9 +385,7 @@ extern int gasnetc_AMPoll() {
   int retval;
   GASNETI_CHECKATTACH();
 
-  /*  GASNETI_TRACE_PRINTF(C,("gasnetc_AMPoll enter")); */
   gasnetc_portals_poll(GASNETC_FULL_POLL);
-  /*  GASNETI_TRACE_PRINTF(C,("gasnetc_AMPoll exit")); */
 
   return GASNET_OK;
 }
