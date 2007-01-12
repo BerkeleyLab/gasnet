@@ -42,7 +42,14 @@ gasnetc_PtlBuffer_t gasnetc_RARSRC;
 
 ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
 ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
-ptl_handle_eq_t gasnetc_SAFE_EQ_h;          /* Handle to the Buffer Event Queue */
+ptl_handle_eq_t gasnetc_SAFE_EQ_h;         /* Handle to the Buffer Event Queue */
+
+/* out of band MDs for sending system messages */
+gasnetc_PtlBuffer_t gasnetc_SYS_Send;       /* out-of-band message send buffer */
+gasnetc_PtlBuffer_t gasnetc_SYS_Recv;       /* out-of-band message recv buffer */
+ptl_handle_eq_t gasnetc_SYS_EQ_h;           /* out-of-band system Event Queue */
+/* a flag that is set to true after the network is initialized */
+static int portals_sysqueue_initialized = 0;
 
 /* We limit the number of temporary memory descriptors in use at any time.
  * If over the limit, allocator will poll until the number of outstanding tmp mds
@@ -81,7 +88,7 @@ int gasnetc_msg_limit = 250;
  */
 gasneti_weakatomic_t gasnetc_amlongReq_datacnt;
 
-const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD"};
+const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
 
 /* =================================================================================
  * This top portion of the file is where file-scope worker routines are located.
@@ -1507,6 +1514,145 @@ static void ReqSB_exit()
   gasnetc_buf_free(&gasnetc_ReqSB);
 }
 
+/* ---------------------------------------------------------------------------------
+ * Figure out which SYS System message to execute
+ * --------------------------------------------------------------------------------- */
+static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32_t arg2)
+{
+  GASNETI_TRACE_PRINTF(C,("sys_msg %u, arg0=%d, arg1=%d, arg2=%d",(unsigned)msg_id,arg0,arg1,arg2));
+
+  switch (msg_id) {
+  case GASNETC_SYS_SHUTDOWN:
+    gasnetc_shutdown(arg0);
+    break;
+
+  default:
+    gasneti_fatalerror("[%d] unknown sys_msg %u, arg0=%d, arg1=%d, arg2=%d",
+		       gasneti_mynode, (unsigned)msg_id, arg0, arg1, arg2);
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+ * Process system SYS events
+ * --------------------------------------------------------------------------------- */
+static void sys_event(ptl_event_t *ev)
+{
+  ptl_size_t offset = ev->offset;
+  ptl_match_bits_t   mbits = ev->match_bits;
+
+  switch (ev->type) {
+
+  case PTL_EVENT_PUT_END:
+    /* Must be a system message */
+    {
+      gasnetc_sys_t msg_id = (gasnetc_sys_t) ((mbits & GASNETC_SELECT_BYTE1)>>8);
+      int32_t arg0 = (int32_t) ((mbits & GASNETC_SELECT_UPPER32) >> 32);
+      int32_t arg1 = (int32_t) ((ev->hdr_data & GASNETC_SELECT_UPPER32) >> 32);
+      int32_t arg2 = (int32_t) (ev->hdr_data & GASNETC_SELECT_LOWER32);
+      exec_sys_msg(msg_id, arg0, arg1, arg2);
+    }
+    
+    break;
+
+  case PTL_EVENT_SEND_END:   /* should not happen */
+  default:
+    gasneti_fatalerror("Invalid event %s on SYS",ptl_event_str[ev->type]);
+  }
+}
+
+/* ---------------------------------------------------------------------------------
+ * Init the system SYS MDs and Event Queue
+ * --------------------------------------------------------------------------------- */
+static void sys_init()
+{
+  ptl_size_t eq_len = 2*gasneti_nodes + 10;
+  ptl_md_t   md;
+  ptl_process_id_t  match_id;
+
+  match_id.nid = PTL_NID_ANY;
+  match_id.pid = PTL_PID_ANY;
+
+  printf("[%d] SYS_init: allocated %ld events on SYS_EQ",(int)gasneti_mynode,(long)eq_len);
+  GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, eq_len, NULL, &gasnetc_SYS_EQ_h));
+
+  /* allocate the SYS send buffer */
+  gasnetc_buf_init(&gasnetc_SYS_Send,"SYS_Send",0,0);
+  md.start = NULL;
+  md.length = 0;
+  md.threshold = PTL_MD_THRESH_INF;
+  md.max_size = 0;
+  md.options = PTL_MD_EVENT_START_DISABLE;
+#if GASNETC_USE_EQ_HANDLER
+  md.user_ptr = (void*)(uint64_t)GASNETC_SYS_SEND_MD;
+#else
+  md.user_ptr = (void*)sys_event;
+#endif
+  md.eq_handle = PTL_EQ_NONE;
+
+  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_SYS_Send.md_h));
+  GASNETI_TRACE_PRINTF(C,("SYS_init: %s initialized, md=%lu",gasnetc_SYS_Send.name,(ulong)gasnetc_SYS_Send.md_h));
+
+  /* allocate the SYS receive buffer */
+  gasnetc_buf_init(&gasnetc_SYS_Recv,"SYS_Recv",0,0);
+  md.start = NULL;
+  md.length = 0;
+  md.threshold = PTL_MD_THRESH_INF;
+  md.max_size = 0;
+  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_ACK_DISABLE | PTL_MD_TRUNCATE;
+#if GASNETC_USE_EQ_HANDLER
+  md.user_ptr = (void*)(uint64_t)GASNETC_SYS_RECV_MD;
+#else
+  md.user_ptr = (void*)sys_event;
+#endif
+  md.eq_handle = gasnetc_SYS_EQ_h;
+
+  /* Insert a MLE at the head of the list */
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, GASNETC_PTL_SYS_BITS,
+			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_BEFORE, &gasnetc_SYS_Recv.me_h));
+  GASNETC_PTLSAFE(PtlMDAttach(gasnetc_SYS_Recv.me_h, md, PTL_RETAIN, &gasnetc_SYS_Recv.md_h));
+
+  GASNETI_TRACE_PRINTF(C,("SYS_init: %s me=%lu md=%lu",gasnetc_SYS_Recv.name,(ulong)gasnetc_SYS_Recv.me_h,(ulong)gasnetc_SYS_Recv.md_h));
+
+  portals_sysqueue_initialized = 1;
+
+}
+
+/* ---------------------------------------------------------------------------------
+ * Remove the system SYS resources
+ * --------------------------------------------------------------------------------- */
+static void sys_exit()
+{
+  ptl_event_t ev;
+  /* these will automatically unlink the match-list entries as well */
+  GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_SYS_Send.md_h));
+  GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_SYS_Recv.md_h));
+  /* drain the queue */
+  while (gasnetc_get_event(gasnetc_SYS_EQ_h,&ev)) {};
+  GASNETC_PTLSAFE(PtlEQFree(gasnetc_SYS_EQ_h));
+}
+
+/* ---------------------------------------------------------------------------------
+ * Send an SYS message to another gasnet node
+ * --------------------------------------------------------------------------------- */
+extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
+				int32_t arg0, int32_t arg1, int32_t arg2)
+{
+  ptl_size_t         local_offset = 0;
+  ptl_size_t         remote_offset = 0;
+  ptl_size_t         msg_bytes = 0;
+  ptl_handle_md_t    md_h = gasnetc_SYS_Send.md_h;
+  ptl_process_id_t   target_id = gasnetc_procid_map[node].ptl_id;
+  ptl_ac_index_t     ac_index = GASNETC_PTL_AC_ID;
+  ptl_match_bits_t   match_bits;
+  uint64_t           hdr_data;
+
+  GASNETI_TRACE_PRINTF(C,("SYS_SendMsg: Sending msg_id=%u to node %d",(unsigned)msg_id,node));
+  match_bits = ((uint64_t)arg0 << 32) | ((uint64_t)msg_id << 8) | GASNETC_PTL_SYS_BITS;
+  hdr_data = ((uint64_t)arg1 << 32) | (uint64_t)arg2;
+  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, GASNETC_PTL_AC_ID, match_bits, remote_offset, hdr_data));
+
+}
+
 /* =================================================================================
  * This lower portion of the file is where exported functions are located.
  * These are exported to both the Core and Extended API implementations.
@@ -1544,6 +1690,9 @@ extern void gasnetc_init_portals_network(void)
   int               rc, i, node;
   int               num_interfaces;
  
+  gasneti_mynode = cnos_get_rank();
+  gasneti_nodes = cnos_get_size();
+
   /* Set up buffered IO for STDOUT */
   if (gasnetc_io_buffer_size > 0) {
     gasnetc_flush_buf = (char*)gasneti_malloc(gasnetc_io_buffer_size);
@@ -1639,6 +1788,9 @@ extern void gasnetc_init_portals_network(void)
   /* init weakatomic vars */
   gasneti_weakatomic_set(&gasnetc_amlongReq_datacnt, 0, 0);
 
+  /* setup system SYS Send/Recv resources */
+  sys_init();
+
 }
 
 /* Function to convert a ptl_process_id_t to a GASNet Node id */
@@ -1724,6 +1876,10 @@ extern void gasnetc_bootstrapBarrier() {
     cnos_barrier_init();
   }
 #endif
+
+  /* check the system queue if after network init */
+  if (portals_sysqueue_initialized) gasnetc_sys_poll();
+  
   gasnetc_bootstrapBarrierCnt++;
   GASNETI_TRACE_PRINTF(C,("bootstrapBarrier count = %d",gasnetc_bootstrapBarrierCnt));
 
@@ -2339,15 +2495,19 @@ extern void gasnetc_portals_preexit(int do_trace)
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_portals_exit()
 {
-
+  ptl_event_t ev;
 
   RplSB_exit();
   ReqRB_exit();
   ReqSB_exit();
   RAR_exit();
 
+  sys_exit();
+
   /* remove the event queues */
+  while (gasnetc_get_event(gasnetc_SAFE_EQ_h,&ev)) {};
   GASNETC_PTLSAFE(PtlEQFree(gasnetc_SAFE_EQ_h));
+  while (gasnetc_get_event(gasnetc_AM_EQ_h,&ev)) {};
   GASNETC_PTLSAFE(PtlEQFree(gasnetc_AM_EQ_h));
 
   /* free the proc id map */
@@ -2360,6 +2520,16 @@ extern void gasnetc_portals_exit()
 
 }
 
+extern void gasnetc_sys_poll()
+{
+  int processed = 0;
+  ptl_event_t ev;
+
+  while (gasnetc_get_event(gasnetc_SYS_EQ_h, &ev)) {
+    GASNETI_TRACE_PRINTF(C,("Got event %s from SYS_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
+    GASNETC_CALL_EQ_HANDLER(ev);
+  }
+}
 /* ------------------------------------------------------------------------------------
  * --------------------------------------------------------------------------------- */
 /* Portals polling function.  Process the event queues.
@@ -2380,6 +2550,9 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   poll_level++;
   GASNETI_TRACE_PRINTF(C,("Enter Poll with %s, level %d",poll_name[poll_type],poll_level));
 #endif
+
+  /* always poll on the system queue */
+  gasnetc_sys_poll();
 
   /* always try to get an event from the SAFE eq first */
   if ( gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev) ) {
@@ -2476,6 +2649,11 @@ extern void gasnetc_event_handler(ptl_event_t *ev)
     
   case GASNETC_CB_MD:
     CB_event(ev);
+    break;
+
+  case GASNETC_SYS_SEND:
+  case GASNETC_SYS_RECV:
+    SYS_event(ev);
     break;
 
   default:

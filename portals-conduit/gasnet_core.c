@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/01/10 00:58:21 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2007/01/12 01:57:29 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -56,9 +56,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
     /* setup portals network */
-  gasneti_mynode = cnos_get_rank();
-  gasneti_nodes = cnos_get_size();
   gasnetc_init_portals_network();
+  gasnetc_bootstrapBarrier();
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -299,66 +298,94 @@ static void gasnetc_atexit(void) {
     gasnetc_exit(0);
 }
 
+/* The NoOp AM handler function */
+GASNETI_INLINE(gasnetc_shutdown_reqh_inner)
+void gasnetc_shutdown_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t exitcode)
+{
+  GASNETI_TRACE_PRINTF(C,("Running AM Request Shutdown handler"));
+  gasnetc_shutdown(exitcode);
+  gasneti_fatalerror("gasnetc_shutdown_reqh_inner returned after shutdown");
+}
+SHORT_HANDLER(gasnetc_shutdown_reqh,1,1,
+              (token,a0),
+              (token,a0) );
+
+
+/* do the actual shutdown.  Should only be called once */
+extern int gasnetc_shutdown(int exitcode) {
+  /* This is called either from gasnetc_exit
+   * OR, from the AM Request Shutdown handler, in response to
+   * another node shutting down.
+   */
+  {
+    static int shutdownInProgress = 0;
+    if (shutdownInProgress) gasneti_fatalerror("Second call to gasnetc_shutdown");
+    shutdownInProgress = 1;
+  }
+
+  GASNETI_TRACE_PRINTF(C,("In gasnetc_shutdown"));
+
+  /* reclaim Portals resources */
+#if 0
+  gasnetc_portals_exit();
+#endif
+
+  GASNETI_TRACE_PRINTF(C,("In gasnetc_shutdown, after portals_exit"));
+
+  /* preform cleanup operations */
+  gasneti_flush_streams();
+  gasneti_trace_finish();
+  gasneti_sched_yield();    /* No-Op until multi-threaded */
+  
+  /* kill myself without generateing core dumps, etc */
+  GASNETI_TRACE_PRINTF(C,("In gasnetc_shutdown, killing myself"));
+  gasneti_killmyprocess(exitcode);
+
+  /* should not get here */
+  gasneti_fatalerror("gasnetc_shutdown->killmyprocess returned");
+  return 1;
+}
+
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
-#ifdef GASNET_DEBUG
   {
     static int gasnetc_exit_entered = 0;
-
     if (gasnetc_exit_entered) {
-      printf("[%d] gasnetc_exit already entered %d times",gasneti_mynode,gasnetc_exit_entered);
       gasnetc_exit_entered++;
+      GASNETI_TRACE_PRINTF(C,("Entry number %d to gasnetc_exit",gasnetc_exit_entered));
       return;
     }
-
     gasnetc_exit_entered++;
   }
-#endif
+    
 
   {  /* ensure only one thread ever continues past this point */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&exit_lock);
   }
 
-#if 0
-  /* MLW: cant barrier here, not all procs may enter exit code in error case */
-  gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);
-  gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS);
-  gasnetc_portals_preexit(1);
-#endif
+  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i) called, sending shutdown to others\n", exitcode));
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
+  /* poll to see if others have posted message */
+  /* MLW: may want to poll for a duration that is node-dependent
+   * in an attempt to prevent an network shitstorm
+   */
+  gasnetc_sys_poll();
 
-#if 0
+  /* inform others we are shutting down */
   {
-    long inflight = gasneti_weakatomic_read(&gasnetc_msg_inflight,0);
-    printf("[%d] Messages In Flight = %ld\n",gasneti_mynode,inflight);
+    gasnet_node_t node;
+    for (node = 0; node < gasneti_nodes; node++) {
+      if (node == gasneti_mynode) continue;
+      gasnetc_sys_SendMsg(node,GASNETC_SYS_SHUTDOWN, exitcode, 0, 0);
+    }
   }
-#endif
-
-  gasneti_flush_streams();
-  gasneti_trace_finish();
-  gasneti_sched_yield();
   
-#if 0
-  /* release resources */
-  /* MLW: for now, dont release resources, not sure how to handle it in error cases */
-  gasnetc_portals_preexit(0);
-  gasnetc_portals_exit();
-#endif
-
-  /* (###) add code here to terminate the job across _all_ nodes 
-           with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
-           after raising a SIGQUIT to inform the client of the exit
-  */
-
-  /* MLW: what does this do? */
-  raise(SIGKILL);
-
-  gasneti_killmyprocess(exitcode);
-  gasneti_fatalerror("killmyprocess failed to kill process in gasnetc_exit");
+  /* run shutdown code for this node, should not return */
+  gasnetc_shutdown(exitcode);
+  gasneti_fatalerror("gasnetc_exit: shutdown should not have returned");
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -405,7 +432,6 @@ void gasnetc_noop_reph_inner(gasnet_token_t token)
 SHORT_HANDLER(gasnetc_noop_reph,0,0,
               (token),
               (token) );
-
 
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
@@ -1112,6 +1138,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
 
   /* ptr-width dependent handlers */
     gasneti_handler_tableentry_with_bits(gasnetc_noop_reph),
+    gasneti_handler_tableentry_with_bits(gasnetc_shutdown_reqh),
 
   { 0, NULL }
 };
