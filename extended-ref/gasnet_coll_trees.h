@@ -27,20 +27,24 @@ struct gasnete_coll_local_tree_geom_t_ {
   int fanout;
   gasnet_node_t root;
   gasnete_coll_tree_kind_t kind;
+  gasnet_node_t total_size; /*total number of nodes of this geometry*/
   gasnet_node_t parent; /*parent of this node*/
-  int child_count; /*number of children*/
+  gasnet_node_t child_count; /*number of children*/
   gasnet_node_t *child_list; /*list of children*/
+  gasnet_node_t *subtree_sizes; /* the size of the subtrees under each of our children */
+  gasnet_node_t mysubtree_size;
   
   /** sibling information**/
-  int num_siblings;
-  gasnet_node_t *sibling_list; /*list of siblings*/
-  int *sibling_subtree_sizes; /*sizes of the subtrees under the siblings useful in gather/scatter/reduce*/
-  int sibling_id; /*my sibling number*/
+  gasnet_node_t num_siblings;
+
+  gasnet_node_t sibling_id; /*my sibling number*/
   
-  /*** subtree information***/
-  int *subtree_sizes;
-  gasnet_node_t *subtree;
-  int subtree_count;
+  /* if the subtree of the parent of this node were to be listed linearly in DFS order, this number indicates
+    the position in the parent's list where this node's subtree starts */
+  gasnet_node_t sibling_offset;
+  
+  /* DFS Order of the tree, only assigned at the root node */
+  gasnet_node_t *dfs_order;
 
   gasnet_node_t *dissem_order;
   int dissem_count;

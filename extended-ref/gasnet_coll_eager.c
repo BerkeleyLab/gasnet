@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2006/12/18 23:31:14 $
- * $Revision: 1.29.6.24 $
+ *     $Date: 2007/01/13 01:52:39 $
+ * $Revision: 1.29.6.25 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -85,6 +85,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  int barrier_count;
   int result = 0;
   int child;
 
@@ -97,8 +98,8 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 1;
 
     case 1:	/* Optional IN barrier over the SAME tree */
-      if (data->options & GASNETE_COLL_GENERIC_OPT_INSYNC) {
-	if (gasneti_weakatomic_read(&data->p2p->counter, 0) != child_count) {
+      if(op->flags & GASNET_COLL_IN_ALLSYNC) {
+    	if (gasneti_weakatomic_read(&data->p2p->counter, 0) != child_count) {
 	  break;
 	}
         if (gasneti_mynode != args->srcnode) {
@@ -134,12 +135,31 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
 	break;	/* Stalled until data arrives */
       }
       data->state = 3;
-      
-    case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
-	break;
+    
+    case 3: /*optional out barrier over the same tree*/
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        
+        /* if we had to do a barrier on the way in then the counter will advance to double the child_count*/
+        barrier_count = child_count + ((op->flags & GASNET_COLL_IN_ALLSYNC) ? child_count : 0);
+	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != barrier_count) {
+	  break;
+	}
+        if (gasneti_mynode != args->srcnode) {
+	  gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
+	}
+        
       }
-
+      data->state = 4;
+      
+    case 4:	/* Optional OUT barrier thread barrier*/
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        if (!gasnete_coll_generic_all_threads(data)) {
+          break;
+        }
+      }
+      data->state = 5;
+        
+    case 5: /*done*/
       gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
@@ -156,8 +176,8 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
 			     uint32_t sequence
 			     GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
-		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
+  int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |*/
+		/*GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |*/
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
   gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);

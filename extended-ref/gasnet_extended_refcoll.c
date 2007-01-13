@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2006/12/18 23:31:15 $
- * $Revision: 1.29.6.25 $
+ *     $Date: 2007/01/13 01:52:40 $
+ * $Revision: 1.29.6.26 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -994,7 +994,7 @@ void gasnete_coll_barrier_notify_callback(int id, int flags) {
 	
 	/*** Begin Custom Code that will hook into all the barriers **/
 	GASNET_TEAM_ALL->scratch_status->perform_reset = 1;
-	//	GASNET_TEAM_ALL->scratch_status->first_collective = 1;
+	/*	GASNET_TEAM_ALL->scratch_status->first_collective = 1; */
 	/**** End Custom Code **/
 }
 
@@ -1803,6 +1803,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
       op = gasnete_coll_op_create(team, sequence, flags GASNETE_THREAD_PASS);
       op->data = data;
       op->poll_fn = poll_fn;
+      op->flags = flags;
 
       #if GASNET_PAR
       if (gasnete_coll_multi_images && !(flags & GASNETE_COLL_SUBORDINATE)) {
@@ -1821,7 +1822,18 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 	/* this operation could potentially send updates clearing scratch space on other nodes */
 		op->myscratchpos = gasnete_coll_scratch_new_op(scratch_req, sequence, handle GASNETE_THREAD_PASS);
 		op->scratchpos = gasnete_coll_scratch_get_peer_pos(scratch_req GASNETE_THREAD_PASS);
-
+#if 0
+                fprintf(stderr, "%d> myscratchpos: %d\n", gasneti_mynode, (int)op->myscratchpos);
+                if(scratch_req->tree_op) {
+                for(i=0; i<scratch_req->num_out_peers; i++) {
+                  fprintf(stderr, "%d> scratchpos[%d]: %d\n", gasneti_mynode, i, (int) op->scratchpos[i]);
+                }
+                } else {
+                  for(i=0; i<op->team->total_ranks; i++) {
+                    fprintf(stderr, "%d> scratchpos[%d]: %d\n", gasneti_mynode, i, (int) op->scratchpos[i]);
+                  }
+                }
+#endif
 	 } else {
 		op->scratchpos = NULL;
 	 }
@@ -2154,10 +2166,43 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
 				gasnet_image_t srcimage, void *src,
 				size_t nbytes, int flags,
 				gasnete_coll_poll_fn poll_fn, int options,
-				void *private_data, uint32_t sequence
+                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                 GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result;
+  gasnete_coll_scratch_req_t *scratch_req=NULL;
+  uint32_t *out_sizes;
+  int i;
 
+  if(options & (GASNETE_COLL_USE_SCRATCH)) {
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
+    /*fill out the tree information*/
+    scratch_req->tree_type = tree_info->geom->kind;
+    scratch_req->fanout = tree_info->geom->fanout;
+    scratch_req->root = tree_info->geom->root;
+    scratch_req->team = team;
+    scratch_req->tree_op = 1;
+    /*fill out the peer information*/
+    scratch_req->incoming_size = nbytes*tree_info->geom->mysubtree_size;
+  /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
+    if(team->myrank == tree_info->geom->root) {
+      scratch_req->num_in_peers = 0;
+      scratch_req->in_peers = NULL;      
+    }
+    else {
+      scratch_req->num_in_peers = 1;
+      scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
+    }
+    out_sizes = (uint32_t*) gasneti_malloc(sizeof(uint32_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom));
+    scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
+    scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);
+    for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom); i++) {
+      out_sizes[i] = nbytes*tree_info->geom->subtree_sizes[i];
+/*      fprintf(stderr, "%d> requesting %d bytes on %d\n", gasneti_mynode, out_sizes[i], GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom)[i]);*/
+
+    }
+    scratch_req->out_sizes = out_sizes;
+  }
+  
   gasnete_coll_threads_lock(flags GASNETE_THREAD_PASS);
   if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
@@ -2170,8 +2215,8 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     data->args.scatter.src        = src;
     data->args.scatter.nbytes     = nbytes;
     data->options = options;
-    data->private_data = private_data; data->tree_info=NULL;
-    result = gasnete_coll_op_generic_init(team, flags, data, poll_fn, sequence GASNETE_THREAD_PASS);
+    data->tree_info = tree_info;
+    result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req GASNETE_THREAD_PASS);
   } else {
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
@@ -2204,7 +2249,9 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
+    return gasnete_coll_scat_TreePut(team, dst, srcimage, src, nbytes, flags, gasnete_coll_current_tree_kind, sequence GASNETE_THREAD_PASS);
     if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+     /* XXXX: fix this later however this should be safe as written */
       if (nbytes <= eager_limit) {
         return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
       } else {
@@ -2213,7 +2260,7 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
     } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
       return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
     } else {
-      return gasnete_coll_scat_Put(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+     return gasnete_coll_scat_Put(team, dst, srcimage, src, nbytes, flags,  sequence GASNETE_THREAD_PASS);
     }
   } else if (nbytes <= eager_limit) {
     /* Small enough for Eager, which works for out-of-segment src and/or dst */

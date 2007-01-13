@@ -12,6 +12,8 @@
 #ifndef __GASNET_COLL_SCRATCH_H__
 #define __GASNET_COLL_SCRATCH_H__ 1
 
+#define GASNETE_COLL_SCRATCH_TREE_OP 0
+#define GASNETE_COLL_SCRATCH_DISSEM_OP 1
 
 
 struct gasnete_coll_scratch_req_t_;
@@ -112,7 +114,7 @@ struct gasnete_coll_scratch_status_t_ {
   /*nodes that will send to me*/
   int numpeers;
   gasnet_node_t *peers;
-  
+  uint8_t last_op;
 
 };
 

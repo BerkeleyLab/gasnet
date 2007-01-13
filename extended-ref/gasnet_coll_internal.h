@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2006/12/18 19:35:09 $
- * $Revision: 1.22.6.15 $
+ *     $Date: 2007/01/13 01:52:39 $
+ * $Revision: 1.22.6.16 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -137,11 +137,12 @@ struct gasnete_coll_tree_data_t_ {
   uint32_t			sent_bytes;
   gasnete_coll_local_tree_geom_t	*geom;
 };
-#define GASNETE_COLL_MIN_SCRATCH_SIZE 8192
+#define GASNETE_COLL_MIN_SCRATCH_SIZE 256
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 #ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
 /*set defult to 1 MB*/
-#define GASNETE_COLL_OPT_SCRATCH_SIZE (1*(1024*1024))
+//#define GASNETE_COLL_OPT_SCRATCH_SIZE (1*(1024*1024))
+#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8
 #endif
 
 /*---------------------------------------------------------------------------------*/
@@ -1788,7 +1789,7 @@ extern int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE);
 extern gasnet_coll_handle_t gasnete_coll_threads_get_handle(GASNETE_THREAD_FARG_ALONE);
 extern void gasnete_coll_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern void gasnete_coll_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-GASNETI_INLINE(gasnete_coll_generic_all_threads)
+GASNETI_INLINE(all_threads)
 int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
   int result;
   gasneti_assert(data != NULL);
@@ -1852,7 +1853,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 gasnet_image_t srcimage, void *src,
                                 size_t nbytes, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
-                                void *private_data, uint32_t sequence
+                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                 GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -2038,6 +2039,16 @@ gasnete_coll_scat_Put(gasnet_team_handle_t team,
 		      gasnet_image_t srcimage, void *src,
 		      size_t nbytes, int flags, uint32_t sequence
                       GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
+			   void *dst,
+			   gasnet_image_t srcimage, void *src,
+			   size_t nbytes, int flags,
+			   gasnete_coll_tree_kind_t kind,
+			   uint32_t sequence
+			   GASNETE_THREAD_FARG);
+
 
 extern gasnet_coll_handle_t
 gasnete_coll_scat_Eager(gasnet_team_handle_t team,
