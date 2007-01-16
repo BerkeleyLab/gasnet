@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/01/16 00:57:23 $
- * $Revision: 1.29.6.26 $
+ *     $Date: 2007/01/16 22:05:02 $
+ * $Revision: 1.29.6.27 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1502,7 +1502,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       } else {        
           /* Sync data movement */
           /* reorder the information if i am not the root*/
-            for(i=1; i<gasneti_nodes; i++) {
+            for(i=0; i<gasneti_nodes; i++) {
                 /*used for temporary variables to aid GDB*/
               int8_t *curr_dest = args->dst;
               int8_t *curr_src = (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
