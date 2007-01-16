@@ -50,6 +50,12 @@ gasnetc_PtlBuffer_t gasnetc_SYS_Recv;       /* out-of-band message recv buffer *
 ptl_handle_eq_t gasnetc_SYS_EQ_h;           /* out-of-band system Event Queue */
 /* a flag that is set to true after the network is initialized */
 static int portals_sysqueue_initialized = 0;
+int gasnetc_shutdown_seconds = 0;
+int gasnetc_shutdownInProgress = 0;
+static int shutdown_max = 360;  /* 3 minites ... just a guess */
+static int sys_barrier_cnt = 0;
+static int sys_barrier_got = 0;
+static int sys_barrier_checkin = 0;
 
 /* We limit the number of temporary memory descriptors in use at any time.
  * If over the limit, allocator will poll until the number of outstanding tmp mds
@@ -1519,11 +1525,43 @@ static void ReqSB_exit()
  * --------------------------------------------------------------------------------- */
 static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32_t arg2)
 {
-  GASNETI_TRACE_PRINTF(C,("sys_msg %u, arg0=%d, arg1=%d, arg2=%d",(unsigned)msg_id,arg0,arg1,arg2));
+  /*  GASNETI_TRACE_PRINTF(C,("sys_msg %u, arg0=%d, arg1=%d, arg2=%d",(unsigned)msg_id,arg0,arg1,arg2)); */
 
   switch (msg_id) {
-  case GASNETC_SYS_SHUTDOWN:
-    gasnetc_shutdown(arg0);
+  case GASNETC_SYS_SHUTDOWN_REQUEST:
+    {
+      gasnet_node_t sender = (gasnet_node_t)arg0;
+      int exitcode = arg1;
+      gasneti_assert(sender >=0 && sender < gasneti_nodes);
+      /* mark that we got a shutdown message from this node */
+      gasnetc_conn_state[sender].got_shutdown_msg = 1;
+      GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d",sender));
+      if (!gasnetc_shutdownInProgress) gasnetc_exit(exitcode);
+    }
+    break;
+
+  case GASNETC_SYS_BARRIER_ARRIVE:
+    {
+      /* we are root and message that a node has arrived at a barrier */
+      int sender = arg0;
+      int b_cnt = arg1;
+      gasneti_assert(gasneti_mynode == 0);
+      sys_barrier_checkin++;
+      GASNETI_TRACE_PRINTF(C,("Got BARRIER_ARRIVE from node %d, cnt=%d",sender,b_cnt));
+    }
+    break;
+
+  case GASNETC_SYS_BARRIER_GO:
+    {
+      /* we are root and message that a node has arrived at a barrier */
+      int sender = arg0;
+      int b_cnt = arg1;
+      gasneti_assert(sender == 0);
+      gasneti_assert(b_cnt == sys_barrier_cnt);
+      GASNETI_TRACE_PRINTF(C,("Got BARRIER_GO from node %d, cnt=%d",sender,b_cnt));
+      /* let poller know its ok to proceed */
+      sys_barrier_got = b_cnt;
+    }
     break;
 
   default:
@@ -1572,7 +1610,7 @@ static void sys_init()
   match_id.nid = PTL_NID_ANY;
   match_id.pid = PTL_PID_ANY;
 
-  printf("[%d] SYS_init: allocated %ld events on SYS_EQ",(int)gasneti_mynode,(long)eq_len);
+  /*  printf("[%d] SYS_init: allocated %ld events on SYS_EQ\n",(int)gasneti_mynode,(long)eq_len); */
   GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, eq_len, NULL, &gasnetc_SYS_EQ_h));
 
   /* allocate the SYS send buffer */
@@ -1613,6 +1651,9 @@ static void sys_init()
 
   GASNETI_TRACE_PRINTF(C,("SYS_init: %s me=%lu md=%lu",gasnetc_SYS_Recv.name,(ulong)gasnetc_SYS_Recv.me_h,(ulong)gasnetc_SYS_Recv.md_h));
 
+  /* make sure everyone has done this before proceeding */
+  gasnetc_bootstrapBarrier();
+
   portals_sysqueue_initialized = 1;
 
 }
@@ -1651,6 +1692,33 @@ extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
   hdr_data = ((uint64_t)arg1 << 32) | (uint64_t)arg2;
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, GASNETC_PTL_AC_ID, match_bits, remote_offset, hdr_data));
 
+}
+
+extern void gasnetc_sys_barrier(void)
+{
+  gasnet_node_t node;
+  gasneti_assert(portals_sysqueue_initialized);
+
+  sys_barrier_cnt++;
+  GASNETI_TRACE_PRINTF(C,("Entering SYS BARRIER cnt=%d",sys_barrier_cnt));
+  if (gasneti_mynode == 0) {
+    /* wait for all other nodes to check in */
+    while (sys_barrier_checkin < gasneti_nodes-1) gasnetc_sys_poll();
+
+    /* reset this for next barrier */
+    sys_barrier_checkin = 0;
+
+    /* send message to all other nodes */
+    for (node = 1; node < gasneti_nodes; node++)
+      gasnetc_sys_SendMsg(node,GASNETC_SYS_BARRIER_GO,0,sys_barrier_cnt,0);
+  } else {
+    /* send signal to node 0 */
+    sys_barrier_got = 0;  /* reply to this message will set this variable to 1 */
+    gasnetc_sys_SendMsg(0,GASNETC_SYS_BARRIER_ARRIVE,gasneti_mynode,sys_barrier_cnt,0);
+
+    /* wait for node 0 to reply */
+    while (!sys_barrier_got) gasnetc_sys_poll();
+  }
 }
 
 /* =================================================================================
@@ -1785,8 +1853,24 @@ extern void gasnetc_init_portals_network(void)
   }
 #endif
 
+  /* Allocate and init the connection state array */
+  gasnetc_conn_state = (gasnetc_conn_t*)gasneti_malloc(gasneti_nodes*sizeof(gasnetc_conn_t));
+  for (i = 0; i < gasneti_nodes; i++) {
+    gasneti_weakatomic_set(&(gasnetc_conn_state[i].AM_pending), 0, 0);
+    gasneti_weakatomic_set(&(gasnetc_conn_state[i].in_recovery), 0, 0);
+    gasnetc_conn_state[i].got_shutdown_msg = 0;
+    gasnetc_conn_state[i].src_lid = 0;
+    gasnetc_conn_state[i].lids = NULL;
+  }
+
   /* init weakatomic vars */
   gasneti_weakatomic_set(&gasnetc_amlongReq_datacnt, 0, 0);
+
+  /* set the number of seconds we poll until forceful shutdown.  May be over-ridden
+   * by env-var when they are processed as part of gasnetc_attach
+   */
+  gasnetc_shutdown_seconds = 3 + gasneti_nodes/8;
+  gasnetc_shutdown_seconds = (gasnetc_shutdown_seconds > shutdown_max ? shutdown_max : gasnetc_shutdown_seconds);
 
   /* setup system SYS Send/Recv resources */
   sys_init();
@@ -1877,13 +1961,15 @@ extern void gasnetc_bootstrapBarrier() {
   }
 #endif
 
-  /* check the system queue if after network init */
-  if (portals_sysqueue_initialized) gasnetc_sys_poll();
-  
   gasnetc_bootstrapBarrierCnt++;
-  GASNETI_TRACE_PRINTF(C,("bootstrapBarrier count = %d",gasnetc_bootstrapBarrierCnt));
 
-  cnos_barrier();
+  /* check the system queue if after network init */
+  if (portals_sysqueue_initialized) {
+    gasnetc_sys_barrier();
+  } else {
+    GASNETI_TRACE_PRINTF(C,("bootstrapBarrier count = %d",gasnetc_bootstrapBarrierCnt));
+    cnos_barrier();
+  }
 }
 
 /* ---------------------------------------------------------------------------------
@@ -2163,6 +2249,9 @@ static int try_pin(uintptr_t size)
 
   if (mem == NULL) return 0;
 
+  /* poll system queue here since these operations can take some time */
+  gasnetc_sys_poll();
+
   /* Now try to pin by creating a free floating MD for this memory */
   md.start = mem;
   md.length = size;
@@ -2391,17 +2480,19 @@ extern void gasnetc_init_portals_resources(void)
 
   /* read Portals specific env vars */
   gasnetc_ReqRB_pool_size = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_POOLSZ",
-   			         (int64_t)gasnetc_ReqRB_pool_size,0);
+				 (int64_t)gasnetc_ReqRB_pool_size,0);
   gasnetc_ReqRB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_RB_CHUNKS",
-				(int64_t)gasnetc_ReqRB_numchunk,0);
+				 (int64_t)gasnetc_ReqRB_numchunk,0);
   gasnetc_ReqSB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SB_CHUNKS",
-				(int64_t)gasnetc_ReqSB_numchunk,0);
+				 (int64_t)gasnetc_ReqSB_numchunk,0);
   gasnetc_RplSB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_RPL_CHUNKS",
-				(int64_t)gasnetc_RplSB_numchunk,0);
+				 (int64_t)gasnetc_RplSB_numchunk,0);
   gasnetc_max_tmpmd = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_NUM_TMPMD",
-			   (int64_t)GASNETC_MAX_TMP_MDS,0);
+				 (int64_t)GASNETC_MAX_TMP_MDS,0);
   gasnetc_msg_limit = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MSG_LIMIT",
-				(int64_t)gasnetc_msg_limit,0);
+				 (int64_t)gasnetc_msg_limit,0);
+  gasnetc_shutdown_seconds = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SHUTDOWN_SECONDS",
+				 (int64_t)gasnetc_shutdown_seconds,0);
 				
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_Pool_size = %d",gasnetc_ReqRB_pool_size));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_numchunk  = %d",(int)gasnetc_ReqRB_numchunk));
@@ -2409,21 +2500,13 @@ extern void gasnetc_init_portals_resources(void)
   GASNETI_TRACE_PRINTF(C,("Portals_Init: RplSB_numchunk  = %d",(int)gasnetc_RplSB_numchunk));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: max_tmpmd       = %d",gasnetc_max_tmpmd));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: msg_limit       = %d",gasnetc_msg_limit));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: shutdown seconds= %d",gasnetc_shutdown_seconds));
 
   /* Init the temp md counter to zero */
   gasneti_weakatomic_set(&gasnetc_tmpmd_count, 0, 0);
 
   /* keep a counter of number of puts/gets since last poll */
   gasneti_weakatomic_set(&gasnetc_msg_inflight, 0, 0);
-
-  /* Allocate and init the connection state array */
-  gasnetc_conn_state = (gasnetc_conn_t*)gasneti_malloc(gasneti_nodes*sizeof(gasnetc_conn_t));
-  for (i = 0; i < gasneti_nodes; i++) {
-    gasneti_weakatomic_set(&(gasnetc_conn_state[i].AM_pending), 0, 0);
-    gasneti_weakatomic_set(&(gasnetc_conn_state[i].in_recovery), 0, 0);
-    gasnetc_conn_state[i].src_lid = 0;
-    gasnetc_conn_state[i].lids = NULL;
-  }
 
   /* Create two EQs:
    * gasnetc_SAFE_EQ_h:  Used to reclaim buffer space.  Always safe to poll on this
@@ -2497,12 +2580,12 @@ extern void gasnetc_portals_exit()
 {
   ptl_event_t ev;
 
+  sys_exit();
+
   RplSB_exit();
   ReqRB_exit();
   ReqSB_exit();
   RAR_exit();
-
-  sys_exit();
 
   /* remove the event queues */
   while (gasnetc_get_event(gasnetc_SAFE_EQ_h,&ev)) {};

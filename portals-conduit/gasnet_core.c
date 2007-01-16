@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/01/12 01:57:29 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2007/01/16 19:22:35 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -57,7 +57,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     /* setup portals network */
   gasnetc_init_portals_network();
-  gasnetc_bootstrapBarrier();
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -171,6 +170,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
                           numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
+
+  gasnetc_sys_poll();
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -298,58 +299,11 @@ static void gasnetc_atexit(void) {
     gasnetc_exit(0);
 }
 
-/* The NoOp AM handler function */
-GASNETI_INLINE(gasnetc_shutdown_reqh_inner)
-void gasnetc_shutdown_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t exitcode)
-{
-  GASNETI_TRACE_PRINTF(C,("Running AM Request Shutdown handler"));
-  gasnetc_shutdown(exitcode);
-  gasneti_fatalerror("gasnetc_shutdown_reqh_inner returned after shutdown");
-}
-SHORT_HANDLER(gasnetc_shutdown_reqh,1,1,
-              (token,a0),
-              (token,a0) );
-
-
-/* do the actual shutdown.  Should only be called once */
-extern int gasnetc_shutdown(int exitcode) {
-  /* This is called either from gasnetc_exit
-   * OR, from the AM Request Shutdown handler, in response to
-   * another node shutting down.
-   */
-  {
-    static int shutdownInProgress = 0;
-    if (shutdownInProgress) gasneti_fatalerror("Second call to gasnetc_shutdown");
-    shutdownInProgress = 1;
-  }
-
-  GASNETI_TRACE_PRINTF(C,("In gasnetc_shutdown"));
-
-  /* reclaim Portals resources */
-#if 0
-  gasnetc_portals_exit();
-#endif
-
-  GASNETI_TRACE_PRINTF(C,("In gasnetc_shutdown, after portals_exit"));
-
-  /* preform cleanup operations */
-  gasneti_flush_streams();
-  gasneti_trace_finish();
-  gasneti_sched_yield();    /* No-Op until multi-threaded */
-  
-  /* kill myself without generateing core dumps, etc */
-  GASNETI_TRACE_PRINTF(C,("In gasnetc_shutdown, killing myself"));
-  gasneti_killmyprocess(exitcode);
-
-  /* should not get here */
-  gasneti_fatalerror("gasnetc_shutdown->killmyprocess returned");
-  return 1;
-}
-
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
+#if 0
   {
     static int gasnetc_exit_entered = 0;
     if (gasnetc_exit_entered) {
@@ -359,33 +313,65 @@ extern void gasnetc_exit(int exitcode) {
     }
     gasnetc_exit_entered++;
   }
-    
+#endif    
 
   {  /* ensure only one thread ever continues past this point */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&exit_lock);
   }
 
-  GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i) called, sending shutdown to others\n", exitcode));
+  /* should prevent us from entering again */
+  gasnetc_shutdownInProgress = 1;
 
-  /* poll to see if others have posted message */
-  /* MLW: may want to poll for a duration that is node-dependent
-   * in an attempt to prevent an network shitstorm
-   */
-  gasnetc_sys_poll();
-
-  /* inform others we are shutting down */
+  /* send a shutdown message to everyone */
   {
     gasnet_node_t node;
+    gasnetc_conn_state[gasneti_mynode].got_shutdown_msg = 1;
+    GASNETI_TRACE_PRINTF(C,("Sending SHUTDOWN Messages to all nodes"));
     for (node = 0; node < gasneti_nodes; node++) {
-      if (node == gasneti_mynode) continue;
-      gasnetc_sys_SendMsg(node,GASNETC_SYS_SHUTDOWN, exitcode, 0, 0);
+      if (node != gasneti_mynode) 
+	gasnetc_sys_SendMsg(node,GASNETC_SYS_SHUTDOWN_REQUEST, gasneti_mynode, exitcode, 0);
     }
   }
+
+  /* Now, poll for a while to see if all nodes either sent us a shutdown request
+   * or replied to our shutdown request
+   */
+  if (gasnetc_shutdown_seconds > 0) {
+    gasnet_node_t node;
+    int cnt = 0;
+    uint64_t starttime = gasnett_ticks_to_ns(gasnett_ticks_now());  /* in nanoseconds */
+    uint64_t stoptime= starttime;
+    uint64_t shutdowntime = 1000000000UL * gasnetc_shutdown_seconds;
+    while (( cnt < gasneti_nodes) && (stoptime-starttime<shutdowntime)) {
+      cnt = 0;
+      for (node = 0; node < gasneti_nodes; node++) cnt += gasnetc_conn_state[node].got_shutdown_msg;
+      if (cnt < gasneti_nodes) gasnetc_sys_poll();
+      stoptime = gasnett_ticks_to_ns(gasnett_ticks_now());
+    } 
+
+    if (cnt < gasneti_nodes) {
+      /* have not heard back from some nodes, terminate job */
+      printf("[%d] In shutdown, Only %d/%d nodes responded after %lu milliseconds\n",gasneti_mynode,cnt,gasneti_nodes,(stoptime-starttime)/1000000);
+      gasneti_reghandler(SIGINT,SIG_DFL);  /* SIGINT causes launcher to kill job */
+      raise(SIGINT);
+    }
+  }
+
+  /* reclaim Portals resources */
+#if 0
+  /* errors reclaiming resources in use, just dont bother */
+  gasnetc_portals_exit();
+#endif
+
+  /* preform cleanup operations */
+  gasneti_flush_streams();
+  gasneti_trace_finish();
+  gasneti_sched_yield();    /* not sure what this is for */
   
-  /* run shutdown code for this node, should not return */
-  gasnetc_shutdown(exitcode);
-  gasneti_fatalerror("gasnetc_exit: shutdown should not have returned");
+  /* kill myself without generateing core dumps, etc */
+  gasneti_killmyprocess(exitcode);
+  gasneti_fatalerror("gasnetc_exit: killmyprocess should not have returned");
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1138,7 +1124,6 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
 
   /* ptr-width dependent handlers */
     gasneti_handler_tableentry_with_bits(gasnetc_noop_reph),
-    gasneti_handler_tableentry_with_bits(gasnetc_shutdown_reqh),
 
   { 0, NULL }
 };

@@ -208,6 +208,7 @@ typedef struct gasnetc_amlongcache_rec {
 typedef struct gconrec {
   gasneti_weakatomic_t AM_pending;
   gasneti_weakatomic_t in_recovery;
+  int                  got_shutdown_msg;
   uint32_t   src_lid;  /* a counter that is incremented for each AM Long issued */
   gasnetc_amlongcache_t *lids;
 } gasnetc_conn_t;
@@ -321,7 +322,12 @@ extern ptl_handle_eq_t gasnetc_SAFE_EQ_h;         /* Handle to the SAFE Event Qu
 extern gasnetc_PtlBuffer_t gasnetc_SYS_Send;       /* out-of-band message send buffer */
 extern gasnetc_PtlBuffer_t gasnetc_SYS_Recv;       /* out-of-band message recv buffer */
 extern ptl_handle_eq_t gasnetc_SYS_EQ_h;           /* out-of-band system Event Queue */
-typedef enum{GASNETC_SYS_SHUTDOWN=1, GASNETC_SYS_NUM} gasnetc_sys_t;
+extern int gasnetc_shutdown_seconds;               /* number of seconds to poll before forceful shutdown */
+extern int gasnetc_shutdownInProgress;             /* set upon entry to gasnetc_exit */
+typedef enum{GASNETC_SYS_SHUTDOWN_REQUEST=0,
+	     GASNETC_SYS_BARRIER_ARRIVE,
+	     GASNETC_SYS_BARRIER_GO,
+	     GASNETC_SYS_NUM} gasnetc_sys_t;
 
 /* max packed am data field = 1024 - 15*4 - 8  (max of 15 args + 8 bytes for destaddr, no pad) */
 #define GASNETC_MAX_AMLONG_PACKED 956
@@ -383,10 +389,10 @@ extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nby
 extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc,
 			   gasneti_weakatomic_t *lcc, gasnetc_pollflag_t pollflag);
-extern int gasnetc_shutdown(int exitcode);
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 				int32_t arg0, int32_t arg1, int32_t arg2);
 extern void gasnetc_sys_poll(void);
+extern void gasnetc_sys_barrier(void);
 
 /* Inline Function Definitions */
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
@@ -443,8 +449,4 @@ ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes, ptl_han
   return gasnetc_alloc_tmpmd(start, nbytes, eq_h);
 }
 
-#if 0
-SHORT_HANDLER_DECL(gasnetc_AMNoop,0,0);
-SHORT_HANDLER_DECL(gasnetc_shutdown_reqh,1,1);
-#endif
 #endif

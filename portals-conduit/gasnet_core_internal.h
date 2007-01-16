@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/01/12 01:57:29 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2007/01/16 19:22:35 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet PORTALS conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,6 @@
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_noop_reph               (GASNETC_HANDLER_BASE+1)
-#define _hidx_gasnetc_shutdown_reqh           (GASNETC_HANDLER_BASE+2)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 
