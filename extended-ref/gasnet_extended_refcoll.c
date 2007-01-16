@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/01/13 01:52:40 $
- * $Revision: 1.29.6.26 $
+ *     $Date: 2007/01/16 00:57:23 $
+ * $Revision: 1.29.6.27 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1503,6 +1503,25 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasneti_weakatomic_increment(&p2p->counter, 0);
     }
 
+    /* Send the data and increment atomic counter */
+    extern void gasnete_coll_p2p_put_and_advance_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+                                          gasnet_handlerarg_t seqandteam) {
+      uint32_t team_id; 
+      uint32_t sequence; 
+      gasnete_coll_p2p_t *p2p;
+      
+      team_id =  seqandteam >> 28;
+      sequence = seqandteam & 0x0fffffff;
+
+      if (nbytes) {
+	gasneti_sync_writes();
+      }
+      
+      p2p = gasnete_coll_p2p_get(team_id, sequence);
+      
+      gasneti_weakatomic_increment(&p2p->counter, 0);
+    }
+
     /* Memcopy payload and then decrement atomic counter if requested */
     GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
     void gasnete_coll_p2p_memcpy_reqh_inner(gasnet_token_t token, void *buf, size_t nbytes,
@@ -1549,6 +1568,42 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 	LONGASYNC_REQ(5,5,(dstnode, gasneti_handleridx(gasnete_coll_p2p_long_reqh),
 			   src, nbytes, dst, team_id, op->sequence, 1, offset, state)));
     }
+    /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
+    /* Returns as soon as local buffer is reusable */
+    void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+                                       void *src, size_t nbytes) {
+      
+      uint32_t seq_num = op->sequence;
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+      uint32_t seqandteam = 0;
+      seqandteam = team_id << 28;
+      seqandteam += seq_num & 0x0fffffff;
+  
+      gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
+  
+      GASNETI_SAFE(
+        LONG_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+                      src, nbytes, dst, seqandteam)));
+    }
+    /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
+    /* Returns immediately even if the local buffer is not yet reusable */
+    void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+                                            void *src, size_t nbytes) {
+  
+      uint32_t seq_num = op->sequence;
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+      uint32_t seqandteam = 0;
+      seqandteam = team_id << 28;
+      seqandteam += seq_num & 0x0fffffff;
+  
+      gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
+  
+      GASNETI_SAFE(
+        LONGASYNC_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+                      src, nbytes, dst, seqandteam)));
+    }
+
+
 
     /* Send data to be buffered by the recipient */
     void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
@@ -2417,10 +2472,43 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
 			       void *src,
 			       size_t nbytes, int flags,
 			       gasnete_coll_poll_fn poll_fn, int options,
-			       void *private_data, uint32_t sequence
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result;
+  gasnete_coll_scratch_req_t *scratch_req=NULL;
+  uint32_t *out_sizes;
+  int i;
 
+  if(options & (GASNETE_COLL_USE_SCRATCH)) {
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
+    /*fill out the tree information*/
+    scratch_req->tree_type = tree_info->geom->kind;
+    scratch_req->fanout = tree_info->geom->fanout;
+    scratch_req->root = tree_info->geom->root;
+    scratch_req->team = team;
+    scratch_req->tree_op = 1;
+    /*fill out the peer information*/
+    scratch_req->incoming_size = nbytes*tree_info->geom->mysubtree_size;
+    /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
+    scratch_req->num_in_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
+    if(scratch_req->num_in_peers > 0) {
+      scratch_req->in_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);      
+    } else {
+      scratch_req->in_peers = NULL;
+    }
+    if(team->myrank == tree_info->geom->root) {
+      scratch_req->num_out_peers = 0;
+      scratch_req->out_peers = NULL;      
+      scratch_req->out_sizes = NULL;
+    }
+    else {
+      scratch_req->num_out_peers = 1;
+      scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
+      scratch_req->out_sizes = (uint32_t*) gasneti_malloc(sizeof(uint32_t)*1);
+      scratch_req->out_sizes[0] = nbytes*tree_info->geom->parent_subtree_size;
+    }
+  }
+  
   gasnete_coll_threads_lock(flags GASNETE_THREAD_PASS);
   if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
@@ -2433,8 +2521,8 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     data->args.gather.src        = src;
     data->args.gather.nbytes     = nbytes;
     data->options = options;
-    data->private_data = private_data; data->tree_info=NULL;
-    result = gasnete_coll_op_generic_init(team, flags, data, poll_fn, sequence GASNETE_THREAD_PASS);
+    data->private_data = NULL; data->tree_info=tree_info;
+    result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req GASNETE_THREAD_PASS);
   } else {
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
@@ -2467,6 +2555,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
+    return gasnete_coll_gath_TreePut(team, dstimage, dst, src, nbytes, flags, gasnete_coll_current_tree_kind, sequence GASNETE_THREAD_PASS);
     if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {
         return gasnete_coll_gath_Eager(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);

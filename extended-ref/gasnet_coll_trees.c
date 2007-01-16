@@ -292,6 +292,8 @@ gasnet_node_t gasnete_coll_get_sub_tree_size(gasnete_coll_local_tree_geom_t *geo
 
 void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
   int i;
+  gasnete_coll_local_tree_geom_t *temp;
+
   if(geom->child_count > 0) {
     geom->subtree_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
     for(i=0; i<geom->child_count; i++) {
@@ -299,6 +301,18 @@ void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int g
     }
   } else {
     geom->subtree_sizes = NULL;
+  }
+  if(geom->root!=gasneti_mynode) {
+    geom->parent_subtree_size = 1;
+    temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root, 
+                                   geom->parent, gasnete_coll_tree_threads, 1);
+    for(i=0; i<temp->child_count; i++) {
+      geom->parent_subtree_size += gasnete_coll_get_sub_tree_size(geom, temp->child_list[i], gasnete_coll_tree_threads);
+    }
+    gasneti_free(temp->child_list);
+    gasneti_free(temp);
+  } else {
+    geom->parent_subtree_size = 0;
   }
   geom->mysubtree_size = 1;
   for(i=0; i<geom->child_count; i++) {

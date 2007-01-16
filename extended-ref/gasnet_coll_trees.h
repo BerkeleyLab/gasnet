@@ -33,6 +33,7 @@ struct gasnete_coll_local_tree_geom_t_ {
   gasnet_node_t *child_list; /*list of children*/
   gasnet_node_t *subtree_sizes; /* the size of the subtrees under each of our children */
   gasnet_node_t mysubtree_size;
+  gasnet_node_t parent_subtree_size; /* size of the subtree under our parent*/
   
   /** sibling information**/
   gasnet_node_t num_siblings;

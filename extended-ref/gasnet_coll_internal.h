@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/01/13 01:52:39 $
- * $Revision: 1.22.6.16 $
+ *     $Date: 2007/01/16 00:57:23 $
+ * $Revision: 1.22.6.17 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1871,7 +1871,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                void *src,
                                size_t nbytes, int flags,
                                gasnete_coll_poll_fn poll_fn, int options,
-                               void *private_data, uint32_t sequence
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -2123,6 +2123,16 @@ gasnete_coll_gath_Put(gasnet_team_handle_t team,
 		      void *src,
 		      size_t nbytes, int flags, uint32_t sequence
                       GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
+		      gasnet_image_t dstimage, void *dst,
+		      void *src,
+		      size_t nbytes, int flags, 
+                      gasnete_coll_tree_kind_t kind,
+                      uint32_t sequence
+                      GASNETE_THREAD_FARG);
+
 
 extern gasnet_coll_handle_t
 gasnete_coll_gath_Eager(gasnet_team_handle_t team,
