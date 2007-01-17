@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/01/16 22:05:02 $
- * $Revision: 1.29.6.27 $
+ *     $Date: 2007/01/17 20:32:08 $
+ * $Revision: 1.29.6.28 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1027,7 +1027,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
             
           }
-        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src, (gasneti_mynode), args->nbytes), args->nbytes);
 	
       } else if(data->p2p->state[0]){
         gasneti_sync_reads();
