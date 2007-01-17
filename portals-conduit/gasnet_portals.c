@@ -2603,16 +2603,6 @@ extern void gasnetc_portals_exit()
 
 }
 
-extern void gasnetc_sys_poll()
-{
-  int processed = 0;
-  ptl_event_t ev;
-
-  while (gasnetc_get_event(gasnetc_SYS_EQ_h, &ev)) {
-    GASNETI_TRACE_PRINTF(C,("Got event %s from SYS_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
-    GASNETC_CALL_EQ_HANDLER(ev);
-  }
-}
 /* ------------------------------------------------------------------------------------
  * --------------------------------------------------------------------------------- */
 /* Portals polling function.  Process the event queues.
@@ -2634,7 +2624,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   GASNETI_TRACE_PRINTF(C,("Enter Poll with %s, level %d",poll_name[poll_type],poll_level));
 #endif
 
-  /* always poll on the system queue */
+  /* always poll on the system queue, adds .074 usec to poll, cost of extra PtlEQGet call */
   gasnetc_sys_poll();
 
   /* always try to get an event from the SAFE eq first */
@@ -2666,31 +2656,6 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 #endif
 
   GASNETI_TRACE_EVENT_VAL(C, EVENT_CNT, processed);
-}
-
-/* ------------------------------------------------------------------------------------
- * Attempt to get an event from the specified event queue.
- * Return 1=true if successful, 0 otherwise.
- * ev points to the event structure to be filled in.
- * --------------------------------------------------------------------------------- */
-extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
-{
-  int rc;
-
-  rc = PtlEQGet( eq_h, ev);
-  switch (rc) {
-  case PTL_OK:
-    return 1;
-    break;
-  case PTL_EQ_EMPTY:
-    break;
-  default:
-    gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQGet: %s (%i)\n at %s\n",
-		       ptl_err_str[rc],rc,gasneti_current_loc);
-    break;
-  }
-
-  return 0;
 }
 
 /* ------------------------------------------------------------------------------------

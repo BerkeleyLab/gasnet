@@ -380,7 +380,6 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
-extern int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev);
 extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest,
 				    void *src_addr, size_t nbytes, void* dest_addr);
 extern uint32_t gasnetc_new_lid(gasnet_node_t dest);
@@ -391,7 +390,6 @@ extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nby
 			   gasneti_weakatomic_t *lcc, gasnetc_pollflag_t pollflag);
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 				int32_t arg0, int32_t arg1, int32_t arg2);
-extern void gasnetc_sys_poll(void);
 extern void gasnetc_sys_barrier(void);
 
 /* Inline Function Definitions */
@@ -448,5 +446,41 @@ ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes, ptl_han
   }
   return gasnetc_alloc_tmpmd(start, nbytes, eq_h);
 }
+
+GASNETI_INLINE(gasnetc_get_event)
+int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
+{
+  int rc;
+  int retcode = 0;
+
+  rc = PtlEQGet( eq_h, ev);
+  switch (rc) {
+  case PTL_OK:
+    retcode = 1;
+    break;
+  case PTL_EQ_EMPTY:
+    break;
+  default:
+    gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQGet: %s (%i)\n at %s\n",
+		       ptl_err_str[rc],rc,gasneti_current_loc);
+    break;
+  }
+
+  return retcode;
+}
+
+
+GASNETI_INLINE(gasnetc_sys_poll)
+void gasnetc_sys_poll()
+{
+  ptl_event_t ev;
+
+  while (gasnetc_get_event(gasnetc_SYS_EQ_h, &ev)) {
+    GASNETI_TRACE_PRINTF(C,("Got event %s from SYS_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
+    GASNETC_CALL_EQ_HANDLER(ev);
+  }
+}
+
+
 
 #endif
