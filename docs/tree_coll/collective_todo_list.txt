@@ -1,18 +1,19 @@
 ToDo List:
 
-+ Pipelining for large messages
-
-+ Scratch Space (Logging)
-
-+ Gather/Scatter/Reduce/All Gather/Prefix Reduce/All reduce
-
-+ Higher Radix Bruck's (low priority)
-
 + General Code Cleanup
+	  + Add Better Comments
+	  + Updating Design Doc
 
-+ Local Address 
-	+ Non-seg aligned 
-	+ test rand implementation
++ Pipelining for large messages (fix or work around req for MERGE TO HEAD)
+
++ Gather/Scatter/All Gather
+
++ Flush out Computational Collectives
+	+ Prefix Reduce/All reduce
+	+ Reduce
+
++ Code Walkthrough
+        + 
 
 + Multithreading
 	+ Locking
@@ -20,41 +21,44 @@ ToDo List:
 	+ non-rooted / local address
 	+ shared memory
 
-+ Shared Memory Style Collectives
-	+ raw puts on shmem
-
 + Teams (bigger open issue)
+	+ Team/Group Constructors
+	+ Team Collectives
+	+ Hooking it up to UPC level
+	+ Ensure that existing gasnet code works for teams
+	+ Team Tester
+	       + Take testcoll and modify it
 
-+ Better Tree Construction 
-	+ DFS ordering
-	+ Siblings Information (compute effeciently and store offset)
-	+ MPICH a2a algorithms (permission to send?)
-
-+ Better Geometry Cache
-
-+ Add Better Comments
-
-+ Cleaning gasnet_coll.h
-
-+ Updating Design Doc
++ Local Address (work-around) 
+	+ Non-seg aligned     
+	+ test rand implementation
 
 + Merge Collective Spec into Gasnet Spec 
 	+ formalization of the collectives.txt file
 
-+ Code Walkthrough
++ Shared Memory Style Collectives (optimization)
+	+ raw puts on shmem
 
-+ Finishing Syncflags support
++ Higher Radix Bruck's (low priority)
+
++ Scratch Space (Logging) (optimizations)
+
++ Better Tree Construction (optimization)
+	+ DFS ordering
+	+ MPICH a2a algorithms (permission to send?)
+
++ Better Geometry Cache (optimization)
+
++ Finishing Syncflags support (optimization)
+	+ Getting NO/NO performance 
 
 + Autotuning ... a ways off
  
-
-+ Literature Search for collective implementations
++ Literature Search for collective implementations 
 
 + ASync Log for nonblocking collectives and out-no synch collectives
 
-
 + Conduit-specific tuning
-	
 
 Incremental Merge 
 + gasnet_coll.h
