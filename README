@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.66.4.7 $
+$Revision: 1.66.4.8 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -213,6 +213,9 @@ application-specific support.
 * GASNET_FREEZE_ON_ERROR: set to 1 to make GASNet pause and wait for a debugger
  to attach on any fatal errors or fatal signals
 
+* GASNET_FREEZE_SIGNAL: set to a signal name (eg "SIGINT" or "SIGUSR1") to
+ specify a signal that will cause the process to freeze and await debugger attach.
+
 * GASNET_TRACEFILE, GASNET_TRACEMASK, GASNET_STATSFILE, GASNET_STATSMASK, 
   GASNET_TRACEFLUSH, GASNET_TRACELOCAL: control tracing & statistical features, 
  if enabled at configure time.  See usage information below.
@@ -252,6 +255,11 @@ application-specific support.
  non-debug build.  If tracing is active (see below) then a copy of the
  backtrace will be sent to the trace file.  This file may provide developers
  with potentially useful information about activities prior to the error.
+
+* GASNET_BACKTRACE_SIGNAL: set to a signal name (eg "SIGINT" or "SIGUSR1") to
+ specify a signal that will cause the process to generate an immediate backtrace,
+ and then continue executing. This is useful for getting a convenient
+ backtrace for a "hung" process.
 
 * GASNET_BACKTRACE_TYPE - set to a comma-delimited, ordered list of mechanisms 
  (eg different debugger tools) to try when generating a backtrace for

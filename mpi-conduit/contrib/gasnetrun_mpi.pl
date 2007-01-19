@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2007/01/09 19:16:15 $
-# $Revision: 1.36.2.3 $
+#     $Date: 2007/01/19 18:13:39 $
+# $Revision: 1.36.2.4 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -36,6 +36,8 @@ my $uname = `uname -a`;
 my $find_exe = 1;	# should we find full path of executable?
 my $env_before_exe = 1; # place env cmd before exe?
 my $extra_quote_argv = 0; # add extra quotes around each argument
+my $encode_args = 0; # encode command-line options to workaround buggy spawners
+my $encode_env = 0;  # encode environment variables to workaround buggy spawners
 my $group_join_argv = 0; # join all the args into one for %A?
 my $force_nonempty_argv = 0; # if args are empty, still pass empty arg for %A
 my $tmpdir = undef;
@@ -43,6 +45,21 @@ my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'} ||
 	($ENV{'PE_HOSTFILE'} && $ENV{'TMPDIR'} && -f "$ENV{'TMPDIR'}/machines" && "$ENV{'TMPDIR'}/machines") ||
 	($ENV{'PE_HOSTFILE'} && $ENV{'TMP'} && -f "$ENV{'TMP'}/machines" && "$ENV{'TMP'}/machines");
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
+
+
+################################################################################
+## Encode args and env for safe consumption by GASNet
+################################################################################
+
+sub gasnet_encode($) {
+    my ($in) = @_;
+    my $permitted_chars = 'A-Za-z0-9%_,\\./:+=@^-';
+    # don't encode unless we see special chars, to avoid negative interactions with higher-level encoding like upcrun
+    return $in unless ($in =~ m/[^$permitted_chars]/);
+    $in =~ s/%(0[0-9A-Fa-f][0-9A-Fa-f])/%025$1/g; # prevent false decodes
+    $in =~ s/([^$permitted_chars])/sprintf("%%0%02x",(ord($1)))/ge;
+    return $in;
+}
 
 # Define how to pass the environment vars
 # 5 parameters to set: val, pre, inter, post and join
@@ -217,6 +234,9 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => ''
 		  );
+        # use encoding as a safe default
+        $encode_args = 1;
+        $encode_env = 1;
     }
 
 sub usage
@@ -231,6 +251,7 @@ sub usage
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
     print "      -k                    keep any temporary files created (implies -v)\n";
+    print "      -(no)encode[-args,-env]   use encoding of args, env or both to help with buggy spawners\n";
     print "      --                    ends option parsing\n";
     exit 1;
 }
@@ -296,6 +317,13 @@ sub expand {
 	} elsif ($_ eq '-k') {
 	    $keep = 1;
 	    $verbose = 1;
+	} elsif ($_ =~ /^-+(no)?encode-args$/) {
+          $encode_args = !(defined $1);
+	} elsif ($_ =~ /^-+(no)?encode-env$/) {
+          $encode_env = !(defined $1);
+	} elsif ($_ =~ /^-+(no)?encode$/) {
+          $encode_args = !(defined $1);
+          $encode_env = !(defined $1);
 	} elsif (m/^-/) {
 	    usage ("unrecognized option '$_'\n");
 	} else {
@@ -357,6 +385,13 @@ sub expand {
 
 # Build up the environment-passing arguments in several steps
     my @envargs = @envvars;
+    if ($encode_env) {
+      for my $var (@envvars) {
+         my $val = $ENV{$var};
+         $ENV{$var} = gasnet_encode($val);
+         print "encoding ENV{$var}: '$val' => " . $ENV{$var} . "\n" if ($verbose && $val ne $ENV{$var});
+      }
+    }
     if (@envvars) {
         # pair the variables with their values if desired
         if (defined $envfmt{val}) {
@@ -506,9 +541,13 @@ EOF
 			  } elsif ($_ eq '%D') {
                               $cwd;
                           } elsif ($_ eq '%A') {
-			      my @argv = ( $extra_quote_argv == 1 ? (map { "'$_'" } @ARGV)
-					 : $extra_quote_argv == 2 ? (map { "'\"$_\"'" } @ARGV)
-					 : (@ARGV) );
+                              my @argv = @ARGV;
+                              if ($encode_args) {
+                                 @argv = map { $_ = gasnet_encode($_); } @argv;
+			      }
+			      @argv =    ( $extra_quote_argv == 1 ? (map { "'$_'" } @argv)
+					 : $extra_quote_argv == 2 ? (map { "'\"$_\"'" } @argv)
+					 : (@argv) );
 			      ($force_nonempty_argv && !@argv ? ("") : 
                                 ($group_join_argv ? join(' ', @argv) : @argv) );
                           } elsif ($_ eq '%V') {

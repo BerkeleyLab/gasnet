@@ -2,8 +2,8 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.6.4.1 $
-GASNet tools specification version: 1.0
+$Revision: 1.6.4.2 $
+GASNet tools specification version: 1.1
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -606,6 +606,7 @@ int (*gasnett_print_backtrace_ifenabled)(int fd);
    used for errors (eg to wrap gasnett_print_backtrace with a language-specific 
    symbol demangler).
 
+
 GASNETT_CURRENT_FUNCTION
 
   Expands to const char * indicating the current function name, if available.
@@ -614,6 +615,30 @@ gasnett_current_loc
   
   Macro that evaluates to a dynamically-allocated char * describing the current location
   (file, line number and function) for use in error messages.
+
+Backtrace extensibility
+
+  The GASNet tools auto-backtrace mechanisms can be extended by the client, by defining 
+  a variable called gasnett_backtrace_user in the client code, as follows:
+
+   extern int myapp_do_backtrace(int fd) {
+      /* write backtrace for calling thread to file descriptor fd */
+      ...
+      return 0; /* indicate success */
+   }
+   #if GASNETT_SPEC_VERSION_MAJOR > 1 || \
+       (GASNETT_SPEC_VERSION_MAJOR == 1 && GASNETT_SPEC_VERSION_MINOR >= 1)
+     gasnett_backtrace_type_t gasnett_backtrace_user = 
+       { "MYAPP", /* name of backtrace mechanism to be added */
+       &myapp_do_backtrace, /* pointer to user-provided function that writes backtrace */
+       1 /* supports backtracing of multi-threaded executables? */ 
+     };
+   #endif
+
+  This code will cause MYAPP to be added to the default GASNET_BACKTRACE_TYPE list, 
+  and when GASNET_BACKTRACE_TYPE=MYAPP your function will be called to produce backtraces.
+  The function should return non-zero if backtrace generation fails for whatever reason 
+  (eg if the call occurs too early), so that other backtrace mechanisms can be attempted.
 
 -----------------
 System properties
@@ -758,3 +783,12 @@ gasnett_spinloop_hint()
    is inserted in spin-loops (eg to avoid a memory hazard stall on spin loop exit 
    and reduce power consumption). This macro issues such an instruction, if an
    appropriate instruction exists for this architecture.
+
+int gasnett_maximize_rlimits();
+int gasnett_maximize_rlimit(int res, const char *lim_desc);
+ 
+   Maximize an rlimit indicated by res (an RLIMIT_* constant from sys/resource.h), with
+   associated limit description. gasnett_maximize_rlimits() maximizes all the in-memory 
+   execution rlimits associated with the current process (does not affect file system 
+   related limits).
+  

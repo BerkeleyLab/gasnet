@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2007/01/09 19:15:52 $
- * $Revision: 1.140.2.7 $
+ *     $Date: 2007/01/19 18:13:36 $
+ * $Revision: 1.140.2.8 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -348,6 +348,158 @@ extern gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighand
   return fpret;
 }
 /* ------------------------------------------------------------------------------------ */
+typedef struct { 
+  int value;
+  const char *name;
+  const char *desc;
+  enum {
+    GASNETI_SV_PROGRAM_ERROR, /* program errors that will continus to occur if ignored */
+    GASNETI_SV_TERM_INT,      /* interrupt signal from the terminal (stop or kill) */
+    GASNETI_SV_SYS_INT,       /*  interrupt signal from the system (kill, hangup, etc.) */
+    GASNETI_SV_FATAL,         /*  interrupts that cannot be caught or ignored */
+    GASNETI_SV_OTHER          /*  everything else  */
+  } variety;
+} gasnett_siginfo_t;
+static gasnett_siginfo_t gasneti_sigtable[] = {
+  #ifdef SIGABRT
+    {SIGABRT, "SIGABRT", "Process abort signal.", GASNETI_SV_PROGRAM_ERROR}, /*  (abort()) */
+  #endif
+  #ifdef SIGFPE
+    {SIGFPE,  "SIGFPE", "Erroneous arithmetic operation.", GASNETI_SV_PROGRAM_ERROR}, /*  (FP error) */
+  #endif
+  #ifdef SIGILL
+    {SIGILL,  "SIGILL", "Illegal instruction.", GASNETI_SV_PROGRAM_ERROR}, /*  (bad instruction) */
+  #endif
+  #ifdef SIGINT
+    {SIGINT,  "SIGINT", "Terminal interrupt signal.", GASNETI_SV_TERM_INT}, /*  (control-c) */
+  #endif
+  #ifdef SIGSEGV
+    {SIGSEGV, "SIGSEGV", "Invalid memory reference.", GASNETI_SV_PROGRAM_ERROR}, /*  (seg fault) */
+  #endif
+  #ifdef SIGTERM
+    {SIGTERM, "SIGTERM", "Termination signal.", GASNETI_SV_SYS_INT}, /*  (kill command) */
+  #endif
+  #ifdef SIGALRM
+    {SIGALRM, "SIGALRM", "Alarm clock.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGHUP
+    {SIGHUP,  "SIGHUP", "Hangup.", GASNETI_SV_SYS_INT},
+  #endif
+  #ifdef SIGKILL
+    {SIGKILL, "SIGKILL", "Kill (cannot be caught or ignored).", GASNETI_SV_FATAL}, /*  (kill -9 command) */
+  #endif
+  #ifdef SIGPIPE
+    {SIGPIPE, "SIGPIPE", "Write on a pipe with no one to read it.", GASNETI_SV_OTHER}, /*  (send() after close) */
+  #endif
+  #ifdef SIGQUIT
+    {SIGQUIT, "SIGQUIT", "Terminal quit signal.", GASNETI_SV_TERM_INT}, /*  (control-\) */
+  #endif
+  #ifdef SIGUSR1
+    {SIGUSR1, "SIGUSR1", "User-defined signal 1.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGUSR2
+    {SIGUSR2, "SIGUSR2", "User-defined signal 2.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGCHLD
+    {SIGCHLD, "SIGCHLD", "Child process terminated or stopped.", GASNETI_SV_OTHER}, /*  (sent to parent proc) */
+  #endif
+  #ifdef SIGCONT
+    {SIGCONT, "SIGCONT", "Continue executing, if stopped.", GASNETI_SV_OTHER}, /*  (also sent by kill command) */
+  #endif
+  #ifdef SIGSTOP
+    {SIGSTOP, "SIGSTOP", "Stop executing (cannot be caught or ignored).", GASNETI_SV_FATAL},
+  #endif
+  #ifdef SIGTSTP
+    {SIGTSTP, "SIGTSTP", "Terminal stop signal.", GASNETI_SV_TERM_INT}, /*  (control-z) */
+  #endif
+  #ifdef SIGTTIN
+    {SIGTTIN, "SIGTTIN", "Background process attempting read.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGTTOU
+    {SIGTTOU, "SIGTTOU", "Background process attempting write.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGBUS
+    {SIGBUS,  "SIGBUS", "Bus error.", GASNETI_SV_PROGRAM_ERROR}, /*  (alignment error) */
+  #endif
+  #ifdef SIGPOLL
+    {SIGPOLL, "SIGPOLL", "Pollable event.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGXFSZ
+    {SIGXFSZ, "SIGXFSZ", " File size limit exceeded.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGPROF
+    {SIGPROF, "SIGPROF", "Profiling timer expired.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGSYS
+    {SIGSYS,  "SIGSYS", "Bad system call.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGTRAP
+    {SIGTRAP, "SIGTRAP", "Trace/breakpoint trap.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGURG
+    {SIGURG,  "SIGURG", "High bandwidth data is available at a socket.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGVTALRM
+    {SIGVTALRM,"SIGVTALRM", "Virtual timer expired.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGXCPU
+    {SIGXCPU, "SIGXCPU", "CPU time limit exceeded.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGEMT
+    {SIGEMT,     "SIGEMT", "Emulation Trap", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGPWR
+    {SIGPWR,     "SIGPWR", "Power Fail or Restart", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGWINCH
+    {SIGWINCH,   "SIGWINCH", "Window Size Change", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGWAITING
+    {SIGWAITING, "SIGWAITING", "Concurrency signal reserved  by threads library", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGLWP
+    {SIGLWP,     "SIGLWP", "Inter-LWP  signal  reserved  by threads library", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGFREEZE
+    {SIGFREEZE,  "SIGFREEZE", "Check point Freeze", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGTHAW
+    {SIGTHAW,    "SIGTHAW", "Check point Thaw", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGCANCEL
+    {SIGCANCEL,  "SIGCANCEL", "Cancellation signal reserved by threads library", GASNETI_SV_OTHER},
+  #endif
+  {0, NULL, NULL, GASNETI_SV_OTHER}
+};
+/* ------------------------------------------------------------------------------------ */
+gasnett_siginfo_t const *gasnett_siginfo_fromval(int sigval) {
+  size_t i;
+  for (i=0; i<sizeof(gasneti_sigtable)/sizeof(gasnett_siginfo_t)-1; i++) {
+    if (sigval == gasneti_sigtable[i].value) return &gasneti_sigtable[i];
+  }
+  return NULL;
+}
+gasnett_siginfo_t const *gasnett_siginfo_fromstr(const char *str) {
+  while (*str && isspace(*str)) str++;
+  if (isdigit(*str)) return gasnett_siginfo_fromval(atoi(str));
+  else {
+    size_t i;
+    char tmp[255];
+    char *p = &tmp[0];
+    if (!(strlen(str) >= 3 && 
+      toupper(str[0]) == 'S' && toupper(str[1]) == 'I' && toupper(str[2]) == 'G')) {
+      strcpy(p,"SIG"); p += 3;
+    }
+    while (*str && !isspace(*str)) {
+      *(p++) = toupper(*(str++));
+    }
+    for (i=0; i<sizeof(gasneti_sigtable)/sizeof(gasnett_siginfo_t)-1; i++) {
+      if (!strcmp(tmp, gasneti_sigtable[i].name)) return &gasneti_sigtable[i];
+    }
+    return NULL;
+  }
+}
+/* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_UNFREEZE_SIGNAL
 /* signal to use for unfreezing, could also use SIGUSR1/2 or several others */
 #define GASNETI_UNFREEZE_SIGNAL SIGCONT
@@ -385,14 +537,58 @@ extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsym
 
 static int gasneti_freezeonerr_isinit = 0;
 static int gasneti_freezeonerr_userenabled = 0;
-static void gasneti_freezeForDebuggerErr_init() {
+static int gasneti_freezesignal = 0;
+static int gasneti_backtracesignal = 0;
+
+static void gasneti_ondemandHandler(int sig) {
+  gasnett_siginfo_t const *siginfo = gasnett_siginfo_fromval(sig);
+  char sigstr[80];
+  if (siginfo) sprintf(sigstr, "%s(%i)", siginfo->name, sig);
+  else  sprintf(sigstr, "(%i)", sig);
+  if (sig == gasneti_freezesignal) {
+    fprintf(stderr,"Caught GASNET_FREEZE_SIGNAL: signal %s\n", sigstr);
+    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
+  } else if (sig == gasneti_backtracesignal) {
+    fprintf(stderr,"Caught GASNET_BACKTRACE_SIGNAL: signal %s\n", sigstr);
+    gasneti_print_backtrace(STDERR_FILENO);
+  } else gasneti_fatalerror("unrecognized signal in gasneti_ondemandHandler: %i", sig);
+}
+
+extern void gasneti_ondemand_init() {
+  static int firsttime = 1;
+  if (firsttime) {
+    const char *str = gasneti_getenv_withdefault("GASNET_FREEZE_SIGNAL",NULL);
+    if (str) {
+      gasnett_siginfo_t const *info = gasnett_siginfo_fromstr(str);
+      if (!info) fprintf(stderr, "WARNING: ignoring unrecognized GASNET_FREEZE_SIGNAL: %s", str);
+      else gasneti_freezesignal = info->value;
+    }
+    str = gasneti_getenv_withdefault("GASNET_BACKTRACE_SIGNAL",NULL);
+    if (str) {
+      gasnett_siginfo_t const *info = gasnett_siginfo_fromstr(str);
+      if (!info) fprintf(stderr, "WARNING: ignoring unrecognized GASNET_BACKTRACE_SIGNAL: %s", str);
+      else gasneti_backtracesignal = info->value;
+    }
+    gasneti_local_wmb();
+    firsttime = 0;
+  } else gasneti_local_rmb();
+
+  if (gasneti_backtracesignal) 
+    gasneti_reghandler(gasneti_backtracesignal, gasneti_ondemandHandler);
+  if (gasneti_freezesignal) 
+    gasneti_reghandler(gasneti_freezesignal, gasneti_ondemandHandler);
+}
+
+static void gasneti_freezeForDebugger_init() {
+  if (gasneti_freezeonerr_isinit) { gasneti_local_rmb(); return; }
   gasneti_freezeonerr_userenabled = gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0);
   gasneti_local_wmb();
   gasneti_freezeonerr_isinit = 1;
+
+  gasneti_ondemand_init();
 }
 extern void gasneti_freezeForDebuggerErr() {
-  if (!gasneti_freezeonerr_isinit) gasneti_freezeForDebuggerErr_init();
-  else gasneti_local_rmb();
+  gasneti_freezeForDebugger_init();
   if (gasneti_freezeonerr_userenabled)
     gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
 }
@@ -675,12 +871,7 @@ static char gasneti_exename_bt[GASNETI_BT_PATHSZ];
 #endif
 
 /* table of known/detected backtrace mechanisms */
-static struct {
-  const char *name;        /* upper-case display name of backtrace function */
-  int (* const fnp)(int);   /* pointer to backtrace function */
-  const int threadsupport; /* does backtrace function handle threads correctly? 
-                              -ie backtrace the calling thread and optionally others as well */
-} gasneti_backtrace_mechanisms[] = {
+static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_LADEBUG
   { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
   #endif
@@ -704,7 +895,7 @@ static struct {
   #endif
   { NULL, NULL, 0 } /* Avoids empty initializer and trailing commas */
 };
-static int const gasneti_backtrace_mechanism_count = /* excludes the NULL */
+static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
    (sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0])) - 1;
 
 static int gasneti_backtrace_isinit = 0;
@@ -719,6 +910,10 @@ extern void gasneti_backtrace_init(const char *exename) {
   strcpy(gasneti_exename_bt,tmp);
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
+
+  if (gasnett_backtrace_user.name && gasnett_backtrace_user.fnp) {
+    memcpy(&gasneti_backtrace_mechanisms[gasneti_backtrace_mechanism_count++], &gasnett_backtrace_user, sizeof(gasnett_backtrace_user));
+  }
 
   { static char btlist_def[255];
     int i, th;
@@ -742,7 +937,7 @@ extern void gasneti_backtrace_init(const char *exename) {
   }
 
   gasneti_backtrace_isinit = 1;
-  gasneti_freezeForDebuggerErr_init();
+  gasneti_freezeForDebugger_init();
 }
 
 /* "best effort" to produce a backtrace

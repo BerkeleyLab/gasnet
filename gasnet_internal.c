@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2007/01/09 19:15:52 $
- * $Revision: 1.140.2.7 $
+ *     $Date: 2007/01/19 18:13:36 $
+ * $Revision: 1.140.2.8 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -374,6 +374,7 @@ void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler) {
     gasneti_signals[i].oldhandler = 
       gasneti_reghandler(gasneti_signals[i].signum, handler);
   }
+  gasneti_ondemand_init(); /* allow user override of signal handlers */
 }
 
 extern int gasneti_set_waitmode(int wait_mode) {

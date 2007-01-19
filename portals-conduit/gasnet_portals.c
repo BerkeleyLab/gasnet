@@ -1161,6 +1161,7 @@ static void ReqRB_event(ptl_event_t *ev)
 	   * as possible return code for PtlMDUnlink, but it seems to indicate
 	   * the MD has been unlinked, so refresh it */
 	  /* put it back on the end of the list */
+	  /* printf("[%d] Manual Unlink of ReqRB with handle %lu, rc=%d\n",gasneti_mynode,(ulong)ev->md_handle,rc); */
 	  ReqRB_refresh((intptr_t)ev->md.start);
 	  break;
 	case PTL_MD_IN_USE:
@@ -1175,7 +1176,10 @@ static void ReqRB_event(ptl_event_t *ev)
     break;
 
   case PTL_EVENT_UNLINK:
-    /* buffer was auto-unlinked, refresh and relink at end of buffer list */
+    /* buffer was auto-unlinked, refresh and relink at end of buffer list.
+     * Note that this never seems to happen under Cray Portals */
+
+    /* printf("[%d] Manual Unlink event of ReqRB with handle %lu\n",gasneti_mynode,(ulong)ev->md_handle); */
     ReqRB_refresh((intptr_t)ev->md.start);
     break;
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testenv.c,v $
- *     $Date: 2006/06/06 22:35:48 $
- * $Revision: 1.2.10.1 $
+ *     $Date: 2007/01/19 18:13:43 $
+ * $Revision: 1.2.10.2 $
  * Description: GASNet environment variable propagation test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
     sprintf(tmp2, "%s'%s'", (i>0?", ":""), argv[i]);
     strcat(tmp, tmp2);
   }
-  MSG(tmp);
+  MSG("%s",tmp);
 
   if (argc != expect_argc) 
     ERR("argc == %i, expected %i", argc, expect_argc);
