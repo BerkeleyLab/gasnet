@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/01/16 00:57:23 $
- * $Revision: 1.22.6.17 $
+ *     $Date: 2007/01/26 22:47:09 $
+ * $Revision: 1.22.6.18 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,11 +19,13 @@
 /*---------------------------------------------------------------------------------*/
 
 #if GASNET_PAR
-#define GASNETE_COLL_THREAD_LOCAL	(1<<29)
+#define GASNETE_COLL_THREAD_LOCAL        (1<<29)
 #endif
-#define GASNETE_COLL_SUBORDINATE	(1<<30)
-#define GASNETE_COLL_USE_SCRATCH    (1<<28)
-#define GASNETE_COLL_USE_TREE		(1<<27)
+#define GASNETE_COLL_SUBORDINATE	 (1<<30)
+#define GASNETE_COLL_USE_SCRATCH         (1<<28)
+#define GASNETE_COLL_USE_SCRATCH_TREE    (1<<27)
+#define GASNETE_COLL_USE_SCRATCH_DISSSEM (1<<26)
+#define GASNETE_COLL_USE_TREE		 (1<<25)
 
 #define GASNETE_COLL_IN_MODE(flags) \
 ((flags) & (GASNET_COLL_IN_NOSYNC  | GASNET_COLL_IN_MYSYNC  | GASNET_COLL_IN_ALLSYNC))
@@ -140,9 +142,17 @@ struct gasnete_coll_tree_data_t_ {
 #define GASNETE_COLL_MIN_SCRATCH_SIZE 256
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 #ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
-/*set defult to 1 MB*/
-//#define GASNETE_COLL_OPT_SCRATCH_SIZE (1*(1024*1024))
-#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8
+/*set defult to 2 MB*/
+#define GASNETE_COLL_OPT_SCRATCH_SIZE (2*(1024*1024))
+/*#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8*/
+#endif
+
+#define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256
+#define GASNETE_COLL_MAX_LOC_SCRATCH_SIZE 0xffffffff
+#ifndef GASNETE_COLL_OPT_LOC_SCRATCH_SIZE
+/*set defult to 2 MB*/
+#define GASNETE_COLL_OPT_LOC_SCRATCH_SIZE (2*(1024*1024))
+/*#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8*/
 #endif
 
 /*---------------------------------------------------------------------------------*/
@@ -2199,6 +2209,13 @@ gasnete_coll_gall_Gath(gasnet_team_handle_t team,
 		       void *dst, void *src,
 		       size_t nbytes, int flags, uint32_t sequence
                        GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
+                          void *dst, void *src,
+                          size_t nbytes, int flags, gasnete_coll_tree_kind_t kind, 
+                          uint32_t sequence
+                          GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 

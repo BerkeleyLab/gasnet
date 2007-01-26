@@ -51,10 +51,16 @@ void gasnete_coll_scratch_wait_for_all_ops(gasnete_coll_team_t team GASNETE_THRE
   /*fprintf(stderr, "%d> waiting for all ops to drain\n", gasneti_mynode); */
   while(stat->active_scratch_op_head!=NULL) {
     temp = stat->active_scratch_op_head;
+#if 0
     if(temp->done != 1) {
       gasnete_coll_wait_sync(temp->op_handle GASNETE_THREAD_PASS);
       temp->done = 1;
     }
+#else 
+    while(temp->done !=1) {
+      gasnete_coll_poll();
+    }
+#endif
     stat->active_scratch_op_head = stat->active_scratch_op_head->next;
     gasneti_free(temp);
   }
@@ -152,6 +158,7 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     stat->curr_tree_type = scratch_req->tree_type;
     stat->curr_tree_fanout = scratch_req->fanout;
     stat->numpeers = scratch_req->num_in_peers;
+    stat->curr_tree_dir = scratch_req->tree_dir;
     if(scratch_req->num_in_peers>0) {
       stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
       GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);
@@ -163,8 +170,9 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
 	      (stat->curr_tree_type !=scratch_req->tree_type) ||
 	      ((stat->curr_tree_type == GASNETE_COLL_NARY_TREE) && 
 	       (stat->curr_tree_fanout != scratch_req->fanout)) || 
-              stat->last_op == GASNETE_COLL_SCRATCH_DISSEM_OP) {
-#if GASNET_DEBUG		
+              stat->last_op == GASNETE_COLL_SCRATCH_DISSEM_OP ||
+              stat->curr_tree_dir != scratch_req->tree_dir) {
+#if 0		
     if(gasneti_mynode ==0) fprintf(stderr, "TREE CHANGE w/o BARRIER! inserting barrier and reseting scratch\n");
 #endif
     /* perform barrier and reset scratch */
@@ -175,6 +183,8 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     stat->curr_tree_type = scratch_req->tree_type;
     stat->curr_tree_fanout = scratch_req->fanout;
     stat->numpeers = scratch_req->num_in_peers;
+    stat->curr_tree_dir = scratch_req->tree_dir;
+    
     if(scratch_req->num_in_peers>0) {
       stat->peers = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*scratch_req->num_in_peers);
       GASNETE_FAST_UNALIGNED_MEMCPY(stat->peers,scratch_req->in_peers,sizeof(gasnet_node_t)*scratch_req->num_in_peers);

@@ -25,6 +25,8 @@ typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_sta
 struct gasnete_coll_op_info_t_;
 typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;
 
+typedef enum {GASNETE_COLL_UP_TREE=0, GASNETE_COLL_DOWN_TREE} gasnete_coll_tree_dir_t;
+
 struct gasnete_coll_scratch_req_t_ {
 
 	gasnete_coll_tree_kind_t tree_type;
@@ -35,7 +37,7 @@ struct gasnete_coll_scratch_req_t_ {
 
 	/* whether this is a tree op where peers are fixed from phase to phase*/
 	int tree_op;
-	
+	gasnete_coll_tree_dir_t tree_dir;
 		
 	/*this is the sum incoming space of all the peers sending to me*/
 	/*for now, for non treeops this is the amount of data that everyone is requesting*/
@@ -44,7 +46,7 @@ struct gasnete_coll_scratch_req_t_ {
 	/*information for all the data for which i am the target*/
 	/*for non tree ops these values*/
 	int num_in_peers;
-  gasnet_node_t *in_peers;
+        gasnet_node_t *in_peers;
 
 	
 	/*information for all the data for which i am an initiator*/
@@ -74,7 +76,9 @@ struct gasnete_coll_op_info_t_ {
 	gasnet_node_t root;
 	
 	int tree_op;
-	
+        gasnete_coll_tree_dir_t tree_dir;
+
+        
 	/* a pointer to the actual op handle so that we can do a wait sync on it */
 	gasnet_coll_handle_t op_handle; 
 	
@@ -85,6 +89,7 @@ struct gasnete_coll_op_info_t_ {
 	
 	/*is this operation finished*/
 	int done;
+        
 
 
 };
@@ -105,6 +110,7 @@ struct gasnete_coll_scratch_status_t_ {
   gasnete_coll_tree_kind_t curr_tree_type;
   int curr_tree_fanout;
   gasnet_node_t curr_root;
+  gasnete_coll_tree_dir_t curr_tree_dir;
   
   uint8_t perform_reset;
   

@@ -444,6 +444,16 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
    if(gasneti_mynode == rootrank) {
       gasnete_coll_set_dfs_order(geom, team->total_ranks); 
    } 
+   
+   /* XXX: need to do proper discovery and broadcast of seq_dfs_order*/
+   /* For Now assume that only sequential trees have this property*/
+   if(geom->root == 0 && geom->kind == GASNETE_COLL_NARY_TREE && 
+      (geom->fanout >= team->total_ranks-1 || geom->fanout == 1)) {
+    geom->seq_dfs_order = 1;
+   } else {
+    geom->seq_dfs_order = 0;
+   }
+     
    gasnete_coll_set_sibling_info(geom, team->myrank, team->total_ranks); 
 #if 0
    gasnete_coll_print_tree(geom, gasneti_mynode);

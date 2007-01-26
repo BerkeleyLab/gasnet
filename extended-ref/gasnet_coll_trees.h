@@ -47,6 +47,10 @@ struct gasnete_coll_local_tree_geom_t_ {
   /* DFS Order of the tree, only assigned at the root node */
   gasnet_node_t *dfs_order;
 
+  /* A boolean variable that is set if the dfs_order of the tree is sequential*/
+  /* I.E. No Reordering will be needed for scatter and gathers */
+  uint8_t seq_dfs_order;
+  
   gasnet_node_t *dissem_order;
   int dissem_count;
   
