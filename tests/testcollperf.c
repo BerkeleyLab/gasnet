@@ -337,7 +337,7 @@ void run_scatter_test(int flags, int use_barrier, char *tree_type, int fanout) {
   int *A; /*source*/
   int *B; /*destination*/
   int *C; /*other*/
-  int i,j,k,iteroffset;
+  int i,j,k,iteroffset,rootiter;
   char flagstr[20];
   gasnet_seginfo_t* seg; 
 
@@ -383,16 +383,16 @@ void run_scatter_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } 
   
   
-  /*	for(i=0; i< 3; i++) { */
-  for(i=0; i< 1; i++) {
-    if (i == 0) {
+  	for(rootiter=0; rootiter< 3; rootiter++) { 
+ /*for(i=0; i< 1; i++) { */
+    if (rootiter == 0) {
       root = 0;
-    } else if (i == 1) {
+    } else if (rootiter == 1) {
       if (gasnet_nodes() < 3) continue;
-      root = images / 2;
+      root = nodes / 2;
     } else {
       if (gasnet_nodes() < 2) continue;
-      root = images - 1;
+      root = nodes - 1;
     }
     
     if(mynode == root) {
@@ -509,7 +509,7 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
   int *A; /*source*/
   int *B; /*destination*/
   int *C; /*other*/
-  int i,j,k,iteroffset;
+  int i,j,k,iteroffset, rootiter;
   char flagstr[20];
   gasnet_seginfo_t* seg; 
   
@@ -555,18 +555,17 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } 
   
   
-  /*	for(i=0; i< 3; i++) { */
-  for(i=0; i< 1; i++) {
-    if (i == 0) {
+  for(rootiter=0; rootiter< 3; rootiter++) { 
+  /*for(rootiter=0; rootiter< 1; rootiter++) { */
+    if (rootiter == 0) {
       root = 0;
-    } else if (i == 1) {
+    } else if (rootiter == 1) {
       if (gasnet_nodes() < 3) continue;
-      root = images / 2;
+      root = nodes / 2;
     } else {
       if (gasnet_nodes() < 2) continue;
-      root = images - 1;
+      root = nodes - 1;
     }
-    
       /* fill in the source data with live values*/
 #if VERIFICATION_MODE
       for(j=0; j<iters; j++) {
@@ -582,7 +581,7 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
 #if VERIFICATION_MODE
       }
 #endif
-    /*initialize source data on root to -1*/
+    /*initialize dest to -1*/
 #if VERIFICATION_MODE
     for(j=0; j<iters; j++) {
       iteroffset = j;
@@ -643,7 +642,7 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
       for(i=0; i<datasize; i++) {
         int expected = (mynode == root ? j*100000+(k)*1000+(i+1) : -1);
         if(B[j*datasize*nodes + k*datasize+i] != expected) {
-          MSG("ERROR: scatter validation failed (j=%d,k=%d,i=%d) expected %d got %d", j,k,i,expected, B[j*datasize*nodes + k*datasize+i]);              
+          MSG("ERROR: gather validation failed (j=%d,k=%d,i=%d) expected %d got %d", j,k,i,expected, B[j*datasize*nodes + k*datasize+i]);              
           if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
             MSG("running no/no\n");
           } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
@@ -653,7 +652,7 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
           } else {
             MSG("wtf\n");
           }
-          gasnet_exit(1);             
+          //gasnet_exit(1);             
         } 
       }
     }	
@@ -670,7 +669,173 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
   }
   BARRIER();
 	
-  } /*end function*/
+} /*end function*/
+
+void run_gather_all_test(int flags, int use_barrier, char *tree_type, int fanout) {
+  int *A; /*source*/
+  int *B; /*destination*/
+  int *C; /*other*/
+  int i,j,k,iteroffset, rootiter;
+  char flagstr[20];
+  gasnet_seginfo_t* seg; 
+  
+  gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
+  gasnet_node_t root, mynode, nodes;
+  mynode = gasnet_mynode();
+  nodes = gasnet_nodes();
+  
+#if VERIFICATION_MODE  
+  seg = (gasnet_seginfo_t*)TEST_SEGINFO(); 
+  assert(seg->size > (datasize*nodes*iters*sizeof(int) + datasize*iters*sizeof(int))); 
+#endif
+  /*allocate array to be datasize*iters ints out of the aligned segment*/
+  BARRIER();
+  A = (int*) TEST_MYSEG();
+#if VERIFICATION_MODE
+  B = (int*) A + datasize*iters;
+#else
+  B = (int*) A + datasize;
+#endif
+  
+  gasnet_coll_set_tree_kind(tree_type);
+  gasnet_coll_set_fanout(fanout);
+  BARRIER();
+  if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
+    sprintf(flagstr, "no/no");
+  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
+    sprintf(flagstr, "no/my");
+  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
+    sprintf(flagstr, "no/all");
+  } else if((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
+    sprintf(flagstr, "my/no");
+  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
+    sprintf(flagstr, "my/my");
+  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
+    sprintf(flagstr, "my/all");
+  } else if((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
+    sprintf(flagstr, "all/no");
+  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
+    sprintf(flagstr, "all/my");
+  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
+    sprintf(flagstr, "all/all");
+  } 
+  
+  
+  for(rootiter=0; rootiter< 3; rootiter++) { 
+    /*for(rootiter=0; rootiter< 1; rootiter++) { */
+    if (rootiter == 0) {
+      root = 0;
+    } else if (rootiter == 1) {
+      if (gasnet_nodes() < 3) continue;
+      root = nodes / 2;
+    } else {
+      if (gasnet_nodes() < 2) continue;
+      root = nodes - 1;
+    }
+    /* fill in the source data with live values*/
+#if VERIFICATION_MODE
+    for(j=0; j<iters; j++) {
+      iteroffset = j;
+#else
+      iteroffset=0;
+#endif
+      
+      for(i=0; i<datasize; i++) {
+        A[iteroffset*datasize+i] = iteroffset*100000+(mynode)*1000+(i+1);
+      }
+      
+#if VERIFICATION_MODE
+    }
+#endif
+    /*initialize dest to -1*/
+#if VERIFICATION_MODE
+    for(j=0; j<iters; j++) {
+      iteroffset = j;
+#else
+      iteroffset=0;
+#endif
+      for(k=0; k<nodes; k++) {
+        for(i=0; i<datasize; i++) {
+          B[iteroffset*nodes*datasize+k*datasize+i] = -1;
+        }
+      }
+      
+#if VERIFICATION_MODE
+    }
+#endif
+    
+    
+#if VERIFICATION_MODE
+#else		
+    BARRIER();
+    for(j=0; j<WARM_ITERS; j++) {
+      gasnet_coll_gather_all(GASNET_TEAM_ALL, B, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
+      BARRIER();
+    }
+#endif	
+    
+    BARRIER();		
+    begin = gasnett_ticks_now();
+    for(j=0; j<iters; j++) {
+#if VERIFICATION_MODE
+#define ITER_OFFSET (j)
+#else
+#define ITER_OFFSET 0
+#endif
+      gasnet_coll_gather_all(GASNET_TEAM_ALL, B+datasize*nodes*ITER_OFFSET,  A+datasize*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
+      
+      /* prefer a an IN_ALL_SYNC rather than an explicit barrier*/
+#if 0
+      if(use_barrier){
+	barrier_begin = gasnett_ticks_now();
+	BARRIER();
+	barrier_end += gasnett_ticks_now() - barrier_begin;
+      }
+#endif
+    }
+    
+    if(!use_barrier) {
+      barrier_begin = gasnett_ticks_now();
+      BARRIER();
+      barrier_end += gasnett_ticks_now() - barrier_begin;
+    }
+    end =  gasnett_ticks_now() - begin;
+    BARRIER();
+    /*verify that the data got there */
+#if VERIFY_RESULT
+    for(j=0; j<iters; j++) {
+      for(k=0; k<nodes; k++) {
+        for(i=0; i<datasize; i++) {
+          int expected =  j*100000+(k)*1000+(i+1);
+          if(B[j*datasize*nodes + k*datasize+i] != expected) {
+            MSG("ERROR: all gather validation failed (j=%d,k=%d,i=%d) expected %d got %d", j,k,i,expected, B[j*datasize*nodes + k*datasize+i]);              
+            if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
+              MSG("running no/no\n");
+            } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
+              MSG("running my/my\n");
+            } else 	if(flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC)) {
+              MSG("running all/all\n");
+            } else {
+              MSG("wtf\n");
+            }
+          //gasnet_exit(1);             
+          } 
+        }
+      }	
+    }
+    
+    
+#endif	
+    } /*end changing root*/
+
+  if(use_barrier) {
+    MSG("all-gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+  } else {
+    MSG("all-gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+  }
+  BARRIER();
+	
+} /*end function*/
 
 int main(int argc, char **argv) 
 {
@@ -757,8 +922,11 @@ int main(int argc, char **argv)
       }
     }
     run_scatter_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", 0);
-#endif
     run_gather_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", 0);
+
+#endif
+    run_gather_all_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", tree_fanout);
+      
   }
   
   
