@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/01/26 22:47:09 $
- * $Revision: 1.29.6.28 $
+ *     $Date: 2007/01/27 02:03:51 $
+ * $Revision: 1.29.6.29 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1237,9 +1237,9 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 #endif
     }
 
+
     extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id) {
       uint32_t tmp = id << 1;	/* low bit is used for barrier phase (notify vs wait) */
-
       /* We can only notify when our own turn comes up.
        * Thus, the most progress we could make in one call
        * would be to sucessfully 'try' for our predecessor,
@@ -1276,6 +1276,23 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
        */
       return ((int32_t)(gasnete_coll_consensus_id - tmp) > 1) ? GASNET_OK
 							      : GASNET_ERR_NOT_READY;
+    }
+    /* Allocate a new barrier and wait for all barriers to finish before this id*/
+    extern int gasnete_coll_consensus_wait() {
+#if 1
+      gasnete_coll_consensus_t mybarr;
+  
+      mybarr = gasnete_coll_consensus_create();
+  
+      while(gasnete_coll_consensus_try(mybarr)==GASNET_ERR_NOT_READY) {
+        /*Try to make progress on other collectives*/
+        gasnete_coll_poll();
+      }
+#else
+      gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+      gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS); 
+#endif
+      return GASNET_OK;
     }
 #endif
 
@@ -1827,9 +1844,6 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
       GASNETE_COLL_SET_OWNER(data);
 
       if_pf (flags & GASNETE_COLL_SUBORDINATE) {
-        /* Subordinates can't allocate sequence numbers or barriers, due to non-collective calling */
-	gasneti_assert(!(data->options & (GASNETE_COLL_GENERIC_OPT_INSYNC |
-					  GASNETE_COLL_GENERIC_OPT_OUTSYNC)));
 	/* Subordinates can't AGGREGATE (but maybe they should?) */
         gasneti_assert(!(flags & GASNET_COLL_AGGREGATE));
       } else {
@@ -1837,15 +1851,6 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 	uint32_t tmp = gasnete_coll_sequence;
 	gasnete_coll_sequence += (1 + sequence);
         sequence = tmp;
-
-	/* Conditionally allocate barriers */
-	/* XXX: this is where we could do some aggregation of syncs */
-	if (data->options & GASNETE_COLL_GENERIC_OPT_INSYNC) {
-	  data->in_barrier = gasnete_coll_consensus_create();
-	}
-	if (data->options & GASNETE_COLL_GENERIC_OPT_OUTSYNC) {
-	  data->out_barrier = gasnete_coll_consensus_create();
-	}
       }
 
       /* Conditionally allocate data for point-to-point syncs */
@@ -1877,6 +1882,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 		  if it isn't NULL then it means that we want to call it with scratch
 		  MAKE SURE TO SETUP SCRATCH BEFORE THE OP IS SET TO BE ACTIVE
 		  */
+
       if(scratch_req != NULL) {
 	/* this operation could potentially send updates clearing scratch space on other nodes */
 		op->myscratchpos = gasnete_coll_scratch_new_op(scratch_req, sequence, handle GASNETE_THREAD_PASS);
@@ -1896,6 +1902,24 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 	 } else {
 		op->scratchpos = NULL;
 	 }
+      
+      /* Allocate the barriers AFTER SCRATCH SPACE*/
+      /* This will allow the scratch space to use its own consensus barriers*/
+      if_pf (flags & GASNETE_COLL_SUBORDINATE) {
+        /* Subordinates can't allocate sequence numbers or barriers, due to non-collective calling */
+	gasneti_assert(!(data->options & (GASNETE_COLL_GENERIC_OPT_INSYNC |
+					  GASNETE_COLL_GENERIC_OPT_OUTSYNC)));
+      } else {
+	/* Conditionally allocate barriers */
+	/* XXX: this is where we could do some aggregation of syncs */
+	if (data->options & GASNETE_COLL_GENERIC_OPT_INSYNC) {
+	  data->in_barrier = gasnete_coll_consensus_create();
+	}
+	if (data->options & GASNETE_COLL_GENERIC_OPT_OUTSYNC) {
+	  data->out_barrier = gasnete_coll_consensus_create();
+	}
+      }
+      
       /* Submit the op via aggregation filter */
       handle = gasnete_coll_op_submit(op, handle GASNETE_THREAD_PASS);
 

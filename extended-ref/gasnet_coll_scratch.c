@@ -176,8 +176,9 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     if(gasneti_mynode ==0) fprintf(stderr, "TREE CHANGE w/o BARRIER! inserting barrier and reseting scratch\n");
 #endif
     /* perform barrier and reset scratch */
-    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
-    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnete_coll_consensus_wait();
+/*    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS); */
     /*the barrier will have the call to trip the stat->perform_reset so we avoid the explicit call to reset here*/
     stat->curr_root = scratch_req->root;
     stat->curr_tree_type = scratch_req->tree_type;
@@ -403,8 +404,9 @@ uint64_t gasnete_coll_scratch_new_dissem_op(gasnete_coll_scratch_req_t *scratch_
   if(need_to_reset == 1) {
     /* fprintf(stderr, "%d> NEED TO RESET\n", gasneti_mynode); */
     /*perform a barrier which will trip the reset flag of the scratch status*/
-    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
-    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnete_coll_consensus_wait();
+/*    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);*/
     /* fprintf(stderr, "%d> everyone resets\n", gasneti_mynode); */
   }
 	
