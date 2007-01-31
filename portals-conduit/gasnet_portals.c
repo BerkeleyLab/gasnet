@@ -980,6 +980,7 @@ static void ReqSB_event(ptl_event_t *ev)
   int pending;
   gasnet_node_t srcnode;
   int ran_handler = 0;
+  ptl_size_t local_offset;
 
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
@@ -1005,7 +1006,8 @@ static void ReqSB_event(ptl_event_t *ev)
 	gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
 	gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
       }
-      gasnetc_chunk_free(&gasnetc_ReqSB,offset);
+      local_offset = mbits>>32;
+      gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     }
     break;
 
@@ -1021,14 +1023,15 @@ static void ReqSB_event(ptl_event_t *ev)
     /* Get bouncing through ReqSB, copy to dest and complete */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
     if (gasnetc_msg_limit) gasneti_weakatomic_decrement(&gasnetc_msg_inflight, 0);
-    pdata = ((uint8_t*)ev->md.start + offset);
+    local_offset = (mbits >> 32);
+    pdata = ((uint8_t*)ev->md.start + local_offset);
     q = pdata - sizeof(void*);
     /* q points to location where real destination address is stored */
     dest = (void*)*(uintptr_t*)q;
     memcpy(dest,pdata,ev->mlength);
     /* free the bounce buffer */
-    offset -= sizeof(void*);
-    gasnetc_chunk_free(&gasnetc_ReqSB,offset);
+    local_offset -= sizeof(void*);
+    gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the get (isget=1) operation complete */
     gasnete_op_markdone(op, 1);
@@ -2779,6 +2782,7 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     *(uintptr_t*)bb = (uintptr_t)dest;
     /* Let portals use the rest of the chunk */
     local_offset += sizeof(void*);
+    match_bits |= ((uint64_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else {
     /* alloc a temp md for the destination region */
@@ -2858,6 +2862,8 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
     /* copy the src data to the bounce buffer */
     memcpy(bb,src,nbytes);
+    /* store the local offset in the upper bits of the match bits */
+    match_bits |= ((uint64_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
     /* alloc a temp md for the source region */
