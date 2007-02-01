@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2006/08/11 20:56:34 $
- * $Revision: 1.79.10.13 $
+ *     $Date: 2007/02/01 22:23:01 $
+ * $Revision: 1.79.10.14 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -179,13 +179,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 	int rc = LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
         GLTRACE(C,("LAPI Init done\n"));
 	if (rc != LAPI_SUCCESS) {
-	    const char *errmsg = "\n*** GASNet FATAL ERROR: In the initialization of the LAPI communication layer\n\n"
+          gasneti_fatalerror("In the initialization of the LAPI communication layer\n\n"
 		"This application must be run using the poe job scheduler with the following options: \n"
 		"  poe appname -euilib us -msg_api lapi -rmpool 1 -procs nproc -nodes numnodes args...\n"
-		"See the IBM poe documentation for details\n\n[NOTE: Error code %d at line %d in file %s]\n\n";
-	    fprintf(stderr,errmsg,rc,__LINE__,__FILE__);
-	    fflush(stderr);
-	    abort();
+		"See the IBM poe documentation for details\n\n[NOTE: Error code %d at line %d in file %s]\n\n",
+                rc,__LINE__,__FILE__);
 	}
     }
 
@@ -437,6 +435,8 @@ void gasnetc_lapi_rcallback(lapi_handle_t *hndl, void *sinfo, int *src)
      int remote_index = (*((int *) sinfo));
      remote_address += remote_index;
    
+     gasneti_assert((*src >= 0) && (*src < GASNETC_LAPI_MAX_TAGS));
+     gasneti_assert((remote_index >= 0) && (remote_index < GASNETC_LAPI_MAX_TAGS));
      /*GLTRACE(C,("gasnetc_lapi_rcallback: on node = %d sending to %d tag=%d address = %ld\n",gasneti_mynode,*src,*((int *)sinfo), (lapi_long_t) remote_address));*/
 #if 1
     GASNETC_LCHECK(LAPI_Amsend(*hndl, *src, (void *) gasnete_put_hndlr_table[*src], &remote_index, sizeof(int), NULL, NULL, NULL, NULL, NULL));
@@ -506,6 +506,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ------------------------------------------------------------------------------------ */
     /*  register handlers */
+    { int i;
+      for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
+        gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+    }
     { /*  core API handlers */
 	gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
 	int len = 0;
@@ -1767,13 +1771,13 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 
     {
 #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
+    gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
 #endif
     
     gasnetc_spinlock_lock(&(hsl->lock));
 
 #if GASNETI_STATS_OR_TRACE
-    hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+    hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
     GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
 #endif
     }
@@ -1798,7 +1802,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-    GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
+    GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
 
     gasnetc_spinlock_unlock(&(hsl->lock));
 }
@@ -1812,7 +1816,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
     if (locked) {
       #if GASNETI_STATS_OR_TRACE
-        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+        hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
         /* conduits with interrupt-based handler dispatch need to add code here to
@@ -1872,13 +1876,8 @@ void gasnetc_lapi_err_handler(lapi_handle_t *context, int *error_code,
     char msg[LAPI_MAX_ERR_STRING];
 
     LAPI_Msg_string(*error_code,msg);
-    if(*error_code != 640) {
     gasneti_fatalerror("Async LAPI Error on node %d from task %d of type %s code %d [%s]\n",
 		       *src,*taskid,err_type_str[*error_type],*error_code,msg);
-    } else {
-    printf("Async LAPI Error on node %d from task %d of type %s code %d [%s]\n",
-		       *src,*taskid,err_type_str[*error_type],*error_code,msg);
-    }
 }
 
 /* --------------------------------------------------------------------------
@@ -2414,11 +2413,4 @@ int gasnetc_uhdr_more(int want)
 			    want,gasnetc_uhdr_freelist.numalloc,gasnetc_uhdr_freelist.numfree));
     return want;
 }
-
-
-
-
-
-
-
 

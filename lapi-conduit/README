@@ -1,7 +1,7 @@
 GASNet-LAPI README file
 =======================
 Mike Welcome <mlwelcome@lbl.gov>
-$Revision: 1.8 $
+$Revision: 1.8.20.1 $
 
 This is an implementation of the GASNet CORE and EXTENDED
 API using the IBM LAPI communication protocol.
@@ -39,6 +39,13 @@ GASNET_LAPI_VERSION={0|1}
   If this environment variable is defined and non-zero, GASNet
   will print various information about the LAPI version and 
   hardware to stderr from task 0 at startup.
+
+GASNET_BARRIER=LAPIGFENCE (default)
+  Enables LAPI_Gfence-based implementation of GASNet barriers.
+  Note this makes barrier_notify entirely blocking
+
+GASNET_BARRIER=LAPIAM
+  Enables centralized implementation of GASNet barriers, using LAPI-AMs
 
 ===========================================================
 Memory Management

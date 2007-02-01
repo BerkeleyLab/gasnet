@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2005/12/15 06:21:31 $
- * $Revision: 1.23.12.1 $
+ *     $Date: 2007/02/01 22:23:01 $
+ * $Revision: 1.23.12.2 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,12 +13,11 @@
 #ifndef _GASNET_CORE_HELP_H
 #define _GASNET_CORE_HELP_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 #include <lapi.h>
 #include <sys/atomic_op.h>
-#include <gasnet_atomicops.h>
 
 /* Determine which "version" of LAPI we are using.
  * LAPI does not define this anywhere, so we will use a
@@ -42,7 +41,7 @@ BEGIN_EXTERNC
  * message.  Note that messages that fit into a single token
  * are optimized.
  */
-#define GASNETC_AM_MAX_MEDIUM 16384
+#define GASNETC_AM_MAX_MEDIUM 262144
 
 /* In 32 bit mode, this is 2^31 - 1 bytes.  */
 #define GASNETC_AM_MAX_LONG 2147483647
@@ -56,81 +55,27 @@ typedef enum {
 extern lapi_handle_t      gasnetc_lapi_context;
 extern gasnetc_lapimode_t gasnetc_lapi_default_mode;
 
-extern gasnet_node_t gasnetc_mynode;
-extern gasnet_node_t gasnetc_nodes;
-
 /* --------------------------------------------------------------------
  * A simple spinlock implementation
  * --------------------------------------------------------------------
  */
 #ifndef GASNETC_USE_SPINLOCKS
-/* default to using spinlocks over pthread mutex */
-#define GASNETC_USE_SPINLOCKS 1
+  /* default to using spinlocks over pthread mutex */
+  #define GASNETC_USE_SPINLOCKS 1
 #endif
 
 #if GASNETC_USE_SPINLOCKS
-typedef atomic_p gasnetc_spinlock_t;
-#define GASNETC_SPINLOCK_INITIALIZER 0
-/* NOTE: Make these inline functions that always return 0 to
- * match the use of the corresponding pthread_mutex functions.
- */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_init)
-int gasnetc_spinlock_init(gasnetc_spinlock_t *lock) {
-    *lock = 0;
-    gasneti_local_wmb();
-    return 0;
-}
-
-#define gasnetc_spinlock_destroy(lock) 0    
-
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_lock)
-int gasnetc_spinlock_lock(gasnetc_spinlock_t *lock) {
-      int avail = 0;
-      int locked = 1;
-      while (1) {
-	  if (compare_and_swap( (atomic_p)lock, &avail, locked ) ) {
-	      gasneti_local_rmb();
-	      break;
-	  }
-	  gasneti_assert(avail == 1);
-	  avail = 0;
-      }
-      return 0;
-}
-
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_unlock)
-int gasnetc_spinlock_unlock(gasnetc_spinlock_t *lock) {
-    int avail = 0;
-    int locked = 1;
-    gasneti_local_wmb();
-    if (!compare_and_swap( (atomic_p)lock, &locked, avail ) )
-        gasneti_fatalerror("this should not happen");
-    return 0;
-}
-
-/* return 0 on success to match pthreads */
-GASNET_INLINE_MODIFIER(gasnetc_spinlock_trylock)
-int gasnetc_spinlock_trylock(gasnetc_spinlock_t *lock) {
-      int avail = 0;
-      int locked = 1;
-      if (compare_and_swap( (atomic_p)lock, &avail, locked )) {
-	  gasneti_local_rmb();
-	  return 0;
-      }
-      return 1;
-}
-
+  #if !GASNETI_HAVE_SPINLOCK
+    #error Missing required spinlock support
+  #endif
+  typedef gasneti_atomic_t gasnetc_spinlock_t;
+  #define GASNETC_SPINLOCK_INITIALIZER	GASNETI_SPINLOCK_INITIALIZER
 #else  /* Use pthread mutex for spinlock */
-typedef gasneti_mutex_t gasnetc_spinlock_t;
-#define GASNETC_SPINLOCK_INITIALIZER    GASNETI_MUTEX_INITIALIZER
-#define gasnetc_spinlock_init(lock)     gasneti_mutex_init((lock))
-#define gasnetc_spinlock_destroy(lock)  gasneti_mutex_destroy((lock))
-#define gasnetc_spinlock_lock(lock)     gasneti_mutex_lock((lock))
-#define gasnetc_spinlock_unlock(lock)   gasneti_mutex_unlock((lock))
-#define gasnetc_spinlock_trylock(lock)  gasneti_mutex_trylock((lock))
+  typedef gasneti_mutex_t gasnetc_spinlock_t;
+  #define GASNETC_SPINLOCK_INITIALIZER	GASNETI_MUTEX_INITIALIZER
 #endif
 
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif

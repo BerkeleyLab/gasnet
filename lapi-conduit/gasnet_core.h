@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2006/01/25 11:26:32 $
- * $Revision: 1.23.6.3 $
+ *     $Date: 2007/02/01 22:23:01 $
+ * $Revision: 1.23.6.4 $
  * Description: GASNet header for lapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #include <gasnet_core_help.h>
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -31,41 +31,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 #define gasnet_attach gasnetc_attach
 
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
+GASNETI_NORETURNP(gasnetc_exit)
 #define gasnet_exit gasnetc_exit
 
-extern uintptr_t gasnetc_getMaxLocalSegmentSize();
-extern uintptr_t gasnetc_getMaxGlobalSegmentSize();
-#if 0
-#define gasnet_getMaxLocalSegmentSize   gasnetc_getMaxLocalSegmentSize 
-#define gasnet_getMaxGlobalSegmentSize gasnetc_getMaxGlobalSegmentSize 
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Job Environment Queries
-  =======================
-*/
-extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
-
-GASNET_INLINE_MODIFIER(gasnet_mynode)
-gasnet_node_t gasnet_mynode() {
-  GASNETI_CHECKINIT();
-  return gasnetc_mynode;
-}
- 
-GASNET_INLINE_MODIFIER(gasnet_nodes)
-gasnet_node_t gasnet_nodes() {
-  GASNETI_CHECKINIT();
-  return gasnetc_nodes;
-}
-
-#define gasnet_getSegmentInfo gasnetc_getSegmentInfo
-
-GASNET_INLINE_MODIFIER(gasnet_getenv)
-char *gasnet_getenv(const char *s) {
-  GASNETI_CHECKINIT();
-  return gasneti_getenv(s);
-}
-#endif
 /* ------------------------------------------------------------------------------------ */
 /*
   No-interrupt sections
@@ -92,7 +60,7 @@ typedef struct _gasnet_hsl_t {
   gasnetc_spinlock_t lock;
 
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t acquiretime;
+    gasneti_tick_t acquiretime;
   #endif
 
   #if GASNETC_USE_INTERRUPTS
@@ -206,7 +174,7 @@ extern int gasnetc_AMPoll();
 
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2005/12/15 06:21:31 $
- * $Revision: 1.22.8.1 $
+ *     $Date: 2007/02/01 22:23:01 $
+ * $Revision: 1.22.8.2 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.4
+#define GASNET_CORE_VERSION      1.7
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         LAPI
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -31,7 +31,7 @@
 #    elif GASNETC_LAPI_VERSION_B <= 3
 #      if GASNETC_LAPI_VERSION_B < 3
 #        define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
-#      elif GASNETC_LAPI_VERSION_C <= 2
+#      elif GASNETC_LAPI_VERSION_C < 2
 #        define GASNETC_LAPI_FED_POLLBUG_WORKAROUND 1
 #      endif
 #    endif
@@ -64,6 +64,10 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define CONDUIT_CORE_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+
+/* lapi-conduit does not guarantee 8-byte alignment for medium buffers,
+   and PowerPC does not seem to ever require it */
+#define GASNETI_MEDBUF_ALIGNMENT 4
 
 #endif
