@@ -64,14 +64,19 @@ reference count & a reference count to how many objects are using this data stru
  child list & a list of all the children & \\ \hline
 sibling id & index in my parents child list & Useful when we need to go up the tree\\ \hline
  num siblings & a count of the number of nodes who have the same parent as me & " \\ \hline
-sibling sub tree sizes & an array that contains the size of the subtree under & \\
-& each of our siblings & " \\ \hline
-
+sibling offset &  if the entire subtree of the parent were listed out in DFS order& \\
+&this variable contains this node's position in that DFS order& " \\ \hline
 children subtree sizes & size of the subtrees for each of my children & Useful when we need to go up the tree\\
 && and when we need to send variable \\
 && amount to each child (i.e. scatter) \\ \hline
-subtree & a list of all my descendants & " \\ \hline
-subtree count & a count of the total number of descendants & " \\ \hline
+subtree sizes & an array of the descendant count under each of our children & " \\ \hline
+my subtree size & a count of the total number of descendants & " \\ \hline
+parent subtree size & a count of the total number of descendants of my parent& " \\ \hline
+dfs order & the DFS ordering of all the nodes in the tree & \\ 
+& (only allocated at the root) & \\\hline
+seq dfs order & a variable indicating whether the dfs order of the tree & \\
+& is in the same natural order of the nodes & \\ \hline
+
 \end{tabular}
 \end{center}
 \label{tab:treeinfo}
@@ -320,7 +325,80 @@ For scatter and collectives that require personalized communication, the scratch
 For certain algorithms such as all-gather-all, we can actually piggy back the messages for the outbarrier with the actual data transfers however we will hold off on this until later revisions of this document. This could in theory save half a barrier on every IN\_ALLSYNC and half a barrier on every OUT\_ALLSYNC. 
 
 \end{itemize}
-%\input{synchflags}
+
+
+\section{Collective Implementation}
+This section outlines how each of the different collectives handle both the synchronization as well as the
+ data movement and their requirements on scratch space.
+
+\subsection{Broadcast} 
+
+A broadcast collective  takes data that is local  to one image's memory space and then broadcasts it 
+such that every image has a private copy of that data. 
+
+\subsubsection{Broadcast Communication}
+Since one image has the source data, the optimized implementations of broadcast use a tree to 
+disseminate the information. The choice of tree geometry will vary based on platform, message size, and 
+processor count. The natural algorithm will be a push based implementation that will perform puts down the tree. Thus once an intermediary node receives the data it will forward it on to its children. However, this communication pattern is only permitted when the destination of the broadcast is in the GASNet segment. The source need not be in the GASNet segment since the root will push the data out. 
+
+However if the source is in the GASNet segment but the destination is not, then the children will need to perform \texttt{gets}. The \texttt{get} must be performed into some auxiliary scratch space so that children further down the tree can perform a get. Thus this will require a second copy of the data.
+
+If both the source and destination are in the segment, then either approach will be correct and the algorithm should be chosen based on the performance of \texttt{puts} versus \texttt{gets}. However, if neither the source nor the destination are in the segment a rendez-vous approach where the addresses of the source and destination are exchanged is needed. Unfortunately this approach will have performance penalties and therefore should be avoided as much possible. 
+
+A final optimization is to leverage eager buffer space with AMMediums. This is equivalent to the underlying communication infrastructure providing the appropriate amount of scratch space and thus regardless of whether the source or destination are in the segment the eager algorithm will give good performance. However it is only intended for small datasizes. For larger datasizes explicit scratch space management with AMLongs will provide better performance by leveraging the RDMA capabilities where available. 
+
+
+\subsubsection{Broadcast Scratch Space Requirements}
+Since the message that each processor receives is not personalized, a correct tree-based implementation can be built without any scratch space, however the use of scratch space in broadcast will allow performance optimizations.
+
+The first set of optimizations, as described above, will allow \texttt{get} based implementations to work when the destination is not in the GASNet segment. However, it will also allow better performance with the MY/MY synchronization flags. Without the auxiliary space, a full barrier needs to be performed in order to ensure that the parent does not overwrite the children's data before the children enter the collective. However if the data is transferred into a temporary holding area (i.e. the auxiliary space) then the data can be sent without worry of overwriting live data in the child. Thus currently for a MY/MY tree-based collective, we make use of the extra scratch space. However note that if a pull based implementation is used then the collective will be implicitly be MY/MY without any additional changes since data can only be pulled once the parent has it and a child can only pull the data once it has entered the collective. The pull based implementation will require that the parent send a signal to the children implying that it is safe to perform a get. 
+
+\subsubsection{Optimizing ALL\_SYNC}
+ The semantics provided by IN\_ALL\_SYNC specify that effectively a barrier must be performed before any data movement is started. However performing a full barrier followed by a collective will involve a pass up the tree for the barrier notify, a pass down the tree indicating that all the children have arrived, and another pass of the tree down the tree with the data. However, notice that the second pass down the tree indicating that all the threads have arrived is redundant. Once we go up the tree, the root knows that all the children have arrived and thus it can then simply initiate the broadcast. Thus once a node gets the broadcast data, it also implicitly knows that the barrier on the way in was completed. Thus folding the second phase of the barrier into the collective's data movement can save a round of communication and thereby increase performance. For pull based implementations, the root can only allow the data to be pulled by its children once the first phase of the barrier has completed. 
+ 
+ 
+\subsection{Scatter}
+The scatter collective is similar to broadcast in that one image has the data for all the other images, however the data that is sent to the other images from the root is personalized. 
+
+\subsubsection{Scratch Space and Trees}
+Thus if we want a non-flat  tree approach, intermediate nodes in the tree will be responsible for forwarding data. However, the buffers that the user provides need not be large enough to support this and therefore a correct implementation must rely on scratch space to forward data down the tree. Thus while the choice of \texttt{put}, \texttt{get}, and \texttt{rendez-vous} algorithms are the same as the broadcast case, almost all of the algorithms will require some auxiliary space to get the tree data right.  Even when eager approaches are used, the data needs to be forward through this eager buffer space thus, towards the top of the tree, the eager buffer space must be large enough to accommodate the data for a large number of the images which imposes a smaller maximum size on the data to be scattered. 
+
+\subsubsection{DFS Reorder}
+In order to allow a good communication pattern we must assume that the data destined for a subtree is contiguous, otherwise we will need to initiate multiple transfers to and from the same node. However for the data to be contiguous the DFS order of the tree has to be the same as the natural order of the nodes. If they are not then we must reorder the data so that it is contiguous. In the current implementation we have a flag in the tree geometry which indicates whether or not this condition holds. If it does not we must reorder the data before we begin communication. One could imagine, not doing this optimization and performing multiple transfers to and from the same node, however this will involve more messages. The correct solution will be to optimize the trees such that most trees have the correct order and make this reordering the uncommon case. 
+
+\subsubsection{Optimizing ALL\_SYNC}
+With the push based implementations we can fold the IN\_ALL\_SYNC barrier with the collective as we did with broadcast for the same reasons.
+
+\subsection{Gather}
+Gather performs the inverse operation of scatter. 
+
+\subsubsection{Scratch Space and Trees}
+Analogous to the scatter collective, gather will also need scratch space to work correctly with non-flat tree configurations since the intermediate nodes are not required (and probably will not) allocate enough space in the user buffer for the collective. To avoid extra messages, the gather is currently implemented as one pass up the tree, in which each node puts its data to the appropriate part in its parent's scratch space. This approach will be safe regardless of wether or not the source and destination are in the segment since the source and the target of a communication will be the scratch space, and thus reside within the GASNet segment by design. Communication need not be done directly into the users buffer and can be performed as an optimization. 
+
+\subsubsection{DFS Reorder}
+By design the data will arrive at the root node in the DFS order of the tree. If this ordering does not match the natural order of the nodes, the data needs to be re-ordered at the root before the collective can be considered finished. This will impose a serial bottleneck to reorder the data. The best way to get around this is to design the trees so that this is not a concern. 
+
+\subsubsection{Optimizing ALL\_SYNC}
+Since the data initially travels up the tree we can fold the OUT\_ALL\_SYNC with the collective by sending a message down the tree after all the data has arrived. Thus we use the collective as the first phase of the OUT\_ALL\_SYNC barrier. 
+
+\subsection{All-Gather}
+The All-gather is semantically similar to the gather except that the data is then broadcast out to everyone. The current implementation performs a gather and followed by a broadcast however future versions will leverage a dissemination style approach. The design considerations that applied for both the gather and the broadcast will also apply here. 
+
+\subsubsection{Optimizing the ALL\_SYNC}
+A tree based gather is amenable to folding the barrier for an OUT\_ALL\_SYNC while a tree based broadcast is amenable to folding the barrier for an IN\_ALL\_SYNC. However since we currently compose an all-gather as a gather followed by a broadcast folding the barrier in either direction is not a possibility. The collective itself can not also be used as an implicit barrier, since the reception of data does not guarantee that all nodes have received the data. Thus a full barrier needs to be performed if the ALL\_SYNC is required. 
+
+\subsection{Exchange}
+In an exchange each image performs a scatter (gather) of the data to (from) all the other images. We currently implement a radix-2 dissemination style exchange that uses Bruck's algorithm. 
+
+
+\subsubsection{Scratch Space}
+A non-flat tree implementation (whether it is a dissemination approach or a set tree based gathers) will necessitate the use of scratch space since intermediate nodes will be responsible for forwarding data for other nodes. Depending on whether dissemination or trees are used the scratch space requirements will be different.
+
+\subsubsection{Optimizing the ALL\_SYNC} 
+Still needs to be worked out.
+
+
+ %\input{synchflags}
 %\input{scratchspace}
 %\input{strategy}
 %\input{bcast}
@@ -330,60 +408,4 @@ For certain algorithms such as all-gather-all, we can actually piggy back the me
 %\input{alltoall}
 %\input{allgather}
 
-\REM{
-\section{Teams}
-\subsection{ToDo List and Random Ideas}
-\begin{enumerate}
-\item Keep Team Hierarchy
-\item Reference Count Groups
-\end{enumerate}
-
-\subsection{Group Operators}
-All these operations are non-collective.
-\begin{itemize}
-\item Constant: image\_t IMAGE\_UNDEFINED 0xffffff ?
-\item GlobalVar: GroupEmpty
-
-\item image\_t GroupSize(Group)
-\item image\_t GroupSizeOnNode(Group, node\_t node)
-
-\item image\_t GroupMyImage(Group)
-\item GroupTranslateImages(Group From, Group To, image\_t *input\_vec, image\_t *output\_vec, image\_t vec\_len) 
-
-\item node\_t GroupImageToNode(Group, image\_t rank)
-\item void GroupNodeToImages(Group, node\_t in\_node, image\_t *outimages)
-\item enum\{Ident (same rank and order), Similar (ident but permuted), UnEqual\}  GroupCompare(GroupA, GroupB)
-
-\item group\_t GroupFromTeam(team\_handle\_t)
-
-\item group\_t GroupIncl(Group, image\_t * in\_images, image\_t image\_count)
-\item group\_t GroupExcl(Group, image\_t * in\_images, image\_t image\_count)
-
-\item group\_t GroupDiff(GroupA, GroupB)
-\item group\_t GroupIntersect(GroupA, GroupB)
-\item group\_t GroupUnion(GroupA, GroupB)
-\item size\_t GroupToNodeSegSize(Group)
-
-\item GroupRangeIncl (maybe: scalability) ???
-\item GroupRangeExcl (maybe: scalability) ???
-\item void GroupFree(Group)
-\end{itemize}
-
-\subsection{Team Operators}
-Team Creation is collective across the parent group.
-\begin{itemize}
-\item GlobalVar: TEAM\_ALL
-\item team\_handle\_t TeamSplit(team\_handle\_t parent, image\_t color, image\_t image, void *local\_seg\_space):
-\\ Here note that the local\_scratch space is passed by one image in the node and not all of them.
-\item team\_handle\_t TeamFromGroup(team\_handle\_t parent, Group, void *local\_seg\_space)
-\\ Here note that the local\_scratch space is passed by one image in the node and not all of them. This is a wrapper around TeamSplit.
-
-\item (TeamSplit is sufficient for Team Duplicate)
-\item image\_t TeamMyImage(team\_handle\_t)
-\item image\_t TeamSize(team\_handle\_t)
-\item void* TeamFree(team\_handle\_t) \\ Once TeamFree is done ... passed back what it passed in.
-
-\item No TeamCompare (can just do pointer comparison on Teams)
-\end{itemize}
-}
 \end{document}
