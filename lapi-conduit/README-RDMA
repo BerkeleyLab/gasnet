@@ -143,4 +143,7 @@ TODO List Once We Have a Machine
 - Revisit current AM implementation
 - Check that resources get reaped as soon as possible
 - Tests with threads
-
+- Add GASNET_NETWORK_DEPTH environment variable
+  Two issues: table size for puts
+              number of network buffers
+- Also have MAX_PVO be an environment variable
