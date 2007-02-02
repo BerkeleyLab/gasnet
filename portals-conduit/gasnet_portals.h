@@ -13,6 +13,15 @@
 /* ------------------------------------------------------------------------------------ */
 /* MLW:  Support for Portals 3.0 */
 
+/* set to 1 to compile in Sandia specific Accelerated Portals code */
+#define GASNETC_USE_SANDIA_ACCEL 0
+
+/* defined to 1 the following to pack the RplSB offset in the upper 32
+ * bits of the match_bits.
+ * If defined to 0, this space will be used for AM Reply handler arguments
+ */
+#define GASNETC_PACK_RPLOFF_MBITS 1
+
 /* Do we register an EQ handler with a queue or just poll ourselves */
 #if GASNETC_USE_EQ_HANDLER
   #define GASNETC_EQ_HANDLER gasnetc_event_handler
@@ -32,9 +41,23 @@
 /* types of polling */
 typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_pollflag_t;
 
+/* check for signal and call gasnet_exit */
+#define GASNETC_CHECKSIG() do {						\
+    int sig = gasneti_weakatomic_read(&gasnetc_got_signum,0);		\
+    if (sig) {								\
+      gasneti_weakatomic_set(&gasnetc_got_signum,0,0);			\
+      fprintf(stderr,"*** Caught a signal number %i on node %i/%i\n",	\
+	      sig,(int)gasneti_mynode,(int)gasneti_nodes);		\
+      gasnet_exit(1);							\
+    }									\
+  } while(0);
+
+
 /* Macro that checks error condition of Portals calls */
 #define GASNETC_PTLSAFE(fncall) do {					\
-    int _retcode = (fncall);						\
+    int _retcode;							\
+    GASNETC_CHECKSIG();							\
+    _retcode = (fncall);							\
     if_pf (_retcode != (int)PTL_OK) {					\
       gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n" \
 			 "  while calling: %s\n"			\
@@ -218,6 +241,10 @@ extern gasnetc_conn_t *gasnetc_conn_state;
 /* Flag to determine if we use Portals or MPI for AMs */
 extern int gasnetc_use_AM_portals;
 
+#if GASNETC_USE_SANDIA_ACCEL
+extern int gasnetc_use_accel;
+#endif
+
 /* Types of GASNET Portals Memory Descriptors */
 enum { GASNETC_RAR_MD,
        GASNETC_RARAM_MD,
@@ -329,6 +356,9 @@ typedef enum{GASNETC_SYS_SHUTDOWN_REQUEST=0,
 	     GASNETC_SYS_BARRIER_GO,
 	     GASNETC_SYS_NUM} gasnetc_sys_t;
 
+/* did we get a signal, and if so, what signal number */
+extern gasneti_weakatomic_t gasnetc_got_signum;
+
 /* max packed am data field = 1024 - 15*4 - 8  (max of 15 args + 8 bytes for destaddr, no pad) */
 #define GASNETC_MAX_AMLONG_PACKED 956
 
@@ -391,6 +421,8 @@ extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nby
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 				int32_t arg0, int32_t arg1, int32_t arg2);
 extern void gasnetc_sys_barrier(void);
+/* need a special signal handler for Portals */
+extern void gasnetc_portalsSignalHandler(int sig);
 
 /* Inline Function Definitions */
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
@@ -474,7 +506,9 @@ GASNETI_INLINE(gasnetc_sys_poll)
 void gasnetc_sys_poll()
 {
   ptl_event_t ev;
-
+  /* always check for receipt of signal before polling since we do not protect get_event
+   * with _SAFE wrapper */
+  GASNETC_CHECKSIG();
   while (gasnetc_get_event(gasnetc_SYS_EQ_h, &ev)) {
     GASNETI_TRACE_PRINTF(C,("Got event %s from SYS_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
     GASNETC_CALL_EQ_HANDLER(ev);

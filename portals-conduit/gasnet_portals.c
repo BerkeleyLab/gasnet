@@ -4,6 +4,7 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 #include <gasnet_portals.h>
+#include <signal.h>
 
 #if PLATFORM_OS_CATAMOUNT
 /* Needed for bootstrap */
@@ -57,6 +58,9 @@ static int sys_barrier_cnt = 0;
 static int sys_barrier_got = 0;
 static int sys_barrier_checkin = 0;
 
+/* stores signal number when signal occurs */
+gasneti_weakatomic_t gasnetc_got_signum;
+
 /* We limit the number of temporary memory descriptors in use at any time.
  * If over the limit, allocator will poll until the number of outstanding tmp mds
  * drops below the limit.
@@ -70,6 +74,11 @@ int gasnetc_tmpmd_hwm = 0;
 ptl_uid_t gasnetc_uid;
 ptl_process_id_t gasnetc_myid;
 gasnetc_procid_t *gasnetc_procid_map = NULL;
+
+#if GASNETC_USE_SANDIA_ACCEL
+/* use Sandia Accelerated Portals */
+int gasnetc_use_accel = 0;
+#endif
 
 /* construct the hash table for reverse lookups */
 static gasnetc_procid_t *gasnetc_addrtable[HASHTABLE_SIZE];
@@ -286,10 +295,12 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
   if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
 
+#if !GASNETC_PACK_RPLOFF_MBITS
   if (!isReq && (numarg > 2)) {
     /* Reply third arg in upper bits of match_bits */
     args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
   }
+#endif
 
   /* set data pointer */
   data = (uint8_t*)ev->md.start + ev->offset;
@@ -359,8 +370,10 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
     }
     /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
     tok.initiator_offset = (uint32_t)(mbits >> 32);
+#if !GASNETC_PACK_RPLOFF_MBITS
   } else if (numarg > 2) {
     args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
+#endif
   }
 
   /* set data pointer */
@@ -448,8 +461,10 @@ static int exec_amlong_header(int isReq, int isPacked,
   /* crack upper portion of match_bits */
   if (isReq) {
     tok.initiator_offset = (uint32_t)(mbits >> 32);
+#if !GASNETC_PACK_RPLOFF_MBITS
   } else {
     if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
+#endif
   }
 
   /* set data pointer */
@@ -1088,12 +1103,18 @@ static void ReqSB_event(ptl_event_t *ev)
  * --------------------------------------------------------------------------------- */
 static void RplSB_event(ptl_event_t *ev)
 {
-  ptl_size_t offset = ev->offset;
   ptl_match_bits_t   mbits = ev->match_bits;
+  ptl_size_t offset = ev->offset;
   uint8_t msg_type;
 
+#if GASNETC_PACK_RPLOFF_MBITS
+  ptl_size_t local_offset = (mbits >> 32);
+#else
+  ptl_size_t local_offset = offset;
+#endif
+
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
-  GASNETI_TRACE_PRINTF(C,("RplSB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
+  GASNETI_TRACE_PRINTF(C,("RplSB event %s offset = %i, local_offset = %i mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(int)local_offset,(uint64_t)mbits,msg_type));
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
@@ -1102,7 +1123,7 @@ static void RplSB_event(ptl_event_t *ev)
   case PTL_EVENT_SEND_END:
     if (gasnetc_msg_limit) gasneti_weakatomic_decrement(&gasnetc_msg_inflight, 0);
     /* reclaim the chunk */
-    gasnetc_chunk_free(&gasnetc_RplSB, offset);
+    gasnetc_chunk_free(&gasnetc_RplSB, local_offset);
     break;
 
   default:
@@ -1750,7 +1771,7 @@ extern uint32_t gasnetc_new_lid(gasnet_node_t dest)
  *   - Get the Portals proc_id map so we know how to talk to all other nodes.
  * --------------------------------------------------------------------------------- */
 static char* gasnetc_flush_buf = NULL;
-static int gasnetc_io_buffer_size = 0;  /* was 1024 */
+int gasnetc_io_buffer_size = 0;  /* was 1024 */
 extern void gasnetc_init_portals_network(void)
 {
   ptl_interface_t   ptl_iface;
@@ -1779,6 +1800,19 @@ extern void gasnetc_init_portals_network(void)
 
   /* construct the interface */
   ptl_iface = IFACE_FROM_BRIDGE_AND_NALID(use_bridge,use_nal);
+
+#if GASNETC_USE_SANDIA_ACCEL
+  /* MLW: can we use gasneti_getenv here? */
+  if (getenv("GASNET_PORTAL_ACCEL") != NULL) {
+      gasnetc_use_accel = 1;
+  }
+  if (gasnetc_use_accel) {
+      if (gasneti_mynode == 0) {
+	  printf("Using SANDIA ACCELERATED mode\n");
+      }
+      ptl_iface = CRAY_ACCEL;
+  }
+#endif
 
   /* Get the network handle */
   rc = PtlNIInit(ptl_iface, PTL_PID_ANY, NULL, &ni_limits, &gasnetc_ni_h);
@@ -1811,12 +1845,18 @@ extern void gasnetc_init_portals_network(void)
   }
 
   gasneti_assert_always(cnos_map[gasneti_mynode].nid == gasnetc_myid.nid);
+#if !GASNETC_USE_SANDIA_ACCEL
   gasneti_assert_always(cnos_map[gasneti_mynode].pid == gasnetc_myid.pid);
+#endif
   gasnetc_procid_map = (gasnetc_procid_t*)gasneti_malloc(gasneti_nodes * sizeof(gasnetc_procid_t));
   for (node = 0; node < gasneti_nodes; node++) {
     gasnetc_procid_map[node].node_id = node;
     gasnetc_procid_map[node].ptl_id.nid = cnos_map[node].nid;
+#if GASNETC_USE_SANDIA_ACCEL
+    gasnetc_procid_map[node].ptl_id.pid = gasnetc_myid.pid;
+#else
     gasnetc_procid_map[node].ptl_id.pid = cnos_map[node].pid;
+#endif
     gasnetc_procid_map[node].next = NULL;
   }
 
@@ -2508,7 +2548,10 @@ extern void gasnetc_init_portals_resources(void)
   GASNETI_TRACE_PRINTF(C,("Portals_Init: max_tmpmd       = %d",gasnetc_max_tmpmd));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: msg_limit       = %d",gasnetc_msg_limit));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: shutdown seconds= %d",gasnetc_shutdown_seconds));
-
+#if GASNETC_USE_SANDIA_ACCEL
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: use_accelerated = %d",gasnetc_use_accel));
+#endif
+  
   /* Init the temp md counter to zero */
   gasneti_weakatomic_set(&gasnetc_tmpmd_count, 0, 0);
 
@@ -2883,4 +2926,35 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   /* Issue Ptl Put operation */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 
+}
+
+/* Need a special signal handler for Catamount, cant even do I/O in signal context.
+ * just bump atomic var that will be checked periodically to see if shutdown
+ * message has arrived
+ */
+void gasnetc_portalsSignalHandler(int sig) {
+  /* just indicate we got a signal */
+  switch (sig) {
+  case SIGABRT:
+  case SIGILL:
+  case SIGSEGV:
+  case SIGBUS:
+  case SIGFPE:
+    /* die immediately on these */
+    signal(sig, SIG_DFL);
+    raise(sig);
+    break;
+
+  default:
+    /* let gasnet kill itself naturally, or just die if second time signal arrived */
+    { static int sigquit_raised = 0;
+      if (sigquit_raised) {
+	_exit(1);
+      } else {
+	sigquit_raised = 1;
+      }
+      gasneti_weakatomic_set(&gasnetc_got_signum,sig,0);
+    }
+    break;
+  }
 }
