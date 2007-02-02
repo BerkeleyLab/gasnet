@@ -1,9 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.9.6.4 $
+$Revision: 1.9.6.5 $
 
 ----------------------------------------------------------------------
-?-?-? : Release ?.?
+02-01-2007 : Release 1.9.2 (Cray XT3 only beta release)
 
 * New conduits added:
   - ibv-conduit: High-performance conduit using the OpenIB communication

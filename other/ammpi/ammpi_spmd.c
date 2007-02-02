@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2007/01/09 19:16:19 $
- * $Revision: 1.27.8.3 $
+ *     $Date: 2007/02/02 00:51:23 $
+ * $Revision: 1.27.8.4 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -133,7 +133,13 @@ extern int AMMPI_SPMDMyProc() {
 }
 /* ------------------------------------------------------------------------------------ */
 extern int AMMPI_SPMDSetThreadMode(int usingthreads, const char **provided_level, int *argc, char ***argv) {
+  int initialized = 0;
   if (AMMPI_SPMDStartupCalled) AMMPI_RETURN_ERR(RESOURCE);
+  MPI_SAFE(MPI_Initialized(&initialized));
+  if (initialized) { 
+    *provided_level = "MPI already initialized";
+    return 1; /* MPI already initialized */
+  }
   #if MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED))
     { /* init MPI and tell it to be thread-safe */
       int required = (usingthreads ? MPI_THREAD_SERIALIZED : MPI_THREAD_SINGLE);

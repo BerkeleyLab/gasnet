@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2007/01/09 19:15:51 $
-dnl $Revision: 1.88.2.6 $
+dnl     $Date: 2007/02/02 00:51:21 $
+dnl $Revision: 1.88.2.7 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1578,6 +1578,51 @@ AC_DEFUN([GASNET_PROG_CXX], [
   GASNET_FUN_END([$0])
 ])
 
+AC_DEFUN([GASNET_HOSTCC_BEGIN], [
+  GASNET_FUN_BEGIN([$0])
+  if test "$CROSS_COMPILING" != "1" ; then
+    AC_MSG_ERROR([Internal error - please report])
+  fi
+
+  GASNET_PUSHVAR(CC,"$HOST_CC")
+  GASNET_PUSHVAR(CFLAGS,"$HOST_CFLAGS")
+  GASNET_PUSHVAR(LDFLAGS,"$HOST_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$HOST_LIBS")
+  dnl push all the other goop that AC_PROG_C(PP) caches away
+  GASNET_PUSHVAR_UNSET(CPP)
+  GASNET_PUSHVAR_UNSET(CPPFLAGS)
+  GASNET_PUSHVAR_UNSET(ac_cv_prog_CC)
+  GASNET_PUSHVAR_UNSET(ac_cv_prog_CPP)
+  GASNET_PUSHVAR_UNSET(ac_cv_c_compiler_gnu)
+  GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_g)
+  GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_stdc)
+  GASNET_PUSHVAR(cross_compiling,"no")
+
+  GASNET_FUN_END([$0])
+])
+
+AC_DEFUN([GASNET_HOSTCC_END], [
+  GASNET_FUN_BEGIN([$0])
+  if test "$CROSS_COMPILING" != "1" ; then
+    AC_MSG_ERROR([Internal error - please report])
+  fi
+
+  GASNET_POPVAR(CC)
+  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LDFLAGS)
+  GASNET_POPVAR(LIBS)
+  GASNET_POPVAR(CPP)
+  GASNET_POPVAR(CPPFLAGS)
+  GASNET_POPVAR(ac_cv_prog_CC)
+  GASNET_POPVAR(ac_cv_prog_CPP)
+  GASNET_POPVAR(ac_cv_c_compiler_gnu)
+  GASNET_POPVAR(ac_cv_prog_cc_g)
+  GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_POPVAR(cross_compiling)
+
+  GASNET_FUN_END([$0])
+])
+
 dnl fetch the host C compiler
 AC_DEFUN([GASNET_PROG_HOSTCC], [
 GASNET_FUN_BEGIN([$0])
@@ -1596,18 +1641,7 @@ if test "$cross_compiling" = "yes" ; then
   if test ! "$HOST_CC" ; then
     AC_MSG_ERROR([$HOST_MSG])
   fi
-  GASNET_PUSHVAR(CC,"$HOST_CC")
-  GASNET_PUSHVAR(CFLAGS,"$HOST_CFLAGS")
-  GASNET_PUSHVAR(LDFLAGS,"$HOST_LDFLAGS")
-  GASNET_PUSHVAR(LIBS,"$HOST_LIBS")
-  dnl push all the other goop that AC_PROG_C(PP) caches away
-  GASNET_PUSHVAR_UNSET(CPP)
-  GASNET_PUSHVAR_UNSET(CPPFLAGS)
-  GASNET_PUSHVAR_UNSET(ac_cv_prog_CC)
-  GASNET_PUSHVAR_UNSET(ac_cv_prog_CPP)
-  GASNET_PUSHVAR_UNSET(ac_cv_c_compiler_gnu)
-  GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_g)
-  GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_stdc)
+  GASNET_HOSTCC_BEGIN
     GASNET_PROG_CC
     AC_LANG_SAVE
     AC_LANG_C
@@ -1624,17 +1658,7 @@ if test "$cross_compiling" = "yes" ; then
     HOST_LDFLAGS="$LDFLAGS"
     HOST_LIBS="$LIBS"
     AC_LANG_RESTORE
-  GASNET_POPVAR(CC)
-  GASNET_POPVAR(CFLAGS)
-  GASNET_POPVAR(LDFLAGS)
-  GASNET_POPVAR(LIBS)
-  GASNET_POPVAR(CPP)
-  GASNET_POPVAR(CPPFLAGS)
-  GASNET_POPVAR(ac_cv_prog_CC)
-  GASNET_POPVAR(ac_cv_prog_CPP)
-  GASNET_POPVAR(ac_cv_c_compiler_gnu)
-  GASNET_POPVAR(ac_cv_prog_cc_g)
-  GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_HOSTCC_END
 fi
 GASNET_FUN_END([$0])
 ])
