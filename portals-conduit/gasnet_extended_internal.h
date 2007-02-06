@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/10/17 18:06:56 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2007/02/06 23:42:57 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,10 +55,8 @@ typedef struct _gasnete_iop_t {
   int initiated_put_cnt;     /*  count of put ops initiated */
 
   /*  make sure the counters live on different cache lines for SMP's */
-#if 0
-  /*  MLW: Need to adjust this pad field length */
-  uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
-#endif
+  uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES))]; 
+
   gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
   gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
 } gasnete_iop_t;

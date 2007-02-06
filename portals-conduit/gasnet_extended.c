@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/01/09 23:10:44 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2007/02/06 23:42:57 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,6 +93,8 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   gasnete_threadtable[idx] = threaddata;
 
   threaddata->current_iop = gasnete_iop_new(threaddata);
+
+  threaddata->gasnetc_threaddata = gasnetc_new_threaddata();
 
   return threaddata;
 }
