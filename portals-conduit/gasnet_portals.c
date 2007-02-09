@@ -10,10 +10,19 @@
 /* Needed for bootstrap */
 #include <catamount/cnos_mpi_os.h>
 #elif PLATFORM_OS_CNL
-#include <pctmbox.h>
+/* #include <pctmbox.h> */
+#include <catamount/cnos_mpi_os.h>
 #else
 #error Unknown Portals OS
 #endif
+
+/* set to one for ReqRB Auto Unlink
+ * Not advised since unlink event may be reaped so late that all
+ * receive buffers are filled and overflow before the first
+ * unlink event is seen.  Manual unlink seems to be the best option
+ */
+#define GASNETC_REQRB_AUTO_UNLINK 0
+#define GASNETC_REQRB_UNLINK_VERBOSE 0
 
 /* macros used for simple hash table lookup.  Only accessed in this file. */
 #define HASHTABLE_SIZE 512
@@ -25,8 +34,8 @@ size_t gasnetc_ReqSB_numchunk = 1024;
 gasnetc_PtlBuffer_t gasnetc_ReqSB;
 
 /* We maintain an array of Request Receive Buffers */
-int    gasnetc_ReqRB_pool_size = 3;
-size_t gasnetc_ReqRB_numchunk = 1024;
+int    gasnetc_ReqRB_pool_size = 5;
+size_t gasnetc_ReqRB_numchunk = 2048;
 gasnetc_PtlBuffer_t *gasnetc_ReqRB;          
 
 /* We maintain a single Reply send buffer.
@@ -87,6 +96,14 @@ int gasnetc_use_accel = 0;
 static gasnetc_procid_t *gasnetc_addrtable[HASHTABLE_SIZE];
 
 gasnetc_conn_t *gasnetc_conn_state = NULL;
+
+/* if this is set to a positive value it will hardwire the max segment size */
+#if PLATFORM_OS_CNL
+#define GASNETC_DEFAULT_SEGSIZE 256
+#else
+#define GASNETC_DEFAULT_SEGSIZE 0
+#endif
+static long gasnetc_static_segsize_mbyte = GASNETC_DEFAULT_SEGSIZE;
 
 /* ------------------------------------------------------------------------------------ */
 /* The number of available send tickets and the message limit.
@@ -672,6 +689,9 @@ static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t 
     buf->alignment = 0;
   }
   buf->use_chunks = 0;
+#ifdef GASNET_PAR
+  gasneti_weakatomic_set(&buf->threads_active, 0, 0);
+#endif
 }
 
 /* ------------------------------------------------------------------------------------
@@ -697,6 +717,7 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
   buf->nbytes = nbytes;
   buf->start = gasnetc_aligned_alloc(nbytes,buf->alignment,&buf->actual_start);
   buf->use_chunks = 1;
+  GASNETC_INITLOCK_CHUNK(buf);
   buf->numchunks = nchunks;
   buf->inuse = 0;
   buf->hwm = 0;
@@ -729,6 +750,23 @@ static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 }
 
 /* ---------------------------------------------------------------------------------
+ * Find the ReqRB with a memory starting address of start_addr
+ * --------------------------------------------------------------------------------- */
+static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
+{
+  int i;
+  gasnetc_PtlBuffer_t *p = NULL;
+
+  for (i = 0; i < gasnetc_ReqRB_pool_size; i++) {
+    uintptr_t buf_start = (uintptr_t)gasnetc_ReqRB[i].start;
+    if (buf_start == start_addr) {
+      return &gasnetc_ReqRB[i];
+    }
+  }
+  gasneti_fatalerror("ReqRB_getbuf: Unable to find ReqRB with starting address 0x%llx",(unsigned long long)start_addr);
+}
+
+/* ---------------------------------------------------------------------------------
  * This function is called when a Request Receive Buffer needs to be refreshed
  * and placed on the match list just before the catch-basin buffer.
  * The start_addr is the starting address of the memory buffer.  We use this
@@ -742,16 +780,18 @@ static void ReqRB_refresh(uintptr_t start_addr)
   ptl_process_id_t match_id;
 
   GASNETI_TRACE_PRINTF(C,("ReqRB_refresh called with start address %lx",start_addr));
-  for (i = 0; i < gasnetc_ReqRB_pool_size; i++) {
-    uintptr_t buf_start = (uintptr_t)gasnetc_ReqRB[i].start;
-    if (buf_start == start_addr) {
-      p = &gasnetc_ReqRB[i];
-      break;
-    }
+  p = ReqRB_getbuf(start_addr);
+#ifdef GASNET_PAR 
+  /* must wait until all other threads have completed work in this buffer before
+   * re-threading back onto ME list.  
+   */
+  while (gasneti_weakatomic_read(&p->threads_active, 0) > 0) {
+    /* probably should do-nothing poll since if other threads are active they
+     * should be done soon and should not block
+     */
+    gasneti_sched_yield();
   }
-  if (p == NULL) {
-    gasneti_fatalerror("ReqRB_refresh:Unable to find ReqRB with starting address 0x%llx",(unsigned long long)start_addr);
-  }
+#endif
   md.start = p->start;
   md.length = p->nbytes;
   md.threshold = PTL_MD_THRESH_INF;
@@ -1056,6 +1096,9 @@ static void ReqSB_event(ptl_event_t *ev)
     gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the get (isget=1) operation complete */
+    /* Do we need membar here?  Above chunk free required lock/unlock
+     * of mutex => membar, right?
+     */
     gasnete_op_markdone(op, 1);
     break;
 
@@ -1074,7 +1117,6 @@ static void ReqSB_event(ptl_event_t *ev)
 
   case PTL_EVENT_PUT_END:
     /* This is an AM reply from a previous request */
-    /* who sent us this message? */
     if (amflag & GASNETC_PTL_AM_SHORT) {
       ran_handler = exec_amshort_handler(0,ev,numarg,ghandler);
     } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
@@ -1149,6 +1191,9 @@ static void ReqRB_event(ptl_event_t *ev)
   ptl_match_bits_t   mbits = ev->match_bits;
   uint8_t msg_type, amflag, numarg, ghandler;
 
+  /* increment ref counter on this buffer */
+  GASNETC_REQRB_START(ev->md.start);
+
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("ReqRB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)ev->offset,(uint64_t)mbits,msg_type));
 
@@ -1177,14 +1222,38 @@ static void ReqRB_event(ptl_event_t *ev)
       gasneti_fatalerror("ReqRB: Invalid amflag from mbits = %lx",(uint64_t)mbits);
     }
 
+    /* decrement ref counter on this buffer */
+    GASNETC_REQRB_FINISH(ev->md.start);
+
     /* Should we check if this buffer can be recycled here as well as below? */
-#if 1
+    /* THREAD SAFETY ISSUE: multiple threads could be executing handlers that
+     * reference data in this MD.  Cant zero memory and should not re-link
+     * into list until all threads have completed.
+     * In practice, it will be a very low probability event that, after
+     * being added back into the match list, an incoming message will have
+     * over-written data that one of the threads is still reading.
+     */
+#if GASNETC_REQRB_AUTO_UNLINK
+#if GASNETC_REQRB_UNLINK_VERBOSE
+    { /* testing */
+      ptl_size_t space_left = ev->md.length - (ev->offset + ev->mlength);
+      if (space_left < GASNETC_CHUNKSIZE) {
+	printf("[%d] ReqRB: AUTO_UNLINK and only %ld bytes left in buffer with handle %ld\n",
+	       gasneti_mynode,(long)space_left,(ulong)ev->md_handle);
+      }
+    }
+#endif
+#else
     {
       ptl_size_t space_left = ev->md.length - (ev->offset + ev->mlength);
       if (space_left < GASNETC_CHUNKSIZE) {
 	/* attempt an unlink.  If successful, refresh the buffer */
 	int rc = PtlMDUnlink(ev->md_handle);
 	GASNETI_TRACE_PRINTF(C,("ReqRB_event: manual unlink returned %d",rc));
+#if GASNETC_REQRB_UNLINK_VERBOSE
+	printf("[%d] ReqRB: MANUAL_UNLINK and only %ld bytes left in buffer with handle %ld\n",
+	       gasneti_mynode,(long)space_left,(ulong)ev->md_handle);
+#endif
 	switch (rc) {
 	case PTL_OK:
 	case PTL_MD_INVALID:
@@ -1207,14 +1276,19 @@ static void ReqRB_event(ptl_event_t *ev)
     break;
 
   case PTL_EVENT_UNLINK:
-    /* buffer was auto-unlinked, refresh and relink at end of buffer list.
-     * Note that this never seems to happen under Cray Portals */
+    /* buffer was auto-unlinked, refresh and relink at end of buffer list. */
 
-    /* printf("[%d] Manual Unlink event of ReqRB with handle %lu\n",gasneti_mynode,(ulong)ev->md_handle); */
+#if GASNETC_REQRB_UNLINK_VERBOSE
+    printf("[%d] Got Unlink event of ReqRB with handle %lu\n",gasneti_mynode,(ulong)ev->md_handle);
+#endif
+    /* decrement ref counter on this buffer */
+    GASNETC_REQRB_FINISH(ev->md.start);
     ReqRB_refresh((intptr_t)ev->md.start);
     break;
 
   default:
+    /* decrement ref counter on this buffer */
+    GASNETC_REQRB_FINISH(ev->md.start);
     gasneti_fatalerror("Invalid event %s on ReqRB",ptl_event_str[ev->type]);
   }
 }
@@ -1445,6 +1519,12 @@ static void ReqRB_init()
     md.threshold = PTL_MD_THRESH_INF;
     md.max_size = GASNETC_CHUNKSIZE;
     md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
+#if GASNETC_REQRB_AUTO_UNLINK
+    /* Not advised.  See notes above where GASNETC_REQRB_AUTO_UNLINK is defined */
+    /* NOTE: these flags are Cray extensions to the spec */
+    md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
+#endif
+
 #if GASNETC_USE_EQ_HANDLER
     md.user_ptr = (void*)(uint64_t)GASNETC_REQRB_MD;
 #else
@@ -1831,8 +1911,16 @@ extern void gasnetc_init_portals_network(void)
   /* Get my process info */
   GASNETC_PTLSAFE(PtlGetUid(gasnetc_ni_h,&gasnetc_uid));
   GASNETC_PTLSAFE(PtlGetId(gasnetc_ni_h,&gasnetc_myid));
-  
+
 #if PLATFORM_OS_CNL
+  /* must init the CNOS barrier under CNL (this is a noop for Catamount)
+   * This MUST be done before calls to
+   *      cnos_register_ptlid() AND cnos_get_nidpid_map()
+   * which for a split-phase barrier in CNL job startup.
+   * Cannot call cnos_barrier() until all three have been called.
+   */
+  cnos_barrier_init(gasnetc_ni_h);
+
   /* Assume APRUN launcher */
   if ((rc=cnos_register_ptlid(gasnetc_myid)) != 0) {
     gasneti_fatalerror("cnos_register_ptlid returned %d\n",rc);
@@ -1905,6 +1993,7 @@ extern void gasnetc_init_portals_network(void)
     gasnetc_conn_state[i].got_shutdown_msg = 0;
     gasneti_weakatomic_set(&(gasnetc_conn_state[i].src_lid), 0, 0);
     gasnetc_conn_state[i].lids = NULL;
+    GASNETC_INITLOCK_LIDCACHE(i);
   }
 
   /* set the number of seconds we poll until forceful shutdown.  May be over-ridden
@@ -2002,13 +2091,6 @@ extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_no
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_bootstrapBarrier() {
   static int gasnetc_bootstrapBarrierCnt = 0;
-
-#if PLATFORM_OS_CNL
-  if (gasnetc_bootstrapBarrierCnt == 0) {
-    /* First time, must init cnos barrier */
-    cnos_barrier_init();
-  }
-#endif
 
   gasnetc_bootstrapBarrierCnt++;
 
@@ -2301,6 +2383,7 @@ static int try_pin(uintptr_t size)
   /* poll system queue here since these operations can take some time */
   gasnetc_sys_poll();
 
+
   /* Now try to pin by creating a free floating MD for this memory */
   md.start = mem;
   md.length = size;
@@ -2315,10 +2398,11 @@ static int try_pin(uintptr_t size)
     ok = 1;
     break;
   case PTL_NO_SPACE:
+  case PTL_VAL_FAILED:   /* this error condition not in Portals spec, added by Cray */
     ok = 0;
     break;
   default:
-    gasneti_fatalerror("try_pin::PltMDBind returned error %d = %s",rc,ptl_err_str[rc]);
+    gasneti_fatalerror("try_pin::PltMDBind returned error %d = %s for mem size %ld",rc,ptl_err_str[rc],(long)size);
   }
   /* release the memory descriptor */
   if (ok) {
@@ -2339,8 +2423,16 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
   uint64_t low = granularity;
   uint64_t high = 16ULL * 1024ULL * MBYTE;
   uint64_t prev;
-#undef MBYTE
   void *mem = NULL;
+
+  if (gasnetc_static_segsize_mbyte > 0) {
+    low = gasnetc_static_segsize_mbyte * MBYTE;
+    if (!try_pin(low)) {
+      gasneti_fatalerror("CNL Unable to alloc and pin static segsize of %ld bytes",low);
+    }
+    return low;
+  }
+#undef MBYTE
 
   /* make sure we can pin at least the initial low watermark of memory */
   if (! try_pin(low)) {
@@ -2555,6 +2647,8 @@ extern void gasnetc_init_portals_resources(void)
 				 (int64_t)gasnetc_msg_limit,0);
   gasnetc_shutdown_seconds = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SHUTDOWN_SECONDS",
 				 (int64_t)gasnetc_shutdown_seconds,0);
+  gasnetc_static_segsize_mbyte = (long)gasneti_getenv_int_withdefault("GASNET_PORTAL_STATIC_SEGSIZE",
+				 (int64_t)gasnetc_static_segsize_mbyte,0);
 				
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_Pool_size = %d",gasnetc_ReqRB_pool_size));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_numchunk  = %d",(int)gasnetc_ReqRB_numchunk));
@@ -2643,29 +2737,39 @@ extern void gasnetc_portals_preexit(int do_trace)
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_portals_exit()
 {
-  ptl_event_t ev;
 
-  sys_exit();
+#define DO_CLEANUP_PORTALS 0
+#if DO_CLEANUP_PORTALS
+  {
+    ptl_event_t ev;
+    sys_exit();
 
-  RplSB_exit();
-  ReqRB_exit();
-  ReqSB_exit();
-  RAR_exit();
+    RplSB_exit();
+    ReqRB_exit();
+    ReqSB_exit();
+    RAR_exit();
 
-  /* remove the event queues */
-  while (gasnetc_get_event(gasnetc_SAFE_EQ_h,&ev)) {};
-  GASNETC_PTLSAFE(PtlEQFree(gasnetc_SAFE_EQ_h));
-  while (gasnetc_get_event(gasnetc_AM_EQ_h,&ev)) {};
-  GASNETC_PTLSAFE(PtlEQFree(gasnetc_AM_EQ_h));
+    /* remove the event queues */
+    while (gasnetc_get_event(gasnetc_SAFE_EQ_h,&ev)) {};
+    GASNETC_PTLSAFE(PtlEQFree(gasnetc_SAFE_EQ_h));
+    while (gasnetc_get_event(gasnetc_AM_EQ_h,&ev)) {};
+    GASNETC_PTLSAFE(PtlEQFree(gasnetc_AM_EQ_h));
 
-  /* free the proc id map */
-  gasneti_free(gasnetc_procid_map);
+    /* free the proc id map */
+    gasneti_free(gasnetc_procid_map);
 
-  /* free the AM connection state array */
-  gasneti_free(gasnetc_conn_state);
+    /* free the AM connection state array */
+    gasneti_free(gasnetc_conn_state);
 
-  GASNETC_PTLSAFE(PtlNIFini(gasnetc_ni_h));
-
+    GASNETC_PTLSAFE(PtlNIFini(gasnetc_ni_h));
+  }
+#endif
+#if PLATFORM_OS_CNL
+  /* inform cnos of clean exit
+   * MLW: dont understand the args to this yet!!!
+   */
+  cnos_pm_barrier(1);
+#endif
 }
 
 /* ------------------------------------------------------------------------------------

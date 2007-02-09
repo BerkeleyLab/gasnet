@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/02/06 23:42:57 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2007/02/09 21:57:08 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -312,18 +312,6 @@ extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
-#if 0
-  {
-    static int gasnetc_exit_entered = 0;
-    if (gasnetc_exit_entered) {
-      gasnetc_exit_entered++;
-      GASNETI_TRACE_PRINTF(C,("Entry number %d to gasnetc_exit",gasnetc_exit_entered));
-      return;
-    }
-    gasnetc_exit_entered++;
-  }
-#endif    
-
   {  /* ensure only one thread ever continues past this point */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&exit_lock);
@@ -367,16 +355,13 @@ extern void gasnetc_exit(int exitcode) {
     }
   }
 
-  /* reclaim Portals resources */
-#if 0
-  /* errors reclaiming resources in use, just dont bother */
+  /* if we got here, this is a clean shutdown.  Clean up portals resources */
   gasnetc_portals_exit();
-#endif
 
   /* preform cleanup operations */
   gasneti_flush_streams();
   gasneti_trace_finish();
-  gasneti_sched_yield();    /* not sure what this is for */
+  gasneti_sched_yield();
   
   /* kill myself without generateing core dumps, etc */
   gasneti_killmyprocess(exitcode);

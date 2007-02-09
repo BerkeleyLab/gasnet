@@ -233,11 +233,17 @@ typedef struct token_rec {
   gasnet_node_t     srcnode;
 } gasnetc_ptl_token_t;
 
-#ifdef GASNET_SEQ
+#ifdef GASNET_PAR
+#define GASNETC_INITLOCK_LIDCACHE(srcnode)			\
+  pthread_mutex_init(&gasnetc_conn_state[srcnode].lidlock, NULL)
+#define GASNETC_LOCK_LIDCACHE(srcnode)				\
+  ptherad_mutex_lock(&gasnetc_conn_state[srcnode].lidlock)
+#define GASNETC_UNLOCK_LIDCACHE(srcnode)			\
+  ptherad_mutex_unlock(&gasnetc_conn_state[srcnode].lidlock)
+#else
+#define GASNETC_INITLOCK_LIDCACHE(srcnode) do {} while(0)
 #define GASNETC_LOCK_LIDCACHE(srcnode) do {} while(0)
 #define GASNETC_UNLOCK_LIDCACHE(srcnode) do {} while(0)
-#else
-#error GASNETC LIDCACHE LOCK NOT IMPLEMENTED
 #endif
 
 #define GASNETC_LID_DATA_HERE    0x1
@@ -262,7 +268,7 @@ typedef struct gconrec {
   int                  got_shutdown_msg;
   gasneti_weakatomic_t src_lid;  /* must be 32 bit unsigned so will roll after 2^32 */
 #ifdef GASNET_PAR
-#error Add Mutex variable for control of lids list
+  pthread_mutex_t      lidlock;
 #endif
   gasnetc_amlongcache_t *lids;   /* lids cache objects are stored on list indexed by src node */
 } gasnetc_conn_t;
@@ -338,11 +344,25 @@ typedef union _gasnetc_chunk {
     union _gasnetc_chunk *next;
 } gasnetc_chunk_t;
 
-#ifdef GASNET_SEQ
+#ifdef GASNET_PAR
+#define GASNETC_INITLOCK_CHUNK(bufptr) pthread_mutex_init(&bufptr->lock,NULL)
+#define GASNETC_LOCK_CHUNK(bufptr) ptherad_mutex_lock(&bufptr->lock)
+#define GASNETC_UNLOCK_CHUNK(bufptr) ptherad_mutex_unlock(&bufptr->lock)
+#define GASNETC_REQRB_START(start_addr) do {			\
+    gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
+    gasneti_weakatomic_increment(&p->threads_active, 0);	\
+  } while(0)
+#define GASNETC_REQRB_FINISH(start_addr) do {			\
+    gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
+    gasneti_weakatomic_decrement(&p->threads_active, 0);	\
+  } while(0)
+
+#else
+#define GASNETC_INITLOCK_CHUNK(bufptr) do {} while(0)
 #define GASNETC_LOCK_CHUNK(bufptr) do {} while(0)
 #define GASNETC_UNLOCK_CHUNK(bufptr) do {} while(0)
-#else
-#error GASNETC CHUNK ALLOCATOR LOCK NOT IMPLEMENTED
+#define GASNETC_REQRB_START(bufptr)  do {} while(0)
+#define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
 #endif
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
@@ -356,13 +376,15 @@ typedef struct {
   char *name;                          /* string used for diagnostics */
   int use_chunks;                      /* Is the buffer under control of a chunk allocator? */
 
+#ifdef GASNET_PAR
+  pthread_mutex_t     lock;            /* locks access to chunk allocator freelist */
+  gasneti_weakatomic_t threads_active; /* Used only in ReqRB, counts number of threads
+					* actively using buffer */
+#endif
   /* The following fields are only used in the case of a chunk allocator */
   int numchunks;                       /* number of chunks in buffer */
   int inuse;                           /* number of chunks currently in use */
   int hwm;                             /* High water mark of chunk use */
-#ifdef GASNET_PAR
-#error Add MUTEX var for control of freelist here
-#endif
   gasnetc_chunk_t *freelist;           /* chunk freelist */
 } gasnetc_PtlBuffer_t;
 
