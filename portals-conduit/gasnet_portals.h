@@ -233,18 +233,12 @@ typedef struct token_rec {
   gasnet_node_t     srcnode;
 } gasnetc_ptl_token_t;
 
-#ifdef GASNET_PAR
 #define GASNETC_INITLOCK_LIDCACHE(srcnode)			\
-  pthread_mutex_init(&gasnetc_conn_state[srcnode].lidlock, NULL)
+  gasneti_mutex_init(&gasnetc_conn_state[srcnode].lidlock)
 #define GASNETC_LOCK_LIDCACHE(srcnode)				\
-  ptherad_mutex_lock(&gasnetc_conn_state[srcnode].lidlock)
+  gasneti_mutex_lock(&gasnetc_conn_state[srcnode].lidlock)
 #define GASNETC_UNLOCK_LIDCACHE(srcnode)			\
-  ptherad_mutex_unlock(&gasnetc_conn_state[srcnode].lidlock)
-#else
-#define GASNETC_INITLOCK_LIDCACHE(srcnode) do {} while(0)
-#define GASNETC_LOCK_LIDCACHE(srcnode) do {} while(0)
-#define GASNETC_UNLOCK_LIDCACHE(srcnode) do {} while(0)
-#endif
+  gasneti_mutex_unlock(&gasnetc_conn_state[srcnode].lidlock)
 
 #define GASNETC_LID_DATA_HERE    0x1
 #define GASNETC_LID_HEADER_HERE  0x2
@@ -267,9 +261,7 @@ typedef struct gconrec {
   gasneti_weakatomic_t in_recovery;
   int                  got_shutdown_msg;
   gasneti_weakatomic_t src_lid;  /* must be 32 bit unsigned so will roll after 2^32 */
-#ifdef GASNET_PAR
-  pthread_mutex_t      lidlock;
-#endif
+  gasneti_mutex_t      lidlock;
   gasnetc_amlongcache_t *lids;   /* lids cache objects are stored on list indexed by src node */
 } gasnetc_conn_t;
 /* array of connection states */
@@ -345,9 +337,6 @@ typedef union _gasnetc_chunk {
 } gasnetc_chunk_t;
 
 #ifdef GASNET_PAR
-#define GASNETC_INITLOCK_CHUNK(bufptr) pthread_mutex_init(&bufptr->lock,NULL)
-#define GASNETC_LOCK_CHUNK(bufptr) ptherad_mutex_lock(&bufptr->lock)
-#define GASNETC_UNLOCK_CHUNK(bufptr) ptherad_mutex_unlock(&bufptr->lock)
 #define GASNETC_REQRB_START(start_addr) do {			\
     gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
     gasneti_weakatomic_increment(&p->threads_active, 0);	\
@@ -356,11 +345,7 @@ typedef union _gasnetc_chunk {
     gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
     gasneti_weakatomic_decrement(&p->threads_active, 0);	\
   } while(0)
-
 #else
-#define GASNETC_INITLOCK_CHUNK(bufptr) do {} while(0)
-#define GASNETC_LOCK_CHUNK(bufptr) do {} while(0)
-#define GASNETC_UNLOCK_CHUNK(bufptr) do {} while(0)
 #define GASNETC_REQRB_START(bufptr)  do {} while(0)
 #define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
 #endif
@@ -375,13 +360,11 @@ typedef struct {
   ptl_handle_me_t  me_h;               /* The Portals match-list entry handle (if used) */
   char *name;                          /* string used for diagnostics */
   int use_chunks;                      /* Is the buffer under control of a chunk allocator? */
-
-#ifdef GASNET_PAR
-  pthread_mutex_t     lock;            /* locks access to chunk allocator freelist */
   gasneti_weakatomic_t threads_active; /* Used only in ReqRB, counts number of threads
 					* actively using buffer */
-#endif
+
   /* The following fields are only used in the case of a chunk allocator */
+  gasneti_mutex_t      lock;           /* locks access to chunk allocator freelist */
   int numchunks;                       /* number of chunks in buffer */
   int inuse;                           /* number of chunks currently in use */
   int hwm;                             /* High water mark of chunk use */

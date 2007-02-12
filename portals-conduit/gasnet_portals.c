@@ -717,7 +717,7 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
   buf->nbytes = nbytes;
   buf->start = gasnetc_aligned_alloc(nbytes,buf->alignment,&buf->actual_start);
   buf->use_chunks = 1;
-  GASNETC_INITLOCK_CHUNK(buf);
+  gasneti_mutex_init(&buf->lock);
   buf->numchunks = nchunks;
   buf->inuse = 0;
   buf->hwm = 0;
@@ -2487,9 +2487,9 @@ extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size
      * and membar would insure reads would reflect it.  Of course, would still have to
      * check freelist condition when lock is gotten
      */
-    GASNETC_LOCK_CHUNK(buf);
+    gasneti_mutex_lock(&buf->lock);
     if (buf->freelist == NULL) {
-      GASNETC_UNLOCK_CHUNK(buf);
+      gasneti_mutex_unlock(&buf->lock);
       return 0;
     }
     p = buf->freelist;
@@ -2501,7 +2501,7 @@ extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size
     GASNETI_TRACE_PRINTF(C,("CHUNK_ALLOC: name %s, inuse = %d, hwm = %d, offset=%lu",buf->name,buf->inuse,buf->hwm,(unsigned long)*offset));
     GASNETI_TRACE_EVENT(C, CHUNK_ALLOC);
 #endif
-    GASNETC_UNLOCK_CHUNK(buf);
+    gasneti_mutex_unlock(&buf->lock);
 
     return 1;
 }
@@ -2552,7 +2552,7 @@ extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset)
     gasnetc_chunk_t *p = (gasnetc_chunk_t*)((uint8_t*)buf->start + offset);
     gasneti_assert(buf->use_chunks);
     
-    GASNETC_LOCK_CHUNK(buf);
+    gasneti_mutex_lock(&buf->lock);
     p->next = buf->freelist;
     buf->freelist = p;
 #if GASNETI_STATS_OR_TRACE
@@ -2560,7 +2560,7 @@ extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset)
     GASNETI_TRACE_PRINTF(C,("CHUNK_FREE: name %s, inuse = %d, hwm = %d, offset=%lu",buf->name,buf->inuse,buf->hwm,(unsigned long)offset));
     GASNETI_TRACE_EVENT(C, CHUNK_FREE);
 #endif
-    GASNETC_UNLOCK_CHUNK(buf);
+    gasneti_mutex_unlock(&buf->lock);
 }
 
 /* ---------------------------------------------------------------------------------
