@@ -13,6 +13,9 @@
 /* ------------------------------------------------------------------------------------ */
 /* MLW:  Support for Portals 3.0 */
 
+/* if set to 1, will not call gasneti_AMPOLL from within conduit */
+#define GASNETC_USE_INTERNAL_POLL 1
+
 /* set to 1 to compile in Sandia specific Accelerated Portals code */
 #define GASNETC_USE_SANDIA_ACCEL 0
 
@@ -152,7 +155,7 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
 	} else {							\
 	  pollcnt++;							\
 	  GASNETI_TRACE_EVENT(C, MSG_THROTTLE);				\
-	  gasneti_AMPoll();						\
+	  gasnetc_AMPoll();						\
 	}								\
       }									\
     }									\
@@ -163,16 +166,16 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
     int pollcnt = 0;							\
     while (gasneti_weakatomic_read(&((state)->in_recovery), 0)) {	\
       pollcnt++;							\
-      gasneti_AMPoll();							\
+      gasnetc_AMPoll();							\
     }									\
     /* Allocate a send buffer */					\
     while (!gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) ) { \
       pollcnt++;							\
-      gasneti_AMPoll();							\
+      gasnetc_AMPoll();							\
     }									\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
     /* Insure at least one full poll before AM */			\
-    if (!pollcnt) gasneti_AMPoll();					\
+    if (!pollcnt) gasnetc_AMPoll();					\
     /* Polling may have spent our send tickets, get them again */	\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
   } while (0)

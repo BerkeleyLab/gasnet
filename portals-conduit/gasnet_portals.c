@@ -2527,7 +2527,7 @@ extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes,
     /* poll up to pollmax times, waiting for chunk to free-up */
     while (cnt < pollmax) {
       if (poll_type == GASNETC_FULL_POLL) {
-	GASNETI_SAFE(gasneti_AMPoll());
+	gasnetc_AMPoll();
       } else if (poll_type == GASNETC_SAFE_POLL) {
 	gasnetc_portals_poll(poll_type);
       }
@@ -2717,7 +2717,7 @@ extern void gasnetc_portals_preexit(int do_trace)
   int iter = 0;
   while ((iter < 1000) && (inuse > 0)) {
     int rplsb_cnt, reqsb_cnt, tmpmd_cnt;
-    gasneti_AMPoll();
+    gasnetc_AMPoll();
     rplsb_cnt = gasnetc_RplSB.inuse;
     reqsb_cnt = gasnetc_ReqSB.inuse;
     tmpmd_cnt  = gasnetc_max_tmpmd - gasnetc_num_tickets(&gasnetc_tmpmd_tickets);
@@ -2957,7 +2957,7 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 	gasnetc_portals_poll(pollflag);
 	break;
       case GASNETC_FULL_POLL:
-	gasneti_AMPoll();
+	gasnetc_AMPoll();
 	break;
       }
 #endif
@@ -3038,7 +3038,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 	gasnetc_portals_poll(pollflag);
 	break;
       case GASNETC_FULL_POLL:
-	gasneti_AMPoll();
+	gasnetc_AMPoll();
 	break;
       }
 #endif
