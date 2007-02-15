@@ -887,7 +887,7 @@ static void RARSRC_event(ptl_event_t *ev)
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
     /* InSegment Put (from local RAR) */
-    if ((msg_type != GASNETC_PTL_MSG_GET) && gasnetc_msg_limit)
+    if (gasnetc_msg_limit && !(msg_type & GASNETC_PTL_MSG_GET))
       gasnetc_return_ticket(&gasnetc_send_tickets);
     if ((msg_type & GASNETC_PTL_MSG_PUT) && (msg_type & GASNETC_PTL_MSG_DOLC)) {
       gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
@@ -972,7 +972,7 @@ static void TMPMD_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
-    if ((msg_type != GASNETC_PTL_MSG_GET) && gasnetc_msg_limit)
+    if (gasnetc_msg_limit && !(msg_type & GASNETC_PTL_MSG_GET))
       gasnetc_return_ticket(&gasnetc_send_tickets);
     /* Put from TmpMD */
     if ((msg_type & GASNETC_PTL_MSG_PUT) && (msg_type & GASNETC_PTL_MSG_DOLC)) {
@@ -1060,7 +1060,7 @@ static void ReqSB_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
-    if ((msg_type != GASNETC_PTL_MSG_GET) && gasnetc_msg_limit)
+    if (gasnetc_msg_limit && !(msg_type & GASNETC_PTL_MSG_GET))
       gasnetc_return_ticket(&gasnetc_send_tickets);
     if (msg_type & GASNETC_PTL_MSG_PUT) {
       /* Put bounced through ReqSB, can free chunk now */
@@ -2527,7 +2527,7 @@ extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes,
     /* poll up to pollmax times, waiting for chunk to free-up */
     while (cnt < pollmax) {
       if (poll_type == GASNETC_FULL_POLL) {
-	gasnetc_AMPoll();
+	gasneti_AMPoll();
       } else if (poll_type == GASNETC_SAFE_POLL) {
 	gasnetc_portals_poll(poll_type);
       }
@@ -2717,7 +2717,7 @@ extern void gasnetc_portals_preexit(int do_trace)
   int iter = 0;
   while ((iter < 1000) && (inuse > 0)) {
     int rplsb_cnt, reqsb_cnt, tmpmd_cnt;
-    gasnetc_AMPoll();
+    gasneti_AMPoll();
     rplsb_cnt = gasnetc_RplSB.inuse;
     reqsb_cnt = gasnetc_ReqSB.inuse;
     tmpmd_cnt  = gasnetc_max_tmpmd - gasnetc_num_tickets(&gasnetc_tmpmd_tickets);
@@ -2783,6 +2783,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 {
   int processed = 0;
   ptl_event_t ev;
+  int safe_cnt = 0;
 
 #if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
   static int poll_level = 0;
@@ -2798,11 +2799,20 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   /* always poll on the system queue, adds .074 usec to poll, cost of extra PtlEQGet call */
   gasnetc_sys_poll();
 
-  /* always try to get an event from the SAFE eq first */
-  if ( gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev) ) {
-    GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
-    GASNETC_CALL_EQ_HANDLER(ev);
-    processed++;
+  /* always try to get a few events from the SAFE eq first 
+   * all puts and gets generate two events so need to reap these queues faster
+   * to prevent send_ticket starvation
+   */
+  while (safe_cnt < 3) {
+    if ( gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev) ) {
+      GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
+      GASNETC_CALL_EQ_HANDLER(ev);
+      processed++;
+      safe_cnt++;
+    } else {
+      /* no ready events, stop trying */
+      break;
+    }
   }
 
   if (poll_type == GASNETC_FULL_POLL) {
@@ -2946,9 +2956,6 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   /* stall here if too many puts/gets in progress */
   if (gasnetc_msg_limit > 0) {
     while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
-#if 0
-      gasnetc_portals_poll(pollflag);
-#else
       switch (pollflag) {
       case GASNETC_NO_POLL:
 	gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
@@ -2957,10 +2964,9 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 	gasnetc_portals_poll(pollflag);
 	break;
       case GASNETC_FULL_POLL:
-	gasnetc_AMPoll();
+	gasneti_AMPoll();
 	break;
       }
-#endif
     }
   }
 
@@ -3027,9 +3033,6 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   /* stall here if too many puts/gets in progress */
   if (gasnetc_msg_limit > 0) {
     while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
-#if 0
-      gasnetc_portals_poll(pollflag);
-#else
       switch (pollflag) {
       case GASNETC_NO_POLL:
 	gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
@@ -3038,10 +3041,9 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 	gasnetc_portals_poll(pollflag);
 	break;
       case GASNETC_FULL_POLL:
-	gasnetc_AMPoll();
+	gasneti_AMPoll();
 	break;
       }
-#endif
     }
   }
 

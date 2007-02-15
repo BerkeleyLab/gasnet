@@ -155,7 +155,7 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
 	} else {							\
 	  pollcnt++;							\
 	  GASNETI_TRACE_EVENT(C, MSG_THROTTLE);				\
-	  gasnetc_AMPoll();						\
+	  gasnetc_portals_poll(GASNETC_SAFE_POLL);			\
 	}								\
       }									\
     }									\
@@ -166,16 +166,16 @@ typedef enum{GASNETC_NO_POLL=0, GASNETC_SAFE_POLL, GASNETC_FULL_POLL} gasnetc_po
     int pollcnt = 0;							\
     while (gasneti_weakatomic_read(&((state)->in_recovery), 0)) {	\
       pollcnt++;							\
-      gasnetc_AMPoll();							\
+      gasneti_AMPoll();							\
     }									\
     /* Allocate a send buffer */					\
     while (!gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) ) { \
       pollcnt++;							\
-      gasnetc_AMPoll();							\
+      gasneti_AMPoll();							\
     }									\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
     /* Insure at least one full poll before AM */			\
-    if (!pollcnt) gasnetc_AMPoll();					\
+    if (!pollcnt) gasneti_AMPoll();					\
     /* Polling may have spent our send tickets, get them again */	\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
   } while (0)

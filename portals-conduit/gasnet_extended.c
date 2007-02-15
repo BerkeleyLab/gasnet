@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/02/13 22:11:01 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2007/02/15 01:59:32 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -517,7 +517,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     gasnetc_getmsg(dest,node,src,nbytes,match_bits,GASNETC_FULL_POLL);
 
     /* full poll after sending a message */
-    gasnetc_AMPoll();
+    gasneti_AMPoll();
 
     return (gasnet_handle_t)op;
   } else {
@@ -547,7 +547,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 		   &(mythread->local_completion_count), GASNETC_FULL_POLL);
     
     /* full poll after sending a message */
-    gasnetc_AMPoll();
+    gasneti_AMPoll();
 
     /* poll here for local completion in non-bulk or non-bb case */
     if (wait_for_local_completion) {
@@ -592,7 +592,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
-  GASNETI_SAFE(gasnetc_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   if (gasnete_op_isdone(handle)) {
     gasneti_sync_reads();
@@ -605,7 +605,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
-  GASNETI_SAFE(gasnetc_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -630,7 +630,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
-  GASNETI_SAFE(gasnetc_AMPoll());
+  GASNETI_SAFE(gasneti_AMPoll());
 
   gasneti_assert(phandle);
 
@@ -684,7 +684,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     src = ((uint8_t*)src + toget);
 
     /* full poll after sending a message */
-    gasnetc_AMPoll();
+    gasneti_AMPoll();
   }
   return;
 }
@@ -717,7 +717,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     dest = ((uint8_t*)dest + toput);
 
     /* full poll after sending a message */
-    gasnetc_AMPoll();
+    gasneti_AMPoll();
   }
 
   /* poll here for local completion in non-bulk or non-bb case */
