@@ -326,6 +326,72 @@ For certain algorithms such as all-gather-all, we can actually piggy back the me
 
 \end{itemize}
 
+\section{Data Movement Primitives}
+GASNet offers many different flavors of point-to-point communication such as: blocking puts/gets, nonblocking puts/gets, blocking Active Messages, and nonblocking Active Messages. The primary aim of this section is to document which message transfer scheme is appropriate to get the best performance for a given set of synchronization flags. 
+\subsection {Put-Based Implementations}
+A lot of the tree-based implementations of the collectives rely on active messages to allow the internal nodes to forward the data to the other nodes.  However, relying on asynchronous active messages to perform the transfer do not allow the initiator to know when the data movement has been completed since no explicit handle is returned. Thus there has to be some sort of external mechanism to free the scratch space.
+
+Rather than building an entire synchronization infrastructure just to handle this case, let us analyze when it is safe to use the nonblocking Active Messages (our discussion will focus on AMLongAsync). Previous sections described the distributed scratch space management in detail. These algorithms provide to key features that we can use here:
+\begin{itemize}
+\item The scratch space is invisible to the client code and hence GASNet has complete control of when it can be freed. 
+\item The algorithms and data structures are designed so that different nodes can agree upon which part of the scratch space can be reused.
+\end{itemize}
+
+The main programming difficulty with using nonblocking communication is knowing when it is safe to reuse the source buffers for the data transfer. With nonblocking puts/gets this is done through waiting on an explicit handle. In order to circumvent this problem with nonblocking active messages we notice that the scratch space is under the control of a different synchronization mechanism that provides a distributed agreement on when it can be reused. Thus, if our puts originate from the scratch space managed by GASNet, then we can safely use nonblocking active messages without worrying about the liveness of the source data. 
+
+However this requires the data to be in the scratch space, which will necessitate an extra copy. In many cases, such as sending to a leaf, transfers from the scratch space are sub-optimal. In the following sections we will outline a decision tree and conditions that yield when it is safe to use the different data transfers.
+
+For simplicity of our initial explanation we will only consider the cases in which the input and output synchronization modes are the same. 
+
+\begin{itemize}
+\item IN,OUT\_NOSYNC: There are three cases with the NOSYNC case.
+\begin{itemize}
+\item If the destination of Transfer is an internal node in the tree we will use the decision tree outlined below. 
+\item If the destination is a leaf we will use a nonblocking put followed by an explict synchronization
+\item The leaves do Nothing
+\end{itemize}
+\item IN,OUT\_MYSYNC: We use the decision tree.
+\item IN,OUT\_ALLSYNC: Same as NOSYNC except have a barrier at the end
+\end{itemize}
+
+
+The decision tree in Algorithm~\ref{msg-transfer-decision} outlines when a particular style of transfer can be used. The first thing to notice with this decision is that we elect to use puts when we send to a leaf in the case of NOSYNC. The semantics require that at least one node remain active in the collective until all data movement has finished. Thus by waiting for the puts to finish, we guarantee that the parents of the leaves will wait until all the data transfers have finished.  The next important detail is to notice that when the source is not in the scratch space and MYSYNC is required we will use a blocking active message to ensure that the source can be reused since there is no other mechanism to know when the data has been fully consumed. 
+
+
+\begin{algorithm}[h]
+\begin{algorithmic}[1]
+\IF { source of the transfer is in the scratch space }
+\STATE use an AMLongAsync (for the reasons outlined above)
+\ELSE
+\IF { using MYSYNC}
+\STATE use AMLong
+\ELSE
+\IF{ sending to a leaf }
+\STATE Use a nonblocking put followed by an explicit synchronization
+\ELSE
+\STATE Use AMLongAsync
+\ENDIF
+\ENDIF
+\ENDIF
+\end{algorithmic}
+\caption{Decision Tree For Message Transfer}
+\label{msg-transfer-decision}
+\end{algorithm}
+
+
+\subsection {Get-Based Implementations}
+Still needs to be worked out.
+
+\subsection {Barriers}
+When a tree based collective is used we notice that roughly $\frac{fanout-1}{fanout}$ of the nodes are leaf nodes. We also notice that we can use the messaging semantics to reduce the number of nodes upon which we need to perform a barrier. We can use the following algorithm for this:
+
+\begin{enumerate}
+\item Sync Puts to Leaves (acts as Notify for the leaves)
+\item Perform a Barrier over all the Internal Nodes
+\item Wake leaves through an AMShort
+\end{enumerate}
+
+This sequence dramatically reduces the nodes of the OUT\_ALLSYNC barrier and should be added as a useful optimization. 
 
 \section{Collective Implementation}
 This section outlines how each of the different collectives handle both the synchronization as well as the

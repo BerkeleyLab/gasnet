@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2006/11/04 02:26:35 $
- * $Revision: 1.22.6.6 $
+ *     $Date: 2007/02/21 03:13:25 $
+ * $Revision: 1.22.6.7 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -123,7 +123,7 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 	}                                                                    \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(F)[i] != i) {                                          \
-		MSG("ERROR: %s gather_all validation failed", name);         \
+		MSG("ERROR: %s gather_all validation failed (%d,%d)", name, i, LOCAL(F)[i]);         \
 		gasnet_exit(1);                                              \
 	    }                                                                \
 	}                                                                    \
@@ -212,23 +212,23 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
                                                                              \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get(&tmp, peerproc, REMOTE(A,peerthread), sizeof(int));       \
+        gasnet_get(&tmp, peerproc, REMOTE(A,peerthread), sizeof(int));       \
 	if (tmp != R[j]) {                                                   \
 	    MSG("ERROR: %s broadcast validation failed", name);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	tmp = peerthread;                                                    \
 	gasnet_put(peerproc, REMOTE(B,peerthread), &tmp, sizeof(int));       \
-	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
+        CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get_bulk(LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int)); \
-	for (i = 0; i < images; ++i) {                                       \
+            gasnet_get_bulk(LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int)); \
+            for (i = 0; i < images; ++i) {                                   \
 	    if (LOCAL(D)[i] != i) {                                          \
 		MSG("ERROR: %s gather validation failed", name);             \
 		gasnet_exit(1);                                              \
 	    }                                                                \
 	}                                                                    \
-	global_barrier(); /* to avoid conflict on D */                       \
+        global_barrier(); /* to avoid conflict on D */                       \
 	tmp = mythread * R[j];                                               \
 	gasnet_put(rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int));    \
 	CALL(scatter##SUFFIX, ALL(B), ROOT(D),                               \
@@ -236,7 +236,7 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gasnet_get(&tmp, peerproc, REMOTE(B,peerthread), sizeof(int));       \
 	if (tmp != peerthread*R[j]) {                                        \
 	    MSG("ERROR: %s scatter validation failed", name);                \
-	    gasnet_exit(1);                                                  \
+	    gasnet_exit(1);                                                 \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on B */                       \
 	tmp = peerthread*R[j] - 1;                                           \
@@ -423,8 +423,8 @@ void *thread_main(void *arg) {
   td->hndl = test_malloc(iters*sizeof(gasnet_coll_handle_t));
 
   /* Run w/ root = (first, middle, last) w/o duplication */
-   for (i = 0; i < 3; ++i) { 
- /* for(i=0; i<1; i++) {*/
+  for (i = 0; i < 3; ++i) { 
+  /*for(i=0; i<1; i++) {*/
     int root;
 
     if (i == 0) {
@@ -450,21 +450,23 @@ void *thread_main(void *arg) {
       testSS_NONO(root, td);
       testSS_MYMY(root, td);
       testSS_ALLALL(root, td);
-      //  testSS_NB(root, td);
+      testSS_NB(root, td);
     }
 #endif
+#if 0
     testSM_NONO(root, td);
     testSM_MYMY(root, td);
     testSM_ALLALL(root, td);
-   // testSM_NB(root, td);
-   // testLS_NONO(root, td);
-  //  testLS_MYMY(root, td);
-  //  testLS_ALLALL(root, td);
-  //  testLS_NB(root, td);
-  //  testLM_NONO(root, td);
-  //  testLM_MYMY(root, td);
-  //  testLM_ALLALL(root, td);
-  //  testLM_NB(root, td);
+    testSM_NB(root, td);
+    testLS_NONO(root, td);
+    testLS_MYMY(root, td);
+    testLS_ALLALL(root, td);
+    testLS_NB(root, td);
+    testLM_NONO(root, td);
+    testLM_MYMY(root, td);
+    testLM_ALLALL(root, td);
+    testLM_NB(root, td);
+#endif
   }
   
   test_free(td->hndl);

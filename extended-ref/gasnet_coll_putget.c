@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/01/26 22:47:09 $
- * $Revision: 1.29.6.29 $
+ *     $Date: 2007/02/21 03:13:23 $
+ * $Revision: 1.29.6.30 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -194,44 +194,69 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
 
     case 2:
       if (gasneti_mynode == args->srcnode) {
+        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
 	for (child = 0; child < child_count; child++) {
-	  gasnete_coll_p2p_signalling_put(op, children[child], args->dst, 
-					  args->src, args->nbytes, 0, 1);
+          if(tree->geom->subtree_sizes[child] == 1) {
+            /* Destination is a Leaf */ 
+            /* Use NB Put + Sync */
+            gasnete_put_nbi_bulk(children[child], args->dst, args->src, args->nbytes GASNETE_THREAD_PASS);
+          } else { 
+            /* Destiantion is an Internal Node*/
+            /* Use Async Long */
+            gasnete_coll_p2p_signalling_putAsync(op, children[child], args->dst, 
+                                                args->src, args->nbytes, 0, 1);
+
+          }
 	}
+        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
 	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+      } else if (child_count == 0) {
+        /* leaves fall right through*/
       } else if (data->p2p->state[0]) {
-		
 	gasneti_sync_reads();
-	for (child = 0; child < child_count; child++) {
-	  gasnete_coll_p2p_signalling_put(op, children[child], args->dst, 
-					  args->dst, args->nbytes, 0, 1);
+        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
+        
+        for (child = 0; child < child_count; child++) {
+          if(tree->geom->subtree_sizes[child] == 1) {
+            /* Destination is a Leaf */ 
+            /* Use NB Put + Sync */
+            gasnete_put_nbi_bulk(children[child], args->dst, args->dst, args->nbytes GASNETE_THREAD_PASS);
+          } else { 
+            /* Destiantion is an Internal Node*/
+            /* Use Async Long */
+            gasnete_coll_p2p_signalling_putAsync(op, children[child], args->dst, 
+                                                 args->dst, args->nbytes, 0, 1);
+            
+          }
 	}
+        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);        
       } else {
-	break;	/* Waiting for parent to push data and signal */
+	break;	/* Internal node waiting for parent to push data and signal */
       }
       data->state = 3;
-
-    case 3:	/* Optional OUT barrier */
+      
+    case 3:     /* sync data movement */
+      if (child_count > 0 && data->handle != GASNET_INVALID_HANDLE) {
+	break;
+      }
+      data->state = 4;
+      
+    case 4:	/* Optional OUT barrier */
+#if 1
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
-#if 0
-      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
-  
-        /* if we had to do a barrier on the way in then the counter will advance to double the child_count*/
-        barrier_count = child_count + (!(op->flags & GASNET_COLL_IN_NOSYNC) ? child_count : 0);
-	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != barrier_count) {
-	  break;
-	}
-        if (gasneti_mynode != args->srcnode) {
-	  gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
-	}
-        
-      }
+#else
+      /* Custom Out Barrrier Here */
+      /* XXX: Idea Sync all the puts (acts as notify for the leaves) */
+      /* XXX: Perform barrier over internal nodes */
+      /* XXX: Wake leaves with an AMShort */
 #endif
-      data->state = 4;
+      data->state = 5;
       
-    case 4: /*done*/
+    case 5: /*done*/
       gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
@@ -265,7 +290,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 
 /* bcast TreePutScratch */
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
-/* Naturally IN_MYSYNC, OUT_MYSYNC and should only be used for IN_MYSYNC*/
+/* Naturally IN_MYSYNC, OUT_MYSYNC and should only be used for IN_MYSYNC or OUT_MYSYNC*/
 /* max size is MaxLongRequest */
 static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
@@ -299,7 +324,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
 	
 	for (child = 0; child < child_count; child++) {
 
-	  gasnete_coll_p2p_signalling_put(op, children[child], 
+	  gasnete_coll_p2p_signalling_putAsync(op, children[child], 
 					  (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[child], 
 					  (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, 
 					  args->nbytes, 0, 1);
@@ -971,7 +996,7 @@ gasnete_coll_scat_Put(gasnet_team_handle_t team,
 }
 
 /* scat Put: root node performs carefully ordered puts */
-/* Valid for SINGLE and LOCAL, any size < scratch size ... since we write into the scratch space we need not worry about whether the sender knows the address */
+/* Valid for SINGLE and LOCAL, any size < scratch size ... since we write into the scratch space we need not worry about whether the sender knows the dest address */
 static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
@@ -1013,45 +1038,102 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     case 2:
       
       if (gasneti_mynode == args->srcnode) {
-        for(p=1,i=0; i<child_count; i++) {
-          /* reorder the data into the scratch space*/
-          for(j=0; j<tree->geom->subtree_sizes[i]; j++, p++) {
-             GASNETE_FAST_UNALIGNED_MEMCPY((int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+args->nbytes*(p-1), 
-                                           (int8_t*)args->src+args->nbytes*tree->geom->dfs_order[p], args->nbytes);
+        if(tree->geom->seq_dfs_order == 0) {
+          for(p=1,i=0; i<child_count; i++) {
+            /* reorder the data into the scratch space only if dfs traversal of tree is not in a seq order*/
+            for(j=0; j<tree->geom->subtree_sizes[i]; j++, p++) {
+                GASNETE_FAST_UNALIGNED_MEMCPY((int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+args->nbytes*(p-1), 
+                                              (int8_t*)args->src+args->nbytes*tree->geom->dfs_order[p], args->nbytes);
             }
-            /* put */
-        /*  fprintf(stderr, "%d> sending to %d from %d to %d\n", gasneti_mynode, children[i], (int)(op->myscratchpos+sent_bytes), (int)(op->scratchpos[i])); */ 
-
-          gasnete_coll_p2p_signalling_put(op, children[i], 
-                                            (int8_t*)op->team->scratch_segs[i].addr+op->scratchpos[i], 
-                                            (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
-                                            args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
-          sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
-            
+            if(tree->geom->subtree_sizes[i] == 1) {
+              /* if i am sending to a leaf ... put it right where it needs to go */
+              /* since i am using scratch space AMLongAsync is always safe*/
+              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+                                                  args->dst, 
+                                                  (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
+                                                  args->nbytes*tree->geom->subtree_sizes[i], 0, 1);            
+            } else {
+              /* if i am sending to an internal node put it to scratch space */
+              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+                                                  (int8_t*)op->team->scratch_segs[i].addr+op->scratchpos[i], 
+                                                  (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
+                                                  args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
+            }
+            sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
           }
-        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src, (op->team->myrank), args->nbytes), args->nbytes);
-	
-      } else if(data->p2p->state[0]){
+          GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src, (op->team->myrank), args->nbytes), args->nbytes);
+	} else {
+          gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+          /* no need to reorder the data ... send directy from the source buffer into the remote scratch/dest*/
+          for(i=0; i<child_count; i++) {
+            if(op->flags & GASNET_COLL_OUT_MYSYNC) {
+              /* use AMLong*/
+              gasnete_coll_p2p_signalling_put(op, children[i], 
+                                              (int8_t*)op->team->scratch_segs[i].addr+op->scratchpos[i], 
+                                              (int8_t*)args->src+sent_bytes, 
+                                              args->nbytes*tree->geom->subtree_sizes[i], 0, 1);              
+            } else {
+              if(tree->geom->subtree_sizes[i] == 1) {
+                /* if i am sending to a leaf into dest*/
+                /* Perform NB Put */
+                gasnete_put_nbi_bulk(children[i], args->dst,(int8_t*)args->src+sent_bytes,
+                                     args->nbytes*tree->geom->subtree_sizes[i]);                              
+              } else {
+                /* else if i am sending to internal node async long into scratch space*/
+                gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+                                                     (int8_t*)op->team->scratch_segs[i].addr+op->scratchpos[i], 
+                                                     (int8_t*)args->src+sent_bytes, 
+                                                     args->nbytes*tree->geom->subtree_sizes[i], 0, 1);              
+                
+              }
+            }
+            sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
+          }
+          GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+          data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+          gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+        }
+      } else if(child_count == 0 && !(op->flags & GASNET_COLL_OUT_MYSYNC)) {
+        /* for out no/all sync ... fall through right through*/
+        /* for out mysync the leave nodes will need to wait for the data to arrive*/
+      }else if(data->p2p->state[0]){
         gasneti_sync_reads();
         sent_bytes = args->nbytes;
         for(i=0; i<child_count; i++) {
       /*    fprintf(stderr, "%d> sending to %d from %d to %d\n", gasneti_mynode, children[i], (int)(op->myscratchpos+sent_bytes), (int)(op->scratchpos[i])); */
-
-          gasnete_coll_p2p_signalling_put(op, children[i], 
-                                          (int8_t*)op->team->scratch_segs[i].addr+op->scratchpos[i], 
-                                          (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
-                                          args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
+          if(tree->geom->subtree_sizes[i] == 1) {
+            /* if i am sending to a leaf ... put it right where it needs to go */
+              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+                                                  args->dst, 
+                                                  (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
+                                                  args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
+          } else {
+            /* if i am sending to a leaf ... put it right where it needs to go */
+            gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+                                            (int8_t*)op->team->scratch_segs[i].addr+op->scratchpos[i], 
+                                            (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
+                                            args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
+          }
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
-        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes);
-      
+        
+        if(child_count>0) {
+          /* if i am a leaf and we are using out mysync then the data has already been put to where it needs to go and i need to do nothing*/
+          GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes);
+        }
       } else {
         break; /* data not yet arrived*/
       }
   
       data->state = 3;
    
-    case 3: /*node level barrier*/
+    case 3: /* wait for all puts to finish*/
+      if (data->handle != GASNET_INVALID_HANDLE) {
+	break;
+      }
+      data->state = 4;
+     
+    case 4: /*node level barrier*/
 #if 0
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
         
@@ -1066,19 +1148,19 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 
       }
 #endif
-      data->state = 4;
+      data->state = 5;
       
   
-    case 4:	/* Final Out Barrier */
+    case 5:	/* Final Out Barrier */
 #if 1
         if (!gasnete_coll_generic_outsync(data)) {
           break;
         
         }
 #endif
-      data->state = 5;
+      data->state = 6;
     
-    case 5: /*done*/    
+    case 6: /*done*/    
       gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       gasnete_coll_free_scratch(op);

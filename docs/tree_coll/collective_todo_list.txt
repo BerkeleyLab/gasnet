@@ -7,6 +7,7 @@ ToDo List:
 + Pipelining for large messages (fix or work around req for MERGE TO HEAD)
 
 + Gather/Scatter/All Gather
+	+ Sort of Done
 
 + Flush out Computational Collectives
 	+ Prefix Reduce/All reduce
@@ -21,6 +22,9 @@ ToDo List:
 	+ non-rooted / local address
 	+ shared memory
 
++ Barrier Teams
+	+ Take a look at Pthread Barrier
+	
 + Teams (bigger open issue)
 	+ Team/Group Constructors
 	+ Team Collectives
