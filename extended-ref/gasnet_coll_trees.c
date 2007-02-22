@@ -15,7 +15,12 @@ void gasnet_coll_set_tree_kind(char *str) {
 void gasnet_coll_set_fanout(int fanout) {
   gasnete_coll_current_fanout = fanout;
 }
-
+gasnete_coll_tree_kind_t gasnete_coll_get_current_tree_kind() {
+  return gasnete_coll_current_tree_kind;
+}
+int gasnete_coll_get_current_fanout() {
+  return gasnete_coll_current_fanout;
+}
 /* tree building code*/
 int gasnete_coll_build_tree_mypow(int base, int pow) {
   int ret = 1;
@@ -446,7 +451,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
    } 
    
    /* XXX: need to do proper discovery and broadcast of seq_dfs_order*/
-   /* For Now assume that only sequential trees have this property*/
+   /* For Now assume that only flat and chain trees have this property*/
    if(geom->root == 0 && geom->kind == GASNETE_COLL_NARY_TREE && 
       (geom->fanout >= team->total_ranks-1 || geom->fanout == 1)) {
     geom->seq_dfs_order = 1;

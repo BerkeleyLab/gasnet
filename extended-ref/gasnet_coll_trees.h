@@ -100,6 +100,8 @@ void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 /*testing functions*/
 void gasnet_coll_set_tree_kind(char *treestr);
 void gasnet_coll_set_fanout(int fanout);
+gasnete_coll_tree_kind_t gasnete_coll_get_current_tree_kind();
+int gasnete_coll_get_current_fanout();
 
 
 /******** Dissemination Ordering **********/
