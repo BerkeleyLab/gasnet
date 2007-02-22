@@ -29,6 +29,11 @@
 #define HASHVAL HASHTABLE_SIZE
 #define HASHFUNC(procid) (((procid)->nid) % HASHVAL)
 
+/* Max number of events we will process per polling call */
+unsigned gasnetc_safe_poll_limit = 3;
+unsigned gasnetc_am_poll_limit = 2;
+unsigned gasnetc_sys_poll_limit = 0;  /* 0 => infinite */
+
 /* We maintain a single Request send buffer */
 size_t gasnetc_ReqSB_numchunk = 1024;
 gasnetc_PtlBuffer_t gasnetc_ReqSB;
@@ -95,6 +100,14 @@ int gasnetc_use_accel = 0;
 /* construct the hash table for reverse lookups */
 static gasnetc_procid_t *gasnetc_addrtable[HASHTABLE_SIZE];
 
+/* flow control - send credits */
+int gasnetc_use_flow_control = 1;
+long gasnetc_total_credits = 0;
+int  gasnetc_bytes_per_credit = 256;
+int  gasnetc_percent_credits_to_bank = 0;
+int  gasnetc_min_credits_per_node = 28;  /* 4 shorts, 4 unpacked longs, 4 mediums */
+gasneti_semaphore_t gasnetc_banked_credits;
+
 gasnetc_conn_t *gasnetc_conn_state = NULL;
 
 /* if this is set to a positive value it will hardwire the max segment size */
@@ -113,6 +126,7 @@ static long gasnetc_static_segsize_mbyte = GASNETC_DEFAULT_SEGSIZE;
  */
 gasneti_semaphore_t gasnetc_send_tickets;
 int gasnetc_msg_limit = 250;
+static int gasnetc_msg_minimum = 12; /* most likely deadlock with fewer */
 
 const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
 
@@ -228,7 +242,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t 
  *     - set data fields as per arguments.
  *     - return NULL.
  * --------------------------------------------------------------------------------- */
-static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, int nargs, gasnet_handlerarg_t *args)
+static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, int credits, int nargs, gasnet_handlerarg_t *args)
 {
   gasnetc_amlongcache_t *obj;
   int found;
@@ -240,6 +254,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_
   obj->flags |= GASNETC_LID_HEADER_HERE;
   obj->ghandler = ghandler;
   obj->initiator_offset = src_offset;
+  obj->credits = credits;
   obj->narg = nargs;
   if (! found) {
     /* we are the first to arrive, store args. 
@@ -301,6 +316,8 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
     th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
     tok.rplsb_offset = (uint32_t)th->rplsb_off;
     tok.initiator_offset = (uint32_t)(mbits >> 32);
+    /* NOTE: decision to return credits or keep then in AMReply code */
+    tok.credits = gasnetc_compute_credits(ev->rlength);
   }
 
   /* crack args out of hdr_data */
@@ -324,6 +341,15 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   for(; argcnt < numarg; argcnt++) {
     memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
     data += sizeof(gasnet_handlerarg_t);
+  }
+
+  /* did we get return credits? */
+  if (gasnetc_use_flow_control && !isReq) {
+    uint32_t return_credits;
+    memcpy(&return_credits,data,sizeof(uint32_t));
+    data += sizeof(uint32_t); /* not needed in this case */
+    gasnetc_return_credits(tok.srcnode,return_credits);
+    GASNETI_TRACE_PRINTF(C,("exec_amshort: Reply RETURN_CREDITS=%d from %d",(int)return_credits,(int)tok.srcnode));
   }
 
   GASNETI_RUN_HANDLER_SHORT(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg);
@@ -384,6 +410,8 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
     /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
     tok.rplsb_offset = (uint32_t)th->rplsb_off;
     tok.initiator_offset = (uint32_t)(mbits >> 32);
+    /* NOTE: decision to return credits or keep then in AMReply code */
+    tok.credits = gasnetc_compute_credits(ev->rlength);
 
 #if !GASNETC_PACK_RPLOFF_MBITS
   } else if (numarg > 2) {
@@ -403,6 +431,16 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
     memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
     data += sizeof(gasnet_handlerarg_t);
     bytes_so_far += sizeof(gasnet_handlerarg_t);
+  }
+
+  /* did we get return credits? */
+  if (gasnetc_use_flow_control && !isReq) {
+    uint32_t return_credits;
+    memcpy(&return_credits,data,sizeof(uint32_t));
+    data += sizeof(uint32_t); 
+    bytes_so_far += sizeof(uint32_t); 
+    gasnetc_return_credits(tok.srcnode,return_credits);
+    GASNETI_TRACE_PRINTF(C,("exec_ammedium: Reply RETURN_CREDITS=%d from %d",(int)return_credits,(int)tok.srcnode));
   }
 
   /* unpack handler payload length */
@@ -465,6 +503,7 @@ static int exec_amlong_header(int isReq, int isPacked,
   tok.flags = 0;
   tok.initiator = ev->initiator;
   tok.srcnode = gasnetc_get_nodeid(&ev->initiator);
+  tok.credits = 0;
 
   /* extract LID and check if this is a packed AM Long */
   /* if this is a packed AM, the resulting LID is actually the data payload length */
@@ -476,6 +515,9 @@ static int exec_amlong_header(int isReq, int isPacked,
   /* crack upper portion of match_bits */
   if (isReq) {
     tok.initiator_offset = (uint32_t)(mbits >> 32);
+    /* NOTE: decision to return credits or keep then in AMReply code */
+    tok.credits = gasnetc_compute_credits(ev->rlength);
+    if (!isPacked && gasnetc_use_flow_control) tok.credits++;  /* for data message */
 #if !GASNETC_PACK_RPLOFF_MBITS
   } else {
     if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
@@ -493,6 +535,17 @@ static int exec_amlong_header(int isReq, int isPacked,
     memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
     data += sizeof(gasnet_handlerarg_t);
     bytes_so_far += sizeof(gasnet_handlerarg_t);
+  }
+
+  /* did we get return credits?
+   * stash in token structure for update after handler has run
+   */
+  if (gasnetc_use_flow_control && !isReq) {
+    uint32_t return_credits;
+    memcpy(&return_credits,data,sizeof(uint32_t));
+    data += sizeof(uint32_t); 
+    bytes_so_far += sizeof(uint32_t); 
+    tok.credits = return_credits;
   }
 
   if (isPacked) {
@@ -521,7 +574,7 @@ static int exec_amlong_header(int isReq, int isPacked,
   } else {
 
     /* called from Header packet, but not a packed message, check if data message has arrived */
-    gasnetc_amlongcache_t *p = get_lid_obj_from_header(tok.srcnode, lid, ghandler, tok.initiator_offset, numarg, args);
+    gasnetc_amlongcache_t *p = get_lid_obj_from_header(tok.srcnode, lid, ghandler, tok.initiator_offset, tok.credits, numarg, args);
 
     if (p) {
       /* data has arrived, run handler */
@@ -558,6 +611,12 @@ static int exec_amlong_header(int isReq, int isPacked,
 		 );
   }
 
+  /* finally, return credits sent in reply message */
+  if (gasnetc_use_flow_control && ran_handler && !isReq) {
+    gasnetc_return_credits(tok.srcnode,tok.credits);
+    GASNETI_TRACE_PRINTF(C,("exec_amlong_header: Reply RETURN_CREDITS=%d from %d",(int)tok.credits,(int)tok.srcnode));
+  }
+
   return ran_handler;
 }
 
@@ -591,6 +650,7 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
   tok.flags = 0;
   tok.initiator = ev->initiator;
   tok.srcnode = gasnetc_get_nodeid(&ev->initiator);
+  tok.credits = 0;
 
   /* extract LID and check if this is a packed AM Long */
   /* if this is a packed AM, the resulting LID is actually the data payload length */
@@ -608,6 +668,7 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
       tok.rplsb_offset = (uint32_t)th->rplsb_off;
       tok.initiator_offset = p->initiator_offset;
     }
+    tok.credits = p->credits;
 
     GASNETI_TRACE_PRINTF(C,("exec_amlong_data, second to arrive, running handler isReq=%d, lid=%d",isReq,lid));
     GASNETI_RUN_HANDLER_LONG(isReq, p->ghandler ,gasnetc_handler[p->ghandler], token, p->args, p->narg, dataaddr, datalen);
@@ -628,6 +689,12 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
       GASNETI_TRACE_PRINTF(C,("exec_amlong_data, first to arrive, isReq=%d, lid=%d",isReq,lid));
     }
   } 
+
+  /* finally, if handler has run, return credits sent in reply */
+  if (gasnetc_use_flow_control && ran_handler && !isReq) {
+    GASNETI_TRACE_PRINTF(C,("exec_amlong_data: Reply RETURN_CREDITS=%d from %d",(int)tok.credits,(int)tok.srcnode));
+    gasnetc_return_credits(tok.srcnode,tok.credits);
+  }
 
   return ran_handler;
 }
@@ -887,7 +954,7 @@ static void RARSRC_event(ptl_event_t *ev)
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
     /* InSegment Put (from local RAR) */
-    if (gasnetc_msg_limit && !(msg_type & GASNETC_PTL_MSG_GET))
+    if ( !(msg_type & GASNETC_PTL_MSG_GET) )
       gasnetc_return_ticket(&gasnetc_send_tickets);
     if ((msg_type & GASNETC_PTL_MSG_PUT) && (msg_type & GASNETC_PTL_MSG_DOLC)) {
       gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
@@ -929,7 +996,7 @@ static void RARSRC_event(ptl_event_t *ev)
   case PTL_EVENT_REPLY_END:
     /* InSegment Get (to local RAR) */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
-    if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
+    gasnetc_return_ticket(&gasnetc_send_tickets);
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the get (isget=1) operation complete */
     gasnete_op_markdone(op, 1);
@@ -972,7 +1039,7 @@ static void TMPMD_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
-    if (gasnetc_msg_limit && !(msg_type & GASNETC_PTL_MSG_GET))
+    if ( !(msg_type & GASNETC_PTL_MSG_GET) )
       gasnetc_return_ticket(&gasnetc_send_tickets);
     /* Put from TmpMD */
     if ((msg_type & GASNETC_PTL_MSG_PUT) && (msg_type & GASNETC_PTL_MSG_DOLC)) {
@@ -1002,7 +1069,7 @@ static void TMPMD_event(ptl_event_t *ev)
   case PTL_EVENT_REPLY_END:
     /* Get into TmpMD */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
-    if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
+    gasnetc_return_ticket(&gasnetc_send_tickets);
     gasnetc_free_tmpmd(ev->md_handle);
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the get (isget=1) operation complete */
@@ -1060,7 +1127,7 @@ static void ReqSB_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
-    if (gasnetc_msg_limit && !(msg_type & GASNETC_PTL_MSG_GET))
+    if ( !(msg_type & GASNETC_PTL_MSG_GET) )
       gasnetc_return_ticket(&gasnetc_send_tickets);
     if (msg_type & GASNETC_PTL_MSG_PUT) {
       /* Put bounced through ReqSB, can free chunk now */
@@ -1084,7 +1151,7 @@ static void ReqSB_event(ptl_event_t *ev)
   case PTL_EVENT_REPLY_END:
     /* Get bouncing through ReqSB, copy to dest and complete */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
-    if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
+    gasnetc_return_ticket(&gasnetc_send_tickets);
     local_offset = (mbits >> 32);
     pdata = ((uint8_t*)ev->md.start + local_offset);
     q = pdata - sizeof(void*);
@@ -1170,7 +1237,7 @@ static void RplSB_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
-    if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
+    gasnetc_return_ticket(&gasnetc_send_tickets);
     /* reclaim the chunk */
     gasnetc_chunk_free(&gasnetc_RplSB, local_offset);
     break;
@@ -2059,9 +2126,9 @@ extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_no
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src_addr);
   } else {
-    if (th->flags & GASNETC_THREAD_HAVE_TMPMD) {
+    if (th->tmpmd_tickets) {
       md_h = gasnetc_alloc_tmpmd(src_addr, nbytes, gasnetc_SAFE_EQ_h);
-      th->flags &= ~GASNETC_THREAD_HAVE_TMPMD;
+      th->tmpmd_tickets--;
     } else {
       /* alloc a temp md for the source region, SAFE poll until it happens */
       md_h = gasnetc_alloc_tmpmd_withpoll(src_addr, nbytes, gasnetc_SAFE_EQ_h);
@@ -2621,6 +2688,49 @@ extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h)
 #endif
 }
 
+/* Initial cut at this routine will just use the number of pools and size of each
+ * buffer as given.  Will distribute the credits based on these values and fail
+ * if each node does not get the min number of credits.
+ * Future: adjust buffer sizes for that min credit per node is maintained
+ */
+static void compute_initial_credits()
+{
+  long credit_mem = (gasnetc_ReqRB_pool_size-1)*(gasnetc_ReqRB_numchunk-1)*GASNETC_CHUNKSIZE;
+  int credits_per_node;
+  int node;
+  double percent_to_bank;
+  int to_bank;
+  int to_distribute;
+  int loose_change;
+  gasneti_assert_always(gasnetc_bytes_per_credit > 0);
+  gasneti_assert_always(gasnetc_percent_credits_to_bank >= 0);
+  gasneti_assert_always(gasnetc_percent_credits_to_bank <= 100);
+  gasnetc_total_credits = gasnetc_compute_credits(credit_mem);
+  percent_to_bank = (double)gasnetc_percent_credits_to_bank;
+  to_bank = (int)(percent_to_bank*gasnetc_total_credits);
+  to_distribute = gasnetc_total_credits - to_bank;
+  if (gasneti_nodes > 1) {
+    credits_per_node = to_distribute/(gasneti_nodes-1);
+    if (gasnetc_use_flow_control) gasneti_assert_always(credits_per_node >= gasnetc_min_credits_per_node);
+  } else {
+    credits_per_node = 0;
+  }
+  /* left over credits, add to banked credits */
+  to_bank += gasnetc_total_credits - (gasneti_nodes - 1)*credits_per_node;
+  /* keep a counter of number of banked credits availiable to redistribute */
+  gasneti_semaphore_init(&gasnetc_banked_credits, to_bank, 0);
+  for (node = 0; node < gasneti_nodes; node++) {
+    if (node == gasneti_mynode) continue;
+    /* credits I have to send AMs to this remote node */
+    gasneti_semaphore_init(&gasnetc_conn_state[node].avail_credits, credits_per_node, 0);
+    /* credits I have given to this remote node to send AMs to me */
+    gasneti_semaphore_init(&gasnetc_conn_state[node].alloc_credits, credits_per_node, 0);
+  }
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: total credits    = %ld",gasnetc_total_credits));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: banked credits   = %d",to_bank));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: Credits per node = %d",credits_per_node));
+}
+
 /* ---------------------------------------------------------------------------------
  * Initialize all the Portals resources for GASNet:
  *   - Read portals-related env vars to adjust buffer sizes
@@ -2631,6 +2741,7 @@ extern void gasnetc_init_portals_resources(void)
 {
   ptl_size_t   num_safe_events, num_am_events;
   int          i, rc;
+  int          val;
 
   /* read Portals specific env vars */
   gasnetc_ReqRB_pool_size = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_POOLSZ",
@@ -2645,6 +2756,21 @@ extern void gasnetc_init_portals_resources(void)
 				 (int64_t)GASNETC_MAX_TMP_MDS,0);
   gasnetc_msg_limit = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MSG_LIMIT",
 				 (int64_t)gasnetc_msg_limit,0);
+  if (gasnetc_msg_limit < gasnetc_msg_minimum) {
+    gasnetc_msg_limit = gasnetc_msg_minimum;
+  }
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_FLOW_CONTROL",
+					    (int64_t)gasnetc_use_flow_control,0);
+  gasnetc_use_flow_control = val;
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SAFE_LIMIT",
+					    (int64_t)gasnetc_safe_poll_limit,0);
+  if (val >= 0) gasnetc_safe_poll_limit = val;
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_AM_LIMIT",
+					    (int64_t)gasnetc_am_poll_limit,0);
+  if (val >= 0) gasnetc_am_poll_limit = val;
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SYS_LIMIT",
+					    (int64_t)gasnetc_sys_poll_limit,0);
+  if (val >= 0) gasnetc_sys_poll_limit = val;
   gasnetc_shutdown_seconds = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SHUTDOWN_SECONDS",
 				 (int64_t)gasnetc_shutdown_seconds,0);
   gasnetc_static_segsize_mbyte = (long)gasneti_getenv_int_withdefault("GASNET_PORTAL_STATIC_SEGSIZE",
@@ -2656,6 +2782,9 @@ extern void gasnetc_init_portals_resources(void)
   GASNETI_TRACE_PRINTF(C,("Portals_Init: RplSB_numchunk  = %d",(int)gasnetc_RplSB_numchunk));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: max_tmpmd       = %d",gasnetc_max_tmpmd));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: msg_limit       = %d",gasnetc_msg_limit));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: safe_poll_limit = %d",gasnetc_safe_poll_limit));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: am_poll_limit   = %d",gasnetc_am_poll_limit));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: sys_poll_limit  = %d",gasnetc_sys_poll_limit));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: shutdown seconds= %d",gasnetc_shutdown_seconds));
 #if GASNETC_USE_SANDIA_ACCEL
   GASNETI_TRACE_PRINTF(C,("Portals_Init: use_accelerated = %d",gasnetc_use_accel));
@@ -2667,23 +2796,45 @@ extern void gasnetc_init_portals_resources(void)
   /* keep a counter of number of send tickets available */
   gasneti_semaphore_init(&gasnetc_send_tickets, gasnetc_msg_limit, 0);
 
+  /* compute credits based on buffer sizes
+   * Note that we always do this, even if we are not using flow control.*/
+  compute_initial_credits();
+
+
   /* Create two EQs:
    * gasnetc_SAFE_EQ_h:  Used to reclaim buffer space.  Always safe to poll on this
    *    since it never consumes additional resources and never resursively polls.
    *    Bound to the following MDs:  RplSB, TMPMDs, RARSRC and ReqSB.
-   *    Size = Num RplSB chunks + 2* max num TMPMDs + 2* max num ReqSB Chunks + N RAR Puts.
-   *    Counter will record the number of events in use at any time, will have to SAFE_POLL
-   *    in case where num events would cause overflow.
+   *    Puts/Gets limited by msg_limit: 2 events each (SE+ACK or SE+RE)
+   *    Number of AMs limited by number of ReqSB chunks: 3 events each (SE+PE) + possibly
+   *    PE event as data segment of AM Reply in RARSRC.
+   *    Replies limited by RplSB: 1 event (SE).
+   *    In reality, SE events get generated almost immediately and should get processed
+   *    rapidly.  Can probably get by with 75% of this number of events.
    * gasnetc_AM_EQ_h:   Used to process AM Request messages.  Cannot poll on this
    *    eq unless there are at least one RplSB and one TMPMD buffer available.
    *    Bound to the following MDs:  ReqRB, RARAM.
-   *    Size = Num AMLong data puts + Num AM Requests
+   *    If using flow control
+   *       Size = total number of credits available + change.
+   *    else, we guess:
+   *       Size = Num AMLong data puts + Num AM Requests
    */
 
-  num_safe_events = 2*gasnetc_ReqSB_numchunk + gasnetc_RplSB_numchunk
-    + 2*gasnetc_max_tmpmd + 2*gasnetc_msg_limit + 4*gasneti_nodes + 100;
-  num_am_events = 4*gasnetc_ReqRB_pool_size*gasnetc_ReqRB_numchunk + 2*gasneti_nodes + 100;
+  num_safe_events = 2*gasnetc_msg_limit + gasnetc_RplSB_numchunk + 3*gasnetc_ReqSB_numchunk;
+  if (num_safe_events > 10000) {
+    /* should never need this many events, since SE events are always generated and SHOULD
+     * be processed almost immediately, and this accounts for 1/2 all of the possible
+     * events generated.
+     */
+    num_safe_events = (int)((double)num_safe_events * 0.75);
+  }
 
+  if (gasnetc_use_flow_control) {
+    num_am_events = gasnetc_total_credits + 10;
+  } else {
+    /* MLW: Need better way to estimate this */
+    num_am_events = 2*gasnetc_total_credits + 10;
+  }
   GASNETI_TRACE_PRINTF(C,("Constructing SAFE EQ with %ld entries",(long)num_safe_events));
   GASNETI_TRACE_PRINTF(C,("Constructing AM   EQ with %ld entries",(long)num_am_events));
 
@@ -2783,7 +2934,8 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 {
   int processed = 0;
   ptl_event_t ev;
-  int safe_cnt = 0;
+  unsigned safe_cnt = 0;
+  unsigned am_cnt = 0;
 
 #if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
   static int poll_level = 0;
@@ -2803,7 +2955,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
    * all puts and gets generate two events so need to reap these queues faster
    * to prevent send_ticket starvation
    */
-  while (safe_cnt < 3) {
+  while (safe_cnt < gasnetc_safe_poll_limit) {
     if ( gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev) ) {
       GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
       GASNETC_CALL_EQ_HANDLER(ev);
@@ -2824,45 +2976,45 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
      * onto them.  Others will free up soon.
      */
 
-    /* First, in worst case we will need two send tickets to reply with LONG */
-    if (gasnetc_msg_limit == 0) {
-      th->snd_tickets = 2;  /* no limit */
-    } else {
+    while (am_cnt < gasnetc_am_poll_limit) {
+      /* First, in worst case we will need two send tickets to reply with LONG */
       while (th->snd_tickets < 2) {
 	if (!gasnetc_alloc_ticket(&gasnetc_send_tickets)) {
 	  goto out;
 	} 
 	th->snd_tickets++;
       }
-    }
 
-    /* Second, we may need a tmpmd to complete a long reply, make sure we have
-     * a ticket cached
-     */
-    if (! (th->flags & GASNETC_THREAD_HAVE_TMPMD)) {
-      if (! gasnetc_alloc_ticket(&gasnetc_tmpmd_tickets)) {
+      /* Second, we may need a tmpmd to complete a long reply, make sure we have
+       * a ticket cached
+       */
+      if (th->tmpmd_tickets == 0) {
+	if (! gasnetc_alloc_ticket(&gasnetc_tmpmd_tickets)) {
+	  goto out;
+	} 
+	th->tmpmd_tickets++;
+      }
+
+      /* Finally, we will need a RplSB chunk, if not already cached, try to alloc one */
+      if (! (th->flags & GASNETC_THREAD_HAVE_RPLSB)) {
+	if (!gasnetc_chunk_alloc(&gasnetc_RplSB,GASNETC_CHUNKSIZE,&th->rplsb_off)) {
+	  goto out;
+	} 
+	th->flags |= GASNETC_THREAD_HAVE_RPLSB;
+      }
+
+      GASNETI_TRACE_PRINTF(C,("PtlPoll: FULL thread=0x%p flags=0x%x",th,th->flags));
+
+      /* if we got here, we have enough resources to poll the AM queue */
+      if (gasnetc_get_event(gasnetc_AM_EQ_h, &ev) ) {
+	GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits));
+	GASNETC_CALL_EQ_HANDLER(ev);
+	processed++;
+	am_cnt++;
+      } else {
 	goto out;
-      } 
-      th->flags |= GASNETC_THREAD_HAVE_TMPMD;
-    }
-
-    /* Finally, we will need a RplSB chunk, if not already cached, try to alloc one */
-    if (! (th->flags & GASNETC_THREAD_HAVE_RPLSB)) {
-      if (!gasnetc_chunk_alloc(&gasnetc_RplSB,GASNETC_CHUNKSIZE,&th->rplsb_off)) {
-	goto out;
-      } 
-      th->flags |= GASNETC_THREAD_HAVE_RPLSB;
-    }
-
-
-    GASNETI_TRACE_PRINTF(C,("PtlPoll: FULL thread=0x%p flags=0x%x",th,th->flags));
-
-    /* if we got here, we have enough resources to poll the AM queue */
-    if (gasnetc_get_event(gasnetc_AM_EQ_h, &ev) ) {
-      GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits));
-      GASNETC_CALL_EQ_HANDLER(ev);
-      processed++;
-    }
+      }
+    } /* end while */
   }
 
   out:
@@ -2954,19 +3106,17 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
 
   /* stall here if too many puts/gets in progress */
-  if (gasnetc_msg_limit > 0) {
-    while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
-      switch (pollflag) {
-      case GASNETC_NO_POLL:
-	gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
-	break;
-      case GASNETC_SAFE_POLL:
-	gasnetc_portals_poll(pollflag);
-	break;
-      case GASNETC_FULL_POLL:
-	gasneti_AMPoll();
-	break;
-      }
+  while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
+    switch (pollflag) {
+    case GASNETC_NO_POLL:
+      gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
+      break;
+    case GASNETC_SAFE_POLL:
+      gasnetc_portals_poll(pollflag);
+      break;
+    case GASNETC_FULL_POLL:
+      gasneti_AMPoll();
+      break;
     }
   }
 
@@ -3031,19 +3181,17 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
 
   /* stall here if too many puts/gets in progress */
-  if (gasnetc_msg_limit > 0) {
-    while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
-      switch (pollflag) {
-      case GASNETC_NO_POLL:
-	gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
-	break;
-      case GASNETC_SAFE_POLL:
-	gasnetc_portals_poll(pollflag);
-	break;
-      case GASNETC_FULL_POLL:
-	gasneti_AMPoll();
-	break;
-      }
+  while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
+    switch (pollflag) {
+    case GASNETC_NO_POLL:
+      gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
+      break;
+    case GASNETC_SAFE_POLL:
+      gasnetc_portals_poll(pollflag);
+      break;
+    case GASNETC_FULL_POLL:
+      gasneti_AMPoll();
+      break;
     }
   }
 
