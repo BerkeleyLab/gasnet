@@ -1,0 +1,118 @@
+#!/bin/sh
+
+# K42 PORT NOTES:
+# + K42 tries hard to look "just like Linux" and so is *not* providing
+#   any mechanism to identify itself at preprocess time.  In fact, when
+#   I compared 'gcc -dM' output for the K42 cross compilers to that
+#   of the native gcc on a PPC64/Linux machine, the only differences I
+#   could find where the gcc version, and differences attributable to
+#   the age of the respective glibc versions.  So, we are adding an
+#   explicit -D__K42 to the definitions of CC and CXX, just so that
+#   portable_platform.h has something to test for.
+# + K42 does not implement the Linux bits to get the timebase freq from
+#   /proc.  So, we are curently stuck w/ gettimeofday().
+# + The k42 implementation of mmap() will panic on OOM, rather than
+#   returning w/ errno=ENOMEM.  This means that GASNET_MAX_SEGSIZE
+#   must be set small enough, or else BOOM!
+# + The k42 implementation of UDP is missing ioctl(FIONREAD) and will
+#   issue a warning for every recvfrom() w/ non-zero flags - making
+#   use of MSGPEEK *very* noisy.  By itself, the lack of FIONREAD is
+#   enough to make udp-conduit useless on k42.
+
+# This is an automatically-generated cross-configuration setup script
+
+################################################
+# Usage Instructions: 
+#  1. fill in the following values to point to the target compilers:
+
+CC='powerpc64-linux-gcc -D__K42' ; export CC  # vanilla target C compiler
+CXX='powerpc64-linux-g++ -D__K42' ; export CXX  # vanilla target C++ compiler
+
+# Optional additional settings: (see configure --help for complete list)
+
+#MPI_CC='mpicc' ; export MPI_CC     # MPI-enabled C compiler
+#MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
+#MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
+#MPIRUN_CMD='mpirun -np %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
+EXTRA_CONFIGURE_ARGS='--disable-udp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
+
+# 2. Fill in the canonical target machine type. You can usually obtain this
+#   by running config-aux/config.guess on the target machine
+TARGET_ID='powerpc64-k42-linux-gnu'
+
+# 3. Review the automatically-detected settings below and make corrections as necessary.
+
+# 4. Place this output script in your top-level source directory and run it,
+#   passing it any additional configure arguments as usual (see configure --help).
+
+################################################
+# AUTOMATICALLY DETECTED SETTINGS:
+
+
+# Whether the system has a working version of anonymous mmap
+
+CROSS_HAVE_MMAP='1' ; export CROSS_HAVE_MMAP
+
+# The system VM page size (ie mmap granularity, even if swapping is not supported)
+
+CROSS_PAGESIZE='4096' ; export CROSS_PAGESIZE
+
+# Does the system stack grow up?
+
+CROSS_STACK_GROWS_UP='1' ; export CROSS_STACK_GROWS_UP
+
+# Is char a signed type?
+
+CROSS_CHAR_IS_SIGNED='0' ; export CROSS_CHAR_IS_SIGNED
+
+# Basic primitive C type sizes (in bytes)
+
+CROSS_SIZEOF_CHAR='1' ; export CROSS_SIZEOF_CHAR
+CROSS_SIZEOF_SHORT='2' ; export CROSS_SIZEOF_SHORT
+CROSS_SIZEOF_INT='4' ; export CROSS_SIZEOF_INT
+CROSS_SIZEOF_LONG='8' ; export CROSS_SIZEOF_LONG
+CROSS_SIZEOF_LONG_LONG='8' ; export CROSS_SIZEOF_LONG_LONG
+CROSS_SIZEOF_VOID_P='8' ; export CROSS_SIZEOF_VOID_P
+CROSS_SIZEOF_SIZE_T='8' ; export CROSS_SIZEOF_SIZE_T
+CROSS_SIZEOF_PTRDIFF_T='8' ; export CROSS_SIZEOF_PTRDIFF_T
+
+# System signal values
+
+CROSS_SIGHUP='1' ; export CROSS_SIGHUP
+CROSS_SIGINT='2' ; export CROSS_SIGINT
+CROSS_SIGQUIT='3' ; export CROSS_SIGQUIT
+CROSS_SIGKILL='9' ; export CROSS_SIGKILL
+CROSS_SIGTERM='15' ; export CROSS_SIGTERM
+CROSS_SIGUSR1='10' ; export CROSS_SIGUSR1
+
+
+SRCDIR=`dirname $0`
+if test ! -f "$SRCDIR/configure" ; then
+  echo "ERROR: The $0 script should be placed in the same directory as the configure script before execution"
+  exit 1
+fi
+# Detect the build host machine type
+HOST_ARG=`echo "$@" | grep -e --host`
+HOST_APPEND=
+if test "$HOST_ARG" = ""; then
+  oldCC_FOR_BUILD="$CC_FOR_BUILD"
+  oldHOST_CC="$HOST_CC"
+  oldCC="$CC"
+  CC_FOR_BUILD=
+  HOST_CC=
+  CC=
+  if test "$HOST_ID" = ""; then
+    HOST_ID=`$SRCDIR/config-aux/config.guess`
+  fi
+  if test "$HOST_ID" = ""; then
+    echo 'ERROR: failed to auto-detect build host. Please run with --host=machineid to identify the host machine running this script'
+    exit 1
+  else
+    HOST_APPEND="--host=$HOST_ID"
+  fi
+  CC_FOR_BUILD="$oldCC_FOR_BUILD"
+  HOST_CC="$oldHOST_CC"
+  CC="$oldCC"
+fi
+# Now that everything is setup, run the actual configure script
+$SRCDIR/configure --enable-cross-compile $HOST_APPEND --build=$TARGET_ID --target=$TARGET_ID --program-prefix='' $EXTRA_CONFIGURE_ARGS "$@"
