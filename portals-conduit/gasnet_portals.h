@@ -211,6 +211,9 @@ extern unsigned gasnetc_sys_poll_limit;
     }									\
     GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);			\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
+    gasneti_assert( th->snd_tickets >= nsend );				\
+    gasneti_assert( th->tmpmd_tickets >= ntmpmd );			\
+    gasneti_assert( th->snd_credits >= ncredit );			\
   } while (0)
 
 #define GASNETC_PACK_AM_MBITS(mbits, offset, numarg, hndlr, amflag, targ_mbits) \
@@ -260,7 +263,9 @@ extern unsigned gasnetc_sys_poll_limit;
     }									\
   } while(0)
 
-/* AM tokens used by portals */
+/* AM tokens data structure.  This is never sent over the wire and only ever
+ * exists as a local stack variable during execution of Request and Reply handlers
+ */
 typedef struct token_rec {
   uint8_t           flags;
   uint8_t           credits;             /* number of credits requestor used in this AM */
@@ -277,20 +282,26 @@ typedef struct token_rec {
 #define GASNETC_UNLOCK_LIDCACHE(srcnode)			\
   gasneti_mutex_unlock(&gasnetc_conn_state[srcnode].lidlock)
 
+/* Metadata cached by Long Put or AM Long Header
+ * These data structures are allocated dynamically and updated atomically.
+ * They will be created when the first of the AM Long Header or data packet arrives
+ * and deallocated after the handler is run.
+ * The args field is a dynamic array, the size of the array (and structure) is 
+ * determined by the narg field.
+ */
 #define GASNETC_LID_DATA_HERE    0x1
 #define GASNETC_LID_HEADER_HERE  0x2
-/* data cached by Long Put or AM Long Header */
 typedef struct gasnetc_amlongcache_rec {
-  uint8_t             flags;
-  uint8_t             credits;          /* used by sender of this AM Long */
-  gasnet_handler_t    ghandler;
-  uint32_t            dest_lid;
-  uint32_t            initiator_offset;
-  uint32_t            narg;
-  struct gasnetc_amlongcache_rec *next;
-  void               *data;
-  size_t              datalen;
-  gasnet_handlerarg_t args[];
+  uint8_t             flags;              /* indicates if HEADER and/or DATA has arrived */
+  uint8_t             credits;            /* used by sender of this AM Long (supplied by header) */
+  gasnet_handler_t    ghandler;           /* handler to run (supplied by header) */
+  uint32_t            dest_lid;           /* specified by first to arrive */
+  uint32_t            initiator_offset;   /* where AM Reply to be sent, (supplied by header) */
+  uint32_t            narg;               /* num of args to handler, (supplied by header) */
+  struct gasnetc_amlongcache_rec *next;   /* link into lids list of connection state */
+  void               *data;               /* location of data packet payload (supplied by data pkt) */
+  size_t              datalen;            /* length of data message (supplied by data pkt) */
+  gasnet_handlerarg_t args[];             /* args to handler function (supplied by header) */
 } gasnetc_amlongcache_t;
 
 /* Flow control - Send credits */
@@ -370,17 +381,6 @@ extern gasnetc_procid_t   *gasnetc_procid_map;
 extern char* ptl_event_str[];
 
 
-/* -----------------------------------------------------------------------------------
- * A simple chunk allocator used for put/get bounce buffer
- * WARNING: Not a thread-safe freelist implementation!!!
- * Will have to re-implement for multi-threaded (Linux) XT3
- */
-#define GASNETC_CHUNKSIZE 1024
-typedef union _gasnetc_chunk {
-    uint8_t chunk[GASNETC_CHUNKSIZE];
-    union _gasnetc_chunk *next;
-} gasnetc_chunk_t;
-
 #ifdef GASNET_PAR
 #define GASNETC_REQRB_START(start_addr) do {			\
     gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
@@ -394,6 +394,21 @@ typedef union _gasnetc_chunk {
 #define GASNETC_REQRB_START(bufptr)  do {} while(0)
 #define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
 #endif
+
+/* -----------------------------------------------------------------------------------
+ * Used in simple chunk allocator for gasnetc_PtlBuffer_t objects below.
+ * The buffer space is decomposed into disjoint chunks.  A chunk on the
+ * free list has its first sizeof(void*) bytes, the location of the next
+ * chunk on the list.
+ * Access to the free list is controlled by a mutex.
+ * NOTE: Only ReqSB and RplSB objects are controlled by
+ * chunk allocation, others are not.
+ */
+#define GASNETC_CHUNKSIZE 1024
+typedef union _gasnetc_chunk {
+    uint8_t chunk[GASNETC_CHUNKSIZE];
+    union _gasnetc_chunk *next;
+} gasnetc_chunk_t;
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
@@ -555,6 +570,13 @@ int gasnetc_compute_return_credits(gasnet_node_t node, int credits_used)
   return 0;
 }
 
+/* return current number of credits avail to send AMs target node */
+GASNETI_INLINE(gasnetc_avail_credits)
+int gasnetc_avail_credits(gasnet_node_t node)
+{
+  return gasneti_semaphore_read(&gasnetc_conn_state[node].avail_credits);
+}
+
 /* either atomically get this number of credits or fail */
 GASNETI_INLINE(gasnetc_get_credits)
 int gasnetc_get_credits(gasnet_node_t node, int credits)
@@ -573,6 +595,16 @@ GASNETI_INLINE(gasnetc_return_credits)
 void gasnetc_return_credits(gasnet_node_t node, int credits)
 {
   gasneti_semaphore_up_n(&gasnetc_conn_state[node].avail_credits,credits);
+  gasneti_assert(gasneti_semaphore_read(&gasnetc_conn_state[node].avail_credits) <= gasnetc_total_credits);
+#if 0
+  {
+    int current = gasneti_semaphore_read(&gasnetc_conn_state[node].avail_credits);
+    if (current > gasnetc_total_credits) {
+      gasneti_fatalerror("Return_Credits Error: from node=%d, returned=%d, after_return=%d limit=%ld",
+			  node,credits,current,gasnetc_total_credits);
+    }
+  }
+#endif
 }
 
 

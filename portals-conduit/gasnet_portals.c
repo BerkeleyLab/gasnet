@@ -2711,16 +2711,22 @@ static void compute_initial_credits()
   to_distribute = gasnetc_total_credits - to_bank;
   if (gasneti_nodes > 1) {
     credits_per_node = to_distribute/(gasneti_nodes-1);
-    if (gasnetc_use_flow_control) gasneti_assert_always(credits_per_node >= gasnetc_min_credits_per_node);
   } else {
     credits_per_node = 0;
   }
+  if (gasnetc_use_flow_control) gasneti_assert_always(credits_per_node >= gasnetc_min_credits_per_node);
   /* left over credits, add to banked credits */
   to_bank += gasnetc_total_credits - (gasneti_nodes - 1)*credits_per_node;
   /* keep a counter of number of banked credits availiable to redistribute */
   gasneti_semaphore_init(&gasnetc_banked_credits, to_bank, 0);
   for (node = 0; node < gasneti_nodes; node++) {
-    if (node == gasneti_mynode) continue;
+    if (node == gasneti_mynode) {
+      /* AMs to myself are executed directly and do not use events or ReqRB space.
+       * Do not init the semaphores because they should never be accessed, and if
+       * they are a fault will be generated (at least in debug mode).
+       */
+      continue;
+    } 
     /* credits I have to send AMs to this remote node */
     gasneti_semaphore_init(&gasnetc_conn_state[node].avail_credits, credits_per_node, 0);
     /* credits I have given to this remote node to send AMs to me */

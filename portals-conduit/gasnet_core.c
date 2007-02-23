@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/02/22 01:46:50 $
- * $Revision: 1.1.2.22 $
+ *     $Date: 2007/02/23 18:13:22 $
+ * $Revision: 1.1.2.23 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -454,6 +454,22 @@ extern int gasnetc_AMRequestShortM(
 
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
 
+  /* handle loopback case */
+  if (dest == gasneti_mynode) {
+    gasnet_handlerarg_t args[numargs];
+    gasnetc_ptl_token_t tok;
+    gasnet_token_t      token = (gasnet_token_t)&tok;
+    va_start(argptr, numargs);
+    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    va_end(argptr);
+    tok.srcnode = gasneti_mynode;
+    tok.rplsb_offset = 0;
+    tok.initiator_offset = 0;
+    GASNETI_RUN_HANDLER_SHORT(1, handler, gasnetc_handler[handler], token, args, numargs);
+    gasneti_AMPoll();
+    GASNETI_RETURN(GASNET_OK);
+  }
+
   /* pre-compute msg length: [numargs-2][pad]
    * note that up to two args are packed in hdr_data */
   gasneti_assert(th->snd_credits == 0);
@@ -544,6 +560,26 @@ extern int gasnetc_AMRequestMediumM(
 
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
 
+  /* handle loopback case */
+  if (dest == gasneti_mynode) {
+    gasnet_handlerarg_t args[numargs];
+    gasnetc_ptl_token_t tok;
+    gasnet_token_t      token = (gasnet_token_t)&tok;
+    void *tmpdata = gasneti_malloc(nbytes);
+    va_start(argptr, numargs);
+    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    va_end(argptr);
+    tok.srcnode = gasneti_mynode;
+    tok.rplsb_offset = 0;
+    tok.initiator_offset = 0;
+    /* dont allow handler to modify source memory */
+    memcpy(tmpdata,source_addr,nbytes);
+    GASNETI_RUN_HANDLER_MEDIUM(1, handler, gasnetc_handler[handler], token, args, numargs, tmpdata, nbytes);
+    gasneti_free(tmpdata);
+    gasneti_AMPoll();
+    GASNETI_RETURN(GASNET_OK);
+  }
+
   /* pre-compute message length: [numargs-2][len][pad1][data][pad2] */
   gasneti_assert(th->snd_credits == 0);
   msg_bytes = (numargs>2 ? (numargs-2) : 0) * sizeof(gasnet_handlerarg_t);
@@ -618,25 +654,45 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_RETURN(GASNET_OK);
 }
 
-#define AM_LONG_COMPUTE_RESOURCES(isPacked,msg_bytes,nsend,ncredit,ntmpmd) do { \
-    /* pre-compute message length */					\
-    msg_bytes = (numargs>1 ? (numargs-1) : 0)*sizeof(gasnet_handlerarg_t); \
+/* Compute the resources needed to send this Long AM.  If isPacked is true, message
+ * will fit into one ReqSB chunk.  However, this may require more send credits
+ * than we have available.  In this case, revert to two-message send if uses
+ * fewer credits.
+ */
+#define AM_LONG_COMPUTE_RESOURCES(dest,isPacked,msg_bytes,nsend,ncredit,ntmpmd) do { \
+    int packed_credits=0;						\
+    int packed_bytes = 0;						\
     /* if Packed: [args][destaddr][data][pad]  else  [args][pad] */	\
+    msg_bytes = (numargs>1 ? (numargs-1) : 0)*sizeof(gasnet_handlerarg_t); \
     if (isPacked) {							\
-      msg_bytes += sizeof(void*) + nbytes;				\
+      packed_bytes = msg_bytes + sizeof(void*) + nbytes;		\
+      GASNETC_COMPUTE_DOUBLE_PAD(packed_bytes,pad);			\
+      packed_bytes += pad;						\
     }									\
     GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);				\
     msg_bytes += pad;							\
+    ncredit = gasnetc_compute_credits(msg_bytes);			\
+    if (gasnetc_use_flow_control) {					\
+      ncredit++;  /* for PUT_END event of RARAM */			\
+      if (isPacked) {							\
+	packed_credits = gasnetc_compute_credits(packed_bytes);		\
+	if ((packed_credits > ncredit) && (packed_credits < gasnetc_avail_credits(dest))) { \
+	  /* dont use packed, revert to non-packed */			\
+	  isPacked = 0;							\
+	}								\
+      }									\
+    }									\
+    if (isPacked) {							\
+      msg_bytes = packed_bytes;						\
+      ncredit = packed_credits;						\
+      nsend = 1;							\
+      ntmpmd = 0;							\
+    } else {								\
+      nsend = 2;							\
+      ntmpmd = 1;							\
+    }									\
     gasneti_assert( (msg_bytes % sizeof(double)) == 0 );		\
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);			\
-    ncredit = gasnetc_compute_credits(msg_bytes);			\
-    nsend = 1;								\
-    ntmpmd = 0;								\
-    if (!(isPacked)) {							\
-      if (gasnetc_use_flow_control) ncredit++;  /* for PUT_END event of RARAM */ \
-      nsend++;     /* sending two messages */				\
-      ntmpmd++;    /* probably need this */				\
-    }									\
   } while(0)
 
 
@@ -749,6 +805,25 @@ extern int gasnetc_AMRequestMediumM(
     }									\
   } while(0)
 
+#define AM_LONG_REQUEST_LOOPBACK_CHECK() do {				\
+    if (dest == gasneti_mynode) {					\
+      gasnet_handlerarg_t args[numargs];				\
+      gasnetc_ptl_token_t tok;						\
+      gasnet_token_t      token = (gasnet_token_t)&tok;			\
+      int i;								\
+      va_start(argptr, numargs);					\
+      for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t); \
+      va_end(argptr);							\
+      tok.srcnode = gasneti_mynode;					\
+      tok.rplsb_offset = 0;						\
+      tok.initiator_offset = 0;						\
+      memcpy(dest_addr,source_addr,nbytes);				\
+      GASNETI_RUN_HANDLER_LONG(1, handler, gasnetc_handler[handler], token, args, numargs, dest_addr, nbytes); \
+      gasneti_AMPoll();							\
+      GASNETI_RETURN(GASNET_OK);					\
+    }									\
+  } while(0)
+
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
@@ -764,10 +839,14 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
 
+  /* if loopback, run handler and return */
+  AM_LONG_REQUEST_LOOPBACK_CHECK();
+
   /* compute message len and allocate resources needed to send message */
   gasneti_assert(th->snd_credits == 0);
-  AM_LONG_COMPUTE_RESOURCES(isPacked,msg_bytes,nsend,ncredit,ntmpmd);
+  AM_LONG_COMPUTE_RESOURCES(dest,isPacked,msg_bytes,nsend,ncredit,ntmpmd);
   if (!gasnetc_use_flow_control) gasneti_assert(ncredit == 0);
+  if (! isPacked) gasneti_assert(nsend == 2);
 
   /* poll until ok to send message, allocate ReqSB chunk */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,ntmpmd);
@@ -802,9 +881,12 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
 
+  /* if loopback, run handler and return */
+  AM_LONG_REQUEST_LOOPBACK_CHECK();
+
   /* compute message len and number of resources needed to send message */
   gasneti_assert(th->snd_credits == 0);
-  AM_LONG_COMPUTE_RESOURCES(isPacked,msg_bytes,nsend,ncredit,ntmpmd);
+  AM_LONG_COMPUTE_RESOURCES(dest,isPacked,msg_bytes,nsend,ncredit,ntmpmd);
   if (!gasnetc_use_flow_control) gasneti_assert(ncredit == 0);
 
   /* poll until all required resources are allocated */
@@ -850,6 +932,16 @@ extern int gasnetc_AMReplyShortM(
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
+
+  /* handle loopback case */
+  if (ptok->srcnode == gasneti_mynode) {
+    gasnet_handlerarg_t args[numargs];
+    va_start(argptr, numargs);
+    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    va_end(argptr);
+    GASNETI_RUN_HANDLER_SHORT(0, handler, gasnetc_handler[handler], token, args, numargs);
+    GASNETI_RETURN(GASNET_OK);
+  }
 
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -926,6 +1018,20 @@ extern int gasnetc_AMReplyMediumM(
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
+
+  /* handle loopback case */
+  if (ptok->srcnode == gasneti_mynode) {
+    gasnet_handlerarg_t args[numargs];
+    void *tmpdata = gasneti_malloc(nbytes);
+    va_start(argptr, numargs);
+    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    va_end(argptr);
+    /* dont allow handler to modify source memory */
+    memcpy(tmpdata,source_addr,nbytes);
+    GASNETI_RUN_HANDLER_MEDIUM(0, handler, gasnetc_handler[handler], token, args, numargs, tmpdata, nbytes);
+    gasneti_free(tmpdata);
+    GASNETI_RETURN(GASNET_OK);
+  }
 
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -1020,6 +1126,17 @@ extern int gasnetc_AMReplyLongM(
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
+
+  /* handle loopback case */
+  if (ptok->srcnode == gasneti_mynode) {
+    gasnet_handlerarg_t args[numargs];
+    va_start(argptr, numargs);
+    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    va_end(argptr);
+    memcpy(dest_addr,source_addr,nbytes);
+    GASNETI_RUN_HANDLER_LONG(0, handler, gasnetc_handler[handler], token, args, numargs, dest_addr, nbytes);
+    GASNETI_RETURN(GASNET_OK);
+  }
 
   if (isPacked) amtype |= GASNETC_PTL_AM_PACKED;
 
