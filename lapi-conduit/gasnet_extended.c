@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/02/01 22:23:01 $
- * $Revision: 1.42.12.20 $
+ *     $Date: 2007/02/24 00:03:20 $
+ * $Revision: 1.42.12.21 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2039,7 +2039,8 @@ static void gasnete_lapibarrier_notify(int id, int flags);
 static int gasnete_lapibarrier_wait(int id, int flags);
 static int gasnete_lapibarrier_try(int id, int flags);
 
-#define GASNETE_BARRIER_DEFAULT "LAPIGFENCE"
+/* #define GASNETE_BARRIER_DEFAULT "LAPIGFENCE"*/
+#define GASNETE_BARRIER_DEFAULT "LAPIAM"
 #define GASNETE_BARRIER_INIT() do {                         \
     if (GASNETE_ISBARRIER("LAPIGFENCE")) {                  \
       gasnete_barrier_notify = &gasnete_lapibarrier_notify; \

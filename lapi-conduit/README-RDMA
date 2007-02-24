@@ -147,3 +147,4 @@ TODO List Once We Have a Machine
   Two issues: table size for puts
               number of network buffers
 - Also have MAX_PVO be an environment variable
+- The pin threshold
