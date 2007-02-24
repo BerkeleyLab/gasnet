@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2005/08/20 10:53:10 $
- * $Revision: 1.12 $
+ *     $Date: 2007/02/24 00:01:35 $
+ * $Revision: 1.12.8.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,6 +13,8 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
+#include <firehose_trace.h>
+
 #define GASNET_EXTENDED_VERSION      1.7
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         VAPI
@@ -24,71 +26,14 @@
 struct _gasnete_op_t;
 typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
-
-#if GASNETI_CLIENT_THREADS
-  #define GASNETI_THREADINFO_OPT
-  #define GASNETI_LAZY_BEGINFUNCTION
-#endif
-
-#ifdef GASNETI_THREADINFO_OPT
-  /* Here we use a clever trick - GASNET_GET_THREADINFO() uses the sizeof(gasneti_threadinfo_available)
-      to determine whether gasneti_threadinfo_cache was bound a value posted by GASNET_POST_THREADINFO()
-      of if it bound to the globally declared dummy variables. 
-     Even a very stupid C optimizer should constant-fold away the unused calls to gasneti_get_threadinfo() 
-      and discard the unused variables
-     We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
-   */
-  static uint8_t gasnete_threadinfo_cache = 0;
-  static uint8_t gasnete_threadinfo_available = 
-    sizeof(gasnete_threadinfo_cache) + sizeof(gasnete_threadinfo_available);
-    /* silly little trick to prevent unused variable warning on gcc -Wall */
-
-  #define GASNET_POST_THREADINFO(info)                     \
-    gasnet_threadinfo_t gasnete_threadinfo_cache = (info); \
-    uint32_t gasnete_threadinfo_available = 0
-    /* if you get an unused variable warning on gasnete_threadinfo_available, 
-       it means you POST'ed in a function which made no GASNet calls that needed it */
-
-  #ifdef GASNETI_LAZY_BEGINFUNCTION
-    #define GASNET_GET_THREADINFO()                              \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
-        (gasnet_threadinfo_t)gasnete_mythread() :                \
-        ( (uintptr_t)gasnete_threadinfo_cache == 0 ?             \
-          ((*(gasnet_threadinfo_t *)&gasnete_threadinfo_cache) = \
-            (gasnet_threadinfo_t)gasnete_mythread()) :           \
-          (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache) )
-  #else
-    #define GASNET_GET_THREADINFO()                   \
-      ( (sizeof(gasnete_threadinfo_available) == 1) ? \
-        (gasnet_threadinfo_t)gasnete_mythread() :     \
-        (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache )
-  #endif
-
-  /* the gasnet_threadinfo_t pointer points to a thread data-structure owned by
-     the extended API, whose first element is a pointer reserved
-     for use by the core API (initialized to NULL)
-   */
-
-  #ifdef GASNETI_LAZY_BEGINFUNCTION
-    /* postpone thread discovery to first use */
-    #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(0)
-  #else
-    #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
-  #endif
-
-#else
-  #define GASNET_POST_THREADINFO(info)   \
-    static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
-  #define GASNET_GET_THREADINFO() (NULL)
-  #define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
-#endif
-
+#define GASNETI_EOP_IS_HANDLE 1
 
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
-        GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
-	GASNETI_REFCOLL_STATS(CNT,VAL,TIME)  \
+        GASNETI_VIS_STATS(CNT,VAL,TIME)      \
+	GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+	GASNETI_FIREHOSE_STATS(CNT,VAL,TIME) \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
 
 #define GASNETI_DIRECT_GET_BULK 1
