@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.c,v $
- *     $Date: 2005/09/28 00:54:45 $
- * $Revision: 1.12 $
+ *     $Date: 2007/02/24 00:01:19 $
+ * $Revision: 1.12.6.1 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -35,7 +35,7 @@
 /*******************************************************
 		Big Phys Area Patch installed?
 *******************************************************/
-int GASNETC_BIGPHY_ENABLE = 1; /* set to 0 to disable (otherwise, auto-probe for it) */
+int gasnetc_bigphy_enable = 1; /* set to 0 to disable (otherwise, auto-probe for it) */
 
 /********************************************************
 					Global Variables
@@ -64,7 +64,7 @@ sci_local_segment_t		        *gasnetc_sci_local_dma_segment;
 sci_dma_queue_t			        *gasnetc_sci_local_dma_queue;
 sci_desc_t				*gasnetc_sci_local_dma_sd;
 void					**gasnetc_sci_local_dma_addr;
-void					*gasnetc_sci_handler_table[256];			/*  array of handler information with the index = handler ID */
+void					*gasnetc_sci_handler_table[GASNETC_SCI_MAX_HANDLER_NUMBER];			/*  array of handler information with the index = handler ID */
                                                                                                 /*  and handler_table[index] = function ptr for the handler */
 uint16_t				gasnetc_sci_dmaqueue_count = 0;				/*  # of temporary segment created, used for dynamic linking to remote DMA segments */
 bool				        *gasnetc_sci_msg_loc_status;
@@ -225,10 +225,10 @@ void gasnetc_sci_create_barrier_segment()
                                           GASNETC_SCI_NO_FLAGS, &error));
 
         if (gasneti_mynode == 0) {
+                int j;
                 GASNETC_SCISAFE(gasnetc_sci_barrier_addr[gasneti_mynode] =
                              (int *) SCIMapLocalSegment(gasnetc_sci_local_barrier_segment, &gasnetc_sci_local_barrier_map,
                                                         0, sizeof(int) * gasneti_nodes, NULL, GASNETC_SCI_NO_FLAGS, &error));
-                int j;
                 for (j = 0; j < gasneti_nodes; j++)
                 {
                       (gasnetc_sci_barrier_addr[gasneti_mynode])[j] = -2;
@@ -471,14 +471,14 @@ void gasnetc_get_free_mem() {
         int size, found, mod, orig_size;
         char title[100];
 
-        if (GASNETC_BIGPHY_ENABLE) {
+        if (gasnetc_bigphy_enable) {
             FILE* meminfo = fopen("/proc/bigphysarea", "r");
             if(meminfo == NULL) {
               #if GASNET_DEBUG_VERBOSE
                      /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
                      fprintf(stderr,"(%d) Failed to open /proc/bigphysarea, assuming no patch available...", gasneti_mynode); fflush(stderr);
               #endif
-              GASNETC_BIGPHY_ENABLE = 0;
+              gasnetc_bigphy_enable = 0;
             } else {
                 found = 0;
                 while((found == 0) && (feof(meminfo) == 0))
@@ -503,7 +503,7 @@ void gasnetc_get_free_mem() {
                 size = size - mod;
             }
         }
-        if (!GASNETC_BIGPHY_ENABLE) {
+        if (!gasnetc_bigphy_enable) {
             /*for now, we can only really use 1MB segment sizes */
             size = GASNETC_SCI_ONE_MB;
         }
@@ -667,7 +667,7 @@ void gasnetc_SCI_Create_Connections() {
 /*  Connects all the command regions and then all the global ready bytes */
 /*  across all nodes. */
 int gasnetc_SCI_connect_cmd() {
-	int index, gb_ID, counter = 0;
+	int i, j, index, gb_ID, counter = 0;
 	sci_error_t error;
 
         gasneti_assert(gasneti_nodes);
@@ -758,7 +758,6 @@ int gasnetc_SCI_connect_cmd() {
 	gasnetc_sci_msg_flag = (bool *) gasnetc_sci_global_ready[gasneti_mynode];
 
 	/* zero all the flags */
-	int i, j;
 	for (i = 0; i < gasneti_nodes; i++)
 	{
 		for (j = 0; j < GASNETC_SCI_MAX_REQUEST_MSG * 2; j++ )
@@ -833,11 +832,11 @@ void* gasnetc_create_gasnetc_sci_seg(uintptr_t *segsize, int index)
 {
 	int number = gasneti_nodes;
 	unsigned int Size;
-	index = gasneti_nodes;
 	sci_error_t error;
 	void* arg;
+	index = gasneti_nodes;
 
-	if (!GASNETC_BIGPHY_ENABLE)
+	if (!gasnetc_bigphy_enable)
 	{
 		if(*segsize >= GASNETC_SCI_ONE_MB)	/* can't currently use more than 1MB */
 		*segsize = GASNETC_SCI_ONE_MB;
@@ -1015,9 +1014,9 @@ void gasnetc_ht_init()
 void gasnetc_sci_handle_msg (gasnet_node_t sender_id, uint8_t msg_number, uint8_t msg_AM_type)
 {
       gasnetc_sci_token_t reply_token;
+      gasnet_token_t handler_token = &reply_token;
       reply_token.source_id = sender_id;
       reply_token.msg_number = msg_number;
-      gasnet_token_t handler_token = &reply_token;
 
       switch (msg_AM_type) {
         case GASNETC_SCI_SHORT: {
@@ -1058,10 +1057,10 @@ void gasnetc_sci_handle_msg (gasnet_node_t sender_id, uint8_t msg_number, uint8_
           else
           {
                 /* copy unaligned data to correct location */
+                uint8_t *payload_source  = ((uint8_t *) Long_msg) + Long_msg->header_size;
+                /* uint8_t *payload_source  = ((uint8_t *) Long_msg) + sizeof (gasnetc_Long_header_t); */
                 uint8_t start_unaligned_bytes, right_unaligned_bytes;
                 gasnetc_send_unaligned_offset_calculation  (gasneti_seginfo[gasneti_mynode].addr, Long_msg->payload, Long_msg->payload_size, &start_unaligned_bytes, &right_unaligned_bytes);
-                /* uint8_t *payload_source  = ((uint8_t *) Long_msg) + sizeof (gasnetc_Long_header_t); */
-                uint8_t *payload_source  = ((uint8_t *) Long_msg) + Long_msg->header_size;
 
                 /* handle start addr offset */
                 if (start_unaligned_bytes > 0)
@@ -1332,12 +1331,12 @@ int gasnetc_create_dma_queues ()
 	int i;
 	sci_error_t error;
 	unsigned int temp_segment_ID;
+        const int dma_queue_size = gasnet_AMMaxLongRequest();
 	gasnetc_sci_local_dma_map = (sci_map_t *) gasneti_malloc ((sizeof(sci_map_t)) * GASNETC_SCI_NUM_DMA_QUEUE);
 	gasnetc_sci_local_dma_segment = (sci_local_segment_t *) gasneti_malloc ((sizeof(sci_local_segment_t)) * GASNETC_SCI_NUM_DMA_QUEUE);
 	gasnetc_sci_local_dma_queue = (sci_dma_queue_t *) gasneti_malloc ((sizeof(sci_dma_queue_t)) * GASNETC_SCI_NUM_DMA_QUEUE);
 	gasnetc_sci_local_dma_sd = (sci_desc_t *) gasneti_malloc ((sizeof(sci_desc_t)) * GASNETC_SCI_NUM_DMA_QUEUE);
 	gasnetc_sci_local_dma_addr = (void *) gasneti_malloc ((sizeof(void *)) * GASNETC_SCI_NUM_DMA_QUEUE);
-        int dma_queue_size = gasnet_AMMaxLongRequest();
 
 	for (i = 0; i < GASNETC_SCI_NUM_DMA_QUEUE; i++)
 	{

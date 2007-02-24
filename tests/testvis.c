@@ -1,12 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.11 $
+ *     $Date: 2007/02/24 00:01:28 $
+ * $Revision: 1.11.12.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet.h>
+#include <gasnet_vis.h>
+#include <gasnet_coll.h>
 
 #ifndef TEST_SEGSZ
   /* select a larger than default segment, 
@@ -15,9 +17,12 @@
 #endif
 #include <test.h>
 
-
+#ifndef MAX_VECLEN
 #define MAX_VECLEN  100
+#endif
+#ifndef MAX_IDXLEN
 #define MAX_IDXLEN  8192
+#endif
 
 /* VEC_SZ sets the size/offset alignment of all data accesses
    we support sizes 1, 4 and 8
@@ -50,9 +55,15 @@
 #endif
 
 #define NUM_AREAS   4
+#ifndef MAX_STRIDEDIM
 #define MAX_STRIDEDIM  20
+#endif
+#ifndef MAX_CHUNKSZ
 #define MAX_CHUNKSZ 256
+#endif
+#ifndef MAX_INFLIGHT_OPS
 #define MAX_INFLIGHT_OPS 16
+#endif
 
 #define RUN_VECTOR   1
 #define RUN_INDEXED  2
@@ -78,6 +89,9 @@
 
 #define SHUFFLE_LIST(T, v) SHUFFLE_ARRAY(T, (v)->list, (v)->count)
 
+int verify = 1;
+int showtiming = 0;
+
 /* ------------------------------------------------------------------------------------ */
 typedef struct {
   uint64_t checksum;
@@ -88,20 +102,18 @@ typedef struct {
 
 void _verify_memvec_list(test_memvec_list *mv, const char *file, int line) {
   size_t i, sum;
-  if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t))) {
-    MSG("Checksum mismatch in verify_memvec_list at %s:%i", file, line);
-    abort();
-  }
+  if (mv->checksum != test_checksum(mv->list, mv->count*sizeof(gasnet_memvec_t)))
+    FATALERR("Checksum mismatch in verify_memvec_list at %s:%i", file, line);
   sum = 0;
   for (i=0; i < mv->count; i++) {
     sum += mv->list[i].len;
   }
-  if (mv->totalsz != sum) {
-    MSG("totalsz mismatch in verify_memvec_list at %s:%i", file, line);
-    abort();
-  }
+  if (mv->totalsz != sum)
+    FATALERR("totalsz mismatch in verify_memvec_list at %s:%i", file, line);
 }
-#define verify_memvec_list(mv) _verify_memvec_list(mv, __FILE__, __LINE__)
+#define verify_memvec_list(mv) do {                            \
+    if (verify) _verify_memvec_list((mv), __FILE__, __LINE__); \
+  } while (0)
 
 /* build a memvec over the area [addr...addr+len*VEC_SZ]
    note elemlen is a VEC_T element count
@@ -227,23 +239,30 @@ void _verify_memvec_data_both(test_memvec_list *src, void *result,
         srcval = SEG_VALUE(nodeid, offset);
       }
       if (srcval != resval) {
-        MSG("ERROR: mismatch at memvec segment %i, element %i\n"
+        ERR("ERROR: mismatch at memvec segment %i, element %i\n"
             "  expected val="VEC_FMT"\n"
             "    actual val="VEC_FMT"\n"
             "  at %s:%s:%i\n",
           (int)i, (int)j, VEC_STR(srcval), VEC_STR(resval),
           context, file, line);
-        abort();
+        { size_t sz = gasnett_format_memveclist_bufsz(src->count);
+          char *buf = test_malloc(sz);
+          gasnett_format_memveclist(buf, src->count, src->list);
+          ERR("memvec: %s\n", buf);
+        }
+        FATALERR("testvis failed.");
       }
       p++;
     }
   }
 }
-#define verify_memvec_data(src,result,context) \
-  _verify_memvec_data_both(src,result,mynode,NULL,context,__FILE__,__LINE__)
+#define verify_memvec_data(src,result,context) do {                                             \
+  if (verify) _verify_memvec_data_both((src),(result),mynode,NULL,(context),__FILE__,__LINE__); \
+} while (0)
 
-#define verify_memvec_data_remote(src,result,node,areaptr,context) \
-         _verify_memvec_data_both(src,result,node,areaptr,context,__FILE__,__LINE__)
+#define verify_memvec_data_remote(src,result,node,areaptr,context) do {                              \
+  if (verify) _verify_memvec_data_both((src),(result),(node),(areaptr),(context),__FILE__,__LINE__); \
+} while (0)
 
 /* ------------------------------------------------------------------------------------ */
 typedef struct {
@@ -255,16 +274,14 @@ typedef struct {
 } test_addr_list;
 
 void _verify_addr_list(test_addr_list *al, const char *file, int line) {
-  if (al->totalsz != al->count*al->chunklen) {
-    MSG("Inconsistent totalsz in verify_addr_list at %s:%i", file, line);
-    abort();
-  }
-  if (al->checksum != test_checksum(al->list, al->count*sizeof(void *))) {
-    MSG("Checksum mismatch in verify_addr_list at %s:%i", file, line);
-    abort();
-  }
+  if (al->totalsz != al->count*al->chunklen)
+    FATALERR("Inconsistent totalsz in verify_addr_list at %s:%i", file, line);
+  if (al->checksum != test_checksum(al->list, al->count*sizeof(void *)))
+    FATALERR("Checksum mismatch in verify_addr_list at %s:%i", file, line);
 }
-#define verify_addr_list(al) _verify_addr_list(al, __FILE__, __LINE__)
+#define verify_addr_list(al) do {                          \
+  if (verify) _verify_addr_list((al), __FILE__, __LINE__); \
+} while (0)
 
 /* generate two chunksizes */
 void rand_chunkelem(size_t *one, size_t *two) {
@@ -289,7 +306,7 @@ void rand_chunkelem(size_t *one, size_t *two) {
       *two = factor * twomult;
       break;
     }
-    default: abort();
+    default: FATALERR("TEST_RAND failure");
   }
   assert(*one >= 1 && *one <= MAX_CHUNKSZ);
   assert(*two >= 1 && *two <= MAX_CHUNKSZ);
@@ -387,23 +404,30 @@ void _verify_addr_list_data_both(test_addr_list *src, void *result,
         srcval = SEG_VALUE(nodeid, offset);
       }
       if (srcval != resval) {
-        MSG("ERROR: mismatch at chunk %i, element %i\n"
+        ERR("ERROR: mismatch at chunk %i, element %i\n"
             "  expected val="VEC_FMT"\n"
             "    actual val="VEC_FMT"\n"
             "  at %s:%s:%i\n",
           (int)i, (int)j, VEC_STR(srcval), VEC_STR(resval),
           context, file, line);
-        abort();
+        { size_t sz = gasnett_format_addrlist_bufsz(src->count);
+          char *buf = test_malloc(sz);
+          gasnett_format_addrlist(buf, src->count, src->list, src->chunklen);
+          ERR("addrlist: %s\n", buf);
+        }
+        FATALERR("testvis failed.");
       }
       p++;
     }
   }
 }
-#define verify_addr_list_data(src,result,context) \
-  _verify_addr_list_data_both(src,result,mynode,NULL,context,__FILE__,__LINE__)
+#define verify_addr_list_data(src,result,context) do {                                             \
+  if (verify) _verify_addr_list_data_both((src),(result),mynode,NULL,(context),__FILE__,__LINE__); \
+} while (0)
 
-#define verify_addr_list_data_remote(src,result,node,areaptr,context) \
-         _verify_addr_list_data_both(src,result,node,areaptr,context,__FILE__,__LINE__)
+#define verify_addr_list_data_remote(src,result,node,areaptr,context) do {                              \
+  if (verify) _verify_addr_list_data_both((src),(result),(node),(areaptr),(context),__FILE__,__LINE__); \
+} while (0)
 
 /* ------------------------------------------------------------------------------------ */
 typedef struct {
@@ -428,41 +452,41 @@ void _verify_strided_desc(test_strided_desc *sd, const char *file, int line) {
   size_t sz = 1;
   size_t srcvol = VEC_SZ;
   size_t dstvol = VEC_SZ;
-  if (sd->checksum != test_checksum(((uint64_t*)sd)+1, sd->_descsz-8)) {
-    MSG("Checksum mismatch in verify_strided_desc at %s:%i", file, line);
-    abort();
-  }
+  if (sd->checksum != test_checksum(((uint64_t*)sd)+1, sd->_descsz-8))
+    FATALERR("Checksum mismatch in verify_strided_desc at %s:%i", file, line);
   sz = 1;
   for (i=0; i < sd->stridelevels; i++) {
     sz *= sd->count[i];
     srcvol *= sd->srcextents[i];
     dstvol *= sd->dstextents[i];
-    assert(sd->contigstrides[i] == sz);
+    assert_always(sd->contigstrides[i] == sz);
     if (i == 0)
-      assert(sd->count[i]/VEC_SZ <= sd->srcextents[i] && sd->count[i]/VEC_SZ <= sd->dstextents[i]);
+      assert_always(sd->count[i]/VEC_SZ <= sd->srcextents[i] && sd->count[i]/VEC_SZ <= sd->dstextents[i]);
     else
-      assert(sd->count[i] <= sd->srcextents[i] && sd->count[i] <= sd->dstextents[i]);
-    assert(sd->srcstrides[i] == srcvol);
-    assert(sd->dststrides[i] == dstvol);
+      assert_always(sd->count[i] <= sd->srcextents[i] && sd->count[i] <= sd->dstextents[i]);
+    assert_always(sd->srcstrides[i] == srcvol);
+    assert_always(sd->dststrides[i] == dstvol);
   }
   sz *= sd->count[i];
   srcvol *= sd->srcextents[i];
   dstvol *= sd->dstextents[i];
   if (i == 0)
-    assert(sd->count[i]/VEC_SZ <= sd->srcextents[i] && sd->count[i]/VEC_SZ <= sd->dstextents[i]);
+    assert_always(sd->count[i]/VEC_SZ <= sd->srcextents[i] && sd->count[i]/VEC_SZ <= sd->dstextents[i]);
   else
-    assert(sd->count[i] <= sd->srcextents[i] && sd->count[i] <= sd->dstextents[i]);
+    assert_always(sd->count[i] <= sd->srcextents[i] && sd->count[i] <= sd->dstextents[i]);
 
-  assert(sz == sd->totalsz);
-  assert(sd->srcvolume == srcvol);
-  assert(sd->dstvolume == dstvol);
-  if (sz != 0) assert(sd->count[0] >= VEC_SZ && sd->count[0] % VEC_SZ == 0);
+  assert_always(sz == sd->totalsz);
+  assert_always(sd->srcvolume == srcvol);
+  assert_always(sd->dstvolume == dstvol);
+  if (sz != 0) assert_always(sd->count[0] >= VEC_SZ && sd->count[0] % VEC_SZ == 0);
   if (sd->stridelevels > 0) {
-    assert(sd->srcvolume == sd->srcstrides[sd->stridelevels-1]*sd->srcextents[sd->stridelevels]);
-    assert(sd->dstvolume == sd->dststrides[sd->stridelevels-1]*sd->dstextents[sd->stridelevels]);
+    assert_always(sd->srcvolume == sd->srcstrides[sd->stridelevels-1]*sd->srcextents[sd->stridelevels]);
+    assert_always(sd->dstvolume == sd->dststrides[sd->stridelevels-1]*sd->dstextents[sd->stridelevels]);
   }
 }
-#define verify_strided_desc(sd) _verify_strided_desc(sd, __FILE__, __LINE__)
+#define verify_strided_desc(sd) do {                        \
+  if (verify) _verify_strided_desc((sd), __FILE__, __LINE__); \
+} while (0)
 
 /* build a strided set over the area 
    [srcaddr...srcaddr+elemlen*VEC_SZ] and [dstaddr...dstaddr+elemlen*VEC_SZ]
@@ -589,13 +613,21 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
         if (i < dim-1) strcat(p, ", ");
         p+=strlen(p);
       }
-      MSG("ERROR: mismatch at location [%s]\n"
+      ERR("mismatch at location [%s]\n"
           "  expected val="VEC_FMT"\n"
           "    actual val="VEC_FMT"\n"
           "  at %s:%s:%i\n",
           idxstr, VEC_STR(srcval), VEC_STR(resval),
         context, file, line);
-      abort();
+      { size_t sz = gasnett_format_putsgets_bufsz(desc->stridelevels);
+        char *buf = test_malloc(sz);
+        gasnett_format_putsgets(buf, NULL, nodeid,
+          desc->dstaddr, desc->dststrides,
+          desc->srcaddr, desc->srcstrides,
+          desc->count, desc->stridelevels);
+        ERR("strided desc: %s\n", buf);
+      }
+      FATALERR("testvis failed.");
     }
 
     /* increment */
@@ -621,11 +653,13 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
     resultp++;
   }
 }
-#define verify_strided_desc_data(desc,result,context) \
-  _verify_strided_desc_data_both(desc,result,mynode,NULL,context,__FILE__,__LINE__)
+#define verify_strided_desc_data(desc,result,context) do {                                             \
+  if (verify) _verify_strided_desc_data_both((desc),(result),mynode,NULL,(context),__FILE__,__LINE__); \
+} while (0)
 
-#define verify_strided_desc_data_remote(desc,result,node,areaptr,context) \
-         _verify_strided_desc_data_both(desc,result,node,areaptr,context,__FILE__,__LINE__)
+#define verify_strided_desc_data_remote(desc,result,node,areaptr,context) do {                              \
+  if (verify) _verify_strided_desc_data_both((desc),(result),(node),(areaptr),(context),__FILE__,__LINE__); \
+} while (0)
 
 /* ------------------------------------------------------------------------------------ */
 VEC_T *myseg = NULL;
@@ -645,18 +679,16 @@ VEC_T *partner_seg_read_area;
 VEC_T *partner_seg_remotewrite_area;
 
 void checkmem() {
+ if (verify) {
   /* check for corruption of read-only memory segments */
   size_t i;
   for (i = 0; i < areasz; i++) {
-    if (my_seg_read_area[i] != SEG_VALUE(mynode, i)) { 
-      MSG("detected corruption in my_seg_read_area[%i]\n", (int)i);
-      abort();
-    }
-    if (my_heap_read_area[i] != HEAP_VALUE(mynode, i)) {
-      MSG("detected corruption in my_heap_read_area[%i]\n", (int)i);
-      abort();
-    }
+    if (my_seg_read_area[i] != SEG_VALUE(mynode, i))
+      FATALERR("detected corruption in my_seg_read_area[%i]\n", (int)i);
+    if (my_heap_read_area[i] != HEAP_VALUE(mynode, i))
+      FATALERR("detected corruption in my_heap_read_area[%i]\n", (int)i);
   }
+ }
 }
 
 typedef struct {
@@ -669,6 +701,54 @@ typedef struct {
   test_strided_desc *sdesc;
   VEC_T *stmpbuf;
 } test_op;
+
+#define TIME_DECL()                               \
+    struct {                                      \
+      uint64_t iters;                             \
+      uint64_t minsz, maxsz, sumsz;               \
+      gasnett_tick_t sumtm;                       \
+      double minbw, maxbw;                        \
+    } putinfo = { 0,(uint64_t)-1,0,0,0,1E300,0 }, \
+      getinfo = { 0,(uint64_t)-1,0,0,0,1E300,0 }
+
+#define _TIMED_OP(op,sz,pg) do {                              \
+      gasnett_tick_t _op_tm = gasnett_ticks_now();            \
+      int64_t const _op_sz = (sz);                            \
+      { op; }                                                 \
+      _op_tm = gasnett_ticks_now() - _op_tm;                  \
+      pg##info.sumsz += _op_sz;                               \
+      pg##info.sumtm += _op_tm;                               \
+      if (_op_sz > 0 &&                                       \
+          _op_sz < pg##info.minsz) pg##info.minsz = _op_sz;   \
+      if (_op_sz > pg##info.maxsz) pg##info.maxsz = _op_sz;   \
+      { double _op_bw = ((double)_op_sz)/_op_tm;              \
+        if (_op_sz > 0 &&                                     \
+            _op_bw < pg##info.minbw) pg##info.minbw = _op_bw; \
+        if (_op_tm > 0 &&                                     \
+            _op_bw > pg##info.maxbw) pg##info.maxbw = _op_bw; \
+      }                                                       \
+      pg##info.iters++;                                       \
+    } while (0)
+#define TIMED_PUT(op,sz) _TIMED_OP(op,sz,put)
+#define TIMED_GET(op,sz) _TIMED_OP(op,sz,get)
+#define _TIME_OUTPUT(flavor,pg) do {                                     \
+    double _tickspersec = 1.0E18 / gasnett_ticks_to_ns(1000000000);      \
+    double _totaldata = ((double)pg##info.sumsz) / (1024*1024);          \
+    double _maxbw = pg##info.maxbw * _tickspersec / (1024*1024);         \
+    double _minbw = pg##info.minbw * _tickspersec / (1024*1024);         \
+    double _avgbw = (_totaldata / pg##info.sumtm) * _tickspersec;        \
+    MSG(#pg #flavor" bandwidth (MB/s): %8.6f avg, %8.6f max, %8.6f min", \
+        _avgbw, _maxbw, _minbw);                                         \
+} while (0)
+
+#define TIME_OUTPUT(flavor) do {                                               \
+      if (showtiming) _TIME_OUTPUT(flavor,put);                                \
+      if (showtiming) _TIME_OUTPUT(flavor,get);                                \
+      if (showtiming)                                                          \
+        MSG("data size: %8.3fMB total, %8.3fKB avg, %8.3fKB min, %8.3fKB max", \
+            putinfo.sumsz/1048576.0, putinfo.sumsz/1024.0/putinfo.iters,       \
+            putinfo.minsz/1024.0, putinfo.maxsz/1024.0);                       \
+    } while (0)
 
 void doit(int iters, int runtests) {
   GASNET_BEGIN_FUNCTION();
@@ -684,7 +764,7 @@ void doit(int iters, int runtests) {
   partner_seg_read_area = partnerseg;
   partner_seg_remotewrite_area = partnerseg+3*areasz;
   
-  { /* init memory segments to known values */
+  if (verify) { /* init memory segments to known values */
     size_t i;
     for (i = 0; i < areasz; i++) {
       my_seg_read_area[i] =    SEG_VALUE(mynode, i);
@@ -696,6 +776,7 @@ void doit(int iters, int runtests) {
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_VECTOR) { 
     int iter;
+    TIME_DECL();
     MSG("Vector...");
     for (iter = 0; iter < iters; iter++) {
       /* put test */
@@ -708,10 +789,10 @@ void doit(int iters, int runtests) {
         trim_memvec_list(src, dst);
         tmp = buildcontig_memvec_list(TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area), dst->totalsz/VEC_SZ, areasz);
 
-        gasnet_putv_bulk(partner, dst->count, dst->list, src->count, src->list);
+        TIMED_PUT(gasnet_putv_bulk(partner, dst->count, dst->list, src->count, src->list),dst->totalsz);
         verify_memvec_list(src);
         verify_memvec_list(dst);
-        gasnet_getv_bulk(tmp->count, tmp->list, partner, dst->count, dst->list);
+        TIMED_GET(gasnet_getv_bulk(tmp->count, tmp->list, partner, dst->count, dst->list),dst->totalsz);
         verify_memvec_list(tmp);
         verify_memvec_list(dst);
         verify_memvec_data(src, tmp->list[0].addr, "gasnet_putv_bulk/gasnet_getv_bulk test");
@@ -750,11 +831,13 @@ void doit(int iters, int runtests) {
       TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
+    TIME_OUTPUT(v);
   }
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_INDEXED) { 
     int iter;
+    TIME_DECL();
     MSG("Indexed...");
     for (iter = 0; iter < iters; iter++) {
       /* put test */
@@ -769,10 +852,10 @@ void doit(int iters, int runtests) {
         trim_addr_list(src, dst);
         tmp = buildcontig_addr_list(TEST_RAND_PICK(my_heap_write2_area, my_seg_write2_area), dst->totalsz/VEC_SZ, areasz);
 
-        gasnet_puti_bulk(partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen);
+        TIMED_PUT(gasnet_puti_bulk(partner, dst->count, dst->list, dst->chunklen, src->count, src->list, src->chunklen),dst->totalsz);
         verify_addr_list(src);
         verify_addr_list(dst);
-        gasnet_geti_bulk(tmp->count, tmp->list, tmp->chunklen, partner, dst->count, dst->list, dst->chunklen);
+        TIMED_GET(gasnet_geti_bulk(tmp->count, tmp->list, tmp->chunklen, partner, dst->count, dst->list, dst->chunklen),dst->totalsz);
         verify_addr_list(tmp);
         verify_addr_list(dst);
         verify_addr_list_data(src, tmp->list[0], "gasnet_puti_bulk/gasnet_geti_bulk test");
@@ -813,11 +896,13 @@ void doit(int iters, int runtests) {
       TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
+    TIME_OUTPUT(i);
   }
   BARRIER();
   /*---------------------------------------------------------------------------------*/
   if (runtests & RUN_STRIDED) { 
     int iter;
+    TIME_DECL();
     MSG("Strided...");
     for (iter = 0; iter < iters; iter++) {
       /* put test */
@@ -830,9 +915,9 @@ void doit(int iters, int runtests) {
         desc = rand_strided_desc(srcarea, dstarea, tmparea, areasz);
         tmpbuf = ((VEC_T*)tmparea) + TEST_RAND(0,areasz - desc->totalsz/VEC_SZ);
 
-        gasnet_puts_bulk(partner, desc->dstaddr, desc->dststrides, desc->srcaddr, desc->srcstrides, desc->count, desc->stridelevels);
+        TIMED_PUT(gasnet_puts_bulk(partner, desc->dstaddr, desc->dststrides, desc->srcaddr, desc->srcstrides, desc->count, desc->stridelevels),desc->totalsz);
         verify_strided_desc(desc);
-        gasnet_gets_bulk(tmpbuf, desc->contigstrides, partner, desc->dstaddr, desc->dststrides, desc->count, desc->stridelevels);
+        TIMED_GET(gasnet_gets_bulk(tmpbuf, desc->contigstrides, partner, desc->dstaddr, desc->dststrides, desc->count, desc->stridelevels),desc->totalsz);
         verify_strided_desc(desc);
         verify_strided_desc_data(desc, tmpbuf, "gasnet_puts_bulk/gasnet_gets_bulk test");
         test_free(desc);
@@ -863,6 +948,7 @@ void doit(int iters, int runtests) {
       TEST_PROGRESS_BAR(iter, iters);
     }
     checkmem();
+    TIME_OUTPUT(s);
   }
   BARRIER();
   /*---------------------------------------------------------------------------------*/
@@ -1014,24 +1100,23 @@ void doit(int iters, int runtests) {
   BARRIER();
 }
 /* ------------------------------------------------------------------------------------ */
-void Usage(char *argvzero) {
-  fprintf(stderr,"Usage: testvis [-v] [-i] [-s] [-n] <iters> <seed>\n");
-  fprintf(stderr," -v/-i/-s/-n  run vector/indexed/strided/non-blocking tests (defaults to all)\n");
-  fprintf(stderr," iters     number of testing iterations\n");
-  fprintf(stderr," seed      seed offset for PRNG (for single node run, \n");
-  fprintf(stderr,"             seed=i runs node i's sequence from multi-node job) \n");
-  exit(1);
-}
 int main(int argc, char **argv) {
   int iters = 100;
   int seedoffset = 0;
   int runtests = 0;
+  int halfduplex = 0;
   int i;
 
-  assert(VEC_SZ == sizeof(VEC_T));
+  assert_always(VEC_SZ == sizeof(VEC_T));
   GASNET_Safe(gasnet_init(&argc, &argv));
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testvis",0);
+  test_init("testvis",0, "[options] (iters) (seed)\n"
+            " -v/-i/-s/-n  run vector/indexed/strided/non-blocking tests (defaults to all)\n"
+            " -d        disable correctness verification checks\n"
+            " -o        one-way (half duplex) mode\n"
+            " -t        enable timing output\n"
+            " iters     number of testing iterations\n"
+            " seed      seed offset for PRNG \n");
 
   for (i = 1; i < argc; i++) {
     if (argv[i][0] == '-') {
@@ -1042,7 +1127,10 @@ int main(int argc, char **argv) {
           case 'i': case 'I': runtests |= RUN_INDEXED; break;
           case 's': case 'S': runtests |= RUN_STRIDED; break;
           case 'n': case 'N': runtests |= RUN_NB; break;
-          default: Usage(argv[0]);
+          case 'd': case 'D': verify = 0; break;
+          case 'o': case 'O': halfduplex = 1; break;
+          case 't': case 'T': showtiming = 1; break;
+          default: test_usage();
         }
       }
     } else break;
@@ -1050,22 +1138,31 @@ int main(int argc, char **argv) {
   if (runtests == 0) runtests = RUN_VECTOR | RUN_INDEXED | RUN_STRIDED | RUN_NB;
   if (i < argc) { iters = atoi(argv[i]); i++; }
   if (i < argc) { seedoffset = atoi(argv[i]); i++; }
-  if (i < argc) Usage(argv[0]);
-
-  MSG("running %i iterations of %s%s%s%s test...", 
-    iters, 
-    (runtests&RUN_VECTOR?"V":""), 
-    (runtests&RUN_INDEXED?"I":""), 
-    (runtests&RUN_STRIDED?"S":""),
-    (runtests&RUN_NB?"N":"")
-    );
+  if (i < argc) test_usage();
 
   mynode = gasnet_mynode();
   myseg = TEST_SEG(mynode);
   partner = (gasnet_mynode() + 1) % gasnet_nodes();
   partnerseg = TEST_SEG(partner);
   heapseg = (VEC_T *)test_malloc(TEST_SEGSZ);
+
+  if (seedoffset == 0) {
+    seedoffset = (((unsigned int)TIME()) & 0xFFFF);
+    TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
+  }
   TEST_SRAND(mynode+seedoffset);
+  MSG("running %i iterations of %s%s%s%s%s test (seed=%i)%s...", 
+    iters, 
+    (halfduplex?"half-duplex ":""),
+    (runtests&RUN_VECTOR?"V":""), 
+    (runtests&RUN_INDEXED?"I":""), 
+    (runtests&RUN_STRIDED?"S":""),
+    (runtests&RUN_NB?"N":""),
+    mynode+seedoffset,
+    (verify?"":" (verification disabled)")
+    );
+
+  if (halfduplex && mynode % 2 == 1) runtests = 0; /* odd nodes passive */
 
   doit(iters, runtests);
   MSG("done.");

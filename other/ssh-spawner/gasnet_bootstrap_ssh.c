@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2005/11/22 22:00:42 $
- * $Revision: 1.50 $
+ *     $Date: 2007/02/24 00:01:15 $
+ * $Revision: 1.50.4.1 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -186,9 +186,8 @@ enum {
 
 static void gather_pids(void);
 
-static void do_verbose(const char *fmt, ...) __attribute__((__format__ (__printf__, 1, 2)));
-static void do_verbose(const char *fmt, ...)
-{
+GASNETI_FORMAT_PRINTF(do_verbose,1,2,
+static void do_verbose(const char *fmt, ...)) {
   va_list args;
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
@@ -197,9 +196,8 @@ static void do_verbose(const char *fmt, ...)
 }
 #define BOOTSTRAP_VERBOSE(ARGS)		if_pf (is_verbose) do_verbose ARGS
 
-static char *sappendf(char *s, const char *fmt, ...) __attribute__((__format__ (__printf__, 2, 3)));
-static char *sappendf(char *s, const char *fmt, ...)
-{
+GASNETI_FORMAT_PRINTF(sappendf,2,3,
+static char *sappendf(char *s, const char *fmt, ...)) {
   va_list args;
   int old_len, add_len;
 
@@ -244,8 +242,9 @@ static char *quote_arg(const char *arg) {
 /* Like gasneti_fatalerror, but w/o dumping core
  * This is used for probable user errors
  */
-static void die(int exitcode, const char *msg, ...) GASNETI_NORETURN __attribute__((__format__ (__printf__, 2, 3)));
-static void die(int exitcode, const char *msg, ...) {
+GASNETI_FORMAT_PRINTF(die,2,3, 
+GASNETI_NORETURN
+static void die(int exitcode, const char *msg, ...)) {
   va_list argptr;
   char expandedmsg[255];
 
@@ -303,7 +302,7 @@ static void kill_one(const char *rem_host, pid_t rem_pid) {
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
   BOOTSTRAP_VERBOSE(("[-1] Pid %d killing %s:%d\n", pid, rem_host, (int)rem_pid));
-  gasneti_atomic_increment(&live);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void clean_up(void)
@@ -354,7 +353,7 @@ static void signal_one(const char *rem_host, pid_t rem_pid, int sig) {
     execvp(ssh_argv[0], ssh_argv);
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
-  gasneti_atomic_increment(&live);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void signal_all(int sig)
@@ -438,7 +437,7 @@ static void do_abort(unsigned char exitcode) {
 
     /* paranoia... */
     gasneti_reghandler(SIGABRT, SIG_DFL);
-    abort();
+    gasneti_fatalerror("do_abort aborting...");
 
     /* NOT REACHED */
   }
@@ -448,9 +447,9 @@ static void reap_one(pid_t pid, int status)
 {
   gasneti_assert(pid);
 
-  gasneti_atomic_decrement(&live);
+  gasneti_atomic_decrement(&live, 0);
   BOOTSTRAP_VERBOSE(("[%d] Reaped pid %d (%d left)\n",
-		     is_master ? -1 : myproc, (int)pid, (int)gasneti_atomic_read(&live)));
+		     is_master ? -1 : myproc, (int)pid, (int)gasneti_atomic_read(&live, 0)));
 
   if (child) {
     int j;
@@ -516,9 +515,9 @@ static void wait_for_all(void)
    */
   reaper(SIGCHLD);
 
-  while (gasneti_atomic_read(&live)) {
+  while (gasneti_atomic_read(&live, 0)) {
     BOOTSTRAP_VERBOSE(("[%d] Sigsuspend with %d children left\n",
-			    is_master ? -1 : myproc, gasneti_atomic_read(&live)));
+			    is_master ? -1 : myproc, gasneti_atomic_read(&live, 0)));
     sigsuspend(&old_set);
   }
 }
@@ -698,11 +697,7 @@ static void configure_ssh(void) {
   int i, argi;
 
   /* Determine the ssh command */
-  if ((env_string = getenv(ENV_PREFIX "SSH_CMD")) != NULL && strlen(env_string)) {
-    ssh_argv0 = env_string;
-  } else {
-    ssh_argv0 = gasneti_strdup("ssh");
-  }
+  ssh_argv0 = gasneti_getenv_withdefault(ENV_PREFIX "SSH_CMD", "ssh");
 
   /* Check for OpenSSH */
   {
@@ -713,7 +708,7 @@ static void configure_ssh(void) {
   }
 
   /* Check for user-supplied options */
-  if ((env_string = getenv(ENV_PREFIX "SSH_OPTIONS")) != NULL && strlen(env_string)) {
+  if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_OPTIONS", "")) != NULL && strlen(env_string)) {
     ssh_options = parse_options(env_string, &optcount, "while parsing " ENV_PREFIX "SSH_OPTIONS");
   }
 
@@ -827,15 +822,19 @@ static void build_nodelist(void)
     nnodes = nproc;
   }
 
-  if ((env_string = getenv(ENV_PREFIX "SSH_NODEFILE")) != NULL && strlen(env_string)) {
+  if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_NODEFILE","")) != NULL && strlen(env_string)) {
     nodelist = parse_nodefile(env_string);
-  } else if ((env_string = getenv(ENV_PREFIX "SSH_SERVERS")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_SERVERS","")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
-  } else if ((env_string = getenv("PBS_NODEFILE")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault("PBS_NODEFILE","")) != NULL && strlen(env_string)) {
     nodelist = parse_nodefile(env_string);
-  } else if ((env_string = getenv("SSS_HOSTLIST")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault("PE_HOSTFILE","")) != NULL && strlen(env_string)) {
+    char *filename = sappendf(NULL, "%s/machines", gasneti_getenv_withdefault("TMPDIR",""));
+    nodelist = parse_nodefile(filename);
+    gasneti_free(filename);
+  } else if ((env_string = gasneti_getenv_withdefault("SSS_HOSTLIST","")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
-  } else if ((env_string = getenv("LSB_HOSTS")) != NULL && strlen(env_string)) {
+  } else if ((env_string = gasneti_getenv_withdefault("LSB_HOSTS","")) != NULL && strlen(env_string)) {
     nodelist = parse_servers(env_string);
   } else {
     die(1, "No " ENV_PREFIX "SSH_NODEFILE or " ENV_PREFIX "SSH_SERVERS in environment");
@@ -959,7 +958,7 @@ static void pre_spawn(int count) {
   char *env_string;
 
   /* Get the cwd */
-  if ((env_string = getenv(ENV_PREFIX "SSH_REMOTE_PATH")) != NULL && strlen(env_string)) {
+  if ((env_string = gasneti_getenv_withdefault(ENV_PREFIX "SSH_REMOTE_PATH","")) != NULL && strlen(env_string)) {
     strncpy(cwd, env_string, sizeof(cwd));
   } else if (!getcwd(cwd, sizeof(cwd))) {
     gasneti_fatalerror("getcwd() failed");
@@ -1146,7 +1145,7 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
       gasneti_fatalerror("execvp(ssh) failed");
     }
   }
-  gasneti_atomic_increment(&live);
+  gasneti_atomic_increment(&live, 0);
 }
 
 static void do_spawn(int argc, char **argv, char *myhost) {
@@ -1190,6 +1189,8 @@ static void do_kill(int argc, char **argv) {
   _exit(0);
 }
 
+extern int (*gasneti_verboseenv_fn)(void);
+
 static void do_master(int argc, char **argv) GASNETI_NORETURN;
 static void do_master(int argc, char **argv) {
   char myhost[1024];
@@ -1231,6 +1232,9 @@ static void do_master(int argc, char **argv) {
   if (gethostname(myhost, sizeof(myhost)) < 0) {
     die(1, "gethostname() failed");
   }
+
+  /* Enable VERBOSEENV */
+  gasneti_verboseenv_fn = NULL;
 
   configure_ssh();
   build_nodelist();
@@ -1305,7 +1309,7 @@ static void do_master(int argc, char **argv) {
 	}
       }
 
-      /* Read 1 command byte */
+      /* Peek 1 command byte */
       for (i = 0; i < children; ++i) {
 	if (FD_ISSET(child[i].sock, &fds)) {
 	  break;
@@ -1320,6 +1324,7 @@ static void do_master(int argc, char **argv) {
 
       switch (cmd) {
         case BOOTSTRAP_CMD_NO_OP:
+          do_read(child[i].sock, &cmd, sizeof(cmd));
 	  break;
         case BOOTSTRAP_CMD_FINI0:
 	  gasneti_bootstrapFini_ssh();
@@ -1631,7 +1636,7 @@ void gasneti_bootstrapFini_ssh(void) {
 void gasneti_bootstrapAbort_ssh(int exitcode) {
   gasneti_assert(!is_master);
   do_abort((unsigned char)exitcode);
-  abort();
+  gasneti_fatalerror("do_abort failed.");
   /* NOT REACHED */
 }
 
@@ -1643,7 +1648,12 @@ void gasneti_bootstrapBarrier_ssh(void) {
   if (is_master) {
     for (j = 0; j < children; ++j) {
       do_read(child[j].sock, &cmd, sizeof(cmd));
-      gasneti_assert(cmd == BOOTSTRAP_CMD_BARR0);
+      if_pf (cmd == BOOTSTRAP_CMD_FINI0) {
+	/* looks like an exit between gasnet_init() and gasnet_attach() */
+	do_abort(255);
+	break;
+      }
+      gasneti_assert(cmd == BOOTSTRAP_CMD_BARR0 || in_abort);
     }
     if (in_abort) return;
     cmd = BOOTSTRAP_CMD_BARR1;
@@ -1683,6 +1693,11 @@ void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest) {
     char cmd, *tmp, *p;
     for (j = 0; j < children; ++j) {
       do_read(child[j].sock, &cmd, sizeof(cmd));
+      if_pf (cmd == BOOTSTRAP_CMD_FINI0) {
+	/* looks like an exit between gasnet_init() and gasnet_attach() */
+	do_abort(255);
+	break;
+      }
       gasneti_assert(cmd == BOOTSTRAP_CMD_EXCHG || in_abort);
       do_read(child[j].sock, &len, sizeof(len));
     }
@@ -1730,6 +1745,11 @@ void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest) {
     size_t row_len;
     for (j = 0; j < children; ++j) {
       do_read(child[j].sock, &cmd, sizeof(cmd));
+      if_pf (cmd == BOOTSTRAP_CMD_FINI0) {
+	/* looks like an exit between gasnet_init() and gasnet_attach() */
+	do_abort(255);
+	break;
+      }
       gasneti_assert(cmd == BOOTSTRAP_CMD_TRANS || in_abort);
       do_read(child[j].sock, &len, sizeof(len));
     }
@@ -1802,6 +1822,11 @@ void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootn
     char cmd, *tmp;
     for (j = 0; j < children; ++j) {
       do_read(child[j].sock, &cmd, sizeof(cmd));
+      if_pf (cmd == BOOTSTRAP_CMD_FINI0) {
+	/* looks like an exit between gasnet_init() and gasnet_attach() */
+	do_abort(255);
+	break;
+      }
       gasneti_assert(cmd == BOOTSTRAP_CMD_BCAST || in_abort);
       do_read(child[j].sock, &len, sizeof(len));
       do_read(child[j].sock, &rootnode, sizeof(rootnode));

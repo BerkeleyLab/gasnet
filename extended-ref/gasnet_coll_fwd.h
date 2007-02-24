@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_fwd.h,v $
- *     $Date: 2006/05/14 04:00:08 $
- * $Revision: 1.3 $
+ *     $Date: 2007/02/24 00:00:44 $
+ * $Revision: 1.3.24.1 $
  * Description: GASNet Collectives Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

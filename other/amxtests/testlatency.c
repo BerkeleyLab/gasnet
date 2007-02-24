@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testlatency.c,v $
- *     $Date: 2005/07/24 05:01:47 $
- * $Revision: 1.10 $
+ *     $Date: 2007/02/24 00:01:05 $
+ * $Revision: 1.10.10.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,7 +27,7 @@ static void ping_request_handler(void *token) {
   #endif
 
   AM_Safe(AM_Reply0(token, PING_REP_HANDLER));
-  }
+}
 
 static void ping_reply_handler(void *token) {
 
@@ -36,21 +36,20 @@ static void ping_reply_handler(void *token) {
   #endif
 
   numleft--;
-  }
+}
 
 void mywait(int polling) {
   if (polling) { /* poll until everyone done */
     while (numleft) {
       AM_Safe(AM_Poll(eb));
-      }
     }
-  else {
+  } else {
     while (numleft) {
       AM_Safe(AM_SetEventMask(eb, AM_NOTEMPTY)); 
       AM_Safe(AM_WaitSema(eb));
       AM_Safe(AM_Poll(eb));
-      }
     }
+  }
 }
 
 /* usage: testlatency  numprocs  spawnfn  iters  P/B
@@ -62,13 +61,7 @@ int main(int argc, char **argv) {
   int k;
   int iters = 0;
 
-  CHECKARGS(argc, argv, 1, 2, "iters (Poll/Block)");
-
-  AMX_VerboseErrors = 1;
-
-  /* call startup */
-  AM_Safe(AMX_SPMDStartup(&argc, &argv, 
-                            0, &networkpid, &eb, &ep));
+  TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 2, "iters (Poll/Block)");
 
   /* setup handlers */
   AM_Safe(AM_SetHandler(ep, PING_REQ_HANDLER, ping_request_handler));
@@ -87,8 +80,8 @@ int main(int argc, char **argv) {
       case 'p': case 'P': polling = 1; break;
       case 'b': case 'B': polling = 0; break;
       default: printf("polling must be 'P' or 'B'..\n"); AMX_SPMDExit(1);
-      }
     }
+  }
 
   outputTimerStats();
 
@@ -111,8 +104,8 @@ int main(int argc, char **argv) {
       #endif
       AM_Safe(AM_Request0(ep, 0, PING_REQ_HANDLER));
       mywait(polling);
-      }
     }
+  }
   
   end = getCurrentTimeMicrosec();
 
@@ -131,5 +124,5 @@ int main(int argc, char **argv) {
   AM_Safe(AMX_SPMDExit(0));
 
   return 0;
-  }
+}
 /* ------------------------------------------------------------------------------------ */

@@ -38,6 +38,9 @@ Recognized environment variables:
   Set to 1 to output shmem allocation debug information (such as which
   addresses are being mapped by each process for the GASNet segment).
 
+* GASNET_BARRIER=SHMEM (default)
+  Enables shmem-native implementation of GASNet barriers
+
 Optional compile-time settings:
 ------------------------------
 

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2005/05/04 20:21:13 $
-# $Revision: 1.38 $
+#     $Date: 2007/02/24 00:01:35 $
+# $Revision: 1.38.14.1 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -20,6 +20,7 @@ fh_srcdir = $(top_srcdir)/other/firehose
 fh_special_objs =                                 \
       $(builddir)/firehose-$(THREAD_MODEL).o      \
       $(builddir)/firehose_region-$(THREAD_MODEL).o
+fh_install_hdrs = $(fh_srcdir)/firehose_trace.h
 $(builddir)/firehose-$(THREAD_MODEL).o: force
 	@CC@ $(LIBCFLAGS) $(VAPI_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose.c
 $(builddir)/firehose_region-$(THREAD_MODEL).o: force
@@ -89,7 +90,7 @@ CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(mpi_defines)\
 			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines)
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = 
+CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

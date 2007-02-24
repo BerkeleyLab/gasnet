@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_ref.c,v $
- * $Date: 2005/02/17 13:18:57 $
- * $Revision: 1.18 $
+ * $Date: 2007/02/24 00:00:48 $
+ * $Revision: 1.18.12.1 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,7 +59,7 @@
   ==========================================================
 */
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_get_reqh_inner)
+GASNETI_INLINE(gasnete_extref_get_reqh_inner)
 void gasnete_extref_get_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
   gasneti_assert(nbytes <= gasnet_AMMaxMedium());
@@ -72,7 +72,7 @@ SHORT_HANDLER(gasnete_extref_get_reqh,4,7,
               (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_get_reph_inner)
+GASNETI_INLINE(gasnete_extref_get_reph_inner)
 void gasnete_extref_get_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *op) {
@@ -84,7 +84,7 @@ MEDIUM_HANDLER(gasnete_extref_get_reph,2,4,
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)    ),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_getlong_reqh_inner)
+GASNETI_INLINE(gasnete_extref_getlong_reqh_inner)
 void gasnete_extref_getlong_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
 
@@ -97,7 +97,7 @@ SHORT_HANDLER(gasnete_extref_getlong_reqh,4,7,
               (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_getlong_reph_inner)
+GASNETI_INLINE(gasnete_extref_getlong_reph_inner)
 void gasnete_extref_getlong_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes, 
   void *op) {
@@ -108,7 +108,7 @@ LONG_HANDLER(gasnete_extref_getlong_reph,1,2,
               (token,addr,nbytes, UNPACK(a0)     ),
               (token,addr,nbytes, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_put_reqh_inner)
+GASNETI_INLINE(gasnete_extref_put_reqh_inner)
 void gasnete_extref_put_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *op) {
@@ -122,7 +122,7 @@ MEDIUM_HANDLER(gasnete_extref_put_reqh,2,4,
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)     ),
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_putlong_reqh_inner)
+GASNETI_INLINE(gasnete_extref_putlong_reqh_inner)
 void gasnete_extref_putlong_reqh_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *op) {
@@ -135,7 +135,7 @@ LONG_HANDLER(gasnete_extref_putlong_reqh,1,2,
               (token,addr,nbytes, UNPACK(a0)     ),
               (token,addr,nbytes, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_memset_reqh_inner)
+GASNETI_INLINE(gasnete_extref_memset_reqh_inner)
 void gasnete_extref_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
   memset(dest, (int)(uint32_t)val, nbytes);
@@ -148,7 +148,7 @@ SHORT_HANDLER(gasnete_extref_memset_reqh,4,6,
               (token, a0, a1, UNPACK(a2),      UNPACK(a3)     ),
               (token, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5)));
 /* ------------------------------------------------------------------------------------ */
-GASNET_INLINE_MODIFIER(gasnete_extref_markdone_reph_inner)
+GASNETI_INLINE(gasnete_extref_markdone_reph_inner)
 void gasnete_extref_markdone_reph_inner(gasnet_token_t token, 
   void *op) {
   gasnete_op_markdone((gasnete_op_t *)op, 0); /*  assumes this is a put or explicit */
@@ -176,7 +176,7 @@ gasnet_handle_t gasnete_extref_get_nb_bulk (void *dest, gasnet_node_t node, void
   }
 }
 
-GASNET_INLINE_MODIFIER(gasnete_extref_put_nb_inner)
+GASNETI_INLINE(gasnete_extref_put_nb_inner)
 gasnet_handle_t gasnete_extref_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
@@ -289,7 +289,7 @@ void gasnete_extref_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   }
 }
 
-GASNET_INLINE_MODIFIER(gasnete_extref_put_nbi_inner)
+GASNETI_INLINE(gasnete_extref_put_nbi_inner)
 void gasnete_extref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const iop = mythread->current_iop;
@@ -383,10 +383,6 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 /* reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
-#define gasnete_refbarrier_init    gasnete_barrier_init
-#define gasnete_refbarrier_notify  gasnete_extref_barrier_notify
-#define gasnete_refbarrier_wait    gasnete_extref_barrier_wait
-#define gasnete_refbarrier_try     gasnete_extref_barrier_try
 #include "gasnet_extended_refbarrier.c"
 #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
 
@@ -397,9 +393,7 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 
 /* use reference implementation of scatter/gather and strided */
-#define GASNETI_GASNET_EXTENDED_VIS_C 1
-#include "gasnet_extended_refvis.c"
-#undef GASNETI_GASNET_EXTENDED_VIS_C
+#include "gasnet_extended_refvis.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -408,9 +402,7 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 
 /* use reference implementation of collectives */
-#define GASNETI_GASNET_EXTENDED_COLL_C 1
-#include "gasnet_extended_refcoll.c"
-#undef GASNETI_GASNET_EXTENDED_COLL_C
+#include "gasnet_extended_refcoll.h"
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -422,10 +414,10 @@ static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
   #ifdef GASNETE_REFVIS_HANDLERS
-    GASNETE_REFVIS_HANDLERS(),
+    GASNETE_REFVIS_HANDLERS()
   #endif
   #ifdef GASNETE_REFCOLL_HANDLERS
-    GASNETE_REFCOLL_HANDLERS(),
+    GASNETE_REFCOLL_HANDLERS()
   #endif
 
   /* ptr-width independent handlers */

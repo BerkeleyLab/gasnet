@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.h,v $
- *     $Date: 2005/10/23 12:28:21 $
- * $Revision: 1.21 $
+ *     $Date: 2007/02/24 00:00:51 $
+ * $Revision: 1.21.6.1 $
  * Description: GASNet header for MPI conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,7 +17,7 @@
 
 #include <gasnet_core_help.h>
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 /*  TODO enhance AMMPI to support thread-safe MPI libraries */
 /*  TODO add MPI bypass to loopback messages */
@@ -73,13 +73,13 @@ typedef struct _gasnet_hsl_t {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
-    gasneti_stattime_t acquiretime;
+    gasneti_tick_t acquiretime;
   #endif
 
   #if GASNETC_HSL_ERRCHECK
     uint64_t tag;
     int islocked;
-    int64_t timestamp;
+    gasneti_tick_t timestamp;
     struct _gasnet_hsl_t *next;
   #endif
 
@@ -170,7 +170,7 @@ extern int gasnetc_AMPoll();
 
 /* ------------------------------------------------------------------------------------ */
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 #endif
 

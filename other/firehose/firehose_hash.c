@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_hash.c,v $
- *     $Date: 2005/12/08 01:46:11 $
- * $Revision: 1.11 $
+ *     $Date: 2007/02/24 00:01:10 $
+ * $Revision: 1.11.4.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,7 +83,7 @@ inthash(fh_int_t key)
 */
 
 #if 1
-GASNET_INLINE_MODIFIER(inthash)
+GASNETI_INLINE(inthash)
 int
 inthash(fh_int_t key)
 {
@@ -96,7 +96,7 @@ inthash(fh_int_t key)
 	return (int) key;
 }
 #else
-GASNET_INLINE_MODIFIER(inthash)
+GASNETI_INLINE(inthash)
 int
 inthash(fh_int_t key)
 {

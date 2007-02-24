@@ -44,7 +44,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "." /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
+# ADD CPP /nologo /W3 /GX /O2 /I "." /I ".." /I "../amxtests" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /D "AMUDP_NDEBUG" /YX /FD /c
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
 # ADD RSC /l 0x409 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -68,7 +68,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "." /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D "DEBUG" /YX /FD /GZ /c
+# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "." /I ".." /I "../amxtests" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D "DEBUG" /D "AMUDP_DEBUG" /YX /FD /GZ /c
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
 # ADD RSC /l 0x409 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -93,7 +93,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /I "." /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D "DEBUG" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "." /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D "DEBUG" /D "UFXP" /YX /FD /GZ /c
+# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "." /I ".." /I "../amxtests" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /D "DEBUG" /D "UFXP" /D "AMUDP_DEBUG" /YX /FD /GZ /c
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
 # ADD RSC /l 0x409 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -117,7 +117,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "." /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /D "UFXP" /YX /FD /c
+# ADD CPP /nologo /W3 /GX /O2 /I ".." /I "../amxtests" /I "." /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /D "UFXP" /D "AMUDP_NDEBUG" /YX /FD /c
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
 # ADD RSC /l 0x409 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -149,6 +149,14 @@ SOURCE=.\amudp_internal.h
 # Begin Source File
 
 SOURCE=.\amudp_spmd.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\portable_inttypes.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\portable_platform.h
 # End Source File
 # Begin Source File
 
@@ -224,11 +232,7 @@ SOURCE=.\sockutil.h
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\Makefile
-# End Source File
-# Begin Source File
-
-SOURCE=.\Makefile.aix.rs6000
+SOURCE=.\Makefile.am
 # End Source File
 # Begin Source File
 
@@ -236,23 +240,23 @@ SOURCE=.\Makefile.common
 # End Source File
 # Begin Source File
 
-SOURCE=.\Makefile.linux.i386
+SOURCE=.\Makefile.generic
 # End Source File
 # Begin Source File
 
-SOURCE=.\Makefile.linux.i486
+SOURCE=.\Makefile.mtx.mta
 # End Source File
 # Begin Source File
 
-SOURCE=.\Makefile.posix.i386
+SOURCE=.\Makefile.solaris
 # End Source File
 # Begin Source File
 
-SOURCE=.\Makefile.solaris.i386
+SOURCE=.\Makefile.standalone
 # End Source File
 # Begin Source File
 
-SOURCE=.\Makefile.solaris.sparc
+SOURCE=.\Makefile.tests
 # End Source File
 # Begin Source File
 

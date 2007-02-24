@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2005/10/26 12:36:37 $
- * $Revision: 1.36 $
+ *     $Date: 2007/02/24 00:01:28 $
+ * $Revision: 1.36.4.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,14 @@
 #define SHORT_REQ_BASE 128
 #include <other/amxtests/testam.h>
 
+/* Define to get one big function that pushes the gcc inliner heursitics */
+#undef TESTGASNET_NO_SPLIT
+
 void doit(int partner, int *partnerseg);
+void doit2(int partner, int *partnerseg);
+void doit3(int partner, int *partnerseg);
+void doit4(int partner, int *partnerseg);
+void doit5(int partner, int *partnerseg);
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNET_SEGMENT_EVERYTHING
@@ -85,73 +92,78 @@ void doit(int partner, int *partnerseg);
 #else
   #define EVERYTHING_SEG_HANDLERS()
 #endif
+
+#if GASNET_PAR
+  #define NUM_THREADS 10
+#else
+  #define NUM_THREADS 1
+#endif
+
+void test_threadinfo(int threadid, int numthreads) {
+  int i;
+  gasnet_threadinfo_t my_ti;
+  static gasnet_threadinfo_t all_ti[NUM_THREADS];
+
+  { GASNET_BEGIN_FUNCTION();
+    my_ti = GASNET_GET_THREADINFO();
+  }
+  { gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
+    assert_always(ti == my_ti);
+  }
+  { GASNET_POST_THREADINFO(my_ti);
+    gasnet_threadinfo_t ti = GASNET_GET_THREADINFO();
+    assert_always(ti == my_ti);
+  }
+  assert(threadid < numthreads && numthreads <= NUM_THREADS);
+  all_ti[threadid] = my_ti;
+  PTHREAD_LOCALBARRIER(numthreads);
+  for (i = 0; i < numthreads; i++) {
+    if (i != threadid) assert_always(my_ti != all_ti[i]);
+  }
+  PTHREAD_LOCALBARRIER(numthreads);
+}
 /* ------------------------------------------------------------------------------------ */
 /* test libgasnet-specific gasnet_tools interfaces */
-typedef struct {
-  gasnett_threadkey_t key1;
-  gasnett_threadkey_t key2;
-} test_keys_t;
-test_keys_t sertest_keys = {GASNETT_THREADKEY_INITIALIZER,GASNETT_THREADKEY_INITIALIZER};
-test_keys_t partest_keys = {GASNETT_THREADKEY_INITIALIZER,GASNETT_THREADKEY_INITIALIZER};
-void test_libgasnet_keys(test_keys_t *s) {
-  void *val = gasneti_threadkey_get(s->key1);
-  assert(val == NULL);
-  gasneti_threadkey_set(s->key1,(void *)&val);
-  val = gasneti_threadkey_get(s->key1);
-  assert(val == &val);
-
-  gasneti_threadkey_init(&(s->key2));
-  val = gasneti_threadkey_get_noinit(s->key2);
-  assert(val == NULL);
-  gasneti_threadkey_set_noinit(s->key2,(void *)&val);
-  val = gasneti_threadkey_get_noinit(s->key2);
-  assert(val == &val);
-  gasneti_threadkey_init(&(s->key2));
-  val = gasneti_threadkey_get_noinit(s->key2);
-  assert(val == &val);
-}
 #if GASNET_PAR
   /* thread-parallel gasnet_tools tests */
-  #define NUM_THREADS 10
+  #ifdef __cplusplus
+    extern "C"
+  #endif
   void *test_libgasnetpar_tools(void *p) {
     int idx = (int)(uintptr_t)p;
     PTHREAD_LOCALBARRIER(NUM_THREADS);
-    gasnett_set_affinity(idx);
+    test_threadinfo(idx, NUM_THREADS);
     PTHREAD_LOCALBARRIER(NUM_THREADS);
-    test_libgasnet_keys(&partest_keys);
+    gasnett_set_affinity(idx);
     PTHREAD_LOCALBARRIER(NUM_THREADS);
     return NULL;
   }
 #endif
 void test_libgasnet_tools() {
   void *p;
-  int cpucnt = gasnett_cpu_count();
   TEST_TRACING_MACROS();
-  MSG0("CPU count estimated to be: %i", cpucnt);
-  assert(cpucnt >= 1);
-  gasnett_flush_streams();
   #ifdef HAVE_MMAP
     p = gasnett_mmap(GASNETT_PAGESIZE);
-    assert(p);
-    assert(((uintptr_t)p)%GASNETT_PAGESIZE == 0);
+    assert_always(p);
+    assert_always(((uintptr_t)p)%GASNETT_PAGESIZE == 0);
   #endif
-  test_libgasnet_keys(&sertest_keys);
+  test_threadinfo(0, 1);
   #if GASNET_DEBUG
   { char *ptr = (char *)gasnett_debug_malloc(10); 
     char *ptr2;
     gasnett_heapstats_t hs;
-    assert(ptr);
+    assert_always(ptr);
     gasnett_debug_memcheck(ptr);
     ptr = (char *)gasnett_debug_realloc(ptr,20);
-    assert(ptr);
+    assert_always(ptr);
     gasnett_debug_free(ptr);
     ptr = (char *)gasnett_debug_calloc(10,20);
     strcpy(ptr,"testing 1 2 3");
     ptr2 = gasnett_debug_strdup(ptr);
-    assert(ptr2 && ptr != ptr2 && !strcmp(ptr,ptr2));
+    assert_always(ptr2 && ptr != ptr2 && !strcmp(ptr,ptr2));
     gasnett_debug_free(ptr2);
     ptr2 = gasnett_debug_strndup(ptr,4);
-    assert(ptr2 && ptr != ptr2 && !strncmp(ptr,ptr2,4) && strlen(ptr2) == 4);
+    assert_always(ptr2 && ptr != ptr2 && !strncmp(ptr,ptr2,4) && strlen(ptr2) == 4);
     gasnett_debug_memcheck_one();
     gasnett_debug_memcheck_all(); 
     gasnett_debug_free(ptr2);
@@ -160,24 +172,9 @@ void test_libgasnet_tools() {
   }
   #endif
   #if GASNET_PAR
-  { pthread_t threadid[NUM_THREADS];
-    int i;
-
-    #ifdef HAVE_PTHREAD_SETCONCURRENCY
-      pthread_setconcurrency(NUM_THREADS);
-    #endif
-    for(i=0;i<NUM_THREADS;i++) {
-      pthread_attr_t attr;   
-      pthread_attr_init(&attr);   
-      pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM); 
-      if (pthread_create(&threadid[i], &attr, &test_libgasnetpar_tools, (void *)(uintptr_t)i)) 
-        perror("pthread_create");
-    }
-    for(i=0;i<NUM_THREADS;i++) {
-      if (pthread_join(threadid[i], NULL)) perror("pthread_join");
-    }
-  }
+    test_createandjoin_pthreads(NUM_THREADS, &test_libgasnetpar_tools, NULL, 0);
   #endif
+  MSG("*** passed libgasnet_tools test!!");
 }
 /* ------------------------------------------------------------------------------------ */
 int main(int argc, char **argv) {
@@ -187,17 +184,17 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   #if GASNET_SEGMENT_EVERYTHING
-    assert(gasnet_getMaxLocalSegmentSize() == (uintptr_t)-1);
-    assert(gasnet_getMaxGlobalSegmentSize() == (uintptr_t)-1);
+    assert_always(gasnet_getMaxLocalSegmentSize() == (uintptr_t)-1);
+    assert_always(gasnet_getMaxGlobalSegmentSize() == (uintptr_t)-1);
   #else
-    assert(gasnet_getMaxLocalSegmentSize() >= gasnet_getMaxGlobalSegmentSize());
-    assert(gasnet_getMaxLocalSegmentSize() % GASNET_PAGESIZE == 0);
-    assert(gasnet_getMaxGlobalSegmentSize() % GASNET_PAGESIZE == 0);
-    assert(gasnet_getMaxGlobalSegmentSize() > 0);
+    assert_always(gasnet_getMaxLocalSegmentSize() >= gasnet_getMaxGlobalSegmentSize());
+    assert_always(gasnet_getMaxLocalSegmentSize() % GASNET_PAGESIZE == 0);
+    assert_always(gasnet_getMaxGlobalSegmentSize() % GASNET_PAGESIZE == 0);
+    assert_always(gasnet_getMaxGlobalSegmentSize() > 0);
   #endif
   GASNET_Safe(gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
                             TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testgasnet",0);
+  test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
 
@@ -259,15 +256,22 @@ void doit(int partner, int *partnerseg) {
     gasnet_wait_syncnb_all(handles, iters); 
     for (i=0; i < iters; i++) {
       if (vals[i] != 100 + mynode + i) {
-        MSG("*** ERROR - FAILED NB LIST TEST!!!");
+        MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
+            i, vals[i], 100 + mynode + i);
         success = 0;
       }
     }
     if (success) MSG("*** passed blocking list test!!");
   }
 
-  BARRIER();
+#ifndef TESTGASNET_NO_SPLIT
+  doit2(partner, partnerseg);
+}
+void doit2(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
+  BARRIER();
   { /*  implicit test */
     GASNET_BEGIN_FUNCTION();
     int vals[100];
@@ -283,12 +287,20 @@ void doit(int partner, int *partnerseg) {
     gasnet_wait_syncnbi_gets();
     for (i=0; i < 100; i++) {
       if (vals[i] != mynode + i) {
-        MSG("*** ERROR - FAILED NBI TEST!!!");
+        MSG("*** ERROR - FAILED NBI TEST!!! vals[%i] = %i, expected %i",
+            i, vals[i], mynode + i);
         success = 0;
       }
     }
     if (success) MSG("*** passed nbi test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit3(partner, partnerseg);
+}
+void doit3(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 
@@ -377,6 +389,13 @@ void doit(int partner, int *partnerseg) {
     if (success) MSG("*** passed value test!!");
   }
 
+#ifndef TESTGASNET_NO_SPLIT
+  doit4(partner, partnerseg);
+}
+void doit4(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
+
   BARRIER();
 
   { /*  memset test */
@@ -410,6 +429,13 @@ void doit(int partner, int *partnerseg) {
     }
     if (success) MSG("*** passed memset test!!");
   }
+
+#ifndef TESTGASNET_NO_SPLIT
+  doit5(partner, partnerseg);
+}
+void doit5(int partner, int *partnerseg) {
+  int mynode = gasnet_mynode();
+#endif
 
   BARRIER();
 
@@ -501,4 +527,36 @@ void doit(int partner, int *partnerseg) {
 
   BARRIER();
 
+  /* Invoke all the atomics, once each.
+   * This is a compile/link check, used to ensure that clients can link all the
+   * the atomics (especially from c++ when testgasnet is built as textcxx).
+   * This is distinct from testtools, which checks that these "do the right thing".
+   */
+  { gasnett_atomic_t val = gasnett_atomic_init(1);
+    gasnett_atomic_val_t utmp = gasnett_atomic_read(&val, 0);
+    gasnett_atomic_sval_t stmp = gasnett_atomic_signed(utmp);
+    gasnett_atomic_set(&val, stmp, 0);
+    gasnett_atomic_increment(&val, 0);
+    gasnett_atomic_decrement(&val, 0);
+    (void)gasnett_atomic_decrement_and_test(&val, 0);
+    #ifdef gasnett_HAVE_ATOMIC_CAS
+      (void)gasnett_atomic_compare_and_swap(&val, 0, 1 ,0);
+    #endif
+    #ifdef gasnett_HAVE_ATOMIC_ADD_SUB
+      (void)gasnett_atomic_add(&val, 2 ,0);
+      (void)gasnett_atomic_subtract(&val, 1 ,0);
+    #endif
+  }
+  { gasnett_atomic32_t val32 = gasnett_atomic32_init(1);
+    uint32_t tmp32 = gasnett_atomic32_read(&val32, 0);
+    gasnett_atomic32_set(&val32, tmp32, 0);
+    (void)gasnett_atomic32_compare_and_swap(&val32, 0, 1 ,0);
+  }
+  { gasnett_atomic64_t val64 = gasnett_atomic64_init(1);
+    uint64_t tmp64 = gasnett_atomic64_read(&val64, 0);
+    gasnett_atomic64_set(&val64, tmp64, 0);
+    (void)gasnett_atomic64_compare_and_swap(&val64, 0, 1 ,0);
+  }
+  
+  BARRIER();
 }

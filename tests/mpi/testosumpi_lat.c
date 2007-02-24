@@ -13,9 +13,7 @@
 #define MAX_MSG_SIZE (1<<22)
 #define MYBUFSIZE (MAX_MSG_SIZE + MESSAGE_ALIGNMENT)
 
-#ifndef ZERO_ACK
-#define ZERO_ACK 1
-#endif
+int zero_ack = 1;
 
 char s_buf_original[MYBUFSIZE];
 char r_buf_original[MYBUFSIZE];
@@ -41,6 +39,8 @@ int main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+    if (argc > 1 && (!strcmp(argv[1],"-n") || !strcmp(argv[1],"-N"))) zero_ack = 0;
+
     align_size = MESSAGE_ALIGNMENT;
 
     s_buf =
@@ -51,11 +51,10 @@ int main(int argc, char *argv[])
                   align_size * align_size);
 
     if (myid == 0) {
-        fprintf(stdout, "# OSU MPI Latency Test (Version 2.0)\n");
+        fprintf(stdout, "# OSU MPI Ping-pong Latency Test (Version 2.0)\n");
         fprintf(stdout, "# Modified to report round-trip latency (MPI_Send/MPI_Recv)\n");
-#if ZERO_ACK
-        fprintf(stdout, "# Modified to use zero-byte ack\n");
-#endif
+        if (zero_ack) fprintf(stdout, "# Using a ZERO-byte ack (comparable to GASNet testsmall)\n");
+        else fprintf(stdout, "# Using an N-byte ack (comparable to GASNet testam)\n");
         fprintf(stdout, "# Size\t\tLatency (us) \n");
     }
 
@@ -80,22 +79,20 @@ int main(int argc, char *argv[])
                 if (i == skip)
                     t_start = MPI_Wtime();
                 MPI_Send(s_buf, size, MPI_CHAR, 1, 1, MPI_COMM_WORLD);
-             #if ZERO_ACK
+               if (zero_ack) 
                 MPI_Recv(r_buf, 0, MPI_CHAR, 1, 1, MPI_COMM_WORLD, &reqstat);
-             #else
+               else
                 MPI_Recv(r_buf, size, MPI_CHAR, 1, 1, MPI_COMM_WORLD, &reqstat);
-             #endif
             }
             t_end = MPI_Wtime();
 
         } else if (myid == 1) {
             for (i = 0; i < loop + skip; i++) {
                 MPI_Recv(r_buf, size, MPI_CHAR, 0, 1, MPI_COMM_WORLD, &reqstat);
-             #if ZERO_ACK
+               if (zero_ack) 
                 MPI_Send(s_buf, 0, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
-             #else
+               else
                 MPI_Send(s_buf, size, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
-             #endif
             }
         }
 

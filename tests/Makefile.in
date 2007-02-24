@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2006/08/10 03:53:07 $
-# $Revision: 1.72.4.1 $
+#     $Date: 2007/02/24 00:01:28 $
+# $Revision: 1.72.4.2 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -11,7 +11,8 @@ all:
 	@echo do a "make tests-seq" or "make tests-par" within the conduit directory
 
 # linker to be used for MPI programs
-GASNET_MPI_LD = @MPI_CC@
+GASNET_MPI_CC = @MPI_CC@
+GASNET_MPI_LD = $(GASNET_MPI_CC)
 
 srcdir="@TOP_SRCDIR@/tests"
 
@@ -23,8 +24,11 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
 # GASNet-related MPI tests
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS_SEQ = 
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS_PAR = testmpi
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_SEQ = 
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_PAR = testmpi
+
+# C++ tests
+CXX_TESTS = testcxx testtoolscxx
 
 # non-GASNet plain MPI tests
 MPI1_TESTS = 			\
@@ -43,7 +47,7 @@ MPI2_TESTS = 			\
 	testosumpi2_get_bw 	\
 	testosumpi2_acc_lat  	
 
-@USE_MPI_CONDUIT_TRUE@ MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
+MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
 
 # tests that can be built in any mode
 # in order of most useful execution
@@ -51,25 +55,27 @@ MPI2_TESTS = 			\
 #   please also add it to upcr/upc-tests/gasnet-tests/harness.conf
 testprograms_seq =      \
         testgasnet      \
+        testtools       \
+        testinternal    \
         testenv         \
+        testhsl         \
         testsmall       \
         testlarge       \
         testslice       \
         testam          \
+        testmisc        \
         testcore1       \
         testbarrier     \
+        testbarrierconf \
+        testbarrierlate \
         testlogGP       \
-        testvis         \
-        testmisc        \
         testalign       \
         testrand        \
         testexit        \
-        testhsl         \
-        testbarrierconf \
-        testbarrierlate \
-        testtools       \
+        testvis         \
         testcoll        \
         testnbr    	\
+        testvisperf     \
 	testqueue	\
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
@@ -84,7 +90,7 @@ testprograms_par =  \
 	testcontend \
 	$(MPI_TESTS_PAR)
 
-testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par) $(MPI_TESTS)
+testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par) $(MPI_TESTS) $(CXX_TESTS)
 
 tests-seq: clean $(testprograms_seq)
 	
@@ -119,8 +125,9 @@ TEST_NODES=2
 # provide args and node counts for specific tests, user can override with MANUAL_TESTPARAMS
 TEST_PARAMS=                    					\
    testcore1_args="1000";       					\
+   testhsl_args="0";        						\
    testrand_args="1024";        					\
-   testlogGP_args="1000 8 65536";					\
+   testlogGP_args="1000 0 8 65536";					\
    testthreads_args="2";						\
    testmisc_nodes="1";							\
    testbarrierconf_nodes="3";						\
@@ -128,20 +135,20 @@ TEST_PARAMS=                    					\
    testmpiperf_args="BPFE 1000";					\
    testqueue_args="1 256 262144"; 					\
    testenv_args='GASNet is \"Global Address Space Networking\"';	\
+   testvisperf_args="-maxdata 131072 -maxcontig 512 10"; 		\
    $(CONDUIT_TESTPARAMS) dummy=1 ; 					\
    $(MANUAL_TESTPARAMS) dummy=1 ;
 
 # omit tests that are supposed to fail or known to cause failures
 testprograms_err =      \
         testexit        \
-        testhsl         \
 	$(MPI_TESTS_SEQ) \
 	$(MPI_TESTS_PAR)
 
 # tests that do not link libgasnet and should execute directly on the frontend with no spawner
 # (except in the case of cross-compilation, where we run them on the compute node using MPIRUN_CMD)
 testprograms_nongasnet = \
-	testtools
+	testtools testtoolscxx
 
 CONDUIT_NAME_UC=`echo $(CONDUIT_NAME) | @AWK@  '{print toupper($$0)}'`
 awk_cmdbuild={  qargs="'"'"$$args"'"'"; gsub("'"'"\x22"'"'","'"'"\x5C\x22"'"'",qargs); \
@@ -150,6 +157,7 @@ awk_cmdbuild={  qargs="'"'"$$args"'"'"; gsub("'"'"\x22"'"'","'"'"\x5C\x22"'"'",q
 		gsub("'"'"%L"'"'", "'"'"DUMMY"'"'");       \
 		gsub("'"'"%V "'"'","'"'""'"'");            \
 		gsub("'"'"%N"'"'", "'"'"$$nodes"'"'");     \
+		gsub("'"'"%M"'"'", "'"'"$$nodes"'"'");     \
 		gsub("'"'"%A"'"'", "'"'"$$args"'"'");      \
 		gsub("'"'"%D"'"'", "'"'"$$cwd"'"'");       \
 		gsub("'"'"%H"'"'", "'"'"$${GASNET_NODEFILE:-$$PBS_NODEFILE}"'"'");     \
@@ -225,7 +233,7 @@ run-tests: force
 	    ( eval env GASNET_DUMMY=\"GASNet dummy value\" $(TEST_ENV)                  \
 	    $$TIMECMD $$cmd || echo "ERROR: Test exited with failure code=$$?" )        \
                              2>&1 | tee .test-output ;                                  \
-            failure=`grep -e ERROR -e 'fatal signal' .test-output |                     \
+            failure=`@PERL@ -ne 'print if (/ERROR/ || /fatal signal/);' .test-output |  \
                      grep -v 'Retrying allocation'` ;                                   \
             if test "$$failure" != "" ; then                                            \
                echo " " >> $(TESTLOG) ;                                                 \
@@ -259,48 +267,78 @@ do-run-testexit: force
 	@echo '  RUNCMD="$$INTERACTIVE_RUNCMD"'                   >> $(TESTEXIT_SCRIPT)
 	@echo "fi"                                                >> $(TESTEXIT_SCRIPT)
 	@echo "MALLOC_CHECK_=2; export MALLOC_CHECK_"             >> $(TESTEXIT_SCRIPT)
+	@if test "`echo ' mpi udp ' | grep ' $(CONDUIT_NAME) '`" != "" ; then \
+	   echo "have_interrupt=0"                                >> $(TESTEXIT_SCRIPT) ; \
+	 else                                                                             \
+	   echo "have_interrupt=1"                                >> $(TESTEXIT_SCRIPT) ; \
+	 fi
 	@echo 'echo "Starting run-testexit at: `date`"'           >> $(TESTEXIT_SCRIPT)
 	@echo 'ID="`hostname`-$$MP_CHILD$$PBS_NODENUM"'           >> $(TESTEXIT_SCRIPT)
+	@echo 'line="----------------------------------"'         >> $(TESTEXIT_SCRIPT)
+	@echo 'line="$$line$$line"'                               >> $(TESTEXIT_SCRIPT)
 	@i=0; \
-	 while test "$$i" != "$(TESTEXIT_SEQMAX)" ; do                       \
-           i=`expr $$i + 1`;                                                 \
-	   echo ""                                   >> $(TESTEXIT_SCRIPT) ; \
-	   echo 'echo "$$ID: testexit '$$i'"'        >> $(TESTEXIT_SCRIPT) ; \
-	   echo '$$RUNCMD'" $$i"                     >> $(TESTEXIT_SCRIPT) ; \
-	   echo 'echo "$$ID: result=$$?"'            >> $(TESTEXIT_SCRIPT) ; \
-	   echo "sleep 2"                            >> $(TESTEXIT_SCRIPT) ; \
-	 done ; \
-	 echo 'threadmode=`@PERL@ -n -e '"'"'$(perl_threadscan)'"'"' ' \
-              'testexit@EXESUFFIX@ 2> /dev/null`'      >> $(TESTEXIT_SCRIPT) ; \
-	 echo 'if test "$$threadmode" = "SEQ" -o ' \
-                   '"$$threadmode" = "PARSYNC" ; then' >> $(TESTEXIT_SCRIPT) ; \
-	 echo '  echo "WARNING: testexit was compiled' \
-              'in GASNET_$$threadmode mode"'           >> $(TESTEXIT_SCRIPT) ; \
-	 echo '  echo "WARNING: be sure to recompile the test in' \
-              'GASNET_PAR mode for full results"'      >> $(TESTEXIT_SCRIPT) ; \
-	 echo 'else' >> $(TESTEXIT_SCRIPT) ; \
+	 needinterrupt="5 9 16" ; export needinterrupt ;                        \
 	 while test "$$i" != "$(TESTEXIT_PARMAX)" ; do                       \
            i=`expr $$i + 1`;                                                 \
 	   echo ""                                   >> $(TESTEXIT_SCRIPT) ; \
+	   if test "`echo ' '$$needinterrupt' ' | grep ' '$$i' '`" != "" ; then  \
+	     echo 'if test "$$have_interrupt" = "1" ; then' >> $(TESTEXIT_SCRIPT) ; \
+	   fi ;                                                              \
+	   echo 'echo "$$line"'                      >> $(TESTEXIT_SCRIPT) ; \
 	   echo 'echo "$$ID: testexit '$$i'"'        >> $(TESTEXIT_SCRIPT) ; \
+	   echo 'echo "$$RUNCMD"'" $$i"              >> $(TESTEXIT_SCRIPT) ; \
 	   echo '$$RUNCMD'" $$i"                     >> $(TESTEXIT_SCRIPT) ; \
 	   echo 'echo "$$ID: result=$$?"'            >> $(TESTEXIT_SCRIPT) ; \
-	   echo "sleep 2"                            >> $(TESTEXIT_SCRIPT) ; \
+	   echo "sleep 1"                            >> $(TESTEXIT_SCRIPT) ; \
+	   if test "`echo ' '$$needinterrupt' ' | grep ' '$$i' '`" != "" ; then  \
+	     echo 'else'                             >> $(TESTEXIT_SCRIPT) ; \
+	     echo "echo 'Test $$i SKIPPED - conduit lacks interrupts'" >> $(TESTEXIT_SCRIPT) ; \
+	     echo 'fi'                               >> $(TESTEXIT_SCRIPT) ; \
+	   fi ;                                                              \
+	   if test "$$i" = "$(TESTEXIT_SEQMAX)" ; then                       \
+	     echo 'threadmode=`@PERL@ -n -e '"'"'$(perl_threadscan)'"'"' ' \
+                  'testexit@EXESUFFIX@ 2> /dev/null`'      >> $(TESTEXIT_SCRIPT) ; \
+	     echo 'if test "$$threadmode" = "SEQ" -o ' \
+                       '"$$threadmode" = "PARSYNC" ; then' >> $(TESTEXIT_SCRIPT) ; \
+	     echo '  echo "WARNING: testexit was compiled' \
+                  'in GASNET_$$threadmode mode"'           >> $(TESTEXIT_SCRIPT) ; \
+	     echo '  echo "WARNING: be sure to recompile the test in' \
+                  'GASNET_PAR mode for full results"'      >> $(TESTEXIT_SCRIPT) ; \
+	     echo 'else' >> $(TESTEXIT_SCRIPT) ; \
+	   fi ; \
 	 done ; \
 	 echo 'fi' >> $(TESTEXIT_SCRIPT) 
-	@echo 'echo "`hostname`: done."'  >> $(TESTEXIT_SCRIPT)
+	@echo 'echo "$$ID: done."'  >> $(TESTEXIT_SCRIPT)
 	@chmod +x $(TESTEXIT_SCRIPT)
 	@echo "Complete. Starting execution..."
 	@./$(TESTEXIT_SCRIPT)
 
+KEEPTMP_CFLAGS = $(patsubst %,@KEEPTMP_CFLAGS@,$(KEEPTMPS))
 
 # testtools is a special minimal case for an app that just uses GASNet tools
-# specifically, we carefully omit BUILDCONFIG_DEFINES
-@BUILDCONFIG_DEBUG_FALSE@ TOOLS_CPPFLAGS = -DNDEBUG
+@BUILDCONFIG_DEBUG_FALSE@ TESTTOOLS_DEBUGFLAGS = -DNDEBUG
+@HAVE_PTHREAD_TRUE@       TESTTOOLS_THREADFLAGS = -DGASNETT_THREAD_SAFE @GASNET_THREAD_DEFINES@
+@HAVE_PTHREAD_TRUE@       TESTTOOLS_TOOLLIB_NAME = gasnet_tools-par
+@HAVE_PTHREAD_TRUE@       TESTTOOLS_TOOLLIB = -L@TOP_BUILDDIR@ -l$(TESTTOOLS_TOOLLIB_NAME) @GASNET_THREAD_LIBS@
+@HAVE_PTHREAD_FALSE@      TESTTOOLS_TOOLLIB_NAME = gasnet_tools-seq
+@HAVE_PTHREAD_FALSE@      TESTTOOLS_TOOLLIB = -L@TOP_BUILDDIR@ -l$(TESTTOOLS_TOOLLIB_NAME)
+TOOLS_CPPFLAGS = $(TESTTOOLS_DEBUGFLAGS) $(TESTTOOLS_THREADFLAGS)
 testtools: force
-	@CC@ @CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) @GASNET_THREAD_DEFINES@ $(TOOLS_CPPFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
-	@CC@ @CFLAGS@ @MISC_CFLAGS@ -o $@ $@.o @GASNET_THREAD_LIBS@ @LIBS@ @LIBM@
-	rm -f $@.o
+	@cd .. && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
+	@CC@ @CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
+	@CC@ @CFLAGS@ @MISC_CFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
+	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
+
+# As above w/ a c++ tools client
+testtoolscxx: force
+	@if test -z "@CXX@"; then \
+		echo "ERROR: testtoolscxx target requested, but no c++ compiler is configured"; \
+		exit 1; \
+	 fi
+	@cd .. && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
+	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CXXFLAGS) -c -o $@.o $(srcdir)/$@.cc
+	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
+	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # some tests need delay.o
 testlogGP: delay.o
@@ -312,33 +350,44 @@ testbarrierlate_extraobjs = delay.o
 # need to deliberately exclude optimization for this object file to prevent breaking delay
 # some compilers implicitly enable optimization, so don't complain about that
 delay.o: force
-	$(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_MISC_CFLAGS) $(MANUAL_CFLAGS) -DGASNET_ALLOW_OPTIMIZED_DEBUG -c -o $@ $(srcdir)/$*.c
+	$(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_MISC_CFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -DGASNET_ALLOW_OPTIMIZED_DEBUG -c -o $@ $(srcdir)/$*.c
+
+mpi-check: force
+	@if test -z "$(GASNET_MPI_CC)" ; then \
+	  echo "ERROR: requested building an MPI test, but configure detected no MPI compiler." ; \
+	  echo "       Issue make again with GASNET_MPI_CC=<your mpi compiler>" ; \
+	  exit 1 ; \
+	fi
 
 # testmpi must be compiled like an MPI program with GASNet support
-testmpi: force
-	@MPI_CC@ -I$(srcdir) $(GASNET_CPPFLAGS) @MPI_CFLAGS@ $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
+testmpi: mpi-check force
+	$(GASNET_MPI_CC) -I$(srcdir) $(GASNET_CPPFLAGS) @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
-	rm -f $@.o	
+	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # the following are just plain MPI programs
 # testmpinbr requires libm
-$(MPI_TESTS): force
-	@MPI_CC@ -I$(srcdir)/mpi -I@TOP_SRCDIR@/other @MPI_CFLAGS@ $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/mpi/$@.c
-	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ @LIBM@
-	rm -f $@.o	
+$(MPI_TESTS): mpi-check force
+	$(GASNET_MPI_CC) -I$(srcdir)/mpi -I@TOP_SRCDIR@/other @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/mpi/$@.c
+	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ @LIBM@ $(MANUAL_LIBS)
+	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # testcxx tests support for compiling a C++-based GASNet client 
 # this is unlikely to work on conduits requiring a special linker (eg mpi-conduit)
 testcxx: force
-	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ -I$(srcdir) $(GASNET_CPPFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.cc
+	@if test -z "@CXX@"; then \
+		echo "ERROR: testcxx target requested, but no c++ compiler is configured"; \
+		exit 1; \
+	 fi
+	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ -I$(srcdir) $(GASNET_DEFINES) $(GASNET_INCLUDES) $(KEEPTMP_CFLAGS) $(MANUAL_CXXFLAGS) -c -o $@.o $(srcdir)/$@.cc
 	@CXX@ @CXXFLAGS@ $(GASNET_LDFLAGS) -o $@ $@.o $($@_extraobjs) $(GASNET_LIBS)
-	rm -f $@.o
+	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # This is a model for how GASNet clients should be built:
 test% : force
-	$(GASNET_CC) -I$(srcdir) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) -c -o $@.o $(srcdir)/$@.c
+	$(GASNET_CC) -I$(srcdir) $(GASNET_CPPFLAGS) $(KEEPTMP_CFLAGS) $(GASNET_CFLAGS) -c -o $@.o $(srcdir)/$@.c
 	$(GASNET_LD) $(GASNET_LDFLAGS) -o $@ $@.o $($@_extraobjs) $(GASNET_LIBS)
-	rm -f $@.o
+	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 force:
 	

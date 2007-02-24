@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sig.h,v $
-//     $Date: 2004/08/26 04:53:50 $
-// $Revision: 1.2 $
+//     $Date: 2007/02/24 00:01:02 $
+// $Revision: 1.2.20.1 $
 // Description: signal handling module
 // Copyright 1999, Dan Bonachea
 
@@ -9,7 +9,7 @@
 
 #include <signal.h>
 
-#ifdef IRIX
+#if PLATFORM_OS_IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
 

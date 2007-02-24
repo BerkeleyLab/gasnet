@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2005/08/25 09:13:58 $
- * $Revision: 1.31 $
+ *     $Date: 2007/02/24 00:00:58 $
+ * $Revision: 1.31.8.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -8,30 +8,16 @@
 #ifndef __AMMPI_H
 #define __AMMPI_H
 
-#include "portable_inttypes.h"
-
-#if defined(AMMPI_INTERNAL) || defined(HAVE_MPI)
-  /* clients of this interface need not include MPI headers
-   * clients that do include mpi.h should #define HAVE_MPI before including this file
-   */
-  #include <mpi.h>
-#else
-  /* dummy definitions to satisfy the typechecker */
-  struct dummy;
-  typedef struct dummy MPI_Status;
-  typedef struct dummy MPI_Request;
-  typedef struct dummy MPI_Comm;
-#endif
+#include <portable_inttypes.h>
 
 #include <stdarg.h>
-
-#include <stdio.h> /* FILE* */
+#include <stddef.h>
 
 /* miscellaneous macro helpers */
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
 
-#define AMMPI_LIBRARY_VERSION      1.1
+#define AMMPI_LIBRARY_VERSION      2.1
 #define AMMPI_LIBRARY_VERSION_STR  _STRINGIFY(AMMPI_LIBRARY_VERSION)
 
 /* naming policy:
@@ -49,25 +35,9 @@
 #define AMMPI_INIT_NUMTRANSLATIONS 256
 #define AMMPI_MAX_NUMTRANSLATIONS  (0x7FFFFFFFu)  /* max. translation-table entries >= 256 */
 #define AMMPI_MAX_SEGLENGTH  ((uintptr_t)-1) /* max. dest_offset */
-
-typedef uint32_t ammpi_node_t;
-
 #define AMMPI_MAX_BUNDLES          255  /* max bundles that can be allocated */
-#define AMMPI_MAX_NETWORKDEPTH     1024 /* max depth we ever allow user to ask for */
 #define AMMPI_MAX_SPMDPROCS        AMMPI_MAX_NUMTRANSLATIONS  /* max SPMD procs we support */
 
-#ifdef AMMPI_DISABLE_AMTAGS 
-  /* disable the use of the AM-2.0 message tags
-     saves 8 bytes of AM header on the wire */
-  #define AMMPI_USE_AMTAGS 0
-#else
-  #define AMMPI_USE_AMTAGS 1
-#endif
-
-/* alignment to use for buffers - optimized for cache lines (min is 8) */
-#define AMMPI_BUF_ALIGN 128 
-
-#define AMMPI_COLLECT_LATENCY_STATS   0 /* not yet implemented */
 /* ------------------------------------------------------------------------------------ */
 /* Simple user-visible types */
 
@@ -79,197 +49,52 @@ typedef uint8_t handler_t;
 #define AMMPI_BADHANDLERVAL(h) (0)
 /* #define AMMPI_BADHANDLERVAL(h) (h < 0 || h >= AMMPI_MAX_NUMHANDLERS) */
 
-/* Endpoint name */
+/* Endpoint naming */
+typedef uint32_t ammpi_node_t;
 typedef struct {
   int mpirank;
   int mpitag;
 } en_t;
 
-struct ammpi_ep; /* forward decls */
-struct ammpi_buf;
+/* Endpoint types */
+struct ammpi_eb;
+struct ammpi_ep; 
+typedef struct ammpi_eb *eb_t;
+typedef struct ammpi_ep *ep_t;
 
 /* ------------------------------------------------------------------------------------ */
-/* Internal types */
+/* AMMPI extension types */
+typedef void (*ammpi_handler_fn_t)();  /* prototype for handler function */
 
-/* message flags */
- /* 0-1: category
-  * 2:   request vs. reply 
-  * 3:   sequence number
-  * 4-7: numargs
-  */
-typedef unsigned char ammpi_flag_t;
 typedef enum {
   ammpi_Short=0, 
   ammpi_Medium=1, 
   ammpi_Long=2,
   ammpi_NumCategories=3
-  } ammpi_category_t;
-
-#define AMMPI_MSG_SETFLAGS(pmsg, isreq, cat, numargs) \
-  ((pmsg)->flags = (ammpi_flag_t) (                   \
-                   (((numargs) & 0x1F) << 3)           \
-                 | (((isreq) & 0x1) << 2)             \
-                 |  ((cat) & 0x3)                     \
-                   ))
-#define AMMPI_MSG_NUMARGS(pmsg)   ( ( ((unsigned char)(pmsg)->flags) >> 3 ) & 0x1F)
-#define AMMPI_MSG_ISREQUEST(pmsg) (!!(((unsigned char)(pmsg)->flags) & 0x4))
-#define AMMPI_MSG_CATEGORY(pmsg)  ((ammpi_category_t)((pmsg)->flags & 0x3))
-
-/* active message header & meta info fields */
-typedef struct {
-  #if AMMPI_USE_AMTAGS
-    tag_t         tag;
-  #endif
-
-  ammpi_flag_t  flags;
-  uint8_t       systemMessageType;
-  uint8_t       systemMessageArg;
-  handler_t     handlerId;
-
-  uintptr_t	destOffset;
-  uint16_t      nBytes;
-
-  } ammpi_msg_t;
-
-/* non-transmitted ammpi buffer bookkeeping info -
- * this data must be kept to a bare minimum because it constrains packet size 
- */
-typedef struct {
-  int8_t handlerRunning;
-  int8_t replyIssued;
-  ammpi_node_t sourceId;  /* 0-based endpoint id of remote */
-  struct ammpi_ep *dest;  /* ep_t of endpoint that received this message */
-  en_t sourceAddr;        /* address of remote */
-  } ammpi_bufstatus_t;
-
-/* active message buffer, including message and space for data payload */
-typedef struct ammpi_buf {
-
-  ammpi_msg_t	Msg;
-  uint8_t     _Data[(4*AMMPI_MAX_SHORT)+AMMPI_MAX_LONG]; /* holds args and data */
-
-  /* received requests & replies only */
-  ammpi_bufstatus_t status;
-
-  /* padding to enforce sizeof(ammpi_buf_t)%AMMPI_BUF_ALIGN == 0 */
-  #define __EXP ((AMMPI_BUF_ALIGN - \
-                  (sizeof(ammpi_msg_t) + \
-                   (4*AMMPI_MAX_SHORT)+AMMPI_MAX_LONG + \
-                   sizeof(ammpi_bufstatus_t)) % AMMPI_BUF_ALIGN) \
-                 % AMMPI_BUF_ALIGN)
-  #ifdef __GNUC__
-    uint8_t _pad[__EXP];
-  #else
-    /* non-GNU compilers may choke on 0-length array in a struct */
-    uint8_t _pad[__EXP == 0 ? AMMPI_BUF_ALIGN : __EXP];
-  #endif
-  #undef __EXP
-  } ammpi_buf_t;
-
-#define AMMPI_MIN_NETWORK_MSG ((int)(uintptr_t)&((ammpi_buf_t *)NULL)->_Data[0])
-#define AMMPI_MAX_SMALL_NETWORK_MSG ((int)(uintptr_t)&((ammpi_buf_t *)NULL)->_Data[(4*AMMPI_MAX_SHORT)])
-#define AMMPI_MAX_NETWORK_MSG ((int)(uintptr_t)&((ammpi_buf_t *)NULL)->_Data[(4*AMMPI_MAX_SHORT)+AMMPI_MAX_LONG])
-
-/* ------------------------------------------------------------------------------------ */
-/* Complex user-visible types */
-
-/* statistical collection 
- *  changes here need to also be reflected in the initialization vector AMMPI_initial_stats
- */
-typedef struct {
-  uint32_t RequestsSent[ammpi_NumCategories];
-  uint32_t RepliesSent[ammpi_NumCategories];
-  uint32_t RequestsReceived[ammpi_NumCategories];
-  uint32_t RepliesReceived[ammpi_NumCategories];
-  uint32_t ReturnedMessages;
-  uint64_t RequestMinLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
-  uint64_t RequestMaxLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
-  uint64_t RequestSumLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
-  uint64_t DataBytesSent[ammpi_NumCategories];  /* total of args + data payload for all req/rep */
-  uint64_t TotalBytesSent; /* total user level packet sizes for all req/rep */
-  } ammpi_stats_t;
-
-typedef void (*ammpi_handler_fn_t)();  /* prototype for handler function */
-typedef struct {
-  tag_t tag;  /*  remote tag */
-  char inuse; /*  entry in use */
-  ammpi_node_t id; /*  id in compressed table */
-  en_t name;  /*  remote address */
-  } ammpi_translation_t;
-
-typedef struct { /* gives us a compacted version of the translation table */
-  tag_t     tag;
-  en_t      remoteName;  
-  } ammpi_perproc_info_t;
+} ammpi_category_t;
 
 typedef void (*AMMPI_preHandlerCallback_t)(ammpi_category_t cat, int isReq, int handlerId, void *token, 
                                          void *buf, size_t nbytes, int numargs, uint32_t *args);
 typedef void (*AMMPI_postHandlerCallback_t)(ammpi_category_t cat, int isReq);
 
+/* statistical collection 
+ *  changes here need to also be reflected in the initialization vector AMMPI_initial_stats
+ */
 typedef struct {
-  MPI_Request* txHandle; /* send buffer handles */
-  ammpi_buf_t** txBuf;   /* send buffer ptrs */
-  int numBufs;
-  int numActive;
-  int bufSize;
-
-  int numBlocks; /* buffer memory management */
-  char **memBlocks;
-
-  int *tmpIndexArray; /* temporaries used during MPI interface */
-  MPI_Status *tmpStatusArray;
-} ammpi_sendbuffer_pool_t;
-
-/* Endpoint bundle object */
-typedef struct ammpi_eb {
-  struct ammpi_ep **endpoints;   /* dynamically-grown array of endpoints in bundle */
-  int	  n_endpoints;           /* Number of EPs in the bundle */
-  int	  cursize;               /* size of the array */
-  uint8_t event_mask;            /* Event Mask for blocking ops */
-  } *eb_t;
-
-/* Endpoint object */
-typedef struct ammpi_ep {
-  en_t name;            /* Endpoint name */
-  tag_t tag;            /* current tag */
-  eb_t eb;              /* Bundle of endpoint */
-  MPI_Comm *pmpicomm;   /* MPI communicator of this EP */
-
-  void *segAddr;          /* Start address of EP VM segment */
-  uintptr_t segLength;    /* Length of EP VM segment    */
-
-  ammpi_translation_t *translation;  /* translation table */
-  ammpi_node_t        translationsz; /* current size of table */
-  ammpi_handler_fn_t  handler[AMMPI_MAX_NUMHANDLERS]; /* handler table */
-
-  ammpi_handler_fn_t controlMessageHandler;
-
-  /* internal structures */
-
-  ammpi_node_t totalP; /* the number of endpoints we communicate with - also number of translations currently in use */
-  int depth;           /* network depth, -1 until AM_SetExpectedResources is called */
-
-  ammpi_perproc_info_t *perProcInfo; 
-
-  ammpi_stats_t stats;  /* statistical collection */
-
-  AMMPI_preHandlerCallback_t preHandlerCallback; /* client hooks for statistical/debugging usage */
-  AMMPI_postHandlerCallback_t postHandlerCallback;
-
-  /* recv buffer tables */
-  ammpi_buf_t* rxBuf;    /* recv buffers (aligned) */
-  ammpi_buf_t* rxBuf_alloc; /* recv buffers (mallocated ptr) */
-  MPI_Request* rxHandle; /* recv buffer handles */
-  uint32_t rxNumBufs;    /* number of recv buffers */
-  int rxCurr;            /* the oldest recv buffer index, for AMMPI_MPIIRECV_ORDERING_WORKS */
-
-  /* send buffer tables (for AMMPI_NONBLOCKING_SENDS) */
-  ammpi_sendbuffer_pool_t sendPool_smallRequest;
-  ammpi_sendbuffer_pool_t sendPool_largeRequest;
-  ammpi_sendbuffer_pool_t sendPool_smallReply;
-  ammpi_sendbuffer_pool_t sendPool_largeReply;
-
-  } *ep_t;
+  uint64_t RequestsSent[ammpi_NumCategories];
+  uint64_t RepliesSent[ammpi_NumCategories];
+  uint64_t RequestsReceived[ammpi_NumCategories];
+  uint64_t RepliesReceived[ammpi_NumCategories];
+  uint64_t ReturnedMessages;
+  uint64_t RequestMinLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
+  uint64_t RequestMaxLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
+  uint64_t RequestSumLatency;  /* only if AMMPI_COLLECT_LATENCY_STATS */
+  uint64_t RequestDataBytesSent[ammpi_NumCategories];  /* total of args + data payload */
+  uint64_t ReplyDataBytesSent[ammpi_NumCategories];  /* total of args + data payload */
+  uint64_t RequestTotalBytesSent[ammpi_NumCategories];  /* total of args + data payload */
+  uint64_t ReplyTotalBytesSent[ammpi_NumCategories];  /* total of args,payload and overhead */
+  uint64_t TotalBytesSent; /* total user level packet sizes for all req/rep */
+} ammpi_stats_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* User-visible constants */
@@ -283,7 +108,7 @@ typedef enum {
                     a message delivered to it generates an event */
   /* AM_CANSEND, */ /* TODO: can send without blocking */
   AM_NUMEVENTMASKS
-  } ammpi_eventmask_t;
+} ammpi_eventmask_t;
 
 typedef enum {
     AM_SEQ,             /* Sequential bundle/endpoint access */
@@ -329,29 +154,34 @@ typedef int op_t;
 
 /* ------------------------------------------------------------------------------------ */
 #ifdef __cplusplus
-  #define BEGIN_EXTERNC extern "C" {
-  #define END_EXTERNC }
+  #define AMMPI_BEGIN_EXTERNC extern "C" {
+  #define AMMPI_END_EXTERNC }
 #else
-  #define BEGIN_EXTERNC 
-  #define END_EXTERNC 
+  #define AMMPI_BEGIN_EXTERNC 
+  #define AMMPI_END_EXTERNC 
 #endif
 
-BEGIN_EXTERNC
+AMMPI_BEGIN_EXTERNC
 
 /* AMMPI-specific user entry points */
 extern int AMMPI_VerboseErrors; /* set to non-zero for verbose error reporting */
 extern int AMMPI_SilentMode; /* set to non-zero to silence any non-error output */
 
+#ifdef __GNUC__
+__attribute__((__format__ (__printf__, 1, 2)))
+#endif
+extern void AMMPI_FatalErr(const char *msg, ...);
 
-/* set the communicator to be used in the next call to AM_AllocateEndpoint()
- * MUST be called once before each call to AM_AllocateEndpoint(),
- * and the comm MUST NOT be used for ANY other purposes by the caller
- * specifically, if the caller passes a ptr to MPI_COMM_WORLD, then the application
- * may not make any subsequent MPI calls that utilize MPI_COMM_WORLD
- * client may pass NULL to indicate MPI_COMM_WORLD should be used
- * endpoints may only map other endpoints in the same communicator
+/* define the communicator to be used as the basis for all
+ * subsequent calls to AM_AllocateEndpoint(), which must be called 
+ * collectively across the selected comm
+ * the call is optional and the comm defaults to MPI_COMM_WORLD
+ * the provided comm is only used to establish subcommunicators for library
+ * communication, and is not otherwise directly utilized by AMMPI
+ * endpoints may only map other endpoints created in the same collective call 
+ * to AM_AllocateEndpoint()
  */
-extern int AMMPI_SetEndpointCommunicator(MPI_Comm *comm);
+extern int AMMPI_SetEndpointCommunicator(void *ptr_to_MPI_Comm);
 
 /* set the client callback fns to run before/after handler execution 
    (callback fns may _NOT_ make any AMMPI calls, directly or indirectly)
@@ -364,8 +194,8 @@ extern int AMMPI_SetHandlerCallbacks(ep_t ep, AMMPI_preHandlerCallback_t preHand
 extern int AMMPI_GetEndpointStatistics(ep_t ep, ammpi_stats_t *stats); /* get ep counters */
 extern int AMMPI_ResetEndpointStatistics(ep_t ep); /* reset ep counters */
 extern int AMMPI_AggregateStatistics(ammpi_stats_t *runningsum, ammpi_stats_t *newvalues); 
-  /* aggregate statistics - augment running sum with the given values */
-extern const char *AMMPI_DumpStatistics(FILE *fp, ammpi_stats_t *stats, int globalAnalysis); 
+  /* aggregate statistics - augment running sum with the given values (fp is a FILE *) */
+extern const char *AMMPI_DumpStatistics(void *fp, ammpi_stats_t *stats, int globalAnalysis); 
   /* output stats to fp (if non-null) in human-readable form.
    * return a pointer to the same output in an internal static buffer (rewritten on each call)
    * pass globalAnalysis non-zero if stats is a global agreggation across all nodes
@@ -427,6 +257,7 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
 #define AMX_initial_stats         AMMPI_initial_stats
 #define amx_stats_t               ammpi_stats_t
 #define amx_handler_fn_t          ammpi_handler_fn_t
+#define AMX_FatalErr              AMMPI_FatalErr
 
 #if !defined(AMMPI_DEBUG) && !defined(AMMPI_NDEBUG)
   #if defined(GASNET_DEBUG) || defined(AMX_DEBUG)
@@ -836,6 +667,6 @@ extern int AMMPI_ReplyXferVA(void *token, handler_t handler,
    AMMPI_ReplyXfer(token, hnum, sa, cnt, desto, 16, (int32_t)a0, (int32_t)a1, (int32_t)a2, (int32_t)a3, (int32_t)a4, (int32_t)a5, (int32_t)a6, (int32_t)a7, (int32_t)a8, (int32_t)a9, (int32_t)a10, (int32_t)a11, (int32_t)a12, (int32_t)a13, (int32_t)a14, (int32_t)a15)
 
 
-END_EXTERNC
+AMMPI_END_EXTERNC
 
 #endif

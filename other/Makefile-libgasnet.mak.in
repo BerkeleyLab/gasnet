@@ -11,16 +11,11 @@ VPATH=$(srcdir)
 thread_defines = @GASNET_THREAD_DEFINES@
 SEPARATE_CC = @SEPARATE_CC@
 
-@USE_PLPA_TRUE@PLPA_INCLUDES = -I$(top_srcdir)/other/plpa/src/libplpa
-@USE_PLPA_TRUE@PLPA_SOURCES  = $(top_srcdir)/other/plpa/src/libplpa/plpa_api_probe.c \
-@USE_PLPA_TRUE@                $(top_srcdir)/other/plpa/src/libplpa/plpa_dispatch.c
-
 TOOLLIBINCLUDES =         \
         -I$(srcdir)       \
         -I$(top_srcdir)   \
         -I$(top_builddir) \
-        -I$(top_srcdir)/other \
-	$(PLPA_INCLUDES)
+        -I$(top_srcdir)/other 
 
 LIBINCLUDES = $(TOOLLIBINCLUDES) \
         -I$(top_srcdir)/extended-ref  
@@ -53,9 +48,8 @@ LIBCFLAGS =                       \
 	$${keeptmps:+@KEEPTMP_CFLAGS@} \
 	$(MANUAL_LIBCFLAGS)
 
-libgasnet_tools_sources =            \
-	$(top_srcdir)/gasnet_tools.c \
-	$(PLPA_SOURCES)
+libgasnet_tools_sources =           \
+	$(top_srcdir)/gasnet_tools.c	  
 
 libgasnet_sources =                                         \
         $(CONDUIT_SOURCELIST)                               \
@@ -172,7 +166,7 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 @GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e ' [\._]*DWinfo'       \
 @GNU_NM_TRUE@               -e ' [\._]*debug_info_seg' -e ' [\._]*debug_abbrev_seg'         \
 @GNU_NM_TRUE@               -e ' [\._]*debug_frame_seg' -e ' [\._]*debug_line_seg'          \
-@GNU_NM_TRUE@               -e ' [\._]*stab' -e ' [\._]*gnu_dev_' -e '^00* W '  |           \
+@GNU_NM_TRUE@               -e ' [\._]*stab' -e ' [\._]*gnu_dev_' -e ' W stat'  |           \
 @GNU_NM_TRUE@	    @PERL@ -n -e 'print if /^[0-9a-fA-F]+\s+[A-Z]\s+/' > .$$lib.exp;        \
 @GNU_NM_TRUE@	  if test -s .$$lib.exp ; then                                              \
 @GNU_NM_TRUE@	    cat .$$lib.exp ;                                                        \

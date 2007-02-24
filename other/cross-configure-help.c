@@ -9,7 +9,7 @@
      into a file in the top-level source directory named "cross-configure".
   3. Set the new script to be executable: chmod +x cross-configure
   4. Edit the "cross-configure" script for completeness, notably setting the 
-     full path to your target compilers.
+     full path to your target and host compilers.
   5. Run cross-configure with the same options you'd pass to configure
      (eg. see cross-configure --help)
  */
@@ -39,6 +39,7 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 
 void warning(const char *str) {
   fprintf(stdout,"# WARNING: %s - you'll need to edit the value below for correctness\n", str);
@@ -152,9 +153,20 @@ int main() {
   printf("# This is an automatically-generated cross-configuration setup script\n");
   printf("\n################################################\n");
   printf("# Usage Instructions: \n");
-  printf("#  1. fill in the following values to point to the target compilers:\n\n");
+  printf("#  1. fill in the following values to point to the target and host compilers:\n\n");
   printf("CC='cc' ; export CC  # vanilla target C compiler\n");
   printf("CXX='c++' ; export CXX  # vanilla target C++ compiler\n");
+
+  printf("\n# Host C compiler\n");
+  printf("# NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/\n");
+  printf("# to get the correct assembler if gcc is your host compiler\n");
+  printf("HOST_CC='/usr/bin/gcc' ; export HOST_CC\n");
+  printf("HOST_CFLAGS='-g -O2' ; export HOST_CFLAGS\n");
+
+  printf("\n# Host C++ compiler - required by Titanium, not required for UPC or GASNet\n");
+  printf("HOST_CXX='/usr/bin/g++' ; export HOST_CXX\n");
+  printf("HOST_CXXFLAGS='' ; export HOST_CXXFLAGS\n");
+
   printf("\n# Optional additional settings: (see configure --help for complete list)\n\n");
   printf("#MPI_CC='mpicc' ; export MPI_CC     # MPI-enabled C compiler\n");
   printf("#MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC\n");
@@ -242,6 +254,7 @@ int main() {
   #include <sys/types.h>
   #include <sys/stat.h>
   #include <fcntl.h>
+  #include <stdlib.h>
   char junk[16384];
   int testfd(int);
   int mmap_check() {
@@ -252,7 +265,9 @@ int main() {
       fd = open(filename, O_RDWR | O_CREAT);
     #else
       char filename[255];
-      strcpy(filename,"/tmp/gasnet-conftemp-XXXXXX");
+      if (getenv("TMPDIR")) strcpy(filename,getenv("TMPDIR"));
+      else strcpy(filename,"/tmp");
+      strcat(filename,"/gasnet-conftemp-XXXXXX");
       fd = mkstemp(filename); /* leaves crap laying around */
     #endif
     retval = testfd(fd);

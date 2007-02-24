@@ -1,22 +1,22 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.titanium.in,v $
-#     $Date: 2005/03/19 04:47:26 $
-# $Revision: 1.9 $
+#     $Date: 2007/02/24 00:01:01 $
+# $Revision: 1.9.12.1 $
 # Description: setup necessary variables needed by Makefile
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
 # variables added here should also go in Makefile.common, and vice-versa
 
-srcdir = . # passed in on command-line
 altincdir = $(srcdir)/..
 testdir = $(srcdir)/../amxtests
 
 # compiler
 CC = @CC@
-CXX = @CXX@
+CXX = @TARGET_CXX@
 
 #otherflags := $(otherflags) -pg
 #otherflags := $(otherflags) -DFREEZE_SLAVE=1
 #otherflags := $(otherflags) -static
+#otherflags := $(otherflags) -DAMUDP_ALLOW_OPTIMIZED_DEBUG
 
 ccdebugflags = @TCBUILD_CFLAGS_COMMON@ @TCBUILD_CFLAGS_DEBUG@ $(otherflags)
 ccoptflags = @TCBUILD_CFLAGS_COMMON@ @TCBUILD_CFLAGS_OPTIMIZE@ $(otherflags)

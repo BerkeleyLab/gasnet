@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testrand.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.12 $
+ *     $Date: 2007/02/24 00:01:28 $
+ * $Revision: 1.12.12.1 $
  * Description: GASNet get/put performance test
  *   measures measures the total time to write to each page of the
  *   remote test segment, using blocking puts in a random order.
@@ -18,8 +18,6 @@
 *************************************************************/
 
 #include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ
@@ -36,6 +34,8 @@ int nbytes = 8;
 
 void *remmem;
 void *locmem;
+
+#undef rem_addr /* AIX 5.3 header bug */
 
 void do_test(void) {GASNET_BEGIN_FUNCTION();
     int i;
@@ -80,22 +80,20 @@ void do_test(void) {GASNET_BEGIN_FUNCTION();
 		end = TIME();
 		printf("Proc %3i - %5i bytes, seed %10u, %7i pages: %12i us total, %9.3f us ave. per page\n",
 			myproc, nbytes, seed, pages, (int)(end-begin), ((double)(end-begin))/pages);
+                fflush(stdout);
+                sleep(1);
 	}
 
 	BARRIER();
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
+
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
 
     /* parse arguments */
-    if ((argc < 2) || (argc > 4)) {
-	printf("Usage: %s nbytes (segsz) (seed)\n", argv[0]);
-	gasnet_exit(1);
-    }
-    nbytes = atoi(argv[1]);
+    if (argc > 1) nbytes = atoi(argv[1]);
     if (argc > 2) {
       maxsz = atol(argv[2]);
       maxsz = MAX(maxsz, nbytes);
@@ -109,7 +107,8 @@ int main(int argc, char **argv)
       if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
     #endif
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testrand",1);
+    test_init("testrand",1, "nbytes (segsz) (seed)");
+    if ((argc < 2) || (argc > 4)) test_usage();
 
     /* get SPMD info */
     myproc = gasnet_mynode();

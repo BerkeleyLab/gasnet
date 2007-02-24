@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c,v $
- *     $Date: 2005/04/14 19:25:46 $
- * $Revision: 1.16 $
+ *     $Date: 2007/02/24 00:01:13 $
+ * $Revision: 1.16.12.1 $
  * Description: GASNet conduit-independent mpi-based spawner
  * Copyright 2003, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -70,7 +70,7 @@ void gasneti_bootstrapAbort_mpi(int exitcode) {
   (void) MPI_Abort(gasnetc_mpi_comm, exitcode);
 
   gasneti_reghandler(SIGABRT, SIG_DFL);
-  abort();
+  gasneti_fatalerror("gasneti_bootstrapAbort_mpi aborting...");
   /* NOT REACHED */
 }
 

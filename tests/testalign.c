@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testalign.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.15 $
+ *     $Date: 2007/02/24 00:01:28 $
+ * $Revision: 1.15.12.1 $
  * Description: GASNet get/put alignment-sensitivity test
  *   measures flood throughput of GASNet gets and puts
  *   over varying payload alignments and fixed payload size
@@ -8,13 +8,6 @@
  * Terms of use are as specified in license.txt
  */
 
-#include "gasnet.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "test.h"
 
 #define DEFAULT_SZ	(32*1024)
@@ -257,7 +250,11 @@ int main(int argc, char **argv)
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    test_init("testalign", 1);
+    test_init("testalign", 1,
+               "[-in|-out] (iters) (size)\n"
+               "  The 'in' or 'out' option selects whether the initiator-side\n"
+               "  memory is in the GASNet segment or not (default it not).\n"
+               "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).");
     
     /* parse arguments */
     arg = 1;
@@ -276,14 +273,7 @@ int main(int argc, char **argv)
         ++arg;
       } else break;
     }
-    if (help || argc > arg+2) {
-        printf("Usage: %s [-in|-out] (iters) (size)\n"
-               "  The 'in' or 'out' option selects whether the initiator-side\n"
-               "  memory is in the GASNet segment or not (default it not).\n"
-               "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).\n",
-               argv[0]);
-        gasnet_exit(1);
-    }
+    if (help || argc > arg+2) test_usage();
 
     if (argc > arg) iters = atoi(argv[arg++]);
     if (!iters) iters = 1000;

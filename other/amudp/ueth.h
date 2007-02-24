@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/ueth.h,v $
- *     $Date: 2004/08/26 04:53:50 $
- * $Revision: 1.2 $
+ *     $Date: 2007/02/24 00:01:02 $
+ * $Revision: 1.2.20.1 $
  * Description: UETH interface to ISTORE-specific hardware driver
  * Copyright 2000, Dan Hettena <danielh@cs.berkeley.edu>
  *                 and Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -15,7 +15,7 @@
  * long as the used isn't concurrent, of course).
  */
 
-#ifdef WIN32
+#if PLATFORM_OS_MSWINDOWS
 /* ueth doesn't run on win32, but allow static checking of win32 amudp apps */
   #include <stddef.h>
   typedef unsigned __int8		uint8_t;
@@ -26,7 +26,7 @@
   typedef __int16			int16_t;
   typedef __int32			int32_t;
   typedef __int64			int64_t;
-#elif defined(CYGWIN)
+#elif PLATFORM_OS_CYGWIN
   #include <sys/types.h>
   typedef u_int8_t     uint8_t;
   typedef u_int16_t   uint16_t; 

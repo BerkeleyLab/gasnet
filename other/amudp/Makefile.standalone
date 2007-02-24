@@ -1,12 +1,10 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.standalone,v $
-#     $Date: 2005/05/23 11:36:34 $
-# $Revision: 1.21 $
+#     $Date: 2007/02/24 00:01:01 $
+# $Revision: 1.21.12.1 $
 # Description: Makefile for AMUDP
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
-
-# leave these lines alone
-testprograms_ILP32only_all = testgetput testreadwrite
-testprograms_ILP32only = $(testprograms_ILP32only_all)
+srcdir = .
+include $(srcdir)/Makefile.common # leave this line alone
 
 # Uncomment one set of lines below to get debug or release configuration 
 #ccflags = $(set_debug_ccflags)
@@ -16,8 +14,7 @@ ccflags = $(set_opt_ccflags)
 cxxflags = $(set_opt_cxxflags)
 
 # Set host system to the appropriate value to get the right prebaked Makefile
-
-HOSTSYSTEM=$(OSTYPE).$(MACHTYPE)
+HOSTSYSTEM=generic
 include Makefile.$(HOSTSYSTEM) 
 
 #-------------------------------------------------------------------------------------
@@ -45,15 +42,25 @@ testprograms =                  \
     testlatencyM                \
     testping                    \
     testreduce                  \
-    $(testprograms_ILP32only)
+    testgetput                  \
+    testreadwrite
 
 # all the library objects and headers
 objects=amudp_cdefs.o amudp_ep.o amudp_reqrep.o amudp_spmd.o amudp_spawn.o exc.o sig.o socklist.o sockutil.o
 headers=Makefile* amudp.h amudp_internal.h amudp_spmd.h socket.h exc.h sig.h sockaddr.h socklist.h sockutil.h
 
-.PHONY: all tests clean veryclean dist
+.PHONY: all banner tests clean veryclean dist
 
-all: libamudp.a
+all: banner libamudp.a amudprun
+
+banner:
+	@if test "$(HOSTSYSTEM)" = "generic" ; then                                                  \
+           OSTYPE="$${OSTYPE:-OSTYPE}" ; export OSTYPE ;                                             \
+           MACHTYPE="$${MACHTYPE:-MACHTYPE}" ; export MACHTYPE ;                                     \
+           echo "WARNING: Using Makefile.generic. " ;                                                \
+           echo " If this build fails, try selecting one of the platform-specific makefiles, eg: " ; \
+           echo " $(MAKE) HOSTSYSTEM=$$OSTYPE.$$MACHTYPE" ;                                          \
+	 fi
 
 # ---------- AMUDP library -------------
 libamudp.a: $(objects)
@@ -62,9 +69,7 @@ libamudp.a: $(objects)
 
 # ---------- build targets -------------
 # main target
-tests: apputils.o $(testprograms)
-	@csh -c 'if ("`hostname`" == "whomp") \
-    eval "echo placing whomp-shared binaries... ; /bin/cp -f $(testprograms) /export/home/$(USER) ; cd /export/home/$(USER) ; chmod a+rx $(testprograms)"'
+tests: banner apputils.o $(testprograms)
 
 # method to convert .cpp to .o (more reliable than ".cpp.o" method)
 test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
@@ -75,7 +80,10 @@ tests-clean:
 	
 apputils.o : $(testdir)/apputils.c $(headers)
 	$(Ccompile) -DAMUDP -I$(testdir) $(testdir)/apputils.c -o apputils.o
-	
+
+amudprun: amudprun.o $(headers) libamudp.a 
+	$(link) -o $@ $< -L. -lamudp $(linkend)
+
 %.o : %.c $(headers)
 	$(Ccompile) $< -o $@
 
@@ -88,25 +96,7 @@ clean:
 
 veryclean: clean 
 	rm -f $(testprograms) libamudp.a
-	@csh -c 'if ("`hostname`" == "whomp") \
-    eval "echo removing whomp-shared binaries... ; cd /export/home/$(USER) ; rm -f $(testprograms)"'
 	@echo Done verycleaning.
-
-# make a distribution
-amxdist:
-	@bash -x -c ' \
-         VERSION=`grep "#define AMUDP_LIBRARY_VERSION" $(srcdir)/amudp.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
-         export VERSION ; \
-         echo "+++ Building distribution for AMUDP version $${VERSION} +++" && \
-	 rm -Rf amudp$${VERSION}.tar.gz amudp$${VERSION} && \
-         mkdir amudp$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/*.txt $(srcdir)/*.cpp $(srcdir)/*.c $(srcdir)/*.h $(testdir)/*.[ch]* $(altincdir)/portable_inttypes.h amudp$${VERSION} && \
-         rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
-         mv amudp$${VERSION}/Makefile.standalone amudp$${VERSION}/Makefile && \
-         tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \
-         rm -Rf amudp$${VERSION} && \
-         echo "+++ amudp$${VERSION}.tar.gz is ready for distribution +++" \
-        '
 
 # ---------- test programs -------------
 test% : test%.o apputils.o libamudp.a $(ueth_libraries)

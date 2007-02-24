@@ -1,12 +1,25 @@
 # @configure_input@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/perlstart.in,v $
-#     $Date: 2005/08/01 21:17:38 $
-# $Revision: 1.13 $
+#     $Date: 2007/02/24 00:00:56 $
+# $Revision: 1.13.10.1 $
 # Description: 
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 #
+# Purpose of this utility:
+#
+# Perlstart does the "right thing" to start a sane perl environment on any
+# machine, which involves finding the right configure-detected perl interpreter
+# (or an appropriate substitute), resolving all symlinks to the perl script
+# itself (so that $0 is a canonical absolute path), and occasionally passing
+# special flags to workaround bugs in perl. It also allows passing
+# configure-detected values through the environment to the perl script.
+# Finally, it does all this while still allowing the *.pl file to remain a
+# completely conventional perl script that can be directly executed (on "sane"
+# systems) for script debugging and development purposes.
+#
 # perlstart usage info: 
+#
 # create a script.in file with the following contents (minus leading #'s)
 #      #!@BOURNE_SHELL@
 #      SOME_VAR_YOUR_SCRIPT_NEEDS=@SOME_VAR_YOUR_SCRIPT_NEEDS@

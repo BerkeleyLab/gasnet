@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvisperf.c,v $
- *     $Date: 2006/10/18 02:43:13 $
- * $Revision: 1.5 $
+ *     $Date: 2007/02/24 00:01:28 $
+ * $Revision: 1.5.6.1 $
  * Description: GASNet VIS performance test
  * Copyright 2006 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
   if (insegment) {
     Lbase = TEST_SEG(myproc);
   } else {
-    alloc = test_calloc(maxsz+PAGESZ,1); /* use calloc to prevent valgrind warnings */
+    alloc = test_malloc(maxsz+PAGESZ);
     Lbase = alignup_ptr(alloc, PAGESZ); /* ensure page alignment of base */
   }
   assert(((uintptr_t)Lbase) % PAGESZ == 0);

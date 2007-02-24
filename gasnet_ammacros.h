@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_ammacros.h,v $
- *     $Date: 2004/08/26 04:53:28 $
- * $Revision: 1.3 $
+ *     $Date: 2007/02/24 00:00:34 $
+ * $Revision: 1.3.22.1 $
  * Description: GASNet ammacros header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_AMMACROS_H
 #define _GASNET_AMMACROS_H
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -72,7 +72,7 @@ extern int gasnetc_AMReplyLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...);
 
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*

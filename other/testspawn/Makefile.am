@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/Makefile.am,v $
-#     $Date: 2005/04/18 00:31:55 $
-# $Revision: 1.2 $
+#     $Date: 2007/02/24 00:01:17 $
+# $Revision: 1.2.12.1 $
 # Description: 
 # Copyright 2005, Regents of the University of California
 # Terms of use are as specified in license.txt
@@ -53,8 +53,6 @@ mpi_ldflags = @MPI_LIBS@
 testspawn_cflags =                \
         @MISC_CFLAGS@             \
         -DGASNET_SEQ              \
-        @BUILDCONFIG_DEFINES@     \
-	-UGASNET_TRACE -UGASNET_STATS \
         @GASNET_MACHINE_DEFINES@  \
         $(testspawn_includes)     \
         $(MANUAL_LIBCFLAGS)

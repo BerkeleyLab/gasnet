@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcontend.c,v $
- *     $Date: 2005/05/30 02:09:11 $
- * $Revision: 1.10 $
+ *     $Date: 2007/02/24 00:01:28 $
+ * $Revision: 1.10.12.1 $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  
@@ -10,13 +10,6 @@
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
-
-#include "gasnet.h"
-#include "gasnet_tools.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <pthread.h>
 
 #include "test.h"
 
@@ -34,7 +27,6 @@ typedef gasnet_handlerarg_t harg_t;
 /* configurable parameters */
 #define DEFAULT_ITERS 50
 int	iters = DEFAULT_ITERS;
-pthread_t	*tt_tids;
 int amactive;
 int peer = -1;
 char *peerseg = NULL;
@@ -120,11 +112,11 @@ void report(gasnett_tick_t ticks) {
     thread_barrier();                                                                   \
     if (mythread == 0) {                                                                \
       int i;                                                                            \
-      gasnett_atomic_set(&pong,0);                                                      \
+      gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
         GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler));              \
-        POLLUNTIL(gasnett_atomic_read(&pong) > i);                                      \
+        POLLUNTIL(gasnett_atomic_read(&pong,0) > i);                                    \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
       GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_markdone_shorthandler));            \
@@ -159,7 +151,7 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
     thread_barrier();                                                                   \
     if (mythread == 0) {                                                                \
       int i;                                                                            \
-      gasnett_atomic_set(&pong,0);                                                      \
+      gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
         putgetstmt;                                                                     \
@@ -315,10 +307,11 @@ int main(int argc, char **argv) {
 
 	GASNET_Safe(gasnet_init(&argc, &argv));
     	GASNET_Safe(gasnet_attach(htable, HANDLER_TABLE_SIZE, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-	test_init("testcontend",1);
+	test_init("testcontend",1,"(maxthreads) (iters)");
 
 	if (argc >= 2) maxthreads = atoi(argv[1]);
 	if (argc >= 3) iters = atoi(argv[2]);
+        if (argc > 3) test_usage();
 
 	if (maxthreads > TEST_MAXTHREADS || maxthreads < 1) {
 	  printf("Threads must be between 1 and %i\n", TEST_MAXTHREADS);
@@ -337,28 +330,14 @@ int main(int argc, char **argv) {
         for (i = 1; i <= maxthreads; i++) { ptcount->activecnt = i; ptcount->passivecnt = 1; ptcount++; }
         for (i = 1; i <= maxthreads; i++) { ptcount->activecnt = 1; ptcount->passivecnt = i; ptcount++; }
         for (i = 1; i <= maxthreads; i++) { ptcount->activecnt = i; ptcount->passivecnt = i; ptcount++; }
-        tt_tids = test_malloc(maxthreads * sizeof(pthread_t));
         peer = gasnet_mynode() ^ 1;
         amactive = (gasnet_mynode() % 2 == 0);
 
         peerseg = TEST_SEG(peer);
 
-        threads = maxthreads;
         /* create all worker threads */
-	for (i = 1; i < maxthreads; i++) {
-          pthread_attr_t attr;
-          pthread_attr_init(&attr);
-          pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-          if (pthread_create(&tt_tids[i], &attr, workerthread, (void *)(intptr_t)i) != 0) { MSG("ERROR forking threads\n"); gasnet_exit(-1); }
-	}
-
-        workerthread(0);
-
-        /* reap all worker threads */
-	for (i = 1; i < maxthreads; i++) {
-	  void	*ret;
-          if (pthread_join(tt_tids[i], &ret) != 0) { MSG("ERROR joining threads\n"); gasnet_exit(-1); }
-	}
+        threads = maxthreads;
+        test_createandjoin_pthreads(maxthreads, &workerthread, NULL, 0);
 
         BARRIER();
 	if (gasnet_mynode() == 0) MSG("Tests complete");
@@ -376,7 +355,7 @@ void ping_shorthandler(gasnet_token_t token) {
 }
 
 void pong_shorthandler(gasnet_token_t token) {
-  gasnett_atomic_increment(&pong);
+  gasnett_atomic_increment(&pong,0);
 }
 
 void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
@@ -384,7 +363,7 @@ void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
 void pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&pong);
+  gasnett_atomic_increment(&pong,0);
 }
 
 void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
@@ -392,7 +371,7 @@ void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
 }
 
 void pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnett_atomic_increment(&pong);
+  gasnett_atomic_increment(&pong,0);
 }
 
 void noop_shorthandler(gasnet_token_t token) {

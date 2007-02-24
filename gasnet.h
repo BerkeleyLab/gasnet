@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2005/10/01 10:23:49 $
- * $Revision: 1.41 $
+ *     $Date: 2007/02/24 00:00:34 $
+ * $Revision: 1.41.6.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,25 +20,27 @@
 #endif
 
 /* Usage:
-   see the GASNet specification for details on how to use the GASNet interface
-   clients should #define GASNET_NDEBUG when compiling this implementation for production use
-     or #define GASNET_DEBUG for extra debugging safety checks
+   see the GASNet specification and top-level README for details on how to use the GASNet interface
+   clients should use the automatically-generated Makefile *.mak fragments to get the correct compile settings
 */
+
+/* autoconf-generated configuration header */
+#include <gasnet_config.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* check threading configuration */
 #if defined(GASNET_SEQ) && !defined(GASNET_PARSYNC) && !defined(GASNET_PAR)
   #undef GASNET_SEQ
   #define GASNET_SEQ 1
-  #define GASNETI_THREADMODEL SEQ
+  #define GASNETI_THREAD_MODEL SEQ
 #elif !defined(GASNET_SEQ) && defined(GASNET_PARSYNC) && !defined(GASNET_PAR)
   #undef GASNET_PARSYNC
   #define GASNET_PARSYNC 1
-  #define GASNETI_THREADMODEL PARSYNC
+  #define GASNETI_THREAD_MODEL PARSYNC
 #elif !defined(GASNET_SEQ) && !defined(GASNET_PARSYNC) && defined(GASNET_PAR)
   #undef GASNET_PAR
   #define GASNET_PAR 1
-  #define GASNETI_THREADMODEL PAR
+  #define GASNETI_THREAD_MODEL PAR
 #else
   #error Client code must #define exactly one of (GASNET_PAR, GASNET_PARSYNC, GASNET_SEQ) before #including gasnet.h
 #endif
@@ -51,7 +53,7 @@
 #endif
 
 #if !((defined(GASNET_DEBUG) && !defined(GASNET_NDEBUG)) || (!defined(GASNET_DEBUG) && defined(GASNET_NDEBUG)))
-  #error Client code #define exactly one of (GASNET_DEBUG or GASNET_NDEBUG) to select GASNet build configuration
+  #error Conflicting or incorrect definitions of GASNET_DEBUG and GASNET_NDEBUG
 #endif
 
 /* codify other configuration settings */
@@ -96,9 +98,6 @@
   #error bad def of GASNETI_STATS_OR_TRACE
 #endif
 
-/* autoconf-generated configuration header */
-#include <gasnet_config.h>
-
 /* basic utilities used in the headers */
 #include <gasnet_basic.h>
 
@@ -124,7 +123,7 @@
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
 #define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
                     gasnet_init_GASNET_,                             \
-                    GASNETI_THREADMODEL),                            \
+                    GASNETI_THREAD_MODEL),                           \
                     GASNETI_SEGMENT_CONFIG),                         \
                     GASNETI_DEBUG_CONFIG),                           \
                     GASNETI_TRACE_CONFIG),                           \
@@ -135,6 +134,9 @@
 /* GASNet forward definitions, which may override some of the defaults below */
 #include <gasnet_core_fwd.h>
 #include <gasnet_extended_fwd.h>
+
+#include <gasnet_vis_fwd.h>
+#include <gasnet_coll_fwd.h>
 
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
                              which may be used to run AM handlers */
@@ -147,6 +149,15 @@
 #elif defined(GASNETI_THREADS)
   #error bad defn of GASNETI_THREADS
 #endif
+
+/* basic utilities used in the headers, which may require GASNETI_THREADS */
+#include <gasnet_toolhelp.h>
+
+/* GASNet memory barriers */
+#include <gasnet_membar.h>
+
+/* GASNet atomic memory operations */
+#include <gasnet_atomicops.h>
 
 /* ------------------------------------------------------------------------------------ */
 /* constants */
@@ -197,10 +208,10 @@
   #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 #endif
 
-BEGIN_EXTERNC
+GASNETI_BEGIN_EXTERNC
 extern const char *gasnet_ErrorName(int);
 extern const char *gasnet_ErrorDesc(int);
-END_EXTERNC
+GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* core types */
@@ -251,28 +262,6 @@ END_EXTERNC
   typedef void *gasnet_threadinfo_t;
 #endif
 
-#ifndef GASNET_PAGESIZE
-  #ifdef GASNETI_PAGESIZE
-    #define GASNET_PAGESIZE GASNETI_PAGESIZE
-  #elif defined(CRAYT3E)
-    /* on Cray: shmemalign allocates mem aligned across nodes, 
-        but there seems to be no fixed page size (man pagesize)
-        this is probably because they don't support VM
-       actual page size is set separately for each linker section, 
-        ranging from 512KB(default) to 8MB
-       Here we return 8 to reflect the lack of page alignment constraints
-       (for basic sanity, we want page alignment >= reqd double alignment)
-   */
-
-    #define GASNET_PAGESIZE 8
-  #else
-    #error GASNET_PAGESIZE unknown and not set by conduit
-  #endif
-  #if GASNET_PAGESIZE <= 0
-    #error bad defn of GASNET_PAGESIZE
-  #endif
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
 
@@ -289,11 +278,6 @@ END_EXTERNC
   /*  SIZEOF_GASNET_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
   typedef uintptr_t gasnet_register_value_t;
   #define SIZEOF_GASNET_REGISTER_VALUE_T  SIZEOF_VOID_P
-#endif
-
-#ifndef _GASNET_THREADINFO_T
-#define _GASNET_THREADINFO_T
-  typedef void *gasnet_threadinfo_t;
 #endif
 
 #ifndef _GASNET_MEMVEC_T
@@ -352,7 +336,7 @@ END_EXTERNC
              "CONDUIT="                                                   \
              GASNET_CORE_NAME_STR "-" GASNET_CORE_VERSION_STR "/"         \
              GASNET_EXTENDED_NAME_STR "-" GASNET_EXTENDED_VERSION_STR "," \
-             "THREADMODEL=" _STRINGIFY(GASNETI_THREADMODEL) ","           \
+             "THREADMODEL=" _STRINGIFY(GASNETI_THREAD_MODEL) ","          \
              "SEGMENT=" _STRINGIFY(GASNETI_SEGMENT_CONFIG) ","            \
              "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) ","                    \
              _STRINGIFY(GASNETI_ALIGN_CONFIG) ","                         \
@@ -361,7 +345,10 @@ END_EXTERNC
              _STRINGIFY(GASNETI_STATS_CONFIG) ","                         \
              _STRINGIFY(GASNETI_SRCLINES_CONFIG) ","                      \
              _STRINGIFY(GASNETI_TIMER_CONFIG) ","                         \
-             _STRINGIFY(GASNETI_ATOMIC_CONFIG)                            \
+             _STRINGIFY(GASNETI_MEMBAR_CONFIG) ","                        \
+             _STRINGIFY(GASNETI_ATOMIC_CONFIG) ","                        \
+             _STRINGIFY(GASNETI_ATOMIC32_CONFIG) ","                      \
+             _STRINGIFY(GASNETI_ATOMIC64_CONFIG)                          \
              GASNETC_EXTRA_CONFIG_INFO                                    \
              GASNETE_EXTRA_CONFIG_INFO                                    
 #endif
@@ -372,7 +359,7 @@ END_EXTERNC
  * often in very subtle and confusing ways (eg GASNet mutexes, threadinfo, etc.)
  */
 #define GASNETI_LINKCONFIG_IDIOTCHECK(name) _CONCAT(gasneti_linkconfig_idiotcheck_,name)
-extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREADMODEL);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG);
@@ -381,15 +368,19 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SRCLINES_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MEMBAR_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME));
 
 static int *gasneti_linkconfig_idiotcheck();
-static int *(*_gasneti_linkconfig_idiotcheck)() = &gasneti_linkconfig_idiotcheck;
+/* use of void* here avoids a tinyc bug */
+static void *_gasneti_linkconfig_idiotcheck = (void *)&gasneti_linkconfig_idiotcheck;
 static int *gasneti_linkconfig_idiotcheck() {
   static int val;
-  val +=  GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREADMODEL)
+  val +=  GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG)
@@ -398,14 +389,19 @@ static int *gasneti_linkconfig_idiotcheck() {
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MEMBAR_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME))
         ;
-  if (_gasneti_linkconfig_idiotcheck != gasneti_linkconfig_idiotcheck)
-    val += *_gasneti_linkconfig_idiotcheck();
+  if (_gasneti_linkconfig_idiotcheck != (void*)&gasneti_linkconfig_idiotcheck)
+    val += ((int(*)())_gasneti_linkconfig_idiotcheck)();
   return &val;
 }
+extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
+                                       uintptr_t segsize, uintptr_t minheapoffset);
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
   #ifndef GASNET_ALLOW_OPTIMIZED_DEBUG
@@ -419,15 +415,8 @@ static int *gasneti_linkconfig_idiotcheck() {
 #endif
 
 /* intentionally expanded on every include */
-#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(GASNETI_INTERNAL_TEST_PROGRAM) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
+#if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_GASNET_INTERNAL_IDIOTCHECK)
   #define _GASNET_INTERNAL_IDIOTCHECK
   #undef gasnet_attach
-  GASNET_INLINE_MODIFIER(gasnet_attach)
-  int gasnet_attach(gasnet_handlerentry_t *table, int numentries,
-                    uintptr_t segsize, uintptr_t minheapoffset) {
-    gasneti_fatalerror("GASNet client code must NOT #include <gasnet_internal.h>\n"
-                       "gasnet_internal.h is not installed, and modifies the behavior "
-                       "of various internal operations, such as segment safety bounds-checking.");
-    return GASNET_ERR_NOT_INIT;
-  }
+  #define gasnet_attach  gasneti_internal_idiotcheck
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2005/08/09 12:07:10 $
- * $Revision: 1.28 $
+ *     $Date: 2007/02/24 00:01:33 $
+ * $Revision: 1.28.10.1 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -63,13 +63,17 @@ static void gasnetc_check_config() {
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 }
 
-#define gasnetc_bootstrapBarrier()                                  \
-   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */ \
-   if (!GASNETI_AM_SAFE_NORETURN(AMUDP_SPMDBarrier()))              \
-    gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()")
+#define gasnetc_bootstrapBarrier() do {                                        \
+   int retval;                                                                 \
+   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */            \
+   GASNETI_AM_SAFE_NORETURN(retval,AMUDP_SPMDBarrier());                       \
+   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()"); \
+} while (0)
 
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
-  GASNETI_AM_SAFE_NORETURN(AMUDP_SPMDAllGather(src, dest, len));
+  int retval;
+  GASNETI_AM_SAFE_NORETURN(retval,AMUDP_SPMDAllGather(src, dest, len));
+  if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapExchange()");
 }
 
 #define INITERR(type, reason) do {                                      \
@@ -98,6 +102,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     int i;
     char spawnfn;
     amudp_spawnfn_t fp = (amudp_spawnfn_t)NULL;
+
+    /* pretend we're node 0, for purposes of verbose env reporting */
+    gasneti_init_done = 1;
+    gasneti_mynode = 0;
 
     #if defined(GASNET_CSPAWN_CMD)
     { /* set configure default cspawn cmd */
@@ -236,6 +244,14 @@ extern int gasnet_init(int *argc, char ***argv) {
     gasneti_trace_init(argc, argv);
   #endif
   return GASNET_OK;
+}
+/* ------------------------------------------------------------------------------------ */
+extern void _gasnetc_set_waitmode(int wait_mode) {
+  if (wait_mode == GASNET_WAIT_BLOCK) {
+    AMUDP_PoliteSync = 1;
+  } else {
+    AMUDP_PoliteSync = 0;
+  }
 }
 /* ------------------------------------------------------------------------------------ */
 static char checkuniqhandler[256] = { 0 };
@@ -438,6 +454,7 @@ extern void gasnetc_trace_finish() {
   if (GASNETI_STATS_ENABLED(C) ) {
     const char *statdump;
     int isglobal = 0;
+    int retval = 0;
     amudp_stats_t stats = AMUDP_initial_stats;
 
     if (isglobal) {
@@ -451,23 +468,23 @@ extern void gasnetc_trace_finish() {
 
       if (gasnet_mynode() != 0) {
         AMLOCK();
-          GASNETI_AM_SAFE_NORETURN(AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
+          GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
         AMUNLOCK();
         /* TODO: send stats to zero */
       } else {
         amudp_stats_t *remote_stats = NULL;
         /* TODO: gather stats from all nodes */
         AMLOCK();
-          GASNETI_AM_SAFE_NORETURN(AMUDP_AggregateStatistics(&stats, remote_stats));
+          GASNETI_AM_SAFE_NORETURN(retval, AMUDP_AggregateStatistics(&stats, remote_stats));
         AMUNLOCK();
       }
     } else {
       AMLOCK();
-        GASNETI_AM_SAFE_NORETURN(AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
+        GASNETI_AM_SAFE_NORETURN(retval, AMUDP_GetEndpointStatistics(gasnetc_endpoint, &stats)); /* get statistics */
       AMUNLOCK();
     }
 
-    if (gasnet_mynode() == 0 || !isglobal) {
+    if ((gasnet_mynode() == 0 || !isglobal) && !retval) {
       GASNETI_STATS_PRINTF(C,("--------------------------------------------------------------------------------"));
       GASNETI_STATS_PRINTF(C,("AMUDP Statistics:"));
       if (!isglobal)
@@ -487,7 +504,7 @@ extern void gasnetc_fatalsignal_callback(int sig) {
      just die silently
    */
     #if 0
-      abort();
+      gasneti_fatalerror("gasnetc_fatalsignal_callback aborting...");
     #endif
     gasneti_killmyprocess(1);
   }
@@ -510,7 +527,7 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_sched_yield();
 
   AMUDP_SPMDExit(exitcode);
-  abort();
+  gasneti_fatalerror("AMUDP_SPMDExit failed!");
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -525,23 +542,24 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-  retval = GASNETI_AM_SAFE_NORETURN(AMUDP_GetSourceId(token, &sourceid));
+  GASNETI_AM_SAFE_NORETURN(retval,AMUDP_GetSourceId(token, &sourceid));
 
-  if (retval) {
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else {
     gasneti_assert(sourceid >= 0 && sourceid < gasneti_nodes);
     *srcindex = sourceid;
     return GASNET_OK;
-  } else GASNETI_RETURN_ERR(RESOURCE);
+  } 
 }
 
 extern int gasnetc_AMPoll() {
   int retval;
   GASNETI_CHECKATTACH();
   AMLOCK();
-    retval = GASNETI_AM_SAFE_NORETURN(AM_Poll(gasnetc_bundle));
+    GASNETI_AM_SAFE_NORETURN(retval,AM_Poll(gasnetc_bundle));
   AMUNLOCK();
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -559,13 +577,13 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
     AMLOCK_TOSEND();
-      retval = GASNETI_AM_SAFE_NORETURN(
+      GASNETI_AM_SAFE_NORETURN(retval,
                AMUDP_RequestVA(gasnetc_endpoint, dest, handler, 
                                numargs, argptr));
     AMUNLOCK();
   va_end(argptr);
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 extern int gasnetc_AMRequestMediumM( 
@@ -578,14 +596,14 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
     AMLOCK_TOSEND();
-      retval = GASNETI_AM_SAFE_NORETURN(
+      GASNETI_AM_SAFE_NORETURN(retval,
                AMUDP_RequestIVA(gasnetc_endpoint, dest, handler, 
                                 source_addr, nbytes, 
                                 numargs, argptr));
     AMUNLOCK();
   va_end(argptr);
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
@@ -602,15 +620,15 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   va_start(argptr, numargs); /*  pass in last argument */
     AMLOCK_TOSEND();
-      retval = GASNETI_AM_SAFE_NORETURN(
+      GASNETI_AM_SAFE_NORETURN(retval,
                AMUDP_RequestXferVA(gasnetc_endpoint, dest, handler, 
                                    source_addr, nbytes, 
                                    dest_offset, 0,
                                    numargs, argptr));
     AMUNLOCK();
   va_end(argptr);
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 extern int gasnetc_AMReplyShortM( 
@@ -622,11 +640,11 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
     AM_ASSERT_LOCKED();
-    retval = GASNETI_AM_SAFE_NORETURN(
+    GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyVA(token, handler, numargs, argptr));
   va_end(argptr);
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -639,11 +657,11 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
     AM_ASSERT_LOCKED();
-    retval = GASNETI_AM_SAFE_NORETURN(
+    GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
   va_end(argptr);
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -663,11 +681,11 @@ extern int gasnetc_AMReplyLongM(
 
   va_start(argptr, numargs); /*  pass in last argument */
     AM_ASSERT_LOCKED();
-    retval = GASNETI_AM_SAFE_NORETURN(
+    GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyXferVA(token, handler, source_addr, nbytes, dest_offset, numargs, argptr));
   va_end(argptr);
-  if (retval) return GASNET_OK;
-  else GASNETI_RETURN_ERR(RESOURCE);
+  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  else return GASNET_OK;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -724,7 +742,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
 
   {
     #if GASNETI_STATS_OR_TRACE
-      gasneti_stattime_t startlock = GASNETI_STATTIME_NOW_IFENABLED(L);
+      gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
       while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
@@ -732,7 +750,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_mutex_lock(&(hsl->lock));
     #endif
     #if GASNETI_STATS_OR_TRACE
-      hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+      hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       GASNETI_TRACE_EVENT_TIME(L, HSL_LOCK, hsl->acquiretime-startlock);
     #endif
   }
@@ -757,7 +775,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
     #error interrupts not implemented
   #endif
 
-  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_STATTIME_NOW_IFENABLED(L)-hsl->acquiretime);
+  GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
 
   gasneti_mutex_unlock(&(hsl->lock));
 }
@@ -771,7 +789,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     GASNETI_TRACE_EVENT_VAL(L, HSL_TRYLOCK, locked);
     if (locked) {
       #if GASNETI_STATS_OR_TRACE
-        hsl->acquiretime = GASNETI_STATTIME_NOW_IFENABLED(L);
+        hsl->acquiretime = GASNETI_TICKS_NOW_IFENABLED(L);
       #endif
       #if GASNETC_USE_INTERRUPTS
         /* conduits with interrupt-based handler dispatch need to add code here to 

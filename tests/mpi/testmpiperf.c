@@ -172,21 +172,32 @@ double barriertest(int iters) {
  *   or even to some form of non-blocking send)
  * returns the total number of microseconds consumed during the test
  */
+#ifndef USE_ISEND
 #define USE_ISEND 1
+#endif
+#ifndef USE_ZERO_BYTE_ACK
+#define USE_ZERO_BYTE_ACK 1
+#endif
 double pingpongtest(int iters, int msgsz) {
   int i;
   int64_t starttime, endtime;
   int iamsender = (rank % 2 == 0);
   int iamreceiver = !iamsender || peerid == rank; /* handle loopback */
   char *sendMsgbuffer = (char*)malloc(msgsz);
-  char *sendAckbuffer = (char*)malloc(1);
+  char *sendAckbuffer = (char*)malloc(msgsz);
   char *recvMsgbuffer = (char*)malloc(msgsz);
-  char *recvAckbuffer = (char*)malloc(1);
+  char *recvAckbuffer = (char*)malloc(msgsz);
   MPI_Request recvMsgHandle = MPI_REQUEST_NULL;
   MPI_Request recvAckHandle = MPI_REQUEST_NULL;
   MPI_Request sendMsgHandle = MPI_REQUEST_NULL;
   MPI_Request sendAckHandle = MPI_REQUEST_NULL;
   MPI_Status status;
+
+  #if USE_ZERO_BYTE_ACK
+    #define ACKSZ 0
+  #else
+    #define ACKSZ msgsz
+  #endif
 
   if (iamreceiver) {
     /* prepost a recv */
@@ -211,7 +222,7 @@ double pingpongtest(int iters, int msgsz) {
    #endif
 
       /* prepost a recv for acknowledgement */
-      MPI_SAFE(MPI_Irecv(recvAckbuffer, 0, MPI_BYTE, 
+      MPI_SAFE(MPI_Irecv(recvAckbuffer, ACKSZ, MPI_BYTE, 
                 peerid, MPI_ANY_TAG, MPI_COMM_WORLD, 
                 &recvAckHandle));
 
@@ -235,9 +246,9 @@ double pingpongtest(int iters, int msgsz) {
       /* send acknowledgement */
       WRITEMSG(sendAckbuffer, 1);
     #if USE_ISEND
-      MPI_SAFE(MPI_Isend(sendAckbuffer, 0, MPI_BYTE, peerid, peermpitag, MPI_COMM_WORLD, &sendAckHandle));
+      MPI_SAFE(MPI_Isend(sendAckbuffer, ACKSZ, MPI_BYTE, peerid, peermpitag, MPI_COMM_WORLD, &sendAckHandle));
     #else
-      MPI_SAFE(MPI_Send(sendAckbuffer, 0, MPI_BYTE, peerid, peermpitag, MPI_COMM_WORLD));
+      MPI_SAFE(MPI_Send(sendAckbuffer, ACKSZ, MPI_BYTE, peerid, peermpitag, MPI_COMM_WORLD));
     #endif
 
       /* pre-post recv for next message */
@@ -605,11 +616,9 @@ int main(int argc, char **argv) {
   if (dopingpongtest) { /* ping-pong test */
     if (rank == 0) {
       printf("=====> testmpiperf-pingpong nprocs=%d config=MPI\n", nproc);
-    #if USE_ISEND
-      printf("running %i iterations of ping-pong MPI_ISend/MPI_IRecv test per size...\n", iters);
-    #else
-      printf("running %i iterations of ping-pong MPI_Send/MPI_IRecv test per size...\n", iters);
-    #endif
+      printf("running %i iterations of ping-pong %s test (%s-byte ack)...\n", iters,
+          (USE_ISEND ? "MPI_ISend/MPI_IRecv" : "MPI_Send/MPI_IRecv"),
+          (USE_ZERO_BYTE_ACK?"0":"N"));
       fflush(stdout);
     }
     barrier();

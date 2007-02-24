@@ -1,26 +1,20 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.unicosmk.cray_t3e,v $
-#     $Date: 2004/08/26 04:53:48 $
-# $Revision: 1.8 $
+#     $Date: 2007/02/24 00:00:58 $
+# $Revision: 1.8.20.1 $
 # Description: Cray-T3E Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
-
-# Get default settings for everything
-include Makefile.common
-
-# additional defines
-# must include, minimally, a define to identify the platform
-platform_defines = -DUNIX -DUNICOS -DCRAYT3E -DCRAY -DAPPUTILS_OMIT_READWRITE
-
-# disable ILP32 tests
-testprograms_ILP32only =
-apputils_flags = -DAPPUTILS_OMIT_READWRITE
 
 # Cray cc - need to enable private global vars and disable a silly warning
 CC = cc -htaskprivate -hnomessage=236
 ccdebugflags = -O0 -g
 ccoptflags = -O2
 
-# ------- optional, changed from template ---------
+# additional defines required to build on this platform
+platform_defines = 
+
+# additional linker flags required to build on this platform
+platform_ldflags = 
+
 # additional libraries and/or library directories
 platform_libraries = $$LIBCM
 

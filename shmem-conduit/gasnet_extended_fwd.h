@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2005/08/20 10:53:04 $
- * $Revision: 1.9 $
+ *     $Date: 2007/02/24 00:01:21 $
+ * $Revision: 1.9.8.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,6 +21,7 @@
 #define _GASNET_HANDLE_T
 typedef int * gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
+#define GASNETI_DISABLE_EOP_INTERFACE
 
 #define _GASNET_VALGET_HANDLE_T
 typedef uintptr_t gasnet_valget_handle_t;
@@ -33,14 +34,8 @@ typedef uintptr_t gasnet_register_value_t;
      specific to the extended API implementation (see gasnet_help.h) */
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
-	GASNETI_REFVIS_STATS(CNT,VAL,TIME)   \
-	GASNETI_REFCOLL_STATS(CNT,VAL,TIME)
-
-#define GASNET_POST_THREADINFO(info)   \
-  static uint8_t gasnete_dummy = sizeof(gasnete_dummy) /* prevent a parse error */
-#define GASNET_GET_THREADINFO() (NULL)
-#define GASNETE_THREAD_FARG_ALONE
-#define GASNET_BEGIN_FUNCTION() GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
+	GASNETI_VIS_STATS(CNT,VAL,TIME)      \
+	GASNETI_COLL_STATS(CNT,VAL,TIME)
 
 #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H
 
@@ -51,5 +46,11 @@ typedef uintptr_t gasnet_register_value_t;
   #define gasneti_in_nodes_bc(node) (node == (gasnet_node_t)-1 || node < gasneti_nodes)
   #define gasneti_in_segment_allowoutofseg_bc gasneti_in_segment_bc
 #endif
+
+#define _GASNETE_MYTHREAD
+struct _gasnete_threaddata_t;
+extern struct _gasnete_threaddata_t * const gasnete_threaddata_ptr;
+#define gasnete_mythread() (gasnete_threaddata_ptr)
+#define GASNETI_MAX_THREADS 1
 
 #endif

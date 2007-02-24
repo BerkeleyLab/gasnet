@@ -1,15 +1,11 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.aix.rs6000,v $
-#     $Date: 2004/08/26 04:53:48 $
-# $Revision: 1.5 $
+#     $Date: 2007/02/24 00:00:58 $
+# $Revision: 1.5.20.1 $
 # Description: IBM SP2 Makefile fragment
 # Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
-# Get default settings for everything
-include Makefile.common
-
-# additional defines
-# must include, minimally, a define to identify the platform
-platform_defines = -DUNIX -DAIX -DRS6000
+# additional defines required to build on this platform
+platform_defines = 
 
 # ------- optional, changed from template ---------
 # additional libraries and/or library directories
@@ -18,6 +14,5 @@ platform_libraries =
 # this calls xlc internally 
 CC = mpcc
 ccdebugflags = -O0 -g
-#ccoptflags = -O3 -qstrict -qmaxmem=8192
-ccoptflags = -O3 -qstrict -qarch=pwr3 -qtune=pwr3 -qsmp=noauto -qmaxmem=8192
+ccoptflags = -O3 -qstrict -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1
 

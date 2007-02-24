@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2005/11/05 01:08:16 $
-# $Revision: 1.36 $
+#     $Date: 2007/02/24 00:00:54 $
+# $Revision: 1.36.4.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -32,13 +32,16 @@ my @verbose_opt = ("-v");
 my $keep = 0;
 my $dryrun = 0;
 my $exename = undef;
+my $uname = `uname -a`;
 my $find_exe = 1;	# should we find full path of executable?
 my $env_before_exe = 1; # place env cmd before exe?
 my $extra_quote_argv = 0; # add extra quotes around each argument
 my $group_join_argv = 0; # join all the args into one for %A?
 my $force_nonempty_argv = 0; # if args are empty, still pass empty arg for %A
 my $tmpdir = undef;
-my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
+my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'} ||
+	($ENV{'PE_HOSTFILE'} && $ENV{'TMPDIR'} && -f "$ENV{'TMPDIR'}/machines" && "$ENV{'TMPDIR'}/machines") ||
+	($ENV{'PE_HOSTFILE'} && $ENV{'TMP'} && -f "$ENV{'TMP'}/machines" && "$ENV{'TMP'}/machines");
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
 
 # Define how to pass the environment vars
@@ -57,14 +60,19 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     my $is_lam      = ($mpirun_help =~ m|LAM/MPI|);
     my $is_ompi     = ($mpirun_help =~ m|OpenRTE|);
     my $is_mpiexec  = ($mpirun_help =~ m|mpiexec|);
-    my $is_mpich_nt = ($mpirun_help =~ m|MPIRun|);
+    my $is_mpiexec_nt = ($mpirun_help =~ m|mpiexec| && $uname =~ m|cygwin|i );
+    my $is_mpich_nt = ($mpirun_help =~ m|Unknown option| && $uname =~ m|cygwin|i );
     my $is_mpich    = ($mpirun_help =~ m|ch_p4|);
     my $is_mvich    = ($mpirun_help =~ m|MV(AP)?ICH|i);
     my $is_cray_mpi = ($mpirun_help =~ m|Psched|);
+    my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
+    my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
     my $is_bgl_mpi  = ($mpirun_help =~ m| BG/L |);
-    my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && ($mpirun_help !~ m|ELAN|);
+    my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|);
+    my $is_elan_mpi  = ($mpirun_help =~ m|ELAN|);
+    my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
     my $envprog = $ENV{'ENVCMD'};
     if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
       $envprog = `which env`;
@@ -72,12 +80,22 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     }
     my $spawner_desc = undef;
 
-    if ($is_lam || $is_ompi) {
-	$spawner_desc = "LAM/MPI or OpenMPI";
+    if ($is_lam) {
+	$spawner_desc = "LAM/MPI";
 	# pass env as "-x A,B,C"
 	%envfmt = ( 'pre' => '-x',
 		    'join' => ','
 		  );
+    } elsif ($is_ompi) {
+	$spawner_desc = "OpenMPI";
+	# pass env as "-x A -x B -x C"
+	%envfmt = ( 'pre' => '-x',
+		    'inter' => '-x'
+		  );
+    } elsif ($is_mpiexec) {
+	$spawner_desc = "mpiexec/NT";
+	# handles env for us
+	%envfmt = ( 'noenv' => 1 );
     } elsif ($is_mpiexec) {
 	$spawner_desc = "mpiexec";
 	# handles env for us
@@ -107,6 +125,11 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => "'"
 		  );
+    } elsif ($is_elan_mpi) {
+	$spawner_desc = "Quadrics/ELAN MPI";
+	# this spawner already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1 );
+	# unfortunately, it also botches spaces in arguments in an unrecoverable way
     } elsif ($is_cray_mpi) {
 	$spawner_desc = "Cray MPI";
 	# cannot reliably use /usr/bin/env at all when running via aprun 
@@ -114,6 +137,16 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	# however, the OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1
                   );
+    } elsif ($is_crayt3e_mpi) {
+	$spawner_desc = "Cray T3E MPI";
+	# OS already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1);
+    } elsif ($is_irix_mpi) {
+	$spawner_desc = "IRIX MPI";
+	# OS already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1 );
+	# but spawner botches the argv quoting
+        $extra_quote_argv = 1;
     } elsif ($is_poe) {
 	$spawner_desc = "IBM POE";
 	# the OS already propagates the environment for us automatically
@@ -125,7 +158,8 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	# the OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1
                   );
-        $extra_quote_argv = 1;
+	# what a mess: pbsyod needs extra quoting, bare yod does not...
+        #$extra_quote_argv = 1;
     } elsif ($is_bgl_mpi) {
 	$spawner_desc = "IBM BG/L MPI";
 	# pass as: -exp_env A -exp_env B
@@ -136,6 +170,13 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	$group_join_argv = 1;
 	$env_before_exe = 0;
 	@verbose_opt = ("-verbose", "2");
+    } elsif ($is_bgl_cqsub) {
+	$spawner_desc = "IBM BG/L cqsub";
+	# pass as: -e A=val:B=val
+	%envfmt = ( 'pre' => '-e',
+		    'join' => ':',
+		    'val' => ''
+		  );
     } elsif ($is_jacquard) {
 	$spawner_desc = "NERSC/Jacquard mpirun";
 	if (`hostname` =~ m/jaccn/) {
@@ -255,7 +296,7 @@ sub expand {
     }
 
 # Validate -N as needed
-    if (defined($numnode) && !$is_lam) {
+    if (defined($numnode) && !$is_lam && !($spawncmd =~ m/%M/)) {
 	warn "WARNING: Don't know how to control process->node layout with your mpirun\n";
 	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
     }
@@ -281,6 +322,10 @@ sub expand {
 	        }
 	    }
         }
+	if ($uname =~ m|cygwin|i) { # convert cygwin paths to windows paths for non-cygwin spawners
+	  $exename = `cygpath -a -m $exename`;
+	  chomp($exename);
+	}
         die("gasnetrun: unable to locate program '$exebase'\n")
 		    unless (defined($exename) && -x $exename);
         print("gasnetrun: located executable '$exename'\n") if ($verbose);
@@ -432,6 +477,8 @@ EOF
 			      } else {
 				  $numproc;
 			      }
+			  } elsif ($_ eq '%M') {
+			    $numnode || $numproc;
 			  } elsif ($_ eq '%H') {
                               $nodefile or die "gasnetrun: %H appears in MPIRUN_CMD, but GASNET_NODEFILE is not set in the environment\n";
 			  } elsif ($_ eq '%P') {

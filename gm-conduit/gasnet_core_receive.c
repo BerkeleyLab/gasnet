@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2005/04/17 06:46:50 $
- * $Revision: 1.41 $
+ * $Date: 2007/02/24 00:00:48 $
+ * $Revision: 1.41.12.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -18,7 +18,7 @@ void		 gasnetc_process_AMReply(gasnetc_bufdesc_t *bufd);
 void		 gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd);
 
 
-GASNET_INLINE_MODIFIER(gasnetc_node_lookup)
+GASNETI_INLINE(gasnetc_node_lookup)
 gasnet_node_t
 gasnetc_node_lookup(uint16_t sender_node_id, uint16_t sender_port_id)
 {
@@ -81,6 +81,13 @@ gasnetc_AMPoll()
 	uint8_t		tag;
 
 	gasnetc_bufdesc_t       *bufd;
+
+	#if !GASNET_SEQ
+		if_pf (gasneti_atomic_read(&gasnetc_exit_running, 0)) {
+			/* Stop this thread if an exit is already in progress */
+			gasnetc_exit(-1);
+		}
+	#endif
 
 	if (!gm_receive_pending(_gmc.port))
 		return GASNET_OK;
@@ -430,7 +437,7 @@ gasnetc_callback_hi(struct gm_port *p, void *ctx, gm_status_t status)
  * have a firehose request type whereas the local request type is optional (AM
  * buffers can be used to send payload from).
  */
-GASNET_INLINE_MODIFIER(gasnetc_release_rdma)
+GASNETI_INLINE(gasnetc_release_rdma)
 void gasnetc_release_rdma(gasnetc_bufdesc_t *bufd) {
         GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
 	const firehose_request_t	*reqs[2];
