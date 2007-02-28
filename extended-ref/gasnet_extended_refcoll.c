@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/02/22 05:40:04 $
- * $Revision: 1.29.6.30 $
+ *     $Date: 2007/02/28 02:03:04 $
+ * $Revision: 1.29.6.31 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2915,7 +2915,8 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
 				     0, 0, src, nbytes);
 
   /* XXX: need more implementations to choose from here */
-  return gasnete_coll_gall_TreePut(team, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);  
+    return gasnete_coll_gall_RingPut(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);  
+/*  return gasnete_coll_gall_TreePut(team, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);  */
 /*  return gasnete_coll_gall_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); */
 }
 

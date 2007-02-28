@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/02/22 05:40:04 $
- * $Revision: 1.29.6.31 $
+ *     $Date: 2007/02/28 02:03:04 $
+ * $Revision: 1.29.6.32 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1868,7 +1868,7 @@ gasnete_coll_gathM_Put(gasnet_team_handle_t team,
 
 /* gall Gath: Implement as a tree-gather followed by a broadcast */
 /* THIS WILL ONLY WORK WITH ALIGNED SEGMENTS AND SINGLE*/
-/* (i.e. the virtual address of the dest is the same on all the nodes*/
+/* (i.e. the virtual address of the dest is the same on all the nodes)*/
 #define GASNETE_COLL_TREE_ALL_GATHER_ALL_ROOT 0
 static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
@@ -2012,6 +2012,98 @@ gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
 }
 #undef GASNETE_COLL_TREE_ALL_GATHER_ALL_ROOT
 
+/* This is a ring based all-gather*/
+/* every processor sends their piece to the right and receives from the left. In (P-1) steps all processors will have all the data 
+  Here the state will be used to describe which processor to recieve from.
+  This algorithm is naturally IN_NOSYNC/OUT_NOSYNC and will only work for SINGLE/single-addr. However, 
+  the algorithm can easily be modified to work for OUT_MYSYNC without using a full barrier. 
+*/
+#define GASNETE_COLL_MYDECMOD(A,DIFF) (((A)-(DIFF)) + ((A)-(DIFF) < 0 ? gasneti_nodes : 0))
+static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
+  int result = 0;
+  int slot;
+  gasnet_node_t neighbor = (gasneti_mynode == (gasneti_nodes-1) ? 0 : gasneti_mynode+1);
+  
+  /* State 0: In barrier (if needed)*/
+  if(data->state == 0) {
+    if (!gasnete_coll_generic_all_threads(data) || 
+        !gasnete_coll_generic_insync(data)) {
+      return 0;
+    }
+    data->state++;
+  }   
+  else if(data->state == gasneti_nodes) {
+    /* If using MYSYNC Wait for the last put to finish*/
+    if(op->flags & GASNET_COLL_OUT_MYSYNC) {
+      if (gasneti_weakatomic_read(&(data->p2p->counter), 0) < (gasneti_nodes-1)) {
+        return 0;
+      }
+    }
+    data->state++;
+  } 
+  /* State Nodes+1: Out Barrier (if needed)*/
+  else if(data->state == gasneti_nodes+1) {
+    if (!gasnete_coll_generic_outsync(data)) {
+      return 0;
+    }
+    gasneti_free(data->private_data);
+    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);    
+  }
+  /* State [1,NODES) perform ring*/
+  else if(data->state < gasneti_nodes) {
+    /* Copy the data from source to dest*/
+    if(data->state == 1) {
+      GASNETE_FAST_UNALIGNED_MEMCPY(gasnete_coll_scale_ptr(args->dst, gasneti_mynode, args->nbytes), 
+                                    (int8_t*)args->src, args->nbytes);
+    }     /*Wait for the P2P counter to be at least state*/
+    else if (gasneti_weakatomic_read(&(data->p2p->counter), 0) < (data->state-1)) {
+      return 0;
+    }
+    /*Send to my neighbor from slot (MYNODE+(state-1))%NODES*/
+    /* All puts except for the last one can be asynccounting put*/
+    gasneti_sync_reads();
+
+    if(data->state < (gasneti_nodes-1)) {      
+      gasnete_coll_p2p_counting_putAsync(op, neighbor,
+                                         gasnete_coll_scale_ptr(args->dst, GASNETE_COLL_MYDECMOD(gasneti_mynode,(data->state-1)), args->nbytes),
+                                         gasnete_coll_scale_ptr(args->dst, GASNETE_COLL_MYDECMOD(gasneti_mynode,(data->state-1)), args->nbytes),
+                                         args->nbytes); 
+    } else {
+      gasnete_coll_p2p_counting_put(op, neighbor,
+                                    gasnete_coll_scale_ptr(args->dst, GASNETE_COLL_MYDECMOD(gasneti_mynode,(data->state-1)), args->nbytes),
+                                    gasnete_coll_scale_ptr(args->dst, GASNETE_COLL_MYDECMOD(gasneti_mynode,(data->state-1)), args->nbytes),
+                                    args->nbytes); 
+      
+    }
+    data->state++;
+    
+  }
+  return result;
+}
+#undef GASNETE_COLL_MYDECMOD
+
+
+extern gasnet_coll_handle_t
+gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
+                          void *dst, void *src,
+                          size_t nbytes, int flags, uint32_t sequence
+                          GASNETE_THREAD_FARG)
+{
+  /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
+    Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
+  GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
+  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  
+  return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
+					    &gasnete_coll_pf_gall_RingPut, options,
+					    NULL, 
+                                            gasnete_coll_total_images GASNETE_THREAD_PASS);
+}
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_exchange_nb() */
 
