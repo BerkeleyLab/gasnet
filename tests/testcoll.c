@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2007/02/21 03:13:25 $
- * $Revision: 1.22.6.7 $
+ *     $Date: 2007/03/01 19:49:10 $
+ * $Revision: 1.22.6.8 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,8 +92,8 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
                                                                              \
 	global_barrier();                                                    \
                                                                              \
-	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
-	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
+	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                           \
+	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);     \
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);        \
 	CALL(scatter##SUFFIX, ALL(E), ROOT(D),                               \
@@ -118,13 +118,13 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 	    }                                                                \
 	}                                                                    \
 	if (*LOCAL(E) != mythread*R[j] + root) {                             \
-	    MSG("ERROR: %s scatter validation failed", name);                \
+	    MSG("ERROR: %s scatter validation failed (%d,%d)", name, *LOCAL(E), mythread*R[j] + root);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(F)[i] != i) {                                          \
 		MSG("ERROR: %s gather_all validation failed (%d,%d)", name, i, LOCAL(F)[i]);         \
-		gasnet_exit(1);                                              \
+		/*gasnet_exit(1);*/                                              \
 	    }                                                                \
 	}                                                                    \
 	for (i = 0; i < images; ++i) {                                       \
@@ -224,8 +224,8 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
             gasnet_get_bulk(LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int)); \
             for (i = 0; i < images; ++i) {                                   \
 	    if (LOCAL(D)[i] != i) {                                          \
-		MSG("ERROR: %s gather validation failed", name);             \
-		gasnet_exit(1);                                              \
+		MSG("ERROR: %s gather validation failed (%d,%d)", name, LOCAL(D)[i], i);             \
+		/*gasnet_exit(1);*/                                              \
 	    }                                                                \
 	}                                                                    \
         global_barrier(); /* to avoid conflict on D */                       \
@@ -419,10 +419,13 @@ void *thread_main(void *arg) {
 #else
   gasnet_coll_init(NULL, 0, NULL, 0, 0);
 #endif
+  gasnet_coll_set_tree_kind((char*) "GASNET_REV_RECURSIVE_TREE");
+  gasnet_coll_set_fanout(3);
 
   td->hndl = test_malloc(iters*sizeof(gasnet_coll_handle_t));
 
   /* Run w/ root = (first, middle, last) w/o duplication */
+  
   for (i = 0; i < 3; ++i) { 
   /*for(i=0; i<1; i++) {*/
     int root;
@@ -516,7 +519,7 @@ int main(int argc, char **argv)
     if (argc > 3) test_usage();
 
     MSG0("Running coll test(s) with %d iterations.", iters);
-
+ 
     R = test_malloc(iters*sizeof(int));
     TEST_SRAND(1);
 

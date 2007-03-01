@@ -8,8 +8,14 @@ int gasnete_coll_current_fanout;
 void gasnet_coll_set_tree_kind(char *str) {
   if(strcmp(str, "GASNET_BINOMIAL_TREE")==0) {
     gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
-  } else {
+  } else if(strcmp(str, "GASNET_NARY_TREE")==0) {
     gasnete_coll_current_tree_kind = GASNETE_COLL_NARY_TREE;
+  } else if(strcmp(str, "GASNET_DFS_RECURSIVE_TREE")==0) {
+    gasnete_coll_current_tree_kind = GASNETE_COLL_DFS_RECURSIVE_TREE;
+  } else if(strcmp(str, "GASNET_REV_RECURSIVE_TREE")==0) {
+    gasnete_coll_current_tree_kind = GASNETE_COLL_REV_RECURSIVE_TREE;
+  } else {
+    gasneti_fatalerror("Unknown Tree Type: %s\n", str);
   }
 }
 void gasnet_coll_set_fanout(int fanout) {
@@ -22,7 +28,7 @@ int gasnete_coll_get_current_fanout() {
   return gasnete_coll_current_fanout;
 }
 /* tree building code*/
-int gasnete_coll_build_tree_mypow(int base, int pow) {
+int gasnete_coll_build_tree_mypow(gasnet_node_t base, int pow) {
   int ret = 1;
   while(pow!=0) {
     ret *=base;
@@ -30,7 +36,7 @@ int gasnete_coll_build_tree_mypow(int base, int pow) {
   }
     return ret;
 }
-int gasnete_coll_build_tree_mylog2(unsigned int num) {
+int gasnete_coll_build_tree_mylog2(gasnet_node_t num) {
   unsigned int ret=0;
   while (num >= 1) {
     ret++;
@@ -39,7 +45,7 @@ int gasnete_coll_build_tree_mylog2(unsigned int num) {
   return MAX(1,ret);
 }
 
-int gasnete_coll_build_tree_mylogn(int num, int base) {
+int gasnete_coll_build_tree_mylogn(gasnet_node_t num, int base) {
   int ret=1;
   int mult = base;
   while (num > mult) {
@@ -52,28 +58,29 @@ int gasnete_coll_build_tree_mylogn(int num, int base) {
 
 
 
-void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread) {
+
+void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mynode) {
   int i;
   
   for(i=0; i<geom->child_count; i++) {
-    fprintf(stderr, "%d> child %d: %d, subtree for that child: %d\n", gasnete_coll_tree_mythread, i, geom->child_list[i], geom->subtree_sizes[i]);
+    fprintf(stderr, "%d> child %d: %d, subtree for that child: %d\n", gasnete_coll_tree_mynode, i, geom->child_list[i], geom->subtree_sizes[i]);
   }
   if(gasneti_mynode == geom->root) {
     for(i=0; i<geom->total_size; i++) {
       fprintf(stderr, "%d> dfs order %d: %d\n", gasneti_mynode, i, geom->dfs_order[i]);
     }
   } else {
-     fprintf(stderr, "%d> parent: %d\n", gasnete_coll_tree_mythread, geom->parent);
+     fprintf(stderr, "%d> parent: %d\n", gasnete_coll_tree_mynode, geom->parent);
   }
   fprintf(stderr, "%d> mysubtree size: %d\n", gasneti_mynode, geom->mysubtree_size);
 #if 1
-  fprintf(stderr, "%d> My sibling info: (id: %d, offset %d)\n", gasnete_coll_tree_mythread, geom->sibling_id, geom->sibling_offset);
+  fprintf(stderr, "%d> My sibling info: (id: %d, offset %d)\n", gasnete_coll_tree_mynode, geom->sibling_id, geom->sibling_offset);
 #endif
 }
 
-void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mynode, int gasnete_coll_tree_nodes) {
   
-  int i = gasnete_coll_tree_threads;
+  int i = gasnete_coll_tree_nodes;
   int k;
   int factor;
   int lognp;
@@ -83,7 +90,7 @@ void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, 
   
   
   lognp = 0;
-  i = gasnete_coll_tree_threads;
+  i = gasnete_coll_tree_nodes;
   while(i > 1) {
     lognp ++;
     i = i/2;
@@ -95,8 +102,8 @@ void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, 
   k=0;
   factor = 2;
   for(i=0; i<lognp; i++) {
-    j = (gasnete_coll_tree_mythread + (factor/2))%factor;
-    j += (gasnete_coll_tree_mythread / factor) * factor;
+    j = (gasnete_coll_tree_mynode + (factor/2))%factor;
+    j += (gasnete_coll_tree_mynode / factor) * factor;
     proc_list[i] = j;
     factor = factor * 2;
   }
@@ -115,20 +122,151 @@ int gasnete_coll_build_tree_START(int level, int fanout) {
   return ret;
 }
 
+gasnet_node_t gasnete_coll_get_jth_digit(gasnet_node_t num, int digit_id, int radix) {
+  if(radix == 2) {
+    num = num >> digit_id;
+    return (num & 0x1);
+  } else if (radix == 4) {
+    num = num >> (digit_id*2);
+    return (num & (0x3));
+  } else {
+    while(digit_id > 0) {
+      num = num/radix;
+      digit_id--;
+    }
+    return num%radix;
+  }
+}
+
+gasnet_node_t gasnete_coll_get_upper_j_digits(gasnet_node_t num, int digit_id, int radix) {
+  if(radix == 2) {
+    return num >> digit_id;
+  } else if (radix == 4) {
+    return num >> (digit_id*2);
+  } else {
+    while(digit_id > 0) {
+      num = num/radix;
+      digit_id--;
+    }
+    return num;
+  }
+}
 
 
-gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind, int fanout, int root, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads, int threads_per_node) {
+gasnet_node_t gasnete_coll_replace_jth_digit(gasnet_node_t num, int in_digit_id, int radix, int new_digit) {
+  int i=new_digit;
+  int pow=1;
+  int digit_id = in_digit_id;
+  while(digit_id > 0) {
+    i*=radix;
+    pow*=radix;
+    digit_id--;
+  }
   
-#define ACT2REL(actrank, root) ( (actrank >= root) ? actrank - root : actrank \
-- root + gasnete_coll_tree_threads )
-#define REL2ACT(relrank, root) (((relrank < (gasnete_coll_tree_threads-root)) ? relrank \
-+ root : relrank + root - gasnete_coll_tree_threads)) 
+  if(gasnete_coll_get_jth_digit(num,in_digit_id,radix)==0) {
+    return num+i;
+  } else {
+    int ret;
+    int bot=0;
+    int j,mult=1;
+    ret = gasnete_coll_get_upper_j_digits(num,in_digit_id+1,radix)*pow*radix;
+    for(j=0,mult=1;j<in_digit_id;j++,mult*=radix) {
+      bot += gasnete_coll_get_jth_digit(num, j, radix)*mult;
+    }
+    return ret+bot;
+  }
+}
+#define GASNETE_COLL_ACT2REL(actrank, root, nodes) ( ((actrank) >= (root)) ? (actrank) - (root) : (actrank) \
+                                              - (root) + (nodes) )
+#define GASNETE_COLL_REL2ACT(relrank, root, nodes) ( (relrank) < (gasneti_nodes-root) ? \
+                                                     (relrank) + (root) : (relrank) + (root) - (nodes))
+
+#define GASNETE_COLL_DFS_RECURSIVE (1<<2)
+#define GASNETE_COLL_REV_RECURSIVE (1<<3)
+void gasnete_coll_build_recursive_tree(int fanout, gasnet_node_t mynode, gasnet_node_t nodes, gasnet_node_t root, gasnet_node_t *parent, gasnet_node_t **children, gasnet_node_t *child_count, int options) {
+  gasnet_node_t relrank;
+  gasnet_node_t *temp_dest_list;
+  int num_child=0;
+  int i,j;
+  int d = gasnete_coll_build_tree_mylogn(nodes, fanout); /* the number of digits required to represent the largest node number */
   
-  int relrank = ACT2REL(gasnete_coll_tree_mythread, root);
+  
+  relrank = GASNETE_COLL_ACT2REL(mynode, root,nodes);
+  
+  
+  /*assume that the number of GASNET_NODES will fit into an unsigned 32-bit int as specified
+    in gasnet.h*/
+  /*thus i assume there will be a max of 2^32 = 4,294,967,296 GASNET_NODES*/
+  temp_dest_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*gasnete_coll_build_tree_mylogn(nodes,fanout)*(fanout-1));
+  /* All the processors will work first transform their number into the base specified by fanout*/
+  
+  /* Let us first assume that it will take d digits to represent the rank of any node numbered 0:d-1*/
+  
+  
+  /* if digit j is 0 that menas we are are responsible for sending to those threads that have 
+    the same digits as me with their j^th digit replaced with 1,2,...,k
+    
+    Once i find a digit j that is not 0, then my parent is simply the node with the j^th digit 
+    replaced with 0. From here on out, i will have no more children and i can simply return
+    */
+  
+  /*find children*/
+  *parent = -1;
+  if(options & GASNETE_COLL_DFS_RECURSIVE) {
+    for(j=0; j<d; j++) {
+      if(gasnete_coll_get_jth_digit(relrank,j,fanout) == 0) {
+        for(i=1; i<fanout; i++) {
+          int temp = gasnete_coll_replace_jth_digit(relrank,j,fanout,i);
+          if(temp < nodes) {
+            temp_dest_list[num_child] = GASNETE_COLL_REL2ACT(temp,root,nodes);  
+            num_child++;
+          }
+        }
+      } else {
+        /* I am not looking for anymore children and i am done*/
+        /* Find the parent and break*/
+        *parent = GASNETE_COLL_REL2ACT(gasnete_coll_replace_jth_digit(relrank, j, fanout, 0), root,nodes);
+        break;
+      }
+    }
+  } else if(options & GASNETE_COLL_REV_RECURSIVE){
+    for(j=d-1; j>=0; j--) {
+      if(gasnete_coll_get_jth_digit(relrank,j,fanout) == 0) {
+        for(i=fanout-1; i>0; i--) {
+          int temp = gasnete_coll_replace_jth_digit(relrank,j,fanout,i);
+          if(temp < nodes) {
+            temp_dest_list[num_child] = GASNETE_COLL_REL2ACT(temp,root,nodes);  
+            num_child++;
+          }
+        }
+      } else {
+        /* I am not looking for anymore children and i am done*/
+        /* Find the parent and break*/
+        *parent = GASNETE_COLL_REL2ACT(gasnete_coll_replace_jth_digit(relrank, j, fanout, 0), root,nodes);
+        break;
+      }
+    }
+  } else {
+    gasneti_fatalerror("BAD RECURSIVE TREE TYPE\n");
+  }
+  *child_count = num_child;
+  *children = gasneti_malloc(sizeof(gasnet_node_t)*num_child);
+  /*reverse the order of the children so that the heavier children are first*/
+  for(i=0; i<num_child; i++) {
+    (*children)[i] = temp_dest_list[num_child-i-1];
+  }
+/*  GASNETE_FAST_UNALIGNED_MEMCPY(*children, temp_dest_list, sizeof(gasnet_node_t)*num_child); */
+  gasneti_free(temp_dest_list);
+}
+
+
+gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_t kind, int fanout, int root, int gasnete_coll_tree_mynode, int gasnete_coll_tree_nodes, int threads_per_node) {
+  
+  int relrank = GASNETE_COLL_ACT2REL(gasnete_coll_tree_mynode, root,gasnete_coll_tree_nodes);
   gasnete_coll_local_tree_geom_t *geom = NULL;
-  int numnodes = gasnete_coll_tree_threads / threads_per_node;
+  int numnodes = gasnete_coll_tree_nodes / threads_per_node;
   int mynode = relrank / threads_per_node;
-  if(root%threads_per_node!=0 && gasnete_coll_tree_mythread==0) {
+  if(root%threads_per_node!=0 && gasnete_coll_tree_mynode==0) {
     fprintf(stderr, "TREE WARNING: trees are not properly optimized for the case when root%%threads_per_node (i.e. %d %% %d) !=0\n",  root, threads_per_node);
     fprintf(stderr, "TREE WARNING: use threads_per_node = 1 instead\n");
   
@@ -166,7 +304,7 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_
 	  /* we expect to recieve from some one */
 	  int relparent = (mynode-gasnete_coll_build_tree_START(level,fanout))/fanout + 
 	    gasnete_coll_build_tree_START(level-1,fanout);
-	  geom->parent = REL2ACT(relparent*threads_per_node,root);
+	  geom->parent = GASNETE_COLL_REL2ACT(relparent*threads_per_node,root,gasnete_coll_tree_nodes);
 
 
 	}
@@ -183,14 +321,14 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_
 	geom->child_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*(fanout+threads_per_node));
 	geom->child_count=0;
 	for(i=0; i<fanout; i++) {
-	  if(tchild[i]<gasnete_coll_tree_threads) {
-	    geom->child_list[geom->child_count]=REL2ACT(tchild[i], root);
+	  if(tchild[i]<gasnete_coll_tree_nodes) {
+	    geom->child_list[geom->child_count]=GASNETE_COLL_REL2ACT(tchild[i], root,gasnete_coll_tree_nodes);
 	    geom->child_count++;
 	  }
 	}
 	for(j=1 ;j<threads_per_node;  j++) {
-	  if(relrank+j<gasnete_coll_tree_threads) {
-	    geom->child_list[geom->child_count]=REL2ACT(relrank+j, root);
+	  if(relrank+j<gasnete_coll_tree_nodes) {
+	    geom->child_list[geom->child_count]=GASNETE_COLL_REL2ACT(relrank+j, root,gasnete_coll_tree_nodes);
 	    geom->child_count++;
 	  }
 	}
@@ -206,7 +344,7 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_
 
       }
       else {
-      geom->parent = REL2ACT(relrank - (relrank % threads_per_node),root);
+      geom->parent = GASNETE_COLL_REL2ACT(relrank - (relrank % threads_per_node),root,gasnete_coll_tree_nodes);
       geom->child_list = NULL;
       geom->child_count = 0;
       
@@ -222,14 +360,12 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_
       gasnet_node_t *temp_dest_list;
       int mask = 1;
       int num_child=0;
-      /*assume that the number of GASNET_NODES will fit into an unsigned 32-bit int as specified in gasnet.h*/
-      /*thus i assume there will be a max of 2^32 = 4,294,967,296 GASNET_NODES*/
-      temp_dest_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*sizeof(gasnete_coll_tree_threads));
+      temp_dest_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*gasnete_coll_build_tree_mylog2(gasnete_coll_tree_nodes));
       mask = 0x1;
-      while (mask < gasnete_coll_tree_threads) {
+      while (mask < gasnete_coll_tree_nodes) {
         if (relrank & mask) {
-          src = (gasnete_coll_tree_mythread >= mask) ? (gasnete_coll_tree_mythread - mask)
-	    : (gasnete_coll_tree_mythread + (gasnete_coll_tree_threads - mask));
+          src = (gasnete_coll_tree_mynode >= mask) ? (gasnete_coll_tree_mynode - mask)
+	    : (gasnete_coll_tree_mynode + (gasnete_coll_tree_nodes - mask));
           geom->parent = src;
           break;
         }
@@ -238,10 +374,10 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_
       
       mask >>= 1;
       while (mask > 0) {
-        if (relrank + mask < gasnete_coll_tree_threads) {
+        if (relrank + mask < gasnete_coll_tree_nodes) {
           child = relrank + mask;
-          if (child >= gasnete_coll_tree_threads) child -= gasnete_coll_tree_threads;
-          temp_dest_list[num_child]=REL2ACT(child,root);
+          if (child >= gasnete_coll_tree_nodes) child -= gasnete_coll_tree_nodes;
+          temp_dest_list[num_child]=GASNETE_COLL_REL2ACT(child,root,gasnete_coll_tree_nodes);
           num_child++;
         }
         mask >>= 1;
@@ -257,37 +393,54 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_kind_
       
       if (relrank != 0) {
 	int id, i, j;
-	i = relrank - ACT2REL(src, root);
+	i = relrank - GASNETE_COLL_ACT2REL(src, root,gasnete_coll_tree_nodes);
 	/* compute floor(log_base_2(i)): */
 
 	
       } 
       geom->child_count = num_child;
-     /* geom->fanout = gasnete_coll_tree_threads; */
+     /* geom->fanout = gasnete_coll_tree_nodes; */
       gasneti_free(temp_dest_list);
 
-	}
+    }
     break;
+  case GASNETE_COLL_DFS_RECURSIVE_TREE:
+    gasnete_coll_build_recursive_tree(fanout, gasnete_coll_tree_mynode, gasnete_coll_tree_nodes, 
+                                      root, &geom->parent, &geom->child_list, 
+                                      &geom->child_count, GASNETE_COLL_DFS_RECURSIVE);
+    break;
+  case GASNETE_COLL_REV_RECURSIVE_TREE:
+    gasnete_coll_build_recursive_tree(fanout, gasnete_coll_tree_mynode, gasnete_coll_tree_nodes, 
+                                      root, &geom->parent, &geom->child_list, 
+                                      &geom->child_count, GASNETE_COLL_REV_RECURSIVE);
+    break;
+    
+  default:
+    gasneti_fatalerror("UNKNOWN TREE TYPE\n");
   }
   geom->root = root;
   geom->kind = kind;
   geom->fanout = fanout;
   return geom;
-  #undef ACT2REL
-  #undef REL2ACT
+
   
 }
+#undef GASNETE_COLL_DFS_RECURSIVE
+#undef GASNETE_COLL_REV_RECURSIVE
 
-gasnet_node_t gasnete_coll_get_sub_tree_size(gasnete_coll_local_tree_geom_t *geom, int subtreeroot, int gasnete_coll_tree_threads) {
+#undef GASNETE_COLL_ACT2REL
+#undef GASNETE_COLL_REL2ACT
+
+gasnet_node_t gasnete_coll_get_sub_tree_size(gasnete_coll_local_tree_geom_t *geom, int subtreeroot, int gasnete_coll_tree_nodes) {
   gasnete_coll_local_tree_geom_t *temp;
   int i;
   int ret = 1;
   /* for each child recursively run the depth first search */
   temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root, 
-                                 subtreeroot, gasnete_coll_tree_threads, 1);
+                                 subtreeroot, gasnete_coll_tree_nodes, 1);
   
   for(i=0; i<temp->child_count; i++) {
-    ret += gasnete_coll_get_sub_tree_size(geom, temp->child_list[i], gasnete_coll_tree_threads);
+    ret += gasnete_coll_get_sub_tree_size(geom, temp->child_list[i], gasnete_coll_tree_nodes);
   }
   gasneti_free(temp->child_list);
   gasneti_free(temp);
@@ -295,14 +448,14 @@ gasnet_node_t gasnete_coll_get_sub_tree_size(gasnete_coll_local_tree_geom_t *geo
   
 }
 
-void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mynode, int gasnete_coll_tree_nodes) {
   int i;
   gasnete_coll_local_tree_geom_t *temp;
 
   if(geom->child_count > 0) {
     geom->subtree_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
     for(i=0; i<geom->child_count; i++) {
-      geom->subtree_sizes[i] = gasnete_coll_get_sub_tree_size(geom, geom->child_list[i], gasnete_coll_tree_threads);
+      geom->subtree_sizes[i] = gasnete_coll_get_sub_tree_size(geom, geom->child_list[i], gasnete_coll_tree_nodes);
     }
   } else {
     geom->subtree_sizes = NULL;
@@ -310,9 +463,9 @@ void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int g
   if(geom->root!=gasneti_mynode) {
     geom->parent_subtree_size = 1;
     temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root, 
-                                   geom->parent, gasnete_coll_tree_threads, 1);
+                                   geom->parent, gasnete_coll_tree_nodes, 1);
     for(i=0; i<temp->child_count; i++) {
-      geom->parent_subtree_size += gasnete_coll_get_sub_tree_size(geom, temp->child_list[i], gasnete_coll_tree_threads);
+      geom->parent_subtree_size += gasnete_coll_get_sub_tree_size(geom, temp->child_list[i], gasnete_coll_tree_nodes);
     }
     gasneti_free(temp->child_list);
     gasneti_free(temp);
@@ -326,35 +479,35 @@ void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int g
 }
 
 /* these functions should only be called by the root of the geom object*/
-void gasnete_coll_set_dfs_order_helper(gasnete_coll_local_tree_geom_t *geom, int subtreeroot, int gasnete_coll_tree_threads,
+void gasnete_coll_set_dfs_order_helper(gasnete_coll_local_tree_geom_t *geom, int subtreeroot, int gasnete_coll_tree_nodes,
                                                 gasnet_node_t *lst, gasnet_node_t *pos) {
   int num_added = 0, i;
   gasnete_coll_local_tree_geom_t *temp;
-  gasneti_assert(*pos <= gasnete_coll_tree_threads);
+  gasneti_assert(*pos <= gasnete_coll_tree_nodes);
   lst[*pos] = subtreeroot;
   (*pos)++;
   
   temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root, 
-                                 subtreeroot, gasnete_coll_tree_threads, 1);
+                                 subtreeroot, gasnete_coll_tree_nodes, 1);
   for(i=0; i<temp->child_count; i++) {
-    gasnete_coll_set_dfs_order_helper(geom, temp->child_list[i], gasnete_coll_tree_threads, lst, pos);
+    gasnete_coll_set_dfs_order_helper(geom, temp->child_list[i], gasnete_coll_tree_nodes, lst, pos);
   }
   gasneti_free(temp->child_list);
   gasneti_free(temp);
 }
 
 
-void gasnete_coll_set_dfs_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_dfs_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_nodes) {
   int i;
   gasnet_node_t pos = 0;
   gasneti_assert(geom->root == gasneti_mynode);
   
   if(geom->child_count > 0) {
-    geom->dfs_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*gasnete_coll_tree_threads);
+    geom->dfs_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*gasnete_coll_tree_nodes);
     geom->dfs_order[pos] = geom->root;
     pos++;
     for(i=0; i<geom->child_count; i++) {
-      gasnete_coll_set_dfs_order_helper(geom, geom->child_list[i], gasnete_coll_tree_threads, geom->dfs_order, &pos);
+      gasnete_coll_set_dfs_order_helper(geom, geom->child_list[i], gasnete_coll_tree_nodes, geom->dfs_order, &pos);
     }
   } else {
     geom->dfs_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*1);
@@ -363,17 +516,17 @@ void gasnete_coll_set_dfs_order(gasnete_coll_local_tree_geom_t *geom, int gasnet
 }
 
 #if 1
-gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_local_tree_geom_t *geom, gasnet_node_t gasnete_coll_tree_mythread, gasnet_node_t gasnete_coll_tree_threads, gasnet_node_t *num_siblings, gasnet_node_t *sibling_id) {
+gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_local_tree_geom_t *geom, gasnet_node_t gasnete_coll_tree_mynode, gasnet_node_t gasnete_coll_tree_nodes, gasnet_node_t *num_siblings, gasnet_node_t *sibling_id) {
   gasnete_coll_local_tree_geom_t *temp;
   int i;
   gasnet_node_t *ret_list;
   int flag =0;
   
-  if(gasnete_coll_tree_mythread!=geom->root) {
+  if(gasnete_coll_tree_mynode!=geom->root) {
     /*build a temporary tree with our parent as the root*/
     temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root,
-                                   geom->parent, gasnete_coll_tree_threads, 1);
-    gasnete_coll_set_sub_tree_sizes(temp, geom->parent, gasnete_coll_tree_threads); 
+                                   geom->parent, gasnete_coll_tree_nodes, 1);
+    gasnete_coll_set_sub_tree_sizes(temp, geom->parent, gasnete_coll_tree_nodes); 
     
     /*use the resultant tree to deduce the children (which are our siblings)*/
     *num_siblings = temp->child_count;
@@ -388,7 +541,7 @@ gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_local_tree_geom_t *geo
  
     flag =0;
     for(i=0; i<(*num_siblings); i++) {
-      if(gasnete_coll_tree_mythread == temp->child_list[i]) {
+      if(gasnete_coll_tree_mynode == temp->child_list[i]) {
 	*sibling_id = i;
         flag = 1;
 	break;
@@ -398,7 +551,7 @@ gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_local_tree_geom_t *geo
     gasneti_free(temp->subtree_sizes);
     
     if(flag == 0) {
-      gasneti_fatalerror("%d> FATAL TREE ERROR: I am not in my parents child list\n", gasnete_coll_tree_mythread);
+      gasneti_fatalerror("%d> FATAL TREE ERROR: I am not in my parents child list\n", gasnete_coll_tree_mynode);
       
     }
     gasneti_free(temp);
@@ -411,10 +564,10 @@ gasnet_node_t* gasnete_coll_get_sibling_list(gasnete_coll_local_tree_geom_t *geo
   return ret_list;
 }
 
-void gasnete_coll_set_sibling_info(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mythread, int gasnete_coll_tree_threads) {
+void gasnete_coll_set_sibling_info(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mynode, int gasnete_coll_tree_nodes) {
   gasnet_node_t *list;
   int i;
-  list =gasnete_coll_get_sibling_list(geom, gasnete_coll_tree_mythread, gasnete_coll_tree_threads, &(geom->num_siblings), &(geom->sibling_id));
+  list =gasnete_coll_get_sibling_list(geom, gasnete_coll_tree_mynode, gasnete_coll_tree_nodes, &(geom->num_siblings), &(geom->sibling_id));
 
   geom->sibling_offset = 0;
   for(i=0; i<geom->sibling_id; i++) {
@@ -463,19 +616,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
 #if 0
    gasnete_coll_print_tree(geom, gasneti_mynode);
 #endif
-#ifdef GASNETC_HAVE_AMRDMA
-   if(team->myrank != geom->root) {
-     int count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom);
-     gasnet_node_t *tmp = gasneti_calloc(1+count, sizeof(gasnet_node_t));
-     memcpy(tmp, GASNETE_COLL_TREE_GEOM_CHILDREN(geom), count*sizeof(gasnet_node_t));
-     tmp[count] = GASNETE_COLL_TREE_GEOM_PARENT(geom);
-     gasnetc_amrdma_init(1+count, tmp);
-     gasneti_free(tmp);
-   } else {
-     gasnetc_amrdma_init(GASNETE_COLL_TREE_GEOM_CHILD_COUNT(geom),
-                         GASNETE_COLL_TREE_GEOM_CHILDREN(geom));
-   }
-#endif
+
    return geom;
 }
 
@@ -587,7 +728,19 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
     ret = curr_geom->local_views[root];
   }
   
-
+#ifdef GASNETC_HAVE_AMRDMA
+  if(team->myrank != ret->root) {
+    int count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(ret);
+    gasnet_node_t *tmp = gasneti_calloc(1+count, sizeof(gasnet_node_t));
+    memcpy(tmp, GASNETE_COLL_TREE_GEOM_CHILDREN(ret), count*sizeof(gasnet_node_t));
+    tmp[count] = GASNETE_COLL_TREE_GEOM_PARENT(ret);
+    gasnetc_amrdma_init(1+count, tmp);
+    gasneti_free(tmp);
+  } else {
+    gasnetc_amrdma_init(GASNETE_COLL_TREE_GEOM_CHILD_COUNT(ret),
+                        GASNETE_COLL_TREE_GEOM_CHILDREN(ret));
+  }
+#endif
 
   return ret;
 }

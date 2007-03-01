@@ -168,7 +168,7 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     stat->first_collective=0;
   }   else if((stat->curr_root !=scratch_req->root) || 
 	      (stat->curr_tree_type !=scratch_req->tree_type) ||
-	      ((stat->curr_tree_type == GASNETE_COLL_NARY_TREE) && 
+	      ((stat->curr_tree_type != GASNETE_COLL_BINOMIAL_TREE) && 
 	       (stat->curr_tree_fanout != scratch_req->fanout)) || 
               stat->last_op == GASNETE_COLL_SCRATCH_DISSEM_OP ||
               stat->curr_tree_dir != scratch_req->tree_dir) {

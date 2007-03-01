@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/02/28 02:03:04 $
- * $Revision: 1.22.6.20 $
+ *     $Date: 2007/03/01 19:49:07 $
+ * $Revision: 1.22.6.21 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,7 +58,8 @@ typedef union gasnete_coll_p2p_entry_t_ gasnete_coll_p2p_entry_t;
 struct gasnete_coll_generic_data_t_;
 typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
 
-typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE} gasnete_coll_tree_kind_t;
+typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE, 
+              GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE} gasnete_coll_tree_kind_t;
 
 struct gasnete_coll_tree_data_t_;
 typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
