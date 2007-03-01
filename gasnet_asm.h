@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2007/02/22 22:34:15 $
- * $Revision: 1.119 $
+ *     $Date: 2006/12/30 10:18:39 $
+ * $Revision: 1.118 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,8 +44,8 @@
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
    * See GASNet bugs 1751 and 1753 for discussion related to the difficulty with versioning
-   * of the Portland Group compilers.  See also PGI "tpr 3791" and "tpr 3937" and discussion
-   * thread http://www.pgroup.com/userforum/viewtopic.php?t=466
+   * of the Portland Group compilers.  See also PGI "tpr 3791" and discussion thread
+   * http://www.pgroup.com/userforum/viewtopic.php?t=466
    */
   #if (PLATFORM_COMPILER_PGI_C && PLATFORM_COMPILER_VERSION_GE(6,1,1)) || \
       (PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(6,2,2))

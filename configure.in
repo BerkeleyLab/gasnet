@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/03/01 01:37:19 $
-# $Revision: 1.444 $
+#     $Date: 2007/02/08 00:07:42 $
+# $Revision: 1.442 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.444 $)
+AC_REVISION($Revision: 1.442 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,7 +27,7 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[9])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[2])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -1740,9 +1740,6 @@ AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that in
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 CONDUIT_END([test "$enabled_mpi$have_mpi" = yesyes])
-if test "$enabled_mpi$have_mpi" = yesyes; then
-  have_ammpi=yes
-fi
 if test "$force_mpi_compat$have_mpi" = yesno ; then
   GASNET_MSG_ERROR(User requested --enable-mpi-compat but I don't know how to build MPI programs for your system)
 fi
@@ -2483,10 +2480,6 @@ fi
 
 AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$have_portals" = yes)
 CONDUIT_END([test "$have_portals" = yes])
-# TODO: remove when portals is fully native
-if test "$have_portals" = yes; then
-  have_ammpi=yes
-fi
 
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
@@ -2610,11 +2603,6 @@ AC_SUBST(SCI_INCLUDES)
 AC_SUBST(SCI_LIBS)
 AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
 CONDUIT_END([test "$have_sci" = yes])
-
-#---------------------------------------------------------------------------------------------------------------
-# build and install AMMPI
-AM_CONDITIONAL(USE_AMMPI, test "$have_ammpi" = yes)
-
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
 #---------------------------------------------------------------------------------------------------------------
