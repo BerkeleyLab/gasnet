@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.h,v $
- *     $Date: 2007/02/24 00:01:35 $
- * $Revision: 1.42.6.1 $
+ *     $Date: 2007/03/05 23:20:18 $
+ * $Revision: 1.42.6.2 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -186,7 +186,7 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 #define GASNETC_LONG_HDRSZ	(GASNETC_HDR_TIMESTAMP + SIZEOF_VOID_P + 4)
 
 #define GASNETC_MAX_ARGS_USER	16
-#define GASNETC_MAX_ARGS_EXTRA	1	/* 1 for piggbacked credits */
+#define GASNETC_MAX_ARGS_EXTRA	1	/* For flow-control info */
 #define GASNETC_MAX_ARGS	(GASNETC_MAX_ARGS_USER + GASNETC_MAX_ARGS_EXTRA)
 #define GASNETC_MAX_MEDIUM	\
 		(GASNETC_BUFSZ - GASNETC_ALIGNUP(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
