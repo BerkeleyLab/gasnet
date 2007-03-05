@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2007/02/24 00:01:35 $
- * $Revision: 1.31.4.1 $
+ *     $Date: 2007/03/05 23:20:18 $
+ * $Revision: 1.31.4.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,12 +21,18 @@
   #undef VAPI
 #endif
 
-
-#define GASNET_CORE_VERSION      1.7
+#define GASNET_CORE_VERSION      1.8
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
-#define GASNET_CORE_NAME         VAPI
+#if defined(GASNET_CONDUIT_VAPI)
+  #define GASNET_CORE_NAME         VAPI
+#elif defined(GASNET_CONDUIT_IBV)
+  #define GASNET_CORE_NAME         IBV
+#else
+  #error "Exactly one of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
+#endif
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
-#define GASNET_CONDUIT_VAPI      1
+#define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
+#define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 
 /* This is the limit on the LID space... */
 #define GASNET_MAXNODES	16384
@@ -39,7 +45,12 @@ typedef uint8_t gasnet_handler_t;
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#define GASNET_ALIGNED_SEGMENTS   1
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#else
+  #define GASNET_ALIGNED_SEGMENTS   1 
+#endif
+
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
@@ -48,6 +59,10 @@ typedef uint8_t gasnet_handler_t;
         CNT(C, AMREPLY_SYS, cnt)                  \
         CNT(C, AMREQUEST_SYS_HANDLER, cnt)        \
         CNT(C, AMREPLY_SYS_HANDLER, cnt)          \
+        CNT(C, SND_AM_SNDRCV, cnt)                \
+        CNT(C, SND_AM_RDMA, cnt)                  \
+        CNT(C, RCV_AM_SNDRCV, cnt)                \
+        CNT(C, RCV_AM_RDMA, cnt)                  \
         VAL(C, RDMA_PUT_IN_MOVE, bytes)           \
         VAL(C, RDMA_PUT_INLINE, bytes)            \
         VAL(C, RDMA_PUT_BOUNCE, bytes)            \
@@ -55,8 +70,6 @@ typedef uint8_t gasnet_handler_t;
         VAL(C, RDMA_GET_BOUNCE, bytes)            \
         VAL(C, RDMA_GET_ZEROCP, bytes)            \
         CNT(C, ALLOC_AM_SPARE, cnt)	          \
-        VAL(C, SND_AM_CREDITS, piggybacked credits) \
-        VAL(C, RCV_AM_CREDITS, piggybacked credits) \
         CNT(C, GET_AMREQ_CREDIT, cnt)             \
 	TIME(C, GET_AMREQ_CREDIT_STALL, stalled time) \
 	TIME(C, GET_AMREQ_BUFFER_STALL, stalled time) \
@@ -82,8 +95,9 @@ extern void gasnetc_fatalsignal_callback(int sig);
 
 /*
  * The VAPI conduit may have a network progress thread, even for GASNET_SEQ
+ * XXX: no progress thread for IBV yet
  */
-#if GASNETC_VAPI_RCV_THREAD
+#if GASNET_CONDUIT_VAPI && GASNETC_VAPI_RCV_THREAD
   #define GASNETI_CONDUIT_THREADS 1
 #endif
 
@@ -97,7 +111,7 @@ extern void gasnetc_fatalsignal_callback(int sig);
 	gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
 #endif
 
-#if PLATFORM_COMPILER_PGI
+#if PLATFORM_COMPILER_PGI && GASNET_CONDUIT_VAPI
   /* VAPI headers rely on the non-portable u_int*_t names
      PGI lacks these, so translate them to the versions guaranteed by the C99 spec and portable_inttypes
    */
@@ -114,5 +128,8 @@ extern void gasnetc_fatalsignal_callback(int sig);
   #define u_int64_t uint64_t
  #endif
 #endif
+
+extern void gasnetc_amrdma_init(int, const gasnet_node_t *);
+#define GASNETC_HAVE_AMRDMA
 
 #endif
