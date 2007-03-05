@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/contrib/gasnetrun_ibv.pl,v $
-#     $Date: 2005/08/29 21:12:32 $
-# $Revision: 1.5 $
-# Description: GASNet VAPI spawner
+#     $Date: 2007/03/05 23:20:21 $
+# $Revision: 1.5.8.1 $
+# Description: GASNet VAPI and IBV spawner
 # Terms of use are as specified in license.txt
 
 require 5.004;
@@ -20,7 +20,8 @@ my $exepath = undef;
 my $exeindex = undef;
 my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
-my $spawner = $ENV{'GASNET_VAPI_SPAWNER'};
+my $spawner = $ENV{'GASNET_IB_SPAWNER'};
+my $conduit = $ENV{'GASNET_IB_CONDUIT'};
 
 sub usage
 {
@@ -124,7 +125,7 @@ sub fullpath($)
     if (!defined($spawner)) {
         usage "Option -spawner was not given and no default is set\n"
     }
-    if (($spawner eq 'MPI') && !$ENV{VAPI_BOOTSTRAP_MPI}) {
+    if (($spawner eq 'MPI') && !$ENV{GASNET_IB_BOOTSTRAP_MPI}) {
         usage "Spawner is set to MPI, but MPI support was not compiled in\n"
     }
 
@@ -150,7 +151,7 @@ sub fullpath($)
 	{   local $/ = '$'; # use $ as the line break symbol
             while (<FILE>) {
                 next unless(/^GASNet/);
-		if (/GASNetConduitName: VAPI $/) { $is_gasnet = 1; next; }
+		if (/GASNetConduitName: $conduit $/) { $is_gasnet = 1; next; }
                 if (/$pattern/o) { $found = 1; last; }
             }
         }
@@ -179,12 +180,17 @@ sub fullpath($)
           die "error running $mpi:\n $@ $err\n";
         }
     } elsif ($spawner eq 'SSH') {
+	my $wrapper = ($exeindex > 1) ? join ' ',
+					     map { s/'/'\\''/g; "'".$_."'"; }
+						 splice @ARGV, 0, $exeindex-1
+				      : undef;
 	my @extra_args = grep { defined($_); } ('-GASNET-SPAWN-master',
 						$verbose ? '-v' : undef,
+						$wrapper ? ('-W'.$wrapper) : undef,
 						"$numproc" . ($numnode ? ":$numnode" : ''),
 						'--');
 	my @cmd = @ARGV;
-	splice @cmd, $exeindex, 0, @extra_args;
+	splice @cmd, 1, 0, @extra_args;
 	print("gasnetrun: running: ", join(' ', @cmd), "\n") if ($verbose);
 	unless ($dryrun) { exec(@cmd) or die "failed to exec $exebase\n"; }
     } else {
