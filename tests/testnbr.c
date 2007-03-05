@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2007/02/24 00:01:28 $
- * $Revision: 1.11.10.1 $
+ *     $Date: 2007/03/05 23:20:11 $
+ * $Revision: 1.11.10.2 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -229,6 +229,7 @@ void gam_amlong(nbr_t *nb, gasnet_node_t node, int axis,
 
 void _init_stat(nbr_t *nb, stat_struct_t *st, int axis, int dims, int sz)
 {
+        memset(st, 0, sizeof(*st)); /* prevent valgrind warnings about struct padding */
 	st->iters = 0;
 	st->dims = dims;
 	st->datasize = sz;
@@ -958,7 +959,7 @@ void
 ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 {
     unsigned int i, j, axis, dest, face;
-    volatile int *sync;
+    volatile int *syncflag;
 
     uint64_t	    begin, end;
     stat_struct_t   stcomm3;
@@ -1018,14 +1019,14 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 		for (face=0; face<2; face++) {
 		    if (rfacedone[face])
 			continue;
-		    sync = NBR_SYNCADDR(nb->DirSync[myproc], axis, face, 0);
-		    if (*sync != 0) {
+		    syncflag = NBR_SYNCADDR(nb->DirSync[myproc], axis, face, 0);
+		    if (*syncflag != 0) {
 			/* Unless the axis is contiguous, unpack data */
 			if (axis != AZ) {
 			    ge_unpack(nb, nb->dimBufs[axis][face], 
 				      face ? nb->dims[axis]-1 : 0, axis);
 			}
-			*sync = 0;
+			*syncflag = 0;
 			rfacedone[face] = 1;
 			rfaces++;
 		    }
@@ -1114,7 +1115,7 @@ pairwise_wait_nbrs(nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int phase)
     int	    nfaces;
     int	    faces = 0;
     int	    axes[3];
-    volatile int    *sync;
+    volatile int    *syncflag;
 
     if (axis_in == AALL) {
 	nfaces = 6;
@@ -1135,20 +1136,20 @@ pairwise_wait_nbrs(nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int phase)
 	gasnet_AMPoll();
 	for (i = 0; i < axis_tot; i++) {
 	    axis = axes[i];
-	    sync = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 0, phase);
-	    if (*sync) faces++;
-	    sync = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 1, phase);
-	    if (*sync) faces++;
+	    syncflag = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 0, phase);
+	    if (*syncflag) faces++;
+	    syncflag = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 1, phase);
+	    if (*syncflag) faces++;
 	}
     } while (faces < nfaces);
 
     /* Reset signal locations for current phase */
     for (i = 0; i < axis_tot; i++) {
 	axis = axes[i];
-	sync = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 0, phase);
-	*sync = 0;
-	sync = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 1, phase);
-	*sync = 0;
+	syncflag = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 0, phase);
+	*syncflag = 0;
+	syncflag = NBR_SYNCADDR(nb->DirSyncComm3[myproc], axis, 1, phase);
+	*syncflag = 0;
     }
 }
 
@@ -1323,14 +1324,14 @@ ge_notify(nbr_t *nb, int dir, int axis)
 {
     int islower = (dir == GHOST_DIR_LOWER);
     int node = islower ? nb->nodeidLower[axis] : nb->nodeidUpper[axis];
-    volatile int *sync = NBR_SYNCADDR(nb->DirSync[node], axis, islower, 0);
+    volatile int *syncflag = NBR_SYNCADDR(nb->DirSync[node], axis, islower, 0);
 
     if (node == myproc) {
-	*sync = 1;
+	*syncflag = 1;
 	return GASNET_INVALID_HANDLE;
     }
     else
-	return gasnet_put_nb_val(node, (void *)sync, 1, sizeof(int));
+	return gasnet_put_nb_val(node, (void *)syncflag, 1, sizeof(int));
 }
 
 

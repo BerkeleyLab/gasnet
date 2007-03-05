@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/contrib/Attic/gasnetrun_gm.pl,v $
-#     $Date: 2005/08/01 05:13:15 $
-# $Revision: 1.24 $
+#     $Date: 2007/03/05 23:19:32 $
+# $Revision: 1.24.10.1 $
 #
 # Included here as a contrib/ from the mpich 1.2.5..10 mpirun script,
 # since this is the closest thing myricom ships to a spawner interface.
@@ -45,6 +45,8 @@ $dry_run = 0;
 $kill_time = 0;
 $recv_mode = 'polling';
 $exit_code = 0;
+my $envprog = $ENV{'ENVCMD'} || "/usr/bin/env";
+$envprog = "env" if (! -x $envprog);
 
 # GEXEC configuration, preconfigured for millennium.
 $gm_board_info = `which gm_board_info 2> /dev/null` || "/usr/mill/pkg/gm/bin/gm_board_info";
@@ -947,18 +949,18 @@ for ($i=0; $i<$np; $i++) {
 
     if ($totalview) {
       if ($i == 0) {
-	$cmdline = "cd $wdir ; env $varenv $totalview_cmd $apps_cmd[$i] -a $apps_flags[$i] -mpichtv";
+	$cmdline = "cd $wdir ; $envprog $varenv $totalview_cmd $apps_cmd[$i] -a $apps_flags[$i] -mpichtv";
       } else {
-	$cmdline = "cd $wdir ; env $varenv $apps_cmd[$i] $apps_flags[$i] -mpichtv";
+	$cmdline = "cd $wdir ; $envprog $varenv $apps_cmd[$i] $apps_flags[$i] -mpichtv";
       }
     } elsif ($ddt) {
       if ($i == 0) {
-	$cmdline = "cd $wdir ; env $varenv $ddt_cmd $apps_cmd[$i] $apps_flags[$i] -mpichtv";
+	$cmdline = "cd $wdir ; $envprog $varenv $ddt_cmd $apps_cmd[$i] $apps_flags[$i] -mpichtv";
       } else {
-	$cmdline = "cd $wdir ; env $varenv $apps_cmd[$i] $apps_flags[$i] -mpichtv";
+	$cmdline = "cd $wdir ; $envprog $varenv $apps_cmd[$i] $apps_flags[$i] -mpichtv";
       }
     } else {
-      $cmdline = "cd $wdir ; env $varenv $apps_cmd[$i] $apps_flags[$i]";
+      $cmdline = "cd $wdir ; $envprog $varenv $apps_cmd[$i] $apps_flags[$i]";
     }
 
     if ($dry_run) {

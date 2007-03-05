@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in       -*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/contrib/Attic/Makefile.am,v $
-#     $Date: 2004/08/26 04:54:03 $
-# $Revision: 1.4 $
+#     $Date: 2007/03/05 23:20:03 $
+# $Revision: 1.4.22.1 $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt

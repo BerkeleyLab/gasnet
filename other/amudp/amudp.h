@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2007/02/24 00:01:01 $
- * $Revision: 1.27.8.1 $
+ *     $Date: 2007/03/05 23:19:45 $
+ * $Revision: 1.27.8.2 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -24,7 +24,7 @@
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
 
-#define AMUDP_LIBRARY_VERSION      3.3
+#define AMUDP_LIBRARY_VERSION      3.4
 #define AMUDP_LIBRARY_VERSION_STR  _STRINGIFY(AMUDP_LIBRARY_VERSION)
 
 /* naming policy:
@@ -368,7 +368,6 @@ SOCK_BEGIN_EXTERNC
 /* AMUDP-specific user entry points */
 extern int AMUDP_VerboseErrors; /* set to non-zero for verbose error reporting */
 extern int AMUDP_PoliteSync; /* set to non-zero for polite blocking while awaiting send resources */
-extern int AMUDP_ExpectedBandwidth; /* expected half-duplex bandwidth in KBytes/sec */
 extern int AMUDP_SilentMode; /* set to non-zero to silence any non-error output */
 
 #ifdef __GNUC__

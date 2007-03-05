@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2007/02/24 00:00:35 $
- * $Revision: 1.140.4.1 $
+ *     $Date: 2007/03/05 23:19:16 $
+ * $Revision: 1.140.4.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@
 #include <fcntl.h>
 #include <signal.h>
 
-#if HAVE_MALLOC_H
+#if HAVE_MALLOC_H && !PLATFORM_OS_OPENBSD /* OpenBSD warns that malloc.h is obsolete */
   #include <malloc.h>
 #endif
 
@@ -70,6 +70,8 @@ GASNETI_IDENT(gasneti_IdentString_SegConfig, "$GASNetSegment: GASNET_SEGMENT_" G
 
 /* embed a string with complete configuration info to support versioning checks */
 GASNETI_IDENT(gasneti_IdentString_libraryConfig, "$GASNetConfig: (libgasnet.a) " GASNET_CONFIG_STRING " $");
+/* the canonical conduit name */
+GASNETI_IDENT(gasneti_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CONDUIT_NAME_STR " $");
 
 int gasneti_init_done = 0; /*  true after init */
 int gasneti_attach_done = 0; /*  true after attach */
@@ -331,8 +333,7 @@ void gasneti_defaultSignalHandler(int sig) {
         signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
       fflush(stderr);
 
-      if (gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0))
-        gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
+      gasnett_freezeForDebuggerErr(); /* allow freeze */
 
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
 
@@ -373,6 +374,7 @@ void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler) {
     gasneti_signals[i].oldhandler = 
       gasneti_reghandler(gasneti_signals[i].signum, handler);
   }
+  gasneti_ondemand_init(); /* allow user override of signal handlers */
 }
 
 extern int gasneti_set_waitmode(int wait_mode) {
@@ -665,14 +667,18 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
 
 /* ------------------------------------------------------------------------------------ */
 static void gasneti_check_portable_conduit() { /* check for portable conduit abuse */
-  char myconduit[80];
-  char *m = myconduit;
-  strcpy(myconduit, GASNET_CORE_NAME_STR);
-  strcat(myconduit, "/");
-  strcat(myconduit, GASNET_EXTENDED_NAME_STR);
-  while (*m) { *m = tolower(*m); m++; }
-  #define GASNETI_PORTABLE_CONDUIT(name) (!strcmp(name,"mpi/reference") || !strcmp(name,"udp/reference"))
-  if (GASNETI_PORTABLE_CONDUIT(myconduit)) {
+  char mycore[80], myext[80];
+  char const *mn = GASNET_CORE_NAME_STR;
+  char *m;
+  m = mycore; while (*mn) { *m = tolower(*mn); m++; mn++; }
+  *m = '\0';
+  mn = GASNET_EXTENDED_NAME_STR;
+  m = myext; while (*mn) { *m = tolower(*mn); m++; mn++; }
+  *m = '\0';
+  if ( /* is a portable network conduit */
+      (!strcmp("mpi",mycore) && !strcmp("reference",myext)) || 
+      (!strcmp("udp",mycore) && !strcmp("reference",myext))
+      ) {
     const char *p = GASNETI_CONDUITS;
     char natives[255];
     char reason[255];
@@ -686,7 +692,9 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
         int len = strcspn(p,GASNETI_CONDUITS_DELIM);
         strncpy(name, p, len);
         name[len] = 0;
-        if (!GASNETI_PORTABLE_CONDUIT(name) && strcmp(name,"smp")) {
+        if (strcmp(name,"mpi") && 
+            strcmp(name,"udp") && 
+            strcmp(name,"smp")) { /* not a portable conduit */
           if (strlen(natives)) strcat(natives,", ");
           strcat(natives,name);
         }
@@ -711,12 +719,15 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
         #if PLATFORM_OS_AIX
           { "/dev/nampd0",         S_IFCHR, "IBM LAPI", 1 }, /* could also run lslpp -l | grep lapi */
         #endif
-        { "/dev/vipkl",          S_IFCHR, "InfiniBand", 2 },  /* Mellanox drivers */
-        { "/dev/ib_dsc",         S_IFCHR, "InfiniBand", 2 },  /* wotan - could also run system_profiler */
+        { "/dev/infiniband/uverbs0", S_IFCHR, "InfiniBand IBV", 2 },  /* OFED 1.0 */
+        { "/dev/vipkl",          S_IFCHR, "InfiniBand VAPI", 2 },  /* Mellanox drivers */
+        { "/dev/ib_dsc",         S_IFCHR, "InfiniBand VAPI", 2 },  /* wotan - could also run system_profiler */
         { "/dev/gm3",            S_IFCHR, "Myrinet", 3 }, /* could also look in /proc/devices and /proc/pci */
         { "/dev/elan3/control0", S_IFCHR, "Quadrics QsNetI", 4 },
         { "/dev/elan4/control0", S_IFCHR, "Quadrics QsNetII", 4 },
-        { "/proc/qsnet/version", S_IFREG, "Quadrics QsNet", 4 }
+        { "/proc/qsnet/version", S_IFREG, "Quadrics QsNet", 4 },
+        { "/dev/ukbridge",         S_IFCHR, "Cray XT", 5 },
+        { "/proc/portals/meminfo", S_IFREG, "Cray Portals", 5 }
       };
       int i, lim = sizeof(known_devs)/sizeof(known_devs[0]);
       for (i = 0; i < lim; i++) {
@@ -732,6 +743,9 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
       #if PLATFORM_ARCH_CRAYX1
         if (strlen(natives)) strcat(natives,", ");
         strcat(natives,"Cray X1");
+      #elif PLATFORM_OS_CATAMOUNT || PLATFORM_OS_CNL
+        if (strlen(natives)) strcat(natives,", ");
+        strcat(natives,"Cray XT");
       #endif
       if (natives[0]) {
         sprintf(reason, "WARNING: This system appears to contain recognized network hardware: %s\n"
@@ -741,13 +755,11 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
       }
     }
     if (reason[0] && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0) && gasnet_mynode() == 0) {
-      char *p = strchr(myconduit,'/');
-      if (p) *p = 0;
       fprintf(stderr,"WARNING: Using GASNet's %s-conduit, which exists for portability convenience.\n"
                      "%s\n"
                      "WARNING: You should *really* use the high-performance native GASNet conduit\n"
                      "WARNING: if communication performance is at all important in this program run.\n",
-              myconduit, reason);
+              mycore, reason);
       fflush(stderr);
     }
   }

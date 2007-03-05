@@ -1,7 +1,7 @@
 # @configure_input@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/perlstart.in,v $
-#     $Date: 2007/02/24 00:00:56 $
-# $Revision: 1.13.10.1 $
+#     $Date: 2007/03/05 23:19:40 $
+# $Revision: 1.13.10.2 $
 # Description: 
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -82,7 +82,7 @@ while  test "$link" && \
   if test -x "$readlink" ; then
     link=`$readlink ${scriptname}`
   else
-    link=`/bin/ls -al ${scriptname} | @AWK@ 'BEGIN{FS=">"}{split($2,A," ") ; print A[1]}'`
+    link=`/bin/ls -al ${scriptname} | $awk 'BEGIN{FS=">"}{split($2,A," ") ; print A[1]}'`
   fi
   # readlink on the SGI Origin returns name of non-symlink, instead of blank, so
   # make sure a 'link' resolves to something other than itself
@@ -95,7 +95,10 @@ done
 dir=`"$dirname" ${scriptname}`;
 scriptname=`cd ${dir} >/dev/null 2>&1; $pwd_prog`/`"$basename" ${scriptname}`;
 
-exec $perl $perlopts $PERLSTART_FLAGS "${scriptname}.pl" "$@"
+PERLSTART_FLAGS="$perlopts $PERLSTART_FLAGS"
+export PERLSTART_FLAGS
+
+exec $perl $PERLSTART_FLAGS "${scriptname}.pl" "$@"
 
 echo "${scriptname}: exec failed." >&2
 exit 1

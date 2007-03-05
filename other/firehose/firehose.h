@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2005/12/14 01:42:18 $
- * $Revision: 1.18 $
+ *     $Date: 2007/03/05 23:19:53 $
+ * $Revision: 1.18.2.1 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

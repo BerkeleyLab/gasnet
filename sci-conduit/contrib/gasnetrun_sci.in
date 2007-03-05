@@ -1,7 +1,7 @@
 #!@BOURNE_SHELL@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/contrib/Attic/gasnetrun_sci.in,v $
-#     $Date: 2005/04/17 08:01:18 $
-# $Revision: 1.8 $
+#     $Date: 2007/03/05 23:20:03 $
+# $Revision: 1.8.12.1 $
 # Terms of use are as specified in license.txt
 #
 # Burt Gordon, High-performance Computing & Simulation (HCS) Lab

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2007/02/24 00:00:35 $
- * $Revision: 1.39.10.1 $
+ *     $Date: 2007/03/05 23:19:16 $
+ * $Revision: 1.39.10.2 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -245,7 +245,7 @@ GASNETI_BEGIN_EXTERNC
   GASNETI_INLINE(_gasneti_semaphore_trydown_partial)
   gasneti_atomic_val_t _gasneti_semaphore_trydown_partial(_gasneti_semaphore_t *s, gasneti_atomic_val_t n) {
     int retval = 0;
-    if_pt (gasneti_atomic_signed(gasneti_weakatomic_subtract(s, 1, 0)) >= 0) {
+    if_pt (gasneti_atomic_signed(gasneti_weakatomic_read(s, 0)) > 0) {
       gasneti_atomic_sval_t tmp = gasneti_atomic_signed(gasneti_weakatomic_subtract(s, n, 0));
       if_pt (tmp >= 0) {
         gasneti_local_rmb(); /* Acquire */
@@ -265,7 +265,7 @@ GASNETI_BEGIN_EXTERNC
     if_pt (gasneti_atomic_signed(gasneti_weakatomic_read(s, 0)) >= n) {
       if_pt (gasneti_atomic_signed(gasneti_weakatomic_subtract(s, n, 0)) >= 0) {
         gasneti_local_rmb(); /* Acquire */
-        retval = 1;
+        retval = n;
       } else {
         (void)gasneti_weakatomic_add(s, n, 0);
       }

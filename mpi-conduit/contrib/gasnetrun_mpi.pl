@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2007/02/24 00:00:54 $
-# $Revision: 1.36.4.1 $
+#     $Date: 2007/03/05 23:19:38 $
+# $Revision: 1.36.4.2 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -36,6 +36,8 @@ my $uname = `uname -a`;
 my $find_exe = 1;	# should we find full path of executable?
 my $env_before_exe = 1; # place env cmd before exe?
 my $extra_quote_argv = 0; # add extra quotes around each argument
+my $encode_args = 0; # encode command-line options to workaround buggy spawners
+my $encode_env = 0;  # encode environment variables to workaround buggy spawners
 my $group_join_argv = 0; # join all the args into one for %A?
 my $force_nonempty_argv = 0; # if args are empty, still pass empty arg for %A
 my $tmpdir = undef;
@@ -44,6 +46,21 @@ my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'} ||
 	($ENV{'PE_HOSTFILE'} && $ENV{'TMP'} && -f "$ENV{'TMP'}/machines" && "$ENV{'TMP'}/machines");
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
 
+
+################################################################################
+## Encode args and env for safe consumption by GASNet
+################################################################################
+
+sub gasnet_encode($) {
+    my ($in) = @_;
+    my $permitted_chars = 'A-Za-z0-9%_,\\./:+=@^-';
+    # don't encode unless we see special chars, to avoid negative interactions with higher-level encoding like upcrun
+    return $in unless ($in =~ m/[^$permitted_chars]/);
+    $in =~ s/%(0[0-9A-Fa-f][0-9A-Fa-f])/%025$1/g; # prevent false decodes
+    $in =~ s/([^$permitted_chars])/sprintf("%%0%02x",(ord($1)))/ge;
+    return $in;
+}
+
 # Define how to pass the environment vars
 # 5 parameters to set: val, pre, inter, post and join
 # To pass env as "-X A -Y B -Y C -Z" (a made up example)
@@ -51,6 +68,8 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     my %envfmt = ();
 
 # Probe for which MPI is running
+# mpi-conduit/contrib/mpirun_h contains a database of recognized mpirun -h output strings
+# if you add a line below, please also add an entry to that directory
     my $mpirun_cmd  = $spawncmd;
        $mpirun_cmd  =~ s/\s-.*/ -h/; # poe hangs on -help, so use -h
        $mpirun_cmd  =~ s/\s%[A-Za-z]+//g; # required for Cray MPI
@@ -68,10 +87,12 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
     my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
     my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
+    my $is_aprun    = ($mpirun_help =~ m|rchitecture type.*?xt3|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
-    my $is_bgl_mpi  = ($mpirun_help =~ m| BG/L |);
+    my $is_bgl_mpi  = ($mpirun_help =~ m|COprocessor or VirtualNode mode|);
     my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|);
-    my $is_elan_mpi  = ($mpirun_help =~ m|ELAN|);
+    my $is_hp_mpi  = ($mpirun_help =~ m|-universe_size|);
+    my $is_elan_mpi  = ($mpirun_help =~ m|MPIRUN_ELANIDMAP_FILE|);
     my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
     my $envprog = $ENV{'ENVCMD'};
     if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
@@ -125,6 +146,13 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => "'"
 		  );
+    } elsif ($is_hp_mpi) {
+	$spawner_desc = "HP MPI";
+	# HP mpirun is a wrapper around many different backend-specific spawners, all with different behavior
+	# Use a safe default
+	%envfmt = ( 'pre' => $envprog,
+		    'val' => ''
+		  );
     } elsif ($is_elan_mpi) {
 	$spawner_desc = "Quadrics/ELAN MPI";
 	# this spawner already propagates the environment for us automatically
@@ -153,6 +181,11 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	%envfmt = ( 'noenv' => 1
                   );
         $extra_quote_argv = 1;
+    } elsif ($is_aprun) {
+	$spawner_desc = "Cray aprun";
+	# the OS already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1
+                  );
     } elsif ($is_yod) {
 	$spawner_desc = "Catamount yod";
 	# the OS already propagates the environment for us automatically
@@ -168,7 +201,7 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 		  );
 	$force_nonempty_argv = 1;
 	$group_join_argv = 1;
-	$env_before_exe = 0;
+	$env_before_exe = 1;
 	@verbose_opt = ("-verbose", "2");
     } elsif ($is_bgl_cqsub) {
 	$spawner_desc = "IBM BG/L cqsub";
@@ -201,6 +234,9 @@ my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile"
 	%envfmt = ( 'pre' => $envprog,
 		    'val' => ''
 		  );
+        # use encoding as a safe default
+        $encode_args = 1;
+        $encode_env = 1;
     }
 
 sub usage
@@ -215,6 +251,7 @@ sub usage
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
     print "      -k                    keep any temporary files created (implies -v)\n";
+    print "      -(no)encode[-args,-env]   use encoding of args, env or both to help with buggy spawners\n";
     print "      --                    ends option parsing\n";
     exit 1;
 }
@@ -280,6 +317,13 @@ sub expand {
 	} elsif ($_ eq '-k') {
 	    $keep = 1;
 	    $verbose = 1;
+	} elsif ($_ =~ /^-+(no)?encode-args$/) {
+          $encode_args = !(defined $1);
+	} elsif ($_ =~ /^-+(no)?encode-env$/) {
+          $encode_env = !(defined $1);
+	} elsif ($_ =~ /^-+(no)?encode$/) {
+          $encode_args = !(defined $1);
+          $encode_env = !(defined $1);
 	} elsif (m/^-/) {
 	    usage ("unrecognized option '$_'\n");
 	} else {
@@ -341,6 +385,13 @@ sub expand {
 
 # Build up the environment-passing arguments in several steps
     my @envargs = @envvars;
+    if ($encode_env) {
+      for my $var (@envvars) {
+         my $val = $ENV{$var};
+         $ENV{$var} = gasnet_encode($val);
+         print "encoding ENV{$var}: '$val' => " . $ENV{$var} . "\n" if ($verbose && $val ne $ENV{$var});
+      }
+    }
     if (@envvars) {
         # pair the variables with their values if desired
         if (defined $envfmt{val}) {
@@ -490,9 +541,13 @@ EOF
 			  } elsif ($_ eq '%D') {
                               $cwd;
                           } elsif ($_ eq '%A') {
-			      my @argv = ( $extra_quote_argv == 1 ? (map { "'$_'" } @ARGV)
-					 : $extra_quote_argv == 2 ? (map { "'\"$_\"'" } @ARGV)
-					 : (@ARGV) );
+                              my @argv = @ARGV;
+                              if ($encode_args) {
+                                 @argv = map { $_ = gasnet_encode($_); } @argv;
+			      }
+			      @argv =    ( $extra_quote_argv == 1 ? (map { "'$_'" } @argv)
+					 : $extra_quote_argv == 2 ? (map { "'\"$_\"'" } @argv)
+					 : (@argv) );
 			      ($force_nonempty_argv && !@argv ? ("") : 
                                 ($group_join_argv ? join(' ', @argv) : @argv) );
                           } elsif ($_ eq '%V') {

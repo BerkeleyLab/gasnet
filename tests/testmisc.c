@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2007/02/24 00:01:28 $
- * $Revision: 1.21.4.1 $
+ *     $Date: 2007/03/05 23:20:11 $
+ * $Revision: 1.21.4.2 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -291,15 +291,12 @@ void doit3() {
 void doit4() { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
-    printf("Before local 4-byte gasnet_put\n");
     TIME_OPERATION("local 4-byte gasnet_put",
       { gasnet_put(mynode, myseg, &temp, 4); });
-    printf("After local 4-byte gasnet_put\n");
 
-    printf("Before local 4-byte gasnet_put_nb\n");
     TIME_OPERATION("local 4-byte gasnet_put_nb",
       { gasnet_wait_syncnb(gasnet_put_nb(mynode, myseg, &temp, 4)); });
-    printf("After local 4-byte gasnet_put_nb\n");
+
     TIME_OPERATION_FULL("local 4-byte gasnet_put_nbi", {},
       { gasnet_put_nbi(mynode, myseg, &temp, 4); },
       { gasnet_wait_syncnbi_puts(); });
@@ -435,7 +432,7 @@ void doit7() { GASNET_BEGIN_FUNCTION();
       { gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS);            
         gasnet_barrier_wait(0,GASNET_BARRIERFLAG_ANONYMOUS); 
       });
-    if (gasnet_nodes() > 1)
+    if (TEST_SECTION_ENABLED() && (gasnet_nodes() > 1))
       MSG0("Note: this is actually the barrier time for %i nodes, "
            "since you're running with more than one node.\n", (int)gasnet_nodes());
 }

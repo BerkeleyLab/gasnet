@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2007/02/24 00:01:28 $
-# $Revision: 1.72.4.2 $
+#     $Date: 2007/03/05 23:20:11 $
+# $Revision: 1.72.4.3 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -24,8 +24,8 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
 # GASNet-related MPI tests
-@USE_MPI_COMPAT_TRUE@ MPI_TESTS_SEQ = 
-@USE_MPI_COMPAT_TRUE@ MPI_TESTS_PAR = testmpi
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_SEQ = testmpi
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_PAR =
 
 # C++ tests
 CXX_TESTS = testcxx testtoolscxx
@@ -61,7 +61,6 @@ testprograms_seq =      \
         testhsl         \
         testsmall       \
         testlarge       \
-        testslice       \
         testam          \
         testmisc        \
         testcore1       \
@@ -88,6 +87,7 @@ testprograms_parsync =  \
 testprograms_par =  \
 	testthreads \
 	testcontend \
+	testlockcontend \
 	$(MPI_TESTS_PAR)
 
 testprograms = $(testprograms_seq) $(testprograms_parsync) $(testprograms_par) $(MPI_TESTS) $(CXX_TESTS)
@@ -233,8 +233,7 @@ run-tests: force
 	    ( eval env GASNET_DUMMY=\"GASNet dummy value\" $(TEST_ENV)                  \
 	    $$TIMECMD $$cmd || echo "ERROR: Test exited with failure code=$$?" )        \
                              2>&1 | tee .test-output ;                                  \
-            failure=`@PERL@ -ne 'print if (/ERROR/ || /fatal signal/);' .test-output |  \
-                     grep -v 'Retrying allocation'` ;                                   \
+            failure=`@PERL@ -ne 'print if ((/ERROR/ || /fatal signal/) && !(/Retrying allocation/ || /GASNET_FREEZE_ON_ERROR/));' .test-output` ; \
             if test "$$failure" != "" ; then                                            \
                echo " " >> $(TESTLOG) ;                                                 \
                echo " *-* $$faildesc *-*" >> $(TESTLOG) ;                               \
@@ -324,7 +323,7 @@ KEEPTMP_CFLAGS = $(patsubst %,@KEEPTMP_CFLAGS@,$(KEEPTMPS))
 @HAVE_PTHREAD_FALSE@      TESTTOOLS_TOOLLIB = -L@TOP_BUILDDIR@ -l$(TESTTOOLS_TOOLLIB_NAME)
 TOOLS_CPPFLAGS = $(TESTTOOLS_DEBUGFLAGS) $(TESTTOOLS_THREADFLAGS)
 testtools: force
-	@cd .. && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
+	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
 	@CC@ @CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
 	@CC@ @CFLAGS@ @MISC_CFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
@@ -335,7 +334,7 @@ testtoolscxx: force
 		echo "ERROR: testtoolscxx target requested, but no c++ compiler is configured"; \
 		exit 1; \
 	 fi
-	@cd .. && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
+	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
 	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CXXFLAGS) -c -o $@.o $(srcdir)/$@.cc
 	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
@@ -362,7 +361,7 @@ mpi-check: force
 # testmpi must be compiled like an MPI program with GASNet support
 testmpi: mpi-check force
 	$(GASNET_MPI_CC) -I$(srcdir) $(GASNET_CPPFLAGS) @MPI_CFLAGS@ $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
-	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o @MPI_LIBS@ $(GASNET_LIBS)
+	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) @MPI_CFLAGS@ -o $@ $@.o $(GASNET_LIBS) @MPI_LIBS@ $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # the following are just plain MPI programs

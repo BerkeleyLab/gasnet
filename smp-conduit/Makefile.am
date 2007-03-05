@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/Makefile.am,v $
-#     $Date: 2005/08/24 10:21:35 $
-# $Revision: 1.20 $
+#     $Date: 2007/03/05 23:20:07 $
+# $Revision: 1.20.8.1 $
 # Description: Makefile for GASNet smp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -57,13 +57,19 @@ CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_smp_par_a_SOURCES =
-libgasnet_smp_parsync_a_SOURCES =
-threaded_libraries = libgasnet-smp-par.a libgasnet-smp-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_smp_seq_a_SOURCES =
-libraries = libgasnet-smp-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-smp-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_smp_par_a_SOURCES =
+libraries_par = libgasnet-smp-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_smp_parsync_a_SOURCES =
+libraries_parsync = libgasnet-smp-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

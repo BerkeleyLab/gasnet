@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/02/24 00:00:41 $
- * $Revision: 1.63.10.1 $
+ *     $Date: 2007/03/05 23:19:24 $
+ * $Revision: 1.63.10.2 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,7 +38,7 @@
 #endif
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
-GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
+GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
 static void gasnetc_atexit(void);
@@ -940,7 +940,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   /* add code here to write the source index into sourceid */
   { gasnetc_bufdesc_t *desc = (gasnetc_bufdesc_t*)token;
     gasneti_assert(desc->handlerRunning);
-    sourceid = desc->buf->msg.sourceId;
+    sourceid = desc->buf->m.msg.sourceId;
   }
 
   gasneti_assert(sourceid < gasneti_nodes);
@@ -1152,7 +1152,16 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
-      while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
+      if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+        if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
+          while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+            gasneti_compiler_fence();
+            gasneti_spinloop_hint();
+          }
+        } else {
+          gasneti_mutex_lock(&(hsl->lock));
+        }
+      }
     #else
       gasneti_mutex_lock(&(hsl->lock));
     #endif

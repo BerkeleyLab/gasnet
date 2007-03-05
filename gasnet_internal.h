@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2007/02/24 00:00:35 $
- * $Revision: 1.90.6.1 $
+ *     $Date: 2007/03/05 23:19:16 $
+ * $Revision: 1.90.6.2 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,14 +24,16 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
-#ifdef HAVE_MALLOC_H
+#if defined(HAVE_MALLOC_H) && !PLATFORM_OS_OPENBSD /* OpenBSD warns that malloc.h is obsolete */
 #include <malloc.h> /* prevent problems with redefinition of malloc on solaris */
 #endif
 
 GASNETI_BEGIN_EXTERNC
 
 #if PLATFORM_COMPILER_SUN_C
+  /* disable warnings triggerred by some macro idioms we use */
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 #if PLATFORM_OS_TRU64
@@ -295,14 +297,19 @@ void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t mynode
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
 
 /* signature for internally-registered functions that need auxseg space -
-   space in the gasnet-registered heap which is hidden from the client
-   each function is called twice:
-   first call is between init/attach with auxseg_info == NULL, 
+   space in the gasnet-registered heap which is hidden from the client.
+   The callback is registered by adding the function pointer to GASNET*_AUXSEG_FNS()
+   Each registered function is called twice by the GASNet framework at startup:
+   * first callback is a "how much space do you want" query
+    it occurs between init/attach with auxseg_info == NULL, 
     function should return the absolute minimum and desired auxseg space
     currently, all nodes MUST return the same value (may be relaxed in the future)
-   second call is after attach and before gasnete_init, with auxseg_info
-    set to the array (gasnet_nodes() elements) of auxseg components on each node.
-    callee must copy the array if it wants to keep it
+   * second callback is "ok, here's what you got"
+    it happens after attach and before gasnete_init, with auxseg_info
+    set to the array (gasnet_nodes() elements) of auxseg components on each node
+    indicating the space assigned to this auxseg consumer.
+    callee must copy the array of metadata if it wants to keep it 
+    (the seg space it references is permanent)
  */
 typedef struct {
   uintptr_t minsz;
@@ -401,6 +408,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), __FILE__, __LINE__);     \
     fflush(stderr);                                                          \
     }                                                                        \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                         \
   return GASNET_ERR_ ## type;                                                \
   } while (0)
 #define GASNETI_RETURN_ERRF(type, fromfn) do {                                     \
@@ -412,6 +420,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), #fromfn, __FILE__, __LINE__);  \
     fflush(stderr);                                                                \
     }                                                                              \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                               \
   return GASNET_ERR_ ## type;                                                      \
   } while (0)
 #define GASNETI_RETURN_ERRR(type, reason) do {                                             \
@@ -423,6 +432,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), __FILE__, __LINE__, reason);           \
     fflush(stderr);                                                                        \
     }                                                                                      \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                                       \
   return GASNET_ERR_ ## type;                                                              \
   } while (0)
 #define GASNETI_RETURN_ERRFR(type, fromfn, reason) do {                                    \
@@ -435,6 +445,7 @@ extern int gasneti_VerboseErrors;
       , #type, gasnet_ErrorDesc(GASNET_ERR_##type), #fromfn, __FILE__, __LINE__, reason);  \
     fflush(stderr);                                                                        \
     }                                                                                      \
+  gasnett_freezeForDebuggerErr(); /* allow freeze */                                       \
   return GASNET_ERR_ ## type;                                                              \
   } while (0)
 

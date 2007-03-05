@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/02/24 00:00:41 $
-# $Revision: 1.31.8.1 $
+#     $Date: 2007/03/05 23:19:24 $
+# $Revision: 1.31.8.2 $
 # Description: Makefile for GASNet elan conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -65,13 +65,19 @@ CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_elan_par_a_SOURCES =
-libgasnet_elan_parsync_a_SOURCES =
-threaded_libraries = libgasnet-elan-par.a libgasnet-elan-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_elan_seq_a_SOURCES =
-libraries = libgasnet-elan-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-elan-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_elan_par_a_SOURCES =
+libraries_par = libgasnet-elan-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_elan_parsync_a_SOURCES =
+libraries_parsync = libgasnet-elan-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

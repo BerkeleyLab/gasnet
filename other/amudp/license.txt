@@ -1,4 +1,4 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/license.txt,v 1.2 2004/08/26 04:53:50 bonachea Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/license.txt,v 1.2.22.1 2007/03/05 23:19:45 parry Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *

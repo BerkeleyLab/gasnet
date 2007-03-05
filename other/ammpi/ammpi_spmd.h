@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.h,v $
- *     $Date: 2007/02/24 00:00:58 $
- * $Revision: 1.12.14.1 $
+ *     $Date: 2007/03/05 23:19:42 $
+ * $Revision: 1.12.14.2 $
  * Description: AMMPI Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -48,6 +48,13 @@ extern int AMMPI_SPMDSetExitCallback(void (*fp)(int));
    */
 extern void (*AMMPI_SPMDkillmyprocess)(int);
   /* function used to finally kill the process (_exit by default) */
+
+extern int AMMPI_SPMDSetThreadMode(int usingthreads, const char **provided_level, int *argc, char ***argv);
+  /* attempt to request thread support level indicated by usingthreads from MPI-2 
+   * returns non-zero on success or zero on failure, 
+   * and in all cases returns the reported suport level in *provided_level
+   * must be called before AMMPI_SPMDStartup 
+   */
 
 extern int AMMPI_SPMDIsWorker(char **argv); 
   /* given the initial command line arguments, determine whether this process is a 

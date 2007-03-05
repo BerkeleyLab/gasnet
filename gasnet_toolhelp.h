@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2007/02/24 00:00:35 $
- * $Revision: 1.26.2.1 $
+ *     $Date: 2007/03/05 23:19:16 $
+ * $Revision: 1.26.2.2 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,7 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#if GASNETI_THREADS || GASNETT_THREAD_SAFE
+#if GASNETI_THREADS
   #if PLATFORM_OS_LINUX
    struct timespec; /* avoid an annoying warning on Linux */
   #endif
@@ -46,6 +46,14 @@ GASNETI_BEGIN_EXTERNC
    #define _gasneti_sched_yield() (sleep(0),0)
 #endif
 #define gasneti_sched_yield() gasneti_assert_zeroret(_gasneti_sched_yield())
+
+#if PLATFORM_OS_MTA
+  #define gasneti_filesystem_sync() mta_sync()
+#elif PLATFORM_OS_CATAMOUNT
+  #define gasneti_filesystem_sync() ((void)0)
+#else
+  #define gasneti_filesystem_sync() sync()
+#endif
 
 #if PLATFORM_COMPILER_GNU_CXX /* bug 1681 */
   #define GASNETI_CURRENT_FUNCTION __PRETTY_FUNCTION__
@@ -111,11 +119,13 @@ GASNETI_NORETURNP(gasneti_fatalerror)
 extern void gasneti_killmyprocess(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasneti_killmyprocess)
 
+extern void gasneti_freezeForDebuggerErr(); /* freeze iff user enabled error freezing */
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname);
 extern volatile int gasnet_frozen; /* export to simplify debugger restart */ 
 extern void gasneti_backtrace_init(const char *exename);
 extern int (*gasneti_print_backtrace_ifenabled)(int fd);
 extern int gasneti_print_backtrace(int fd);
+extern void gasneti_ondemand_init();
 
 extern void gasneti_flush_streams(); /* flush all open streams */
 extern void gasneti_close_streams(); /* close standard streams (for shutdown) */
@@ -124,13 +134,51 @@ extern int gasneti_cpu_count();
 
 extern void gasneti_set_affinity(int rank);
 
+const char *gasneti_gethostname(); /* returns the current host name - dies with an error on failure */
+
 extern int gasneti_isLittleEndian();
 
 typedef void (*gasneti_sighandlerfn_t)(int);
 gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp);
 
 /* return a fast but simple/insecure 64-bit checksum of arbitrary data */
-extern uint64_t gasneti_checksum(void *p, int numbytes);
+extern uint64_t gasneti_checksum(const void *p, int numbytes);
+
+/* ------------------------------------------------------------------------------------ */
+/* Count zero bytes in a region w/ or w/o a memcpy(), or in a "register" */
+
+extern size_t gasneti_count0s_copy(void * GASNETI_RESTRICT dst,
+                                   const void * GASNETI_RESTRICT src,
+                                   size_t len);
+extern size_t gasneti_count0s(const void * src, size_t len);
+
+
+GASNETI_INLINE(gasneti_count0s_uint32_t) GASNETI_CONST
+int gasneti_count0s_uint32_t(uint32_t x) {
+  x |= (x >> 4); x |= (x >> 2); x |= (x >> 1);
+  x &= 0x01010101UL;
+  x += (x >> 16); x += (x >> 8);
+  return sizeof(x) - (x & 0xf);
+}
+#if PLATFORM_ARCH_32
+  GASNETI_INLINE(gasneti_count0s_uint64_t) GASNETI_CONST
+  int gasneti_count0s_uint64_t(uint64_t x) {
+    return gasneti_count0s_uint32_t(GASNETI_LOWORD(x)) + 
+           gasneti_count0s_uint32_t(GASNETI_HIWORD(x));
+  }
+  #define gasneti_count0s_uintptr_t(x) gasneti_count0s_uint32_t(x)
+#elif PLATFORM_ARCH_64
+  GASNETI_INLINE(gasneti_count0s_uint64_t) GASNETI_CONST
+  int gasneti_count0s_uint64_t(uintptr_t x) {
+    x |= (x >> 4); x |= (x >> 2); x |= (x >> 1);
+    x &= 0x0101010101010101UL;
+    x += (x >> 32); x += (x >> 16); x += (x >> 8);
+    return sizeof(x) - (x & 0xf);
+  }
+  #define gasneti_count0s_uintptr_t(x) gasneti_count0s_uint64_t(x)
+#else
+  #error "Unknown word size"
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Error checking system mutexes -
@@ -277,31 +325,11 @@ extern uint64_t gasneti_checksum(void *p, int numbytes);
 
 /* ------------------------------------------------------------------------------------ */
 /* Wrappers for thread-local data storage
-   In threaded configurations, uses the fastest-available target-specific mechanisms 
-    for access to thread-local storage (eg __thread), or pthread_getspecific() for 
-    generic platforms. Automatically handles the hassle of pthread key creation as required.
-   In non-threaded configurations, expands to simple process-global storage. 
-
-  Must be declared as:
-    GASNETI_THREADKEY_DEFINE(mykey); - must be defined in exactly one C file at global scope
-    GASNETI_THREADKEY_DECLARE(mykey); - optional, use in headers to reference externally-defined key
-  and then can be used as:
-    void *val = gasneti_threadkey_get(mykey);
-    gasneti_threadkey_set(mykey,val);
-  no initialization is required (happens automatically on first access).
-
-  Initialization can optionally be performed using:
-    gasneti_threadkey_init(mykey);
-  which then allows subsequent calls to:
-    void *val = gasneti_threadkey_get_noinit(mykey);
-    gasneti_threadkey_set_noinit(mykey,val);
-  these save a branch by avoiding the initialization check.
-  gasneti_threadkey_init is permitted to be called multiple times and
-  from multiple threads - calls after the first one will be ignored.
+   See README-tools for usage information.
 */
 #define _GASNETI_THREADKEY_MAGIC 0xFF00ABCDEF573921ULL
 
-#if GASNETI_THREADS || GASNETT_THREAD_SAFE
+#if GASNETI_THREADS
   #if GASNETI_HAVE_TLS_SUPPORT /* use __thread, if available */
     #define _GASNETI_THREADKEY_USES_TLS 1
   #else
@@ -425,19 +453,22 @@ extern uint64_t gasneti_checksum(void *p, int numbytes);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* environment support */
+/* environment support 
+   see README-tools for usage information 
+ */
 
-/* format a integer value as a human-friendly string, with appropriate mem suffix */
 extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_mem_size);
-/* parse an integer value back out again
-  if mem_size_multiplier==0, it's a unitless quantity
-  otherwise, it's a memory size quantity, and mem_size_multiplier provides the 
-    default memory unit (ie 1024=1KB) if the string provides none  */
 extern int64_t gasneti_parse_int(const char *str, uint64_t mem_size_multiplier);
-
-/* set/unset an environment variable, for the local process ONLY */
 extern void gasneti_setenv(const char *key, const char *value);
 extern void gasneti_unsetenv(const char *key);
+
+extern char *gasneti_getenv(const char *keyname);
+extern char *gasneti_getenv_withdefault(const char *keyname, const char *defaultval);
+extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval);
+extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier);
+extern int gasneti_verboseenv();
+extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
+extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
 
 /* Conduit-specific supplement to gasneti_getenv
  * If set to non-NULL this has precedence over gasneti_globalEnv.
@@ -445,49 +476,18 @@ extern void gasneti_unsetenv(const char *key);
 typedef char *(gasneti_getenv_fn_t)(const char *keyname);
 extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
 
-/* GASNet environment query function
- * uses the gasneti_globalEnv if available or regular getenv otherwise
- * legal to call before gasnet_init, but may malfunction if
- * the conduit has not yet established the contents of the environment
- */
-extern char *gasneti_getenv(const char *keyname);
 
-/* GASNet environment query for a string parameter
-   if user has set value the return value indicates their selection
-   if value is not set, the provided default value is returned
-   call is reported to the console in verbose-environment mode,
-   so this function should never be called more than once per key
-   legal to call before gasnet_init, but may malfunction if
-   the conduit has not yet established the contents of the environment
+/* ------------------------------------------------------------------------------------ */
+/* Attempt to maximize allowable cpu and memory resource limits for this
+ * process, silently ignoring any errors
+ * return non-zero on success */
+int gasnett_maximize_rlimits();
+/* maximize a particular rlimit, and return non-zero on success.
+   For portability, this should be called within an ifdef to ensure 
+   the specified RLIMIT_ constant exists
  */
-extern char *gasneti_getenv_withdefault(const char *keyname, const char *defaultval);
+int gasnett_maximize_rlimit(int res, const char *lim_desc);
 
-/* GASNet environment query for a yes/no parameter
-   if user has set value to 'Y|YES|y|yes|1' or 'N|n|NO|no|0', 
-   the return value indicates their selection
-   if value is not set, the provided default value is returned
-   same restrictions on gasneti_getenv_withdefault also apply
- */
-extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval);
-
-/* GASNet environment query for an integral parameter
-   if mem_size_multiplier non-zero, expect a (possibly fractional) memory size with suffix (B|KB|MB|GB|TB)
-     and the default multiplier is mem_size_multiplier (eg 1024 for KB)
-   otherwise, expect a positive or negative integer in decimal or hex ("0x" prefix)
-   the return value indicates their selection
-   if value is not set, the provided default value is returned
-   same restrictions on gasneti_getenv_withdefault also apply
- */
-extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier);
-
-/* gasneti_verboseenv() returns true iff GASNET_VERBOSEENV reporting is enabled on this node 
-   note the answer may change during initialization
- */
-extern int gasneti_verboseenv();
-
-/* display an integral/string environment setting iff gasneti_verboseenv() */
-extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
-extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
 /* ------------------------------------------------------------------------------------ */
 
 #if PLATFORM_OS_AIX

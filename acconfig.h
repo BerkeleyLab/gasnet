@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2007/02/24 00:00:34 $ */
-/*  $Revision: 1.73.4.1 $ */
+/*      $Date: 2007/03/05 23:19:15 $ */
+/*  $Revision: 1.73.4.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -19,6 +19,16 @@
 #undef GASNETI_SYSTEM_NAME
 #undef GASNETI_CROSS_COMPILING
 
+/* version identifiers */
+#undef GASNET_RELEASE_VERSION_MAJOR
+#undef GASNET_RELEASE_VERSION_MINOR
+#undef GASNET_RELEASE_VERSION_PATCH
+#undef GASNETI_RELEASE_VERSION
+#undef GASNETI_SPEC_VERSION_MAJOR
+#undef GASNETI_SPEC_VERSION_MINOR
+#undef GASNETIT_SPEC_VERSION_MAJOR
+#undef GASNETIT_SPEC_VERSION_MINOR
+
 /* configure-detected conduits */
 #undef GASNETI_CONDUITS
 
@@ -32,9 +42,11 @@
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
 
 /* identification of the compiler used at configure time */
 #undef GASNETI_PLATFORM_COMPILER_IDSTR
+#undef GASNETI_PLATFORM_COMPILER_FAMILYID
 #undef GASNETI_PLATFORM_COMPILER_ID
 #undef GASNETI_PLATFORM_COMPILER_VERSION
 
@@ -53,6 +65,11 @@
 /* have mmap() */
 #undef HAVE_MMAP
 
+/* mmap supporting flags */
+#undef HAVE_MAP_NORESERVE
+#undef HAVE_MAP_ANON
+#undef HAVE_MAP_ANONYMOUS
+
 /* --with-segment-mmap-max value (if given) */
 #undef GASNETI_MMAP_MAX_SIZE
 
@@ -68,11 +85,11 @@
 /* has sched_yield() */
 #undef HAVE_SCHED_YIELD
 
-/* has linux sched_setaffinity() */
-#undef HAVE_SCHED_SETAFFINITY
+/* have sysctl machdep.tsc_freq */
+#undef GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ
 
-/* Which args to sched_setaffinity()? */
-#undef GASNET_SCHED_SETAFFINITY_ARGS
+/* has Portable Linux Processor Affinity */
+#undef HAVE_PLPA
 
 /* have ptmalloc's mallopt() options */
 #undef HAVE_PTMALLOC
@@ -87,6 +104,8 @@
 #undef HAVE_PRINTSTACK
 #undef ADDR2LINE_PATH
 #undef GDB_PATH
+#undef PGDBG_PATH
+#undef IDB_PATH
 #undef LADEBUG_PATH
 #undef DBX_PATH
 
@@ -101,6 +120,9 @@
 
 /* pause instruction, if any */
 #undef GASNETI_PAUSE_INSTRUCTION
+
+/* has x86 EBX register (not reserved for GOT) */
+#undef GASNETI_HAVE_X86_EBX
 
 /* has __builtin_expect */
 #undef HAVE_BUILTIN_EXPECT
@@ -182,6 +204,9 @@
 #undef GASNET_SEGMENT_LARGE
 #undef GASNET_SEGMENT_EVERYTHING
 
+/* Override to disable default segment alignment */
+#undef GASNETI_DISABLE_ALIGNED_SEGMENTS
+
 /* GASNet ref-extended settings */
 #undef GASNETE_USE_AMDISSEMINATION_REFBARRIER
 
@@ -194,6 +219,11 @@
 #undef GASNETC_VAPI_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
 #undef GASNETC_VAPI_MAX_HCAS
+
+/* GASNet ibv-conduit features and bug work-arounds */
+#undef GASNETC_IBV_POLL_LOCK
+#undef GASNETC_IBV_RCV_THREAD
+#undef GASNETC_IBV_MAX_HCAS
 
 /* GASNet lapi-conduit specific */
 #undef GASNETC_LAPI_FEDERATION

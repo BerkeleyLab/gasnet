@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2007/02/24 00:01:28 $
- * $Revision: 1.63.6.1 $
+ *     $Date: 2007/03/05 23:20:11 $
+ * $Revision: 1.63.6.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,11 @@
   #else
     #define NDEBUG 1
   #endif
+#endif
+
+#if PLATFORM_COMPILER_SUN_C
+  /* disable a harmless warning */
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 /* bug 1206: several systems (notably Compaq C++ and OSX gcc) have an assert.h header 
@@ -332,7 +337,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 #ifndef TEST_OMIT_CONFIGSTRINGS
 #ifdef TEST_GASNET_H
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
-  #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CORE_NAME_STR "-uni"
+  #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CONDUIT_NAME_STR "-uni"
 #else
   #if GASNETI_CROSS_COMPILING
     #define GASNETI_TOOLS_CONDUIT "MPI"
@@ -342,13 +347,25 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
     #define TEST_TITANIUM_BACKEND "sequential"
   #endif
   #define TEST_CONFIG_STRING \
-    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x,THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
+    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"("GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x),THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
 #endif
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
  "$GASNetConfig: (<link>) " TEST_CONFIG_STRING " $");
-GASNETT_IDENT(GASNetT_IdentString_link_UPCRConfig,
- "$UPCRConfig: (<link>) " TEST_CONFIG_STRING ",SHMEM=pthreads,dynamicthreads $");
+#ifndef HAVE_PTHREAD_H
+  /* for systems lacking pthread support - ensure upcrun never tries to use it */
+  GASNETT_IDENT(GASNetT_IdentString_link_UPCRConfig,
+   "$UPCRConfig: (<link>) " TEST_CONFIG_STRING ",SHMEM=none,SHAREDPTRREP=packed,dynamicthreads $");
+#else 
+  /* unconditionally mimic pthreads, to ensure harness -pthreads=T -threads=N will run us 
+     (otherwise upcrun will give an error about no -pthreads support)
+     such a setup will only run the gasnet test on N/T nodes (as opposed to N as one might like)
+     but the alternative is not to run at all. harness -nopthreads does not have this problem.
+   */
+  GASNETT_IDENT(GASNetT_IdentString_link_UPCRConfig,
+   "$UPCRConfig: (<link>) " TEST_CONFIG_STRING ",SHMEM=pthreads,SHAREDPTRREP=packed,dynamicthreads $");
+  GASNETT_IDENT(GASNetT_IdentString_PthCnt, "$UPCRDefaultPthreadCount: 1 $");
+#endif
 GASNETT_IDENT(GASNetT_IdentString_link_upcver, 
  "$UPCVersion: (<link>) *** GASNet test *** $");
 GASNETT_IDENT(GASNetT_IdentString_link_compileline, 
@@ -357,7 +374,6 @@ GASNETT_IDENT(GASNetT_IdentString_link_compiletime,
  "$UPCCompileTime: (<link>) " __DATE__ " " __TIME__ " $");
 GASNETT_IDENT(GASNetT_IdentString_HeapSz, 
  "$UPCRDefaultHeapSizes: UPC_SHARED_HEAP_OFFSET=0 UPC_SHARED_HEAP_SIZE=0 $");
-GASNETT_IDENT(GASNetT_IdentString_PthCnt, "$UPCRDefaultPthreadCount: 1 $");
 #if PLATFORM_ARCH_32
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=( $");
 #else
@@ -478,22 +494,26 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
       static pthread_mutex_t barrier_mutex[2] = 
         { PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER };
       static volatile unsigned int barrier_count = 0;
-      static int volatile phase = 0;
-      check_zeroret(pthread_mutex_lock(&barrier_mutex[phase]));
+      static volatile int phase = 0;
+      const int myphase = phase;
+      check_zeroret(pthread_mutex_lock(&barrier_mutex[myphase]));
       barrier_count++;
       if (barrier_count < local_pthread_count) {
-        int myphase = phase;
-        while (myphase == phase) {
-          check_zeroret(pthread_cond_wait(&barrier_cond[phase], &barrier_mutex[phase]));
-        }
+	/* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
+         * compiler for x86_64.  See http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858
+         * which includes a link to Sun's own database entry for this issue.
+         */
+        do {
+          check_zeroret(pthread_cond_wait(&barrier_cond[myphase], &barrier_mutex[myphase]));
+        } while (myphase == phase);
       } else {  
         /* Now do the gasnet barrier */
         if (doGASNetbarrier) BARRIER();
         barrier_count = 0;
         phase = !phase;
-        check_zeroret(pthread_cond_broadcast(&barrier_cond[!phase]));
+        check_zeroret(pthread_cond_broadcast(&barrier_cond[myphase]));
       }       
-      check_zeroret(pthread_mutex_unlock(&barrier_mutex[!phase]));
+      check_zeroret(pthread_mutex_unlock(&barrier_mutex[myphase]));
     }
   #endif
   #define PTHREAD_BARRIER(local_pthread_count)      \
@@ -853,26 +873,19 @@ static void _test_init(const char *testname, int reports_performance, int early,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     if (!early) {
-      char hostname[255];
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-        BARRIER();
-      }
+      MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+      fflush(NULL);
+      BARRIER();
     }
   #else
-    { char hostname[255];
-      MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
+    MSG0("=====> %s config=%s compiler=%s/%s sys=%s",
           testname, GASNETT_CONFIG_STRING,
           _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
           GASNETT_SYSTEM_TUPLE);
-      if (!gethostname(hostname,255)) {
-        MSG("hostname is: %s (pid=%i)", hostname, (int)getpid());
-        fflush(NULL);
-      }
-    }
+    MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+    fflush(NULL);
   #endif
   if (gasnett_verboseenv()) MSG("%s running...", testname);
 }

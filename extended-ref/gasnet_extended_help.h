@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2007/02/24 00:00:44 $
- * $Revision: 1.28.10.1 $
+ *     $Date: 2007/03/05 23:19:26 $
+ * $Revision: 1.28.10.2 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,69 +56,69 @@ GASNETI_BEGIN_EXTERNC
    first byte of the value as a (char *) (last is not guaranteed to work)
  */
 typedef union {
-  uint8_t u8; /* might be a compiler builtin type */
+  uint8_t _gasnete_anytype_u8; /* might be a compiler builtin type */
   #if SIZEOF_CHAR == 1
-    char _c;
+    char _gasnete_anytype_c;
   #endif
   #if SIZEOF_SHORT == 1
-    short _s;
+    short _gasnete_anytype_s;
   #endif
 } gasnete_anytype8_t;
 
 #ifndef INTTYPES_16BIT_MISSING
 typedef union {
-  uint16_t u16; /* might be a compiler builtin type */
-  gasnete_anytype8_t _at8; /* necessary for structs of two 8-bit types */
+  uint16_t _gasnete_anytype_u16; /* might be a compiler builtin type */
+  gasnete_anytype8_t _gasnete_anytype_at8; /* necessary for structs of two 8-bit types */
   #if SIZEOF_SHORT == 2
-    short _s;
+    short _gasnete_anytype_s;
   #endif
   #if SIZEOF_INT == 2
-    int _i;
+    int _gasnete_anytype_i;
   #endif
 } gasnete_anytype16_t;
 #endif
 
 typedef union {
-  uint32_t u32; /* might be a compiler builtin type */
+  uint32_t _gasnete_anytype_u32; /* might be a compiler builtin type */
   #ifndef INTTYPES_16BIT_MISSING
-    gasnete_anytype16_t _at16; /* necessary for structs of two 16-bit types */
+    gasnete_anytype16_t _gasnete_anytype_at16; /* necessary for structs of two 16-bit types */
   #endif
   #if SIZEOF_SHORT == 4
-    short _s;
+    short _gasnete_anytype_s;
   #endif
   #if SIZEOF_INT == 4
-    int _i;
+    int _gasnete_anytype_i;
   #endif
   #if SIZEOF_LONG == 4
-    long _l;
+    long _gasnete_anytype_l;
   #endif
   #if SIZEOF_FLOAT == 4
-    float _4;
+    float _gasnete_anytype_4;
   #endif
   #if SIZEOF_VOID_P == 4
-    void *_p;
-    intptr_t _ip; /* might be a compiler builtin type */
+    void *_gasnete_anytype_p;
+    intptr_t _gasnete_anytype_ip; /* might be a compiler builtin type */
   #endif
 } gasnete_anytype32_t;
 
 typedef union {
-  uint64_t u64; /* might be a compiler builtin type */
-  gasnete_anytype32_t _at32; /* necessary for structs of two 32-bit types */
+  uint64_t _gasnete_anytype_u64; /* might be a compiler builtin type */
+  gasnete_anytype32_t _gasnete_anytype_at32; /* necessary for structs of two 32-bit types */
   #if SIZEOF_INT == 8
-    int _i;
+    int _gasnete_anytype_i;
   #endif
   #if SIZEOF_LONG == 8
-    long _l;
+    long _gasnete_anytype_l;
   #endif
   #if SIZEOF_LONG_LONG == 8
-    long long _ll;
+    long long _gasnete_anytype_ll;
   #endif
   #if SIZEOF_DOUBLE == 8
-    double _4;
+    double _gasnete_anytype_4;
   #endif
   #if SIZEOF_VOID_P == 8
-    void *_p;
-    intptr_t _ip; /* might be a compiler builtin type */
+    void *_gasnete_anytype_p;
+    intptr_t _gasnete_anytype_ip; /* might be a compiler builtin type */
   #endif
 } gasnete_anytype64_t;
 
@@ -134,7 +134,7 @@ typedef union {
   #define gasnete_anytype64_t uint64_t
   #define GASNETE_ANYTYPE_LVAL(ptr,bits) (*((gasnete_anytype##bits##_t *)(ptr)))
 #else
-  #define GASNETE_ANYTYPE_LVAL(ptr,bits) (((gasnete_anytype##bits##_t *)(ptr))->u##bits)
+  #define GASNETE_ANYTYPE_LVAL(ptr,bits) (((gasnete_anytype##bits##_t *)(ptr))->_gasnete_anytype_u##bits)
 #endif
 
 /*  undefined results if the regions are overlapping */
@@ -162,6 +162,14 @@ typedef union {
   } while(0)
 
 #define GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
+
+/* Wrapper around GASNETE_FAST_UNALIGNED_MEMCPY which becomes a no-op if src == dst */
+#define GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dest, src, nbytes) do { \
+    void *_dest = (dest);                                           \
+    const void *_src = (src);                                       \
+    if_pt (_dest != _src)                                           \
+        GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
+  } while (0)
 
 /* given the address of a gasnet_register_value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */

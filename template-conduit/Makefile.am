@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/Makefile.am,v $
-#     $Date: 2005/08/24 10:21:37 $
-# $Revision: 1.32 $
+#     $Date: 2007/03/05 23:20:09 $
+# $Revision: 1.32.8.1 $
 # Description: Makefile for GASNet <conduitname> conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -57,13 +57,19 @@ CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_<conduitname>_par_a_SOURCES =
-libgasnet_<conduitname>_parsync_a_SOURCES =
-threaded_libraries = libgasnet-<conduitname>-par.a libgasnet-<conduitname>-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_<conduitname>_seq_a_SOURCES =
-libraries = libgasnet-<conduitname>-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-<conduitname>-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_<conduitname>_par_a_SOURCES =
+libraries_par = libgasnet-<conduitname>-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_<conduitname>_parsync_a_SOURCES =
+libraries_parsync = libgasnet-<conduitname>-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

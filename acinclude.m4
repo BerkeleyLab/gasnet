@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2007/02/24 00:00:34 $
-dnl $Revision: 1.88.4.1 $
+dnl     $Date: 2007/03/05 23:19:15 $
+dnl $Revision: 1.88.4.2 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -168,7 +168,7 @@ AC_DEFUN([GASNET_CHECK_SIZEOF],[
   ac_cv_[]lowername=$gasnet_checksizeoftmp_[]lowername
   uppername=$gasnet_checksizeoftmp_[]lowername
   if test "$uppername" = "0" -o "$uppername" = "" -o "$ac_cv_[]lowername" != "$uppername"; then
-    AC_MSG_ERROR(failed to find sizeof($1))
+    GASNET_MSG_ERROR(failed to find sizeof($1))
   fi
   if test "$2" != ""; then
     dnl work around an irritating autoheader bug - 
@@ -384,7 +384,7 @@ AC_DEFUN([GASNET_POPVAR],[
       echo "popping $1 back to: <unset>" >&5
     fi
   else
-    AC_MSG_ERROR([INTERNAL ERROR: GASNET_PUSH/POPVAR underflow on $1])
+    GASNET_MSG_ERROR([INTERNAL ERROR: GASNET_PUSH/POPVAR underflow on $1])
   fi
   GASNET_FUN_END([$0($1)])
 ]) 
@@ -392,7 +392,7 @@ AC_DEFUN([GASNET_POPVAR],[
 AC_DEFUN([GASNET_PUSHPOP_CHECK],[
 GASNET_FUN_BEGIN([$0])
   if test "$_total_pushcnt" -ge "1" ; then
-    AC_MSG_ERROR([INTERNAL ERROR: GASNET_PUSH/POPVAR mismatch: $_total_pushcnt more pushes than pops])
+    GASNET_MSG_ERROR([INTERNAL ERROR: GASNET_PUSH/POPVAR mismatch: $_total_pushcnt more pushes than pops])
   fi
 GASNET_FUN_END([$0])
 ])
@@ -448,7 +448,7 @@ AC_CACHE_CHECK(for libgcc link flags, cv_prefix[]lib_gcc,
   #LIBGCC="`$CC -v 2>&1 | sed -n 's:^Reading specs from \(.*\)/specs$:-L\1 -lgcc:p'`"
   LIBGCC="-L`$CC -print-libgcc-file-name | xargs dirname` -lgcc"
   if test -z "$LIBGCC"; then
-    AC_MSG_ERROR(cannot find libgcc)
+    GASNET_MSG_ERROR(cannot find libgcc)
   fi
 fi
 cv_prefix[]lib_gcc="$LIBGCC"])
@@ -487,11 +487,16 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   
   AC_MSG_CHECKING(for $1 in environment)
 
-  dnl create the help prompt just once
+  dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
+   ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
+    dnl don't advertise the autoconf vars, which we might not reliably catch
+    ifelse(index([ CC CFLAGS LDFLAGS CPPFLAGS CPP CXX CXXFLAGS CXXCPP ],[ $1 ]),[-1],[
     AC_ARG_WITH(lowerdashname, 
        GASNET_OPTION_HELP(with-[]lowerdashname[]=, value for [$1]), 
       [], [])
+    ], [])
+   ])
   ])
   define(with_expanded_[$1], [set])
 
@@ -520,7 +525,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 	  AC_MSG_RESULT([no, defaulting to \"$[$1]\"]) ;;
       'given')
 	  AC_MSG_RESULT([yes, using \"$[$1]\"]) ;;
-      *) AC_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
+      *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
   esac
 
   popdef([lowerdashname])
@@ -570,8 +575,41 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
     BUILD_IS_SRC=no
   fi
   AC_SUBST(BUILD_IS_SRC)
+
+  # Handle prefix defaulting with subconfigures
+  # When users pass --prefix on the command-line, this is automatically passed to subconfigures
+  #  and everything lives happily in the same tree
+  # Without --prefix, different packages may default to different directories
+  # (due to AC_PREFIX_DEFAULT), so ensure that all subconfigures 
+  # default to the same location (as determined by the outermost configure)
+  if test "$prefix" = "NONE" -a -n "$ac_default_prefix" ; then
+    GASNET_SUBCONFIGURE_ARG(--prefix="$ac_default_prefix")
+  fi
+
   SYSTEM_NAME="`hostname`"
   AC_SUBST(SYSTEM_NAME)
+  case "$target" in 
+   # Apple gcc has -arch options for cross-compilation, but target binaries may still work due to Rosetta (making our cross-compilation support unnecessary)
+   # ensure we report the correct target tuple
+   *-apple-darwin*)
+     _GASNET_GCCVER=`${CC:-gcc} -v 2>&1`
+     _GASNET_GCCISAPPLE=`echo "$_GASNET_GCCVER" | grep 'gcc version' | grep 'Apple Computer'`
+     _GASNET_GCCTARGET=`echo "$_GASNET_GCCVER" | /usr/bin/perl -ne 'print \[$]1 if (m/--target=(\S+)/);'`
+     _GASNET_GCCCPU=`echo "$_GASNET_GCCVER" | /usr/bin/perl -ne 'print \[$]1 if (m/--target=([[^-]]+)/);'`
+     if test "$_GASNET_GCCISAPPLE" -a "$_GASNET_GCCTARGET" -a "$_GASNET_GCCCPU" ; then
+        case "$target" in
+         $_GASNET_GCCCPU-*) ;; 
+         *) 
+         GASNET_MSG_WARN([Apple gcc is cross-compiling for $_GASNET_GCCTARGET, readjusting configure target])
+         target="$_GASNET_GCCTARGET" 
+         target_alias="$target" 
+         ac_cv_target="$target" 
+         ac_cv_target_alias="$target" 
+         target_cpu="$_GASNET_GCCCPU" 
+        esac
+     fi
+     ;;
+  esac
   SYSTEM_TUPLE="$target"
   AC_SUBST(SYSTEM_TUPLE)
   AC_MSG_RESULT( system info:      $SYSTEM_NAME $SYSTEM_TUPLE)
@@ -609,7 +647,7 @@ AC_DEFUN([GASNET_RESTORE_AUTOCONF_ENV],[
   dnl  pushdef = get a variable prefix variable which won't be cached.
   pushdef([nc_prefix],patsubst(cv_prefix,_cv_,_))
   if test "$nc_prefix[]acenv_list" != ""; then
-    AC_MSG_ERROR(_GASNET_RESTORE_AUTOCONF_ENV called more than once with prefix = "cv_prefix")
+    GASNET_MSG_ERROR(_GASNET_RESTORE_AUTOCONF_ENV called more than once with prefix = "cv_prefix")
   fi
   nc_prefix[]acenv_list="$1"
   AC_MSG_CHECKING(for cached autoconf environment settings)
@@ -763,6 +801,9 @@ if test "$cv_prefix[]_gfp_disable" = ""; then
   gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) print $i; }'`
   gasnet_gfp_progname0=`echo "$gasnet_gfp_progname" | $AWK '{ print sub[]str([$]0,1,1) }'`
   if test "$gasnet_gfp_progname0" != "/" ; then
+    if test "`echo $gasnet_gfp_progname | grep '/'`" != "" ; then
+      AC_MSG_ERROR([$1 was set to a relative path: $gasnet_gfp_progname -- please use an absolute pathname])
+    fi
     # clear cached values, in case this is a pushed var
     unset cv_prefix[]_gfp_fullprogname_$1
     unset ac_cv_path_[]cv_prefix[]_gfp_fullprogname_$1
@@ -1162,6 +1203,8 @@ void * thread_start (void *arg) {
   tlocal += 1;
   if (pthread_mutex_unlock (&lock)) { exit (2); }
   *return_val = tlocal;
+  /* detect an Intel 9.0/9.1 bug on x86/Linux (n2001) */
+  if (misc != 0 || misc2 != 0) *return_val = -1;
   return return_val;
 }
 ],[
@@ -1380,7 +1423,7 @@ AC_DEFUN([GASNET_PROG_CPP], [
   dnl final check
   AC_TRY_CPP([
     # error
-  ], [AC_MSG_ERROR(Your C preprocessor is broken - reported success when it should have failed)], [])
+  ], [GASNET_MSG_ERROR(Your C preprocessor is broken - reported success when it should have failed)], [])
   AC_TRY_CPP([], [], [GASNET_MSG_ERROR(Your C preprocessor is broken - reported failure when it should have succeeded)])
   AC_TRY_CPP([
     #ifdef __cplusplus
@@ -1424,7 +1467,7 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
   dnl final check
   AC_TRY_CPP([
     # error
-  ], [AC_MSG_ERROR(Your C++ preprocessor is broken - reported success when it should have failed)], [])
+  ], [GASNET_MSG_ERROR(Your C++ preprocessor is broken - reported success when it should have failed)], [])
   AC_TRY_CPP([], [], [GASNET_MSG_ERROR(Your C++ preprocessor is broken - reported failure when it should have succeeded)])
   AC_TRY_CPP([
     #ifndef __cplusplus
@@ -1447,7 +1490,7 @@ AC_DEFUN([GASNET_PROG_CC], [
   AC_LANG_C
   AC_TRY_COMPILE([], [
     fail for me
-  ], [AC_MSG_ERROR(Your C compiler is broken - reported success when it should have failed)], [])
+  ], [GASNET_MSG_ERROR(Your C compiler is broken - reported success when it should have failed)], [])
   AC_TRY_COMPILE([ #include <stdio.h>
                    #include <stdlib.h>
 		 ], [ printf("hi\n"); exit(0); ], 
@@ -1463,7 +1506,7 @@ AC_DEFUN([GASNET_PROG_CC], [
     p = foo((void *)&d);
   ], [], [GASNET_MSG_ERROR([Your C compiler is broken, it fails to compile a simple C program using implicit void* conversion. This software requires a true, working ANSI C compiler - note that a C++ compiler is not an acceptable replacement.])])
   AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
-              [AC_MSG_ERROR(Your C linker is broken - reported success when it should have failed)], [])
+              [GASNET_MSG_ERROR(Your C linker is broken - reported success when it should have failed)], [])
   AC_TRY_LINK([ #include <stdio.h>
                 #include <stdlib.h>
               ], [ printf("hi\n"); exit(0); ], 
@@ -1484,7 +1527,7 @@ AC_DEFUN([GASNET_PROG_CC], [
     AC_MSG_CHECKING([working C compiler executables])
     AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
   	     [AC_MSG_RESULT(no) GASNET_MSG_ERROR([Cannot run executables created with C compiler. If you're attempting to cross-compile, use --enable-cross-compile])], 
-  	     [AC_MSG_ERROR(Internal configure error - please report)])
+  	     [GASNET_MSG_ERROR(Internal configure error - please report)])
   ])
   AM_CONDITIONAL(CROSS_COMPILING, test "$cross_compiling" = "yes")
   AC_SUBST(CROSS_COMPILING)
@@ -1503,13 +1546,13 @@ AC_DEFUN([GASNET_PROG_CXX], [
   AC_LANG_CPLUSPLUS
   AC_TRY_COMPILE([], [
     fail for me
-  ], [AC_MSG_ERROR(Your C++ compiler is broken - reported success when it should have failed)], [])
+  ], [GASNET_MSG_ERROR(Your C++ compiler is broken - reported success when it should have failed)], [])
   AC_TRY_COMPILE([ #include <stdio.h>
                    #include <stdlib.h>
                  ], [ printf("hi\n"); exit(0); ], 
      [], [GASNET_MSG_ERROR(Your C++ compiler is broken - reported failure when it should have succeeded)])
   AC_TRY_LINK([ extern int some_bogus_nonexistent_symbol(); ], [ int x = some_bogus_nonexistent_symbol(); ],
-              [AC_MSG_ERROR(Your C++ linker is broken - reported success when it should have failed)], [])
+              [GASNET_MSG_ERROR(Your C++ linker is broken - reported success when it should have failed)], [])
   AC_TRY_LINK([ #include <stdio.h>
                    #include <stdlib.h>
               ], [ printf("hi\n"); exit(0); ], 
@@ -1529,28 +1572,18 @@ AC_DEFUN([GASNET_PROG_CXX], [
     AC_MSG_CHECKING([working C++ compiler executables])
     AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
   	     [AC_MSG_RESULT(no) GASNET_MSG_ERROR([Cannot run executables created with C++ compiler. If you're attempting to cross-compile, use --enable-cross-compile])], 
-  	     [AC_MSG_ERROR(Internal configure error - please report)])
+  	     [GASNET_MSG_ERROR(Internal configure error - please report)])
   ])
   AC_LANG_RESTORE
   GASNET_FUN_END([$0])
 ])
 
-dnl fetch the host C compiler
-AC_DEFUN([GASNET_PROG_HOSTCC], [
-GASNET_FUN_BEGIN([$0])
-if test "$cross_compiling" = "yes" ; then
-  HOST_MSG="When cross-compiling, \$HOST_CC or --with-host-cc= must be set to indicate a C compiler for the host machine (ie the machine running this configure script)"
-  GASNET_ENV_DEFAULT(HOST_CC, )
-  GASNET_ENV_DEFAULT(HOST_CFLAGS, )
-  GASNET_ENV_DEFAULT(HOST_LDFLAGS, )
-  GASNET_ENV_DEFAULT(HOST_LIBS, )
-  AC_SUBST(HOST_CC)
-  AC_SUBST(HOST_CFLAGS)
-  AC_SUBST(HOST_LDFLAGS)
-  AC_SUBST(HOST_LIBS)
-  if test ! "$HOST_CC" ; then
-    AC_MSG_ERROR([$HOST_MSG])
+AC_DEFUN([GASNET_HOSTCC_BEGIN], [
+  GASNET_FUN_BEGIN([$0])
+  if test "$CROSS_COMPILING" != "1" ; then
+    AC_MSG_ERROR([Internal error - please report])
   fi
+
   GASNET_PUSHVAR(CC,"$HOST_CC")
   GASNET_PUSHVAR(CFLAGS,"$HOST_CFLAGS")
   GASNET_PUSHVAR(LDFLAGS,"$HOST_LDFLAGS")
@@ -1563,22 +1596,17 @@ if test "$cross_compiling" = "yes" ; then
   GASNET_PUSHVAR_UNSET(ac_cv_c_compiler_gnu)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_g)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_stdc)
-    GASNET_PROG_CC
-    AC_LANG_SAVE
-    AC_LANG_C
-    GASNET_PUSHVAR(cross_compiling,"no")
-    AC_MSG_CHECKING([working host C compiler executables])
-    AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
-             [AC_MSG_RESULT(no) GASNET_MSG_ERROR($HOST_MSG)],
-             [AC_MSG_ERROR(Internal configure error - please report)])
-    GASNET_POPVAR(cross_compiling)
-    HOST_CC="$CC"
-    HOST_CPP="$CPP"
-    HOST_CPPFLAGS="$CPPFLAGS"
-    HOST_CFLAGS="$CFLAGS"
-    HOST_LDFLAGS="$LDFLAGS"
-    HOST_LIBS="$LIBS"
-    AC_LANG_RESTORE
+  GASNET_PUSHVAR(cross_compiling,"no")
+
+  GASNET_FUN_END([$0])
+])
+
+AC_DEFUN([GASNET_HOSTCC_END], [
+  GASNET_FUN_BEGIN([$0])
+  if test "$CROSS_COMPILING" != "1" ; then
+    AC_MSG_ERROR([Internal error - please report])
+  fi
+
   GASNET_POPVAR(CC)
   GASNET_POPVAR(CFLAGS)
   GASNET_POPVAR(LDFLAGS)
@@ -1590,6 +1618,47 @@ if test "$cross_compiling" = "yes" ; then
   GASNET_POPVAR(ac_cv_c_compiler_gnu)
   GASNET_POPVAR(ac_cv_prog_cc_g)
   GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_POPVAR(cross_compiling)
+
+  GASNET_FUN_END([$0])
+])
+
+dnl fetch the host C compiler
+AC_DEFUN([GASNET_PROG_HOSTCC], [
+GASNET_FUN_BEGIN([$0])
+if test "$cross_compiling" = "yes" ; then
+  HOST_MSG="When cross-compiling, \$HOST_CC or --with-host-cc= must be set to indicate a C compiler for the host machine (ie the machine running this configure script)"
+  pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
+  GASNET_ENV_DEFAULT(HOST_CC, )
+  GASNET_ENV_DEFAULT(HOST_CFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_LDFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_LIBS, )
+  popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
+  AC_SUBST(HOST_CC)
+  AC_SUBST(HOST_CFLAGS)
+  AC_SUBST(HOST_LDFLAGS)
+  AC_SUBST(HOST_LIBS)
+  if test ! "$HOST_CC" ; then
+    AC_MSG_ERROR([$HOST_MSG])
+  fi
+  GASNET_HOSTCC_BEGIN
+    GASNET_PROG_CC
+    AC_LANG_SAVE
+    AC_LANG_C
+    GASNET_PUSHVAR(cross_compiling,"no")
+    AC_MSG_CHECKING([working host C compiler executables])
+    AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
+             [AC_MSG_RESULT(no) GASNET_MSG_ERROR($HOST_MSG)],
+             [GASNET_MSG_ERROR(Internal configure error - please report)])
+    GASNET_POPVAR(cross_compiling)
+    HOST_CC="$CC"
+    HOST_CPP="$CPP"
+    HOST_CPPFLAGS="$CPPFLAGS"
+    HOST_CFLAGS="$CFLAGS"
+    HOST_LDFLAGS="$LDFLAGS"
+    HOST_LIBS="$LIBS"
+    AC_LANG_RESTORE
+  GASNET_HOSTCC_END
 fi
 GASNET_FUN_END([$0])
 ])
@@ -1601,10 +1670,12 @@ AC_DEFUN([GASNET_PROG_HOSTCXX], [
 GASNET_FUN_BEGIN([$0])
 if test "$cross_compiling" = "yes" ; then
   HOST_MSG="When cross-compiling, \$HOST_CXX or --with-host-cxx= must be set to indicate a C++ compiler for the host machine (ie the machine running this configure script)"
+  pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
   GASNET_ENV_DEFAULT(HOST_CXX, )
   GASNET_ENV_DEFAULT(HOST_CXXFLAGS, )
   GASNET_ENV_DEFAULT(HOST_CXX_LDFLAGS, )
   GASNET_ENV_DEFAULT(HOST_CXX_LIBS, )
+  popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
   AC_SUBST(HOST_CXX)
   AC_SUBST(HOST_CXXFLAGS)
   AC_SUBST(HOST_CXX_LDFLAGS)
@@ -1629,7 +1700,7 @@ if test "$cross_compiling" = "yes" ; then
     AC_MSG_CHECKING([working host CXX compiler executables])
     AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
              [AC_MSG_RESULT(no) GASNET_MSG_ERROR($HOST_MSG)],
-             [AC_MSG_ERROR(Internal configure error - please report)])
+             [GASNET_MSG_ERROR(Internal configure error - please report)])
     GASNET_POPVAR(cross_compiling)
     HOST_CXX="$CXX"
     HOST_CXXCPP="$CXXCPP"
@@ -1848,7 +1919,11 @@ GASNET_FUN_BEGIN([$0($1)])
   done
 
   # Always prepend --prefix to ensure using the same prefix in sub-configs
-  ac_sub_configure_args="--prefix=$prefix $ac_sub_configure_args"
+  if test "$prefix" = "NONE" -a -n "$ac_default_prefix" ; then
+    ac_sub_configure_args="--prefix=$ac_default_prefix $ac_sub_configure_args"
+  else
+    ac_sub_configure_args="--prefix=$prefix $ac_sub_configure_args"
+  fi
 
   echo configuring in $ac_config_dir
 
@@ -1915,7 +1990,7 @@ GASNET_FUN_BEGIN([$0($1)])
   if test ! -f $_subconfig_extract_file; then
      AC_MSG_ERROR([failed to open $_subconfig_extract_file - file not found])
   fi
-  _subconfig_extract_result=`$PERL -ne 'if (m/^s(.)\@('$2')\@\1([[^\1]]*)\1/) { print "[$]2='"'"'[$]3'"'"'"; }' $_subconfig_extract_file`
+  _subconfig_extract_result=`$PERL -ne 'if (m/^s(.)\@('$2')\@\1([[^\1]]*)\1/) { my ($var,$val) = ([$]2,[$]3); $val =~ s/\|#_!!_#\|//g; print "$var='"'"'$val'"'"'"; }' $_subconfig_extract_file`
   if test -n "$_subconfig_extract_result" ; then
     eval $_subconfig_extract_result
     AC_MSG_RESULT($[$2])
@@ -1932,7 +2007,9 @@ AC_DEFUN([GASNET_CROSS_VAR],[
   GASNET_FUN_BEGIN([$0($1,$2)])
   pushdef([cross_varname],CROSS_$2)
   if test "$cross_compiling" = "yes" ; then
+    pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
     GASNET_ENV_DEFAULT(cross_varname,)
+    popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
     if test "$cross_varname" = "" ; then
       AC_MSG_ERROR([This configure script requires \$cross_varname be set for cross-compilation])
     else 
@@ -2022,9 +2099,9 @@ else
         fi
       fi
   ])
-  GASNET_COMPILE_EXAMINE([ endiancode ],[foo();],[ endianscan ],[AC_MSG_ERROR(error building endian probe)])
+  GASNET_COMPILE_EXAMINE([ endiancode ],[foo();],[ endianscan ],[GASNET_MSG_ERROR(error building endian probe)])
   if test -z "$[$1]WORDS_BIGENDIAN" ; then
-    GASNET_LINK_EXAMINE([ endiancode ],[foo();],[ endianscan ],[AC_MSG_ERROR(error building endian probe)])
+    GASNET_LINK_EXAMINE([ endiancode ],[foo();],[ endianscan ],[GASNET_MSG_ERROR(error building endian probe)])
   fi
   popdef([endianscan])
   popdef([endiancode])
@@ -2033,7 +2110,7 @@ fi
 if test "$[$1]WORDS_BIGENDIAN" = "1"; then
   AC_DEFINE($1[]WORDS_BIGENDIAN, 1, [whether byteorder is bigendian])
 elif test "$[$1]WORDS_BIGENDIAN" = ""; then
-  AC_MSG_ERROR(Inconsistent results from endian probe)
+  GASNET_MSG_ERROR(Inconsistent results from endian probe)
 fi
 GASNET_FUN_END([$0($1)])
 ])
@@ -2043,6 +2120,7 @@ dnl compile the program given by headers and body
 dnl if it suceeds, run action-success with $GASNET_EXAMINE_BIN set to filename of generated object
 dnl else, run action-failure
 AC_DEFUN([GASNET_COMPILE_EXAMINE], [
+AC_REQUIRE([AC_OBJEXT])
 GASNET_FUN_BEGIN([$0(...)])
   cat >conftest.$ac_ext <<"EOF"
 #include "confdefs.h"
@@ -2059,9 +2137,9 @@ EOF
        ac_status=$?
        echo "$as_me:$LINENO: \$? = $ac_status" >&5
        (exit $ac_status); } && \
-       test -f conftest.o ; then
-    GASNET_PUSHVAR(GASNET_EXAMINE_BIN,"gasnet-examine-bin-$LINENO.o")
-    mv conftest.o $GASNET_EXAMINE_BIN
+       test -f conftest.${ac_objext} ; then
+    GASNET_PUSHVAR(GASNET_EXAMINE_BIN,"gasnet-examine-bin-$LINENO.${ac_objext}")
+    mv conftest.${ac_objext} $GASNET_EXAMINE_BIN
     $3
     rm -f $GASNET_EXAMINE_BIN
     GASNET_POPVAR(GASNET_EXAMINE_BIN)
@@ -2126,11 +2204,11 @@ pushdef([unpackcode],[
 ])
  GASNET_COMPILE_EXAMINE([$3
    embedcode ],[ printf("%s",s); ],
-   [ unpackcode ],[AC_MSG_ERROR(Failed while compile extracting $4)])
+   [ unpackcode ],[GASNET_MSG_ERROR(Failed while compile extracting $4)])
 if test -z "$cv_prefix[]$2" ; then
  GASNET_LINK_EXAMINE([$3
    embedcode ],[ printf("%s",s); ],
-   [ unpackcode ],[AC_MSG_ERROR(Failed while link extracting $4)])
+   [ unpackcode ],[GASNET_MSG_ERROR(Failed while link extracting $4)])
 fi
 popdef([unpackcode])
 popdef([embedcode])
@@ -2165,11 +2243,11 @@ pushdef([unpackcode],[
 ])
  GASNET_COMPILE_EXAMINE([$3
    embedcode ],[ char *p = s; while (*p) printf("%c",*(p++)); ],
-   [ unpackcode ],[AC_MSG_ERROR(Failed while compile extracting $4)])
+   [ unpackcode ],[GASNET_MSG_ERROR(Failed while compile extracting $4)])
 if test -z "$cv_prefix[]$2" ; then
  GASNET_LINK_EXAMINE([$3
    embedcode ],[ char *p = s; while (*p) printf("%c",*(p++)); ],
-   [ unpackcode ],[AC_MSG_ERROR(Failed while link extracting $4)])
+   [ unpackcode ],[GASNET_MSG_ERROR(Failed while link extracting $4)])
 fi
 popdef([unpackcode])
 popdef([embedcode])
@@ -2179,4 +2257,3 @@ if test -n "$cv_prefix[]$2" ; then
 fi
 GASNET_FUN_END([$0($1,$2,...)])
 ])
-

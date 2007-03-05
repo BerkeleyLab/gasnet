@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2007/02/24 00:01:21 $
- * $Revision: 1.13.6.1 $
+ *     $Date: 2007/03/05 23:20:05 $
+ * $Revision: 1.13.6.2 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -258,11 +258,6 @@ static void gasnete_shmembarrier_notify(int id, int flags) {
     if_pf (barrier_splitstate == INSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
-    GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-    #if GASNETI_STATS_OR_TRACE
-      barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
-    #endif
-
     barrier_phase = !barrier_phase;
     barrier_state[barrier_phase].barrier_value = id;
     barrier_state[barrier_phase].barrier_flags = flags;
@@ -304,17 +299,11 @@ static int gasnete_shmembarrier_wait(int id, int flags) {
     int  i, local_mismatch = 0;
     long volatile *done_ctr = &barrier_done[barrier_phase];
 
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
     gasneti_sync_reads();
 
     if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror(
 	    "gasnet_barrier_wait() called without a matching notify");
-
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,
-			       gasneti_ticks_now()-barrier_notifytime);
 
     barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_sync_writes();
@@ -374,8 +363,6 @@ static int gasnete_shmembarrier_wait(int id, int flags) {
 
     }
 
-    GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,gasneti_ticks_now()-wait_start);
-
     gasneti_sync_writes();
 
     if (local_mismatch || barrier_mismatch[barrier_phase]) {
@@ -389,7 +376,6 @@ static int gasnete_shmembarrier_wait(int id, int flags) {
 static int gasnete_shmembarrier_try(int id, int flags) {
     if_pf(barrier_splitstate == OUTSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
-    GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
     return gasnete_shmembarrier_wait(id, flags);
 }
 

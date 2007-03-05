@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2007/02/24 00:00:35 $
- * $Revision: 1.22.6.1 $
+ *     $Date: 2007/03/05 23:19:16 $
+ * $Revision: 1.22.6.2 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,6 +36,7 @@ static int num_threads = 1;
 static int peer = -1;
 static void * myseg = NULL;
 static void * peerseg = NULL;
+static void * peersegmid = NULL;
 static int iters = 0;
 static int iters0 = 0;
 static int iters2 = 0;
@@ -124,6 +125,7 @@ extern int gasneti_run_diagnostics(int iter_cnt, int threadcnt, const char *test
   }
   myseg = TEST_MYSEG();
   peerseg = TEST_SEG(peer);
+  peersegmid = (char *)peerseg + TEST_SEGSZ/2;
   if (testsections) TEST_SECTION_PARSE(testsections);
 
   TEST_GENERICS_WARNING();
@@ -582,17 +584,17 @@ static void progressfn_tester(int *counter) {
   /* do some work that should be legal inside a progress fn */
   { static int tmp = 47;
     int sz;
-    gasnet_put_nbi(peer, peerseg, &tmp, sizeof(tmp));
-    gasnet_get_nbi(&tmp, peer, peerseg, sizeof(tmp));
-    for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ); sz = (sz < 64?sz*2:sz*8)) {
-      gasnet_put_nbi_bulk(peer, peerseg, myseg, sz);
-      gasnet_get_nbi_bulk(myseg, peer, peerseg, sz);
+    gasnet_put_nbi(peer, peersegmid, &tmp, sizeof(tmp));
+    gasnet_get_nbi(&tmp, peer, peersegmid, sizeof(tmp));
+    for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
+      gasnet_put_nbi_bulk(peer, peersegmid, myseg, sz);
+      gasnet_get_nbi_bulk(myseg, peer, peersegmid, sz);
     }
     sz = gasnet_try_syncnbi_all();
     if (gasneti_diag_havehandlers) {
-      for (sz = 1; sz <= MIN(gasnet_AMMaxMedium(),MIN(64*1024,TEST_SEGSZ)); sz = (sz < 64?sz*2:sz*8)) {
+      for (sz = 1; sz <= MIN(gasnet_AMMaxMedium(),MIN(64*1024,TEST_SEGSZ/2)); sz = (sz < 64?sz*2:sz*8)) {
         gasnet_AMRequestMedium0(peer, gasneti_diag_hidx_base + 0, myseg, sz);
-        gasnet_AMRequestLong0(peer, gasneti_diag_hidx_base + 0, myseg, sz, peerseg);
+        gasnet_AMRequestLong0(peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid);
       }
     }
   }
@@ -631,8 +633,8 @@ static void progressfns_test(int id) {
       int tmp;
       gasnet_put(peer, peerseg, &tmp, sizeof(tmp));
       gasnet_get(&tmp, peer, peerseg, sizeof(tmp));
-      gasnet_put_bulk(peer, peerseg, myseg, 1024);
-      gasnet_get_bulk(myseg, peer, peerseg, 1024);
+      gasnet_put_bulk(peer, peersegmid, myseg, 1024);
+      gasnet_get_bulk(myseg, peer, peersegmid, 1024);
       gasnet_AMPoll();
     }
 
@@ -655,8 +657,8 @@ static void progressfns_test(int id) {
       int tmp;
       gasnet_put(peer, peerseg, &tmp, sizeof(tmp));
       gasnet_get(&tmp, peer, peerseg, sizeof(tmp));
-      gasnet_put_bulk(peer, peerseg, myseg, 1024);
-      gasnet_get_bulk(myseg, peer, peerseg, 1024);
+      gasnet_put_bulk(peer, peersegmid, myseg, 1024);
+      gasnet_get_bulk(myseg, peer, peersegmid, 1024);
       gasnet_AMPoll();
     }
 

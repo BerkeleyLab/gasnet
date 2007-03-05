@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/testspawn/testspawn.c,v $
- *     $Date: 2005/04/18 00:31:55 $
- * $Revision: 1.7 $
+ *     $Date: 2007/03/05 23:19:59 $
+ * $Revision: 1.7.12.1 $
  * Description: 
  * Copyright 2005, Regents of the University of California
  * Terms of use are as specified in license.txt

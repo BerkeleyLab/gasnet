@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2007/02/24 00:00:56 $
- * $Revision: 1.14.4.1 $
+ *     $Date: 2007/03/05 23:19:40 $
+ * $Revision: 1.14.4.2 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -109,7 +109,7 @@
       /* Include below might fail for ancient versions lacking this header, but testing shows it
          works back to at least 5.1-3 (Nov 2003), and based on docs probably back to 3.2 (Sep 2000) */
         #define PLATFORM_COMPILER_VERSION 0       
-    #else
+    #elif defined(__x86_64__) /* bug 1753 - 64-bit omp.h upgrade happenned in <6.0-8,6.1-1] */
       #include "omp.h"
       #if defined(_PGOMP_H)
         /* 6.1.1 or newer */
@@ -119,6 +119,17 @@
         /* 6.0.8 or older */
         #define PLATFORM_COMPILER_VERSION 0
         #define PLATFORM_COMPILER_VERSION_STR "<=6.0-8"
+      #endif
+    #else /* 32-bit omp.h upgrade happenned in <5.2-4,6.0-8] */
+      #include "omp.h"
+      #if defined(_PGOMP_H)
+        /* 6.0-8 or newer */
+        #define PLATFORM_COMPILER_VERSION 0x060008
+        #define PLATFORM_COMPILER_VERSION_STR ">=6.0-8"
+      #else
+        /* 5.2-4 or older */
+        #define PLATFORM_COMPILER_VERSION 0
+        #define PLATFORM_COMPILER_VERSION_STR "<=5.2-4"
       #endif
     #endif
   #endif
@@ -298,8 +309,16 @@
     #else
       #define PLATFORM_COMPILER_GNU_C  1
     #endif
+   #if defined(__GNUC_MINOR__) && defined(__GNUC_PATCHLEVEL__)
     #define PLATFORM_COMPILER_VERSION \
             PLATFORM_COMPILER_VERSION_INT(__GNUC__,__GNUC_MINOR__,__GNUC_PATCHLEVEL__)
+   #elif defined(__GNUC_MINOR__) /* older versions of egcs lack __GNUC_PATCHLEVEL__ */
+    #define PLATFORM_COMPILER_VERSION \
+            PLATFORM_COMPILER_VERSION_INT(__GNUC__,__GNUC_MINOR__,0)
+   #else
+    #define PLATFORM_COMPILER_VERSION \
+            PLATFORM_COMPILER_VERSION_INT(__GNUC__,0,0)
+   #endif
     #define PLATFORM_COMPILER_VERSION_STR __PLATFORM_COMPILER_GNU_VERSION_STR
   #else
     #define _PLATFORM_COMPILER_GNU_VERSION_STR __PLATFORM_COMPILER_GNU_VERSION_STR
@@ -415,9 +434,17 @@
   #define PLATFORM_OS_CATAMOUNT 1
   #define PLATFORM_OS_FAMILYNAME CATAMOUNT
 
+#elif defined(__CRAYXT_COMPUTE_LINUX_TARGET)
+  #define PLATFORM_OS_CNL 1
+  #define PLATFORM_OS_FAMILYNAME CNL
+
 #elif defined(__blrts) || defined(__blrts__) || defined(__gnu_blrts__)
   #define PLATFORM_OS_BLRTS 1
   #define PLATFORM_OS_FAMILYNAME BLRTS
+
+#elif defined(__K42)
+  #define PLATFORM_OS_K42 1
+  #define PLATFORM_OS_FAMILYNAME K42
 
 #elif defined(__uClinux__)
   #define PLATFORM_OS_UCLINUX 1
@@ -450,6 +477,10 @@
 #elif defined(__NetBSD) || defined(__NetBSD__)
   #define PLATFORM_OS_NETBSD 1
   #define PLATFORM_OS_FAMILYNAME NETBSD
+
+#elif defined(__OpenBSD__)
+  #define PLATFORM_OS_OPENBSD 1
+  #define PLATFORM_OS_FAMILYNAME OPENBSD
 
 #elif defined(__sun) || defined(__sun__)
   #define PLATFORM_OS_SOLARIS 1
@@ -655,6 +686,7 @@
 /* ------------------------------------------------------------------------------------ */
 /* handy test code that can be parsed after preprocess or executed to show platform results */
 #ifdef PLATFORM_SHOW
+#include <stdio.h>
 const char *
 COMPILER_FAMILYNAME = _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME)
 , *
@@ -670,8 +702,12 @@ ARCH_FAMILYNAME = _STRINGIFY(PLATFORM_ARCH_FAMILYNAME)
 ;
 int main() {
   #define PLATFORM_DISP(x) printf("PLATFORM_"#x"=%s\n",x)
+  #define PLATFORM_DISPI(x) printf("PLATFORM_"#x"=%i\n",PLATFORM_##x)
+  #define PLATFORM_DISPX(x) printf("PLATFORM_"#x"=0x%x\n",PLATFORM_##x)
   PLATFORM_DISP(COMPILER_FAMILYNAME);
   PLATFORM_DISP(COMPILER_FAMILYID);
+  PLATFORM_DISPI(COMPILER_ID);
+  PLATFORM_DISPX(COMPILER_VERSION);
   PLATFORM_DISP(COMPILER_VERSION_STR);
   PLATFORM_DISP(COMPILER_IDSTR);
   PLATFORM_DISP(OS_FAMILYNAME);
