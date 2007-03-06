@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/03/06 02:44:33 $
- * $Revision: 1.29.6.33 $
+ *     $Date: 2007/03/06 02:53:18 $
+ * $Revision: 1.29.6.34 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -405,7 +405,6 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
        /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
        sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_AGGREGATE;
        for(i=0; i<num_segs - 1; i++) {
-         fprintf(stderr, "%d> init bcast from %d of size %d\n", gasneti_mynode, (int)sent_bytes, (int)gasnete_coll_curr_seg_size);
          /*ignore the handle returned*/
          gasnete_coll_bcast_TreePutScratch(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
                                            gasnete_coll_curr_seg_size, sub_flags, kind, sequence GASNETE_THREAD_PASS);   
@@ -413,7 +412,6 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
        }
        /* the last segment of the collective has the same flags as the user requested ones*/
        /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right in*/
-       fprintf(stderr, "%d> init bcast from %d of size %d\n", gasneti_mynode, (int)sent_bytes, (int)(nbytes-sent_bytes));
 
        return gasnete_coll_bcast_TreePutScratch(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
                                          nbytes-sent_bytes, flags, kind, sequence GASNETE_THREAD_PASS);   
@@ -425,7 +423,6 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
      } else {
        /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
        sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_NOSYNC | GASNET_COLL_AGGREGATE;
-       fprintf(stderr, "%d> init bcast from %d of size %d\n", gasneti_mynode, (int)sent_bytes, (int)gasnete_coll_curr_seg_size);
 
        gasnete_coll_bcast_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
                                   gasnete_coll_curr_seg_size, sub_flags, kind, sequence GASNETE_THREAD_PASS);   
@@ -436,7 +433,6 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
        
        for(i=1; i<num_segs - 1; i++) {
          /*ignore the handle returned*/
-         fprintf(stderr, "%d> init bcast from %d of size %d\n", gasneti_mynode, (int)sent_bytes, (int)gasnete_coll_curr_seg_size);
 
          gasnete_coll_bcast_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
                                     gasnete_coll_curr_seg_size, sub_flags, kind, sequence GASNETE_THREAD_PASS);   
@@ -446,7 +442,6 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
        /*Strip off the IN_ALLSYNC FLAG*/
        sub_flags = (flags & ~(GASNET_COLL_IN_ALLSYNC)) | GASNET_COLL_IN_NOSYNC;       
        /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right through*/
-       fprintf(stderr, "%d> init bcast from %d of size %d\n", gasneti_mynode,(int) sent_bytes, (int)(nbytes-sent_bytes));
 
        return gasnete_coll_bcast_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
                                         nbytes-sent_bytes, sub_flags, kind, sequence GASNETE_THREAD_PASS);   
