@@ -204,7 +204,6 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
             (int) scratch_req->team->scratch_segs[scratch_req->team->myrank].size);*/
     /* if the tail is behind or equal to the head then check to see if there is enough scratch space to the end*/
     if(my_head_pos + scratch_req->incoming_size > scratch_req->team->scratch_segs[scratch_req->team->myrank].size) {
-      
       /* wait for collective ops to clear <-- this function will update the head and the tail*/
       gasnete_coll_scratch_wait_for_all_ops(scratch_req->team GASNETE_THREAD_PASS);
       /* send a message to peers sending to me for updating my head and tail pointers */

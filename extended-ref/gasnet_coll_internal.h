@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/03/01 19:49:07 $
- * $Revision: 1.22.6.21 $
+ *     $Date: 2007/03/06 02:44:33 $
+ * $Revision: 1.22.6.22 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,8 +144,8 @@ struct gasnete_coll_tree_data_t_ {
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 #ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
 /*set defult to 2 MB*/
-#define GASNETE_COLL_OPT_SCRATCH_SIZE (2*(1024*1024))
-/*#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8*/
+/*#define GASNETE_COLL_OPT_SCRATCH_SIZE (2*(1024*1024))*/
+#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8
 #endif
 
 #define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256

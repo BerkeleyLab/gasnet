@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/02/28 02:03:04 $
- * $Revision: 1.29.6.31 $
+ *     $Date: 2007/03/06 02:44:33 $
+ * $Revision: 1.29.6.32 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,8 @@
 
 static size_t gasnete_coll_p2p_eager_min = 0;
 static size_t gasnete_coll_p2p_eager_scale = 0;
+/*set a std segment size of 1024 bytes*/
+static size_t gasnete_coll_curr_seg_size = 1024;
 
 /*---------------------------------------------------------------------------------*/
 /* Forward decls and macros */
@@ -2090,6 +2092,10 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
     return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     if (flags & GASNET_COLL_SINGLE) {
+      /* if the transfer size is greater than the current segment size, use a pipelined algorithm*/
+      if(nbytes > gasnete_coll_curr_seg_size) {
+        return gasnete_coll_bcast_TreePutPipe(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+      }
       /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
       if((flags & (GASNET_COLL_IN_NOSYNC)) || (flags & (GASNET_COLL_IN_ALLSYNC))) {
 #if 0
