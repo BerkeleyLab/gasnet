@@ -858,7 +858,7 @@ int main(int argc, char **argv)
   
   
   switch(argc) {
-  case 1: run_all=1; iters=DEFAULT_ITERS; max_dsize=MAX_SIZE; break;
+  case 1: run_all=1; iters=DEFAULT_ITERS; min_dsize=1; max_dsize=MAX_SIZE; break;
   case 2: /*just tree fanout*/
     tree_fanout = atoi(argv[1]); run_all=0; iters=DEFAULT_ITERS; min_dsize=1; max_dsize=MAX_SIZE; break;
   case 3: /*fanout and iters*/
