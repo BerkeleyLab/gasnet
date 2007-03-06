@@ -858,7 +858,7 @@ int main(int argc, char **argv)
   
   
   switch(argc) {
-  case 1: run_all=1; iters=DEFAULT_ITERS; break;
+  case 1: run_all=1; iters=DEFAULT_ITERS; max_dsize=MAX_SIZE; break;
   case 2: /*just tree fanout*/
     tree_fanout = atoi(argv[1]); run_all=0; iters=DEFAULT_ITERS; min_dsize=1; max_dsize=MAX_SIZE; break;
   case 3: /*fanout and iters*/
@@ -886,8 +886,6 @@ int main(int argc, char **argv)
   
   for(datasize=min_dsize; datasize<=max_dsize; datasize = datasize*2) {
     MSG0("Running coll test(s) with %d iterations and %d ints (%d bytes).", (int)iters, (int)datasize, (int)(datasize*sizeof(int)));
-#if 0
-    run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
     
     if(!run_all) {
       if(tree_fanout == 0) {
@@ -919,13 +917,23 @@ int main(int argc, char **argv)
 		       (char*)"GASNET_NARY_TREE", tree_fanout); 
 	run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
 		       (char*)"GASNET_NARY_TREE", tree_fanout); 
+        if(tree_fanout >=2) {
+          run_bcast_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
+                        (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
+	run_bcast_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
+		       (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
+	run_bcast_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
+		       (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout);
+        }
       }
     }
+#if 0
     run_scatter_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", 0);
     run_gather_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", 0);
+    run_gather_all_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", tree_fanout);
+    run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
 
 #endif
-    run_gather_all_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", tree_fanout);
       
   }
   
