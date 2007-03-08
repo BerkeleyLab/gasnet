@@ -37,6 +37,8 @@ ToDo List:
 	+ Non-seg aligned     
 	+ test rand implementation
 
++ Rendez-vous based approach for LOCAL collectives w/pipelining
+
 + Merge Collective Spec into Gasnet Spec 
 	+ formalization of the collectives.txt file
 
@@ -64,8 +66,10 @@ ToDo List:
 
 + Conduit-specific tuning
 
+
 Incremental Merge 
 + gasnet_coll.h
 + Eager Threshold (tuneable)
 + spec  
+
 
