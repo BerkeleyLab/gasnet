@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2006/12/18 23:31:14 $
- * $Revision: 1.29.6.24 $
+ *     $Date: 2007/03/08 06:53:30 $
+ * $Revision: 1.29.6.25 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -369,7 +369,7 @@ gasnete_coll_scat_RVGet(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
 
-  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, flags,
+  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, nbytes, flags,
 					 &gasnete_coll_pf_scat_RVGet, options,
 					 NULL, sequence GASNETE_THREAD_PASS);
 }
@@ -440,7 +440,7 @@ gasnete_coll_scat_RVous(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
-  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, flags,
+  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, nbytes, flags,
 					 &gasnete_coll_pf_scat_RVous, options,
 					 NULL, sequence GASNETE_THREAD_PASS);
 }
@@ -666,7 +666,7 @@ gasnete_coll_gath_RVPut(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(dstimage));
 
-  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, flags,
+  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, nbytes, flags,
 					&gasnete_coll_pf_gath_RVPut, options,
 					NULL, sequence GASNETE_THREAD_PASS);
 }
@@ -733,7 +733,7 @@ gasnete_coll_gath_RVous(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
-  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, flags,
+  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, nbytes, flags,
 					&gasnete_coll_pf_gath_RVous, options,
 					NULL, sequence GASNETE_THREAD_PASS);
 }

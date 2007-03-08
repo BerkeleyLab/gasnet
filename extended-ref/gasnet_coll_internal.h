@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/03/06 02:53:18 $
- * $Revision: 1.22.6.23 $
+ *     $Date: 2007/03/08 06:53:30 $
+ * $Revision: 1.22.6.24 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -140,12 +140,11 @@ struct gasnete_coll_tree_data_t_ {
   uint32_t			sent_bytes;
   gasnete_coll_local_tree_geom_t	*geom;
 };
-#define GASNETE_COLL_MIN_SCRATCH_SIZE 256
+#define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 256
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 #ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
 /*set defult to 2 MB*/
-#define GASNETE_COLL_OPT_SCRATCH_SIZE (2*(1024*1024))
-/*#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8*/
+#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
 #endif
 
 #define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256
@@ -281,6 +280,12 @@ extern int gasnete_coll_consensus_wait();
 /* Minumum number of bytes to allocate for eager data */
 #define GASNETE_COLL_P2P_EAGER_MIN_DEFAULT		16
 #endif
+
+#ifndef GASNETE_COLL_SEG_SIZE_DEFAULT
+/* set the Default Segment Size for Pipelining*/
+#define GASNETE_COLL_SEG_SIZE_DEFAULT 1024
+#endif
+
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
 struct gasnete_coll_p2p_t_ {
@@ -1622,6 +1627,7 @@ typedef struct {
   gasnet_node_t srcnode;
   void *src;
   size_t nbytes;
+  size_t dist;
 } gasnete_coll_scatter_args_t;
 
 typedef struct {
@@ -1642,6 +1648,7 @@ typedef struct {
   void *dst;
   void *src;
   size_t nbytes;
+  size_t dist;
 } gasnete_coll_gather_args_t;
 
 typedef struct {
@@ -1863,7 +1870,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 void *dst,
                                 gasnet_image_t srcimage, void *src,
-                                size_t nbytes, int flags,
+                                size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                 GASNETE_THREAD_FARG);
@@ -1881,7 +1888,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                gasnet_image_t dstimage, void *dst,
                                void *src,
-                               size_t nbytes, int flags,
+                               size_t nbytes, size_t dist, int flags,
                                gasnete_coll_poll_fn poll_fn, int options,
                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                GASNETE_THREAD_FARG);
@@ -2056,11 +2063,20 @@ extern gasnet_coll_handle_t
 gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
 			   void *dst,
 			   gasnet_image_t srcimage, void *src,
-			   size_t nbytes, int flags,
+			   size_t nbytes, size_t dist, int flags,
 			   gasnete_coll_tree_kind_t kind,
 			   uint32_t sequence
 			   GASNETE_THREAD_FARG);
 
+
+extern gasnet_coll_handle_t
+gasnete_coll_scat_TreePutPipe(gasnet_team_handle_t team,
+                          void *dst,
+                          gasnet_image_t srcimage, void *src,
+                          size_t nbytes, int flags,
+                          gasnete_coll_tree_kind_t kind,
+                          uint32_t sequence
+                          GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_scat_Eager(gasnet_team_handle_t team,
@@ -2140,10 +2156,19 @@ extern gasnet_coll_handle_t
 gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
 		      gasnet_image_t dstimage, void *dst,
 		      void *src,
-		      size_t nbytes, int flags, 
+		      size_t nbytes, size_t dist, int flags, 
                       gasnete_coll_tree_kind_t kind,
                       uint32_t sequence
                       GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_gath_TreePutPipe(gasnet_team_handle_t team,
+                          gasnet_image_t dstimage, void *dst,
+                          void *src,
+                          size_t nbytes, int flags, 
+                          gasnete_coll_tree_kind_t kind,
+                          uint32_t sequence
+                          GASNETE_THREAD_FARG);
 
 
 extern gasnet_coll_handle_t

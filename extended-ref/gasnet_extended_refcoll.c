@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/03/06 02:44:33 $
- * $Revision: 1.29.6.32 $
+ *     $Date: 2007/03/08 06:53:31 $
+ * $Revision: 1.29.6.33 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@
 static size_t gasnete_coll_p2p_eager_min = 0;
 static size_t gasnete_coll_p2p_eager_scale = 0;
 /*set a std segment size of 1024 bytes*/
-static size_t gasnete_coll_curr_seg_size = 1024;
+static size_t gasnete_coll_curr_seg_size;
 
 /*---------------------------------------------------------------------------------*/
 /* Forward decls and macros */
@@ -977,8 +977,11 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
     gasneti_auxseg_request_t retval;
    
     int i, selftest=0;
-    retval.minsz = GASNETE_COLL_MIN_SCRATCH_SIZE;
-    retval.optimalsz = GASNETE_COLL_OPT_SCRATCH_SIZE;
+    retval.minsz = gasneti_getenv_int_withdefault("GASNET_COLL_MIN_SCRATCH_SIZE",
+                                                  GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT,0);
+
+    retval.optimalsz = gasneti_getenv_int_withdefault("GASNET_COLL_OPT_SCRATCH_SIZE",
+                                                      GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT,0);
 	if (auxseg_info == NULL){
 		return retval; /* initial query */
 	}	
@@ -1021,7 +1024,11 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 							      GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
   gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
 							        GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT, 0);
-
+  
+  /*** XXX: An autotuner will eliminate the need for manually setting this ***/
+  gasnete_coll_curr_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_SEG_SIZE",
+                                                              GASNETE_COLL_SEG_SIZE_DEFAULT,0);
+  
   /* Sanity checks - performed only for debug builds */
   #if GASNET_DEBUG
     if (gasnete_coll_init_done) {
@@ -2254,7 +2261,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
 				void *dst,
 				gasnet_image_t srcimage, void *src,
-				size_t nbytes, int flags,
+				size_t nbytes, size_t dist, int flags,
 				gasnete_coll_poll_fn poll_fn, int options,
                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                 GASNETE_THREAD_FARG) {
@@ -2305,6 +2312,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     data->args.scatter.srcnode    = gasnete_coll_image_node(srcimage);
     data->args.scatter.src        = src;
     data->args.scatter.nbytes     = nbytes;
+    data->args.scatter.dist     = dist;
     data->options = options;
     data->tree_info = tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req GASNETE_THREAD_PASS);
@@ -2340,8 +2348,10 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    return gasnete_coll_scat_TreePut(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+    if(flags & GASNET_COLL_SINGLE) {
+        return gasnete_coll_scat_TreePutPipe(team, dst, srcimage, src, nbytes, flags,
+                                             gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+    } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
      /* XXXX: fix this later however this should be safe as written */
       if (nbytes <= eager_limit) {
         return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
@@ -2506,7 +2516,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
 			       gasnet_image_t dstimage, void *dst,
 			       void *src,
-			       size_t nbytes, int flags,
+			       size_t nbytes, size_t dist, int flags,
 			       gasnete_coll_poll_fn poll_fn, int options,
                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                GASNETE_THREAD_FARG) {
@@ -2558,6 +2568,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     data->args.gather.dst        = dst;
     data->args.gather.src        = src;
     data->args.gather.nbytes     = nbytes;
+    data->args.gather.dist     = dist;
     data->options = options;
     data->private_data = NULL; data->tree_info=tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req GASNETE_THREAD_PASS);
@@ -2593,8 +2604,9 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    return gasnete_coll_gath_TreePut(team, dstimage, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+    if(flags & GASNET_COLL_SINGLE) {
+      return gasnete_coll_gath_TreePutPipe(team, dstimage, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+    } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {
         return gasnete_coll_gath_Eager(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
       } else {
