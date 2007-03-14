@@ -15,16 +15,18 @@
 #include "gasnet_coll.h"
 
 
-#define VERIFICATION_MODE 1
+#define VERIFICATION_MODE 0
 
 #if VERIFICATION_MODE
 #define VERIFY_RESULT 1
 #define MAX_SIZE 256
 #define DEFAULT_ITERS 100
+#define ROOT_ITER_MAX 3
 #else
 #define VERIFY_RESULT 0
 #define MAX_SIZE 2048
 #define DEFAULT_ITERS 10000
+#define ROOT_ITER_MAX 1
 #endif
 
 /*max_dsize is a variable set in main*/
@@ -231,7 +233,7 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   
 	
   /*	for(i=0; i< 3; i++) { */
-  for(i=0; i< 1; i++) {
+  for(i=0; i< ROOT_ITER_MAX; i++) {
     if (i == 0) {
       root = 0;
     } else if (i == 1) {
@@ -383,7 +385,9 @@ void run_scatter_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } 
   
   
-  for(rootiter=0; rootiter< 3; rootiter++) { 
+
+  for(rootiter=0; rootiter< ROOT_ITER_MAX; rootiter++) {
+
  /*for(i=0; i< 1; i++) { */
     if (rootiter == 0) {
       root = 0;
@@ -555,7 +559,7 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } 
   
   
-  for(rootiter=0; rootiter< 3; rootiter++) { 
+  for(rootiter=0; rootiter< ROOT_ITER_MAX; rootiter++) { 
   /*for(rootiter=0; rootiter< 1; rootiter++) { */
     if (rootiter == 0) {
       root = 0;
