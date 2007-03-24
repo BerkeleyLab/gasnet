@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_firehose.c,v $
- *     $Date: 2006/10/05 00:01:31 $
- * $Revision: 1.7.4.3 $
+ *     $Date: 2007/03/24 23:30:20 $
+ * $Revision: 1.7.4.4 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -103,7 +103,7 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
-#elif GASNETC_IB_VAPI
+#elif GASNET_CONDUIT_VAPI
 {
     GASNETC_TRACE_WAIT_BEGIN();
     int           vstat;
@@ -183,16 +183,16 @@ firehose_move_callback(gasnet_node_t node,
     GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
     return 0;
 }
-#elif GASNETC_IB_VERBS
+#elif GASNET_CONDUIT_IBV
 {
     GASNETC_TRACE_WAIT_BEGIN();
     int    rc;
     int h, i;
 
-    const enum ibv_access_flags access = 
-		IBV_ACCESS_LOCAL_WRITE |
+    const enum ibv_access_flags access = (enum ibv_access_flags)
+	       (IBV_ACCESS_LOCAL_WRITE |
 		IBV_ACCESS_REMOTE_WRITE |
-		IBV_ACCESS_REMOTE_READ;
+		IBV_ACCESS_REMOTE_READ);
 
 
     /* Take care of any unpins first */
