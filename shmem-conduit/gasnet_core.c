@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2006/11/04 02:26:33 $
- * $Revision: 1.22.4.4 $
+ *     $Date: 2007/03/24 23:30:10 $
+ * $Revision: 1.22.4.5 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1232,7 +1232,16 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
-      while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
+      if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+        if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
+          while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+            gasneti_compiler_fence();
+            gasneti_spinloop_hint();
+          }
+        } else {
+          gasneti_mutex_lock(&(hsl->lock));
+        }
+      }
     #else
       gasneti_mutex_lock(&(hsl->lock));
     #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2006/11/04 02:26:11 $
- * $Revision: 1.34.4.6 $
+ *     $Date: 2007/03/24 23:29:37 $
+ * $Revision: 1.34.4.7 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -505,7 +505,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
       #if GASNETI_USE_HIGHSEGMENT
         segbase = (void *)((uintptr_t)gasneti_segment.addr + 
                            gasneti_segment.size - segsize);
-        if (gasneti_segment.size - segsize >= GASNETI_SEGMENT_DISALIGN_BIAS) {
+        if ((int64_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
           segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
         } else {
           segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);

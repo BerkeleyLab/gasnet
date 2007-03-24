@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2006/11/04 02:26:11 $
-dnl $Revision: 1.79.2.4 $
+dnl     $Date: 2007/03/24 23:29:36 $
+dnl $Revision: 1.79.2.5 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -490,9 +490,12 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
    ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
+    dnl don't advertise the autoconf vars, which we might not reliably catch
+    ifelse(index([ CC CFLAGS LDFLAGS CPPFLAGS CPP CXX CXXFLAGS CXXCPP ],[ $1 ]),[-1],[
     AC_ARG_WITH(lowerdashname, 
        GASNET_OPTION_HELP(with-[]lowerdashname[]=, value for [$1]), 
       [], [])
+    ], [])
    ])
   ])
   define(with_expanded_[$1], [set])
@@ -1575,22 +1578,12 @@ AC_DEFUN([GASNET_PROG_CXX], [
   GASNET_FUN_END([$0])
 ])
 
-dnl fetch the host C compiler
-AC_DEFUN([GASNET_PROG_HOSTCC], [
-GASNET_FUN_BEGIN([$0])
-if test "$cross_compiling" = "yes" ; then
-  HOST_MSG="When cross-compiling, \$HOST_CC or --with-host-cc= must be set to indicate a C compiler for the host machine (ie the machine running this configure script)"
-  GASNET_ENV_DEFAULT(HOST_CC, )
-  GASNET_ENV_DEFAULT(HOST_CFLAGS, )
-  GASNET_ENV_DEFAULT(HOST_LDFLAGS, )
-  GASNET_ENV_DEFAULT(HOST_LIBS, )
-  AC_SUBST(HOST_CC)
-  AC_SUBST(HOST_CFLAGS)
-  AC_SUBST(HOST_LDFLAGS)
-  AC_SUBST(HOST_LIBS)
-  if test ! "$HOST_CC" ; then
-    AC_MSG_ERROR([$HOST_MSG])
+AC_DEFUN([GASNET_HOSTCC_BEGIN], [
+  GASNET_FUN_BEGIN([$0])
+  if test "$CROSS_COMPILING" != "1" ; then
+    AC_MSG_ERROR([Internal error - please report])
   fi
+
   GASNET_PUSHVAR(CC,"$HOST_CC")
   GASNET_PUSHVAR(CFLAGS,"$HOST_CFLAGS")
   GASNET_PUSHVAR(LDFLAGS,"$HOST_LDFLAGS")
@@ -1603,6 +1596,52 @@ if test "$cross_compiling" = "yes" ; then
   GASNET_PUSHVAR_UNSET(ac_cv_c_compiler_gnu)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_g)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_stdc)
+  GASNET_PUSHVAR(cross_compiling,"no")
+
+  GASNET_FUN_END([$0])
+])
+
+AC_DEFUN([GASNET_HOSTCC_END], [
+  GASNET_FUN_BEGIN([$0])
+  if test "$CROSS_COMPILING" != "1" ; then
+    AC_MSG_ERROR([Internal error - please report])
+  fi
+
+  GASNET_POPVAR(CC)
+  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LDFLAGS)
+  GASNET_POPVAR(LIBS)
+  GASNET_POPVAR(CPP)
+  GASNET_POPVAR(CPPFLAGS)
+  GASNET_POPVAR(ac_cv_prog_CC)
+  GASNET_POPVAR(ac_cv_prog_CPP)
+  GASNET_POPVAR(ac_cv_c_compiler_gnu)
+  GASNET_POPVAR(ac_cv_prog_cc_g)
+  GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_POPVAR(cross_compiling)
+
+  GASNET_FUN_END([$0])
+])
+
+dnl fetch the host C compiler
+AC_DEFUN([GASNET_PROG_HOSTCC], [
+GASNET_FUN_BEGIN([$0])
+if test "$cross_compiling" = "yes" ; then
+  HOST_MSG="When cross-compiling, \$HOST_CC or --with-host-cc= must be set to indicate a C compiler for the host machine (ie the machine running this configure script)"
+  pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
+  GASNET_ENV_DEFAULT(HOST_CC, )
+  GASNET_ENV_DEFAULT(HOST_CFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_LDFLAGS, )
+  GASNET_ENV_DEFAULT(HOST_LIBS, )
+  popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
+  AC_SUBST(HOST_CC)
+  AC_SUBST(HOST_CFLAGS)
+  AC_SUBST(HOST_LDFLAGS)
+  AC_SUBST(HOST_LIBS)
+  if test ! "$HOST_CC" ; then
+    AC_MSG_ERROR([$HOST_MSG])
+  fi
+  GASNET_HOSTCC_BEGIN
     GASNET_PROG_CC
     AC_LANG_SAVE
     AC_LANG_C
@@ -1619,17 +1658,7 @@ if test "$cross_compiling" = "yes" ; then
     HOST_LDFLAGS="$LDFLAGS"
     HOST_LIBS="$LIBS"
     AC_LANG_RESTORE
-  GASNET_POPVAR(CC)
-  GASNET_POPVAR(CFLAGS)
-  GASNET_POPVAR(LDFLAGS)
-  GASNET_POPVAR(LIBS)
-  GASNET_POPVAR(CPP)
-  GASNET_POPVAR(CPPFLAGS)
-  GASNET_POPVAR(ac_cv_prog_CC)
-  GASNET_POPVAR(ac_cv_prog_CPP)
-  GASNET_POPVAR(ac_cv_c_compiler_gnu)
-  GASNET_POPVAR(ac_cv_prog_cc_g)
-  GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_HOSTCC_END
 fi
 GASNET_FUN_END([$0])
 ])
@@ -1641,10 +1670,12 @@ AC_DEFUN([GASNET_PROG_HOSTCXX], [
 GASNET_FUN_BEGIN([$0])
 if test "$cross_compiling" = "yes" ; then
   HOST_MSG="When cross-compiling, \$HOST_CXX or --with-host-cxx= must be set to indicate a C++ compiler for the host machine (ie the machine running this configure script)"
+  pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
   GASNET_ENV_DEFAULT(HOST_CXX, )
   GASNET_ENV_DEFAULT(HOST_CXXFLAGS, )
   GASNET_ENV_DEFAULT(HOST_CXX_LDFLAGS, )
   GASNET_ENV_DEFAULT(HOST_CXX_LIBS, )
+  popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
   AC_SUBST(HOST_CXX)
   AC_SUBST(HOST_CXXFLAGS)
   AC_SUBST(HOST_CXX_LDFLAGS)
@@ -1959,7 +1990,7 @@ GASNET_FUN_BEGIN([$0($1)])
   if test ! -f $_subconfig_extract_file; then
      AC_MSG_ERROR([failed to open $_subconfig_extract_file - file not found])
   fi
-  _subconfig_extract_result=`$PERL -ne 'if (m/^s(.)\@('$2')\@\1([[^\1]]*)\1/) { print "[$]2='"'"'[$]3'"'"'"; }' $_subconfig_extract_file`
+  _subconfig_extract_result=`$PERL -ne 'if (m/^s(.)\@('$2')\@\1([[^\1]]*)\1/) { my ($var,$val) = ([$]2,[$]3); $val =~ s/\|#_!!_#\|//g; print "$var='"'"'$val'"'"'"; }' $_subconfig_extract_file`
   if test -n "$_subconfig_extract_result" ; then
     eval $_subconfig_extract_result
     AC_MSG_RESULT($[$2])
@@ -1976,7 +2007,9 @@ AC_DEFUN([GASNET_CROSS_VAR],[
   GASNET_FUN_BEGIN([$0($1,$2)])
   pushdef([cross_varname],CROSS_$2)
   if test "$cross_compiling" = "yes" ; then
+    pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
     GASNET_ENV_DEFAULT(cross_varname,)
+    popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
     if test "$cross_varname" = "" ; then
       AC_MSG_ERROR([This configure script requires \$cross_varname be set for cross-compilation])
     else 
@@ -2224,4 +2257,3 @@ if test -n "$cv_prefix[]$2" ; then
 fi
 GASNET_FUN_END([$0($1,$2,...)])
 ])
-

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2006/11/04 02:26:38 $
- * $Revision: 1.12.2.4 $
+ *     $Date: 2007/03/24 23:30:18 $
+ * $Revision: 1.12.2.5 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,12 +37,9 @@
 /* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
 #define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
 
-/* AMUDP currently only supports 256 nodes, but we need a value
-   that can fit in a gasnet_node_t (bug 773)
- */
-#define GASNET_MAXNODES 255
+#define GASNET_MAXNODES AMUDP_MAX_NUMTRANSLATIONS
 #define _GASNET_NODE_T
-typedef uint8_t gasnet_node_t;
+typedef uint16_t gasnet_node_t;
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ

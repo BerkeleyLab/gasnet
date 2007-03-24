@@ -1,6 +1,6 @@
 GASNet udp-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.4.8.1 $
+$Revision: 1.4.8.2 $
 
 User Information:
 -----------------
@@ -19,6 +19,16 @@ Recognized environment variables:
   hardware).
 
 * GASNET_SPAWNFN - job spawn mechanism to use (see below)
+
+* GASNET_REQUESTTIMEOUT_MAX - max timeout in microseconds before a request
+  is considered undeliverable (a fatal error). Defaults to 30000000 (30 seconds).
+  Can be set to 0 for infinite timeout, which can be useful when freezing 
+  processes for long periods of time during debugging sessions.
+
+* GASNET_REQUESTTIMEOUT_INITIAL, GASNET_REQUESTTIMEOUT_BACKOFF, GASNET_EXPECTED_BANDWIDTH
+  Advanced options for tweaking the retransmission algorithm (initial timeout in us, 
+  timeout backoff multiplier and expected min one-way bandwidth in KB/s).
+  Most users should probably leave these alone.
 
 Optional compile-time settings:
 ------------------------------
@@ -246,9 +256,16 @@ successfully been deployed on a number of systems. There is also spawner
 support for Glunix, Rexec, Localhost/fork (for debugging), and a "custom
 command" option for extensibility.
 
-* AMUDP supports a maximum of 255 nodes. This could be expanded with
-significant effort, but is currently a low priority (and its unlikely the
-current buffering/reliability algorithm would scale much beyond a few
-thousand nodes, as the memory usage is currently 4 * NumNodes * NetworkDepth * MaxMedium).
+* AMUDP supports a maximum of 16384 nodes. However, the current 
+buffering/reliability algorithm doesn't scale well beyond a few hundred nodes,
+as the per-node memory usage is currently 4 * NumNodes * NetworkDepth * MaxMedium).
+Also, the master process currently defaults to opening at least 4 TCP
+connections to each compute process (possibly 5 depending on the spawner),
+which at large scale may exceed file descriptor limitations for the master on
+some OS's. This can be reduced on some systems by setting AMUDP_ROUTE_OUTPUT=0, 
+but this might result in stdout/stderr being lost, depending on the spawner.
+Users interested in large-scale applications are highly recommended
+to use the appropriate native GASNet conduit, which are generally better tuned
+for large scale.
 
 

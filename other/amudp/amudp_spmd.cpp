@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2006/11/04 02:26:29 $
- * $Revision: 1.24.2.4 $
+ *     $Date: 2007/03/24 23:29:58 $
+ * $Revision: 1.24.2.5 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -17,7 +17,7 @@
 #else
   #include <unistd.h>
   #if PLATFORM_ARCH_CRAYT3E || PLATFORM_OS_SUPERUX || PLATFORM_OS_NETBSD || \
-      PLATFORM_OS_MTA || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT
+      PLATFORM_OS_MTA || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || PLATFORM_OS_OPENBSD
     /* these implement sched_yield() in libpthread only, which we may not want */
     #define sched_yield() sleep(0)
   #else
@@ -87,11 +87,7 @@ static int AMUDP_SPMDShutdown(int exitcode);
   static en_t *AMUDP_SPMDTranslation_name = NULL; 
   static tag_t *AMUDP_SPMDTranslation_tag = NULL; /* network byte order */
   int AMUDP_SPMDSpawnRunning = FALSE; /* true while spawn is active */
-  #if DISABLE_STDSOCKET_REDIRECT
-    int AMUDP_SPMDRedirectStdsockets = FALSE; /* true if stdin/stdout/stderr should be redirected */
-  #else
-    int AMUDP_SPMDRedirectStdsockets = TRUE; /* true if stdin/stdout/stderr should be redirected */
-  #endif
+  int AMUDP_SPMDRedirectStdsockets; /* true if stdin/stdout/stderr should be redirected */
 
 /* slave only */
   SOCKET AMUDP_SPMDControlSocket = INVALID_SOCKET; 
@@ -527,6 +523,8 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       AMUDP_SPMDSlaveSocket[i] = INVALID_SOCKET;
       AMUDP_SPMDTranslation_tag[i] = hton64(npid | ((uint64_t)i) << 16);
     }
+
+    AMUDP_SPMDRedirectStdsockets = strcmp(AMUDP_getenv_prefixed_withdefault("ROUTE_OUTPUT",(DISABLE_STDSOCKET_REDIRECT?"0":"1")),"0");
 
     // call system-specific spawning routine
     AMUDP_SPMDSpawnRunning = TRUE;

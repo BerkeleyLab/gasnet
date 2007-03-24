@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2006/10/05 00:00:43 $
- * $Revision: 1.110.4.3 $
+ *     $Date: 2007/03/24 23:29:36 $
+ * $Revision: 1.110.4.4 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,7 @@
 
 #include "portable_platform.h"
 
+#define GASNETI_ASM_AVAILABLE 1
 #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
     PLATFORM_COMPILER_TINY 
   #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
@@ -39,12 +40,22 @@
    *   and the value of this symbol on 64-bit targets is undefined.
    *   Implies PLATFORM_COMPILER_PGI && GASNETI_PGI_ASM_GNU
    *
+   * GASNETI_PGI_ASM_BUG1754
+   *   Compiler suffers from "tpr 3936" in which promotion of a char variable previously used
+   *   as an output of an extended asm() does not zero out bits 8 and higher.  Experiments show
+   *   this was probably resolved in 6.2-4.  However, the Portland Group documents this tpr as
+   *   resolved in 6.2-5.  So, we use the vendor's more conservative value.
+   *   Implies PLATFORM_COMPILER_PGI && GASNETI_PGI_ASM_GNU
+   *
    * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
    * See GASNet bugs 1751 and 1753 for discussion related to the difficulty with versioning
    * of the Portland Group compilers.  See also PGI "tpr 3791" and discussion thread
    * http://www.pgroup.com/userforum/viewtopic.php?t=466
+   *
+   * See GASNet bug 1754 for discussion related to the BUG1754 problem and its symptoms.
+   * See also PGI "tpr 3936".
    */
   #if (PLATFORM_COMPILER_PGI_C && PLATFORM_COMPILER_VERSION_GE(6,1,1)) || \
       (PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(6,2,2))
@@ -57,6 +68,9 @@
     #define GASNETI_PGI_ASM_THREADSAFE 1
     #define GASNETI_PGI_ASM_X86_A 1
   #endif
+  #if PLATFORM_COMPILER_VERSION_LT(6,2,5)
+    #define GASNETI_PGI_ASM_BUG1754 1
+  #endif
   #define GASNETI_ASM_SPECIAL(mnemonic) asm(mnemonic)
 #elif PLATFORM_COMPILER_COMPAQ
   #include <c_asm.h>
@@ -67,6 +81,7 @@
       #define GASNETI_ASM(mnemonic)  asm(mnemonic)
     #else /* Sun C++ on Solaris lacks inline assembly support (man inline) */
       #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL /* not supported or used */
+      #undef GASNETI_ASM_AVAILABLE
     #endif
   #else /* Sun C */
     #define GASNETI_ASM(mnemonic)  __asm(mnemonic)
@@ -79,6 +94,7 @@
       PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_MTA || PLATFORM_COMPILER_LCC
   /* platforms where inline assembly not supported or used */
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 
+  #undef GASNETI_ASM_AVAILABLE
 #else
   #error "Don't know how to use inline assembly for your compiler"
 #endif

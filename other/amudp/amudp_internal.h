@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2006/11/04 02:26:29 $
- * $Revision: 1.21.4.2 $
+ *     $Date: 2007/03/24 23:29:58 $
+ * $Revision: 1.21.4.3 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -29,6 +29,7 @@
 #endif
 
 /* AMUDP system configuration parameters */
+#ifndef DISABLE_STDSOCKET_REDIRECT
 #if PLATFORM_OS_SUPERUX || PLATFORM_OS_HPUX
   /* broken on SuperUX due to a bad FIONREAD implementation, which causes numBytesWaiting to fail
      also seems to possibly be some issue with a redirected stdout always triggering select, even when
@@ -38,6 +39,7 @@
   #define DISABLE_STDSOCKET_REDIRECT  1 
 #else
   #define DISABLE_STDSOCKET_REDIRECT  0   /* disable redirection of slave stdin/stdout/stderr to master */
+#endif
 #endif
 #ifndef USE_SOCKET_RECVBUFFER_GROW
 #define USE_SOCKET_RECVBUFFER_GROW  1   /* grow RCVBUF on UDP sockets */
@@ -65,6 +67,12 @@
 #define AMUDP_REQUESTTIMEOUT_BACKOFF_MULTIPLIER     2  /* timeout exponential backoff factor */
 #define AMUDP_MAX_REQUESTTIMEOUT_MICROSEC    30000000  /* max timeout before considered undeliverable */
 #define AMUDP_DEFAULT_EXPECTED_BANDWIDTH         1220  /* expected Kbytes/sec bandwidth: 1220 = 10Mbit LAN */
+#define AMUDP_TIMEOUT_INFINITE ((uint32_t)-1)
+extern uint32_t AMUDP_MaxRequestTimeout_us;
+extern uint32_t AMUDP_InitialRequestTimeout_us;
+extern uint32_t AMUDP_RequestTimeoutBackoff;
+extern uint32_t AMUDP_ExpectedBandwidth; /* expected half-duplex bandwidth in KBytes/sec */
+
 
 #define AMUDP_TIMEOUTS_CHECKED_EACH_POLL            1  /* number of timeout values we check upon each poll */
 #define AMUDP_MAX_RECVMSGS_PER_POLL                10  /* max number of waiting messages serviced per poll (0 for unlimited) 

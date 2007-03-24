@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.3.8.1 $
+$Revision: 1.3.8.2 $
 
 User Information:
 -----------------
@@ -31,10 +31,11 @@ associated GASNet operations.
 Some notes on building GASNet for the Cray XT3
 ----------------------------------------------
 
-* * * IMPORTANT:  Use of this conduit REQUIRES the GNU programming environment.  
-      It will fail with the PGI programming environment.
+* * * IMPORTANT:  Use of this conduit REQUIRES the GNU programming environment on PE versions 1.4 or older.
+      On these older PE versions it will fail with the PGI programming environment.
       Before configuring GASNet or UPCR, switch to the GNU environment by typing:
        	   module switch PrgEnv-pgi PrgEnv-gnu
+      This problem was resolved starting in PE version 1.5, where both PGI and GNU PrgEnvs are supported.
 
 * Since the XT3 requires using a cross-compiler, there is a special cross
   configuration script located in $GASNET_SRC_DIR/other/contrib/cross-configure-crayxt3.

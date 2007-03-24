@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2006/11/04 02:26:11 $ */
-/*  $Revision: 1.62.2.4 $ */
+/*      $Date: 2007/03/24 23:29:36 $ */
+/*  $Revision: 1.62.2.5 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -84,6 +84,9 @@
 
 /* has sched_yield() */
 #undef HAVE_SCHED_YIELD
+
+/* have sysctl machdep.tsc_freq */
+#undef GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ
 
 /* has Portable Linux Processor Affinity */
 #undef HAVE_PLPA
@@ -216,6 +219,11 @@
 #undef GASNETC_VAPI_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
 #undef GASNETC_VAPI_MAX_HCAS
+
+/* GASNet ibv-conduit features and bug work-arounds */
+#undef GASNETC_IBV_POLL_LOCK
+#undef GASNETC_IBV_RCV_THREAD
+#undef GASNETC_IBV_MAX_HCAS
 
 /* GASNet lapi-conduit specific */
 #undef GASNETC_LAPI_FEDERATION

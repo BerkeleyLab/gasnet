@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2006/10/05 00:00:44 $
- * $Revision: 1.75.2.3 $
+ *     $Date: 2007/03/24 23:29:37 $
+ * $Revision: 1.75.2.4 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -544,7 +544,7 @@
 /* ------------------------------------------------------------------------------------ */
 
 #ifndef gasneti_spinloop_hint
- #if defined(GASNETI_PAUSE_INSTRUCTION)
+ #if defined(GASNETI_PAUSE_INSTRUCTION) && GASNETI_ASM_AVAILABLE
    /* Pentium 4 processors get measurably better performance when a "pause" instruction
     * is inserted in spin-loops - this instruction is documented as a "spin-loop hint"
     * which avoids a memory hazard stall on spin loop exit and reduces power consumption

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2006/08/11 00:53:56 $
-# $Revision: 1.38.8.1 $
+#     $Date: 2007/03/24 23:30:20 $
+# $Revision: 1.38.8.2 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -22,14 +22,19 @@ fh_special_objs =                                 \
       $(builddir)/firehose_region-$(THREAD_MODEL).o
 fh_install_hdrs = $(fh_srcdir)/firehose_trace.h
 $(builddir)/firehose-$(THREAD_MODEL).o: force
-	@CC@ $(LIBCFLAGS) $(VAPI_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose.c
+	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose.c
 $(builddir)/firehose_region-$(THREAD_MODEL).o: force
-	@CC@ $(LIBCFLAGS) $(VAPI_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose_region.c
+	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose_region.c
 
 ##
-## SSH bootstrap support
+## SSH bootstrap support (built unless fork() is unavailable)
 ##
+if VAPI_BOOTSTRAP_SSH
+ssh_defines = -DHAVE_SSH_SPAWNER
 ssh_srcdir = $(top_srcdir)/other/ssh-spawner
+ssh_sources = $(ssh_srcdir)/gasnet_bootstrap_ssh.c
+ssh_deps = $(ssh_srcdir)/*.h
+endif
 
 ##
 ## MPI bootstrap support (optional)
@@ -82,19 +87,19 @@ CONDUIT_SOURCELIST =                 \
       $(srcdir)/gasnet_extended.c    \
       $(srcdir)/gasnet_firehose.c    \
       $(fh_srcdir)/firehose_hash.c   \
-      $(ssh_srcdir)/gasnet_bootstrap_ssh.c
+      $(ssh_sources)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(mpi_defines)\
-			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines)
+CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(ssh_defines) $(mpi_defines)\
+			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines) -DGASNET_CONDUIT_VAPI
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_srcdir)/*.[ch] $(ssh_srcdir)/*.h $(mpi_deps)
+CONDUIT_EXTRADEPS = $(fh_srcdir)/*.[ch] $(ssh_deps) $(mpi_deps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
@@ -113,13 +118,19 @@ CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_vapi_par_a_SOURCES =
-libgasnet_vapi_parsync_a_SOURCES =
-threaded_libraries = libgasnet-vapi-par.a libgasnet-vapi-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_vapi_seq_a_SOURCES =
-libraries = libgasnet-vapi-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-vapi-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_vapi_par_a_SOURCES =
+libraries_par = libgasnet-vapi-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_vapi_parsync_a_SOURCES =
+libraries_parsync = libgasnet-vapi-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

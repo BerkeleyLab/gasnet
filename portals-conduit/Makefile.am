@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2006/10/05 00:01:17 $
-# $Revision: 1.4.6.1 $
+#     $Date: 2007/03/24 23:30:06 $
+# $Revision: 1.4.6.2 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -37,7 +37,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi -I@PORTALS_INCLUDE@ -I@CATAMOUNT_INCLUDE@
+CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi @PORTALS_INCLUDES@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h 
@@ -60,22 +60,35 @@ CONDUIT_SPECIAL_OBJS =
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
-#CONDUIT_RUNCMD = mpirun -np %N %P %A
-#CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N %P %A
-CONDUIT_RUNCMD = yod -np %N %P %A
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N %P %A
+# Aprun for CNL:
+#CONDUIT_RUNCMD = aprun -n %N -N 1 %P %A
+# YOD for Catamount:
+#CONDUIT_RUNCMD = yod -np %N %P %A
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_portals_par_a_SOURCES =
-libgasnet_portals_parsync_a_SOURCES =
-threaded_libraries = libgasnet-portals-par.a libgasnet-portals-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_portals_seq_a_SOURCES =
-libraries = libgasnet-portals-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-portals-seq.a
+endif
+# DOB: change FALSE to TRUE to build the threaded libraries (not yet supported - bug 1868)
+if ALWAYS_FALSECOND
+if BUILD_PAR_LIBS
+libgasnet_portals_par_a_SOURCES =
+libraries_par = libgasnet-portals-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_portals_parsync_a_SOURCES =
+libraries_parsync = libgasnet-portals-parsync.a
+endif
+else
+CHECK_TEST_TARGET_OVERRIDE = tests-seq
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

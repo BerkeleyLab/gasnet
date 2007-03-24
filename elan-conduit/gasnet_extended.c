@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/08/11 00:53:10 $
- * $Revision: 1.64.4.1 $
+ *     $Date: 2007/03/24 23:29:42 $
+ * $Revision: 1.64.4.2 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1565,11 +1565,6 @@ static void gasnete_elanbarrier_notify(int id, int flags) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
   phase = barrier_phase;
 
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
-  #if GASNETI_STATS_OR_TRACE
-    barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
-
   /* algorithm: three state boxes per phase
      phase+0.value is the broadcast value box
      phase+0.flags is the broadcast flags box
@@ -1665,18 +1660,11 @@ static void gasnete_elanbarrier_notify(int id, int flags) {
 
 static int gasnete_elanbarrier_wait(int id, int flags) {
   int phase;
-  #if GASNETI_STATS_OR_TRACE
-    gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(B);
-  #endif
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
   phase = barrier_phase;
   barrier_phase = !phase;
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,gasneti_ticks_now()-barrier_notifytime);
-
-  GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,0);
 
   /*  update state */
   barrier_splitstate = OUTSIDE_BARRIER;
@@ -1695,7 +1683,6 @@ static int gasnete_elanbarrier_try(int id, int flags) {
   if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
 
-  GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,1);
   return gasnete_barrier_wait(id, flags);
 }
 /* ------------------------------------------------------------------------------------ */

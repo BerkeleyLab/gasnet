@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2006/08/11 00:53:10 $
- * $Revision: 1.29.4.1 $
+ *     $Date: 2007/03/24 23:29:42 $
+ * $Revision: 1.29.4.2 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -385,7 +385,7 @@ extern void gasnetc_initbufs() {
 /* ------------------------------------------------------------------------------------ */
 static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
   gasnetc_buf_t *buf = desc->buf;
-  gasnetc_msg_t *msg = &(buf->msg);
+  gasnetc_msg_t *msg = &(buf->m.msg);
   gasnetc_handler_fn_t handler = gasnetc_handler[msg->handlerId];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(msg);
   int numargs = GASNETC_MSG_NUMARGS(msg);
@@ -397,21 +397,21 @@ static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
   desc->handlerRunning = 1;
   switch (category) {
     case gasnetc_Short:
-      { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->msg)+1);
+      { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->m.msg)+1);
         GASNETI_RUN_HANDLER_SHORT(GASNETC_MSG_ISREQUEST(msg),msg->handlerId,handler,desc,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
-      { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->medmsg)+1);
-        int nbytes = buf->medmsg.nBytes;
+      { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->m.medmsg)+1);
+        int nbytes = buf->m.medmsg.nBytes;
         void *pdata = (pargs + numargs + GASNETC_MEDHEADER_PADARG(numargs));
         GASNETI_RUN_HANDLER_MEDIUM(GASNETC_MSG_ISREQUEST(msg),msg->handlerId,handler,desc,pargs,numargs,pdata,nbytes);
       }
     break;
     case gasnetc_Long:
-      { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->longmsg)+1);
-        int nbytes = buf->longmsg.nBytes;
-        void *pdata = (void *)(buf->longmsg.destLoc);
+      { gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *)(&(buf->m.longmsg)+1);
+        int nbytes = buf->m.longmsg.nBytes;
+        void *pdata = (void *)(buf->m.longmsg.destLoc);
         GASNETI_RUN_HANDLER_LONG(GASNETC_MSG_ISREQUEST(msg),msg->handlerId,handler,desc,pargs,numargs,pdata,nbytes);
       }
     break;
@@ -443,7 +443,7 @@ extern int gasnetc_AMPoll() {
       char _buf[GASNETC_ELAN_MAX_QUEUEMSG+8]; /* ensure 8-byte buf alignment */
       desc = &_desc;
       desc->buf = (gasnetc_buf_t *)( ((((uintptr_t)_buf) >> 3) << 3) + 8); 
-      gasneti_assert((void *)&(desc->buf->msg) == (void *)desc->buf);
+      gasneti_assert((void *)&(desc->buf->m.msg) == (void *)desc->buf);
     #else
       desc = &_desc;
     #endif
@@ -499,7 +499,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       { desc = &_descbuf;
         buf = (gasnetc_buf_t *)_shortbuf;
         desc->buf = buf;
-        pargs = (gasnet_handlerarg_t *)(&(buf->msg)+1);
+        pargs = (gasnet_handlerarg_t *)(&(buf->m.msg)+1);
         msgsz = (uintptr_t)(pargs + numargs) - (uintptr_t)buf;
       }
     break;
@@ -516,27 +516,27 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
           desc = gasnetc_tportGetTxBuf(dest != gasneti_mynode);
           buf = desc->buf;
         }
-        pargs = (gasnet_handlerarg_t *)(&(buf->medmsg)+1);
+        pargs = (gasnet_handlerarg_t *)(&(buf->m.medmsg)+1);
         pdata = (uint8_t *)(pargs + actualargs);
         memcpy(pdata, source_addr, nbytes);
-        buf->medmsg.nBytes = nbytes;
+        buf->m.medmsg.nBytes = nbytes;
       }
     break;
     case gasnetc_Long:
       { desc = &_descbuf;
         buf = (gasnetc_buf_t *)_shortbuf;        
         desc->buf = buf;
-        pargs = (gasnet_handlerarg_t *)(&(buf->longmsg)+1);
-        buf->longmsg.nBytes = nbytes;
-        buf->longmsg.destLoc = (uintptr_t)dest_ptr;
+        pargs = (gasnet_handlerarg_t *)(&(buf->m.longmsg)+1);
+        buf->m.longmsg.nBytes = nbytes;
+        buf->m.longmsg.destLoc = (uintptr_t)dest_ptr;
         msgsz = (uintptr_t)(pargs + numargs) - (uintptr_t)buf;
       }
     break;
     default: gasneti_fatalerror("unrecognized msg category");
   }
-  GASNETC_MSG_SETFLAGS(&(buf->msg), isReq, category, numargs);
-  buf->msg.handlerId = handler;
-  buf->msg.sourceId = gasneti_mynode;
+  GASNETC_MSG_SETFLAGS(&(buf->m.msg), isReq, category, numargs);
+  buf->m.msg.handlerId = handler;
+  buf->m.msg.sourceId = gasneti_mynode;
   { int i;
     for(i=0; i < numargs; i++) {
       pargs[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
@@ -595,10 +595,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       if (msgsz <= GASNETC_ELAN_MAX_QUEUEMSG) {
         gasneti_assert(desc == &_descbuf);
       #if GASNETC_USE_MAINQUEUE
-        elan_queueReq(gasnetc_mainqueue, dest, &(buf->msg), msgsz);
+        elan_queueReq(gasnetc_mainqueue, dest, &(buf->m.msg), msgsz);
       #else
         { ELAN_EVENT *evt; 
-          evt = elan_queueTx(gasnetc_queuetx, dest, &(buf->msg), msgsz, ELAN_RAIL_ALL);
+          evt = elan_queueTx(gasnetc_queuetx, dest, &(buf->m.msg), msgsz, ELAN_RAIL_ALL);
         #if GASNETC_OVERLAP_AMQUEUE && !GASNET_PAR
           /* TODO - add per-thread AM evtbins? */
           if (!elan_poll(evt, GASNETC_ELAN_POLLITERS_AM)) 
@@ -616,7 +616,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
       else {
         desc->event = elan_tportTxStart(TPORT(), 0, dest, 
                                         gasneti_mynode, 0, 
-                                        &(buf->medmsg), msgsz);
+                                        &(buf->m.medmsg), msgsz);
       }
     UNLOCK_ELAN_WEAK();
   }
@@ -644,9 +644,9 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
   gasneti_assert(reqdesc->handlerRunning);
   gasneti_assert(!reqdesc->replyIssued);
-  gasneti_assert(GASNETC_MSG_ISREQUEST(&(reqdesc->buf->msg)));
+  gasneti_assert(GASNETC_MSG_ISREQUEST(&(reqdesc->buf->m.msg)));
   
-  retval = gasnetc_ReqRepGeneric(category, 0, reqdesc->buf->msg.sourceId, handler, 
+  retval = gasnetc_ReqRepGeneric(category, 0, reqdesc->buf->m.msg.sourceId, handler, 
                                  source_addr, nbytes, dest_ptr, 
                                  numargs, argptr); 
 

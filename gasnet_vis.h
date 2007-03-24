@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
- *     $Date: 2006/08/11 00:53:06 $
- * $Revision: 1.8.6.1 $
+ *     $Date: 2007/03/24 23:29:37 $
+ * $Revision: 1.8.6.2 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -420,8 +420,8 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
                          "  srclist: %s\n"                                                     \
                          "  dstlist: %s\n",                                                    \
                          gasneti_current_loc, dstlist_str, srclist_str);                       \
-      gasneti_extern_free(dstlist_str);                                                        \
-      gasneti_extern_free(srclist_str);                                                        \
+      /* gasneti_extern_free(dstlist_str); -- dead code */                                     \
+      /* gasneti_extern_free(srclist_str); -- dead code */                                     \
     }                                                                                          \
     if_pf (dststats.totalsz != 0 &&                                                            \
       ((uintptr_t)dststats.minaddr) + dststats.totalsz - 1 > ((uintptr_t)dststats.maxaddr)) {  \
@@ -433,7 +433,7 @@ void gasnete_strided_stats(gasnete_strided_stats_t *result,
                          "(note this test is currently conservative "                          \
                          "and may fail to detect some illegal cases)",                         \
                          gasneti_current_loc, dstlist_str);                                    \
-      gasneti_extern_free(dstlist_str);                                                        \
+      /* gasneti_extern_free(dstlist_str); -- dead code */                                     \
     }                                                                                          \
   } while (0)
 

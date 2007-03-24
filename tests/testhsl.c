@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testhsl.c,v $
- *     $Date: 2006/08/11 00:53:49 $
- * $Revision: 1.11.6.1 $
+ *     $Date: 2007/03/24 23:30:16 $
+ * $Revision: 1.11.6.2 $
  * Description: GASNet HSL correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -62,11 +62,6 @@ void donothing(gasnet_token_t token) {
     #define NUM_THREADS 4
   #endif
   void * thread_fn(void *arg);
-#endif
-
-#if PLATFORM_COMPILER_SUN_C
-  /* disable a harmless warning */
-  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 int main(int argc, char **argv) {

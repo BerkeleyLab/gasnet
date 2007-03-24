@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2006/08/11 00:53:37 $
- * $Revision: 1.46.4.1 $
+ *     $Date: 2007/03/24 23:30:04 $
+ * $Revision: 1.46.4.2 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -158,6 +158,7 @@ enum {
   static char **nodelist;
   static char **ssh_argv = NULL;
   static int ssh_argc = 0;
+  static const char *wrapper = NULL;
   static char *master_env = NULL;
   static size_t master_env_len = 0;
   static struct child {
@@ -1027,6 +1028,7 @@ static void post_spawn(int count, int argc, char * const *argv) {
     send_env(s);
     send_nodelist(s, ch->nodes, ch->nodelist);
     send_ssh_argv(s);
+    do_write_string(s, wrapper);
     send_argv(s, argc, argv);
     ++accepted;
   }
@@ -1097,6 +1099,7 @@ static void do_connect(gasnet_node_t child_id, const char *parent_name, int pare
   recv_env(parent);
   recv_nodelist(parent, tree_nodes);
   recv_ssh_argv(parent);
+  wrapper = do_read_string(parent);
   recv_argv(parent, argc_p, argv_p);
   BOOTSTRAP_VERBOSE(("[%d] connected\n", myproc));
 }
@@ -1117,8 +1120,9 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
         gasneti_fatalerror("dup2(STDIN_FILENO, /dev/null) failed");
       }
     }
-    if (is_local) {
+    if (is_local && !wrapper) {
       /* XXX: if we are clever enough, we might be able to "unwind" w/o the exec() */
+      /* XXX: Should add wrapper support? */
       BOOTSTRAP_VERBOSE(("[%d] spawning process %d on %s via fork()\n",
 			 (is_master ? -1 : (int)myproc),
 			 (int)child[child_id].rank, myhost));
@@ -1137,10 +1141,12 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
 			 (is_master ? -1 : (int)myproc),
 			 (int)child[child_id].rank, host, ssh_argv[0]));
       ssh_argv[ssh_argc] = (/* noconst */ char *)host;
-      ssh_argv[ssh_argc+1] = sappendf(NULL, "cd %s; exec %s -GASNET-SPAWN-slave %s %d %d%s",
-				      quote_arg(cwd), quote_arg(argv0),
+      ssh_argv[ssh_argc+1] = sappendf(NULL, "cd %s; exec %s %s -GASNET-SPAWN-slave %s %d %d%s",
+				      quote_arg(cwd),
+				      (wrapper ? wrapper : ""),
+				      quote_arg(argv0),
 				      myhost, listen_port, (int)child_id,
-				      is_verbose ? " -v" : "");
+				      (is_verbose ? " -v" : ""));
       execvp(ssh_argv[0], ssh_argv);
       gasneti_fatalerror("execvp(ssh) failed");
     }
@@ -1205,6 +1211,10 @@ static void do_master(int argc, char **argv) {
   }
   if ((argi < argc) && (strcmp(argv[argi], "-v") == 0)) {
     is_verbose = 1;
+    argi++;
+  }
+  if ((argi < argc) && (strncmp(argv[argi], "-W", 2) == 0)) {
+    wrapper = &argv[argi][2];
     argi++;
   }
   if (argi >= argc) usage(argv[0]); /* ran out of args */

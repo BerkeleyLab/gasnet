@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2006/08/11 00:53:49 $
- * $Revision: 1.21.6.1 $
+ *     $Date: 2007/03/24 23:30:16 $
+ * $Revision: 1.21.6.2 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -14,8 +14,14 @@
 
 #include "test.h"
 
-#ifndef GASNET_PAR
-#error This test can only be built for GASNet PAR configuration
+#if !defined(GASNET_PAR)
+  #ifdef TEST_MPI
+    /* special hacks to allow testmpi-seq */
+    #define TEST_SEGZ_PER_THREAD TEST_SEGSZ
+    #define TEST_MAXTHREADS 1
+  #else
+    #error This test can only be built for GASNet PAR configuration
+  #endif
 #endif
 
 typedef 
@@ -64,12 +70,20 @@ int	sizes[] = { 0, /* gasnet_AMMaxMedium()-1      */
 #define RANDOM_SIZE()	(sizes[ (rand() % SIZES_NUM)])
 
 int		AM_loopback = 0;
-int		threads_num;
+#if GASNET_PAR
+int		threads_num = 4;
+#else
+int		threads_num = 1;
+#endif
 gasnet_node_t	*tt_thread_map;
 void		**tt_addr_map;
 threaddata_t	*tt_thread_data;
 
+#ifdef GASNET_PAR
 #define thread_barrier() PTHREAD_BARRIER(threads_num)
+#else
+#define thread_barrier() ((void)0)
+#endif
 
 void	alloc_thread_data(int threads);
 void	free_thread_data();
@@ -149,7 +163,6 @@ gasnet_handlerentry_t htable[] = {
 int
 main(int argc, char **argv)
 {
-	int 		threads = 1;
 	int		i;
         const char *getopt_str;
         int opt_p=0, opt_g=0, opt_a=0, opt_m=0;
@@ -170,12 +183,18 @@ main(int argc, char **argv)
         #else
           #define TEST_MPI_USAGE  ""
         #endif
-	test_init("testthreads",0, "[ -pgalvt ] [ -i <iters> ] <threads_per_node>\n\n"
+        #if GASNET_PAR
+          #define TEST_THREAD_USAGE " [<threads_per_node>]\n\n" \
 	    "<threads_per_node> must be between 1 and "_STRINGIFY(TEST_MAXTHREADS)"       \n"
+        #else
+          #define TEST_THREAD_USAGE  "\n\n"
+        #endif
+	test_init("testthreads",0, "[ -pgalvt ] [ -i <iters> ]"
+            TEST_THREAD_USAGE
 	    "no options means run all tests with "_STRINGIFY(DEFAULT_ITERS)" iterations\n"
 	    "options:                                      \n"
 	    "  -p  use puts                                   \n"
-	    "  -g  use puts                                   \n"
+	    "  -g  use gets                                   \n"
 	    "  -a  use Active Messages                        \n"
 	    "  -l  use local Active Messages                  \n"
             TEST_MPI_USAGE
@@ -220,14 +239,14 @@ main(int argc, char **argv)
 
 	argc -= optind;
 
-	if (argc != 1) test_usage();
-	else {
+	if (argc > 1) test_usage();
+	else if (argc == 1) {
 		argv += optind;
-		threads_num = threads = atoi(argv[0]);
+		threads_num = atoi(argv[0]);
 	}
 
-	if (threads > TEST_MAXTHREADS || threads < 1) {
-		printf("ERROR: Threads must be between 1 and 256\n");
+	if (threads_num > TEST_MAXTHREADS || threads_num < 1) {
+		printf("ERROR: Threads must be between 1 and %i\n",TEST_MAXTHREADS);
 		exit(EXIT_FAILURE);
 	}
 
@@ -246,13 +265,18 @@ main(int argc, char **argv)
           assert(sizes[sz] == 0);
         }
 
-	alloc_thread_data(threads);
+	alloc_thread_data(threads_num);
         #if TEST_MPI
           attach_test_mpi();
         #endif
 
-	MSG("Forking %d gasnet threads", threads);
-        test_createandjoin_pthreads(threads, &threadmain, tt_thread_data, sizeof(threaddata_t));
+        #ifdef GASNET_PAR
+  	  MSG("Forking %d gasnet threads", threads_num);
+          test_createandjoin_pthreads(threads_num, &threadmain, tt_thread_data, sizeof(threaddata_t));
+        #else /* for testmpi-seq */
+  	  MSG("Running with 1 thread/node for GASNET_SEQ mode");
+          threadmain(tt_thread_data);
+        #endif
 
         BARRIER();
 

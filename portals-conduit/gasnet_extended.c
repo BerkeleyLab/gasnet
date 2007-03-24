@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2006/10/05 00:01:17 $
- * $Revision: 1.6.6.1 $
+ *     $Date: 2007/03/24 23:30:06 $
+ * $Revision: 1.6.6.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -663,6 +663,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
     /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
+    
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(dest,nbytes)) {
       md_h = gasnetc_RARAM_md_h;
@@ -680,6 +681,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
       *(uintptr_t*)bb = (uintptr_t)dest;
       /* Let portals use the rest of the chunk */
       local_offset += sizeof(void*);
+      match_bits |= ((uint64_t)local_offset << 32);
       GASNETI_TRACE_EVENT(C, GET_NB_BB);
       SET_LOCBUF(local_buf,LOCBUF_BB);
 
@@ -746,6 +748,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       gasneti_weakatomic_increment(&gasnete_putget_inflight,0);
     }
 
+
     /* Determine destination MD for Ptl Put */
     if (gasnetc_in_local_rar(src,nbytes)) {
       md_h = gasnetc_RARAM_md_h;
@@ -761,6 +764,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
       /* copy the src data to the bounce buffer */
       memcpy(bb,src,nbytes);
+      match_bits |= ((uint64_t)local_offset << 32);
       GASNETI_TRACE_EVENT(C, PUT_NB_BB);
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
@@ -777,8 +781,9 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
       lbits |= GASNETC_PTL_MSG_DOLC;
     }
 
-    /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
+
+    /* encode gasnet handle into match bits, upper bits ignored */
     GASNETI_TRACE_PRINTF(C,("put_nb: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
 
     /* Issue Ptl Get operation */
@@ -957,6 +962,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
       *(uintptr_t*)bb = (uintptr_t)dest;
       /* Let portals use the rest of the chunk */
       local_offset += sizeof(void*);
+      match_bits |= ((uint64_t)local_offset << 32);
       GASNETI_TRACE_EVENT(C, GET_NBI_BB);
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
@@ -1024,6 +1030,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       gasneti_weakatomic_increment(&gasnete_putget_inflight,0);
     }
 
+    match_bits = 0ULL;
     /* Determine destination MD for Ptl Get */
     if (gasnetc_in_local_rar(src,toput)) {
       md_h = gasnetc_RARAM_md_h;
@@ -1044,6 +1051,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
       /* copy the src data to the bounce buffer */
       memcpy(bb,src,toput);
+      match_bits |= ((uint64_t)local_offset << 32);
       GASNETI_TRACE_EVENT(C, PUT_NBI_BB);
       SET_LOCBUF(local_buf,LOCBUF_BB);
     } else {
@@ -1059,8 +1067,9 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
       SET_LOCBUF(local_buf,LOCBUF_TMP);
     }
 
-    /* encode gasnet handle into match bits, upper bits ignored */
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
+
+    /* encode gasnet handle into match bits, upper bits ignored */
     GASNETI_TRACE_PRINTF(C,("put_nbi: match_bits = 0x%lx, locbuf = %s, local_off=%lld, remote_off=%lld, bytes=%i",(uint64_t)match_bits,locbuf_name[local_buf],(long long)local_offset,(long long)remote_offset,(int)nbytes));
 
     /* Issue Ptl Put operation */

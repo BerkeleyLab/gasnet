@@ -9,8 +9,10 @@
 # NOTE: this relies on module-established PATH setting to automatically 
 # select the GCC or PGI-based MPI compilers, based on which PrgEnv is currently loaded
 # The same PrgEnv *must* be loaded when building and using the GASNet install
-CC='mpicc' ; export CC  # vanilla target C compiler
-CXX='mpicxx' ; export CXX  # vanilla target C++ compiler
+CC='cc -target=catamount' ; export CC  # vanilla target C compiler
+CXX='CC -target=catamount' ; export CXX  # vanilla target C++ compiler
+
+XTPE_INFO_MESSAGE_OFF=1 ; export XTPE_INFO_MESSAGE_OFF  # magic variable to disable Cray cc's target INFO warning
 
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/ 
@@ -25,7 +27,7 @@ HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
 # Optional additional settings: (see configure --help for complete list)
 
 MPI_CC="$CC" ; export MPI_CC     # MPI-enabled C compiler
-MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
+#MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 #MPIRUN_CMD='pbsyod -size %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
 MPIRUN_CMD='yod -np %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
@@ -84,7 +86,7 @@ CROSS_SIGUSR1='10' ; export CROSS_SIGUSR1
 
 SRCDIR=`dirname $0`
 if test ! -f "$SRCDIR/configure" ; then
-  echo 'ERROR: The $0 script should be placed in the same directory as the configure script before execution'
+  echo "ERROR: The $0 script should be placed in the same directory as the configure script before execution"
   exit 1
 fi
 # Detect the build host machine type

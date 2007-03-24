@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2006/11/04 02:26:35 $
- * $Revision: 1.62.2.4 $
+ *     $Date: 2007/03/24 23:30:16 $
+ * $Revision: 1.62.2.5 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,11 @@
   #else
     #define NDEBUG 1
   #endif
+#endif
+
+#if PLATFORM_COMPILER_SUN_C
+  /* disable a harmless warning */
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 /* bug 1206: several systems (notably Compaq C++ and OSX gcc) have an assert.h header 
@@ -489,22 +494,26 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
       static pthread_mutex_t barrier_mutex[2] = 
         { PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER };
       static volatile unsigned int barrier_count = 0;
-      static int volatile phase = 0;
-      check_zeroret(pthread_mutex_lock(&barrier_mutex[phase]));
+      static volatile int phase = 0;
+      const int myphase = phase;
+      check_zeroret(pthread_mutex_lock(&barrier_mutex[myphase]));
       barrier_count++;
       if (barrier_count < local_pthread_count) {
-        int myphase = phase;
-        while (myphase == phase) {
-          check_zeroret(pthread_cond_wait(&barrier_cond[phase], &barrier_mutex[phase]));
-        }
+	/* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
+         * compiler for x86_64.  See http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858
+         * which includes a link to Sun's own database entry for this issue.
+         */
+        do {
+          check_zeroret(pthread_cond_wait(&barrier_cond[myphase], &barrier_mutex[myphase]));
+        } while (myphase == phase);
       } else {  
         /* Now do the gasnet barrier */
         if (doGASNetbarrier) BARRIER();
         barrier_count = 0;
         phase = !phase;
-        check_zeroret(pthread_cond_broadcast(&barrier_cond[!phase]));
+        check_zeroret(pthread_cond_broadcast(&barrier_cond[myphase]));
       }       
-      check_zeroret(pthread_mutex_unlock(&barrier_mutex[!phase]));
+      check_zeroret(pthread_mutex_unlock(&barrier_mutex[myphase]));
     }
   #endif
   #define PTHREAD_BARRIER(local_pthread_count)      \
@@ -832,6 +841,7 @@ static void _test_usage(int early) {
   #endif
 }
 #define test_usage() _test_usage(0)
+#define test_usage_early() _test_usage(1)
 static void _test_init(const char *testname, int reports_performance, int early,
                        int argc, const char * const *argv, const char *usagestr) {
   /* convenient place to put inits we want in all tests */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2006/08/11 00:53:25 $
- * $Revision: 1.24.2.1 $
+ *     $Date: 2007/03/24 23:29:56 $
+ * $Revision: 1.24.2.2 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -200,6 +200,13 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
   (&pbuf->_Data[4*ACTUAL_NUM_ARGS(&pbuf->Msg)])
 #define GET_PACKET_ARGS(pbuf)                                         \
   ((uint32_t *)pbuf->_Data)
+
+#if AMMPI_VERIFY_MPI_ORDERING  /* debugging aid for MPI implementations */
+  #define AMMPI_VERIFY_MPI_SETSEQNUM(msg, isReq, ep, remoteid) ((msg).seqnum = ++((ep)->perProcInfo[remoteid]).seqnum[isReq].out)
+#else
+  #define AMMPI_VERIFY_MPI_SETSEQNUM(msg, isReq, ep, remoteid) ((void)0)
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 #define RUN_HANDLER_SHORT(phandlerfn, token, pArgs, numargs) do {                       \
     AMMPI_assert(phandlerfn);                                                             \
@@ -321,6 +328,21 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
   }
 
   if_pf (sourceId == (ammpi_node_t)-1) AMMPI_REFUSEMESSAGE(ep, buf, EBADENDPOINT);
+
+  #if AMMPI_VERIFY_MPI_ORDERING  /* debugging aid for MPI implementations */
+    if (!isloopback) { 
+      uint64_t seqnum = msg->seqnum;
+      uint64_t seqnum_exp = ++(ep->perProcInfo[sourceId].seqnum[isrequest].in);
+      if_pf (seqnum != seqnum_exp)
+        AMMPI_FatalErr("MPI message ordering violation detected on %s arrival: \n"
+                       "  myMPIrank=%i sourceId=%i remoteMPIrank=%i\n"
+                       "  message seqnum: %llu, expected: %llu",
+                       (isrequest?"request":"reply"),
+                        (int)ep->name.mpirank, (int)sourceId,
+                        (int)ep->perProcInfo[sourceId].remoteName.mpirank,
+                        (unsigned long long)seqnum, (unsigned long long)seqnum_exp);
+    }
+  #endif
 
 #if AMMPI_USE_AMTAGS
   if_pf (ep->tag == AM_NONE || 
@@ -808,6 +830,8 @@ static int AMMPI_RequestGeneric(ammpi_category_t category,
       memcpy(GET_PACKET_DATA(outgoingbuf), source_addr, nbytes);
     }
 
+    AMMPI_VERIFY_MPI_SETSEQNUM(outgoingbuf->Msg, 1, request_endpoint, request_endpoint->translation[reply_endpoint].id);
+
     packetlength = GET_PACKET_LENGTH(outgoingbuf);
     #if AMMPI_NONBLOCKING_SENDS
       AMMPI_assert(packetlength <= predictedsz);
@@ -924,6 +948,8 @@ static int AMMPI_ReplyGeneric(ammpi_category_t category,
         #endif
       #endif
     }
+
+    AMMPI_VERIFY_MPI_SETSEQNUM(outgoingbuf->Msg, 0, ep, destP);
 
     #if AMMPI_NONBLOCKING_SENDS
       AMMPI_assert(packetlength <= predictedsz);

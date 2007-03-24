@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/Makefile.am,v $
-#     $Date: 2005/02/28 22:01:49 $
-# $Revision: 1.8 $
+#     $Date: 2007/03/24 23:30:08 $
+# $Revision: 1.8.6.1 $
 # Description: Makefile for GASNet sci conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -59,13 +59,19 @@ CONDUIT_TEST_MAKEARGS = CONDUIT_TESTPARAMS="testlarge_args=\"1000 1048576\""
 
 # -------- Do not modify anything below this line --------
 
-if HAVE_PTHREAD
-libgasnet_sci_par_a_SOURCES =
-libgasnet_sci_parsync_a_SOURCES =
-threaded_libraries = libgasnet-sci-par.a libgasnet-sci-parsync.a
-endif
+if BUILD_SEQ_LIBS
 libgasnet_sci_seq_a_SOURCES =
-libraries = libgasnet-sci-seq.a $(threaded_libraries)
+libraries_seq = libgasnet-sci-seq.a
+endif
+if BUILD_PAR_LIBS
+libgasnet_sci_par_a_SOURCES =
+libraries_par = libgasnet-sci-par.a
+endif
+if BUILD_PARSYNC_LIBS
+libgasnet_sci_parsync_a_SOURCES =
+libraries_parsync = libgasnet-sci-parsync.a
+endif
+libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
 include $(top_builddir)/other/Makefile-conduit.mak
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/firehose_fwd.h,v $
- *     $Date: 2006/10/05 00:01:31 $
- * $Revision: 1.5.16.3 $
+ *     $Date: 2007/03/24 23:30:20 $
+ * $Revision: 1.5.16.4 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -9,21 +9,25 @@
 #ifndef _VAPI_FIREHOSE_FWD_H
 #define _VAPI_FIREHOSE_FWD_H
 
-#if !defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
-  #define GASNETC_IB_VAPI       /* Default */
-#endif
-#if defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
-  #undef GASNETC_IB_VAPI
-  #define GASNETC_IB_VAPI 1
-#elif !defined(GASNETC_IB_VAPI) && defined(GASNETC_IB_VERBS)
-  #undef GASNETC_IB_VERBS
-  #define GASNETC_IB_VERBS 1
+#if defined(GASNET_CONDUIT_VAPI) && !defined(GASNET_CONDUIT_IBV)
+  #undef GASNET_CONDUIT_VAPI
+  #define GASNET_CONDUIT_VAPI 1
+#elif !defined(GASNET_CONDUIT_VAPI) && defined(GASNET_CONDUIT_IBV)
+  #undef GASNET_CONDUIT_IBV
+  #define GASNET_CONDUIT_IBV 1
 #else
-  #error "Only one of GASNETC_IB_VAPI or GASNETC_IB_VERBS may be defined"
+  #error "Exactly one of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
 #endif
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
+  #if PLATFORM_COMPILER_SUN_C
+    /* Supress warnings about out-of-range constants in an enum (an explict 0xFFFFFFFF) */
+    #pragma error_messages(off, E_ENUM_VAL_OVERFLOWS_INT_MAX)
+  #endif
   #include <vapi_types.h>
+  #if PLATFORM_COMPILER_SUN_C
+    #pragma error_messages(default, E_ENUM_VAL_OVERFLOWS_INT_MAX)
+  #endif
   #ifndef FIREHOSE_VAPI_USE_FMR
     /* Some versions of VAPI offer "Fast Memory Regions".
      * They really are faster, so we use them by default when available */
@@ -40,22 +44,29 @@
   #endif
   #define _FIREHOSE_VAPI_LKEY_T		VAPI_lkey_t
   #define _FIREHOSE_VAPI_RKEY_T		VAPI_rkey_t
-#elif GASNETC_IB_VERBS
+  #ifdef GASNETC_VAPI_MAX_HCAS
+    #define GASNETC_IB_MAX_HCAS GASNETC_VAPI_MAX_HCAS
+  #else /* no multi-rail support */
+    #define GASNETC_IB_MAX_HCAS 1
+  #endif
+#elif GASNET_CONDUIT_IBV
   #include <infiniband/verbs.h>
   #define _FIREHOSE_VAPI_MR_HNDL_T	struct ibv_mr *
   #define _FIREHOSE_VAPI_LKEY_T		uint32_t
   #define _FIREHOSE_VAPI_RKEY_T		uint32_t
+  #define GASNETC_IB_MAX_
+  #ifdef GASNETC_IBV_MAX_HCAS
+    #define GASNETC_IB_MAX_HCAS GASNETC_IBV_MAX_HCAS
+  #else /* no multi-rail support */
+    #define GASNETC_IB_MAX_HCAS 1
+  #endif
+
 #else
   #error "Unknown IB API"
 #endif
 
 /* Set this here because we need it to match */
 #define FH_BUCKET_SIZE	GASNET_PAGESIZE
-
-#ifndef GASNETC_VAPI_MAX_HCAS
-  /* Undefined means no multi-rail support */
-  #define GASNETC_VAPI_MAX_HCAS 1
-#endif
 
 /* vapi-conduit uses firehose-region */
 #define FIREHOSE_REGION
@@ -66,9 +77,9 @@
 /* vapi-conduit has a client_t */
 #define FIREHOSE_CLIENT_T
 typedef struct _firehose_client_t {
-    _FIREHOSE_VAPI_MR_HNDL_T   handle[GASNETC_VAPI_MAX_HCAS];	/* used to release the region */
-    _FIREHOSE_VAPI_LKEY_T      lkey[GASNETC_VAPI_MAX_HCAS];	/* used for local access by HCA */
-    _FIREHOSE_VAPI_RKEY_T      rkey[GASNETC_VAPI_MAX_HCAS];	/* used for remote access by HCA */
+    _FIREHOSE_VAPI_MR_HNDL_T   handle[GASNETC_IB_MAX_HCAS];	/* used to release the region */
+    _FIREHOSE_VAPI_LKEY_T      lkey[GASNETC_IB_MAX_HCAS];	/* used for local access by HCA */
+    _FIREHOSE_VAPI_RKEY_T      rkey[GASNETC_IB_MAX_HCAS];	/* used for remote access by HCA */
 } firehose_client_t;
 
 #ifndef GASNETC_PUTINMOVE_LIMIT_MAX

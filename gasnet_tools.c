@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2006/10/05 00:00:44 $
- * $Revision: 1.121.2.3 $
+ *     $Date: 2007/03/24 23:29:37 $
+ * $Revision: 1.121.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,12 +39,19 @@
   #include <ucontext.h>
 #endif
 
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif
+
 #if PLATFORM_OS_IRIX
 #define signal(a,b) bsd_signal(a,b)
 #endif
 
+
 #if PLATFORM_COMPILER_SUN_C
+  /* disable warnings triggerred by some macro idioms we use */
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
 #if PLATFORM_OS_TRU64
@@ -341,6 +348,158 @@ extern gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighand
   return fpret;
 }
 /* ------------------------------------------------------------------------------------ */
+typedef struct { 
+  int value;
+  const char *name;
+  const char *desc;
+  enum {
+    GASNETI_SV_PROGRAM_ERROR, /* program errors that will continus to occur if ignored */
+    GASNETI_SV_TERM_INT,      /* interrupt signal from the terminal (stop or kill) */
+    GASNETI_SV_SYS_INT,       /*  interrupt signal from the system (kill, hangup, etc.) */
+    GASNETI_SV_FATAL,         /*  interrupts that cannot be caught or ignored */
+    GASNETI_SV_OTHER          /*  everything else  */
+  } variety;
+} gasnett_siginfo_t;
+static gasnett_siginfo_t gasneti_sigtable[] = {
+  #ifdef SIGABRT
+    {SIGABRT, "SIGABRT", "Process abort signal.", GASNETI_SV_PROGRAM_ERROR}, /*  (abort()) */
+  #endif
+  #ifdef SIGFPE
+    {SIGFPE,  "SIGFPE", "Erroneous arithmetic operation.", GASNETI_SV_PROGRAM_ERROR}, /*  (FP error) */
+  #endif
+  #ifdef SIGILL
+    {SIGILL,  "SIGILL", "Illegal instruction.", GASNETI_SV_PROGRAM_ERROR}, /*  (bad instruction) */
+  #endif
+  #ifdef SIGINT
+    {SIGINT,  "SIGINT", "Terminal interrupt signal.", GASNETI_SV_TERM_INT}, /*  (control-c) */
+  #endif
+  #ifdef SIGSEGV
+    {SIGSEGV, "SIGSEGV", "Invalid memory reference.", GASNETI_SV_PROGRAM_ERROR}, /*  (seg fault) */
+  #endif
+  #ifdef SIGTERM
+    {SIGTERM, "SIGTERM", "Termination signal.", GASNETI_SV_SYS_INT}, /*  (kill command) */
+  #endif
+  #ifdef SIGALRM
+    {SIGALRM, "SIGALRM", "Alarm clock.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGHUP
+    {SIGHUP,  "SIGHUP", "Hangup.", GASNETI_SV_SYS_INT},
+  #endif
+  #ifdef SIGKILL
+    {SIGKILL, "SIGKILL", "Kill (cannot be caught or ignored).", GASNETI_SV_FATAL}, /*  (kill -9 command) */
+  #endif
+  #ifdef SIGPIPE
+    {SIGPIPE, "SIGPIPE", "Write on a pipe with no one to read it.", GASNETI_SV_OTHER}, /*  (send() after close) */
+  #endif
+  #ifdef SIGQUIT
+    {SIGQUIT, "SIGQUIT", "Terminal quit signal.", GASNETI_SV_TERM_INT}, /*  (control-\) */
+  #endif
+  #ifdef SIGUSR1
+    {SIGUSR1, "SIGUSR1", "User-defined signal 1.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGUSR2
+    {SIGUSR2, "SIGUSR2", "User-defined signal 2.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGCHLD
+    {SIGCHLD, "SIGCHLD", "Child process terminated or stopped.", GASNETI_SV_OTHER}, /*  (sent to parent proc) */
+  #endif
+  #ifdef SIGCONT
+    {SIGCONT, "SIGCONT", "Continue executing, if stopped.", GASNETI_SV_OTHER}, /*  (also sent by kill command) */
+  #endif
+  #ifdef SIGSTOP
+    {SIGSTOP, "SIGSTOP", "Stop executing (cannot be caught or ignored).", GASNETI_SV_FATAL},
+  #endif
+  #ifdef SIGTSTP
+    {SIGTSTP, "SIGTSTP", "Terminal stop signal.", GASNETI_SV_TERM_INT}, /*  (control-z) */
+  #endif
+  #ifdef SIGTTIN
+    {SIGTTIN, "SIGTTIN", "Background process attempting read.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGTTOU
+    {SIGTTOU, "SIGTTOU", "Background process attempting write.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGBUS
+    {SIGBUS,  "SIGBUS", "Bus error.", GASNETI_SV_PROGRAM_ERROR}, /*  (alignment error) */
+  #endif
+  #ifdef SIGPOLL
+    {SIGPOLL, "SIGPOLL", "Pollable event.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGXFSZ
+    {SIGXFSZ, "SIGXFSZ", " File size limit exceeded.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGPROF
+    {SIGPROF, "SIGPROF", "Profiling timer expired.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGSYS
+    {SIGSYS,  "SIGSYS", "Bad system call.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGTRAP
+    {SIGTRAP, "SIGTRAP", "Trace/breakpoint trap.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGURG
+    {SIGURG,  "SIGURG", "High bandwidth data is available at a socket.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGVTALRM
+    {SIGVTALRM,"SIGVTALRM", "Virtual timer expired.", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGXCPU
+    {SIGXCPU, "SIGXCPU", "CPU time limit exceeded.", GASNETI_SV_PROGRAM_ERROR},
+  #endif
+  #ifdef SIGEMT
+    {SIGEMT,     "SIGEMT", "Emulation Trap", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGPWR
+    {SIGPWR,     "SIGPWR", "Power Fail or Restart", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGWINCH
+    {SIGWINCH,   "SIGWINCH", "Window Size Change", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGWAITING
+    {SIGWAITING, "SIGWAITING", "Concurrency signal reserved  by threads library", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGLWP
+    {SIGLWP,     "SIGLWP", "Inter-LWP  signal  reserved  by threads library", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGFREEZE
+    {SIGFREEZE,  "SIGFREEZE", "Check point Freeze", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGTHAW
+    {SIGTHAW,    "SIGTHAW", "Check point Thaw", GASNETI_SV_OTHER},
+  #endif
+  #ifdef SIGCANCEL
+    {SIGCANCEL,  "SIGCANCEL", "Cancellation signal reserved by threads library", GASNETI_SV_OTHER},
+  #endif
+  {0, NULL, NULL, GASNETI_SV_OTHER}
+};
+/* ------------------------------------------------------------------------------------ */
+gasnett_siginfo_t const *gasnett_siginfo_fromval(int sigval) {
+  size_t i;
+  for (i=0; i<sizeof(gasneti_sigtable)/sizeof(gasnett_siginfo_t)-1; i++) {
+    if (sigval == gasneti_sigtable[i].value) return &gasneti_sigtable[i];
+  }
+  return NULL;
+}
+gasnett_siginfo_t const *gasnett_siginfo_fromstr(const char *str) {
+  while (*str && isspace(*str)) str++;
+  if (isdigit(*str)) return gasnett_siginfo_fromval(atoi(str));
+  else {
+    size_t i;
+    char tmp[255];
+    char *p = &tmp[0];
+    if (!(strlen(str) >= 3 && 
+      toupper(str[0]) == 'S' && toupper(str[1]) == 'I' && toupper(str[2]) == 'G')) {
+      strcpy(p,"SIG"); p += 3;
+    }
+    while (*str && !isspace(*str)) {
+      *(p++) = toupper(*(str++));
+    }
+    for (i=0; i<sizeof(gasneti_sigtable)/sizeof(gasnett_siginfo_t)-1; i++) {
+      if (!strcmp(tmp, gasneti_sigtable[i].name)) return &gasneti_sigtable[i];
+    }
+    return NULL;
+  }
+}
+/* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_UNFREEZE_SIGNAL
 /* signal to use for unfreezing, could also use SIGUSR1/2 or several others */
 #define GASNETI_UNFREEZE_SIGNAL SIGCONT
@@ -378,14 +537,58 @@ extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsym
 
 static int gasneti_freezeonerr_isinit = 0;
 static int gasneti_freezeonerr_userenabled = 0;
-static void gasneti_freezeForDebuggerErr_init() {
+static int gasneti_freezesignal = 0;
+static int gasneti_backtracesignal = 0;
+
+static void gasneti_ondemandHandler(int sig) {
+  gasnett_siginfo_t const *siginfo = gasnett_siginfo_fromval(sig);
+  char sigstr[80];
+  if (siginfo) sprintf(sigstr, "%s(%i)", siginfo->name, sig);
+  else  sprintf(sigstr, "(%i)", sig);
+  if (sig == gasneti_freezesignal) {
+    fprintf(stderr,"Caught GASNET_FREEZE_SIGNAL: signal %s\n", sigstr);
+    gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
+  } else if (sig == gasneti_backtracesignal) {
+    fprintf(stderr,"Caught GASNET_BACKTRACE_SIGNAL: signal %s\n", sigstr);
+    gasneti_print_backtrace(STDERR_FILENO);
+  } else gasneti_fatalerror("unrecognized signal in gasneti_ondemandHandler: %i", sig);
+}
+
+extern void gasneti_ondemand_init() {
+  static int firsttime = 1;
+  if (firsttime) {
+    const char *str = gasneti_getenv_withdefault("GASNET_FREEZE_SIGNAL",NULL);
+    if (str) {
+      gasnett_siginfo_t const *info = gasnett_siginfo_fromstr(str);
+      if (!info) fprintf(stderr, "WARNING: ignoring unrecognized GASNET_FREEZE_SIGNAL: %s", str);
+      else gasneti_freezesignal = info->value;
+    }
+    str = gasneti_getenv_withdefault("GASNET_BACKTRACE_SIGNAL",NULL);
+    if (str) {
+      gasnett_siginfo_t const *info = gasnett_siginfo_fromstr(str);
+      if (!info) fprintf(stderr, "WARNING: ignoring unrecognized GASNET_BACKTRACE_SIGNAL: %s", str);
+      else gasneti_backtracesignal = info->value;
+    }
+    gasneti_local_wmb();
+    firsttime = 0;
+  } else gasneti_local_rmb();
+
+  if (gasneti_backtracesignal) 
+    gasneti_reghandler(gasneti_backtracesignal, gasneti_ondemandHandler);
+  if (gasneti_freezesignal) 
+    gasneti_reghandler(gasneti_freezesignal, gasneti_ondemandHandler);
+}
+
+static void gasneti_freezeForDebugger_init() {
+  if (gasneti_freezeonerr_isinit) { gasneti_local_rmb(); return; }
   gasneti_freezeonerr_userenabled = gasneti_getenv_yesno_withdefault("GASNET_FREEZE_ON_ERROR",0);
   gasneti_local_wmb();
   gasneti_freezeonerr_isinit = 1;
+
+  gasneti_ondemand_init();
 }
 extern void gasneti_freezeForDebuggerErr() {
-  if (!gasneti_freezeonerr_isinit) gasneti_freezeForDebuggerErr_init();
-  else gasneti_local_rmb();
+  gasneti_freezeForDebugger_init();
   if (gasneti_freezeonerr_userenabled)
     gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); /* allow user freeze */
 }
@@ -515,7 +718,9 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 }
 #endif
 
-static char gasneti_exename_bt[255];
+#define GASNETI_BT_PATHSZ 1024 /* OpenBSD warns if this is smaller than 1024 */
+
+static char gasneti_exename_bt[GASNETI_BT_PATHSZ];
 
 #ifdef GASNETI_BT_LADEBUG
   static int gasneti_bt_ladebug(int fd) {
@@ -524,7 +729,7 @@ static char gasneti_exename_bt[255];
     #else
       const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s '%s'"; 
     #endif
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     /* Try to be smart if not in same place as at configure time */
     const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), ladebug, gasneti_exename_bt);
@@ -537,7 +742,7 @@ static char gasneti_exename_bt[255];
   static int gasneti_bt_dbx(int fd) {
     /* dbx's thread support is poor and not easily scriptable */
     const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), dbx, gasneti_exename_bt);
     if (rc < 0) return -1;
@@ -552,7 +757,7 @@ static char gasneti_exename_bt[255];
     #else
       const char fmt[] = "echo 'set $stoponattach; attach %d; where; quit' | %s -dbx -quiet '%s'"; 
     #endif
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
     int rc = sprintf(cmd, fmt, (int)getpid(), idb, gasneti_exename_bt);
     if (rc < 0) return -1;
@@ -567,7 +772,7 @@ static char gasneti_exename_bt[255];
     #else
       const char fmt[] = "%s -text -c 'attach %i %s ; where ; detach ; quit'";
     #endif
-    static char cmd[1024];
+    static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *pgdbg = (access(PGDBG_PATH, X_OK) ? "pgdbg" : PGDBG_PATH);
     int rc = sprintf(cmd, fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
     if (rc < 0) return -1;
@@ -584,8 +789,8 @@ static char gasneti_exename_bt[255];
       const char commands[] = "backtrace 50\ndetach\nquit\n";
     #endif
     const char fmt[] = "%s -nx -batch -x %s '%s' %d";
-    static char cmd[1024];
-    char filename[255];
+    static char cmd[sizeof(fmt) + 3*GASNETI_BT_PATHSZ];
+    char filename[GASNETI_BT_PATHSZ];
     const char *gdb = (access(GDB_PATH, X_OK) ? "gdb" : GDB_PATH);
     int rc;
 
@@ -638,8 +843,9 @@ static char gasneti_exename_bt[255];
       xlstr[0] = '\0';
       #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
         /* use addr2line when available to retrieve symbolic info */
-        { static char cmd[255];
-          sprintf(cmd,"%s -f -e '%s' %p", ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+        { const char fmt[] = "%s -f -e '%s' %p";
+          static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
+          sprintf(cmd, fmt, ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
           xlate = popen(cmd, "r");
           if (xlate) {
             char *p = xlstr;
@@ -665,12 +871,7 @@ static char gasneti_exename_bt[255];
 #endif
 
 /* table of known/detected backtrace mechanisms */
-static struct {
-  const char *name;        /* upper-case display name of backtrace function */
-  int (* const fnp)(int);   /* pointer to backtrace function */
-  const int threadsupport; /* does backtrace function handle threads correctly? 
-                              -ie backtrace the calling thread and optionally others as well */
-} gasneti_backtrace_mechanisms[] = {
+static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_LADEBUG
   { "LADEBUG", GASNETI_BT_LADEBUG, 1 },
   #endif
@@ -694,7 +895,7 @@ static struct {
   #endif
   { NULL, NULL, 0 } /* Avoids empty initializer and trailing commas */
 };
-static int const gasneti_backtrace_mechanism_count = /* excludes the NULL */
+static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
    (sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0])) - 1;
 
 static int gasneti_backtrace_isinit = 0;
@@ -702,13 +903,17 @@ static int gasneti_backtrace_userenabled = 0;
 static const char *gasneti_backtrace_list = 0;
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
 extern void gasneti_backtrace_init(const char *exename) {
-  char tmp[255];
+  char tmp[GASNETI_BT_PATHSZ];
   if (exename[0] == '/' || exename[0] == '\\') tmp[0] = '\0';
   else { getcwd(tmp, sizeof(tmp)); strcat(tmp,"/"); }
   strcat(tmp, exename);
   strcpy(gasneti_exename_bt,tmp);
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
+
+  if (gasnett_backtrace_user.name && gasnett_backtrace_user.fnp) {
+    memcpy(&gasneti_backtrace_mechanisms[gasneti_backtrace_mechanism_count++], &gasnett_backtrace_user, sizeof(gasnett_backtrace_user));
+  }
 
   { static char btlist_def[255];
     int i, th;
@@ -732,7 +937,7 @@ extern void gasneti_backtrace_init(const char *exename) {
   }
 
   gasneti_backtrace_isinit = 1;
-  gasneti_freezeForDebuggerErr_init();
+  gasneti_freezeForDebugger_init();
 }
 
 /* "best effort" to produce a backtrace
@@ -1188,6 +1393,84 @@ extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defau
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* Resource limit control */
+
+int gasnett_maximize_rlimits() {
+   int success = 1;
+   struct res_s { int res; const char *desc; } res[] = {
+    #ifdef RLIMIT_CPU
+      { RLIMIT_CPU, "RLIMIT_CPU" },
+    #endif
+    #ifdef RLIMIT_DATA
+      { RLIMIT_DATA, "RLIMIT_DATA" },
+    #endif
+    #ifdef RLIMIT_RSS
+      { RLIMIT_RSS, "RLIMIT_RSS" },
+    #endif
+    #ifdef RLIMIT_STACK
+      { RLIMIT_STACK, "RLIMIT_STACK" },
+    #endif
+    #ifdef RLIMIT_AS
+      { RLIMIT_AS, "RLIMIT_AS" },
+    #endif
+  };
+  size_t idx; 
+  for (idx = 0; idx < sizeof(res)/sizeof(struct res_s); idx++) {
+    success &= gasnett_maximize_rlimit(res[idx].res, res[idx].desc);
+  }
+  return success;
+}
+int gasnett_maximize_rlimit(int res, const char *lim_desc) {
+  int success = 0;
+  #ifdef __USE_GNU
+    /* workaround an annoying glibc header bug, which erroneously declares get/setrlimit to take 
+       the enum type __rlimit_resource_t, instead of int as required by POSIX */
+    #define RLIM_CALL(fnname,structname) (*((int (*)(int,structname*))(void *)&fnname))
+  #else
+    #define RLIM_CALL(fnname,structname) fnname
+  #endif
+
+  #define SET_RLIMITS(structname, getrlimit, setrlimit) do {                                    \
+    structname oldval,newval;                                                                   \
+    if (RLIM_CALL(getrlimit,structname)(res, &oldval)) {                                        \
+      GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit: "#getrlimit"(%s) failed: %s",              \
+                              lim_desc, strerror(errno));                                       \
+    } else {                                                                                    \
+      char newvalstr[128];                                                                      \
+      newval = oldval;                                                                          \
+      if (newval.rlim_cur == RLIM_INFINITY ||                                                   \
+        newval.rlim_max == RLIM_INFINITY) {                                                     \
+        newval.rlim_cur = RLIM_INFINITY;                                                        \
+        strcpy(newvalstr, "RLIM_INFINITY");                                                     \
+      } else {                                                                                  \
+        gasneti_assert(newval.rlim_cur <= newval.rlim_max);                                     \
+        newval.rlim_cur = newval.rlim_max;                                                      \
+        sprintf(newvalstr, "%llu", (unsigned long long)newval.rlim_cur);                        \
+      }                                                                                         \
+      if (newval.rlim_cur != oldval.rlim_cur) {                                                 \
+        if (RLIM_CALL(setrlimit,structname)(res, &newval)) {                                    \
+          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit:                                        \
+            "#setrlimit"(%s, %s) failed: %s", lim_desc, newvalstr, strerror(errno));            \
+        } else {                                                                                \
+          GASNETT_TRACE_PRINTF("gasnett_maximize_rlimit:                                        \
+          "#setrlimit"(%s, %s) raised limit from %llu", lim_desc, newvalstr,                    \
+          (unsigned long long)oldval.rlim_cur);                                                 \
+          success = 1;                                                                          \
+        }                                                                                       \
+      }                                                                                         \
+    }                                                                                           \
+  } while (0)
+  #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
+    SET_RLIMITS(struct rlimit, getrlimit, setrlimit);
+  #endif
+  /* do 64-bit second, to favor the potentially higher limits */
+  #if defined(HAVE_GETRLIMIT64) && defined(HAVE_SETRLIMIT64)
+    SET_RLIMITS(struct rlimit64, getrlimit64, setrlimit64);
+  #endif
+  return success;
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* Physical CPU query */
 #if PLATFORM_OS_IRIX || PLATFORM_ARCH_CRAYX1
 #define _SC_NPROCESSORS_ONLN _SC_NPROC_ONLN
@@ -1196,7 +1479,7 @@ extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defau
 #elif PLATFORM_OS_HPUX
 #include <sys/param.h>
 #include <sys/pstat.h>
-#elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD
+#elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
@@ -1206,7 +1489,7 @@ extern int gasneti_cpu_count() {
   static int hwprocs = -1;
   if (hwprocs >= 0) return hwprocs;
 
-  #if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD
+  #if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
       {
         int mib[2];
         size_t len;
@@ -1246,7 +1529,7 @@ extern int gasneti_cpu_count() {
 #else
   #define _gasneti_getPhysMemSysconf() 0
 #endif
-#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
+#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
   #include <sys/types.h>
   #include <sys/sysctl.h>
 #elif PLATFORM_OS_CATAMOUNT
@@ -1278,7 +1561,7 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
       fclose(fp);
     }
     #undef _BUFSZ
-  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD
+  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
     { /* see "man 3 sysctl" */    
       int mib[2];
       size_t len = 0;

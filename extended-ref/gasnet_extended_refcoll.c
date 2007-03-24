@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/03/08 06:53:31 $
- * $Revision: 1.29.6.33 $
+ *     $Date: 2007/03/24 23:29:44 $
+ * $Revision: 1.29.6.34 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -274,6 +274,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
     if_pf (GASNETE_COLL_HANDLE_DONE(handle)) {
       gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
       GASNETE_COLL_HANDLE_NEXT(handle) = td->handle_freelist;
+      td->handle_freelist = handle;
       result = 1;
     }
 
@@ -2979,7 +2980,18 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
             gasnete_coll_save_coll_handle(h GASNETE_THREAD_PASS);
           }
         } else {
+          #if PLATFORM_COMPILER_SUN_C && PLATFORM_COMPILER_VERSION_GE(5,7,0)
+	    /* Supress a harmless (and incorrect) warning - a known Sun C bug: 
+	     *   6344975 cc reports spurious "dead part of constant expression is nonconstant" warnings.
+	     * The warning here is spurious - it would be appropriate for a *static* initializer.
+	     */
+	    #pragma error_messages(off, E_DEAD_NONCONST)
+	  #endif
 	  void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist,GASNET_COLL_LOCAL);
+          #if PLATFORM_COMPILER_SUN_C && PLATFORM_COMPILER_VERSION_GE(5,7,0)
+	    #pragma error_messages(default, E_DEAD_NONCONST)
+	  #endif
+
           for (i = 0; i < gasnete_coll_total_images; ++i, ++h) {
             *h = gasnete_coll_gatherM_nb(team, i, *p, srclist, nbytes,
 					 flags, op->sequence+i+1 GASNETE_THREAD_PASS);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2006/08/11 00:53:25 $
- * $Revision: 1.29.2.1 $
+ *     $Date: 2007/03/24 23:29:56 $
+ * $Revision: 1.29.2.2 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -1077,6 +1077,13 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
           ea->perProcInfo[procid].tokens_in = 0;
           ea->perProcInfo[procid].tokens_out = ea->tokens_perhost;
         #endif
+        #if AMMPI_VERIFY_MPI_ORDERING 
+          ea->perProcInfo[procid].seqnum[0].in = 0;
+          ea->perProcInfo[procid].seqnum[0].out = 0;
+          ea->perProcInfo[procid].seqnum[1].in = 0;
+          ea->perProcInfo[procid].seqnum[1].out = 0;
+        #endif
+
         ea->translation[i].id = procid;
         procid++;
         if (procid == ea->totalP) break; /*  should have all of them now */

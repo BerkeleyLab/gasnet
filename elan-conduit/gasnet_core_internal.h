@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/08/11 00:53:10 $
- * $Revision: 1.35.4.1 $
+ *     $Date: 2007/03/24 23:29:42 $
+ * $Revision: 1.35.4.2 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,21 +11,21 @@
 
 #include <gasnet_internal.h>
 
-#if PLATFORM_COMPILER_PGI
-  /* this workaround enables use of PGI with the libelan headers */
+#if PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_SUN
+  /* this workaround enables use of these compilers with the libelan headers */
   #ifndef __GNUC__
     #define __GNUC__ 3
-    #define GASNETC_PGI_ELAN_GNUC 1
+    #define GASNETC_CC_ELAN_GNUC 1
   #endif
   #if PLATFORM_ARCH_X86_64 && !defined(__x86_64)
     #define __x86_64 1
-    #define GASNETC_PGI_ELAN_X8664 1
+    #define GASNETC_CC_ELAN_X8664 1
   #endif
   #include <qsnet/fence.h>
-  #if GASNETC_PGI_ELAN_GNUC
+  #if GASNETC_CC_ELAN_GNUC
     #undef __GNUC__
   #endif
-  #if GASNETC_PGI_ELAN_X8664
+  #if GASNETC_CC_ELAN_X8664
     #undef __x86_64
   #endif
 #endif
@@ -398,7 +398,7 @@ typedef struct gasnetc_buf {
     gasnetc_msg_t     msg;
     gasnetc_medmsg_t  medmsg;
     gasnetc_longmsg_t longmsg;
-  };
+  } m;
   uint8_t     _Data[(4*GASNETC_MAX_ARGS)+GASNETC_MAX_MEDIUM]; /* holds args and data */
 } gasnetc_buf_t;
 

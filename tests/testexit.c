@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2006/10/05 00:01:27 $
- * $Revision: 1.16.6.3 $
+ *     $Date: 2007/03/24 23:30:16 $
+ * $Revision: 1.16.6.4 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -238,7 +238,7 @@ int main(int argc, char **argv) {
   if (argc > 0 || testid <= 0 || 
       (testid > NUMTEST && testid < 100) || 
       (testid >= 100+NUMCRASHTEST_WITH_PAR) || 
-      numpthreads <= 1) test_usage();
+      numpthreads <= 1) test_usage_early();
 
   if (testid < 100) {
     sprintf(testdescstr, "Running exit test %i: %s",testid, testdesc[testid-1]);

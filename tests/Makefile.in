@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2006/11/05 20:49:36 $
-# $Revision: 1.71.4.6 $
+#     $Date: 2007/03/24 23:30:16 $
+# $Revision: 1.71.4.7 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -24,8 +24,8 @@ Makefile: @TOP_SRCDIR@/tests/Makefile.in
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
 # GASNet-related MPI tests
-@USE_MPI_COMPAT_TRUE@ MPI_TESTS_SEQ = 
-@USE_MPI_COMPAT_TRUE@ MPI_TESTS_PAR = testmpi
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_SEQ = testmpi
+@USE_MPI_COMPAT_TRUE@ MPI_TESTS_PAR =
 
 # C++ tests
 CXX_TESTS = testcxx testtoolscxx
@@ -235,8 +235,7 @@ run-tests: force
 	    ( eval env GASNET_DUMMY=\"GASNet dummy value\" $(TEST_ENV)                  \
 	    $$TIMECMD $$cmd || echo "ERROR: Test exited with failure code=$$?" )        \
                              2>&1 | tee .test-output ;                                  \
-            failure=`@PERL@ -ne 'print if (/ERROR/ || /fatal signal/);' .test-output |  \
-                     grep -v 'Retrying allocation'` ;                                   \
+            failure=`@PERL@ -ne 'print if ((/ERROR/ || /fatal signal/) && !(/Retrying allocation/ || /GASNET_FREEZE_ON_ERROR/));' .test-output` ; \
             if test "$$failure" != "" ; then                                            \
                echo " " >> $(TESTLOG) ;                                                 \
                echo " *-* $$faildesc *-*" >> $(TESTLOG) ;                               \

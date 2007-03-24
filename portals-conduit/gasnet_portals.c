@@ -5,8 +5,24 @@
 #include <gasnet_handler.h>
 #include <gasnet_portals.h>
 
-/* Needed for bootstrap */
-#include <catamount/cnos_mpi_os.h>
+#if HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
+   #include <catamount/cnos_mpi_os.h>
+#elif HAVE_PCTMBOX_H /* old CNL */
+   #include <pctmbox.h>
+#else /* backup declarations, since these headers seem to be in flux */
+  extern int cnos_get_rank();
+  extern int cnos_get_size();
+  extern int cnos_get_nidpid_map(void *);
+  typedef struct {
+      ptl_nid_t nid;
+      ptl_pid_t pid;
+      #ifdef STRIDER0
+        int port;
+      #endif
+  } cnos_nidpid_map_t;
+  extern void cnos_barrier_init(ptl_handle_ni_t ni_handle); /* NOOP function on Catamount */
+  extern int cnos_barrier(void);
+#endif
 
 /* We keep a pool of Request receive buffers on a linked match-list.
  * We maintain the set of handles and other vital data in an array of ReqRB_t objects.
@@ -289,6 +305,7 @@ static void ReqSB_event(ptl_event_t *ev)
   gasnete_op_t *op;
   uint8_t *pdata, *q;
   void *dest;
+  ptl_size_t local_offset;
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("ReqSB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
@@ -311,7 +328,8 @@ static void ReqSB_event(ptl_event_t *ev)
 	gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
 	gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
       }
-      gasnetc_chunk_free(&gasnetc_ReqSB,offset);
+      local_offset = mbits>>32;
+      gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     }
 
     break;
@@ -328,15 +346,17 @@ static void ReqSB_event(ptl_event_t *ev)
     /* Get bouncing through ReqSB, copy to dest and complete */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
     gasneti_weakatomic_decrement(&gasnete_putget_inflight, 0);
-    pdata = ((uint8_t*)ev->md.start + offset);
+    local_offset = (mbits >> 32);
+    pdata = ((uint8_t*)ev->md.start + local_offset);
     q = pdata - sizeof(void*);
     /* q points to location where real destination address is stored */
     dest = (void*)*(uintptr_t*)q;
-    GASNETI_TRACE_PRINTF(C,("EV_handler copying %i bytes from bb 0x%lx to 0x%lx",ev->mlength,(uintptr_t)pdata,(uintptr_t)dest));
+    GASNETI_TRACE_PRINTF(C,("EV_handler copying %i bytes from bb 0x%lx to 0x%lx",
+                            (int)ev->mlength,(uintptr_t)pdata,(uintptr_t)dest));
     memcpy(dest,pdata,ev->mlength);
     /* free the bounce buffer */
-    offset -= sizeof(void*);
-    gasnetc_chunk_free(&gasnetc_ReqSB,offset);
+    local_offset -= sizeof(void*);
+    gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the get (isget=1) operation complete */
     gasnete_op_markdone(op, 1);
@@ -855,7 +875,11 @@ extern void gasnetc_portals_init(void)
 
   /* construct the interface */
   /* Hmm, how was it constructed for MPI? Will I get different ni? */
-  ptl_iface = IFACE_FROM_BRIDGE_AND_NALID(use_bridge,use_nal);
+  #if PLATFORM_OS_CNL
+    ptl_iface = CRAY_UK_SSNAL;
+  #else
+    ptl_iface = IFACE_FROM_BRIDGE_AND_NALID(use_bridge,use_nal);
+  #endif
 
   /* Get the network handle */
   rc = PtlNIInit(ptl_iface, PTL_PID_ANY, NULL, NULL, &gasnetc_ni_h);
@@ -915,7 +939,7 @@ extern void gasnetc_portals_init(void)
   /* for good measure */
   eq_len += 100;
 
-  GASNETI_TRACE_PRINTF(C,("Constructing EQ with %d entries",eq_len));
+  GASNETI_TRACE_PRINTF(C,("Constructing EQ with %d entries",(int)eq_len));
 #if 0
   if (gasneti_mynode == 0) {
     printf("MAX_POLL_EVENTS = %i\n",gasnetc_max_poll_events);

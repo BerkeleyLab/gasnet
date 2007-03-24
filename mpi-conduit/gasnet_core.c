@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2006/10/05 00:00:57 $
- * $Revision: 1.65.4.3 $
+ *     $Date: 2007/03/24 23:29:50 $
+ * $Revision: 1.65.4.4 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -96,6 +96,8 @@ void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode)
 static int gasnetc_init(int *argc, char ***argv) {
   int retval = GASNET_OK;
   int networkdepth = 0;
+  const char *pstr = NULL;
+  const char *tmsgstr = NULL;
 
   AMLOCK();
     if (gasneti_init_done) 
@@ -118,6 +120,34 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     AMMPI_VerboseErrors = gasneti_VerboseErrors;
     AMMPI_SPMDkillmyprocess = gasneti_killmyprocess;
+    #if !defined(GASNETI_DISABLE_MPI_INIT_THREAD) 
+      { int res; 
+      #if GASNETI_THREADS
+        /* tell MPI to be thread-safe */
+        res = AMMPI_SPMDSetThreadMode(1, &pstr, argc, argv);
+      #else
+        res = AMMPI_SPMDSetThreadMode(0, &pstr, argc, argv);
+      #endif
+        if (!res) { 
+          #if GASNETI_THREADS
+          { static char tmsg[255];
+            sprintf(tmsg, "*** WARNING: The pthreaded version of mpi-conduit requires an MPI implementation "
+                          "which supports threading mode MPI_THREAD_SERIALIZED, "
+                          "but this implementation reports it can only support %s\n", pstr);
+            #if GASNET_DEBUG_VERBOSE
+              /* only show this in verbose mode, because some versions of MPICH (eg Quadrics version)
+                 lie and report THREAD_SINGLE, when in actuality MPI_THREAD_SERIALIZED works just fine */
+              if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) fprintf(stderr, "%s", tmsg);
+            #else
+              tmsgstr = tmsg;
+            #endif
+          }
+          #else
+            fprintf(stderr,"unknown failure in AMMPI_SPMDSetThreadMode() => %s\n",pstr);
+          #endif
+        }
+      }
+    #endif
 
     /*  perform job spawn */
     retval = AMMPI_SPMDStartup(argc, argv, networkdepth, NULL, &gasnetc_bundle, &gasnetc_endpoint);
@@ -134,6 +164,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* enable tracing */
     gasneti_trace_init(argc, argv);
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
+    if (pstr)    GASNETI_TRACE_PRINTF(C,("AMMPI_SPMDSetThreadMode/MPI_Init_thread()=>%s",pstr));
+    if (tmsgstr) GASNETI_TRACE_PRINTF(I,("%s",tmsgstr));
 
     #if GASNET_DEBUG_VERBOSE
       fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -772,7 +804,16 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
       gasneti_tick_t startlock = GASNETI_TICKS_NOW_IFENABLED(L);
     #endif
     #if GASNETC_HSL_SPINLOCK
-      while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) { }
+      if_pf (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+        if (gasneti_wait_mode == GASNET_WAIT_SPIN) {
+          while (gasneti_mutex_trylock(&(hsl->lock)) == EBUSY) {
+            gasneti_compiler_fence();
+            gasneti_spinloop_hint();
+          }
+        } else {
+          gasneti_mutex_lock(&(hsl->lock));
+        }
+      }
     #else
       gasneti_mutex_lock(&(hsl->lock));
     #endif

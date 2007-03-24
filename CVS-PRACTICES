@@ -35,6 +35,19 @@ Development practices that GASNet developers are expected to follow:
   before rolling back any non-trivial change, and whenever distributing a
   snapshot of the archive to any user or external party.
 
+* Follow good CVS branch merging practice: when merging from the CVS head to a branch, 
+  you should first tag the head, then merge to that tag. Subsequent merges will also
+  require the tag from your last merge to the branch.
+
+* When merging from the CVS head to a branch, perform a separate branch commit
+  that contains nothing but the merge (and note that in the commit log). Do not 
+  lump in your own branch changes along with a merge from the head, because that
+  makes it harder to see what has actually changed in your commit, and muddies the
+  branch history. If your working copy already has both the merged head updates 
+  and your manual changes, you should checkout a separate copy of your branch, 
+  merge the head to it and commit that to the branch, then cvs up your working
+  copy before doing the commit of your real changes.
+
 * GASNet supports both a regular and tools-only (conduit-free) distribution.
   The Bootstrap -o option activates tools-only mode for a given source tree
   by MODIFYING several source files, but the CVS repo is always kept in regular
@@ -47,7 +60,9 @@ Development practices that GASNet developers are expected to follow:
 GASNet Release Procedure
 ------------------------
 
-* Start from a clean checkout of the CVS tree
+* Start from a clean checkout of the CVS tree.
+  Do *NOT* use an existing source tree - otherwise it's very easy for stray files,
+  bad keywords, etc to end up in the release.
 
 * Increment the version number for each item or software module that has changed
   since the last public release:
@@ -74,6 +89,8 @@ GASNet Release Procedure
 
 * Review checkin messages and write a summary of user-visible changes and 
   bug fixes since last public release - add to ChangeLog
+
+* Update license.txt with any new authorship credits
 
 * ./Bootstrap the srcdir
 
@@ -108,6 +125,6 @@ GASNet Release Procedure
 
 * CVS tag the archive as GASNET_V_v (for version V.v) and docs/gasnet.texi as GASNETSPEC_V_v
 
-* Increment overall public release version number: configure.in and GASNETI_RELEASE_VERSION
-   should be a odd minor version number for development versions
+* Increment overall public release version number in configure.in
+   should be a odd minor and patch version number for development versions
 

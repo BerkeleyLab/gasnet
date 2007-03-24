@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2006/11/04 02:26:25 $
- * $Revision: 1.8.2.4 $
+ *     $Date: 2007/03/24 23:29:54 $
+ * $Revision: 1.8.2.5 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -434,9 +434,17 @@
   #define PLATFORM_OS_CATAMOUNT 1
   #define PLATFORM_OS_FAMILYNAME CATAMOUNT
 
+#elif defined(__CRAYXT_COMPUTE_LINUX_TARGET)
+  #define PLATFORM_OS_CNL 1
+  #define PLATFORM_OS_FAMILYNAME CNL
+
 #elif defined(__blrts) || defined(__blrts__) || defined(__gnu_blrts__)
   #define PLATFORM_OS_BLRTS 1
   #define PLATFORM_OS_FAMILYNAME BLRTS
+
+#elif defined(__K42)
+  #define PLATFORM_OS_K42 1
+  #define PLATFORM_OS_FAMILYNAME K42
 
 #elif defined(__uClinux__)
   #define PLATFORM_OS_UCLINUX 1
@@ -469,6 +477,10 @@
 #elif defined(__NetBSD) || defined(__NetBSD__)
   #define PLATFORM_OS_NETBSD 1
   #define PLATFORM_OS_FAMILYNAME NETBSD
+
+#elif defined(__OpenBSD__)
+  #define PLATFORM_OS_OPENBSD 1
+  #define PLATFORM_OS_FAMILYNAME OPENBSD
 
 #elif defined(__sun) || defined(__sun__)
   #define PLATFORM_OS_SOLARIS 1

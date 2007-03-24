@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2006/10/05 00:00:43 $
-# $Revision: 1.54.4.3 $
+#     $Date: 2007/03/24 23:29:36 $
+# $Revision: 1.54.4.4 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -32,6 +32,7 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	smp-conduit  		\
 	udp-conduit  		\
 	vapi-conduit 		\
+	ibv-conduit 		\
 	portals-conduit
 CONDUITMODE_headers = 		\
 	gasnet.h           	\
@@ -102,12 +103,15 @@ force:
 #-------------------------------------------------------
 # libgasnet_tools goop
 
-if HAVE_PTHREAD
-libgasnet_tools_par_a_SOURCES =
-threaded_libraries = libgasnet_tools-par.a 
-endif
+if BUILD_SEQ_LIBS
 libgasnet_tools_seq_a_SOURCES =
-libraries = libgasnet_tools-seq.a $(threaded_libraries)
+libraries_seq = libgasnet_tools-seq.a 
+endif
+if BUILD_PAR_LIBS
+libgasnet_tools_par_a_SOURCES =
+libraries_par = libgasnet_tools-par.a 
+endif
+libraries = $(libraries_seq) $(libraries_par)
 
 # leading - prevents distclean failures
 -include $(top_builddir)/other/Makefile-libgasnet.mak
