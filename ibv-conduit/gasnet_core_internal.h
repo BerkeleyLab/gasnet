@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/10/05 00:01:31 $
- * $Revision: 1.89.4.3 $
+ *     $Date: 2007/03/24 23:30:20 $
+ * $Revision: 1.89.4.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,22 +15,22 @@
 #include <firehose.h>
 
 /* Check that firehose_fwd.h picked an IB API for us */
-#if !defined(GASNETC_IB_VAPI) && !defined(GASNETC_IB_VERBS)
-  #error "One of GASNETC_IB_VAPI or GASNETC_IB_VERBS must be defined"
+#if !defined(GASNET_CONDUIT_VAPI) && !defined(GASNET_CONDUIT_IBV)
+  #error "One of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
 #endif
 
-#include <ssh-spawner/gasnet_bootstrap_internal.h>
+#if HAVE_SSH_SPAWNER
+  #include <ssh-spawner/gasnet_bootstrap_internal.h>
+#endif
 #if HAVE_MPI_SPAWNER
   #include <mpi-spawner/gasnet_bootstrap_internal.h>
 #endif
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #include <vapi.h>
   #include <evapi.h>
   #include <vapi_common.h>
 #else
-  #undef GASNETC_VAPI_RCV_THREAD
-  #define GASNETC_VAPI_RCV_THREAD 0
   #include <infiniband/verbs.h>
 #endif
 
@@ -43,8 +43,16 @@
 
 #define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES)-(SZ))
 
+/* GASNETC_FH_OPTIONAL: whether or not firehose can be switched OFF at runtime */
+/* Enabled by default for DEBUG builds.  For NDEBUG builds, can force at compile time. */
+#if defined(GASNETC_FH_OPTIONAL)
+  /* Leave as-is */
+#elif GASNET_DEBUG
+  #define GASNETC_FH_OPTIONAL 1
+#endif
+
 /* check (even in optimized build) for VAPI errors */
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #define GASNETC_VAPI_CHECK(rc,msg) \
     if_pf ((rc) != 0) \
       { gasneti_fatalerror("Unexpected error %s %s",VAPI_strerror_sym(rc),(msg)); }
@@ -62,6 +70,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_amrdma_grant_reqh       (GASNETC_HANDLER_BASE+1)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* System-category handlers.
@@ -193,8 +202,15 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_SND_SG	4
 
 /* Defined non-zero in gasnet_config.h to enable a progress thread for receiving AMs . */
-#ifndef GASNETC_VAPI_RCV_THREAD
-  #define GASNETC_VAPI_RCV_THREAD	0
+#if GASNET_CONDUIT_VAPI
+  #ifndef GASNETC_VAPI_RCV_THREAD
+    #define GASNETC_IB_RCV_THREAD	0
+  #else
+    #define GASNETC_IB_RCV_THREAD	1
+  #endif
+#else
+  /* XXX: rcv thread not yet implemented for IBV */
+  #define GASNETC_IB_RCV_THREAD 0
 #endif
 
 /* maximum number of ops reaped from the send CQ per poll */
@@ -231,11 +247,11 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define GASNETC_CLI_PAR	0
 #endif
 
-#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_VAPI_RCV_THREAD)
+#define GASNETC_ANY_PAR		(GASNETC_CLI_PAR || GASNETC_IB_RCV_THREAD)
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETC_VAPI_MAX_HCAS > 1
+#if GASNETC_IB_MAX_HCAS > 1
   #define GASNETC_FOR_ALL_HCA_INDEX(h)	for (h = 0; h < gasnetc_num_hcas; ++h)
   #define GASNETC_FOR_ALL_HCA(p)	for (p = &gasnetc_hca[0]; p < &gasnetc_hca[gasnetc_num_hcas]; ++p)
 #else
@@ -246,7 +262,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 /* ------------------------------------------------------------------------------------ */
 /* Map VAPI and IBV to a common gasnetc_ prefix */
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   #define GASNETC_IB_CHOOSE(X,Y)		X
 
   #define gasnetc_close_hca(_hca)		EVAPI_release_hca_hndl(_hca)
@@ -274,6 +290,12 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
   #define gasnetc_destroy_qp(_hca,_qp)		ibv_destroy_qp(_qp)
   #define gasnetc_dereg_mr(_hca,_mr)		ibv_dereg_mr(_mr)
   #define gasnetc_query_port(_hca,_num,_port_p)	ibv_query_port((_hca),(_num),(_port_p))
+
+  /* Work-around bug 1861: node death on exit: */
+  #undef gasnetc_close_hca
+  #define gasnetc_close_hca(_hca)		((void)0)
+  #undef gasnetc_dealloc_pd
+  #define gasnetc_dealloc_pd(_hca,_pd)		((void)0)
 #endif
 
 /* Constants */
@@ -293,6 +315,7 @@ extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLER
 #define GASNETC_WC_RDMA_READ	GASNETC_IB_CHOOSE(VAPI_CQE_SQ_RDMA_READ,IBV_WC_RDMA_READ)
 #define GASNETC_WC_RDMA_WRITE	GASNETC_IB_CHOOSE(VAPI_CQE_SQ_RDMA_WRITE,IBV_WC_RDMA_WRITE)
 #define GASNETC_WC_SEND		GASNETC_IB_CHOOSE(VAPI_CQE_SQ_SEND_DATA, IBV_WC_SEND)
+#define GASNETC_WC_RETRY_EXC_ERR GASNETC_IB_CHOOSE(VAPI_RETRY_EXC_ERR, IBV_WC_RETRY_EXC_ERR)
 
 #define GASNETC_WR_RDMA_READ	GASNETC_IB_CHOOSE(VAPI_RDMA_READ,	IBV_WR_RDMA_READ)
 #define GASNETC_WR_RDMA_WRITE	GASNETC_IB_CHOOSE(VAPI_RDMA_WRITE,	IBV_WR_RDMA_WRITE)
@@ -358,6 +381,38 @@ typedef struct {
   uintptr_t		end;	/* inclusive */
 } gasnetc_memreg_t;
 
+typedef struct {
+	/* Length excludes immediate data but zeros includes it */
+	int16_t		length;	
+	int16_t		length_again;
+	int16_t		zeros;
+	int16_t		zeros_again;
+	/* Immediate data that vapi would otherwise send in its own header */
+	uint32_t	immediate_data;
+} gasnetc_amrdma_hdr_t;
+
+#define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
+#define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */  /* XXX: should determine automatically */
+#define GASNETC_AMRDMA_SZ_LG2	12 /* log-base-2(GASNETC_AMRDMA_SZ) */
+#define GASNETC_AMRDMA_LIMIT_MAX (GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ)
+typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
+
+#define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 0	/* XXX: disabled by default */
+#define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
+#define GASNETC_DEFAULT_AMRDMA_DEPTH	GASNETC_AMRDMA_DEPTH_MAX
+#define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
+#define GASNETC_DEFAULT_AMRDMA_CYCLE	8192	/* 2^i, Number of AM rcvs before hot-peer heuristic */
+
+/* Forward decl */
+struct gasnetc_cep_t_;
+typedef struct gasnetc_cep_t_ gasnetc_cep_t;
+
+/* Struct for assignment of AMRDMA peers */
+typedef struct gasnetc_amrdma_balance_tbl_t_ {
+  gasneti_weakatomic_val_t	count;
+  gasnetc_cep_t			*cep;
+} gasnetc_amrdma_balance_tbl_t;
+
 /* Structure for an HCA */
 typedef struct {
   gasnetc_hca_hndl_t	handle;
@@ -376,7 +431,7 @@ typedef struct {
   int			hca_index;
   const char		*hca_id;
   gasnetc_hca_cap_t	hca_cap;
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   VAPI_hca_vendor_t	hca_vendor;
 #else
   /* Part of hca_cap under ibv */
@@ -384,16 +439,34 @@ typedef struct {
   int			qps; /* qps per peer */
   int			total_qps; /* total over all peers */
 
+  gasnetc_cep_t		**cep; /* array of ptrs to all ceps */
+
   void			*rbuf_alloc;
   gasneti_lifo_head_t	rbuf_freelist;
 
-#if GASNETC_IB_VAPI
+#if GASNET_CONDUIT_VAPI
   /* Rcv thread */
   EVAPI_compl_handler_hndl_t rcv_handler;
   void			*rcv_thread_priv;
 #else
   /* No progress thread under ibv */
 #endif
+
+  /* AM-over-RMDA */
+  gasnetc_memreg_t	amrdma_reg;
+  gasneti_lifo_head_t	amrdma_freelist;
+  struct {
+    gasneti_weakatomic_val_t max_peers;
+    gasneti_weakatomic_t count;
+    gasnetc_cep_t	**cep;
+  }	  amrdma_rcv;
+  struct {
+    gasneti_weakatomic_t	count;
+    gasneti_weakatomic_val_t	mask;
+    gasneti_atomic_t		lock;	/* Spinlock XXX: should compile-away for non-threaded builds */
+    gasneti_weakatomic_val_t	floor;
+    gasnetc_amrdma_balance_tbl_t *table;
+  }	  amrdma_balance;
 } gasnetc_hca_t;
 
 /* Keys in a cep, all replicated from other data */
@@ -404,19 +477,40 @@ struct gasnetc_cep_keys_ {
 #endif
   gasnetc_lkey_t	rcv_lkey;
   gasnetc_lkey_t	snd_lkey;
+  gasnetc_rkey_t	amrdma_rkey;
 };
 
 /* Structure for a cep (connection end-point) */
-typedef struct {
+struct gasnetc_cep_t_ {
+  char			_pad0[GASNETI_CACHE_LINE_BYTES];
+
   /* Read/write fields */
   gasneti_semaphore_t	sq_sema;	/* control in-flight ops (send queue slots) */
-  gasneti_semaphore_t	am_sema;	/* control in-flight AM Requests (recv queue slots )*/
-  gasneti_semaphore_t	am_unrcvd;	/* ACK coalescing - unmatched rcv buffers */
+  gasneti_semaphore_t	am_rem;		/* control in-flight AM Requests (remote rcv queue slots)*/
+  gasneti_semaphore_t	am_loc;		/* control unmatched rcv buffers (local rcv queue slots) */
   gasneti_semaphore_t	*snd_cq_sema_p;	/* control in-flight ops (send completion queue slots) */
-  gasneti_weakatomic_t	am_unsent;	/* ACK coalescing - unsent credits */
-  char			_pad0[GASNETC_CACHE_PAD(3*sizeof(gasneti_semaphore_t)+
-						 sizeof(gasneti_semaphore_t*)+
-						 sizeof(gasneti_weakatomic_t))];
+  /* XXX: The atomics in the next 2 structs really should get padded to full cache lines */
+  struct {	/* AM flow control coallescing */
+  	gasneti_weakatomic_t	credit;
+	gasneti_weakatomic_t	ack;
+  } am_flow;
+  struct {	/* AM-over-RDMA local state */
+	gasneti_weakatomic_t	send_head, send_tail;
+	gasneti_weakatomic_t	recv_head;
+#if GASNETI_THREADS
+	gasneti_mutex_t		ack_lock;
+	uint32_t		ack_bits;
+        gasneti_weakatomic_val_t recv_tail;
+	char			_pad[GASNETI_CACHE_LINE_BYTES];
+	union {
+          gasneti_weakatomic_t	    spinlock;
+	  char			    _pad[GASNETI_CACHE_LINE_BYTES];
+        }			recv_busy[GASNETC_AMRDMA_DEPTH_MAX]; /* A weak spinlock */
+#endif
+	gasneti_weakatomic_t	eligable;	/* Number of AMs small enough for AMRDMA */
+  } amrdma;
+
+  char			_pad1[GASNETI_CACHE_LINE_BYTES];
 
   /* Read-only fields */
   struct gasnetc_cep_keys_ keys;
@@ -426,19 +520,17 @@ typedef struct {
   gasnetc_hca_hndl_t	hca_handle;
   int			hca_index;
   gasnetc_epid_t	epid;		/* == uint32_t */
-  char			_pad1[GASNETC_CACHE_PAD(sizeof(struct gasnetc_cep_keys_) +
-						sizeof(gasneti_lifo_head_t*)+
-						sizeof(gasnetc_hca_t*)+
-						sizeof(gasnetc_qp_hndl_t)+
-						sizeof(gasnetc_hca_hndl_t)+
-						sizeof(int)+
-						sizeof(gasnetc_epid_t))];
-} gasnetc_cep_t;
+  gasnetc_amrdma_buf_t	*amrdma_loc;	
+  uintptr_t		amrdma_rem;
+
+  char			_pad2[GASNETI_CACHE_LINE_BYTES];
+};
 
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
+extern void gasnetc_sndrcv_init_misc(void);
 extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_poll(void);
@@ -471,16 +563,22 @@ extern size_t		gasnetc_bounce_limit;
 #if !GASNETC_PIN_SEGMENT
   extern size_t		gasnetc_putinmove_limit;
 #endif
-#if GASNET_DEBUG
+#if GASNETC_FH_OPTIONAL
   #define GASNETC_USE_FIREHOSE	gasnetc_use_firehose
   extern int		gasnetc_use_firehose;
 #else
   #define GASNETC_USE_FIREHOSE	1
 #endif
+extern int		gasnetc_amrdma_max_peers;
+extern size_t		gasnetc_amrdma_limit;
+extern int		gasnetc_amrdma_depth;
+extern int		gasnetc_amrdma_slot_mask;
+extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
+
 
 /* Global variables */
 extern int		gasnetc_num_hcas;
-extern gasnetc_hca_t	gasnetc_hca[GASNETC_VAPI_MAX_HCAS];
+extern gasnetc_hca_t	gasnetc_hca[GASNETC_IB_MAX_HCAS];
 extern gasnetc_cep_t	*gasnetc_cep;
 extern uintptr_t	gasnetc_max_msg_sz;
 #if GASNETC_PIN_SEGMENT
