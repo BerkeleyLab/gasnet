@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/03/05 23:19:34 $
- * $Revision: 1.40.12.9 $
+ *     $Date: 2007/03/27 23:16:38 $
+ * $Revision: 1.40.12.10 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -302,6 +302,7 @@ extern void gasnetc_token_enqueue(gasnetc_token_queue_t *q, gasnetc_token_t *p, 
 #if GASNETC_LAPI_RDMA
 #define GASNETC_LAPI_PVO_EXTENT (16L*1024L*1024L)
 #define GASNETC_LAPI_RDMA_GET_TAG (-1)
+#define GASNETC_LAPI_RDMA_PUT_TAG (-2)
 #define GASNETC_MAX_PVOS 16
 #define GASNETC_LAPI_MAX_TAGS 16
 

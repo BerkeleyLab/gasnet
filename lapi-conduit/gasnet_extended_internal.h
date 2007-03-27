@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2007/02/01 22:23:01 $
- * $Revision: 1.13.12.13 $
+ *     $Date: 2007/03/27 23:16:38 $
+ * $Revision: 1.13.12.14 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,7 +94,9 @@ typedef struct _gasnete_eop_t {
     int          initiated_cnt;
 #if GASNETC_LAPI_RDMA
   lapi_cntr_t *origin_counter;          /* For gets */
+#if 0
   lapi_cntr_t completion_counter;      /* For puts */
+#endif
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
   struct _gasnete_lapi_nb_struct *network_buffer_id;
   int nbid;

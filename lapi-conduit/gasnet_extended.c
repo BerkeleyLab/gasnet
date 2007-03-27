@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/02/24 00:03:20 $
- * $Revision: 1.42.12.21 $
+ *     $Date: 2007/03/27 23:16:38 $
+ * $Revision: 1.42.12.22 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -337,7 +337,7 @@ int gasnete_op_isdone(gasnete_op_t *op)
 	    return (0);
           }
 	} else {
-          GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&(eop->completion_counter),&cnt));
+          GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,eop->origin_counter,&cnt));
 	  if(eop->num_transfers == cnt) {
             return(1);
           } else {
@@ -883,8 +883,6 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
     } else {
       new_eop->origin_counter = &(new_eop->cntr);
     }
-    cptr = &(new_eop->completion_counter);
-    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,cptr,0));
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, new_eop->origin_counter, 0));
   } else {
     if(op == LAPI_RDMA_GET) {
@@ -892,12 +890,11 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
 	 So this should be safe */
       new_eop->origin_counter = &(iop->get_cntr);
     } else {
-      if(origin_counter != NULL) {
-        new_eop->origin_counter = origin_counter;
-      }
+      new_eop->origin_counter = &(iop->rdma_put_cntr);
     }
-    cptr = &(iop->rdma_put_cntr);
   }
+
+  cptr = NULL;
 
   /* Cannot do an RDMA with yourself.  For now do a memcpy and fake everything else */
   if(node == gasneti_mynode) {
@@ -1005,11 +1002,14 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
 	if(op == LAPI_RDMA_GET) {
 	  xfer_struct.HwXfer.rdma_tag = GASNETC_LAPI_RDMA_GET_TAG;
 	} else {
+	  xfer_struct.HwXfer.rdma_tag = GASNETC_LAPI_RDMA_PUT_TAG;
+#if 0
 	  xfer_struct.HwXfer.op |= LAPI_RCALLBACK;
 	  xfer_struct.HwXfer.rdma_tag = gasnetc_lapi_get_unallocated_tag();
           gasnete_puts_initiated++;
 	  /* Add the pointer to the completion counter here */
 	  gasnetc_lapi_completion_ptrs[xfer_struct.HwXfer.rdma_tag] = cptr;
+#endif
 	}
 	xfer_struct.HwXfer.remote_cxt = rcxt.usr_rcxt;
 	xfer_struct.HwXfer.len = length_to_remote_boundary;
@@ -1075,11 +1075,14 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
       if(op == LAPI_RDMA_GET) {
 	xfer_struct.HwXfer.rdma_tag = GASNETC_LAPI_RDMA_GET_TAG;
       } else {
+	xfer_struct.HwXfer.rdma_tag = GASNETC_LAPI_RDMA_PUT_TAG;
+#if 0
 	xfer_struct.HwXfer.op |= LAPI_RCALLBACK;
 	xfer_struct.HwXfer.rdma_tag = gasnetc_lapi_get_unallocated_tag();
         gasnete_puts_initiated++;
 	/* Add the pointer to the completion counter here */
 	gasnetc_lapi_completion_ptrs[xfer_struct.HwXfer.rdma_tag] = cptr;
+#endif
       }
       xfer_struct.HwXfer.remote_cxt = rcxt.usr_rcxt;
       xfer_struct.HwXfer.len = transfer_len;
@@ -1182,8 +1185,7 @@ extern void gasnete_put_bulk (gasnet_node_t node, void *dest, void *src,
     /* Wait on this eop */
     GLTRACE(C,("gasnete_put_bulk: wait on sync\n"));
 #if 1
-    GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, &(eop->completion_counter),eop->num_transfers,&num_put)));
-    /* Free the pinned region */
+    GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, eop->origin_counter,eop->num_transfers,&num_put)));
 #else
     gasnete_wait_syncnb((gasnet_handle_t) eop);
 #endif
@@ -1335,6 +1337,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
     /* Wait for the origin counter to indicate local completion */
     if(!eop->local_p) {
       GASNETC_WAITCNTR(eop->origin_counter,eop->num_transfers,&cur_cntr);
+      eop->num_transfers = 0;
       gasneti_assert(cur_cntr == 0);
     }
     return((gasnet_handle_t) eop);
@@ -1396,7 +1399,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &o_cntr, 0));
 #if GASNETC_LAPI_RDMA
     gasneti_suspend_spinpollers();
-    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, &(op->completion_counter), 0));
+    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context, op->origin_counter, 0));
     op->num_transfers = 1;
     op->get_p = 0;
     op->network_buffer_id = NULL;
@@ -1404,7 +1407,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, (unsigned int)node,
 			       gasnete_remote_memset_hh[node],
 			       &uhdr, sizeof(gasnete_memset_uhdr_t), NULL, 0,
-			       NULL, &o_cntr, &(op->completion_counter)));
+			       NULL, &o_cntr, op->origin_counter));
     gasneti_resume_spinpollers();
 #else
     gasneti_suspend_spinpollers();
@@ -1520,7 +1523,7 @@ extern void gasnete_wait_syncnb(gasnet_handle_t handle)
 	if(eop->get_p) {
           GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, eop->origin_counter,eop->num_transfers,&cnt)));
 	} else {
-          GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, &(eop->completion_counter),eop->num_transfers,&cnt)));
+          GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, eop->origin_counter,eop->num_transfers,&cnt)));
 	}
     } else {
 	gasnete_iop_t *iop = (gasnete_iop_t*)op;
@@ -1766,6 +1769,10 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
     gasneti_resume_spinpollers();
     /*printf("gasnete_put_nbi waiting on origin counter\n");*/
     GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,result->origin_counter,result->num_transfers,&cur_cntr));
+    /* Because this actually completes the operation, act like it never happened and decrement the
+       put count */
+    op->initiated_put_cnt-=result->num_transfers;
+    result->num_transfers = 0;
     /*printf("gasnete_put_nbi done\n");*/
     gasnete_op_free((gasnete_op_t *) result); 
     gasneti_assert(cur_cntr == 0);
@@ -2422,3 +2429,14 @@ extern gasnet_handlerentry_t const *gasnete_get_handlertable() {
 }
 
 /* ------------------------------------------------------------------------------------ */
+
+/*
+TODO
+
+22/3/07 - Change occurences of origin_counter to completion_counter to better reflect the
+          use of this field
+          Track down AM performance problems (DONE, was MP_TASK_AFFINITY)
+          Tracing old code for LAPI folks
+
+
+*/
