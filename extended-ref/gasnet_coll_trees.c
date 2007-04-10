@@ -434,7 +434,7 @@ void gasnete_coll_set_sub_tree_sizes(gasnete_coll_local_tree_geom_t *geom, int g
   } else {
     geom->subtree_sizes = NULL;
   }
-  if(geom->root!=gasneti_mynode) {
+  if(geom->root!=gasnete_coll_tree_mynode) {
     geom->parent_subtree_size = 1;
     temp = gasnete_coll_build_tree(geom->kind, geom->fanout, geom->root, 
                                    geom->parent, gasnete_coll_tree_nodes, 1);
