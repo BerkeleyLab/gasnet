@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.h,v $
- *     $Date: 2006/08/11 00:53:12 $
- * $Revision: 1.5.2.1 $
+ *     $Date: 2007/04/10 17:54:31 $
+ * $Revision: 1.5.2.2 $
  * Description: GASNet Vector, Indexed & Strided conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,7 +94,7 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-vis handlers */
 #ifndef GASNETE_VIS_HANDLER_BASE
-#define GASNETE_VIS_HANDLER_BASE 110
+#define GASNETE_VIS_HANDLER_BASE 100
 #endif
 
 #define _hidx_gasnete_putv_AMPipeline_reqh    (GASNETE_VIS_HANDLER_BASE+0)

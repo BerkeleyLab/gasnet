@@ -1,32 +1,6 @@
 #include "gasnet_coll_trees.h"
 
-
 /* external code to force a tree type (for testing purposes only)*/
-gasnete_coll_tree_kind_t gasnete_coll_current_tree_kind;
-int gasnete_coll_current_fanout;
-
-void gasnet_coll_set_tree_kind(char *str) {
-  if(strcmp(str, "GASNET_BINOMIAL_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
-  } else if(strcmp(str, "GASNET_NARY_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_NARY_TREE;
-  } else if(strcmp(str, "GASNET_DFS_RECURSIVE_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_DFS_RECURSIVE_TREE;
-  } else if(strcmp(str, "GASNET_REV_RECURSIVE_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_REV_RECURSIVE_TREE;
-  } else {
-    gasneti_fatalerror("Unknown Tree Type: %s\n", str);
-  }
-}
-void gasnet_coll_set_fanout(int fanout) {
-  gasnete_coll_current_fanout = fanout;
-}
-gasnete_coll_tree_kind_t gasnete_coll_get_current_tree_kind() {
-  return gasnete_coll_current_tree_kind;
-}
-int gasnete_coll_get_current_fanout() {
-  return gasnete_coll_current_fanout;
-}
 /* tree building code*/
 int gasnete_coll_build_tree_mypow(gasnet_node_t base, int pow) {
   int ret = 1;

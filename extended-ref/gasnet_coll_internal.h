@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/03/08 06:53:30 $
- * $Revision: 1.22.6.24 $
+ *     $Date: 2007/04/10 17:54:30 $
+ * $Revision: 1.22.6.25 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,6 +81,9 @@ typedef struct gasnete_coll_op_status_t_ gasnete_coll_op_status_t;
 
 struct gasnete_coll_scratch_status_t_;
 typedef struct gasnete_coll_scratch_status_t_ gasnete_coll_scratch_status_t;
+
+struct gasnete_coll_seg_interval_t_;
+typedef struct gasnete_coll_seg_interval_t_ gasnete_coll_seg_interval_t;
 /*---------------------------------------------------------------------------------*/
 
 
@@ -234,7 +237,7 @@ struct gasnete_coll_op_t_ {
 #if GASNET_PAR
   struct {
     uint32_t			sequence;
-  }			threads;
+  } threads;
 #endif
   
   /* Read-only fields: */
@@ -251,10 +254,18 @@ struct gasnete_coll_op_t_ {
   uint64_t *scratchpos;
   uint64_t myscratchpos;
   
+
+  
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_OP_EXTRA
   GASNETE_COLL_OP_EXTRA
 #endif
+};
+
+struct gasnete_coll_seg_interval_t_ {
+  uint32_t start;
+  uint32_t end;
+  gasnete_coll_seg_interval_t *next;
 };
 
 /*---------------------------------------------------------------------------------*/
@@ -305,6 +316,12 @@ struct gasnete_coll_p2p_t_ {
   
   /* Handler-safe lock (if needed) */
   gasnet_hsl_t		lock;
+  
+  /* manage intervals for segmented algorithms*/
+  size_t seg_size;
+  uint32_t num_segs_processed;
+  gasnete_coll_seg_interval_t *seg_intervals;
+  gasnete_coll_seg_interval_t *seg_free_list;
   
 #ifdef GASNETE_COLL_P2P_EXTRA_FIELDS
   GASNETE_COLL_P2P_EXTRA_FIELDS
@@ -1989,6 +2006,24 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 			   GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
+gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
+			   void *dst,
+			   gasnet_image_t srcimage, void *src,
+			   size_t nbytes, int flags,
+			   gasnete_coll_tree_kind_t kind,
+			   uint32_t sequence
+			   GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
+                              void *dst,
+                              gasnet_image_t srcimage, void *src,
+                              size_t nbytes, int flags,
+                              gasnete_coll_tree_kind_t kind,
+                              uint32_t sequence
+                              GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
 gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
 			   void *dst,
 			   gasnet_image_t srcimage, void *src,
@@ -2070,7 +2105,7 @@ gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
 
 
 extern gasnet_coll_handle_t
-gasnete_coll_scat_TreePutPipe(gasnet_team_handle_t team,
+gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
                           void *dst,
                           gasnet_image_t srcimage, void *src,
                           size_t nbytes, int flags,
@@ -2162,7 +2197,7 @@ gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
                       GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
-gasnete_coll_gath_TreePutPipe(gasnet_team_handle_t team,
+gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
                           gasnet_image_t dstimage, void *dst,
                           void *src,
                           size_t nbytes, int flags, 

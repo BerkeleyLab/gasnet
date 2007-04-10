@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/03/24 23:29:44 $
- * $Revision: 1.29.6.34 $
+ *     $Date: 2007/04/10 17:54:30 $
+ * $Revision: 1.29.6.35 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,9 +13,15 @@
 #include <gasnet_extended_refcoll.h>
 #include <gasnet_vis.h>
 
-/*TEMPORARY ... change it up later*/
+/*TEMPORARY (Need to eventually change it such that 
+the files are compiled under their own .o files)*/
 #include <gasnet_coll_trees.c>
+/* gasnet_coll_autotune.c and gasnet_coll_scratch.c have 
+   to be included after gasnet_coll_trees.c
+*/
+#include <gasnet_coll_autotune.c>
 #include <gasnet_coll_scratch.c>
+
 
 static size_t gasnete_coll_p2p_eager_min = 0;
 static size_t gasnete_coll_p2p_eager_scale = 0;
@@ -1325,7 +1331,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     static gasnete_coll_p2p_t *gasnete_coll_p2p_freelist = NULL;
 
     static gasnete_coll_p2p_t gasnete_coll_p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
-    static gasnet_hsl_t gasnete_coll_p2p_table_lock = GASNET_HSL_INITIALIZER;
+    static gasnet_hsl_t gasnete_coll_p2p_table_lock = GASNET_HSL_INITIALIZER; 
 	
     void gasnete_coll_p2p_init() {
       int i;
@@ -1390,7 +1396,10 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 	memset((void *)p2p->state, 0, statesz);
 	memset(p2p->data, 0, buffersz);
 	gasneti_weakatomic_set(&p2p->counter, 0, 0);
-
+        
+        /*allocate an empty interval for the free list */
+        p2p->seg_intervals = NULL;
+          
 	p2p->team_id = team_id;
 	p2p->sequence = sequence;
 	gasnet_hsl_init(&p2p->lock);
@@ -1434,6 +1443,117 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasnet_hsl_unlock(&gasnete_coll_p2p_table_lock);
     }
 
+    /*Management of the Intervals for Segments*/
+    /* We use 32 bit ints to represent the segment ID*/
+    /* If we need more than 2^32 segments (which should be rare)
+       The collective will need to get broken up into multiple collectives
+    */
+    static gasnet_hsl_t gasnete_coll_p2p_seg_free_list_lock = GASNET_HSL_INITIALIZER;
+    static gasnete_coll_seg_interval_t *gasnet_coll_p2p_seg_interval_free_list = NULL;
+
+    gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval() {
+      gasnete_coll_seg_interval_t *curr_interval;
+           
+      gasnet_hsl_lock(&gasnete_coll_p2p_seg_free_list_lock);
+      if(gasnet_coll_p2p_seg_interval_free_list == NULL) {
+        /*if the free list is empty allocate a new one*/
+        curr_interval = gasneti_malloc(sizeof(gasnete_coll_seg_interval_t));
+      } else {
+        /* if there are extra on the free list grab it off the head of the free list*/
+        curr_interval = gasnet_coll_p2p_seg_interval_free_list;
+        gasnet_coll_p2p_seg_interval_free_list = gasnet_coll_p2p_seg_interval_free_list->next;
+      }
+      gasnet_hsl_unlock(&gasnete_coll_p2p_seg_free_list_lock);
+      return curr_interval;
+    }
+    
+    void gasnete_coll_p2p_free_seg_interval(gasnete_coll_seg_interval_t* interval) {
+      gasnet_hsl_lock(&gasnete_coll_p2p_seg_free_list_lock);
+      interval->next = gasnet_coll_p2p_seg_interval_free_list;
+      gasnet_coll_p2p_seg_interval_free_list = interval;
+      gasnet_hsl_unlock(&gasnete_coll_p2p_seg_free_list_lock);
+    }
+
+    extern void gasnete_coll_p2p_add_seg_interval(gasnete_coll_p2p_t *p2p, uint32_t seg_id) {
+      
+      gasnete_coll_seg_interval_t *curr_interval,*new_interval,*prev;
+      gasneti_assert(p2p !=NULL);
+      gasnet_hsl_lock(&p2p->lock);
+      if(p2p->seg_intervals==NULL) {
+        /*head of the current interval list is empty*/
+        curr_interval = gasnet_coll_p2p_alloc_seg_interval();
+        curr_interval->start = seg_id;
+        curr_interval->end = seg_id;
+        curr_interval->next = NULL;
+        /*make this new interval the head of the interval list*/
+        p2p->seg_intervals = curr_interval;
+      } else {
+        curr_interval = p2p->seg_intervals;
+        prev = NULL;
+        /*march through the intervals looking where to insert this value*/
+        /*we are guaranteed to have at least onoe since we made the check above*/
+        while(curr_interval!=NULL) {
+          if(curr_interval->start - 1 == seg_id) {
+            curr_interval->start = seg_id;
+            break;
+          } else if(curr_interval->end + 1 == seg_id) {
+            /*attach it to the end of the current interval and */
+            curr_interval->end = seg_id;
+            break;
+          } else if(seg_id < curr_interval->start) {
+            /*add the new element in to the middle of the list*/
+            new_interval = gasnet_coll_p2p_alloc_seg_interval();
+            new_interval->start = seg_id;
+            new_interval->end = seg_id;
+            if(prev == NULL) {
+              /* add to the head*/
+              p2p->seg_intervals = new_interval;
+            } else {
+              /*add to the middle*/
+              prev->next = new_interval;
+            }
+            new_interval->next = curr_interval;
+            break;
+          } else if(seg_id > curr_interval->end && curr_interval->next == NULL){
+            new_interval = gasnet_coll_p2p_alloc_seg_interval();
+            new_interval->start = seg_id;
+            new_interval->end = seg_id;
+            new_interval->next = NULL;
+            curr_interval->next = new_interval;
+            break;
+          }  else {
+            prev = curr_interval;
+            curr_interval = curr_interval->next;
+          }
+        }
+      }
+      gasnet_hsl_unlock(&p2p->lock);
+    }
+    /*return the next segment interval in the list*/
+    /*results are undefined if the seg_intervals list null*/
+    extern uint32_t gasnete_coll_p2p_next_seg_interval(gasnete_coll_p2p_t *p2p) {
+      gasnete_coll_seg_interval_t *curr_interval;
+      size_t ret;
+      gasneti_assert(p2p!=NULL);
+      gasneti_assert(p2p->seg_intervals !=NULL);
+      /*march through the intervals to find the next interval*/
+      gasnet_hsl_lock(&p2p->lock);
+      if(p2p->seg_intervals->start != p2p->seg_intervals->end) {
+        /* the interval contains information for more than one segment*/
+        /*read a segment and return it*/
+        ret = p2p->seg_intervals->start;
+        p2p->seg_intervals->start +=1; 
+      } else {
+        /*the interval contains exactly one segment*/
+        /*read the value in it and return it*/
+        ret = p2p->seg_intervals->start;
+        curr_interval = p2p->seg_intervals;
+        p2p->seg_intervals = p2p->seg_intervals->next;
+        gasnete_coll_p2p_free_seg_interval(curr_interval);
+      }
+      gasnet_hsl_unlock(&p2p->lock);
+      return ret;
+    }
     /* Delivers a long payload and updates 1 or more states
        count: number of states to update
        offset: index of first state to update
@@ -1553,6 +1673,31 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasneti_weakatomic_increment(&p2p->counter, 0);
     }
 
+    extern void gasnete_coll_p2p_seg_put_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+                                              gasnet_handlerarg_t seqandteam, gasnet_handlerarg_t seg_id) {
+      
+      uint32_t team_id; 
+      uint32_t sequence; 
+      gasnete_coll_p2p_t *p2p;
+      
+      
+      team_id =  seqandteam >> 28;
+      sequence = seqandteam & 0x0fffffff;
+      
+      if (nbytes) {
+	gasneti_sync_writes();
+      }
+      
+      p2p = gasnete_coll_p2p_get(team_id, sequence);
+
+      /*add this new segment to the ops list of segments*/
+      /*This function takes care of any locking that is needed*/
+      gasnete_coll_p2p_add_seg_interval(p2p, seg_id);
+      
+      /*increment P2P counter*/
+      gasneti_weakatomic_increment(&p2p->counter, 0);
+      
+    }
     /* Memcopy payload and then decrement atomic counter if requested */
     GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
     void gasnete_coll_p2p_memcpy_reqh_inner(gasnet_token_t token, void *buf, size_t nbytes,
@@ -1633,6 +1778,41 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
         LONGASYNC_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
                       src, nbytes, dst, seqandteam)));
     }
+    
+    /*
+      Signalling Segmented Put 
+      Takes a Segment ID as an argument and sends the message such that it will be put in the right location
+      and update the list of active intervals indicating which chunk of the message has arrived
+    */
+    void gasnete_coll_p2p_sig_seg_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+                                             void *src, size_t nbytes, size_t seg_id) {
+      uint32_t seq_num = op->sequence;
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+      uint32_t seqandteam = 0;
+      seqandteam = team_id << 28;
+      seqandteam += seq_num & 0x0fffffff;
+
+      gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
+      
+      GASNETI_SAFE(
+        LONG_REQ(2,2,(dstnode, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
+                           src, nbytes, dst, seqandteam, seg_id)));
+    }
+
+    void gasnete_coll_p2p_sig_seg_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+                                      void *src, size_t nbytes, size_t seg_id) {
+      uint32_t seq_num = op->sequence;
+      uint32_t team_id = gasnete_coll_team_id(op->team);
+      uint32_t seqandteam = 0;
+      seqandteam = team_id << 28;
+      seqandteam += seq_num & 0x0fffffff;
+  
+      gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
+  
+      GASNETI_SAFE(
+        LONGASYNC_REQ(2,2,(dstnode, gasneti_handleridx(gasnete_coll_p2p_seg_put_reqh),
+                           src, nbytes, dst, seqandteam, seg_id)));
+    }     
 
 
 
@@ -1663,7 +1843,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     }
     
 /* a simplification for eager putM so that we send less bits on the wire*/ 
-/* we hardcode the assumptiont that we want to send to state 0 and set a value of 1*/
+/* we hardcode the assumption that we want to send to state 0 and set a value of 1*/
 /* for cases in which we are just sending down the tree (such as a broadcast) this is sufficient*/
 /* we are also going to compress the teamid and the sequence number into one 32 bit int*/
     void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
@@ -2102,7 +2282,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
     if (flags & GASNET_COLL_SINGLE) {
       /* if the transfer size is greater than the current segment size, use a pipelined algorithm*/
       if(nbytes > gasnete_coll_curr_seg_size) {
-        return gasnete_coll_bcast_TreePutPipe(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+        return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
       }
       /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
       if((flags & (GASNET_COLL_IN_NOSYNC)) || (flags & (GASNET_COLL_IN_ALLSYNC))) {
@@ -2350,7 +2530,7 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
     if(flags & GASNET_COLL_SINGLE) {
-        return gasnete_coll_scat_TreePutPipe(team, dst, srcimage, src, nbytes, flags,
+        return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
                                              gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
      /* XXXX: fix this later however this should be safe as written */
@@ -2606,7 +2786,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
     if(flags & GASNET_COLL_SINGLE) {
-      return gasnete_coll_gath_TreePutPipe(team, dstimage, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+      return gasnete_coll_gath_TreePutSeg(team, dstimage, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {
         return gasnete_coll_gath_Eager(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
