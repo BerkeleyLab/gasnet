@@ -6,4 +6,8 @@
 
 /* This is intended as a stub for the autotuner routines*/
 
-/*NOTHING HERE YET*/
+/*testing functions*/
+void gasnet_coll_set_tree_class(char *treestr);
+void gasnet_coll_set_fanout(int fanout);
+gasnete_coll_tree_type_t gasnete_coll_get_current_tree_type();
+

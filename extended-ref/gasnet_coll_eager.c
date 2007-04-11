@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2007/03/08 06:53:30 $
- * $Revision: 1.29.6.26 $
+ *     $Date: 2007/04/11 01:46:20 $
+ * $Revision: 1.29.6.27 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -172,7 +172,7 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
 			     void *dst,
 			     gasnet_image_t srcimage, void *src,
 			     size_t nbytes, int flags,
-			     gasnete_coll_tree_kind_t kind,
+			     gasnete_coll_tree_type_t tree_type,
 			     uint32_t sequence
 			     GASNETE_THREAD_FARG)
 {
@@ -184,7 +184,7 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
  
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreeEager, options,
-					   gasnete_coll_tree_init(kind, gasnete_coll_current_fanout,
+					   gasnete_coll_tree_init(tree_type,
 								  gasnete_coll_image_node(srcimage), team
 								  GASNETE_THREAD_PASS),
 					   sequence

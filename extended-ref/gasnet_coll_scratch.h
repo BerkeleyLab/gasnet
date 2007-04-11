@@ -29,8 +29,7 @@ typedef enum {GASNETE_COLL_UP_TREE=0, GASNETE_COLL_DOWN_TREE} gasnete_coll_tree_
 
 struct gasnete_coll_scratch_req_t_ {
 
-	gasnete_coll_tree_kind_t tree_type;
-	int fanout;
+	gasnete_coll_tree_type_t tree_type;
 	gasnet_node_t root;
 	gasnete_coll_team_t team;
 	/*notice that we don't need to keep track of the dissemination radix since we don't do anything withit */
@@ -71,8 +70,7 @@ struct gasnete_coll_op_info_t_ {
 	gasnete_coll_op_info_t *next;
 	gasnete_coll_op_info_t *prev;
 	
-	gasnete_coll_tree_kind_t tree_type;
-	int tree_fanout;
+	gasnete_coll_tree_type_t tree_type;
 	gasnet_node_t root;
 	
 	int tree_op;
@@ -107,8 +105,7 @@ struct gasnete_coll_scratch_status_t_ {
   
   gasnete_coll_team_t team;
   
-  gasnete_coll_tree_kind_t curr_tree_type;
-  int curr_tree_fanout;
+  gasnete_coll_tree_type_t curr_tree_type;
   gasnet_node_t curr_root;
   gasnete_coll_tree_dir_t curr_tree_dir;
   

@@ -156,7 +156,6 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
   if(stat->first_collective==1) {
     stat->curr_root = scratch_req->root;
     stat->curr_tree_type = scratch_req->tree_type;
-    stat->curr_tree_fanout = scratch_req->fanout;
     stat->numpeers = scratch_req->num_in_peers;
     stat->curr_tree_dir = scratch_req->tree_dir;
     if(scratch_req->num_in_peers>0) {
@@ -167,9 +166,9 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     }
     stat->first_collective=0;
   }   else if((stat->curr_root !=scratch_req->root) || 
-	      (stat->curr_tree_type !=scratch_req->tree_type) ||
-	      ((stat->curr_tree_type != GASNETE_COLL_BINOMIAL_TREE) && 
-	       (stat->curr_tree_fanout != scratch_req->fanout)) || 
+	      (stat->curr_tree_type.tree_class !=scratch_req->tree_type.tree_class) ||
+	      ((stat->curr_tree_type.tree_class != GASNETE_COLL_BINOMIAL_TREE) && 
+	       (stat->curr_tree_type.fanout != scratch_req->tree_type.fanout)) || 
               stat->last_op == GASNETE_COLL_SCRATCH_DISSEM_OP ||
               stat->curr_tree_dir != scratch_req->tree_dir) {
 #if 0		
@@ -182,7 +181,6 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     /*the barrier will have the call to trip the stat->perform_reset so we avoid the explicit call to reset here*/
     stat->curr_root = scratch_req->root;
     stat->curr_tree_type = scratch_req->tree_type;
-    stat->curr_tree_fanout = scratch_req->fanout;
     stat->numpeers = scratch_req->num_in_peers;
     stat->curr_tree_dir = scratch_req->tree_dir;
     
@@ -241,7 +239,6 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
   new_op->next = NULL;
   new_op->prev = NULL;
   new_op->tree_type  = scratch_req->tree_type;
-  new_op->tree_fanout = scratch_req->fanout;
   new_op->root = scratch_req->root;
   new_op->local_scratch_used = scratch_req->incoming_size;
   new_op->op_handle = op_handle;
@@ -266,8 +263,8 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
 
 
 
-uint64_t gasnete_coll_scratch_tree_get_pos(gasnet_node_t dst, uint32_t req_size, gasnete_coll_tree_kind_t tree_type, 
-					   int fanout, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG) {
+uint64_t gasnete_coll_scratch_tree_get_pos(gasnet_node_t dst, uint32_t req_size, gasnete_coll_tree_type_t tree_type, 
+                                           gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG) {
   gasnete_coll_scratch_status_t *stat= team->scratch_status;
   uint64_t dst_head_pos; 
   uint64_t dst_tail_pos; 
@@ -347,7 +344,7 @@ uint64_t *gasnete_coll_scratch_get_tree_peer_pos(gasnete_coll_scratch_req_t *scr
   ret = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*scratch_req->num_out_peers);
   for(i=0; i<scratch_req->num_out_peers; i++) {
     ret[i] = gasnete_coll_scratch_tree_get_pos(scratch_req->out_peers[i], scratch_req->out_sizes[i],
-					       scratch_req->tree_type, scratch_req->fanout, scratch_req->root,
+					       scratch_req->tree_type, scratch_req->root,
 					       scratch_req->team GASNETE_THREAD_PASS);
   }
   return ret;

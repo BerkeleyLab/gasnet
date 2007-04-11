@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/04/10 17:54:30 $
- * $Revision: 1.29.6.38 $
+ *     $Date: 2007/04/11 01:46:20 $
+ * $Revision: 1.29.6.39 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -268,7 +268,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 		           void *dst,
 			   gasnet_image_t srcimage, void *src,
 			   size_t nbytes, int flags,
-			   gasnete_coll_tree_kind_t kind,
+			   gasnete_coll_tree_type_t tree_type,
 			   uint32_t sequence
 			   GASNETE_THREAD_FARG)
 {
@@ -281,7 +281,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreePut, options,
-					   gasnete_coll_tree_init(kind, gasnete_coll_get_current_fanout(),
+					   gasnete_coll_tree_init(tree_type, 
 								  gasnete_coll_image_node(srcimage), team
 								  GASNETE_THREAD_PASS),
 					   sequence
@@ -359,7 +359,7 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
 		           void *dst,
 			   gasnet_image_t srcimage, void *src,
 			   size_t nbytes, int flags,
-			   gasnete_coll_tree_kind_t kind,
+			   gasnete_coll_tree_type_t tree_type,
 			   uint32_t sequence
 			   GASNETE_THREAD_FARG)
 {
@@ -373,7 +373,7 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreePutScratch, options,
-					   gasnete_coll_tree_init(kind, gasnete_coll_current_fanout,
+					   gasnete_coll_tree_init(tree_type, 
 								  gasnete_coll_image_node(srcimage), team
 								  GASNETE_THREAD_PASS),
 					   sequence
@@ -489,7 +489,7 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
 		           void *dst,
 			   gasnet_image_t srcimage, void *src,
 			   size_t nbytes, int flags,
-			   gasnete_coll_tree_kind_t kind,
+			   gasnete_coll_tree_type_t tree_type,
 			   uint32_t sequence
 			   GASNETE_THREAD_FARG)
 {
@@ -502,7 +502,7 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
   
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreePutPipe, options,
-					   gasnete_coll_tree_init(kind, gasnete_coll_get_current_fanout(),
+					   gasnete_coll_tree_init(tree_type, 
 								  gasnete_coll_image_node(srcimage), team
 								  GASNETE_THREAD_PASS),
 					   sequence
@@ -517,7 +517,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
                                   void *dst,
                                   gasnet_image_t srcimage, void *src,
                                   size_t nbytes, int flags,
-                                  gasnete_coll_tree_kind_t kind,
+                                  gasnete_coll_tree_type_t tree_type,
                                   uint32_t sequence
                                   GASNETE_THREAD_FARG)
 {
@@ -534,32 +534,32 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
    if(flags & GASNET_COLL_IN_MYSYNC) {
      if(num_segs == 1) {
       return gasnete_coll_bcast_TreePutScratch(team, dst, srcimage, src, 
-                                               nbytes, flags, kind, sequence GASNETE_THREAD_PASS);
+                                               nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
      } else {
        /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
        sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_AGGREGATE;
        for(i=0; i<num_segs - 1; i++) {
          /*ignore the handle returned*/
          gasnete_coll_bcast_TreePutScratch(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                           seg_size, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                           seg_size, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
          sent_bytes += seg_size;
        }
        /* the last segment of the collective has the same flags as the user requested ones*/
        /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right in*/
 
        return gasnete_coll_bcast_TreePutScratch(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                         nbytes-sent_bytes, flags, kind, sequence GASNETE_THREAD_PASS);   
+                                         nbytes-sent_bytes, flags, tree_type, sequence GASNETE_THREAD_PASS);   
      }
    } else {
      if(num_segs == 1) {
        return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, 
-                                         nbytes, flags, kind, sequence GASNETE_THREAD_PASS);
+                                         nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
      } else {
        /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
        sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_NOSYNC | GASNET_COLL_AGGREGATE;
 
        gasnete_coll_bcast_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                  seg_size, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                  seg_size, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
        sent_bytes += seg_size;
        
        /*Strip off the IN/OUT ALLSYNC Flags for all the middle collectives*/
@@ -569,7 +569,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
          /*ignore the handle returned*/
 
          gasnete_coll_bcast_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                    seg_size, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                    seg_size, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
          sent_bytes += seg_size;
        }
        /* the last segment of the collective has the same flags as the user requested ones*/
@@ -578,7 +578,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
        /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right through*/
 
        return gasnete_coll_bcast_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                        nbytes-sent_bytes, flags, kind, sequence GASNETE_THREAD_PASS);   
+                                        nbytes-sent_bytes, flags, tree_type, sequence GASNETE_THREAD_PASS);   
      }
      
    }
@@ -681,7 +681,7 @@ gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
 		           void *dst,
 			   gasnet_image_t srcimage, void *src,
 			   size_t nbytes, int flags,
-			   gasnete_coll_tree_kind_t kind,
+			   gasnete_coll_tree_type_t tree_type,
 			   uint32_t sequence
 			   GASNETE_THREAD_FARG)
 {
@@ -693,7 +693,7 @@ gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
 		#endif
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_TreeGet, options,
-					    gasnete_coll_tree_init(kind, gasnete_coll_current_fanout,
+					    gasnete_coll_tree_init(tree_type, 
 								  gasnete_coll_image_node(srcimage), team 
 								  GASNETE_THREAD_PASS),
 					   sequence
@@ -1204,7 +1204,7 @@ gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
 		      void *dst,
 		      gasnet_image_t srcimage, void *src,
 		      size_t nbytes, size_t dist, int flags, 
-                      gasnete_coll_tree_kind_t kind,    
+                      gasnete_coll_tree_type_t tree_type,    
                       uint32_t sequence
                       GASNETE_THREAD_FARG)
 {
@@ -1217,7 +1217,7 @@ gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
   
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
 					 &gasnete_coll_pf_scat_TreePut, options,
-                                         gasnete_coll_tree_init(kind, gasnete_coll_current_fanout,
+                                         gasnete_coll_tree_init(tree_type,
                                                                 gasnete_coll_image_node(srcimage), team
                                                                 GASNETE_THREAD_PASS),
                                          sequence GASNETE_THREAD_PASS);
@@ -1228,7 +1228,7 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
                               void *dst,
                               gasnet_image_t srcimage, void *src,
                               size_t nbytes, int flags, 
-                              gasnete_coll_tree_kind_t kind,    
+                              gasnete_coll_tree_type_t tree_type,    
                               uint32_t sequence
                               GASNETE_THREAD_FARG) {
   
@@ -1241,32 +1241,32 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
   if(flags & GASNET_COLL_IN_MYSYNC) {
     if(num_segs == 1) {
       return gasnete_coll_scat_TreePut(team, dst, srcimage, src, 
-                                       nbytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);
+                                       nbytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
     } else {
       /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
       sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_AGGREGATE;
       for(i=0; i<num_segs - 1; i++) {
         /*ignore the handle returned*/
         gasnete_coll_scat_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                          seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                          seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
         sent_bytes += seg_size;
       }
       /* the last segment of the collective has the same flags as the user requested ones*/
       /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right in*/
       
       return gasnete_coll_scat_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                               nbytes-sent_bytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);   
+                                               nbytes-sent_bytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);   
     }
   } else {
     if(num_segs == 1) {
       return gasnete_coll_scat_TreePut(team, dst, srcimage, src, 
-                                        nbytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);
+                                        nbytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
     } else {
       /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
       sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_NOSYNC | GASNET_COLL_AGGREGATE;
       
       gasnete_coll_scat_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                 seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                 seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
       sent_bytes += seg_size;
       
       /*Strip off the IN/OUT ALLSYNC Flags for all the middle collectives*/
@@ -1276,7 +1276,7 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
         /*ignore the handle returned*/
         
         gasnete_coll_scat_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                   seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                   seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
         sent_bytes += seg_size;
       }
       /* the last segment of the collective has the same flags as the user requested ones*/
@@ -1285,7 +1285,7 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
       /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right through*/
       
       return gasnete_coll_scat_TreePut(team, gasnete_coll_scale_ptr(dst,1,sent_bytes) , srcimage, gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                        nbytes-sent_bytes, nbytes, sub_flags, kind, sequence GASNETE_THREAD_PASS);   
+                                        nbytes-sent_bytes, nbytes, sub_flags, tree_type, sequence GASNETE_THREAD_PASS);   
     }
     
   }
@@ -1766,7 +1766,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
 		      gasnet_image_t dstimage, void *dst,
 		      void *src,
-		      size_t nbytes, size_t dist, int flags,  gasnete_coll_tree_kind_t kind,  
+		      size_t nbytes, size_t dist, int flags,  gasnete_coll_tree_type_t tree_type,  
                       uint32_t sequence
                       GASNETE_THREAD_FARG)
 {
@@ -1776,7 +1776,7 @@ gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
   
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
 					&gasnete_coll_pf_gath_TreePut, options,
-                                        gasnete_coll_tree_init(kind, gasnete_coll_current_fanout,
+                                        gasnete_coll_tree_init(tree_type, 
                                                                gasnete_coll_image_node(dstimage), team
                                                                GASNETE_THREAD_PASS), sequence GASNETE_THREAD_PASS);
 }
@@ -1787,7 +1787,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
                               void *dst,
                               void *src,
                               size_t nbytes, int flags, 
-                              gasnete_coll_tree_kind_t kind,    
+                              gasnete_coll_tree_type_t tree_type,    
                               uint32_t sequence
                               GASNETE_THREAD_FARG) {
   
@@ -1800,7 +1800,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
   if(flags & GASNET_COLL_IN_MYSYNC) {
     if(num_segs == 1) {
       return gasnete_coll_gath_TreePut(team, dstimage, dst, src, 
-                                       nbytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);
+                                       nbytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
     } else {
       /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
       sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_AGGREGATE;
@@ -1808,7 +1808,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
         /*ignore the handle returned*/
         gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes), 
                                   gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                  seg_size, nbytes, flags | GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                  seg_size, nbytes, flags | GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
         sent_bytes += seg_size;
       }
       /* the last segment of the collective has the same flags as the user requested ones*/
@@ -1816,19 +1816,19 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
       
       return gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes), 
                                        gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                       nbytes-sent_bytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);   
+                                       nbytes-sent_bytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);   
     }
   } else {
     if(num_segs == 1) {
       return gasnete_coll_gath_TreePut(team, dstimage, dst, src, 
-                                       nbytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);
+                                       nbytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
     } else {
       /*Strip off the OUT_ALLSYNC flags for the first set of collectives and add in the COLL_AGGREGATE flag*/
       sub_flags = (flags & ~(GASNET_COLL_OUT_ALLSYNC)) | GASNET_COLL_OUT_NOSYNC | GASNET_COLL_AGGREGATE;
       
       gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes), 
                                 gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
       sent_bytes += seg_size;
       
       /*Strip off the IN/OUT ALLSYNC Flags for all the middle collectives*/
@@ -1839,7 +1839,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
         
         gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes),  
                                   gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                  seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, kind, sequence GASNETE_THREAD_PASS);   
+                                  seg_size, nbytes, flags|GASNET_COLL_AGGREGATE, tree_type, sequence GASNETE_THREAD_PASS);   
         sent_bytes += seg_size;
       }
       /* the last segment of the collective has the same flags as the user requested ones*/
@@ -1849,7 +1849,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
       
       return gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes), 
                                        gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                       nbytes-sent_bytes, nbytes, flags, kind, sequence GASNETE_THREAD_PASS);   
+                                       nbytes-sent_bytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);   
     }
     
   }
@@ -2166,7 +2166,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 extern gasnet_coll_handle_t
 gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
 		       void *dst, void *src,
-		       size_t nbytes, int flags, gasnete_coll_tree_kind_t kind, uint32_t sequence
+		       size_t nbytes, int flags, gasnete_coll_tree_type_t tree_type, uint32_t sequence
 		       GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
@@ -2176,7 +2176,7 @@ gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
   
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
 					    &gasnete_coll_pf_gall_TreePut, options,
-					    gasnete_coll_tree_init(kind, gasnete_coll_current_fanout,
+					    gasnete_coll_tree_init(tree_type, 
                                                                    gasnete_coll_image_node(GASNETE_COLL_TREE_ALL_GATHER_ALL_ROOT), team
                                                                    GASNETE_THREAD_PASS), 
                                             gasnete_coll_total_images GASNETE_THREAD_PASS);

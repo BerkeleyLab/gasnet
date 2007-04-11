@@ -10,6 +10,13 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
+typedef enum {GASNETE_COLL_NARY_TREE=100, GASNETE_COLL_BINOMIAL_TREE, 
+  GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE} gasnete_coll_tree_class_t;
+
+struct gasnete_coll_tree_type_t_ {
+  gasnete_coll_tree_class_t tree_class;
+  int fanout; 
+};
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
@@ -24,9 +31,8 @@
 struct gasnete_coll_local_tree_geom_t_ {
   int allocated;
   /** tree geometry**/
-  int fanout;
   gasnet_node_t root;
-  gasnete_coll_tree_kind_t kind;
+  gasnete_coll_tree_type_t tree_type;
   gasnet_node_t total_size; /*total number of nodes of this geometry*/
   gasnet_node_t parent; /*parent of this node*/
   gasnet_node_t child_count; /*number of children*/
@@ -72,9 +78,8 @@ struct gasnete_coll_tree_geom_t_ {
    int local_views_allocated;
    
    /*** tree structure metadata*****/
-   gasnete_coll_tree_kind_t kind;
-   int fanout;
-	/* don't need a root argument here since local_views[i] gives a tree rooted at i*/
+   gasnete_coll_tree_type_t tree_type;
+  /* don't need a root argument here since local_views[i] gives a tree rooted at i*/
  };
 
 
@@ -94,14 +99,9 @@ struct gasnete_coll_tree_geom_t_ {
 */
 
 
-gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_kind_t kind, gasnet_node_t root, int fanout, gasnete_coll_team_t team);
-void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 
-/*testing functions*/
-void gasnet_coll_set_tree_kind(char *treestr);
-void gasnet_coll_set_fanout(int fanout);
-gasnete_coll_tree_kind_t gasnete_coll_get_current_tree_kind();
-int gasnete_coll_get_current_fanout();
+gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, gasnet_node_t root, gasnete_coll_team_t team);
+void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 
 
 /******** Dissemination Ordering **********/

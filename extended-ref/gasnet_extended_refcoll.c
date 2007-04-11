@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/04/10 17:54:30 $
- * $Revision: 1.29.6.35 $
+ *     $Date: 2007/04/11 01:46:21 $
+ * $Revision: 1.29.6.36 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2138,7 +2138,7 @@ extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count 
 static gasnet_hsl_t gasnete_coll_tree_lock = GASNET_HSL_INITIALIZER;
 	
 /* XXX: should per-team */
-extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t kind, int fanout, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG){
+extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gasnet_node_t root, gasnete_coll_team_t team GASNETE_THREAD_FARG){
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnete_coll_tree_data_t *data = NULL;
  /* lock aquisition and free in tree init*/
@@ -2152,7 +2152,7 @@ extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_kind_t
  /* unlock aquisition and free in tree init*/
   data->pipe_seg_size = gasnete_coll_pipe_seg_size ? gasnete_coll_pipe_seg_size : 1024;
   data->sent_bytes = 0;
-  data->geom = gasnete_coll_local_tree_geom_fetch(kind, root, fanout, team);
+  data->geom = gasnete_coll_local_tree_geom_fetch(tree_type, root, team);
 
   return data;
 }
@@ -2193,8 +2193,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
 	scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
 	/*fill out the tree information*/
-	scratch_req->tree_type = tree_info->geom->kind;
-	scratch_req->fanout = tree_info->geom->fanout;
+	scratch_req->tree_type = tree_info->geom->tree_type;
 	scratch_req->root = tree_info->geom->root;
         scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
 	scratch_req->team = team;
@@ -2454,8 +2453,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
-    scratch_req->tree_type = tree_info->geom->kind;
-    scratch_req->fanout = tree_info->geom->fanout;
+    scratch_req->tree_type = tree_info->geom->tree_type;
     scratch_req->root = tree_info->geom->root;
     scratch_req->team = team;
     scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
@@ -2709,10 +2707,9 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
-    scratch_req->tree_type = tree_info->geom->kind;
-    scratch_req->fanout = tree_info->geom->fanout;
-    scratch_req->root = tree_info->geom->root;
+    scratch_req->tree_type = tree_info->geom->tree_type;
     scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
+    scratch_req->root = tree_info->geom->root;
 
     scratch_req->team = team;
     scratch_req->tree_op = 1;
@@ -3038,9 +3035,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
     tree_info = (gasnete_coll_tree_data_t*) private_data;
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
-    scratch_req->tree_type = tree_info->geom->kind;
-    scratch_req->fanout = tree_info->geom->fanout;
-    scratch_req->root = tree_info->geom->root;
+    scratch_req->tree_type = tree_info->geom->tree_type;
     scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
     scratch_req->team = team;
     scratch_req->tree_op = 1;
