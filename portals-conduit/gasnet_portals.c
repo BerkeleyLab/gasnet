@@ -1,4 +1,3 @@
-/* MLW: Which of these includes do we really need? */
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
@@ -19,7 +18,7 @@
 /* set to one for ReqRB Auto Unlink
  * Not advised since unlink event may be reaped so late that all
  * receive buffers are filled and overflow before the first
- * unlink event is seen.  Manual unlink seems to be the best option
+ * unlink event is seen.  Manual unlink seems to be the best option.
  */
 #define GASNETC_REQRB_AUTO_UNLINK 0
 #define GASNETC_REQRB_UNLINK_VERBOSE 0
@@ -30,17 +29,17 @@
 #define HASHFUNC(procid) (((procid)->nid) % HASHVAL)
 
 /* Max number of events we will process per polling call */
-unsigned gasnetc_safe_poll_limit = 3;
-unsigned gasnetc_am_poll_limit = 2;
+unsigned gasnetc_safe_poll_limit = 12;
+unsigned gasnetc_am_poll_limit = 8;
 unsigned gasnetc_sys_poll_limit = 0;  /* 0 => infinite */
 
 /* We maintain a single Request send buffer */
-size_t gasnetc_ReqSB_numchunk = 1024;
+size_t gasnetc_ReqSB_numchunk = 2048;
 gasnetc_PtlBuffer_t gasnetc_ReqSB;
 
 /* We maintain an array of Request Receive Buffers */
-int    gasnetc_ReqRB_pool_size = 5;
-size_t gasnetc_ReqRB_numchunk = 2048;
+int    gasnetc_ReqRB_pool_size = 8;
+size_t gasnetc_ReqRB_numchunk = 1024;
 gasnetc_PtlBuffer_t *gasnetc_ReqRB;          
 
 /* We maintain a single Reply send buffer.
@@ -75,6 +74,8 @@ static gasneti_weakatomic_t sys_barrier_got;
 static gasneti_weakatomic_t sys_barrier_checkin;
 /* stores signal number when signal occurs */
 gasneti_weakatomic_t gasnetc_got_signum;
+/* indicates when portals resources have been initialized on all nodes */
+int gasnetc_resource_init_complete = 0;
 
 /* We limit the number of temporary memory descriptors in use at any time.
  * Each allocation of a temp MD requires a tmpmd ticket.
@@ -100,13 +101,23 @@ int gasnetc_use_accel = 0;
 /* construct the hash table for reverse lookups */
 static gasnetc_procid_t *gasnetc_addrtable[HASHTABLE_SIZE];
 
-/* flow control - send credits */
-int gasnetc_use_flow_control = 1;
-long gasnetc_total_credits = 0;
-int  gasnetc_bytes_per_credit = 256;
-int  gasnetc_percent_credits_to_bank = 0;
-int  gasnetc_min_credits_per_node = 28;  /* 4 shorts, 4 unpacked longs, 4 mediums */
-gasneti_semaphore_t gasnetc_banked_credits;
+/* flow control and dynamic credit management variables */
+int gasnetc_use_flow_control = 1;             /* turn on/off AM Request flow control */
+int gasnetc_use_dynamic_credits = 1;          /* turn on/off credit redistribution algorithm */
+long gasnetc_total_credits = 0;               /* total number of credits to distribute */
+gasneti_semaphore_t gasnetc_banked_credits;   /* number of credits avail for redistribution */
+int gasnetc_revoke_limit = 32;                /* max credits that can be revoked in one epoch */
+int gasnetc_lender_limit = 32;                /* max number of credits that can given in one epoch */
+int gasnetc_max_cpn = 400;                    /* max number of credits that can be given to a node */
+gasneti_mutex_t gasnetc_epoch_lock = GASNETI_MUTEX_INITIALIZER;  /* epoch update lock */
+gasneti_weakatomic_t gasnetc_AMRequest_count; /* Count of number of AMRequests we receive */
+int gasnetc_epoch_duration = 1024;            /* Number of AMRequests we receive before end of epoch */
+gasnetc_dll_index_t gasnetc_scavenge_list = GASNETC_DLL_NULL;    /* scavenge list */
+gasneti_mutex_t gasnetc_scavenge_lock = GASNETI_MUTEX_INITIALIZER;  /* lock for scavenge list */
+int gasnetc_num_scavenge = 6;                 /* Max number of nodes to hit-up each scavenge run */
+gasneti_weakatomic_t gasnetc_scavenge_inflight;  /* number of outstanding revoke requests */
+int gasnetc_dump_stats = 0;                   /* write some stats info to files */
+int gasnetc_debug_node = -1;                  /* used in debugging */
 
 gasnetc_conn_t *gasnetc_conn_state = NULL;
 
@@ -116,7 +127,7 @@ gasnetc_conn_t *gasnetc_conn_state = NULL;
 #else
 #define GASNETC_DEFAULT_SEGSIZE 0
 #endif
-static long gasnetc_static_segsize_mbyte = GASNETC_DEFAULT_SEGSIZE;
+static long gasnetc_static_segsize = GASNETC_DEFAULT_SEGSIZE * 1024 * 1024;
 
 /* ------------------------------------------------------------------------------------ */
 /* The number of available send tickets and the message limit.
@@ -127,6 +138,9 @@ static long gasnetc_static_segsize_mbyte = GASNETC_DEFAULT_SEGSIZE;
 gasneti_semaphore_t gasnetc_send_tickets;
 int gasnetc_msg_limit = 250;
 static int gasnetc_msg_minimum = 12; /* most likely deadlock with fewer */
+
+/* by default, allow packed AMLong messages */
+int gasnetc_allow_packed_long = 1;
 
 const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
 
@@ -213,13 +227,13 @@ static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t 
   gasnetc_amlongcache_t *obj;
   int found;
 
-  GASNETC_LOCK_LIDCACHE(src);
+  GASNETC_LOCK_NODE(src);
   found = get_or_insert_lid(src, lid, 0, &obj);
   gasneti_assert( ! (obj->flags & GASNETC_LID_DATA_HERE) );
   obj->flags |= GASNETC_LID_DATA_HERE;
   obj->data = dataptr;
   obj->datalen = datalen;
-  GASNETC_UNLOCK_LIDCACHE(src);
+  GASNETC_UNLOCK_NODE(src);
   /* unlock the list */
   if (found) {
     /* second to arrive, return obj to caller */
@@ -242,13 +256,13 @@ static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t 
  *     - set data fields as per arguments.
  *     - return NULL.
  * --------------------------------------------------------------------------------- */
-static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, int credits, int nargs, gasnet_handlerarg_t *args)
+static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, uint8_t credits, int nargs, gasnet_handlerarg_t *args)
 {
   gasnetc_amlongcache_t *obj;
   int found;
 
   /* lock the list here */
-  GASNETC_LOCK_LIDCACHE(src);
+  GASNETC_LOCK_NODE(src);
   found = get_or_insert_lid(src, lid, nargs, &obj);
   gasneti_assert( !(obj->flags & GASNETC_LID_HEADER_HERE) );
   obj->flags |= GASNETC_LID_HEADER_HERE;
@@ -266,7 +280,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_
       obj->args[i] = args[i];
     }
   } 
-  GASNETC_UNLOCK_LIDCACHE(src);
+  GASNETC_UNLOCK_NODE(src);
 
   if (found) {
     /* second to arrive, return obj to caller */
@@ -311,25 +325,11 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
 
   if (isReq) {
     gasnetc_threaddata_t *th = gasnetc_mythread();
-    GASNETI_TRACE_PRINTF(C,("EXEC_AMSHORT: Req thread=0x%p flags=0x%x",th,th->flags));
     gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
     th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
     tok.rplsb_offset = (uint32_t)th->rplsb_off;
     tok.initiator_offset = (uint32_t)(mbits >> 32);
-    /* NOTE: decision to return credits or keep then in AMReply code */
-    tok.credits = gasnetc_compute_credits(ev->rlength);
   }
-
-  /* crack args out of hdr_data */
-  if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
-  if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
-
-#if !GASNETC_PACK_RPLOFF_MBITS
-  if (!isReq && (numarg > 2)) {
-    /* Reply third arg in upper bits of match_bits */
-    args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
-  }
-#endif
 
   /* set data pointer */
   data = (uint8_t*)ev->md.start + ev->offset;
@@ -337,21 +337,53 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   /* insure our data pointer is aligned for a double */
   gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
 
-  /* unpack remaining args from data payload */
-  for(; argcnt < numarg; argcnt++) {
-    memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
-    data += sizeof(gasnet_handlerarg_t);
+  /* crack args out of hdr_data, match_bits and payload
+   * if isReq:
+   *   numarg = 0:  (----,cred) in hdr_data, 
+   *   numarg = 1:  (arg0,cred) in hdr_data, 
+   *   numarg > 1:  (arg0,arg1) in hdr_data, (remaining args + cred_info) in payload
+   * if !isReq:
+   *   numarg = 0:  (----,cred) in hdr_data, 
+   *   numarg = 1:  (arg0,cred) in hdr_data, 
+   *   numarg = 2:  (arg0,cred) in hdr_data, arg1 in upper match bits
+   *   numarg > 2:  (arg0,arg1) in hdr_data, arg2 in upper match bits, (rem args + cred_info) in payload
+   */
+  if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
+  if (isReq && (numarg < 2)) {
+    /* credit info is packed in LOWER bits of hdr_data */
+    uint32_t cred = (uint32_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
+    tok.credits = (uint8_t)(cred & 0x000000FF);
+  } else if (!isReq && (numarg < 3)) {    
+    /* credit info is packed in LOWER bits of hdr_data */
+    uint32_t cred = (uint32_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
+    tok.credits = (uint8_t)(cred & 0x000000FF);
+    if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
+
+  } else {
+    /* second arg in LOWER bits of hdr_data */
+    args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
+    if (!isReq) {
+      /* Reply third arg in upper bits of match_bits */
+      args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
+    }
+
+    /* unpack remaining args from data payload */
+    for(; argcnt < numarg; argcnt++) {
+      memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
+      data += sizeof(gasnet_handlerarg_t);
+    }
+    /* unpack the credit info */
+    memcpy(&tok.credits,data,sizeof(uint8_t));
+    data += sizeof(uint8_t);
   }
 
-  /* did we get return credits? */
-  if (gasnetc_use_flow_control && !isReq) {
-    uint32_t return_credits;
-    memcpy(&return_credits,data,sizeof(uint32_t));
-    data += sizeof(uint32_t); /* not needed in this case */
-    gasnetc_return_credits(tok.srcnode,return_credits);
-    GASNETI_TRACE_PRINTF(C,("exec_amshort: Reply RETURN_CREDITS=%d from %d",(int)return_credits,(int)tok.srcnode));
-  }
+  GASNETC_AMDEBUG_MSG((isReq?"S_Req Recv":"S_Rpl Recv"),tok.srcnode,gasneti_mynode,((uint8_t*)ev->md.start + ev->offset),numarg,0,ev->rlength,tok.credits,0);
 
+  /* Process credit info and prep credit byte for return (if isReq) */
+  if (gasnetc_use_flow_control) {
+    tok.credits = gasnetc_credit_update(isReq,tok.credits,tok.srcnode,"Short");
+  }
+    
   GASNETI_RUN_HANDLER_SHORT(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg);
 
   if (isReq && !(tok.flags & GASNETC_PTL_REPLY_SENT)) {
@@ -398,61 +430,51 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
   tok.initiator = ev->initiator;
   tok.srcnode = gasnetc_get_nodeid(&ev->initiator);
 
-  /* crack args out of hdr_data */
-  if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
-  if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
-
-  if (isReq) {
-    gasnetc_threaddata_t *th = gasnetc_mythread();
-    GASNETI_TRACE_PRINTF(C,("EXEC_AMMEDIUM: Req thread=0x%p flags=0x%x",th,th->flags));
-    gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
-    th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
-    /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
-    tok.rplsb_offset = (uint32_t)th->rplsb_off;
-    tok.initiator_offset = (uint32_t)(mbits >> 32);
-    /* NOTE: decision to return credits or keep then in AMReply code */
-    tok.credits = gasnetc_compute_credits(ev->rlength);
-
-#if !GASNETC_PACK_RPLOFF_MBITS
-  } else if (numarg > 2) {
-    args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
-#endif
-  }
-
   /* set data pointer */
   data = (uint8_t*)ev->md.start + ev->offset;
 
   /* insure our data pointer is aligned for a double */
   gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
 
-  bytes_so_far = 0;
+  if (isReq) {
+    gasnetc_threaddata_t *th = gasnetc_mythread();
+    gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
+    th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
+    /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
+    tok.rplsb_offset = (uint32_t)th->rplsb_off;
+    tok.initiator_offset = (uint32_t)(mbits >> 32);
+  }
+
+  /* payload len and credit info in upper bits of hdr_data */
+  payload_bytes = (uint32_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
+  tok.credits = (uint8_t)(payload_bytes >> 24);
+  payload_bytes &= 0x00FFFFFF;  /* mask off credit_byte */
+  nbytes = payload_bytes;  /* type conversion */
+
+  /* crack args out of hdr_data, mbits if available */
+  if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
+  if (!isReq && (numarg > 1)) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
+
   /* unpack remaining args from data payload */
+  bytes_so_far = 0;
   for(; argcnt < numarg; argcnt++) {
     memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
     data += sizeof(gasnet_handlerarg_t);
     bytes_so_far += sizeof(gasnet_handlerarg_t);
   }
 
-  /* did we get return credits? */
-  if (gasnetc_use_flow_control && !isReq) {
-    uint32_t return_credits;
-    memcpy(&return_credits,data,sizeof(uint32_t));
-    data += sizeof(uint32_t); 
-    bytes_so_far += sizeof(uint32_t); 
-    gasnetc_return_credits(tok.srcnode,return_credits);
-    GASNETI_TRACE_PRINTF(C,("exec_ammedium: Reply RETURN_CREDITS=%d from %d",(int)return_credits,(int)tok.srcnode));
-  }
-
-  /* unpack handler payload length */
-  memcpy(&payload_bytes,data,sizeof(uint32_t));
-  data += sizeof(uint32_t);
-  bytes_so_far += sizeof(uint32_t);
-  nbytes = payload_bytes;  /* type conversion */
-
   /* Skip over any pad field so that handler payload is double-aligned */
   GASNETC_COMPUTE_DOUBLE_PAD(bytes_so_far,pad);
   data += pad;
   bytes_so_far += pad;
+
+  GASNETC_AMDEBUG_MSG((isReq?"M_Req Recv":"M_Rpl Recv"),tok.srcnode,gasneti_mynode,((uint8_t*)ev->md.start + ev->offset),numarg,nbytes,ev->rlength,tok.credits,0);
+
+  /* Process credit info and prep credit byte for return (if isReq) */
+  if (gasnetc_use_flow_control) {
+    tok.credits = gasnetc_credit_update(isReq,tok.credits,tok.srcnode,"Med");
+  }
+    
 
   GASNETI_RUN_HANDLER_MEDIUM(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg, data, nbytes);
 
@@ -493,7 +515,7 @@ static int exec_amlong_header(int isReq, int isPacked,
   uint8_t *data;
   int      pad;
   int32_t  payload_bytes;
-  size_t   nbytes;
+  size_t   nbytes = -1;
   int      argcnt = 0;
   int      bytes_so_far = 0;
   void    *dest;
@@ -514,14 +536,10 @@ static int exec_amlong_header(int isReq, int isPacked,
 
   /* crack upper portion of match_bits */
   if (isReq) {
-    tok.initiator_offset = (uint32_t)(mbits >> 32);
-    /* NOTE: decision to return credits or keep then in AMReply code */
-    tok.credits = gasnetc_compute_credits(ev->rlength);
-    if (!isPacked && gasnetc_use_flow_control) tok.credits++;  /* for data message */
-#if !GASNETC_PACK_RPLOFF_MBITS
+    tok.initiator_offset = (uint32_t)GASNETC_UNPACK_UPPER(mbits);
   } else {
+    /* second arg is stashed in upper match bits */
     if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
-#endif
   }
 
   /* set data pointer */
@@ -537,19 +555,27 @@ static int exec_amlong_header(int isReq, int isPacked,
     bytes_so_far += sizeof(gasnet_handlerarg_t);
   }
 
-  /* did we get return credits?
-   * stash in token structure for update after handler has run
-   */
-  if (gasnetc_use_flow_control && !isReq) {
-    uint32_t return_credits;
-    memcpy(&return_credits,data,sizeof(uint32_t));
-    data += sizeof(uint32_t); 
-    bytes_so_far += sizeof(uint32_t); 
-    tok.credits = return_credits;
+  if (isPacked) {
+    tok.credits = (lid >> 24);
+    nbytes = (lid & 0x00FFFFFF);
+  } else {
+    /* unpack credit byte */
+    memcpy(&tok.credits,data,sizeof(uint8_t));
+    data += sizeof(uint8_t);
+    bytes_so_far += sizeof(uint8_t);
+  }
+
+  GASNETC_AMDEBUG_MSG((isReq?"L_Req Recv":"L_Rpl Recv"),tok.srcnode,gasneti_mynode,((uint8_t*)ev->md.start + ev->offset),numarg,-1,ev->rlength,tok.credits,isPacked);
+
+  if (gasnetc_use_flow_control) {
+    /* In case of Request:  process credit update and store in token field for return.
+     * In case of Reply:  ok to process returned credits here.
+     */
+    tok.credits = gasnetc_credit_update(isReq,tok.credits,tok.srcnode,"Long");
   }
 
   if (isPacked) {
-    nbytes = (size_t)lid;
+    
     /* extract the data payload destination, shoud be in local RAR */
     memcpy(&dest, data, sizeof(void*));
     data += sizeof(void*);
@@ -558,11 +584,8 @@ static int exec_amlong_header(int isReq, int isPacked,
     /* copy the data payload to the specified destination */
     memcpy(dest,data,nbytes);
 
-    GASNETI_TRACE_PRINTF(C,("exec_amlong_header, packed: isReq=%d, numarg=%d, hndlr=%d, nbytes=%d",isReq,numarg,ghandler,(int)nbytes));
-
     if (isReq) {
       gasnetc_threaddata_t *th = gasnetc_mythread();
-      GASNETI_TRACE_PRINTF(C,("EXEC_AMLONG_HEAD_PACKED: Req thread=0x%p flags=0x%x",th,th->flags));
       gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
       th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
       tok.rplsb_offset = (uint32_t)th->rplsb_off;
@@ -580,7 +603,6 @@ static int exec_amlong_header(int isReq, int isPacked,
       /* data has arrived, run handler */
       if (isReq) {  
 	gasnetc_threaddata_t *th = gasnetc_mythread();
-	GASNETI_TRACE_PRINTF(C,("EXEC_AMLONG_HEAD: Req thread=0x%p flags=0x%x",th,th->flags));
 	gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
 	th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
 	tok.rplsb_offset = (uint32_t)th->rplsb_off;
@@ -609,12 +631,6 @@ static int exec_amlong_header(int isReq, int isPacked,
     GASNETI_SAFE(
 		 SHORT_REP(0,0, (token , gasneti_handleridx(gasnetc_noop_reph)) )
 		 );
-  }
-
-  /* finally, return credits sent in reply message */
-  if (gasnetc_use_flow_control && ran_handler && !isReq) {
-    gasnetc_return_credits(tok.srcnode,tok.credits);
-    GASNETI_TRACE_PRINTF(C,("exec_amlong_header: Reply RETURN_CREDITS=%d from %d",(int)tok.credits,(int)tok.srcnode));
   }
 
   return ran_handler;
@@ -662,7 +678,6 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
     /* data has arrived, run handler */
     if (isReq) {
       gasnetc_threaddata_t *th = gasnetc_mythread();
-      GASNETI_TRACE_PRINTF(C,("EXEC_AMLONG_DATA: Req thread=0x%p flags=0x%x",th,th->flags));
       gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
       th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
       tok.rplsb_offset = (uint32_t)th->rplsb_off;
@@ -685,15 +700,10 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
       GASNETI_SAFE(
 		   SHORT_REP(0,0, (token , gasneti_handleridx(gasnetc_noop_reph)) )
 		   );
-    } else {
-      GASNETI_TRACE_PRINTF(C,("exec_amlong_data, first to arrive, isReq=%d, lid=%d",isReq,lid));
-    }
-  } 
+    } 
 
-  /* finally, if handler has run, return credits sent in reply */
-  if (gasnetc_use_flow_control && ran_handler && !isReq) {
-    GASNETI_TRACE_PRINTF(C,("exec_amlong_data: Reply RETURN_CREDITS=%d from %d",(int)tok.credits,(int)tok.srcnode));
-    gasnetc_return_credits(tok.srcnode,tok.credits);
+  } else {
+    GASNETI_TRACE_PRINTF(C,("exec_amlong_data, first to arrive, isReq=%d, lid=%d",isReq,lid));
   }
 
   return ran_handler;
@@ -976,12 +986,7 @@ static void RARSRC_event(ptl_event_t *ev)
       uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
       gasneti_assert( msg_type & GASNETC_PTL_MSG_AMDATA);
       gasneti_assert( !( amflag & GASNETC_PTL_AM_REQUEST) );
-      if (exec_amlong_data(0, ev)) {
-	/* ran the reply handler, just completed AM that originated on this node */
-	gasnet_node_t srcnode = gasnetc_get_nodeid(&ev->initiator);
-	gasnetc_conn_t  *state = &gasnetc_conn_state[srcnode];
-	DECREMENT_AM_PENDING(state);
-      }
+      exec_amlong_data(0, ev);
     }
     break;
 
@@ -1173,7 +1178,6 @@ static void ReqSB_event(ptl_event_t *ev)
     /* CB Recovery of dropped AM Request, stop all further AMs to this node */
     srcnode = gasnetc_get_nodeid(&ev->initiator);
     state = &gasnetc_conn_state[srcnode];
-    gasneti_weakatomic_set(&state->in_recovery, 0, 0);
     /* dealloc the chunk */
     gasnetc_chunk_free(&gasnetc_ReqSB,offset);
 
@@ -1200,12 +1204,6 @@ static void ReqSB_event(ptl_event_t *ev)
     /* dealloc the chunk */
     gasnetc_chunk_free(&gasnetc_ReqSB,offset);
 
-    if (ran_handler) {
-      /* just completed an AM message that originated on this node */
-      srcnode = gasnetc_get_nodeid(&ev->initiator);
-      state = &gasnetc_conn_state[srcnode];
-      DECREMENT_AM_PENDING(state);
-    }
     break;
 
   default:
@@ -1216,6 +1214,7 @@ static void ReqSB_event(ptl_event_t *ev)
 /* ------------------------------------------------------------------------------------
  * Handle events on one of the Reply Send Buffer
  * SEND_END => reply message sent, free the chunk
+ * NOTE: since this is an event from a local action (not an ACK), ev->offset is valid
  * --------------------------------------------------------------------------------- */
 static void RplSB_event(ptl_event_t *ev)
 {
@@ -1223,14 +1222,8 @@ static void RplSB_event(ptl_event_t *ev)
   ptl_size_t offset = ev->offset;
   uint8_t msg_type;
 
-#if GASNETC_PACK_RPLOFF_MBITS
-  ptl_size_t local_offset = (mbits >> 32);
-#else
-  ptl_size_t local_offset = offset;
-#endif
-
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
-  GASNETI_TRACE_PRINTF(C,("RplSB event %s offset = %i, local_offset = %i mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(int)local_offset,(uint64_t)mbits,msg_type));
+  GASNETI_TRACE_PRINTF(C,("RplSB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
@@ -1239,7 +1232,7 @@ static void RplSB_event(ptl_event_t *ev)
   case PTL_EVENT_SEND_END:
     gasnetc_return_ticket(&gasnetc_send_tickets);
     /* reclaim the chunk */
-    gasnetc_chunk_free(&gasnetc_RplSB, local_offset);
+    gasnetc_chunk_free(&gasnetc_RplSB, offset);
     break;
 
   default:
@@ -1702,6 +1695,362 @@ static void ReqSB_exit()
   gasnetc_buf_free(&gasnetc_ReqSB);
 }
 
+#if GASNETC_CREDIT_TESTING
+void gasnetc_dump_credits(int epoch_count)
+{
+  static int first_dump_credits = 1;
+  char filename[128];
+  FILE *fh;
+  int i;
+  /* if opening the first time, over-write old file, otherwise append */
+  const char *mode = (first_dump_credits ? "w" : "a");
+  sprintf(&filename[0],"credits.%03d",gasneti_mynode);
+  if ( (fh = fopen(filename,mode)) == NULL) {
+    gasneti_fatalerror("Failed to create or append file named %s",filename);
+  }
+  first_dump_credits = 0;
+  fprintf(fh,"Node: %d  Epoch Counter = %d\n",gasneti_mynode,epoch_count);
+  fprintf(fh,"%4s %7s %7s %7s %7s %7s %7s %7s %7s",
+	  "Node","L_Cred","S_Cred","S_Stall","S_Inuse","S_Max","S_Revok","L_Req","L_Given");
+  fprintf(fh," %7s %7s %7s %7s %7s %7s\n",
+	  "TS_Stal","TS_Max","TL_Give","TL_Req","TL_Rev","TL_RR");
+  for (i = 0; i < gasneti_nodes; i++) {
+    gasnetc_conn_t *s = &gasnetc_conn_state[i];
+    fprintf(fh,"%4d %7d %7d %7d %7d %7d %7d %7d %7d",
+	    i,s->LoanCredits,s->SendCredits,s->SendStalls,s->SendInuse,
+	    s->SendMax,s->SendRevoked,s->LoanRequested,s->LoanGiven);
+    fprintf(fh," %7d %7d %7d %7d %7d %7d\n",
+	    s->SendStalls_tot,s->SendMax_tot,s->LoanGiven_tot,
+	    s->LoanRequested_tot,s->LoanRevoked_tot,s->LoanReqRevoke_tot);
+  }
+  fclose(fh);
+}
+#endif
+
+/* ---------------------------------------------------------------------------------
+ * Credit update code executed on both AM target node and AM Requestor node (when Reply arrives)
+ * On AM Target Node:
+ *   - Decay SEND vars if remote node as Lender reached their end of epoch
+ *   - Attempt to grant additional credits if requested
+ *   - Inform Requester if we have reached our end of epoch
+ *   - NOTE: return updated cred_byte to be sent to Requester.
+ * On original AM Requester node when AM Reply arrives:
+ *   - Decay SEND vars if remote node as Lender reached their end of epoch
+ *   - update SendInuse variables with reply credits
+ *   - update SendCredits variables with any additional credits we have been granted
+ * --------------------------------------------------------------------------------- */
+uint8_t gasnetc_credit_update(int isReq, uint8_t cred_byte, gasnet_node_t remotenode, const char* name)
+{
+  uint8_t ncredit, nextra, end_epoch;
+  gasnetc_conn_t *state = &gasnetc_conn_state[remotenode];
+  int scavenge = 0;
+
+  /* did we just reach an end of epoch? */
+  if (isReq && gasnetc_use_dynamic_credits) {
+    /* this gets executed exactly once per receipt of an AMRequest */
+    int count = gasneti_weakatomic_add(&gasnetc_AMRequest_count,1,0);
+    if ((count % gasnetc_epoch_duration) == 0) gasnetc_end_epoch(count);
+  }
+
+  /* extract the fields from the cred_byte */
+  GASNETC_READ_CREDIT_BYTE(cred_byte,end_epoch,nextra,ncredit);
+  if (!gasnetc_use_dynamic_credits) {
+    gasneti_assert(end_epoch == 0);
+    gasneti_assert(nextra == 0);
+  }
+  
+  GASNETC_LOCK_STATE(state);
+
+  /* if remote node reached end of epoch, decay our SEND vars */
+  if (end_epoch) {
+    GASNETC_DECAY_SENDVARS(state);
+  }
+
+  if (isReq) {  /* excuted when AMRequest arrives on target node */
+    uint8_t ee_return = 0;
+    uint8_t nextra_return = 0;
+    uint8_t ncredit_return = ncredit;
+    int     link_to_revoke_list = 0;
+
+    if (nextra > 0) {
+      /* remote node request additional credits */
+      state->LoanRequested++;
+#if GASNETC_CREDIT_TESTING
+      state->LoanRequested_tot += nextra;
+#endif
+      if ((state->LoanGiven + nextra <= gasnetc_lender_limit) &&
+	  (state->LoanCredits + nextra <= gasnetc_max_cpn) ) {
+	/* NOTE: guaranteed to be less than GASNETC_MAX_CREDITS */
+	nextra_return = gasneti_semaphore_trydown_n(&gasnetc_banked_credits,nextra);
+	state->LoanGiven += nextra_return;    /* this will decay */
+	if ((state->LoanCredits == GASNETC_MIN_CREDITS) && nextra_return) link_to_revoke_list=1;
+	state->LoanCredits += nextra_return;  /* record total we have given them */
+#if GASNETC_CREDIT_TESTING
+	state->LoanGiven_tot += nextra_return;
+#endif
+	if (nextra_return == 0) scavenge = 1;
+      }
+    }
+    /* inform target (original requester) node if we have reached end of our epoch */
+    if (gasnetc_use_dynamic_credits && (state->flags & GASNETC_REACHED_EPOCH)) {
+      state->flags &= ~GASNETC_REACHED_EPOCH;
+      ee_return = 1;
+    }
+    GASNETC_UNLOCK_STATE(state);
+    GASNETC_SET_CREDIT_BYTE(cred_byte, ee_return, nextra_return, ncredit_return);
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: %sReq Recv: [P%d->P%d] Got=%d:%d:%d Update=%d:%d:%d",name,remotenode,gasneti_mynode,end_epoch,nextra,ncredit,ee_return,nextra_return,ncredit_return));
+    if (scavenge) gasnetc_scavenge_for_credits();
+    if (link_to_revoke_list) gasnetc_scavenge_list_add(remotenode,0);
+    
+  } else {
+    /* excuted when AMReply arrives on original requestor node */
+    gasneti_assert(state->SendInuse >= ncredit);
+    state->SendInuse -= ncredit;
+    state->SendCredits += nextra;   /* additional credits granted by Lender */
+    GASNETC_UNLOCK_STATE(state);
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: %sRpl Recv: [P%d->P%d] Got=%d:%d:%d",name,remotenode,gasneti_mynode,end_epoch,nextra,ncredit));
+  }
+  return cred_byte;
+}
+
+void gasnetc_scavenge_list_add(gasnet_node_t node, int locked)
+{
+  gasnetc_conn_t *s = &gasnetc_conn_state[node];
+  gasneti_assert(gasnetc_use_dynamic_credits);
+  if (! locked) gasneti_mutex_lock(&gasnetc_scavenge_lock);
+  /* make sure we are not already on the list */
+  gasneti_assert(s->link.next == GASNETC_DLL_NULL);
+  gasneti_assert(s->link.prev == GASNETC_DLL_NULL);
+  {
+    gasnetc_dll_index_t head = gasnetc_scavenge_list;
+    if (head == GASNETC_DLL_NULL) {
+      /* empty list */
+      s->link.next = s->link.prev = node;
+      gasnetc_scavenge_list = node;
+    } else {
+      /* add to the end of the list */
+      gasnetc_dll_index_t prev = gasnetc_conn_state[head].link.prev;
+      s->link.next = head;
+      s->link.prev = prev;
+      gasnetc_conn_state[head].link.prev = node;
+      gasnetc_conn_state[prev].link.next = node;
+    }
+  }
+  if (!locked) gasneti_mutex_unlock(&gasnetc_scavenge_lock);
+#if GASNETC_CREDIT_TESTING
+  if (!locked && (gasnetc_debug_node >= 0) && (gasneti_mynode == gasnetc_debug_node)) {
+    printf("After adding node %d to Scavenge List:\n",node);
+    gasnetc_print_scavenge_list();
+  }
+#endif
+}
+
+void gasnetc_scavenge_list_remove(gasnet_node_t node)
+{
+  gasnetc_conn_t *s = &gasnetc_conn_state[node];
+  gasneti_assert(gasnetc_use_dynamic_credits);
+  gasneti_mutex_lock(&gasnetc_scavenge_lock);
+  /* make sure we are not already on the list */
+  gasneti_assert(s->link.next != GASNETC_DLL_NULL);
+  gasneti_assert(s->link.prev != GASNETC_DLL_NULL);
+  {
+    gasneti_assert( gasnetc_scavenge_list != GASNETC_DLL_NULL );
+    gasnetc_dll_index_t next = s->link.next;
+    gasnetc_dll_index_t prev = s->link.prev;
+    if (next == node) {
+      /* this is the only node in the list */
+      gasneti_assert(gasnetc_scavenge_list == node);
+      gasnetc_scavenge_list = GASNETC_DLL_NULL;
+    } else {
+      /* more than one element on the list, make sure list head does not point to us */
+      if (gasnetc_scavenge_list == node) gasnetc_scavenge_list = next;
+      gasnetc_conn_state[prev].link.next = next;
+      gasnetc_conn_state[next].link.prev = prev;
+    }
+    s->link.next = GASNETC_DLL_NULL;
+    s->link.prev = GASNETC_DLL_NULL;
+  }
+  gasneti_mutex_unlock(&gasnetc_scavenge_lock);
+#if GASNETC_CREDIT_TESTING
+  if ((gasnetc_debug_node >= 0) && (gasneti_mynode == gasnetc_debug_node)) {
+    printf("After removing node %d from Scavenge List:\n",node);
+    gasnetc_print_scavenge_list();
+  }
+#endif
+}
+
+void gasnetc_print_scavenge_list(void)
+{
+  gasneti_assert(gasnetc_use_dynamic_credits); 
+  gasneti_mutex_lock(&gasnetc_scavenge_lock);
+  {
+    gasnetc_dll_index_t node = gasnetc_scavenge_list;
+    int finished = (node == GASNETC_DLL_NULL);
+    printf("SCAVENGE_List[%d]:",gasneti_mynode);
+    while (! finished) {
+      printf(" %d",node);
+      node = gasnetc_conn_state[node].link.next;
+      if (node == gasnetc_scavenge_list) finished = 1;
+    }
+    printf("\n");
+  }
+  gasneti_mutex_unlock(&gasnetc_scavenge_lock);
+}
+
+/* ---------------------------------------------------------------------------------
+ * At end of each credit epoch, we 
+ * - clear credit flags
+ * - set end_of_epoch bit as signal for senders to age their SEND vars.
+ * - Age LOAN vars
+ * --------------------------------------------------------------------------------- */
+void gasnetc_end_epoch(int epoch_count)
+{
+  int i;
+  FILE *fh;
+  if (!gasnetc_use_dynamic_credits) return;
+  if ( gasneti_mutex_trylock(&gasnetc_epoch_lock) ) {
+    /* could not get lock, another thread must still be doing epoch update */
+#if GASNET_DEBUG
+    fprintf(stderr,"Node [%d]: Epoch lock not available at count %d, skipping...\n",
+	    gasneti_mynode,epoch_count);
+#endif
+    return;
+  }
+  GASNETI_TRACE_EVENT(C, END_EPOCH);
+  if (gasnetc_dump_stats) GASNETC_DUMP_CREDITS(epoch_count);
+  for (i = 0; i < gasneti_nodes; i++) {
+    gasnetc_conn_t *state = &gasnetc_conn_state[i];
+    GASNETC_LOCK_STATE(state);
+    state->flags &= ~GASNETC_CREDIT_REVOKE_ZERO_REPLY;
+    state->flags |= GASNETC_REACHED_EPOCH;
+    GASNETC_CREDIT_DECAY(state->LoanRequested);
+    GASNETC_CREDIT_DECAY(state->LoanGiven);
+    GASNETC_UNLOCK_STATE(state);
+  }
+  gasneti_mutex_unlock(&gasnetc_epoch_lock);
+}
+
+/* ---------------------------------------------------------------------------------
+ * Walk list of nodes, hitting them up for credits to be returned to us
+ * Walk in circular list, always re-start from where we left off last time.
+ * --------------------------------------------------------------------------------- */
+void gasnetc_scavenge_for_credits()
+{
+  /* Simply walk list of remote nodes, requesting that they return credits */
+  int node, start;
+  int finished = 0;
+  int hit = 0;
+  int target_hits = gasnetc_num_scavenge - gasneti_weakatomic_read(&gasnetc_scavenge_inflight,0);
+
+  gasneti_assert(gasnetc_use_dynamic_credits);
+  if (gasneti_nodes == 1) return;
+  target_hits = GASNETC_MAX(target_hits,0);
+  if (target_hits == 0) return;
+
+  gasneti_mutex_lock(&gasnetc_scavenge_lock);
+  if (gasnetc_scavenge_list == GASNETC_DLL_NULL) finished = 1;  /* empty list */
+  start = gasnetc_scavenge_list;
+  node = start;
+  
+  while (!finished) {
+    /* should we hit-up this node? */
+    gasnetc_conn_t *state = &gasnetc_conn_state[node];
+    int epoch_end = 0;
+    if (node == gasneti_mynode) goto nextnode;
+    if (GASNETC_TRYLOCK_STATE(state)) goto nextnode;
+    if (state->flags & GASNETC_SYS_MSG_INFLIGHT) goto unlock;
+    /* if we know they only have min credits, dont ask */
+    if (state->LoanCredits <= GASNETC_MIN_CREDITS) goto unlock;
+    /* We recently asked for additional credits and they did not have any to spare */
+    if (state->flags & GASNETC_CREDIT_REVOKE_ZERO_REPLY) goto unlock;
+    /* if they recently asked us for more credits, dont bother asking for any back */
+    if (state->LoanRequested) goto unlock;
+    state->flags |= GASNETC_SYS_MSG_INFLIGHT;
+    if (state->flags & GASNETC_REACHED_EPOCH) {
+      state->flags &= ~GASNETC_REACHED_EPOCH;
+      epoch_end = 1;
+    }
+#if GASNETC_CREDIT_TESTING
+    state->LoanReqRevoke_tot++;
+#endif
+    gasneti_weakatomic_increment(&gasnetc_scavenge_inflight,0);
+    gasnetc_sys_SendMsg(node, GASNETC_SYS_CREDIT_REVOKE, gasneti_mynode, epoch_end, 0);
+    hit++;
+  unlock:
+    GASNETC_UNLOCK_STATE(state);
+  nextnode:
+    node = gasnetc_conn_state[node].link.next;
+    if (node == start) finished = 1;  /* wrapped around to start */
+    if (hit >= target_hits) finished = 1;  
+  }
+  gasnetc_scavenge_list = node;  /* set head of list to where we left off */
+  gasneti_mutex_unlock(&gasnetc_scavenge_lock);
+}
+
+/* ---------------------------------------------------------------------------------
+ * Got a request from this node to revoke or return some is its credits, must reply
+ * --------------------------------------------------------------------------------- */
+static void process_credit_revoke(gasnet_node_t node, int epoch_end)
+{
+  gasnetc_conn_t *state = &gasnetc_conn_state[node];
+  int give_back = 0;
+  int navail;
+  gasneti_assert( gasnetc_use_dynamic_credits );
+  GASNETC_LOCK_STATE(state);
+  if (epoch_end) {
+    /* remote node reached epoch end, decay our send vars */
+    GASNETC_DECAY_SENDVARS(state);
+  }
+  if (state->SendStalls) goto send_it;  /* I dont have enough, so cant give any up */
+  if (state->SendRevoked >= gasnetc_revoke_limit) goto send_it;
+  navail = state->SendCredits - GASNETC_MAX(GASNETC_MIN_CREDITS,state->SendMax);
+  give_back = GASNETC_MIN(navail,GASNETC_MAX(0,gasnetc_revoke_limit - state->SendRevoked));
+  state->SendCredits -= give_back;
+  state->SendRevoked += give_back;
+  send_it:
+  epoch_end = 0;
+  if (state->flags & GASNETC_REACHED_EPOCH) {
+    /* we reached our epoch, inform target to decay SEND vars */
+    state->flags &= ~GASNETC_REACHED_EPOCH;
+    epoch_end = 1;
+  }
+  GASNETC_UNLOCK_STATE(state);
+  gasnetc_sys_SendMsg(node, GASNETC_SYS_CREDIT_RETURN, gasneti_mynode, give_back, epoch_end);
+}
+
+/* ---------------------------------------------------------------------------------
+ * Got a revoke reply from this node, returning some of (our) LOAN credits
+ * --------------------------------------------------------------------------------- */
+static void process_credit_return(gasnet_node_t node, int ncredit, int epoch_end)
+{
+  gasnetc_conn_t *state = &gasnetc_conn_state[node];
+  int remove_from_list = 0;
+  gasneti_assert( gasnetc_use_dynamic_credits );
+  gasneti_weakatomic_decrement(&gasnetc_scavenge_inflight,0);
+  GASNETC_LOCK_STATE(state);
+  gasneti_assert(state->flags & GASNETC_SYS_MSG_INFLIGHT);
+  state->flags &= ~GASNETC_SYS_MSG_INFLIGHT;
+  if (epoch_end) {
+    /* remote node reached epoch end, decay our send vars */
+    GASNETC_DECAY_SENDVARS(state);
+  }
+  if (ncredit == 0) {
+    state->flags |= GASNETC_CREDIT_REVOKE_ZERO_REPLY;
+  } else {
+    state->flags &= ~GASNETC_CREDIT_REVOKE_ZERO_REPLY;
+    state->LoanCredits -= ncredit;  /* number of our credits they have */
+    if (state->LoanCredits == GASNETC_MIN_CREDITS) remove_from_list = 1;
+#if GASNETC_CREDIT_TESTING
+    state->LoanRevoked_tot += ncredit;
+#endif
+
+  }
+  GASNETC_UNLOCK_STATE(state);
+  /* put the returned credits in the bank for distribution at a later time */
+  if (ncredit > 0) gasneti_semaphore_up_n(&gasnetc_banked_credits,ncredit);
+  if (remove_from_list) gasnetc_scavenge_list_remove(node);
+}
+
 /* ---------------------------------------------------------------------------------
  * Figure out which SYS System message to execute
  * --------------------------------------------------------------------------------- */
@@ -1716,7 +2065,7 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
       int exitcode = arg1;
       gasneti_assert(sender >=0 && sender < gasneti_nodes);
       /* mark that we got a shutdown message from this node */
-      gasnetc_conn_state[sender].got_shutdown_msg = 1;
+      gasnetc_conn_state[sender].flags |= GASNETC_SYS_GOT_SHUTDOWN_MSG;
       GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d",sender));
       if (!gasnetc_shutdownInProgress) gasnetc_exit(exitcode);
     }
@@ -1743,6 +2092,25 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
       GASNETI_TRACE_PRINTF(C,("Got BARRIER_GO from node %d, cnt=%d",sender,b_cnt));
       /* let poller know its ok to proceed */
       sys_barrier_got = b_cnt;
+    }
+    break;
+
+  case GASNETC_SYS_CREDIT_REVOKE:
+    /* got request to revoke some credits */
+    {
+      int sender = arg0;
+      int epoch_end = arg1;
+      process_credit_revoke(sender,epoch_end);
+    }
+    break;
+
+  case GASNETC_SYS_CREDIT_RETURN:
+    /* got reply to my request to revoke credits */
+    {
+      int sender = arg0;
+      int ncredit = arg1;
+      int epoch_end = arg2;
+      process_credit_return(sender,ncredit,epoch_end);
     }
     break;
 
@@ -1841,6 +2209,7 @@ static void sys_init()
   gasnetc_bootstrapBarrier();
 
   portals_sysqueue_initialized = 1;
+  /* write barrier here? */
 
 }
 
@@ -1937,9 +2306,16 @@ extern void gasnetc_init_portals_network(void)
   int               rc, i, node;
   int               num_interfaces;
   int               pid_offset = 0;
+  uint32_t          maxnodes = (uint32_t)((gasnetc_dll_index_t)-1);
  
   gasneti_mynode = cnos_get_rank();
   gasneti_nodes = cnos_get_size();
+
+  if (gasneti_nodes >= maxnodes) {
+    gasneti_fatalerror("GASNet Portals conduit designed to work for up to %ld nodes,"
+		       " this job uses %d nodes.  Modify size of gasnetc_dll_index_t "
+		       " and rebuild library",maxnodes-1,gasneti_nodes);
+  }
 
   /* Set up buffered IO for STDOUT */
   if (gasnetc_io_buffer_size > 0) {
@@ -2052,15 +2428,14 @@ extern void gasnetc_init_portals_network(void)
   }
 #endif
 
-  /* Allocate and init the connection state array */
+  /* Allocate and init (part of) the connection state array */
   gasnetc_conn_state = (gasnetc_conn_t*)gasneti_malloc(gasneti_nodes*sizeof(gasnetc_conn_t));
   for (i = 0; i < gasneti_nodes; i++) {
-    gasneti_weakatomic_set(&(gasnetc_conn_state[i].AM_pending), 0, 0);
-    gasneti_weakatomic_set(&(gasnetc_conn_state[i].in_recovery), 0, 0);
-    gasnetc_conn_state[i].got_shutdown_msg = 0;
-    gasneti_weakatomic_set(&(gasnetc_conn_state[i].src_lid), 0, 0);
-    gasnetc_conn_state[i].lids = NULL;
-    GASNETC_INITLOCK_LIDCACHE(i);
+    gasnetc_conn_t *s = &gasnetc_conn_state[i];
+    s->flags = 0;
+    gasneti_weakatomic_set(&s->src_lid, 0, 0);
+    s->lids = NULL;
+    GASNETC_INITLOCK_STATE(s);
   }
 
   /* set the number of seconds we poll until forceful shutdown.  May be over-ridden
@@ -2087,69 +2462,6 @@ extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc)
   }
   gasneti_fatalerror("gasnetc_get_nodeid failed with nid=%d,pid=%d, table index=%d",proc->nid,proc->pid,indx);
   return -1;
-}
-
-
-/* ---------------------------------------------------------------------------------
- * Function to issue data Put of AM Request Long payload to remote RAR.
- * If local data source is in RAR, use the RARSRC MD.
- * If not, alloc a TMP MD, which will be unlinked by the event handlers.
- * If !sync, no need for caller to wait for put is off-node before returning.
- * If sync, bump amlongdata_cnt.  Event handler will decrement counter.
- * and caller will poll until zero.
- * mbits = [unused 32 bits ][8 bits for threadid][8 unused bits][8 bits for AM flag]
- *         [4 bits for msg type][4 bits for matching]
- * hdr_data = [unused 32 bits][32 bit lid]
- * msg_type = MSG_AMDATA
- * sync_flag = 1 if sync
- * sync_flag = 0, if !sync
- * --------------------------------------------------------------------------------- */
-extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest,
-				    void *src_addr, size_t nbytes, void* dest_addr)
-{
-  ptl_handle_md_t  md_h;
-  ptl_process_id_t target_id = gasnetc_procid_map[dest].ptl_id;
-  ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
-  ptl_match_bits_t match_bits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARAM_BITS;
-  ptl_size_t local_offset = 0;
-  ptl_size_t remote_offset = GASNETC_PTL_OFFSET(dest,dest_addr);
-  ptl_hdr_data_t hdr_data = (ptl_hdr_data_t)lid;
-  gasnete_threaddata_t *th_e = gasnete_mythread();
-  gasnetc_threaddata_t *th = th_e->gasnetc_threaddata;
-
-  if (isReq) {
-    match_bits |= ((uint64_t)(GASNETC_PTL_AM_REQUEST) << 8);
-    match_bits |= ((uint64_t)(th_e->threadidx) << 24);
-  }
-
-  if (gasnetc_in_local_rar(src_addr,nbytes)) {
-    md_h = gasnetc_RARSRC.md_h;
-    local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src_addr);
-  } else {
-    if (th->tmpmd_tickets) {
-      md_h = gasnetc_alloc_tmpmd(src_addr, nbytes, gasnetc_SAFE_EQ_h);
-      th->tmpmd_tickets--;
-    } else {
-      /* alloc a temp md for the source region, SAFE poll until it happens */
-      md_h = gasnetc_alloc_tmpmd_withpoll(src_addr, nbytes, gasnetc_SAFE_EQ_h);
-    }
-    local_offset = 0;
-  }
-
-  if (sync) {
-    /* signal to event handler to decr this threads amlong inflight counter */
-    match_bits |= ( (uint64_t)GASNETC_PTL_AM_SYNC ) << 8;    
-    gasneti_assert(gasneti_weakatomic_read(&th->amlong_data_inflight, 0) == 0);
-    gasneti_weakatomic_increment(&th->amlong_data_inflight, 0);
-  }
-    
-  GASNETI_TRACE_PRINTF(C,("datasend: to node=%d isReq=%d lid=%d nbytes=%d rem_off=%lu, mbits=0x%lx",(int)dest,isReq,lid,(int)nbytes,(unsigned long)remote_offset,(ulong)match_bits));
-
-  gasneti_assert(th->snd_tickets > 0);
-  th->snd_tickets--;
-
-  /* Issue Ptl Put operation */
-  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 }
 
 /* ---------------------------------------------------------------------------------
@@ -2492,8 +2804,8 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
   uint64_t prev;
   void *mem = NULL;
 
-  if (gasnetc_static_segsize_mbyte > 0) {
-    low = gasnetc_static_segsize_mbyte * MBYTE;
+  if (gasnetc_static_segsize > 0) {
+    low = gasnetc_static_segsize;
     if (!try_pin(low)) {
       gasneti_fatalerror("CNL Unable to alloc and pin static segsize of %ld bytes",low);
     }
@@ -2519,9 +2831,6 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
   /* Now bisect until difference is within the granularity */
   do {
     uint64_t mid = (low + high)/2;
-#if 0
-    GASNETI_TRACE_PRINTF(C,("MaxPinMem: low = %lu  mid = %lu  high = %lu",(unsigned long)low,(unsigned long)mid,(unsigned long)high));
-#endif
     if (try_pin(mid)) {
       low = mid;
     } else {
@@ -2688,54 +2997,178 @@ extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h)
 #endif
 }
 
-/* Initial cut at this routine will just use the number of pools and size of each
- * buffer as given.  Will distribute the credits based on these values and fail
- * if each node does not get the min number of credits.
- * Future: adjust buffer sizes for that min credit per node is maintained
+/* Table defining the number of credits_per_node and banked credits we assign by
+ * default based on the number of gasnet nodes in the job.
+ * As the node count increases, we rely more on dynamic credit management
+ * to keep the ReqRB and AM Event Queue memory usage within reason.
+ * Credits_per_node and banked credits for node counts between
+ * table values are linearly interpolated.
  */
-static void compute_initial_credits()
+typedef struct _credit_record {
+  gasnet_node_t nodes;
+  int           credits_per_node;
+  int           banked_credits;
+} credit_record_t;
+#if (GASNETC_CHUNKSIZE == 1024)
+/* 51200 banked credits based on 4 cred_per_node minimum assuming 128 active
+ * communication partners allocating 400 credits per partner
+ */
+static credit_record_t credit_table[] = {
+  {1,      200,     400},    /*  2.50 MB  ReqRB + AM space */
+  {64,     170,   25600},    /* 14.50 MB */
+  {128,    170,   51200},    /* 27.99 MB */
+  {512,     64,   51200},    /* 32.49 MB */
+  {1024,    32,   51200},    /* 32.49 MB */
+  {2048,    16,   51200},    /* 32.49 MB */
+  {3072,    12,   51200},    /* 33.99 MB */
+  {4096,     8,   51200},    /* 32.49 MB */
+  {5120,     4,   51200},    /* 27.99 MB */
+  {20480,    4,   51200},    /* 50.48 MB */
+};
+#elif (GASNETC_CHUNKSIZE == 2048)
+/* 25600 banked credits based on 8 cred_per_node minimum assuming 128 active
+ * communication partners allocating 200 credits per partner
+ */
+static credit_record_t credit_table[] = {
+  {1,      200,     200},    /*  5.00 MB  ReqRB + AM space */
+  {64,     170,   12800},    /* 11.00 MB */
+  {128,    170,   25600},    /* 19.99 MB */
+  {512,     64,   25600},    /* 25.99 MB */
+  {1024,    32,   25600},    /* 25.99 MB */
+  {2048,    16,   25600},    /* 25.99 MB */
+  {3072,    12,   25600},    /* 25.99 MB */
+  {4096,     8,   25600},    /* 25.99 MB */
+  {20480,    8,   25600},    /* 73.98 MB */
+};
+#else
+#error "MUST DEFINE default credit_table for this value of GASNETC_CHUNKSIZE"
+#endif
+/* Using credit_table, computes the default number of credits_per_node and
+ * banked_credits.  Also estimate size of ReqRB space
+ */
+static void compute_default_credits(int *cpn, int64_t *banked, int64_t *rb_space)
 {
-  long credit_mem = (gasnetc_ReqRB_pool_size-1)*(gasnetc_ReqRB_numchunk-1)*GASNETC_CHUNKSIZE;
-  int credits_per_node;
-  int node;
-  double percent_to_bank;
-  int to_bank;
-  int to_distribute;
-  int loose_change;
-  gasneti_assert_always(gasnetc_bytes_per_credit > 0);
-  gasneti_assert_always(gasnetc_percent_credits_to_bank >= 0);
-  gasneti_assert_always(gasnetc_percent_credits_to_bank <= 100);
-  gasnetc_total_credits = gasnetc_compute_credits(credit_mem);
-  percent_to_bank = (double)gasnetc_percent_credits_to_bank;
-  to_bank = (int)(percent_to_bank*gasnetc_total_credits);
-  to_distribute = gasnetc_total_credits - to_bank;
-  if (gasneti_nodes > 1) {
-    credits_per_node = to_distribute/(gasneti_nodes-1);
+  int i = 0;
+  int i_max = sizeof(credit_table)/sizeof(credit_record_t);
+  int found = 0;
+  int64_t cred_per_node = 0;
+  int64_t num_banked =  0;
+  int64_t tot_credits;
+  int64_t cred_bytes_per_buffer = (gasnetc_ReqRB_numchunk-1)*GASNETC_CHUNKSIZE;
+
+  /* search table for this job size */
+  for (i = 0; i < i_max; i++) {
+    if (credit_table[i].nodes > gasneti_nodes) {
+      found = 1;
+      break;
+    }
+  }
+  if (found) {
+    double dnode;
+    double frac;
+    gasneti_assert(i>0);
+    /* interpolate values between indicies i-1 and i */
+    dnode = (double)(credit_table[i].nodes - credit_table[i-1].nodes);
+    frac = ((double)(gasneti_nodes - credit_table[i-1].nodes))/dnode;
+    cred_per_node = credit_table[i-1].credits_per_node +
+      (int)(frac*(double)(credit_table[i].credits_per_node - credit_table[i-1].credits_per_node));
+    num_banked = credit_table[i-1].banked_credits +
+      (int)(frac*(double)(credit_table[i].banked_credits - credit_table[i-1].banked_credits));
   } else {
-    credits_per_node = 0;
+    /* just use the last entry in the table */
+    cred_per_node = credit_table[i_max-1].credits_per_node;
+    num_banked = credit_table[i_max-1].banked_credits;
   }
-  if (gasnetc_use_flow_control) gasneti_assert_always(credits_per_node >= gasnetc_min_credits_per_node);
-  /* left over credits, add to banked credits */
-  to_bank += gasnetc_total_credits - (gasneti_nodes - 1)*credits_per_node;
-  /* keep a counter of number of banked credits availiable to redistribute */
-  gasneti_semaphore_init(&gasnetc_banked_credits, to_bank, 0);
-  for (node = 0; node < gasneti_nodes; node++) {
-    if (node == gasneti_mynode) {
-      /* AMs to myself are executed directly and do not use events or ReqRB space.
-       * Do not init the semaphores because they should never be accessed, and if
-       * they are a fault will be generated (at least in debug mode).
-       */
-      continue;
-    } 
-    /* credits I have to send AMs to this remote node */
-    gasneti_semaphore_init(&gasnetc_conn_state[node].avail_credits, credits_per_node, 0);
-    /* credits I have given to this remote node to send AMs to me */
-    gasneti_semaphore_init(&gasnetc_conn_state[node].alloc_credits, credits_per_node, 0);
+
+  /* adjust if not using dynamic credit redistribution */
+  if (!gasnetc_use_dynamic_credits && (gasneti_nodes > 1)) {
+    /* changed banked credits to cred_per_node */
+    cred_per_node += num_banked/(gasneti_nodes-1);
+    num_banked = num_banked % (gasneti_nodes-1);  /* can just set to zero */
   }
-  GASNETI_TRACE_PRINTF(C,("Portals_Init: total credits    = %ld",gasnetc_total_credits));
-  GASNETI_TRACE_PRINTF(C,("Portals_Init: banked credits   = %d",to_bank));
-  GASNETI_TRACE_PRINTF(C,("Portals_Init: Credits per node = %d",credits_per_node));
+
+  cred_per_node = GASNETC_MAX(cred_per_node,GASNETC_MIN_CREDITS);
+
+  /* compute an estimate of the total number of credits */
+  tot_credits = num_banked + ((int64_t)(gasneti_nodes-1))*cred_per_node;
+
+  /* now, compute ReqRB space based on this number of credits */
+  *rb_space = tot_credits * GASNETC_BYTES_PER_CREDIT;
+  *banked = num_banked;
+  *cpn = cred_per_node;
 }
+
+
+/* given credit values of banked and cpn (cred_per_node), determine the number
+ * of ReqRB buffers that will be required to hold these credits.
+ * Also, since the buffers come in a discrete size, adjust the cpn and banked
+ * values to account for the exact number of credits these buffers will hold.
+ */
+static void adjust_bufspace_from_cred(int64_t *banked, int *cpn, int64_t *total_cred, int* nbuf)
+{
+  int64_t tot_cred = *banked + (gasneti_nodes - 1)*(*cpn);
+  int64_t cred_bytes_per_buffer =  (gasnetc_ReqRB_numchunk-1)*GASNETC_CHUNKSIZE;
+  int64_t cred_per_buffer = cred_bytes_per_buffer/GASNETC_BYTES_PER_CREDIT;
+  int nb = tot_cred/cred_per_buffer;
+#if GASNETC_CREDIT_TESTING
+  if (gasneti_mynode == 0) {
+    printf("Adjust: banked = %d, cpn = %d, tot = %d, cred_per_buf = %d, nbuf = %d\n",
+	   (int)*banked,*cpn,(int)tot_cred,(int)cred_per_buffer,nb);
+  }
+#endif
+  if (nb*cred_per_buffer < tot_cred) nb++;  /* another for the fractional credits */
+  tot_cred = nb*cred_per_buffer;
+#if GASNETC_CREDIT_TESTING
+  if (gasneti_mynode == 0) printf("Adjust: adjusted nbuf = %d, tot_cred = %d\n",(int)tot_cred,nb);
+#endif
+  if (! gasnetc_use_dynamic_credits) {
+    /* increase cpn as high as possible */
+    *cpn = tot_cred/(gasneti_nodes - 1);
+    gasneti_assert(*cpn >= GASNETC_MIN_CREDITS);
+  }
+  if (*cpn > GASNETC_MAX_CREDITS) {
+    *cpn = GASNETC_MAX_CREDITS;
+  }
+  /* add remainder to the bank */
+  *banked = tot_cred - (gasneti_nodes-1)*(*cpn);
+  *total_cred = tot_cred;
+  *nbuf = nb + 1;   /* always one more than credit buffer space */
+#if GASNETC_CREDIT_TESTING
+  if (gasneti_mynode == 0) printf("Adjust: final banked = %d, cpn = %d, tot_cred = %d, nbuf = %d\n",
+				  (int)*banked,*cpn,(int)tot_cred,*nbuf);
+#endif
+}
+
+/* Junk code to peek at memory layout of Catamount process
+ * does not return values that make sense.
+ */
+#if 1
+#define PRINT_ADDRESS_VALS() do{}while(0)
+#else
+#define PRINT_ADDRESS_VALS() if (gasneti_mynode == 0) print_address_vals()
+#include <qk/process_pcb_type.h>
+extern user_pcb_t *_my_pcb;
+static void print_address_vals(void)
+{
+  int foo = 25;
+  printf("My CPU                = %d\n",_my_pcb->upcb_sig_cpu_id);
+  printf("My Process state      = %d\n",(int)_my_pcb->upcb_state);
+  printf("My Process mode       = %d\n",(int)_my_pcb->upcb_proc_mode);
+  printf("Process Start Address = %ld\n",(intptr_t)_my_pcb->upcb_start_addr);
+  printf("Process Text  Address = %ld\n",(intptr_t)_my_pcb->upcb_text_base);
+  printf("Process Text  Length  = %ld\n",(intptr_t)_my_pcb->upcb_text_length);
+  printf("Process Data  Address = %ld\n",(intptr_t)_my_pcb->upcb_data_base);
+  printf("Process Data  Length  = %ld\n",(intptr_t)_my_pcb->upcb_data_length);
+  printf("Process IData Length  = %ld\n",(intptr_t)_my_pcb->upcb_idata_length);
+  printf("Process Stack Address = %ld\n",(intptr_t)_my_pcb->upcb_stack_base);
+  printf("Process Stack Length  = %ld\n",(intptr_t)_my_pcb->upcb_stack_length);
+  printf("Process Heap  Address = %ld\n",(intptr_t)_my_pcb->upcb_heap_base);
+  printf("Process Heap  Length  = %ld\n",(intptr_t)_my_pcb->upcb_heap_length);
+  printf("Address of stack var foo = %ld\n", (intptr_t)&foo);
+  printf("Address of Initialized Data var gasnetc_dump_stats = %ld\n",(intptr_t)&gasnetc_dump_stats);
+  printf("Address of Heap var gasnetc_conn_state = %ld\n",(intptr_t)gasnetc_conn_state);
+}
+#endif
 
 /* ---------------------------------------------------------------------------------
  * Initialize all the Portals resources for GASNet:
@@ -2748,12 +3181,23 @@ extern void gasnetc_init_portals_resources(void)
   ptl_size_t   num_safe_events, num_am_events;
   int          i, rc;
   int          val;
+  int forced_cpn = 0;
+  int forced_banked = 0;
+  int forced_bufspace = 0;
+  int default_cred_per_node, cred_per_node;
+  int num_reqRB;
+  int64_t default_banked, banked;
+  int64_t default_bufspace, bufspace;
+  int64_t val64;
+  int64_t total_credits;
+  int64_t cred_bytes_per_buffer =  (gasnetc_ReqRB_numchunk-1)*GASNETC_CHUNKSIZE;
+  int64_t bytes_per_buffer = gasnetc_ReqRB_numchunk*GASNETC_CHUNKSIZE;
+  int64_t cred_per_buffer = cred_bytes_per_buffer/GASNETC_BYTES_PER_CREDIT;
+  
 
   /* read Portals specific env vars */
-  gasnetc_ReqRB_pool_size = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_POOLSZ",
-				 (int64_t)gasnetc_ReqRB_pool_size,0);
-  gasnetc_ReqRB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_RB_CHUNKS",
-				 (int64_t)gasnetc_ReqRB_numchunk,0);
+  gasnetc_dump_stats = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_STATS",
+				 (int64_t)gasnetc_dump_stats,0);
   gasnetc_ReqSB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SB_CHUNKS",
 				 (int64_t)gasnetc_ReqSB_numchunk,0);
   gasnetc_RplSB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_RPL_CHUNKS",
@@ -2762,12 +3206,23 @@ extern void gasnetc_init_portals_resources(void)
 				 (int64_t)GASNETC_MAX_TMP_MDS,0);
   gasnetc_msg_limit = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MSG_LIMIT",
 				 (int64_t)gasnetc_msg_limit,0);
+  gasnetc_allow_packed_long = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_PACKED_LONG",
+				 (int64_t)gasnetc_allow_packed_long,0);
   if (gasnetc_msg_limit < gasnetc_msg_minimum) {
     gasnetc_msg_limit = gasnetc_msg_minimum;
   }
+  gasnetc_epoch_duration = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_EPOCH_DURATION",
+ 		                (int64_t)gasnetc_epoch_duration,0);
   val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_FLOW_CONTROL",
 					    (int64_t)gasnetc_use_flow_control,0);
   gasnetc_use_flow_control = val;
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_DYNAMIC_CREDITS",
+					    (int64_t)gasnetc_use_dynamic_credits,0);
+  gasnetc_use_dynamic_credits = val;
+  if (val) gasnetc_use_flow_control = 1;  /* implied by use of dynamic credits */
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_MAX_CRED_PER_NODE",
+					    (int64_t)gasnetc_max_cpn,0);
+  gasnetc_max_cpn = val;
   val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SAFE_LIMIT",
 					    (int64_t)gasnetc_safe_poll_limit,0);
   if (val >= 0) gasnetc_safe_poll_limit = val;
@@ -2779,9 +3234,282 @@ extern void gasnetc_init_portals_resources(void)
   if (val >= 0) gasnetc_sys_poll_limit = val;
   gasnetc_shutdown_seconds = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SHUTDOWN_SECONDS",
 				 (int64_t)gasnetc_shutdown_seconds,0);
-  gasnetc_static_segsize_mbyte = (long)gasneti_getenv_int_withdefault("GASNET_PORTAL_STATIC_SEGSIZE",
-				 (int64_t)gasnetc_static_segsize_mbyte,0);
+
+#if GASNETC_CREDIT_TESTING
+  gasnetc_debug_node = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_DEBUG_NODE",
+				 (int64_t)gasnetc_debug_node,0);
+#endif
+
+  PRINT_ADDRESS_VALS();
+
+  /* now determine default values of credit/bufsapce parameters based on gasneti_nodes */
+  compute_default_credits(&default_cred_per_node, &default_banked, &default_bufspace);
+
+  val = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_CRED_PER_NODE",
+					    (int64_t)-1,0);
+  if (val >= 0) {
+    forced_cpn = 1;
+    cred_per_node = val;
+    if ((cred_per_node < GASNETC_MIN_CREDITS) && (gasneti_mynode == 0)) {
+      gasneti_fatalerror("GASNET_PORTAL_CRED_PER_NODE=%d but MIN cred_per_node = %d",
+			 cred_per_node,GASNETC_MIN_CREDITS);
+    }
+  } 
+  val64 = gasneti_getenv_int_withdefault("GASNET_PORTAL_BANKED_CREDITS",
+					 (int64_t)-1,0);
+  if (val64 >= 0) {
+    forced_banked = 1;
+    banked = val64;
+  }
+  val64 = gasneti_getenv_int_withdefault("GASNET_PORTAL_AMRECV_SPACE",
+					 (int64_t)-1,1);
+  if (val64 >= 0) {
+    forced_bufspace = 1;
+    bufspace = val64;
+  }
+  if (gasneti_mynode == 0) {
+    printf("USE_FLOW_CONTROL=%d, DYNAMIC_CREDITS=%d\n",
+	   gasnetc_use_flow_control,gasnetc_use_dynamic_credits);
+    printf("DEFAULT: banked = %ld, cpn = %d, bufspace = %ld\n",
+	   default_banked,default_cred_per_node,default_bufspace);
+    if (forced_cpn)      printf("FORCED cpn      = %d\n",cred_per_node);
+    if (forced_banked)   printf("FORCED banked   = %ld\n",banked);
+    if (forced_bufspace) printf("FORCED bufspace = %ld\n",bufspace);
+  }
+
+  /* logic nightmare on how to init per-node & banked credits and ReqRB space */
+  /* at end, have cred_per_node, banked, total_credits and num_reqRB set */
+  if (gasneti_nodes == 1) {
+    /* will never receive an AM, just provide dummy values */
+    cred_per_node = 0;
+    banked = 0;
+    gasnetc_use_flow_control = 0;
+    gasnetc_use_dynamic_credits = 0;
+    num_reqRB = 1;       /* always alloc one */
+    total_credits = 10;  /* will determine number of events in AM Queue */
+    
+  } else if (! gasnetc_use_flow_control) {
+    cred_per_node = 0;
+    banked = 0;
+    if (!forced_bufspace) bufspace = default_bufspace;
+    num_reqRB = (int)(bufspace/((double)bytes_per_buffer)) + 1;
+    bufspace = num_reqRB * bytes_per_buffer;
+    total_credits = 500 + num_reqRB*cred_per_buffer;  /* size of AM event queue */
+
+  } else if (! gasnetc_use_dynamic_credits) {
+    /* use flow control, but not dynamic credit management */
+    /* ignore forced_banked, dont bank credits, distribute all to remote nodes, fixed for runtime */
+    banked = 0;
+    if (forced_cpn) {
+      int cpn_saved = cred_per_node;
+      adjust_bufspace_from_cred(&banked, &cred_per_node, &total_credits, &num_reqRB);
+
+#if GASNETC_CREDIT_TESTING
+      // MLW: hack to force credits to what we specify in env vars and ignore extras
+      cred_per_node = cpn_saved;
+#endif
+
+    } else if (forced_bufspace) {
+      /* first, use bufspace provided to compute cred_per_node */
+      total_credits = (int)(bufspace/((double)cred_bytes_per_buffer));
+      cred_per_node = total_credits/(gasneti_nodes - 1);
+      cred_per_node = GASNETC_MAX(cred_per_node,GASNETC_MIN_CREDITS); /* this is required */
+      /* compute number of buffers and adjust credits */
+      adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+
+    } else {
+      /* use default credits per node from table */
+      cred_per_node = default_cred_per_node;
+      adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+      gasneti_assert(cred_per_node >= GASNETC_MIN_CREDITS);
+    }
+
+  } else {
+    /* using flow control with dynamic credit distribution */
+    if (forced_cpn) {
+      if (forced_banked) {
+	int64_t banked_save = banked;
+	/* cpn && banked, ignore forced_bufspace if set in env */
+	/* NOTE: ignore forced_banked if set, overspecified */
+	adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+	gasneti_assert(cred_per_node >= GASNETC_MIN_CREDITS);
+
+#if GASNETC_CREDIT_TESTING
+	/* WARNING WARNING: Remove this for final checkin ! ! ! */
+	/* DEBUG: force banked to be what we requested if less than actual */
+	if (banked > banked_save) banked = banked_save;
+#endif
+
+      } else {
+	/* ! forced_banked */
+	if (forced_bufspace) {
+	  /* cpn && bufspace - dont use default banked, just let banked be remainder */
+	  int64_t c_space;
+	  total_credits = cred_per_node * (gasneti_nodes-1);
+	  c_space = total_credits*GASNETC_BYTES_PER_CREDIT;
+	  if (c_space > bufspace) {
+	    gasneti_fatalerror("With GASNET_PORTAL_CRED_PER_NODE=%d, require bufspace = %ld greater than GASNET_PORTAL_BUFFER_SPACE_MB=%ld",
+			       cred_per_node,c_space,bufspace);
+	  }
+	  banked = 0;
+	  adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+
+	} else {
+	  /* cpn (only), do we used default banked credits? */
+	  banked = default_banked;
+	  adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+	  
+	}
+      }
+    } else {
+      /* cpn not specified in this section */
+      if (forced_banked) {
+	if (forced_bufspace) {
+	  /* banked && bufspace */
+	  /* first, compute total credits given bufspace, then cpn */
+	  total_credits = bufspace / GASNETC_BYTES_PER_CREDIT;
+	  if (total_credits < banked) {
+	    gasneti_fatalerror("GASNET_PORTAL_BUFFER_SPACE=%ld => %ld Credits, less than GASNET_PORTAL_BANKED_CREDITS=%ld",bufspace,total_credits,banked);
+	  }
+	  cred_per_node = (total_credits - banked)/(gasneti_nodes-1);
+	  if (cred_per_node < GASNETC_MIN_CREDITS) {
+	    gasneti_fatalerror("GASNET_PORTAL_BUFFER_SPACE=%ld => %ld Total Credits.  With GASNET_PORTAL_BANKED_CREDITS=%ld the remaining credits imply credit_per_node=%d < 4 (MINIMUM)",bufspace,total_credits,banked,cred_per_node);
+	  }
+	  adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+
+	} else {
+	  /* banked (only), use default cred_per_node */
+	  cred_per_node = default_cred_per_node;
+	  adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+	}
+      } else {
+	if (forced_bufspace) {
+	  /* bufspace (only) */
+	  /* compute cred_per_node from bufspace */
+	  total_credits = bufspace / GASNETC_BYTES_PER_CREDIT;
+	  if (total_credits < GASNETC_MIN_CREDITS) {
+	    gasneti_fatalerror("GASNET_PORTAL_BUFFER_SPACE=%ld => %ld Total Credits => credit_per_node=%d < 4 (MINIMUM)",bufspace,total_credits,cred_per_node);
+	  }
+	  cred_per_node = total_credits/(gasneti_nodes - 1);
+	  banked = 0;
+	  adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+	  
+	} else {
+	  /* nothing forced, use defaults */
+	  banked = default_banked;
+	  cred_per_node = default_cred_per_node;
+	  adjust_bufspace_from_cred(&banked,&cred_per_node,&total_credits,&num_reqRB);
+
+	}
+      }
+    }
+  }
+  if (gasnetc_use_flow_control) {
+    gasneti_assert_always(cred_per_node <= GASNETC_MAX_CREDITS);
+    gasneti_assert_always(cred_per_node >= GASNETC_MIN_CREDITS);
+  }
+  gasneti_assert_always(gasnetc_lender_limit < GASNETC_MAX_CREDITS);
+  gasneti_assert_always(gasnetc_revoke_limit < GASNETC_MAX_CREDITS);
+  gasnetc_ReqRB_pool_size = num_reqRB;
+  gasnetc_total_credits = total_credits;
+  num_am_events = total_credits;
+  gasneti_weakatomic_set(&gasnetc_AMRequest_count, 0, 0);
+  gasneti_weakatomic_set(&gasnetc_scavenge_inflight, 0, 0);
+
+  /* init the credit vars of the connection state */
+  {
+    /* if not using dynamic credits, distribute the extra credits
+     * in banked to the first banked nodes, remembering that we
+     * never grant credits to ourselves.
+     */
+    int extra_cutoff = (gasneti_mynode < banked ? banked+1 : banked);
+    gasneti_mutex_lock(&gasnetc_scavenge_lock);
+    for (i = 0; i < gasneti_nodes; i++) {
+      gasnetc_conn_t *state = &gasnetc_conn_state[i];
+      if (i == gasneti_mynode) {
+	/* dont loan yourself any, nor grant yourself any */
+	state->LoanCredits = 0;
+	state->SendCredits = 0;
+      } else {
+	state->LoanCredits = cred_per_node;
+	state->SendCredits = cred_per_node;
+	if (!gasnetc_use_dynamic_credits) {
+	  /* distribute extra credits */
+	  if (i < extra_cutoff) state->LoanCredits++;
+	  /* was I given an extra credit on node i? */
+	  if ((i < banked) && (gasneti_mynode <= banked)) {
+	    state->SendCredits++;
+	  } else if ((i >= banked) && (gasneti_mynode < banked)) {
+	    state->SendCredits++;
+	  }
+	}
+      }
+      state->link.next = state->link.prev = GASNETC_DLL_NULL;
+      if (gasnetc_use_dynamic_credits &&
+	  (state->LoanCredits > GASNETC_MIN_CREDITS)) gasnetc_scavenge_list_add(i,1);
+      state->SendStalls = 0;
+      state->SendInuse = 0;
+      state->SendMax = 0;
+      state->SendRevoked = 0;
+      state->LoanRequested = 0;
+      state->LoanGiven = 0;
+#if GASNETC_CREDIT_TESTING
+      state->SendStalls_tot = 0;
+      state->SendMax_tot = 0;
+      state->LoanGiven_tot = 0;
+      state->LoanRequested_tot = 0;
+      state->LoanRevoked_tot = 0;
+      state->LoanReqRevoke_tot = 0;
+#endif    
+    }
+    gasneti_mutex_unlock(&gasnetc_scavenge_lock);
+  }
+#if GASNETC_CREDIT_TESTING
+  if (gasnetc_use_dynamic_credits && (gasnetc_debug_node >= 0) && (gasneti_mynode == gasnetc_debug_node)) {
+    printf("After Scavenge List Initialization:\n");
+    gasnetc_print_scavenge_list();
+  }
+#endif
+  if (!gasnetc_use_dynamic_credits) {
+    /* banked value was a remainder and was distribute to first banked nodes */
+    gasneti_assert_always(banked < gasneti_nodes);
+    banked = 0;
+  }
+  gasneti_semaphore_init(&gasnetc_banked_credits, banked, 0);
+
+  if (gasnetc_dump_stats) GASNETC_DUMP_CREDITS(0);
 				
+#if GASNETC_CREDIT_TESTING
+  if (gasneti_mynode == 0) {
+    const char *filename = "initial_vals";
+    FILE *fh = fopen(filename,"w");
+    if (fh == NULL) {
+      gasneti_fatalerror("Could not open %s for writing",filename);
+    }
+    fprintf(fh,"Static Segsize      = %f10.2 MB\n", ((double)gasnetc_static_segsize/(1024.0*1024.0)));
+    fprintf(fh,"ReqRB_Pool_Size     = %d\n", gasnetc_ReqRB_pool_size);
+    fprintf(fh,"ReqRB_numchunk      = %d\n", (int)gasnetc_ReqRB_numchunk);
+    fprintf(fh,"ReqSB_numchunk      = %d\n", (int)gasnetc_ReqSB_numchunk);
+    fprintf(fh,"RplSB_numchunk      = %d\n", (int)gasnetc_RplSB_numchunk);
+    fprintf(fh,"Max_tmpmd           = %d\n", gasnetc_max_tmpmd);
+    fprintf(fh,"Msg_limit           = %d\n", gasnetc_msg_limit);
+    fprintf(fh,"Sys_poll_limit      = %d\n", gasnetc_sys_poll_limit);
+    fprintf(fh,"Safe_poll_limit     = %d\n", gasnetc_safe_poll_limit);
+    fprintf(fh,"AM_poll_limit       = %d\n", gasnetc_am_poll_limit);
+    fprintf(fh,"Use Flow control    = %d\n", gasnetc_use_flow_control);
+    fprintf(fh,"Use Dynamic credits = %d\n", gasnetc_use_dynamic_credits);
+    fprintf(fh,"Total credits       = %ld\n", total_credits);
+    fprintf(fh,"Banked credits      = %ld\n", banked);
+    fprintf(fh,"Credits per Node    = %d\n", cred_per_node);
+    fprintf(fh,"Epoch Duration      = %d\n", gasnetc_epoch_duration);
+    fprintf(fh,"Epoch Lender Limit  = %d\n", gasnetc_lender_limit);
+    fprintf(fh,"Epoch Revoke Limit  = %d\n", gasnetc_revoke_limit);
+    fprintf(fh,"Allow Packed AMLong = %d\n", gasnetc_allow_packed_long);
+    fprintf(fh,"Shutdown Seconds    = %d\n", gasnetc_shutdown_seconds);
+    fclose(fh);
+  }
+#endif
+
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_Pool_size = %d",gasnetc_ReqRB_pool_size));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqRB_numchunk  = %d",(int)gasnetc_ReqRB_numchunk));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: ReqSB_numchunk  = %d",(int)gasnetc_ReqSB_numchunk));
@@ -2791,6 +3519,15 @@ extern void gasnetc_init_portals_resources(void)
   GASNETI_TRACE_PRINTF(C,("Portals_Init: safe_poll_limit = %d",gasnetc_safe_poll_limit));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: am_poll_limit   = %d",gasnetc_am_poll_limit));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: sys_poll_limit  = %d",gasnetc_sys_poll_limit));
+
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: flow_control    = %d",gasnetc_use_flow_control));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: dynamic_credits = %d",gasnetc_use_dynamic_credits));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: epoch_duration  = %d",gasnetc_epoch_duration));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: total_credits   = %ld",total_credits));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: banked_credits  = %ld",banked));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: credits_per_node= %d",cred_per_node));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: lender_limit    = %d",gasnetc_lender_limit));
+  GASNETI_TRACE_PRINTF(C,("Portals_Init: revoke_limit    = %d",gasnetc_revoke_limit));
   GASNETI_TRACE_PRINTF(C,("Portals_Init: shutdown seconds= %d",gasnetc_shutdown_seconds));
 #if GASNETC_USE_SANDIA_ACCEL
   GASNETI_TRACE_PRINTF(C,("Portals_Init: use_accelerated = %d",gasnetc_use_accel));
@@ -2801,11 +3538,6 @@ extern void gasnetc_init_portals_resources(void)
 
   /* keep a counter of number of send tickets available */
   gasneti_semaphore_init(&gasnetc_send_tickets, gasnetc_msg_limit, 0);
-
-  /* compute credits based on buffer sizes
-   * Note that we always do this, even if we are not using flow control.*/
-  compute_initial_credits();
-
 
   /* Create two EQs:
    * gasnetc_SAFE_EQ_h:  Used to reclaim buffer space.  Always safe to poll on this
@@ -2835,18 +3567,13 @@ extern void gasnetc_init_portals_resources(void)
     num_safe_events = (int)((double)num_safe_events * 0.75);
   }
 
-  if (gasnetc_use_flow_control) {
-    num_am_events = gasnetc_total_credits + 10;
-  } else {
-    /* MLW: Need better way to estimate this */
-    num_am_events = 2*gasnetc_total_credits + 10;
-  }
   GASNETI_TRACE_PRINTF(C,("Constructing SAFE EQ with %ld entries",(long)num_safe_events));
   GASNETI_TRACE_PRINTF(C,("Constructing AM   EQ with %ld entries",(long)num_am_events));
 
   GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_safe_events, GASNETC_EQ_HANDLER, &gasnetc_SAFE_EQ_h));
   GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_am_events, GASNETC_EQ_HANDLER, &gasnetc_AM_EQ_h));
 
+  /* Finally, init the Remote Access Region and allocate the AM Buffer space */
   RAR_init();
   ReqRB_init();
   ReqSB_init();  /* required to init ReqSB after ReqRB, since it must go on end of list */
@@ -3131,7 +3858,7 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
     GASNETI_TRACE_EVENT(C, GET_RAR);
-  } else if ( (nbytes <= (GASNETC_CHUNKSIZE - (sizeof(void*))))  &&
+  } else if ( (nbytes <= (GASNETC_PUTGET_BOUNCE_SIZE - (sizeof(void*))))  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB, nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     /* Encode dest addr in BB chunk for later copy */
     void* bb;
@@ -3207,7 +3934,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
     if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_RAR);
-  } else if ( (nbytes <= GASNETC_CHUNKSIZE)  &&
+  } else if ( (nbytes <= GASNETC_PUTGET_BOUNCE_SIZE)  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     void* bb;
     md_h = gasnetc_ReqSB.md_h;

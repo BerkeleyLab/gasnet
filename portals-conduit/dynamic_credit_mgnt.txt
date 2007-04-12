@@ -1,0 +1,537 @@
+Scheme for credit balancing and re-distribution
+
+In Portals Conduit:
+- 1 credit is equivalent to 256 bytes of ReqRB space + one event structure (128 bytes) = 384 bytes.
+
+- Initially, total number of credits is computed based on size of ReqRB space:
+  credit_memsize = (num_ReqRB_buffers-1)*(chunks_per_buffer-1)*sizeof_chunk
+  total credits = credit_memsize/256
+  Must allocate AM_EQ with this number of event structures.  Once allocated, cannot increase
+  size of EQ dynamically, at least not easily.
+  NOTE: we can only allocate credits for num_ReqRB_buffers-1, since we cannot recycle a buffer 
+  until all AM Requests contained in the buffer have been processed.  Credits are returned to
+  the requester with the AM Reply message, so the sender of earlier messages may already have
+  received the credits for the space it used in this buffer but the buffer has yet to be recycled.
+  Furthermore, we cant count the last chunk in each buffer, since our mechanism for recycling the
+  chunks insures that it is unlinked when the space remaining in the buffer is less than one chunk
+  in size.
+  The values of num_ReqRB_buffers and chunks_per_buffer will have to be adjusted at job
+  bootstrap time depending on the value of gasneti_nodes and a reasonable value for
+  the number of credits per node, etc.  These will have to be adjustable by runtime
+  environment vars.  See table at end of this note for possible default values.
+
+- A percentage of the total credits is banked for re-distribution.  The remainder are 
+  distributed to the Nodes-1 other gasnet_nodes.
+  (Note: no initial communication necessary, all nodes compute the same values).
+
+- In order for Node X to send an AM Request to Node Y, it must have 
+  the required number of credits before it can send.  If not, it must
+  poll the network until the credits are available:
+  * An AMShort is 1 credit
+  * An AMMedium is 1-4 credits, depending on the payload size.
+  * An AMLong is 2 credits: 1 for header (small) and 1 for data Put which accounts
+    for the event consumed by remote RARAM PUT_END.
+  * An AMLongPacked is 1-4 credits, depending on the payload size.
+
+- AMReply messages do not consume credits since:
+  * Short, Medium and Long headers are sent back to the ReqSB chunk the Request
+    was issued from.  
+  * Number of AM's in-flight is controlled => AMLong Data PUT_END event in RARSRC
+    is already accounted for in size of SAFE_EQ.
+
+- AMReply messages carry a credit_update value back to the requester.  This is generally
+  the number of credits the requester used to send the AMRequest.  It may be more, see below.
+
+In UPC, main use of AMs is:
+  * global memory allocation, which only requires one AM per node even if all going to same target.
+  * Lock management.  Again, 1 AM should do this.
+  * collectives: usually tree based so log(nodes) communicating partners which is small (< 15 nodes).
+    Also, only a few AMs per collective (usually).
+  * VIS: Point-to-point, but packed message bodies can be large.
+    Example: - 32x32x32 grid of doubles per physical variable
+             - 5 variables per cell
+             - Ghost zones are 4 cells wide.
+    There are 6 faces, assume only face values need to be communicated, no edge or corner values.
+    For example, the left face boundary region is 4x32x32 doubles for each variable.
+    This is 32KB/variable.  AMMedium messages are limited to less than 1KB so this requires
+    about 32 AMMediums per variable per face.  Each AMMedium is 4 credits and there are 5
+    variables per cell so this requires 32*4*5 = 640 credits for the owner of the patch to 
+    send the 160 AMMediums to us.  Note that if the remote node is attentive to the network
+    and can process the AM Requests quickly, it can return credits in the corresponding AM Replys
+    and the actual number of credits needed to send these messages without stalling may be lower.
+    Ignoring this possibility and granting 640 credits is equivalent to 240KB of buffer/event 
+    space on my node.  The 6 senders require a total of 1.4MB of space on my node, which is 
+    very reasonable.  However if we have to allocate this to ALL the nodes in the job, a 
+    1024 node job would need 240MB of buffer space and a 10,000 node job would require 2.4GB.  
+    Our goal would be to grant fewer credits to each node to constrain the local buffer footprint
+    and dynamically redistribute the credits so that frequent communication partners have the
+    credits they need.
+
+Goals of the algorithm:
+  1) The algorithm should be demand driven.  If there is no use for dynamic re-distribution
+     no credits should be moved.  
+  2) The overhead should be as low as possible.
+  3) If the communication pattern is static, the credits should migrate to the nodes 
+     needing them and not move afterwards.
+  4) We should have parameters that control the rate at which credits are migrated.  Migrating
+     too quickly could cause credits to oscillate around the system.  Dampening factors 
+     can help prevent this at the expense of building up the amount of credits over time.
+     The goal should be to reach a steady state in a 'reasonable' amount of time.
+
+Limits:
+  * Each remote node MUST be allocated a MINIMUM of 4 credits.  This is required for send a 
+    full-sized AM Medium.  
+    NOTE: For a 10,000 node job, this would require 15MB of ReqRB and event queue space on
+          each node.  Allocating 6 credits per node would require 22 MB of space, but would 
+          allow each node to redistribute a maximum of 20,000 credits, which would be sufficient 
+          to grant 200 additional credits to 100 frequent communicating partners.  
+          If tree based communication algorithms are used for collectives, ln(10000) is less 
+          than 17 frequent partners.
+
+  * There is no point to giving a remote node more than 2^16 = 64*1024 credits.  This would
+    be equivalent to 24MB of ReqRB + event space for that node alone.  Thus, to keep metadata
+    overhead small, per-node credit variables can be of type uint16_t.
+
+Basic algorithm overview:
+   - When a node X stalls due to lack of credits trying to send an AM to a remote node Y,
+     it requests additional credits.  If Y has them banked, it increases its loan to X, if
+     the loan is not increased.
+   - When a nodes BankedCredits gets low, it will issue CREDIT_REVOKE requests to nodes
+     that communicate with it infrequently.  The target nodes determine how many, if any,
+     credits to return to the requester.  The returned credits are banked for future use.
+   - state variables that record recent send/credit activity decay over time so that decisions
+     on how many credits to revoke or request are made with current information, not old information.
+
+Algorithm Details:
+ * Each node allocates its ReqRB and AM event queue structures resulting in TotalCredits
+   credits.  A portion of these are banked for discretionary use, the rest are loaned, 
+   or distributed evenly to all other nodes during job initialization.
+   By default, each node computes the the number of credits_per_node and BankedCredits by interpolating
+   values from a table, based on the number of GASNet nodes in the job.  From this.
+     TotalCredits_est = credits_per_node*(num_nodes-1) + BankedCredits
+   Since each credit is equivalent to 256 bytes of ReqRB space, the number of ReqRB buffers
+   (each of a fixed, pre-determined size) needed to hold TotalCredits_est worth of ReqRB space
+   is allocated.  Since ReqRB buffers are a fixed size, the total number of credits available 
+   is greater than TotalCredits_est with the additional going into the BankedCredits pool.
+
+    gasneti_semaphore_t BankedCredits;    /* discretionary use credits */
+
+   The default values of credits_per_node and BankedCredits can be changed at run-time
+   via environment variables.
+
+ * We use the prefix 'Loan' for variables that represent a loan of our credits to a remote node.
+   We use the prefix 'Send' for variables that represent credits that have been loaned to us
+   and that enable us to send AMRequests to the corresponding remote node.
+
+ * Runtime on each node is divided into epochs.  Certain state information is maintained on
+   credit use during an epoch, and these values are reduced by a factor, or decayed, at the
+   end of each epoch.  We use this to maintain temporal use information that decays to zero
+   after a few epochs without use. 
+
+ * Each node maintains a small amount of "connection state" for each other in the job.  The 
+   state is maintained in the conn_state[] array, indexed by node number.
+
+    #define GASNETC_MIN_CREDITS 4
+    uint16_t  LoanCredits;     /* number of my credits allocated to this remote node */
+    uint16_t  SendCredits;     /* number of remote node credits allocated to me */
+
+    uint16_t  SendStalls;      /* number of times we stall on credits trying to send AMs.  Decayed */
+    uint16_t  SendInuse;       /* current number of SEND credits in flight to them.                */
+    uint16_t  SendMax;         /* max number of SEND credits in flight this epoch          Decayed */
+    uint16_t  SendRevoked;     /* number of SEND credits I give back this epoch.           Decayed */
+
+    uint16_t  LoanRequested;   /* number of additional LOAN credits requested by them.     Decayed */
+    uint16_t  LoanGiven;       /* number of additional LOAN credits given to them.         Decayed */
+
+    dll_link_t link;           /* 32 bit structure used as link in doubly linked list. */
+    uint8_t   flags;           /* used mainly in credit management */
+
+    NOTE:   node[X]:conn_state[Y].LoanCredits == node[Y]:conn_state[X].SendCredits
+         except during times when messages containing additional credits are in-flight.
+
+    NOTE:   SendCredits only changes when additional credits are allocated to us.  We can
+            reduce the number of vars in the state by eliminating SendInuse and just decrementing
+            SendCredits when they are in use.  In this case, we would record SendMin rather
+            than SendMax to record how many "extra" credits (above active use) we have.
+            Unfortunately, we would not be able to Decay SendMin in the same way as other
+            values, since in this case its value would have to increase, and we no longer
+            know the total number of credits we have been granted so dont know the max value
+            that SendMin could take.  
+
+    NOTE:   SendStalls and LoanRequested could be replaced with flag values, but then would not 
+            decay slowly but instantly at end of epoch.
+
+    NOTE:   The link field allows the individual records to be threaded on a list of nodes
+            to be scavenged for un-used credits when the bank pool is depleted.  Only nodes
+            that have been lent more than the minimum number of credits are on the list.
+            For small problems, it will usually be the case that all nodes are always on
+            the list.  For Large problems, the list should be significantly smaller than
+            the total number of nodes.
+
+   Some flags values are:
+   #define GASNETC_SYS_MSG_INFLIGHT           0x02U
+   #define GASNETC_CREDIT_REVOKE_ZERO_REPLY   0x04U
+   #define GASNETC_REACHED_EPOCH              0x08U
+
+   NOTE: We must update these fields as atomic operations.  The locks would be held for only short
+         periods of time so we can possibly use gasneti_spinlock_t, but they might not be fair.
+         These cannot be used in interrupt handler code.
+
+   NOTE: conn_state ~ 40 bytes per node or less than 400 KB for 10000 nodes.
+
+ * Several (global) control knobs are set:
+   int    gasnetc_revoke_limit = XXX;           /* Max number of credits a node can revoke in an epoch */
+   int    gasnetc_lender_limit = XXX;           /* Max number of credits a node can lend another within an epoch */
+   int    gasnetc_max_cpn = XXX;                /* The max number of credits that will be lent to a node */
+   int    gasnetc_epoch_duration = XXX;         /* The number of AM Requests a node will receive before
+                                                 * aging LOAN variables and starting a new epoch. */
+
+ * Other global variables:
+   gasneti_mutex_t gasnetc_epoch_lock;          /* control access to epoch update */
+   gasneti_mutex_t gasnetc_scavenge_lock;       /* control access to/updates of link fields for scavenge list */
+   uint16_t gasnetc_scavenge_list;              /* head of list of nodes to scavenge for credits */
+   /* GASNETC_CREDIT_DECAY is used to decay the credit values at the end of an epoch. */
+   #define GASNETC_CREDIT_DECAY(var) var = ((var)>>2)
+
+ * Each node Y will end its own epoch after it receives gasnetc_epoch_duration AM Requests.  
+   At this point, it will decay the LOAN values (LoanGiven, LoanRequested) of all its 
+   conn_state[x] records.
+   It also sets the GASNETC_REACHED_EPOCH bit in conn_state[X].flag for each state record.
+   The next time Y sends an AMRequest or Reply, or SYS queue Revoke Request message 
+   to a node X, it will clear the GASNETC_REACHED_EPOCH bit in conn_state[X].flags
+   and include a tag in the message informing the target to decay its SEND variables in
+   its conn_state[Y] record.
+
+ * When Node X wants to send an AM Request to node Y, it computes the credits required (ncredit)
+   then checks if it has enough credits:
+
+      credits_avail = conn_state[Y].SendCredits - conn_state[Y].SendInuse;
+      stalled = false
+      if (ncredit < credits_avail) {
+         stalled = true;
+         nextra = credit - credits_avail;
+         conn_state[Y].SendStalls++;
+         do { poll_the_network } until(ncredit >= credits_avail);
+      }
+      conn_state[Y].SendInuse += ncredit;
+      conn_state[Y].SendMax = MAX(conn_state[Y].SendMax,conn_state[Y].SendInuse);
+      Construct a credit_byte = EXXXNNNN where each character represents a bit:
+           E = 1          If sender ended an epoch, otherwise 0.
+         XXX = need       The number of credits it was stalled waiting for.
+        NNNN = ncredit    The number of credits required to send the message.
+      The credit_byte is included in the header of the message.
+   
+ * When Node Y processes the AMRequest from node X:
+
+      It extracts the credit_byte and examines the fields: EXXXNNNN
+         If E == 1 then it decays the SEND vars of conn_state[Y].
+         set nextra = XXX,   the number of additional credits the node would like to have.
+         set ncredit = NNNN, the number of credits required to send the Request.
+          
+      It executes the requested GASNet handler, then the AMReplyXXXX code.  The return
+      message will also contain a credit_byte: EXXXNNNN, in which:
+
+          if (conn_state[Y].flags & GASNETC_REACHED_EPOCH) {
+             return_E = 1;  /* we reached our end of epoch since last message */
+             conn_state[Y].flags &= ~GASNETC_REACHED_EPOCH;  /* clear the bit */
+          }
+          return_credits = ncredit;  /* always return the number of credits the sender used */
+          return_nextra = 0;
+          if (nextra > 0) {
+             conn_state[X].LoanRequested++;
+             if ((nextra <= BankedCredits) && (conn_state[X].LoanGiven <= gasnetc_lender_limit)) {
+               BankedCredits-= nextra;
+               conn_state[X].LoanGiven += nextra;
+               return_nextra = nextra;
+             }
+          }
+          Construct credit_byte  EXXXNNNN with:
+             E = return_E
+             XXX = return_extra
+             NNNN = return_credits
+          Send AM Reply message.
+          if (BankedCredits is low) scavenge_for_credits();
+
+ * When Node X processes AM Reply from node Y:
+
+       It extracts the credit_byte field EXXXNNNN = {E}{nextra}{ncredit}
+       if (E == 1) {
+           Decay SEND variables in conn_state[Y].
+       }
+       conn_state[Y].SendInuse   -= ncredit;  /* the original number have been returned */
+       conn_state[Y].SendCredits += nextra;   /* and possibly extra credits have been loaned to us */
+            
+ * When a lender is running low on BankedCredits, it calls scavenge_for_credits(), which
+   uses a special out-of-band system queue to issue credit_revoke() messages to nodes that
+   have not been sending it AMRequests in the recent past.  
+   scavenge_for_credits() will first lock the gasnetc_scavenge_lock to insure no other thread
+   can add or remove nodes from the list.
+   It walks the gasnetc_scavenge_list looking for nodes to give up or revoke credits.  
+   As it walks the list, it will skip by a node on the list if any of the following reasons:
+     * node == gasneti_mynode    We dont need credits to send to ourself.
+     * trylock to obtain the state lock fails (another thread holding it).
+     * An out-of-band system message is in progress.  We can only send one system message to a node at a time.
+     * LoanCredits <= GASNETC_MIN_CREDITS.  In general, this will not happen, since only nodes with more
+          than the minimal number of credits will be put on the list.  However, there is a small race
+          condition between when the LoanCredits is decremented and when the node gets removed from
+          the list.
+     * a previous revoke request resulted in a zero reply during this epoch.  No sense trying again.
+     * If the node requested additional credits during this epoch, dont ask it to give up any.
+
+   Otherwise, send a SYS_CREDIT_REVOKE message to the node.
+   Continue this search until the list wraps or until gasnetc_num_scavenge targets are hit.
+   NOTE: The head of the list: gasnetc_scavenge_list will be set to point to where we left
+   off insuring that nodes on the list are targeted in a fair manner.
+
+   When Y sends an out-of-band SYS_CREDIT_REVOKE  message to node X, it sets 
+     conn_state[X].flags |= GASNETC_SYS_MSG_INFLIGHT;
+   and will not send another system message to X until this bit is cleared by the reply message.
+   Note: if con_state[X].flags & GASNETC_REACHED_EPOCH then the system message will also send
+         a bit indicating that X should decay its SEND variables to Y.
+
+ * When node X receives a SYS_CREDIT_REVOKE messaage from Y on the system queue, it will
+   evaluate whether it has SendCredits that can be returned to the lender, but first:
+
+      if the message contained a flag indicating that Y reached an end of epoch, decay
+      our SEND variables in conn_state[Y].
+
+      navail   = conn_state[Y].SendCredits - MAX(MIN_CREDITS,conn_state[Y].SendMax);
+      nreturn  = MIN(navail, MAX(0,EPOCH_REVOKE_LIMIT - conn_state[Y].SendRevoked));
+    
+        /* Since SendMax is the max number of credits we used recently, navail is
+         * the number we could return.  However, if this is a large number, we should
+         * probably limit the amount we return by EPOCH_REVOKE_LIMIT, at least this epoch,
+         * since if we have a large number of extra credits, that means we used them
+         * in the past and may need them again.  On the other hand, if navail is small,
+         * then we may be in the "each node of 10,000 gets 6 credits" situation and
+         * all have to the extra credits.  We can possibly have other run-time variables
+         * to indicate we are in a low-overall-credit-per-node situation to change
+         * this behavior */
+
+      if (conn_state[Y].SendStalls > 0) ncredit = 0;
+          since we recently stalled sending to the requester and so are low on credits.
+      if (conn_state[Y].SendRevoked >= gasnetc_revoke_limit) ncredit = 0;
+          since we have already given up enough SendCredits recently
+      conn_state[Y].SendCredits -= ncredit;
+      conn_state[Y].SendRevoked += ncredit;
+      end_epoch = 0;
+      if (conn_state[Y].flags & GASNETC_REACHED_EPOCH) {
+          /* Inform Y we have reached an epoch and it should decay send vars */
+          conn_state[Y].flags &= ~GASNETC_REACHED_EPOCH;
+          end_epoch = 1;
+      }
+      issue a SYS_CREDIT_RETURN message back to the calling node Y with ncredit credits
+      and including the value of end_epoch.
+
+ * When node Y receives a SYS_CREDIT_RETURN message with arguments (ncredit, end_epoch)
+   from node X it will:
+
+      conn_state[X].flags &= ~SYS_MSG_INFLIGHT;  
+           to indicate the REVOKE message is complete
+      if (end_epoch) decay SEND vars in conn_state[X].
+      if (ncredit > 0) {
+         conn_state[X].LoanCredits -= ncredit;   /* reduce the amount of their loan */
+         BankedCredits += ncredit;               /* bank the credits for later distribution */
+      } else {
+         conn_state[X].flags |= SYS_CREDIT_REVOKE_ZERO_REPLY;
+         /* this will prevent us from hitting up node X again this epoch */
+      }
+
+ * Epoch:  Used to decay influence of usage variables over time.
+
+      When polling network, if epoch time has expired, call start_epoch();
+      Insure only one thread enters start_epoch() per epoch by using lock and 
+      detecting checking start_time.
+      
+#define DECAY(val) val = (uint16_t)((double)(val) * (1.0-gasnetc_decay_rate))
+      void start_epoch()
+	  lock(gasnetc_epoch_lock);
+          if (current_time - gasnetc_epoch_starttime < gasnetc_epoch_duration) {
+             /* another thread already did this, just exit */
+             unlock(gasnetc_epoch_lock);
+             return;
+          }
+          gasnetc_epoch_starttime = current_time;
+          for (node = 0; node < gasneti_nodes; node++) {
+             state = &conn_state[node];
+             LOCK(state);     /* spinlock */
+             DECAY(state->SendStalls);
+             DECAY(state->SendRevoked);
+             DECAY(state->SendMax);
+             DECAY(state->LoanRequested);
+             DECAY(state->LoanGiven);
+             if (state->flags & SYS_MSG_INFLIGHT) {
+                 state->flags = SYS_MSG_INFLIGHT;
+             } else {
+                 state->flags = 0;
+             }
+             UNLOCK(state);
+          }
+          unlock(gasnetc_epoch_lock);
+          return;
+      }
+
+Additional Notes:
+* The state variables LoanRequested and SendStalls have accumulated values but are only
+  used to see if, respectively, a loan was requested or a stall occurred.  These could
+  be replaced by flag values.  If so, they would only last from when the time they were
+  set to the end of the epoch (similar to REVOKE_ZERO_REPLY).  As variables, they will
+  be decayed, but not necessarily set to zero at the start of a new epoch.  Could try
+  both approaches to see if it matters.
+
+
+==================================================================================================
+History of comments and notes in discussions on the algorithm:
+==================================================================================================
+Comment from Rajesh:
+Cool. From a collectives perspective the one thing that i can suggest is having a mechanism so that 
+the gasnet library can provide hints to this layer on who the hot peers will be. Right now, as I 
+understand it, you assume that you have to infer everything dynamically. In the case of collectives, 
+however, if the user does the same collective with the same datasize over and over (which is 
+probably a normal case), then our current mechanism creates the geometry and caches it throughout 
+the lifetime of the GASNet program. Thus when the first of these repeated collective is called, 
+hopefully in some kind of warmup portion of the code, we spend some time setting up the collective 
+meta data. By this time we know exactly the list of hot peers and who we send/recv data from without 
+communication. We can use this static information to manage these credits too. Currently we do this 
+to manage this list of hot peers for the AMRDMA optimization on VAPI conduit. There is no reason 
+that the same hints can be given here.  
+
+The only main problem with such an approach would be that if we constantly change the root of the 
+collective then our hot peer list changes. For example one approach to implement a Gather_all is to 
+perform n rooted gathers at each of the different nodes in the collective. This would play havoc with 
+such a system. However with the proper tree geometry selection and knowing our communication pattern 
+we can do a better job of minimizing these conflicts by hand than trying to infer this information 
+dynamically. And if it gets to be too much of a headache, hopefully an eventual auto-tuner would 
+realize that this is a bad implementation of gather all in the face of this credit system and try 
+something else. 
+
+With such hints, we can hopefully have the credits in place behind the scenes, before the first 
+AM is sent or received. 
+
+---------------------------------------------
+Notes from Mtg with Dan and Paul on 3/8/2007
+* Can we relax the current requirement that each AMRequest must issue an AMReply?
+  Currently, if the AMRequest does not issue a Reply, the conduit will issue a NoOp Reply
+  to free the ReqSB resources on the sender and to return AM credits.  
+
+  Dan suggested that the sender can keep a list of ReqRB offsets for AMRequests and that
+  when a Reply is issued, it will complete all previous Requests.
+  This would require that AMRequest/Reply messages are completed in order.  Unfortunately,
+  this is not always the case.  One can issue a non-packed AMLong before an AMShort.  The
+  event for the AMLong header will be processed on the receiver before the AMShort, but the
+  data packet may not have completed sending data yet.  The AMShort could be received and
+  processed, issuing the reply before the AMLong data packet gets processed.  Note that
+  we cannot run the AMLong handler until both header and data arrives and so the AMReply
+  cant be issued until this point.  
+  Note that AMShort, AMMedium and packed AMLong Requests are processed in-order 
+  on the the target node so it seems we could just treat the two-message AMLongs
+  as a special case and always reply to them and use an aggregate reply for the
+  Short/Med/PackedLong cases.  Unfortunatly, an AMShort request may reply with 
+  a two-message AMLong such that a later request's reply will be processed on the
+  sender first.  This makes my brain hurt.
+
+* For a Job with a large number of processes (20,000), the number of nodes that we grant
+  greater than the minimum number of credits will be small.  We should consider incorporating
+  a threaded list of nodes that we have granted more than the minimum number of credits.
+  When scavenging for more credits, only walk this list and not all 20,000.
+
+  This has been implemented.  We now have one lock on each conn_state record that controls
+  all the fields except the 'link' field.  We have a seperate BIG LOCK (gasnetc_scavenge_lock)
+  that controls access to and modifications of all the list 'link' fields.
+  A node is only added to the list when its LoanCredits is increased from GASNETC_MIN_CREDITS
+  to something larger due to a request for additional credits in an AMRequest.
+  A node in only removed from the list when its LoanCredits drops to GASNETC_MIN_CREDITS
+  after it has revoked all its extra credits by a SYS_CREDIT_REVOKE message.
+  The list is only ever walked in scavenge_for_credits() when the node has depleted its
+  bank pool and must gather credits from nodes it has lent additional credits to.
+
+* Paul suggested looking at Bandwidth-Delay product to determine max actual number of credits
+  that a node could use.  This would assume an attentive receiver and instantaneous 
+  AMReply.  From micro-benchmarks, we know that the max bandwidth for XT3 is about 1100 MB/sec
+  and about 2000 MB/sec on the newer XT4.  The one-way zero-byte latency is about 5 usec.
+  The bandwidth delay product is then 2000*5*1024/10^6 KB = 10.25KB.  A full-size AMMedium
+  is 1024 bytes so 10.25 is the max number in-flight to the remote node at any time.
+  Assuming zero-time processing of the message and instant AMReplys generated, accounting
+  for the return trip this would be about 20.5 in-flight round trip.  Each full-size
+  AMMedium requires 4 credits so this says that the max number of credits a node can use
+  is about 82 for the XT4 and about 45 for the XT3. 
+  This analysis does not take into account:
+    - Attentiveness to the network on the receiver.
+    - Time to process the message and run Request handler and issue Reply.
+    - BW & Latency to nodes across a busy Torus network.
+  All of which serve to increase this number (probably substantially).
+  Benchmarks on Guppy show that if a receiver is polling the network, the sender can attain 
+  maximum AM Medium bandwidth using about 24 credits.  
+  Benchmarks also show that if the target node has other work to do, no number of additional
+  credits will improve the throughput.
+  For that reason, we put a limit of gasnetc_max_cpn (credit_per_node) limit on the number
+  of credits a node can accumulate.  
+  This value is currently set at 400 but should probably be determined more scientifically.
+
+* Paul suggested that the SendRevoked state variable be maintained by the LENDER rather
+  than the borrower.  That way, no revoke message will be sent if the LENDER knows that
+  the Revoke request will result in a ZERO_REPLY because the node had already revoked 
+  the maximum number of credits during that epoch.
+
+
+* Epoch: How to determine start/end of an epoch and should we use a runtime timer or 
+  "event" counter.  Paul suggested that we should decay on a peer-to-peer basis.
+  For example, each node as a Lender, will increment a counter each time an AMRequest
+  arrives and is processed.  The Epoch on that node would end when the counter
+  reaches a multiple of a pre-set 'EPOCH_END' value.  The end-of-epoch processing 
+  would amount to:
+     - Decaying the Loan* variables.
+     - Setting an end-of-epoch flag (in conn_rec[T]) for each target node T.
+     - Then, the next AMRequest/AMReply or SYS_CREDIT_REVOKE/SYS_CREDIT_REPLY
+       message to node T will contain a flag that tells T to decay its Send* 
+       variables for us.  
+
+  This has been implemented.
+
+  Consequences of this are:
+    * If no-one sends to node Y, the epoch will never change.  This is fine since
+      there is no demand for the credits so why waste time running the decay code.
+    * If lots of senders to node Y, then senders will see epoch changing quickly on Y
+      but this is what we want, to decay values at a rate dependent on activity on the
+      target.
+    * One problem is how to select the EPOCH_END count value.  That is, after how many
+      messages do we declare that an EPOCH is over?
+      - In case of only one hot-peer, a large EPOCH_END value would mean the epochs 
+        last a long time, limiting the rate at which it will acquire additional credits
+        (if we enforce a max number of credits loaned per epoch).
+        If no other demand for credits to this node, we would like to granted them quickly.
+      - possibly keep counter per node and several global counters, such as:
+          numRequest: incremented each time a request arrives.
+          maxNodeReq: max number of requests from a node, across all nodes.
+          numHotPeers: number of active peers this epoch.
+        Then we could end the epoch based on some formula blending these values with
+        known constants, such as gasneti_nodes, etc.
+   Current Implementation:  gasnetc_epoch_duration = 1024;
+   Can be over-ridden at run-time using env var GASNET_PORTAL_EPOCH_DURATION=XXX.
+
+* Decay formula.  Dan is concerned that the decay formula will generate a sawtooth 
+  pattern and suggested that each decay variable requires two states: last and curr.
+  Init:  last = curr = 0;
+  curr++ when event occurs.
+  At epoch:
+     last = last*decay + curr*(1.0-decay);
+     curr = 0;
+ 
+  This would be important if the actual value of the decay variable were important.
+  Their use in this algorithm is only to insure the value decay to zero after several
+  epochs during which it is not incremented. 
+ 
+  Current Implementation: Divide by four: var = (var >> 2);
+
+* Use of spinlocks.  Dan suggested that we should use gasneti_mutex_t and migrate to 
+  spinlocks if this appears to be a performance problem.
+  Mutex implementation should behave like a spinlock for a while, then block and be
+  put on a list.  Mutex is more likely to be "fair" whereas spinlocks can be unfair
+  with the lock constantly being granted to the processor holding the lock in its
+  cache.
+  This has been implemented and can switch to using spinlocks by defining the
+  GASNETC_USE_SPINLOCK=1
+
+  
+  
+

@@ -14,13 +14,93 @@
 /* MLW:  Support for Portals 3.0 */
 
 /* set to 1 to compile in Sandia specific Accelerated Portals code */
+#ifndef GASNETC_USE_SANDIA_ACCEL
 #define GASNETC_USE_SANDIA_ACCEL 0
+#endif
 
-/* defined to 1 the following to pack the RplSB offset in the upper 32
- * bits of the match_bits.
- * If defined to 0, this space will be used for AM Reply handler arguments
+/* set to 1 when testing credit algorithm.  Forces credit values specified
+ * in env vars and ignores extra credits due to fixed size ReqRB buffers
+ * Also, includes additional credit assounting stats and ability to print
+ * activity on scavenge list for node gasnetc_debug_node.
  */
-#define GASNETC_PACK_RPLOFF_MBITS 1
+#ifndef GASNETC_CREDIT_TESTING
+#define GASNETC_CREDIT_TESTING 0
+#endif
+
+/* Set to 1 if want to use gasneti_spinlock_t rather than gasneti_mutex_t
+ * to control the state data in the per-peer gasnetc_conn_state[] records.
+ * By default, we will use mutex_t.
+ */
+#ifndef GASNETC_USE_SPINLOCK
+#define GASNETC_USE_SPINLOCK 0
+#endif
+
+/* Comments on the value of GASNETC_CHUNKSIZE:
+ *
+ *         ==> NOTE: This value set in gasnet_core_help.h <==
+ *
+ * We manage space in our Request and Reply Send Buffers using a simple chunk allocator
+ * and all chunks are the same size.  Additionally, our AMRequest receive buffers are
+ * also allocated as multiples of GASNETC_CHUNKSIZE.
+ *
+ * This number determines the following set of values:
+ *  - The size of an AMMedium (see gasnet_core.h)
+ *  - The number of credits required to send a maximal sized AMMedium and therefore
+ *    the GASNETC_MIN_CREDITS value (minimum number of credits that can be allocated
+ *    to a node).
+ *  - the max payload size of a packed AMRequestLong/AMRreplyLong.
+ *    (Note that these two values are not required to be compile time constants
+ *     and will vary with the number of arguments in the AMLong.)
+ */
+#ifndef GASNETC_CHUNKSIZE
+#error "GASNETC_CHUNKSIZE not defined in gasnet_portals.h"
+#endif
+
+/* Define the number of AM Receive buffer bytes that are controlled by a single
+ * flow-control credit.  That is, if node X has one credit to send an AM to node Y
+ * it can send at most this many bytes as the length of the Portals Put operation.
+ * Note that one credit also guarantees the existance of an event queue entry in the
+ * AM Event queue on the target node.  An EQ entry is 128 bytes, which is not included
+ * in this value.
+ */
+#define GASNETC_BYTES_PER_CREDIT  256
+
+/* Define the MINIMUM number of credits that must be allocated to each node in the job.
+ * All AMShort messages will fit within one credit.
+ * All non-packed AMLong messages will require two credits (two messages => two EQ entries).
+ * A full sized AM Medium message will require 4 credit if CHUNKSIZE is 1024 and
+ * 8 credits if 2048.  In general:
+ * GASNETC_MIN_CREDITS =  cealing(GASNETC_CHUNKSIZE/GASNETC_BYTES_PER_CREDIT) , or
+ * (GASNETC_CHUNKSIZE/GASNETC_BYTES_PER_CREDIT + (GASNETC_CHUNKSIZE%GASNETC_BYTES_PER_CREDIT?1:0))
+ * but rather than this ugly mess, we just state its value, which MUST be kept consistent
+ * GASNet will fail in an assertion at startup if not.
+ */
+#if (GASNETC_CHUNKSIZE == 1024)
+#define GASNETC_MIN_CREDITS       4
+#elif (GASNETC_CHUNKSIZE == 2048)
+#define GASNETC_MIN_CREDITS       8
+#else
+#error "MUST DEFINE GASNETC_MIN_CREDITS APPROPRIATE FOR CHUNKSIZE AS ceiling(GASNETC_CHUNKSIZE/GASNETC_BYTES_PRE_CREDIT)"
+#endif
+
+/* The following constant is the cutoff size for out-of-segment Put/Get
+ * messages that should be copied through the ReqSB buffer (acting as a bounce buffer).
+ * Larger messages will allocate a Temporary MD around the data rather than doing
+ * the copy.  This protocal switch value is determined by running benchmarks
+ * over Portals and will most definately be compute node OS dependent.
+ * Pinning costs under Catamount are minimal and the switch is at about 1KB.
+ * Finally, this value must be <= GASNETC_CHUNKSIZE.
+ * We check this in an assertion at job startup time.
+ */
+#if PLATFORM_OS_CATAMOUNT
+#define GASNETC_PUTGET_BOUNCE_SIZE 1024
+#else
+/* Under CNL, this value is not yet known.  Assume as large as a CHUNK */
+#define GASNETC_PUTGET_BOUNCE_SIZE GASNETC_CHUNKSIZE
+#endif
+#if (GASNETC_PUTGET_BOUNCE_SIZE > GASNETC_CHUNKSIZE)
+#error "GASNETC_PUTGET_BOUNCE_SIZE MUST BE <= GASNETC_CHUNKSIZE"
+#endif
 
 /* Do we register an EQ handler with a queue or just poll ourselves */
 #if GASNETC_USE_EQ_HANDLER
@@ -36,6 +116,13 @@
 #define GASNETC_PTL_MAX_TRANS_SZ PTL_MAX_TRANS_SZ
 #else
 #define GASNETC_PTL_MAX_TRANS_SZ 2147483648UL
+#endif
+
+#ifndef GASNETC_MIN
+#define GASNETC_MIN(x,y) ((x)<(y)?(x):(y))
+#endif
+#ifndef GASNETC_MAX
+#define GASNETC_MAX(x,y) ((x)>(y)?(x):(y))
 #endif
 
 /* types of polling */
@@ -77,7 +164,7 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_PTL_AC_ID  0
 
 /* We need Cray to reserve two table entries for UPC/GASNET
- * We believe these two are currently not used.
+ * We believe these two have been reserved for use by UPC but not positive.
  */
 #define GASNETC_PTL_RAR_PTE 38
 #define GASNETC_PTL_AM_PTE 39
@@ -162,7 +249,7 @@ extern unsigned gasnetc_sys_poll_limit;
 	}								\
       }									\
     }									\
-  } while(0);
+  } while(0)
 
 /* poll until thread has cached requested number of tmpmd tickets
  * NOTE: call to AMPoll may use one of these.  Could safe poll
@@ -178,32 +265,85 @@ extern unsigned gasnetc_sys_poll_limit;
 	gasneti_AMPoll();						\
       }									\
     }									\
-  } while(0);
+  } while(0)
+
+#define GASNETC_SET_CREDIT_BYTE(cred_byte,end_epoch,nextra,ncredit) do { \
+    cred_byte = (0x0F & ncredit) | ((0x07 & nextra) << 4) | (end_epoch << 7); \
+  } while(0)
+
+#define GASNETC_READ_CREDIT_BYTE(cred_byte,end_epoch,nextra,ncredit) do { \
+    ncredit = cred_byte & 0x0F;						\
+    nextra = (cred_byte >> 4) & 0x07;					\
+    end_epoch = (cred_byte >> 7) & 0x01;				\
+  } while(0)
+
+#if GASNET_DEBUG
+#define GASNETC_AMDEBUG_MSG(str,src,dest,addr,numargs,nbytes,msg_bytes,cred_byte,packed) do { \
+    uint8_t end_epoch,nextra,ncredit;					\
+    GASNETC_READ_CREDIT_BYTE(cred_byte,end_epoch,nextra,ncredit);	\
+    GASNETI_TRACE_PRINTF(C,("AMINFO: %s [P%d->P%d] narg=%d msglen=%d, addr=0x%p nbyte=%d ee=%d nextra=%d ncred=%d pack=%d",str,src,dest,numargs,(int)msg_bytes,addr,(int)nbytes,end_epoch,nextra,ncredit,packed)); \
+  } while(0)
+#else
+#define GASNETC_AMDEBUG_MSG(str,src,dest,addr,numargs,nbytes,msg_bytes,cred_byte,packed) do { \
+  } while(0)
+#endif
+
+#if GASNETC_CREDIT_TESTING
+#define UPDATE_STALL_TOT(state) do {state->SendStalls_tot++;} while(0)
+#define UPDATE_SEND_MAX_TOT(state) do {state->SendMax_tot = GASNETC_MAX(state->SendMax_tot,state->SendMax);} while(0)
+#else
+#define UPDATE_STALL_TOT(state) do {} while(0)
+#define UPDATE_SEND_MAX_TOT(state) do {} while(0)
+#endif
 
 /* poll until thread has cached requested number of flow control credits
  * NOTE: polling will never spend these.
  */
-#define GASNETC_GET_SEND_CREDITS(th,state,ncredit,pollcnt) do {		\
-    while (gasnetc_use_flow_control && (th->snd_credits < ncredit)) {	\
-      int need = ncredit - th->snd_credits;				\
-      if (gasnetc_get_credits_from_connrec(state,need)) {		\
-	th->snd_credits += need;					\
-      } else {								\
-	pollcnt++;							\
-	GASNETI_TRACE_EVENT(C, CREDIT_THROTTLE);			\
-	gasneti_AMPoll();						\
-      }									\
+#define GASNETC_GET_SEND_CREDITS(th,state,ncredit,cred_byte,pollcnt) do { \
+    uint8_t need = 0;							\
+    int navail;								\
+    uint8_t end_epoch = 0;						\
+    gasneti_assert(th->snd_credits == 0);				\
+    cred_byte = 0;							\
+    if (gasnetc_use_flow_control) {					\
+      do {								\
+	GASNETC_LOCK_STATE(state);					\
+	navail = state->SendCredits - state->SendInuse;			\
+	if (ncredit <= navail) {					\
+	  state->SendInuse += ncredit;					\
+	  if (state->SendInuse > state->SendMax) state->SendMax = state->SendInuse; \
+	  UPDATE_SEND_MAX_TOT(state);					\
+	  if (gasnetc_use_dynamic_credits) {				\
+	    if (state->flags & GASNETC_REACHED_EPOCH) {			\
+	      state->flags &= ~GASNETC_REACHED_EPOCH;			\
+	      end_epoch = 1;						\
+	    }								\
+	  }								\
+	  GASNETC_UNLOCK_STATE(state);					\
+	  th->snd_credits += ncredit;					\
+	  if (!gasnetc_use_dynamic_credits) need = 0;			\
+	  need = GASNETC_MIN(need,GASNETC_MAX_CREDIT_REQUEST);		\
+	  GASNETC_SET_CREDIT_BYTE(cred_byte,end_epoch,need,ncredit);	\
+	} else {							\
+	  if (! need) {	/* only set these the first time */		\
+	    need = (uint8_t)(ncredit - navail);				\
+	    state->SendStalls++;					\
+	    UPDATE_STALL_TOT(state);					\
+	    GASNETI_TRACE_EVENT(C, CREDIT_STALL);			\
+	  }								\
+	  GASNETC_UNLOCK_STATE(state);					\
+	  GASNETI_TRACE_EVENT(C, CREDIT_THROTTLE);			\
+	  pollcnt++;							\
+	  gasneti_AMPoll();						\
+	}								\
+      } while(th->snd_credits < ncredit);				\
     }									\
-  } while(0);
+  } while(0)
 
 /* Before starting an AM Request, poll until certain conditions are met */
-#define GASNETC_COMMON_AMREQ_START(state,offset,th,nsend,ncredit,ntmpmd) do { \
+#define GASNETC_COMMON_AMREQ_START(state,offset,th,nsend,ncredit,cred_byte,ntmpmd) do { \
     int pollcnt = 0;							\
-    while (gasneti_weakatomic_read(&((state)->in_recovery), 0)) {	\
-      pollcnt++;							\
-      gasneti_AMPoll();							\
-    }									\
-    GASNETC_GET_SEND_CREDITS(th,state,ncredit,pollcnt);			\
+    GASNETC_GET_SEND_CREDITS(th,state,ncredit,cred_byte,pollcnt);	\
     /* Allocate a send buffer */					\
     while (!gasnetc_chunk_alloc(&gasnetc_ReqSB, GASNETC_CHUNKSIZE, &(offset)) ) { \
       pollcnt++;							\
@@ -244,43 +384,17 @@ extern unsigned gasnetc_sys_poll_limit;
 
 #define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
-/* Macro to decrement the AM_pending field of a connection state record
- * We just completed an AM operation
- * If node is in recovery, no other thread will be accessing AM_pending, all
- * at best would be polling on in_recovery.  So, if about to come out of
- * recovery state, decrement AM_pending first
- */
-#define DECREMENT_AM_PENDING(state) do {	\
-    if (gasneti_weakatomic_read(&state->in_recovery, 0)) {		\
-      int pending = (int)gasneti_weakatomic_read(&state->AM_pending, 0); \
-      gasneti_weakatomic_decrement(&state->AM_pending,0);		\
-      if (pending == 1) {						\
-	/* all AMs to this target complete, no longer in recovery */	\
-	gasneti_weakatomic_set(&state->in_recovery, 0, 0);		\
-      }									\
-    } else {								\
-      gasneti_weakatomic_decrement(&state->AM_pending,0);		\
-    }									\
-  } while(0)
-
 /* AM tokens data structure.  This is never sent over the wire and only ever
  * exists as a local stack variable during execution of Request and Reply handlers
  */
 typedef struct token_rec {
   uint8_t           flags;
-  uint8_t           credits;             /* number of credits requestor used in this AM */
+  uint8_t           credits;             /* credit info: end_epoch flag, nextra, ncredit */
   uint32_t          initiator_offset;    /* offset in senders ReqSB, where Reply is sent */
   ptl_size_t        rplsb_offset;        /* offset in replyer RplSB to use in Reply */
   ptl_process_id_t  initiator;           /* process ID of requestor */
   gasnet_node_t     srcnode;             /* gasnet node ID of requestor */
 } gasnetc_ptl_token_t;
-
-#define GASNETC_INITLOCK_LIDCACHE(srcnode)			\
-  gasneti_mutex_init(&gasnetc_conn_state[srcnode].lidlock)
-#define GASNETC_LOCK_LIDCACHE(srcnode)				\
-  gasneti_mutex_lock(&gasnetc_conn_state[srcnode].lidlock)
-#define GASNETC_UNLOCK_LIDCACHE(srcnode)			\
-  gasneti_mutex_unlock(&gasnetc_conn_state[srcnode].lidlock)
 
 /* Metadata cached by Long Put or AM Long Header
  * These data structures are allocated dynamically and updated atomically.
@@ -298,33 +412,141 @@ typedef struct gasnetc_amlongcache_rec {
   uint32_t            dest_lid;           /* specified by first to arrive */
   uint32_t            initiator_offset;   /* where AM Reply to be sent, (supplied by header) */
   uint32_t            narg;               /* num of args to handler, (supplied by header) */
-  struct gasnetc_amlongcache_rec *next;   /* link into lids list of connection state */
+  struct gasnetc_amlongcache_rec *next;   /* link into conn_state list of active AMLong lid objs */
   void               *data;               /* location of data packet payload (supplied by data pkt) */
   size_t              datalen;            /* length of data message (supplied by data pkt) */
   gasnet_handlerarg_t args[];             /* args to handler function (supplied by header) */
 } gasnetc_amlongcache_t;
 
-/* Flow control - Send credits */
-extern int gasnetc_use_flow_control;                /* flow control switch, must be same on all nodes */
-extern long gasnetc_total_credits;                  /* total number of AM credits this nodes has to distribute */
-extern int gasnetc_percent_credits_to_bank;         /* percent of total initial credits we should bank */
-extern int gasnetc_bytes_per_credit;      /* one credit per 256 bytes of ReqRB space (plus one event queue entry) */
-extern int gasnetc_min_credits_per_node;            /* min number of credits per node we can handle */
-extern gasneti_semaphore_t gasnetc_banked_credits;  /* actual number of banked credits available */
+#if GASNETC_USE_SPINLOCK
+typedef gasneti_atomic_t gasnetc_statelock_t;
+#define GASNETC_INITLOCK_STATE(ptr) gasneti_spinlock_init(&ptr->lock)
+#define GASNETC_TRYLOCK_STATE(ptr) gasneti_spinlock_trylock(&ptr->lock)
+#define GASNETC_LOCK_STATE(ptr) gasneti_spinlock_lock(&ptr->lock)
+#define GASNETC_UNLOCK_STATE(ptr) gasneti_spinlock_unlock(&ptr->lock)
+#define GASNETC_INITLOCK_NODE(srcnode)			\
+  gasneti_spinlock_init(&gasnetc_conn_state[srcnode].lock)
+#define GASNETC_TRYLOCK_NODE(srcnode)				\
+  gasneti_spinlock_trylock(&gasnetc_conn_state[srcnode].lock)
+#define GASNETC_LOCK_NODE(srcnode)				\
+  gasneti_spinlock_lock(&gasnetc_conn_state[srcnode].lock)
+#define GASNETC_UNLOCK_NODE(srcnode)			\
+  gasneti_spinlock_unlock(&gasnetc_conn_state[srcnode].lock)
+#else
+typedef gasneti_mutex_t gasnetc_statelock_t;
+#define GASNETC_INITLOCK_STATE(ptr) gasneti_mutex_init(&ptr->lock)
+#define GASNETC_TRYLOCK_STATE(ptr) gasneti_mutex_trylock(&ptr->lock)
+#define GASNETC_LOCK_STATE(ptr) gasneti_mutex_lock(&ptr->lock)
+#define GASNETC_UNLOCK_STATE(ptr) gasneti_mutex_unlock(&ptr->lock)
+#define GASNETC_INITLOCK_NODE(srcnode)			\
+  gasneti_mutex_init(&gasnetc_conn_state[srcnode].lock)
+#define GASNETC_TRYLOCK_NODE(srcnode)				\
+  gasneti_mutex_trylock(&gasnetc_conn_state[srcnode].lock)
+#define GASNETC_LOCK_NODE(srcnode)				\
+  gasneti_mutex_lock(&gasnetc_conn_state[srcnode].lock)
+#define GASNETC_UNLOCK_NODE(srcnode)			\
+  gasneti_mutex_unlock(&gasnetc_conn_state[srcnode].lock)
+#endif
 
-/* gasnet connection state.  This is where we put any per-node state info */
+/* GASNet connection state.  This is where we put any per-node state info.
+ * It includes the src_lid, whose value is incremented each time we send a (non-packed)
+ * AMLong Request or Reply to the corresponding target.
+ * It also includes list where we attach amlong cache objects for AM Long Requests
+ * and replies from this corresponding node.
+ * But mostly, it contains flow control and dynamic credit re-distribution variables.
+ * We distribute our LOAN credits to remote nodes so they can send AMs to us.
+ * We are granted SEND credits from other nodes to send AMs to them.
+ * Only AM Requests require credits, AM Replies do not.
+ * Notes on variaous fields:
+ * SendInuse:  records the number of SEND credits currently in use. Max value = 2^16
+ * SendMax:    records the max number of SEND credits in use during this epoch.  This value
+ *              will decay at the start of each epoch so that it will go to zero after
+ *              several epochs if no AMs are sent.
+ * SendRevoked: The number of SendCredits I gave up this epoch.  This value will be limited
+ *              each epoch so that SEND credits are not drained rapidly.  It will decay at the
+ *              start of each epoch and go to zero after several epochs if none revoked.
+ * SendStalls: Count the number of times (this epoch) we stalled, polling the network, 
+ *              until we had enough SendCredits available to issue the AMRequest.
+ *              This value will be decayed at each epoch, going to zero after several
+ *              epochs without stalls.
+ * LoanRequested: Number of additional LOAN credits (which we manage) a remote node
+ *              has requested this epoch.  This value also decays over time.
+ * LoanGiven:  Number of (our) LOAN credits we gave to this remote node this epoch.  Decays.
+ * The values of num_stalls, SendMax and SendRevoked will be used when 
+ * asked by the remote node to give up some of our SendCredits.
+ * RECV_requested will help determining how many, if any, RECV_credits to grant
+ * the remote node.
+ */
+
+/* GASNETC_MAX_CREDIT_REQUEST = max incremental credit request, must fit in 3 bits */
+#define GASNETC_MAX_CREDIT_REQUEST         0x7U
+#define GASNETC_SYS_GOT_SHUTDOWN_MSG       0x01U
+#define GASNETC_SYS_MSG_INFLIGHT           0x02U
+#define GASNETC_CREDIT_REVOKE_ZERO_REPLY   0x04U
+#define GASNETC_REACHED_EPOCH              0x08U
+/* assumes lock is held */
+#define GASNETC_DECAY_SENDVARS(state) do {	\
+    GASNETC_CREDIT_DECAY(state->SendStalls);	\
+    GASNETC_CREDIT_DECAY(state->SendMax);	\
+    GASNETC_CREDIT_DECAY(state->SendRevoked);	\
+  } while(0)
+
+/* compact representation of a doubly linked list by using node ids rather than pointers */
+#define GASNETC_DLL_NULL ((uint16_t)(-1))
+typedef uint16_t gasnetc_dll_index_t;        /* NOTE: this works up to 64K nodes. */
+typedef struct _gasnetc_dll_link {
+  gasnetc_dll_index_t  prev;
+  gasnetc_dll_index_t  next;
+} gasnetc_dll_link_t;
 typedef struct gconrec {
-  gasneti_weakatomic_t   AM_pending;       /* not used at this point, may remove later */
-  gasneti_weakatomic_t   in_recovery;      /* not used at this point, may remove later */
-  int                    got_shutdown_msg; /* used in clean shutdown */
-  gasneti_semaphore_t    avail_credits;    /* number of (their) credits we have for AMs to this node */
-  gasneti_semaphore_t    alloc_credits;    /* number of (our) credits allocated to this node */
-  gasneti_weakatomic_t   src_lid;          /* must be 32 bit unsigned so will roll after 2^32 */
-  gasneti_mutex_t        lidlock;          /* lock to protect lid list */
-  gasnetc_amlongcache_t *lids;             /* list of lid cache objects of AM Longs from this node */
+  gasnetc_statelock_t    lock;              /* spinlock/mutex for atomic update of this record */
+  uint16_t               LoanCredits;       /* number of my credits allocated to this remote node */
+  uint16_t               SendCredits;       /* number of remote node credits allocated to me */
+  uint16_t               SendStalls;        /* number of times we stall on credits trying to send AMs */
+  uint16_t               SendInuse;         /* current number of SEND credits in flight to them */
+  uint16_t               SendMax;           /* max number of SEND credits in flight this epoch */
+  uint16_t               SendRevoked;       /* number of SEND credits I give back this epoch */
+  uint16_t               LoanRequested;     /* number of times additional credits are requested */
+  uint16_t               LoanGiven;         /* number of additional LOAN credits given to them */
+#if GASNETC_CREDIT_TESTING
+  uint32_t               SendStalls_tot;    /* total send stalls, not decayed */
+  uint32_t               SendMax_tot;       /* max credits in use at a time, not decayed */
+  uint32_t               LoanGiven_tot;     /* total extra credits given, not decayed */
+  uint32_t               LoanRequested_tot; /* total extra credits requested, not decayed */
+  uint32_t               LoanRevoked_tot;   /* total credits returned from this node, not decayed */
+  uint32_t               LoanReqRevoke_tot; /* total number of times we requested cred revoke */
+#endif
+  gasnetc_dll_link_t     link;              /* double link list of nodes to scavenge
+					     * this field controlled by gasnetc_scavenge_lock */
+  uint8_t                flags;             /* maintain binary state values */
+  gasneti_weakatomic_t   src_lid;           /* must be 32 bit unsigned so will roll after 2^32 */
+  gasnetc_amlongcache_t *lids;              /* list of lid cache objects of AM Longs from this node */
 } gasnetc_conn_t;
+
 /* array of connection states */
 extern gasnetc_conn_t *gasnetc_conn_state;
+
+/* Per-node credit vars are stored in 16 bit ints */
+#define GASNETC_MAX_CREDITS       ((int)(uint16_t)(-1))
+extern int gasnetc_use_flow_control;                /* flow control switch, must be same on all nodes */
+extern int gasnetc_use_dynamic_credits;
+extern long gasnetc_total_credits;                  /* total number of AM credits this nodes has to distribute */
+extern gasneti_semaphore_t gasnetc_banked_credits;  /* number of banked credits available for distribution */
+extern int gasnetc_revoke_limit;                    /* max number of credits revoked in an epoch */
+extern int gasnetc_lender_limit;                    /* max number of credits loaned in an epoch */
+extern int gasnetc_max_cpn;                         /* max number of credits allocated to a node */
+extern gasneti_mutex_t gasnetc_epoch_lock;          /* lock to control epoch update */
+extern gasneti_weakatomic_t gasnetc_AMRequest_count;/* counter of number of AMRequests to age epoch */
+extern int gasnetc_epoch_duration;                  /* number of AMReq before epoch ends */
+extern int gasnetc_num_scavenge;                    /* number of nodes to hit-up for credits */
+extern gasneti_weakatomic_t gasnetc_scavenge_inflight;  /* number of outstanding scavange requests */
+extern gasnetc_dll_index_t gasnetc_scavenge_list; /* list of nodes to scavenge, those that have
+						   * more than min number of credits allocated */
+extern gasneti_mutex_t   gasnetc_scavenge_lock;   /* lock to control the scavenge list */
+extern int gasnetc_debug_node;                    /* used in debugging */
+#define GASNETC_CURRENT_TIME() gasneti_ticks_to_ns(gasneti_ticks_now())
+/* decay variables by dividing by 4 */
+#define GASNETC_CREDIT_DECAY(val) val = ((val) >> 2)
 
 #if GASNETC_USE_SANDIA_ACCEL
 extern int gasnetc_use_accel;
@@ -358,6 +580,7 @@ extern gasneti_semaphore_t gasnetc_tmpmd_tickets;
 int gasnetc_tmpmd_hwm;
 #endif
 
+extern int gasnetc_dump_stats;
 extern int gasnetc_io_buffer_size;
 extern void* gasnetc_flush_buffer;
 
@@ -404,7 +627,6 @@ extern char* ptl_event_str[];
  * NOTE: Only ReqSB and RplSB objects are controlled by
  * chunk allocation, others are not.
  */
-#define GASNETC_CHUNKSIZE 1024
 typedef union _gasnetc_chunk {
     uint8_t chunk[GASNETC_CHUNKSIZE];
     union _gasnetc_chunk *next;
@@ -483,18 +705,22 @@ extern int gasnetc_shutdownInProgress;             /* set upon entry to gasnetc_
 typedef enum{GASNETC_SYS_SHUTDOWN_REQUEST=0,
 	     GASNETC_SYS_BARRIER_ARRIVE,
 	     GASNETC_SYS_BARRIER_GO,
+	     GASNETC_SYS_CREDIT_REVOKE,
+	     GASNETC_SYS_CREDIT_RETURN,
 	     GASNETC_SYS_NUM} gasnetc_sys_t;
 static gasneti_weakatomic_t sys_barrier_cnt;
 static gasneti_weakatomic_t sys_barrier_got;
 static gasneti_weakatomic_t sys_barrier_checkin;
+extern int gasnetc_resource_init_complete;         /* After this is set, should be ok to tolerate
+						    * dropped events on SYS queue */
 
 #if GASNETC_USE_SANDIA_ACCEL
 /* did we get a signal, and if so, what signal number */
 extern gasneti_weakatomic_t gasnetc_got_signum;
 #endif
 
-/* max packed am data field = 1024 - 15*4 - 8 - 4 (max 15 args + 8 for destaddr + 4 possible credits, no pad) */
-#define GASNETC_MAX_AMLONG_PACKED 952
+/* flag set at init time on whether we allow packed am_long messages or not */
+extern int gasnetc_allow_packed_long;
 
 
 /* Vars that limit total number of Portals operations in flight at any time
@@ -533,8 +759,6 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
-extern void gasnetc_amlong_datasend(int sync, int isReq, uint32_t lid, gasnet_node_t dest,
-				    void *src_addr, size_t nbytes, void* dest_addr);
 extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
 extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
@@ -545,27 +769,30 @@ extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 extern void gasnetc_sys_barrier(void);
 /* need a special signal handler for Portals */
 extern void gasnetc_portalsSignalHandler(int sig);
+extern int gasnetc_issue_credit_request(gasnet_node_t node, int ncredit);
+extern int gasnetc_issue_credit_revoke(gasnet_node_t node);
+extern uint8_t gasnetc_credit_update(int isReq, uint8_t cred_byte, gasnet_node_t remotenode, const char* name);
+extern void gasnetc_end_epoch(int epoch_count);
+extern void gasnetc_scavenge_for_credits(void);
+#if GASNETC_CREDIT_TESTING
+#define GASNETC_DUMP_CREDITS(epoch_count) gasnetc_dump_credits(epoch_count)
+extern void gasnetc_dump_credits(int epoch_count);
+#else
+#define GASNETC_DUMP_CREDITS(epoch_count) do{}while(0)
+#endif
+extern void gasnetc_print_scavenge_list(void);
+extern void gasnetc_scavenge_list_remove(gasnet_node_t node);
+extern void gasnetc_scavenge_list_add(gasnet_node_t node, int locked);
 
 /* Inline Function Definitions */
 GASNETI_INLINE(gasnetc_compute_credits)
 long gasnetc_compute_credits(long nbytes)
 {
   if (gasnetc_use_flow_control) {
-    long credits = nbytes/(long)gasnetc_bytes_per_credit;
-    long rem = nbytes % (long)gasnetc_bytes_per_credit;
+    long credits = nbytes/(long)GASNETC_BYTES_PER_CREDIT;
+    long rem = nbytes % (long)GASNETC_BYTES_PER_CREDIT;
     /* eq: if bpc=256 then 0-256 is 1 credit, 257-512 is 2, etc */
     return (nbytes == 0 ? 1 : (credits + (rem ? 1 : 0) ) );
-  }
-  return 0;
-}
-
-/* When sending AM Reply, how may credits should we return to sender? */
-GASNETI_INLINE(gasnetc_compute_return_credits)
-int gasnetc_compute_return_credits(gasnet_node_t node, int credits_used)
-{
-  if (gasnetc_use_flow_control) {
-    /* For now, just returned credits they used in Request */
-    return credits_used;
   }
   return 0;
 }
@@ -574,39 +801,14 @@ int gasnetc_compute_return_credits(gasnet_node_t node, int credits_used)
 GASNETI_INLINE(gasnetc_avail_credits)
 int gasnetc_avail_credits(gasnet_node_t node)
 {
-  return gasneti_semaphore_read(&gasnetc_conn_state[node].avail_credits);
+  int avail;
+  gasnetc_conn_t *state = &gasnetc_conn_state[node];
+  GASNETC_LOCK_STATE(state);
+  avail = state->SendCredits - state->SendInuse;
+  gasneti_assert(avail >= 0);
+  GASNETC_UNLOCK_STATE(state);
+  return avail;
 }
-
-/* either atomically get this number of credits or fail */
-GASNETI_INLINE(gasnetc_get_credits)
-int gasnetc_get_credits(gasnet_node_t node, int credits)
-{
-  return gasneti_semaphore_trydown_n(&gasnetc_conn_state[node].avail_credits,credits);
-}
-GASNETI_INLINE(gasnetc_get_credits)
-
-int gasnetc_get_credits_from_connrec(gasnetc_conn_t *state, int credits)
-{
-  return gasneti_semaphore_trydown_n(&state->avail_credits,credits);
-}
-
-/* return these credits to our stash */
-GASNETI_INLINE(gasnetc_return_credits)
-void gasnetc_return_credits(gasnet_node_t node, int credits)
-{
-  gasneti_semaphore_up_n(&gasnetc_conn_state[node].avail_credits,credits);
-  gasneti_assert(gasneti_semaphore_read(&gasnetc_conn_state[node].avail_credits) <= gasnetc_total_credits);
-#if 0
-  {
-    int current = gasneti_semaphore_read(&gasnetc_conn_state[node].avail_credits);
-    if (current > gasnetc_total_credits) {
-      gasneti_fatalerror("Return_Credits Error: from node=%d, returned=%d, after_return=%d limit=%ld",
-			  node,credits,current,gasnetc_total_credits);
-    }
-  }
-#endif
-}
-
 
 GASNETI_INLINE(gasnete_set_mbits_lowbits)
 void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnete_op_t *op)
@@ -697,11 +899,31 @@ void gasnetc_sys_poll()
 
   /* limit number of sys events to process at a time ? */
   while ((gasnetc_sys_poll_limit == 0) || (sys_cnt < gasnetc_sys_poll_limit)) {
-    if (gasnetc_get_event(gasnetc_SYS_EQ_h, &ev)) {
+    /* attempt to get an event, ok if EQ overflowed (but not until after sys initialization) */
+    int rc = PtlEQGet(gasnetc_SYS_EQ_h, &ev);
+    switch (rc) {
+    case PTL_EQ_EMPTY:
+      /* no work, return to caller */
+      return;
+      break;
+
+    case PTL_EQ_DROPPED:
+      GASNETI_TRACE_EVENT(C,SYSQ_DROPPED);
+      if (!gasnetc_resource_init_complete) {
+	/* could have been a bootstrap barrier message, this is fatal */
+	gasneti_fatalerror("Dropped Event On SYS EQ prior to resource init");
+      }
+      /* fall through to process this event */
+
+    case PTL_OK:
       GASNETI_TRACE_PRINTF(C,("Got event %s from SYS_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
       GASNETC_CALL_EQ_HANDLER(ev);
       sys_cnt++;
-    } else {
+      break;
+
+    default:
+      gasneti_fatalerror("gasnetc_sys_poll Portals Error in PtlEQGet: %s (%i)\n at %s\n",
+			 ptl_err_str[rc],rc,gasneti_current_loc);
       break;
     }
   }
