@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/04/11 01:46:20 $
- * $Revision: 1.22.6.26 $
+ *     $Date: 2007/04/13 21:24:14 $
+ * $Revision: 1.22.6.27 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -278,7 +278,7 @@ typedef uint32_t gasnete_coll_consensus_t;
 
 extern gasnete_coll_consensus_t gasnete_coll_consensus_create(void);
 extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
-extern int gasnete_coll_consensus_wait();
+extern int gasnete_coll_consensus_wait(GASNETE_THREAD_FARG_ALONE);
 
 /*---------------------------------------------------------------------------------*/
 /* Type for point-to-point synchronization */

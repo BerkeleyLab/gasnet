@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/04/11 01:46:20 $
- * $Revision: 1.29.6.39 $
+ *     $Date: 2007/04/13 21:24:14 $
+ * $Revision: 1.29.6.40 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1106,7 +1106,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
                 /* if i am sending to a leaf into dest*/
                 /* Perform NB Put */
                 gasnete_put_nbi_bulk(children[i], args->dst,(int8_t*)args->src+sent_bytes,
-                                     args->nbytes*tree->geom->subtree_sizes[i]);                              
+                                     args->nbytes*tree->geom->subtree_sizes[i] GASNETE_THREAD_PASS);                              
               } else {
                 /* else if i am sending to internal node async long into scratch space*/
                 gasnete_coll_p2p_signalling_putAsync(op, children[i], 

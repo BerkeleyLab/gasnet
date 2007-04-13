@@ -33,10 +33,10 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
 }
 
 
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in) {
+void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG) {
   if(in !=NULL) {
     /*throws away the log*/
-    gasnete_coll_reset_scratch_status(in);
+    gasnete_coll_reset_scratch_status(in GASNETE_THREAD_PASS);
     gasneti_free(in->node_status);
     gasneti_free(in);
   }
@@ -58,7 +58,7 @@ void gasnete_coll_scratch_wait_for_all_ops(gasnete_coll_team_t team GASNETE_THRE
     }
 #else 
     while(temp->done !=1) {
-      gasnete_coll_poll();
+      gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
     }
 #endif
     stat->active_scratch_op_head = stat->active_scratch_op_head->next;
@@ -70,10 +70,10 @@ void gasnete_coll_scratch_wait_for_all_ops(gasnete_coll_team_t team GASNETE_THRE
 
 }
 
-void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in) {
+void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG) {
   gasnete_coll_op_info_t *temp;
   int i;
-  gasnete_coll_scratch_wait_for_all_ops(in->team);
+  gasnete_coll_scratch_wait_for_all_ops(in->team GASNETE_THREAD_PASS);
   /*reset all the node_status back to 0*/		
   for(i=0; i<in->team->total_ranks; i++) {
     in->node_status[i].head = 0; 
@@ -175,7 +175,7 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
     if(gasneti_mynode ==0) fprintf(stderr, "TREE CHANGE w/o BARRIER! inserting barrier and reseting scratch\n");
 #endif
     /* perform barrier and reset scratch */
-    gasnete_coll_consensus_wait();
+    gasnete_coll_consensus_wait(GASNETE_THREAD_PASS_ALONE);
 /*    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS); */
     /*the barrier will have the call to trip the stat->perform_reset so we avoid the explicit call to reset here*/
@@ -195,7 +195,7 @@ uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_re
   stat->last_op = GASNETE_COLL_SCRATCH_TREE_OP;
   /*if we saw a barrier or out all_sync between our last op and this one perform the reset*/
   if(stat->perform_reset == 1) {
-    gasnete_coll_reset_scratch_status(stat);
+    gasnete_coll_reset_scratch_status(stat GASNETE_THREAD_PASS);
   }
   if(my_head_pos >= my_tail_pos) {
    /* fprintf(stderr, "%d> head: %d size: %d total size: %d\n", gasneti_mynode, (int) my_head_pos, (int)scratch_req->incoming_size, 
@@ -400,7 +400,7 @@ uint64_t gasnete_coll_scratch_new_dissem_op(gasnete_coll_scratch_req_t *scratch_
   if(need_to_reset == 1) {
     /* fprintf(stderr, "%d> NEED TO RESET\n", gasneti_mynode); */
     /*perform a barrier which will trip the reset flag of the scratch status*/
-    gasnete_coll_consensus_wait();
+    gasnete_coll_consensus_wait(GASNETE_THREAD_PASS_ALONE);
 /*    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);*/
     /* fprintf(stderr, "%d> everyone resets\n", gasneti_mynode); */

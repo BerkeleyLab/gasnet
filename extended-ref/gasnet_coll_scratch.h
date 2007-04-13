@@ -122,7 +122,7 @@ struct gasnete_coll_scratch_status_t_ {
 };
 
 void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team);
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in);
+void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG);
 
 /* 
    upon a barrier or OUT_ALL_SYNC collective we can reset the scratch status since all nodes will 
@@ -131,7 +131,7 @@ void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in);
 	This operation will go through and reset all head and tail pointers and throw away 
 	the history list unconditionally
 */
-void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in);
+void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG);
 
 /*
   This operation in essance advances the position of my scratch position

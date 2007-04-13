@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/04/11 01:46:21 $
- * $Revision: 1.29.6.36 $
+ *     $Date: 2007/04/13 21:24:14 $
+ * $Revision: 1.29.6.37 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1020,6 +1020,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   static gasneti_cond_t init_cond = GASNETI_COND_INITIALIZER;
   static gasneti_mutex_t init_lock = GASNETI_MUTEX_INITIALIZER;
+  static gasneti_mutex_t barrier_fn_lock = GASNETI_MUTEX_INITIALIZER;
+  static int barrier_fn_set = 0;
   static gasnet_image_t remain = 0;
   size_t image_size = gasneti_nodes * sizeof(gasnet_image_t);
   int first;
@@ -1179,8 +1181,14 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   
   gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_ALL);
   /*change the barrier code to hook in collective call back*/
-  gasnete_coll_old_barrier_notify = gasnete_barrier_notify;
-  gasnete_barrier_notify = gasnete_coll_barrier_notify_callback;
+  gasneti_mutex_lock(&barrier_fn_lock);
+  if(!barrier_fn_set) {
+    /* We need exactly one thread to set this otherwise it'll be an infinite recursion*/
+    gasnete_coll_old_barrier_notify = gasnete_barrier_notify;
+    gasnete_barrier_notify = gasnete_coll_barrier_notify_callback;
+    barrier_fn_set = 1;
+  }
+  gasneti_mutex_unlock(&barrier_fn_lock);
   gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
   gasnete_coll_current_fanout = GASNETE_COLL_DEFAULT_FANOUT;
   gasnete_coll_init_done = 1;
@@ -1294,7 +1302,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 							      : GASNET_ERR_NOT_READY;
     }
     /* Allocate a new barrier and wait for all barriers to finish before this id*/
-    extern int gasnete_coll_consensus_wait() {
+    extern int gasnete_coll_consensus_wait(GASNETE_THREAD_FARG_ALONE) {
 #if 1
       gasnete_coll_consensus_t mybarr;
   
@@ -1302,7 +1310,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   
       while(gasnete_coll_consensus_try(mybarr)==GASNET_ERR_NOT_READY) {
         /*Try to make progress on other collectives*/
-        gasnete_coll_poll();
+        gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
       }
 #else
       gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
