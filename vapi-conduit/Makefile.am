@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/01/09 19:16:48 $
-# $Revision: 1.38.12.2 $
+#     $Date: 2007/04/13 17:48:24 $
+# $Revision: 1.38.12.3 $
 # Description: Makefile for GASNet vapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -27,9 +27,14 @@ $(builddir)/firehose_region-$(THREAD_MODEL).o: force
 	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose_region.c
 
 ##
-## SSH bootstrap support
+## SSH bootstrap support (built unless fork() is unavailable)
 ##
+if VAPI_BOOTSTRAP_SSH
+ssh_defines = -DHAVE_SSH_SPAWNER
 ssh_srcdir = $(top_srcdir)/other/ssh-spawner
+ssh_sources = $(ssh_srcdir)/gasnet_bootstrap_ssh.c
+ssh_deps = $(ssh_srcdir)/*.h
+endif
 
 ##
 ## MPI bootstrap support (optional)
@@ -82,11 +87,11 @@ CONDUIT_SOURCELIST =                 \
       $(srcdir)/gasnet_extended.c    \
       $(srcdir)/gasnet_firehose.c    \
       $(fh_srcdir)/firehose_hash.c   \
-      $(ssh_srcdir)/gasnet_bootstrap_ssh.c
+      $(ssh_sources)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(mpi_defines)\
+CONDUIT_EXTRALIBCFLAGS = -I@VAPI_INCLUDE@ -I$(fh_srcdir) $(ssh_defines) $(mpi_defines)\
 			 @VAPI_LIBCFLAGS@ $(rcv_thread_defines) -DGASNET_CONDUIT_VAPI
 
 # additional conduit header files to install from external, non-standard directories
@@ -94,7 +99,7 @@ CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_srcdir)/*.[ch] $(ssh_srcdir)/*.h $(mpi_deps)
+CONDUIT_EXTRADEPS = $(fh_srcdir)/*.[ch] $(ssh_deps) $(mpi_deps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as

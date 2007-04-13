@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2007/01/09 19:16:21 $
- * $Revision: 1.27.6.2 $
+ *     $Date: 2007/04/13 17:48:03 $
+ * $Revision: 1.27.6.3 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -48,7 +48,7 @@
 #endif
 
 #define AMUDP_MAX_NUMHANDLERS      256  /* max. handler-table entries >= 256 */
-#define AMUDP_MAX_NUMTRANSLATIONS  256  /* max. translation-table entries >= 256 */
+#define AMUDP_MAX_NUMTRANSLATIONS  16384 /* max. translation-table entries >= 256 */
 #define AMUDP_MAX_SEGLENGTH  ((uintptr_t)-1) /* max. dest_offset */
 
 #define AMUDP_MAX_BUNDLES          255  /* max bundles that can be allocated */
@@ -143,7 +143,7 @@ typedef struct {
 typedef struct {
   int8_t handlerRunning;
   int8_t replyIssued;
-  uint8_t sourceId;       /* 0-based endpoint id of remote */
+  uint16_t sourceId;      /* 0-based endpoint id of remote */
   en_t sourceAddr;        /* address of remote */
   struct amudp_ep *dest;  /* ep_t of endpoint that received this message */
   struct amudp_buf *bulkBuffer; /* if non-NULL, points to a bulk buffer 
@@ -216,7 +216,7 @@ typedef struct {
   char inuse; /*  entry in use */
   en_t name;  /*  remote address */
   tag_t tag;  /*  remote tag */
-  uint8_t id; /*  id in compressed table */
+  uint16_t id; /*  id in compressed table */
 } amudp_translation_t;
 
 typedef struct {

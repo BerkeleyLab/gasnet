@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.am,v $
-#     $Date: 2006/06/06 22:35:21 $
-# $Revision: 1.35.10.1 $
+#     $Date: 2007/04/13 17:48:01 $
+# $Revision: 1.35.10.2 $
 # Description: Makefile for AMMPI/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -40,7 +40,7 @@ compile = $(CC) $(CFLAGS) $(INCLUDES)
 link = $(CC) $(CFLAGS) $(LDFLAGS) $(platform_defines) $(INCLUDES) 
 linkend = $(platform_libraries) $(MANUAL_LIBS)
 
-if USE_MPI_CONDUIT
+if USE_AMMPI
 lib_LIBRARIES = libammpi.a
 endif
 headers = 	     \
@@ -104,7 +104,7 @@ include Makefile.tests
 %.o: %.c ammpi.h ammpi_spmd.h ammpi_internal.h
 	$(compile) -DAMMPI -o $@ -c $<
 
-if USE_MPI_CONDUIT
+if USE_AMMPI
 if GNU_NM
 check-exports: libammpi.a
 	@echo Checking libammpi exports...

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2007/01/09 19:15:52 $
- * $Revision: 1.45.2.4 $
+ *     $Date: 2007/04/13 17:47:44 $
+ * $Revision: 1.45.2.5 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,7 +168,14 @@ GASNETI_BEGIN_EXTERNC
   #include <sys/mman.h>
   #include <fcntl.h>
   #include <unistd.h>
-  #include <sn/mmtimer.h> 
+  #if HAVE_SN_MMTIMER_H
+    #include <sn/mmtimer.h> 
+  #elif HAVE_LINUX_MMTIMER_H
+    #include <linux/mmtimer.h>
+  #endif
+  #ifndef MMTIMER_FULLNAME
+  #define MMTIMER_FULLNAME "/dev/mmtimer"
+  #endif
   typedef uint64_t gasneti_tick_t;
   /* EXTERNC here fixes a mysterious C++ linkage error on davinci */
   GASNETI_EXTERNC double gasneti_timer_tick; /* tick conversion factor */

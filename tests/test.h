@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2007/01/09 21:31:27 $
- * $Revision: 1.63.4.6 $
+ *     $Date: 2007/04/13 17:48:20 $
+ * $Revision: 1.63.4.7 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -841,6 +841,7 @@ static void _test_usage(int early) {
   #endif
 }
 #define test_usage() _test_usage(0)
+#define test_usage_early() _test_usage(1)
 static void _test_init(const char *testname, int reports_performance, int early,
                        int argc, const char * const *argv, const char *usagestr) {
   /* convenient place to put inits we want in all tests */

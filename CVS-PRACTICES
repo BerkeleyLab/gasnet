@@ -35,6 +35,19 @@ Development practices that GASNet developers are expected to follow:
   before rolling back any non-trivial change, and whenever distributing a
   snapshot of the archive to any user or external party.
 
+* Follow good CVS branch merging practice: when merging from the CVS head to a branch, 
+  you should first tag the head, then merge to that tag. Subsequent merges will also
+  require the tag from your last merge to the branch.
+
+* When merging from the CVS head to a branch, perform a separate branch commit
+  that contains nothing but the merge (and note that in the commit log). Do not 
+  lump in your own branch changes along with a merge from the head, because that
+  makes it harder to see what has actually changed in your commit, and muddies the
+  branch history. If your working copy already has both the merged head updates 
+  and your manual changes, you should checkout a separate copy of your branch, 
+  merge the head to it and commit that to the branch, then cvs up your working
+  copy before doing the commit of your real changes.
+
 * GASNet supports both a regular and tools-only (conduit-free) distribution.
   The Bootstrap -o option activates tools-only mode for a given source tree
   by MODIFYING several source files, but the CVS repo is always kept in regular

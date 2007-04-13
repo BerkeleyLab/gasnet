@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/02/02 00:51:21 $
-# $Revision: 1.310.2.7 $
+#     $Date: 2007/04/13 17:47:44 $
+# $Revision: 1.310.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.2.7 $)
+AC_REVISION($Revision: 1.310.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,7 +27,7 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[9])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[2])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -288,6 +288,7 @@ case "$gasnet_cv_cc_family" in
   HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
   MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Compaq) CCDEBUGFLAGS="-trapuv -g2" ;;
+  Pathscale) CCDEBUGFLAGS="-g -O0" ;; # need to explicitly disable optimization
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
@@ -536,6 +537,7 @@ case "$gasnet_cv_cc_family" in
   Pathscale) KEEPTMP_CFLAGS="-keep" ;;
   XLC) KEEPTMP_CFLAGS="-qlist" ;; # XXX: generates .lst w/ asm.  Can't find a way to preserve .i
   PGI) KEEPTMP_CFLAGS="-Mkeepasm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
+  Intel) KEEPTMP_CFLAGS="-save-temps" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
   Sun) KEEPTMP_CFLAGS="-keeptmp" ;;
   *) KEEPTMP_CFLAGS="" ;;
 esac
@@ -1224,6 +1226,8 @@ dnl sets enabled_<lowername> to yes or no for whether conduit should be enabled
 AC_DEFUN([CONDUIT_BEGIN],[
  pushdef([CONDUIT_NAME],[$1])
  pushdef([CONDUIT_DESC],[$2])
+ # bug 1946: prevent confusing cross-conduit error messages
+ GASNET_ERR_CLEANUP
  enabled_[]$1=no
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
  GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC (auto-detected),
@@ -1318,7 +1322,7 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
         gasnet_ib_spawner_conf=ssh
       fi])
   if test "$gasnet_ib_spawner_conf$have_mpi_compat" = mpino; then
-    AC_MSG_ERROR([--with-[]lowername[]-spawner=mpi requires MPI compatibility support which $mpi_reason])
+    AC_MSG_ERROR([--with-[]lowername[]-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
   fi
   if test "$gasnet_ib_spawner_conf$have_fork" = sshno; then
     AC_MSG_ERROR([--with-[]lowername[]-spawner=ssh requires fork() support which $fork_reason])
@@ -1740,6 +1744,9 @@ AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that in
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 CONDUIT_END([test "$enabled_mpi$have_mpi" = yesyes])
+if test "$enabled_mpi$have_mpi" = yesyes; then
+  have_ammpi=yes
+fi
 if test "$force_mpi_compat$have_mpi" = yesno ; then
   GASNET_MSG_ERROR(User requested --enable-mpi-compat but I don't know how to build MPI programs for your system)
 fi
@@ -1747,6 +1754,11 @@ if test "$enabled_mpi_compat$have_mpi" = yesyes ; then
   have_mpi_compat=yes
 else
   have_mpi_compat=no
+  if test "$have_mpi" = yes; then
+    mpi_compat_reason="was disabled"
+  else
+    mpi_compat_reason="$mpi_reason"
+  fi
 fi
 AM_CONDITIONAL(USE_MPI_COMPAT, test "$have_mpi_compat" = yes)
 # USE_MPI == MPI-compatbility or MPI-conduit
@@ -1868,7 +1880,7 @@ if test $enabled_gm = yes; then
       if test "$GM_MPI_COMPAT" = yes; then
 	  AC_DEFINE(GASNETC_GM_MPI_COMPAT)
       else
-	  GASNET_MSG_WARN([GM requires MPI for interoperability and MPI $mpi_reason - disabling feature])
+	  GASNET_MSG_WARN([disabling gm-conduit interoperability with MPI ($mpi_compat_reason)])
       fi
     fi
   fi
@@ -2181,7 +2193,7 @@ CONDUIT_END([test "$enabled_elan$have_elan" = yesyes])
 CONDUIT_BEGIN(vapi,[Mellanox InfiniBand/VAPI network conduit (vapi)])
 if test "$enabled_vapi$have_mpi_compat$have_fork" = yesnono; then
   enabled_vapi=no
-  GASNET_MSG_WARN([vapi-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup - disabling vapi])
+  GASNET_MSG_WARN([vapi-conduit requires either MPI compatibility ($mpi_compat_reason) or fork() ($fork_reason) for startup - disabling vapi])
 fi
 if test "$enabled_vapi" = yes; then
   # Start by assuming we do have VAPI
@@ -2303,6 +2315,7 @@ AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AC_SUBST(VAPI_LIBCFLAGS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
+AM_CONDITIONAL(VAPI_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 AM_CONDITIONAL(VAPI_RCV_THREAD,test "$enabled_vapi_rcv_thread" = yes)
 CONDUIT_END([test "$have_vapi" = yes])
@@ -2313,7 +2326,7 @@ CONDUIT_END([test "$have_vapi" = yes])
 CONDUIT_BEGIN(ibv,[OpenIB/OpenFabrics IB Verbs network conduit (ibv)])
 if test "$enabled_ibv$have_mpi_compat$have_fork" = yesnono; then
   enabled_ibv=no
-  GASNET_MSG_WARN([ibv-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup - disabling ibv])
+  GASNET_MSG_WARN([ibv-conduit requires either MPI compatibility ($mpi_compat_reason) or fork() ($fork_reason) for startup - disabling ibv])
 fi
 if test "$enabled_ibv" = yes; then
   # Start by assuming we do have IBV
@@ -2392,6 +2405,7 @@ AC_SUBST(IBV_LIBDIR)
 AC_SUBST(IBV_LIBS)
 AC_SUBST(IBV_LIBCFLAGS)
 AM_CONDITIONAL(USE_IBV_CONDUIT, test "$have_ibv" = yes)
+AM_CONDITIONAL(IBV_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(IBV_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 AM_CONDITIONAL(IBV_RCV_THREAD,test "$enabled_ibv_rcv_thread" = yes)
 CONDUIT_END([test "$have_ibv" = yes])
@@ -2422,7 +2436,7 @@ if test "$enabled_portals" = yes; then
   esac
 
   if test "$have_mpi_compat" != yes; then
-    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_reason])
+    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_compat_reason])
     have_portals=no
   fi
   if test "$gasnet_cv_cc_family" != GNU; then
@@ -2443,19 +2457,26 @@ if test "$enabled_portals" = yes; then
   if test $have_portals = yes; then
     GASNET_PUSHVAR(CFLAGS,"$CFLAGS ${PORTALS_INCLUDES}")
   
+    AC_CHECK_HEADERS(pctmbox.h)
+
     AC_MSG_CHECKING(for working Portals configuration)
     AC_TRY_LINK( [
        #include <portals/portals3.h>
-       #ifdef __LIBCATAMOUNT__
+       #if HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
        #include <catamount/cnos_mpi_os.h>
-       #else /* CNL */
+       #elif HAVE_PCTMBOX_H /* old CNL */
        #include <pctmbox.h>
+       #else /* backup */
+         extern int cnos_get_rank();
+         extern int cnos_get_size();
+	 extern int cnos_get_nidpid_map(void *);
        #endif
     ], [{
        static ptl_handle_ni_t ptl_ni_h;
        static ptl_interface_t ptl_iface;
        int my_rank = cnos_get_rank();
        int my_size = cnos_get_size();
+       cnos_get_nidpid_map(NULL);
        PtlNIInit(ptl_iface, PTL_PID_ANY, NULL, NULL, &ptl_ni_h);
     }], [ portals_test_worked=yes ], [ portals_test_worked=no GASNET_ERR_SAVE() ] )
     GASNET_POPVAR(CFLAGS)
@@ -2473,6 +2494,10 @@ fi
 
 AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$have_portals" = yes)
 CONDUIT_END([test "$have_portals" = yes])
+# TODO: remove when portals is fully native
+if test "$have_portals" = yes; then
+  have_ammpi=yes
+fi
 
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
@@ -2596,6 +2621,11 @@ AC_SUBST(SCI_INCLUDES)
 AC_SUBST(SCI_LIBS)
 AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
 CONDUIT_END([test "$have_sci" = yes])
+
+#---------------------------------------------------------------------------------------------------------------
+# build and install AMMPI
+AM_CONDITIONAL(USE_AMMPI, test "$have_ammpi" = yes)
+
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
 #---------------------------------------------------------------------------------------------------------------
@@ -2665,6 +2695,8 @@ AC_CHECK_HEADERS(sys/resource.h)
 
 AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
+
+AC_CHECK_HEADERS([sn/mmtimer.h linux/mmtimer.h])
 
 ########################################################################
 # BACKTRACE support

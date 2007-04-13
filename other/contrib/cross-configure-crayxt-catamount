@@ -12,6 +12,8 @@
 CC='cc -target=catamount' ; export CC  # vanilla target C compiler
 CXX='CC -target=catamount' ; export CXX  # vanilla target C++ compiler
 
+XTPE_INFO_MESSAGE_OFF=1 ; export XTPE_INFO_MESSAGE_OFF  # magic variable to disable Cray cc's target INFO warning
+
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/ 
 # in your environment to get the correct assembler for gcc
@@ -25,7 +27,7 @@ HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
 # Optional additional settings: (see configure --help for complete list)
 
 MPI_CC="$CC" ; export MPI_CC     # MPI-enabled C compiler
-MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
+#MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 #MPIRUN_CMD='pbsyod -size %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
 MPIRUN_CMD='yod -np %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/04/12 17:38:04 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2007/04/13 17:48:09 $
+ * $Revision: 1.1.2.25 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -19,7 +19,7 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable();
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
 static void gasnetc_traceoutput(int);
 

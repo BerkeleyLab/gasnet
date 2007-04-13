@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2007/01/09 19:16:21 $
- * $Revision: 1.16.6.2 $
+ *     $Date: 2007/04/13 17:48:03 $
+ * $Revision: 1.16.6.3 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -779,7 +779,7 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
       if (ea->translation[i].inuse) {
         ea->perProcInfo[procid].remoteName = ea->translation[i].name;
         ea->perProcInfo[procid].tag = ea->translation[i].tag;
-        ea->translation[i].id = (uint8_t)procid;
+        ea->translation[i].id = (uint16_t)procid;
         procid++;
         if (procid == ea->P) break; /*  should have all of them now */
       }
@@ -1022,6 +1022,7 @@ extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int glo
 
   AMUDP_assert(amudp_Initialized);
   AMUDP_assert(stats != NULL);
+  getCPUTicks(); /* ensure this has been called at least once, even if stats are empty */
 
   #if !AMUDP_COLLECT_STATS
     sprintf(msg, "(AMUDP_COLLECT_STATS disabled)\n");

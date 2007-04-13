@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2006/06/06 22:35:21 $
- * $Revision: 1.26.2.1 $
+ *     $Date: 2007/04/13 17:48:01 $
+ * $Revision: 1.26.2.2 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -58,6 +58,10 @@
   #undef AMMPI_RECV_REPOST_SLACK
   #define AMMPI_RECV_REPOST_SLACK 0
 #endif
+#ifndef AMMPI_VERIFY_MPI_ORDERING
+#define AMMPI_VERIFY_MPI_ORDERING  0 /* debugging aid for MPI implementations (not for general use) */
+#endif
+
 #if AMMPI_NONBLOCKING_SENDS
 #define AMMPI_SENDBUFFER_SZ         2*AMMPI_MAX_NETWORK_MSG /* size of MPI send buffer (used for rejections) */
 #else
@@ -232,6 +236,10 @@ typedef unsigned char ammpi_flag_t;
 
 /* active message header & meta info fields */
 typedef struct {
+  #if AMMPI_VERIFY_MPI_ORDERING  
+    uint64_t      seqnum;
+  #endif
+
   #if AMMPI_USE_AMTAGS
     tag_t         tag;
   #endif
@@ -305,6 +313,12 @@ typedef struct { /* gives us a compacted version of the translation table */
   #if AMMPI_FLOW_CONTROL
     uint32_t  tokens_out; /* remaining tokens for sends to this host */
     uint32_t  tokens_in;  /* coalesced tokens recieved from this host */
+  #endif
+  #if AMMPI_VERIFY_MPI_ORDERING /* debugging aid for MPI implementations */
+    struct {
+      uint64_t  in;  /* last seqnum recvd from this host */
+      uint64_t  out; /* last seqnum sent to this host */
+    } seqnum[2]; /* reply, request */
   #endif
 } ammpi_perproc_info_t;
 

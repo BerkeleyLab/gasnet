@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2007/01/09 19:15:51 $
- * $Revision: 1.238.2.6 $
+ *     $Date: 2007/04/13 17:47:44 $
+ * $Revision: 1.238.2.7 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,11 +29,39 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Work-arounds and special cases for various platforms */
+
 #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86
   #ifdef GASNETI_UNI_BUILD
     #define GASNETI_X86_LOCK_PREFIX ""
   #else
     #define GASNETI_X86_LOCK_PREFIX "lock\n\t"
+  #endif
+
+    /* Partial x86 solution(s) to bug 1718 (-fPIC support when configure-time check was non-PIC).
+     * AUTOMATIC WORK AROUND:
+     * + gcc: on most platforms (including Linux, Darwin and Solaris) defines __PIC__ when building
+     *      position independent code (e.g. -fPIC or -fpic; not passed -mdynamic-no-pic on Darwin).
+     * + pathcc: same as gcc
+     * MANUAL WORK AROUND:
+     * + pgcc: no distinguishing macro when passed -fPIC, so no automatic work-around available
+     * JUST WORKS:
+     * + icc: mimics gcc, but is able to schedule %ebx so no work-around is needed
+     * + Sun cc: use of specials doesn't encounter the problem
+     * + tcc: N/A since no PIC support
+     * + lcc: N/A since no native atomic support
+     *
+     * Bottom line is that we recommend YOUR_PIC_CFLAGS="-fPIC -DGASNETI_FORCE_PIC",
+     * replacing "-fPIC" with your compiler-specific flag(s) as needed.
+     */
+  #if (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI) && \
+	(defined(__PIC__) || defined(GASNETI_FORCE_PIC))
+      /* Disable use of %ebx when building PIC, but only on affected compilers. */
+      #define GASNETI_USE_X86_EBX 0
+  #endif
+  /* By default use the configure-probed result */
+  #ifndef GASNETI_USE_X86_EBX
+    #define GASNETI_USE_X86_EBX GASNETI_HAVE_X86_EBX
   #endif
 #endif
 
@@ -367,8 +395,8 @@
 	          : "=m" (v->ctr), "=qm" (retval)
 	          : "m" (v->ctr) 
                   : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	#if PLATFORM_COMPILER_PGI
-          return retval & 0xFF;	/* Bug 1754 */
+	#if GASNETI_PGI_ASM_BUG1754
+          return retval & 0xFF;
 	#else
           return retval;
 	#endif
@@ -386,8 +414,8 @@
 		: "=qm" (retval), "=m" (v->ctr), "=a" (readval)
 		: "r" (newval), "m" (v->ctr), "a" (oldval)
 		: "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	#if PLATFORM_COMPILER_PGI
-          return retval & 0xFF;	/* Bug 1754 */
+	#if GASNETI_PGI_ASM_BUG1754
+          return retval & 0xFF;
 	#else
           return retval;
 	#endif
@@ -440,14 +468,14 @@
 		    : "=q" (retval), "=m" (p->ctr), "=a" (readval)
 		    : "r" (newval), "m" (p->ctr), "a" (oldval)
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	  #if PLATFORM_COMPILER_PGI
-            return retval & 0xFF;	/* Bug 1754 */
+	  #if GASNETI_PGI_ASM_BUG1754
+            return retval & 0xFF;
 	  #else
             return retval;
 	  #endif
           }
         #endif
-      #elif GASNETI_HAVE_X86_EBX && \
+      #elif GASNETI_USE_X86_EBX && \
             !PLATFORM_COMPILER_TINY && !PLATFORM_COMPILER_PGI && \
             !(PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_LT(3,0,0)) /* bug 1790 */
 	/* "Normal" ILP32 case:
@@ -516,7 +544,7 @@
 	  return retval;
 	}
 	#define gasneti_atomic64_read gasneti_atomic64_read
-      #elif !GASNETI_HAVE_X86_EBX
+      #elif !GASNETI_USE_X86_EBX
 	/* Much the same as the "normal" ILP32 case, but w/ save and restore of EBX.
 	 * This is achieved by passing the "other" 64-bit value in ECX and a second
  	 * register of the compiler's choosing, which is then swapped w/ EBX.
@@ -594,10 +622,10 @@
         #define gasneti_atomic64_align 4 /* only need 4-byte alignment, not the default 8 */
         GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
         int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-	  register uint32_t oldlo = (uint32_t)(oldval & 0xFFFFFFFF);
-	  register uint32_t oldhi = (uint32_t)(oldval >> 32);
-	  register uint32_t newlo = (uint32_t)(newval & 0xFFFFFFFF);
-	  register uint32_t newhi = (uint32_t)(newval >> 32);
+	  register uint32_t oldlo = GASNETI_LOWORD(oldval);
+	  register uint32_t oldhi = GASNETI_HIWORD(oldval);
+	  register uint32_t newlo = GASNETI_LOWORD(newval);
+	  register uint32_t newhi = GASNETI_HIWORD(newval);
           __asm__ __volatile__ (
 		    "lock;			"
 		    "cmpxchg8b	%0		\n\t"
@@ -611,10 +639,10 @@
         GASNETI_INLINE(gasneti_atomic64_set)
         void gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t v, int flags) {
 	  uint64_t oldval = p->ctr;
-	  register uint32_t oldlo = (uint32_t)(oldval & 0xFFFFFFFF);
-	  register uint32_t oldhi = (uint32_t)(oldval >> 32);
-	  register uint32_t newlo = (uint32_t)(v & 0xFFFFFFFF);
-	  register uint32_t newhi = (uint32_t)(v >> 32);
+	  register uint32_t oldlo = GASNETI_LOWORD(oldval);
+	  register uint32_t oldhi = GASNETI_HIWORD(oldval);
+	  register uint32_t newlo = GASNETI_LOWORD(v);
+	  register uint32_t newhi = GASNETI_HIWORD(v);
           __asm__ __volatile__ (
 		    "0:				\n\t"
 		    "lock;			"
@@ -628,10 +656,9 @@
         GASNETI_INLINE(gasneti_atomic64_read)
         uint64_t gasneti_atomic64_read(gasneti_atomic64_t *p, int flags) {
 	  uint64_t retval = p->ctr;
-	  register uint32_t retlo = (uint32_t)(retval & 0xFFFFFFFF);
-	  register uint32_t rethi = (uint32_t)(retval >> 32);
+	  register uint32_t retlo = GASNETI_LOWORD(retval);
+	  register uint32_t rethi = GASNETI_HIWORD(retval);
 	  register uint32_t tmplo, tmphi;
-	  uint64_t tmp;
           __asm__ __volatile__ (
 		    "0:				\n\t"
 		    "movl	%%eax, %%ebx	\n\t"
@@ -642,7 +669,7 @@
 		    : "+m" (p->ctr), "+&a" (retlo),  "+&d" (rethi), "=&b" (tmplo), "=&c" (tmphi)
 		    : /* no inputs */
 		    : "cc" GASNETI_ATOMIC_MEM_CLOBBER);
-	  return ((uint64_t)rethi << 32) | ((uint64_t)retlo);
+	  return GASNETI_MAKEWORD(rethi, retlo);
 	}
 	#define gasneti_atomic64_read gasneti_atomic64_read
       #endif
@@ -2149,6 +2176,17 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Configure non-default features of generic atomics IFF required for the current platform. */
+
+/*
+ * Example for a CPU w/o native atomics and only 2-byte aligment for uint32_t and uint64_t:
+#if PLATFORM_JUST_AN_EXAMPLE
+  #define gasneti_genatomic32_align 2
+  #define gasneti_genatomic64_align 2
+#endif
+ */
+
+/* ------------------------------------------------------------------------------------ */
 /* Request build of generic atomics IFF required for the current platform */
 
 #ifndef GASNETI_HAVE_ATOMIC32_T
@@ -2163,9 +2201,11 @@
 
 #if defined(GASNETI_USE_GENERIC_ATOMIC32)
   #define GASNETI_BUILD_GENERIC_ATOMIC32	1	/* Build the 32-bit generics */
+  #define gasneti_weakatomic32_align		gasneti_genatomic32_align
 #endif
 #if defined(GASNETI_USE_GENERIC_ATOMIC64) || defined(GASNETI_HYBRID_ATOMIC64)
   #define GASNETI_BUILD_GENERIC_ATOMIC64	1	/* Build the 64-bit generics */
+  #define gasneti_weakatomic64_align		gasneti_genatomic64_align
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -2232,8 +2272,12 @@
     extern int pthread_mutex_lock; 
   #endif
 
-  #define gasneti_genatomic32_align 4
-  #if defined(GASNETI_UNALIGNED_ATOMIC64)
+  #ifndef gasneti_genatomic32_align
+    #define gasneti_genatomic32_align 4
+  #endif
+  #if defined(gasneti_genatomic64_align)
+    /* Keep the current value */
+  #elif defined(GASNETI_UNALIGNED_ATOMIC64)
     #define gasneti_genatomic64_align GASNETI_UNALIGNED_ATOMIC64
   #elif PLATFORM_ARCH_32 || defined(GASNETI_HYBRID_ATOMIC64)
     #define gasneti_genatomic64_align 4

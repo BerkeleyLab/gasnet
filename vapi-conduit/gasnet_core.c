@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/01/09 19:16:48 $
- * $Revision: 1.137.2.4 $
+ *     $Date: 2007/04/13 17:48:24 $
+ * $Revision: 1.137.2.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,9 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
+#if HAVE_SSH_SPAWNER
+  GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
+#endif
 #if HAVE_MPI_SPAWNER
   GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
 #endif
@@ -120,7 +122,7 @@ typedef struct _gasnetc_addr_t {
   GASNETC_IB_CHOOSE(IB_lid_t,      uint16_t)	lid;
 } gasnetc_addr_t;
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable();
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
 int		gasnetc_op_oust_limit;
 int		gasnetc_op_oust_pp;
@@ -225,7 +227,7 @@ static void *gasnetc_try_pin_inner(size_t size, gasnetc_memreg_t *reg) {
   if (addr != MAP_FAILED) {
     GASNETC_FOR_ALL_HCA_INDEX(h) {
       gasnetc_hca_t *hca = &gasnetc_hca[h];
-      vstat = gasnetc_pin(hca, addr, size, 0, &reg[h]);
+      vstat = gasnetc_pin(hca, addr, size, (gasnetc_acl_t)0, &reg[h]);
       if (vstat != 0) {
 	for (h -= 1; h >= 0; --h) {
           gasnetc_unpin(&gasnetc_hca[h], &reg[h]);
@@ -571,18 +573,11 @@ static int gasnetc_load_settings(void) {
 
 static void gasneti_bootstrapInit(int *argc_p, char ***argv_p,
 				  gasnet_node_t *nodes_p, gasnet_node_t *mynode_p) {
-#if HAVE_MPI_SPAWNER
-  if ((*argc_p < 2) || strncmp((*argv_p)[1], "-GASNET-SPAWN-", 14)) {
-    gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
-    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_mpi;
-    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_mpi;
-    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_mpi;
-    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_mpi;
-    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_mpi;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_mpi;
-  } else
-#endif
-  {
+  char *spawner = gasneti_getenv_withdefault("GASNET_IB_SPAWNER", "(not set)");
+
+  if (!strcmp(spawner, "ssh") ||
+      ((*argc_p >= 2) && !strncmp((*argv_p)[1], "-GASNET-SPAWN-", 14))) {
+#if HAVE_SSH_SPAWNER
     gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p);
     gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_ssh;
     gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_ssh;
@@ -590,7 +585,26 @@ static void gasneti_bootstrapInit(int *argc_p, char ***argv_p,
     gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_ssh;
     gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_ssh;
     gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_ssh;
-  }
+#else
+    gasneti_fatalerror("Requested ssh-spawner is not supported in this build");
+#endif
+  } else {
+#if HAVE_MPI_SPAWNER
+    gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
+    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_mpi;
+    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_mpi;
+    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_mpi;
+    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_mpi;
+    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_mpi;
+    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_mpi;
+#else
+    if (!strcmp(spawner, "mpi")) {
+      gasneti_fatalerror("Requested mpi-spawner is not supported in this build");
+    } else {
+      gasneti_fatalerror("Requested spawner \"%s\" is unknown", spawner);
+    }
+#endif
+  } 
 }
 
 /* Info used while probing for HCAs/ports */
@@ -1267,7 +1281,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(INIT)");
     }
 #else
-    qp_mask = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
+    qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
     qp_attr.qp_state        = IBV_QPS_INIT;
     qp_attr.pkey_index      = 0;
     qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
@@ -1314,7 +1328,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTR)");
     }
 #else
-    qp_mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_DEST_QPN | IBV_QP_MIN_RNR_TIMER;
+    qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_DEST_QPN | IBV_QP_MIN_RNR_TIMER);
     qp_attr.qp_state         = IBV_QPS_RTR;
     qp_attr.ah_attr.sl            = 0;
     qp_attr.ah_attr.is_global     = 0;
@@ -1367,7 +1381,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       }
     }
 #else
-    qp_mask = IBV_QP_STATE | IBV_QP_SQ_PSN | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC;
+    qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_SQ_PSN | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_MAX_QP_RD_ATOMIC);
     qp_attr.qp_state         = IBV_QPS_RTS;
     qp_attr.timeout          = GASNETC_QP_TIMEOUT;
     qp_attr.retry_cnt        = GASNETC_QP_RETRY_COUNT;
@@ -1700,7 +1714,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         for (j = 0, addr = gasnetc_seg_start, remain = segsize; remain != 0; ++j) {
 	  size_t len = MIN(remain, gasnetc_pin_maxsz);
           vstat = gasnetc_pin(hca, (void *)addr, len,
-			      GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR | GASNETC_ACL_REM_RD,
+			      (gasnetc_acl_t)(GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR | GASNETC_ACL_REM_RD),
 			      &hca->seg_reg[j]);
           GASNETC_VAPI_CHECK(vstat, "when registering the segment");
 	  my_rkeys[j] = hca->seg_reg[j].rkey;

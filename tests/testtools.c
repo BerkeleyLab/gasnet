@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2006/10/03 19:16:26 $
- * $Revision: 1.32.2.4 $
+ *     $Date: 2007/04/13 17:48:20 $
+ * $Revision: 1.32.2.5 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -271,7 +271,7 @@ int main(int argc, char **argv) {
       }
     }
 
-    for (i=0;i<8*sizeof(uintptr_t);++i) {
+    for (i=0;i<8*(int)sizeof(uintptr_t);++i) {
       uintptr_t val = ((uintptr_t)1) << i;
       if (gasnett_count0s_uintptr_t(val) != (sizeof(uintptr_t) - 1))
         ERR("incorrect return from gasnett_count0s_uintptr_t(1<<%i)", i);

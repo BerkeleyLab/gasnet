@@ -1,6 +1,6 @@
 GASNet collectives design notes
 ===============================
-* $Revision: 1.34.4.1 $
+* $Revision: 1.34.4.2 $
 * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> and Paul Hargrove <PHHargrove@lbl.gov>
 * Terms of use are as specified in license.txt
 
@@ -976,6 +976,18 @@ members of their own aggregates and each has a distinct handle.  A
 sequence of initiation calls on a given team with the GASNET_COLL_AGGREGATE
 flag set form a multiple-member aggregate, together with the first following
 call without GASNET_COLL_AGGREGATE.
+
+Use of aggregation is semantically equivalent to what an nbi access region
+does for gets and puts.  Specifically, aggregation of a series of calls
+does not provide any semantics that are not provided by the same sequence
+of calls and gasnet_coll_wait_sync_all() or gasnet_coll_try_sync_all().
+If the inputs of one operation overlap the outputs of another in the
+aggregate then the result is undefined, just as in the absence of
+aggregation.  Furthermore, as all of the members of an aggregate by
+definition are in-flight for overlapping time intervals, the
+synchronization flags do not enforce synchronization between operations
+within an aggregate - only between each individual collective operation and
+surrounding, non-overlapping activities.
 
 The handle returned by any collective initiation call with
 GASNET_COLL_AGGREGATE in the flags is undefined.  If a client attempts

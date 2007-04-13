@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2006/08/08 16:36:23 $
- * $Revision: 1.71.2.4 $
+ *     $Date: 2007/04/13 17:47:44 $
+ * $Revision: 1.71.2.5 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -185,6 +185,10 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
    which "owns" the associated memory.  Therefore, spinlocks must be used with care.
    Also unlike pthread_mutex, it is safe to unlock one from signal context.  Though
    trying to acquire a spinlock in signal context is legal, it is dangerous.
+
+   Like the pthread_mutex, these operations perform an RMB() when acquiring the
+   lock and a WMB() when releasing it.  So, no additional memory barriers are
+   required when using these locks to protect one's data structures.
 
    GASNETI_HAVE_SPINLOCK will be defined to 1 on platforms supporting this primitive.
  */

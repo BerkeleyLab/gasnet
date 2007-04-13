@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2007/01/09 19:15:52 $
- * $Revision: 1.47.2.4 $
+ *     $Date: 2007/04/13 17:47:44 $
+ * $Revision: 1.47.2.5 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -91,7 +91,12 @@
 /* splitting and reassembling 64-bit quantities */
 #define GASNETI_MAKEWORD(hi,lo) ((((uint64_t)(hi)) << 32) | (((uint64_t)(lo)) & 0xFFFFFFFF))
 #define GASNETI_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
-#define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+#if PLATFORM_COMPILER_INTEL
+  /* This form avoids a #69 truncation warning while generating identical code */
+  #define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg) & 0xFFFFFFFF))
+#else
+  #define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+#endif
 
 /* alignment macros */
 #define GASNETI_POWEROFTWO(P)    (((P)&((P)-1)) == 0)
