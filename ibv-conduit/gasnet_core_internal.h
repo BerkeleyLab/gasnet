@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2007/01/09 19:16:48 $
- * $Revision: 1.91.2.3 $
+ *     $Date: 2007/04/13 17:48:24 $
+ * $Revision: 1.91.2.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,9 @@
   #error "One of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
 #endif
 
-#include <ssh-spawner/gasnet_bootstrap_internal.h>
+#if HAVE_SSH_SPAWNER
+  #include <ssh-spawner/gasnet_bootstrap_internal.h>
+#endif
 #if HAVE_MPI_SPAWNER
   #include <mpi-spawner/gasnet_bootstrap_internal.h>
 #endif
