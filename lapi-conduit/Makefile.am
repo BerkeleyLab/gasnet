@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/02/01 22:23:01 $
-# $Revision: 1.33.8.1 $
+#     $Date: 2007/04/18 19:16:01 $
+# $Revision: 1.33.8.2 $
 # Description: Makefile for GASNet lapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,6 +9,23 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=lapi
+
+## From VAPI conduit
+##
+## Firehose
+##
+fh_srcdir = $(top_srcdir)/other/firehose
+# Some Firehose source files need extra CFLAGS do disable strict/ANSI aliasing
+# optimizations.  By building them separately we can avoid disabling these
+# useful optimizations for the entire conduit.
+fh_special_objs =                                 \
+      $(builddir)/firehose-$(THREAD_MODEL).o      \
+      $(builddir)/firehose_region-$(THREAD_MODEL).o
+fh_install_hdrs = $(fh_srcdir)/firehose_trace.h
+$(builddir)/firehose-$(THREAD_MODEL).o: force
+	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose.c
+$(builddir)/firehose_region-$(THREAD_MODEL).o: force
+	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose_region.c
 
 # any conduit-specific subdirectories containing Makefile.am's
 SUBDIRS = .
@@ -25,6 +42,8 @@ CONDUIT_FILELIST =           \
       gasnet_extended.c      \
       gasnet_extended_fwd.h  \
       gasnet_extended_internal.h \
+      gasnet_firehose.c \
+      firehose_fwd.h \
       STATUS                 \
       license.txt
 
@@ -32,23 +51,25 @@ CONDUIT_FILELIST =           \
 # to be compiled into libgasnet on the compiler command line
 CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
-      $(srcdir)/gasnet_extended.c 
+      $(srcdir)/gasnet_extended.c \
+      $(srcdir)/gasnet_firehose.c \
+      $(fh_srcdir)/firehose_hash.c
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = 
+CONDUIT_EXTRALIBCFLAGS = -I$(fh_srcdir)
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = 
+CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = 
+CONDUIT_EXTRADEPS = $(fh_srcdir)/*.[ch]
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS = 
+CONDUIT_SPECIAL_OBJS = $(fh_special_objs)
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

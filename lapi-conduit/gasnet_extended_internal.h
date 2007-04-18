@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2007/03/27 23:16:38 $
- * $Revision: 1.13.12.14 $
+ *     $Date: 2007/04/18 19:16:01 $
+ * $Revision: 1.13.12.15 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -215,8 +215,8 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                       \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||                    \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                     \
-    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&_temp)); \
-    gasneti_assert(_temp <= eop->initiated_cnt);                          \
+    /* GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&_temp)); */\
+    /* gasneti_assert(_temp <= eop->initiated_cnt);                          */\
     _th = gasnete_threadtable[(eop)->threadidx];                          \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);      \
   } while (0)
@@ -227,10 +227,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);                               \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);                        \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);                      \
-    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->get_cntr),&_temp)); \
-    gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            \
-    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); \
-    gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            \
+    /* GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->get_cntr),&_temp)); */\
+    /* gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            */\
+    /* GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); */\
+    /* gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            */\
     gasneti_assert(gasneti_weakatomic_read(&(iop)->get_aux_cntr, 0) >= 0);           \
     gasneti_assert(gasneti_weakatomic_read(&(iop)->put_aux_cntr, 0) >= 0);           \
   } while (0)

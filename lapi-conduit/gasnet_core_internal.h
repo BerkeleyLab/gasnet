@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/03/27 23:16:38 $
- * $Revision: 1.40.12.10 $
+ *     $Date: 2007/04/18 19:16:01 $
+ * $Revision: 1.40.12.11 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <firehose.h>
 
 /* LAPI Specific decls */
 #include <stddef.h>
@@ -301,10 +302,11 @@ extern void gasnetc_token_enqueue(gasnetc_token_queue_t *q, gasnetc_token_t *p, 
 
 #if GASNETC_LAPI_RDMA
 #define GASNETC_LAPI_PVO_EXTENT (16L*1024L*1024L)
-#define GASNETC_LAPI_RDMA_GET_TAG (-1)
-#define GASNETC_LAPI_RDMA_PUT_TAG (-2)
+#define GASNETC_LAPI_RDMA_GET_TAG (0)
+#define GASNETC_LAPI_RDMA_PUT_TAG (1)
 #define GASNETC_MAX_PVOS 16
 #define GASNETC_LAPI_MAX_TAGS 16
+extern int gasnetc_use_firehose;
 
 typedef struct _gasnetc_lapi_pvo_struct {
   lapi_user_pvo_t pvo;

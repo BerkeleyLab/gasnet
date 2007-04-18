@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/02/01 22:23:01 $
- * $Revision: 1.79.10.14 $
+ *     $Date: 2007/04/18 19:16:01 $
+ * $Revision: 1.79.10.15 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,6 +70,7 @@ int gasnetc_lapi_rdma_initialized = 0;
 /* For opening up some concurrency in multiple transfers to the same node */
 int gasnetc_rctxts_per_node = 1;
 int *gasnetc_lapi_current_rctxt;
+firehose_info_t gasnetc_firehose_info;
 #endif
 
 /* This is the official core AM handler table.  All registered
@@ -406,10 +407,11 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 
 #if GASNETC_LAPI_RDMA
 
+int gasnetc_use_firehose = 0;
+
 int gasnetc_lapi_empty=0;
 int gasnetc_lapi_occupied=1;
 int gasnetc_lapi_done=2;
-
 /* 
  * How silly, I need pointers to the numbers 0,1,...,n-1
  * Closures aren't such a bad idea after all, no?
@@ -474,13 +476,40 @@ void gasnetc_lapi_register_rcallbacks()
 				     gasnetc_lapi_target_counter_directory));
   gasnete_setup_put_hndlr();
 }
+
+void gasnetc_lapi_get_remote_contexts()
+{
+  /* Get rCtxts, the connections to remote nodes */
+  gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t *));
+  gasnetc_lapi_current_rctxt = gasneti_malloc(gasneti_nodes*sizeof(int));
+  bzero(gasnetc_lapi_current_rctxt,gasneti_nodes*sizeof(int));
+
+  /* Too verbose? */
+  gasnetc_rctxts_per_node = (int) gasneti_getenv_int_withdefault("GASNET_LAPI_RCTXTS_PER_NODE",1,0);
+
+  for(int i=0;i < gasneti_nodes;i++) {
+    /* This will give an error if you try to get a remote context for yourself */
+    gasnetc_remote_ctxts[i] = gasneti_malloc(gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
+    bzero(gasnetc_remote_ctxts[i],gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
+    if(i != gasneti_mynode) {
+      for(int j=0;j < gasnetc_rctxts_per_node;j++) {
+        gasnetc_remote_ctxts[i][j].Util_type = LAPI_REMOTE_RCXT;
+        gasnetc_remote_ctxts[i][j].operation = LAPI_RDMA_ACQUIRE;
+        gasnetc_remote_ctxts[i][j].dest = i;
+        GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_remote_ctxts[i][j]))));
+        GLTRACE(C,("node %d got rCtxt for node %d (number %d) (%d) (%ld)\n",gasneti_mynode,i,j,gasnetc_remote_ctxts[i][j].usr_rcxt,sizeof(lapi_user_cxt_t)));
+      }
+    }
+  }
+}
 #endif
 
 /* ------------------------------------------------------------------------------------ */
 extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
     void *segbase = NULL;
-  
+    int numreg;
+ 
     GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
                             numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
@@ -513,7 +542,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     { /*  core API handlers */
 	gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
 	int len = 0;
-	int numreg = 0;
+	numreg = 0;
 	gasneti_assert(ctable);
 	while (ctable[len].fnptr) len++; /* calc len */
 	if (gasnetc_reghandlers(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
@@ -524,7 +553,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     { /*  extended API handlers */
 	gasnet_handlerentry_t *etable = (gasnet_handlerentry_t *)gasnete_get_handlertable();
 	int len = 0;
-	int numreg = 0;
+	numreg = 0;
 	gasneti_assert(etable);
 	while (etable[len].fnptr) len++; /* calc len */
 	if (gasnetc_reghandlers(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
@@ -532,6 +561,21 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	gasneti_assert(numreg == len);
     }
 
+#if GASNETC_LAPI_RDMA && GASNET_SEGMENT_EVERYTHING
+      /* Register handlers and such ... 
+         Copied from vapi conduit */
+   { /* firehose handlers */
+      gasnet_handlerentry_t *ftable = (gasnet_handlerentry_t *)firehose_get_handlertable();
+      int len = 0;
+      int base = 64 + numreg;
+      int numreg;
+      gasneti_assert(ftable);
+      while (ftable[len].fnptr) len++; /* calc len */
+      if (gasnetc_reghandlers(ftable, len, base, 127, 1, &numreg) != GASNET_OK)
+        GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
+      gasneti_assert(numreg == len);
+   }
+#endif
     if (table) { /*  client handlers */
 	int numreg1 = 0;
 	int numreg2 = 0;
@@ -561,6 +605,27 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /*  register segment  */
 
     gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+
+#if GASNETC_LAPI_RDMA
+#if GASNET_SEGMENT_EVERYTHING
+    /* Always use firehose for segment everything, else there's no point */
+    gasnetc_use_firehose = 1;
+#else    
+    gasnetc_use_firehose = (int) gasneti_getenv_yesno_withdefault("GASNET_LAPI_USE_FIREHOSE",0);
+#endif /* GASNET_SEGMENT_EVERYTHING */
+    if(gasnetc_use_firehose) {
+      uint32_t flags = 0;
+      size_t max_regions = FIREHOSE_CLIENT_MAXREGIONS;
+      uintptr_t max_pinnable_memory = FIREHOSE_CLIENT_MAXREGION_SIZE*FIREHOSE_CLIENT_MAXREGIONS;
+#if GASNET_SEGMENT_EVERYTHING
+#else
+      flags = FIREHOSE_INIT_FLAG_LOCAL_ONLY;
+#endif
+      /* printf("Initializing firehose\n"); */
+      firehose_init(FIREHOSE_MAX_PINNABLE, max_regions, NULL, 0, flags, &gasnetc_firehose_info);
+      /* printf("MAX PINNABLE SIZE = %ld\n",gasnetc_firehose_info.max_LocalPinSize); */
+    }
+#endif /* GANSETC_LAPI_RDMA */
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     if (segsize == 0) segbase = NULL; /* no segment */
@@ -638,28 +703,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }		
 
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
-    /* Get rCtxts, the connections to remote nodes */
-    gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t *));
-    gasnetc_lapi_current_rctxt = gasneti_malloc(gasneti_nodes*sizeof(int));
-    bzero(gasnetc_lapi_current_rctxt,gasneti_nodes*sizeof(int));
 
-    /* Too verbose? */
-    gasnetc_rctxts_per_node = (int) gasneti_getenv_int_withdefault("GASNET_LAPI_RCTXTS_PER_NODE",1,0);
-
-    for(i=0;i < gasneti_nodes;i++) {
-      /* This will give an error if you try to get a remote context for yourself */
-      gasnetc_remote_ctxts[i] = gasneti_malloc(gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
-      bzero(gasnetc_remote_ctxts[i],gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
-      if(i != gasneti_mynode) {
-        for(j=0;j < gasnetc_rctxts_per_node;j++) {
-          gasnetc_remote_ctxts[i][j].Util_type = LAPI_REMOTE_RCXT;
-          gasnetc_remote_ctxts[i][j].operation = LAPI_RDMA_ACQUIRE;
-          gasnetc_remote_ctxts[i][j].dest = i;
-          GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_remote_ctxts[i][j]))));
-          GLTRACE(C,("node %d got rCtxt for node %d (number %d) (%d) (%ld)\n",gasneti_mynode,i,j,gasnetc_remote_ctxts[i][j].usr_rcxt,sizeof(lapi_user_cxt_t)));
-        }
-      }
-    }
+    gasnetc_lapi_get_remote_contexts();
 
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
 	  
@@ -726,11 +771,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     GLTRACE(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
     gasnete_lapi_setup_nb();
 
+#if 0
     /* One last, and I mean it this time, thing to do
        Set up the remote callbacks so that we can get notified when puts complete */
+
     GLTRACE(C,("gasnetc_attach: %d callback registration\n",gasneti_mynode));
     gasnetc_lapi_register_rcallbacks();
-
+#endif
     GLTRACE(C,("gasnetc_attach: %d init done\n",gasneti_mynode));
     /* Make sure we're all done */
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
@@ -738,6 +785,16 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
 #endif
 #else
+#if GASNETC_LAPI_RDMA
+    /* Segment everything setup */
+    gasnetc_lapi_get_remote_contexts();
+#if 0
+    /* Just initialize the network buffers */
+    GLTRACE(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
+    gasnete_lapi_setup_nb();
+#endif
+    GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
+#endif /* GASNETC_LAPI_RDMA */
     /* GASNET_SEGMENT_EVERYTHING */
     {
 	int i;
@@ -1042,6 +1099,9 @@ extern int gasnetc_AMPoll() {
 	}
     }
     
+    if(gasnetc_use_firehose) {
+      firehose_poll();
+    }
     return GASNET_OK;
 }
 

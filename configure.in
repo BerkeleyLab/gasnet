@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/03/05 23:19:15 $
-# $Revision: 1.310.4.2 $
+#     $Date: 2007/04/18 19:15:59 $
+# $Revision: 1.310.4.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.4.2 $)
+AC_REVISION($Revision: 1.310.4.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1896,6 +1896,14 @@ fi
 if test "$enabled_lapi" = yes; then
   AC_MSG_CHECKING(for working LAPI configuration)
   GASNET_PUSHVAR(LIBS,"$LIBS -llapi_r -lpthread")
+
+  # Copied from VAPI 
+  # Since we are using firehose we need to disable certain optimizations.
+  # See bug #350 for an example of why firehose needs this.
+  # See bug #596 or #1031 for evidence that VAPI is affected by this.
+  # See bug #1052 for evidence that xlc is affected.
+  GASNET_FH_CFLAGS
+
   # try to compile and link a simple LAPI program
   AC_TRY_LINK( [
     #include <lapi.h>
