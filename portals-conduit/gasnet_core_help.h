@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2007/04/12 17:38:04 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2007/04/19 20:36:37 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet PORTALS conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@
  * Values of 1024 and 2048 have been tested.
  * See gasnet_portals.h for additional information.
  */
-#define GASNETC_CHUNKSIZE 1024
+#define GASNETC_CHUNKSIZE 2048
 
 GASNETI_BEGIN_EXTERNC
 

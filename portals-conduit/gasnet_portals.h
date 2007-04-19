@@ -24,7 +24,7 @@
  * activity on scavenge list for node gasnetc_debug_node.
  */
 #ifndef GASNETC_CREDIT_TESTING
-#define GASNETC_CREDIT_TESTING 0
+#define GASNETC_CREDIT_TESTING 1
 #endif
 
 /* Set to 1 if want to use gasneti_spinlock_t rather than gasneti_mutex_t
@@ -277,15 +277,57 @@ extern unsigned gasnetc_sys_poll_limit;
     end_epoch = (cred_byte >> 7) & 0x01;				\
   } while(0)
 
+/* debugging functions and macros */
 #if GASNET_DEBUG
-#define GASNETC_AMDEBUG_MSG(str,src,dest,addr,numargs,nbytes,msg_bytes,cred_byte,packed) do { \
+#define GASNETC_NEXTSEQNO() do {	  \
+    db_seqno = gasnetc_amseqno++;	  \
+  }while(0)
+#define GASNETC_INIT_HARGS do {			\
+    int i;					\
+    for (i = 0; i < 16; i++) hargs[i]=0;	\
+  } while(0)
+#define GASNETC_DEF_HARGS() gasnet_handlerarg_t hargs[16]; int hargcnt=0; uint32_t db_seqno; int db_cntr=0; GASNETC_INIT_HARGS
+#define GASNETC_ADD_HARG(foo) hargs[hargcnt++] = foo
+#define GASNETC_GET_SEQNO(ptoken) db_seqno = (ptoken)->seqno
+#define GASNETC_SAVE_SEQNO(ptoken) (ptoken)->seqno = db_seqno
+#define GASNETC_EXTRACT_SEQNO(data,cntr) do {\
+    memcpy(&db_seqno,data,sizeof(uint32_t)); \
+    data += sizeof(uint32_t);		     \
+    cntr += sizeof(uint32_t);		     \
+  } while(0);
+#define GASNETC_INJECT_SEQNO(data,cntr) do { \
+    memcpy(data,&db_seqno,sizeof(uint32_t)); \
+    data += sizeof(uint32_t);		     \
+    cntr += sizeof(uint32_t);		     \
+  } while(0);
+#define GASNETC_SEQNO_MSGLEN(cntr) cntr += sizeof(uint32_t)
+#define GASNETC_AMLONG_DEFSEQARG ,uint32_t db_seqno
+#define GASNETC_AMLONG_SEQARG ,db_seqno
+
+#define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data) do { \
+    const char *fmt_str = "AMD %s %s %s s=%d d=%d sq=%d sr=%d h=%d mlen=%d dlen=%d crc=%lu cred=%d:%d:%d narg=%d %x %x %x %x %x %x %x %x"; \
+    uint64_t i;								\
     uint8_t end_epoch,nextra,ncredit;					\
-    GASNETC_READ_CREDIT_BYTE(cred_byte,end_epoch,nextra,ncredit);	\
-    GASNETI_TRACE_PRINTF(C,("AMINFO: %s [P%d->P%d] narg=%d msglen=%d, addr=0x%p nbyte=%d ee=%d nextra=%d ncred=%d pack=%d",str,src,dest,numargs,(int)msg_bytes,addr,(int)nbytes,end_epoch,nextra,ncredit,packed)); \
+    uint8_t *udata = (uint8_t*)data;					\
+    uint32_t sr_seqno = (snd ? (gasnetc_snd_seqno++) : (gasnetc_rcv_seqno++)); \
+    unsigned long crc = crc32(data,dlen,0);				\
+    /*for (i = 0; i < dlen; i++) crc += udata[i];*/			\
+    GASNETC_READ_CREDIT_BYTE(cred,end_epoch,nextra,ncredit);		\
+    GASNETI_TRACE_PRINTF(C,(fmt_str,(snd?"S":"R"),str,(req?"Req":"Rpl"),src,dest,db_seqno,sr_seqno,handler,mlen,dlen,crc,end_epoch,nextra,ncredit,narg,a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7])); \
   } while(0)
+    
 #else
-#define GASNETC_AMDEBUG_MSG(str,src,dest,addr,numargs,nbytes,msg_bytes,cred_byte,packed) do { \
-  } while(0)
+#define GASNETC_NEXTSEQNO(sn) do {} while(0)
+#define GASNETC_DEF_HARGS() do {} while(0)
+#define GASNETC_ADD_HARG(foo) do {} while(0)
+#define GASNETC_GET_SEQNO(ptok) do {} while(0)
+#define GASNETC_SAVE_SEQNO(ptok) do {} while(0)
+#define GASNETC_EXTRACT_SEQNO(data,cntr) do {} while(0)
+#define GASNETC_INJECT_SEQNO(data,cntr) do {} while(0)
+#define GASNETC_SEQNO_MSGLEN(cntr) do {} while(0)
+#define GASNETC_AMLONG_DEFSEQARG
+#define GASNETC_AMLONG_SEQARG
+#define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data) do{}while(0)
 #endif
 
 #if GASNETC_CREDIT_TESTING
@@ -394,6 +436,9 @@ typedef struct token_rec {
   ptl_size_t        rplsb_offset;        /* offset in replyer RplSB to use in Reply */
   ptl_process_id_t  initiator;           /* process ID of requestor */
   gasnet_node_t     srcnode;             /* gasnet node ID of requestor */
+#if GASNET_DEBUG
+  uint32_t          seqno;               /* Debug Seq number for AM Req/Reply */
+#endif
 } gasnetc_ptl_token_t;
 
 /* Metadata cached by Long Put or AM Long Header
@@ -415,7 +460,11 @@ typedef struct gasnetc_amlongcache_rec {
   struct gasnetc_amlongcache_rec *next;   /* link into conn_state list of active AMLong lid objs */
   void               *data;               /* location of data packet payload (supplied by data pkt) */
   size_t              datalen;            /* length of data message (supplied by data pkt) */
+#if GASNET_DEBUG
+  uint32_t            seqno;              /* AM sequence number for debugging */
+#endif
   gasnet_handlerarg_t args[];             /* args to handler function (supplied by header) */
+
 } gasnetc_amlongcache_t;
 
 #if GASNETC_USE_SPINLOCK
@@ -735,6 +784,9 @@ extern int gasnetc_allow_packed_long;
 extern gasneti_semaphore_t gasnetc_send_tickets;
 extern int gasnetc_msg_limit;
 
+/* debugging aid */
+extern uint32_t gasnetc_snd_seqno, gasnetc_rcv_seqno;
+extern uint32_t gasnetc_amseqno;
 
 /* prototype for gasnet handler functions */
 typedef void (*gasnetc_handler_fn_t)();
@@ -958,5 +1010,30 @@ uint32_t gasnetc_new_lid(gasnet_node_t dest)
   /* use _add rather than _incr since it returns the new value */
   return gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
 }
+
+#if GASNET_DEBUG
+/* crc32 -- calculate and POSIX.2 checksum 
+   Copyright (C) 92, 1995-1999 Free Software Foundation, Inc.
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
+unsigned long crc32( const void* const buffer, 
+		      unsigned long length, 
+		      unsigned long crc);
+
+#endif
+
 
 #endif

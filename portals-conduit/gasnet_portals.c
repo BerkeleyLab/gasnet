@@ -153,6 +153,11 @@ int gasnetc_allow_packed_long = 1;
 
 const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
 
+/* debugging aids */
+uint32_t gasnetc_snd_seqno=0;
+uint32_t gasnetc_rcv_seqno=0;
+uint32_t gasnetc_amseqno = 0;
+
 /* =================================================================================
  * This top portion of the file is where file-scope worker routines are located.
  * ================================================================================= */
@@ -265,7 +270,7 @@ static gasnetc_amlongcache_t* get_lid_obj_from_data(gasnet_node_t src, uint32_t 
  *     - set data fields as per arguments.
  *     - return NULL.
  * --------------------------------------------------------------------------------- */
-static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, uint8_t credits, int nargs, gasnet_handlerarg_t *args)
+static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_t lid, gasnet_handler_t ghandler, uint32_t src_offset, uint8_t credits, int nargs, gasnet_handlerarg_t *args GASNETC_AMLONG_DEFSEQARG)
 {
   gasnetc_amlongcache_t *obj;
   int found;
@@ -278,6 +283,9 @@ static gasnetc_amlongcache_t* get_lid_obj_from_header(gasnet_node_t src, uint32_
   obj->ghandler = ghandler;
   obj->initiator_offset = src_offset;
   obj->credits = credits;
+#if GASNET_DEBUG
+  obj->seqno = db_seqno;
+#endif
   obj->narg = nargs;
   if (! found) {
     /* we are the first to arrive, store args. 
@@ -324,9 +332,16 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   ptl_match_bits_t   mbits = ev->match_bits;
   gasnetc_ptl_token_t tok;
   gasnet_token_t token = (gasnet_token_t)&tok;
-  gasnet_handlerarg_t args[numarg];
+  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
   uint8_t *data;
-  int    argcnt = 0;
+  int  argcnt = 0;
+  int  msg_bytes = 0;
+
+  GASNETC_DEF_HARGS();    /* debug, must be first statement */
+  {
+    int i;
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
+  }
 
   tok.flags = 0;
   tok.initiator = ev->initiator;
@@ -346,53 +361,56 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   /* insure our data pointer is aligned for a double */
   gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
 
-  /* crack args out of hdr_data, match_bits and payload
-   * if isReq:
-   *   numarg = 0:  (----,cred) in hdr_data, 
-   *   numarg = 1:  (arg0,cred) in hdr_data, 
-   *   numarg > 1:  (arg0,arg1) in hdr_data, (remaining args + cred_info) in payload
-   * if !isReq:
-   *   numarg = 0:  (----,cred) in hdr_data, 
-   *   numarg = 1:  (arg0,cred) in hdr_data, 
-   *   numarg = 2:  (arg0,cred) in hdr_data, arg1 in upper match bits
-   *   numarg > 2:  (arg0,arg1) in hdr_data, arg2 in upper match bits, (rem args + cred_info) in payload
+  /* AM Short Request Data Format:
+   * numarg=0:   HD=[----,cred] MB=[off,XX] Data=[seqno][pad]
+   * numarg=1:   HD=[arg1,cred] MB=[off,XX] Data=[seqno][pad]
+   * numarg=2+:  HD=[arg1,arg2] MB=[off,XX] Data=[args][cred][seqno][pad]
+   * NOTE: seqno included only in debug mode
+   * NOTE: Reply is identical, except without trailing pad
    */
   if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
-  if (isReq && (numarg < 2)) {
+  if (numarg < 2) {
     /* credit info is packed in LOWER bits of hdr_data */
     uint32_t cred = (uint32_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
     tok.credits = (uint8_t)(cred & 0x000000FF);
-  } else if (!isReq && (numarg < 3)) {    
-    /* credit info is packed in LOWER bits of hdr_data */
-    uint32_t cred = (uint32_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
-    tok.credits = (uint8_t)(cred & 0x000000FF);
-    if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
-
   } else {
     /* second arg in LOWER bits of hdr_data */
     args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
-    if (!isReq) {
-      /* Reply third arg in upper bits of match_bits */
-      args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
-    }
-
-    /* unpack remaining args from data payload */
-    for(; argcnt < numarg; argcnt++) {
-      memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
-      data += sizeof(gasnet_handlerarg_t);
-    }
+  }
+  /* unpack remaining args from data payload */
+  for(; argcnt < numarg; argcnt++) {
+    memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
+    data += sizeof(gasnet_handlerarg_t);
+    msg_bytes += sizeof(gasnet_handlerarg_t);
+  }
+  if (numarg > 1) {
     /* unpack the credit info */
     memcpy(&tok.credits,data,sizeof(uint8_t));
     data += sizeof(uint8_t);
+    msg_bytes += sizeof(uint8_t);
   }
-
-  GASNETC_AMDEBUG_MSG((isReq?"S_Req Recv":"S_Rpl Recv"),tok.srcnode,gasneti_mynode,((uint8_t*)ev->md.start + ev->offset),numarg,0,ev->rlength,tok.credits,0);
+  GASNETC_EXTRACT_SEQNO(data,msg_bytes);
+  if (isReq) { /* message length accounting: Request contains pad at end of message */
+    int pad;
+    GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
+    msg_bytes += pad;
+  }
+  {
+    uint8_t ee,nx,nc;
+    GASNETC_READ_CREDIT_BYTE(tok.credits,ee,nx,nc);
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: Short %s s=%d r=%d cred_byte=%x %d:%d:%d",(isReq?"Req":"Rpl"),tok.srcnode,gasneti_mynode,tok.credits,ee,nx,nc));
+  }
 
   /* Process credit info and prep credit byte for return (if isReq) */
   if (gasnetc_use_flow_control) {
     tok.credits = gasnetc_credit_update(isReq,tok.credits,tok.srcnode,"Short");
   }
     
+  gasneti_assert(ev->mlength == ev->rlength);
+  gasneti_assert(msg_bytes == ev->rlength);
+  GASNETC_SAVE_SEQNO(&tok);
+  GASNETC_DBGMSG(0,isReq,"S",tok.srcnode,gasneti_mynode,ghandler,numarg,args,msg_bytes,tok.credits,0,NULL);
+
   GASNETI_RUN_HANDLER_SHORT(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg);
 
   if (isReq && !(tok.flags & GASNETC_PTL_REPLY_SENT)) {
@@ -428,12 +446,18 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
   ptl_match_bits_t   mbits = ev->match_bits;
   gasnetc_ptl_token_t tok;
   gasnet_token_t token = (gasnet_token_t)&tok;
-  gasnet_handlerarg_t args[numarg];
+  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
   uint8_t *data;
-  int      bytes_so_far, pad;
+  int      pad;
   uint32_t payload_bytes;
   size_t   nbytes;
   int      argcnt = 0;
+  int      msg_bytes = 0;
+  GASNETC_DEF_HARGS();    /* debug, must be first statement */
+  {
+    int i;
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
+  }
 
   tok.flags = 0;
   tok.initiator = ev->initiator;
@@ -454,36 +478,57 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
     tok.initiator_offset = (uint32_t)(mbits >> 32);
   }
 
+  /* AM Medium Data Format:
+   * HD=[cred:len,arg1] MB=[off,XX] Data=[args][seqno][pad][data][pad]
+   * NOTE: seqno only included in debug mode
+   */
   /* payload len and credit info in upper bits of hdr_data */
   payload_bytes = (uint32_t)GASNETC_UNPACK_UPPER(ev->hdr_data);
   tok.credits = (uint8_t)(payload_bytes >> 24);
-  payload_bytes &= 0x00FFFFFF;  /* mask off credit_byte */
-  nbytes = payload_bytes;  /* type conversion */
+  payload_bytes &= 0x00FFFFFF;     /* mask off credit_byte */
+  nbytes = (size_t)payload_bytes;  /* type conversion */
 
   /* crack args out of hdr_data, mbits if available */
   if (numarg > 0) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_LOWER(ev->hdr_data);
-  if (!isReq && (numarg > 1)) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
 
   /* unpack remaining args from data payload */
-  bytes_so_far = 0;
   for(; argcnt < numarg; argcnt++) {
     memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
     data += sizeof(gasnet_handlerarg_t);
-    bytes_so_far += sizeof(gasnet_handlerarg_t);
+    msg_bytes += sizeof(gasnet_handlerarg_t);
   }
 
-  /* Skip over any pad field so that handler payload is double-aligned */
-  GASNETC_COMPUTE_DOUBLE_PAD(bytes_so_far,pad);
-  data += pad;
-  bytes_so_far += pad;
+  GASNETC_EXTRACT_SEQNO(data,msg_bytes);            /* debug */
+  GASNETC_SAVE_SEQNO(&tok);                         /* debug */
 
-  GASNETC_AMDEBUG_MSG((isReq?"M_Req Recv":"M_Rpl Recv"),tok.srcnode,gasneti_mynode,((uint8_t*)ev->md.start + ev->offset),numarg,nbytes,ev->rlength,tok.credits,0);
+  /* Skip over any pad field so that handler payload is double-aligned */
+  GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
+  data += pad;
+  msg_bytes += pad;
+  gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
+
+  /* accounting: this should be same as message length */
+  msg_bytes += nbytes;
+  if (isReq) {  /* trailing pad only on Requests */
+    GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
+    msg_bytes += pad;
+  }
+
+  gasneti_assert(ev->mlength == ev->rlength);
+  gasneti_assert(msg_bytes == ev->rlength);
+
+  {
+    uint8_t ee,nx,nc;
+    GASNETC_READ_CREDIT_BYTE(tok.credits,ee,nx,nc);
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: Med %s s=%d r=%d cred_byte=%x %d:%d:%d",(isReq?"Req":"Rpl"),tok.srcnode,gasneti_mynode,tok.credits,ee,nx,nc));
+  }
 
   /* Process credit info and prep credit byte for return (if isReq) */
   if (gasnetc_use_flow_control) {
     tok.credits = gasnetc_credit_update(isReq,tok.credits,tok.srcnode,"Med");
   }
-    
+
+  GASNETC_DBGMSG(0,isReq,"M",tok.srcnode,gasneti_mynode,ghandler,numarg,args,msg_bytes,tok.credits,nbytes,data);
 
   GASNETI_RUN_HANDLER_MEDIUM(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg, data, nbytes);
 
@@ -519,22 +564,39 @@ static int exec_amlong_header(int isReq, int isPacked,
   ptl_match_bits_t   mbits = ev->match_bits;
   gasnetc_ptl_token_t tok;
   gasnet_token_t token = (gasnet_token_t)&tok;
-  gasnet_handlerarg_t args[numarg];
+  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
   uint32_t lid;
   uint8_t *data;
   int      pad;
   int32_t  payload_bytes;
   size_t   nbytes = -1;
   int      argcnt = 0;
-  int      bytes_so_far = 0;
+  int      msg_bytes = 0;
   void    *dest;
   int      check_reply = isReq;  /* AM Request must reply for Portals Conduit */
   int      ran_handler = 0;
+
+  GASNETC_DEF_HARGS();           /* debug, must be first statement */
+  {
+    int i;
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
+  }
 
   tok.flags = 0;
   tok.initiator = ev->initiator;
   tok.srcnode = gasnetc_get_nodeid(&ev->initiator);
   tok.credits = 0;
+
+  /* set data pointer */
+  data = (uint8_t*)ev->md.start + ev->offset;
+
+  /* insure our data pointer is aligned for a double */
+  gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
+
+  /* Regular Format: hdr_dara=[arg0,lid]      data=[args][seqno][cred][pad] 
+   * Packed  Format: hdr_data=[arg0,cred:len] data=[args][seqno][destaddr][data][pad]
+   * NOTE: seqno only in debug mode, pad only for Req
+   */
 
   /* extract LID and check if this is a packed AM Long */
   /* if this is a packed AM, the resulting LID is actually the data payload length */
@@ -546,23 +608,16 @@ static int exec_amlong_header(int isReq, int isPacked,
   /* crack upper portion of match_bits */
   if (isReq) {
     tok.initiator_offset = (uint32_t)GASNETC_UNPACK_UPPER(mbits);
-  } else {
-    /* second arg is stashed in upper match bits */
-    if (numarg > 1) args[argcnt++] = (gasnet_handlerarg_t)GASNETC_UNPACK_UPPER(mbits);
-  }
-
-  /* set data pointer */
-  data = (uint8_t*)ev->md.start + ev->offset;
-
-  /* insure our data pointer is aligned for a double */
-  gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
+  } 
 
   /* unpack remaining args from data payload */
   for(; argcnt < numarg; argcnt++) {
     memcpy(&args[argcnt], data, sizeof(gasnet_handlerarg_t));
     data += sizeof(gasnet_handlerarg_t);
-    bytes_so_far += sizeof(gasnet_handlerarg_t);
+    msg_bytes += sizeof(gasnet_handlerarg_t);
   }
+  GASNETC_EXTRACT_SEQNO(data,msg_bytes);
+  GASNETC_SAVE_SEQNO(&tok);
 
   if (isPacked) {
     tok.credits = (lid >> 24);
@@ -571,11 +626,14 @@ static int exec_amlong_header(int isReq, int isPacked,
     /* unpack credit byte */
     memcpy(&tok.credits,data,sizeof(uint8_t));
     data += sizeof(uint8_t);
-    bytes_so_far += sizeof(uint8_t);
+    msg_bytes += sizeof(uint8_t);
   }
 
-  GASNETC_AMDEBUG_MSG((isReq?"L_Req Recv":"L_Rpl Recv"),tok.srcnode,gasneti_mynode,((uint8_t*)ev->md.start + ev->offset),numarg,-1,ev->rlength,tok.credits,isPacked);
-
+  {
+    uint8_t ee,nx,nc;
+    GASNETC_READ_CREDIT_BYTE(tok.credits,ee,nx,nc);
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: Long%s %s s=%d r=%d cred_byte=%x %d:%d:%d",(isPacked?"Packed":""),(isReq?"Req":"Rpl"),tok.srcnode,gasneti_mynode,tok.credits,ee,nx,nc));
+  }
   if (gasnetc_use_flow_control) {
     /* In case of Request:  process credit update and store in token field for return.
      * In case of Reply:  ok to process returned credits here.
@@ -588,17 +646,24 @@ static int exec_amlong_header(int isReq, int isPacked,
     /* extract the data payload destination, shoud be in local RAR */
     memcpy(&dest, data, sizeof(void*));
     data += sizeof(void*);
-    bytes_so_far += sizeof(void*);
+    msg_bytes += sizeof(void*);
       
     /* copy the data payload to the specified destination */
     memcpy(dest,data,nbytes);
+    msg_bytes += nbytes;
 
     if (isReq) {
       gasnetc_threaddata_t *th = gasnetc_mythread();
       gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
       th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
       tok.rplsb_offset = (uint32_t)th->rplsb_off;
+      /* message length accounting */
+      GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
+      msg_bytes += pad;
     }
+    gasneti_assert(msg_bytes == ev->rlength);
+    gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
+    GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,ghandler,numarg,args,msg_bytes,tok.credits,nbytes,dest);
     GASNETI_RUN_HANDLER_LONG(isReq, ghandler, gasnetc_handler[ghandler], token, args, numarg, dest, nbytes);
 
     ran_handler = 1;
@@ -606,8 +671,16 @@ static int exec_amlong_header(int isReq, int isPacked,
   } else {
 
     /* called from Header packet, but not a packed message, check if data message has arrived */
-    gasnetc_amlongcache_t *p = get_lid_obj_from_header(tok.srcnode, lid, ghandler, tok.initiator_offset, tok.credits, numarg, args);
+    gasnetc_amlongcache_t *p;
 
+    if (isReq) { /* message length accounting */
+      GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
+      msg_bytes += pad;
+    }
+    gasneti_assert(msg_bytes == ev->rlength);
+    gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
+
+    p = get_lid_obj_from_header(tok.srcnode, lid, ghandler, tok.initiator_offset, tok.credits, numarg, args GASNETC_AMLONG_SEQARG);
     if (p) {
       /* data has arrived, run handler */
       if (isReq) {  
@@ -616,6 +689,8 @@ static int exec_amlong_header(int isReq, int isPacked,
 	th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
 	tok.rplsb_offset = (uint32_t)th->rplsb_off;
       }
+
+      GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,ghandler,numarg,args,msg_bytes,tok.credits,p->datalen,p->data);
       GASNETI_TRACE_PRINTF(C,("exec_amlong_header, second to arrive: isReq=%d, numarg=%d, hndlr=%d, nbytes=%d",isReq,numarg,ghandler,(int)p->datalen));
       GASNETI_RUN_HANDLER_LONG(isReq, ghandler ,gasnetc_handler[ghandler], token, args, numarg, p->data, p->datalen);
 
@@ -672,6 +747,8 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
   int      ran_handler = 0;
   gasnetc_amlongcache_t *p;
 
+  GASNETC_DEF_HARGS();
+
   tok.flags = 0;
   tok.initiator = ev->initiator;
   tok.srcnode = gasnetc_get_nodeid(&ev->initiator);
@@ -693,7 +770,15 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
       tok.initiator_offset = p->initiator_offset;
     }
     tok.credits = p->credits;
+#if GASNET_DEBUG
+    {
+      int i;
+      for (i = 0; i < p->narg; hargs[i] = p->args[i]);
+      tok.seqno = p->seqno;
+    }
+#endif
 
+    GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,p->ghandler,p->narg,hargs,-1,p->credits,datalen,dataaddr);
     GASNETI_TRACE_PRINTF(C,("exec_amlong_data, second to arrive, running handler isReq=%d, lid=%d",isReq,lid));
     GASNETI_RUN_HANDLER_LONG(isReq, p->ghandler ,gasnetc_handler[p->ghandler], token, p->args, p->narg, dataaddr, datalen);
 
@@ -1229,19 +1314,23 @@ static void RplSB_event(ptl_event_t *ev)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
   ptl_size_t offset = ev->offset;
+  ptl_size_t local_offset = (mbits >> 32);
   uint8_t msg_type;
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
-  GASNETI_TRACE_PRINTF(C,("RplSB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
+  GASNETI_TRACE_PRINTF(C,("RplSB event %s offset = %i, loc_offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(int)local_offset,(uint64_t)mbits,msg_type));
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
 
+  /* MLW: debug check */
+  gasneti_assert(offset == local_offset);
+  
   switch (ev->type) {
   case PTL_EVENT_SEND_END:
     gasnetc_return_ticket(&gasnetc_send_tickets);
     /* reclaim the chunk */
-    gasnetc_chunk_free(&gasnetc_RplSB, offset);
+    gasnetc_chunk_free(&gasnetc_RplSB, local_offset);
     break;
 
   default:
@@ -1782,6 +1871,7 @@ uint8_t gasnetc_credit_update(int isReq, uint8_t cred_byte, gasnet_node_t remote
     int     link_to_revoke_list = 0;
 
     if (nextra > 0) {
+      gasneti_assert(gasnetc_use_dynamic_credits);
       /* remote node request additional credits */
       state->LoanRequested++;
 #if GASNETC_CREDIT_TESTING
@@ -1807,7 +1897,7 @@ uint8_t gasnetc_credit_update(int isReq, uint8_t cred_byte, gasnet_node_t remote
     }
     GASNETC_UNLOCK_STATE(state);
     GASNETC_SET_CREDIT_BYTE(cred_byte, ee_return, nextra_return, ncredit_return);
-    GASNETI_TRACE_PRINTF(C,("CREDINFO: %sReq Recv: [P%d->P%d] Got=%d:%d:%d Update=%d:%d:%d",name,remotenode,gasneti_mynode,end_epoch,nextra,ncredit,ee_return,nextra_return,ncredit_return));
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: %sReq Recv: [P%d->P%d] Got=%d:%d:%d Update=%d:%d:%d lc=%d",name,remotenode,gasneti_mynode,end_epoch,nextra,ncredit,ee_return,nextra_return,ncredit_return,state->LoanCredits));
     if (scavenge) gasnetc_scavenge_for_credits();
     if (link_to_revoke_list) gasnetc_scavenge_list_add(remotenode,0);
     
@@ -1817,7 +1907,7 @@ uint8_t gasnetc_credit_update(int isReq, uint8_t cred_byte, gasnet_node_t remote
     state->SendInuse -= ncredit;
     state->SendCredits += nextra;   /* additional credits granted by Lender */
     GASNETC_UNLOCK_STATE(state);
-    GASNETI_TRACE_PRINTF(C,("CREDINFO: %sRpl Recv: [P%d->P%d] Got=%d:%d:%d",name,remotenode,gasneti_mynode,end_epoch,nextra,ncredit));
+    GASNETI_TRACE_PRINTF(C,("CREDINFO: %sRpl Recv: [P%d->P%d] Got=%d:%d:%d sc=%d su=%d",name,remotenode,gasneti_mynode,end_epoch,nextra,ncredit,state->SendCredits, state->SendInuse));
   }
   return cred_byte;
 }
@@ -1863,9 +1953,9 @@ void gasnetc_scavenge_list_remove(gasnet_node_t node)
   gasneti_assert(s->link.next != GASNETC_DLL_NULL);
   gasneti_assert(s->link.prev != GASNETC_DLL_NULL);
   {
-    gasneti_assert( gasnetc_scavenge_list != GASNETC_DLL_NULL );
     gasnetc_dll_index_t next = s->link.next;
     gasnetc_dll_index_t prev = s->link.prev;
+    gasneti_assert( gasnetc_scavenge_list != GASNETC_DLL_NULL );
     if (next == node) {
       /* this is the only node in the list */
       gasneti_assert(gasnetc_scavenge_list == node);
@@ -2321,7 +2411,7 @@ extern void gasnetc_init_portals_network(void)
   gasneti_nodes = cnos_get_size();
 
   if (gasneti_nodes >= maxnodes) {
-    gasneti_fatalerror("GASNet Portals conduit designed to work for up to %ld nodes,"
+    gasneti_fatalerror("GASNet Portals conduit designed to work for up to %d nodes,"
 		       " this job uses %d nodes.  Modify size of gasnetc_dll_index_t "
 		       " and rebuild library",maxnodes-1,gasneti_nodes);
   }
@@ -4004,3 +4094,90 @@ void gasnetc_portalsSignalHandler(int sig) {
     break;
   }
 }
+
+#if GASNET_DEBUG
+/* crc32 -- calculate and POSIX.2 checksum 
+   Copyright (C) 92, 1995-1999 Free Software Foundation, Inc.
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
+static const unsigned long crctab[256] = {
+  0x0,
+  0x04C11DB7, 0x09823B6E, 0x0D4326D9, 0x130476DC, 0x17C56B6B,
+  0x1A864DB2, 0x1E475005, 0x2608EDB8, 0x22C9F00F, 0x2F8AD6D6,
+  0x2B4BCB61, 0x350C9B64, 0x31CD86D3, 0x3C8EA00A, 0x384FBDBD,
+  0x4C11DB70, 0x48D0C6C7, 0x4593E01E, 0x4152FDA9, 0x5F15ADAC,
+  0x5BD4B01B, 0x569796C2, 0x52568B75, 0x6A1936C8, 0x6ED82B7F,
+  0x639B0DA6, 0x675A1011, 0x791D4014, 0x7DDC5DA3, 0x709F7B7A,
+  0x745E66CD, 0x9823B6E0, 0x9CE2AB57, 0x91A18D8E, 0x95609039,
+  0x8B27C03C, 0x8FE6DD8B, 0x82A5FB52, 0x8664E6E5, 0xBE2B5B58,
+  0xBAEA46EF, 0xB7A96036, 0xB3687D81, 0xAD2F2D84, 0xA9EE3033,
+  0xA4AD16EA, 0xA06C0B5D, 0xD4326D90, 0xD0F37027, 0xDDB056FE,
+  0xD9714B49, 0xC7361B4C, 0xC3F706FB, 0xCEB42022, 0xCA753D95,
+  0xF23A8028, 0xF6FB9D9F, 0xFBB8BB46, 0xFF79A6F1, 0xE13EF6F4,
+  0xE5FFEB43, 0xE8BCCD9A, 0xEC7DD02D, 0x34867077, 0x30476DC0,
+  0x3D044B19, 0x39C556AE, 0x278206AB, 0x23431B1C, 0x2E003DC5,
+  0x2AC12072, 0x128E9DCF, 0x164F8078, 0x1B0CA6A1, 0x1FCDBB16,
+  0x018AEB13, 0x054BF6A4, 0x0808D07D, 0x0CC9CDCA, 0x7897AB07,
+  0x7C56B6B0, 0x71159069, 0x75D48DDE, 0x6B93DDDB, 0x6F52C06C,
+  0x6211E6B5, 0x66D0FB02, 0x5E9F46BF, 0x5A5E5B08, 0x571D7DD1,
+  0x53DC6066, 0x4D9B3063, 0x495A2DD4, 0x44190B0D, 0x40D816BA,
+  0xACA5C697, 0xA864DB20, 0xA527FDF9, 0xA1E6E04E, 0xBFA1B04B,
+  0xBB60ADFC, 0xB6238B25, 0xB2E29692, 0x8AAD2B2F, 0x8E6C3698,
+  0x832F1041, 0x87EE0DF6, 0x99A95DF3, 0x9D684044, 0x902B669D,
+  0x94EA7B2A, 0xE0B41DE7, 0xE4750050, 0xE9362689, 0xEDF73B3E,
+  0xF3B06B3B, 0xF771768C, 0xFA325055, 0xFEF34DE2, 0xC6BCF05F,
+  0xC27DEDE8, 0xCF3ECB31, 0xCBFFD686, 0xD5B88683, 0xD1799B34,
+  0xDC3ABDED, 0xD8FBA05A, 0x690CE0EE, 0x6DCDFD59, 0x608EDB80,
+  0x644FC637, 0x7A089632, 0x7EC98B85, 0x738AAD5C, 0x774BB0EB,
+  0x4F040D56, 0x4BC510E1, 0x46863638, 0x42472B8F, 0x5C007B8A,
+  0x58C1663D, 0x558240E4, 0x51435D53, 0x251D3B9E, 0x21DC2629,
+  0x2C9F00F0, 0x285E1D47, 0x36194D42, 0x32D850F5, 0x3F9B762C,
+  0x3B5A6B9B, 0x0315D626, 0x07D4CB91, 0x0A97ED48, 0x0E56F0FF,
+  0x1011A0FA, 0x14D0BD4D, 0x19939B94, 0x1D528623, 0xF12F560E,
+  0xF5EE4BB9, 0xF8AD6D60, 0xFC6C70D7, 0xE22B20D2, 0xE6EA3D65,
+  0xEBA91BBC, 0xEF68060B, 0xD727BBB6, 0xD3E6A601, 0xDEA580D8,
+  0xDA649D6F, 0xC423CD6A, 0xC0E2D0DD, 0xCDA1F604, 0xC960EBB3,
+  0xBD3E8D7E, 0xB9FF90C9, 0xB4BCB610, 0xB07DABA7, 0xAE3AFBA2,
+  0xAAFBE615, 0xA7B8C0CC, 0xA379DD7B, 0x9B3660C6, 0x9FF77D71,
+  0x92B45BA8, 0x9675461F, 0x8832161A, 0x8CF30BAD, 0x81B02D74,
+  0x857130C3, 0x5D8A9099, 0x594B8D2E, 0x5408ABF7, 0x50C9B640,
+  0x4E8EE645, 0x4A4FFBF2, 0x470CDD2B, 0x43CDC09C, 0x7B827D21,
+  0x7F436096, 0x7200464F, 0x76C15BF8, 0x68860BFD, 0x6C47164A,
+  0x61043093, 0x65C52D24, 0x119B4BE9, 0x155A565E, 0x18197087,
+  0x1CD86D30, 0x029F3D35, 0x065E2082, 0x0B1D065B, 0x0FDC1BEC,
+  0x3793A651, 0x3352BBE6, 0x3E119D3F, 0x3AD08088, 0x2497D08D,
+  0x2056CD3A, 0x2D15EBE3, 0x29D4F654, 0xC5A92679, 0xC1683BCE,
+  0xCC2B1D17, 0xC8EA00A0, 0xD6AD50A5, 0xD26C4D12, 0xDF2F6BCB,
+  0xDBEE767C, 0xE3A1CBC1, 0xE760D676, 0xEA23F0AF, 0xEEE2ED18,
+  0xF0A5BD1D, 0xF464A0AA, 0xF9278673, 0xFDE69BC4, 0x89B8FD09,
+  0x8D79E0BE, 0x803AC667, 0x84FBDBD0, 0x9ABC8BD5, 0x9E7D9662,
+  0x933EB0BB, 0x97FFAD0C, 0xAFB010B1, 0xAB710D06, 0xA6322BDF,
+  0xA2F33668, 0xBCB4666D, 0xB8757BDA, 0xB5365D03, 0xB1F740B4
+};
+
+unsigned long crc32(  const void* buffer, 
+		      unsigned long length, 
+		      unsigned long crc)
+{
+      const unsigned char* cp = (const unsigned char*)buffer;
+
+      while (length--)
+        crc = (crc << 8) ^ crctab[((crc >> 24) ^ *(cp++)) & 0xFF];
+
+      return crc;
+}
+
+#endif

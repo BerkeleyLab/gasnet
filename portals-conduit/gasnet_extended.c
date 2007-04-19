@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/02/15 01:59:32 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2007/04/19 20:36:37 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -298,13 +298,17 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 
 /*  query an op for completeness - for iop this means both puts and gets */
 int gasnete_op_isdone(gasnete_op_t *op) {
-    gasneti_assert(GASNETE_OP_THREADID(op) == gasnete_mythread()->threadidx);
+  GASNETI_TRACE_PRINTF(C,("OP_ISDONE: op=0x%lx threadid=%d",(uintptr_t)op,GASNETE_OP_THREADID(op)));
+  gasneti_assert( op != NULL );
+  gasneti_assert(GASNETE_OP_THREADID(op) == gasnete_mythread()->threadidx);
   if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
+    GASNETI_TRACE_PRINTF(C,("EOP_ISDONE: Explicit"));
     gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
     gasnete_eop_check((gasnete_eop_t *)op);
     return OPSTATE(op) == OPSTATE_COMPLETE;
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
+    GASNETI_TRACE_PRINTF(C,("EOP_ISDONE: Implicit"));
     gasnete_iop_check(iop);
     return (gasneti_weakatomic_read(&(iop->completed_get_cnt), 0) == iop->initiated_get_cnt) &&
            (gasneti_weakatomic_read(&(iop->completed_put_cnt), 0) == iop->initiated_put_cnt);
@@ -368,11 +372,14 @@ gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_
   return (gasneti_iop_t *)op;
 }
 void gasneti_eop_markdone(gasneti_eop_t *eop) {
+  gasneti_assert(OPTYPE( ((gasnete_eop_t*)eop) ) == OPTYPE_EXPLICIT);
   gasnete_op_markdone((gasnete_op_t *)eop, 0);
 }
 void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
   gasnete_iop_t *op = (gasnete_iop_t *)iop;
-  gasneti_weakatomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
+  gasneti_weakatomic_t * pctr;
+  gasneti_assert( OPTYPE(op) == OPTYPE_IMPLICIT );
+  pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
   gasnete_iop_check(op);
   if (noperations == 1) gasneti_weakatomic_increment(pctr, 0);
   else {
