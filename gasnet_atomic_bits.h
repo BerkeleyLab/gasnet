@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2007/03/20 01:39:59 $
- * $Revision: 1.272 $
+ *     $Date: 2007/03/19 23:09:21 $
+ * $Revision: 1.271 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2176,17 +2176,6 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure non-default features of generic atomics IFF required for the current platform. */
-
-/*
- * Example for a CPU w/o native atomics and only 2-byte aligment for uint32_t and uint64_t:
-#if PLATFORM_JUST_AN_EXAMPLE
-  #define gasneti_genatomic32_align 2
-  #define gasneti_genatomic64_align 2
-#endif
- */
-
-/* ------------------------------------------------------------------------------------ */
 /* Request build of generic atomics IFF required for the current platform */
 
 #ifndef GASNETI_HAVE_ATOMIC32_T
@@ -2272,12 +2261,8 @@
     extern int pthread_mutex_lock; 
   #endif
 
-  #ifndef gasneti_genatomic32_align
-    #define gasneti_genatomic32_align 4
-  #endif
-  #if defined(gasneti_genatomic64_align)
-    /* Keep the current value */
-  #elif defined(GASNETI_UNALIGNED_ATOMIC64)
+  #define gasneti_genatomic32_align 4
+  #if defined(GASNETI_UNALIGNED_ATOMIC64)
     #define gasneti_genatomic64_align GASNETI_UNALIGNED_ATOMIC64
   #elif PLATFORM_ARCH_32 || defined(GASNETI_HYBRID_ATOMIC64)
     #define gasneti_genatomic64_align 4

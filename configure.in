@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/03/21 01:52:33 $
-# $Revision: 1.448 $
+#     $Date: 2007/03/17 23:17:15 $
+# $Revision: 1.447 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.448 $)
+AC_REVISION($Revision: 1.447 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -288,7 +288,6 @@ case "$gasnet_cv_cc_family" in
   HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
   MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Compaq) CCDEBUGFLAGS="-trapuv -g2" ;;
-  Pathscale) CCDEBUGFLAGS="-g -O0" ;; # need to explicitly disable optimization
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
