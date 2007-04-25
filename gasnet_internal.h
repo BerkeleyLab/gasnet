@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2006/11/26 03:10:52 $
- * $Revision: 1.110 $
+ *     $Date: 2007/04/25 07:29:47 $
+ * $Revision: 1.110.6.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,9 +14,13 @@
   #error Internal GASNet code should not directly include gasnet.h, just gasnet_internal.h
 #endif
 
+/* Total hack */
+#define GASNET_SYSV 1
+
 #include <gasnet.h> /* MUST come first to ensure correct inttypes behavior */
 #include <gasnet_tools.h>
 #include <gasnet_syncops.h>
+#include <gasnet_sysv.h>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -255,6 +259,8 @@ void gasneti_defaultSignalHandler(int sig);
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
   extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize);
   extern void *gasneti_mmap(uintptr_t segsize);
+  extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize);
+  extern void *gasneti_mmap_shared(uintptr_t segsize);
   extern void gasneti_munmap(void *segbase, uintptr_t segsize);
   #ifndef GASNETI_MMAP_MAX_SIZE
     /* GASNETI_MMAP_MAX_SIZE controls the maz size segment attempted by the mmap binary search

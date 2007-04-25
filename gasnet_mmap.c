@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2007/03/07 21:32:01 $
- * $Revision: 1.50 $
+ *     $Date: 2007/04/25 07:29:47 $
+ * $Revision: 1.50.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,20 +19,20 @@
 
 #if PLATFORM_OS_IRIX
   #ifdef MAP_SGI_ANYADDR /* allow mmap to use 'reserved' 256MB region on O2k */
-    #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_SGI_ANYADDR | MAP_AUTORESRV)
+    #define GASNETI_MMAP_FLAGS (MAP_SGI_ANYADDR | MAP_AUTORESRV)
   #else
-    #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
+    #define GASNETI_MMAP_FLAGS (MAP_AUTORESRV)
   #endif
   #define GASNETI_MMAP_FILE "/dev/zero"
 #elif PLATFORM_ARCH_CRAYX1
-  #define GASNETI_MMAP_FLAGS (MAP_PRIVATE | MAP_AUTORESRV)
+  #define GASNETI_MMAP_FLAGS (MAP_AUTORESRV)
   #define GASNETI_MMAP_FILE "/dev/zero"
 #elif PLATFORM_ARCH_CRAYT3E
   #error mmap not supported on Cray-T3E
 #elif PLATFORM_OS_CYGWIN
   #error mmap not supported on Cygwin - it doesnt work properly
 #elif PLATFORM_OS_HPUX
-  #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE | MAP_PRIVATE)
+  #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE )
   #define GASNETI_MMAP_NOTFIXED_FLAG MAP_VARIABLE
 #endif
 
@@ -56,7 +56,7 @@
     #define GASNETI_MMAP_FILE "/dev/zero"
     #endif
   #endif
-  #define GASNETI_MMAP_FLAGS (GASNETI_MAP_ANONYMOUS | MAP_PRIVATE | GASNETI_MMAP_NORESERVE)
+  #define GASNETI_MMAP_FLAGS (GASNETI_MAP_ANONYMOUS | GASNETI_MMAP_NORESERVE)
 #endif
 
 #ifndef GASNETI_MMAP_FIXED_FLAG
@@ -67,7 +67,7 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
+static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize, int shared) {
   static int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
   void	*ptr;
@@ -82,7 +82,8 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
 
   t1 = gasneti_ticks_now();
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), 
-      (GASNETI_MMAP_FLAGS | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG)), 
+      (GASNETI_MMAP_FLAGS | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG))
+			  | (shared? MAP_SHARED : MAP_PRIVATE), 
       gasneti_mmapfd, 0);
   t2 = gasneti_ticks_now();
 
@@ -117,10 +118,16 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   return ptr;
 }
 extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_internal(segbase, segsize);
+  gasneti_mmap_internal(segbase, segsize, 0);
 }
 extern void *gasneti_mmap(uintptr_t segsize) {
-  return gasneti_mmap_internal(NULL, segsize);
+  return gasneti_mmap_internal(NULL, segsize, 0);
+}
+extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
+  gasneti_mmap_internal(segbase, segsize, 1);
+}
+extern void *gasneti_mmap_shared(uintptr_t segsize) {
+  return gasneti_mmap_internal(NULL, segsize, 1);
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
@@ -159,7 +166,11 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t h
   si.size = GASNETI_PAGE_ALIGNDOWN((lowsz + (highsz - lowsz) / 2));
   gasneti_assert(si.size > 0);
 
+  #if GASNET_SYSV
+  si.addr = gasneti_mmap_shared(si.size);
+  #else
   si.addr = gasneti_mmap(si.size);
+  #endif
 
   if (si.addr == MAP_FAILED) 
     return gasneti_mmap_binary_segsrch(lowsz, si.size);
@@ -179,7 +190,11 @@ static gasnet_seginfo_t gasneti_mmap_lineardesc_segsrch(uintptr_t highsz) {
   si.size = highsz;
   while (si.addr == MAP_FAILED && si.size > GASNET_PAGESIZE) {
     si.size -= GASNET_PAGESIZE;
+    #if GASNET_SYSV
+    si.addr = gasneti_mmap_shared(si.size);
+    #else
     si.addr = gasneti_mmap(si.size);
+    #endif
   }
   if (si.addr == MAP_FAILED) {
     si.addr = NULL;
@@ -192,13 +207,21 @@ static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
   gasnet_seginfo_t si;
   gasnet_seginfo_t last_si = { NULL, 0 };
   si.size = GASNET_PAGESIZE;
+  #if GASNET_SYSV
+  si.addr = gasneti_mmap_shared(si.size);
+  #else
   si.addr = gasneti_mmap(si.size);
+  #endif
 
   while (si.addr != MAP_FAILED && si.size <= highsz) {
     last_si = si;
     gasneti_munmap(last_si.addr, last_si.size);
     si.size += GASNET_PAGESIZE;
+    #if GASNET_SYSV
+    si.addr = gasneti_mmap_shared(si.size);
+    #else
     si.addr = gasneti_mmap(si.size);
+    #endif
   }
   if (si.addr == MAP_FAILED) return last_si;
   else {
@@ -220,7 +243,11 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
     si.addr = NULL;
     return si;
   }
+  #if GASNET_SYSV
+  si.addr = gasneti_mmap_shared(maxsz);
+  #else
   si.addr = gasneti_mmap(maxsz);
+  #endif
   if (si.addr != MAP_FAILED) { /* succeeded at max value - done */
     si.size = maxsz;
     mmaped = 1;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2006/12/21 17:45:49 $
- * $Revision: 1.45 $
+ *     $Date: 2007/04/25 07:29:49 $
+ * $Revision: 1.45.4.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,8 +14,29 @@
 #include <unistd.h>
 #include <signal.h>
 
+#ifdef HAVE_MMAP
+#  include <sys/mman.h>
+#endif
+
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
+
+#if GASNET_SYSV
+  /* maximum number of processes that share a single shared memory region */
+  #define GASNETC_MAX_SYSV_NODES 256
+
+  /* Supernode data that lives in shared space */
+  struct gasnetc_supernode_info_t {
+    gasnet_node_t node2pid[GASNETC_MAX_SYSV_NODES]; /* pid lookup table */
+    gasneti_atomic_t startup_counter;		    /* one-time barrier */
+  };
+  static struct gasnetc_supernode_info_t *gasnetc_sn_info;
+
+  #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
+
+  static void *gasnetc_sysv_region;
+  static gasneti_sysvnet_t gasnetc_vnet_request, gasnetc_vnet_reply;
+#endif /* GASNET_SYSV */
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
 static void gasnetc_atexit(void);
@@ -63,6 +84,115 @@ static void gasnetc_bootstrapBarrier() {
   gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
 }
 
+#if GASNET_SYSV
+
+static int gasnetc_get_sysv_nodecount()
+{
+  gasnet_node_t nodes = gasneti_parse_int(gasnet_getenv("GASNET_SYSV_NODES"), 0);
+  if (nodes > GASNETC_MAX_SYSV_NODES) { 
+    gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", nodes,
+                       GASNETC_MAX_SYSV_NODES);
+  } else if (nodes == 0) {
+    fprintf(stderr, "Warning: GASNET_SYSV_NODES not specified: running with 1 node\n");
+    nodes = 1;
+  }
+  return nodes;
+}
+
+static int gasnetc_init_sysv()
+{
+  #if GASNETI_NO_FORK
+    #error GASNET_SYSV cannot yet be used with 'smp' conduit on platforms lacking fork()
+  #endif
+
+  size_t vnetsz, sninfosz;
+  uintptr_t sysvsize;
+  int i, fork_return;
+
+  gasneti_nodes = gasnetc_get_sysv_nodecount();
+
+  /* set up additional shared memory region for shared supernode data and AM
+   * infrastructure.
+   */
+  vnetsz = gasneti_sysvnet_memory_needed(gasneti_nodes); 
+  sninfosz = sizeof(struct gasnetc_supernode_info_t);
+  sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
+  sysvsize = sninfosz + (2*vnetsz);
+  gasnetc_sysv_region = gasneti_mmap_shared(sysvsize);
+printf("gasneti_sysvnet_init_sysv: mmmap region=%p\n", gasnetc_sysv_region);
+fflush(stdout);
+  if (gasnetc_sysv_region == MAP_FAILED)
+    gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
+  gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysv_region;
+  memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
+  gasneti_sysv_node2pid[0] = getpid();
+  /* Does fork() do a write flush?  Make sure */
+  gasneti_atomic_set(&gasnetc_sn_info->startup_counter, 0, GASNETI_ATOMIC_WMB_POST);
+  /* go fork yourself! */
+  for (i = 1; i < gasneti_nodes; i++) {
+    fork_return = fork();
+    if (fork_return < 0) {
+      gasneti_fatalerror("Fork failed!");
+    } else if (fork_return > 0) {
+      /* fill value into node->pid table */
+      gasneti_sysv_node2pid[i] = fork_return;
+    } else {
+      /* child */
+      gasneti_mynode = i;
+      break;
+    }
+  }
+  /* Collective call to initialize Shared AM "networks" */
+printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p\n", ((char*)(gasnetc_sysv_region))+sninfosz);
+  gasneti_sysvnet_init(&gasnetc_vnet_request, ((char*)(gasnetc_sysv_region))+sninfosz,
+                       sysvsize, 0, gasneti_nodes);
+printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p\n", ((char*)(gasnetc_sysv_region))+sninfosz+sysvsize);
+  gasneti_sysvnet_init(&gasnetc_vnet_reply, ((char*)(gasnetc_sysv_region))+sninfosz+sysvsize,
+                       sysvsize, 0, gasneti_nodes);
+
+  /* One-time 'barrier' */
+  gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);
+  while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
+            != gasneti_nodes)
+    sleep(0);
+
+/* test: send msgs to one another */
+for (i=0; i < gasnet_nodes(); i++) {
+  char *msg;
+  size_t maxsz = gasneti_sysvnet_max_payload();
+  if (i == gasnet_mynode())
+    continue;
+  msg = gasneti_sysvnet_get_send_buffer(gasnetc_vnet_request, maxsz, i);
+  if (!msg)
+    gasneti_fatalerror("T%d: Can't get sysv buffer for node %d at startup", gasnet_mynode(), i);
+  sprintf(msg, "Msg from T%d to node %d", gasnet_mynode(), i);
+  if (gasneti_sysvnet_deliver_send_buffer(gasnetc_vnet_request, msg, strlen(msg)+1, i))
+    gasneti_fatalerror("T%d: Can't deliver sysv buffer to node %d at startup", gasnet_mynode(), i);
+}
+printf("NODE %d of %d: my pid=%d, pid0=%d, pid1=%d, pid2=%d,pid3=%d\n",
+  gasneti_mynode, gasneti_nodes, getpid(), gasneti_sysv_node2pid[0], 
+  gasneti_sysv_node2pid[1], gasneti_sysv_node2pid[2],  gasneti_sysv_node2pid[3]);
+fflush(stdout);
+sleep(1);
+
+for (i=0; i < gasnet_nodes() - 1; ) {
+  size_t len;
+  void *msg;
+  gasnet_node_t from;
+  if (gasneti_sysvnet_recv_any(gasnetc_vnet_request, &msg, &len, &from)) {
+    sleep(0);
+    continue;
+  }
+  printf("T%d: got message from T%d: '%s'\n", gasnet_mynode(), from, (char*)msg);
+  fflush(stdout);
+  i++;
+}
+
+exit(0);
+
+}
+#endif /* GASNET_SYSV */
+
 static int gasnetc_init(int *argc, char ***argv) {
   /*  check system sanity */
   gasnetc_check_config();
@@ -95,8 +225,15 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
+    #if GASNET_SYSV
+      #error GASNET_SEGMENT_EVERYTHING cannot be used with GASNET_SYSV
+    #endif
   #else
     #error Bad segment config
+  #endif
+
+  #if GASNET_SYSV
+    gasnetc_init_sysv();
   #endif
 
   #if 0
