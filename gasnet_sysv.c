@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/04/26 07:06:19 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2007/04/26 20:43:23 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -252,7 +252,7 @@ static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
   }
 }
 
-static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t pvnet, char * myregion, 
+static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregion, 
                                   gasnet_node_t firstnode, gasnet_node_t nodes)
 {
   int i;
@@ -285,10 +285,10 @@ printf("T%d (%d): myqueues=%p, mymsgs=%p, sizeof(queue)=%lu, sizeof(msg)=%lu\n",
     gasneti_sysvnet_init_allocator(alloc_region, gasneti_sysvnet_queue_mem);
 }
 
-void gasneti_sysvnet_init(gasneti_sysvnet_t *pvnet, void *start, size_t nbytes, 
+void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes, 
                           gasnet_node_t firstnode, gasnet_node_t sysvnodes)
 {
-  gasneti_sysvnet_t vnet;
+  gasneti_sysvnet_t *vnet;
   gasnet_node_t i, othernode;
   size_t szpernode, regionlen;
   void *region, *myregion;
@@ -302,7 +302,7 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t *pvnet, void *start, size_t nbytes,
     gasneti_fatalerror("Internal error: not enough memory for sysvnet: \n"
                        " given %ld effective bytes, but need %ld", 
                        regionlen, szpernode * sysvnodes);
-  vnet = gasneti_malloc(sizeof(struct gasneti_sysvnet));
+  vnet = gasneti_malloc(sizeof(gasneti_sysvnet_t));
   vnet->firstnode = firstnode;
   vnet->nodecount = sysvnodes;
   myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_sysvnet_mynode));
@@ -320,7 +320,7 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t *pvnet, void *start, size_t nbytes,
   *pvnet = vnet;
 }
 
-void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t vnet, size_t nbytes, 
+void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t *vnet, size_t nbytes, 
                                        gasnet_node_t target)
 {
   gasneti_sysvnet_payload_t *p;
@@ -337,7 +337,7 @@ void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t vnet, size_t nbytes,
   return retval;
 }
 
-int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t vnet, void *buf, 
+int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf, 
                                         size_t nbytes, gasnet_node_t target)
 {
   int retval = -1;
@@ -362,7 +362,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t vnet, void *buf,
   return retval;
 }
 
-int gasneti_sysvnet_recv_from(gasneti_sysvnet_t vnet, void **pbuf, size_t *psize, 
+int gasneti_sysvnet_recv_from(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
                               gasnet_node_t sender)
 {
   int retval = -1;
@@ -380,7 +380,7 @@ int gasneti_sysvnet_recv_from(gasneti_sysvnet_t vnet, void **pbuf, size_t *psize
   return retval;
 }
 
-int gasneti_sysvnet_recv_any(gasneti_sysvnet_t vnet, void **pbuf, size_t *psize, 
+int gasneti_sysvnet_recv_any(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
                              gasnet_node_t *from)
 {
   int i;
@@ -401,7 +401,7 @@ int gasneti_sysvnet_recv_any(gasneti_sysvnet_t vnet, void **pbuf, size_t *psize,
 #define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
         ((structname*)(((char *)fieldaddr) - (char *)((structname *)0)->fieldname))
 
-void gasneti_sysvnet_recv_release(gasneti_sysvnet_t vnet, void *buf)
+void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
 {
   /* Address we handed out was the addr of the 'payload' field */
   gasneti_sysvnet_payload_t *p = 

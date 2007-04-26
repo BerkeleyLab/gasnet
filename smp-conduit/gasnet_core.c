@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/26 07:06:21 $
- * $Revision: 1.45.4.3 $
+ *     $Date: 2007/04/26 20:43:25 $
+ * $Revision: 1.45.4.4 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,7 +35,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
   #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
 
   static void *gasnetc_sysvnet_region;
-  static gasneti_sysvnet_t gasnetc_vnet_request, gasnetc_vnet_reply;
+  static gasneti_sysvnet_t *gasnetc_vnet_request, *gasnetc_vnet_reply;
 #endif /* GASNET_SYSV */
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
