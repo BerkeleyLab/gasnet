@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/25 07:29:49 $
- * $Revision: 1.45.4.1 $
+ *     $Date: 2007/04/26 02:18:12 $
+ * $Revision: 1.45.4.2 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,7 +34,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
   #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
 
-  static void *gasnetc_sysv_region;
+  static void *gasnetc_sysvnet_region;
   static gasneti_sysvnet_t gasnetc_vnet_request, gasnetc_vnet_reply;
 #endif /* GASNET_SYSV */
 
@@ -118,12 +118,12 @@ static int gasnetc_init_sysv()
   sninfosz = sizeof(struct gasnetc_supernode_info_t);
   sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
   sysvsize = sninfosz + (2*vnetsz);
-  gasnetc_sysv_region = gasneti_mmap_shared(sysvsize);
-printf("gasneti_sysvnet_init_sysv: mmmap region=%p\n", gasnetc_sysv_region);
+  gasnetc_sysvnet_region = gasneti_mmap_shared(sysvsize);
+printf("gasneti_sysvnet_init_sysv: mmmap region=%p, end=%p\n", gasnetc_sysvnet_region, (void*)(((uintptr_t)gasnetc_sysvnet_region)+sysvsize));
 fflush(stdout);
-  if (gasnetc_sysv_region == MAP_FAILED)
+  if (gasnetc_sysvnet_region == MAP_FAILED)
     gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
-  gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysv_region;
+  gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
   memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
   gasneti_sysv_node2pid[0] = getpid();
   /* Does fork() do a write flush?  Make sure */
@@ -143,11 +143,11 @@ fflush(stdout);
     }
   }
   /* Collective call to initialize Shared AM "networks" */
-printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p\n", ((char*)(gasnetc_sysv_region))+sninfosz);
-  gasneti_sysvnet_init(&gasnetc_vnet_request, ((char*)(gasnetc_sysv_region))+sninfosz,
+printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p: sninfosz=%lu\n", ((char*)(gasnetc_sysvnet_region))+sninfosz, sninfosz);
+  gasneti_sysvnet_init(&gasnetc_vnet_request, ((char*)(gasnetc_sysvnet_region))+sninfosz,
                        sysvsize, 0, gasneti_nodes);
-printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p\n", ((char*)(gasnetc_sysv_region))+sninfosz+sysvsize);
-  gasneti_sysvnet_init(&gasnetc_vnet_reply, ((char*)(gasnetc_sysv_region))+sninfosz+sysvsize,
+printf("gasneti_sysvnet_init_sysv: calling #2 with region=%p\n", ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz));
+  gasneti_sysvnet_init(&gasnetc_vnet_reply, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
                        sysvsize, 0, gasneti_nodes);
 
   /* One-time 'barrier' */
