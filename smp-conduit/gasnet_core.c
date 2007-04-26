@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/26 20:43:25 $
- * $Revision: 1.45.4.4 $
+ *     $Date: 2007/04/26 23:23:14 $
+ * $Revision: 1.45.4.5 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,7 +88,7 @@ static void gasnetc_bootstrapBarrier() {
 
 static int gasnetc_get_sysv_nodecount()
 {
-  gasnet_node_t nodes = gasneti_parse_int(gasnet_getenv("GASNET_SYSV_NODES"), 0);
+  gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_SYSV_NODES", 0, 0);
   if (nodes > GASNETC_MAX_SYSV_NODES) { 
     gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", nodes,
                        GASNETC_MAX_SYSV_NODES);
@@ -154,7 +154,7 @@ printf("gasneti_sysvnet_init_sysv: calling #2 with region=%p\n", ((char*)(gasnet
   gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);
   while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
             != gasneti_nodes)
-    sleep(0);
+    gasneti_sched_yield();
 
 /* test: send msgs to one another */
 for (i=0; i < gasnet_nodes(); i++) {
@@ -181,8 +181,8 @@ for (i=0; i < gasnet_nodes() - 1; ) {
   size_t len;
   void *msg;
   gasnet_node_t from;
-  if (gasneti_sysvnet_recv_any(gasnetc_vnet_request, &msg, &len, &from)) {
-    sleep(0);
+  if (gasneti_sysvnet_recv(gasnetc_vnet_request, &msg, &len, &from)) {
+    gasneti_sched_yield();
     continue;
   }
   printf("T%d: got message from T%d: '%s'\n", gasnet_mynode(), from, (char*)msg);

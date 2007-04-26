@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/04/26 20:43:23 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2007/04/26 23:23:12 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -159,9 +159,10 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p);
  * - Note that this struct itself is not stored in shared memory. 
  */
 struct gasneti_sysvnet {
-  gasnet_node_t firstnode;
+  gasnet_node_t firstnode;          /* first gasnet node in this supernode */
   gasnet_node_t nodecount;          /* nodes in supernode */ 
-  /* need to see everyone's msg info queue */
+  gasnet_node_t nextindex;          /* index of next node to check for msgs */
+  /* my 'in' queues are other nodes' 'out' queues */
   gasneti_sysvnet_queue_t **in_queues;
   gasneti_sysvnet_queue_t **out_queues;
   /* only need to see one's own allocator */
@@ -176,14 +177,12 @@ struct gasneti_sysvnet {
 
 static int get_queue_depth() 
 {
-  int val = gasneti_parse_int(gasnet_getenv("GASNET_SYSVNET_QUEUE_DEPTH"), 0);
+  int val = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_DEPTH", GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH, 0);
   if (val > GASNETI_SYSVNET_MAX_QUEUE_DEPTH) {
     fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) larger than max: using max (%d)\n",
             val, GASNETI_SYSVNET_MAX_QUEUE_DEPTH);
     val = GASNETI_SYSVNET_MAX_QUEUE_DEPTH;
   }
-  if (val <= 0)
-    val = GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH;
   return val;
 }
 
@@ -283,6 +282,7 @@ printf("T%d (%d): myqueues=%p, mymsgs=%p, sizeof(queue)=%lu, sizeof(msg)=%lu\n",
   }
   pvnet->my_allocator = 
     gasneti_sysvnet_init_allocator(alloc_region, gasneti_sysvnet_queue_mem);
+  pvnet->nextindex = 0;
 }
 
 void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes, 
@@ -362,38 +362,31 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
   return retval;
 }
 
-int gasneti_sysvnet_recv_from(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
-                              gasnet_node_t sender)
-{
-  int retval = -1;
-  gasneti_sysvnet_queue_t *q = vnet->in_queues[sysvnode(vnet, sender)];
-  gasneti_assert(q != NULL);
-  gasneti_mutex_lock(&q->recv_lock);
-  if (gasneti_atomic_read(&q->recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
-    *pbuf = q->recv_next->addr;
-    *psize = q->recv_next->len;
-    retval = 0;
-    if (++q->recv_next == q->justpastlast)
-      q->recv_next = q->queue;
-  }
-  gasneti_mutex_unlock(&q->recv_lock);
-  return retval;
-}
-
-int gasneti_sysvnet_recv_any(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
-                             gasnet_node_t *from)
+int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
+                         gasnet_node_t *from)
 {
   int i;
-  gasnet_node_t node;
-
-  /* TODO: this could be written to be faster by going over 'vnet->in_queues'
-   * directly */
-  for (i = 0, node = vnet->firstnode; i < vnet->nodecount; i++, node++) {
-    if (node == gasnet_mynode()) continue;
-    if (!gasneti_sysvnet_recv_from(vnet, pbuf, psize, node)) {
-      *from = node;
-      return 0; 
+  for (i = 0; i < vnet->nodecount; i++) {
+    if (vnet->nextindex != gasneti_sysvnet_mynode) {
+      gasneti_sysvnet_queue_t *q = vnet->in_queues[vnet->nextindex];
+      gasneti_assert(q != NULL);
+      gasneti_mutex_lock(&q->recv_lock);
+      if (gasneti_atomic_read(&q->recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
+        *pbuf = q->recv_next->addr;
+        *psize = q->recv_next->len;
+        if (++q->recv_next == q->justpastlast)
+          q->recv_next = q->queue;
+        gasneti_mutex_unlock(&q->recv_lock);
+        *from = vnet->nextindex + vnet->firstnode;
+        /* Ensure fairness: next check starts with next node */
+        if (++vnet->nextindex == vnet->nodecount) 
+          vnet->nextindex = 0;
+        return 0;
+      }
+      gasneti_mutex_unlock(&q->recv_lock);
     }
+    if (++vnet->nextindex == vnet->nodecount) 
+      vnet->nextindex = 0;
   }
   return -1;
 }

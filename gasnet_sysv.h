@@ -76,20 +76,14 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf, size
                                         gasnet_node_t target);
 
 
-/* Polls receipt queue, but only for messages from the given sender.
- *
- * Returns nonzero if no message to receive */
-int gasneti_sysvnet_recv_from(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
-                              gasnet_node_t sender);
-
 /* Polls receipt queue for any messages from any sender.
  * - 'pbuf': address of pointer which will point to message (if successful)
  * - 'psize': out parameter (msg length will be written into memory)
  * - 'from': out parameter (sender node ID written into memory)
  *
  * returns nonzero if no message to receive */
-int gasneti_sysvnet_recv_any(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
-                             gasnet_node_t *from);
+int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
+                         gasnet_node_t *from);
 
 /* Called by msg receiver, to release memory after message processed.
  * It is not safe to refer to the memory pointed to by 'buf' after this call
