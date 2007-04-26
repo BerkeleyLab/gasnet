@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/04/25 07:29:47 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2007/04/26 05:00:43 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -295,7 +295,6 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t *pvnet, void *start, size_t nbytes,
 
   gasneti_sysvnet_mynode = gasnet_mynode() - firstnode;
   region = start;
-printf("gasneti_sysvnet_init: got region=%p\n", region);
   region = (void *)round_up_to_sysvpage(region);
   regionlen = nbytes - ( ((uintptr_t)region)-((uintptr_t)start));
   szpernode = gasneti_sysvnet_memory_needed_pernode(sysvnodes);
@@ -303,11 +302,10 @@ printf("gasneti_sysvnet_init: got region=%p\n", region);
     gasneti_fatalerror("Internal error: not enough memory for sysvnet: \n"
                        " given %ld effective bytes, but need %ld", 
                        regionlen, szpernode * sysvnodes);
-  vnet = gasneti_malloc(sizeof(gasneti_sysvnet_t));
+  vnet = gasneti_malloc(sizeof(struct gasneti_sysvnet));
   vnet->firstnode = firstnode;
   vnet->nodecount = sysvnodes;
   myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_sysvnet_mynode));
-printf("T%d (%d): myregion=%p\n", gasnet_mynode(), gasneti_sysvnet_mynode, myregion);
   /* collective call, so each process inits its own region */
   gasneti_sysvnet_init_my_sysv(vnet, myregion, firstnode, sysvnodes);
 
@@ -448,7 +446,7 @@ static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbyte
 {
   void *retval = NULL;
 
-  gasneti_assert(nbytes <= GASNETI_SYSVNET_MAX_PAYLOAD);
+  gasneti_assert(nbytes <= sizeof(gasneti_sysvnet_payload_t));
 
   gasneti_mutex_lock(&a->next_lock);
   /* NOTE: I assume messages are generally consumed in serial order, so just
