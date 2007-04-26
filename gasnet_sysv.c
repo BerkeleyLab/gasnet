@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/04/26 05:00:43 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2007/04/26 07:06:19 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -369,8 +369,8 @@ int gasneti_sysvnet_recv_from(gasneti_sysvnet_t vnet, void **pbuf, size_t *psize
   gasneti_sysvnet_queue_t *q = vnet->in_queues[sysvnode(vnet, sender)];
   gasneti_assert(q != NULL);
   gasneti_mutex_lock(&q->recv_lock);
-  if (gasneti_atomic_read(&q->send_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
-    *pbuf = &q->recv_next->addr;
+  if (gasneti_atomic_read(&q->recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
+    *pbuf = q->recv_next->addr;
     *psize = q->recv_next->len;
     retval = 0;
     if (++q->recv_next == q->justpastlast)

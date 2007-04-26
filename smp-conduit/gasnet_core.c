@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/26 02:18:12 $
- * $Revision: 1.45.4.2 $
+ *     $Date: 2007/04/26 07:06:21 $
+ * $Revision: 1.45.4.3 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -105,7 +105,7 @@ static int gasnetc_init_sysv()
     #error GASNET_SYSV cannot yet be used with 'smp' conduit on platforms lacking fork()
   #endif
 
-  size_t vnetsz, sninfosz;
+  size_t vnetsz, sninfosz, mmapsz;
   uintptr_t sysvsize;
   int i, fork_return;
 
@@ -117,9 +117,9 @@ static int gasnetc_init_sysv()
   vnetsz = gasneti_sysvnet_memory_needed(gasneti_nodes); 
   sninfosz = sizeof(struct gasnetc_supernode_info_t);
   sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
-  sysvsize = sninfosz + (2*vnetsz);
-  gasnetc_sysvnet_region = gasneti_mmap_shared(sysvsize);
-printf("gasneti_sysvnet_init_sysv: mmmap region=%p, end=%p\n", gasnetc_sysvnet_region, (void*)(((uintptr_t)gasnetc_sysvnet_region)+sysvsize));
+  mmapsz = sninfosz + (2*vnetsz);
+  gasnetc_sysvnet_region = gasneti_mmap_shared(mmapsz);
+printf("gasneti_sysvnet_init_sysv: mmmap region=%p, end=%p\n", gasnetc_sysvnet_region, (void*)(((uintptr_t)gasnetc_sysvnet_region)+mmapsz));
 fflush(stdout);
   if (gasnetc_sysvnet_region == MAP_FAILED)
     gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
@@ -145,10 +145,10 @@ fflush(stdout);
   /* Collective call to initialize Shared AM "networks" */
 printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p: sninfosz=%lu\n", ((char*)(gasnetc_sysvnet_region))+sninfosz, sninfosz);
   gasneti_sysvnet_init(&gasnetc_vnet_request, ((char*)(gasnetc_sysvnet_region))+sninfosz,
-                       sysvsize, 0, gasneti_nodes);
+                       vnetsz, 0, gasneti_nodes);
 printf("gasneti_sysvnet_init_sysv: calling #2 with region=%p\n", ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz));
   gasneti_sysvnet_init(&gasnetc_vnet_reply, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
-                       sysvsize, 0, gasneti_nodes);
+                       vnetsz, 0, gasneti_nodes);
 
   /* One-time 'barrier' */
   gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);
@@ -173,7 +173,9 @@ printf("NODE %d of %d: my pid=%d, pid0=%d, pid1=%d, pid2=%d,pid3=%d\n",
   gasneti_mynode, gasneti_nodes, getpid(), gasneti_sysv_node2pid[0], 
   gasneti_sysv_node2pid[1], gasneti_sysv_node2pid[2],  gasneti_sysv_node2pid[3]);
 fflush(stdout);
-sleep(1);
+
+//int foo = 1;
+//while (foo) ;
 
 for (i=0; i < gasnet_nodes() - 1; ) {
   size_t len;
