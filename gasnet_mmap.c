@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2007/04/25 07:29:47 $
- * $Revision: 1.50.2.1 $
+ *     $Date: 2007/04/28 20:11:57 $
+ * $Revision: 1.50.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -576,8 +576,25 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
       if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
-        gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
-        gasneti_mmap_fixed(segbase, segsize);
+        #if GASNET_SYSV
+        /* Shared memory mmap can't be gotten again, post-fork, so trim it.
+         * TODO: this code should work with non-SysV, too--remove #else case? */
+        {
+          uintptr_t gotaddr = (uintptr_t)gasneti_segment.addr;
+          uintptr_t gotsize = gasneti_segment.size;
+          uintptr_t gotend = (uintptr_t)gotaddr + gotsize;
+          uintptr_t segend = (uintptr_t)segbase + segsize;
+          /* trim off front of mmap region */
+          if ((uintptr_t)segbase > gotaddr)
+            gasneti_munmap( (void *)gotaddr, (uintptr_t)segbase - gotaddr);
+          /* trim off end of mmap region */
+          if (segend < gotend)
+            gasneti_munmap( (void *)segend, gotend - segend);
+        }
+        #else
+          gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+          gasneti_mmap_fixed(segbase, segsize);
+        #endif
       }
     }
   }
