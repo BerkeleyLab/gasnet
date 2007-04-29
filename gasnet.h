@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2006/09/15 23:24:25 $
- * $Revision: 1.56 $
+ *     $Date: 2007/04/29 04:03:37 $
+ * $Revision: 1.56.8.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,6 +22,9 @@
    see the GASNet specification and top-level README for details on how to use the GASNet interface
    clients should use the automatically-generated Makefile *.mak fragments to get the correct compile settings
 */
+
+/* Total hack */
+#define GASNET_SYSV 1
 
 /* autoconf-generated configuration header */
 #include <gasnet_config.h>
