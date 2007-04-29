@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/04/26 23:23:12 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2007/04/29 04:25:45 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -175,13 +175,19 @@ struct gasneti_sysvnet {
 #define gasneti_assert_align(p, align) \
         gasneti_assert((((uintptr_t)p) % align) == 0)
 
-static int get_queue_depth() 
+static int get_queue_depth(gasnet_node_t nodes) 
 {
   int val = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_DEPTH", GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH, 0);
   if (val > GASNETI_SYSVNET_MAX_QUEUE_DEPTH) {
     fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) larger than max: using max (%d)\n",
             val, GASNETI_SYSVNET_MAX_QUEUE_DEPTH);
     val = GASNETI_SYSVNET_MAX_QUEUE_DEPTH;
+  } else if (val < nodes) {
+    /* ensure queue depth >= nodes, so that lazily-written 
+     * gasneti_sysvnet_bootstrapExchange() function doesn't deadlock */
+    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) < than SysV nodes (%d): using %d\n",
+            val, nodes, nodes);
+    val = nodes;
   }
   return val;
 }
@@ -215,7 +221,7 @@ static size_t gasneti_sysvnet_memory_needed_pernode(gasnet_node_t nodes)
 {
   size_t size = 0;
 
-  gasneti_sysvnet_queue_depth = get_queue_depth();
+  gasneti_sysvnet_queue_depth = get_queue_depth(nodes);
   gasneti_sysvnet_queue_mem = get_queue_mem(nodes);
 
   /* Message infos and queue */
@@ -259,14 +265,14 @@ static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregi
   gasneti_sysvnet_msg_t   *mymsgs;
   void *alloc_region;
 
-printf("gasneti_sysvnet_init_my_sysv: got myregion=%p\n", myregion);
+//printf("gasneti_sysvnet_init_my_sysv: got myregion=%p\n", myregion);
   gasneti_assert_align(myregion, GASNETI_SYSVNET_PAGESIZE);
 
   /* NOTE: other init code relies on queues being at start of region */
   myqueues = (gasneti_sysvnet_queue_t *)myregion;
   mymsgs = (gasneti_sysvnet_msg_t *)(((char*)myqueues) 
                                       + sizeof(gasneti_sysvnet_queue_t)*nodes);
-printf("T%d (%d): myqueues=%p, mymsgs=%p, sizeof(queue)=%lu, sizeof(msg)=%lu\n", gasnet_mynode(), gasneti_sysvnet_mynode, myqueues, mymsgs, sizeof(gasneti_sysvnet_queue_t), sizeof(gasneti_sysvnet_msg_t));
+//printf("T%d (%d): myqueues=%p, mymsgs=%p, sizeof(queue)=%lu, sizeof(msg)=%lu\n", gasnet_mynode(), gasneti_sysvnet_mynode, myqueues, mymsgs, sizeof(gasneti_sysvnet_queue_t), sizeof(gasneti_sysvnet_msg_t));
   gasneti_assert_align(mymsgs, GASNETI_CACHE_LINE_BYTES);
   alloc_region = ((char*)mymsgs) + 
         sizeof(gasneti_sysvnet_msg_t)*gasneti_sysvnet_queue_depth*(nodes-1);
@@ -292,6 +298,10 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
   gasnet_node_t i, othernode;
   size_t szpernode, regionlen;
   void *region, *myregion;
+
+  /* make sure that our max buffer size isn't smaller than whatever network
+   * is being used */
+  gasneti_assert(GASNETC_MAX_MEDIUM < GASNETI_SYSVNET_MAX_PAYLOAD);
 
   gasneti_sysvnet_mynode = gasnet_mynode() - firstnode;
   region = start;
@@ -404,6 +414,55 @@ void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
   gasneti_atomic_set(&p->info.msg->ready4receipt, 0, 0);
   gasneti_sysvnet_free(p->info.allocator, p);
 }
+
+
+/******************************************************************************
+ * Sysvnet bootstrap exchange
+ * - TODO: to make this more robust, should there be a separate vnet for
+ *   this?  (We'd want it to be smaller, to consume less resources, but right
+ *   now all vnets are the same size).
+ * - Also, could remove requirement that queue depth >= nodes if we check
+ *   for incoming msgs as we send them.
+ ******************************************************************************/
+
+void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
+                                       size_t len, void *dest)
+{
+  gasnet_node_t i, from;
+  void *msg;
+  size_t inlen;
+
+  gasneti_assert(vnet != NULL);
+
+  /* TODO: right now we assume queues are empty, that queue depth <=
+   * nodes. */
+  for (i = 0 ; i < vnet->nodecount; i++) {
+    if (i == gasnet_mynode())
+      continue;
+    msg = gasneti_sysvnet_get_send_buffer(vnet, len, i);
+    if (msg) {
+      memcpy(msg, src, len);
+      if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, i)) {
+        gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap exchange", 
+                           gasnet_mynode(), i);
+      }
+    } else {
+      gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap exchange!", 
+                         gasnet_mynode());
+    }
+  }
+  for (i = 1; i < vnet->nodecount; i++) {
+    while (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from))
+      gasneti_sched_yield();
+    if (len != inlen)
+      gasneti_fatalerror("T%d: got invalid msg length (%ld) during bootstrap exchange!", 
+                         gasnet_mynode(), (long int)inlen);
+    memcpy( ((char*)dest)+len*sysvnode(vnet, from), msg, len);
+  }
+  /* memcpy our own piece */
+  memcpy( ((char*)dest)+len*sysvnode(vnet, gasnet_mynode()), src, len);
+}
+
 
 /******************************************************************************
  * Allocator implementation
