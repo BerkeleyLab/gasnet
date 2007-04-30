@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2007/04/29 04:03:37 $
- * $Revision: 1.110.6.2 $
+ *     $Date: 2007/04/30 20:56:12 $
+ * $Revision: 1.110.6.3 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -289,6 +289,7 @@ typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest)
 typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
 
 #if !GASNET_SEGMENT_EVERYTHING
+gasnet_seginfo_t gasneti_segment;
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn);
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,

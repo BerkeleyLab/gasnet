@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2007/04/28 20:11:57 $
- * $Revision: 1.50.2.2 $
+ *     $Date: 2007/04/30 20:56:12 $
+ * $Revision: 1.50.2.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -287,7 +287,11 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
       si.addr = (void *)begin;
       si.size = end - begin;
     }
-    gasneti_mmap_fixed(si.addr, si.size);
+    #if GASNET_SYSV
+      gasneti_mmap_shared_fixed(si.addr, si.size);
+    #else
+      gasneti_mmap_fixed(si.addr, si.size);
+    #endif
   }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
@@ -336,7 +340,7 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
 
 #if !GASNET_SEGMENT_EVERYTHING
 /* mmap-based segment init/attach */
-static gasnet_seginfo_t gasneti_segment = {0,0}; /* local segment info */
+gasnet_seginfo_t gasneti_segment = {0,0}; /* local segment info */
 static uintptr_t gasneti_myheapend = 0; /* top of my malloc heap */
 static uintptr_t gasneti_maxheapend = 0; /* top of max malloc heap */
 static uintptr_t gasneti_maxbase = 0; /* start of segment overlap region */
@@ -576,7 +580,11 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
       if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
-        #if GASNET_SYSV
+        #if GASNET_SYSV && 0
+        /* SYSV no longer calling this function, so not used.  Leaving for now
+         * in case we prefer the 'trim' approach in general to the 'remap'
+         * one. */
+
         /* Shared memory mmap can't be gotten again, post-fork, so trim it.
          * TODO: this code should work with non-SysV, too--remove #else case? */
         {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/26 23:23:14 $
- * $Revision: 1.45.4.5 $
+ *     $Date: 2007/04/30 20:56:14 $
+ * $Revision: 1.45.4.6 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -63,8 +63,13 @@ static void gasnetc_check_config() {
 }
 
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
-  gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
-  memmove(dest, src, len);
+  #if GASNET_SYSV
+    gasneti_assert(gasnetc_vnet_request != NULL);
+    gasneti_sysvnet_bootstrapExchange(gasnetc_vnet_request, src, len, dest);
+  #else
+    gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
+    memmove(dest, src, len);
+  #endif
 }
 void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
   gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
@@ -99,7 +104,133 @@ static int gasnetc_get_sysv_nodecount()
   return nodes;
 }
 
-static int gasnetc_init_sysv()
+/* Our own, hand-rolled segmentInit function.
+ * - The common version in gasnet_mmap.c is too complex to easily make
+ *   supernode-aware, and the smp-case is fairly trivial.
+ */
+void gasnetc_sysv_segmentInit()
+{
+  gasneti_assert(gasneti_MaxLocalSegmentSize == 0);
+  gasneti_assert(gasneti_MaxGlobalSegmentSize == 0);
+  gasneti_assert(gasneti_nodes > 0);
+  gasneti_assert(gasneti_mynode < gasneti_nodes);
+  
+  #ifndef HAVE_MMAP
+    #error smp conduit cannot currently be built without mmap support
+  #endif
+
+  gasneti_segment = gasneti_mmap_segment_search(GASNETI_MMAP_LIMIT);
+  GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%lu",
+      GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
+
+  gasneti_MaxLocalSegmentSize = GASNETI_PAGE_ALIGNDOWN(gasneti_segment.size/gasneti_nodes);
+  gasneti_MaxGlobalSegmentSize = gasneti_MaxLocalSegmentSize;
+
+  GASNETI_TRACE_PRINTF(C, ("MaxLocalSegmentSize = %lu   "
+                     "MaxGlobalSegmentSize = %lu",
+                     (unsigned long)gasneti_MaxLocalSegmentSize, 
+                     (unsigned long)gasneti_MaxGlobalSegmentSize));
+  gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
+  gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
+  gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
+}
+
+static void simple_vnet_test()
+{
+  int i;
+  /* test: send msgs to one another */
+  for (i=0; i < gasnet_nodes(); i++) {
+    char *msg;
+    size_t maxsz = gasneti_sysvnet_max_payload();
+    if (i == gasnet_mynode())
+      continue;
+    msg = gasneti_sysvnet_get_send_buffer(gasnetc_vnet_request, maxsz, i);
+    if (!msg)
+      gasneti_fatalerror("T%d: Can't get sysv buffer for node %d at startup", 
+                         gasnet_mynode(), i);
+    sprintf(msg, "Msg from T%d to node %d", gasnet_mynode(), i);
+    if (gasneti_sysvnet_deliver_send_buffer(gasnetc_vnet_request, msg, strlen(msg)+1, i))
+      gasneti_fatalerror("T%d: Can't deliver sysv buffer to node %d at startup", 
+                         gasnet_mynode(), i);
+  }
+}
+
+static void gasnetc_sysv_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
+                                       gasnet_seginfo_t *seginfo,
+                                       gasneti_bootstrapExchangefn_t exchangefn)
+{
+  /* Dimensions of max-sized segment we've already mmapped, and of new
+   * subsegment that we'll actually be using */
+  uintptr_t oldbase = (uintptr_t)gasneti_segment.addr;
+  uintptr_t oldsize = gasneti_segment.size;
+  uintptr_t oldend = (uintptr_t)gasneti_segment.addr + gasneti_segment.size;
+  uintptr_t newbase, newsize, newend;
+  uintptr_t topofheap = (uintptr_t)sbrk(0);
+  if (topofheap == (uintptr_t)-1) 
+    gasneti_fatalerror("Failed to sbrk(0):%s",strerror(errno));
+
+  gasneti_assert(seginfo);
+  gasneti_assert(segsize < gasneti_MaxGlobalSegmentSize);
+  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+  gasneti_assert(exchangefn);
+
+  /* supernode size = per-node size * nodes in supernode */
+  newsize = segsize * gasneti_sysvnodes;
+
+  #if GASNETI_USE_HIGHSEGMENT
+    newbase = oldend - newsize;
+  #else
+    newbase = oldbase;
+  #endif
+  newend = newbase + newsize;
+
+  /* check if segment is above the heap (in its path) and too close */
+  if ((newend > topofheap) && (topofheap + minheapoffset > newbase)) {
+    uintptr_t maxsegsz;
+    /* we're too close to the heap - readjust to prevent collision 
+       note this allows us to return different segsizes on diff nodes
+     */
+    newbase = topofheap + minheapoffset;
+    if (newbase >= oldend) 
+      gasneti_fatalerror("minheapoffset too large to accomodate a segment");
+    maxsegsz = oldend - newbase;
+    if (newsize > maxsegsz) {
+      GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested "
+        "segsize (%lu=>%lu) to accomodate minheapoffset",
+        (unsigned long)segsize, (unsigned long)(maxsegsz/gasneti_sysvnodes)));
+      newsize = maxsegsz;
+      segsize = maxsegsz/gasneti_sysvnodes;
+    }
+  }
+  gasneti_assert(newbase >= oldbase && newend <= oldend);
+  gasneti_assert((newbase) % GASNET_PAGESIZE == 0);
+  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+
+  /* trim off front of mmap region */
+  if (newbase > oldbase)
+    gasneti_munmap( (void *)oldbase, newbase - oldbase);
+  /* trim off end of mmap region */
+  if (newend < oldend)
+    gasneti_munmap( (void *)newend, oldend - newend);
+
+  GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
+    GASNETI_LADDRSTR(newbase), (unsigned long)segsize));
+
+  /*  gather segment information */
+  gasneti_segment.addr = (void*)(newbase + segsize*gasneti_mysysvnode);
+  gasneti_segment.size = segsize;
+  (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
+
+printf("T%d: segments: ", gasneti_mynode);
+{ int i;
+for (i = 0; i < gasneti_sysvnodes; i++)
+  printf("\n  T%d %p->%p (sz: %lu) ", i, seginfo[i].addr, 
+      (void*)((uintptr_t)seginfo[i].addr+seginfo[i].size), seginfo[i].size);
+printf("\n");
+fflush(stdout); }
+}
+
+static void gasnetc_init_sysv()
 {
   #if GASNETI_NO_FORK
     #error GASNET_SYSV cannot yet be used with 'smp' conduit on platforms lacking fork()
@@ -108,8 +239,6 @@ static int gasnetc_init_sysv()
   size_t vnetsz, sninfosz, mmapsz;
   uintptr_t sysvsize;
   int i, fork_return;
-
-  gasneti_nodes = gasnetc_get_sysv_nodecount();
 
   /* set up additional shared memory region for shared supernode data and AM
    * infrastructure.
@@ -126,6 +255,7 @@ fflush(stdout);
   gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
   memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
   gasneti_sysv_node2pid[0] = getpid();
+  gasneti_mysysvnode = gasneti_firstsysvnode = 0;
   /* Does fork() do a write flush?  Make sure */
   gasneti_atomic_set(&gasnetc_sn_info->startup_counter, 0, GASNETI_ATOMIC_WMB_POST);
   /* go fork yourself! */
@@ -138,7 +268,7 @@ fflush(stdout);
       gasneti_sysv_node2pid[i] = fork_return;
     } else {
       /* child */
-      gasneti_mynode = i;
+      gasneti_mynode = gasneti_mysysvnode = i;
       break;
     }
   }
@@ -156,43 +286,15 @@ printf("gasneti_sysvnet_init_sysv: calling #2 with region=%p\n", ((char*)(gasnet
             != gasneti_nodes)
     gasneti_sched_yield();
 
-/* test: send msgs to one another */
-for (i=0; i < gasnet_nodes(); i++) {
-  char *msg;
-  size_t maxsz = gasneti_sysvnet_max_payload();
-  if (i == gasnet_mynode())
-    continue;
-  msg = gasneti_sysvnet_get_send_buffer(gasnetc_vnet_request, maxsz, i);
-  if (!msg)
-    gasneti_fatalerror("T%d: Can't get sysv buffer for node %d at startup", gasnet_mynode(), i);
-  sprintf(msg, "Msg from T%d to node %d", gasnet_mynode(), i);
-  if (gasneti_sysvnet_deliver_send_buffer(gasnetc_vnet_request, msg, strlen(msg)+1, i))
-    gasneti_fatalerror("T%d: Can't deliver sysv buffer to node %d at startup", gasnet_mynode(), i);
-}
 printf("NODE %d of %d: my pid=%d, pid0=%d, pid1=%d, pid2=%d,pid3=%d\n",
   gasneti_mynode, gasneti_nodes, getpid(), gasneti_sysv_node2pid[0], 
   gasneti_sysv_node2pid[1], gasneti_sysv_node2pid[2],  gasneti_sysv_node2pid[3]);
 fflush(stdout);
 
-//int foo = 1;
-//while (foo) ;
-
-for (i=0; i < gasnet_nodes() - 1; ) {
-  size_t len;
-  void *msg;
-  gasnet_node_t from;
-  if (gasneti_sysvnet_recv(gasnetc_vnet_request, &msg, &len, &from)) {
-    gasneti_sched_yield();
-    continue;
-  }
-  printf("T%d: got message from T%d: '%s'\n", gasnet_mynode(), from, (char*)msg);
-  fflush(stdout);
-  i++;
 }
 
-exit(0);
 
-}
+
 #endif /* GASNET_SYSV */
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -213,7 +315,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* add code here to bootstrap the nodes for your conduit */
 
   gasneti_mynode = 0;
-  gasneti_nodes = 1;
+  #if GASNET_SYSV
+    gasneti_nodes = gasneti_sysvnodes = gasnetc_get_sysv_nodecount();
+  #else
+    gasneti_nodes = 1;
+  #endif
 
   /* enable tracing */
   gasneti_trace_init(argc, argv);
@@ -224,7 +330,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
+    #if GASNET_SYSV
+      gasnetc_sysv_segmentInit();
+    #else
+      gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
+    #endif
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
     #if GASNET_SYSV
@@ -409,7 +519,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+    #if GASNET_SYSV
+      gasnetc_sysv_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+    #else
+      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+    #endif
     gasneti_assert(((uintptr_t)gasneti_seginfo[gasneti_mynode].addr) % GASNET_PAGESIZE == 0);
     gasneti_assert(gasneti_seginfo[gasneti_mynode].size % GASNET_PAGESIZE == 0);
   #else

@@ -25,6 +25,11 @@
 struct gasneti_sysvnet;			/* opaque type */
 typedef struct gasneti_sysvnet gasneti_sysvnet_t;
 
+/* # of nodes in my supernode, lowest of contiguous gasnet node #s in
+ * supernode, and my 0-based rank within it */
+gasnet_node_t gasneti_sysvnodes;
+gasnet_node_t gasneti_firstsysvnode;
+gasnet_node_t gasneti_mysysvnode;
 
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_sysvnet_t.
@@ -46,7 +51,7 @@ size_t gasneti_sysvnet_memory_needed(gasnet_node_t nodes);
  *   nodes 4, 5, and 6 are the members of the supernode.
  */
 void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t len, 
-                     gasnet_node_t firstnode, gasnet_node_t node_count);
+                          gasnet_node_t firstnode, gasnet_node_t node_count);
 
 /* Bootstrap exchange via sysvnet.
  *
