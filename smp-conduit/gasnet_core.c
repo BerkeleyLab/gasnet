@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/30 20:56:14 $
- * $Revision: 1.45.4.6 $
+ *     $Date: 2007/04/30 21:11:53 $
+ * $Revision: 1.45.4.7 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -72,6 +72,8 @@ void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   #endif
 }
 void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
+  /* NOTE: no GASNET_SYSV implemention, but that's OK 'cause this function
+   * isn't getting used */
   gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
   gasneti_assert(rootnode == 0);
   memmove(dest, src, len);
@@ -86,7 +88,15 @@ static void gasnetc_bootstrapBarrier() {
      If your underlying spawning or batch system provides barrier functionality,
       that would probably be a good choice for this
    */
-  gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
+  #if GASNET_SYSV
+    /* HACK: use my patented "sleepy ostrich" algorithm ("race conditions go
+     * away if you just take a sufficiently long nap").
+     * - TODO: replace with a real barrier!
+     */
+     sleep(1);
+  #else
+    gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
+  #endif
 }
 
 #if GASNET_SYSV
