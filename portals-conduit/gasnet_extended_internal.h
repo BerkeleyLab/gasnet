@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2007/02/06 23:42:57 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2007/04/30 23:29:59 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,13 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
+
+#ifndef GASNETE_USEAM
+/* MLW: debug: use AMs for extended ref implementation
+ * THIS SHOULD BE 0 by default!
+ */
+#define GASNETE_USEAM 0
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 typedef uint8_t gasnete_threadidx_t;
@@ -29,6 +36,16 @@ typedef union _gasnete_opaddr_t {
 
 /* gasnet_handle_t is a void* pointer to a gasnete_op_t, 
  * which is either a gasnete_eop_t or an gasnete_iop_t
+ * In the portals conduit, we require that both eops and iops can be accessed
+ * by a compact (24-bit) representation [threadidx,addr].  
+ * This representation will be packed into a substring of the match bits of a
+ * Portals Put/Get operation.  When we extract the compact representation,
+ * we must be able to determine:
+ * (1) if it references an eop or iop.  Check the most significant bit if threadidx.
+ * (2) recover an actual pointer to the eop/iop.  This is done by referencing
+ *         eop_bufs[_bufferidx] + _opidx 
+ *     or  iop_bufs[_bufferidx] + _opidx
+ * from the threads threaddata structure.
  */
 typedef struct _gasnete_op_t {
   uint8_t flags;                  /*  flags - type tag */
@@ -180,7 +197,8 @@ gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                \
-    _th = gasnete_threadtable[GASNETE_OP_THREADID(eop)];                     \
+    _th = gasnete_threadtable[GASNETE_OP_THREADID(eop)];	     \
+    gasneti_assert(_th != NULL);				     \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
@@ -209,11 +227,25 @@ gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr
 /* ------------------------------------------------------------------------------------ */
 
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
+#if GASNETE_USEAM
+#define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
+#define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
+#define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
+#define _hidx_gasnete_get_reqh               (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_get_reph               (GASNETE_HANDLER_BASE+4)
+#define _hidx_gasnete_getlong_reqh           (GASNETE_HANDLER_BASE+5)
+#define _hidx_gasnete_getlong_reph           (GASNETE_HANDLER_BASE+6)
+#define _hidx_gasnete_put_reqh               (GASNETE_HANDLER_BASE+7)
+#define _hidx_gasnete_putlong_reqh           (GASNETE_HANDLER_BASE+8)
+#define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+9)
+#define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+10)
+#else
 #define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
 #define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
 #define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+3)
 #define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+4)
+#endif
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif

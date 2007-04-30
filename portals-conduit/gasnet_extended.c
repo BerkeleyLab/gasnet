@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/04/19 20:36:37 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2007/04/30 23:29:59 $
+ * $Revision: 1.1.2.21 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -298,11 +298,21 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 
 /*  query an op for completeness - for iop this means both puts and gets */
 int gasnete_op_isdone(gasnete_op_t *op) {
+#if 0
   GASNETI_TRACE_PRINTF(C,("OP_ISDONE: op=0x%lx threadid=%d",(uintptr_t)op,GASNETE_OP_THREADID(op)));
   gasneti_assert( op != NULL );
+  printf("[%d] OP_ISDONE: op=%p, threadidx=%x, flags=%x, opaddr=%x, %s\n",gasneti_mynode,op,op->threadidx,op->flags,op->addr.fulladdr,((OPTYPE(op) == OPTYPE_EXPLICIT)?"EXPLICIT":"IMPLICIT"));
+  fflush(stdout);
+#endif
   gasneti_assert(GASNETE_OP_THREADID(op) == gasnete_mythread()->threadidx);
   if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
-    GASNETI_TRACE_PRINTF(C,("EOP_ISDONE: Explicit"));
+#if 0
+    {
+      gasnete_threaddata_t *_th = gasnete_threadtable[GASNETE_OP_THREADID((gasnete_eop_t*)op)];
+      void *p = GASNETE_EOPADDR_TO_PTR(_th, ((gasnete_eop_t*)op)->addr);
+      printf("[%d] EOP_ISDONE: eop=%p threaddata=%p op_ptr=%p\n",gasneti_mynode,op,_th,p);
+    }
+#endif
     gasneti_assert(OPSTATE(op) != OPSTATE_FREE);
     gasnete_eop_check((gasnete_eop_t *)op);
     return OPSTATE(op) == OPSTATE_COMPLETE;
@@ -487,6 +497,84 @@ void gasnete_trace_finish(void)
   Non-blocking memory-to-memory transfers (explicit handle)
   ==========================================================
 */
+#if GASNETE_USEAM
+GASNETI_INLINE(gasnete_get_reqh_inner)
+void gasnete_get_reqh_inner(gasnet_token_t token, 
+  gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
+  gasneti_assert(nbytes <= gasnet_AMMaxMedium());
+  GASNETI_SAFE(
+    MEDIUM_REP(2,4,(token, gasneti_handleridx(gasnete_get_reph),
+                  src, nbytes, 
+                  PACK(dest), PACK(op))));
+}
+SHORT_HANDLER(gasnete_get_reqh,4,7, 
+              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
+              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_get_reph_inner)
+void gasnete_get_reph_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *dest, void *op) {
+  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
+  gasneti_sync_writes();
+  gasnete_op_markdone((gasnete_op_t *)op, 1);
+}
+MEDIUM_HANDLER(gasnete_get_reph,2,4,
+              (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)    ),
+              (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_getlong_reqh_inner)
+void gasnete_getlong_reqh_inner(gasnet_token_t token, 
+  gasnet_handlerarg_t nbytes, void *dest, void *src, void *op) {
+
+  GASNETI_SAFE(
+    LONG_REP(1,2,(token, gasneti_handleridx(gasnete_getlong_reph),
+                  src, nbytes, dest,
+                  PACK(op))));
+}
+SHORT_HANDLER(gasnete_getlong_reqh,4,7, 
+              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
+              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_getlong_reph_inner)
+void gasnete_getlong_reph_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes, 
+  void *op) {
+  gasneti_sync_writes();
+  gasnete_op_markdone((gasnete_op_t *)op, 1);
+}
+LONG_HANDLER(gasnete_getlong_reph,1,2,
+              (token,addr,nbytes, UNPACK(a0)     ),
+              (token,addr,nbytes, UNPACK2(a0, a1)));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_put_reqh_inner)
+void gasnete_put_reqh_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *dest, void *op) {
+  GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
+  gasneti_sync_writes();
+  GASNETI_SAFE(
+    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
+                  PACK(op))));
+}
+MEDIUM_HANDLER(gasnete_put_reqh,2,4, 
+              (token,addr,nbytes, UNPACK(a0),      UNPACK(a1)     ),
+              (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasnete_putlong_reqh_inner)
+void gasnete_putlong_reqh_inner(gasnet_token_t token, 
+  void *addr, size_t nbytes,
+  void *op) {
+  gasneti_sync_writes();
+  GASNETI_SAFE(
+    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
+                  PACK(op))));
+}
+LONG_HANDLER(gasnete_putlong_reqh,1,2, 
+              (token,addr,nbytes, UNPACK(a0)     ),
+              (token,addr,nbytes, UNPACK2(a0, a1)));
+
+#endif
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
@@ -511,6 +599,63 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
               (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
 
+#if GASNETE_USEAM
+extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
+    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+
+    GASNETI_SAFE(
+      SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
+                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(op))));
+
+    return (gasnet_handle_t)op;
+  } else {
+    /*  need many messages - use an access region to coalesce them into a single handle */
+    /*  (note this relies on the fact that our implementation of access regions allows recursion) */
+    gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
+    gasnete_get_nbi_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
+    return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+  }
+}
+
+GASNETI_INLINE(gasnete_put_nb_inner)
+gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
+  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
+    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+
+    GASNETI_SAFE(
+      MEDIUM_REQ(2,4,(node, gasneti_handleridx(gasnete_put_reqh),
+                    src, nbytes,
+                    PACK(dest), PACK(op))));
+
+    return (gasnet_handle_t)op;
+  } else if (nbytes <= gasnet_AMMaxLongRequest()) {
+    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+
+    if (isbulk) {
+      GASNETI_SAFE(
+        LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                    src, nbytes, dest,
+                    PACK(op))));
+    } else {
+      GASNETI_SAFE(
+        LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                    src, nbytes, dest,
+                    PACK(op))));
+    }
+
+    return (gasnet_handle_t)op;
+  } else { 
+    /*  need many messages - use an access region to coalesce them into a single handle */
+    /*  (note this relies on the fact that our implementation of access regions allows recursion) */
+    gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
+      if (isbulk) gasnete_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
+      else        gasnete_put_nbi    (node, dest, src, nbytes GASNETE_THREAD_PASS);
+    return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+  }
+}
+
+#else
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   if (nbytes <= GASNETC_PTL_MAX_TRANS_SZ) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
@@ -572,6 +717,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
+#endif
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
@@ -669,6 +815,123 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
     the target until the source tries to synchronize
 */
 
+#if GASNETE_USEAM
+extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
+    op->initiated_get_cnt++;
+  
+    GASNETI_SAFE(
+      SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
+                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(op))));
+    return;
+  } else {
+    int chunksz;
+    gasnet_handler_t reqhandler;
+    uint8_t *psrc = src;
+    uint8_t *pdest = dest;
+    #if GASNETE_USE_LONG_GETS
+      gasneti_memcheck(gasneti_seginfo);
+      if (gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
+        chunksz = gasnet_AMMaxLongReply();
+        reqhandler = gasneti_handleridx(gasnete_getlong_reqh);
+      }
+      else 
+    #endif
+      { reqhandler = gasneti_handleridx(gasnete_get_reqh);
+        chunksz = gasnet_AMMaxMedium();
+      }
+    for (;;) {
+      op->initiated_get_cnt++;
+      if (nbytes > chunksz) {
+        GASNETI_SAFE(
+          SHORT_REQ(4,7,(node, reqhandler, 
+                       (gasnet_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK(op))));
+        nbytes -= chunksz;
+        psrc += chunksz;
+        pdest += chunksz;
+      } else {
+        GASNETI_SAFE(
+          SHORT_REQ(4,7,(node, reqhandler, 
+                       (gasnet_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK(op))));
+        break;
+      }
+    }
+    return;
+  }
+}
+
+GASNETI_INLINE(gasnete_put_nbi_inner)
+void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+
+  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
+    op->initiated_put_cnt++;
+
+    GASNETI_SAFE(
+      MEDIUM_REQ(2,4,(node, gasneti_handleridx(gasnete_put_reqh),
+                    src, nbytes,
+                    PACK(dest), PACK(op))));
+    return;
+  } else if (nbytes <= gasnet_AMMaxLongRequest()) {
+    op->initiated_put_cnt++;
+
+    if (isbulk) {
+      GASNETI_SAFE(
+        LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                      src, nbytes, dest,
+                      PACK(op))));
+    } else {
+      GASNETI_SAFE(
+        LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                      src, nbytes, dest,
+                      PACK(op))));
+    }
+
+    return;
+  } else {
+    int chunksz = gasnet_AMMaxLongRequest();
+    uint8_t *psrc = src;
+    uint8_t *pdest = dest;
+    for (;;) {
+      op->initiated_put_cnt++;
+      if (nbytes > chunksz) {
+        if (isbulk) {
+          GASNETI_SAFE(
+            LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                          psrc, chunksz, pdest,
+                          PACK(op))));
+        } else {
+          GASNETI_SAFE(
+            LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                          psrc, chunksz, pdest,
+                          PACK(op))));
+        }
+        nbytes -= chunksz;
+        psrc += chunksz;
+        pdest += chunksz;
+      } else {
+        if (isbulk) {
+          GASNETI_SAFE(
+            LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                          psrc, nbytes, pdest,
+                          PACK(op))));
+        } else {
+          GASNETI_SAFE(
+            LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
+                          psrc, nbytes, pdest,
+                          PACK(op))));
+        }
+        break;
+      }
+    }
+    return;
+  }
+}
+
+#else
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
@@ -733,6 +996,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   }
 
 }
+#endif
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
@@ -942,6 +1206,15 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */
+#if GASNETE_USEAM
+  gasneti_handler_tableentry_with_bits(gasnete_get_reqh),
+  gasneti_handler_tableentry_with_bits(gasnete_get_reph),
+  gasneti_handler_tableentry_with_bits(gasnete_getlong_reqh),
+  gasneti_handler_tableentry_with_bits(gasnete_getlong_reph),
+  gasneti_handler_tableentry_with_bits(gasnete_put_reqh),
+  gasneti_handler_tableentry_with_bits(gasnete_putlong_reqh),
+
+#endif
   gasneti_handler_tableentry_with_bits(gasnete_memset_reqh),
   gasneti_handler_tableentry_with_bits(gasnete_markdone_reph),
 

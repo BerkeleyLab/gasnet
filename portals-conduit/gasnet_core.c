@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/04/19 20:36:37 $
- * $Revision: 1.1.2.26 $
+ *     $Date: 2007/04/30 23:29:59 $
+ * $Revision: 1.1.2.27 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -479,7 +479,7 @@ extern int gasnetc_AMRequestShortM(
   uint8_t           *data;
   gasnetc_threaddata_t *th = gasnetc_mythread();
   int                nsend,ncredit,ntmpmd;
-  uint8_t            cred_byte;
+  uint8_t            cred_byte = 0;
 
   GASNETC_DEF_HARGS();  /* debugging, must be first statement */
 
@@ -487,17 +487,18 @@ extern int gasnetc_AMRequestShortM(
 
   /* handle loopback case */
   if (dest == gasneti_mynode) {
-    gasnet_handlerarg_t args[numargs];
     gasnetc_ptl_token_t tok;
     gasnet_token_t      token = (gasnet_token_t)&tok;
     va_start(argptr, numargs);
-    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) tok.args[i] = 0;
+    for (i = 0; i < numargs; i++) tok.args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
     tok.srcnode = gasneti_mynode;
     tok.rplsb_offset = 0;
     tok.initiator_offset = 0;
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Req handler=%d, narg=%d",handler,numargs));
-    GASNETI_RUN_HANDLER_SHORT(1, handler, gasnetc_handler[handler], token, args, numargs);
+    GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,0,NULL);
+    GASNETI_RUN_HANDLER_SHORT(1, handler, gasnetc_handler[handler], token, tok.args, numargs);
     gasneti_AMPoll();
     GASNETI_RETURN(GASNET_OK);
   }
@@ -531,7 +532,6 @@ extern int gasnetc_AMRequestShortM(
 
   /* get the addr of the start of the chunk */
   data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
-
 
   /* construct the match bits */
   GASNETC_PACK_AM_MBITS(mbits,local_offset,numargs,handler,amtype,targ_mbits);
@@ -611,7 +611,7 @@ extern int gasnetc_AMRequestMediumM(
   uint8_t           *data;
   gasnetc_threaddata_t *th = gasnetc_mythread();
   int                nsend, ncredit, ntmpmd;
-  uint8_t            cred_byte;
+  uint8_t            cred_byte = 0;
 
   GASNETC_DEF_HARGS();  /* debugging, must be first statement */
 
@@ -621,12 +621,12 @@ extern int gasnetc_AMRequestMediumM(
 
   /* handle loopback case */
   if (dest == gasneti_mynode) {
-    gasnet_handlerarg_t args[numargs];
     gasnetc_ptl_token_t tok;
     gasnet_token_t      token = (gasnet_token_t)&tok;
     void *tmpdata = gasneti_malloc(nbytes);
     va_start(argptr, numargs);
-    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) tok.args[i] = 0;
+    for (i = 0; i < numargs; i++) tok.args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
     tok.srcnode = gasneti_mynode;
     tok.rplsb_offset = 0;
@@ -634,7 +634,8 @@ extern int gasnetc_AMRequestMediumM(
     /* dont allow handler to modify source memory */
     memcpy(tmpdata,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: M_Req handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
-    GASNETI_RUN_HANDLER_MEDIUM(1, handler, gasnetc_handler[handler], token, args, numargs, tmpdata, nbytes);
+    GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr);
+    GASNETI_RUN_HANDLER_MEDIUM(1, handler, gasnetc_handler[handler], token, tok.args, numargs, tmpdata, nbytes);
     gasneti_free(tmpdata);
     gasneti_AMPoll();
     GASNETI_RETURN(GASNET_OK);
@@ -890,19 +891,20 @@ extern int gasnetc_AMRequestMediumM(
 
 #define AM_LONG_REQUEST_LOOPBACK_CHECK() do {				\
     if (dest == gasneti_mynode) {					\
-      gasnet_handlerarg_t args[numargs];				\
       gasnetc_ptl_token_t tok;						\
       gasnet_token_t      token = (gasnet_token_t)&tok;			\
       int i;								\
       va_start(argptr, numargs);					\
-      for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t); \
+      for (i = 0; i < gasnet_AMMaxArgs(); i++) tok.args[i] = 0;		\
+      for (i = 0; i < numargs; i++) tok.args[i] = va_arg(argptr,gasnet_handlerarg_t); \
       va_end(argptr);							\
       tok.srcnode = gasneti_mynode;					\
       tok.rplsb_offset = 0;						\
       tok.initiator_offset = 0;						\
       memcpy(dest_addr,source_addr,nbytes);				\
       GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: L_Req handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));	\
-      GASNETI_RUN_HANDLER_LONG(1, handler, gasnetc_handler[handler], token, args, numargs, dest_addr, nbytes); \
+      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr);	\
+      GASNETI_RUN_HANDLER_LONG(1, handler, gasnetc_handler[handler], token, tok.args, numargs, dest_addr, nbytes); \
       gasneti_AMPoll();							\
       GASNETI_RETURN(GASNET_OK);					\
     }									\
@@ -919,7 +921,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   int                  do_sync = 1;
   int                  isPacked = 0;
   int                  msg_bytes, nsend, ncredit, ntmpmd, pad;
-  uint8_t              cred_byte;
+  uint8_t              cred_byte = 0;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();  /* debugging, must be first statement */
@@ -971,7 +973,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   int                  do_sync = 0;
   int                  isPacked = 0;
   int                  msg_bytes, nsend, ncredit, ntmpmd, pad;
-  uint8_t              cred_byte;
+  uint8_t              cred_byte = 0;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();  /* debugging, must be first statement */
@@ -1045,9 +1047,11 @@ extern int gasnetc_AMReplyShortM(
   if (ptok->srcnode == gasneti_mynode) {
     gasnet_handlerarg_t args[numargs];
     va_start(argptr, numargs);
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
     for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Rpl handler=%d, narg=%d",handler,numargs)); \
+    GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,0,ptok->credits,0,NULL);
     GASNETI_RUN_HANDLER_SHORT(0, handler, gasnetc_handler[handler], token, args, numargs);
     GASNETI_RETURN(GASNET_OK);
   }
@@ -1147,11 +1151,13 @@ extern int gasnetc_AMReplyMediumM(
     gasnet_handlerarg_t args[numargs];
     void *tmpdata = gasneti_malloc(nbytes);
     va_start(argptr, numargs);
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
     for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
     /* dont allow handler to modify source memory */
     memcpy(tmpdata,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: M_Rpl handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
+    GASNETC_DBGMSG(1,0,"M",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr);
     GASNETI_RUN_HANDLER_MEDIUM(0, handler, gasnetc_handler[handler], token, args, numargs, tmpdata, nbytes);
     gasneti_free(tmpdata);
     GASNETI_RETURN(GASNET_OK);
@@ -1246,10 +1252,12 @@ extern int gasnetc_AMReplyLongM(
   if (ptok->srcnode == gasneti_mynode) {
     gasnet_handlerarg_t args[numargs];
     va_start(argptr, numargs);
+    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
     for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
     memcpy(dest_addr,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: L_Rpl handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
+    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr);
     GASNETI_RUN_HANDLER_LONG(0, handler, gasnetc_handler[handler], token, args, numargs, dest_addr, nbytes);
     GASNETI_RETURN(GASNET_OK);
   }
@@ -1268,7 +1276,7 @@ extern int gasnetc_AMReplyLongM(
 
   if (isPacked) amtype |= GASNETC_PTL_AM_PACKED;
 
-  /* pack reqsb offset in upper bits of mbits */
+  /* pack rplsb offset in upper bits of mbits */
   garg = (uint32_t)ptok->rplsb_offset;
   GASNETC_PACK_AM_MBITS(mbits,garg,numargs,handler,amtype,targ_mbits);
 

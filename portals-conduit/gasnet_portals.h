@@ -75,6 +75,11 @@
  * but rather than this ugly mess, we just state its value, which MUST be kept consistent
  * GASNet will fail in an assertion at startup if not.
  */
+#if ((GASNETC_CHUNKSIZE % GASNETC_BYTES_PER_CREDIT) != 0)
+#error "GASNETC_CHUNKSIZE MUST BE A MULTIPLE OF GASNET_BYTES_PER_CREDIT"
+#endif
+#define GASNETC_MIN_CREDITS       (GASNETC_CHUNKSIZE/GASNETC_BYTES_PER_CREDIT)
+#if 0
 #if (GASNETC_CHUNKSIZE == 1024)
 #define GASNETC_MIN_CREDITS       4
 #elif (GASNETC_CHUNKSIZE == 2048)
@@ -82,7 +87,7 @@
 #else
 #error "MUST DEFINE GASNETC_MIN_CREDITS APPROPRIATE FOR CHUNKSIZE AS ceiling(GASNETC_CHUNKSIZE/GASNETC_BYTES_PRE_CREDIT)"
 #endif
-
+#endif
 /* The following constant is the cutoff size for out-of-segment Put/Get
  * messages that should be copied through the ReqSB buffer (acting as a bounce buffer).
  * Larger messages will allocate a Temporary MD around the data rather than doing
@@ -304,14 +309,18 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_AMLONG_DEFSEQARG ,uint32_t db_seqno
 #define GASNETC_AMLONG_SEQARG ,db_seqno
 
+#if 1
+#define GASNETC_CHECKSUM(addr,len) gasneti_checksum(addr,len)
+#else
+#define GASNETC_CHECKSUM(addr,len) 1
+#endif
 #define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data) do { \
     const char *fmt_str = "AMD %s %s %s s=%d d=%d sq=%d sr=%d h=%d mlen=%d dlen=%d crc=%lu cred=%d:%d:%d narg=%d %x %x %x %x %x %x %x %x"; \
     uint64_t i;								\
     uint8_t end_epoch,nextra,ncredit;					\
     uint8_t *udata = (uint8_t*)data;					\
     uint32_t sr_seqno = (snd ? (gasnetc_snd_seqno++) : (gasnetc_rcv_seqno++)); \
-    unsigned long crc = crc32(data,dlen,0);				\
-    /*for (i = 0; i < dlen; i++) crc += udata[i];*/			\
+    uint64_t crc = GASNETC_CHECKSUM(data,dlen);				\
     GASNETC_READ_CREDIT_BYTE(cred,end_epoch,nextra,ncredit);		\
     GASNETI_TRACE_PRINTF(C,(fmt_str,(snd?"S":"R"),str,(req?"Req":"Rpl"),src,dest,db_seqno,sr_seqno,handler,mlen,dlen,crc,end_epoch,nextra,ncredit,narg,a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7])); \
   } while(0)
@@ -426,8 +435,10 @@ extern unsigned gasnetc_sys_poll_limit;
 
 #define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
-/* AM tokens data structure.  This is never sent over the wire and only ever
- * exists as a local stack variable during execution of Request and Reply handlers
+/* AM tokens data structure.  This is never sent over the wire and generally exists
+ * only as a stack variable when processing an AM.  The exception is in the case
+ * of a non-packed AMLong, where a token record is contained in the amlongcache
+ * object, retaining its state until both header and data payload arrives.
  */
 typedef struct token_rec {
   uint8_t           flags;
@@ -436,7 +447,13 @@ typedef struct token_rec {
   ptl_size_t        rplsb_offset;        /* offset in replyer RplSB to use in Reply */
   ptl_process_id_t  initiator;           /* process ID of requestor */
   gasnet_node_t     srcnode;             /* gasnet node ID of requestor */
+  gasnet_handlerarg_t args[gasnet_AMMaxArgs()]; /* handler arguments [expands to constant] */
+  /* the remaining fields are only used in the case of a two-message AM Long and may
+   * not be set for AM Short, AM Medium or Packed AM Longs */
+  gasnet_handler_t  ghandler;            /* handler to run */
+  uint32_t          narg;                /* number of arguments */
 #if GASNET_DEBUG
+  size_t            msg_bytes;           /* Entire length of header message (for debugging) */
   uint32_t          seqno;               /* Debug Seq number for AM Req/Reply */
 #endif
 } gasnetc_ptl_token_t;
@@ -452,19 +469,14 @@ typedef struct token_rec {
 #define GASNETC_LID_HEADER_HERE  0x2
 typedef struct gasnetc_amlongcache_rec {
   uint8_t             flags;              /* indicates if HEADER and/or DATA has arrived */
-  uint8_t             credits;            /* used by sender of this AM Long (supplied by header) */
-  gasnet_handler_t    ghandler;           /* handler to run (supplied by header) */
-  uint32_t            dest_lid;           /* specified by first to arrive */
-  uint32_t            initiator_offset;   /* where AM Reply to be sent, (supplied by header) */
-  uint32_t            narg;               /* num of args to handler, (supplied by header) */
-  struct gasnetc_amlongcache_rec *next;   /* link into conn_state list of active AMLong lid objs */
-  void               *data;               /* location of data packet payload (supplied by data pkt) */
-  size_t              datalen;            /* length of data message (supplied by data pkt) */
+  uint32_t            dest_lid;           /* ID of this Long AM */
 #if GASNET_DEBUG
   uint32_t            seqno;              /* AM sequence number for debugging */
 #endif
-  gasnet_handlerarg_t args[];             /* args to handler function (supplied by header) */
-
+  gasnetc_ptl_token_t tok;                /* token for this AM, only gets written by header */
+  void*               data;               /* location of data packet payload */
+  size_t              nbytes;             /* data payload size (med/long) */
+  struct gasnetc_amlongcache_rec *next;   /* link into conn_state list of active AMLong lid objs */
 } gasnetc_amlongcache_t;
 
 #if GASNETC_USE_SPINLOCK
@@ -1010,30 +1022,5 @@ uint32_t gasnetc_new_lid(gasnet_node_t dest)
   /* use _add rather than _incr since it returns the new value */
   return gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
 }
-
-#if GASNET_DEBUG
-/* crc32 -- calculate and POSIX.2 checksum 
-   Copyright (C) 92, 1995-1999 Free Software Foundation, Inc.
-
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
-   any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software Foundation,
-   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
-
-unsigned long crc32( const void* const buffer, 
-		      unsigned long length, 
-		      unsigned long crc);
-
-#endif
-
 
 #endif
