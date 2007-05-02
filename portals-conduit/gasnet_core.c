@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/04/30 23:29:59 $
- * $Revision: 1.1.2.27 $
+ *     $Date: 2007/05/02 20:49:13 $
+ * $Revision: 1.1.2.28 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -1045,13 +1045,13 @@ extern int gasnetc_AMReplyShortM(
 
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
-    gasnet_handlerarg_t args[numargs];
+    gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
     va_start(argptr, numargs);
     for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
     for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Rpl handler=%d, narg=%d",handler,numargs)); \
-    GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,0,ptok->credits,0,NULL);
+    GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,0,NULL);
     GASNETI_RUN_HANDLER_SHORT(0, handler, gasnetc_handler[handler], token, args, numargs);
     GASNETI_RETURN(GASNET_OK);
   }
@@ -1148,7 +1148,7 @@ extern int gasnetc_AMReplyMediumM(
 
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
-    gasnet_handlerarg_t args[numargs];
+    gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
     void *tmpdata = gasneti_malloc(nbytes);
     va_start(argptr, numargs);
     for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
@@ -1250,7 +1250,7 @@ extern int gasnetc_AMReplyLongM(
 
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
-    gasnet_handlerarg_t args[numargs];
+    gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
     va_start(argptr, numargs);
     for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
     for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);

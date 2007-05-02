@@ -193,7 +193,7 @@ sub new_rec {
 sub check_req_send {
     my $s = shift;
     my $seq = $s->{seq};
-    printf("Found Req_Send for %d\n",$seq) if $debug;
+    printf("Found Req_Send for %d in [%s]\n",$seq,$s->{line}) if $debug;
     my $rec = $state{$seq};
     if (! $rec) {
 	$rec = &new_rec;
@@ -202,7 +202,7 @@ sub check_req_send {
 	return;
     }
     if ($rec->{rpl_send} || $rec->{rpl_recv}) {
-	printf("Got Req Send but Reply already exists\n");
+	printf("Got Req Send for %d but Reply already exists in [%s]\n",$seq,$s->{line});
 	&dump_rec($rec);
 	exit 1;
     }
@@ -217,7 +217,7 @@ sub check_req_send {
 sub check_req_recv {
     my $r = shift;
     my $seq = $r->{seq};
-    printf("Found Req_Recv for %d\n",$seq) if $debug;
+    printf("Found Req_Recv for %d in [%s]\n",$seq,$s->{line}) if $debug;
     my $rec = $state{$seq};
     if (! $rec) {
 	$rec = &new_rec;
@@ -226,7 +226,7 @@ sub check_req_recv {
 	return;
     }
     if ($rec->{rpl_send} || $rec->{rpl_recv}) {
-	printf("Got Req Recv but Reply already exists\n");
+	printf("Got Req Recv for %d but Reply already exists in [%s]\n",$seq,$s->{line});
 	&dump_rec($rec);
 	exit 1;
     }
@@ -242,15 +242,15 @@ sub check_req_recv {
 sub check_rpl_send {
     my $s = shift;
     my $seq = $s->{seq};
-    printf("Found Rpl_Send for %d\n",$seq) if $debug;
+    printf("Found Rpl_Send for %d in [%s]\n",$seq,$s->{line}) if $debug;
     my $rec = $state{$seq};
     if (! $rec) {
-	printf("Got Rpl Send but Req not found\n");
+	printf("Got Rpl Send for %d but Req not found in [%s]\n",$seq,$s->{line});
 	&dump_rec($rec);
 	exit 1;
     }
     if (!$rec->{req_recv}) {
-	printf("Got Rpl Send but Req Recv not found\n");
+	printf("Got Rpl Send for %d but Req Recv not found in [%s]\n",$seq,$s->{line});
 	&dump_rec($rec);
 	exit 1;
     }
@@ -269,12 +269,12 @@ sub check_rpl_recv {
     printf("Found Rpl_Recv for %d\n",$seq) if $debug;
     my $rec = $state{$seq};
     if (! $rec) {
-	printf("Got Rpl Recv but Req not found\n");
+	printf("Got Rpl Recv for %d but Req not found in [%s]\n",$seq,$s->{line});
 	&dump_rec($rec);
 	exit 1;
     }
     if (!$rec->{req_send}) {
-	printf("Got Rpl Recv but Req Send not found\n");
+	printf("Got Rpl Recv for %d but Req Send not found in [%s]\n",$seq,$s->{line});
 	&dump_rec($rec);
 	exit 1;
     }

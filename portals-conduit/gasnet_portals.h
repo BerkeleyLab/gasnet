@@ -79,15 +79,7 @@
 #error "GASNETC_CHUNKSIZE MUST BE A MULTIPLE OF GASNET_BYTES_PER_CREDIT"
 #endif
 #define GASNETC_MIN_CREDITS       (GASNETC_CHUNKSIZE/GASNETC_BYTES_PER_CREDIT)
-#if 0
-#if (GASNETC_CHUNKSIZE == 1024)
-#define GASNETC_MIN_CREDITS       4
-#elif (GASNETC_CHUNKSIZE == 2048)
-#define GASNETC_MIN_CREDITS       8
-#else
-#error "MUST DEFINE GASNETC_MIN_CREDITS APPROPRIATE FOR CHUNKSIZE AS ceiling(GASNETC_CHUNKSIZE/GASNETC_BYTES_PRE_CREDIT)"
-#endif
-#endif
+
 /* The following constant is the cutoff size for out-of-segment Put/Get
  * messages that should be copied through the ReqSB buffer (acting as a bounce buffer).
  * Larger messages will allocate a Temporary MD around the data rather than doing

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/04/30 23:29:59 $
- * $Revision: 1.1.2.21 $
+ *     $Date: 2007/05/02 20:49:13 $
+ * $Revision: 1.1.2.22 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,19 +23,6 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 #endif
 const gasnete_opaddr_t gasnete_opaddr_nil = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
-
-
-#if 0
-GASNETI_INLINE(gasnete_opaddr_to_ptr)
-gasnete_op_t *gasnete_opaddr_to_ptr(gasnete_threadidx_t threadid, gasnete_opaddr_t opaddr)
-{
-  gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
-  return ((threadid & OPTYPE_IMPLICIT)  == OPTYPE_IMPLICIT
-	  ? (gasnete_op_t*)(GASNETE_IOPADDR_TO_PTR(th,opaddr))
-	  : (gasnete_op_t*)(GASNETE_EOPADDR_TO_PTR(th,opaddr))
-	  );
-}
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
