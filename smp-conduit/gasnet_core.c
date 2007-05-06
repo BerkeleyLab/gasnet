@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/05/06 00:18:36 $
- * $Revision: 1.45.4.8 $
+ *     $Date: 2007/05/06 04:47:25 $
+ * $Revision: 1.45.4.9 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -612,7 +612,7 @@ gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
     buf->isReq = isRequest;
     return (gasnet_token_t)buf; 
   #else
-    return (gasnet_token_t)src;
+    return (gasnet_token_t)(uintptr_t)src;
   #endif
 
 }
@@ -639,7 +639,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
     #if GASNET_DEBUG
       sourceid = ((gasnetc_bufdesc_t *)token)->srcnode;
     #else
-      sourceid = (gasnet_node_t)token;
+      sourceid = (gasnet_node_t)(uintptr_t)token;
     #endif
   #else 
     sourceid = 0;

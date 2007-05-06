@@ -4,6 +4,7 @@
  * This API allows "virtual networks" (vnets) to be setup within a gasnet
  * shared memory supernode.
  */
+#include <stdarg.h>
 
 /* Some systems (T3E, others?) may not have #defined page size? 
  * - That's my reading of configure.in, at least... */
