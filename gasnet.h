@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2007/04/29 04:03:37 $
- * $Revision: 1.56.8.1 $
+ *     $Date: 2007/05/06 00:18:32 $
+ * $Revision: 1.56.8.2 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -237,6 +237,10 @@ GASNETI_END_EXTERNC
   typedef void *gasnet_token_t;
 #endif
 
+/* These must be implemented by each conduit in order to work with GASNET_SYSV */
+extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
+extern void gasnetc_token_destroy(gasnet_token_t token);  
+
 #ifndef _GASNET_HANDLERARG_T
 #define _GASNET_HANDLERARG_T
   /*  a 32-bit signed integer type which is used to express the user-provided arguments to all AM handlers. Platforms lacking a native 32-bit type may define this to a 64-bit type, but only the lower 32-bits are transmitted during an AM message send (and sign-extended on the receiver). */
@@ -245,12 +249,16 @@ GASNETI_END_EXTERNC
 
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
+  typedef void (*gasneti_handler_fn_t)();  /* prototype for generic handler function */
   /*  struct type used to negotiate handler registration in gasnet_init() */
   typedef struct gasneti_handlerentry_s {
     gasnet_handler_t index; /*  == 0 for don't care  */
-    void (*fnptr)();    
+    gasneti_handler_fn_t fnptr;
   } gasnet_handlerentry_t;
 #endif
+
+/* returns pointer to handler function for given handler id */
+extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T

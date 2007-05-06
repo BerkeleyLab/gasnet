@@ -17,19 +17,31 @@
  * memory 'supernode'.  
  * - Implemented as a set of message queues located in a shared memory space
  *   provided by the client of this API.
- * - Conduits using GASNET_SYSV will generally want at least 2 separate
- *   'receive' & 'reply' vnets (to allow a fast implementation of Active
- *   Messages to run within the supernode), and may create others as are
- *   needed or useful.
  */
 struct gasneti_sysvnet;			/* opaque type */
 typedef struct gasneti_sysvnet gasneti_sysvnet_t;
+
+/*  Sysvnets needed for SysV active messages.
+ *
+ * - Conduits using GASNET_SYSV must initialize these two vnets
+ *   to allow a fast implementation of Active Messages to run within the
+ *   supernode.  Other vnets may be created as are needed or useful.
+ * - Initialize these vnets before use via gasneti_sysvnet_init().
+ */
+gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
 
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
 gasnet_node_t gasneti_sysvnodes;
 gasnet_node_t gasneti_firstsysvnode;
 gasnet_node_t gasneti_mysysvnode;
+
+/* Returns 1 if given node is in the caller's supernode, or 0 if it's not. */
+GASNETI_INLINE(gasneti_sysvnet_in_supernode)
+int gasneti_sysv_in_supernode(gasnet_node_t node) {
+  int index = node - gasneti_firstsysvnode;
+  return (index >= 0 && index < gasneti_sysvnodes);
+}
 
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_sysvnet_t.
@@ -107,5 +119,45 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
  */
 void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf); 
 
+/*******************************************************************************
+ * AMSYSV: Active Messages over Sysvnet
+ *******************************************************************************/
 
+/* Processes pending messages:  if 'repliesOnly', only checks the 'reply'
+ * SYSV network (i.e. gasneti_reply_sysvnet).  */
+extern int gasneti_AMSYSVPoll(int repliesOnly);
+
+/* Don't call this function directly: internal sysv function */
+int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
+                                 gasnet_handler_t handler, void *source_addr, int nbytes, 
+                                 void *dest_ptr, int numargs, va_list argptr);
+
+/* Generic AM handler for SysVnet.
+ * Divert your conduit's regular AM requests to this function if a call to
+ * gasneti_sysv_in_supernode(dest) is nonzero */ 
+GASNETI_INLINE(gasneti_AMSYSV_RequestGeneric)
+int gasneti_AMSYSV_RequestGeneric(int category, int dest, 
+                                  gasnet_handler_t handler, void *source_addr, int nbytes,
+                                  void *dest_ptr, int numargs, va_list argptr) 
+{
+  return gasnetc_AMSYSV_ReqRepGeneric(category, 1, dest, handler, source_addr,
+                                      nbytes, dest_ptr, numargs, argptr); 
+}
+
+/* Generic AM handler for SysVnet.
+ * Divert your conduit's regular AM replies to this function if a call to
+ * gasneti_sysv_in_supernode(dest) is nonzero */ 
+GASNETI_INLINE(gasneti_AMSYSV_ReplyGeneric)
+int gasneti_AMSYSV_ReplyGeneric(int category, gasnet_token_t token, 
+                                       gasnet_handler_t handler, void *source_addr, 
+                                       int nbytes, void *dest_ptr, int numargs, 
+                                       va_list argptr) 
+{
+  int retval;
+  gasnet_node_t sourceid;
+  gasnetc_AMGetMsgSource(token, &sourceid);
+  retval = gasnetc_AMSYSV_ReqRepGeneric(category, 0, sourceid, handler, source_addr, 
+                                        nbytes, dest_ptr, numargs, argptr); 
+  return retval;
+}
 

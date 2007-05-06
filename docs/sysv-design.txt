@@ -1,7 +1,7 @@
 GASNet system V shared memory design thoughts
 ---------------------------------------------
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.1 $
+$Revision: 1.1.2.1 $
 
 Scope:
 
@@ -18,8 +18,9 @@ Terminology:
 Interface notes:
 
 * All node processes call gasnet_init(), each is a separate GASNet node
-* Some indicator tells gasnet_init that System V is in effect - either an environment flag or simply a library compile-time indicator
+* GASNET_SYSV is #defined if System V is in effect, and environment flag GASNET_SYSV_NODES is read to determine supernode peer count (default: 1)
 * gasnet_init performs super-node discovery, using OS-appropriate mechanisms to figure out which nodes are capable of sharing memory with which other nodes
+* - nodes within a supernode must have contiguous gasnet node numbers.
 * MaxLocal/Global return values reflecting the amount of segment space divided evenly among the supernode peers, and each node passes a size to gasnet_attach reflecting the per-node segment size they want.
 * gasnet_attach takes care of mapping each processor's segments as usual, but also
   maps the segments of supernode peers into each nodes VM space using sysV or other OS-appropriate mechanisms.
@@ -31,6 +32,14 @@ Interface notes:
 * remotely-addressable segment restrictions on gasnet_put/get/AMLong apply to the individual segments - ie gasnet_put() to an address in the segment of node X must give node X as the target node, not some other supernode peer
 * sysv segments of a supernode probably not guaranteed to be adjacent in VM
   - provide a definition of GASNET_CONTIGUOUS_SUPERSEGMENT when it's known at compile-time to be contiguous
+* All gasnet conduits must provide the following functions to support SysV:
+*   /* Returns a (conduit-specific) token type, with (internal conduit-specific) source and isRequest fields filled in.
+*    * The token is guaranteed to work with gasnetc_AMGetMsgSource (which is conduit-specific). */
+*   gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
+*   /* Frees a token handed out by gasnetc_token_create() */
+*   void gasnetc_token_destroy(gasnet_token_t token);  
+*   /* returns pointer to handler function for given handler id */
+*   extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
 
 Restrictions:
 

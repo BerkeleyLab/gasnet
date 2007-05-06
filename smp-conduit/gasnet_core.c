@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/30 21:11:53 $
- * $Revision: 1.45.4.7 $
+ *     $Date: 2007/05/06 00:18:36 $
+ * $Revision: 1.45.4.8 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,7 +35,6 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
   #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
 
   static void *gasnetc_sysvnet_region;
-  static gasneti_sysvnet_t *gasnetc_vnet_request, *gasnetc_vnet_reply;
 #endif /* GASNET_SYSV */
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable();
@@ -48,6 +47,11 @@ static void gasnetc_atexit(void);
 #define GASNETC_MAX_NUMHANDLERS   256
 typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+
+gasneti_handler_fn_t gasneti_get_handler(int handler_id) {
+  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+  return gasnetc_handler[handler_id];
+}
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -64,8 +68,8 @@ static void gasnetc_check_config() {
 
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   #if GASNET_SYSV
-    gasneti_assert(gasnetc_vnet_request != NULL);
-    gasneti_sysvnet_bootstrapExchange(gasnetc_vnet_request, src, len, dest);
+    gasneti_assert(gasneti_request_sysvnet != NULL);
+    gasneti_sysvnet_bootstrapExchange(gasneti_request_sysvnet, src, len, dest);
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
     memmove(dest, src, len);
@@ -104,6 +108,8 @@ static void gasnetc_bootstrapBarrier() {
 static int gasnetc_get_sysv_nodecount()
 {
   gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_SYSV_NODES", 0, 0);
+  int polite_wait, politedefault;
+
   if (nodes > GASNETC_MAX_SYSV_NODES) { 
     gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", nodes,
                        GASNETC_MAX_SYSV_NODES);
@@ -111,6 +117,32 @@ static int gasnetc_get_sysv_nodecount()
     fprintf(stderr, "Warning: GASNET_SYSV_NODES not specified: running with 1 node\n");
     nodes = 1;
   }
+
+  /* Set up 'polite' synchronization if nodes > CPU's and/or user specifies
+   * setting */
+  politedefault = gasnett_cpu_count() > 0 && nodes > gasnett_cpu_count();
+  polite_wait = gasnett_getenv_yesno_withdefault("GASNET_POLITE_SYNC",politedefault);
+  if (politedefault) {
+    fprintf(stderr,
+      "WARNING: Running more processes (%i) than there are physical CPU's (%i)\n",
+       nodes, gasnett_cpu_count());
+    if (polite_wait) {
+      fprintf(stderr,
+        "         enabling \"polite\" synchronization algorithms\n");
+    } else {
+      fprintf(stderr,
+        "         but setting GASNET_POLITE_SYNC=\"%s\" in your environment has\n"
+        "         disabled \"polite\" synchronization algorithms\n"
+        "         Results of this run are not suitable for benchmarking\n",
+        gasnet_getenv("GASNET_POLITE_SYNC"));
+    }
+  } else if (polite_wait) {
+    fprintf(stderr,"WARNING: GASNET_POLITE_SYNC=\"%s\" is set in your environment\n"
+        "         enabling \"polite\", low-performance synchronization algorithms\n",
+        gasnet_getenv("GASNET_POLITE_SYNC"));
+  }
+  fflush(stderr);
+  gasnet_set_waitmode(polite_wait ? GASNET_WAIT_BLOCK : GASNET_WAIT_SPIN);
   return nodes;
 }
 
@@ -143,26 +175,6 @@ void gasnetc_sysv_segmentInit()
   gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
   gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
   gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
-}
-
-static void simple_vnet_test()
-{
-  int i;
-  /* test: send msgs to one another */
-  for (i=0; i < gasnet_nodes(); i++) {
-    char *msg;
-    size_t maxsz = gasneti_sysvnet_max_payload();
-    if (i == gasnet_mynode())
-      continue;
-    msg = gasneti_sysvnet_get_send_buffer(gasnetc_vnet_request, maxsz, i);
-    if (!msg)
-      gasneti_fatalerror("T%d: Can't get sysv buffer for node %d at startup", 
-                         gasnet_mynode(), i);
-    sprintf(msg, "Msg from T%d to node %d", gasnet_mynode(), i);
-    if (gasneti_sysvnet_deliver_send_buffer(gasnetc_vnet_request, msg, strlen(msg)+1, i))
-      gasneti_fatalerror("T%d: Can't deliver sysv buffer to node %d at startup", 
-                         gasnet_mynode(), i);
-  }
 }
 
 static void gasnetc_sysv_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
@@ -230,14 +242,6 @@ static void gasnetc_sysv_segmentAttach(uintptr_t segsize, uintptr_t minheapoffse
   gasneti_segment.addr = (void*)(newbase + segsize*gasneti_mysysvnode);
   gasneti_segment.size = segsize;
   (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
-
-printf("T%d: segments: ", gasneti_mynode);
-{ int i;
-for (i = 0; i < gasneti_sysvnodes; i++)
-  printf("\n  T%d %p->%p (sz: %lu) ", i, seginfo[i].addr, 
-      (void*)((uintptr_t)seginfo[i].addr+seginfo[i].size), seginfo[i].size);
-printf("\n");
-fflush(stdout); }
 }
 
 static void gasnetc_init_sysv()
@@ -258,8 +262,6 @@ static void gasnetc_init_sysv()
   sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
   mmapsz = sninfosz + (2*vnetsz);
   gasnetc_sysvnet_region = gasneti_mmap_shared(mmapsz);
-printf("gasneti_sysvnet_init_sysv: mmmap region=%p, end=%p\n", gasnetc_sysvnet_region, (void*)(((uintptr_t)gasnetc_sysvnet_region)+mmapsz));
-fflush(stdout);
   if (gasnetc_sysvnet_region == MAP_FAILED)
     gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
   gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
@@ -283,11 +285,9 @@ fflush(stdout);
     }
   }
   /* Collective call to initialize Shared AM "networks" */
-printf("gasneti_sysvnet_init_sysv: calling #1 with region=%p: sninfosz=%lu\n", ((char*)(gasnetc_sysvnet_region))+sninfosz, sninfosz);
-  gasneti_sysvnet_init(&gasnetc_vnet_request, ((char*)(gasnetc_sysvnet_region))+sninfosz,
+  gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
                        vnetsz, 0, gasneti_nodes);
-printf("gasneti_sysvnet_init_sysv: calling #2 with region=%p\n", ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz));
-  gasneti_sysvnet_init(&gasnetc_vnet_reply, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
+  gasneti_sysvnet_init(&gasneti_reply_sysvnet, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
                        vnetsz, 0, gasneti_nodes);
 
   /* One-time 'barrier' */
@@ -295,12 +295,6 @@ printf("gasneti_sysvnet_init_sysv: calling #2 with region=%p\n", ((char*)(gasnet
   while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
             != gasneti_nodes)
     gasneti_sched_yield();
-
-printf("NODE %d of %d: my pid=%d, pid0=%d, pid1=%d, pid2=%d,pid3=%d\n",
-  gasneti_mynode, gasneti_nodes, getpid(), gasneti_sysv_node2pid[0], 
-  gasneti_sysv_node2pid[1], gasneti_sysv_node2pid[2],  gasneti_sysv_node2pid[3]);
-fflush(stdout);
-
 }
 
 
@@ -606,6 +600,31 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
+
+/* Returns a (conduit-specific) token type, with (internal conduit-specific)
+ * source and isRequest fields filled in.  The token is guaranteed to work
+ * with gasnetc_AMGetMsgSource (which is conduit-specific). */
+gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
+{
+  #if GASNET_DEBUG
+    gasnetc_bufdesc_t *buf = gasneti_malloc(sizeof(gasnetc_bufdesc_t));
+    buf->srcnode = src;
+    buf->isReq = isRequest;
+    return (gasnet_token_t)buf; 
+  #else
+    return (gasnet_token_t)src;
+  #endif
+
+}
+
+/* Frees a token handed out by gasnetc_token_create() */
+void gasnetc_token_destroy(gasnet_token_t token)
+{
+  #if GASNET_DEBUG
+    gasneti_free(token);
+  #endif
+}
+
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
@@ -616,23 +635,25 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   #endif
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-  /* add code here to write the source index into sourceid */
-  sourceid = 0;
-
+  #if GASNET_SYSV
+    #if GASNET_DEBUG
+      sourceid = ((gasnetc_bufdesc_t *)token)->srcnode;
+    #else
+      sourceid = (gasnet_node_t)token;
+    #endif
+  #else 
+    sourceid = 0;
+  #endif
   gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;
   return GASNET_OK;
 }
 
-#if 0
-/* no polling required for smp-conduit */
-extern int gasnetc_AMPoll() {
-  int retval;
+#if GASNET_SYSV
+extern int gasnetc_AMPoll() 
+{
   GASNETI_CHECKATTACH();
-
-  /*  add code here to run your AM progress engine */
-
-  return GASNET_OK;
+  return gasneti_AMSYSVPoll(0);
 }
 #endif
 
@@ -646,16 +667,14 @@ GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          int dest, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
-                         int numargs, va_list argptr) {
+                         int numargs, va_list argptr) 
+{
   gasnet_handlerarg_t pargs[GASNETC_MAX_ARGS];
+  gasnet_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
   #if GASNET_DEBUG  
-    gasnetc_bufdesc_t _descbuf; 
-    gasnetc_bufdesc_t *desc = &_descbuf;
-    desc->isReq = isReq;
+    gasnetc_bufdesc_t *desc = token;
     desc->handlerRunning = 1;
     desc->replyIssued = 0;
-  #else
-    void * const desc = NULL;
   #endif
 
   gasneti_assert(dest == gasneti_mynode);
@@ -670,7 +689,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   switch (category) {
     case gasnetc_Short:
       { 
-        GASNETI_RUN_HANDLER_SHORT(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs);
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler,gasnetc_handler[handler],token,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
@@ -687,14 +706,14 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
         memcpy(buf, source_addr, nbytes);
 
-        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,buf,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,gasnetc_handler[handler],token,pargs,numargs,buf,nbytes);
       }
     break;
     case gasnetc_Long:
       { 
         if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
 
-        GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,dest_ptr,nbytes);
+        GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],token,pargs,numargs,dest_ptr,nbytes);
       }
     break;
     default: gasneti_fatalerror("bad AM category");
@@ -702,6 +721,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   #if GASNET_DEBUG  
     desc->handlerRunning = 0;
   #endif
+  gasnetc_token_destroy(token);
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -709,18 +729,30 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
                          int dest, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
-
+#if GASNET_SYSV
+  /* smp conduit always within supernode, so skip check for 
+   * gasneti_sysv_in_supernode(dest) */
+  return gasneti_AMSYSV_RequestGeneric(category, dest, handler, source_addr, nbytes, 
+                                       dest_ptr, numargs, argptr); 
+#else
   gasneti_AMPoll(); /* ensure progress */
 
   return gasnetc_ReqRepGeneric(category, 1, dest, handler, 
                                source_addr, nbytes, dest_ptr, 
                                numargs, argptr); 
+#endif
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_ReplyGeneric(gasnetc_category_t category, 
                          gasnet_token_t token, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
+#if GASNET_SYSV
+  /* smp conduit always within supernode, so skip check for 
+   * gasneti_sysv_in_supernode(dest) */
+  return gasneti_AMSYSV_ReplyGeneric(category, token, handler, source_addr, nbytes, 
+                                     dest_ptr, numargs, argptr); 
+#else
   int retval;
   gasnet_node_t sourceid = 0;
   #if GASNET_DEBUG  
@@ -731,11 +763,11 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
     gasneti_assert(reqdesc->isReq);
     reqdesc->replyIssued = 1;
   #endif
-  
   retval = gasnetc_ReqRepGeneric(category, 0, sourceid, handler, 
                                  source_addr, nbytes, dest_ptr, 
                                  numargs, argptr); 
   return retval;
+#endif
 }
 /* ------------------------------------------------------------------------------------ */
 

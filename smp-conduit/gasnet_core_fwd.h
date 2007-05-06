@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2007/04/29 04:25:47 $
- * $Revision: 1.14.12.1 $
+ *     $Date: 2007/05/06 00:18:36 $
+ * $Revision: 1.14.12.2 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,8 +44,11 @@
 #endif
 
 #define GASNETI_GASNETC_AMPOLL
-#define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */
-
+#if GASNET_SYSV
+  extern int gasnetc_AMPoll();
+#else
+  #define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */
+#endif
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc

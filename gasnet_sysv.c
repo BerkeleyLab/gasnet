@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/04/29 04:25:45 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2007/05/06 00:18:32 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,6 +27,9 @@ static int gasneti_sysvnet_queue_depth;
 static uintptr_t gasneti_sysvnet_queue_mem; 
 #define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
 #define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
+
+#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
+        ((structname*)(((char *)fieldaddr) - (char *)(&((structname *)0)->fieldname)))
 
 /* data about an incoming message */
 typedef struct gasneti_sysvnet_msg {
@@ -265,19 +268,18 @@ static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregi
   gasneti_sysvnet_msg_t   *mymsgs;
   void *alloc_region;
 
-//printf("gasneti_sysvnet_init_my_sysv: got myregion=%p\n", myregion);
   gasneti_assert_align(myregion, GASNETI_SYSVNET_PAGESIZE);
 
   /* NOTE: other init code relies on queues being at start of region */
   myqueues = (gasneti_sysvnet_queue_t *)myregion;
   mymsgs = (gasneti_sysvnet_msg_t *)(((char*)myqueues) 
                                       + sizeof(gasneti_sysvnet_queue_t)*nodes);
-//printf("T%d (%d): myqueues=%p, mymsgs=%p, sizeof(queue)=%lu, sizeof(msg)=%lu\n", gasnet_mynode(), gasneti_sysvnet_mynode, myqueues, mymsgs, sizeof(gasneti_sysvnet_queue_t), sizeof(gasneti_sysvnet_msg_t));
   gasneti_assert_align(mymsgs, GASNETI_CACHE_LINE_BYTES);
   alloc_region = ((char*)mymsgs) + 
         sizeof(gasneti_sysvnet_msg_t)*gasneti_sysvnet_queue_depth*(nodes-1);
   alloc_region = (void *)round_up_to_sysvpage(alloc_region);
 
+printf("T%d: myqueues=%p-%p, mymsgs=%p-%p, alloc=%p-%p\n", gasnet_mynode(), myqueues, (char*)myqueues+sizeof(gasneti_sysvnet_queue_t)*nodes, mymsgs, alloc_region, alloc_region, (char*)alloc_region+gasneti_sysvnet_queue_mem);
   for (i = 0; i < nodes; i++) {
     if (i == gasneti_sysvnet_mynode) {
       memset(&myqueues[i], 0, sizeof(gasneti_sysvnet_queue_t));
@@ -351,6 +353,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
                                         size_t nbytes, gasnet_node_t target)
 {
   int retval = -1;
+  gasneti_sysvnet_payload_t *p;
   gasneti_sysvnet_queue_t *q = vnet->out_queues[sysvnode(vnet, target)];
   gasneti_assert(q != NULL);
   gasneti_mutex_lock(&q->send_lock);
@@ -363,6 +366,10 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
     /* fill in message info */
     q->send_next->addr = buf;
     q->send_next->len = nbytes;
+    /* set pointer to msg in buffer */
+    p = sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t, payload, buf);
+    gasneti_assert(buf == &p->payload);
+    p->info.msg = q->send_next;
     /* Perform write flush before writing ready bit */
     gasneti_atomic_set(&q->send_next->ready4receipt, 1, GASNETI_ATOMIC_REL);
     if (++q->send_next == q->justpastlast)
@@ -401,15 +408,22 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
   return -1;
 }
 
-#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
-        ((structname*)(((char *)fieldaddr) - (char *)((structname *)0)->fieldname))
-
+/* TODO: the current behavior if a user forgets to call this function is
+ * NASTY--the message stays marked as 'ready4receipt', which will both cause
+ * senders to think the queue is full, and the receiver to receive the same
+ * message again if/when the queue pointer wraps around.  This could cause
+ * deadlock and/or lots of confusion (for me it was the latter).
+ * - Add another field to payload ('marked_as_released') in debug mode, and
+ *   throw an error in receive/deliver functions if it's not set? 
+ */
 void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
 {
   /* Address we handed out was the addr of the 'payload' field */
   gasneti_sysvnet_payload_t *p = 
     sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t,
                                             payload, buf);
+  gasneti_assert(buf == &p->payload);
+  gasneti_assert(p && p->info.msg && p->info.allocator);
   /* mark msg as free */
   gasneti_atomic_set(&p->info.msg->ready4receipt, 0, 0);
   gasneti_sysvnet_free(p->info.allocator, p);
@@ -458,6 +472,7 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
       gasneti_fatalerror("T%d: got invalid msg length (%ld) during bootstrap exchange!", 
                          gasnet_mynode(), (long int)inlen);
     memcpy( ((char*)dest)+len*sysvnode(vnet, from), msg, len);
+    gasneti_sysvnet_recv_release(vnet, msg);
   }
   /* memcpy our own piece */
   memcpy( ((char*)dest)+len*sysvnode(vnet, gasnet_mynode()), src, len);
@@ -519,19 +534,235 @@ static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbyte
 
 static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
 {
-  /* We don't need the allocator ptr, but other implementation might  */
+  /* We don't need the allocator ptr, but other implementations might  */
 
   /* Address we handed out was the addr of the 'payload_t' field */
-  gasneti_sysvnet_payload_t *payload_t = (gasneti_sysvnet_payload_t *)p;
-  /* backup one to get to the start of our allocator block */
   gasneti_sysvnet_allocator_block_t *block = 
-      (gasneti_sysvnet_allocator_block_t *) --payload_t;
-
+      sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_allocator_block_t,
+                                              payload_t, p);
+  gasneti_assert(p == &block->payload_t);
   /* assert block is page-aligned */
   gasneti_assert( (((uintptr_t)block) % GASNETI_SYSVNET_PAGESIZE) == 0);
 
   gasneti_atomic_set(&block->alignmentFun.in_use, 0, 0);
 }
 
+/******************************************************************************
+ * AMSYSV:  Active Message API over Sysvnet
+ ******************************************************************************/
+
+enum {
+  gasnetc_Short=0, 
+  gasnetc_Medium=1, 
+  gasnetc_Long=2,
+  gasnetc_invalid_category
+};
+typedef uint32_t gasneti_AMSYSV_category_t;
+typedef uint32_t gasneti_AMSYSV_handler_t;
+
+/* TODO: tweak data sizes?  */
+typedef struct {
+  gasneti_AMSYSV_category_t category;      /* AM msg type: small, med, large */
+  gasneti_AMSYSV_handler_t handler_id;
+  uint32_t numargs;
+  gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+} gasneti_AMSYSV_msg_t;
+typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_smallmsg_t;
+
+typedef struct {
+  gasneti_AMSYSV_msg_t msg;
+  uint32_t numbytes;
+  uint8_t  mediumdata[GASNETC_MAX_MEDIUM];
+} gasneti_AMSYSV_medmsg_t;
+
+typedef struct {
+  gasneti_AMSYSV_msg_t msg;
+  uint32_t numbytes;
+  void *   longdata;
+} gasneti_AMSYSV_longmsg_t;
+
+#define GASNETI_AMSYSV_MSG_CATEGORY(msg)      (((gasneti_AMSYSV_msg_t*)msg)->category)
+#define GASNETI_AMSYSV_MSG_HANDLERID(msg)     (((gasneti_AMSYSV_msg_t*)msg)->handler_id)
+#define GASNETI_AMSYSV_MSG_NUMARGS(msg)       (((gasneti_AMSYSV_msg_t*)msg)->numargs)
+#define GASNETI_AMSYSV_MSG_ARGS(msg)          (((gasneti_AMSYSV_msg_t*)msg)->args)
+#define GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg)  (((gasneti_AMSYSV_medmsg_t*)msg)->numbytes)
+#define GASNETI_AMSYSV_MSG_MED_DATA(msg)      (((gasneti_AMSYSV_medmsg_t*)msg)->mediumdata)
+#define GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) (((gasneti_AMSYSV_longmsg_t*)msg)->numbytes)
+#define GASNETI_AMSYSV_MSG_LONG_DATA(msg)     (((gasneti_AMSYSV_longmsg_t*)msg)->longdata)
+
+#define GASNETI_AMSYSV_MAX_RECVMSGS_PER_POLL 10
+
+/* ------------------------------------------------------------------------------------ */
+GASNETI_INLINE(gasneti_AMSYSV_service_incoming_msg)
+int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
+{
+  void *msg;
+  size_t msgsz;
+  gasnet_node_t from;
+  gasneti_AMSYSV_category_t category;
+  gasneti_AMSYSV_handler_t handler_id;
+  void (*handler_fn)();
+  int numargs;
+  gasnet_handlerarg_t *args;
+  gasnet_token_t token;
+
+  if (gasneti_sysvnet_recv(vnet, &msg, &msgsz, &from))
+    return -1;
+
+  token = gasnetc_token_create(from, isReq);
+  category = GASNETI_AMSYSV_MSG_CATEGORY(msg);
+  gasneti_assert(category < gasnetc_invalid_category);
+  handler_id = GASNETI_AMSYSV_MSG_HANDLERID(msg);
+  handler_fn = gasneti_get_handler(handler_id);
+  numargs = GASNETI_AMSYSV_MSG_NUMARGS(msg);
+  args = GASNETI_AMSYSV_MSG_ARGS(msg);
+
+  switch (category) {
+    case gasnetc_Short:
+      { 
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler_id,handler_fn,token,args,numargs);
+      }
+      break;
+    case gasnetc_Medium:
+      {
+        void * data = GASNETI_AMSYSV_MSG_MED_DATA(msg);
+        size_t nbytes = GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg);
+        GASNETI_RUN_HANDLER_MEDIUM(
+          isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
+      }
+      break;
+    case gasnetc_Long:
+      { 
+        void * data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
+        size_t nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
+        GASNETI_RUN_HANDLER_LONG(
+            isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
+      }
+      break;
+  }
+  gasnetc_token_destroy(token);
+  gasneti_sysvnet_recv_release(vnet, msg);
+  return 0;
+}
+
+/* ------------------------------------------------------------------------------------ */
+int gasneti_AMSYSVPoll(int repliesOnly)
+{
+  int i = 0;
+
+  GASNETI_CHECKATTACH();
+
+  for (; i < GASNETI_AMSYSV_MAX_RECVMSGS_PER_POLL; i++) 
+    if (gasneti_AMSYSV_service_incoming_msg(gasneti_reply_sysvnet, 0))
+      break;
+  if (!repliesOnly)
+    for (; i < GASNETI_AMSYSV_MAX_RECVMSGS_PER_POLL; i++) 
+      if (gasneti_AMSYSV_service_incoming_msg(gasneti_request_sysvnet, 1))
+        break;
+  return GASNET_OK;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
+ * Active Message Request Functions
+ * ================================
+ */
+
+int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
+                                 gasnet_handler_t handler, void *source_addr, int nbytes, 
+                                 void *dest_ptr, int numargs, va_list argptr) 
+{
+  gasneti_sysvnet_t *vnet = (isReq ? gasneti_request_sysvnet : gasneti_reply_sysvnet);
+  int msgsz, i;
+  void *msg;
+  gasnet_handlerarg_t *pargs;
+  int loopback = (dest == gasneti_mynode);
+
+  gasneti_assert(vnet != NULL);
+
+  /* calculate size of sysV buffer needed */
+  switch (category) {
+    case gasnetc_Short:
+      msgsz = sizeof(gasneti_AMSYSV_smallmsg_t);
+      break;
+    case gasnetc_Medium:
+      msgsz = sizeof(gasneti_AMSYSV_medmsg_t);
+      break;
+    case gasnetc_Long:
+      msgsz = sizeof(gasneti_AMSYSV_longmsg_t);
+      break;
+    default:
+      gasneti_fatalerror("internal error: unknown msg category");
+  }
+  gasneti_assert(msgsz <= GASNETI_SYSVNET_MAX_PAYLOAD); 
+
+  /* Get buffer, poll if busy */
+  if (loopback) {
+    /* TODO: instead of doing a malloc each time, keep a per-thread pair of
+     * medmsg-sized request/reply buffers, and use them.  See smp-conduit's
+     * gasnetc_ReqRepGeneric's handling of mediummsgs */
+    msg = gasneti_malloc(msgsz);
+  } else {
+    while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
+      /* If reply, only poll reply network: avoids deadlock  */
+      gasneti_AMSYSVPoll(!isReq);
+    }
+  }
+
+  /* Fill in message */
+  GASNETI_AMSYSV_MSG_CATEGORY(msg) = category;
+  GASNETI_AMSYSV_MSG_HANDLERID(msg) = handler;
+  GASNETI_AMSYSV_MSG_NUMARGS(msg) = numargs;
+  for(i = 0; i < numargs; i++) 
+    GASNETI_AMSYSV_MSG_ARGS(msg)[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
+
+  switch (category) {
+    case gasnetc_Short:
+      break;
+    case gasnetc_Medium:
+      GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg) = nbytes;
+      memcpy(GASNETI_AMSYSV_MSG_MED_DATA(msg), source_addr, nbytes);
+      break;
+    case gasnetc_Long:
+      GASNETI_AMSYSV_MSG_LONG_DATA(msg) = dest_ptr; 
+      GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) = nbytes;
+      /* deliver_msg call, below, contains write flush, so don't need here */
+      /* TODO: given that msg may be long, is it worth using our (allegedly
+       * faster) ALIGNED memcpy macro here, and just use vanilla memcpy() on
+       * any non-aligned part? */
+      memcpy(dest_ptr, source_addr, nbytes);
+      break;
+  }
+
+  /* Deliver message */
+  if (loopback) {
+    gasneti_handler_fn_t handler_fn = gasneti_get_handler(handler); 
+    gasnet_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
+    gasnet_handlerarg_t *args = GASNETI_AMSYSV_MSG_ARGS(msg);
+    switch (category) {
+      case gasnetc_Short:
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,args,numargs);
+
+        break;
+      case gasnetc_Medium:
+        GASNETI_RUN_HANDLER_MEDIUM(isReq, handler, handler_fn, token, args, numargs,
+                                   GASNETI_AMSYSV_MSG_MED_DATA(msg), nbytes);
+        break;
+      case gasnetc_Long:
+        gasneti_local_wmb(); /* sync memcpy, above */
+        GASNETI_RUN_HANDLER_LONG(isReq, handler, handler_fn, token, args, numargs,
+                                 dest_ptr, nbytes);
+        break;
+    }
+    gasneti_free(msg);
+    gasnetc_token_destroy(token);
+  } else {
+    while (gasneti_sysvnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
+      /* If reply, only poll reply network: avoids deadlock  */
+      gasneti_AMSYSVPoll(!isReq);
+    }
+  }
+  return GASNET_OK;
+}
 
 #endif /* GASNET_SYSV */
