@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/05/07 05:37:25 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2007/05/07 22:11:20 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -286,7 +286,7 @@ static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregi
         sizeof(gasneti_sysvnet_msg_t)*gasneti_sysvnet_queue_depth*(nodes-1);
   alloc_region = (void *)round_up_to_sysvpage(alloc_region);
 
-printf("T%d: myqueues=%p-%p, mymsgs=%p-%p, alloc=%p-%p\n", gasnet_mynode(), myqueues, (char*)myqueues+sizeof(gasneti_sysvnet_queue_t)*nodes, mymsgs, alloc_region, alloc_region, (char*)alloc_region+gasneti_sysvnet_queue_mem);
+//printf("T%d: myqueues=%p-%p, mymsgs=%p-%p, alloc=%p-%p\n", gasnet_mynode(), myqueues, (char*)myqueues+sizeof(gasneti_sysvnet_queue_t)*nodes, mymsgs, alloc_region, alloc_region, (char*)alloc_region+gasneti_sysvnet_queue_mem);
   for (i = 0; i < nodes; i++) {
     if (i == gasneti_mysysvnode) {
       memset(&myqueues[i], 0, sizeof(gasneti_sysvnet_queue_t));
