@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2007/05/06 00:18:32 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2007/05/07 05:37:25 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,8 +15,15 @@
  * "SysV Net":  virtual network between peers in a shared memory supernode 
  ******************************************************************************/
 
-/* my rank within my supernode (0-based index) */
-gasnet_node_t gasneti_sysvnet_mynode;
+gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
+int *gasneti_sysv_node2supernode;
+
+/* # of nodes in my supernode, lowest of contiguous gasnet node #s in
+ * supernode, and my 0-based rank within it */
+gasnet_node_t gasneti_sysvnodes;
+gasnet_node_t gasneti_firstsysvnode;
+gasnet_node_t gasneti_mysysvnode;
+
 
 /* max # of incoming requests per node, per supernode peer */
 static int gasneti_sysvnet_queue_depth;  
@@ -281,7 +288,7 @@ static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregi
 
 printf("T%d: myqueues=%p-%p, mymsgs=%p-%p, alloc=%p-%p\n", gasnet_mynode(), myqueues, (char*)myqueues+sizeof(gasneti_sysvnet_queue_t)*nodes, mymsgs, alloc_region, alloc_region, (char*)alloc_region+gasneti_sysvnet_queue_mem);
   for (i = 0; i < nodes; i++) {
-    if (i == gasneti_sysvnet_mynode) {
+    if (i == gasneti_mysysvnode) {
       memset(&myqueues[i], 0, sizeof(gasneti_sysvnet_queue_t));
     } else {
       init_queue(&myqueues[i], mymsgs, gasneti_sysvnet_queue_depth);
@@ -304,8 +311,9 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
   /* make sure that our max buffer size isn't smaller than whatever network
    * is being used */
   gasneti_assert(GASNETC_MAX_MEDIUM < GASNETI_SYSVNET_MAX_PAYLOAD);
+  /* Up to conduit to have set up gasneti_sysv_node2supernode already */
+  gasneti_assert(gasneti_sysv_node2supernode != NULL);
 
-  gasneti_sysvnet_mynode = gasnet_mynode() - firstnode;
   region = start;
   region = (void *)round_up_to_sysvpage(region);
   regionlen = nbytes - ( ((uintptr_t)region)-((uintptr_t)start));
@@ -317,7 +325,7 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
   vnet = gasneti_malloc(sizeof(gasneti_sysvnet_t));
   vnet->firstnode = firstnode;
   vnet->nodecount = sysvnodes;
-  myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_sysvnet_mynode));
+  myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_mysysvnode));
   /* collective call, so each process inits its own region */
   gasneti_sysvnet_init_my_sysv(vnet, myregion, firstnode, sysvnodes);
 
@@ -327,7 +335,7 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
   for (i = 0; i < sysvnodes; i++) {
     vnet->in_queues[i] = ((gasneti_sysvnet_queue_t *)myregion) + i;
     vnet->out_queues[i] = ((gasneti_sysvnet_queue_t *) (((uintptr_t)region)+(szpernode*i))) 
-                          + gasneti_sysvnet_mynode;
+                          + gasneti_mysysvnode;
   }
   *pvnet = vnet;
 }
@@ -384,7 +392,7 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
 {
   int i;
   for (i = 0; i < vnet->nodecount; i++) {
-    if (vnet->nextindex != gasneti_sysvnet_mynode) {
+    if (vnet->nextindex != gasneti_mysysvnode) {
       gasneti_sysvnet_queue_t *q = vnet->in_queues[vnet->nextindex];
       gasneti_assert(q != NULL);
       gasneti_mutex_lock(&q->recv_lock);

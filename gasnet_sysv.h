@@ -22,6 +22,9 @@
 struct gasneti_sysvnet;			/* opaque type */
 typedef struct gasneti_sysvnet gasneti_sysvnet_t;
 
+/*******************************************************************************
+ * <SysV variables that must be initialized by the conduit using SYSV>
+ */
 /*  Sysvnets needed for SysV active messages.
  *
  * - Conduits using GASNET_SYSV must initialize these two vnets
@@ -29,13 +32,19 @@ typedef struct gasneti_sysvnet gasneti_sysvnet_t;
  *   supernode.  Other vnets may be created as are needed or useful.
  * - Initialize these vnets before use via gasneti_sysvnet_init().
  */
-gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
-
+extern gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
+/* lookup table: which supernode does a given node belong to? */
+extern int *gasneti_sysv_node2supernode;
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
-gasnet_node_t gasneti_sysvnodes;
-gasnet_node_t gasneti_firstsysvnode;
-gasnet_node_t gasneti_mysysvnode;
+extern gasnet_node_t gasneti_sysvnodes;
+extern gasnet_node_t gasneti_firstsysvnode;
+extern gasnet_node_t gasneti_mysysvnode;
+/*
+ * </SysV variables that must be initialized by the conduit using SYSV>
+ *******************************************************************************/
+
+
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not. */
 GASNETI_INLINE(gasneti_sysvnet_in_supernode)

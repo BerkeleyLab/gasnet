@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2007/05/06 00:18:32 $
- * $Revision: 1.56.8.2 $
+ *     $Date: 2007/05/07 05:37:25 $
+ * $Revision: 1.56.8.3 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -265,6 +265,9 @@ extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
   typedef struct gasneti_seginfo_s {
     void *addr;
     uintptr_t size;
+  #if GASNET_SYSV
+    int supernode;
+  #endif
   } gasnet_seginfo_t;
 #endif
 

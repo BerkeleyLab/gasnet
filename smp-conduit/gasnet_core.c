@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/05/06 04:47:25 $
- * $Revision: 1.45.4.9 $
+ *     $Date: 2007/05/07 05:37:29 $
+ * $Revision: 1.45.4.10 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -254,6 +254,12 @@ static void gasnetc_init_sysv()
   uintptr_t sysvsize;
   int i, fork_return;
 
+  /* For smp-conduit, all nodes are in supernode 0 */
+  gasneti_sysv_node2supernode = gasneti_malloc(sizeof(int*)*gasneti_nodes);
+  for (i = 0; i < gasneti_nodes; i++)
+    gasneti_sysv_node2supernode[i] = 0; 
+  gasneti_mysysvnode = gasneti_firstsysvnode = 0;
+
   /* set up additional shared memory region for shared supernode data and AM
    * infrastructure.
    */
@@ -267,9 +273,9 @@ static void gasnetc_init_sysv()
   gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
   memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
   gasneti_sysv_node2pid[0] = getpid();
-  gasneti_mysysvnode = gasneti_firstsysvnode = 0;
   /* Does fork() do a write flush?  Make sure */
   gasneti_atomic_set(&gasnetc_sn_info->startup_counter, 0, GASNETI_ATOMIC_WMB_POST);
+
   /* go fork yourself! */
   for (i = 1; i < gasneti_nodes; i++) {
     fork_return = fork();
@@ -286,9 +292,9 @@ static void gasnetc_init_sysv()
   }
   /* Collective call to initialize Shared AM "networks" */
   gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
-                       vnetsz, 0, gasneti_nodes);
+                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
   gasneti_sysvnet_init(&gasneti_reply_sysvnet, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
-                       vnetsz, 0, gasneti_nodes);
+                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
 
   /* One-time 'barrier' */
   gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);

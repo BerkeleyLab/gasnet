@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2007/04/30 20:56:12 $
- * $Revision: 1.50.2.3 $
+ *     $Date: 2007/05/07 05:37:25 $
+ * $Revision: 1.50.2.4 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -923,6 +923,11 @@ void gasneti_auxseg_attach() {
     si = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
     /* break up fullseg into client seg and auxseg */
     for (j=0; j < gasneti_nodes; j++) {
+      #if GASNET_SYSV
+        /* Up to conduit to have set up gasneti_sysv_node2supernode already */
+        gasneti_assert(gasneti_sysv_node2supernode != NULL);
+        gasneti_seginfo_client[j].supernode = gasneti_sysv_node2supernode[j];
+      #endif
       #if GASNETI_FORCE_CLIENTSEG_TO_BASE
         gasneti_seginfo_client[j].addr = gasneti_seginfo[j].addr;
         gasneti_seginfo_client[j].size = gasneti_seginfo[j].size - gasneti_auxseg_sz;

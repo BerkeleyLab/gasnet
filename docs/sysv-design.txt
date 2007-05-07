@@ -1,7 +1,7 @@
 GASNet system V shared memory design thoughts
 ---------------------------------------------
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.1.2.1 $
+$Revision: 1.1.2.2 $
 
 Scope:
 
@@ -21,6 +21,8 @@ Interface notes:
 * GASNET_SYSV is #defined if System V is in effect, and environment flag GASNET_SYSV_NODES is read to determine supernode peer count (default: 1)
 * gasnet_init performs super-node discovery, using OS-appropriate mechanisms to figure out which nodes are capable of sharing memory with which other nodes
 * - nodes within a supernode must have contiguous gasnet node numbers.
+* - conduit is responsible for allocating and initializing lookup table 
+*   'gasneti_sysv_node2supernode' by the time gasneti_sysv_init() is called.
 * MaxLocal/Global return values reflecting the amount of segment space divided evenly among the supernode peers, and each node passes a size to gasnet_attach reflecting the per-node segment size they want.
 * gasnet_attach takes care of mapping each processor's segments as usual, but also
   maps the segments of supernode peers into each nodes VM space using sysV or other OS-appropriate mechanisms.
