@@ -24,7 +24,7 @@
  * activity on scavenge list for node gasnetc_debug_node.
  */
 #ifndef GASNETC_CREDIT_TESTING
-#define GASNETC_CREDIT_TESTING 1
+#define GASNETC_CREDIT_TESTING 0
 #endif
 
 /* Set to 1 if want to use gasneti_spinlock_t rather than gasneti_mutex_t
