@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_strided.c,v $
- *     $Date: 2006/07/07 22:03:57 $
- * $Revision: 1.25 $
+ *     $Date: 2007/05/23 01:30:19 $
+ * $Revision: 1.25.18.1 $
  * Description: GASNet Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -367,6 +367,7 @@ gasnet_handle_t gasnete_puts_ref_indiv(gasnete_strided_stats_t const *stats, gas
   GASNETI_TRACE_EVENT(C, PUTS_REF_INDIV);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   GASNETE_START_NBIREGION(synctype, islocal);
+  gasneti_fatalerror("should not reach here");
 
   if (contiglevel == stridelevels) { /* fully contiguous at both ends */
     GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, stats->totalsz);
@@ -392,6 +393,7 @@ gasnet_handle_t gasnete_gets_ref_indiv(gasnete_strided_stats_t const *stats, gas
   GASNETI_TRACE_EVENT(C, GETS_REF_INDIV);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   GASNETE_START_NBIREGION(synctype, islocal);
+  gasneti_fatalerror("should not reach here");
 
   if (contiglevel == stridelevels) { /* fully contiguous at both ends */
     GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, stats->totalsz);
@@ -516,7 +518,13 @@ static void gasnete_convert_strided_to_addrlist(void * * srclist, void * * dstli
 
   gasneti_assert(srclist != NULL && dstlist != NULL && stats != NULL);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
-  gasneti_assert(limit > contiglevel);
+
+  if (limit == contiglevel) {
+    gasneti_assert(srccontigsz == dstcontigsz);
+    srclist[0] = _srcaddr;
+    dstlist[0] = _dstaddr;
+    return;
+  }
 
   if (srccontigsz == dstcontigsz) {
     void * * srcpos = srclist; void * * dstpos = dstlist;
@@ -585,7 +593,15 @@ static void gasnete_convert_strided_to_memvec(gasnet_memvec_t *srclist, gasnet_m
 
   gasneti_assert(srclist != NULL && dstlist != NULL && stats != NULL);
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
-  gasneti_assert(limit > contiglevel);
+
+  if (limit == contiglevel) {
+    gasneti_assert(srccontigsz == dstcontigsz);
+    srclist[0].addr = _srcaddr;
+    srclist[0].len = srccontigsz;
+    dstlist[0].addr = _dstaddr;
+    dstlist[0].len = dstcontigsz;
+    return;
+  }
 
   if (srccontigsz == dstcontigsz) {
     gasnet_memvec_t *srcpos = srclist; gasnet_memvec_t *dstpos = dstlist;
@@ -732,8 +748,6 @@ gasnet_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, ga
                                    void *dstaddr, const size_t dststrides[],
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  gasneti_assert(stats->dstsegments > 1); /* supports scatter put */
-  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, PUTS_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype, 0);
 
@@ -800,7 +814,6 @@ gasnet_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, ga
 }
   #define GASNETE_PUTS_AMPIPELINE_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels) \
     if (gasnete_vis_use_ampipe &&                                                                                           \
-        (stats)->dstsegments > 1 &&                                                                                         \
         (stats)->dualcontigsz <= gasnete_vis_maxchunk &&                                                                    \
         (stats)->dualcontigsz <= GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels))                                          \
       return gasnete_puts_AMPipeline(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
@@ -844,8 +857,6 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
                                    gasnet_node_t srcnode, 
                                    void *srcaddr, const size_t srcstrides[],
                                    const size_t count[], size_t stridelevels GASNETE_THREAD_FARG) {
-  gasneti_assert(stats->srcsegments > 1); /* supports gather get */
-  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, GETS_AMPIPELINE);
 
   { size_t const chunksz = stats->dualcontigsz;
@@ -913,7 +924,6 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
 }
   #define GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \
     if (gasnete_vis_use_ampipe &&                                                                                           \
-        (stats)->srcsegments > 1 &&                                                                                         \
         (stats)->dualcontigsz <= gasnete_vis_maxchunk &&                                                                    \
         (stats)->dualcontigsz <= gasnet_AMMaxMedium())                                                                      \
       return gasnete_gets_AMPipeline(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
@@ -1010,7 +1020,7 @@ gasnet_handle_t gasnete_puts_ref_vector(gasnete_strided_stats_t const *stats, ga
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_PUTV_ALLOWS_VOLATILE_METADATA);
 
-  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (0 && stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasneti_mynode);
     gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
@@ -1042,7 +1052,7 @@ gasnet_handle_t gasnete_gets_ref_vector(gasnete_strided_stats_t const *stats, ga
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_GETV_ALLOWS_VOLATILE_METADATA);
 
-  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (0 && stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasneti_mynode);
     gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
@@ -1076,7 +1086,7 @@ gasnet_handle_t gasnete_puts_ref_indexed(gasnete_strided_stats_t const *stats, g
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_PUTI_ALLOWS_VOLATILE_METADATA);
 
-  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (0 && stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (dstnode == gasneti_mynode);
     gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
@@ -1108,7 +1118,7 @@ gasnet_handle_t gasnete_gets_ref_indexed(gasnete_strided_stats_t const *stats, g
   gasneti_assert(!gasnete_strided_empty(count, stridelevels));
   gasneti_assert(GASNETE_GETI_ALLOWS_VOLATILE_METADATA);
 
-  if (stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
+  if (0 && stats->dualcontiguity == stridelevels) { /* fully contiguous at both ends */
     const int islocal = (srcnode == gasneti_mynode);
     gasneti_assert(stats->totalsz == (size_t)stats->totalsz); /* check for size_t truncation */
     GASNETE_START_NBIREGION(synctype, islocal);
@@ -1146,10 +1156,6 @@ extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */
     return GASNET_INVALID_HANDLE;
-  if_pf (dstnode == gasneti_mynode || /* purely local */ 
-         stats.dualcontiguity == stridelevels) {/* fully contiguous */
-    return gasnete_puts_ref_indiv(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
-  }
 
   /* select algorithm */
   #ifndef GASNETE_PUTS_SELECTOR
@@ -1171,7 +1177,7 @@ extern gasnet_handle_t gasnete_puts(gasnete_synctype_t synctype,
       #define GASNETE_PUTS_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels)       \
         GASNETE_PUTS_GATHER_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);     \
         GASNETE_PUTS_AMPIPELINE_SELECTOR(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels); \
-        return gasnete_puts_ref_indiv(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
+        return gasnete_puts_ref_vector(stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
     #endif
   #endif
   GASNETE_PUTS_SELECTOR(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels);
@@ -1192,10 +1198,6 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */
     return GASNET_INVALID_HANDLE;
-  if_pf (srcnode == gasneti_mynode || /* purely local */ 
-         stats.dualcontiguity == stridelevels) {/* fully contiguous */
-    return gasnete_gets_ref_indiv(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
-  }
 
   /* select algorithm */
   #ifndef GASNETE_GETS_SELECTOR
@@ -1217,7 +1219,7 @@ extern gasnet_handle_t gasnete_gets(gasnete_synctype_t synctype,
       #define GASNETE_GETS_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels)       \
         GASNETE_GETS_SCATTER_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);    \
         GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels); \
-        return gasnete_gets_ref_indiv(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
+        return gasnete_gets_ref_vector(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
     #endif
   #endif
   GASNETE_GETS_SELECTOR(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_indexed.c,v $
- *     $Date: 2006/07/07 22:03:57 $
- * $Revision: 1.21 $
+ *     $Date: 2007/05/23 01:30:19 $
+ * $Revision: 1.21.18.1 $
  * Description: GASNet Indexed implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -272,8 +272,6 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode, 
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasneti_assert(dstcount > 1); /* supports scatter put */
-  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, PUTI_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype, 0);
 
@@ -311,7 +309,7 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_PUTI_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen) \
-    if (gasnete_vis_use_ampipe && dstcount > 1 && dstlen == (uint32_t)(dstlen) &&                            \
+    if (gasnete_vis_use_ampipe && dstlen == (uint32_t)(dstlen) &&                            \
         (srclen <= gasnete_vis_maxchunk || dstlen <= gasnete_vis_maxchunk))                                  \
       return gasnete_puti_AMPipeline(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
@@ -347,8 +345,6 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnet_node_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
-  gasneti_assert(srccount > 1); /* supports gather get */
-  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, GETI_AMPIPELINE);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
@@ -391,7 +387,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \
-    if (gasnete_vis_use_ampipe && srccount > 1 &&                                                            \
+    if (gasnete_vis_use_ampipe &&                                                            \
         (srclen <= gasnete_vis_maxchunk || dstlen <= gasnete_vis_maxchunk))                                  \
       return gasnete_geti_AMPipeline(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS)
 #else
@@ -458,6 +454,7 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
+  gasneti_fatalerror("should not reach here");
 
   if (dstlen == srclen) { /* matched sizes (fast case) */
     size_t i;
@@ -528,6 +525,7 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
   gasneti_assert(srccount > 0 && dstcount > 0 && ((uintptr_t)dstcount)*dstlen == ((uintptr_t)srccount)*srclen);
   gasneti_assert(srclen > 0 && dstlen > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
+  gasneti_fatalerror("should not reach here");
 
   if (dstlen == srclen) { /* matched sizes (fast case) */
     size_t i;
@@ -649,11 +647,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
-  if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
-         dstnode == gasneti_mynode) { /* purely local */ 
     if (dstcount == 0) return GASNET_INVALID_HANDLE;
-    else return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
-  }
 
   /* select algorithm */
   #ifndef GASNETE_PUTI_SELECTOR
@@ -689,11 +683,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
-  if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
-         srcnode == gasneti_mynode) { /* purely local */ 
     if (dstcount == 0) return GASNET_INVALID_HANDLE;
-    else return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
-  }
 
   /* select algorithm */
   #ifndef GASNETE_GETI_SELECTOR

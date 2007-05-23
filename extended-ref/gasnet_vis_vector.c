@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_vector.c,v $
- *     $Date: 2007/05/02 13:17:29 $
- * $Revision: 1.21 $
+ *     $Date: 2007/05/23 01:30:19 $
+ * $Revision: 1.21.2.1 $
  * Description: GASNet Vector implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -284,8 +284,6 @@ gasnet_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
                                    gasnet_node_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasneti_assert(dstcount > 1); /* supports scatter put */
-  gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, PUTV_AMPIPELINE);
   { size_t i; /* detect empty list */
     for (i = 0; i < srccount; i++) { 
@@ -334,7 +332,7 @@ gasnet_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) \
-    if (gasnete_vis_use_ampipe && dstcount > 1)                                                \
+    if (gasnete_vis_use_ampipe)                                                \
       return gasnete_putv_AMPipeline(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS)
 #else
   #define GASNETE_PUTV_AMPIPELINE_SELECTOR(synctype,dstnode,dstcount,dstlist,srccount,srclist) ((void)0)
@@ -377,8 +375,6 @@ gasnet_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnet_node_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
-  gasneti_assert(srccount > 1); /* supports gather get */
-  gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
   GASNETI_TRACE_EVENT(C, GETV_AMPIPELINE);
   { size_t i; /* detect empty list */
     for (i = 0; i < dstcount; i++) { 
@@ -431,7 +427,7 @@ gasnet_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
   }
 }
   #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) \
-    if (gasnete_vis_use_ampipe && srccount > 1)                                                \
+    if (gasnete_vis_use_ampipe)                                                \
       return gasnete_getv_AMPipeline(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETV_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,srcnode,srccount,srclist) ((void)0)
@@ -496,6 +492,7 @@ gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, PUTV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
+  gasneti_fatalerror("should not reach here");
 
   if (dstcount == 1) { /* dst is contiguous buffer */
     uintptr_t pdst = (uintptr_t)(dstlist[0].addr);
@@ -568,6 +565,7 @@ gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
   GASNETI_TRACE_EVENT(C, GETV_REF_INDIV);
   gasneti_assert(srccount > 0 && dstcount > 0);
   GASNETE_START_NBIREGION(synctype, islocal);
+  gasneti_fatalerror("should not reach here");
 
   if (dstcount == 1) { /* dst is contiguous buffer */
     uintptr_t pdst = (uintptr_t)(dstlist[0].addr);
@@ -644,10 +642,6 @@ extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GASNET_INVALID_HANDLE; 
-  if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
-         dstnode == gasneti_mynode) { /* purely local */ 
-    return gasnete_putv_ref_indiv(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
-  }
 
   /* select algorithm */
   #ifndef GASNETE_PUTV_SELECTOR
@@ -670,10 +664,6 @@ extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GASNET_INVALID_HANDLE; 
-  if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
-         srcnode == gasneti_mynode) { /* purely local */ 
-    return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
-  }
 
   /* select algorithm */
   #ifndef GASNETE_GETV_SELECTOR
