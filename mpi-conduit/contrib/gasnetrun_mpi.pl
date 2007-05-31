@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2007/04/13 17:47:57 $
-# $Revision: 1.36.2.5 $
+#     $Date: 2007/05/31 21:58:00 $
+# $Revision: 1.36.2.6 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -202,6 +202,7 @@ sub gasnet_encode($) {
                   );
 	# what a mess: pbsyod needs extra quoting, bare yod does not...
         #$extra_quote_argv = 1;
+	@verbose_opt = ("-setenv", "PMI_DEBUG=1");
     } elsif ($is_bgl_mpi) {
 	$spawner_desc = "IBM BG/L MPI";
 	# pass as: -exp_env A -exp_env B
