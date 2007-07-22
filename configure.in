@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/04/13 17:47:44 $
-# $Revision: 1.310.2.8 $
+#     $Date: 2007/07/22 00:13:09 $
+# $Revision: 1.310.2.9 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.2.8 $)
+AC_REVISION($Revision: 1.310.2.9 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2435,10 +2435,12 @@ if test "$enabled_portals" = yes; then
       ;;
   esac
 
-  if test "$have_mpi_compat" != yes; then
-    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_compat_reason])
-    have_portals=no
-  fi
+# MLW: No longer need MPI to run portals
+#  if test "$have_mpi_compat" != yes; then
+#    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_compat_reason])
+#    have_portals=no
+#  fi
+
   if test "$gasnet_cv_cc_family" != GNU; then
     # bug 1584 - non-GNU compilers don't support portals until PE v1.5
     if test -z "$XTOS_VERSION" ; then
@@ -2495,9 +2497,9 @@ fi
 AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$have_portals" = yes)
 CONDUIT_END([test "$have_portals" = yes])
 # TODO: remove when portals is fully native
-if test "$have_portals" = yes; then
-  have_ammpi=yes
-fi
+#if test "$have_portals" = yes; then
+#  have_ammpi=yes
+#fi
 
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
