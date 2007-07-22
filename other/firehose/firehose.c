@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2007/01/09 19:16:28 $
- * $Revision: 1.26.2.2 $
+ *     $Date: 2007/07/22 00:41:24 $
+ * $Revision: 1.26.2.3 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -939,6 +939,9 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 	gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
 	b_avail = MIN(count, FHC_MAXVICTIM_BUCKETS_AVAIL);
 	fhc_LocalOnlyBucketsPinned += b_avail;
+#ifdef DEBUG_LOCAL_TABLE
+	fhc_LocalReserved += b_avail;
+#endif  
 
 	b_remain = count - b_avail;
 
@@ -970,6 +973,9 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 			b_remain -= b_avail;
 		}
 
+#ifdef DEBUG_LOCAL_TABLE
+		fhc_LocalReserved += b_avail;
+#endif  
 	}
 
 	gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
@@ -1225,7 +1231,7 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 		rc->flags |= FH_CALLBACK_TYPE_REMOTE;
 	    }
 
-	    #if FIREHOSE_SMP
+	    #if defined(FIREHOSE_PAGE) && FIREHOSE_SMP
 	    if (hit_pending) {
 		  rc->flags |= FH_CALLBACK_TYPE_PENDING;
 		  FH_POLLQ_LOCK;

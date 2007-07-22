@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2007/04/13 17:48:24 $
- * $Revision: 1.135.2.6 $
+ *     $Date: 2007/07/22 00:41:26 $
+ * $Revision: 1.135.2.7 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -268,10 +268,10 @@ static gasnetc_cep_t			**gasnetc_node2cep;
 GASNETI_INLINE(gasnetc_alloc_sreqs)
 void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
 {
-  size_t bytes = GASNETC_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
+  size_t bytes = GASNETI_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
   gasnetc_sreq_t *ptr = gasneti_malloc(count * bytes + GASNETI_CACHE_LINE_BYTES-1);
   int i;
-  *head_p = ptr = (gasnetc_sreq_t *)GASNETC_ALIGNUP(ptr, GASNETI_CACHE_LINE_BYTES);
+  *head_p = ptr = (gasnetc_sreq_t *)GASNETI_ALIGNUP(ptr, GASNETI_CACHE_LINE_BYTES);
   for (i = 1; i < count; ++i, ptr = ptr->next) {
     ptr->next = (gasnetc_sreq_t *)((uintptr_t)ptr + bytes);
     ptr->opcode = GASNETC_OP_FREE;
@@ -3064,12 +3064,12 @@ extern int gasnetc_sndrcv_init(void) {
       }
   
       /* Allocated normal memory for receive descriptors (rbuf's) */
-      padded_size = GASNETC_ALIGNUP(sizeof(gasnetc_rbuf_t), GASNETI_CACHE_LINE_BYTES);
+      padded_size = GASNETI_ALIGNUP(sizeof(gasnetc_rbuf_t), GASNETI_CACHE_LINE_BYTES);
       hca->rbuf_alloc = gasneti_malloc(rcv_count*padded_size + GASNETI_CACHE_LINE_BYTES-1);
   
       /* Initialize the rbuf's */
       gasneti_lifo_init(&hca->rbuf_freelist);
-      rbuf = (gasnetc_rbuf_t *)GASNETC_ALIGNUP(hca->rbuf_alloc, GASNETI_CACHE_LINE_BYTES);
+      rbuf = (gasnetc_rbuf_t *)GASNETI_ALIGNUP(hca->rbuf_alloc, GASNETI_CACHE_LINE_BYTES);
       for (i = 0; i < rcv_count; ++i) {
         rbuf->rr_is_rdma         = 0;
         rbuf->rr_desc.gasnetc_f_wr_num_sge = 1;

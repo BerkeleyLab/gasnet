@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2007/04/13 17:48:03 $
- * $Revision: 1.24.6.5 $
+ *     $Date: 2007/07/22 00:41:20 $
+ * $Revision: 1.24.6.6 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -23,7 +23,7 @@
   #else
     #include <sched.h>
   #endif
-  #if PLATFORM_OS_LINUX && !defined(__USE_GNU)
+  #if (PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX) && !defined(__USE_GNU)
     /* some Linuxes need this to pull in F_SETSIG */
     #define __USE_GNU
     #include <fcntl.h>

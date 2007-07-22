@@ -205,9 +205,9 @@ do-install-data-local: force $(headers) $(makefile_fragments)
 	  else :; fi; \
 	done
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
-	cp -f $(srcdir)/README $(DESTDIR)$(docdir)/README-$(CONDUIT_NAME)
+	$(INSTALL_DATA) $(srcdir)/README $(DESTDIR)$(docdir)/README-$(CONDUIT_NAME)
 	if test -f $(srcdir)/license.txt ; then \
-	  cp -f $(srcdir)/license.txt $(DESTDIR)$(docdir)/license-$(CONDUIT_NAME).txt || exit $$? ; \
+	  $(INSTALL_DATA) $(srcdir)/license.txt $(DESTDIR)$(docdir)/license-$(CONDUIT_NAME).txt || exit $$? ; \
         fi
 
 do-uninstall-local:

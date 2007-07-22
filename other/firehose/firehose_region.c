@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
- *     $Date: 2007/04/13 17:48:07 $
- * $Revision: 1.28.2.2 $
+ *     $Date: 2007/07/22 00:41:24 $
+ * $Revision: 1.28.2.3 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -359,6 +359,7 @@ GASNETI_INLINE(fh_clean_covered_local)
 int fh_clean_covered_local(int limit, firehose_region_t *reg) {
   int count = fh_clean_covered(limit, reg, &fh_LocalFifo);
   fhc_LocalVictimFifoBuckets -= count;
+  fhc_LocalOnlyBucketsPinned -= count;
   return count;
 }
 
@@ -661,6 +662,9 @@ fhi_wait_for_one(const firehose_private_t *priv) {
 	    firehose_move_callback(gasneti_mynode, unpin_regions, 1, NULL, 0);
 	    FH_TABLE_LOCK;
 	}
+#ifdef DEBUG_LOCAL_TABLE
+	--fhc_LocalReserved;
+#endif
 	fhc_LocalOnlyBucketsPinned--;
 	gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL > 0);
 }
@@ -891,6 +895,9 @@ retry:
 	FH_TABLE_LOCK;
 
 	priv = fhi_init_local_region(1, &pin_region);
+#ifdef DEBUG_LOCAL_TABLE
+	--fhc_LocalReserved;
+#endif
 	GASNETI_TRACE_EVENT(C,FH_LOCAL_MISS);
     }
     else if_pf (!FH_IS_READY(1, priv)) {
@@ -1697,5 +1704,67 @@ fh_move_request(gasnet_node_t node,
 
 	return 1;
 }
+
+/*
+ * Detailed, time-consuming validation of local table state.
+ */
+#ifdef DEBUG_LOCAL_TABLE
+int fhc_LocalReserved = 0;
+
+static void _fhi_acct_fifo_fn(void *key, void *val)
+{ firehose_private_t *priv = key;
+  int *count_p = val;
+  if (FH_IS_LOCAL_FIFO(priv)) (*count_p)++;
+}
+
+static void _fhi_acct_lref_fn(void *key, void *val)
+{ firehose_private_t *priv = key;
+  int *count_p = val;
+  fh_refc_t *rp = FH_BUCKET_REFC(priv);
+  if (!FH_IS_LOCAL_FIFO(priv) && rp->refc_l) { (*count_p)++; }
+}
+
+void _fhi_debug_local_table(const char *func, int line)  {
+  int lonly, lref_count, fifo_count;
+  firehose_private_t *priv;
+  int err = 0;
+
+  if_pf(!fh_PrivTable) return 0;
+
+  /* Count FIFO length (method 1) */
+  fifo_count = 0;
+  for (priv = FH_TAILQ_FIRST(&fh_LocalFifo); priv; priv = FH_TAILQ_NEXT(priv)) { ++fifo_count; }
+  if (fifo_count != fhc_LocalVictimFifoBuckets) {
+    fprintf(stderr, "[%d] %s:%d fhc_LocalVictimFifoBuckets (%d) != FIFO entries (%d)\n",
+		    gasneti_mynode, func, line, fhc_LocalVictimFifoBuckets, fifo_count);
+    fflush(NULL);
+    ++err;
+  }
+
+  /* Count FIFO length (method 2) */
+  fifo_count = 0;
+  fh_hash_apply(fh_PrivTable, &_fhi_acct_fifo_fn, &fifo_count);
+  if (fifo_count != fhc_LocalVictimFifoBuckets) {
+    fprintf(stderr, "[%d] %s:%d fhc_LocalVictimFifoBuckets (%d) != in-FIFO hash entries (%d)\n",
+		    gasneti_mynode, func, line, fhc_LocalVictimFifoBuckets, fifo_count);
+    fflush(NULL);
+    ++err;
+  }
+
+  /* Count LocalOnly buckets */
+  lref_count = 0;
+  fh_hash_apply(fh_PrivTable, &_fhi_acct_lref_fn, &lref_count);
+  lonly = fhc_LocalReserved + fifo_count + lref_count;
+  if (lonly != fhc_LocalOnlyBucketsPinned) {
+    fprintf(stderr, "[%d] %s:%d fhc_LocalOnlyBucketsPinned (%d) != FIFO + local-ref'd + resv'd (%d + %d + %d = %d)\n",
+		    gasneti_mynode, func, line, fhc_LocalOnlyBucketsPinned,
+		    fifo_count, lref_count, fhc_LocalReserved, lonly);
+    fflush(NULL);
+    ++err;
+  }
+
+  if (err) gasneti_fatalerror("(see above)");
+}
+#endif
 
 #endif
