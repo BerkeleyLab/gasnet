@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.h,v $
- *     $Date: 2007/01/09 19:16:48 $
- * $Revision: 1.42.4.3 $
+ *     $Date: 2007/07/22 00:41:26 $
+ * $Revision: 1.42.4.4 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,11 +170,6 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
   ==========================
 */
 
-/* Want to use GASNETI_ALIGN*, but those have not been seen yet */
-/* Also, these lack the assert() so that they are compile-time constants */
-#define GASNETC_ALIGNDOWN(p,P)	((uintptr_t)(p)&~((uintptr_t)(P)-1))
-#define GASNETC_ALIGNUP(p,P)	(GASNETC_ALIGNDOWN((uintptr_t)(p)+((P)-1),P))
-
 #define GASNETC_BUFSZ		4096
 
 #if GASNET_STATS
@@ -189,7 +184,7 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 #define GASNETC_MAX_ARGS_EXTRA	1	/* For flow-control info */
 #define GASNETC_MAX_ARGS	(GASNETC_MAX_ARGS_USER + GASNETC_MAX_ARGS_EXTRA)
 #define GASNETC_MAX_MEDIUM	\
-		(GASNETC_BUFSZ - GASNETC_ALIGNUP(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
+		(GASNETC_BUFSZ - GASNETI_ALIGNUP(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
 #define GASNETC_MAX_LONG_REQ	(0x7fffffff)
 #define GASNETC_MAX_PACKEDLONG	(GASNETC_BUFSZ - GASNETC_LONG_HDRSZ - 4*GASNETC_MAX_ARGS)
 #if GASNETC_PIN_SEGMENT
