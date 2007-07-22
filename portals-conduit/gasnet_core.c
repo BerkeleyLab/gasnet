@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/05/02 20:49:13 $
- * $Revision: 1.1.2.28 $
+ *     $Date: 2007/07/22 00:05:29 $
+ * $Revision: 1.1.2.29 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -50,6 +50,9 @@ static void gasnetc_check_config() {
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
+#if GASNETC_DEBUG
+  printf("Entering gasnetc_init\n");
+#endif
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -76,9 +79,9 @@ static int gasnetc_init(int *argc, char ***argv) {
       /* try to determine the max amount of memory we can alloc and pin on each node */
       uintptr_t max_pin = gasnetc_portalsMaxPinMem();
 
-#if 0
-      if (gasneti_mynode == 0) {
-	printf("Portals Conduit reports Max Pin Mem = %ld\n",(long)max_pin);
+#if GASNETC_DEBUG
+      {
+	printf("[%d] Portals Conduit reports Max Pin Mem = %ld\n",gasneti_mynode,(long)max_pin);
 	fflush(stdout);
       }
 #endif
@@ -119,6 +122,10 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 
+#if GASNETC_DEBUG
+  printf("[%d] Leaving gasnetc_init\n",gasneti_mynode);
+  fflush(stdout);
+#endif
   return GASNET_OK;
 }
 
@@ -185,6 +192,12 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
   void *segbase = NULL;
+#if GASNETC_DEBUG
+  {
+  printf("[%d] Entering gasnetc_attach\n",gasneti_mynode);
+  fflush(stdout);
+  }
+#endif
   
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
                           numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
@@ -497,7 +510,7 @@ extern int gasnetc_AMRequestShortM(
     tok.rplsb_offset = 0;
     tok.initiator_offset = 0;
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Req handler=%d, narg=%d",handler,numargs));
-    GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,0,NULL);
+    GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,0,NULL,th);
     GASNETI_RUN_HANDLER_SHORT(1, handler, gasnetc_handler[handler], token, tok.args, numargs);
     gasneti_AMPoll();
     GASNETI_RETURN(GASNET_OK);
@@ -572,7 +585,7 @@ extern int gasnetc_AMRequestShortM(
   gasneti_assert(th->snd_credits >= ncredit);
   th->snd_credits -= ncredit;
 
-  GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,0,NULL);
+  GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,0,NULL,th);
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -634,7 +647,7 @@ extern int gasnetc_AMRequestMediumM(
     /* dont allow handler to modify source memory */
     memcpy(tmpdata,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: M_Req handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
-    GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr);
+    GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr,th);
     GASNETI_RUN_HANDLER_MEDIUM(1, handler, gasnetc_handler[handler], token, tok.args, numargs, tmpdata, nbytes);
     gasneti_free(tmpdata);
     gasneti_AMPoll();
@@ -710,7 +723,7 @@ extern int gasnetc_AMRequestMediumM(
   gasneti_assert(th->snd_credits >= ncredit);
   th->snd_credits -= ncredit;
 
-  GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr);
+  GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th);
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -838,7 +851,7 @@ extern int gasnetc_AMRequestMediumM(
       gasneti_assert(th->snd_credits >= ncredit);			\
       th->snd_credits -= ncredit;					\
 									\
-      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr);	\
+      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th); \
       /* send message */						\
       GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
 									\
@@ -876,7 +889,7 @@ extern int gasnetc_AMRequestMediumM(
       memcpy(data,&cred_byte,sizeof(uint8_t));				\
       data += sizeof(uint8_t);						\
 									\
-      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr);	\
+      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th); \
       GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
 									\
       th->snd_tickets -= 2;						\
@@ -903,7 +916,7 @@ extern int gasnetc_AMRequestMediumM(
       tok.initiator_offset = 0;						\
       memcpy(dest_addr,source_addr,nbytes);				\
       GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: L_Req handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));	\
-      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr);	\
+      GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr,th); \
       GASNETI_RUN_HANDLER_LONG(1, handler, gasnetc_handler[handler], token, tok.args, numargs, dest_addr, nbytes); \
       gasneti_AMPoll();							\
       GASNETI_RETURN(GASNET_OK);					\
@@ -1050,8 +1063,8 @@ extern int gasnetc_AMReplyShortM(
     for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
     for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
     va_end(argptr);
-    GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Rpl handler=%d, narg=%d",handler,numargs)); \
-    GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,0,NULL);
+    GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Rpl handler=%d, narg=%d",handler,numargs));
+    GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,0,NULL,th);
     GASNETI_RUN_HANDLER_SHORT(0, handler, gasnetc_handler[handler], token, args, numargs);
     GASNETI_RETURN(GASNET_OK);
   }
@@ -1104,7 +1117,7 @@ extern int gasnetc_AMReplyShortM(
 
   gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
-  GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,0,NULL);
+  GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,0,NULL,th);
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -1157,7 +1170,7 @@ extern int gasnetc_AMReplyMediumM(
     /* dont allow handler to modify source memory */
     memcpy(tmpdata,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: M_Rpl handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
-    GASNETC_DBGMSG(1,0,"M",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr);
+    GASNETC_DBGMSG(1,0,"M",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr,th);
     GASNETI_RUN_HANDLER_MEDIUM(0, handler, gasnetc_handler[handler], token, args, numargs, tmpdata, nbytes);
     gasneti_free(tmpdata);
     GASNETI_RETURN(GASNET_OK);
@@ -1204,7 +1217,7 @@ extern int gasnetc_AMReplyMediumM(
 
   gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
-  GASNETC_DBGMSG(1,0,"M",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr);
+  GASNETC_DBGMSG(1,0,"M",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr,th);
 
   /* send message */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -1257,7 +1270,7 @@ extern int gasnetc_AMReplyLongM(
     va_end(argptr);
     memcpy(dest_addr,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: L_Rpl handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
-    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr);
+    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr,th);
     GASNETI_RUN_HANDLER_LONG(0, handler, gasnetc_handler[handler], token, args, numargs, dest_addr, nbytes);
     GASNETI_RETURN(GASNET_OK);
   }
@@ -1324,7 +1337,7 @@ extern int gasnetc_AMReplyLongM(
     gasneti_assert(th->snd_tickets > 0);
     th->snd_tickets--;
 
-    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr);
+    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr,th);
 
     /* send message */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
@@ -1366,7 +1379,7 @@ extern int gasnetc_AMReplyLongM(
     msg_bytes += sizeof(uint8_t);
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
-    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr);
+    GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr,th);
 
     /* send message */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));

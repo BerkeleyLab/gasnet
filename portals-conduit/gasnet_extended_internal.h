@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2007/04/30 23:29:59 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2007/07/22 00:05:29 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -110,6 +110,8 @@ typedef struct _gasnete_threaddata_t {
 
   struct _gasnet_valget_op_t *valget_free; /* free list of valget cells */
 } gasnete_threaddata_t;
+extern gasnete_threaddata_t *gasnete_threadtable[];
+
 /* ------------------------------------------------------------------------------------ */
 
 /* gasnete_op_t flags field */

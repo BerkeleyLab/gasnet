@@ -9,9 +9,11 @@
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
-
 /* ------------------------------------------------------------------------------------ */
 /* MLW:  Support for Portals 3.0 */
+#ifndef GASNETC_DEBUG
+#define GASNETC_DEBUG 0
+#endif
 
 /* set to 1 to compile in Sandia specific Accelerated Portals code */
 #ifndef GASNETC_USE_SANDIA_ACCEL
@@ -306,15 +308,15 @@ extern unsigned gasnetc_sys_poll_limit;
 #else
 #define GASNETC_CHECKSUM(addr,len) 1
 #endif
-#define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data) do { \
-    const char *fmt_str = "AMD %s %s %s s=%d d=%d sq=%d sr=%d h=%d mlen=%d dlen=%d crc=%lu cred=%d:%d:%d narg=%d %x %x %x %x %x %x %x %x"; \
+#define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data,th) do { \
+    const char *fmt_str = "AMD %s %s %s s=%d d=%d sq=%d sr=%d h=%d mlen=%d dlen=%d crc=%lu cred=%d:%d:%d th=%d narg=%d %x %x %x %x %x %x %x %x"; \
     uint64_t i;								\
     uint8_t end_epoch,nextra,ncredit;					\
     uint8_t *udata = (uint8_t*)data;					\
     uint32_t sr_seqno = (snd ? (gasnetc_snd_seqno++) : (gasnetc_rcv_seqno++)); \
     uint64_t crc = GASNETC_CHECKSUM(data,dlen);				\
     GASNETC_READ_CREDIT_BYTE(cred,end_epoch,nextra,ncredit);		\
-    GASNETI_TRACE_PRINTF(C,(fmt_str,(snd?"S":"R"),str,(req?"Req":"Rpl"),src,dest,db_seqno,sr_seqno,handler,mlen,dlen,crc,end_epoch,nextra,ncredit,narg,a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7])); \
+    GASNETI_TRACE_PRINTF(C,(fmt_str,(snd?"S":"R"),str,(req?"Req":"Rpl"),src,dest,db_seqno,sr_seqno,handler,mlen,dlen,crc,end_epoch,nextra,ncredit,th->threadidx,narg,a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7])); \
   } while(0)
     
 #else
@@ -328,7 +330,7 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_SEQNO_MSGLEN(cntr) do {} while(0)
 #define GASNETC_AMLONG_DEFSEQARG
 #define GASNETC_AMLONG_SEQARG
-#define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data) do{}while(0)
+#define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data,th) do{}while(0)
 #endif
 
 #if GASNETC_CREDIT_TESTING
@@ -658,13 +660,13 @@ extern char* ptl_event_str[];
 
 
 #ifdef GASNET_PAR
-#define GASNETC_REQRB_START(start_addr) do {			\
-    gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
-    gasneti_weakatomic_increment(&p->threads_active, 0);	\
+#define GASNETC_REQRB_START(start_addr) do {				\
+    gasnetc_PtlBuffer_t *p = ReqRB_getbuf((uintptr_t)(start_addr));	\
+    gasneti_weakatomic_increment(&p->threads_active, 0);		\
   } while(0)
-#define GASNETC_REQRB_FINISH(start_addr) do {			\
-    gasnetc_PtlBuffer_t *p = ReqRB_getbuf(start_addr);		\
-    gasneti_weakatomic_decrement(&p->threads_active, 0);	\
+#define GASNETC_REQRB_FINISH(start_addr) do {				\
+    gasnetc_PtlBuffer_t *p = ReqRB_getbuf((uintptr_t)(start_addr));	\
+    gasneti_weakatomic_decrement(&p->threads_active, 0);		\
   } while(0)
 #else
 #define GASNETC_REQRB_START(bufptr)  do {} while(0)
@@ -710,8 +712,10 @@ typedef struct {
  * This is attached to the gasnetc_threaddata hook in gasnete_threaddata_t
  */
 #define GASNETC_THREAD_HAVE_RPLSB   0x02U
+typedef gasnete_threadidx_t gasnetc_threadidx_t;
 typedef struct _gasnetc_threaddata_t {
   uint8_t flags;
+  gasnetc_threadidx_t threadidx;     /* must be identical to corresponding gasnete value */
 
   /* holding place for tickets and credits that we have already allocated */
   uint8_t snd_tickets;
@@ -942,6 +946,27 @@ int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
   return retcode;
 }
 
+GASNETI_INLINE(gasnetc_mythread)
+gasnetc_threaddata_t *gasnetc_mythread(void)
+{
+  gasnete_threaddata_t *th = gasnete_mythread();
+  return th->gasnetc_threaddata;
+}
+
+GASNETI_INLINE(gasnetc_new_threaddata)
+gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
+{
+  gasnetc_threaddata_t *th = (gasnetc_threaddata_t*)gasneti_malloc(sizeof(gasnetc_threaddata_t));
+  gasneti_assert_always(th);
+  th->flags = 0;
+  th->threadidx = idx;       /* keep this consistent with gasnete_threaddata */
+  th->snd_tickets = 0;
+  th->tmpmd_tickets = 0;
+  th->snd_credits = 0;
+  th->rplsb_off = -9999;     /* bogus value */
+  gasneti_weakatomic_set(&th->amlong_data_inflight, 0, 0);
+  return th;
+}
 
 GASNETI_INLINE(gasnetc_sys_poll)
 void gasnetc_sys_poll()
@@ -983,26 +1008,6 @@ void gasnetc_sys_poll()
       break;
     }
   }
-}
-
-GASNETI_INLINE(gasnetc_mythread)
-gasnetc_threaddata_t *gasnetc_mythread(void)
-{
-  gasnete_threaddata_t *th = gasnete_mythread();
-  return th->gasnetc_threaddata;
-}
-
-GASNETI_INLINE(gasnetc_new_threaddata)
-gasnetc_threaddata_t* gasnetc_new_threaddata(void)
-{
-  gasnetc_threaddata_t *th = (gasnetc_threaddata_t*)gasneti_malloc(sizeof(gasnetc_threaddata_t));
-  gasneti_assert_always(th);
-  th->flags = 0;
-  th->snd_tickets = 0;
-  th->tmpmd_tickets = 0;
-  th->snd_credits = 0;
-  gasneti_weakatomic_set(&th->amlong_data_inflight, 0, 0);
-  return th;
 }
 
 /* ---------------------------------------------------------------------------------

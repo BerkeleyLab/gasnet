@@ -5,6 +5,8 @@
 #include <gasnet_portals.h>
 #include <signal.h>
 
+#define GASNETC_DEBUG_RB_VERBOSE 0
+
 #if HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
    #include <catamount/cnos_mpi_os.h>
 #elif HAVE_PCTMBOX_H /* old CNL */
@@ -318,6 +320,7 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   uint8_t *data;
   int  argcnt = 0;
   int  msg_bytes = 0;
+  gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();    /* debug, must be first statement */
   {
@@ -332,7 +335,6 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   tok.ghandler = ghandler;
 
   if (isReq) {
-    gasnetc_threaddata_t *th = gasnetc_mythread();
     gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
     th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
     tok.rplsb_offset = (uint32_t)th->rplsb_off;
@@ -393,7 +395,7 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   gasneti_assert(ev->mlength == ev->rlength);
   gasneti_assert(msg_bytes == ev->rlength);
   GASNETC_SAVE_SEQNO(&tok);
-  GASNETC_DBGMSG(0,isReq,"S",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,0,NULL);
+  GASNETC_DBGMSG(0,isReq,"S",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,0,NULL,th);
 
   GASNETI_RUN_HANDLER_SHORT(isReq, ghandler, gasnetc_handler[ghandler], token, tok.args, numarg);
 
@@ -436,6 +438,7 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
   size_t   nbytes;
   int      argcnt = 0;
   int      msg_bytes = 0;
+  gasnetc_threaddata_t *th = gasnetc_mythread();
   GASNETC_DEF_HARGS();    /* debug, must be first statement */
   {
     int i;
@@ -455,7 +458,6 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
   gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
 
   if (isReq) {
-    gasnetc_threaddata_t *th = gasnetc_mythread();
     gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
     th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
     /* MLW: NOTE that rpl send buffer is small, offset never > 4GB */
@@ -513,7 +515,7 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
     tok.credits = gasnetc_credit_update(isReq,tok.credits,tok.srcnode,"Med");
   }
 
-  GASNETC_DBGMSG(0,isReq,"M",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,nbytes,data);
+  GASNETC_DBGMSG(0,isReq,"M",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,nbytes,data,th);
 
   GASNETI_RUN_HANDLER_MEDIUM(isReq, ghandler, gasnetc_handler[ghandler], token, tok.args, numarg, data, nbytes);
 
@@ -560,6 +562,7 @@ static int exec_amlong_header(int isReq, int isPacked,
   void    *dest;
   int      check_reply = isReq;  /* AM Request must reply for Portals Conduit */
   int      ran_handler = 0;
+  gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();           /* debug, must be first statement */
   {
@@ -650,7 +653,7 @@ static int exec_amlong_header(int isReq, int isPacked,
     }
     gasneti_assert(msg_bytes == ev->rlength);
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
-    GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,nbytes,dest);
+    GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,nbytes,dest,th);
     GASNETI_RUN_HANDLER_LONG(isReq, ghandler, gasnetc_handler[ghandler], token, tok.args, numarg, dest, nbytes);
 
     ran_handler = 1;
@@ -675,13 +678,12 @@ static int exec_amlong_header(int isReq, int isPacked,
     if (p) {
       /* data has arrived, run handler */
       if (isReq) {  
-	gasnetc_threaddata_t *th = gasnetc_mythread();
 	gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
 	th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
 	tok.rplsb_offset = (uint32_t)th->rplsb_off;
       }
 
-      GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,p->nbytes,p->data);
+      GASNETC_DBGMSG(0,isReq,"L",tok.srcnode,gasneti_mynode,ghandler,numarg,tok.args,msg_bytes,tok.credits,p->nbytes,p->data,th);
       GASNETI_TRACE_PRINTF(C,("exec_amlong_header, second to arrive: isReq=%d, numarg=%d, hndlr=%d, nbytes=%d",isReq,numarg,ghandler,(int)p->nbytes));
       GASNETI_RUN_HANDLER_LONG(isReq, ghandler ,gasnetc_handler[ghandler], token, tok.args, numarg, p->data, p->nbytes);
 
@@ -736,6 +738,7 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
   int      ran_handler = 0;
   gasnetc_amlongcache_t *p;
   gasnet_node_t srcnode = gasnetc_get_nodeid(&ev->initiator);
+  gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();
 
@@ -750,14 +753,13 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
     gasnet_token_t token = (gasnet_token_t)&p->tok;
 
     if (isReq) {
-      gasnetc_threaddata_t *th = gasnetc_mythread();
       gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
       th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
 
       p->tok.rplsb_offset = (uint32_t)th->rplsb_off;
     }
 
-    GASNETC_DBGMSG(0,isReq,"L",p->tok.srcnode,gasneti_mynode,p->tok.ghandler,p->tok.narg,p->tok.args,p->tok.msg_bytes,p->tok.credits,datalen,dataaddr);
+    GASNETC_DBGMSG(0,isReq,"L",p->tok.srcnode,gasneti_mynode,p->tok.ghandler,p->tok.narg,p->tok.args,p->tok.msg_bytes,p->tok.credits,datalen,dataaddr,th);
     GASNETI_TRACE_PRINTF(C,("exec_amlong_data, second to arrive, running handler isReq=%d, lid=%d",isReq,lid));
     GASNETI_RUN_HANDLER_LONG(isReq, p->tok.ghandler ,gasnetc_handler[p->tok.ghandler], token, p->tok.args, p->tok.narg, dataaddr, datalen);
 
@@ -929,8 +931,12 @@ static void ReqRB_refresh(uintptr_t start_addr)
   ptl_md_t md;
   ptl_process_id_t match_id;
 
+
   GASNETI_TRACE_PRINTF(C,("ReqRB_refresh called with start address %lx",start_addr));
   p = ReqRB_getbuf(start_addr);
+#if GASNETC_DEBUG_RB_VERBOSE
+  printf("[%d] ReqRB_refresh buffer %s at start address %lx\n",gasneti_mynode,p->name,start_addr); fflush(stdout);
+#endif
 #ifdef GASNET_PAR 
   /* must wait until all other threads have completed work in this buffer before
    * re-threading back onto ME list.  
@@ -1680,6 +1686,10 @@ static void ReqRB_init()
 
     GASNETI_TRACE_PRINTF(C,("ReqRB_init[%d]: %s %lu bytes me=%lu md=%lu",i,p->name,(ulong)nbytes,(ulong)p->me_h,(ulong)p->md_h));
 
+#if GASNETC_DEBUG_RB_VERBOSE
+    printf("[%d] ReqRB_Init: buffer %s at start address %lx\n",gasneti_mynode,p->name,(uintptr_t)p->start); fflush(stdout);
+#endif
+
     p++;
   }
 
@@ -2155,7 +2165,7 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
       int sender = arg0;
       int b_cnt = arg1;
       gasneti_assert(gasneti_mynode == 0);
-      sys_barrier_checkin++;
+      gasneti_weakatomic_increment(&sys_barrier_checkin,0);
       GASNETI_TRACE_PRINTF(C,("Got BARRIER_ARRIVE from node %d, cnt=%d",sender,b_cnt));
     }
     break;
@@ -2169,7 +2179,7 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
       gasneti_assert(b_cnt == gasneti_weakatomic_read(&sys_barrier_cnt,0));
       GASNETI_TRACE_PRINTF(C,("Got BARRIER_GO from node %d, cnt=%d",sender,b_cnt));
       /* let poller know its ok to proceed */
-      sys_barrier_got = b_cnt;
+      gasneti_weakatomic_set(&sys_barrier_got,b_cnt,0);
     }
     break;
 
@@ -2840,6 +2850,9 @@ static int try_pin(uintptr_t size)
   /* poll system queue here since these operations can take some time */
   gasnetc_sys_poll();
 
+#if GASNETC_DEBUG
+  printf("[%d] try_pin with %lu bytes\n",gasneti_mynode,(unsigned long)size);
+#endif
 
   /* Now try to pin by creating a free floating MD for this memory */
   md.start = mem;
@@ -3272,7 +3285,6 @@ extern void gasnetc_init_portals_resources(void)
   int64_t bytes_per_buffer = gasnetc_ReqRB_numchunk*GASNETC_CHUNKSIZE;
   int64_t cred_per_buffer = cred_bytes_per_buffer/GASNETC_BYTES_PER_CREDIT;
   
-
   /* read Portals specific env vars */
   gasnetc_dump_stats = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_STATS",
 				 (int64_t)gasnetc_dump_stats,0);
@@ -3747,6 +3759,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   ptl_event_t ev;
   unsigned safe_cnt = 0;
   unsigned am_cnt = 0;
+  gasnetc_threaddata_t *th = gasnetc_mythread();
 
 #if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
   static int poll_level = 0;
@@ -3768,7 +3781,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
    */
   while (safe_cnt < gasnetc_safe_poll_limit) {
     if ( gasnetc_get_event(gasnetc_SAFE_EQ_h, &ev) ) {
-      GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits));
+      GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx, th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits,th->threadidx));
       GASNETC_CALL_EQ_HANDLER(ev);
       processed++;
       safe_cnt++;
@@ -3779,7 +3792,6 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   }
 
   if (poll_type == GASNETC_FULL_POLL) {
-    gasnetc_threaddata_t *th = gasnetc_mythread();
     /* Accumulate all resources needed to execute an AM Request handler and reply.
      * If we fail, just return to caller and assume they will continue polling.
      * We do not release resources that we have acquired since the number of
@@ -3818,7 +3830,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 
       /* if we got here, we have enough resources to poll the AM queue */
       if (gasnetc_get_event(gasnetc_AM_EQ_h, &ev) ) {
-	GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits));
+	GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits,th->threadidx));
 	GASNETC_CALL_EQ_HANDLER(ev);
 	processed++;
 	am_cnt++;
