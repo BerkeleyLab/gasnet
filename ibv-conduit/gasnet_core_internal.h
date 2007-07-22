@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2007/04/13 17:48:24 $
- * $Revision: 1.91.2.4 $
+ *     $Date: 2007/07/22 00:41:26 $
+ * $Revision: 1.91.2.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,6 @@
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
-
-#define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES)-(SZ))
 
 /* GASNETC_FH_OPTIONAL: whether or not firehose can be switched OFF at runtime */
 /* Enabled by default for DEBUG builds.  For NDEBUG builds, can force at compile time. */
