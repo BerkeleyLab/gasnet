@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/07/22 00:05:29 $
- * $Revision: 1.1.2.29 $
+ *     $Date: 2007/07/24 00:00:03 $
+ * $Revision: 1.1.2.30 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -874,7 +874,7 @@ extern int gasnetc_AMRequestMediumM(
 	data_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);	\
       } else {								\
 	gasneti_assert(th->tmpmd_tickets > 0);				\
-	data_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes, gasnetc_SAFE_EQ_h); \
+	data_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes, gasnetc_SAFE_EQ->eq_h); \
 	th->tmpmd_tickets--;						\
 	data_offset = 0;						\
       }									\
@@ -1353,6 +1353,7 @@ extern int gasnetc_AMReplyLongM(
      */
     int dp_eq_len = 2;
     ptl_handle_md_t dp_md_h;
+    gasnetc_eq_t   *dp_eq;
     ptl_handle_eq_t dp_eq_h;
     ptl_event_t ev;
     ptl_match_bits_t dp_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS;
@@ -1364,10 +1365,11 @@ extern int gasnetc_AMReplyLongM(
     th->snd_tickets -= 2;
 
     /* alloc a short eq and a tmpmd to cover source region */
-    GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, dp_eq_len, NULL, &dp_eq_h));
+    dp_eq = gasnetc_eq_alloc(dp_eq_len,"AM_REPLY_LONG_EQ",NULL);
+
     gasneti_assert(th->tmpmd_tickets > 0);
     th->tmpmd_tickets--;
-    dp_md_h = gasnetc_alloc_tmpmd(source_addr,nbytes,dp_eq_h);
+    dp_md_h = gasnetc_alloc_tmpmd(source_addr,nbytes,dp_eq->eq_h);
 
     /* issue data put message */
     /* NOTE: dp_mbits is explicitly does not include the REQUEST flag, since this is a reply */
@@ -1384,7 +1386,7 @@ extern int gasnetc_AMReplyLongM(
     /* send message */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
-    while( !gasnetc_get_event(dp_eq_h, &ev) ) {
+    while( !gasnetc_get_event(dp_eq, &ev) ) {
       gasnetc_portals_poll(GASNETC_SAFE_POLL);
     }
     if (ev.type != PTL_EVENT_SEND_END) {
@@ -1393,7 +1395,7 @@ extern int gasnetc_AMReplyLongM(
     /* return the send ticket from the data payload message */
     if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
     gasnetc_free_tmpmd(dp_md_h);  /* will return tmpmd ticket */
-    GASNETC_PTLSAFE(PtlEQFree(dp_eq_h));
+    gasnetc_eq_free(dp_eq);
   }
 
   /* Indicate to reply code that AM did in fact send a reply message */

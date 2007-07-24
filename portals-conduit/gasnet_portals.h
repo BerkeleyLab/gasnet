@@ -733,6 +733,18 @@ typedef struct _gasnetc_threaddata_t {
   ptl_size_t rplsb_off;
 } gasnetc_threaddata_t;
 
+/* ----------------------------------------------------------------------------
+ * Encapsulate event queues into structures so that we can associate a lock
+ * with each.  Needed because only one thread can poll/wait/get on an
+ * event queue at one time.
+ */
+typedef struct _gasnetc_eq {
+  long num_events;               /* number of events allocated in queue */
+  ptl_handle_eq_t eq_h;          /* Handle to portals event queue */
+  gasneti_mutex_t lock;          /* enforce sequential access to queue */
+  char *name;                    /* event queue name */
+} gasnetc_eq_t;
+
 /* configurable sizes for Portals buffers */
 extern int gasnetc_ReqRB_pool_size;
 extern size_t gasnetc_ReqRB_numchunk;         /* Number of chunks in each ReqRB */
@@ -750,13 +762,13 @@ extern gasnetc_PtlBuffer_t gasnetc_CB;
 
 /* handles to Portals network interface, memory descriptors and event queues */
 extern ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
-extern ptl_handle_eq_t gasnetc_AM_EQ_h;           /* Handle to the AM Event Queue */
-extern ptl_handle_eq_t gasnetc_SAFE_EQ_h;         /* Handle to the SAFE Event Queue */
+extern gasnetc_eq_t   *gasnetc_AM_EQ;             /* The AM Event Queue */
+extern gasnetc_eq_t   *gasnetc_SAFE_EQ;           /* The SAFE Event Queue */
 
 /* out of band MDs for sending system messages */
 extern gasnetc_PtlBuffer_t gasnetc_SYS_Send;       /* out-of-band message send buffer */
 extern gasnetc_PtlBuffer_t gasnetc_SYS_Recv;       /* out-of-band message recv buffer */
-extern ptl_handle_eq_t gasnetc_SYS_EQ_h;           /* out-of-band system Event Queue */
+extern gasnetc_eq_t *gasnetc_SYS_EQ;               /* out-of-band system Event Queue */
 extern int gasnetc_shutdown_seconds;               /* number of seconds to poll before forceful shutdown */
 extern int gasnetc_shutdownInProgress;             /* set upon entry to gasnetc_exit */
 typedef enum{GASNETC_SYS_SHUTDOWN_REQUEST=0,
@@ -843,6 +855,8 @@ extern void gasnetc_dump_credits(int epoch_count);
 extern void gasnetc_print_scavenge_list(void);
 extern void gasnetc_scavenge_list_remove(gasnet_node_t node);
 extern void gasnetc_scavenge_list_add(gasnet_node_t node, int locked);
+extern gasnetc_eq_t* gasnetc_eq_alloc(long num_events, const char* name, ptl_eq_handler_t hndlr);
+extern void gasnetc_eq_free(gasnetc_eq_t *eq);
 
 /* Inline Function Definitions */
 GASNETI_INLINE(gasnetc_compute_credits)
@@ -925,12 +939,14 @@ ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes, ptl_han
 }
 
 GASNETI_INLINE(gasnetc_get_event)
-int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
+int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev)
 {
   int rc;
   int retcode = 0;
 
-  rc = PtlEQGet( eq_h, ev);
+  gasneti_mutex_lock(&eq->lock);
+  rc = PtlEQGet( eq->eq_h, ev);
+  gasneti_mutex_unlock(&eq->lock);
   switch (rc) {
   case PTL_OK:
     retcode = 1;
@@ -938,8 +954,8 @@ int gasnetc_get_event(ptl_handle_eq_t eq_h, ptl_event_t *ev)
   case PTL_EQ_EMPTY:
     break;
   default:
-    gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQGet: %s (%i)\n at %s\n",
-		       ptl_err_str[rc],rc,gasneti_current_loc);
+    gasneti_fatalerror("gasnetc_get_event Portals Error in PtlEQGet: %s (%i)\n on Queue %s at %s\n",
+		       ptl_err_str[rc],rc,eq->name,gasneti_current_loc);
     break;
   }
 
@@ -981,7 +997,10 @@ void gasnetc_sys_poll()
   /* limit number of sys events to process at a time ? */
   while ((gasnetc_sys_poll_limit == 0) || (sys_cnt < gasnetc_sys_poll_limit)) {
     /* attempt to get an event, ok if EQ overflowed (but not until after sys initialization) */
-    int rc = PtlEQGet(gasnetc_SYS_EQ_h, &ev);
+    int rc;
+    gasneti_mutex_lock(&gasnetc_SYS_EQ->lock);
+    rc = PtlEQGet(gasnetc_SYS_EQ->eq_h, &ev);
+    gasneti_mutex_unlock(&gasnetc_SYS_EQ->lock);
     switch (rc) {
     case PTL_EQ_EMPTY:
       /* no work, return to caller */
