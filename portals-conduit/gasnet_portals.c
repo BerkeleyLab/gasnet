@@ -3377,6 +3377,7 @@ extern void gasnetc_init_portals_resources(void)
     forced_bufspace = 1;
     bufspace = val64;
   }
+#if GASNETC_CREDIT_TESTING
   if (gasneti_mynode == 0) {
     printf("USE_FLOW_CONTROL=%d, DYNAMIC_CREDITS=%d\n",
 	   gasnetc_use_flow_control,gasnetc_use_dynamic_credits);
@@ -3386,6 +3387,7 @@ extern void gasnetc_init_portals_resources(void)
     if (forced_banked)   printf("FORCED banked   = %ld\n",banked);
     if (forced_bufspace) printf("FORCED bufspace = %ld\n",bufspace);
   }
+#endif
 
   /* logic nightmare on how to init per-node & banked credits and ReqRB space */
   /* at end, have cred_per_node, banked, total_credits and num_reqRB set */
