@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/03/24 23:29:36 $
-# $Revision: 1.290.2.5 $
+#     $Date: 2007/08/23 20:51:40 $
+# $Revision: 1.290.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.290.2.5 $)
+AC_REVISION($Revision: 1.290.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,7 +27,7 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[9])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[5])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -537,6 +537,7 @@ case "$gasnet_cv_cc_family" in
   Pathscale) KEEPTMP_CFLAGS="-keep" ;;
   XLC) KEEPTMP_CFLAGS="-qlist" ;; # XXX: generates .lst w/ asm.  Can't find a way to preserve .i
   PGI) KEEPTMP_CFLAGS="-Mkeepasm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
+  Intel) KEEPTMP_CFLAGS="-save-temps" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
   Sun) KEEPTMP_CFLAGS="-keeptmp" ;;
   *) KEEPTMP_CFLAGS="" ;;
 esac
@@ -2457,6 +2458,7 @@ if test "$enabled_portals" = yes; then
     GASNET_PUSHVAR(CFLAGS,"$CFLAGS ${PORTALS_INCLUDES}")
   
     AC_CHECK_HEADERS(pctmbox.h)
+    AC_CHECK_HEADERS(catamount/cnos_mpi_os.h)
 
     AC_MSG_CHECKING(for working Portals configuration)
     AC_TRY_LINK( [

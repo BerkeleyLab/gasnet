@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2007/03/24 23:29:37 $
- * $Revision: 1.43.2.4 $
+ *     $Date: 2007/08/23 20:51:40 $
+ * $Revision: 1.43.2.5 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -537,6 +537,41 @@ GASNETI_BEGIN_EXTERNC
     return (uint64_t)(st * freq);
   }
 /* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_MICROBLAZE && defined(MB_CC)
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now() {
+    unsigned int msr, tmp;
+    gasneti_tick_t retval;
+
+    asm volatile ("mfs %0, rmsr\n\t"
+                  "andi %1, %0, ~2\n\t"
+                  "mts rmsr, %1\n\t"
+                  "mfchl %M2\n\t"
+                  "mfccl %L2\n\t"
+                  "mts rmsr, %0\n\t"
+                  : "=r"(msr), "=r"(tmp), "=r"(retval));
+    return retval;
+  }
+
+  GASNETI_INLINE(gasneti_ticks_to_us)
+  gasneti_tick_t gasneti_ticks_to_us(gasneti_tick_t st) {
+    unsigned int h0 = (unsigned int) (st >> 32);
+    unsigned int l0 = (unsigned int) (st >>  0);
+
+    if (h0 == 0) return (((gasneti_tick_t) l0) / 100);
+    else return (st / 100);
+  }
+
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  gasneti_tick_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+    unsigned int h0 = (unsigned int) (st >> 32);
+    unsigned int l0 = (unsigned int) (st >>  0);
+
+    if (h0 == 0) return (((gasneti_tick_t) l0) * 10);
+    else return (st * 10);
+  }
+/* ------------------------------------------------------------------------------------ */
 #elif defined(_POSIX_TIMERS) && 0
   /* POSIX realtime support - disabled for now because haven't found anywhere that it 
      outperforms gettimeofday, and it usually requires an additional library */
@@ -557,6 +592,8 @@ extern uint64_t gasneti_gettimeofday_us(void);
   typedef uint64_t _gasneti_tick_t;
   #undef gasneti_tick_t
   #define gasneti_tick_t _gasneti_tick_t
+  #undef gasneti_ticks_to_us
+  #define gasneti_ticks_to_us(st)  ((gasneti_tick_t)(st))
   #undef gasneti_ticks_to_ns
   #define gasneti_ticks_to_ns(st)  (((gasneti_tick_t)(st))*1000)
   #undef gasneti_ticks_now
@@ -582,13 +619,20 @@ extern uint64_t gasneti_gettimeofday_us(void);
   }
   #undef gasneti_ticks_now
   #define gasneti_ticks_now() gasneti_ticks_now_posixrt()
+
+  #undef gasneti_ticks_to_us
+  #define gasneti_ticks_to_us(st)  (((gasneti_tick_t)(st))/1000)
   #undef gasneti_ticks_to_ns
-  #define gasneti_ticks_to_ns(st)  (st)
+  #define gasneti_ticks_to_ns(st)  ((gasneti_tick_t)(st))
 #endif
 
 #if defined(GASNETI_USING_SLOW_TIMERS) || defined(GASNETI_TICKS_NOW_BODY)
   GASNETI_EXTERNC void gasneti_slow_ticks_now(void);
   #define gasneti_ticks_now()    ((*(gasneti_tick_t (*)(void))(&gasneti_slow_ticks_now))())
+#endif
+
+#ifndef gasneti_ticks_to_us
+  #define gasneti_ticks_to_us(st)  (gasneti_ticks_to_ns(st)/1000)
 #endif
 
 #ifndef GASNETI_TICK_MIN

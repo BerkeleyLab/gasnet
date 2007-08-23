@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2007/03/24 23:30:02 $
- * $Revision: 1.25.4.2 $
+ *     $Date: 2007/08/23 20:52:09 $
+ * $Revision: 1.25.4.3 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -574,23 +574,13 @@ fh_request_new(firehose_request_t *ureq)
 static void
 fh_request_free(firehose_request_t *req)
 {
-	/* XXX: OK to free w/o the LOCK */
+	/* Firehose allocated request, not pending */
+	gasneti_assert((req->flags & (FH_FLAG_FHREQ | FH_FLAG_PENDING)) == FH_FLAG_FHREQ);
 
-	if (req->flags & FH_FLAG_PENDING) {
-		gasneti_assert(req->internal != NULL);
-		fh_free_completion_callback(
-		    (fh_completion_callback_t *)req->internal);
-	}
-	/*
-	else
-		gasneti_assert(req->internal == NULL);
-		*/
+	/* XXX: could use a distinct lock here */
+	req->internal = (firehose_private_t *) fh_request_freehead;
+	fh_request_freehead = req;
 
-	if (req->flags & FH_FLAG_FHREQ) {
-		req->flags = 0;
-		req->internal = (firehose_private_t *) fh_request_freehead;
-		fh_request_freehead = req;
-	}
 	return;
 }
 
@@ -939,6 +929,9 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 	gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
 	b_avail = MIN(count, FHC_MAXVICTIM_BUCKETS_AVAIL);
 	fhc_LocalOnlyBucketsPinned += b_avail;
+#ifdef DEBUG_LOCAL_TABLE
+	fhc_LocalReserved += b_avail;
+#endif  
 
 	b_remain = count - b_avail;
 
@@ -970,6 +963,9 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 			b_remain -= b_avail;
 		}
 
+#ifdef DEBUG_LOCAL_TABLE
+		fhc_LocalReserved += b_avail;
+#endif  
 	}
 
 	gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0);
@@ -1225,7 +1221,7 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 		rc->flags |= FH_CALLBACK_TYPE_REMOTE;
 	    }
 
-	    #if FIREHOSE_SMP
+	    #if defined(FIREHOSE_PAGE) && FIREHOSE_SMP
 	    if (hit_pending) {
 		  rc->flags |= FH_CALLBACK_TYPE_PENDING;
 		  FH_POLLQ_LOCK;

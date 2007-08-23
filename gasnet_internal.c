@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2007/03/24 23:29:36 $
- * $Revision: 1.121.2.4 $
+ *     $Date: 2007/08/23 20:51:40 $
+ * $Revision: 1.121.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -204,7 +204,7 @@ extern void gasneti_check_config_preinit() {
   }
 }
 
-static void gasneti_check_portable_conduit();
+static void gasneti_check_portable_conduit(void);
 extern void gasneti_check_config_postattach() {
   gasneti_check_config_preinit();
 
@@ -989,7 +989,7 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_in_fullsegment(gasneti_mynode,ptr,1))
+        if (gasneti_attach_done && gasneti_in_fullsegment(gasneti_mynode,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif

@@ -208,7 +208,7 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   C = (int*) B + datasize;
 #endif
  
-  gasnet_coll_set_tree_kind(tree_type);
+  gasnet_coll_set_tree_class(tree_type);
   gasnet_coll_set_fanout(fanout);
   BARRIER();
   if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
@@ -361,7 +361,7 @@ void run_scatter_test(int flags, int use_barrier, char *tree_type, int fanout) {
   B = (int*) A + datasize*gasnet_nodes();
 #endif
   
-  gasnet_coll_set_tree_kind(tree_type);
+  gasnet_coll_set_tree_class(tree_type);
   gasnet_coll_set_fanout(fanout);
   BARRIER();
   if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
@@ -535,7 +535,7 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
   B = (int*) A + datasize;
 #endif
   
-  gasnet_coll_set_tree_kind(tree_type);
+  gasnet_coll_set_tree_class(tree_type);
   gasnet_coll_set_fanout(fanout);
   BARRIER();
   if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
@@ -701,7 +701,7 @@ void run_gather_all_test(int flags, int use_barrier, char *tree_type, int fanout
   B = (int*) A + datasize;
 #endif
   
-  gasnet_coll_set_tree_kind(tree_type);
+  gasnet_coll_set_tree_class(tree_type);
   gasnet_coll_set_fanout(fanout);
   BARRIER();
   if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
@@ -848,12 +848,12 @@ void run_tree_test(int flags, int use_barrier, char *tree_type, int fanout) {
                               GASNET_COLL_IN_MYSYNC|GASNET_COLL_OUT_MYSYNC|
                               GASNET_COLL_IN_NOSYNC|GASNET_COLL_OUT_MYSYNC) );
     
-    run_bcast_test(newflags | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC, use_barrier, tree_type, fanout);
-    run_scatter_test(newflags | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC, use_barrier, tree_type, fanout);
+    // run_bcast_test(newflags | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC, use_barrier, tree_type, fanout);
+    // run_scatter_test(newflags | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC, use_barrier, tree_type, fanout);
     run_gather_test(newflags | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC, use_barrier, tree_type, fanout);
   } else {
-    run_bcast_test(flags, use_barrier, tree_type, fanout);
-    run_scatter_test(flags, use_barrier, tree_type, fanout);
+    //run_bcast_test(flags, use_barrier, tree_type, fanout);
+    //run_scatter_test(flags, use_barrier, tree_type, fanout);
     run_gather_test(flags, use_barrier, tree_type, fanout);
   }
 }
@@ -907,7 +907,12 @@ int main(int argc, char **argv)
   
   for(datasize=min_dsize; datasize<=max_dsize; datasize = datasize*2) {
     MSG0("Running coll test(s) with %d iterations and %d ints (%d bytes).", (int)iters, (int)datasize, (int)(datasize*sizeof(int)));
-#if 1
+    run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
+		  (char*)"GASNET_NARY_TREE", tree_fanout); 
+    run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
+		  (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
+    
+#if 0
     if(!run_all) {
       if(tree_fanout == 0) {
 	run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER,
@@ -917,13 +922,16 @@ int main(int argc, char **argv)
 	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
 		       (char*)"GASNET_BINOMIAL_TREE", 0); 
       } else {
+#if 1
 	run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
 		       (char*)"GASNET_NARY_TREE", tree_fanout); 
 	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
 		       (char*)"GASNET_NARY_TREE", tree_fanout); 
 	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
 		       (char*)"GASNET_NARY_TREE", tree_fanout); 
+#endif
       }
+#if 1
       if(tree_fanout >=2) {
         run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
                       (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
@@ -932,6 +940,7 @@ int main(int argc, char **argv)
 	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
                       (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout);
       }
+#endif
       
     } else {
       run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
@@ -941,20 +950,24 @@ int main(int argc, char **argv)
       run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
 		     (char*)"GASNET_BINOMIAL_TREE", 0); 
       for(tree_fanout=1; tree_fanout < MIN(gasnet_nodes(), MAX_TREE_FANOUT); tree_fanout++) {
+#if 1
 	run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-		       (char*)"GASNET_NARY_TREE", tree_fanout); 
+		      (char*)"GASNET_NARY_TREE", tree_fanout); 
 	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
 		       (char*)"GASNET_NARY_TREE", tree_fanout); 
 	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-		       (char*)"GASNET_NARY_TREE", tree_fanout); 
-        if(tree_fanout >=2) {
-          run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-                        (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		       (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-		       (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout);
+		      (char*)"GASNET_NARY_TREE", tree_fanout); 
+#endif
+#if 1        
+	if(tree_fanout >=2) {
+	  run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
+			(char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
+	  run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
+			(char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
+	  run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
+			(char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout);
         }
+#endif
       }
     }
 #endif

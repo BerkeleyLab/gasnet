@@ -119,21 +119,7 @@ void gasnete_coll_reset_scratch_status(gasnete_coll_scratch_status_t *in GASNETE
   send the parent an updated view of the tail so that they can restart their algorithm
 	
 */
-
-void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, uint64_t tail) {
-  int i;
-  
-  /*Becareful with the teams here and how the peer list is specified*/
-  /*for gasnet team all it doesn't matter but in other cases it does*/
-  gasnete_coll_scratch_status_t *stat = team->scratch_status;
-  for(i=0; i<stat->numpeers; i++) {
-    /*		fprintf(stderr, "%d> sending %d  a clear signal\n", gasneti_mynode,stat->peers[i]); */
-    GASNETI_SAFE(SHORT_REQ(4,4,(stat->peers[i],gasneti_handleridx(gasnete_coll_scratch_update_reqh),
-				team->team_id, team->myrank, GASNETI_HIWORD(tail), GASNETI_LOWORD(tail))));
-    
-  }
-}
-
+ss,s,s
 
 uint64_t gasnete_coll_scratch_new_tree_op(gasnete_coll_scratch_req_t *scratch_req, uint32_t seq, gasnet_coll_handle_t op_handle GASNETE_THREAD_FARG) {
   

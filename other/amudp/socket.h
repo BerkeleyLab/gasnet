@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socket.h,v $
- *      $Date: 2006/08/11 00:53:27 $
- *  $Revision: 1.10.2.1 $
+ *      $Date: 2007/08/23 20:52:05 $
+ *  $Revision: 1.10.2.2 $
  *  Description: portable header socket functions
  *  (c) Scott McPeak, 1998-1999, Modified by Dan Bonachea
  */
@@ -134,7 +134,7 @@ typedef fd_set FD_SET;
 #endif
 
 /*  resolve disagreements about types of arguments to misc. functions */
-#if PLATFORM_OS_LINUX || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || \
+#if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || \
     PLATFORM_OS_SOLARIS || (PLATFORM_OS_AIX && defined(_AIX51))
 #  define GETSOCKNAME_LENGTH_T socklen_t
 #  define GETSOCKOPT_LENGTH_T socklen_t
@@ -146,8 +146,8 @@ typedef fd_set FD_SET;
 #  define GETSOCKOPT_LENGTH_T int
 #endif
 
-#if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN || PLATFORM_OS_AIX || \
-    PLATFORM_OS_SOLARIS || PLATFORM_OS_LINUX || PLATFORM_OS_TRU64 || PLATFORM_OS_SUPERUX || \
+#if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN || PLATFORM_OS_AIX || PLATFORM_OS_SOLARIS || \
+    PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX || PLATFORM_OS_TRU64 || PLATFORM_OS_SUPERUX || \
     PLATFORM_ARCH_CRAYX1 /* X1 docs claim it's a size_t, they lie */
   #define IOCTL_FIONREAD_ARG_T unsigned int
 #elif PLATFORM_OS_IRIX
@@ -159,7 +159,7 @@ typedef fd_set FD_SET;
 #endif
 
 /* addr-length argument type fiasco.. */
-#if PLATFORM_OS_LINUX || PLATFORM_OS_FREEBSD || PLATFORM_OS_AIX || \
+#if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX || PLATFORM_OS_FREEBSD || PLATFORM_OS_AIX || \
     PLATFORM_OS_SOLARIS || PLATFORM_OS_NETBSD
 #  define LENGTH_PARAM socklen_t
 #elif PLATFORM_OS_TRU64

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2007/03/24 23:30:18 $
- * $Revision: 1.28.4.4 $
+ *     $Date: 2007/08/23 20:52:23 $
+ * $Revision: 1.28.4.5 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable();
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
 static void gasnetc_traceoutput(int);
 

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2007/03/24 23:29:36 $
-# $Revision: 1.54.4.4 $
+#     $Date: 2007/08/23 20:51:40 $
+# $Revision: 1.54.4.5 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -246,11 +246,11 @@ install-data-local:
 	@$(MAKE) recurse_special DO_WHAT=install-data
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
 	if test -f $(top_srcdir)/extended-ref/README ; then \
-	  cp -f $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
+	  $(INSTALL_DATA) $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
 	fi
 	for file in $(INSTALL_DOCS) ; do \
 	  if test -f $(top_srcdir)/$$file ; then \
-	    cp -f $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
+	    $(INSTALL_DATA) $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
 	  fi ; \
 	done
 install-exec-local:
