@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.34.2.3 $
+$Revision: 1.34.2.4 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -457,14 +457,16 @@ $Revision: 1.34.2.3 $
     each) that are allocated per peer for receiving AMRDMA traffic.  Larger
     values may potentially allow for more AMs in-flight before flow control
     throttles the sender, but at the cost of increased memory consumption.
-    The current default is 32.
+    The value must be a power of 2 and the maximum is 32.
+    The current default is 16.
 
   + GASNET_AMRDMA_MAX_PEERS
     This environment variable limits the number of peers from which AMs may
     be received over RDMA.  Larger values may potentially allow for lower
     cost AM traffic, but at the cost of increased memory consumption and
     greater overhead each time that vapi-conduit polls for AM traffic.
-    The current default is 0 - which disables AMRDMA.
+    A value of zero will disable AMRDMA.
+    The current default is 32.
 
   + GASNET_AMRDMA_CYCLE
     This environment variable, which must be zero or a power or two, sets
@@ -479,7 +481,7 @@ $Revision: 1.34.2.3 $
     A value of zero will disable AMRDMA.
     A value of one will result in selecting the first GASNET_AMRDMA_MAX_PEERS
     peers from which AMs are received.
-    The current default is 8192.
+    The current default is 1024.
 
   Firehose configuration:
   These parameters must be equal across all nodes, and the behavior

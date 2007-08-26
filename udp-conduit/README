@@ -1,6 +1,6 @@
 GASNet udp-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.5.2.2 $
+$Revision: 1.5.2.3 $
 
 User Information:
 -----------------
@@ -29,6 +29,13 @@ Recognized environment variables:
   Advanced options for tweaking the retransmission algorithm (initial timeout in us, 
   timeout backoff multiplier and expected min one-way bandwidth in KB/s).
   Most users should probably leave these alone.
+
+* GASNET_ROUTE_OUTPUT
+  If non-zero, this option request AMUDP perform explicit forwarding of
+  stdout/stderr streams from the workers to the console using TCP socket
+  connections. If zero, no explicit forwarding is performed and this duty 
+  is left up to the underlying system and job spawner.  The default is
+  system-dependent.
 
 Optional compile-time settings:
 ------------------------------

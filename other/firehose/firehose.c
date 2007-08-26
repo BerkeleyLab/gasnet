@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2007/07/22 00:41:24 $
- * $Revision: 1.26.2.3 $
+ *     $Date: 2007/08/26 02:45:41 $
+ * $Revision: 1.26.2.4 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -574,23 +574,13 @@ fh_request_new(firehose_request_t *ureq)
 static void
 fh_request_free(firehose_request_t *req)
 {
-	/* XXX: OK to free w/o the LOCK */
+	/* Firehose allocated request, not pending */
+	gasneti_assert((req->flags & (FH_FLAG_FHREQ | FH_FLAG_PENDING)) == FH_FLAG_FHREQ);
 
-	if (req->flags & FH_FLAG_PENDING) {
-		gasneti_assert(req->internal != NULL);
-		fh_free_completion_callback(
-		    (fh_completion_callback_t *)req->internal);
-	}
-	/*
-	else
-		gasneti_assert(req->internal == NULL);
-		*/
+	/* XXX: could use a distinct lock here */
+	req->internal = (firehose_private_t *) fh_request_freehead;
+	fh_request_freehead = req;
 
-	if (req->flags & FH_FLAG_FHREQ) {
-		req->flags = 0;
-		req->internal = (firehose_private_t *) fh_request_freehead;
-		fh_request_freehead = req;
-	}
 	return;
 }
 

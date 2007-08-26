@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2007/07/22 00:41:26 $
- * $Revision: 1.135.2.7 $
+ *     $Date: 2007/08/26 02:45:47 $
+ * $Revision: 1.135.2.8 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1325,7 +1325,6 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
 GASNETI_INLINE(gasnetc_poll_rcv_hca)
 void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
-  static int prev = 0;	/* NOTE: bug 1586 work-around requires the volatile casts */
   int count = gasneti_weakatomic_read(&hca->amrdma_rcv.count, 0);
   int limit2 = count + 1;
 
@@ -1333,21 +1332,25 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
 
   /* Poll round-robin over the AMRDMA landing zones and the CQ */
   while (limit && limit2--) {
+    /* NOTE: bug 1586 work-around requires the volatile casts */
+    static int prev = 0;
     int index = *(volatile int *)(&prev); /* The associated data race is harmless */
+    index = (index == 0) ? count : (index - 1);
+    *(volatile int *)(&prev) = index;
+
     gasneti_assert(limit > 0);
     gasneti_assert(limit2 >= 0);
+    gasneti_assert(index <= count);
  
     if (index != count) {
       /* Poll for AM-over-RDMA */
       gasnetc_cep_t * cep;
-      *(volatile int *)(&prev) = index + 1;
       /* cep = (gasnetc_cep_t *)gasneti_atomic_ptr_read(&hca->amrdma_rcv.cep[index]); */
       cep = hca->amrdma_rcv.cep[index];
       if (cep && gasnetc_rcv_amrdma(cep)) --limit;
     } else {
       /* Poll for AM in recv CQ */
       gasnetc_rbuf_t *spare = NULL;
-      *(volatile int *)(&prev) = 0;
       (void)gasnetc_rcv_reap(hca, limit, &spare);
       if (spare) {
         gasneti_lifo_push(&hca->rbuf_freelist, spare);

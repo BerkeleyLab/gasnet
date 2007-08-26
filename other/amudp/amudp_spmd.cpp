@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2007/07/22 00:41:20 $
- * $Revision: 1.24.6.6 $
+ *     $Date: 2007/08/26 02:45:39 $
+ * $Revision: 1.24.6.7 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -796,12 +796,29 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                 exitCode = ntoh32(exitCode_nb);
                 // tell all other slaves to terminate
                 // TODO: perhaps use an active message for this? for now, just rely on coord socket dying
-                // TODO: it's possblie we can lose some final output because coord and std are asynchronous
                 for (int i=0; i < (int)coordList.getCount(); i++) {
                   sendAll(coordList[i], "E");
                   sendAll(coordList[i], &exitCode_nb, sizeof(int32_t));
                   close_socket(coordList[i]);
                 }
+#if 0
+                /* potential fix to bug 2029 - disabled pending verification */
+                if (!AMUDP_SilentMode) {
+                  printf("Awaiting final slave outputs...\n");
+                  fflush(stdout);
+                }
+                while (stdoutList.getCount() || stderrList.getCount()) { // await final output
+                  if (stdoutList.getCount()) {
+                    stdoutList.makeFD_SET(psockset);
+                    handleStdOutput(stdout, psockset, stdoutList, allList, stdoutList.getCount());
+                  }
+                  if (stderrList.getCount()) {
+                    stderrList.makeFD_SET(psockset);
+                    handleStdOutput(stderr, psockset, stderrList, allList, stderrList.getCount());
+                  }
+                  sched_yield();
+                }
+#endif
                 if (!socklibend()) AMUDP_Err("master failed to socklibend()");
                 if (!AMUDP_SilentMode) {
                   printf("Exiting after AMUDP_SPMDExit(%i)...\n", exitCode);
