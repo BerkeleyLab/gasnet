@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/04/13 21:24:14 $
- * $Revision: 1.29.6.37 $
+ *     $Date: 2007/08/27 19:36:55 $
+ * $Revision: 1.29.6.38 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2286,13 +2286,12 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 #endif
     return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-    if (flags & GASNET_COLL_SINGLE) {
       /* if the transfer size is greater than the current segment size, use a pipelined algorithm*/
       if(nbytes > gasnete_coll_curr_seg_size) {
         return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
       }
       /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
-      if((flags & (GASNET_COLL_IN_NOSYNC)) || (flags & (GASNET_COLL_IN_ALLSYNC))) {
+      if((flags & GASNET_COLL_SINGLE) && ((flags & (GASNET_COLL_IN_NOSYNC)) || (flags & (GASNET_COLL_IN_ALLSYNC)))) {
 #if 0
 	if(gasneti_mynode ==0) fprintf(stderr, "%d> in no or in all using tree put for %d bytes\n", gasneti_mynode, (int)nbytes); 
 #endif 
@@ -2304,10 +2303,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 #endif 
 	return gasnete_coll_bcast_TreePutScratch(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
       }
-    } else {
-      /* XXX: could do better w/ RVPut since dst is writtable */
-      return gasnete_coll_bcast_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-    }
+   
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2535,7 +2531,7 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(flags & GASNET_COLL_SINGLE) {
+    if(1) {
         return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
                                              gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
@@ -2790,7 +2786,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(flags & GASNET_COLL_SINGLE) {
+    if(!(flags & GASNETE_COLL_SUBORDINATE)) {
       return gasnete_coll_gath_TreePutSeg(team, dstimage, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {
@@ -3117,9 +3113,12 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
 				     0, 0, src, nbytes);
 
   /* XXX: need more implementations to choose from here */
-    return gasnete_coll_gall_RingPut(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);  
+  if(flags & GASNET_COLL_SINGLE) {
+    return gasnete_coll_gall_RingPut(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); 
+  } else {
 /*  return gasnete_coll_gall_TreePut(team, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);  */
-/*  return gasnete_coll_gall_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); */
+  return gasnete_coll_gall_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); 
+  }
 }
 
 /*---------------------------------------------------------------------------------*/

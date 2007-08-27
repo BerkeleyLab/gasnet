@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2007/04/11 01:46:20 $
- * $Revision: 1.29.6.27 $
+ *     $Date: 2007/08/27 19:36:54 $
+ * $Revision: 1.29.6.28 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -95,6 +95,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
       if (!gasnete_coll_generic_all_threads(data)) {
 	break;
       }
+
       data->state = 1;
 
     case 1:	/* Optional IN barrier over the SAME tree */
@@ -137,29 +138,14 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 3;
     
     case 3: /*optional out barrier over the same tree*/
-      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
-        
-        /* if we had to do a barrier on the way in then the counter will advance to double the child_count*/
-        barrier_count = child_count + ((op->flags & GASNET_COLL_IN_ALLSYNC) ? child_count : 0);
-	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != barrier_count) {
-	  break;
-	}
-        if (gasneti_mynode != args->srcnode) {
-	  gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
-	}
-        
-      }
+          if (!gasnete_coll_generic_outsync(data)) {
+            break;
+          }
+          
+
       data->state = 4;
-      
-    case 4:	/* Optional OUT barrier thread barrier*/
-      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
-        if (!gasnete_coll_generic_all_threads(data)) {
-          break;
-        }
-      }
-      data->state = 5;
         
-    case 5: /*done*/
+    case 4: /*done*/
       gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
@@ -177,7 +163,7 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
 			     GASNETE_THREAD_FARG)
 {
   int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |*/
-		/*GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |*/
+		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
   gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);
