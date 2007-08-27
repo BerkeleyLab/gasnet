@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/08/27 19:36:55 $
- * $Revision: 1.29.6.41 $
+ *     $Date: 2007/08/27 21:28:01 $
+ * $Revision: 1.29.6.42 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -382,7 +382,7 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
   /* use TreePut instead since an inall sync need not pay the extra copy costs to and from the scratch*/
   int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & (GASNET_COLL_IN_NOSYNC|GASNET_COLL_IN_MYSYNC)))  |*/
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) |
-		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage)) | GASNETE_COLL_USE_SCRATCH;
+		GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
 
   gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
 
@@ -396,6 +396,7 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
 	
 }
 
+#if 0
 /* bcast TreePut */
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
 /* Naturally IN_NOSYNC, OUT_MYSYNC */
@@ -523,6 +524,7 @@ gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
 					   sequence
 					   GASNETE_THREAD_PASS);
 }
+#endif
 
 /*Segmented Version of TreePut Breaks the Large Broadcast into smaller ones*/
 /*intended to be used when the transfer size is larger than the scratch space*/
