@@ -52,7 +52,7 @@ struct gasnete_coll_scratch_req_t_ {
 	/*for non tree ops this information is not used*/
 	int num_out_peers; 
 	gasnet_node_t *out_peers;
-	uint32_t *out_sizes;
+	gasnet_node_t *out_sizes;
 	
 
 };

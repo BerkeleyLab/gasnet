@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2007/08/27 19:36:54 $
- * $Revision: 1.29.6.28 $
+ *     $Date: 2007/08/30 00:49:54 $
+ * $Revision: 1.29.6.29 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -237,6 +237,94 @@ gasnete_coll_bcastM_Eager(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
 					    &gasnete_coll_pf_bcastM_Eager, options,
 					    NULL, sequence GASNETE_THREAD_PASS);
+}
+
+static int gasnete_coll_pf_bcastM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_broadcastM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcastM);
+  int result = 0;
+  gasnete_coll_tree_data_t *tree = data->tree_info;
+  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  int child;
+
+  
+  switch (data->state) {
+    case 0:	/* Optional IN barrier */
+      if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
+	  !gasnete_coll_generic_insync(data)) {
+	break;
+      }
+      data->state = 1;
+      
+    case 1:
+      if((op->flags & GASNET_COLL_IN_ALLSYNC)) {
+        
+        if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != child_count) {
+          break;
+        }
+        if (gasneti_mynode != args->srcnode) {
+          gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
+        }
+      }
+      data->state = 2;
+      
+      
+
+    case 2:	/* Data movement */
+      if (gasneti_mynode == args->srcnode) {
+        for(child=0; child<child_count; child++) {
+            gasnete_coll_p2p_eager_put_tree(op, children[child], args->src, args->nbytes);
+        }
+	gasnete_coll_local_broadcast(gasnete_coll_my_images,
+				     &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+				     args->src, args->nbytes);
+      } else if (data->p2p->state[0]) {
+        gasneti_sync_reads();
+	for (child=0;child<child_count;child++) {
+	  gasnete_coll_p2p_eager_put_tree(op, children[child], 
+                                          data->p2p->data, 
+                                          args->nbytes);
+	}
+        
+        gasnete_coll_local_broadcast(gasnete_coll_my_images,
+				     &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+				     data->p2p->data, args->nbytes);
+      } else {
+        break;  /* Stalled until data arrives */
+      }
+      data->state = 3;
+        
+      case 3:	/* Optional OUT barrier */
+        if (!gasnete_coll_generic_outsync(data)) {
+          break;
+        }
+        
+        gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+        result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+  
+  return result;
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcastM_TreeEager(gasnet_team_handle_t team,
+			  void * const dstlist[],
+			  gasnet_image_t srcimage, void *src,
+			  size_t nbytes, int flags, 
+                          gasnete_coll_tree_type_t tree_type,
+                          uint32_t sequence
+                          GASNETE_THREAD_FARG)
+{
+  int options = GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
+		GASNETE_COLL_GENERIC_OPT_P2P;
+  
+  return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
+					    &gasnete_coll_pf_bcastM_TreeEager, options,
+					    gasnete_coll_tree_init(tree_type,
+                                                                   gasnete_coll_image_node(srcimage), team
+                                                                   GASNETE_THREAD_PASS),
+                                            sequence GASNETE_THREAD_PASS);
 }
 
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/08/27 19:36:55 $
- * $Revision: 1.29.6.38 $
+ *     $Date: 2007/08/30 00:49:54 $
+ * $Revision: 1.29.6.39 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2085,6 +2085,10 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 	/* this operation could potentially send updates clearing scratch space on other nodes */
 		op->myscratchpos = gasnete_coll_scratch_new_op(scratch_req, sequence, handle GASNETE_THREAD_PASS);
 		op->scratchpos = gasnete_coll_scratch_get_peer_pos(scratch_req GASNETE_THREAD_PASS);
+                if(scratch_req->out_sizes){
+                  gasneti_free(scratch_req->out_sizes);
+                }
+                
 #if 0
                 fprintf(stderr, "%d> myscratchpos: %d\n", gasneti_mynode, (int)op->myscratchpos);
                 if(scratch_req->tree_op) {
@@ -2194,39 +2198,39 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
                                   GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
-  uint32_t *out_sizes;
-  int i;
+   int i;
   
   /*fill out a scratch request "form" if you need scratch space with this operation*/
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
-	scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
-	/*fill out the tree information*/
-	scratch_req->tree_type = tree_info->geom->tree_type;
-	scratch_req->root = tree_info->geom->root;
-        scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
-	scratch_req->team = team;
-	scratch_req->tree_op = 1;
-	/*fill out the peer information*/
+    gasnet_node_t *out_sizes;
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
+    
+    /*fill out the tree information*/
+    scratch_req->tree_type = tree_info->geom->tree_type;
+    scratch_req->root = tree_info->geom->root;
+    scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
+    scratch_req->team = team;
+    scratch_req->tree_op = 1;
+    /*fill out the peer information*/
 	
-	if(team->myrank == tree_info->geom->root) {
-		scratch_req->incoming_size = nbytes;
-		scratch_req->num_in_peers = 0;
-		scratch_req->in_peers = NULL;
+    if(team->myrank == tree_info->geom->root) {
+      scratch_req->incoming_size = nbytes;
+      scratch_req->num_in_peers = 0;
+      scratch_req->in_peers = NULL;
 
-	}
-	else {
-		scratch_req->incoming_size = nbytes;
-		scratch_req->num_in_peers = 1;
-		scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
+    } else {
+      scratch_req->incoming_size = nbytes;
+      scratch_req->num_in_peers = 1;
+      scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
 
-	}
-	out_sizes = (uint32_t*) gasneti_malloc(sizeof(uint32_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom));
-	scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
-	scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);
-	for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom); i++) {
-		out_sizes[i] = nbytes;
-	}
-	scratch_req->out_sizes = out_sizes;
+    }
+    out_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom));
+    scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
+    scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);
+    for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom); i++) {
+      out_sizes[i] = nbytes;
+    }
+    scratch_req->out_sizes = out_sizes;
   }
   gasnete_coll_threads_lock(flags GASNETE_THREAD_PASS);
   if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
@@ -2246,10 +2250,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
-  if(scratch_req!=NULL) {
-  gasneti_free(scratch_req->out_sizes);
-  gasneti_free(scratch_req);
-  }
+
   return result;
 }
 
@@ -2286,7 +2287,12 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 #endif
     return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-      /* if the transfer size is greater than the current segment size, use a pipelined algorithm*/
+    /* run the segmented broadcast code 
+       function internally checks synch flags and SINGLE/LOCAL flags
+    */
+    return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+#if 0
+    /* if the transfer size is greater than the current segment size, use a pipelined algorithm*/
       if(nbytes > gasnete_coll_curr_seg_size) {
         return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
       }
@@ -2303,7 +2309,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 #endif 
 	return gasnete_coll_bcast_TreePutScratch(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
       }
-   
+#endif   
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2332,14 +2338,55 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
 				   gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                    GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result;
-
+  gasnete_coll_scratch_req_t* scratch_req=NULL;
+  int first_thread = 0;
+    
   gasnete_coll_threads_lock(flags GASNETE_THREAD_PASS);
-
+  /* figure out where to stick all scratch space management code */
+  if_pt(gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+    first_thread = 1;
+    /* allocate scratch space*/
+    if(options & (GASNETE_COLL_USE_SCRATCH)) {
+      int i;
+      gasnet_node_t *out_sizes;
+      scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
+      /*fill out the tree information*/
+      scratch_req->tree_type = tree_info->geom->tree_type;
+      scratch_req->root = tree_info->geom->root;
+      scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
+      scratch_req->team = team;
+      scratch_req->tree_op = 1;
+      /*fill out the peer information*/
+      
+      if(team->myrank == tree_info->geom->root) {
+        scratch_req->incoming_size = nbytes;
+        scratch_req->num_in_peers = 0;
+        scratch_req->in_peers = NULL;
+        
+      }
+      else {
+        scratch_req->incoming_size = nbytes;
+        scratch_req->num_in_peers = 1;
+        scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
+        
+      }
+      out_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom));
+      scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
+      scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);
+      for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom); i++) {
+        out_sizes[i] = nbytes;
+      }
+      scratch_req->out_sizes = out_sizes;
+    }
+    
+  }
   #if GASNET_PAR
   if (flags & GASNETE_COLL_THREAD_LOCAL) {
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
     gasnete_coll_generic_data_t *data;
-    if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+    if_pt (first_thread) {
+
+      
       data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       GASNETE_COLL_GENERIC_SET_TAG(data, broadcastM);
       data->threads.data = gasneti_calloc(gasnete_coll_my_images, sizeof(void *));
@@ -2350,7 +2397,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       data->args.broadcastM.nbytes     = nbytes;
       data->options = options;
       data->tree_info = tree_info;
-      result = gasnete_coll_op_generic_init(team, flags, data, poll_fn, sequence GASNETE_THREAD_PASS);
+      result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req GASNETE_THREAD_PASS);
     } else {
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == srcimage) {
@@ -2364,7 +2411,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
   } else
   #endif
 
-  if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+  if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, broadcastM);
     data->args.broadcastM.dstlist    = (void**)dstlist;
@@ -2376,7 +2423,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
     data->args.broadcastM.nbytes     = nbytes;
     data->options = options;
     data->tree_info = tree_info;
-    result = gasnete_coll_op_generic_init(team, flags, data, poll_fn, sequence GASNETE_THREAD_PASS);
+    result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req GASNETE_THREAD_PASS);
   } else {
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
@@ -2407,13 +2454,27 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
   flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
 
   /* Choose algorithm based on arguments */
-  if ((nbytes <= eager_limit) &&
+  if (0 && (nbytes <= eager_limit) &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
     /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
-    return gasnete_coll_bcastM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    return gasnete_coll_bcastM_TreeEager(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+    //return gasnete_coll_bcastM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+#if 1
+    return gasnete_coll_bcastM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+#else
+    if ((flags & GASNET_COLL_SINGLE) && ((flags & GASNET_COLL_IN_NOSYNC) || (flags & GASNET_COLL_IN_ALLSYNC))) {
+      /* We use a Tree Put-based algorithm w/ tree barriers for *_ALLSYNC */
+      return gasnete_coll_bcastM_TreePut(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
+    } else {
+      /* Tree Put Scratch  (valid for coll local and coll single mysync)*/
+      /* XXX: could do better w/ RVPut since dst is writtable */
+      return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+#endif
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2423,16 +2484,8 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
     } else {
       return gasnete_coll_bcastM_Get(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
     }
-  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-    if (flags & GASNET_COLL_SINGLE) {
-      /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
-      return gasnete_coll_bcastM_Put(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-    } else {
-      /* XXX: could do better w/ RVPut since dst is writtable */
-      return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-    }
   } else {
-    /* If we reach here then neither src nor dst is in-segment */
+  /* If we reach here then neither src nor dst is in-segment */
     return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   }
 }
@@ -2451,11 +2504,11 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
-  uint32_t *out_sizes;
+  gasnet_node_t *out_sizes;
   int i;
 
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
-    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
     scratch_req->tree_type = tree_info->geom->tree_type;
     scratch_req->root = tree_info->geom->root;
@@ -2473,7 +2526,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
       scratch_req->num_in_peers = 1;
       scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
     }
-    out_sizes = (uint32_t*) gasneti_malloc(sizeof(uint32_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom));
+    out_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom));
     scratch_req->num_out_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
     scratch_req->out_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);
     for(i=0; i< GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom); i++) {
@@ -2705,11 +2758,11 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
-  uint32_t *out_sizes;
+  gasnet_node_t *out_sizes;
   int i;
 
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
-    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
     scratch_req->tree_type = tree_info->geom->tree_type;
     scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
@@ -2734,7 +2787,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     else {
       scratch_req->num_out_peers = 1;
       scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
-      scratch_req->out_sizes = (uint32_t*) gasneti_malloc(sizeof(uint32_t)*1);
+      scratch_req->out_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*1);
       scratch_req->out_sizes[0] = nbytes*tree_info->geom->parent_subtree_size;
     }
   }
@@ -3037,7 +3090,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
   
   if(options & (GASNETE_COLL_USE_SCRATCH_TREE)) {
     tree_info = (gasnete_coll_tree_data_t*) private_data;
-    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
     scratch_req->tree_type = tree_info->geom->tree_type;
     scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
@@ -3061,7 +3114,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
     if(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom) == tree_info->geom->root) {
       scratch_req->num_out_peers = 1;
       scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
-      scratch_req->out_sizes = (uint32_t*) gasneti_malloc(sizeof(uint32_t)*1);
+      scratch_req->out_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*1);
       scratch_req->out_sizes[0] = nbytes*tree_info->geom->parent_subtree_size;
     } else {
       scratch_req->num_out_peers = 0;
@@ -3377,7 +3430,7 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   if(options & GASNETE_COLL_USE_SCRATCH) {
 	/*fill out a scratch request form*/
-	scratch_req = (gasnete_coll_scratch_req_t*) gasneti_malloc(sizeof(gasnete_coll_scratch_req_t));
+	scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
 	scratch_req->tree_op = 0;
 	scratch_req->team = team;
 	scratch_req->incoming_size = nbytes*team->total_ranks+((nbytes)*dissem->max_dissem_blocks)*((dissem->dissemination_phases+1)*(dissem->dissemination_radix-1));
@@ -3397,9 +3450,7 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
-   if(scratch_req!=NULL) {
-	gasneti_free(scratch_req);
-  }
+
 
   return result;
 }

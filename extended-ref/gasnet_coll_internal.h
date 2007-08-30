@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/04/13 21:24:14 $
- * $Revision: 1.22.6.27 $
+ *     $Date: 2007/08/30 00:49:54 $
+ * $Revision: 1.22.6.28 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -453,6 +453,17 @@ GASNETI_INLINE(gasnete_coll_scale_ptr)
 void *gasnete_coll_scale_ptr(const void *ptr, size_t elem_count, size_t elem_size) {
   return (void *)((uintptr_t)ptr + (elem_count * elem_size));
 }
+
+/* Helper for scaling of void pointers */
+GASNETI_INLINE(gasnete_coll_scale_ptrM)
+void gasnete_coll_scale_ptrM(void * out_ptr[], void * const in_ptr[], size_t elem_count, size_t elem_size, gasnet_image_t total_images) {
+  int i;
+  for(i=0; i<total_images; i++) {
+    out_ptr[i] = (void *)((uintptr_t)in_ptr[i] + (elem_count * elem_size));
+  }
+}
+
+
 
 /* Helper to perform in-memory broadcast */
 GASNETI_INLINE(gasnete_coll_local_broadcast)
@@ -2058,11 +2069,48 @@ gasnete_coll_bcastM_Put(gasnet_team_handle_t team,
                         GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
+gasnete_coll_bcastM_TreePut(gasnet_team_handle_t team,
+                            void * const dstlist[],
+                            gasnet_image_t srcimage, void *src,
+                            size_t nbytes, int flags, 
+                            gasnete_coll_tree_type_t tree_type,    
+                            uint32_t sequence
+                            GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcastM_TreePutScratch(gasnet_team_handle_t team,
+                                   void * const dstlist[],
+                                   gasnet_image_t srcimage, void *src,
+                                   size_t nbytes, int flags, 
+                                   gasnete_coll_tree_type_t tree_type,    
+                                   uint32_t sequence
+                                   GASNETE_THREAD_FARG);
+
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
+                               void * const dstlist[],
+                               gasnet_image_t srcimage, void *src,
+                               size_t nbytes, int flags,
+                               gasnete_coll_tree_type_t tree_type,
+                               uint32_t sequence
+                               GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
 gasnete_coll_bcastM_Eager(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
 			  size_t nbytes, int flags, uint32_t sequence
                           GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcastM_TreeEager(gasnet_team_handle_t team,
+                              void * const dstlist[],
+                              gasnet_image_t srcimage, void *src,
+                              size_t nbytes, int flags, 
+                              gasnete_coll_tree_type_t tree_type,
+                              uint32_t sequence
+                              GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_bcastM_RVGet(gasnet_team_handle_t team,
