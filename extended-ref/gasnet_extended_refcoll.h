@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2007/04/10 17:54:31 $
- * $Revision: 1.1.10.10 $
+ *     $Date: 2007/09/19 20:48:12 $
+ * $Revision: 1.1.10.11 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,7 +69,7 @@
 #endif
 
 #ifndef GASNETE_COLL_SCRATCH_OVERRIDE
-SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 4);
+SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 2);
 #define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh),
 #endif
 

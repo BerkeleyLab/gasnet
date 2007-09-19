@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/08/30 00:49:54 $
- * $Revision: 1.22.6.28 $
+ *     $Date: 2007/09/19 20:48:11 $
+ * $Revision: 1.22.6.29 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,6 +82,9 @@ typedef struct gasnete_coll_op_status_t_ gasnete_coll_op_status_t;
 struct gasnete_coll_scratch_status_t_;
 typedef struct gasnete_coll_scratch_status_t_ gasnete_coll_scratch_status_t;
 
+struct gasnete_coll_scratch_req_t_;
+typedef struct gasnete_coll_scratch_req_t_ gasnete_coll_scratch_req_t;
+
 struct gasnete_coll_seg_interval_t_;
 typedef struct gasnete_coll_seg_interval_t_ gasnete_coll_seg_interval_t;
 /*---------------------------------------------------------------------------------*/
@@ -145,9 +148,11 @@ struct gasnete_coll_tree_data_t_ {
 };
 #define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 256
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
+
 #ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
 /*set defult to 2 MB*/
-#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
+//#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
+#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (128)
 #endif
 
 #define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256
@@ -253,8 +258,10 @@ struct gasnete_coll_op_t_ {
   /*positioons of the valide scratch space for this operation on the peers*/
   uint64_t *scratchpos;
   uint64_t myscratchpos;
-  
-
+  uint8_t active_scratch_op; /* is this op on the active scratch list?*/
+  uint8_t waiting_scratch_op; /* is this op on the waiting scratch list?*/
+  uint8_t waiting_for_reconfig_clear;
+  gasnete_coll_scratch_req_t *scratch_req; /* the associated scratch request with this op*/
   
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_OP_EXTRA

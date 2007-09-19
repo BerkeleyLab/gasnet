@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/08/30 00:49:54 $
- * $Revision: 1.29.6.43 $
+ *     $Date: 2007/09/19 20:48:11 $
+ * $Revision: 1.29.6.44 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -307,13 +307,21 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
   int child;
 
   switch (data->state) {
-  case 0: /*thread barrier*/
+  case 0: /*scratch alloc*/
+    if(op->scratch_req) {
+      if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
+        break;
+    }
+    fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
+    if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
+    data->state = 1;
+  case 1: /*thread barrier*/
     if (!gasnete_coll_generic_all_threads(data)) {
       break;
     }
 
-    data->state = 1;
-  case 1:
+    data->state = 2;
+  case 2:
     if((op->flags & GASNET_COLL_IN_ALLSYNC)) {
       if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != child_count) {
         break;
@@ -322,11 +330,11 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
         gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
       }
     }
-    data->state = 2;
+    data->state = 3;
     
 
 
-  case 2:
+  case 3:
       if (gasneti_mynode == args->srcnode) {
           for (child = 0; child < child_count; child++) {
       
@@ -353,10 +361,10 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
       } else {
 	break;	/* Waiting for parent to push data and signal */
       }
-      data->state = 3;
+      data->state = 4;
 
 
-    case 3:	/* Optional OUT barrier */
+    case 4:	/* Optional OUT barrier */
       if (!gasnete_coll_generic_outsync(data)) {
 	break;
       }
