@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/09/19 20:48:12 $
- * $Revision: 1.29.6.40 $
+ *     $Date: 2007/09/19 21:59:36 $
+ * $Revision: 1.29.6.41 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2569,7 +2569,7 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(0) {
+    if(1) {
         return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
                                              gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
@@ -2824,7 +2824,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(!(flags & GASNETE_COLL_SUBORDINATE) && 0) {
+    if(!(flags & GASNETE_COLL_SUBORDINATE)) {
       return gasnete_coll_gath_TreePutSeg(team, dstimage, dst, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {

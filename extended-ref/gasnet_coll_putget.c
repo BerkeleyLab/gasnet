@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/09/19 20:48:11 $
- * $Revision: 1.29.6.44 $
+ *     $Date: 2007/09/19 21:59:36 $
+ * $Revision: 1.29.6.45 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1398,7 +1398,15 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   
   switch (data->state) {
-    case 0:	/* Optional IN barrier */
+    case 0: /*scratch alloc*/
+      if(op->scratch_req) {
+        if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
+          break;
+      }
+      fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
+      if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
+        data->state = 1;
+    case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) 
 #if 0
          || !gasnete_coll_generic_insync(data)
@@ -1407,9 +1415,9 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	break;
       }
       
-      data->state = 1;
+      data->state = 2;
       
-    case 1:
+    case 2:
 #if 1
       if(op->flags & GASNET_COLL_IN_ALLSYNC) {
   	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != child_count) {
@@ -1420,9 +1428,9 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	}
       }
 #endif
-      data->state = 2;
+      data->state = 3;
       
-    case 2:
+    case 3:
       
       if (op->team->myrank == args->srcnode) {
         if(tree->geom->seq_dfs_order == 0 || args->dist!=args->nbytes) {
@@ -1520,39 +1528,20 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         break; /* data not yet arrived*/
       }
   
-      data->state = 3;
+      data->state = 4;
    
-    case 3: /* wait for all puts to finish*/
+    case 4: /* wait for all puts to finish*/
       if (data->handle != GASNET_INVALID_HANDLE) {
 	break;
       }
-      data->state = 4;
-     
-    case 4: /*node level barrier*/
-#if 0
-      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
-        
-        /* if we had to do a barrier on the way in then the counter will advance to double the child_count*/
-        barrier_count = child_count + ((op->flags & GASNET_COLL_IN_ALLSYNC) ? child_count : 0);
-	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != barrier_count) {
-	  break;
-	}
-        if (gasneti_mynode != args->srcnode) {
-	  gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
-	}
-
-      }
-#endif
       data->state = 5;
       
   
     case 5:	/* Final Out Barrier */
-#if 1
         if (!gasnete_coll_generic_outsync(data)) {
           break;
         
         }
-#endif
       data->state = 6;
     
     case 6: /*done*/    
@@ -2002,29 +1991,19 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   
   switch (data->state) {
-    case 0:	/* Optional IN barrier */
+    case 0:
+      if(op->scratch_req) {
+        if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
+          break;
+      }
+      fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
+      if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
+        data->state = 1;
+    case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)||
 	  !gasnete_coll_generic_insync(data)) {
 	break;
       }
-      data->state = 1;
-      
-    case 1:
-#if 0
-      /* go down the tree with the barrier*/
-      /* XXX: Does not work. */
-      /* Barrier needs to go up then down */
-      if(op->flags & GASNET_COLL_IN_ALLSYNC) {
-        if(gasneti_mynode != args->dstnode) {
-          if (gasneti_weakatomic_read(&(data->p2p->counter), 0) < 1) {
-            break;
-          }
-        }
-        for(child=0; child<child_count; child++) {
-	  gasnete_coll_p2p_advance(op, children[child]);
-	}
-      }
-#endif
       data->state = 2;
       
     case 2:	/* Local Data Movement */
