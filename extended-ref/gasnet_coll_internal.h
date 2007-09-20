@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/09/19 21:59:36 $
- * $Revision: 1.22.6.30 $
+ *     $Date: 2007/09/20 23:23:19 $
+ * $Revision: 1.22.6.31 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1673,6 +1673,7 @@ typedef struct {
   gasnet_node_t srcnode;
   void *src;
   size_t nbytes;
+  size_t dist;
 } gasnete_coll_scatterM_args_t;
 
 typedef struct {
@@ -1914,9 +1915,9 @@ extern gasnet_coll_handle_t
 gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
                                  void * const dstlist[],
                                  gasnet_image_t srcimage, void *src,
-                                 size_t nbytes, int flags,
+                                 size_t nbytes, size_t dist, int flags,
                                  gasnete_coll_poll_fn poll_fn, int options,
-                                 void *private_data, uint32_t sequence
+                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                  GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -2204,6 +2205,15 @@ gasnete_coll_scatM_Put(gasnet_team_handle_t team,
 		       gasnet_image_t srcimage, void *src,
 		       size_t nbytes, int flags, uint32_t sequence
                        GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
+                              void * const dstlist[],
+                              gasnet_image_t srcimage, void *src,
+                              size_t nbytes, int flags, 
+                              gasnete_coll_tree_type_t tree_type,    
+                              uint32_t sequence
+                              GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_scatM_Eager(gasnet_team_handle_t team,
