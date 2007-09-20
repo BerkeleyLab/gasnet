@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/09/19 21:59:36 $
- * $Revision: 1.29.6.41 $
+ *     $Date: 2007/09/20 00:40:43 $
+ * $Revision: 1.29.6.42 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1022,6 +1022,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   static gasneti_cond_t init_cond = GASNETI_COND_INITIALIZER;
   static gasneti_mutex_t init_lock = GASNETI_MUTEX_INITIALIZER;
   static gasneti_mutex_t barrier_fn_lock = GASNETI_MUTEX_INITIALIZER;
+  static gasneti_mutex_t team_all_setup_lock = GASNETI_MUTEX_INITIALIZER;
+  static int team_all_set = 0;
   static int barrier_fn_set = 0;
   static gasnet_image_t remain = 0;
   size_t image_size = gasneti_nodes * sizeof(gasnet_image_t);
@@ -1167,21 +1169,34 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     td->my_local_image = 0;
   }
   
-  /*setup information for the global team*/
-  GASNET_TEAM_ALL = (struct gasnete_coll_team_t_*) gasneti_malloc(sizeof(struct gasnete_coll_team_t_));
-  GASNET_TEAM_ALL->team_id = 0;
-  GASNET_TEAM_ALL->global_team = 1;
-  GASNET_TEAM_ALL->tree_geom_cache_head = NULL;
-  GASNET_TEAM_ALL->tree_geom_cache_tail = NULL;
-  GASNET_TEAM_ALL->dissem_cache_head = NULL;
-  GASNET_TEAM_ALL->dissem_cache_tail = NULL;
-  GASNET_TEAM_ALL->myrank = gasneti_mynode;
-  GASNET_TEAM_ALL->total_ranks = gasneti_nodes;
-  GASNET_TEAM_ALL->scratch_segs = gasnete_coll_auxseg_save;
+
+  gasneti_mutex_lock(&team_all_setup_lock);
+  if(!team_all_set) {
+   
+    team_all_set = 1;
+    
+    gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
+    gasnete_coll_current_fanout = GASNETE_COLL_DEFAULT_FANOUT;
+    /*setup information for the global team*/
+    GASNET_TEAM_ALL = (struct gasnete_coll_team_t_*) gasneti_malloc(sizeof(struct gasnete_coll_team_t_));
+    GASNET_TEAM_ALL->team_id = 0;
+    GASNET_TEAM_ALL->global_team = 1;
+    GASNET_TEAM_ALL->tree_geom_cache_head = NULL;
+    GASNET_TEAM_ALL->tree_geom_cache_tail = NULL;
+    GASNET_TEAM_ALL->dissem_cache_head = NULL;
+    GASNET_TEAM_ALL->dissem_cache_tail = NULL;
+    GASNET_TEAM_ALL->myrank = gasneti_mynode;
+    GASNET_TEAM_ALL->total_ranks = gasneti_nodes;
+    GASNET_TEAM_ALL->scratch_segs = gasnete_coll_auxseg_save;
+    gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_ALL);
+    /* barrier to make sure that no one sends us scratch clear messages before our scratch space is initialized*/
+    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+   gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+  }
+  gasneti_mutex_unlock(&team_all_setup_lock);
   
-  
-  gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_ALL);
   /*change the barrier code to hook in collective call back*/
+#if 0
   gasneti_mutex_lock(&barrier_fn_lock);
   if(!barrier_fn_set) {
     /* We need exactly one thread to set this otherwise it'll be an infinite recursion*/
@@ -1190,11 +1205,11 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     barrier_fn_set = 1;
   }
   gasneti_mutex_unlock(&barrier_fn_lock);
-  gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
-  gasnete_coll_current_fanout = GASNETE_COLL_DEFAULT_FANOUT;
+#endif
+
   gasnete_coll_init_done = 1;
    
-   
+
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -2448,7 +2463,7 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
     return gasnete_coll_bcastM_TreeEager(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     //return gasnete_coll_bcastM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-#if 0
+#if 1
     return gasnete_coll_bcastM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
 #else
     if ((flags & GASNET_COLL_SINGLE) && ((flags & GASNET_COLL_IN_NOSYNC) || (flags & GASNET_COLL_IN_ALLSYNC))) {
