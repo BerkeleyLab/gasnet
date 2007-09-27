@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/09/27 16:40:15 $
- * $Revision: 1.22.6.32 $
+ *     $Date: 2007/09/27 17:06:55 $
+ * $Revision: 1.22.6.33 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1787,11 +1787,14 @@ struct gasnete_coll_generic_data_t_ {
   gasnet_coll_handle_t		coll_handle;
   void				*private_data;
   
+  
 #if GASNET_PAR
   struct {
     gasneti_atomic_t			remaining;
     void				*data;
   }					threads;
+#else
+  void *addrs;
 #endif
   
   /* Hook for conduit-specific extension */

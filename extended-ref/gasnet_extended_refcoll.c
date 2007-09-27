@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/09/27 16:40:17 $
- * $Revision: 1.29.6.44 $
+ *     $Date: 2007/09/27 17:06:55 $
+ * $Revision: 1.29.6.45 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2034,6 +2034,10 @@ extern void gasnete_coll_generic_free(gasnete_coll_generic_data_t *data GASNETE_
     if (data->threads.data) {
       gasneti_free(data->threads.data);
     }
+    #else 
+    if(data->addrs) {
+      gasneti_free(data->addrs);
+    }
     #endif
 
     *((gasnete_coll_generic_data_t **)data) =  td->generic_data_freelist;
@@ -2424,15 +2428,18 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
 
   if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+    int num_addrs = (flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
     GASNETE_COLL_GENERIC_SET_TAG(data, broadcastM);
-    if(flags & GASNET_COLL_LOCAL) {
-      data->threads.data = gasneti_calloc(gasnete_coll_my_images, sizeof(void *));
-      GASNETE_FAST_UNALIGNED_MEMCPY(data->threads.data, dstlist, sizeof(void*)*gasnete_coll_my_images);
-    } else {
-      data->threads.data = gasneti_calloc(gasnete_coll_total_images, sizeof(void *));
-      GASNETE_FAST_UNALIGNED_MEMCPY(data->threads.data, dstlist, sizeof(void*)*gasnete_coll_total_images);
-    }
-    data->args.broadcastM.dstlist    = data->threads.data;
+
+    #if GASNET_PAR
+    data->threads.data = gasneti_calloc(num_addrs, sizeof(void *));
+    data->args.broadcastM.dstlist  = data->threads.data;
+    #else
+    data->addrs = gasneti_calloc(num_addrs, sizeof(void *));
+    data->args.broadcastM.dstlist  = data->addrs;
+    #endif    
+    GASNETE_FAST_UNALIGNED_MEMCPY(data->args.broadcastM.dstlist , dstlist, sizeof(void*)*num_addrs);
+
     #if !GASNET_SEQ
       data->args.broadcastM.srcimage = srcimage;
     #endif
@@ -2472,7 +2479,7 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
   flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
 
   /* Choose algorithm based on arguments */
-  if (0 && (nbytes <= eager_limit) &&
+  if ((nbytes <= eager_limit) &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
     /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
      * the need for passing addresses for _LOCAL
@@ -2726,15 +2733,18 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
 
   if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+    int num_addrs = (flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
     GASNETE_COLL_GENERIC_SET_TAG(data, scatterM);
-    if(flags & GASNET_COLL_LOCAL) {
-      data->threads.data = gasneti_calloc(gasnete_coll_my_images, sizeof(void *));
-      GASNETE_FAST_UNALIGNED_MEMCPY(data->threads.data, dstlist, sizeof(void*)*gasnete_coll_my_images);
-    } else {
-      data->threads.data = gasneti_calloc(gasnete_coll_total_images, sizeof(void *));
-      GASNETE_FAST_UNALIGNED_MEMCPY(data->threads.data, dstlist, sizeof(void*)*gasnete_coll_total_images);
-    }
-    data->args.scatterM.dstlist    = data->threads.data;
+    
+    #if GASNET_PAR
+    data->threads.data = gasneti_calloc(num_addrs, sizeof(void *));
+    data->args.scatterM.dstlist  = data->threads.data;
+    #else
+    data->addrs = gasneti_calloc(num_addrs, sizeof(void *));
+    data->args.scatterM.dstlist  = data->addrs;
+    #endif    
+    GASNETE_FAST_UNALIGNED_MEMCPY(data->args.scatterM.dstlist , dstlist, sizeof(void*)*num_addrs);
+    
     #if !GASNET_SEQ
       data->args.scatterM.srcimage = srcimage;
     #endif
@@ -2776,7 +2786,7 @@ gasnete_coll_scatterM_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(gasnete_coll_fixed_image_count && 0) {
+    if(gasnete_coll_fixed_image_count) {
       /* require that all ndoes have the same number of GASNet images*/
       return gasnete_coll_scatM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags,
                                            gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS); 
@@ -3032,16 +3042,20 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
   #endif
 
   if_pt (first_thread) {
-    gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+    gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);    
+    int num_addrs = (flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
+
     GASNETE_COLL_GENERIC_SET_TAG(data, gatherM);
-    if(flags & GASNET_COLL_LOCAL) {
-      data->threads.data = gasneti_calloc(gasnete_coll_my_images, sizeof(void *));
-      GASNETE_FAST_UNALIGNED_MEMCPY(data->threads.data, srclist, sizeof(void*)*gasnete_coll_my_images);
-    } else {
-      data->threads.data = gasneti_calloc(gasnete_coll_total_images, sizeof(void *));
-      GASNETE_FAST_UNALIGNED_MEMCPY(data->threads.data, srclist, sizeof(void*)*gasnete_coll_total_images);
-    }
-    data->args.gatherM.srclist    = data->threads.data;
+
+    #if GASNET_PAR
+    data->threads.data = gasneti_calloc(num_addrs, sizeof(void *));
+    data->args.gatherM.srclist = data->threads.data;
+    #else
+    data->addrs = gasneti_calloc(num_addrs, sizeof(void *));
+    data->args.gatherM.srclist = data->addrs;
+    #endif    
+    GASNETE_FAST_UNALIGNED_MEMCPY(data->args.gatherM.srclist, srclist, sizeof(void*)*num_addrs);
+    
     #if !GASNET_SEQ
       data->args.gatherM.dstimage = dstimage;
     #endif
@@ -3085,7 +3099,10 @@ gasnete_coll_gatherM_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(!(flags & GASNETE_COLL_SUBORDINATE)) {
+    if(!(flags & GASNETE_COLL_SUBORDINATE) && gasnete_coll_fixed_image_count) {
+      /*XXX: with the current implementation of the scratch space it does not make sense to use this for
+             all-gather and exchange since it will serialize the gathers which is not what we want
+      */
       return gasnete_coll_gathM_TreePutSeg(team, dstimage, dst, srclist, nbytes, flags, 
                                            gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
