@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2007/09/20 23:23:20 $
- * $Revision: 1.29.6.26 $
+ *     $Date: 2007/09/27 16:40:16 $
+ * $Revision: 1.29.6.27 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -806,7 +806,7 @@ gasnete_coll_gathM_RVPut(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(dstimage));
 
-  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, flags,
+  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, nbytes, flags,
 					 &gasnete_coll_pf_gathM_RVPut, options,
 					 NULL, sequence GASNETE_THREAD_PASS);
 }
@@ -884,7 +884,7 @@ gasnete_coll_gathM_RVous(gasnet_team_handle_t team,
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
-  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, flags,
+  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, nbytes, flags,
 					 &gasnete_coll_pf_gathM_RVous, options,
 					 NULL, sequence GASNETE_THREAD_PASS);
 }

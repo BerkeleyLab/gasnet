@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/09/20 23:23:19 $
- * $Revision: 1.22.6.31 $
+ *     $Date: 2007/09/27 16:40:15 $
+ * $Revision: 1.22.6.32 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -261,6 +261,9 @@ struct gasnete_coll_op_t_ {
   uint8_t active_scratch_op; /* is this op on the active scratch list?*/
   uint8_t waiting_scratch_op; /* is this op on the waiting scratch list?*/
   uint8_t waiting_for_reconfig_clear;
+#if GASNET_DEBUG
+  uint8_t scratch_op_freed;
+#endif
   gasnete_coll_scratch_req_t *scratch_req; /* the associated scratch request with this op*/
   
   /* Hook for conduit-specific extensions/overrides */
@@ -1695,6 +1698,7 @@ typedef struct {
   void *dst;
   void * *srclist;
   size_t nbytes;
+  size_t dist;
 } gasnete_coll_gatherM_args_t;
 
 typedef struct {
@@ -1933,9 +1937,9 @@ extern gasnet_coll_handle_t
 gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
                                 gasnet_image_t dstimage, void *dst,
                                 void * const srclist[],
-                                size_t nbytes, int flags,
+                                size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
-                                void *private_data, uint32_t sequence
+                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence
                                 GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -2307,6 +2311,16 @@ gasnete_coll_gathM_Put(gasnet_team_handle_t team,
 		       void * const srclist[],
 		       size_t nbytes, int flags, uint32_t sequence
                        GASNETE_THREAD_FARG);
+
+
+extern gasnet_coll_handle_t
+gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
+                             gasnet_image_t dstimage, void *dst,
+                             void * const srclist[],
+                             size_t nbytes, int flags, 
+                             gasnete_coll_tree_type_t tree_type,
+                             uint32_t sequence
+                             GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_gathM_Eager(gasnet_team_handle_t team,
