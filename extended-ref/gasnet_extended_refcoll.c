@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/09/27 17:06:55 $
- * $Revision: 1.29.6.45 $
+ *     $Date: 2007/09/27 17:15:32 $
+ * $Revision: 1.29.6.46 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2132,7 +2132,9 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
       op->waiting_scratch_op = 0;
       op->active_scratch_op = 0;
       op->waiting_for_reconfig_clear=0;
+#if GASNET_DEBUG
       op->scratch_op_freed = 0;
+#endif
       /* Submit the op via aggregation filter */
       handle = gasnete_coll_op_submit(op, handle GASNETE_THREAD_PASS);
 
