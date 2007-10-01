@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2007/09/08 00:36:10 $
- * $Revision: 1.274 $
+ *     $Date: 2007/10/01 23:04:04 $
+ * $Revision: 1.274.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -165,7 +165,7 @@
         }
       #endif
 
-      #if PLATFORM_ARCH_64 || (defined(_MIPS_ISA) && (_MIPS_ISA >= 3) /* 64-bit capable CPU */)
+      #if PLATFORM_ARCH_64
         #if PLATFORM_COMPILER_GNU
           #define GASNETI_HAVE_ATOMIC64_T 1
           typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
@@ -255,7 +255,7 @@
 	   (InterlockedCompareExchange((LONG *)&((p)->ctr),nval,oval) == (LONG)(oval))
       #define _gasneti_atomic32_fetchadd(p, op) InterlockedExchangeAdd((LONG *)&((p)->ctr), op)
 
-      #if PLATFORM_ARCH_64 /* TODO: Identify ILP32 running on 64-bit CPU */
+      #if PLATFORM_ARCH_64
         #define GASNETI_HAVE_ATOMIC64_T 1
         typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
         #define _gasneti_atomic64_increment(p) InterlockedIncrement64((LONGLONG *)&((p)->ctr))
@@ -1257,11 +1257,11 @@
           return (int)(newval == oldval);
         }
 
-        #define GASNETI_HAVE_ATOMIC64_T 1
-        typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
-        #define _gasneti_atomic64_init(v)      { (v) }
-
         #if PLATFORM_ARCH_64
+          #define GASNETI_HAVE_ATOMIC64_T 1
+          typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
+          #define _gasneti_atomic64_init(v)      { (v) }
+
           #define _gasneti_atomic64_read(p)      ((p)->ctr)
           #define _gasneti_atomic64_set(p,v)     do { (p)->ctr = (v); } while(0)
           GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
@@ -1275,36 +1275,11 @@
           }
         #else
           /* ILP32 on a 64-bit CPU. */
-          /* Note that the ldd/std instructions *are* atomic, even though they use 2 registers.
-           * We wouldn't need asm here if we could be sure the compiler always used ldd/std.
+          /* TODO: Note that the ldd/std instructions *are* atomic, even though they use 2 registers.
+           * So, we could have lockless read via ldd if we could be sure the compiler always used std
+           * for the writes (inc CAS).  The write and r-m-w would still all need a mutex.
+           * See bug 2066 for why we no longer try 64-bit insns w/ ILP32 on 64-bit CPU.
            */
-          GASNETI_INLINE(_gasneti_atomic64_set)
-          void _gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t v) {
-            __asm__ __volatile__ ( "std	%1, %0" : "=m"(p->ctr) : "U"(v) );
-	  }
-          GASNETI_INLINE(_gasneti_atomic64_read)
-          uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *p) {
-	    register uint64_t retval;
-            __asm__ __volatile__ ( "ldd	%1, %0" : "=U"(retval) : "m"(p->ctr) );
-	    return retval;
-	  }
-          GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
-          int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *v, uint64_t oldval, uint64_t newval) {
-            register volatile uint64_t * addr = (volatile uint64_t *)&(v->ctr);
-	    register int retval, tmp;
-            __asm__ __volatile__ ( 
-		"sllx	%H5,32,%0	\n\t"	/* retval = HI(new) << 32 */
-		"sllx	%H6,32,%1	\n\t"	/* tmp = HI(old) << 32 */
-		"or	%0,%L5,%0	\n\t"	/* retval |= LO(new) */
-		"or	%1,%L6,%1	\n\t"	/* tmp |= LO(old) */
-		"casx	[%3],%1,%0	\n\t"	/* atomic CAS, with read value -> retval */
-		"xor	%1,%0,%1	\n\t"	/* tmp = 0 IFF retval == tmp */
-		"clr	%0		\n\t"   /* retval = 0 */
-		"movrz	%1,1,%0"		/* retval = 1 IFF tmp == 0 */
-		: "=&h"(retval), "=&h"(tmp), "=m"(v->ctr)		/* 'h' = 64bit 'o' or 'g' reg */
-		: "r"(addr), "m"(v->ctr), "r"(newval), "r"(oldval) );
-            return retval;
-          }
 	#endif
 
 	/* Using default fences, as our asm includes none */
@@ -1778,16 +1753,15 @@
   /* ------------------------------------------------------------------------------------ */
   #elif PLATFORM_ARCH_POWERPC
     /* Possibly enable "hybrid" 64-bit atomics for MacOSX and AIX: */
-    #if (PLATFORM_OS_DARWIN && defined(GASNETI_ARCH_PPC64)) || \
-	(PLATFORM_OS_AIX && PLATFORM_ARCH_64)
-      /* We are running on a 64-bit capable CPU/OS, however...
+    #if PLATFORM_ARCH_64 && (PLATFORM_OS_DARWIN || PLATFORM_OS_AIX)
+      /* We are running on a 64-bit ABI, however...
        * + Apple's ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
        * + AIX's ABI only guarantees 4-byte minimum aligment for doubles.
        * Our "contract" with the developer says atomic64_t works on 64-bit types without any
        * extra alignment.  So, we need to use mutex-based atomics when not aligned.
        *
        * See bug 1595 for more info.
-       * See also bug 1619 for why we can't use hybrid atomics with PLATFORM_ARCH_32+PLATFORM_OS_AIX.
+       * See bug 2066 for why we no longer try 64-bit insns w/ ILP32 on 64-bit CPU.
        */
       #define GASNETI_HYBRID_ATOMIC64	1
     #endif
@@ -1885,71 +1859,6 @@
         #pragma reg_killed_by gasneti_atomic64_swap_not cr0, gr0
         #define _gasneti_atomic64_compare_and_swap(p, oldval, newval) \
 					(gasneti_atomic64_swap_not(p, oldval, newval) == 0)
-      #elif defined(GASNETI_HYBRID_ATOMIC64) /* ILP32 on 64-bit CPU */
-	#define GASNETI_HAVE_ATOMIC64_T 1
-        typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
-        #define _gasneti_atomic64_init(_v)	{ (_v) }
-
-        static uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *p);
-        static void _gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t val);
-        static int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval);
-        #pragma mc_func _gasneti_atomic64_read { \
-          /* ARGS: r3 = p  RESULT: r3 = hi32, r4 = lo32 */ \
-          "e8630000"  /* ld      r3,0(r3)  */ \
-          "78640020"  /* clrldi  r4,r3,32  */ \
-          "78630022"  /* srdi    r3,r3,32  */ \
-        }
-	#if PLATFORM_OS_LINUX || PLATFORM_OS_BLRTS /* ABI differs from Darwin and AIX */
-          #pragma mc_func _gasneti_atomic64_set { \
-            /* ARGS: r3 = p, r5 = hi32, r6 = lo32 */ \
-            "78a507c6"  /* sldi  r5,r5,32  */ \
-            "7ca53378"  /* or    r5,r5,r6  */ \
-            "f8a30000"  /* std   r5,0(r3)  */ \
-          }
-          #pragma reg_killed_by _gasneti_atomic64_set gr5
-          #pragma mc_func _gasneti_atomic64_compare_and_swap {\
-	    /* ARGS: r3 = p, r5=oldhi32, r6=oldlo32, r7=newhi32, r8=newlo32 */ \
-            "78a507c6"  /*    sldi    r5,r5,32     */ \
-            "7ca53378"  /*    or      r5,r5,r6     */ \
-            "78e707c6"  /*    sldi    r7,r7,32     */ \
-            "7ce74378"  /*    or      r7,r7,r8     */ \
-            "39000000"  /*    li      r8,0         */ \
-            "7cc018a8"  /* 0: ldarx   r6,0,r3      */ \
-            "7c262800"  /*    cmpd    0,r6,r5      */ \
-            "40820010"  /*    bne-    1f           */ \
-            "7ce019ad"  /*    stdcx.  r7,0,r3      */ \
-            "40a2fff0"  /*    bne-    0b           */ \
-            "39000001"  /*    li      r8,1         */ \
-            "7d034378"  /* 1: mr      r3,r8        */ \
-	    /* RETURN in r3 = 1 iff swap took place */ \
-          }
-          #pragma reg_killed_by _gasneti_atomic64_compare_and_swap cr0
-        #else
-          #pragma mc_func _gasneti_atomic64_set { \
-            /* ARGS: r3 = p, r4 = hi32, r5 = lo32 */ \
-            "788407c6"  /* sldi  r4,r4,32  */ \
-            "7c842b78"  /* or    r4,r4,r5  */ \
-            "f8830000"  /* std   r4,0(r3)  */ \
-          }
-          #pragma reg_killed_by _gasneti_atomic64_set gr4
-          #pragma mc_func _gasneti_atomic64_compare_and_swap {\
-	    /* ARGS: r3 = p, r4=oldhi32, r5=oldlo32, r6=newhi32, r7=newlo32 */ \
-            "788407c6"  /*    sldi    r4,r4,32     */ \
-            "7c842b78"  /*    or      r4,r4,r5     */ \
-            "78c607c6"  /*    sldi    r6,r6,32     */ \
-            "7cc63b78"  /*    or      r6,r6,r7     */ \
-            "38e00000"  /*    li      r7,0         */ \
-            "7ca018a8"  /* 0: ldarx   r5,r0,r3     */ \
-            "7c252000"  /*    cmpd    0,r5,r4      */ \
-            "40820010"  /*    bne-    1f           */ \
-            "7cc019ad"  /*    stdcx.  r6,r0,r3     */ \
-            "40a2fff0"  /*    bne-    0b           */ \
-            "38e00001"  /*    li      r7,1         */ \
-            "7ce33b78"  /* 1: mr      r3,r7        */ \
-	    /* RETURN in r3 = 1 iff swap took place */ \
-          }
-          #pragma reg_killed_by _gasneti_atomic64_compare_and_swap cr0
-	#endif
       #else
 	/* 32-bit CPU - generics are the only option */
       #endif
@@ -2019,53 +1928,6 @@
 		: "r" (p), "r"(oldval), "r"(newval), "m"(p->ctr)
 		: "cr0");
           return (result == 0);
-        } 
-      #elif defined(GASNETI_HYBRID_ATOMIC64) /* ILP32 on 64-bit CPU */
-	#define GASNETI_HAVE_ATOMIC64_T 1
-        typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
-        #define _gasneti_atomic64_init(_v)	{ (_v) }
-        GASNETI_INLINE(_gasneti_atomic64_set)
-        void _gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t val) {
-          __asm__ __volatile__ (
-		"sldi	%1,%1,32	\n\t"
-		"or	%1,%1,%L1	\n\t"
-		"std	%1,%0"
-		: "=m"(p->ctr), "+r"(val)
-		: "m"(p->ctr) );
-        }
-        GASNETI_INLINE(_gasneti_atomic64_read)
-        uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *p) {
-          uint64_t retval;
-          __asm__ __volatile__ (
-		"ld	%0,%1		\n\t"
-		"clrldi	%L0,%0,32	\n\t"
-		"srdi	%0,%0,32	"
-		: "=r"(retval)
-		: "m"(*p) );
-          return retval;
-        }
-        GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
-        int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-          register int result;
-          __asm__ __volatile__ (
-		"sldi     %1,%1,32	\n\t"	/* shift hi32 half of oldval  */
-		"or       %1,%1,%L1	\n\t"	/*   and or in lo32 of oldval */
-		"sldi     %2,%2,32      \n\t"	/* shift hi32 half of newval  */
-		"or       %2,%2,%L2     \n\t"	/*   and or in lo32 of newval */
-		"li	  %0,0		\n\t"	/* assume failure */
-		"Lga.0.%=:		\t"	/* AIX assembler doesn't grok "0:"-type local labels */
-		"ldarx    %L1,0,%4	\n\t"	/* load to temporary */
-		"cmpd     0,%L1,%1	\n\t"	/* compare temporary w/ oldval */
-		"bne      Lga.1.%=	\n\t"	/* branch on mismatch */
-		"stdcx.   %2,0,%4	\n\t"	/* store newval */
-		"bne-     Lga.0.%=	\n\t"	/* retry on conflict */
-		"li	  %0,1		\n\t"	/* success */
-		"Lga.1.%=:		\n\t"
-		"nop			"
-		: "=&b"(result), "+r"(oldval), "+r"(newval), "=m"(p->ctr)
-		: "r" (p), "m"(p->ctr)
-		: "cr0");
-          return result;
         } 
       #else
 	/* 32-bit CPU - generics are the only option */
@@ -2142,7 +2004,7 @@
         return retval;
       }
 
-      #if PLATFORM_ARCH_64 || (defined(_MIPS_ISA) && (_MIPS_ISA >= 3) /* 64-bit capable CPU */)
+      #if PLATFORM_ARCH_64
         #define GASNETI_HAVE_ATOMIC64_T 1
         typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
