@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2007/09/07 23:02:03 $ */
-/*  $Revision: 1.124 $ */
+/*      $Date: 2007/10/01 23:07:22 $ */
+/*  $Revision: 1.124.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -186,8 +186,6 @@
 /* have working UltraSPARC ISA (lacks an associated builtin preprocessor macro) */
 #undef GASNETI_ARCH_ULTRASPARC
 
-/* Have working PPC64 ISA (lacks an associated builtin preprocessor macro) */
-#undef GASNETI_ARCH_PPC64
 /* Tune for a PPC970 cpu (should not crash other PPCs) */
 #undef GASNETI_TUNE_PPC970
 
