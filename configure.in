@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/09/14 21:40:39 $
-# $Revision: 1.460 $
+#     $Date: 2007/09/13 19:22:22 $
+# $Revision: 1.458 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.460 $)
+AC_REVISION($Revision: 1.458 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,7 +27,7 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[9])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[7])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[6])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -376,7 +376,7 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
       ]])
   if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_PPC64" != 1 -a "$cross_compiling" != "yes"; then 
     # Bug 1587: "for flag in ; do" chokes the shell on Solaris
-    # Bug 1588: Use of m4_ifval([$2]) to avoid bug 1587 chokes autoconf 2.13
+    # Bug 1589: Use of m4_ifval([$2]) to avoid bug 1587 chokes autoconf 2.13
     # So, we add a dummy element to keep the for-loop list non-empty, and then skip it.
     for flag in $2 DUMMY ; do
       if test "$flag" != DUMMY ; then

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2007/09/24 23:52:24 $
- * $Revision: 1.211 $
+ *     $Date: 2007/09/08 10:52:56 $
+ * $Revision: 1.210 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2016,13 +2016,11 @@ gasneti_count0s(const void * src, size_t bytes) {
  
   /* Count partial trailing word (if any) */
   tmp = bytes & (SIZEOF_VOID_P - 1);
-  if (tmp) {
   #if !WORDS_BIGENDIAN
     zeros -= gasneti_count0s_nzs_word(*s & keep_lsb[tmp]);
   #else
     zeros -= gasneti_count0s_nzs_word(*s & keep_msb[tmp]);
   #endif
-  }
 #endif
 
   return zeros;
