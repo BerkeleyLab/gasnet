@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2007/09/27 16:40:15 $
- * $Revision: 1.29.6.31 $
+ *     $Date: 2007/10/05 19:41:54 $
+ * $Revision: 1.29.6.32 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -251,8 +251,7 @@ static int gasnete_coll_pf_bcastM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
-      if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-	  !gasnete_coll_generic_insync(data)) {
+      if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS)) {
 	break;
       }
       data->state = 1;
@@ -273,6 +272,7 @@ static int gasnete_coll_pf_bcastM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
 
     case 2:	/* Data movement */
       if (gasneti_mynode == args->srcnode) {
+        gasneti_sync_reads();
         for(child=0; child<child_count; child++) {
             gasnete_coll_p2p_eager_put_tree(op, children[child], args->src, args->nbytes);
         }

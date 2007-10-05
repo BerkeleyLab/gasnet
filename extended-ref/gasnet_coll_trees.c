@@ -736,9 +736,11 @@ int gasnete_coll_is_power_of_two(int num) {
   
 }
 
+#if 0
 gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll_team_t team) {
   gasnete_coll_dissem_info_t *ret;  
   int h,w,i,j,distance,x,numpeers,destproc;
+  int num_out_peers, num_in_peers;
   ret = (gasnete_coll_dissem_info_t*) gasneti_malloc(sizeof(gasnete_coll_dissem_info_t));
   
   w = gasnete_coll_build_tree_mylogn(team->total_ranks, r);
@@ -746,9 +748,6 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
   ret->dissemination_phases = w;
 
   
-
-  ret->barrier_order = (gasnete_coll_dissem_vector_t*) gasneti_malloc(sizeof(gasnete_coll_dissem_vector_t)*ret->dissemination_phases);
-
 
   distance = 1;
   /* phase 2: communication in log_r(team->total_ranks) steps*/
@@ -761,8 +760,9 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
     } else {
       h = r;
     }
-    ret->barrier_order[i].n = h-1;
-    ret->barrier_order[i].elem_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*(h-1));
+    
+    ret->exchange_order[i].n = h-1;
+    ret->exchange_order[i].elem_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*(h-1));
     for(j=1; j<h; j++) {
       ret->barrier_order[i].elem_list[j-1] = (team->myrank + j*distance) % team->total_ranks;
     }
@@ -771,29 +771,7 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
   }
   
  
-  if(r == 2 && gasnete_coll_is_power_of_two(team->total_ranks)) {
-    ret->all_reduce_ok = 1;
-    ret->all_reduce_order = (gasnete_coll_dissem_vector_t*)gasneti_malloc(sizeof(gasnete_coll_dissem_vector_t)*w);
-    
-    distance = team->total_ranks;
-    
-    for(i=0; i<w; i++) {
-      j = (team->myrank + (distance/2))%distance;
-      
-      ret->all_reduce_order[i].n = 2;
-      /*in each phase position[0] contains where i send to*/
-      
-      ret->all_reduce_order[i].elem_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*1);
-      ret->all_reduce_order[i].elem_list[0] = j + (team->myrank / distance) * distance;
-      distance = distance / 2;
-    }
-  } else {
-    ret->all_reduce_ok = 0;
-    ret->all_reduce_order = NULL;
-  }
-  
-
-	
+  	
   /*simulate the packing step and figure out what is the maxiumum number of blocks that come in across all the nodes*/
   ret->max_dissem_blocks =MAX(1,(team->total_ranks/ret->dissemination_radix));
   for(i=0; i<w; i++) {
@@ -805,6 +783,79 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
     ret->max_dissem_blocks=MAX(ret->max_dissem_blocks, curr_count);
   }
 
+  return ret;
+}
+#endif
+
+gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll_team_t team) {
+  gasnete_coll_dissem_info_t *ret;  
+  int h,w,i,j,distance,k,numpeers,destproc;
+  int num_out_peers, num_in_peers;
+  ret = (gasnete_coll_dissem_info_t*) gasneti_malloc(sizeof(gasnete_coll_dissem_info_t));
+  
+  w = gasnete_coll_build_tree_mylogn(team->total_ranks, r);
+ 
+  ret->dissemination_radix = r;
+  ret->dissemination_phases = (team->total_ranks>1 ? w : 0);
+  
+  
+  
+  ret->ptr_vec = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*(w+1));
+  ret->ptr_vec[0] = 0;
+  
+  distance = 1;
+  /* phase 2: communication in log_r(team->total_ranks) steps*/
+  for(i=0; i<w; i++) {
+    if(i==(w-1)) {
+      /*h = ceil(team->total_ranks/DIST);*/
+      h = team->total_ranks/distance;
+      if(team->total_ranks % distance != 0) 
+        h++;
+    } else {
+      h = r;
+    }
+    ret->ptr_vec[i+1] = ret->ptr_vec[i]+(h-1);
+    /*scale the distance by the radix*/
+    distance *= r;
+  }
+
+  ret->exchange_out_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*(ret->ptr_vec[w]));
+  ret->exchange_in_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*(ret->ptr_vec[w]));
+
+  distance = 1;
+  /* phase 2: communication in log_r(team->total_ranks) steps*/
+  for(k=0, i=0; i<w; i++) {
+    if(i==(w-1)) {
+      /*h = ceil(team->total_ranks/DIST);*/
+      h = team->total_ranks/distance;
+      if(team->total_ranks % distance != 0) 
+        h++;
+    } else {
+      h = r;
+    }
+    
+    for(j=1; j<h; j++, k++) {
+      ret->exchange_out_order[k] = (team->myrank + j*distance) % team->total_ranks;
+      ret->exchange_in_order[k]  = ((team->myrank - j*distance) < 0 ? team->total_ranks + (team->myrank - j*distance) : (team->myrank - j*distance));
+      
+    }
+    /*scale the distance by the radix*/
+    distance *= r;
+  }
+  
+  
+  
+  /*simulate the packing step and figure out what is the maxiumum number of blocks that come in across all the nodes*/
+  ret->max_dissem_blocks =MAX(1,(team->total_ranks/ret->dissemination_radix));
+  for(i=0; i<w; i++) {
+    int curr_count = 0;
+    for(j=0; j<team->total_ranks; j++) {
+      if( ((j / gasnete_coll_build_tree_mypow(ret->dissemination_radix, i)) % ret->dissemination_radix) 
+          == 1) curr_count++; 
+    }
+    ret->max_dissem_blocks=MAX(ret->max_dissem_blocks, curr_count);
+  }
+  
   return ret;
 }
 

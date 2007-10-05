@@ -109,20 +109,23 @@ void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 #define GASNETE_COLL_DISSEM_GET_RADIX(DISSEM_INFO) ((DISSEM_INFO)->dissemination_radix)
 #define GASNETE_COLL_DISSEM_MAX_BLOCKS(DISSEM_INFO) ((DISSEM_INFO)->max_dissem_blocks)
 #define GASNETE_COLL_DISSEM_NBLOCKS(DISSEM_INFO) ((DISSEM_INFO)->n_blocks)
-#define GASNETE_COLL_DISSEM_ALL_REDUCE_OK(DISSEM_INFO) ((DISSEM_INFO)->all_reduce_ok)
-#define GASNETE_COLL_DISSEM_GET_PEERS(DISSEM_INFO, PHASE) ((DISSEM_INFO)->barrier_order[(PHASE)].elem_list)
-#define GASNETE_COLL_DISSEM_GET_PEER_COUNT(DISSEM_INFO, PHASE) ((DISSEM_INFO)->barrier_order[(PHASE)].n)
+
+#define GASNETE_COLL_DISSEM_GET_OUT_PEERS(DISSEM_INFO) ((DISSEM_INFO)->exchange_out_order)
+#define GASNETE_COLL_DISSEM_GET_IN_PEERS(DISSEM_INFO) ((DISSEM_INFO)->exchange_in_order)
+#define GASNETE_COLL_DISSEM_GET_PEER_COUNT(DISSEM_INFO) ((DISSEM_INFO)->ptr_vec[(DISSEM_INFO)->dissemination_phases])
+
+#define GASNETE_COLL_DISSEM_GET_OUT_PEERS_PHASE(DISSEM_INFO, PHASE) ((DISSEM_INFO)->exchange_out_order+(DISSEM_INFO)->ptr_vec[(PHASE)])
+#define GASNETE_COLL_DISSEM_GET_IN_PEERS_PHASE(DISSEM_INFO, PHASE) ((DISSEM_INFO)->exchange_in_order+(DISSEM_INFO)->ptr_vec[(PHASE)])
+
+#define GASNETE_COLL_DISSEM_GET_PEER_COUNT_PHASE(DISSEM_INFO, PHASE) ((DISSEM_INFO)->ptr_vec[(PHASE)+1]-(DISSEM_INFO)->ptr_vec[(PHASE)])
 
 
-struct gasnete_coll_dissem_vector_t_{
-  gasnet_node_t *elem_list;
-  int n;
-};
 struct gasnete_coll_dissem_info_t_ {
   gasnete_coll_dissem_info_t *prev;
   gasnete_coll_dissem_info_t *next;
-  gasnete_coll_dissem_vector_t *barrier_order;
-  gasnete_coll_dissem_vector_t *all_reduce_order;
+  gasnet_node_t *exchange_out_order;
+  gasnet_node_t *exchange_in_order;
+  gasnet_node_t *ptr_vec;
   int dissemination_phases; /*log_radix(THREADS)*/
   int dissemination_radix;
   int max_dissem_blocks;
