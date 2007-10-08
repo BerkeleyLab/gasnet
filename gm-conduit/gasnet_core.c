@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2007/03/24 23:29:46 $
- * $Revision: 1.96.4.4 $
+ * $Date: 2007/10/08 21:52:39 $
+ * $Revision: 1.96.4.5 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -35,6 +35,12 @@ extern gasnet_handlerentry_t const	*gasnete_get_handlertable();
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable();
 
 static void gasnetc_atexit(void);
+
+/* Exit coordination timeouts */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0	/* 6 minutes! */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN		2	/* 2 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR	0.25	/* 1/4 second */
+static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 /*
   Initialization
@@ -82,6 +88,11 @@ gasnetc_init(int *argc, char ***argv)
 
 	gasnetc_bootstrapBarrier();
 	gasneti_init_done = 1; /* Not really done, but need getenv internally */
+
+	gasnetc_exittimeout = gasneti_get_exittimeout(	GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+							GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+							GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+							GASNETC_DEFAULT_EXITTIMEOUT_MIN);
 
 	/* 
 	 * Find the upper bound on pinnable memory for firehose algorithm.
@@ -959,8 +970,8 @@ static void gasnetc_exit_body(void) {
   role = gasnetc_get_exit_role();
 
   /* Attempt a coordinated shutdown */
-  timeout_us = 2000000 + gasneti_nodes*250000; /* 2s + 0.25s * nodes */
-  alarm(1 + timeout_us/1000000);
+  timeout_us = gasnetc_exittimeout * 1.0e6;
+  alarm(1 + (int)gasnetc_exittimeout);
   switch (role) {
   case GASNETC_EXIT_ROLE_MASTER:
     /* send all the remote exit requests and wait for the replies */

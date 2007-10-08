@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/08/23 20:52:25 $
- * $Revision: 1.89.4.5 $
+ *     $Date: 2007/10/08 21:53:01 $
+ * $Revision: 1.89.4.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -395,11 +395,11 @@ typedef struct {
 #define GASNETC_AMRDMA_LIMIT_MAX (GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 
-#define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 0	/* XXX: disabled by default */
+#define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 32
 #define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
-#define GASNETC_DEFAULT_AMRDMA_DEPTH	GASNETC_AMRDMA_DEPTH_MAX
+#define GASNETC_DEFAULT_AMRDMA_DEPTH	16
 #define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
-#define GASNETC_DEFAULT_AMRDMA_CYCLE	8192	/* 2^i, Number of AM rcvs before hot-peer heuristic */
+#define GASNETC_DEFAULT_AMRDMA_CYCLE	1024	/* 2^i, Number of AM rcvs before hot-peer heuristic */
 
 /* Forward decl */
 struct gasnetc_cep_t_;

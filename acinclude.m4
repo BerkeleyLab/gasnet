@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2007/03/24 23:29:36 $
-dnl $Revision: 1.79.2.5 $
+dnl     $Date: 2007/10/08 21:52:35 $
+dnl $Revision: 1.79.2.6 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -2052,8 +2052,36 @@ AC_DEFUN([GASNET_CHECK_OVERRIDE_PTHREADS], [
     if test ! -f "$PTHREADS_LIB/libpthread.a" || test ! -f "$PTHREADS_LIB/libpthread.so" ; then 
         AC_MSG_ERROR(["Could not find $PTHREADS_LIB/libpthread.{a,so}: bad \$PTHREADS_LIB"])
     fi
-    CFLAGS="-I$PTHREADS_INCLUDE -L$PTHREADS_LIB $CFLAGS"
+    PTHREAD_INCLUDE_FLAGS="-I$PTHREADS_INCLUDE"
+    SYS_HEADER_INST="$PTHREAD_INCLUDE_FLAGS $SYS_HEADER_INST"
+    SYS_HEADER_BLD="$PTHREAD_INCLUDE_FLAGS $SYS_HEADER_BLD"
+    LDFLAGS="-L$PTHREADS_LIB $LDFLAGS"
+    dnl Allow us to ship patches for certain broken pthread.h implementations
+    GASNET_ENV_DEFAULT(PTHREADS_PATCH, )
+    if test -n "$PTHREADS_PATCH"; then 
+      PTHREADS_PATCHFILE=
+      for file in "$TOP_SRCDIR/$PTHREADS_PATCH" \
+                  "$TOP_SRCDIR/gasnet/$PTHREADS_PATCH" ; do 
+        if test -f "$file" ; then 
+	  PTHREADS_PATCHFILE="$file"
+	fi
+      done
+      if test -z "$PTHREADS_PATCHFILE" ; then
+        AC_MSG_ERROR([Could not find PTHREADS_PATCH file $PTHREADS_PATCH])
+      fi
+      PATCHED_HEADERS_DIR="$TOP_BUILDDIR/patched-headers"
+      mkdir -p "$PATCHED_HEADERS_DIR"
+      /usr/bin/patch -N -o "$PATCHED_HEADERS_DIR/pthread.h" -i "$PTHREADS_PATCHFILE" "$PTHREADS_INCLUDE/pthread.h" || \
+        AC_MSG_ERROR([failed to apply patch $PTHREADS_PATCHFILE to $PTHREADS_INCLUDE/pthread.h - try again without PTHREADS_PATCH option])
+      PATCHED_HEADERS="pthread.h"
+      # PATCHED_HEADERS_DIR must precede PTHREADS_INCLUDE to override it
+      SYS_HEADER_INST="-I###INSTALL_PREFIX###/include/patched-headers $SYS_HEADER_INST"
+      SYS_HEADER_BLD="-I$PATCHED_HEADERS_DIR $SYS_HEADER_BLD"
+    fi
   fi
+  AC_SUBST(SYS_HEADER_BLD)
+  AC_SUBST(SYS_HEADER_INST)
+  AC_SUBST(PATCHED_HEADERS)
   GASNET_FUN_END([$0])
 ])
 

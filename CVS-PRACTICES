@@ -116,6 +116,7 @@ GASNet Release Procedure
    Linux-Dolphin: sci
    Origin 2000: mpi - 32 & 64 bit
    Cray X1: mpi, shmem
+   Cray XT: mpi, portals
 
 * Merge with Titanium and test SEGMENT_EVERYTHING functionality 
 

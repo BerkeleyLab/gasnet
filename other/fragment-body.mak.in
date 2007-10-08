@@ -1,16 +1,16 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.4.14.1 2006/08/11 00:53:23 rajeshn Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.4.14.2 2007/10/08 21:52:45 phargrov Exp $
 # ----------------------------------------------------------------------
 # Following section @configure_input@
 
 # ----------------------------------------------------------------------
 # Directory-based options
 
-GASNET_INCLUDES = -I###INSTALL_PREFIX###/include -I###INSTALL_PREFIX###/include/#conduit_name#-conduit $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#)
+GASNET_INCLUDES = @SYS_HEADER_INST@ -I###INSTALL_PREFIX###/include -I###INSTALL_PREFIX###/include/#conduit_name#-conduit $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#)
 GASNET_LIBDIRS = -L###INSTALL_PREFIX###/lib $(CONDUIT_LIBDIRS) $(CONDUIT_LIBDIRS_#THREAD_MODEL#)
 
 # Textual lines containing the string "###NOINSTALL###" are removed by the install process
 # (must be one continuous line) ###NOINSTALL###
-GASNET_INCLUDES = -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/#conduit_name#-conduit -I@TOP_SRCDIR@/other $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#) -I@TOP_SRCDIR@/extended-ref -I@TOP_BUILDDIR@  ###NOINSTALL###
+GASNET_INCLUDES = @SYS_HEADER_BLD@ -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/#conduit_name#-conduit -I@TOP_SRCDIR@/other $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#) -I@TOP_SRCDIR@/extended-ref -I@TOP_BUILDDIR@  ###NOINSTALL###
 GASNET_LIBDIRS = -L@TOP_BUILDDIR@/#conduit_name#-conduit $(CONDUIT_LIBDIRS) $(CONDUIT_LIBDIRS_#THREAD_MODEL#) ###NOINSTALL###
 
 # ----------------------------------------------------------------------

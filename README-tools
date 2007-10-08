@@ -2,7 +2,7 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.6.2.3 $
+$Revision: 1.6.2.4 $
 GASNet tools specification version: 1.1
 
 The GASNet tools are a set of communication-independent utilities that are used
@@ -610,6 +610,17 @@ int64_t gasnett_getenv_int_withdefault(const char *keyname, int64_t defaultval, 
    the return value indicates their selection
    if value is not set, the provided default value is returned
 
+double gasnett_getenv_dbl_withdefault(const char *keyname, double defaultval);
+
+  environment query for a floating-point parameter
+  if user has set value the return value indicates their selection
+   which must be a valid floating-point value or a fraction (e.g "1.5", "-1e4", or "3/8")
+  if value is not set, the provided default value is returned
+  call is reported to the console in verbose-environment mode,
+   (only the first call with a given key is reported)
+  legal to call before gasnet_init, but may malfunction if
+  the conduit has not yet established the contents of the environment
+
 int gasnett_verboseenv();
 
    returns true iff GASNET_VERBOSEENV reporting is enabled on this node 
@@ -617,8 +628,9 @@ int gasnett_verboseenv();
 
 void gasnett_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 void gasnett_envstr_display(const char *key, const char *val, int is_dflt);
+void gasnett_envdbl_display(const char *key, double val, int is_dflt);
 
-   display an integral/string environment setting iff gasnett_verboseenv()
+   display an integral/string/double environment setting iff gasnett_verboseenv()
 
 -------------------------------
 Backtracing and debugger attach

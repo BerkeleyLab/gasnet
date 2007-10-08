@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2007/03/24 23:30:16 $
- * $Revision: 1.62.2.5 $
+ *     $Date: 2007/10/08 21:52:59 $
+ * $Revision: 1.62.2.6 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -828,7 +828,12 @@ static void _test_usage(int early) {
       sleep(1);
       gasnet_exit(1);
     } else { /* wait to die */
-      if (early) while(1) gasnett_sched_yield();
+      if (early) {
+        gasnett_tick_t starttime = gasnett_ticks_now();
+        /* only wait for a bounded time to prevent zombies on polling-only conduits */
+        while (gasnett_ticks_to_us(gasnett_ticks_now()-starttime)<5000000) gasnett_sched_yield();
+        gasnett_killmyprocess(-1);
+      }
       else BARRIER();
     }
   #else

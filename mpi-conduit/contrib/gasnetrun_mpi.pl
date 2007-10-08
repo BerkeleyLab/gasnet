@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2007/08/23 20:51:59 $
-# $Revision: 1.31.2.6 $
+#     $Date: 2007/10/08 21:52:41 $
+# $Revision: 1.31.2.7 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -95,7 +95,7 @@ sub gasnet_encode($) {
     my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
     my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
-    my $is_aprun    = ($mpirun_help =~ m|rchitecture type.*?xt3|);
+    my $is_aprun    = ($mpirun_help =~ m|rchitecture type.*?xt|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
     my $is_bgl_mpi  = ($mpirun_help =~ m|COprocessor or VirtualNode mode|);
     my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|);
@@ -567,6 +567,26 @@ if ($is_lam && $numnode) {
   @numprocargs = ($numproc, 'n' . join(',', @tmp));
 }
     
+if ($numnode && ($is_aprun || $is_yod)) { 
+  my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+  if ($ppn * $numnode != $numproc) {
+	warn "WARNING: aprun does not fully support non-uniform process distribution\n";
+	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+  }
+  if ($is_aprun) { # aprun requires -N ppn
+    @numprocargs = ($numproc, '-N', $ppn);
+  } else { # yod requires -SN or -VN
+    if ($ppn == 1) {
+      @numprocargs = ($numproc, '-SN');
+    } elsif ($ppn == 2) {
+      @numprocargs = ($numproc, '-VN');
+    } else {
+      die "yod does not support more than 2 processes per node.\n";
+    }
+  }
+  $dashN_ok = 1;
+}
+
 # Validate -N as needed
     if (defined($numnode) && !(($spawncmd =~ m/%M/) || $dashN_ok)) {
 	warn "WARNING: Don't know how to control process->node layout with your mpirun\n";

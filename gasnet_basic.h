@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2007/03/24 23:29:36 $
- * $Revision: 1.44.2.5 $
+ *     $Date: 2007/10/08 21:52:35 $
+ * $Revision: 1.44.2.6 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -281,6 +281,8 @@
   #define GASNETI_PLEASE_INLINE(fnname) static
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
+#elif defined(__GCC_UPC__) /* ensure GCC/UPC sees inline keyword, even with a configure mismatch */
+  #define GASNETI_PLEASE_INLINE(fnname) static __inline
 #elif defined(STATIC_INLINE_WORKS) && !GASNETI_CONFIGURE_MISMATCH
   #define GASNETI_PLEASE_INLINE(fnname) static CC_INLINE_MODIFIER
 #elif defined(CC_INLINE_MODIFIER) && !GASNETI_CONFIGURE_MISMATCH

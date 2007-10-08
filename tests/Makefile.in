@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2007/03/24 23:30:16 $
-# $Revision: 1.71.4.7 $
+#     $Date: 2007/10/08 21:52:59 $
+# $Revision: 1.71.4.8 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -74,7 +74,7 @@ testprograms_seq =      \
         testexit        \
         testvis         \
         testcoll        \
-		testcollperf	\
+	testcollperf	\
         testnbr    	\
         testvisperf     \
 	testqueue	\

@@ -4,6 +4,7 @@
 
 .PHONY: do-error do-make-fragment libs force clean-local        \
         do-clean-local do-install-data-local do-uninstall-local \
+	do-install-data-conduit do-uninstall-conduit \
 	test tests tests-seq tests-par tests-parsync tests-clean \
 	tests-check do-run-testexit 
 
@@ -209,10 +210,16 @@ do-install-data-local: force $(headers) $(makefile_fragments)
 	if test -f $(srcdir)/license.txt ; then \
 	  $(INSTALL_DATA) $(srcdir)/license.txt $(DESTDIR)$(docdir)/license-$(CONDUIT_NAME).txt || exit $$? ; \
         fi
+	if test "$(conduit_has_install_data_hook)" = yes; then \
+	  $(MAKE) do-install-data-conduit || exit $$? ; \
+	fi
 
 do-uninstall-local:
 	rm -f $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/*.h $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/*.mak
 	rm -Rf $(DESTDIR)$(docdir)
+	if test "$(conduit_has_uninstall_hook)" = yes; then \
+	  $(MAKE) do-uninstall-conduit || exit $$? ; \
+	fi
 
 do-error: 
 	@echo "ERROR: $(CONDUIT_NAME)-conduit support was not detected at configure time"
