@@ -52,11 +52,6 @@
 
 #define WARM_ITERS MIN(4,iters)
 
-#if GASNET_ALIGNED_SEGMENTS
-#else
-  #error "THIS TEST ASSUMES ALIGNED SEGMENTS!"
-#endif
-
 #define COLL_BARRIER 1
 #define NO_COLL_BARRIER 0
 
@@ -875,6 +870,12 @@ int main(int argc, char **argv)
   MSG0("Test does not support par build yet\n");
   gasnet_exit(0);
   return 1; 
+#endif
+
+#if (GASNET_ALIGNED_SEGMENTS != 1)
+  MSG("WARNING: This test requires aligned segments. Test skipped.\n");
+  gasnet_exit(0);
+  return 1;
 #endif
   
   
