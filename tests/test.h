@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2007/10/08 21:52:59 $
- * $Revision: 1.62.2.6 $
+ *     $Date: 2007/10/08 22:00:26 $
+ * $Revision: 1.62.2.7 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -541,7 +541,7 @@ static int test_collinit = 0;
 /* cheap and simple broadcast operation */
 #define TEST_BCAST(dst, rootid, src, sz) do {                         \
   TEST_COLL_INIT();                                                   \
-  gasnet_coll_broadcast(0, (dst), (rootid), (src), (sz),              \
+  gasnet_coll_broadcast(GASNET_TEAM_ALL, (dst), (rootid), (src), (sz),\
    GASNET_COLL_LOCAL|GASNET_COLL_IN_ALLSYNC|GASNET_COLL_OUT_ALLSYNC); \
 } while (0)
 
