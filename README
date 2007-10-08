@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.97 $
+$Revision: 1.98 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -140,7 +140,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/Itanium-Myrinet/{gcc,IntelC}/64: smp, mpi, udp, gm
     * Linux/Opteron-Quadrics/{gcc,PortlandGroup,SunC}/64: smp, mpi, udp, elan
     * Linux/Opteron-Ethernet/{gcc,PortlandGroup,SunC}/{32,64}: smp, mpi, udp
-    * Linux/Opteron-Mellanox/{gcc,PathScale,IntelC,SunC}/64: smp, mpi, udp, vapi
+    * Linux/Opteron-Mellanox/{gcc,PathScale,IntelC,SunC}/64: smp, mpi, udp, vapi, ibv
     * Linux/Alpha/gcc/64:            smp, udp, #
     * Linux/PowerPC-Myrinet/gcc/32:  smp, mpi, udp, gm
     * Linux/PowerPC-Ethernet/gcc/64: smp, mpi, udp

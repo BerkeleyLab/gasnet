@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/Makefile.am,v $
-#     $Date: 2007/03/14 20:55:50 $
-# $Revision: 1.4 $
+#     $Date: 2007/10/03 22:10:13 $
+# $Revision: 1.5 $
 # Description: Makefile for GASNet ibv conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -112,6 +112,13 @@ CONDUIT_RUNCMD = @TOP_BUILDDIR@/ibv-conduit/contrib/gasnetrun_ibv -np %N %P %A
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =
+
+# conduit-specific hook to install VAPI's README as our own
+# The normal uninstall is sufficient to remove it.
+conduit_has_install_data_hook = yes
+do-install-data-conduit:
+	@rm -f $(DESTDIR)$(docdir)/README-ibv
+	$(INSTALL_DATA) $(srcdir)/../vapi-conduit/README $(DESTDIR)$(docdir)/README-ibv
 
 # -------- Do not modify anything below this line --------
 

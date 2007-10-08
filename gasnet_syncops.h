@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2006/08/28 17:41:41 $
- * $Revision: 1.39 $
+ *     $Date: 2007/10/02 08:08:07 $
+ * $Revision: 1.40 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -840,6 +840,12 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
    * The CS literature offers many ways to simulate CAS2 or DCSS using just CAS (cmpxchg8b), but
    * they all are either very complex and/or require thread-specific data to help resolve the ABA
    * problem.  I'll continue to look into this.  -PHH 2006.01.19
+   *
+   * Update: Recent Opteron CPUs are implementing their optional CAS2 (cmpxchg16b) instruction,
+   * and recent Itaniums are implementing their optional ld16, st16 and cmp8xchg16 instructions.
+   * The Itanium instruction is a "SCDS" (single-compare double-swap) that can implement a stack
+   * by performing the comparison on the tag (which must now be updated on both PUSH and POP).
+   * -PHH 2007.10.02
    *
    * One possible solution for all remaining platforms is "software ll/sc".  Using just pointer
    * CAS, one can implement an ideal LL/SC which allows for arbitrary loads and stores between

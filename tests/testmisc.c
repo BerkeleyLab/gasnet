@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2006/12/07 18:30:00 $
- * $Revision: 1.37 $
+ *     $Date: 2007/10/05 03:03:37 $
+ * $Revision: 1.38 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -137,6 +137,8 @@ int main(int argc, char **argv) {
 char p[1];
 gasnet_hsl_t hsl = GASNET_HSL_INITIALIZER;
 gasnett_atomic_t a = gasnett_atomic_init(0);
+gasnett_atomic32_t a32 = gasnett_atomic32_init(0);
+gasnett_atomic64_t a64 = gasnett_atomic64_init(0);
 int32_t temp = 0;
 gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
@@ -248,6 +250,22 @@ void doit2() { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("gasnett_atomic_subtract", gasnett_atomic_subtract(&a,i,0));
     TIME_OPERATION("gasnett_atomic_subtract.acq", gasnett_atomic_subtract(&a,i,GASNETT_ATOMIC_ACQ));
 #endif
+
+    TEST_SECTION_BEGIN();
+    TIME_OPERATION("gasnett_atomic32_read", gasnett_atomic32_read(&a32,0));
+    TIME_OPERATION("gasnett_atomic32_set", gasnett_atomic32_set(&a32,1,0));
+    TIME_OPERATION_FULL("gasnett_atomic32_compare_and_swap (result=1)", { gasnett_atomic32_set(&a32,0,0); },
+			{ gasnett_atomic32_compare_and_swap(&a32,0,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic32_compare_and_swap (result=0)", { gasnett_atomic32_set(&a32,1,0); },
+			{ gasnett_atomic32_compare_and_swap(&a32,0,0,0); }, {});
+
+    TEST_SECTION_BEGIN();
+    TIME_OPERATION("gasnett_atomic64_read", gasnett_atomic64_read(&a64,0));
+    TIME_OPERATION("gasnett_atomic64_set", gasnett_atomic64_set(&a64,1,0));
+    TIME_OPERATION_FULL("gasnett_atomic64_compare_and_swap (result=1)", { gasnett_atomic64_set(&a64,0,0); },
+			{ gasnett_atomic64_compare_and_swap(&a64,0,0,0); }, {});
+    TIME_OPERATION_FULL("gasnett_atomic64_compare_and_swap (result=0)", { gasnett_atomic64_set(&a64,1,0); },
+			{ gasnett_atomic64_compare_and_swap(&a64,0,0,0); }, {});
 
     doit3();
 }

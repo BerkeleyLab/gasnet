@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2007/09/24 23:52:24 $
- * $Revision: 1.211 $
+ *     $Date: 2007/10/07 23:49:00 $
+ * $Revision: 1.213 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1581,6 +1581,11 @@ extern int gasneti_cpu_count() {
   #include <sys/sysctl.h>
 #elif PLATFORM_OS_CATAMOUNT
   #include <catamount/catmalloc.h>
+#elif PLATFORM_OS_HPUX
+  #include <sys/param.h>
+  #include <sys/pstat.h>
+#elif PLATFORM_OS_IRIX
+  #include <invent.h>
 #endif
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
@@ -1647,6 +1652,31 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
      }
      retval = result;
     }
+  #elif PLATFORM_OS_HPUX
+    { struct pst_static pst;
+      gasneti_assert_zeroret(pstat_getstatic(&pst, sizeof(pst), (size_t)1, 0) == -1);
+      retval = (uint64_t)(pst.physical_memory) * pst.page_size;
+    }
+  #elif PLATFORM_OS_IRIX
+    #if defined(INV_MEMORY) && defined(INV_MAIN_MB)
+    { static int result_mb = 0; /* amortize cost of table search */
+      /* Full result may exceed native word size and thus not be read/written atomically.
+       * So, we cache in units of MB (using the same type used by the OS interface). */
+      if (!result_mb) {
+        inv_state_t *st = NULL;
+        inventory_t *pinv;
+        gasneti_assert_zeroret(setinvent_r(&st)); /* Using thread-safe variant */
+        while (NULL != (pinv = getinvent_r(st))) {
+          if ((pinv->inv_class == INV_MEMORY) && (pinv->inv_type == INV_MAIN_MB)) {
+            result_mb = pinv->inv_state;
+            break;
+          }
+        }
+        endinvent_r(st);
+      }
+      retval = result_mb * (uint64_t)1048576;
+    }
+    #endif /* defined(INV_MEMORY) && defined(INV_MAIN_MB) */
   #else  /* unknown OS */
     { }
   #endif
