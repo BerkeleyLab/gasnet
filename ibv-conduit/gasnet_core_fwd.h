@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2007/03/24 23:30:20 $
- * $Revision: 1.30.2.5 $
+ *     $Date: 2007/10/08 21:58:57 $
+ * $Revision: 1.30.2.6 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,8 +128,5 @@ extern void gasnetc_fatalsignal_callback(int sig);
   #define u_int64_t uint64_t
  #endif
 #endif
-
-extern void gasnetc_amrdma_init(int, const gasnet_node_t *);
-#define GASNETC_HAVE_AMRDMA
 
 #endif
