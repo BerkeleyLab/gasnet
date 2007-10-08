@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/09/27 17:06:55 $
- * $Revision: 1.22.6.33 $
+ *     $Date: 2007/10/08 21:40:02 $
+ * $Revision: 1.22.6.34 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -151,8 +151,8 @@ struct gasnete_coll_tree_data_t_ {
 
 #ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
 /*set defult to 2 MB*/
-//#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
-#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (1024)
+#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
+/*#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (32)*/
 #endif
 
 #define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256
@@ -503,7 +503,7 @@ void gasnete_coll_local_scatter(size_t count, void * const dstlist[], const void
 GASNETI_INLINE(gasnete_coll_local_gather)
 void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[], size_t nbytes) {
   uint8_t *dst_addr = (uint8_t *)dst;
-  
+  gasneti_sync_reads();
   while (count--) {
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst_addr, *srclist, nbytes);
     dst_addr += nbytes;
@@ -2354,12 +2354,14 @@ gasnete_coll_gall_Gath(gasnet_team_handle_t team,
 		       size_t nbytes, int flags, uint32_t sequence
                        GASNETE_THREAD_FARG);
 
+#if 0
 extern gasnet_coll_handle_t
 gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
                           void *dst, void *src,
                           size_t nbytes, int flags, gasnete_coll_tree_type_t tree_type, 
                           uint32_t sequence
                           GASNETE_THREAD_FARG);
+#endif
 
 extern gasnet_coll_handle_t
 gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
@@ -2367,6 +2369,7 @@ gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
                           size_t nbytes, int flags,  
                           uint32_t sequence
                           GASNETE_THREAD_FARG);
+
 
 /*---------------------------------------------------------------------------------*/
 

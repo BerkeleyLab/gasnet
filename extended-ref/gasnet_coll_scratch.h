@@ -20,6 +20,8 @@
 struct gasnete_coll_node_scratch_status_t_;
 typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_status_t;
 
+/* down tree means we send to relative ranks that are higher than us*/
+/* up tree means that we send to relative ranks that are lower than us*/
 typedef enum {GASNETE_COLL_UP_TREE=0, GASNETE_COLL_DOWN_TREE} gasnete_coll_tree_dir_t;
 
 typedef enum {GASNETE_COLL_DISSEM_OP=0, GASNETE_COLL_TREE_OP} gasnete_coll_op_type_t;

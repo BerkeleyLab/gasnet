@@ -164,7 +164,6 @@ GASNETI_INLINE(gasnete_coll_scratch_compare_config)
 uint8_t gasnete_coll_scratch_compare_config(gasnete_coll_scratch_config_t *A,
                                             gasnete_coll_scratch_req_t *scratch_req) {
   gasneti_assert(A);
-  
   if((A->root != scratch_req->root) || 
      (A->tree_type.tree_class !=scratch_req->tree_type.tree_class) ||
      ((A->tree_type.tree_class != GASNETE_COLL_BINOMIAL_TREE) && 
