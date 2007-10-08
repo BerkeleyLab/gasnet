@@ -603,8 +603,6 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
       if(op->scratch_req->out_sizes) {
         gasneti_free(op->scratch_req->out_sizes);
       }
-  
-      gasneti_free(op->scratch_req);
       break;
       
     } else {
@@ -617,14 +615,13 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
   op->scratch_op_freed = 1;
 #endif
   op->scratch_req->team->scratch_status->active_config_and_ops->num_ops--;
+  
   if(op->scratch_req->team->scratch_status->active_config_and_ops->num_ops==0) {
     op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head = 
     op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail = NULL;
-  } 
-#if GASNET_DEBUG
-  else {
+  } else {
     gasneti_assert(op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head);
     gasneti_assert(op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail);
   }
-#endif
+  gasneti_free(op->scratch_req);
 }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/08 21:40:02 $
- * $Revision: 1.29.6.50 $
+ *     $Date: 2007/10/08 23:54:22 $
+ * $Revision: 1.29.6.51 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2947,7 +2947,7 @@ gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
   This algorithm is naturally IN_NOSYNC/OUT_NOSYNC and will only work for SINGLE/single-addr. However, 
   the algorithm can easily be modified to work for OUT_MYSYNC without using a full barrier. 
 */
-#define GASNETE_COLL_MYDECMOD(A,DIFF) (((A)-(DIFF)) + ((A)-(DIFF) < 0 ? gasneti_nodes : 0))
+#define GASNETE_COLL_MYDECMOD(A,DIFF) (((A)-(DIFF)) + ((A)<(DIFF) ? gasneti_nodes : 0))
 static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
@@ -3536,7 +3536,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
     
     for(i=0; i<op->team->total_ranks; i++) {
       int i_node = i;
-      int position = ((i_node - op->team->myrank) < 0 ? 
+      int position = ((i_node < op->team->myrank) ? 
                       op->team->total_ranks + (i_node - op->team->myrank) : 
                       i_node-op->team->myrank);
       for(j=0; j<gasnete_coll_my_images; j++) {
