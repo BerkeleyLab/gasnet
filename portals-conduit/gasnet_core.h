@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2006/08/24 18:20:21 $
- * $Revision: 1.2 $
+ *     $Date: 2007/10/08 19:44:04 $
+ * $Revision: 1.2.6.1.2.1 $
  * Description: GASNet header for MPI conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,14 +13,9 @@
 #ifndef _GASNET_CORE_H
 #define _GASNET_CORE_H
 
-#include <ammpi.h>
-
 #include <gasnet_core_help.h>
 
 GASNETI_BEGIN_EXTERNC
-
-/*  TODO enhance AMMPI to support thread-safe MPI libraries */
-/*  TODO add MPI bypass to loopback messages */
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -38,14 +33,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasnetc_exit)
 #define gasnet_exit gasnetc_exit
-
 /* ------------------------------------------------------------------------------------ */
 /*
   No-interrupt sections
   =====================
 */
 /* conduit may or may not need this based on whether interrupts are used for running handlers */
-#if GASNETC_USE_INTERRUPTS || GASNETC_HSL_ERRCHECK
+#if GASNETC_USE_INTERRUPTS
   extern void gasnetc_hold_interrupts();
   extern void gasnetc_resume_interrupts();
 
@@ -61,26 +55,11 @@ GASNETI_NORETURNP(gasnetc_exit)
   Handler-safe locks
   ==================
 */
-#if GASNETC_HSL_ERRCHECK
-  /* "magic" tag bit patterns that let us probabilistically detect
-     the attempted use of uninitialized locks, or re-initialization of locks
-   */
-  #define GASNETC_HSL_ERRCHECK_TAGINIT ((uint64_t)0x5C9B5F7E9272EBA5ULL)
-  #define GASNETC_HSL_ERRCHECK_TAGDYN  ((uint64_t)0xB82F6C0DE19C8F3DULL)
-#endif
-
 typedef struct _gasnet_hsl_t {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t acquiretime;
-  #endif
-
-  #if GASNETC_HSL_ERRCHECK
-    uint64_t tag;
-    int islocked;
-    gasneti_tick_t timestamp;
-    struct _gasnet_hsl_t *next;
   #endif
 
   #if GASNETC_USE_INTERRUPTS
@@ -95,12 +74,6 @@ typedef struct _gasnet_hsl_t {
   #define GASNETC_LOCK_STAT_INIT  
 #endif
 
-#if GASNETC_HSL_ERRCHECK
-  #define GASNETC_LOCK_ERRCHECK_INIT , GASNETC_HSL_ERRCHECK_TAGINIT, 0, 0, NULL
-#else
-  #define GASNETC_LOCK_ERRCHECK_INIT 
-#endif
-
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
   #define GASNETC_LOCK_INTERRUPT_INIT 
@@ -111,7 +84,6 @@ typedef struct _gasnet_hsl_t {
 #define GASNET_HSL_INITIALIZER { \
   GASNETI_MUTEX_INITIALIZER      \
   GASNETC_LOCK_STAT_INIT         \
-  GASNETC_LOCK_ERRCHECK_INIT     \
   GASNETC_LOCK_INTERRUPT_INIT    \
   }
 
@@ -151,10 +123,16 @@ typedef struct _gasnet_hsl_t {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)AM_MaxShort())
-#define gasnet_AMMaxMedium()        ((size_t)AM_MaxMedium())
-#define gasnet_AMMaxLongRequest()   ((size_t)AM_MaxLong())
-#define gasnet_AMMaxLongReply()     ((size_t)AM_MaxLong())
+#define gasnet_AMMaxArgs()          ((size_t)16)
+/* Msg space for Medium must include space for 15 4-byte args + pad for double alignment */
+#define gasnet_AMMaxMedium()        ((size_t)(GASNETC_CHUNKSIZE - 64))
+#if 0
+#define gasnet_AMMaxLongRequest()   ((size_t)4294967296ULL)
+#define gasnet_AMMaxLongReply()     ((size_t)4294967296ULL)
+#else
+#define gasnet_AMMaxLongRequest()   ((size_t)1073741824ULL)
+#define gasnet_AMMaxLongReply()     ((size_t)1073741824ULL)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -169,10 +147,14 @@ extern int gasnetc_AMPoll();
 #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 
 /* ------------------------------------------------------------------------------------ */
+/* MLW: extension for testing */
+extern int gasnet_send_credits(gasnet_node_t node);
+extern int gasnet_banked_credits();
+extern int gasnet_credit_stalls(gasnet_node_t node);
+extern int gasnet_revoked_credits(gasnet_node_t node);
 
 GASNETI_END_EXTERNC
 
 #endif
 
-#define GASNETC_NO_AMREQUESTLONGASYNC 1
 #include <gasnet_ammacros.h>

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2007/08/23 20:51:40 $
- * $Revision: 1.121.2.5 $
+ *     $Date: 2007/10/08 19:43:49 $
+ * $Revision: 1.121.2.5.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -166,8 +166,14 @@ extern void gasneti_check_config_preinit() {
   gasneti_assert_always(sizeof(uintptr_t) >= sizeof(void *));
 
   #if WORDS_BIGENDIAN
+    #if PLATFORM_ARCH_LITTLE_ENDIAN
+      #error endianness disagreement: PLATFORM_ARCH_LITTLE_ENDIAN and WORDS_BIGENDIAN are both set
+    #endif
     gasneti_assert_always(!gasneti_isLittleEndian());
   #else
+    #if PLATFORM_ARCH_BIG_ENDIAN
+      #error endianness disagreement: PLATFORM_ARCH_BIG_ENDIAN and !WORDS_BIGENDIAN
+    #endif
     gasneti_assert_always(gasneti_isLittleEndian());
   #endif
 
@@ -647,6 +653,33 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
     }
   }
   gasneti_backtrace_init((*argv)[0]);
+}
+
+/* Process environment for exittimeout.
+ * If (GASNET_EXITTIMEOUT is set), it is returned
+ * else return = min(GASNET_EXITTIMEOUT_MAX,
+ *                   GASNET_EXITTIMEOUT_MIN + gasneti_nodes * GASNET_EXITTIMEOUT_FACTOR)
+ * Where all the GASNET_EXITTIMEOUT* tokens above are env vars.
+ * The arguments are defaults for MAX, MIN and FACTOR, and the lowest value to allow.
+ */
+extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double dflt_factor, double lower_bound)
+{
+  double my_max = gasneti_getenv_dbl_withdefault("GASNET_EXITTIMEOUT_MAX", dflt_max);
+  double my_min = gasneti_getenv_dbl_withdefault("GASNET_EXITTIMEOUT_MIN", dflt_min);
+  double my_factor = gasneti_getenv_dbl_withdefault("GASNET_EXITTIMEOUT_FACTOR", dflt_factor);
+  double result = gasneti_getenv_dbl_withdefault("GASNET_EXITTIMEOUT",
+						 MIN(my_max, my_min + my_factor * gasneti_nodes));
+
+  if (result < lower_bound) {
+    gasneti_assert(MIN(dflt_max, dflt_min + dflt_factor * gasneti_nodes) >= lower_bound);
+    if (gasneti_getenv("GASNET_EXITTIMEOUT")) {
+      gasneti_fatalerror("If used, environment variable GASNET_EXITTIMEOUT must be set to a value no less than %g", lower_bound);
+    } else {
+      gasneti_fatalerror("Environment variables GASNET_EXITTIMEOUT_{MAX,MIN,FACTOR} yield a timeout less than %g seconds", lower_bound);
+    }
+  }
+
+  return result;
 }
 
 /* ------------------------------------------------------------------------------------ */

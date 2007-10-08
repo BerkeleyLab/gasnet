@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2007/03/24 23:30:06 $
- * $Revision: 1.3.6.2 $
+ *     $Date: 2007/10/08 19:44:04 $
+ * $Revision: 1.3.6.2.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,40 +39,9 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
-	CNT(C, PUTGET_THROTTLE, count)       \
 	CNT(C, EOP_ALLOC, count)             \
 	CNT(C, EOP_FREE, count)              \
-	CNT(C, EOP_BUCKETS, cnt)             \
-	CNT(C, GET_NB_RAR, count)            \
-	CNT(C, GET_NB_BB, count)             \
-	CNT(C, GET_NB_TMPMD, count)          \
-	CNT(C, GET_NBI_RAR, count)           \
-	CNT(C, GET_NBI_BB, count)            \
-	CNT(C, GET_NBI_TMPMD, count)         \
-	CNT(C, PUT_NB_RAR, count)            \
-	CNT(C, PUT_NB_BB, count)             \
-	CNT(C, PUT_NB_TMPMD, count)          \
-	CNT(C, PUT_NBI_RAR, count)           \
-	CNT(C, PUT_NBI_BB, count)            \
-	CNT(C, PUT_NBI_TMPMD, count)
-
-
-/* When defining a Portals Event Queue, we have the option of installing
- * an event handler for the Queue that will be executed for each event
- * when other queues are polled.  There are restrictions on the operations
- * that can be performed when used in this manner, but our usage conforms to
- * those restrictions.
- * Since the MPI-Conduit over (with MPI over Portals) does poll queues,
- * we have the option of using a Portals EQ Handler.
- * If we choose not to use the EQ Handler, we must hook into a progress
- * function.
- * MLW: 07/10/2006: USE of EQ handler does not seem to work.  Hangs.
- */
-#ifndef GASNETC_USE_EQ_HANDLER
-GASNETI_EXTERNC void gasnetc_portals_poll(void);
-#define GASNETE_PROGRESSFN_EXTRA(FN)					\
-  FN(gasnete_pf_portals_poll, BOOLEAN, gasnetc_portals_poll)
-#endif
+	CNT(C, EOP_BUCKETS, cnt)
 
 /* Define an extended API exit function to cleanup Portals
  * resources at exit time.

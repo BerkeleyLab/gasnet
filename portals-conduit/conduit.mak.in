@@ -10,8 +10,3 @@
 # can use mpicc with using PrgEnv-gnu on XT3 systems
 GASNET_LD_OVERRIDE = @MPI_CC@
 GASNET_LDFLAGS_OVERRIDE = @MPI_CFLAGS@ @LDFLAGS@
-
-CONDUIT_INCLUDES = -I@TOP_SRCDIR@/other/ammpi ###NOINSTALL###
-CONDUIT_LIBDIRS = -L@TOP_BUILDDIR@/other/ammpi ###NOINSTALL###
-
-CONDUIT_LIBS = -lammpi @MPI_LIBS@

@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2007/03/24 23:29:36 $ */
-/*  $Revision: 1.62.2.5 $ */
+/*      $Date: 2007/10/08 19:43:49 $ */
+/*  $Revision: 1.62.2.5.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -123,6 +123,9 @@
 
 /* has x86 EBX register (not reserved for GOT) */
 #undef GASNETI_HAVE_X86_EBX
+
+/* gcc/gas support "LDCW,CO" psuedo-op on PA-RISC */
+#undef GASNETI_HAVE_PARISC_LDCW_CO
 
 /* has __builtin_expect */
 #undef HAVE_BUILTIN_EXPECT
@@ -251,6 +254,9 @@
 #undef HAVE_ELAN_QUEUEMAXSLOTSIZE
 #undef HAVE_ELAN_DONE
 #undef HAVE_ELAN_QUEUETXINIT
+
+/* GASNet portals-conduit specific */
+#undef GASNETC_PORTALS_MISSING_EQ_HANDLER_T
 
 @BOTTOM@
 

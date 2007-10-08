@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2007/08/23 20:51:40 $
- * $Revision: 1.121.2.5 $
+ *     $Date: 2007/10/08 19:43:50 $
+ * $Revision: 1.121.2.5.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -696,7 +696,7 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
       else if (lseek(tmpfd, 0, SEEK_SET)) rc = -1;
       else {
         static char tmpbuf[255];
-        size_t bytes = tmpstat.st_size;
+        ssize_t bytes = tmpstat.st_size;
         while ((bytes = read(tmpfd, &tmpbuf, sizeof(tmpbuf))) > 0 ||
                (bytes == -1 && errno == EINTR)) {
           if (bytes > 0) {
@@ -1284,7 +1284,7 @@ typedef struct gasneti_verboseenv_S {
   const char *displaystr;
 } gasneti_verboseenv_t;
 
-/* display an integral/string environment setting iff gasneti_verboseenv() */
+/* display an integral/string/double environment setting iff gasneti_verboseenv() */
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt) {
   const char *dflt = (is_dflt?"   (default)":"");
   const char *displayval = val;
@@ -1331,6 +1331,22 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
       }
     gasneti_mutex_unlock(&envmutex);
   }
+}
+extern void gasneti_envdbl_display(const char *key, double val, int is_dflt) {
+  char valstr[80];
+  char displayval[80];
+  const char *rawval;
+  if (!gasneti_verboseenv() && !GASNETT_TRACE_ENABLED) return;
+
+  snprintf(valstr, sizeof(valstr), "%g", val);
+  rawval = gasneti_getenv(key);
+
+  if (is_dflt || !strcmp(rawval,valstr)) { /* Use the numerical value */
+    strcpy(displayval, valstr);
+  } else { /* Use both the environment string and numerical value when they differ textually */
+    snprintf(displayval, sizeof(displayval), "%s (%s)", gasneti_getenv(key), valstr);
+  }
+  gasneti_envstr_display(key, displayval, is_dflt);
 }
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size) {
   char valstr[80];
@@ -1391,6 +1407,36 @@ extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defau
   _gasneti_getenv_withdefault(keyname, defstr, (mem_size_multiplier?3:2), &val);
   return val;
 }
+extern double gasneti_getenv_dbl_withdefault(const char *keyname, double defaultval) {
+  double retval = defaultval;
+  int is_dflt = 1;
+  const char * envval = gasneti_getenv(keyname);
+
+  if (envval != NULL) {
+    char *endptr;
+    retval = strtod(envval, &endptr);
+    is_dflt = 0;
+    if (endptr != envval) {
+      while (*endptr && isspace(*endptr)) endptr++; /* Skip whitespace */
+      if (*endptr == '/') {
+        char *endptr2;
+        double denom = strtod(1+endptr, &endptr2);
+        if ((denom != 0) && (endptr2 != (1+endptr))) {
+          for (endptr = endptr2; *endptr && isspace(*endptr); endptr++) {/* Skip whitespace */}
+          retval /= denom;
+        } else {
+          /* endptr is left pointing at '/', triggering rejection below */
+        }
+      }
+    }
+    if ((endptr == envval) || (*endptr != '\0')) { /* match was empty or has trailing non-whitespace */
+      gasneti_fatalerror("If used, environment variable '%s' must be a valid floating point value or fraction", keyname);
+    }
+  }
+
+  gasneti_envdbl_display(keyname, retval, is_dflt);
+  return retval;
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* Resource limit control */
@@ -1425,7 +1471,8 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
   #ifdef __USE_GNU
     /* workaround an annoying glibc header bug, which erroneously declares get/setrlimit to take 
        the enum type __rlimit_resource_t, instead of int as required by POSIX */
-    #define RLIM_CALL(fnname,structname) (*((int (*)(int,structname*))(void *)&fnname))
+    void *_fp;
+    #define RLIM_CALL(fnname,structname) ( (_fp=(void *)&fnname), *(int (*)(int,structname *))_fp)
   #else
     #define RLIM_CALL(fnname,structname) fnname
   #endif
@@ -1534,6 +1581,11 @@ extern int gasneti_cpu_count() {
   #include <sys/sysctl.h>
 #elif PLATFORM_OS_CATAMOUNT
   #include <catamount/catmalloc.h>
+#elif PLATFORM_OS_HPUX
+  #include <sys/param.h>
+  #include <sys/pstat.h>
+#elif PLATFORM_OS_IRIX
+  #include <invent.h>
 #endif
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   uint64_t retval = _gasneti_getPhysMemSysconf();
@@ -1600,6 +1652,31 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
      }
      retval = result;
     }
+  #elif PLATFORM_OS_HPUX
+    { struct pst_static pst;
+      gasneti_assert_zeroret(pstat_getstatic(&pst, sizeof(pst), (size_t)1, 0) == -1);
+      retval = (uint64_t)(pst.physical_memory) * pst.page_size;
+    }
+  #elif PLATFORM_OS_IRIX
+    #if defined(INV_MEMORY) && defined(INV_MAIN_MB)
+    { static int result_mb = 0; /* amortize cost of table search */
+      /* Full result may exceed native word size and thus not be read/written atomically.
+       * So, we cache in units of MB (using the same type used by the OS interface). */
+      if (!result_mb) {
+        inv_state_t *st = NULL;
+        inventory_t *pinv;
+        gasneti_assert_zeroret(setinvent_r(&st)); /* Using thread-safe variant */
+        while (NULL != (pinv = getinvent_r(st))) {
+          if ((pinv->inv_class == INV_MEMORY) && (pinv->inv_type == INV_MAIN_MB)) {
+            result_mb = pinv->inv_state;
+            break;
+          }
+        }
+        endinvent_r(st);
+      }
+      retval = result_mb * (uint64_t)1048576;
+    }
+    #endif /* defined(INV_MEMORY) && defined(INV_MAIN_MB) */
   #else  /* unknown OS */
     { }
   #endif
@@ -1811,7 +1888,7 @@ size_t gasneti_count0s_copy_dstsrc_aligned(void * GASNETI_RESTRICT dst, const vo
 /* Copy and count non-zero bytes w/ dst word-aligned, but not src */
 GASNETI_ALWAYS_INLINE(gasneti_count0s_copy_dst_aligned)
 size_t gasneti_count0s_copy_dst_aligned(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT src, size_t words) {
-  #if PLATFORM_ARCH_LITTLE_ENDIAN
+  #if !WORDS_BIGENDIAN
     #define GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1) (((w0)>>(s0)) | ((w1)<<(s1)))
   #else
     #define GASNETI_MEMCPY0_MERGE(w0,s0,w1,s1) (((w0)<<(s0)) | ((w1)>>(s1)))
@@ -1953,7 +2030,7 @@ gasneti_count0s(const void * src, size_t bytes) {
   /* Count partial leading word (if any) */
   tmp = (uintptr_t)s - (uintptr_t)src;
   if (tmp) {
-    #if PLATFORM_ARCH_LITTLE_ENDIAN
+    #if !WORDS_BIGENDIAN
       zeros -= gasneti_count0s_nzs_word(*(s-1) & keep_msb[tmp]);
     #else
       zeros -= gasneti_count0s_nzs_word(*(s-1) & keep_lsb[tmp]);
@@ -1969,11 +2046,13 @@ gasneti_count0s(const void * src, size_t bytes) {
  
   /* Count partial trailing word (if any) */
   tmp = bytes & (SIZEOF_VOID_P - 1);
-  #if PLATFORM_ARCH_LITTLE_ENDIAN
+  if (tmp) {
+  #if !WORDS_BIGENDIAN
     zeros -= gasneti_count0s_nzs_word(*s & keep_lsb[tmp]);
   #else
     zeros -= gasneti_count0s_nzs_word(*s & keep_msb[tmp]);
   #endif
+  }
 #endif
 
   return zeros;

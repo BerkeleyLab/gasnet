@@ -1,6 +1,26 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.9.2.5 $
+$Revision: 1.9.2.5.2.1 $
+
+----------------------------------------------------------------------
+09-13-2007 : Release 1.9.6 (Cray XT only beta release)
+
+* CrayXT/Portals:
+  - portals-conduit is now a fully-native implementation, no longer relies
+    on any MPI calls
+  - support has been added for pthreads on compute-node Linux 
+  - fixes to automatically workaround known problems in various PE versions
+
+* Ethernet/UDP:
+  - now supports up to 16K nodes (although buffer utilization remains non-scalable)
+  - fix an exit race that could cause some trailing output to be lost
+
+* InfiniBand/VAPI:
+  - AM-over-RDMA optimization for small AMs now enabled by default
+
+* Misc changes:  
+  - Add node placement support for various job spawners
+  - Fix a crash in gasnett_threadkey for C++ clients
 
 ----------------------------------------------------------------------
 02-01-2007 : Release 1.9.2 (Cray XT3 only beta release)

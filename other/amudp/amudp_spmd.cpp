@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2007/08/23 20:52:05 $
- * $Revision: 1.24.2.6 $
+ *     $Date: 2007/10/08 19:44:00 $
+ * $Revision: 1.24.2.6.2.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -801,13 +801,13 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                   sendAll(coordList[i], &exitCode_nb, sizeof(int32_t));
                   close_socket(coordList[i]);
                 }
-#if 0
-                /* potential fix to bug 2029 - disabled pending verification */
-                if (!AMUDP_SilentMode) {
-                  printf("Awaiting final slave outputs...\n");
-                  fflush(stdout);
-                }
+                /* bug 2029 - wait for any final stdout/stderr to arrive before shutdown */
+                uint64_t wait_iter = 0;
                 while (stdoutList.getCount() || stderrList.getCount()) { // await final output
+                  if (!AMUDP_SilentMode && (!wait_iter++)) {
+                    printf("Awaiting final slave outputs...\n");
+                    fflush(stdout);
+                  }
                   if (stdoutList.getCount()) {
                     stdoutList.makeFD_SET(psockset);
                     handleStdOutput(stdout, psockset, stdoutList, allList, stdoutList.getCount());
@@ -818,7 +818,6 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                   }
                   sched_yield();
                 }
-#endif
                 if (!socklibend()) AMUDP_Err("master failed to socklibend()");
                 if (!AMUDP_SilentMode) {
                   printf("Exiting after AMUDP_SPMDExit(%i)...\n", exitCode);

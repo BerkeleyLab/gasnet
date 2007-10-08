@@ -52,11 +52,6 @@
 
 #define WARM_ITERS MIN(4,iters)
 
-#if GASNET_ALIGNED_SEGMENTS
-#else
-  #error "THIS TEST ASSUMES ALIGNED SEGMENTS!"
-#endif
-
 #define COLL_BARRIER 1
 #define NO_COLL_BARRIER 0
 
@@ -182,7 +177,7 @@ void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
   }
 #endif	
 	
-  MSG0("exchange syncflags: %s radix: (%d) datasize: %ld bytes time: %g microseconds", flagstr, dissem_radix, (datasize*sizeof(int)), (double)gasnett_ticks_to_us(end)/iters);
+  MSG0("exchange syncflags: %s radix: (%d) datasize: %ld bytes time: %g microseconds", flagstr, dissem_radix, ((long)datasize*sizeof(int)), (double)gasnett_ticks_to_us(end)/iters);
   BARRIER();
 	
 	
@@ -327,9 +322,9 @@ void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } /*end changing root*/
 
   if(use_barrier) {
-    MSG("bcast-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+    MSG("bcast-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, (long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
   } else {
-    MSG("bcast-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+    MSG("bcast-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, (long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
   }
   BARRIER();
 	
@@ -501,9 +496,9 @@ void run_scatter_test(int flags, int use_barrier, char *tree_type, int fanout) {
   
 
   if(use_barrier) {
-    MSG("scatter-latency syncflags: %s tree_geom: (%s,%d,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, root,datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+    MSG("scatter-latency syncflags: %s tree_geom: (%s,%d,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, root,(long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
   } else {
-    MSG("scatter-throughput syncflags: %s tree_geom: (%s,%d,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, root,datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+    MSG("scatter-throughput syncflags: %s tree_geom: (%s,%d,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, root,(long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
   }
   BARRIER();
 	} /*end changing root*/
@@ -667,9 +662,9 @@ void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
   } /*end changing root*/
 
   if(use_barrier) {
-    MSG("gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+    MSG("gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, (long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
   } else {
-    MSG("gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+    MSG("gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, (long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
   }
   BARRIER();
 	
@@ -833,9 +828,9 @@ void run_gather_all_test(int flags, int use_barrier, char *tree_type, int fanout
     } /*end changing root*/
 
   if(use_barrier) {
-    MSG("all-gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
+    MSG("all-gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, (long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
   } else {
-    MSG("all-gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
+    MSG("all-gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, (long)datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
   }
   BARRIER();
 	
@@ -877,6 +872,11 @@ int main(int argc, char **argv)
   return 1; 
 #endif
   
+#if (GASNET_ALIGNED_SEGMENTS != 1)
+  MSG("WARNING: This test requires aligned segments. Test skipped.\n");
+  gasnet_exit(0);
+  return 1; 
+#endif
   
   switch(argc) {
   case 1: run_all=1; iters=DEFAULT_ITERS; min_dsize=1; max_dsize=MAX_SIZE; break;

@@ -16,6 +16,7 @@ SEPARATE_CC = @SEPARATE_CC@
 @USE_PLPA_TRUE@                $(top_srcdir)/other/plpa/src/libplpa/plpa_dispatch.c
 
 TOOLLIBINCLUDES =         \
+        @SYS_HEADER_BLD@  \
         -I$(srcdir)       \
         -I$(top_srcdir)   \
         -I$(top_builddir) \
@@ -166,7 +167,7 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 @GNU_NM_TRUE@	  echo $$lib: ;                                                             \
 @GNU_NM_TRUE@	  @NM@ --defined-only $$lib |                                               \
 @GNU_NM_TRUE@	    grep -v -e ' [\._]*gasnetc_' -e ' [\._]*gasneti_' -e ' [\._]*gasnete_'  \
-@GNU_NM_TRUE@		    -e ' [\._]*gasnet_' -e ' [\._]*gasnett_'                        \
+@GNU_NM_TRUE@		    -e ' [\._]*GASNET_' -e ' [\._]*gasnet_' -e ' [\._]*gasnett_'    \
 @GNU_NM_TRUE@		    -e ' [\._]*fh_' -e ' [\._]*firehose_'                           \
 @GNU_NM_TRUE@		    -e ' [\._]*fhi_' -e ' [\._]*fhc_' -e ' [\._]*fhsmp_' -e ' [\._]*fhuni_' \
 @GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e ' [\._]*DWinfo'       \
