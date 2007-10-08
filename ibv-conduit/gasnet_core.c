@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2007/08/23 20:52:25 $
- * $Revision: 1.135.4.5 $
+ *     $Date: 2007/10/08 21:53:01 $
+ * $Revision: 1.135.4.6 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,6 +73,12 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #if !GASNETC_PIN_SEGMENT
   #define GASNETC_DEFAULT_PUTINMOVE_LIMIT	GASNETC_PUTINMOVE_LIMIT_MAX
 #endif
+
+/* Exit coordination timeouts */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0	/* 6 minutes! */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN		2	/* 2 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR	0.25	/* 1/4 second */
+static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 /*
   These calues cannot yet be overridden by environment variables.
@@ -567,6 +573,11 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               disabled at build time"));
 #endif
   GASNETI_TRACE_PRINTF(C,  ("}"));
+
+  gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+						GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+						GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+						GASNETC_DEFAULT_EXITTIMEOUT_MIN);
 
   return GASNET_OK;
 }
@@ -2270,8 +2281,8 @@ static void gasnetc_exit_body(void) {
 
   /* Attempt a coordinated shutdown */
   GASNETC_EXIT_STATE("coordinating shutdown");
-  timeout_us = 2000000 + gasneti_nodes*250000; /* 2s + 0.25s * nodes */
-  alarm(1 + timeout_us/1000000);
+  timeout_us = gasnetc_exittimeout * 1.0e6;
+  alarm(1 + (int)gasnetc_exittimeout);
   switch (role) {
   case GASNETC_EXIT_ROLE_MASTER:
     /* send all the remote exit requests and wait for the replies */
