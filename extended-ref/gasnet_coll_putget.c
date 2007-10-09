@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/08 23:54:22 $
- * $Revision: 1.29.6.51 $
+ *     $Date: 2007/10/09 00:44:52 $
+ * $Revision: 1.29.6.52 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2242,12 +2242,10 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   switch (data->state) {
     case 0:
-      if(op->scratch_req) {
-        if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
-          break;
-      }
-  //    fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
-   //   if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
+       if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))    break;
+      
+       //      fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
+       //if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
       data->state = 1;
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)||
@@ -3044,7 +3042,10 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
  
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
-    if(op->team->total_ranks>1) if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS)) return 0;
+    if(op->team->total_ranks>1) 
+	if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS)) 
+	    return 0;
+
     gasneti_assert(dissem->dissemination_radix==2); /* this function only works for radix 2*/
     data->state++;
   } 
@@ -3138,9 +3139,9 @@ gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
   Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
-                GASNETE_COLL_GENERIC_OPT_P2P;
+                GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
   
-  if(team->total_ranks > 1) options = options | GASNETE_COLL_USE_SCRATCH;
+
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,

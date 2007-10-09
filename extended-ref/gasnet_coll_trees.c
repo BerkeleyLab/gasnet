@@ -836,8 +836,8 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
     
     for(j=1; j<h; j++, k++) {
       ret->exchange_out_order[k] = (team->myrank + j*distance) % team->total_ranks;
-      ret->exchange_in_order[k]  = ((team->myrank - j*distance) < 0 ? team->total_ranks + (team->myrank - j*distance) : (team->myrank - j*distance));
-      
+      ret->exchange_in_order[k]  = ((team->myrank < j*distance) ? team->total_ranks + (team->myrank - j*distance) : (team->myrank - j*distance));
+
     }
     /*scale the distance by the radix*/
     distance *= r;
@@ -860,35 +860,35 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
 }
 
 gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_coll_team_t team) {
-	/* look through the existing cache for our dissemination order*/
-	gasnete_coll_dissem_info_t *temp;
+    /* look through the existing cache for our dissemination order*/
+    gasnete_coll_dissem_info_t *temp;
+    
+    if((team->dissem_cache_head == NULL) &&
+       (team->dissem_cache_tail == NULL)) {
+	temp = gasnete_coll_build_dissemination(radix, team);
+	team->dissem_cache_head = team->dissem_cache_tail = temp;
 	
-	if((team->dissem_cache_head == NULL) &&
-		(team->dissem_cache_tail == NULL)) {
-			temp = gasnete_coll_build_dissemination(radix, team);
-			team->dissem_cache_head = team->dissem_cache_tail = temp;
-				
-			team->dissem_cache_head->next = NULL;
-			team->dissem_cache_tail->prev = NULL;
-			
-	} else {
-		temp = team->dissem_cache_head;
-		while(temp!=NULL) {
-			if(temp->dissemination_radix == radix) {
-				return temp;
-			} else {
-				temp = temp->next;
-			}
-		}
-		/*we've reached the end without finding it */
-		temp = gasnete_coll_build_dissemination(radix, team);
-		temp->next = NULL;
-		temp->prev = team->dissem_cache_tail;
-		team->dissem_cache_tail = temp;  
+	team->dissem_cache_head->next = NULL;
+	team->dissem_cache_tail->prev = NULL;
+	
+    } else {
+	temp = team->dissem_cache_head;
+	while(temp!=NULL) {
+	    if(temp->dissemination_radix == radix) {
+		return temp;
+	    } else {
+		temp = temp->next;
+	    }
 	}
-	return temp;
+	/*we've reached the end without finding it */
+	temp = gasnete_coll_build_dissemination(radix, team);
+	temp->next = NULL;
+	temp->prev = team->dissem_cache_tail;
+	team->dissem_cache_tail = temp;  
+    }
+    return temp;
 }
 
 void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t *obj, gasnete_coll_team_t team) {
-	/* do nothing for now */
+    /* do nothing for now */
 }

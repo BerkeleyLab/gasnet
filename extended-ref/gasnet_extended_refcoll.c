@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/08 21:40:02 $
- * $Revision: 1.29.6.48 $
+ *     $Date: 2007/10/09 00:44:52 $
+ * $Revision: 1.29.6.49 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3630,7 +3630,7 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
 				     0, 0, src, nbytes*gasneti_nodes);
 
   /* XXX: need more implementations to choose from here */
-  if(nbytes > gasnete_coll_p2p_eager_min /*XXX: should we add a check to see if it fits in scratch*/) {
+  if(nbytes > gasnete_coll_p2p_eager_min/*XXX: should we add a check to see if it fits in scratch*/) {
     return gasnete_coll_exchg_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   } else {
     return gasnete_coll_exchg_Dissem(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
@@ -3844,7 +3844,7 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
 				      0, 0, srclist, nbytes*gasneti_nodes);
 
   /* XXX: need more implementations to choose from here */
-  if(nbytes > gasnete_coll_p2p_eager_min || !gasnete_coll_fixed_image_count /*XXX: should we add a check to see if it fits in scratch*/) {
+  if(nbytes > gasnete_coll_p2p_eager_min || !gasnete_coll_fixed_image_count/*XXX: should we add a check to see if it fits in scratch*/) {
     return gasnete_coll_exchgM_Gath(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
   } else {
     return gasnete_coll_exchgM_Dissem(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);

@@ -583,9 +583,9 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
   gasnete_coll_op_info_t *temp= op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head;
   int op_found = 0;
   int first = 1;
-#if GASNET_DEBUG
+
   gasneti_assert(op->scratch_op_freed==0);
-#endif
+
   gasneti_assert(temp);
  // fprintf(stderr, "%d,%d> finishing op\n", op->sequence, gasneti_mynode);
   while(temp!=NULL) {
@@ -623,5 +623,7 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op) {
     gasneti_assert(op->scratch_req->team->scratch_status->active_config_and_ops->op_list_head);
     gasneti_assert(op->scratch_req->team->scratch_status->active_config_and_ops->op_list_tail);
   }
+
   gasneti_free(op->scratch_req);
+
 }
