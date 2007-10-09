@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/09 00:44:52 $
- * $Revision: 1.29.6.52 $
+ *     $Date: 2007/10/09 06:47:28 $
+ * $Revision: 1.29.6.53 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3221,22 +3221,26 @@ static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   }
   
   if(data->state == (dissem->dissemination_phases)*2+1 || (op->team->total_ranks==1 && data->state==2)) {
-    uint32_t phase = (data->state-2)/2;
+    uint32_t phase = (data->state-2)/2; int i; 
     if(op->team->total_ranks > 1 && data->p2p->state[phase] !=1) return 0; /*wait for the last transfer to finish*/
-    data->private_data = (void**) gasneti_malloc(sizeof(void*)*gasnete_coll_my_images);
-    gasneti_sync_reads();
-    /*rotate the data around while doing local broadcast*/
-    gasnete_coll_scale_ptrM((void**) data->private_data, &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags), 
-                            op->team->myrank*gasnete_coll_my_images*args->nbytes, 1, gasnete_coll_my_images);
+ 
 
-    gasnete_coll_local_broadcast(gasnete_coll_my_images, (void**) data->private_data, 
-                                 (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos,
-                                 gasnete_coll_my_images*args->nbytes*(op->team->total_ranks-op->team->myrank));
-    gasnete_coll_local_broadcast(gasnete_coll_my_images, args->dstlist, 
-                                 (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+gasnete_coll_my_images*args->nbytes*(op->team->total_ranks-op->team->myrank),
-                                 gasnete_coll_my_images*args->nbytes*op->team->myrank);
-  
-    gasneti_free(data->private_data);
+
+    gasneti_sync_reads();
+    /*rotate the data around*/
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*)GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags)+gasnete_coll_my_images*args->nbytes*op->team->myrank, 
+                                        (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, 
+                                        gasnete_coll_my_images*args->nbytes*(op->team->total_ranks-op->team->myrank));
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags), 
+                                        (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+gasnete_coll_my_images*args->nbytes*(op->team->total_ranks-op->team->myrank), 
+                                        gasnete_coll_my_images*args->nbytes*op->team->myrank);
+    
+    if(gasnete_coll_my_images > 1) {
+      gasnete_coll_local_broadcast(gasnete_coll_my_images-1, &args->dstlist[(op->flags & GASNET_COLL_LOCAL ? 0 : gasnete_coll_my_offset)+1], 
+                                   GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+                                   gasnete_coll_total_images*args->nbytes);
+    }
+    
     
     data->state++;
   }
