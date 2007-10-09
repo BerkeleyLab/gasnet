@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/09 02:20:03 $
- * $Revision: 1.29.6.50 $
+ *     $Date: 2007/10/09 03:37:22 $
+ * $Revision: 1.29.6.51 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,8 +21,6 @@ the files are compiled under their own .o files)*/
 */
 #include <gasnet_coll_autotune.c>
 #include <gasnet_coll_scratch.c>
-
-#define OLD_DISPATCH_ROUTINES 1
 
 static size_t gasnete_coll_p2p_eager_min = 0;
 static size_t gasnete_coll_p2p_eager_scale = 0;
@@ -90,6 +88,65 @@ int gasnete_coll_opt_enabled;
   #endif
 #endif
 
+/*---------------------------------------------------------------------------------*/
+/* OLD dispatchers (implementations at end of file): */
+
+extern gasnet_coll_handle_t
+gasnete_coll_broadcast_nb_default_OLD(gasnet_team_handle_t team,
+                                    void *dst,
+                                    gasnet_image_t srcimage, void *src,
+                                    size_t nbytes, int flags, uint32_t sequence
+                                    GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_broadcastM_nb_default_OLD(gasnet_team_handle_t team,
+                                     void * const dstlist[],
+                                     gasnet_image_t srcimage, void *src,
+                                     size_t nbytes, int flags, uint32_t sequence
+                                     GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_scatter_nb_default_OLD(gasnet_team_handle_t team,
+                                  void *dst,
+                                  gasnet_image_t srcimage, void *src,
+                                  size_t nbytes, int flags, uint32_t sequence
+                                  GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_scatterM_nb_default_OLD(gasnet_team_handle_t team,
+                                   void * const dstlist[],
+                                   gasnet_image_t srcimage, void *src,
+                                   size_t nbytes, int flags, uint32_t sequence
+                                   GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_gather_nb_default_OLD(gasnet_team_handle_t team,
+                                 gasnet_image_t dstimage, void *dst,
+                                 void *src,
+                                 size_t nbytes, int flags, uint32_t sequence
+                                 GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_gatherM_nb_default_OLD(gasnet_team_handle_t team,
+                                  gasnet_image_t dstimage, void *dst,
+                                  void * const srclist[],
+                                  size_t nbytes, int flags, uint32_t sequence
+                                  GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_gather_all_nb_default_OLD(gasnet_team_handle_t team,
+                                     void *dst, void *src,
+                                     size_t nbytes, int flags, uint32_t sequence
+                                     GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_gather_allM_nb_default_OLD(gasnet_team_handle_t team,
+                            void * const dstlist[], void * const srclist[],
+                            size_t nbytes, int flags, uint32_t sequence
+                            GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_exchange_nb_default_OLD(gasnet_team_handle_t team,
+                         void *dst, void *src,
+                         size_t nbytes, int flags, uint32_t sequence
+                         GASNETE_THREAD_FARG);
+extern gasnet_coll_handle_t
+gasnete_coll_exchangeM_nb_default_OLD(gasnet_team_handle_t team,
+                          void * const dstlist[], void * const srclist[],
+                          size_t nbytes, int flags, uint32_t sequence
+                          GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 /* XXX: sequence and other stuff that will need to be per-team scoped: */
@@ -2285,6 +2342,11 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
 
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_broadcast_nb_default_OLD(team, dst, srcimage, src, nbytes,
+                                                 flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_PAR
   /* Thread-local addr(s) - forward to bcastM_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -2475,6 +2537,11 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
 
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_broadcastM_nb_default_OLD(team, dstlist, srcimage, src, nbytes,
+				                  flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_SEQ
   /* Exactly one thread-local addr - forward to bcast_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -2601,6 +2668,11 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
                                 GASNETE_THREAD_FARG)
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_scatter_nb_default_OLD(team, dst, srcimage, src, nbytes,
+				               flags, sequence GASNETE_THREAD_PASS);
+  }
   
   #if GASNET_PAR
   /* Thread-local addr(s) - forward to scatM_nb() */
@@ -2780,6 +2852,11 @@ gasnete_coll_scatterM_nb_default(gasnet_team_handle_t team,
                                  GASNETE_THREAD_FARG) {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
 
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_scatterM_nb_default_OLD(team, dstlist, srcimage, src, nbytes,
+				                flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_SEQ
   /* Exactly one thread-local addr - forward to scat_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -2910,6 +2987,11 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
                                GASNETE_THREAD_FARG)
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_gather_nb_default_OLD(team, dstimage, dst, src, nbytes,
+				              flags, sequence GASNETE_THREAD_PASS);
+  }
 
   #if GASNET_PAR
   /* Thread-local addr(s) - forward to gathM_nb() */
@@ -3091,6 +3173,11 @@ gasnete_coll_gatherM_nb_default(gasnet_team_handle_t team,
                                 GASNETE_THREAD_FARG)
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  if_pf(!gasnete_coll_opt_enabled) {
+    return gasnete_coll_gatherM_nb_default_OLD(team, dstimage, dst, srclist, nbytes,
+				               flags, sequence GASNETE_THREAD_PASS);
+  }
 
   #if GASNET_SEQ
   /* Exactly one thread-local addr - forward to gath_nb() */
@@ -3274,6 +3361,11 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
 				   void *dst, void *src,
 				   size_t nbytes, int flags, uint32_t sequence
 				   GASNETE_THREAD_FARG) {
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_gather_all_nb_default_OLD(team, dst, src, nbytes,
+				                  flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_PAR
   /* Thread-local addr(s) - forward to gallM_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -3475,6 +3567,11 @@ gasnete_coll_gather_allM_nb_default(gasnet_team_handle_t team,
 				    size_t nbytes, int flags, uint32_t sequence
 				    GASNETE_THREAD_FARG)
 {
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_gather_allM_nb_default_OLD(team, dstlist, srclist, nbytes,
+				                   flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_SEQ
   /* Exactly one thread-local addr per list - forward to gall_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -3622,6 +3719,11 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
 				 size_t nbytes, int flags, uint32_t sequence
 				 GASNETE_THREAD_FARG)
 {
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_exchange_nb_default_OLD(team, dst, src, nbytes,
+				                flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_PAR
   /* Thread-local addr(s) - forward to exchgM_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -3837,6 +3939,11 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
 				  size_t nbytes, int flags, uint32_t sequence
 				  GASNETE_THREAD_FARG)
 {
+  if_pf (!gasnete_coll_opt_enabled) {
+    return gasnete_coll_exchangeM_nb_default_OLD(team, dstlist, srclist, nbytes,
+				                 flags, sequence GASNETE_THREAD_PASS);
+  }
+
   #if GASNET_SEQ
   /* Exactly one thread-local addr per list - forward to exchg_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -3946,3 +4053,432 @@ void gasnete_coll_stat_(GASNETE_THREAD_FARG_ALONE) {
 extern void gasnete_coll_stat(void) { gasnete_coll_stat_(GASNETE_THREAD_GET_ALONE); }
 #endif
 
+/*---------------------------------------------------------------------------------*/
+/* OLD dispatchers: */
+
+extern gasnet_coll_handle_t
+gasnete_coll_broadcast_nb_default_OLD(gasnet_team_handle_t team,
+				  void *dst,
+				  gasnet_image_t srcimage, void *src,
+				  size_t nbytes, int flags, uint32_t sequence
+                                  GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  #if GASNET_PAR
+  /* Thread-local addr(s) - forward to bcastM_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_broadcastM_nb(team, &dst, srcimage, src, nbytes,
+				      flags | GASNETE_COLL_THREAD_LOCAL, sequence
+                                      GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes, 1, srcimage, src, nbytes);
+
+  /* Choose algorithm based on arguments */
+  if ((nbytes <= eager_limit) &&
+      (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
+    /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
+     * the need for passing addresses for _LOCAL
+     * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
+     */
+    return gasnete_coll_bcast_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
+      /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
+       * The Rendezvous is needed for _LOCAL.
+       */
+      return gasnete_coll_bcast_RVGet(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_bcast_Get(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    if (flags & GASNET_COLL_SINGLE) {
+      /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
+      return gasnete_coll_bcast_Put(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      /* XXX: could do better w/ RVPut since dst is writtable */
+      return gasnete_coll_bcast_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else {
+    /* If we reach here then neither src nor dst is in-segment */
+    return gasnete_coll_bcast_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  }
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_broadcastM_nb_default_OLD(gasnet_team_handle_t team,
+				   void * const dstlist[],
+				   gasnet_image_t srcimage, void *src,
+				   size_t nbytes, int flags, uint32_t sequence
+                                   GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  #if GASNET_SEQ
+  /* Exactly one thread-local addr - forward to bcast_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_broadcast_nb(team, dstlist[0], srcimage, src, nbytes,
+				     flags, sequence GASNETE_THREAD_PASS);
+  }
+  #endif
+
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
+
+  /* Choose algorithm based on arguments */
+  if ((nbytes <= eager_limit) &&
+      (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
+    /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
+     * the need for passing addresses for _LOCAL
+     * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
+     */
+    return gasnete_coll_bcastM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
+      /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
+       * The Rendezvous is needed for _LOCAL.
+       */
+      return gasnete_coll_bcastM_RVGet(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_bcastM_Get(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    if (flags & GASNET_COLL_SINGLE) {
+      /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
+      return gasnete_coll_bcastM_Put(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      /* XXX: could do better w/ RVPut since dst is writtable */
+      return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else {
+    /* If we reach here then neither src nor dst is in-segment */
+    return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  }
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_scatter_nb_default_OLD(gasnet_team_handle_t team,
+				void *dst,
+				gasnet_image_t srcimage, void *src,
+				size_t nbytes, int flags, uint32_t sequence
+                                GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  #if GASNET_PAR
+  /* Thread-local addr(s) - forward to scatM_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_scatterM_nb(team, &dst, srcimage, src, nbytes,
+				    flags | GASNETE_COLL_THREAD_LOCAL, sequence
+                                    GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes,
+				     1, srcimage, src, nbytes*gasneti_nodes);
+
+  /* Choose algorithm based on arguments */
+  if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
+    /* Both ends are in-segment */
+    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+      if (nbytes <= eager_limit) {
+        return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      } else {
+        return gasnete_coll_scat_RVGet(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      }
+    } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
+      return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_scat_Put(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (nbytes <= eager_limit) {
+    /* Small enough for Eager, which works for out-of-segment src and/or dst */
+    return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    /* Only the source is in-segment (and too big for Eager) */
+    if ((flags & GASNET_COLL_IN_NOSYNC) && (flags & GASNET_COLL_SINGLE)) {
+      return gasnete_coll_scat_Get(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_scat_RVGet(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    /* Only the destination is in-segment (and too big for Eager) */
+    if (flags & GASNET_COLL_SINGLE) {
+      return gasnete_coll_scat_Put(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      /* XXX: could do better since DST is in-segment */
+      return gasnete_coll_scat_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else {
+    return gasnete_coll_scat_RVous(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  }
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_scatterM_nb_default_OLD(gasnet_team_handle_t team,
+				 void * const dstlist[],
+				 gasnet_image_t srcimage, void *src,
+				 size_t nbytes, int flags, uint32_t sequence
+                                 GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  #if GASNET_SEQ
+  /* Exactly one thread-local addr - forward to scat_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_scatter_nb(team, dstlist[0], srcimage, src, nbytes,
+				   flags, sequence GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes,
+				      1, srcimage, src, nbytes*gasneti_nodes);
+
+  /* Choose algorithm based on arguments */
+  if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
+    /* Both ends are in-segment */
+    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+      if (nbytes <= eager_limit) {
+        return gasnete_coll_scatM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      } else {
+        return gasnete_coll_scatM_RVGet(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      }
+    } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
+      return gasnete_coll_scatM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_scatM_Get(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (nbytes <= eager_limit) {
+    /* Small enough for Eager, which works for out-of-segment src and/or dst */
+    return gasnete_coll_scatM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    /* Only the source is in-segment (and too big for Eager) */
+    if ((flags & GASNET_COLL_IN_NOSYNC) && (flags & GASNET_COLL_SINGLE)) {
+      return gasnete_coll_scatM_Get(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_scatM_RVGet(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    /* Only the destination is in-segment (and too big for Eager) */
+    if (flags & GASNET_COLL_SINGLE) {
+      return gasnete_coll_scatM_Put(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      /* Could do better since dst is in-segment */
+      return gasnete_coll_scatM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else {
+    return gasnete_coll_scatM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  }
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gather_nb_default_OLD(gasnet_team_handle_t team,
+			       gasnet_image_t dstimage, void *dst,
+			       void *src,
+			       size_t nbytes, int flags, uint32_t sequence
+                               GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  #if GASNET_PAR
+  /* Thread-local addr(s) - forward to gathM_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_gatherM_nb(team, dstimage, dst, &src, nbytes,
+				   flags | GASNETE_COLL_THREAD_LOCAL, sequence
+                                   GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_check(flags, 1, dstimage, dst, nbytes*gasneti_nodes,
+				     0, 0, src, nbytes);
+
+  /* Choose algorithm based on arguments */
+  if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
+    /* Both ends are in-segment */
+    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+      if (nbytes <= eager_limit) {
+        return gasnete_coll_gath_Eager(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      } else {
+        return gasnete_coll_gath_RVPut(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      }
+    } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
+      return gasnete_coll_gath_Eager(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_gath_Put(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (nbytes <= eager_limit) {
+    /* Small enough for Eager, which works for out-of-segment src and/or dst */
+    return gasnete_coll_gath_Eager(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    /* Only the destination is in-segment (and too big for Eager) */
+    if ((flags & GASNET_COLL_IN_NOSYNC) && (flags & GASNET_COLL_SINGLE)) {
+      return gasnete_coll_gath_Put(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_gath_RVPut(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    /* Only the source is in-segment (and too big for Eager) */
+    if (flags & GASNET_COLL_SINGLE) {
+      return gasnete_coll_gath_Get(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      /* XXX: could do better since src is in-segment */
+      return gasnete_coll_gath_RVous(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else {
+    return gasnete_coll_gath_RVous(team, dstimage, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  }
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gatherM_nb_default_OLD(gasnet_team_handle_t team,
+				gasnet_image_t dstimage, void *dst,
+				void * const srclist[],
+				size_t nbytes, int flags, uint32_t sequence
+                                GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+
+  #if GASNET_SEQ
+  /* Exactly one thread-local addr - forward to gath_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_gather_nb(team, dstimage, dst, srclist[0], nbytes,
+				  flags, sequence GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_checkM(flags, 1, dstimage, dst, nbytes*gasneti_nodes,
+				      0, 0, srclist, nbytes);
+
+  /* Choose algorithm based on arguments */
+  if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
+    /* Both ends are in-segment */
+    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
+      if (nbytes <= eager_limit) {
+        return gasnete_coll_gathM_Eager(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      } else {
+        return gasnete_coll_gathM_RVPut(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+      }
+    } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
+      return gasnete_coll_gathM_Eager(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_gathM_Put(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (nbytes <= eager_limit) {
+    /* Small enough for Eager, which works for out-of-segment src and/or dst */
+    return gasnete_coll_gathM_Eager(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
+    /* Only the destination is in-segment (and too big for Eager) */
+    if ((flags & GASNET_COLL_IN_NOSYNC) && (flags & GASNET_COLL_SINGLE)) {
+      return gasnete_coll_gathM_Put(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_gathM_RVPut(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
+    /* Only the source is in-segment (and too big for Eager) */
+    if (flags & GASNET_COLL_SINGLE) {
+      return gasnete_coll_gathM_Get(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      /* XXX: could do better since src is in-segment */
+      return gasnete_coll_gathM_RVous(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } else {
+    return gasnete_coll_gathM_RVous(team, dstimage, dst, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  }
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gather_all_nb_default_OLD(gasnet_team_handle_t team,
+				   void *dst, void *src,
+				   size_t nbytes, int flags, uint32_t sequence
+				   GASNETE_THREAD_FARG) {
+  #if GASNET_PAR
+  /* Thread-local addr(s) - forward to gallM_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_gather_allM_nb(team, &dst, &src, nbytes,
+				       flags | GASNETE_COLL_THREAD_LOCAL, sequence
+				       GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes*gasneti_nodes,
+				     0, 0, src, nbytes);
+
+  /* XXX: need more implementations to choose from here */
+  return gasnete_coll_gall_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gather_allM_nb_default_OLD(gasnet_team_handle_t team,
+				    void * const dstlist[], void * const srclist[],
+				    size_t nbytes, int flags, uint32_t sequence
+				    GASNETE_THREAD_FARG)
+{
+  #if GASNET_SEQ
+  /* Exactly one thread-local addr per list - forward to gall_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_gather_all_nb(team, dstlist[0], srclist[0], nbytes,
+				      flags, sequence GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes*gasneti_nodes,
+    					 0, 0, srclist, nbytes);
+
+  /* XXX: need more implementations to choose from here */
+  return gasnete_coll_gallM_Gath(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchange_nb_default_OLD(gasnet_team_handle_t team,
+				 void *dst, void *src,
+				 size_t nbytes, int flags, uint32_t sequence
+				 GASNETE_THREAD_FARG)
+{
+  #if GASNET_PAR
+  /* Thread-local addr(s) - forward to exchgM_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_exchangeM_nb(team, &dst, &src, nbytes,
+				     flags | GASNETE_COLL_THREAD_LOCAL, sequence
+				     GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes*gasneti_nodes,
+				     0, 0, src, nbytes*gasneti_nodes);
+
+  /* XXX: need more implementations to choose from here */
+  return gasnete_coll_exchg_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchangeM_nb_default_OLD(gasnet_team_handle_t team,
+				  void * const dstlist[], void * const srclist[],
+				  size_t nbytes, int flags, uint32_t sequence
+				  GASNETE_THREAD_FARG)
+{
+  #if GASNET_SEQ
+  /* Exactly one thread-local addr per list - forward to exchg_nb() */
+  if (flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_exchange_nb(team, dstlist[0], srclist[0], nbytes,
+				    flags, sequence GASNETE_THREAD_PASS);
+  }
+  #endif
+
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes*gasneti_nodes,
+				      0, 0, srclist, nbytes*gasneti_nodes);
+
+  /* XXX: need more implementations to choose from here */
+  return gasnete_coll_exchgM_Gath(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+}
