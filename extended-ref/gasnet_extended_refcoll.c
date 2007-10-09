@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/09 00:44:52 $
- * $Revision: 1.29.6.49 $
+ *     $Date: 2007/10/09 02:20:03 $
+ * $Revision: 1.29.6.50 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,11 @@ static size_t gasnete_coll_p2p_eager_min = 0;
 static size_t gasnete_coll_p2p_eager_scale = 0;
 /*set a std segment size of 1024 bytes*/
 static size_t gasnete_coll_curr_seg_size;
+
+/*---------------------------------------------------------------------------------*/
+/* Set from environment variables by gasnete_coll_init(): */
+int gasnete_coll_opt_enabled;
+
 
 /*---------------------------------------------------------------------------------*/
 /* Forward decls and macros */
@@ -1033,14 +1038,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 
   GASNETI_CHECKATTACH();
 
-  gasnete_coll_p2p_eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
-							      GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
-  gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
-							        GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT, 0);
-  
-  /*** XXX: An autotuner will eliminate the need for manually setting this ***/
-  gasnete_coll_curr_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_SEG_SIZE",
-                                                              GASNETE_COLL_SEG_SIZE_DEFAULT,0);
   /* Sanity checks - performed only for debug builds */
   
   #if GASNET_DEBUG
@@ -1073,6 +1070,15 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   }
 
   if (first) {
+    gasnete_coll_opt_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_OPT", 1);
+    gasnete_coll_p2p_eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
+								GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
+    gasnete_coll_p2p_eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
+								  GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT, 0);
+    /*** XXX: An autotuner will eliminate the need for manually setting this ***/
+    gasnete_coll_curr_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_SEG_SIZE",
+								GASNETE_COLL_SEG_SIZE_DEFAULT,0);
+
     gasnete_coll_active_init();
     gasnete_coll_p2p_init();
 
