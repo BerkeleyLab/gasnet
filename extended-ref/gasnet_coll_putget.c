@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/09 06:47:28 $
- * $Revision: 1.29.6.53 $
+ *     $Date: 2007/10/09 22:20:34 $
+ * $Revision: 1.29.6.54 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -312,8 +312,6 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
       if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
         break;
     }
- //   fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
- //   if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
     data->state = 1;
   case 1: /*thread barrier*/
     if (!gasnete_coll_generic_all_threads(data)) {
@@ -403,136 +401,6 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
 					   GASNETE_THREAD_PASS);
 	
 }
-
-#if 0
-/* bcast TreePut */
-/* Requires GASNETE_COLL_GENERIC_OPT_P2P on non-root nodes */
-/* Naturally IN_NOSYNC, OUT_MYSYNC */
-/* max size is MaxLongRequest */
-static int gasnete_coll_pf_bcast_TreePutPipe(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
-  gasnete_coll_generic_data_t *data = op->data;
-  gasnete_coll_tree_data_t *tree = data->tree_info;
-  const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
-  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
-  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  gasnet_node_t barrier_count;
-  int result = 0;
-  int child;
-  
-  switch (data->state) {
-    case 0:	/* Optional IN barrier */
-      if (!gasnete_coll_generic_all_threads(data)) {
-	break;
-      }
-      data->state = 1; 
-      
-    case 1:
-      if(!(op->flags & GASNET_COLL_IN_NOSYNC)) {
-  	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != child_count) {
-	  break;
-	}
-        if (gasneti_mynode != args->srcnode) {
-	  gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
-	}
-      }
-      data->state = 2;
-      
-    case 2:
-      if (gasneti_mynode == args->srcnode) {
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
-	for (child = 0; child < child_count; child++) {
-          if(tree->geom->subtree_sizes[child] == 1) {
-            /* Destination is a Leaf */ 
-            /* Use NB Put + Sync */
-            gasnete_put_nbi_bulk(children[child], args->dst, args->src, args->nbytes GASNETE_THREAD_PASS);
-          } else { 
-            /* Destiantion is an Internal Node*/
-            /* Use Async Long */
-            gasnete_coll_p2p_signalling_putAsync(op, children[child], args->dst, 
-                                                 args->src, args->nbytes, 0, 1);
-            
-          }
-	}
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
-	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
-      } else if (child_count == 0) {
-        /* leaves fall right through*/
-      } else if (data->p2p->state[0]) {
-	gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
-        
-        for (child = 0; child < child_count; child++) {
-          if(tree->geom->subtree_sizes[child] == 1) {
-            /* Destination is a Leaf */ 
-            /* Use NB Put + Sync */
-            gasnete_put_nbi_bulk(children[child], args->dst, args->dst, args->nbytes GASNETE_THREAD_PASS);
-          } else { 
-            /* Destiantion is an Internal Node*/
-            /* Use Async Long */
-            gasnete_coll_p2p_signalling_putAsync(op, children[child], args->dst, 
-                                                 args->dst, args->nbytes, 0, 1);
-            
-          }
-	}
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);        
-      } else {
-	break;	/* Internal node waiting for parent to push data and signal */
-      }
-      data->state = 3;
-      
-    case 3:     /* sync data movement */
-      if (child_count > 0 && data->handle != GASNET_INVALID_HANDLE) {
-	break;
-      }
-      data->state = 4;
-        
-      case 4:	/* Optional OUT barrier */
-#if 1
-        if (!gasnete_coll_generic_outsync(data)) {
-          break;
-        }
-#else
-        /* Custom Out Barrrier Here */
-        /* XXX: Idea Sync all the puts (acts as notify for the leaves) */
-        /* XXX: Perform barrier over internal nodes */
-        /* XXX: Wake leaves with an AMShort */
-#endif
-        data->state = 5;
-          
-        case 5: /*done*/
-          gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
-            result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
-  }
-  
-  return result;
-}
-extern gasnet_coll_handle_t
-gasnete_coll_bcast_TreePutPipe(gasnet_team_handle_t team,
-		           void *dst,
-			   gasnet_image_t srcimage, void *src,
-			   size_t nbytes, int flags,
-			   gasnete_coll_tree_type_t tree_type,
-			   uint32_t sequence
-			   GASNETE_THREAD_FARG)
-{
-  int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_IN_NOSYNC))  |*/
-  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) |
-  GASNETE_COLL_GENERIC_OPT_P2P;
-  
-  
-  gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
-  
-  return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
-					   &gasnete_coll_pf_bcast_TreePutPipe, options,
-					   gasnete_coll_tree_init(tree_type, 
-								  gasnete_coll_image_node(srcimage), team
-								  GASNETE_THREAD_PASS),
-					   sequence
-					   GASNETE_THREAD_PASS);
-}
-#endif
 
 /*Segmented Version of TreePut Breaks the Large Broadcast into smaller ones*/
 /*intended to be used when the transfer size is larger than the scratch space*/
@@ -1044,8 +912,6 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
           break;
       }      
       data->state = 1;
-//    fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
- //   if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
     case 1:
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS)) {
         break;
@@ -1096,7 +962,6 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
         gasnete_coll_local_broadcast(gasnete_coll_my_images,
 				     &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
 				     (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes);
-        gasneti_sync_writes();
         
       } else {
 	break;	/* Waiting for parent to push data and signal */
@@ -1160,13 +1025,11 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
   size_t seg_size = gasnete_coll_curr_seg_size;
   gasnet_coll_handle_t ret;
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  //fprintf(stderr, "%d> nbytes %d num segs: %d\n", gasneti_mynode, nbytes, num_segs);
   if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC) || flags & GASNET_COLL_LOCAL) {
     if(num_segs == 1) {
       return gasnete_coll_bcastM_TreePutScratch(team, dstlist, srcimage, src, 
                                                nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
     } else {
-    // fprintf(stderr, "%d> nbytes %d num segs: %d\n", gasneti_mynode, nbytes, num_segs);
       temp_dstlist = (void**) gasneti_malloc(sizeof(void* const)*gasnete_coll_total_images);
       /*add in the COLL_AGGREGATE flag*/
       sub_flags = flags | GASNET_COLL_AGGREGATE;
@@ -1426,22 +1289,15 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-    //  fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
-   //   if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
-        data->state = 1;
+      data->state = 1;
     case 1:	/* Optional IN barrier */
-      if (!gasnete_coll_generic_all_threads(data) 
-#if 0
-         || !gasnete_coll_generic_insync(data)
-#endif
-          ){
+      if (!gasnete_coll_generic_all_threads(data)){
 	break;
       }
       
       data->state = 2;
       
     case 2:
-#if 1
       if(op->flags & GASNET_COLL_IN_ALLSYNC) {
   	if (gasneti_weakatomic_read(&(data->p2p->counter), 0) != child_count) {
 	  break;
@@ -1450,7 +1306,6 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	  gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom));
 	}
       }
-#endif
       data->state = 3;
       
     case 3:
@@ -1585,9 +1440,6 @@ gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
                       GASNETE_THREAD_FARG)
 {
   int options = 
-#if 0   
-    GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
-#endif
     GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
     GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
   
@@ -1893,6 +1745,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
     case 3:
       
       if (op->team->myrank == args->srcnode) {
+        gasneti_sync_reads();
         if(tree->geom->seq_dfs_order == 0 || args->dist!=args->nbytes) {
           for(p=1,i=0; i<child_count; i++) {
             gasnet_node_t child = children[i];
@@ -1905,7 +1758,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
                                             (int8_t*)args->src+args->dist*tree->geom->dfs_order[p]*gasnete_coll_my_images, args->nbytes*gasnete_coll_my_images);
             }
             /* if i am sending to an internal node put it to scratch space */
-            gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+            gasnete_coll_p2p_signalling_put(op, children[i], 
                                                  (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[i], 
                                                  (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
                                                  args->nbytes*tree->geom->subtree_sizes[i]*gasnete_coll_my_images, 0, 1);
@@ -1913,7 +1766,6 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes*gasnete_coll_my_images;
           }
           /* local scatter */
-//          GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
           gasnete_coll_local_scatter(gasnete_coll_my_images,
                                      &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
                                      gasnete_coll_scale_ptr(args->src, gasnete_coll_my_offset, args->nbytes),
@@ -1931,7 +1783,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
                                               args->nbytes*tree->geom->subtree_sizes[i]*gasnete_coll_my_images, 0, 1);              
             } else {
               /* else if i am sending to internal node async long into scratch space*/
-              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+              gasnete_coll_p2p_signalling_put(op, children[i], 
                                                    (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[i], 
                                                    (int8_t*)args->src+sent_bytes, 
                                                    args->nbytes*tree->geom->subtree_sizes[i]*gasnete_coll_my_images, 0, 1);              
@@ -1945,8 +1797,6 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
                                      &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
                                      gasnete_coll_scale_ptr(args->src, gasnete_coll_my_offset, args->nbytes),
                                      args->nbytes);
-          
-          //GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,op->team->myrank), args->nbytes);
         }
       } else if(data->p2p->state[0]){
         gasneti_sync_reads();
@@ -1954,7 +1804,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         sent_bytes = args->nbytes*gasnete_coll_my_images;
         for(i=0; i<child_count; i++) {
           gasnet_node_t child = children[i];
-          gasnete_coll_p2p_signalling_putAsync(op, child, 
+          gasnete_coll_p2p_signalling_put(op, child, 
                                                (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[i], 
                                                (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
                                                args->nbytes*tree->geom->subtree_sizes[i]*gasnete_coll_my_images, 0, 1);
@@ -1964,8 +1814,6 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         
         
         /* In the case of Mysync the data is always sent to the scratch space so copy it out*/
-        //GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, args->nbytes);
-      
         gasnete_coll_local_scatter(gasnete_coll_my_images,
                                    &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
                                    (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos,
@@ -2005,9 +1853,6 @@ gasnete_coll_scatM_TreePut(gasnet_team_handle_t team,
 
 {
   int options = 
-#if 0   
-  GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
-#endif
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
   GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P;
   
@@ -2243,10 +2088,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   switch (data->state) {
     case 0:
        if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))    break;
-      
-       //      fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
-       //if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
-      data->state = 1;
+       data->state = 1;
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)||
 	  !gasnete_coll_generic_insync(data)) {
@@ -2617,8 +2459,6 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))
           break;
       }
-//      fprintf(stderr, "%d,%d> myscratch: %d\n", op->sequence, gasneti_mynode, op->myscratchpos);
-  //    if(op->scratchpos) fprintf(stderr, "%d,%d> rempos: %d\n", op->sequence, gasneti_mynode, op->scratchpos[0]);
       data->state = 1;
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS)||
@@ -2673,7 +2513,6 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       data->state = 4;
           
     case 4: /*node level barrier*/
-#if 0
       /* go down the tree with the barrier again*/
       if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
         /* Sync data movement */
@@ -2688,12 +2527,7 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
           gasnete_coll_p2p_advance(op, children[child]);
         }
       }
-#else
-      if (!gasnete_coll_generic_outsync(data)) {
-        break;
-      }
-#endif      
-      data->state = 5;
+     data->state = 5;
           
     case 5: /* done*/
       gasnete_coll_free_scratch(op);
@@ -2715,7 +2549,6 @@ gasnete_coll_gathM_TreePut(gasnet_team_handle_t team,
                               uint32_t sequence
                               GASNETE_THREAD_FARG) {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) | 
-                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF ((flags & GASNET_COLL_OUT_ALLSYNC)) |
                 GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH; 
   
   return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, dist, flags,
@@ -2937,7 +2770,7 @@ gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
                                             gasnete_coll_total_images GASNETE_THREAD_PASS);
 }
 #undef GASNETE_COLL_TREE_ALL_GATHER_ALL_ROOT
-#endif
+
 
 /* This is a ring based all-gather*/
 /* every processor sends their piece to the right and receives from the left. In (P-1) steps all processors will have all the data 
@@ -3031,7 +2864,88 @@ gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
 					    NULL, 
                                             gasnete_coll_total_images GASNETE_THREAD_PASS);
 }
+#endif
 
+
+
+/*only works for COLL_SINGLE*/
+static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
+  int result = 0;
+  int8_t *myscratch;
+  
+  /* State 0: In barrier (if needed)*/
+  if(data->state == 0) {
+    if (!gasnete_coll_generic_all_threads(data) || 
+        !gasnete_coll_generic_insync(data)) {
+      return 0;
+    }
+      data->state++;
+  }
+  
+  if(data->state == 1) {
+    int dst;
+    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+    {
+      for(dst=op->team->myrank+1; dst<op->team->total_ranks; dst++) {
+        /* send to threads above me*/
+        gasnete_put_nbi_bulk(dst, (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes GASNETE_THREAD_PASS);
+      }
+      for(dst=0; dst<op->team->myrank; dst++) {
+        /*send to threads below me*/
+        gasnete_put_nbi_bulk(dst, (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes GASNETE_THREAD_PASS);
+      }
+    }
+    data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+    gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+      
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+                                        args->src, args->nbytes);
+    data->state++;
+  }
+  
+  if(data->state == 2) {
+    /* sync all the handles for the puts*/
+    if (data->handle != GASNET_INVALID_HANDLE) {
+      return 0;
+    }
+    data->state++;
+  }
+
+  if(data->state == 3) {
+    /* out barrier and cleanup*/
+    if (!gasnete_coll_generic_outsync(data)) {
+      return 0;
+    }
+    
+    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+       
+  }
+  
+  return result;
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gall_FlatPut(gasnet_team_handle_t team,
+                         void *dst, void *src,
+                         size_t nbytes, int flags, uint32_t sequence
+                         GASNETE_THREAD_FARG)
+{
+  /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
+  Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  
+  
+  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  
+  return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
+					    &gasnete_coll_pf_gall_FlatPut, options,
+					    NULL, 
+                                            0 GASNETE_THREAD_PASS);
+}
 
 static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
@@ -3126,7 +3040,6 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 
   return result;
 }
-#undef GASNETE_COLL_MYDECMOD
 
 
 extern gasnet_coll_handle_t
@@ -3152,6 +3065,94 @@ gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_allM_nb() */
+
+/*only works for COLL_SINGLE*/
+static int gasnete_coll_pf_gallM_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_allM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_allM);
+  int result = 0;
+
+  
+  /* State 0: In barrier (if needed)*/
+  if(data->state == 0) {
+    if (!gasnete_coll_generic_all_threads(data) || 
+        !gasnete_coll_generic_insync(data)) {
+      return 0;
+    }
+    /* local gather */
+    gasnete_coll_local_gather(gasnete_coll_my_images, 
+                              (int8_t*) GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags)+gasnete_coll_my_images*args->nbytes*op->team->myrank,
+                              &GASNETE_COLL_MY_1ST_IMAGE(args->srclist, op->flags), args->nbytes);
+    data->state++;
+  }
+  
+  if(data->state == 1) {
+    int dst;
+    int8_t *mysrc = (int8_t*) GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags)+gasnete_coll_my_images*args->nbytes*op->team->myrank;
+    for(dst=op->team->myrank+1; dst<op->team->total_ranks; dst++) {
+      /* send to threads above me*/
+      gasnete_coll_p2p_counting_put(op, dst, 
+                                    (int8_t*) GASNETE_COLL_1ST_IMAGE(args->dstlist,dst) + 
+                                    op->team->myrank*args->nbytes*gasnete_coll_my_images, 
+                                    mysrc, args->nbytes*gasnete_coll_my_images);
+    }
+    for(dst=0; dst<op->team->myrank; dst++) {
+      /*send to threads below me*/
+      gasnete_coll_p2p_counting_put(op, dst, 
+                                    (int8_t*) GASNETE_COLL_1ST_IMAGE(args->dstlist,dst) + 
+                                    op->team->myrank*args->nbytes*gasnete_coll_my_images, 
+                                    mysrc, args->nbytes*gasnete_coll_my_images);
+    }
+    
+    data->state++;
+  }
+  
+  if(data->state == 2) {
+    /* wait for all puts to finish*/
+    if(gasneti_weakatomic_read(&(data->p2p->counter), 0) < op->team->total_ranks-1) return 0;
+    gasneti_sync_reads();
+    if_pt(gasnete_coll_my_images > 1) {
+      gasnete_coll_local_broadcast(gasnete_coll_my_images-1, &args->dstlist[(op->flags & GASNET_COLL_LOCAL ? 0 : gasnete_coll_my_offset)+1], 
+                                   GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
+                                   gasnete_coll_total_images*args->nbytes);
+    }
+    data->state++;
+  }
+  
+  if(data->state == 3) {
+    /* out barrier and cleanup*/
+    if (!gasnete_coll_generic_outsync(data)) {
+      return 0;
+    }
+    
+    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+    
+  }
+  
+  return result;
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gallM_FlatPut(gasnet_team_handle_t team,
+                           void * const dstlist[], void * const srclist[],
+                           size_t nbytes, int flags, uint32_t sequence
+                           GASNETE_THREAD_FARG)
+{
+  /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
+  Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC))|
+                GASNETE_COLL_GENERIC_OPT_P2P;
+  
+  
+  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  
+  return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
+					    &gasnete_coll_pf_gallM_FlatPut, options,
+					    NULL, 
+                                            0 GASNETE_THREAD_PASS);
+}
 
 static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
@@ -3583,6 +3584,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
     }
     if((data->state-2) % 3 == 1) {
       if(data->p2p->state[phase*2] != h) return 0;
+
       for(j=0; j<h; j++) {
 	destnode = out_nodes[j];
 	nblocks = 
@@ -3600,6 +3602,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
       /*wait for all the states to trip*/
       /*need to change this to an atomic state increment to do this properly for radix>2*/
       if(data->p2p->state[phase*2+1] == h) {
+        gasneti_sync_reads();
 	for(j=0; j<h; j++) {
 	  gasnete_coll_unpack_all_to_all_msg((int8_t*)scratch1+IDXP1_EXPR, (int8_t*)scratch2, args->nbytes*gasnete_coll_my_images*gasnete_coll_my_images, phase,
 					     dissem->dissemination_radix, j+1, op->team->total_ranks);
@@ -3619,6 +3622,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
     int i;
     int j;
     int srcnode;
+    gasneti_sync_reads();
     for(i=0; i<op->team->total_ranks; i++) {
       srcnode  = (op->team->myrank - i) % op->team->total_ranks;
       if(srcnode < 0) {

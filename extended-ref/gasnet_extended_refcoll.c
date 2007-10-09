@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/09 06:50:38 $
- * $Revision: 1.29.6.52 $
+ *     $Date: 2007/10/09 22:20:34 $
+ * $Revision: 1.29.6.53 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,7 +188,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   if_pf (!gasnete_coll_init_done) {
     gasneti_fatalerror("Illegal call to GASNet collectives before gasnet_coll_init()\n");
   }
-
+ 
   if (dstimage == (gasnet_image_t)(-1)) {
     dstimage = td->my_image;
   }
@@ -203,10 +203,9 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   #endif
 
   /* XXX: temporary limitation: */
-#if 1
-  gasneti_assert(team != NULL);
-  gasneti_assert(team == GASNET_TEAM_ALL);
-#endif
+  if(team != GASNET_TEAM_ALL) {
+    gasneti_fatalerror("Team argument must be GASNET_TEAM_ALL.");
+  }
 
   #if GASNET_DEBUG
     #if GASNET_SEQ
@@ -1065,19 +1064,6 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
     return retval;
   }
 
-
-
-void (*gasnete_coll_old_barrier_notify)(int id, int flags); 
-
-void gasnete_coll_barrier_notify_callback(int id, int flags) {
-	(*gasnete_coll_old_barrier_notify)(id,flags);
-	
-	/*** Begin Custom Code that will hook into all the barriers **/
-//	GASNET_TEAM_ALL->scratch_status->perform_reset = 1;
-	/*	GASNET_TEAM_ALL->scratch_status->first_collective = 1; */
-	/**** End Custom Code **/
-}
-
 extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
 			      gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
 			      int init_flags GASNETE_THREAD_FARG) {
@@ -1098,7 +1084,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   /* Sanity checks - performed only for debug builds */
   
   #if GASNET_DEBUG
-//    fprintf(stderr, "%d> setting seg size to %d\n", gasneti_mynode, (int)gasnete_coll_curr_seg_size);
     if (gasnete_coll_init_done) {
       gasneti_fatalerror("Multiple calls to gasnet_coll_init()\n");
     }
@@ -1268,18 +1253,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   }
   gasneti_mutex_unlock(&team_all_setup_lock);
   
-  /*change the barrier code to hook in collective call back*/
-#if 0
-  gasneti_mutex_lock(&barrier_fn_lock);
-  if(!barrier_fn_set) {
-    /* We need exactly one thread to set this otherwise it'll be an infinite recursion*/
-    gasnete_coll_old_barrier_notify = gasnete_barrier_notify;
-    gasnete_barrier_notify = gasnete_coll_barrier_notify_callback;
-    barrier_fn_set = 1;
-  }
-  gasneti_mutex_unlock(&barrier_fn_lock);
-#endif
-
   gasnete_coll_init_done = 1;
    
 
@@ -2366,34 +2339,12 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
-#if 0
-    if(gasneti_mynode ==0) fprintf(stderr, "%d> using tree eager for %d bytes\n", gasneti_mynode, (int)nbytes); 
-#endif
     return gasnete_coll_bcast_TreeEager(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     /* run the segmented broadcast code 
        function internally checks synch flags and SINGLE/LOCAL flags
     */
     return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-#if 0
-    /* if the transfer size is greater than the current segment size, use a pipelined algorithm*/
-      if(nbytes > gasnete_coll_curr_seg_size) {
-        return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-      }
-      /* We use a Put-based algorithm w/ full barriers for *_{MY,ALL}SYNC */
-      if((flags & GASNET_COLL_SINGLE) && ((flags & (GASNET_COLL_IN_NOSYNC)) || (flags & (GASNET_COLL_IN_ALLSYNC)))) {
-#if 0
-	if(gasneti_mynode ==0) fprintf(stderr, "%d> in no or in all using tree put for %d bytes\n", gasneti_mynode, (int)nbytes); 
-#endif 
-	return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-      }
-      else {
-#if 0
-	if(gasneti_mynode ==0) fprintf(stderr, "%d> in my using tree put scratch for %d bytes\n", gasneti_mynode, (int)nbytes);
-#endif 
-	return gasnete_coll_bcast_TreePutScratch(team, dst, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-      }
-#endif   
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2555,27 +2506,15 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
   flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
 
   /* Choose algorithm based on arguments */
-  if (0 && (nbytes <= eager_limit) &&
+  if ((nbytes <= eager_limit) &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
     /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
     return gasnete_coll_bcastM_TreeEager(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-    //return gasnete_coll_bcastM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-#if 1
     return gasnete_coll_bcastM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-#else
-    if ((flags & GASNET_COLL_SINGLE) && ((flags & GASNET_COLL_IN_NOSYNC) || (flags & GASNET_COLL_IN_ALLSYNC))) {
-      /* We use a Tree Put-based algorithm w/ tree barriers for *_ALLSYNC */
-      return gasnete_coll_bcastM_TreePut(team, dstlist, srcimage, src, nbytes, flags, gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-    } else {
-      /* Tree Put Scratch  (valid for coll local and coll single mysync)*/
-      /* XXX: could do better w/ RVPut since dst is writtable */
-      return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-    }
-#endif
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2690,23 +2629,8 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-#if 1
-        return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
-                                             gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
-#else
-    if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
-     /* XXXX: fix this later however this should be safe as written */
-      if (nbytes <= eager_limit) {
-        return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-      } else {
-        return gasnete_coll_scat_RVGet(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-      }
-    } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
-      return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
-    } else {
-     return gasnete_coll_scat_Put(team, dst, srcimage, src, nbytes, flags,  sequence GASNETE_THREAD_PASS);
-    }
-#endif
+    return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
+                                        gasnete_coll_get_current_tree_kind(), sequence GASNETE_THREAD_PASS);
   } else if (nbytes <= eager_limit) {
     /* Small enough for Eager, which works for out-of-segment src and/or dst */
     return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
@@ -3379,11 +3303,15 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
   flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes*gasneti_nodes,
 				     0, 0, src, nbytes);
 
-  /* XXX: need more implementations to choose from here */
-  if(nbytes <= gasnete_coll_p2p_eager_min) {
+  
+  if(nbytes <= gasnete_coll_p2p_eager_min && 0) {
     return gasnete_coll_gall_Dissem(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); 
   } else {
-    return gasnete_coll_gall_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); 
+    if((flags & GASNET_COLL_SINGLE) && (flags & GASNET_COLL_DST_IN_SEGMENT)) {
+      return gasnete_coll_gall_FlatPut(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS); 
+    } else {
+      return gasnete_coll_gall_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
   }
 }
 
@@ -3584,11 +3512,16 @@ gasnete_coll_gather_allM_nb_default(gasnet_team_handle_t team,
   flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes*gasneti_nodes,
     					 0, 0, srclist, nbytes);
 
-  if(nbytes > gasnete_coll_p2p_eager_min || !gasnete_coll_fixed_image_count) {
-    return gasnete_coll_gallM_Gath(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
-  } else { 
+  
+  if (nbytes <= gasnete_coll_p2p_eager_min && gasnete_coll_fixed_image_count) { 
     return gasnete_coll_gallM_Dissem(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
-  }
+  } else  {
+    if((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SINGLE) && gasnete_coll_fixed_image_count) {
+      return gasnete_coll_gallM_FlatPut(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_gallM_Gath(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
+  } 
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -3685,7 +3618,7 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
         gasnete_coll_my_images*nbytes*gasnete_coll_total_images+
         ((gasnete_coll_my_images*gasnete_coll_my_images*nbytes)*dissem->max_dissem_blocks
          *2*(dissem->dissemination_radix-1));   
-//      scratch_req->incoming_size = nbytes*team->total_ranks+((nbytes)*dissem->max_dissem_blocks)*((dissem->dissemination_phases+1)*(dissem->dissemination_radix-1));
+/*      scratch_req->incoming_size = nbytes*team->total_ranks+((nbytes)*dissem->max_dissem_blocks)*((dissem->dissemination_phases+1)*(dissem->dissemination_radix-1));*/
       scratch_req->num_out_peers = scratch_req->num_in_peers = GASNETE_COLL_DISSEM_GET_PEER_COUNT(dissem);
       scratch_req->out_peers = GASNETE_COLL_DISSEM_GET_FRONT_PEERS(dissem);
       scratch_req->in_peers = GASNETE_COLL_DISSEM_GET_BEHIND_PEERS(dissem);
@@ -3877,7 +3810,7 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
       scratch_req->op_type = GASNETE_COLL_DISSEM_OP;
       scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
       scratch_req->team = team;
-//      scratch_req->incoming_size = gasnete_coll_my_images*nbytes*team->total_ranks+((gasnete_coll_my_images*gasnete_coll_my_images*nbytes)*dissem->max_dissem_blocks)*((dissem->dissemination_phases+1)*(dissem->dissemination_radix-1));
+/*      scratch_req->incoming_size = gasnete_coll_my_images*nbytes*team->total_ranks+((gasnete_coll_my_images*gasnete_coll_my_images*nbytes)*dissem->max_dissem_blocks)*((dissem->dissemination_phases+1)*(dissem->dissemination_radix-1));*/
       scratch_req->incoming_size = 
         gasnete_coll_my_images*nbytes*gasnete_coll_total_images+
         ((gasnete_coll_my_images*gasnete_coll_my_images*nbytes)*dissem->max_dissem_blocks
