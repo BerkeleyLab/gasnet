@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/09 03:37:22 $
- * $Revision: 1.29.6.51 $
+ *     $Date: 2007/10/09 06:50:38 $
+ * $Revision: 1.29.6.52 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3584,7 +3584,7 @@ gasnete_coll_gather_allM_nb_default(gasnet_team_handle_t team,
   flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes*gasneti_nodes,
     					 0, 0, srclist, nbytes);
 
-  if(nbytes > gasnete_coll_p2p_eager_min || !gasnete_coll_fixed_image_count || 1) {
+  if(nbytes > gasnete_coll_p2p_eager_min || !gasnete_coll_fixed_image_count) {
     return gasnete_coll_gallM_Gath(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
   } else { 
     return gasnete_coll_gallM_Dissem(team, dstlist, srclist, nbytes, flags, sequence GASNETE_THREAD_PASS);
