@@ -18,6 +18,8 @@ struct gasnete_coll_tree_type_t_ {
   int fanout; 
 };
 
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(char *tree_name_str, gasnet_node_t fanout);
+
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
 #define GASNETE_COLL_TREE_GEOM_PARENT(GEOM) ((GEOM)->parent)

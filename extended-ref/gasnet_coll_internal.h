@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/10/08 21:40:02 $
- * $Revision: 1.22.6.34 $
+ *     $Date: 2007/10/10 03:10:37 $
+ * $Revision: 1.22.6.35 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,6 +87,9 @@ typedef struct gasnete_coll_scratch_req_t_ gasnete_coll_scratch_req_t;
 
 struct gasnete_coll_seg_interval_t_;
 typedef struct gasnete_coll_seg_interval_t_ gasnete_coll_seg_interval_t;
+
+struct gasnete_coll_autotune_info_t_;
+typedef struct gasnete_coll_autotune_info_t_ gasnete_coll_autotune_info_t;
 /*---------------------------------------------------------------------------------*/
 
 
@@ -146,21 +149,21 @@ struct gasnete_coll_tree_data_t_ {
   uint32_t			sent_bytes;
   gasnete_coll_local_tree_geom_t	*geom;
 };
-#define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 256
+#define GASNETE_COLL_MIN_SCRATCH_SIZE_DEFAULT 1024
 #define GASNETE_COLL_MAX_SCRATCH_SIZE 0xffffffff
 
-#ifndef GASNETE_COLL_OPT_SCRATCH_SIZE
+#ifndef GASNETE_COLL_SCRATCH_SIZE
 /*set defult to 2 MB*/
-#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
-/*#define GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT (32)*/
+#define GASNETE_COLL_SCRATCH_SIZE_DEFAULT (2*(1024*1024))
 #endif
 
+#if 0
 #define GASNETE_COLL_MIN_LOC_SCRATCH_SIZE 256
 #define GASNETE_COLL_MAX_LOC_SCRATCH_SIZE 0xffffffff
 #ifndef GASNETE_COLL_OPT_LOC_SCRATCH_SIZE
 /*set defult to 2 MB*/
-#define GASNETE_COLL_OPT_LOC_SCRATCH_SIZE (2*(1024*1024))
-/*#define GASNETE_COLL_OPT_SCRATCH_SIZE 1024*8*/
+#define GASNETE_COLL_OPT_LOC_SCRATCH_SIZE GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT
+#endif
 #endif
 
 /*---------------------------------------------------------------------------------*/
@@ -195,10 +198,13 @@ struct gasnete_coll_team_t_ {
   
   /* scratch segments allocated on team creation*/
   gasnet_seginfo_t *scratch_segs;
+  size_t smallest_scratch_seg;
   
   /*scratch space management*/
   gasnete_coll_scratch_status_t* scratch_status;
   
+  /*autotuning info*/
+  gasnete_coll_autotune_info_t* autotune_info;
   
   /*map of relative nodes in this team to actual nodes*/
   /*for TEAM_ALL this will just be a one-to-one mapping */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/09 22:20:34 $
- * $Revision: 1.29.6.54 $
+ *     $Date: 2007/10/10 03:10:37 $
+ * $Revision: 1.29.6.55 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -420,7 +420,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
 
   size_t sent_bytes=0,num_segs,i;
   int sub_flags;
-  size_t seg_size = gasnete_coll_curr_seg_size;
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags);
   
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
    
@@ -1022,7 +1022,7 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
   int sub_flags;
   void **  temp_dstlist;
   void ** dstlist_pass;
-  size_t seg_size = gasnete_coll_curr_seg_size;
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags);
   gasnet_coll_handle_t ret;
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC) || flags & GASNET_COLL_LOCAL) {
@@ -1465,7 +1465,7 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
   
   size_t sent_bytes=0,num_segs,i;
   int sub_flags;
-  size_t seg_size = gasnete_coll_curr_seg_size;
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags);
   
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   
@@ -1877,7 +1877,7 @@ gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
   
   size_t sent_bytes=0,num_segs,i;
   int sub_flags;
-  size_t seg_size = gasnete_coll_curr_seg_size;
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags);
   void **  temp_dstlist;
   void ** dstlist_pass;
   gasnet_coll_handle_t ret;
@@ -2233,7 +2233,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
   
   size_t sent_bytes=0,num_segs,i;
   int sub_flags;
-  size_t seg_size = gasnete_coll_curr_seg_size;
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags);
   
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   
@@ -2572,7 +2572,7 @@ gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
   
   size_t sent_bytes=0,num_segs,i;
   int sub_flags;
-  size_t seg_size = gasnete_coll_curr_seg_size;
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags);
   void **  temp_srclist;
   void **  srclist_pass;
   gasnet_coll_handle_t ret;
@@ -3489,7 +3489,7 @@ gasnete_coll_exchg_Dissem(gasnet_team_handle_t team,
   
   return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
 					  &gasnete_coll_pf_exchg_Dissem, options,
-					  NULL, gasnete_coll_fetch_dissemination(GASNETE_COLL_DEFAULT_RADIX,team), 0 GASNETE_THREAD_PASS);
+					  NULL, gasnete_coll_fetch_dissemination(2,team), 0 GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -3665,10 +3665,9 @@ gasnete_coll_exchgM_Dissem(gasnet_team_handle_t team,
                  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   
-  
   return gasnete_coll_generic_exchangeM_nb(team, dstlist, srclist, nbytes, flags,
 					  &gasnete_coll_pf_exchgM_Dissem, options,
-					  NULL, gasnete_coll_fetch_dissemination(GASNETE_COLL_DEFAULT_RADIX,team), 0 GASNETE_THREAD_PASS);
+					  NULL, gasnete_coll_fetch_dissemination(2,team), 0 GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

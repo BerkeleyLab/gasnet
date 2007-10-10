@@ -8,33 +8,94 @@
 
 #include "gasnet_coll_autotune.h"
 
-gasnete_coll_tree_class_t gasnete_coll_current_tree_kind;
-int gasnete_coll_current_fanout;
+struct gasnete_coll_autotune_info_t_ {
+  gasnete_coll_tree_type_t bcast_tree_type;
+  gasnete_coll_tree_type_t scatter_tree_type;
+  gasnete_coll_tree_type_t gather_tree_type;
+  
+  size_t gather_all_dissem_limit;
+  size_t exchange_dissem_limit;
+  
+  size_t pipe_seg_size;
+};
 
 
 /* These "set" routines are only intended for testing purposes. Eventually 
    The "get tree" routines will be the primary method of picking trees*/
-void gasnet_coll_set_tree_class(char *str) {
-  if(strcmp(str, "GASNET_BINOMIAL_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_BINOMIAL_TREE;
-  } else if(strcmp(str, "GASNET_NARY_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_NARY_TREE;
-  } else if(strcmp(str, "GASNET_DFS_RECURSIVE_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_DFS_RECURSIVE_TREE;
-  } else if(strcmp(str, "GASNET_REV_RECURSIVE_TREE")==0) {
-    gasnete_coll_current_tree_kind = GASNETE_COLL_REV_RECURSIVE_TREE;
-  } else {
-    gasneti_fatalerror("Unknown Tree Type: %s\n", str);
+
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, gasnet_node_t total_nodes, gasnet_image_t my_images, size_t min_scratch_size) {
+  /* read all the environment variables and setup the defaults*/
+  gasnete_coll_autotune_info_t* ret;
+  char *default_tree_type;
+  gasnet_node_t default_tree_fanout;
+  size_t dissem_limit;
+  size_t dissem_limit_per_thread;
+  
+  ret = gasneti_malloc(sizeof(gasnete_coll_autotune_info_t));
+  /* first read the environment variables for tree types*/
+  default_tree_type = gasneti_getenv_withdefault("GASNET_COLL_ROOTED_GEOM", GASNETE_COLL_DEFAULT_TREE_TYPE_STR);
+  default_tree_fanout = gasneti_getenv_int_withdefault("GASNET_COLL_ROOTED_ARITY", GASNETE_COLL_DEFAULT_TREE_FANOUT, 0);
+  
+  /* now over-ride the defaults w/ the collective specific tree types in the environment*/
+  ret->bcast_tree_type = gasnete_coll_make_tree_type(gasneti_getenv_withdefault("GASNET_COLL_BROADCAST_GEOM", default_tree_type),
+                                                     MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_BROADCAST_ARITY", default_tree_fanout, 0)));
+  ret->scatter_tree_type = gasnete_coll_make_tree_type(gasneti_getenv_withdefault("GASNET_COLL_SCATTER_GEOM", default_tree_type),
+                                                     MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_SCATTER_ARITY", default_tree_fanout, 0)));
+  ret->gather_tree_type = gasnete_coll_make_tree_type(gasneti_getenv_withdefault("GASNET_COLL_GATHER_GEOM", default_tree_type),
+                                                     MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ARITY", default_tree_fanout, 0)));
+  
+  dissem_limit = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT", GASNETE_COLL_DEFAULT_DISSEM_LIMIT, 1);
+  dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD", dissem_limit*my_images, 1);
+  if(dissem_limit_per_thread*my_images != dissem_limit) {
+    if(mynode == 0) {
+      fprintf(stderr, "WARNING: Conflicting environment values for GASNET_COLL_GATHER_ALL_DISSEM_LIMIT (%ld) and GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD (%ld)\n", dissem_limit, dissem_limit_per_thread);
+      fprintf(stderr, "WARNING: Using: %ld\n", MIN(dissem_limit, dissem_limit_per_thread));
+    }
   }
-}
-void gasnet_coll_set_fanout(int fanout) {
-  gasnete_coll_current_fanout = fanout;
-}
-gasnete_coll_tree_type_t gasnete_coll_get_current_tree_kind() {
-  /* A LOT OF AUTOTUNING STUFF HERE*/
-  gasnete_coll_tree_type_t ret;
-  ret.tree_class = gasnete_coll_current_tree_kind;
-  ret.fanout = gasnete_coll_current_fanout;
+  ret->gather_all_dissem_limit = MIN(dissem_limit, dissem_limit_per_thread*my_images);
+  
+  dissem_limit = gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_LIMIT", GASNETE_COLL_DEFAULT_DISSEM_LIMIT, 1);
+  dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD", dissem_limit*my_images*my_images, 1);
+  if(dissem_limit_per_thread*my_images*my_images != dissem_limit) {
+    if(mynode == 0) {
+      fprintf(stderr, "WARNING: Conflicting environment values for GASNET_COLL_EXCHANGE_DISSEM_LIMIT (%ld) and GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD (%ld)\n", dissem_limit, dissem_limit_per_thread);
+      fprintf(stderr, "WARNING: Using: %ld\n", MIN(dissem_limit, dissem_limit_per_thread));
+    }
+  }
+  ret->exchange_dissem_limit = MIN(dissem_limit, dissem_limit_per_thread*my_images*my_images);
+  
+  ret->pipe_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_PIPE_SEG_SIZE", min_scratch_size, 1);
+  if(ret->pipe_seg_size > min_scratch_size) {
+    if(mynode == 0) {
+      fprintf(stderr, "WARNING: Conflicting evnironment values for scratch space allocated (%ld bytes) and GASNET_COLL_PIPE_SEG_SIZE (%ld bytes)\n", min_scratch_size, ret->pipe_seg_size);
+      fprintf(stderr, "WARNING: Using %ld bytes for GASNET_COLL_PIPE_SEG_SIZE\n", min_scratch_size);
+    }
+    ret->pipe_seg_size = min_scratch_size;
+  }
+  
   return ret;
 }
 
+gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
+                                                             gasnete_coll_autotune_optype_t op_type, 
+                                                             gasnet_node_t root, size_t nbytes, int flags) {
+  switch(op_type) {
+    case GASNETE_COLL_BROADCAST_OP: return autotune_info->bcast_tree_type;
+    case GASNETE_COLL_SCATTER_OP: return autotune_info->scatter_tree_type;
+    case GASNETE_COLL_GATHER_OP: return autotune_info->gather_tree_type;
+    default: gasneti_fatalerror("unknown tree based collective op type"); return autotune_info->bcast_tree_type;
+  }
+}
+
+size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags) {
+  switch(op_type) {
+    case GASNETE_COLL_GATHER_ALL_OP: return autotune_info->gather_all_dissem_limit;
+    case GASNETE_COLL_EXCHANGE_OP: return autotune_info->exchange_dissem_limit;
+    default:  gasneti_fatalerror("unknown dissem based collective op type"); return 0;
+  }
+}
+
+
+size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags){
+  return autotune_info->pipe_seg_size;
+}

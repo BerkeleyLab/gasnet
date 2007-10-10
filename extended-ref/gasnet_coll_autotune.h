@@ -6,8 +6,30 @@
 
 /* This is intended as a stub for the autotuner routines*/
 
-/*testing functions*/
-void gasnet_coll_set_tree_class(char *treestr);
-void gasnet_coll_set_fanout(int fanout);
-gasnete_coll_tree_type_t gasnete_coll_get_current_tree_type();
+#define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "GASNET_COLL_BINOMIAL_TREE"
+#define GASNETE_COLL_DEFAULT_TREE_FANOUT 2
+#define GASNETE_COLL_DEFAULT_DISSEM_LIMIT 1024
 
+
+typedef enum {GASNETE_COLL_BROADCAST_OP=0, 
+              GASNETE_COLL_SCATTER_OP, 
+              GASNETE_COLL_GATHER_OP, 
+              GASNETE_COLL_GATHER_ALL_OP,
+              GASNETE_COLL_EXCHANGE_OP} gasnete_coll_autotune_optype_t;
+
+
+
+/*testing functions*/
+void gasnete_coll_set_tree_class(char *treestr, gasnete_coll_autotune_optype_t op_type);
+#define gasnet_coll_set_tree_class gasnete_coll_set_tree_class
+
+void gasnete_coll_set_fanout(int fanout, gasnete_coll_autotune_optype_t op_type);
+#define gasnet_coll_set_fanout gasnete_coll_set_fanout;
+
+gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
+                                                             gasnete_coll_autotune_optype_t op_type, 
+                                                             gasnet_node_t root, size_t nbytes, int flags) ;
+
+size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags);
+
+size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags);

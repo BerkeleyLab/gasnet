@@ -31,6 +31,22 @@ int gasnete_coll_build_tree_mylogn(gasnet_node_t num, int base) {
 }
 
 
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(char *tree_name_str, gasnet_node_t fanout) {
+  gasnete_coll_tree_type_t ret;
+  if(strcmp(tree_name_str, "GASNET_COLL_BINOMIAL_TREE")==0) {
+    ret.tree_class = GASNETE_COLL_BINOMIAL_TREE;
+  } else if(strcmp(tree_name_str, "GASNET_COLL_NARY_TREE")==0) {
+    ret.tree_class = GASNETE_COLL_NARY_TREE;
+  } else if(strcmp(tree_name_str, "GASNET_COLL_DFS_RECURSIVE_TREE")==0) {
+    ret.tree_class = GASNETE_COLL_DFS_RECURSIVE_TREE;
+  } else if(strcmp(tree_name_str, "GASNET_COLL_REV_RECURSIVE_TREE")==0) {
+    ret.tree_class = GASNETE_COLL_REV_RECURSIVE_TREE;
+  } else {
+    gasneti_fatalerror("Unknown Tree Type: %s\n", tree_name_str);
+  }
+  ret.fanout = fanout;
+  return ret;
+}
 
 
 void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mynode) {
@@ -157,6 +173,8 @@ gasnet_node_t gasnete_coll_replace_jth_digit(gasnet_node_t num, int in_digit_id,
 
 #define GASNETE_COLL_DFS_RECURSIVE (1<<2)
 #define GASNETE_COLL_REV_RECURSIVE (1<<3)
+
+
 void gasnete_coll_build_recursive_tree(int fanout, gasnet_node_t mynode, gasnet_node_t nodes, gasnet_node_t root, gasnet_node_t *parent, gasnet_node_t **children, gasnet_node_t *child_count, int options) {
   gasnet_node_t relrank;
   gasnet_node_t *temp_dest_list;
