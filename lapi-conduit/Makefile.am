@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/04/18 19:16:01 $
-# $Revision: 1.33.8.2 $
+#     $Date: 2007/10/11 22:55:00 $
+# $Revision: 1.33.8.3 $
 # Description: Makefile for GASNet lapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -15,6 +15,8 @@ CONDUIT_NAME=lapi
 ## Firehose
 ##
 fh_srcdir = $(top_srcdir)/other/firehose
+
+if HAVE_LAPI_RDMA
 # Some Firehose source files need extra CFLAGS do disable strict/ANSI aliasing
 # optimizations.  By building them separately we can avoid disabling these
 # useful optimizations for the entire conduit.
@@ -26,6 +28,15 @@ $(builddir)/firehose-$(THREAD_MODEL).o: force
 	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose.c
 $(builddir)/firehose_region-$(THREAD_MODEL).o: force
 	@CC@ $(LIBCFLAGS) $(FH_CFLAGS) -o $@ -c $(fh_srcdir)/firehose_region.c
+
+# These source files, flags, etc. are only needed when building for RDMA
+fh_srclist = \
+      $(srcdir)/gasnet_firehose.c \
+      $(fh_srcdir)/firehose_hash.c
+fh_extralibcflags = -I$(fh_srcdir)
+fh_extradeps = $(fh_srcdir)/*.[ch]
+fh_poe_args = -rdma_count 2
+endif
 
 # any conduit-specific subdirectories containing Makefile.am's
 SUBDIRS = .
@@ -42,8 +53,8 @@ CONDUIT_FILELIST =           \
       gasnet_extended.c      \
       gasnet_extended_fwd.h  \
       gasnet_extended_internal.h \
-      gasnet_firehose.c \
-      firehose_fwd.h \
+      gasnet_firehose.c      \
+      firehose_fwd.h         \
       STATUS                 \
       license.txt
 
@@ -52,19 +63,18 @@ CONDUIT_FILELIST =           \
 CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_extended.c \
-      $(srcdir)/gasnet_firehose.c \
-      $(fh_srcdir)/firehose_hash.c
+      $(fh_srclist)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I$(fh_srcdir)
+CONDUIT_EXTRALIBCFLAGS = $(fh_extralibcflags)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_srcdir)/*.[ch]
+CONDUIT_EXTRADEPS = $(fh_extradeps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
@@ -77,7 +87,7 @@ CONDUIT_SPECIAL_OBJS = $(fh_special_objs)
 #   %N = requested node count
 #   %A = program arguments
 #   %Q: Bug1039 - poe requires overquoting
-CONDUIT_RUNCMD = @ENVCMD@ MP_FENCE=-- poe %P -nodes %N -tasks_per_node 1 -rmpool 1 -msg_api LAPI -euilib us -retry 1 -retrycount 10000 -rdma_count 2 -- %Q
+CONDUIT_RUNCMD = @ENVCMD@ MP_FENCE=-- poe %P -nodes %N -tasks_per_node 1 -rmpool 1 -msg_api LAPI -euilib us -retry 1 -retrycount 10000 $(fh_poe_args) -- %Q
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =
