@@ -1,27 +1,22 @@
 /*
- *  testcollperf.c
+ *  testcollperf2.c
  *  gasnet_tree_coll
  *
- *  Created by Rajesh Nishtala on 10/25/06.
- *  Copyright 2006 Berkeley UPC. All rights reserved.
+ *  Created by Rajesh Nishtala on 10/1/07.
+ *  Copyright 2007 Berkeley UPC Group. All rights reserved.
  *
  */
-
-/* test collective performance */
-/* for now assume both source and destination are in the segment*/
-/* will relax this assumption later*/
 
 #include "gasnet.h"
 #include "gasnet_coll.h"
 
-
-#define VERIFICATION_MODE 0
+#define VERIFICATION_MODE 1
 
 #if VERIFICATION_MODE
 #define VERIFY_RESULT 1
 #define MAX_SIZE 256
-#define DEFAULT_ITERS 100
-#define ROOT_ITER_MAX 3
+#define DEFAULT_ITERS 4
+#define ROOT_ITER_MAX 1
 #else
 #define VERIFY_RESULT 0
 #define MAX_SIZE 2048
@@ -30,960 +25,320 @@
 #endif
 
 /*max_dsize is a variable set in main*/
+#define TOTAL_THREADS threads_per_node*gasnet_nodes()
+
 #if VERIFICATION_MODE
-#define TEST_SEGSZ_EXPR (sizeof(int)*(MAX_SIZE*iters*gasnet_nodes()*2))
+#define TEST_SEGSZ_EXPR (sizeof(int)*(MAX_SIZE*iters*TOTAL_THREADS*threads_per_node*2))
+#define SEG_PER_THREAD (sizeof(int)*MAX_SIZE*iters*TOTAL_THREADS)
 #else
-#define TEST_SEGSZ_EXPR (sizeof(int)*(MAX_SIZE*gasnet_nodes()*2))
+#define TEST_SEGSZ_EXPR (sizeof(int)*(MAX_SIZE*TOTAL_THREADS*threads_per_node*2))
+#define SEG_PER_THREAD (sizeof(int)*MAX_SIZE*TOTAL_THREADS)
 #endif
 
-
-#define MAX_TREE_FANOUT 10
-
-#if GASNET_PAR
-#define DEFAULT_THREADS 2
-#else
-#define DEFAULT_THREADS 1
-#endif
-/*max size in ints*/
-
-#ifndef MIN
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
-#endif
-
-#define WARM_ITERS MIN(4,iters)
-
-#define COLL_BARRIER 1
-#define NO_COLL_BARRIER 0
-
-int datasize;
-int numprocs;
-
-int iters = 0;
-int images;	 /* numproc * threads */
-int threads = DEFAULT_THREADS; /* per node */
+gasnet_node_t mynode;
+gasnet_node_t nodes;
+int threads_per_node;
+int THREADS;
+int iters;
+size_t max_data_size;
 
 #include "test.h"
 
-#if GASNET_PAR
-#define local_barrier()	PTHREAD_LOCALBARRIER(threads)
-#define global_barrier()	PTHREAD_BARRIER(threads)
-#else
-#define local_barrier()	do {} while(0)
-#define global_barrier()	BARRIER()
-#endif
+#define COLL_BARRIER() PTHREAD_BARRIER(threads_per_node)
 
-void run_exchange_test(int flags, int use_barrier, int dissem_radix) {
-  int *A; /*source*/
-  int *B; /*destination*/
+typedef struct {
+  int my_local_thread;
+  int mythread;
   
-  int i,j,k,nodes,iteroffset;
-  char flagstr[20];
-  gasnett_tick_t begin, end;
-  gasnet_node_t root, mynode;
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
-  assert(gasnet_getMaxLocalSegmentSize() > 2*datasize*nodes*iters*sizeof(int));
-	
-  /*allocate array to be datasize*iters ints out of the aligned segment*/
-  BARRIER();
-  A = (int*) TEST_MYSEG();
-#if VERIFICATION_MODE
-  B = (int*) A + datasize*gasnet_nodes()*iters;
-#else
-  B = (int*) A + datasize*gasnet_nodes();
-#endif
-  assert(dissem_radix == 2);
-  if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "no/no");
-  } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "my/my");
-  } else 	if(flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC)) {
-    sprintf(flagstr, "all/all");
-  } else {
-    MSG0("wtf\n");
-  }
+  gasnet_coll_handle_t *hndl;
+  char _pad[GASNETT_CACHE_LINE_BYTES];
+  uint8_t *mysrc, *mydest;
+  uint8_t *node_src, *node_dst;
+} thread_data_t;
+
+uint8_t **my_srcs;
+uint8_t **my_dsts;
+uint8_t **all_srcs;
+uint8_t **all_dsts;
+
+void run_broadcastM_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int flags) {
+  int i;
+  int *src, *dst;
   
-
-
-  /* fill in the source data with live values*/
-#if VERIFICATION_MODE
-  for(j=0; j<iters; j++) {
-    iteroffset = j;
-#else
-    iteroffset=0;
-#endif
-    
-    for(k=0; k<gasnet_nodes(); k++) {
-      for(i=0; i<datasize; i++) {
-	A[iteroffset*datasize*nodes+k*datasize+i] = iteroffset*datasize*nodes+mynode*datasize+(i+1)*10;
-	B[iteroffset*datasize*nodes+k*datasize+i] = -1;
-      }
-    }
-    
-#if VERIFICATION_MODE
-  }
-#endif
-
-#if VERIFICATION_MODE
-#else
+  if(flags & GASNET_COLL_SINGLE) dst = (int*) dst_arr[td->mythread];
+  else if(flags & GASNET_COLL_LOCAL) dst = (int*) dst_arr[td->my_local_thread];
+  else { MSG("ERROR in INPUT FLAGS"); gasnet_exit(1);}
   
-  for(j=0; j<WARM_ITERS; j++) {
-    gasnet_coll_exchange(GASNET_TEAM_ALL, B, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
-  }
-	
-  BARRIER();
+  src = (int*) src_arr[0];
   
-#endif
   
-  BARRIER();		
-  begin = gasnett_ticks_now();
-  for(j=0; j<iters; j++) {
-#if VERIFICATION_MODE
-#define ITER_OFFSET (j)
-#else
-#define ITER_OFFSET 0
-#endif
-    gasnet_coll_exchange(GASNET_TEAM_ALL, B+datasize*nodes*ITER_OFFSET, 
-			 A+datasize*nodes*ITER_OFFSET, 
-			 datasize*sizeof(int), flags | GASNET_COLL_SINGLE);
+  for(i=0; i<nelem; i++) {
+    if(td->mythread == root_thread) src[i] = 42+i;
+    td->mydest[i] = -1;
   }
-	
-  BARRIER();
-  end =  gasnett_ticks_now() - begin;
-	
-  /*verify that the data got there */
-
-#if VERIFY_RESULT
-  for(j=0; j<iters; j++) {
-    for(k=0; k<nodes; k++) {
-      for(i=0; i<datasize; i++) {
-	//	MSG("j: %d k: %d i: %d val: %d\n", j, k, i, B[j*datasize*nodes+k*datasize+i]); 
-
-	if(B[j*datasize*nodes+k*datasize+i] != j*datasize*nodes+k*datasize+(i+1)*10) {
-	  MSG("ERROR: exchange validation failed (j=%d,i=%d) expected %d got %d", j,i,j*datasize*nodes+k*datasize+i, B[j*datasize*nodes+k*datasize+i]);              
-	  if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
-	    MSG("running no/no\n");
-	  } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
-	    MSG("running my/my\n");
-	  } else 	if(flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC)) {
-	    MSG("running all/all\n");
-	  } else {
-	    MSG("wtf\n");
-	  }
-	  gasnet_exit(1);             
-	} 
-      }
-    }	
-  }
-#endif	
-	
-  MSG0("exchange syncflags: %s radix: (%d) datasize: %ld bytes time: %g microseconds", flagstr, dissem_radix, (datasize*sizeof(int)), (double)gasnett_ticks_to_us(end)/iters);
-  BARRIER();
-	
-	
-}
-
-void run_bcast_test(int flags, int use_barrier, char *tree_type, int fanout) {
-  int *A; /*source*/
-  int *B; /*destination*/
-  int *C; /*other*/
-  int i,j;
-  char flagstr[20];
-  gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
-  gasnet_node_t root, mynode;
-  mynode = gasnet_mynode();
-  assert(gasnet_getMaxLocalSegmentSize() > 2*MAX_SIZE*iters*sizeof(int));
-  /*allocate array to be datasize*iters ints out of the aligned segment*/
-  A = (int*) TEST_MYSEG();
-#if VERIFICATION_MODE
-  B = (int*) A + datasize*iters;
-  C = (int*) B + datasize*iters;
-#else
-  B = (int*) A + datasize;
-  C = (int*) B + datasize;
-#endif
+//  COLL_BARRIER();
+  gasnet_coll_broadcastM(GASNET_TEAM_ALL, (void* const*) dst_arr, root_thread, src, nelem*sizeof(int), flags); 
+ // COLL_BARRIER();
  
-  gasnet_coll_set_tree_class(tree_type);
-  gasnet_coll_set_fanout(fanout);
-  BARRIER();
-  if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
-    sprintf(flagstr, "no/no");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "no/my");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "no/all");
-  } else if((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "my/no");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "my/my");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "my/all");
-  } else if((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "all/no");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "all/my");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "all/all");
-  } 
   
-	
-  /*	for(i=0; i< 3; i++) { */
-  for(i=0; i< ROOT_ITER_MAX; i++) {
-    if (i == 0) {
-      root = 0;
-    } else if (i == 1) {
-      if (gasnet_nodes() < 3) continue;
-      root = images / 2;
-    } else {
-      if (gasnet_nodes() < 2) continue;
-      root = images - 1;
+  for(i=0; i<nelem; i++) {
+    if(dst[i]!=42+i) {
+      MSG("broadcast verification failure on thread %d .. expected %d got %d", td->mythread, 42+i, dst[i]);
+    }  else {
+      MSG("%d> %d %d %d", td->mythread, i, src[i], dst[i]);
     }
-    
-    if(mynode == root) {
-      /* fill in the source data with live values*/
-#if VERIFICATION_MODE
-      for(j=0; j<iters; j++) {
-#else
-	j=0;
-#endif
-	for(i=0; i<datasize; i++) {
-	  A[j*datasize+i] = j*datasize+i;
-	  B[j*datasize+i] = -1;
-	}
-#if VERIFICATION_MODE
-      }
-#endif
-    }
-    else { 
-      /* fill in source data with -1 */
-#if VERIFICATION_MODE     
-      for(j=0; j<iters; j++) {
-#else
-	j=0;
-#endif
-
-	for(i=0; i<datasize; i++) {
-	  B[j*datasize+i] = -1;
-	}
-
-#if VERIFICATION_MODE
-      }
-#endif
-			
-    }
-
-#if VERIFICATION_MODE
-#else		
-    BARRIER();
-    for(j=0; j<WARM_ITERS; j++) {
-      gasnet_coll_broadcast(GASNET_TEAM_ALL, B, root, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      BARRIER();
-    }
-#endif	
-
-    BARRIER();		
-    begin = gasnett_ticks_now();
-    for(j=0; j<iters; j++) {
-#if VERIFICATION_MODE
-      #define ITER_OFFSET (j)
-#else
-      #define ITER_OFFSET 0
-#endif
-      gasnet_coll_broadcast(GASNET_TEAM_ALL, B+datasize*ITER_OFFSET, root, A+datasize*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-
-      /* prefer a an IN_ALL_SYNC rather than an explicit barrier*/
-#if 0
-      if(use_barrier){
-	barrier_begin = gasnett_ticks_now();
-	BARRIER();
-	barrier_end += gasnett_ticks_now() - barrier_begin;
-      }
-#endif
-    }
-    
-    if(!use_barrier) {
-      barrier_begin = gasnett_ticks_now();
-      BARRIER();
-      barrier_end += gasnett_ticks_now() - barrier_begin;
-    }
-    end =  gasnett_ticks_now() - begin;
-    BARRIER();
-    /*verify that the data got there */
-#if VERIFY_RESULT
-    for(j=0; j<iters; j++) {
-      for(i=0; i<datasize; i++) {
-	if(B[j*datasize+i] != j*datasize+i) {
-	  MSG("ERROR %s: broadcast validation failed (%s,j=%d,i=%d) expected %d got %d", flagstr, tree_type, j,i,j*datasize+i, B[j*datasize+i]);              
-	  gasnet_exit(1);             
-	} 
-      }	
-    }
-#endif	
-  } /*end changing root*/
-
-  if(use_barrier) {
-    MSG("bcast-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
-  } else {
-    MSG("bcast-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
-  }
-  BARRIER();
-	
-} /*end function*/
-
-void run_scatter_test(int flags, int use_barrier, char *tree_type, int fanout) {
-  int *A; /*source*/
-  int *B; /*destination*/
-  int *C; /*other*/
-  int i,j,k,iteroffset,rootiter;
-  char flagstr[20];
-  gasnet_seginfo_t* seg; 
-
-  gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
-  gasnet_node_t root, mynode, nodes;
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
-
-#if VERIFICATION_MODE  
-  seg = (gasnet_seginfo_t*)TEST_SEGINFO(); 
-  assert(seg->size > 2*datasize*nodes*iters*sizeof(int)); 
-#endif
-  /*allocate array to be datasize*iters ints out of the aligned segment*/
-  BARRIER();
-  A = (int*) TEST_MYSEG();
-#if VERIFICATION_MODE
-  B = (int*) A + datasize*gasnet_nodes()*iters;
-#else
-  B = (int*) A + datasize*gasnet_nodes();
-#endif
-  
-  gasnet_coll_set_tree_class(tree_type);
-  gasnet_coll_set_fanout(fanout);
-  BARRIER();
-  if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
-    sprintf(flagstr, "no/no");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "no/my");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "no/all");
-  } else if((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "my/no");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "my/my");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "my/all");
-  } else if((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "all/no");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "all/my");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "all/all");
-  } 
-  
-  
-
-  for(rootiter=0; rootiter< ROOT_ITER_MAX; rootiter++) {
-
- /*for(i=0; i< 1; i++) { */
-    if (rootiter == 0) {
-      root = 0;
-    } else if (rootiter == 1) {
-      if (gasnet_nodes() < 3) continue;
-      root = nodes / 2;
-    } else {
-      if (gasnet_nodes() < 2) continue;
-      root = nodes - 1;
-    }
-    
-    if(mynode == root) {
-      /* fill in the source data with live values*/
-#if VERIFICATION_MODE
-      for(j=0; j<iters; j++) {
-        iteroffset = j;
-#else
-        iteroffset=0;
-#endif
-        
-        for(k=0; k<gasnet_nodes(); k++) {
-          for(i=0; i<datasize; i++) {
-            A[iteroffset*datasize*nodes+k*datasize+i] = iteroffset*100000+(k)*1000+(i+1);
-            B[iteroffset*datasize*nodes+k*datasize+i] = -1;
-          }
-        }
-        
-#if VERIFICATION_MODE
-      }
-#endif
-      
-    } else {
-#if VERIFICATION_MODE
-      for(j=0; j<iters; j++) {
-        iteroffset = j;
-#else
-        iteroffset=0;
-#endif
-        
-        for(k=0; k<gasnet_nodes(); k++) {
-          for(i=0; i<datasize; i++) {
-            A[iteroffset*datasize*nodes+k*datasize+i] = -1;
-            B[iteroffset*datasize*nodes+k*datasize+i] = -1;
-          }
-        }
-        
-#if VERIFICATION_MODE
-      }
-#endif
-    }     
-    
-#if VERIFICATION_MODE
-#else		
-    BARRIER();
-    for(j=0; j<WARM_ITERS; j++) {
-      gasnet_coll_scatter(GASNET_TEAM_ALL, B, root, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      BARRIER();
-    }
-#endif	
-    
-    BARRIER();		
-    begin = gasnett_ticks_now();
-    for(j=0; j<iters; j++) {
-#if VERIFICATION_MODE
-#define ITER_OFFSET (j)
-#else
-#define ITER_OFFSET 0
-#endif
-      gasnet_coll_scatter(GASNET_TEAM_ALL, B+datasize*ITER_OFFSET, root, A+datasize*nodes*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      
-      /* prefer a an IN_ALL_SYNC rather than an explicit barrier*/
-#if 0
-      if(use_barrier){
-	barrier_begin = gasnett_ticks_now();
-	BARRIER();
-	barrier_end += gasnett_ticks_now() - barrier_begin;
-      }
-#endif
-    }
-    
-    if(!use_barrier) {
-      barrier_begin = gasnett_ticks_now();
-      BARRIER();
-      barrier_end += gasnett_ticks_now() - barrier_begin;
-    }
-    end =  gasnett_ticks_now() - begin;
-    BARRIER();
-    /*verify that the data got there */
-#if VERIFY_RESULT
-    for(j=0; j<iters; j++) {
-        for(i=0; i<datasize; i++) {
-          int expected = j*100000+(i+1)+(mynode)*1000;
-           if(B[j*datasize+i] != expected) {
-            MSG("ERROR: scatter validation failed (j=%d,i=%d) expected %d got %d", j,i,expected, B[j*datasize+i]);              
-            if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
-              MSG("running no/no\n");
-            } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
-              MSG("running my/my\n");
-            } else 	if(flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC)) {
-              MSG("running all/all\n");
-            } else {
-              MSG("wtf\n");
-            }
-//            gasnet_exit(1);             
-          } 
-        }
-      }	
-    
-    
-#endif	
-  
-
-  if(use_barrier) {
-    MSG("scatter-latency syncflags: %s tree_geom: (%s,%d,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, root,datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
-  } else {
-    MSG("scatter-throughput syncflags: %s tree_geom: (%s,%d,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, root,datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
-  }
-  BARRIER();
-	} /*end changing root*/
-  } /*end function*/
-
-void run_gather_test(int flags, int use_barrier, char *tree_type, int fanout) {
-  int *A; /*source*/
-  int *B; /*destination*/
-  int *C; /*other*/
-  int i,j,k,iteroffset, rootiter;
-  char flagstr[20];
-  gasnet_seginfo_t* seg; 
-  
-  gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
-  gasnet_node_t root, mynode, nodes;
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
-  
-#if VERIFICATION_MODE  
-  seg = (gasnet_seginfo_t*)TEST_SEGINFO(); 
-  assert(seg->size > (datasize*nodes*iters*sizeof(int) + datasize*iters*sizeof(int))); 
-#endif
-  /*allocate array to be datasize*iters ints out of the aligned segment*/
-  BARRIER();
-  A = (int*) TEST_MYSEG();
-#if VERIFICATION_MODE
-  B = (int*) A + datasize*iters;
-#else
-  B = (int*) A + datasize;
-#endif
-  
-  gasnet_coll_set_tree_class(tree_type);
-  gasnet_coll_set_fanout(fanout);
-  BARRIER();
-  if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
-    sprintf(flagstr, "no/no");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "no/my");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "no/all");
-  } else if((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "my/no");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "my/my");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "my/all");
-  } else if((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "all/no");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "all/my");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "all/all");
-  } 
-  
-  
-  for(rootiter=0; rootiter< ROOT_ITER_MAX; rootiter++) { 
-  /*for(rootiter=0; rootiter< 1; rootiter++) { */
-    if (rootiter == 0) {
-      root = 0;
-    } else if (rootiter == 1) {
-      if (gasnet_nodes() < 3) continue;
-      root = nodes / 2;
-    } else {
-      if (gasnet_nodes() < 2) continue;
-      root = nodes - 1;
-    }
-      /* fill in the source data with live values*/
-#if VERIFICATION_MODE
-      for(j=0; j<iters; j++) {
-        iteroffset = j;
-#else
-        iteroffset=0;
-#endif
-        
-          for(i=0; i<datasize; i++) {
-            A[iteroffset*datasize+i] = iteroffset*100000+(mynode)*1000+(i+1);
-          }
-        
-#if VERIFICATION_MODE
-      }
-#endif
-    /*initialize dest to -1*/
-#if VERIFICATION_MODE
-    for(j=0; j<iters; j++) {
-      iteroffset = j;
-#else
-      iteroffset=0;
-#endif
-      for(k=0; k<nodes; k++) {
-        for(i=0; i<datasize; i++) {
-          B[iteroffset*nodes*datasize+k*datasize+i] = -1;
-        }
-      }
-      
-#if VERIFICATION_MODE
-    }
-#endif
-    
-    
-#if VERIFICATION_MODE
-#else		
-    BARRIER();
-    for(j=0; j<WARM_ITERS; j++) {
-      gasnet_coll_gather(GASNET_TEAM_ALL, root, B, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      BARRIER();
-    }
-#endif	
-    
-    BARRIER();		
-    begin = gasnett_ticks_now();
-    for(j=0; j<iters; j++) {
-#if VERIFICATION_MODE
-#define ITER_OFFSET (j)
-#else
-#define ITER_OFFSET 0
-#endif
-      gasnet_coll_gather(GASNET_TEAM_ALL, root, B+datasize*nodes*ITER_OFFSET,  A+datasize*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      
-      /* prefer a an IN_ALL_SYNC rather than an explicit barrier*/
-#if 0
-      if(use_barrier){
-	barrier_begin = gasnett_ticks_now();
-	BARRIER();
-	barrier_end += gasnett_ticks_now() - barrier_begin;
-      }
-#endif
-    }
-    
-    if(!use_barrier) {
-      barrier_begin = gasnett_ticks_now();
-      BARRIER();
-      barrier_end += gasnett_ticks_now() - barrier_begin;
-    }
-    end =  gasnett_ticks_now() - begin;
-    BARRIER();
-    /*verify that the data got there */
-#if VERIFY_RESULT
-    for(j=0; j<iters; j++) {
-      for(k=0; k<nodes; k++) {
-      for(i=0; i<datasize; i++) {
-        int expected = (mynode == root ? j*100000+(k)*1000+(i+1) : -1);
-        if(B[j*datasize*nodes + k*datasize+i] != expected) {
-          MSG("ERROR: gather validation failed (j=%d,k=%d,i=%d) expected %d got %d", j,k,i,expected, B[j*datasize*nodes + k*datasize+i]);              
-          if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
-            MSG("running no/no\n");
-          } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
-            MSG("running my/my\n");
-          } else 	if(flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC)) {
-            MSG("running all/all\n");
-          } else {
-            MSG("wtf\n");
-          }
-          //gasnet_exit(1);             
-        } 
-      }
-    }	
-    }
-    
-    
-#endif	
-  } /*end changing root*/
-
-  if(use_barrier) {
-    MSG("gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
-  } else {
-    MSG("gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
-  }
-  BARRIER();
-	
-} /*end function*/
-
-void run_gather_all_test(int flags, int use_barrier, char *tree_type, int fanout) {
-  int *A; /*source*/
-  int *B; /*destination*/
-  int *C; /*other*/
-  int i,j,k,iteroffset, rootiter;
-  char flagstr[20];
-  gasnet_seginfo_t* seg; 
-  
-  gasnett_tick_t begin, end, barrier_begin, barrier_end=0;
-  gasnet_node_t root, mynode, nodes;
-  mynode = gasnet_mynode();
-  nodes = gasnet_nodes();
-  
-#if VERIFICATION_MODE  
-  seg = (gasnet_seginfo_t*)TEST_SEGINFO(); 
-  assert(seg->size > (datasize*nodes*iters*sizeof(int) + datasize*iters*sizeof(int))); 
-#endif
-  /*allocate array to be datasize*iters ints out of the aligned segment*/
-  BARRIER();
-  A = (int*) TEST_MYSEG();
-#if VERIFICATION_MODE
-  B = (int*) A + datasize*iters;
-#else
-  B = (int*) A + datasize;
-#endif
-  
-  gasnet_coll_set_tree_class(tree_type);
-  gasnet_coll_set_fanout(fanout);
-  BARRIER();
-  if((flags & (GASNET_COLL_IN_NOSYNC))  && (flags & (GASNET_COLL_OUT_NOSYNC))) {
-    sprintf(flagstr, "no/no");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "no/my");
-  } else if ((flags & GASNET_COLL_IN_NOSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "no/all");
-  } else if((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "my/no");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "my/my");
-  } else if ((flags & GASNET_COLL_IN_MYSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "my/all");
-  } else if((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_NOSYNC)) {
-    sprintf(flagstr, "all/no");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_MYSYNC)) {
-    sprintf(flagstr, "all/my");
-  } else if ((flags & GASNET_COLL_IN_ALLSYNC)  && (flags & GASNET_COLL_OUT_ALLSYNC)) { 
-    sprintf(flagstr, "all/all");
-  } 
-  
-  
-  for(rootiter=0; rootiter< 3; rootiter++) { 
-    /*for(rootiter=0; rootiter< 1; rootiter++) { */
-    if (rootiter == 0) {
-      root = 0;
-    } else if (rootiter == 1) {
-      if (gasnet_nodes() < 3) continue;
-      root = nodes / 2;
-    } else {
-      if (gasnet_nodes() < 2) continue;
-      root = nodes - 1;
-    }
-    /* fill in the source data with live values*/
-#if VERIFICATION_MODE
-    for(j=0; j<iters; j++) {
-      iteroffset = j;
-#else
-      iteroffset=0;
-#endif
-      
-      for(i=0; i<datasize; i++) {
-        A[iteroffset*datasize+i] = iteroffset*100000+(mynode)*1000+(i+1);
-      }
-      
-#if VERIFICATION_MODE
-    }
-#endif
-    /*initialize dest to -1*/
-#if VERIFICATION_MODE
-    for(j=0; j<iters; j++) {
-      iteroffset = j;
-#else
-      iteroffset=0;
-#endif
-      for(k=0; k<nodes; k++) {
-        for(i=0; i<datasize; i++) {
-          B[iteroffset*nodes*datasize+k*datasize+i] = -1;
-        }
-      }
-      
-#if VERIFICATION_MODE
-    }
-#endif
-    
-    
-#if VERIFICATION_MODE
-#else		
-    BARRIER();
-    for(j=0; j<WARM_ITERS; j++) {
-      gasnet_coll_gather_all(GASNET_TEAM_ALL, B, A, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      BARRIER();
-    }
-#endif	
-    
-    BARRIER();		
-    begin = gasnett_ticks_now();
-    for(j=0; j<iters; j++) {
-#if VERIFICATION_MODE
-#define ITER_OFFSET (j)
-#else
-#define ITER_OFFSET 0
-#endif
-      gasnet_coll_gather_all(GASNET_TEAM_ALL, B+datasize*nodes*ITER_OFFSET,  A+datasize*ITER_OFFSET, datasize*sizeof(int), flags | GASNET_COLL_SINGLE);			
-      
-      /* prefer a an IN_ALL_SYNC rather than an explicit barrier*/
-#if 0
-      if(use_barrier){
-	barrier_begin = gasnett_ticks_now();
-	BARRIER();
-	barrier_end += gasnett_ticks_now() - barrier_begin;
-      }
-#endif
-    }
-    
-    if(!use_barrier) {
-      barrier_begin = gasnett_ticks_now();
-      BARRIER();
-      barrier_end += gasnett_ticks_now() - barrier_begin;
-    }
-    end =  gasnett_ticks_now() - begin;
-    BARRIER();
-    /*verify that the data got there */
-#if VERIFY_RESULT
-    for(j=0; j<iters; j++) {
-      for(k=0; k<nodes; k++) {
-        for(i=0; i<datasize; i++) {
-          int expected =  j*100000+(k)*1000+(i+1);
-          if(B[j*datasize*nodes + k*datasize+i] != expected) {
-            MSG("ERROR: all gather validation failed (j=%d,k=%d,i=%d) expected %d got %d", j,k,i,expected, B[j*datasize*nodes + k*datasize+i]);              
-            if(flags & (GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC)) {
-              MSG("running no/no\n");
-            } else 	if(flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC)) {
-              MSG("running my/my\n");
-            } else 	if(flags & (GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC)) {
-              MSG("running all/all\n");
-            } else {
-              MSG("wtf\n");
-            }
-          //gasnet_exit(1);             
-          } 
-        }
-      }	
-    }
-    
-    
-#endif	
-    } /*end changing root*/
-
-  if(use_barrier) {
-    MSG("all-gather-latency syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end)/iters);
-  } else {
-    MSG("all-gather-throughput syncflags: %s tree_geom: (%s,%d) datasize: %ld bytes coll_time: %g us barrier_time: %g us", flagstr, tree_type, fanout, datasize*sizeof(int), (double)gasnett_ticks_to_us(end)/iters, (double)gasnett_ticks_to_us(barrier_end));
-  }
-  BARRIER();
-	
-} /*end function*/
-
-void run_tree_test(int flags, int use_barrier, char *tree_type, int fanout) {
-  if(use_barrier) {
-    /*Strip off all the synch flags so we can add our own*/
-    int newflags = (flags & ~(GASNET_COLL_IN_ALLSYNC|GASNET_COLL_OUT_ALLSYNC|
-                              GASNET_COLL_IN_MYSYNC|GASNET_COLL_OUT_MYSYNC|
-                              GASNET_COLL_IN_NOSYNC|GASNET_COLL_OUT_MYSYNC) );
-    
-    // run_bcast_test(newflags | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC, use_barrier, tree_type, fanout);
-    // run_scatter_test(newflags | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC, use_barrier, tree_type, fanout);
-    run_gather_test(newflags | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC, use_barrier, tree_type, fanout);
-  } else {
-    //run_bcast_test(flags, use_barrier, tree_type, fanout);
-    //run_scatter_test(flags, use_barrier, tree_type, fanout);
-    run_gather_test(flags, use_barrier, tree_type, fanout);
   }
 }
 
-int main(int argc, char **argv) 
-{
-	
-  gasnet_node_t myproc, i;
-  int j;
-  int tree_fanout=0;
-  int run_all = 1;
-  int min_dsize;
-  int max_dsize;
-	
-  /*startup*/
-  GASNET_Safe(gasnet_init(&argc, &argv));
-	
-#if GASNET_PAR
-  MSG0("Test does not support par build yet\n");
-  gasnet_exit(0);
-  return 1; 
-#endif
-
-#if (GASNET_ALIGNED_SEGMENTS != 1)
-  MSG("WARNING: This test requires aligned segments. Test skipped.\n");
-  gasnet_exit(0);
-  return 1;
-#endif
+void run_scatterM_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int flags) {
+  int i;
+  int *src, *dst;
   
-  
-  switch(argc) {
-  case 1: run_all=1; iters=DEFAULT_ITERS; min_dsize=1; max_dsize=MAX_SIZE; break;
-  case 2: /*just tree fanout*/
-    tree_fanout = atoi(argv[1]); run_all=0; iters=DEFAULT_ITERS; min_dsize=1; max_dsize=MAX_SIZE; break;
-  case 3: /*fanout and iters*/
-    iters = atoi(argv[2]); tree_fanout = atoi(argv[1]); run_all=0; min_dsize=1; max_dsize=MAX_SIZE; break;
-  case 4: /*fanout, iters, size*/
-    iters = atoi(argv[2]); tree_fanout = atoi(argv[1]); run_all=0; min_dsize=max_dsize=atoi(argv[3]); break;
-  default:  test_usage();
-  }
-
-#if VERIFICATION_MODE
-  if(max_dsize > MAX_SIZE) {
-    MSG0("Maxdata size can only be %d in verification mode\n", MAX_SIZE);
-    gasnet_exit(1);
-  }
-#endif
-  
-  
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  gasnet_coll_init(NULL, 0, NULL, 0, 0);
-	
-  
-  test_init("testcollperf", 0, "(fanout) (iters) (threadcnt)");
-  
-  BARRIER();
-  
-  for(datasize=min_dsize; datasize<=max_dsize; datasize = datasize*2) {
-    MSG0("Running coll test(s) with %d iterations and %d ints (%d bytes).", (int)iters, (int)datasize, (int)(datasize*sizeof(int)));
-    run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-		  (char*)"GASNET_NARY_TREE", tree_fanout); 
-    run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-		  (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-    
 #if 0
-    if(!run_all) {
-      if(tree_fanout == 0) {
-	run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER,
-		       (char*)"GASNET_BINOMIAL_TREE", 0);
-	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		       (char*)"GASNET_BINOMIAL_TREE", 0); 
-	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-		       (char*)"GASNET_BINOMIAL_TREE", 0); 
-      } else {
-#if 1
-	run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-		       (char*)"GASNET_NARY_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		       (char*)"GASNET_NARY_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-		       (char*)"GASNET_NARY_TREE", tree_fanout); 
+  if(flags & GASNET_COLL_SINGLE) dst = (int*) dst_arr[td->mythread];
+  else if(flags & GASNET_COLL_LOCAL) dst = (int*) dst_arr[td->my_local_thread];
+  else { MSG("ERROR in INPUT FLAGS"); gasnet_exit(1);}
 #endif
-      }
-#if 1
-      if(tree_fanout >=2) {
-        run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-                      (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-                      (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-                      (char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout);
-      }
-#endif
-      
-    } else {
-      run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-		     (char*)"GASNET_BINOMIAL_TREE", 0); 
-      run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		     (char*)"GASNET_BINOMIAL_TREE", 0); 
-      run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_MYSYNC, COLL_BARRIER, 
-		     (char*)"GASNET_BINOMIAL_TREE", 0); 
-      for(tree_fanout=1; tree_fanout < MIN(gasnet_nodes(), MAX_TREE_FANOUT); tree_fanout++) {
-#if 1
-	run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-		      (char*)"GASNET_NARY_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-		       (char*)"GASNET_NARY_TREE", tree_fanout); 
-	run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-		      (char*)"GASNET_NARY_TREE", tree_fanout); 
-#endif
-#if 1        
-	if(tree_fanout >=2) {
-	  run_tree_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 
-			(char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-	  run_tree_test(GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC, NO_COLL_BARRIER, 
-			(char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout); 
-	  run_tree_test(GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC, COLL_BARRIER, 
-			(char*)"GASNET_DFS_RECURSIVE_TREE", tree_fanout);
-        }
-#endif
-      }
+  src = (int*) src_arr[0];
+  dst = (int*) td->mydest;
+  if(td->mythread == root_thread) {
+    for(i=0; i<nelem*THREADS; i++) {
+      src[i] = 42+i;
     }
-#endif
-#if 0
-    run_gather_all_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, (char*)"GASNET_BINOMIAL_TREE", tree_fanout);
-    run_exchange_test(GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC, NO_COLL_BARRIER, 2);
-
-#endif
-      
   }
   
+  for(i=0; i<nelem; i++) {
+    dst[i] = -42;
+  }
   
-  MSG("tests finished successfully");
+  COLL_BARRIER();
+  gasnet_coll_scatterM(GASNET_TEAM_ALL, (void* const*) dst_arr, root_thread, src, nelem*sizeof(int), flags); 
+  COLL_BARRIER();
+  
+  for(i=0; i<nelem; i++) {
+    if(dst[i]!=42+i+td->mythread*nelem) {
+      MSG("scatter verification failure on thread %d .. expected %d got %d", (int)td->mythread, (int)(42+i+td->mythread*nelem), (int)dst[i]);
+    } else {
+      MSG("%d> scatter: %d %d %d", td->mythread, i, src[i], dst[i]);
+    } 
+  }
+}
+
+void run_gatherM_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int flags) {
+  int i;
+  int *src, *dst;
+  
+  dst = (int*) dst_arr[0];
+  src = (int*) td->mysrc;
+  
+  for(i=0; i<nelem; i++) {
+    src[i] = 42+i+td->mythread*nelem;
+  }
+  
+  if(td->mythread == root_thread) {
+    for(i=0; i<nelem*THREADS; i++) {
+      ((int*)td->mydest)[i] = -1;
+    }
+  }
+  
+  COLL_BARRIER();
+  gasnet_coll_gatherM(GASNET_TEAM_ALL, root_thread, dst, (void* const*) src_arr, nelem*sizeof(int), flags); 
+  COLL_BARRIER();
+  if(td->mythread == root_thread) {
+    for(i=0; i<THREADS*nelem; i++) {
+      if(dst[i]!=42+i) {
+        MSG("gather verification failure on elem %d .. expected %d got %d", i, 42+i, dst[i]);
+      } else {
+        MSG("%d> gather: %d %d %d", td->mythread, i, src[i], dst[i]);
+      } 
+    }
+  }
+  
+
+}
+
+
+void run_exchange_test(thread_data_t *td, int *dst, int *src, size_t nelem, int flags) {
+  int i;
+  for(i=0; i<nelem*THREADS*iters; i++) {
+    src[i] = td->mythread*1000+42+i;
+    MSG("src[%d] = %d", i, src[i]);
+    dst[i] = -1;
+  }
+  if(flags & GASNET_COLL_IN_NOSYNC) COLL_BARRIER();
+  for(i=0; i<iters; i++) {
+    gasnet_coll_exchange(GASNET_TEAM_ALL, dst+i*nelem*THREADS, src+i*nelem*THREADS, nelem*sizeof(int), flags);
+  }
+  if(flags & GASNET_COLL_OUT_NOSYNC) COLL_BARRIER();  
+  for(i=0; i<nelem*THREADS*iters; i++) {
+    MSG("dst[%d] = %d", i, dst[i]);
+  }
+}
+
+void run_exchangeM_test(thread_data_t *td, uint8_t **dst_lst, uint8_t **src_lst, size_t nelem, int flags) {
+  int i;
+//  MSG0("running exchangeM test");
+  for(i=0; i<nelem*THREADS; i++) {
+    ((int*) td->mysrc)[i] = td->mythread*1000+42+i;
+    MSG("%d> src[%d] = %d", td->mythread, i, ((int*) td->mysrc)[i]);
+    ((int*) td->mydest)[i] = -1;
+  }
+  
+  gasnet_coll_exchangeM(GASNET_TEAM_ALL, (void* const*) dst_lst, (void* const*)src_lst, nelem*sizeof(int), flags);
+  
+  for(i=0; i<nelem*THREADS; i++) {
+    MSG("%d> dst[%d] = %d", td->mythread, i, ((int*) td->mydest)[i]);
+  }
+}
+
+void run_gather_all_test(thread_data_t *td, int *dst, int *src, size_t nelem, int flags) {
+  int i;
+  for(i=0; i<nelem; i++) {
+    src[i] = td->mythread*1000+42+i;
+    MSG("src[%d] = %d", i, src[i]);
+    dst[i] = -1;
+  }
+
+  for(i=0; i<iters; i++) {
+    gasnet_coll_gather_all(GASNET_TEAM_ALL, dst+i*THREADS, src+i, nelem*sizeof(int), flags);
+  }
+  for(i=0; i<nelem*THREADS*iters; i++) {
+    MSG("dst[%d] = %d", i, dst[i]);
+  }
+}
+
+void run_gather_allM_test(thread_data_t *td, uint8_t **dst_lst, uint8_t **src_lst, size_t nelem, int flags) {
+  int i;
+  for(i=0; i<nelem*THREADS; i++) {
+    ((int*) td->mysrc)[i] = td->mythread*1000+42+i;
+    MSG("%d> oringal src[%d] = %d", td->mythread, i, ((int*) td->mysrc)[i]);
+  }
+  
+  gasnet_coll_scatterM(GASNET_TEAM_ALL, (void* const*) dst_lst, 0, src_lst[1], sizeof(int)*nelem, flags);
+  
+  for(i=0; i<nelem; i++) {
+    MSG("%d> mydest[%d] = %d", td->mythread, i, ((int*) td->mydest)[i]);
+    ((int*) td->mydest)[i] *= 100;
+  }
+  
+  gasnet_coll_gather_allM(GASNET_TEAM_ALL, (void* const*) src_lst, (void* const*) dst_lst, nelem*sizeof(int), flags);
+  
+  for(i=0; i<nelem*THREADS; i++) {
+    MSG("%d> final src[%d] = %d", td->mythread, i, ((int*) td->mysrc)[i]);
+  }
+  
+}
+void *thread_main(void *arg) {
+  thread_data_t *td = (thread_data_t*) arg;
+  int i;
+#if GASNET_PAR
+  gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
+  for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
+  gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
+  test_free(imagearray);
+#else
+  gasnet_coll_init(NULL, 0, NULL, 0, 0);
+#endif
+  
+  //COLL_BARRIER();
+  //run_broadcastM_test(td, my_dsts, &all_srcs[0], max_data_size, 0, GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  //COLL_BARRIER();
+  //run_scatterM_test(td, all_dsts, &all_srcs[0], max_data_size, 0, GASNET_COLL_SINGLE | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  COLL_BARRIER();
+  run_gatherM_test(td, &all_dsts[0], all_srcs, max_data_size, 0, GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  COLL_BARRIER();
+  //run_exchangeM_test(td, all_dsts, all_srcs, max_data_size, GASNET_COLL_SINGLE | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  //COLL_BARRIER();
+  //run_exchange_test(td, td->mydest, td->mysrc, max_data_size, GASNET_COLL_LOCAL | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);
+  //COLL_BARRIER();
+  //run_gather_all_test(td, td->mydest, td->mysrc, max_data_size, GASNET_COLL_LOCAL | GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC);
+  //COLL_BARRIER();
+  //run_gather_allM_test(td, all_dsts, all_srcs, max_data_size, GASNET_COLL_SINGLE | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  //COLL_BARRIER();
+  
+  return NULL;
+}
+
+int main(int argc, char **argv)
+{
+  static uint8_t *A, *B;
+  int i,j;
+  thread_data_t *td_arr;
+
+  GASNET_Safe(gasnet_init(&argc, &argv));
+  
+  if (argc > 1) {
+    iters = atoi(argv[1]);
+  }
+  if (iters < 1) {
+    iters = 1000;
+  }
+  
+  if(argc > 2) {
+    max_data_size = atoi(argv[2]); 
+  } else {
+    max_data_size = 4;
+  }
+  
+#if GASNET_PAR
+  if (argc > 3) {
+    threads_per_node = atoi(argv[3]);
+  } else {
+    threads_per_node = 1; 
+  }
+  if (threads_per_node > TEST_MAXTHREADS || threads_per_node < 1) {
+    printf("ERROR: Threads must be between 1 and %d\n", TEST_MAXTHREADS);
+    exit(EXIT_FAILURE);
+  }
+  if (threads_per_node > gasnett_cpu_count()) {
+    MSG0("WARNING: thread count (%i) exceeds physical cpu count (%i) - enabling  \"polite\", low-performance synchronization algorithms",
+         threads_per_node, gasnett_cpu_count());
+    gasnet_set_waitmode(GASNET_WAIT_BLOCK);
+  }
+#else
+  threads_per_node = 1;
+#endif  
+  
+  /* get SPMD info */
+  mynode = gasnet_mynode();
+  nodes = gasnet_nodes();
+  THREADS = nodes * threads_per_node;
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  test_init("testcollperf2",0,"(iters) (max data size) (thread count)");
+  A = TEST_MYSEG();
+  B = A+(SEG_PER_THREAD*threads_per_node);
+  my_srcs =  (uint8_t**) test_malloc(sizeof(uint8_t*)*threads_per_node);
+  my_dsts =  (uint8_t**) test_malloc(sizeof(uint8_t*)*threads_per_node);
+  all_srcs = (uint8_t**) test_malloc(sizeof(uint8_t*)*THREADS);
+  all_dsts = (uint8_t**) test_malloc(sizeof(uint8_t*)*THREADS);
+  td_arr = (thread_data_t*) test_malloc(sizeof(thread_data_t)*threads_per_node);
+  
+  for(i=0; i<threads_per_node; i++) {
+    my_srcs[i] = A + i*SEG_PER_THREAD;
+    my_dsts[i] = B + i*SEG_PER_THREAD;
+    td_arr[i].my_local_thread = i;
+    td_arr[i].mythread = mynode*threads_per_node+i;
+    td_arr[i].mysrc = my_srcs[i];
+    td_arr[i].mydest = my_dsts[i];
+  }
+  for(i=0; i<nodes; i++) {
+/*    assert_always(TEST_SEG(i).size >= SEG_PER_THREAD*threads_per_node); */
+    for(j=0; j<threads_per_node; j++) {
+      all_srcs[i*threads_per_node+j] = (uint8_t*) TEST_SEG(i) + j*SEG_PER_THREAD;
+      all_dsts[i*threads_per_node+j] = (uint8_t*) TEST_SEG(i) + SEG_PER_THREAD*threads_per_node + j*SEG_PER_THREAD;
+    }
+  }
+  MSG("threads_per_node=%d max_data_size=%d iters=%d", threads_per_node, (int)max_data_size, iters);
+
+#if GASNET_PAR
+  test_createandjoin_pthreads(threads_per_node, &thread_main, td_arr, sizeof(thread_data_t));
+#else
+  thread_main(&td_arr[0]);
+#endif
+  
+  test_free(td_arr);
+  BARRIER();
+  MSG("done.");
   gasnet_exit(0);
-  
-  
   return 0;
 }
