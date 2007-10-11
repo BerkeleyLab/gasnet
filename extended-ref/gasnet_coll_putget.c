@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/11 05:09:52 $
- * $Revision: 1.29.6.56 $
+ *     $Date: 2007/10/11 21:41:55 $
+ * $Revision: 1.29.6.57 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2245,6 +2245,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     case 0:
        if(!gasnete_coll_scratch_alloc_nb(op GASNETE_THREAD_PASS))    break;
        data->state = 1;
+     
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)||
 	  !gasnete_coll_generic_insync(data)) {
@@ -2377,43 +2378,101 @@ gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
                                                                GASNETE_THREAD_PASS), sequence GASNETE_THREAD_PASS);
 }
 
+static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  gasnete_coll_tree_data_t *tree = data->tree_info;
+  const gasnete_coll_gather_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather);
+  int result =0;
+  
+  switch (data->state) {
+    case 0:	/* Optional IN barrier */
+      if (!gasnete_coll_generic_all_threads(data) ||
+	  !gasnete_coll_generic_insync(data)) {
+	break;
+      }
+      data->state = 1;
+      
+    case 1:	/* Initiate data movement */
+      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
+      {
+        gasnete_coll_handle_vec_t *handle_vec;
+        size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNETE_COLL_GATHER_OP, op->flags);
+        int num_segs = ((args->nbytes % seg_size) == 0 ? args->nbytes/seg_size : (args->nbytes/seg_size)+1);
+	int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
+#if !GASNET_SEQ
+        gasnet_image_t dstproc = args->dstimage;
+#else
+	gasnet_node_t dstproc = args->dstnode;
+#endif
+	size_t nbytes = args->nbytes;
+        size_t sent_bytes=0;
+        
+	int i;
+        
+        data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
+        handle_vec = data->private_data;
+        handle_vec->num_handles = num_segs;
+        handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+        
+        for(i=0; i<num_segs - 1; i++) {
+          /*ignore the handle returned*/
+          handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , 
+                                                             gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
+                                                             seg_size, args->nbytes, flags, data->tree_info->geom->tree_type, op->sequence+i+1 GASNETE_THREAD_PASS);   
+          gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+          sent_bytes += seg_size;
+        }
+        
+        handle_vec->handles[i] = gasnete_coll_gath_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes) , 
+                                                           gasnete_coll_scale_ptr(args->src,1,sent_bytes), 
+                                                           args->nbytes-sent_bytes, args->nbytes, flags, data->tree_info->geom->tree_type, op->sequence+i+1 GASNETE_THREAD_PASS);   
+        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      }
+        data->state = 2;
+        
+      case 2:	/* Sync data movement */
+      {
+        gasnete_coll_handle_vec_t *handle_vec = (gasnete_coll_handle_vec_t*) data->private_data;
+        if (!gasnete_coll_generic_coll_sync(handle_vec->handles, handle_vec->num_handles GASNETE_THREAD_PASS)) {
+          break;
+        }
+        gasneti_free(handle_vec->handles);
+        data->state = 3;
+      }   
+      case 3:	/* Optional OUT barrier */
+        if (!gasnete_coll_generic_outsync(data)) {
+          break;
+        }
+        
+        gasneti_free(data->private_data);
+        gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+        result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+  
+  return result;
+}
+
 extern gasnet_coll_handle_t
 gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
-                              gasnet_image_t dstimage,
-                              void *dst,
-                              void *src,
-                              size_t nbytes, int flags, 
-                              gasnete_coll_tree_type_t tree_type,    
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG) {
-  
-  size_t sent_bytes=0,num_segs,i;
-  int sub_flags;
+                             gasnet_image_t dstimage,
+                             void *dst,
+                             void *src,
+                             size_t nbytes, int flags, 
+                             gasnete_coll_tree_type_t tree_type,    
+                             uint32_t sequence
+                             GASNETE_THREAD_FARG) {
+
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags);
-  
-  num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  
-  if(num_segs == 1) {
-    return gasnete_coll_gath_TreePut(team, dstimage, dst, src, 
-                                       nbytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
-  } else {
-    /*add in the COLL_AGGREGATE flag*/
-    sub_flags = flags| GASNET_COLL_AGGREGATE;
-    for(i=0; i<num_segs - 1; i++) {
-      /*ignore the handle returned*/
-      gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes), 
-                                gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                seg_size, nbytes, sub_flags , tree_type, sequence GASNETE_THREAD_PASS);   
-      sent_bytes += seg_size;
-    }
-    /* the last segment of the collective has the same flags as the user requested ones*/
-    /* If the user requested OUT_ALLSYNC or COLL_AGGREGATE then it'll be passed right in*/
-    sub_flags = flags;
-    return gasnete_coll_gath_TreePut(team, dstimage, gasnete_coll_scale_ptr(dst,1,sent_bytes), 
-                                      gasnete_coll_scale_ptr(src,1,sent_bytes), 
-                                      nbytes-sent_bytes, nbytes, sub_flags, tree_type, sequence GASNETE_THREAD_PASS);   
-  }
-}
+  int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
+  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, nbytes, flags,
+					&gasnete_coll_pf_gath_TreePutSeg, options,
+                                        gasnete_coll_tree_init(tree_type, 
+                                                               gasnete_coll_image_node(dstimage), team
+                                                               GASNETE_THREAD_PASS), num_segs GASNETE_THREAD_PASS);
+}  
 
 
 /*---------------------------------------------------------------------------------*/
@@ -2616,6 +2675,7 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
           break;
       }
       data->state = 1;
+
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS)||
 	  !gasnete_coll_generic_insync(data)) {
@@ -2716,6 +2776,110 @@ gasnete_coll_gathM_TreePut(gasnet_team_handle_t team,
   
 }
 
+static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  gasnete_coll_tree_data_t *tree = data->tree_info;
+  const gasnete_coll_gatherM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gatherM);
+  int result =0;
+  
+  switch (data->state) {
+    case 0:	/* Optional IN barrier */
+      if (!gasnete_coll_generic_all_threads(data) ||
+	  !gasnete_coll_generic_insync(data)) {
+	break;
+      }
+      data->state = 1;
+      
+    case 1:	/* Initiate data movement */
+      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
+      {
+        gasnete_coll_handle_vec_t *handle_vec;
+        size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNETE_COLL_SCATTER_OP, op->flags);
+        int num_segs = ((args->nbytes % seg_size) == 0 ? args->nbytes/seg_size : (args->nbytes/seg_size)+1);
+	int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
+#if !GASNET_SEQ
+        gasnet_image_t dstproc = args->dstimage;
+#else
+	gasnet_node_t dstproc = args->dstnode;
+#endif
+        
+        void ** srclist;
+	size_t nbytes = args->nbytes;
+        size_t sent_bytes=0;
+        gasnet_node_t numaddrs = (op->flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
+	int i;
+        
+        data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
+        handle_vec = data->private_data;
+        handle_vec->num_handles = num_segs;
+        handle_vec->handles = gasneti_malloc(sizeof(gasnet_coll_handle_t)*num_segs);
+        srclist = (void**) ((int8_t*) data->private_data + sizeof(gasnete_coll_handle_vec_t));
+        
+        for(i=0; i<num_segs - 1; i++) {
+          /*ignore the handle returned*/
+          gasnete_coll_scale_ptrM(srclist, args->srclist, sent_bytes, 1, numaddrs); 
+          handle_vec->handles[i] = gasnete_coll_gathM_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes), srclist,
+                                                              seg_size, args->nbytes, flags, data->tree_info->geom->tree_type, op->sequence+i+1 GASNETE_THREAD_PASS);   
+          gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+          sent_bytes += seg_size;
+        }
+        gasnete_coll_scale_ptrM(srclist, args->srclist, sent_bytes, 1, numaddrs); 
+        handle_vec->handles[i] = gasnete_coll_gathM_TreePut(op->team, dstproc, gasnete_coll_scale_ptr(args->dst,1,sent_bytes), srclist, 
+                                                            args->nbytes-sent_bytes, args->nbytes, flags, data->tree_info->geom->tree_type, op->sequence+i+1 GASNETE_THREAD_PASS);   
+        gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);
+      }
+        data->state = 2;
+        
+      case 2:	/* Sync data movement */
+      {
+        gasnete_coll_handle_vec_t *handle_vec = (gasnete_coll_handle_vec_t*) data->private_data;
+        if (!gasnete_coll_generic_coll_sync(handle_vec->handles, handle_vec->num_handles GASNETE_THREAD_PASS)) {
+          break;
+        }
+        gasneti_free(handle_vec->handles);
+        data->state = 3;
+      }   
+      case 3:	/* Optional OUT barrier */
+        if (!gasnete_coll_generic_outsync(data)) {
+          break;
+        }
+        
+        gasneti_free(data->private_data);
+        gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+        result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+  
+  return result;
+}
+
+
+extern gasnet_coll_handle_t
+gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
+                              gasnet_image_t dstimage,
+                              void *dst,
+                              void * const srclist[],
+                              size_t nbytes, int flags, 
+                              gasnete_coll_tree_type_t tree_type,    
+                              uint32_t sequence
+                              GASNETE_THREAD_FARG) {
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) | 
+                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  
+  size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags);
+  int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
+  
+  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, nbytes, flags,
+                                          &gasnete_coll_pf_gathM_TreePutSeg, options,
+                                          gasnete_coll_tree_init(tree_type,
+                                                                 gasnete_coll_image_node(dstimage), team
+                                                                 GASNETE_THREAD_PASS),
+                                          num_segs GASNETE_THREAD_PASS);
+  
+
+}
+
+#if 0
 extern gasnet_coll_handle_t
 gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
                              gasnet_image_t dstimage,
@@ -2775,7 +2939,7 @@ gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
     }
   
 }
-
+#endif
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_all_nb() */

@@ -18,7 +18,9 @@ typedef enum {GASNETE_COLL_BROADCAST_OP=0,
               GASNETE_COLL_EXCHANGE_OP} gasnete_coll_autotune_optype_t;
 
 
-
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, gasnet_node_t total_nodes, 
+                                                         gasnet_image_t my_images, gasnet_image_t total_images, 
+                                                         size_t min_scratch_size);
 /*testing functions*/
 void gasnete_coll_set_tree_class(char *treestr, gasnete_coll_autotune_optype_t op_type);
 #define gasnet_coll_set_tree_class gasnete_coll_set_tree_class

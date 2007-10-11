@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2007/10/10 03:10:37 $
- * $Revision: 1.22.6.35 $
+ *     $Date: 2007/10/11 21:41:55 $
+ * $Revision: 1.22.6.36 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,6 +26,7 @@
 #define GASNETE_COLL_USE_SCRATCH_TREE    (1<<27)
 #define GASNETE_COLL_USE_SCRATCH_DISSSEM (1<<26)
 #define GASNETE_COLL_USE_TREE		 (1<<25)
+#define GASNETE_COLL_NONROOT_SUBORDINATE (1<<24)
 
 #define GASNETE_COLL_IN_MODE(flags) \
 ((flags) & (GASNET_COLL_IN_NOSYNC  | GASNET_COLL_IN_MYSYNC  | GASNET_COLL_IN_ALLSYNC))

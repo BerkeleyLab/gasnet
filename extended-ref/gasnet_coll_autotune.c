@@ -23,7 +23,7 @@ struct gasnete_coll_autotune_info_t_ {
 /* These "set" routines are only intended for testing purposes. Eventually 
    The "get tree" routines will be the primary method of picking trees*/
 
-gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, gasnet_node_t total_nodes, gasnet_image_t my_images, size_t min_scratch_size) {
+gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, gasnet_node_t total_nodes, gasnet_image_t my_images, gasnet_image_t total_images, size_t min_scratch_size) {
   /* read all the environment variables and setup the defaults*/
   gasnete_coll_autotune_info_t* ret;
   char *default_tree_type;
@@ -64,13 +64,16 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
   }
   ret->exchange_dissem_limit = MIN(dissem_limit, dissem_limit_per_thread*my_images*my_images);
   
+  if(min_scratch_size < total_images) {
+    gasneti_fatalerror("SCRATCH SPACE TOO SMALL Please set it to at least (%ld bytes) through GASNET_COLL_SCRATCH_SIZE environment variable", (long int) total_images);
+  }
   ret->pipe_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_PIPE_SEG_SIZE", min_scratch_size, 1);
-  if(ret->pipe_seg_size > min_scratch_size) {
+  if(ret->pipe_seg_size > min_scratch_size/total_images) {
     if(mynode == 0) {
       fprintf(stderr, "WARNING: Conflicting evnironment values for scratch space allocated (%ld bytes) and GASNET_COLL_PIPE_SEG_SIZE (%ld bytes)\n", min_scratch_size, ret->pipe_seg_size);
-      fprintf(stderr, "WARNING: Using %ld bytes for GASNET_COLL_PIPE_SEG_SIZE\n", min_scratch_size);
+      fprintf(stderr, "WARNING: Using %ld bytes for GASNET_COLL_PIPE_SEG_SIZE\n", min_scratch_size/total_images);
     }
-    ret->pipe_seg_size = min_scratch_size;
+    ret->pipe_seg_size = min_scratch_size/(total_images);
   }
   
   return ret;
