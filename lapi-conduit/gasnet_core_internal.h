@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/10/11 22:36:19 $
- * $Revision: 1.40.12.12 $
+ *     $Date: 2007/10/11 23:29:47 $
+ * $Revision: 1.40.12.13 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,9 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <firehose.h>
+#if GASNETC_LAPI_RDMA
+  #include <firehose.h>
+#endif
 
 /* LAPI Specific decls */
 #include <stddef.h>

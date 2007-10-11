@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2007/10/11 22:36:19 $
- * $Revision: 1.20.8.5 $
+ *     $Date: 2007/10/11 23:29:47 $
+ * $Revision: 1.20.8.6 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,11 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#include <firehose_trace.h>
+#if GASNETC_LAPI_RDMA
+  #include <firehose_trace.h>
+#else
+  #define GASNETI_FIREHOSE_STATS(CNT,VAL,TIME)	/* Empty */
+#endif
 
 #define GASNET_EXTENDED_VERSION      1.7
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
