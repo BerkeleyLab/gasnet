@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2007/03/05 23:19:16 $
- * $Revision: 1.47.4.2 $
+ *     $Date: 2007/10/11 23:59:03 $
+ * $Revision: 1.47.4.3 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -91,7 +91,12 @@
 /* splitting and reassembling 64-bit quantities */
 #define GASNETI_MAKEWORD(hi,lo) ((((uint64_t)(hi)) << 32) | (((uint64_t)(lo)) & 0xFFFFFFFF))
 #define GASNETI_HIWORD(arg)     ((uint32_t)(((uint64_t)(arg)) >> 32))
-#define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+#if PLATFORM_COMPILER_INTEL
+  /* This form avoids a #69 truncation warning while generating identical code */
+  #define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg) & 0xFFFFFFFF))
+#else
+  #define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
+#endif
 
 /* alignment macros */
 #define GASNETI_POWEROFTWO(P)    (((P)&((P)-1)) == 0)
@@ -276,6 +281,8 @@
   #define GASNETI_PLEASE_INLINE(fnname) static
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
+#elif defined(__GCC_UPC__) /* ensure GCC/UPC sees inline keyword, even with a configure mismatch */
+  #define GASNETI_PLEASE_INLINE(fnname) static __inline
 #elif defined(STATIC_INLINE_WORKS) && !GASNETI_CONFIGURE_MISMATCH
   #define GASNETI_PLEASE_INLINE(fnname) static CC_INLINE_MODIFIER
 #elif defined(CC_INLINE_MODIFIER) && !GASNETI_CONFIGURE_MISMATCH

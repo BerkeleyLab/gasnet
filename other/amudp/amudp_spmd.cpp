@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2007/03/05 23:19:45 $
- * $Revision: 1.24.8.2 $
+ *     $Date: 2007/10/11 23:59:27 $
+ * $Revision: 1.24.8.3 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -23,7 +23,7 @@
   #else
     #include <sched.h>
   #endif
-  #if PLATFORM_OS_LINUX && !defined(__USE_GNU)
+  #if (PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX) && !defined(__USE_GNU)
     /* some Linuxes need this to pull in F_SETSIG */
     #define __USE_GNU
     #include <fcntl.h>
@@ -87,11 +87,7 @@ static int AMUDP_SPMDShutdown(int exitcode);
   static en_t *AMUDP_SPMDTranslation_name = NULL; 
   static tag_t *AMUDP_SPMDTranslation_tag = NULL; /* network byte order */
   int AMUDP_SPMDSpawnRunning = FALSE; /* true while spawn is active */
-  #if DISABLE_STDSOCKET_REDIRECT
-    int AMUDP_SPMDRedirectStdsockets = FALSE; /* true if stdin/stdout/stderr should be redirected */
-  #else
-    int AMUDP_SPMDRedirectStdsockets = TRUE; /* true if stdin/stdout/stderr should be redirected */
-  #endif
+  int AMUDP_SPMDRedirectStdsockets; /* true if stdin/stdout/stderr should be redirected */
 
 /* slave only */
   SOCKET AMUDP_SPMDControlSocket = INVALID_SOCKET; 
@@ -528,6 +524,8 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       AMUDP_SPMDTranslation_tag[i] = hton64(npid | ((uint64_t)i) << 16);
     }
 
+    AMUDP_SPMDRedirectStdsockets = strcmp(AMUDP_getenv_prefixed_withdefault("ROUTE_OUTPUT",(DISABLE_STDSOCKET_REDIRECT?"0":"1")),"0");
+
     // call system-specific spawning routine
     AMUDP_SPMDSpawnRunning = TRUE;
     if (!spawnfn(AMUDP_SPMDNUMPROCS, slaveargc, (char **)slaveargv))
@@ -798,11 +796,27 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
                 exitCode = ntoh32(exitCode_nb);
                 // tell all other slaves to terminate
                 // TODO: perhaps use an active message for this? for now, just rely on coord socket dying
-                // TODO: it's possblie we can lose some final output because coord and std are asynchronous
                 for (int i=0; i < (int)coordList.getCount(); i++) {
                   sendAll(coordList[i], "E");
                   sendAll(coordList[i], &exitCode_nb, sizeof(int32_t));
                   close_socket(coordList[i]);
+                }
+                /* bug 2029 - wait for any final stdout/stderr to arrive before shutdown */
+                uint64_t wait_iter = 0;
+                while (stdoutList.getCount() || stderrList.getCount()) { // await final output
+                  if (!AMUDP_SilentMode && (!wait_iter++)) {
+                    printf("Awaiting final slave outputs...\n");
+                    fflush(stdout);
+                  }
+                  if (stdoutList.getCount()) {
+                    stdoutList.makeFD_SET(psockset);
+                    handleStdOutput(stdout, psockset, stdoutList, allList, stdoutList.getCount());
+                  }
+                  if (stderrList.getCount()) {
+                    stderrList.makeFD_SET(psockset);
+                    handleStdOutput(stderr, psockset, stderrList, allList, stderrList.getCount());
+                  }
+                  sched_yield();
                 }
                 if (!socklibend()) AMUDP_Err("master failed to socklibend()");
                 if (!AMUDP_SilentMode) {

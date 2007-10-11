@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/03/05 23:20:18 $
- * $Revision: 1.93.2.2 $
+ *     $Date: 2007/10/11 23:59:45 $
+ * $Revision: 1.93.2.3 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,9 @@
   #error "One of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
 #endif
 
-#include <ssh-spawner/gasnet_bootstrap_internal.h>
+#if HAVE_SSH_SPAWNER
+  #include <ssh-spawner/gasnet_bootstrap_internal.h>
+#endif
 #if HAVE_MPI_SPAWNER
   #include <mpi-spawner/gasnet_bootstrap_internal.h>
 #endif
@@ -38,8 +40,6 @@
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
-
-#define GASNETC_CACHE_PAD(SZ) (GASNETC_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES)-(SZ))
 
 /* GASNETC_FH_OPTIONAL: whether or not firehose can be switched OFF at runtime */
 /* Enabled by default for DEBUG builds.  For NDEBUG builds, can force at compile time. */
@@ -395,11 +395,11 @@ typedef struct {
 #define GASNETC_AMRDMA_LIMIT_MAX (GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
 
-#define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 0	/* XXX: disabled by default */
+#define GASNETC_DEFAULT_AMRDMA_MAX_PEERS 32
 #define GASNETC_AMRDMA_DEPTH_MAX	32	/* Power-of-2 <= 32 */
-#define GASNETC_DEFAULT_AMRDMA_DEPTH	GASNETC_AMRDMA_DEPTH_MAX
+#define GASNETC_DEFAULT_AMRDMA_DEPTH	16
 #define GASNETC_DEFAULT_AMRDMA_LIMIT	GASNETC_AMRDMA_LIMIT_MAX
-#define GASNETC_DEFAULT_AMRDMA_CYCLE	8192	/* 2^i, Number of AM rcvs before hot-peer heuristic */
+#define GASNETC_DEFAULT_AMRDMA_CYCLE	1024	/* 2^i, Number of AM rcvs before hot-peer heuristic */
 
 /* Forward decl */
 struct gasnetc_cep_t_;

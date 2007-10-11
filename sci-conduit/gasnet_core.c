@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/03/05 23:20:01 $
- * $Revision: 1.18.10.2 $
+ *     $Date: 2007/10/11 23:59:33 $
+ * $Revision: 1.18.10.3 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -21,7 +21,7 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable();
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
 static void gasnetc_atexit(void);
 extern void gasnetc_exit(int exitcode);

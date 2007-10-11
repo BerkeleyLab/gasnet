@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2007/02/24 00:01:10 $
- * $Revision: 1.32.4.1 $
+ *     $Date: 2007/10/11 23:59:31 $
+ * $Revision: 1.32.4.3 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,10 +46,24 @@ extern int fh_verbose;
  * Locks
  */
 
+#ifdef DEBUG_LOCAL_TABLE /* NOTE: not yet implemented for page */
+  extern void _fhi_debug_local_table(const char *, int line);
+  #define fhi_debug_local_table() _fhi_debug_local_table(GASNETI_CURRENT_FUNCTION, __LINE__)
+  extern int fhc_LocalReserved; /* space reserved for upcoming pin */
+#else
+  #define fhi_debug_local_table() (0)
+#endif
+
 extern gasneti_mutex_t		fh_table_lock;
 
-#define FH_TABLE_LOCK		gasneti_mutex_lock(&fh_table_lock)
-#define FH_TABLE_UNLOCK		gasneti_mutex_unlock(&fh_table_lock)
+#define FH_TABLE_LOCK		do { gasneti_mutex_lock(&fh_table_lock);               \
+				     gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0); \
+				     fhi_debug_local_table();                          \
+				} while (0)
+#define FH_TABLE_UNLOCK		do { gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0); \
+				     fhi_debug_local_table();                          \
+				     gasneti_mutex_unlock(&fh_table_lock);             \
+				} while (0)
 #define FH_TABLE_ASSERT_LOCKED	gasneti_mutex_assertlocked(&fh_table_lock)
 #define FH_TABLE_ASSERT_UNLOCKED gasneti_mutex_assertunlocked(&fh_table_lock)
 

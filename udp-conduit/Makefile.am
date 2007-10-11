@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v $
-#     $Date: 2007/03/05 23:20:16 $
-# $Revision: 1.17.8.2 $
+#     $Date: 2007/10/11 23:59:43 $
+# $Revision: 1.17.8.3 $
 # Description: Makefile for GASNet udp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -57,7 +57,7 @@ CONDUIT_RUNCMD = %P %N %A
 #CONDUIT_RUNCMD = $(top_builddir)/other/amudp/amudprun -np %N -spawn $${GASNET_SPAWNFN:-L} %P %A
 
 # conduit-specific tests in ../tests directory
-CONDUIT_TESTS = testcxx
+CONDUIT_TESTS = testcxx testtoolscxx
 
 # disable MPI tests for udp-*, because we probably don't have an MPI-capable C++ linker
 CONDUIT_TEST_MAKEARGS = MPI_TESTS="" MPI_TESTS_SEQ="" MPI_TESTS_PAR=""

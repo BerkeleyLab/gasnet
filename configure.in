@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/10/11 23:27:55 $
-# $Revision: 1.310.4.4 $
+#     $Date: 2007/10/11 23:59:02 $
+# $Revision: 1.310.4.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.4.4 $)
+AC_REVISION($Revision: 1.310.4.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,7 +27,7 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[9])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[7])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -246,6 +246,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         [$1]FLAGS="-g3"
         ]GASNET_TRY_[$1]FLAG[([-Wall],[[$1]FLAGS="$[$1]FLAGS -Wall"])
         ]GASNET_TRY_[$1]FLAG[([-Wno-unused],[[$1]FLAGS="$[$1]FLAGS -Wno-unused"])
+        ]GASNET_TRY_[$1]FLAG[([-Wno-address],[[$1]FLAGS="$[$1]FLAGS -Wno-address"])
         ]GASNET_TRY_[$1]FLAG[([-Wpointer-arith],[[$1]FLAGS="$[$1]FLAGS -Wpointer-arith"])
         ]GASNET_TRY_[$1]FLAG[([-Wnested-externs],[[$1]FLAGS="$[$1]FLAGS -Wnested-externs"])
         ]GASNET_TRY_[$1]FLAG[([-Wwrite-strings],[[$1]FLAGS="$[$1]FLAGS -Wwrite-strings"])
@@ -288,6 +289,7 @@ case "$gasnet_cv_cc_family" in
   HP)   CCDEBUGFLAGS="-g +ESdbgasm" ;; # need +ESdbgasm to use -g with _asm()
   MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Compaq) CCDEBUGFLAGS="-trapuv -g2" ;;
+  Pathscale) CCDEBUGFLAGS="-g -O0" ;; # need to explicitly disable optimization
   *)    CCDEBUGFLAGS="-g" ;;
 esac
 
@@ -374,7 +376,7 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
       ]])
   if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_PPC64" != 1 -a "$cross_compiling" != "yes"; then 
     # Bug 1587: "for flag in ; do" chokes the shell on Solaris
-    # Bug 1589: Use of m4_ifval([$2]) to avoid bug 1587 chokes autoconf 2.13
+    # Bug 1588: Use of m4_ifval([$2]) to avoid bug 1587 chokes autoconf 2.13
     # So, we add a dummy element to keep the for-loop list non-empty, and then skip it.
     for flag in $2 DUMMY ; do
       if test "$flag" != DUMMY ; then
@@ -416,12 +418,52 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
   popdef([ppc64code])
 ])
 
+dnl GASNET_GET_HPUX_FLAGS(type, flags)  type=C or CXX
+# find the proper MISC_CFLAGS/MISC_CPPFLAGS required to work around a known
+# gcc+hp/ux problem (http://gcc.gnu.org/ml/gcc-bugs/1999-09n/msg00676.html)
+AC_DEFUN([GASNET_GET_HPUX_FLAGS],[
+  pushdef([hpuxcode],[[
+	#define _LARGEFILE64_SOURCE 1
+	#include <errno.h> /* Many other headers possible here */
+	int main() { return 0; }]])
+  AC_MSG_CHECKING(for Large File support by default)
+  AC_TRY_RUN(hpuxcode, [hpux_flag_worked=1], [hpux_flag_worked=0])
+  if test "$hpux_flag_worked" = 1; then
+    AC_MSG_RESULT([yes])
+  else
+    AC_MSG_RESULT([no])
+    for flag in $2 ; do
+      ]GASNET_TRY_[$1]FLAG[([$flag],[hpux_flag_worked=1],[hpux_flag_worked=0])
+      if test "$hpux_flag_worked" = 1; then
+        GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS $flag")
+        AC_TRY_RUN(hpuxcode, [hpux_flag_worked=1], [hpux_flag_worked=0])
+        GASNET_POPVAR([$1]FLAGS)
+        if test "$hpux_flag_worked" = 1; then
+          AC_MSG_CHECKING(for flags required for Large File support)
+          AC_MSG_RESULT($flag)
+          MISC_[$1]FLAGS="$flag"
+          break;
+        fi
+      fi
+    done
+    if test "$hpux_flag_worked" = 0; then
+      AC_MSG_ERROR([no flags found to allow Large File support])
+    fi
+  fi
+  popdef([hpuxcode])
+])
+
+
 case "$gasnet_cv_cc_family" in
   GNU)
     case "$target_cpu" in
       sparc) GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
       powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
-    esac ;;
+    esac
+    case "$target_os" in
+      hpux*) GASNET_GET_HPUX_FLAGS(C,["-D__STDC_EXT__=1"]);;
+    esac
+    ;;
   Cray) 
     case "$target_cpu" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
@@ -536,6 +578,7 @@ case "$gasnet_cv_cc_family" in
   Pathscale) KEEPTMP_CFLAGS="-keep" ;;
   XLC) KEEPTMP_CFLAGS="-qlist" ;; # XXX: generates .lst w/ asm.  Can't find a way to preserve .i
   PGI) KEEPTMP_CFLAGS="-Mkeepasm" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
+  Intel) KEEPTMP_CFLAGS="-save-temps" ;; # XXX: only keeps .s.  Can't find a way to preserve .i
   Sun) KEEPTMP_CFLAGS="-keeptmp" ;;
   *) KEEPTMP_CFLAGS="" ;;
 esac
@@ -567,7 +610,15 @@ AM_CONDITIONAL(GASNET_SEGMENT_EVERYTHING, test "$segconfig" = everything)
 GASNET_IF_DISABLED([aligned-segments],
                    [Disable requirement to achieve aligned VM segments, for heterogeneous clusters],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
-		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)])
+		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
+		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
+		    if test -f $RVMFILE && test "`cat $RVMFILE`" = "1" ; then
+WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
+security feature is enabled. If this feature is also enabled on the compute \
+nodes, you need to re-run configure with --disable-aligned-segments"
+		      GASNET_MSG_WARN([$WMSG])
+		    fi
+		   ])
 
 GASNET_WITH(segment-mmap-max,
    [Upper bound for mmap-based GASNet segments (ex: "2GB", "1045MB")],
@@ -961,6 +1012,33 @@ AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 ########################################################################
 ## CPU feature checks
 
+## Does gcc/gas support "ldcw,co" pseudo-op on PA-RISC?
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR/other")
+AC_MSG_CHECKING(for pa-risc LDCW psuedo-op)
+AC_TRY_COMPILE([
+  #include "portable_platform.h"
+], [
+  #if PLATFORM_ARCH_PARISC
+    #if PLATFORM_COMPILER_GNU
+      unsigned int gasneti_loadandclear_32(unsigned int volatile *v) {
+        register unsigned int volatile * addr = (unsigned int volatile *)v;
+        register unsigned int val = 0;
+          __asm__ __volatile__ (
+            "ldcw,co 0(%2), %0 \n"
+            : "=r"(val), "=m" (*addr) : "r" (addr), "m" (*addr));
+        return val;
+      }
+    #else
+	/* Don't know, but also don't currently care */
+    #endif
+  #else
+    #error wrong CPU architecture
+  #endif
+], [AC_DEFINE(GASNETI_HAVE_PARISC_LDCW_CO)
+    AC_MSG_RESULT(yes)
+], [AC_MSG_RESULT(no)])
+GASNET_POPVAR(CFLAGS)
+
 ## Look for PPC970/PPC970FX (aka G5)
 # Both false positives and false negatives are safe, but getting this
 # wrong may hurt performance.
@@ -1224,6 +1302,8 @@ dnl sets enabled_<lowername> to yes or no for whether conduit should be enabled
 AC_DEFUN([CONDUIT_BEGIN],[
  pushdef([CONDUIT_NAME],[$1])
  pushdef([CONDUIT_DESC],[$2])
+ # bug 1946: prevent confusing cross-conduit error messages
+ GASNET_ERR_CLEANUP
  enabled_[]$1=no
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
  GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC (auto-detected),
@@ -1318,7 +1398,7 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
         gasnet_ib_spawner_conf=ssh
       fi])
   if test "$gasnet_ib_spawner_conf$have_mpi_compat" = mpino; then
-    AC_MSG_ERROR([--with-[]lowername[]-spawner=mpi requires MPI compatibility support which $mpi_reason])
+    AC_MSG_ERROR([--with-[]lowername[]-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
   fi
   if test "$gasnet_ib_spawner_conf$have_fork" = sshno; then
     AC_MSG_ERROR([--with-[]lowername[]-spawner=ssh requires fork() support which $fork_reason])
@@ -1406,6 +1486,9 @@ if test $enabled_udp = yes; then
        case "$target_cpu" in
          sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
          powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
+       esac
+       case "$target_os" in
+         hpux*) GASNET_GET_HPUX_FLAGS(CXX,["-D__STDC_EXT__=1"]);;
        esac
        GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
@@ -1740,6 +1823,9 @@ AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that in
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 CONDUIT_END([test "$enabled_mpi$have_mpi" = yesyes])
+if test "$enabled_mpi$have_mpi" = yesyes; then
+  have_ammpi=yes
+fi
 if test "$force_mpi_compat$have_mpi" = yesno ; then
   GASNET_MSG_ERROR(User requested --enable-mpi-compat but I don't know how to build MPI programs for your system)
 fi
@@ -1747,6 +1833,11 @@ if test "$enabled_mpi_compat$have_mpi" = yesyes ; then
   have_mpi_compat=yes
 else
   have_mpi_compat=no
+  if test "$have_mpi" = yes; then
+    mpi_compat_reason="was disabled"
+  else
+    mpi_compat_reason="$mpi_reason"
+  fi
 fi
 AM_CONDITIONAL(USE_MPI_COMPAT, test "$have_mpi_compat" = yes)
 # USE_MPI == MPI-compatbility or MPI-conduit
@@ -1868,7 +1959,7 @@ if test $enabled_gm = yes; then
       if test "$GM_MPI_COMPAT" = yes; then
 	  AC_DEFINE(GASNETC_GM_MPI_COMPAT)
       else
-	  GASNET_MSG_WARN([GM requires MPI for interoperability and MPI $mpi_reason - disabling feature])
+	  GASNET_MSG_WARN([disabling gm-conduit interoperability with MPI ($mpi_compat_reason)])
       fi
     fi
   fi
@@ -2210,7 +2301,7 @@ CONDUIT_END([test "$enabled_elan$have_elan" = yesyes])
 CONDUIT_BEGIN(vapi,[Mellanox InfiniBand/VAPI network conduit (vapi)])
 if test "$enabled_vapi$have_mpi_compat$have_fork" = yesnono; then
   enabled_vapi=no
-  GASNET_MSG_WARN([vapi-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup - disabling vapi])
+  GASNET_MSG_WARN([vapi-conduit requires either MPI compatibility ($mpi_compat_reason) or fork() ($fork_reason) for startup - disabling vapi])
 fi
 if test "$enabled_vapi" = yes; then
   # Start by assuming we do have VAPI
@@ -2332,6 +2423,7 @@ AC_SUBST(VAPI_LIBDIR)
 AC_SUBST(VAPI_LIBS)
 AC_SUBST(VAPI_LIBCFLAGS)
 AM_CONDITIONAL(USE_VAPI_CONDUIT, test "$have_vapi" = yes)
+AM_CONDITIONAL(VAPI_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(VAPI_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 AM_CONDITIONAL(VAPI_RCV_THREAD,test "$enabled_vapi_rcv_thread" = yes)
 CONDUIT_END([test "$have_vapi" = yes])
@@ -2342,7 +2434,7 @@ CONDUIT_END([test "$have_vapi" = yes])
 CONDUIT_BEGIN(ibv,[OpenIB/OpenFabrics IB Verbs network conduit (ibv)])
 if test "$enabled_ibv$have_mpi_compat$have_fork" = yesnono; then
   enabled_ibv=no
-  GASNET_MSG_WARN([ibv-conduit requires either MPI compatibility ($mpi_reason) or fork() ($fork_reason) for startup - disabling ibv])
+  GASNET_MSG_WARN([ibv-conduit requires either MPI compatibility ($mpi_compat_reason) or fork() ($fork_reason) for startup - disabling ibv])
 fi
 if test "$enabled_ibv" = yes; then
   # Start by assuming we do have IBV
@@ -2421,6 +2513,7 @@ AC_SUBST(IBV_LIBDIR)
 AC_SUBST(IBV_LIBS)
 AC_SUBST(IBV_LIBCFLAGS)
 AM_CONDITIONAL(USE_IBV_CONDUIT, test "$have_ibv" = yes)
+AM_CONDITIONAL(IBV_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(IBV_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 AM_CONDITIONAL(IBV_RCV_THREAD,test "$enabled_ibv_rcv_thread" = yes)
 CONDUIT_END([test "$have_ibv" = yes])
@@ -2450,10 +2543,12 @@ if test "$enabled_portals" = yes; then
       ;;
   esac
 
-  if test "$have_mpi_compat" != yes; then
-    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_reason])
-    have_portals=no
-  fi
+# MLW: No longer need MPI to run portals
+#  if test "$have_mpi_compat" != yes; then
+#    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_compat_reason])
+#    have_portals=no
+#  fi
+
   if test "$gasnet_cv_cc_family" != GNU; then
     # bug 1584 - non-GNU compilers don't support portals until PE v1.5
     if test -z "$XTOS_VERSION" ; then
@@ -2473,6 +2568,18 @@ if test "$enabled_portals" = yes; then
     GASNET_PUSHVAR(CFLAGS,"$CFLAGS ${PORTALS_INCLUDES}")
   
     AC_CHECK_HEADERS(pctmbox.h)
+    AC_CHECK_HEADERS(catamount/cnos_mpi_os.h)
+
+    dnl Some PE versions lack a ptl_eq_handler_t definition in portals3.h
+    AC_MSG_CHECKING([for ptl_eq_handler_t in portals3.h])
+    AC_TRY_COMPILE([
+      #include <portals/portals3.h>
+    ], [ 
+      ptl_eq_handler_t x;
+    ], AC_MSG_RESULT(yes),
+    [ AC_MSG_RESULT(no)
+      AC_DEFINE(GASNETC_PORTALS_MISSING_EQ_HANDLER_T)])
+
 
     AC_MSG_CHECKING(for working Portals configuration)
     AC_TRY_LINK( [
@@ -2509,6 +2616,11 @@ fi
 
 AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$have_portals" = yes)
 CONDUIT_END([test "$have_portals" = yes])
+# TODO: remove when portals is fully native
+# MLW: Now is the time...
+#if test "$have_portals" = yes; then
+#  have_ammpi=yes
+#fi
 
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
@@ -2632,6 +2744,11 @@ AC_SUBST(SCI_INCLUDES)
 AC_SUBST(SCI_LIBS)
 AM_CONDITIONAL(USE_SCI_CONDUIT, test "$have_sci" = yes)
 CONDUIT_END([test "$have_sci" = yes])
+
+#---------------------------------------------------------------------------------------------------------------
+# build and install AMMPI
+AM_CONDITIONAL(USE_AMMPI, test "$have_ammpi" = yes)
+
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
 #---------------------------------------------------------------------------------------------------------------
@@ -2701,6 +2818,8 @@ AC_CHECK_HEADERS(sys/resource.h)
 
 AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
+
+AC_CHECK_HEADERS([sn/mmtimer.h linux/mmtimer.h])
 
 ########################################################################
 # BACKTRACE support
@@ -3146,9 +3265,14 @@ case "$target_os" in
     # when linking with the mpich libs.
     LDFLAGS="$LDFLAGS -Wl,-multiply_defined,suppress"
   ;;
-esac
-case "$gasnet_cv_cc_family" in
-  MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
+
+  irix*)
+    case "$gasnet_cv_cc_family" in
+      MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
+      ;;
+      GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=84" # don't warn about unused libm
+      ;;
+    esac
   ;;
 esac
 AC_SUBST(LDFLAGS)

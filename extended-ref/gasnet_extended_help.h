@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2007/03/05 23:19:26 $
- * $Revision: 1.28.10.2 $
+ *     $Date: 2007/10/11 23:59:11 $
+ * $Revision: 1.28.10.3 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,7 @@ GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_MAX_THREADS
-/* cannot exceed 256, but some conduits may set it to less */
+/* cannot exceed the size representable in gasnete_threadidx_t, but some conduits may set it to less */
 #define GASNETI_MAX_THREADS 256
 #endif
 

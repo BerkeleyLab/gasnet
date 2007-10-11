@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2007/03/05 23:19:16 $
- * $Revision: 1.26.2.2 $
+ *     $Date: 2007/10/11 23:59:03 $
+ * $Revision: 1.26.2.3 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #if GASNETI_THREADS
-  #if PLATFORM_OS_LINUX
+  #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX
    struct timespec; /* avoid an annoying warning on Linux */
   #endif
   #include <pthread.h>
@@ -360,6 +360,22 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #define _GASNETI_THREADKEY_INITIALIZER NULL
 #endif
 
+#if GASNETI_THREADS
+  GASNETI_NEVER_INLINE(_gasneti_threadkey_init, /* avoid inserting overhead for an uncommon path */
+  static void _gasneti_threadkey_init(pthread_key_t *_value, gasneti_mutex_t *_initmutex, volatile int *_isinit)) {
+    gasneti_mutex_lock(_initmutex);
+      if (*_isinit == 0) {
+        gasneti_assert_zeroret(pthread_key_create(_value,NULL));
+        { /* need a wmb, but have to avoid a header dependency cycle */
+          gasneti_mutex_t dummymutex = GASNETI_MUTEX_INITIALIZER;
+          gasneti_mutex_lock(&dummymutex);gasneti_mutex_unlock(&dummymutex); 
+        }
+        *_isinit = 1;
+      } 
+    gasneti_mutex_unlock(_initmutex);
+  }
+#endif
+
 #if _GASNETI_THREADKEY_USES_PTHREAD_GETSPECIFIC
   #define GASNETI_THREADKEY_DECLARE(key) \
     extern _gasneti_threadkey_t key
@@ -367,22 +383,46 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     _gasneti_threadkey_t key = _GASNETI_THREADKEY_INITIALIZER
 #elif _GASNETI_THREADKEY_USES_TLS
   #if GASNETI_CONFIGURE_MISMATCH
+    /* mismatched compilers can access TLS threadkeys defined in objects
+       built by supported compiler via extern function call */
     #define GASNETI_THREADKEY_DECLARE(key)         \
       extern void *_gasneti_threadkey_get_##key(); \
       extern void _gasneti_threadkey_set_##key(void *_val)
-  #else
+    /* bug 1947 - following only expanded when a configure-mismatched compiler is 
+       DEFINING a threadkey - use pthread_getspecific in that case for safety
+     */
+    #define GASNETI_THREADKEY_DEFINE(key)                                                      \
+      static pthread_key_t _gasneti_threadkey_##key##_value;                                   \
+      static gasneti_mutex_t _gasneti_threadkey_##key##_initmutex = GASNETI_MUTEX_INITIALIZER; \
+      static volatile int _gasneti_threadkey_##key##_isinit = 0;                               \
+      extern void *_gasneti_threadkey_get_##key() {                                            \
+        if (!_gasneti_threadkey_##key##_isinit)                                                \
+           _gasneti_threadkey_init(&_gasneti_threadkey_##key##_value,                          \
+                                   &_gasneti_threadkey_##key##_initmutex,                      \
+                                   &_gasneti_threadkey_##key##_isinit);                        \
+        return pthread_getspecific(_gasneti_threadkey_##key##_value);                          \
+      }                                                                                        \
+      extern void _gasneti_threadkey_set_##key(void *_val) {                                   \
+        if (!_gasneti_threadkey_##key##_isinit)                                                \
+           _gasneti_threadkey_init(&_gasneti_threadkey_##key##_value,                          \
+                                   &_gasneti_threadkey_##key##_initmutex,                      \
+                                   &_gasneti_threadkey_##key##_isinit);                        \
+        gasneti_assert_zeroret(pthread_setspecific(_gasneti_threadkey_##key##_value, _val));   \
+      }                                                                                        \
+      GASNETI_THREADKEY_DECLARE(key)
+  #else /* no mismatch */
     #define GASNETI_THREADKEY_DECLARE(key) \
       extern __thread _gasneti_threadkey_t _gasneti_threadkey_val_##key
+    #define GASNETI_THREADKEY_DEFINE(key)                    \
+      GASNETI_THREADKEY_DECLARE(key);                        \
+      extern void *_gasneti_threadkey_get_##key() {          \
+        return gasneti_threadkey_get(key);                   \
+      }                                                      \
+      extern void _gasneti_threadkey_set_##key(void *_val) { \
+        gasneti_threadkey_set(key, _val);                    \
+      }                                                      \
+      __thread _gasneti_threadkey_t _gasneti_threadkey_val_##key = _GASNETI_THREADKEY_INITIALIZER
   #endif
-  #define GASNETI_THREADKEY_DEFINE(key)                    \
-    GASNETI_THREADKEY_DECLARE(key);                        \
-    extern void *_gasneti_threadkey_get_##key() {          \
-      return gasneti_threadkey_get(key);                   \
-    }                                                      \
-    extern void _gasneti_threadkey_set_##key(void *_val) { \
-      gasneti_threadkey_set(key, _val);                    \
-    }                                                      \
-    __thread _gasneti_threadkey_t _gasneti_threadkey_val_##key = _GASNETI_THREADKEY_INITIALIZER
 #else /* _GASNETI_THREADKEY_USES_NOOP */
   #define GASNETI_THREADKEY_DECLARE(key) \
     extern _gasneti_threadkey_t _gasneti_threadkey_val_##key
@@ -402,22 +442,11 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     _gasneti_threadkey_check((key), 1);                                   \
     gasneti_assert_zeroret(pthread_setspecific((key).value, (newvalue))); \
   } while (0)
-  GASNETI_NEVER_INLINE(_gasneti_threadkey_init, /* avoid inserting overhead for an uncommon path */
-  static void _gasneti_threadkey_init(_gasneti_threadkey_t *pkey)) {
-    _gasneti_threadkey_check(*pkey, 0);
-    gasneti_mutex_lock(&(pkey->initmutex));
-      if (pkey->isinit == 0) {
-        gasneti_assert_zeroret(pthread_key_create(&(pkey->value),NULL));
-        { /* need a wmb, but have to avoid a header dependency cycle */
-          gasneti_mutex_t dummymutex = GASNETI_MUTEX_INITIALIZER;
-          gasneti_mutex_lock(&dummymutex);gasneti_mutex_unlock(&dummymutex); 
-        }
-        pkey->isinit = 1;
-      } 
-    gasneti_mutex_unlock(&(pkey->initmutex));
-    _gasneti_threadkey_check(*pkey, 1);
-  }
-  #define gasneti_threadkey_init(key) _gasneti_threadkey_init(&(key))
+  #define gasneti_threadkey_init(key) (_gasneti_threadkey_check((key), 0),         \
+                                       _gasneti_threadkey_init(&((key).value),     \
+                                                               &((key).initmutex), \
+                                                               &((key).isinit)),   \
+                                       _gasneti_threadkey_check((key), 1))
   #define gasneti_threadkey_get(key)       \
     ( _gasneti_threadkey_check(key, 0),    \
       ( PREDICT_FALSE((key).isinit == 0) ? \
@@ -466,9 +495,11 @@ extern char *gasneti_getenv(const char *keyname);
 extern char *gasneti_getenv_withdefault(const char *keyname, const char *defaultval);
 extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval);
 extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier);
+extern double gasneti_getenv_dbl_withdefault(const char *keyname, double defaultval);
 extern int gasneti_verboseenv();
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
+extern void gasneti_envdbl_display(const char *key, double val, int is_dflt);
 
 /* Conduit-specific supplement to gasneti_getenv
  * If set to non-NULL this has precedence over gasneti_globalEnv.

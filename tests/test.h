@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2007/03/05 23:20:11 $
- * $Revision: 1.63.6.2 $
+ *     $Date: 2007/10/11 23:59:41 $
+ * $Revision: 1.63.6.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -828,7 +828,12 @@ static void _test_usage(int early) {
       sleep(1);
       gasnet_exit(1);
     } else { /* wait to die */
-      if (early) while(1) gasnett_sched_yield();
+      if (early) {
+        gasnett_tick_t starttime = gasnett_ticks_now();
+        /* only wait for a bounded time to prevent zombies on polling-only conduits */
+        while (gasnett_ticks_to_us(gasnett_ticks_now()-starttime)<5000000) gasnett_sched_yield();
+        gasnett_killmyprocess(-1);
+      }
       else BARRIER();
     }
   #else
@@ -841,6 +846,7 @@ static void _test_usage(int early) {
   #endif
 }
 #define test_usage() _test_usage(0)
+#define test_usage_early() _test_usage(1)
 static void _test_init(const char *testname, int reports_performance, int early,
                        int argc, const char * const *argv, const char *usagestr) {
   /* convenient place to put inits we want in all tests */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2007/03/05 23:19:17 $
- * $Revision: 1.52.4.2 $
+ *     $Date: 2007/10/11 23:59:04 $
+ * $Revision: 1.52.4.3 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,7 +144,7 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_tick_t               gasneti_tick_t
 #define GASNETT_TICK_MIN             GASNETI_TICK_MIN
 #define GASNETT_TICK_MAX             GASNETI_TICK_MAX
-#define gasnett_ticks_to_us(ticks)  (gasneti_ticks_to_ns(ticks)/1000)
+#define gasnett_ticks_to_us(ticks)   gasneti_ticks_to_us(ticks)
 #define gasnett_ticks_to_ns(ticks)   gasneti_ticks_to_ns(ticks)
 #define gasnett_ticks_now()          gasneti_ticks_now()
 #define gasnett_tick_granularityus() gasneti_tick_granularity()
@@ -274,9 +274,11 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_getenv_withdefault        gasneti_getenv_withdefault
 #define gasnett_getenv_yesno_withdefault  gasneti_getenv_yesno_withdefault
 #define gasnett_getenv_int_withdefault    gasneti_getenv_int_withdefault
+#define gasnett_getenv_dbl_withdefault    gasneti_getenv_dbl_withdefault
 #define gasnett_verboseenv                gasneti_verboseenv
 #define gasnett_envstr_display            gasneti_envstr_display
 #define gasnett_envint_display            gasneti_envint_display
+#define gasnett_envdbl_display            gasneti_envdbl_display
 
 /* ------------------------------------------------------------------------------------ */
 /* misc tools utilities */

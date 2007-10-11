@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2007/03/05 23:19:38 $
-# $Revision: 1.36.4.2 $
+#     $Date: 2007/10/11 23:59:21 $
+# $Revision: 1.36.4.3 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -14,19 +14,26 @@ $spawncmd = stripouterquotes($spawncmd);
 $spawncmd =~ s/%C/%P %A/;	# deal with common alias
 
 # Validate the spawncmd
-unless (exists($ENV{'MPIRUN_CMD_OK'}) ||
+my $cmd_ok = exists($ENV{'MPIRUN_CMD_OK'});
+if ($spawncmd =~ m/MPIRUN_CMD_OK/) {
+  $spawncmd =~ s/\s*MPIRUN_CMD_OK//g;
+  $cmd_ok = 1;
+}
+unless ($cmd_ok ||
         (($spawncmd =~ m/%P/) && ($spawncmd =~ m/%A/) && ($spawncmd =~ m/%N/))) {
 	die("gasnetrun: ERROR: MPIRUN_CMD='$spawncmd'\n"
           . "The environment variable MPIRUN_CMD must contain the strings '%P' and '%A'\n"
 	  . "(or '%C' as an alias for '%P %A') for expansion into the program and its arguments;\n"
 	  . "and '%N' for expansion into the number of processes.\n"
-	  . "To disable this check, set MPIRUN_CMD_OK in your environment.\n");
+	  . "To disable this check, set MPIRUN_CMD_OK in your environment, \n"
+	  . "or append the string MPIRUN_CMD_OK to the command.\n");
 }
 
 # Globals
 my $envlist = '';
 my $numproc = undef;
 my $numnode = undef;
+my @numprocargs = ();
 my $verbose = 0;
 my @verbose_opt = ("-v");
 my $keep = 0;
@@ -40,6 +47,7 @@ my $encode_args = 0; # encode command-line options to workaround buggy spawners
 my $encode_env = 0;  # encode environment variables to workaround buggy spawners
 my $group_join_argv = 0; # join all the args into one for %A?
 my $force_nonempty_argv = 0; # if args are empty, still pass empty arg for %A
+my $dashN_ok = 0; # does spawner support -N?
 my $tmpdir = undef;
 my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'} ||
 	($ENV{'PE_HOSTFILE'} && $ENV{'TMPDIR'} && -f "$ENV{'TMPDIR'}/machines" && "$ENV{'TMPDIR'}/machines") ||
@@ -87,7 +95,7 @@ sub gasnet_encode($) {
     my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
     my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
-    my $is_aprun    = ($mpirun_help =~ m|rchitecture type.*?xt3|);
+    my $is_aprun    = ($mpirun_help =~ m|rchitecture type.*?xt|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
     my $is_bgl_mpi  = ($mpirun_help =~ m|COprocessor or VirtualNode mode|);
     my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|);
@@ -107,6 +115,7 @@ sub gasnet_encode($) {
 	%envfmt = ( 'pre' => '-x',
 		    'join' => ','
 		  );
+	$dashN_ok = 1;
     } elsif ($is_ompi) {
 	$spawner_desc = "OpenMPI";
 	# pass env as "-x A -x B -x C"
@@ -193,6 +202,7 @@ sub gasnet_encode($) {
                   );
 	# what a mess: pbsyod needs extra quoting, bare yod does not...
         #$extra_quote_argv = 1;
+	@verbose_opt = ("-setenv", "PMI_DEBUG=1");
     } elsif ($is_bgl_mpi) {
 	$spawner_desc = "IBM BG/L MPI";
 	# pass as: -exp_env A -exp_env B
@@ -337,12 +347,6 @@ sub expand {
 # Validate -n as needed
     if (!defined($numproc) && $spawncmd =~ /%N/) {
 	usage "Required option -n was not given\n";
-    }
-
-# Validate -N as needed
-    if (defined($numnode) && !$is_lam && !($spawncmd =~ m/%M/)) {
-	warn "WARNING: Don't know how to control process->node layout with your mpirun\n";
-	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
     }
 
 # Find the program
@@ -516,18 +520,84 @@ EOF
 	$ENV{PATH} = "$tmpdir:$ENV{PATH}";
 	@envargs = ();
      }
+
+# Process LSF host list to ensure it conforms to our request
+if (exists($ENV{'LSB_MCPU_HOSTS'})) {
+  my @tmp = split(" ", $ENV{'LSB_MCPU_HOSTS'});
+  my %tmp;
+  while (@tmp) {
+    my $h = shift @tmp; # Host
+    my $n = shift @tmp; # Numcpus
+    $tmp{$h} += $n;
+  }
+  # Ensure a dense sub-allocation
+  my @hosts = (sort keys %tmp);
+  my $np = 0;
+  @tmp = ();
+  if ($numnode) {
+    die ("Not enough hosts LSB_MCPU_HOSTS to satisfy '-N $numnode'\n")
+      unless (scalar(@hosts) >= $numnode);
+    my $ppn = int($numproc / $numnode);    # quotient = minimum procs per node
+    my $rem = $numproc - $numnode * $ppn;  # remainder = nodes carrying ($ppn + 1) procs
+    foreach (@hosts) {
+      my $extra = $rem?1:0;
+      push @tmp, ($_, ($ppn + $extra));
+      $rem -= $extra;
+    }
+  } else {
+    foreach (@hosts) {
+      my $n = $tmp{$_};
+      if ($n > $numproc - $np) { $n = $numproc - $np; }
+      push @tmp, ($_, $n);
+      $np += $n;
+      last if ($np == $numproc);
+    }
+    die ("Not enough hosts/cpus in LSB_MCPU_HOSTS to satisfy '-n $numproc'\n")
+      unless ($np == $numproc);
+  }
+  $ENV{'LSB_MCPU_HOSTS'} = join(' ', @tmp);
+  print("gasnetrun: rewrote LSB_MCPU_HOSTS='$ENV{'LSB_MCPU_HOSTS'}'\n") if ($verbose);
+  $dashN_ok = 1;
+}
+
+# LAM-specific preprocessing of $numproc in the presence of $numnode
+if ($is_lam && $numnode) {
+  my @tmp = (0..($numnode-1));
+  expand \@tmp;
+  @numprocargs = ($numproc, 'n' . join(',', @tmp));
+}
     
+if ($numnode && ($is_aprun || $is_yod)) { 
+  my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+  if ($ppn * $numnode != $numproc) {
+	warn "WARNING: aprun does not fully support non-uniform process distribution\n";
+	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+  }
+  if ($is_aprun) { # aprun requires -N ppn
+    @numprocargs = ($numproc, '-N', $ppn);
+  } else { # yod requires -SN or -VN
+    if ($ppn == 1) {
+      @numprocargs = ($numproc, '-SN');
+    } elsif ($ppn == 2) {
+      @numprocargs = ($numproc, '-VN');
+    } else {
+      die "yod does not support more than 2 processes per node.\n";
+    }
+  }
+  $dashN_ok = 1;
+}
+
+# Validate -N as needed
+    if (defined($numnode) && !(($spawncmd =~ m/%M/) || $dashN_ok)) {
+	warn "WARNING: Don't know how to control process->node layout with your mpirun\n";
+	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+
 # Exec it
     my $cwd = `pwd`;
     chomp $cwd;
     my @spawncmd = map {  if ($_ eq '%N') {
-			      if ($is_lam && $numnode) {
-				  my @tmp = (0..($numnode-1));
-				  expand \@tmp;
-				  ($numproc, 'n' . join(',', @tmp));
-			      } else {
-				  $numproc;
-			      }
+			      @numprocargs ? @numprocargs : $numproc;
 			  } elsif ($_ eq '%M') {
 			    $numnode || $numproc;
 			  } elsif ($_ eq '%H') {

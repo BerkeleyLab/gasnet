@@ -1,13 +1,14 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.34.4.2 $
+$Revision: 1.34.4.3 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
 @ Section: Job Spawning @
 @ Section: Multi-rail Support @
 @ Section: Runtime Configuration @
+@ Section: HCA Configuration @
 @ Section: Core API @
 @ Section: Extended API @
 @ Section: Graceful exits @
@@ -23,7 +24,7 @@ $Revision: 1.34.4.2 $
 
   Unless stated otherwise, everything in this document applies to
   both vapi-conduit and ibv-conduit.  For clarity (and due to
-  history) this document consistenty talks about VAPI.  However,
+  history) this document consistently talks about VAPI.  However,
   anywhere "vapi" or "VAPI" appears in the name of a configuration
   option, environment variable, or command, one may substitute "ibv"
   or "IBV" to obtain the equivalent to be used with ibv-conduit.
@@ -64,7 +65,7 @@ $Revision: 1.34.4.2 $
     you must compile mpi-conduit as well (even if you never plan to use
     it).
   + MPI is only used in gasnet_init(), gasnet_attach() and gasnet_exit()
-    and not for any GASNet cals between attach and exit.  Therefore it is
+    and not for any GASNet calls between attach and exit.  Therefore it is
     acceptable to use a TCP/IP based MPI such as MPICH or LAM/MPI.
   + The environment variable MPIRUN_CMD can be used to configure how to
     invoke mpirun.  See mpi-conduit/README (or README-mpi) for more
@@ -119,7 +120,7 @@ $Revision: 1.34.4.2 $
   yield increases in both bandwidth (good) and software overhead (bad).
   How the resulting trade off works for a given application may be
   hard to predict.  If one is concerned with obtaining the maximum
-  possible performance for a given appliction, then experiment with
+  possible performance for a given application, then experiment with
   the GASNET_NUM_QPS and/or GASNET_VAPI_PORTS environment variables
   (documented in "Runtime Configuration") to determine how a given
   application runs best.
@@ -158,6 +159,11 @@ $Revision: 1.34.4.2 $
 
   There are a number of parameters in vapi-conduit which can be tuned
   at runtime via environment variables.
+
+  General settings:
+  Vapi-conduit supports all of the standard GASNet environment variables
+  and the optional GASNET_EXITTIMEOUT family of environment variables.
+  See GASNet's top-level README for documentation.
 
   Connection settings:
   Under normal conditions, Host Channel Adapters and Ports will be
@@ -206,11 +212,11 @@ $Revision: 1.34.4.2 $
 	GASNET_VAPI_PORTS="InfiniHost0+InfiniHost1:2".
     Note that this list is a *filter*, which means:
     + Duplicate entries do not cause multiple opens of a port or HCA
-    + Entries describing non-existant HCAs are silently ignored
+    + Entries describing non-existent HCAs are silently ignored
     + Entries describing inactive ports are silently ignored
     + Order is not significant.  In particular if GASNET_NUM_QPS is
       less than the number of entries in GASNET_VAPI_PORTS, ports
-      are openned in the order detected, regardless of their order
+      are opened in the order detected, regardless of their order
       in GASNET_VAPI_PORTS
     Note that in most VAPI distributions the 'vstat' utility will list
     the available HCAs and the status of their ports, while for IBV the
@@ -218,7 +224,7 @@ $Revision: 1.34.4.2 $
     The default is no filter.
 
   Software configuration settings:
-  There are some optional behaviors in vapi-conduit that can be turnned
+  There are some optional behaviors in vapi-conduit that can be turned
   ON or OFF.  These parameters may legally take different values on each
   node, but doing so may not be useful.
 
@@ -262,7 +268,7 @@ $Revision: 1.34.4.2 $
     This gives a boolean: "0" to disable or "1" to enable the use of
     GASNET_PHYSMEM_MAX without probing.
     Enabling this setting may greatly speed startup, but can lead to
-    unexpected runtime failures if GASNET_PHYSMEM_MAX exceedes the limts
+    unexpected runtime failures if GASNET_PHYSMEM_MAX exceeds the limits
     imposed by the O/S and HCA.
     If GASNET_PHYSMEM_MAX is zero (or unset) this variable is ignored.
     The default is OFF.
@@ -289,7 +295,7 @@ $Revision: 1.34.4.2 $
     sufficiently small payloads, it is more efficient (in terms of both CPU
     overhead and network latency) to pack the header and payload together
     and copy the payload into place on the target before running the
-    handler.  Thus, for payload upto and including this size this packing
+    handler.  Thus, for payload up to and including this size this packing
     is used.
     The default value is the maximum that fits into a 4KB buffer together
     with the maximum sized header (currently 4012).
@@ -300,7 +306,7 @@ $Revision: 1.34.4.2 $
     transfer the payload of an AMLong (but not AMLongAsync) with nbytes >
     MAX(GASNET_INLINESEND_LIMIT, GASNET_PACKEDLONG_LIMIT), vapi-conduit must
     either copy the data into bounce buffers, or block until remote
-    completion is signalled by the HCA.  Such transfers upto and including
+    completion is signaled by the HCA.  Such transfers up to and including
     size GASNET_NONBULKPUT_BOUNCE_LIMIT are performed using bounce buffers
     while larger transfers are transfered using blocking PUTs.
     The default value is 64KB.
@@ -441,7 +447,7 @@ $Revision: 1.34.4.2 $
   using RDMA PUT operations to buffers reserved for this purpose.  This
   leads to a reduction in the end-to-end latency of such AM traffic, but
   at the cost of increased memory usage and in the cost of a polling for
-  AMs (as done explicity in gasnet_AMPoll(), and implicitly in many
+  AMs (as done explicit in gasnet_AMPoll(), and implicitly in many
   GASNet calls).
 
   + GASNET_AMRDMA_LIMIT
@@ -457,14 +463,16 @@ $Revision: 1.34.4.2 $
     each) that are allocated per peer for receiving AMRDMA traffic.  Larger
     values may potentially allow for more AMs in-flight before flow control
     throttles the sender, but at the cost of increased memory consumption.
-    The current default is 32.
+    The value must be a power of 2 and the maximum is 32.
+    The current default is 16.
 
   + GASNET_AMRDMA_MAX_PEERS
     This environment variable limits the number of peers from which AMs may
     be received over RDMA.  Larger values may potentially allow for lower
     cost AM traffic, but at the cost of increased memory consumption and
     greater overhead each time that vapi-conduit polls for AM traffic.
-    The current default is 0 - which disables AMRDMA.
+    A value of zero will disable AMRDMA.
+    The current default is 32.
 
   + GASNET_AMRDMA_CYCLE
     This environment variable, which must be zero or a power or two, sets
@@ -479,7 +487,7 @@ $Revision: 1.34.4.2 $
     A value of zero will disable AMRDMA.
     A value of one will result in selecting the first GASNET_AMRDMA_MAX_PEERS
     peers from which AMs are received.
-    The current default is 8192.
+    The current default is 1024.
 
   Firehose configuration:
   These parameters must be equal across all nodes, and the behavior
@@ -564,6 +572,30 @@ $Revision: 1.34.4.2 $
     to run with this environment variable set if you report a bug that
     appears related to the firehose algorithm. 
 
+@ Section: HCA Configuration @
+
+  To achieve normal correct operation of GASNet over VAPI or IBVerbs should
+  *not* require any specialized configuration of your HCAs.  However, this
+  section documents any configuration that *may* help improve performance.
+
+  We recommend you backup your configuration data prior to attempting any
+  modification, and that you confirm that any changes made produce a
+  measurable benefit before deciding to keep them.  If trying a suggestion
+  here results in no measurable improvement, then we recommend that you
+  return the modified parameter(s) to their previous value(s).
+  WE DISCLAIM ALL RESPONSIBILITY IF FOLLOWING ANY SUGGESTION HERE RESULTS
+  IN AN UNSTABLE OR UNUSABLE SYSTEM.
+
+  Please consult the documentation provided with your HCA drivers, and/or
+  your vendor or system integrator for information on how to query or
+  change your HCA's configuration parameters.
+
+  + The HCA configuration parameter MAX_QP_OUS_RD_ATOM controls the number
+    of simultaneous RDMA Reads for which a QP may act as Responder.  Our
+    testing on one system with a default value of 8, showed that increasing
+    the value to 16 yielded approximately a 30% bandwidth improvement in an
+    RDMA-GET benchmark.
+
 @ Section: Core API @
 
 + Flow-control for AMs.
@@ -611,7 +643,7 @@ $Revision: 1.34.4.2 $
   SYS_ack REPLIES.  We keep up to GASNET_AM_CREDITS_SLACK "banked" on
   the responding node, sending the SYS_ack REPLY only if the number
   banked exceeds this limit.  Credits which are banked get piggybacked
-  on the next REQUEST or REPLY headed back to the orginal requester.
+  on the next REQUEST or REPLY headed back to the original requester.
 
   To avoid a window of time between when we send a REPLY (credit) and
   when we post the recv buffer, we must post the replacement recv

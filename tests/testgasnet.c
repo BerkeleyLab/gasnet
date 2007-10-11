@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2007/03/05 23:20:11 $
- * $Revision: 1.36.4.2 $
+ *     $Date: 2007/10/11 23:59:41 $
+ * $Revision: 1.36.4.3 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -504,13 +504,15 @@ void doit5(int partner, int *partnerseg) {
           ok = localpos[j] == val;
           if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
           if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT/OVERWRITE TEST!!! sz=%i", (sz));
+              MSG("*** ERROR - FAILED OUT-OF-SEG PUT/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
+                  (unsigned long long)localpos[j], (unsigned long long)val);
               success = 0;
           }
           ok = segpos[j] == val;
           if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
           if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT/OVERWRITE TEST!!! sz=%i", (sz));
+              MSG("*** ERROR - FAILED IN-SEG PUT/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
+                  (unsigned long long)segpos[j], (unsigned long long)val);
               success = 0;
           }
         }
@@ -566,6 +568,36 @@ void doit5(int partner, int *partnerseg) {
     uint64_t tmp64 = gasnett_atomic64_read(&val64, 0);
     gasnett_atomic64_set(&val64, tmp64, 0);
     (void)gasnett_atomic64_compare_and_swap(&val64, 0, 1 ,0);
+  }
+  { /* attempt to generate alignment problems: */
+    gasnett_atomic32_t *ptr32;
+    uint32_t tmp32;
+    gasnett_atomic64_t *ptr64;
+    uint64_t tmp64;
+    { struct { char c; gasnett_atomic32_t val32; } s = {0, gasnett_atomic32_init(1)};
+      ptr32 = &s.val32;
+      tmp32 = gasnett_atomic32_read(ptr32, 0);
+      gasnett_atomic32_set(ptr32, tmp32, 0);
+      (void)gasnett_atomic32_compare_and_swap(ptr32, 0, 1, 0);
+    }
+    { struct { char c; gasnett_atomic64_t val64; } s = {0, gasnett_atomic64_init(1)};
+      ptr64 = &s.val64;
+      tmp64 = gasnett_atomic64_read(ptr64, 0);
+      gasnett_atomic64_set(ptr64, tmp64, 0);
+      (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
+    }
+    { double dbl = 1.0;
+      ptr64 = (gasnett_atomic64_t *)&dbl;
+      tmp64 = gasnett_atomic64_read(ptr64, 0);
+      gasnett_atomic64_set(ptr64, tmp64, 0);
+      (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
+    }
+    { struct { char c; double dbl; } s = {0, 1.0};
+      ptr64 = (gasnett_atomic64_t *)&s.dbl;
+      tmp64 = gasnett_atomic64_read(ptr64, 0);
+      gasnett_atomic64_set(ptr64, tmp64, 0);
+      (void)gasnett_atomic64_compare_and_swap(ptr64, 0, 1, 0);
+    }
   }
   
   BARRIER();

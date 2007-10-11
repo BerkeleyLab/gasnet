@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2007/03/05 23:19:45 $
- * $Revision: 1.21.10.2 $
+ *     $Date: 2007/10/11 23:59:27 $
+ * $Revision: 1.21.10.3 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -29,6 +29,7 @@
 #endif
 
 /* AMUDP system configuration parameters */
+#ifndef DISABLE_STDSOCKET_REDIRECT
 #if PLATFORM_OS_SUPERUX || PLATFORM_OS_HPUX
   /* broken on SuperUX due to a bad FIONREAD implementation, which causes numBytesWaiting to fail
      also seems to possibly be some issue with a redirected stdout always triggering select, even when
@@ -38,6 +39,7 @@
   #define DISABLE_STDSOCKET_REDIRECT  1 
 #else
   #define DISABLE_STDSOCKET_REDIRECT  0   /* disable redirection of slave stdin/stdout/stderr to master */
+#endif
 #endif
 #ifndef USE_SOCKET_RECVBUFFER_GROW
 #define USE_SOCKET_RECVBUFFER_GROW  1   /* grow RCVBUF on UDP sockets */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2007/03/05 23:20:11 $
- * $Revision: 1.32.4.2 $
+ *     $Date: 2007/10/11 23:59:41 $
+ * $Revision: 1.32.4.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -172,6 +172,7 @@ int main(int argc, char **argv) {
 
   gasnett_sched_yield();
   gasnett_flush_streams();
+  gasnett_maximize_rlimits();
   TEST_TRACING_MACROS();
 
   TEST_HEADER("Testing high-performance timers...")
@@ -271,7 +272,7 @@ int main(int argc, char **argv) {
       }
     }
 
-    for (i=0;i<8*sizeof(uintptr_t);++i) {
+    for (i=0;i<8*(int)sizeof(uintptr_t);++i) {
       uintptr_t val = ((uintptr_t)1) << i;
       if (gasnett_count0s_uintptr_t(val) != (sizeof(uintptr_t) - 1))
         ERR("incorrect return from gasnett_count0s_uintptr_t(1<<%i)", i);

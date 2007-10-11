@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2007/03/05 23:19:40 $
- * $Revision: 1.14.4.2 $
+ *     $Date: 2007/10/11 23:59:23 $
+ * $Revision: 1.14.4.3 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -9,6 +9,11 @@
 
 /* the version number for the public interface to this header */
 #define PLATFORM_HEADER_VERSION 1
+
+/* most of this file was written based on information in vendor documents, system headers,
+   and inspecting verbose compiler output. 
+   Another useful source of information: http://predef.sourceforge.net/
+*/
 
 /* ------------------------------------------------------------------------------------ */
 /* helpers */
@@ -569,7 +574,13 @@
   #define PLATFORM_ARCH_IA64 1
   #define PLATFORM_ARCH_FAMILYNAME IA64
   #define _PLATFORM_ARCH_64 1
-  #define PLATFORM_ARCH_LITTLE_ENDIAN 1
+  #if defined(PLATFORM_OS_LINUX) || defined(PLATFORM_OS_FREEBSD)
+    #define PLATFORM_ARCH_LITTLE_ENDIAN 1
+  #elif defined(PLATFORM_OS_HPUX)
+    #define PLATFORM_ARCH_BIG_ENDIAN 1
+  #else
+    /* Unknown.  Hope one of the other mechanisms can sort it out. */
+  #endif
 
 #elif defined(__i386__) || defined(__i386) || \
       defined(__i486__) || defined(__i486) || \

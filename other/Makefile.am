@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2007/03/05 23:19:40 $
-# $Revision: 1.25.10.2 $
+#     $Date: 2007/10/11 23:59:23 $
+# $Revision: 1.25.10.3 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -41,7 +41,7 @@ if CONDUIT_MODE
 if USE_UDP_CONDUIT                           
   UDP_dir=$(top_builddir)/other/amudp
 endif
-if USE_MPI_CONDUIT                           
+if USE_AMMPI                           
   MPI_dir=$(top_builddir)/other/ammpi
 endif
 testdirs= $(UDP_dir) $(MPI_dir)

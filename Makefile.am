@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2007/03/05 23:19:15 $
-# $Revision: 1.54.10.2 $
+#     $Date: 2007/10/11 23:59:02 $
+# $Revision: 1.54.10.3 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -246,11 +246,17 @@ install-data-local:
 	@$(MAKE) recurse_special DO_WHAT=install-data
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
 	if test -f $(top_srcdir)/extended-ref/README ; then \
-	  cp -f $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
+	  $(INSTALL_DATA) $(top_srcdir)/extended-ref/README $(DESTDIR)$(docdir)/README-extref || exit $$? ; \
 	fi
 	for file in $(INSTALL_DOCS) ; do \
 	  if test -f $(top_srcdir)/$$file ; then \
-	    cp -f $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
+	    $(INSTALL_DATA) $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
+	  fi ; \
+	done
+	for file in @PATCHED_HEADERS@ DUMMY ; do \
+	  if test -f $$file ; then \
+	    $(mkinstalldirs) $(DESTDIR)$(includedir)/patched-headers ; \
+	    $(INSTALL_DATA) patched-headers/$$file $(DESTDIR)$(includedir)/patched-headers/$$file || exit $$? ; \
 	  fi ; \
 	done
 install-exec-local:
@@ -260,6 +266,9 @@ uninstall-local:
 	@$(MAKE) $(recurse_local) DO_WHAT=uninstall
 	@$(MAKE) recurse_special DO_WHAT=uninstall
 	rm -Rf $(DESTDIR)$(docdir)
+	for file in @PATCHED_HEADERS@ ; do \
+	  rm -f $(DESTDIR)$(includedir)/patched-headers/$$file ; \
+	done
 
 # automake 1.4 doesn't automatically make distclean in DIST_SUBDIRS
 # So, we run it here if it doesn't appear to have already been run.

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/10/11 22:36:19 $
- * $Revision: 1.42.12.24 $
+ *     $Date: 2007/10/11 23:59:16 $
+ * $Revision: 1.42.12.25 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,7 +56,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     idx = gasnete_numthreads;
     gasnete_numthreads++;
     gasnet_hsl_unlock(&threadtable_lock);
-    gasneti_assert(GASNETI_MAX_THREADS <= 256);
+    gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
     #if GASNETI_CLIENT_THREADS
       if (idx >= GASNETI_MAX_THREADS) 
         gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);

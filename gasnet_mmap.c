@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2007/03/05 23:19:16 $
- * $Revision: 1.35.4.2 $
+ *     $Date: 2007/10/11 23:59:03 $
+ * $Revision: 1.35.4.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -396,6 +396,28 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       gasneti_maxheapend = maxheapend;
       gasneti_maxbase = maxbase;
       #if GASNET_ALIGNED_SEGMENTS
+        if (gasneti_nodes > 1) { 
+          /* bug 2067 - detect if the compute nodes are using Linux's 'intentional VM space randomization'
+           * security feature, which is known to break GASNET_ALIGNED_SEGMENTS, esp at large scale
+           */
+           FILE *fp = fopen("/proc/sys/kernel/randomize_va_space", "r");
+           if (fp) {
+             int VMrand = fgetc(fp);
+             if (VMrand != EOF && VMrand) {
+               const char *wmsg = "WARNING: It appears your compute nodes are using a Linux security feature "
+                                  "which intentionally randomizes the virtual address space, "
+                                  "but GASNet was configured to optimize for congruent address spaces. "
+                                  "You probably need to re-configure with --disable-aligned-segments to avoid "
+                                  "errors at job startup (especially for runs with large node count or shared segment size).";
+               GASNETI_TRACE_PRINTF(I, (wmsg));
+               if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+                 fprintf(stderr, "%s\n", wmsg);
+                 fflush(stderr);
+               }
+             }
+             fclose(fp);
+           }
+        }   
         if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
           const char *wmsg = "WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()"
             ": perhaps you need to re-configure with --disable-aligned-segments";
@@ -409,6 +431,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
                       GASNETI_LADDRSTR(((uintptr_t)gasneti_segexch[i].seginfo.addr)+gasneti_segexch[i].seginfo.size), 
                       (unsigned long)gasneti_segexch[i].seginfo.size,
                       GASNETI_LADDRSTR(gasneti_segexch[i].heapend));
+              fflush(stderr);
             }
           }
           gasneti_MaxLocalSegmentSize = 0;
@@ -505,7 +528,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
       #if GASNETI_USE_HIGHSEGMENT
         segbase = (void *)((uintptr_t)gasneti_segment.addr + 
                            gasneti_segment.size - segsize);
-        if (gasneti_segment.size - segsize >= GASNETI_SEGMENT_DISALIGN_BIAS) {
+        if ((int64_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
           segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
         } else {
           segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);

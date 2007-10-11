@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.h,v $
- *     $Date: 2007/02/24 00:00:44 $
- * $Revision: 1.5.16.1 $
+ *     $Date: 2007/10/11 23:59:11 $
+ * $Revision: 1.5.16.3 $
  * Description: GASNet Vector, Indexed & Strided conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -111,7 +111,7 @@
 /*---------------------------------------------------------------------------------*/
 
 #if GASNETE_USE_AMPIPELINE
-  MEDIUM_HANDLER_DECL(gasnete_putv_AMPipeline_reqh,2,4);
+  MEDIUM_HANDLER_DECL(gasnete_putv_AMPipeline_reqh,2,3);
   SHORT_HANDLER_DECL(gasnete_putvis_AMPipeline_reph,1,2);
   MEDIUM_HANDLER_DECL(gasnete_getv_AMPipeline_reqh,2,3);
   MEDIUM_HANDLER_DECL(gasnete_getv_AMPipeline_reph,2,3);

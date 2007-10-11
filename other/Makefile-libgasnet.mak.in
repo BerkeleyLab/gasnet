@@ -16,6 +16,7 @@ SEPARATE_CC = @SEPARATE_CC@
 @USE_PLPA_TRUE@                $(top_srcdir)/other/plpa/src/libplpa/plpa_dispatch.c
 
 TOOLLIBINCLUDES =         \
+        @SYS_HEADER_BLD@  \
         -I$(srcdir)       \
         -I$(top_srcdir)   \
         -I$(top_builddir) \

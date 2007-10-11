@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2007/03/05 23:19:42 $
- * $Revision: 1.27.10.2 $
+ *     $Date: 2007/10/11 23:59:25 $
+ * $Revision: 1.27.10.3 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -13,7 +13,7 @@
   #include <process.h>
 #else
   #include <unistd.h>
-  #if PLATFORM_OS_LINUX && !defined(__USE_GNU)
+  #if (PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX) && !defined(__USE_GNU)
     /* some Linuxes need this to pull in F_SETSIG */
     #define __USE_GNU
     #include <fcntl.h>

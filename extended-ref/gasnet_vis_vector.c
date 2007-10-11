@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_vector.c,v $
- *     $Date: 2007/02/24 00:00:45 $
- * $Revision: 1.12.12.1 $
+ *     $Date: 2007/10/11 23:59:11 $
+ * $Revision: 1.12.12.3 $
  * Description: GASNet Vector implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -356,7 +356,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnet_token_t token,
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph),
                   PACK(iop))));
 }
-MEDIUM_HANDLER(gasnete_putv_AMPipeline_reqh,2,4, 
+MEDIUM_HANDLER(gasnete_putv_AMPipeline_reqh,2,3, 
               (token,addr,nbytes, UNPACK(a0),      a1),
               (token,addr,nbytes, UNPACK2(a0, a1), a2));
 /* ------------------------------------------------------------------------------------ */

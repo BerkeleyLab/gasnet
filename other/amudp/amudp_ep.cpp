@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2007/03/05 23:19:45 $
- * $Revision: 1.16.8.2 $
+ *     $Date: 2007/10/11 23:59:27 $
+ * $Revision: 1.16.8.3 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -195,7 +195,7 @@ extern int AMUDP_SetUDPInterface(uint32_t IPAddress) {
 /* ------------------------------------------------------------------------------------ */
 #if !defined(UETH) && USE_SOCKET_RECVBUFFER_GROW
   #if 0
-  #if PLATFORM_OS_LINUX
+  #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX
     #include <linux/unistd.h>
     #include <linux/sysctl.h>
   #endif
@@ -217,7 +217,7 @@ extern int AMUDP_growSocketBufferSize(ep_t ep, int targetsize,
 
   #if 0 /* it appears this max means nothing */
   { int maxsize;
-    #if PLATFORM_OS_LINUX
+    #if PLATFORM_OS_LINUX || PLATFORM_OS_UCLINUX
     { /*  try to determine the max we can use (reading /proc/sys/net/core/rmem_max may be more reliable) */
       int rmem_max[1] = { NET_CORE_RMEM_MAX };
       struct __sysctl_args args={&rmem_max,sizeof(rmem_max),&maxsize,sizeof(int),0,0};
@@ -779,7 +779,7 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
       if (ea->translation[i].inuse) {
         ea->perProcInfo[procid].remoteName = ea->translation[i].name;
         ea->perProcInfo[procid].tag = ea->translation[i].tag;
-        ea->translation[i].id = (uint8_t)procid;
+        ea->translation[i].id = (uint16_t)procid;
         procid++;
         if (procid == ea->P) break; /*  should have all of them now */
       }
@@ -1022,6 +1022,7 @@ extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int glo
 
   AMUDP_assert(amudp_Initialized);
   AMUDP_assert(stats != NULL);
+  getCPUTicks(); /* ensure this has been called at least once, even if stats are empty */
 
   #if !AMUDP_COLLECT_STATS
     sprintf(msg, "(AMUDP_COLLECT_STATS disabled)\n");
