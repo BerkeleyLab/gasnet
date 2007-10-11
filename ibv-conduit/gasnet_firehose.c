@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_firehose.c,v $
- *     $Date: 2007/03/05 23:20:19 $
- * $Revision: 1.11.2.2 $
+ *     $Date: 2007/10/11 23:59:45 $
+ * $Revision: 1.11.2.3 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -189,10 +189,10 @@ firehose_move_callback(gasnet_node_t node,
     int    rc;
     int h, i;
 
-    const enum ibv_access_flags access = 
-		IBV_ACCESS_LOCAL_WRITE |
+    const enum ibv_access_flags access = (enum ibv_access_flags)
+	       (IBV_ACCESS_LOCAL_WRITE |
 		IBV_ACCESS_REMOTE_WRITE |
-		IBV_ACCESS_REMOTE_READ;
+		IBV_ACCESS_REMOTE_READ);
 
 
     /* Take care of any unpins first */
