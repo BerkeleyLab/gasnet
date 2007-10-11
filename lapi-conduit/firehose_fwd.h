@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/firehose_fwd.h,v $
- *     $Date: 2007/04/18 19:16:01 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2007/10/11 22:36:19 $
+ * $Revision: 1.1.2.2 $
  * Description: Firehose forward declarations
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,6 +30,8 @@ firehose_client_t;
 
 #define FIREHOSE_CLIENT_MAXREGIONS 1024
 /*  before was 2 megs and 64 megs */
+// #define FIREHOSE_CLIENT_MAXREGION_SIZE (16L*1024L*1024L)
+// #define FIREHOSE_CLIENT_MAXREGION_SIZE (64L*1024L)
 #define FIREHOSE_CLIENT_MAXREGION_SIZE (2L*1024L*1024L)
 #define FIREHOSE_MAX_PINNABLE (128L*1024L*1024L)
 
@@ -41,7 +43,7 @@ firehose_client_t;
 
 /* Define the next preprocessor directive to allow remote firehose
  * callbacks to run within an AM Handler context */
-#undef FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
+#define FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
 
 /* Remote callback arguments type
  *

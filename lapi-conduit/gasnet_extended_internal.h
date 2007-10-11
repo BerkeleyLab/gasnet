@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2007/04/18 19:16:01 $
- * $Revision: 1.13.12.15 $
+ *     $Date: 2007/10/11 22:36:19 $
+ * $Revision: 1.13.12.16 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,34 +93,23 @@ typedef struct _gasnete_eop_t {
     gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
     int          initiated_cnt;
 #if GASNETC_LAPI_RDMA
-  lapi_cntr_t *origin_counter;          /* For gets */
-#if 0
-  lapi_cntr_t completion_counter;      /* For puts */
-#endif
+  lapi_cntr_t *origin_counter; /* For gets */
   int num_transfers;           /* The total number of transfers we're waiting acks for.  Useful for both gets and puts */
-  struct _gasnete_lapi_nb_struct *network_buffer_id;
-  int nbid;
-  int get_p;
-  int local_p; /* So that purely local operations can be easily handled */
-  int has_associated_transfer;  /* Does this correspond to a real transfer? */
-  int marked_done;
+  int local_p;                 /* So that purely local operations can be easily handled */
 #endif
     lapi_cntr_t  cntr;
 } gasnete_eop_t;
 
 #if GASNETC_LAPI_RDMA
 typedef struct _gasnete_lapi_nb_struct {
-#if 0
-  lapi_get_pvo_t pvo;
-#else
   unsigned long long pvo;
-#endif
   void *data;
   int offset;
   int num_waiting; /* New counter */
   void *user_buffer;
   size_t user_length;
   int get_p;
+  lapi_cntr_t *origin_counter;
   struct _gasnete_lapi_nb_struct *next; 
   struct _gasnete_lapi_nb_struct *prev; 
 } gasnete_lapi_nb;
@@ -140,8 +129,7 @@ typedef struct _gasnete_iop_t {
 
     lapi_cntr_t      get_cntr;
     lapi_cntr_t      put_cntr;
-    lapi_cntr_t      rdma_put_cntr;
-
+    uint8_t pad2[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
     gasneti_weakatomic_t get_aux_cntr;
     gasneti_weakatomic_t put_aux_cntr;
 } gasnete_iop_t;
@@ -208,6 +196,67 @@ void gasnete_op_free(gasnete_op_t *op);
        (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
 
 #if GASNET_DEBUG
+#if GASNETC_LAPI_RDMA
+  /* check an in-flight/complete eop */
+  #define gasnete_eop_check(eop) do {                                     \
+    if_pt(gasnetc_lapi_use_rdma) { \
+    gasnete_threaddata_t * _th;                                           \
+    int _temp;                                                            \
+    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                       \
+    gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||                    \
+                   OPSTATE(eop) == OPSTATE_COMPLETE);                     \
+    if(eop->origin_counter != NULL) { \
+      GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,eop->origin_counter,&_temp)); \
+      gasneti_assert(_temp <= eop->num_transfers);                          \
+    } \
+    if(eop->initiated_cnt > 0) { \
+      gasneti_assert(eop->num_transfers == 0); \
+    } \
+    _th = gasnete_threadtable[(eop)->threadidx];                          \
+    gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);      \
+    } else { \
+      gasnete_threaddata_t * _th;                                           \
+      int _temp;                                                            \
+      gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                       \
+      gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||                    \
+                     OPSTATE(eop) == OPSTATE_COMPLETE);                     \
+      GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&_temp)); \
+      gasneti_assert(_temp <= eop->initiated_cnt);                          \
+      _th = gasnete_threadtable[(eop)->threadidx];                          \
+      gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);      \
+    } \
+  } while (0)
+  #define gasnete_iop_check(iop) do {                                             \
+    if_pt(gasnetc_lapi_use_rdma) { \
+    int _temp;                                                                    \
+    gasneti_memcheck(iop);                                                        \
+    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next);                     \
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);                               \
+    gasneti_assert((iop)->threadidx < gasnete_numthreads);                        \
+    gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);                      \
+    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->get_cntr),&_temp)); \
+    gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            \
+    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); \
+    gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->get_aux_cntr, 0) >= 0);           \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->put_aux_cntr, 0) >= 0);           \
+    } else { \
+    int _temp;                                                                    \
+    gasneti_memcheck(iop);                                                        \
+    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next);                     \
+    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);                               \
+    gasneti_assert((iop)->threadidx < gasnete_numthreads);                        \
+    gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);                      \
+    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->get_cntr),&_temp)); \
+    gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            \
+    /*GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); */\
+    /*gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            */\
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->get_aux_cntr, 0) >= 0);           \
+    gasneti_assert(gasneti_weakatomic_read(&(iop)->put_aux_cntr, 0) >= 0);           \
+    } \
+  } while (0)
+  extern void _gasnete_iop_check(gasnete_iop_t *iop);
+#else
   /* check an in-flight/complete eop */
   #define gasnete_eop_check(eop) do {                                     \
     gasnete_threaddata_t * _th;                                           \
@@ -215,8 +264,8 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                       \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||                    \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                     \
-    /* GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&_temp)); */\
-    /* gasneti_assert(_temp <= eop->initiated_cnt);                          */\
+    /*GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&eop->cntr,&_temp)); */\
+    /*gasneti_assert(_temp <= eop->initiated_cnt);                          */\
     _th = gasnete_threadtable[(eop)->threadidx];                          \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);      \
   } while (0)
@@ -227,14 +276,15 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);                               \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);                        \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);                      \
-    /* GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->get_cntr),&_temp)); */\
-    /* gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            */\
-    /* GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); */\
-    /* gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            */\
+    GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->get_cntr),&_temp)); \
+    gasneti_assert(_temp <= (iop)->initiated_get_cnt);                            \
+    /*GASNETC_LCHECK(LAPI_Getcntr(gasnetc_lapi_context,&((iop)->put_cntr),&_temp)); */\
+    /*gasneti_assert(_temp <= (iop)->initiated_put_cnt);                            */\
     gasneti_assert(gasneti_weakatomic_read(&(iop)->get_aux_cntr, 0) >= 0);           \
     gasneti_assert(gasneti_weakatomic_read(&(iop)->put_aux_cntr, 0) >= 0);           \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
+#endif /* GASNETC_LAPI_RDMA */
 #else
   #define gasnete_eop_check(eop)   ((void)0)
   #define gasnete_iop_check(iop)   ((void)0)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/04/18 19:16:01 $
- * $Revision: 1.40.12.11 $
+ *     $Date: 2007/10/11 22:36:19 $
+ * $Revision: 1.40.12.12 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,7 +32,7 @@ extern void**             gasnetc_remote_req_hh;
 extern void**             gasnetc_remote_reply_hh;
 
 /* Enable loopback by setting to 1, disable by setting to 0 */
-#define GASNETC_ENABLE_LOOPBACK 1
+#define GASNETC_ENABLE_LOOPBACK 0
 
 #define GASNETC_MAX_NUMHANDLERS   256
 

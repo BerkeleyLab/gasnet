@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/04/18 19:16:01 $
- * $Revision: 1.79.10.15 $
+ *     $Date: 2007/10/11 22:36:19 $
+ * $Revision: 1.79.10.16 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,16 +23,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/processor.h>
 
 #ifndef GASNETC_VERBOSE_EXIT
 #define GASNETC_VERBOSE_EXIT 0
 #endif
-
-/* Because I haven't updated in a while and can't build with
-   tracing on, here's my own tracing macro.  Later I'll do
-   a search/replace */
-#define GLTRACE(ignore_me,x) 
-/*#define GLTRACE(ignore_me,x) printf##x*/
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
@@ -53,6 +48,7 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
  * Extra information needed for LAPI User Level RDMA
  */
 
+int gasnetc_lapi_use_rdma;
 int gasnetc_num_pvos;
 lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
 lapi_remote_cxt_t **gasnetc_remote_ctxts = NULL;
@@ -71,6 +67,9 @@ int gasnetc_lapi_rdma_initialized = 0;
 int gasnetc_rctxts_per_node = 1;
 int *gasnetc_lapi_current_rctxt;
 firehose_info_t gasnetc_firehose_info;
+lapi_cntr_t gasnetc_incoming_puts_cntr;
+lapi_cntr_t gasnetc_incoming_gets_cntr;
+int gasnetc_initiated_am_mediums = 0;
 #endif
 
 /* This is the official core AM handler table.  All registered
@@ -173,12 +172,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_token_queue_init(&gasnetc_req_q);
 
     /* (###) add code here to bootstrap the nodes for your conduit */
-    memset(&gasnetc_lapi_info, 0, sizeof(lapi_info_t));
+    memset((void *) &gasnetc_lapi_info, 0, sizeof(lapi_info_t));
 
     gasnetc_lapi_info.err_hndlr = gasnetc_lapi_err_handler;
     {
 	int rc = LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
-        GLTRACE(C,("LAPI Init done\n"));
+        GASNETI_TRACE_PRINTF(C,("LAPI Init done\n"));
 	if (rc != LAPI_SUCCESS) {
           gasneti_fatalerror("In the initialization of the LAPI communication layer\n\n"
 		"This application must be run using the poe job scheduler with the following options: \n"
@@ -409,99 +408,82 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 
 int gasnetc_use_firehose = 0;
 
-int gasnetc_lapi_empty=0;
-int gasnetc_lapi_occupied=1;
-int gasnetc_lapi_done=2;
-/* 
- * How silly, I need pointers to the numbers 0,1,...,n-1
- * Closures aren't such a bad idea after all, no?
- */
- 
-int gasnetc_lapi_N[GASNETC_LAPI_MAX_TAGS];
-lapi_rdma_notification_t util_notifiers[GASNETC_LAPI_MAX_TAGS];
-extern lapi_long_t *gasnete_put_hndlr_table;
-void gasnete_setup_put_hndlr();
-void gasnetc_lapi_rcallback(lapi_handle_t *hndl, void *sinfo, int *src)
-{
-	/* Update the remote location to signify completion of this
-	 * particular operation.  Note that the tag is passed in sinfo
-	 * when the  callback is registered */
-	
-    /* 
-     * PJRH
-     * Which one of these is better?
-     * Paul mentioned that using Rmw might help us with debugging:
-     *  Check to see of the value returned is actually gasnetc_lapi_occupied
-     */
-     int *remote_address = (int *) gasnetc_lapi_target_counter_directory[*src];
-     int remote_index = (*((int *) sinfo));
-     remote_address += remote_index;
-   
-     gasneti_assert((*src >= 0) && (*src < GASNETC_LAPI_MAX_TAGS));
-     gasneti_assert((remote_index >= 0) && (remote_index < GASNETC_LAPI_MAX_TAGS));
-     /*GLTRACE(C,("gasnetc_lapi_rcallback: on node = %d sending to %d tag=%d address = %ld\n",gasneti_mynode,*src,*((int *)sinfo), (lapi_long_t) remote_address));*/
-#if 1
-    GASNETC_LCHECK(LAPI_Amsend(*hndl, *src, (void *) gasnete_put_hndlr_table[*src], &remote_index, sizeof(int), NULL, NULL, NULL, NULL, NULL));
-#else
-#if 1
-    GASNETC_LCHECK(LAPI_Put(*hndl, *src, sizeof(int), remote_address, &gasnetc_lapi_done, NULL, NULL, NULL));
-#else
-    GASNETC_LCHECK(LAPI_Rmw(*hndl, SWAP, *src, remote_address, &gasnetc_lapi_done, NULL, NULL));
-#endif
-#endif
-}
-
-void gasnetc_lapi_register_rcallbacks()
-{
-  int i;
-  /* Do the deed */
-  for(i=0;i < GASNETC_LAPI_MAX_TAGS;i++) {
-    gasnetc_lapi_N[i]=i;
-    util_notifiers[i].Util_type = LAPI_REGISTER_NOTIFICATION;
-    util_notifiers[i].rdma_tag = i;
-    util_notifiers[i].flags = LAPI_RCALLBACK;
-    util_notifiers[i].cntr = NULL;
-    util_notifiers[i].callback = gasnetc_lapi_rcallback;
-    util_notifiers[i].sinfo = (void *) (&(gasnetc_lapi_N[i]));
-    GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(util_notifiers[i]))));
-  }
-  
-  /* Also set up the crazy table for target notification */
-  gasnetc_lapi_local_target_counters = (int *) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(int));
-  gasnetc_lapi_completion_ptrs = (lapi_cntr_t **) gasneti_malloc(GASNETC_LAPI_MAX_TAGS*sizeof(lapi_cntr_t *));
-  bzero(gasnetc_lapi_local_target_counters, GASNETC_LAPI_MAX_TAGS*sizeof(int));
-  bzero(gasnetc_lapi_completion_ptrs, GASNETC_LAPI_MAX_TAGS*sizeof(lapi_cntr_t *));
-  gasnetc_lapi_target_counter_directory = (lapi_long_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_long_t));
-  GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) gasnetc_lapi_local_target_counters,
-				     gasnetc_lapi_target_counter_directory));
-  gasnete_setup_put_hndlr();
-}
-
 void gasnetc_lapi_get_remote_contexts()
 {
+  int i,j;
   /* Get rCtxts, the connections to remote nodes */
   gasnetc_remote_ctxts = gasneti_malloc(gasneti_nodes*sizeof(lapi_remote_cxt_t *));
   gasnetc_lapi_current_rctxt = gasneti_malloc(gasneti_nodes*sizeof(int));
-  bzero(gasnetc_lapi_current_rctxt,gasneti_nodes*sizeof(int));
+  memset((void *) gasnetc_lapi_current_rctxt,0,gasneti_nodes*sizeof(int));
 
   /* Too verbose? */
   gasnetc_rctxts_per_node = (int) gasneti_getenv_int_withdefault("GASNET_LAPI_RCTXTS_PER_NODE",1,0);
 
-  for(int i=0;i < gasneti_nodes;i++) {
+  for(i=0;i < gasneti_nodes;i++) {
     /* This will give an error if you try to get a remote context for yourself */
     gasnetc_remote_ctxts[i] = gasneti_malloc(gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
-    bzero(gasnetc_remote_ctxts[i],gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
+    memset((void *) (gasnetc_remote_ctxts[i]),0,gasnetc_rctxts_per_node*sizeof(lapi_remote_cxt_t));
     if(i != gasneti_mynode) {
-      for(int j=0;j < gasnetc_rctxts_per_node;j++) {
+      for(j=0;j < gasnetc_rctxts_per_node;j++) {
         gasnetc_remote_ctxts[i][j].Util_type = LAPI_REMOTE_RCXT;
         gasnetc_remote_ctxts[i][j].operation = LAPI_RDMA_ACQUIRE;
         gasnetc_remote_ctxts[i][j].dest = i;
         GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_remote_ctxts[i][j]))));
-        GLTRACE(C,("node %d got rCtxt for node %d (number %d) (%d) (%ld)\n",gasneti_mynode,i,j,gasnetc_remote_ctxts[i][j].usr_rcxt,sizeof(lapi_user_cxt_t)));
+        GASNETI_TRACE_PRINTF(C,("node %d got rCtxt for node %d (number %d) (%d) (%ld)\n",gasneti_mynode,i,j,gasnetc_remote_ctxts[i][j].usr_rcxt,sizeof(lapi_user_cxt_t)));
       }
     }
   }
 }
+
+#define GASNETC_LAPI_RDMA_TEST_BUFFER_SIZE 1024
+static char gasnetc_rdma_test_buffer[GASNETC_LAPI_RDMA_TEST_BUFFER_SIZE];
+void gasnetc_lapi_test_pin(int rdma_declared_on)
+{
+  lapi_get_pvo_t test_pvo;
+  lapi_long_t return_code;
+  lapi_long_t *return_codes = NULL;
+  int i;
+  /* Try to pin */
+  test_pvo.Util_type = LAPI_XLATE_ADDRESS;  
+  test_pvo.length = GASNETC_LAPI_RDMA_TEST_BUFFER_SIZE;
+  test_pvo.usr_pvo = 0;
+  test_pvo.address = gasnetc_rdma_test_buffer;
+  test_pvo.operation = LAPI_RDMA_ACQUIRE;
+  return_code = LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &test_pvo);
+
+  /* Unpin if successful */
+  if(return_code == LAPI_SUCCESS) {
+    test_pvo.operation = LAPI_RDMA_RELEASE;
+    (void) LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &test_pvo);
+  }
+
+  /* Exchange results with your peers */
+  return_codes = (lapi_long_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_long_t)); 
+  GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, return_code, return_codes));
+
+  /* P0 does the talking */
+  for(i=0;i < gasneti_nodes;i++) {
+    if(return_codes[i] != LAPI_SUCCESS) {
+      gasnetc_lapi_use_rdma = 0;
+      if(rdma_declared_on) {
+        if(gasneti_mynode == 0) {
+          gasneti_fatalerror("GASNET_LAPI_USE_RDMA set to yes, but conduit cannot initialize RDMA resources");
+        } else {
+          /* Wait for the error */
+          gasneti_fatalerror(""); 
+        }
+      } else {
+        if(gasneti_mynode == 0) {
+          fprintf(stderr,"WARNING: Switching to non-RDMA conduit because of failed RDMA initialization\n");
+          fflush(stderr);
+        }
+      }
+      break;
+    }
+  }
+  gasneti_free(return_codes);
+}
+
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -561,10 +543,18 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	gasneti_assert(numreg == len);
     }
 
+#if GASNETC_LAPI_RDMA
+    gasnetc_lapi_use_rdma = (int) gasneti_getenv_yesno_withdefault("GASNET_LAPI_USE_RDMA",1);
+    printf("gasnetc_lapi_use_rdma = %d\n",gasnetc_lapi_use_rdma);
+    if(gasnetc_lapi_use_rdma) {
+      gasnetc_lapi_test_pin(gasneti_getenv("GASNET_LAPI_USE_RDMA") != NULL);
+    }
+#endif
+
 #if GASNETC_LAPI_RDMA && GASNET_SEGMENT_EVERYTHING
       /* Register handlers and such ... 
          Copied from vapi conduit */
-   { /* firehose handlers */
+   if_pt(gasnetc_lapi_use_rdma) { /* firehose handlers */
       gasnet_handlerentry_t *ftable = (gasnet_handlerentry_t *)firehose_get_handlertable();
       int len = 0;
       int base = 64 + numreg;
@@ -607,11 +597,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
 
 #if GASNETC_LAPI_RDMA
+    if_pt(gasnetc_lapi_use_rdma) {
 #if GASNET_SEGMENT_EVERYTHING
     /* Always use firehose for segment everything, else there's no point */
     gasnetc_use_firehose = 1;
 #else    
-    gasnetc_use_firehose = (int) gasneti_getenv_yesno_withdefault("GASNET_LAPI_USE_FIREHOSE",0);
+    gasnetc_use_firehose = (int) gasneti_getenv_yesno_withdefault("GASNET_LAPI_USE_FIREHOSE",1);
 #endif /* GASNET_SEGMENT_EVERYTHING */
     if(gasnetc_use_firehose) {
       uint32_t flags = 0;
@@ -621,9 +612,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 #else
       flags = FIREHOSE_INIT_FLAG_LOCAL_ONLY;
 #endif
-      /* printf("Initializing firehose\n"); */
       firehose_init(FIREHOSE_MAX_PINNABLE, max_regions, NULL, 0, flags, &gasnetc_firehose_info);
-      /* printf("MAX PINNABLE SIZE = %ld\n",gasnetc_firehose_info.max_LocalPinSize); */
+    }
     }
 #endif /* GANSETC_LAPI_RDMA */
 
@@ -642,7 +632,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
 #if GASNETC_LAPI_RDMA
-	/* PJRH
+    if_pt(gasnetc_lapi_use_rdma) {
+	/* 
 	 * For LAPI RDMA attempt to pin, i.e. get PVOs 
 	 * (Protocol Virtual Offsets) for
 	 * the region. */
@@ -653,9 +644,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 	 /* Break up the segment */
 	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
-         GLTRACE(C,("gasnetc_attach: node = %d num_pvos = %d extent = %d segment size = %d segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(lapi_long_t) segbase));
+         GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %d segment size = %d segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(lapi_long_t) segbase));
 	 lapi_get_pvo_t *gasnetc_node_pvo_list = gasneti_malloc(num_pvos*sizeof(lapi_get_pvo_t));
-         bzero(gasnetc_node_pvo_list,num_pvos*sizeof(lapi_get_pvo_t));
+         memset((void *) gasnetc_node_pvo_list,0,num_pvos*sizeof(lapi_get_pvo_t));
          uintptr_t tmp_offset=0;
 	 while(tmp_offset < segsize) {
 	 	/* Attempt to get a PVO for this section */
@@ -666,13 +657,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 	gasnetc_node_pvo_list[i].address = (void *) (((lapi_long_t) segbase) + i*GASNETC_LAPI_PVO_EXTENT);
 	 	gasnetc_node_pvo_list[i].operation = LAPI_RDMA_ACQUIRE;									
 	 	GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_node_pvo_list[i]))));
-                GLTRACE(C,("gasnetc_attach: node = %d i=%d usr_pvo=%ld (size=%ld) length=%d address=%ld segbase=%ld\n",gasneti_mynode,i,gasnetc_node_pvo_list[i].usr_pvo,sizeof(lapi_user_pvo_t),gasnetc_node_pvo_list[i].length,(lapi_long_t) gasnetc_node_pvo_list[i].address,(lapi_long_t) segbase));
+                GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d i=%d usr_pvo=%ld (size=%ld) length=%d address=%ld segbase=%ld\n",gasneti_mynode,i,gasnetc_node_pvo_list[i].usr_pvo,sizeof(lapi_user_pvo_t),gasnetc_node_pvo_list[i].length,(lapi_long_t) gasnetc_node_pvo_list[i].address,(lapi_long_t) segbase));
 	 	tmp_offset += GASNETC_LAPI_PVO_EXTENT;
 	 	i++;
 	 }
 	 
     for(i=0;i < num_pvos;i++) {
-      GLTRACE(C,("after getting node %d gasnetc_node_pvo_list[%d].usr_pvo = %ld\n",gasneti_mynode, i,(lapi_long_t)( gasnetc_node_pvo_list[i].usr_pvo)));
+      GASNETI_TRACE_PRINTF(C,("after getting node %d gasnetc_node_pvo_list[%d].usr_pvo = %ld\n",gasneti_mynode, i,(lapi_long_t)( gasnetc_node_pvo_list[i].usr_pvo)));
     }		
 
 	 
@@ -691,7 +682,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     
     for(i=0;i < num_pvos;i++) {
       gasnetc_pvo_table[i] = (lapi_user_pvo_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_user_pvo_t));
-      bzero(gasnetc_pvo_table[i],gasneti_nodes*sizeof(lapi_user_pvo_t));
+      memset((void *) (gasnetc_pvo_table[i]),0,gasneti_nodes*sizeof(lapi_user_pvo_t));
     }
 	  
     /* Exchange
@@ -708,47 +699,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
 	  
-#if 0
-    /* Try to send something simple to make sure everything works */
-    {
-      double *dseg = (double *) segbase;
-      int target = gasneti_mynode-1;
-      lapi_xfer_t   xfer_struct;   /* Data structure for the Xfer call */
-      lapi_cntr_t   org_cntr;
-      int val;
-      GASNETC_LCHECK((LAPI_Setcntr(gasnetc_lapi_context,&org_cntr,0)));
-      if(target < 0) {
-        target = gasneti_nodes-1;
-      }
-      dseg[0] = (2*(gasneti_mynode) + 1);
-      dseg[1] = -99999999;
-      printf("test: %d my dseg before = [%lf %lf] target=%d (%d nodes)\n",gasneti_mynode,dseg[0],dseg[1],target,gasneti_nodes);
-      GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
-
-      xfer_struct.HwXfer.Xfer_type    = LAPI_RDMA_XFER;
-      xfer_struct.HwXfer.tgt          = target;
-      xfer_struct.HwXfer.op           = LAPI_RDMA_GET;
-      xfer_struct.HwXfer.rdma_tag     = 0;
-      xfer_struct.HwXfer.remote_cxt   = gasnetc_remote_ctxts[target][0].usr_rcxt;
-      /*xfer_struct.HwXfer.src_pvo      = gasnetc_node_pvo_list[0].usr_pvo;*/
-      xfer_struct.HwXfer.src_pvo      = gasnetc_pvo_table[0][gasneti_mynode];
-      xfer_struct.HwXfer.tgt_pvo      = gasnetc_pvo_table[0][target];
-      printf("test: %d src pvo: %ld target pvo: %ld\n",gasneti_mynode, gasnetc_node_pvo_list[0].usr_pvo,gasnetc_pvo_table[0][target]);
-      xfer_struct.HwXfer.src_offset   = sizeof(double);
-      xfer_struct.HwXfer.tgt_offset   = 0;
-      xfer_struct.HwXfer.len          = (ulong) sizeof(double);
-      xfer_struct.HwXfer.shdlr        = (scompl_hndlr_t *) NULL;
-      xfer_struct.HwXfer.sinfo        = (void *) NULL;
-      xfer_struct.HwXfer.org_cntr     = &org_cntr;
-      GASNETC_LCHECK (LAPI_Xfer (gasnetc_lapi_context, &xfer_struct));
-      GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context, &org_cntr,1, &val)));
-      GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
-      printf("test: %d my dseg after = [%lf %lf] should be [%lf %d] val=%d\n",gasneti_mynode,dseg[0],dseg[1],dseg[0],2*target+1,val);
-      
-    }
-#endif  
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
-    GLTRACE(C,("gasnetc_attach: %d exchanging base addresses\n",gasneti_mynode));
+    GASNETI_TRACE_PRINTF(C,("gasnetc_attach: %d exchanging base addresses\n",gasneti_mynode));
     /* Finally, exchange the base addresses */
     gasnetc_segbase_table = gasneti_malloc(gasneti_nodes*sizeof(lapi_long_t));
     GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) segbase, gasnetc_segbase_table));
@@ -768,32 +720,28 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     } 
     
     /* Finally, really, set up the bounce buffers */
-    GLTRACE(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
+    GASNETI_TRACE_PRINTF(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
     gasnete_lapi_setup_nb();
 
-#if 0
-    /* One last, and I mean it this time, thing to do
-       Set up the remote callbacks so that we can get notified when puts complete */
-
-    GLTRACE(C,("gasnetc_attach: %d callback registration\n",gasneti_mynode));
-    gasnetc_lapi_register_rcallbacks();
-#endif
-    GLTRACE(C,("gasnetc_attach: %d init done\n",gasneti_mynode));
+    GASNETI_TRACE_PRINTF(C,("gasnetc_attach: %d init done\n",gasneti_mynode));
     /* Make sure we're all done */
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
     gasnetc_lapi_rdma_initialized = 1;
     }
-#endif
+    }
+#endif /* GASNETC_LAPI_RDMA */
 #else
 #if GASNETC_LAPI_RDMA
+    if_pt(gasnetc_lapi_use_rdma) {
     /* Segment everything setup */
     gasnetc_lapi_get_remote_contexts();
 #if 0
     /* Just initialize the network buffers */
-    GLTRACE(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
+    GASNETI_TRACE_PRINTF(C,("gasnetc_attach: %d bounce buffer setup\n",gasneti_mynode));
     gasnete_lapi_setup_nb();
 #endif
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));
+    }
 #endif /* GASNETC_LAPI_RDMA */
     /* GASNET_SEGMENT_EVERYTHING */
     {
@@ -839,19 +787,17 @@ void gasnetc_lapi_free()
 {
   lapi_get_pvo_t new_pvo;
   int i;
-  gasneti_free(gasnetc_lapi_local_target_counters);
-  gasneti_free(gasnetc_lapi_completion_ptrs);
-  gasneti_free(gasnetc_lapi_target_counter_directory);
+
+#if 0
   for(i=0;i < gasnetc_num_pvos;i++) {
    new_pvo.Util_type = LAPI_XLATE_ADDRESS;
    new_pvo.length = 0;
    new_pvo.usr_pvo = gasnetc_node_pvo_list[i].usr_pvo;
    new_pvo.address = 0;
    new_pvo.operation = LAPI_RDMA_RELEASE;
-   // FOR NOW, TODO 
-   // TODO
-   // GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &new_pvo)); 
+   GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) &new_pvo));
   }
+#endif
   gasneti_free(gasnetc_node_pvo_list);
   for(i=0;i < gasnetc_num_pvos;i++) {
     gasneti_free(gasnetc_pvo_table[i]);
@@ -1099,9 +1045,11 @@ extern int gasnetc_AMPoll() {
 	}
     }
     
+#if GASNETC_LAPI_RDMA
     if(gasnetc_use_firehose) {
       firehose_poll();
     }
+#endif
     return GASNET_OK;
 }
 
@@ -1110,7 +1058,6 @@ extern int gasnetc_AMPoll() {
   Active Message Request Functions
   ================================
 */
-
 extern int gasnetc_AMRequestShortM( 
     gasnet_node_t dest,       /* destination node */
     gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
@@ -1196,6 +1143,7 @@ extern int gasnetc_AMRequestMediumM(
     void *udata_start = NULL;
     int udata_avail;
     int udata_packed = 0;
+    lapi_cntr_t c_cntr;
 #if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
     lapi_cntr_t c_cntr;
 #endif
@@ -1255,22 +1203,50 @@ extern int gasnetc_AMRequestMediumM(
     token_len = GASNETC_ROUND_DOUBLEWORD(token_len);
     /* issue the request for remote execution of the user handler */
     gasneti_assert( token_len <= gasnetc_max_lapi_uhdr_size);
+    if(token_len > gasnetc_max_lapi_uhdr_size) {
+      gasneti_fatalerror("token too large in AMmedium request %d",gasneti_mynode);
+    }
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&o_cntr,0));
+    p_cntr = &c_cntr;
+    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,p_cntr,0));
 #if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
     p_cntr = &c_cntr;
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,p_cntr,0));
 #endif
     gasneti_suspend_spinpollers();
+#if 0 /* Newer Interface */
+    {
+      lapi_xfer_t am_struct;
+      am_struct.Am.Xfer_type = LAPI_AM_XFER;
+      am_struct.Am.tgt = dest;
+      am_struct.Am.hdr_hdl = (lapi_long_t) gasnetc_remote_req_hh[dest];
+      am_struct.Am.uhdr = (void *) token;
+      am_struct.Am.uhdr_len = token_len;
+      am_struct.Am.udata = (udata_packed ? NULL : source_addr);
+      am_struct.Am.udata_len = (udata_packed ? 0    : nbytes);
+      am_struct.Am.shdlr = NULL;
+      am_struct.Am.sinfo = NULL;
+      am_struct.Am.tgt_cntr = NULL;
+      am_struct.Am.org_cntr = &o_cntr;
+      am_struct.Am.cmpl_cntr = p_cntr;
+      gasnetc_initiated_am_mediums++;
+      am_struct.Am.flags = 0; 
+      
+      GASNETC_LCHECK(LAPI_Xfer(gasnetc_lapi_context, &am_struct));
+    }
+#else
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, dest,
 			       gasnetc_remote_req_hh[dest],
 			       (void*)token, token_len,
 			       (udata_packed ? NULL : source_addr),
 			       (udata_packed ? 0    : nbytes),
 			       NULL, &o_cntr, p_cntr));
+#endif
     gasneti_resume_spinpollers();
     
     /* wait for the Amsend call to complete locally */
     GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
+    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,p_cntr,1,&cur_cntr));
 #if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
     GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,p_cntr,1,&cur_cntr));
 #endif
@@ -1558,7 +1534,7 @@ extern int gasnetc_AMReplyMediumM(
     lapi_cntr_t c_cntr;
 #endif
     lapi_cntr_t *p_cntr = NULL;
-    
+
     va_list argptr;
     GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
 
@@ -1611,18 +1587,41 @@ extern int gasnetc_AMReplyMediumM(
     /* issue the request for remote execution of the user handler */
     token_len = GASNETC_ROUND_DOUBLEWORD(token_len);
     gasneti_assert( token_len <= gasnetc_max_lapi_uhdr_size);
+    if(token_len > gasnetc_max_lapi_uhdr_size) {
+      gasneti_fatalerror("token too large in AMmedium reply %d",gasneti_mynode);
+    }
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&o_cntr,0));
+    gasneti_suspend_spinpollers();
+#if 0  /* Newer interface */
+    {
+      lapi_xfer_t am_struct;
+      am_struct.Am.Xfer_type = LAPI_AM_XFER;
+      am_struct.Am.tgt = requester;
+      am_struct.Am.hdr_hdl = (lapi_long_t) gasnetc_remote_reply_hh[requester];
+      am_struct.Am.uhdr = (void *) token;
+      am_struct.Am.uhdr_len = token_len;
+      am_struct.Am.udata = (udata_packed ? NULL : source_addr);
+      am_struct.Am.udata_len = (udata_packed ? 0    : nbytes);
+      am_struct.Am.shdlr = NULL;
+      am_struct.Am.sinfo = NULL;
+      am_struct.Am.tgt_cntr = NULL;
+      am_struct.Am.org_cntr = &o_cntr;
+      am_struct.Am.cmpl_cntr = NULL;
+      am_struct.Am.flags = 0; 
+      GASNETC_LCHECK(LAPI_Xfer(gasnetc_lapi_context, &am_struct));
+    }
+#else
 #if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
     p_cntr = &c_cntr;
     GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,p_cntr,0));
 #endif
-    gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, requester,
 			       gasnetc_remote_reply_hh[requester],
 			       (void*)token, token_len,
 			       (udata_packed ? NULL : source_addr),
 			       (udata_packed ? 0    : nbytes),
 			       NULL, &o_cntr, p_cntr));
+#endif
      gasneti_resume_spinpollers();
    
     /* wait for the Amsend call to complete locally */
@@ -2226,28 +2225,30 @@ void* gasnetc_lapi_AMreq_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
 
     /* alloc and copy only the necessary portion of the incoming token */
     new_token = gasnetc_uhdr_alloc();
+    if(token_len > GASNETC_TOKEN_SIZE) {
+      gasneti_fatalerror("Header too big in HH");
+    }
     memcpy((void*)new_token,uhdr,token_len);
 
     /* By default, schedule the completion handler.  May null this later */
     *comp_h = gasnetc_lapi_AMch;
 
     if (is_ready) {
-	int schedule;
-	/* no more data arriving */
-	destloc = NULL;
-	/* signal to completion handler only to check queue */
-	*uinfo = NULL;
-	gasnetc_token_enqueue(&gasnetc_req_q,new_token,&schedule);
-	/* only schedule completion handler if it has run since
-	 * last enqueue */
-	if (! schedule) {
-	    *comp_h = NULL;
-	}
+      int schedule;
+      /* no more data arriving */
+      destloc = NULL;
+      /* signal to completion handler only to check queue */
+      *uinfo = NULL;
+      gasnetc_token_enqueue(&gasnetc_req_q,new_token,&schedule);
+      /* only schedule completion handler if it has run since
+       * last enqueue */
+      if (! schedule) {
+        *comp_h = NULL;
+      }
     } else {
 	/* waiting for more data to arrive */
 	*uinfo = (void*)new_token;
     }
-
     return destloc;
 }
 
@@ -2290,7 +2291,6 @@ void gasnetc_lapi_AMch(lapi_handle_t *context, void *uinfo)
 void gasnetc_run_handler(gasnetc_token_t *token)
 {
     gasnetc_msg_t *msg = &token->msg;
-    
     /* extract the token and paramater from the uinfo structure */
     gasnetc_category_t msg_type = GASNETC_MSG_CATEGORY(msg);
     unsigned int numargs = GASNETC_MSG_NUMARGS(msg);
@@ -2310,6 +2310,11 @@ void gasnetc_run_handler(gasnetc_token_t *token)
 			    is_packed,numargs,func_ix,dataptr,datalen));
 #endif
 
+#if 0
+    printf("CH received %s from %d is_req %d is_packed %d numargs %d handlerix %d dataptr %x datalen %d\n",
+			    gasnetc_catname[msg_type],msg->sourceId,is_request,
+			    is_packed,numargs,func_ix,dataptr,datalen);
+#endif
     if (am_func == NULL) {
 	gasneti_fatalerror("lapi_AMch: node %d, invalid handler index %d",
 			   gasneti_mynode,func_ix);
@@ -2459,7 +2464,6 @@ int gasnetc_uhdr_more(int want)
      * allocation address
      */
     raw = (char*)GASNETC_ALIGN_PTR(raw);
-
     /* link them onto freelist */
     for (i = 0; i < want; i++) {
 	gasnetc_token_t *freetok = (gasnetc_token_t*)raw;
