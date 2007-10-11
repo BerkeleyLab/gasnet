@@ -45,7 +45,7 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
                                                      MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ARITY", default_tree_fanout, 0)));
   
   dissem_limit = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT", GASNETE_COLL_DEFAULT_DISSEM_LIMIT, 1);
-  dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD", dissem_limit*my_images, 1);
+  dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD", dissem_limit/my_images, 1);
   if(dissem_limit_per_thread*my_images != dissem_limit) {
     if(mynode == 0) {
       fprintf(stderr, "WARNING: Conflicting environment values for GASNET_COLL_GATHER_ALL_DISSEM_LIMIT (%ld) and GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD (%ld)\n", dissem_limit, dissem_limit_per_thread);
@@ -55,7 +55,7 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
   ret->gather_all_dissem_limit = MIN(dissem_limit, dissem_limit_per_thread*my_images);
   
   dissem_limit = gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_LIMIT", GASNETE_COLL_DEFAULT_DISSEM_LIMIT, 1);
-  dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD", dissem_limit*my_images*my_images, 1);
+  dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD", dissem_limit/(my_images*my_images), 1);
   if(dissem_limit_per_thread*my_images*my_images != dissem_limit) {
     if(mynode == 0) {
       fprintf(stderr, "WARNING: Conflicting environment values for GASNET_COLL_EXCHANGE_DISSEM_LIMIT (%ld) and GASNET_COLL_EXCHANGE_DISSEM_LIMIT_PER_THREAD (%ld)\n", dissem_limit, dissem_limit_per_thread);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/10 03:10:37 $
- * $Revision: 1.29.6.54 $
+ *     $Date: 2007/10/11 05:09:52 $
+ * $Revision: 1.29.6.55 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -289,6 +289,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 /* Handles */
+typedef struct {int num_handles; gasnet_coll_handle_t *handles;} gasnete_coll_handle_vec_t;
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
   #if GASNET_PAR
@@ -1428,7 +1429,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       unsigned int slot_nr = GASNETE_COLL_P2P_TABLE_SLOT(team_id, sequence);
       gasnete_coll_p2p_t *head = &(gasnete_coll_p2p_table[slot_nr]);
       gasnete_coll_p2p_t *p2p;
-
+      gasneti_assert(sequence >= 42);
       gasneti_assert(gasnete_coll_team_lookup(team_id) == GASNET_TEAM_ALL);
 
       gasnet_hsl_lock(&gasnete_coll_p2p_table_lock);
@@ -1922,7 +1923,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       uint32_t seq_num = op->sequence;
       uint32_t team_id = gasnete_coll_team_id(op->team);
       uint32_t seqandteam = 0;
-
+      
+      gasneti_assert(seq_num >= 42);
       /* lets shift up the team id by more than 16 bits to give mroe room for the sequence number*/
       /* shift it up by 28 bits leaving 4 bits (or 16 teams for now) for the team id and the rest is sequence number*/
       seqandteam = team_id << 28;
@@ -1948,6 +1950,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode) {
       uint32_t team_id = gasnete_coll_team_id(op->team);
       uint32_t seqandteam = (team_id << 28) | (op->sequence & 0x0fffffff);
+      gasneti_assert(op->sequence >= 42);
 
       GASNETI_SAFE(
         SHORT_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_advance_reqh),
@@ -2348,7 +2351,15 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
     /* run the segmented broadcast code 
        function internally checks synch flags and SINGLE/LOCAL flags
     */
-    return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags,  tree_type, sequence GASNETE_THREAD_PASS);
+    if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags)) {
+      if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
+        return gasnete_coll_bcast_TreePutScratch(team, dst, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+      } else {
+        return gasnete_coll_bcast_TreePut(team, dst, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+      }
+    } else {
+      return gasnete_coll_bcast_TreePutSeg(team, dst, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+    }
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2496,7 +2507,7 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
     return gasnete_coll_broadcastM_nb_default_OLD(team, dstlist, srcimage, src, nbytes,
 				                  flags, sequence GASNETE_THREAD_PASS);
   }
-
+  gasneti_assert(sequence == 0 || sequence >= 42);
   #if GASNET_SEQ
   /* Exactly one thread-local addr - forward to bcast_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -2520,7 +2531,15 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
      */
     return gasnete_coll_bcastM_TreeEager(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-    return gasnete_coll_bcastM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+    if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags)) {
+      if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
+        return gasnete_coll_bcastM_TreePutScratch(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+      } else {
+        return gasnete_coll_bcastM_TreePut(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+      }
+    } else {
+      return gasnete_coll_bcastM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+    }
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
       /* We can use Rendezvous+Get to eliminate any barriers for *_MYSYNC.
@@ -2638,8 +2657,12 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
-                                        tree_type, sequence GASNETE_THREAD_PASS);
+    if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags)) {
+      return gasnete_coll_scat_TreePut(team, dst, srcimage, src, nbytes, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+    } else {
+      return gasnete_coll_scat_TreePutSeg(team, dst, srcimage, src, nbytes, flags,
+                                          tree_type, sequence GASNETE_THREAD_PASS);
+    }
   } else if (nbytes <= eager_limit) {
     /* Small enough for Eager, which works for out-of-segment src and/or dst */
     return gasnete_coll_scat_Eager(team, dst, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
@@ -2785,6 +2808,7 @@ gasnete_coll_scatterM_nb_default(gasnet_team_handle_t team,
                                  GASNETE_THREAD_FARG) {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
+  size_t pipe_seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags);
   if_pf (!gasnete_coll_opt_enabled) {
     return gasnete_coll_scatterM_nb_default_OLD(team, dstlist, srcimage, src, nbytes,
 				                flags, sequence GASNETE_THREAD_PASS);
@@ -2808,10 +2832,16 @@ gasnete_coll_scatterM_nb_default(gasnet_team_handle_t team,
   /* Choose algorithm based on arguments */
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
-    if(gasnete_coll_fixed_image_count) {
+    if(gasnete_coll_fixed_image_count && 
+       team->smallest_scratch_seg >= 
+       team->total_ranks*gasnete_coll_my_images*pipe_seg_size) {
       /* require that all ndoes have the same number of GASNet images*/
-      return gasnete_coll_scatM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags,
-                                           tree_type, sequence GASNETE_THREAD_PASS); 
+      if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags)) {
+        return gasnete_coll_scatM_TreePut(team, dstlist, srcimage, src, nbytes, nbytes, flags,
+                                             tree_type, sequence GASNETE_THREAD_PASS); 
+      } else {
+        return gasnete_coll_scatM_TreePutSeg(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+      }
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {
         return gasnete_coll_scatM_Eager(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
