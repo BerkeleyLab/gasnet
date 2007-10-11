@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/04/18 19:15:59 $
-# $Revision: 1.310.4.3 $
+#     $Date: 2007/10/11 23:27:55 $
+# $Revision: 1.310.4.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.4.3 $)
+AC_REVISION($Revision: 1.310.4.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1897,13 +1897,6 @@ if test "$enabled_lapi" = yes; then
   AC_MSG_CHECKING(for working LAPI configuration)
   GASNET_PUSHVAR(LIBS,"$LIBS -llapi_r -lpthread")
 
-  # Copied from VAPI 
-  # Since we are using firehose we need to disable certain optimizations.
-  # See bug #350 for an example of why firehose needs this.
-  # See bug #596 or #1031 for evidence that VAPI is affected by this.
-  # See bug #1052 for evidence that xlc is affected.
-  GASNET_FH_CFLAGS
-
   # try to compile and link a simple LAPI program
   AC_TRY_LINK( [
     #include <lapi.h>
@@ -1986,12 +1979,39 @@ if test "$enabled_lapi" = yes; then
   fi
 
   # Check for LAPI-RDMA
-  # - TODO: detect this automatically, and/or check to see if actually present
-  # when user requests it
-  GASNET_IF_ENABLED_WITH_AUTO(lapi-rdma, [use LAPI RDMA], [use_lapi_rdma=yes],
-                              [use_lapi_rdma=no], [use_lapi_rdma=try])
-  if test "$use_lapi_rdma" = yes; then
-      AC_DEFINE(GASNETC_LAPI_RDMA)
+  if test "$have_lapi" = "yes"; then
+    GASNET_IF_ENABLED_WITH_AUTO(lapi-rdma, [support/use LAPI RDMA (default is to probe)],
+				[enable_lapi_rdma=yes],[enable_lapi_rdma=no],[enable_lapi_rdma=probe])
+    if test "$enable_lapi_rdma" != no; then
+      AC_MSG_CHECKING([for LAPI RDMA support])
+      GASNET_PUSHVAR(LIBS,"$LIBS -llapi_r -lpthread")
+      AC_TRY_LINK( [
+        #include <lapi.h>
+        #include <string.h>
+      ], [{
+        lapi_handle_t  gasnetc_lapi_context;
+        lapi_info_t    gasnetc_lapi_info;
+        lapi_hwxfer_t  my_xfer;
+
+        /* Incomplete, but enough to yield compile error when RDMA not in headers */
+        my_xfer.Xfer_type = LAPI_RDMA_XFER;
+        my_xfer.op = LAPI_RDMA_PUT;
+
+        memset(&gasnetc_lapi_info, 0, sizeof(lapi_info_t));
+        LAPI_Init(&gasnetc_lapi_context, &gasnetc_lapi_info);
+        }], [ have_lapi_rdma=yes ], [ have_lapi_rdma=no ] )
+      GASNET_POPVAR(LIBS)
+      AC_MSG_RESULT($have_lapi_rdma)
+      if test "$enable_lapi_rdma$have_lapi_rdma" = yesno; then
+	GASNET_ERR_SAVE()
+	AC_MSG_ERROR([--enable-lapi-rdma passed but support was not found in lapi.h])
+      elif test "$have_lapi_rdma" = yes; then
+        AC_DEFINE(GASNETC_LAPI_RDMA)
+        # Since we are using firehose we need to disable certain optimizations.
+        # See VAPI config logic for more detail
+        GASNET_FH_CFLAGS
+      fi
+    fi
   fi
 
   if test x"$ac_cv_sizeof_void_p" = x4; then
@@ -2004,6 +2024,7 @@ if test "$enabled_lapi" = yes; then
 fi
 
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
+AM_CONDITIONAL(HAVE_LAPI_RDMA, test "$have_lapi_rdma" = yes)
 CONDUIT_END([test "$have_lapi" = yes])
 
 #--------------------------------------------------------------------------------------------------------
