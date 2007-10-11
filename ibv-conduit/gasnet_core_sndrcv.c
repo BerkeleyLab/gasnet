@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2007/03/05 23:20:18 $
- * $Revision: 1.136.2.2 $
+ *     $Date: 2007/10/11 23:59:45 $
+ * $Revision: 1.136.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -255,7 +255,7 @@ static gasnetc_cep_t			**gasnetc_node2cep;
   #define GASNETC_PERTHREAD_PASS_ALONE	(_core_threadinfo)
   #define GASNETC_PERTHREAD_PASS	, GASNETC_PERTHREAD_PASS_ALONE
   #define GASNETC_MY_PERTHREAD()	((gasnetc_per_thread_t *)_core_threadinfo)
-  #define GASNETC_PERTHREAD_LOOKUP	void * const _core_threadinfo = gasnetc_my_perthread()
+  #define GASNETC_PERTHREAD_LOOKUP	void * const _core_threadinfo = (void *)gasnetc_my_perthread()
 #else
   #define GASNETC_PERTHREAD_FARG_ALONE
   #define GASNETC_PERTHREAD_FARG
@@ -268,10 +268,10 @@ static gasnetc_cep_t			**gasnetc_node2cep;
 GASNETI_INLINE(gasnetc_alloc_sreqs)
 void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
 {
-  size_t bytes = GASNETC_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
+  size_t bytes = GASNETI_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
   gasnetc_sreq_t *ptr = gasneti_malloc(count * bytes + GASNETI_CACHE_LINE_BYTES-1);
   int i;
-  *head_p = ptr = (gasnetc_sreq_t *)GASNETC_ALIGNUP(ptr, GASNETI_CACHE_LINE_BYTES);
+  *head_p = ptr = (gasnetc_sreq_t *)GASNETI_ALIGNUP(ptr, GASNETI_CACHE_LINE_BYTES);
   for (i = 1; i < count; ++i, ptr = ptr->next) {
     ptr->next = (gasnetc_sreq_t *)((uintptr_t)ptr + bytes);
     ptr->opcode = GASNETC_OP_FREE;
@@ -797,7 +797,12 @@ void gasnetc_dump_cqs(gasnetc_wc_t *comp, gasnetc_hca_t *hca, const int is_snd))
 		   : gasnetc_poll_snd_cq(hca, comp);
     CQ_UNLOCK;
     if (vstat != 0) {
-      comp->status = -1; /* last pass */
+      /* use an invalid value to ensure output is generated on the last pass */
+#if GASNET_CONDUIT_IBV
+      comp->status = (enum ibv_wc_status)(-1);
+#else
+      comp->status = -1;
+#endif
     }
     if (comp->status == status) {
       ++count;
@@ -1320,7 +1325,6 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
 GASNETI_INLINE(gasnetc_poll_rcv_hca)
 void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
-  static int prev = 0;	/* NOTE: bug 1586 work-around requires the volatile casts */
   int count = gasneti_weakatomic_read(&hca->amrdma_rcv.count, 0);
   int limit2 = count + 1;
 
@@ -1328,21 +1332,25 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
 
   /* Poll round-robin over the AMRDMA landing zones and the CQ */
   while (limit && limit2--) {
+    /* NOTE: bug 1586 work-around requires the volatile casts */
+    static int prev = 0;
     int index = *(volatile int *)(&prev); /* The associated data race is harmless */
+    index = (index == 0) ? count : (index - 1);
+    *(volatile int *)(&prev) = index;
+
     gasneti_assert(limit > 0);
     gasneti_assert(limit2 >= 0);
+    gasneti_assert(index <= count);
  
     if (index != count) {
       /* Poll for AM-over-RDMA */
       gasnetc_cep_t * cep;
-      *(volatile int *)(&prev) = index + 1;
       /* cep = (gasnetc_cep_t *)gasneti_atomic_ptr_read(&hca->amrdma_rcv.cep[index]); */
       cep = hca->amrdma_rcv.cep[index];
       if (cep && gasnetc_rcv_amrdma(cep)) --limit;
     } else {
       /* Poll for AM in recv CQ */
       gasnetc_rbuf_t *spare = NULL;
-      *(volatile int *)(&prev) = 0;
       (void)gasnetc_rcv_reap(hca, limit, &spare);
       if (spare) {
         gasneti_lifo_push(&hca->rbuf_freelist, spare);
@@ -1601,7 +1609,8 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
   {
     struct ibv_send_wr *bad_wr;
     sr_desc->next = NULL;
-    sr_desc->send_flags = is_inline ? (IBV_SEND_SIGNALED | IBV_SEND_INLINE) : IBV_SEND_SIGNALED;
+    sr_desc->send_flags = is_inline ? (enum ibv_send_flags)(IBV_SEND_SIGNALED | IBV_SEND_INLINE)
+                                    : IBV_SEND_SIGNALED;
     vstat = ibv_post_send(cep->qp_handle, sr_desc, &bad_wr);
   }
 #endif
@@ -3058,12 +3067,12 @@ extern int gasnetc_sndrcv_init(void) {
       }
   
       /* Allocated normal memory for receive descriptors (rbuf's) */
-      padded_size = GASNETC_ALIGNUP(sizeof(gasnetc_rbuf_t), GASNETI_CACHE_LINE_BYTES);
+      padded_size = GASNETI_ALIGNUP(sizeof(gasnetc_rbuf_t), GASNETI_CACHE_LINE_BYTES);
       hca->rbuf_alloc = gasneti_malloc(rcv_count*padded_size + GASNETI_CACHE_LINE_BYTES-1);
   
       /* Initialize the rbuf's */
       gasneti_lifo_init(&hca->rbuf_freelist);
-      rbuf = (gasnetc_rbuf_t *)GASNETC_ALIGNUP(hca->rbuf_alloc, GASNETI_CACHE_LINE_BYTES);
+      rbuf = (gasnetc_rbuf_t *)GASNETI_ALIGNUP(hca->rbuf_alloc, GASNETI_CACHE_LINE_BYTES);
       for (i = 0; i < rcv_count; ++i) {
         rbuf->rr_is_rdma         = 0;
         rbuf->rr_desc.gasnetc_f_wr_num_sge = 1;
@@ -3098,7 +3107,7 @@ extern int gasnetc_sndrcv_init(void) {
         if_pf (buf == MAP_FAILED) {
           buf = NULL;
         } else {
-          vstat = gasnetc_pin(hca, buf, alloc_size, GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR, &hca->amrdma_reg);
+          vstat = gasnetc_pin(hca, buf, alloc_size, (gasnetc_acl_t)(GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR), &hca->amrdma_reg);
           if (vstat != 0) {
 	    gasneti_munmap(buf, size);
             buf = NULL;
