@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/11 23:59:16 $
- * $Revision: 1.79.10.17 $
+ *     $Date: 2007/10/12 00:15:48 $
+ * $Revision: 1.79.10.18 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,6 +31,26 @@
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_ConduitName, "$GASNetConduitName: " GASNET_CORE_NAME_STR " $");
+
+#ifdef GASNETC_LAPI_FEDERATION
+  #define GASNETC_LAPI_TYPE_STR "Federation"
+#elif GASNETC_LAPI_COLONY
+  #define GASNETC_LAPI_TYPE_STR "Colony"
+#else
+  #define GASNETC_LAPI_TYPE_STR "UNKNOWN"
+#endif
+GASNETI_IDENT(gasnetc_IdentString_LAPIType, "$GASNetLAPIType: " GASNETC_LAPI_TYPE_STR " $");
+
+#ifdef GASNETC_LAPI_RDMA
+  #define GASNETC_LAPI_RDMA_STR "yes"
+  GASNETI_IDENT(gasnetc_IdentString_LAPIRDMA, "$GASNetLAPIRDMA: 1 $");
+#else
+  #define GASNETC_LAPI_RDMA_STR "no"
+  GASNETI_IDENT(gasnetc_IdentString_LAPIRDMA, "$GASNetLAPIRDMA: 0 $");
+#endif
+
+GASNETI_IDENT(gasnetc_IdentString_ConduitConfig,
+	"$GASNetConduitConfig: lapi-type=" GASNETC_LAPI_TYPE_STR ",lapi-rdma=" GASNETC_LAPI_RDMA_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
