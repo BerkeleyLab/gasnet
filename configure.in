@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/10/11 23:59:02 $
-# $Revision: 1.310.4.5 $
+#     $Date: 2007/10/12 02:42:06 $
+# $Revision: 1.310.4.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.4.5 $)
+AC_REVISION($Revision: 1.310.4.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2098,6 +2098,7 @@ if test "$enabled_lapi" = yes; then
 	AC_MSG_ERROR([--enable-lapi-rdma passed but support was not found in lapi.h])
       elif test "$have_lapi_rdma" = yes; then
         AC_DEFINE(GASNETC_LAPI_RDMA)
+        POE_RDMA_ARGS='-rdma_count 2'	# XXX: Is 2 the right value?
         # Since we are using firehose we need to disable certain optimizations.
         # See VAPI config logic for more detail
         GASNET_FH_CFLAGS
@@ -2114,6 +2115,7 @@ if test "$enabled_lapi" = yes; then
 
 fi
 
+AC_SUBST(POE_RDMA_ARGS)
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
 AM_CONDITIONAL(HAVE_LAPI_RDMA, test "$have_lapi_rdma" = yes)
 CONDUIT_END([test "$have_lapi" = yes])
