@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/11 21:41:55 $
- * $Revision: 1.29.6.57 $
+ *     $Date: 2007/10/12 23:38:57 $
+ * $Revision: 1.29.6.58 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -432,7 +432,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         size_t sent_bytes=0;
         
 	int i;
-        
+
         data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
         handle_vec = data->private_data;
         handle_vec->num_handles = num_segs;
@@ -486,8 +486,8 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
                                uint32_t sequence
                                GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
-  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC |
+      GASNETE_COLL_GENERIC_OPT_OUTSYNC;
   
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags);
   uint32_t num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
@@ -1061,6 +1061,8 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
         int i;
         gasnet_node_t numaddrs = (op->flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
         
+
+
         data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
         handle_vec = data->private_data;
         handle_vec->num_handles = num_segs;
@@ -1113,8 +1115,8 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
                               uint32_t sequence
                               GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
-                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC | 
+      GASNETE_COLL_GENERIC_OPT_OUTSYNC;
   
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags);
   uint32_t num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
@@ -1479,7 +1481,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 1;
       
     case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
+      if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
       {
         gasnete_coll_handle_vec_t *handle_vec;
         size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNETE_COLL_SCATTER_OP, op->flags);
@@ -1495,6 +1497,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
         
 	int i;
         
+
         data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
         handle_vec = data->private_data;
         handle_vec->num_handles = num_segs;
@@ -1546,8 +1549,8 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
                           uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) | 
-                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC | 
+      GASNETE_COLL_GENERIC_OPT_OUTSYNC;
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   
@@ -1818,7 +1821,8 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             void * const* dstlist = &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags);
             void *temp_src = gasnete_coll_scale_ptr(args->src, gasnete_coll_my_offset, args->dist);
             for(t=0; t<gasnete_coll_my_images; t++) {
-              GASNETE_FAST_UNALIGNED_MEMCPY(args->dstlist[t],  gasnete_coll_scale_ptr(temp_src, t, args->dist),
+              GASNETE_FAST_UNALIGNED_MEMCPY(dstlist[t],  
+					    gasnete_coll_scale_ptr(temp_src, t, args->dist),
                                             args->nbytes);
             }
           }
@@ -1924,15 +1928,16 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
-      if (!gasnete_coll_generic_all_threads(data) ||
+      if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
 	  !gasnete_coll_generic_insync(data)) {
 	break;
       }
       data->state = 1;
       
     case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
+      if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
       {
+
         gasnete_coll_handle_vec_t *handle_vec;
         size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNETE_COLL_SCATTER_OP, op->flags);
         int num_segs = ((args->nbytes % seg_size) == 0 ? args->nbytes/seg_size : (args->nbytes/seg_size)+1);
@@ -1948,7 +1953,8 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         size_t sent_bytes=0;
         gasnet_node_t numaddrs = (op->flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
 	int i;
-        
+
+
         data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
         handle_vec = data->private_data;
         handle_vec->num_handles = num_segs;
@@ -2001,8 +2007,8 @@ gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
                               gasnete_coll_tree_type_t tree_type,    
                               uint32_t sequence
                               GASNETE_THREAD_FARG) {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) | 
-                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+    int options = GASNETE_COLL_GENERIC_OPT_INSYNC | 
+	GASNETE_COLL_GENERIC_OPT_OUTSYNC; 
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   
@@ -2408,7 +2414,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
         size_t sent_bytes=0;
         
 	int i;
-        
+
         data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t));
         handle_vec = data->private_data;
         handle_vec->num_handles = num_segs;
@@ -2461,9 +2467,8 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
                              gasnete_coll_tree_type_t tree_type,    
                              uint32_t sequence
                              GASNETE_THREAD_FARG) {
-
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
-		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+ int options = GASNETE_COLL_GENERIC_OPT_INSYNC | 
+     GASNETE_COLL_GENERIC_OPT_OUTSYNC;
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
@@ -2772,7 +2777,7 @@ gasnete_coll_gathM_TreePut(gasnet_team_handle_t team,
 					 gasnete_coll_tree_init(tree_type, 
                                                                 gasnete_coll_image_node(dstimage), team
                                                                 GASNETE_THREAD_PASS), sequence GASNETE_THREAD_PASS);
-  
+ 
   
 }
 
@@ -2784,15 +2789,16 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
-      if (!gasnete_coll_generic_all_threads(data) ||
+      if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
 	  !gasnete_coll_generic_insync(data)) {
 	break;
       }
       data->state = 1;
       
     case 1:	/* Initiate data movement */
-      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
+      if (!GASNETE_COLL_MAY_INIT_FOR(op) ) break;
       {
+	  
         gasnete_coll_handle_vec_t *handle_vec;
         size_t seg_size = gasnete_coll_get_pipe_seg_size(op->team->autotune_info, GASNETE_COLL_SCATTER_OP, op->flags);
         int num_segs = ((args->nbytes % seg_size) == 0 ? args->nbytes/seg_size : (args->nbytes/seg_size)+1);
@@ -2808,7 +2814,8 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
         size_t sent_bytes=0;
         gasnet_node_t numaddrs = (op->flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
 	int i;
-        
+
+
         data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
         handle_vec = data->private_data;
         handle_vec->num_handles = num_segs;
@@ -2862,8 +2869,8 @@ gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
                               gasnete_coll_tree_type_t tree_type,    
                               uint32_t sequence
                               GASNETE_THREAD_FARG) {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) | 
-                GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC | 
+                GASNETE_COLL_GENERIC_OPT_OUTSYNC;
   
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);

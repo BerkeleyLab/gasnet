@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/11 21:41:55 $
- * $Revision: 1.29.6.56 $
+ *     $Date: 2007/10/12 23:38:57 $
+ * $Revision: 1.29.6.57 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -860,6 +860,7 @@ extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
 
     static gasnete_coll_op_t *gasnete_coll_agg = NULL;
 
+
     gasnet_coll_handle_t
     gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
       op->agg_head = NULL;
@@ -1077,7 +1078,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   static int barrier_fn_set = 0;
   static gasnet_image_t remain = 0;
   size_t image_size = gasneti_nodes * sizeof(gasnet_image_t);
-  size_t smallest_scratch_seg;
+  static size_t smallest_scratch_seg;
   int first;
   int i;
 
@@ -2121,6 +2122,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 	uint32_t tmp = gasnete_coll_sequence;
 	gasnete_coll_sequence += (1 + sequence);
         sequence = tmp;
+	
       }
 
       /* Conditionally allocate data for point-to-point syncs */
@@ -2171,7 +2173,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 	  data->out_barrier = gasnete_coll_consensus_create();
 	}
       }
-      
+
       op->waiting_scratch_op = 0;
       op->active_scratch_op = 0;
       op->waiting_for_reconfig_clear=0;
@@ -3174,7 +3176,7 @@ gasnete_coll_gatherM_nb_default(gasnet_team_handle_t team,
       /*XXX: with the current implementation of the scratch space it does not make sense to use this for
              all-gather and exchange since it will serialize the gathers which is not what we want
       */
-      if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags)) {
+      if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_GATHER_OP, flags)) {
         return gasnete_coll_gathM_TreePut(team, dstimage, dst, srclist, nbytes, nbytes, flags,
                                           tree_type, sequence GASNETE_THREAD_PASS); 
       } else {
@@ -3430,7 +3432,7 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
           for (i = 0; i < gasnete_coll_total_images; ++i, ++h) {
             *h = gasnete_coll_gatherM_nb(team, i, *p, srclist, nbytes,
-					 flags, op->sequence+i+1 GASNETE_THREAD_PASS);
+					 flags|GASNETE_COLL_NONROOT_SUBORDINATE, op->sequence+i+1 GASNETE_THREAD_PASS);
             gasnete_coll_save_coll_handle(h GASNETE_THREAD_PASS);
 	    if (gasnete_coll_image_is_local(i)) ++p;
           }
@@ -3815,7 +3817,7 @@ static int gasnete_coll_pf_exchgM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	  q = args->dstlist;
           for (i = 0; i < gasnete_coll_total_images; ++i, ++h, p += gasnete_coll_my_images) {
             *h = gasnete_coll_gatherM_nb(team, i, *q, p, nbytes,
-					 flags, op->sequence+i+1 GASNETE_THREAD_PASS);
+					 flags|GASNETE_COLL_NONROOT_SUBORDINATE, op->sequence+i+1 GASNETE_THREAD_PASS);
 	    gasnete_coll_save_coll_handle(h GASNETE_THREAD_PASS);
 	    if (gasnete_coll_image_is_local(i)) ++q;
           }

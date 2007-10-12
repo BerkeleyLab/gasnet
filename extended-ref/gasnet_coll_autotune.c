@@ -67,11 +67,13 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
   if(min_scratch_size < total_images) {
     gasneti_fatalerror("SCRATCH SPACE TOO SMALL Please set it to at least (%ld bytes) through GASNET_COLL_SCRATCH_SIZE environment variable", (long int) total_images);
   }
-  ret->pipe_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_PIPE_SEG_SIZE", min_scratch_size, 1);
-  if(ret->pipe_seg_size > min_scratch_size/total_images) {
+  ret->pipe_seg_size = gasneti_getenv_int_withdefault("GASNET_COLL_PIPE_SEG_SIZE", min_scratch_size/total_images, 1);
+  if(ret->pipe_seg_size == 0) {
+      ret->pipe_seg_size = min_scratch_size/total_images;
+  } else if(ret->pipe_seg_size*total_images > min_scratch_size) {
     if(mynode == 0) {
-      fprintf(stderr, "WARNING: Conflicting evnironment values for scratch space allocated (%ld bytes) and GASNET_COLL_PIPE_SEG_SIZE (%ld bytes)\n", min_scratch_size, ret->pipe_seg_size);
-      fprintf(stderr, "WARNING: Using %ld bytes for GASNET_COLL_PIPE_SEG_SIZE\n", min_scratch_size/total_images);
+      fprintf(stderr, "WARNING: Conflicting evnironment values for scratch space allocated (%d bytes) and GASNET_COLL_PIPE_SEG_SIZE (%d bytes)\n", (int) min_scratch_size, (int)ret->pipe_seg_size);
+      fprintf(stderr, "WARNING: Using %d bytes for GASNET_COLL_PIPE_SEG_SIZE\n", (int)min_scratch_size/total_images);
     }
     ret->pipe_seg_size = min_scratch_size/(total_images);
   }
