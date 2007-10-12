@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/10/12 19:31:22 $
-# $Revision: 1.310.4.7 $
+#     $Date: 2007/10/12 19:48:24 $
+# $Revision: 1.310.4.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.4.7 $)
+AC_REVISION($Revision: 1.310.4.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2076,7 +2076,6 @@ if test "$enabled_lapi" = yes; then
     if test x"$ac_cv_sizeof_void_p" = x4; then
       dnl Parry says no LAPI-RMDA support in 32-bit mode
       if test "$enable_lapi_rdma" = yes; then
-	GASNET_ERR_SAVE()
 	AC_MSG_ERROR([--enable-lapi-rdma passed but support is not available in 32-bit mode])
       elif test "$enable_lapi_rdma" = probe; then
 	GASNET_MSG_WARN([LAPI-RDMA support is not available in 32-bit mode - skipping probe])
