@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/12 00:15:48 $
- * $Revision: 1.79.10.18 $
+ *     $Date: 2007/10/12 20:27:43 $
+ * $Revision: 1.79.10.19 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,7 +50,7 @@ GASNETI_IDENT(gasnetc_IdentString_LAPIType, "$GASNetLAPIType: " GASNETC_LAPI_TYP
 #endif
 
 GASNETI_IDENT(gasnetc_IdentString_ConduitConfig,
-	"$GASNetConduitConfig: lapi-type=" GASNETC_LAPI_TYPE_STR ",lapi-rdma=" GASNETC_LAPI_RDMA_STR " $");
+	"$GASNetConduitConfig: lapi_type=" GASNETC_LAPI_TYPE_STR ",lapi_rdma=" GASNETC_LAPI_RDMA_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
