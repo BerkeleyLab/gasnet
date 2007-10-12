@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/10/11 23:59:16 $
- * $Revision: 1.42.12.25 $
+ *     $Date: 2007/10/12 07:29:32 $
+ * $Revision: 1.42.12.26 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1682,7 +1682,6 @@ END:
       gasnete_wait_syncnb_original(handle);
     }
 }
-#endif
 
 extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) 
 {
@@ -1705,6 +1704,7 @@ extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
     gasneti_sync_mem();
 }
 
+#endif
 #if 0
 extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) 
 {
@@ -1728,11 +1728,8 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
 #endif
 
 
-#if !GASNETC_LAPI_RDMA
-extern void gasnete_wait_syncnb(gasnet_handle_t handle) {
-#else
+#if GASNETC_LAPI_RDMA
 extern void gasnete_wait_syncnb_original(gasnet_handle_t handle) {
-#endif
     int cnt = 0;
     gasnete_op_t *op = handle;
     if (handle == GASNET_INVALID_HANDLE)
@@ -1769,6 +1766,22 @@ extern void gasnete_wait_syncnb_original(gasnet_handle_t handle) {
     gasnete_op_free(handle);
 }
 
+extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles)
+{
+    gasneti_assert(phandle);
+
+    { int i;
+    for (i = 0; i < numhandles; i++) {
+	gasnete_op_t *op = phandle[i];
+	if (op != GASNET_INVALID_HANDLE) {
+	    gasnete_wait_syncnb(op);
+	    phandle[i] = GASNET_INVALID_HANDLE;
+	}
+    }
+    }
+}
+#endif
+
 #if 0
 extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
     gasneti_assert(phandle);
@@ -1786,20 +1799,7 @@ extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles
 }
 #endif
 
-extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles)
-{
-    gasneti_assert(phandle);
 
-    { int i;
-    for (i = 0; i < numhandles; i++) {
-	gasnete_op_t *op = phandle[i];
-	if (op != GASNET_INVALID_HANDLE) {
-	    gasnete_wait_syncnb(op);
-	    phandle[i] = GASNET_INVALID_HANDLE;
-	}
-    }
-    }
-}
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -2075,6 +2075,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 
 
 /* don't poll for put operations, polling for gets is ok */
+#if GASNETC_LAPI_RDMA
 extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
@@ -2101,7 +2102,7 @@ extern void gasnete_wait_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
     gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
     gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
 }
-
+#endif
 /* ------------------------------------------------------------------------------------ */
 /*
   Implicit access region synchronization
