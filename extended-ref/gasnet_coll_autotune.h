@@ -6,6 +6,9 @@
 
 /* This is intended as a stub for the autotuner routines*/
 
+#ifndef __GASNET_COLL_AUTOTUNE_H__
+#define __GASNET_COLL_AUTOTUNE_H__ 1
+
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "GASNET_COLL_BINOMIAL_TREE"
 #define GASNETE_COLL_DEFAULT_TREE_FANOUT 2
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT 1024
@@ -35,3 +38,5 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotu
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags);
 
 size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags);
+
+#endif

@@ -549,7 +549,6 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG) 
       /* fprintf(stderr, "%d> allocating for op %d\n", gasneti_mynode, op->sequence); */
 
       op->myscratchpos = gasnete_coll_scratch_make_local_alloc(scratch_req, stat);
-//      stat->largest_seq = op->sequence;
       op->scratchpos = gasneti_malloc(sizeof(uint64_t)*(scratch_req->num_out_peers));
       gasnete_coll_scratch_make_remote_alloc(scratch_req, stat, op->scratchpos);
       return 1;

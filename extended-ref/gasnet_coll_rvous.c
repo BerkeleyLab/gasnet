@@ -1,18 +1,17 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2007/09/27 16:40:16 $
- * $Revision: 1.29.6.27 $
+ *     $Date: 2007/10/13 20:28:52 $
+ * $Revision: 1.29.6.28 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#if 0
-#define GASNET_COLL_TREE_DEBUG 0
 #include <gasnet_internal.h>
-#include <gasnet_coll.h>
-#include <gasnet_extended_refcoll.h>
+#include <gasnet_coll_internal.h>
+#include <gasnet_coll_trees.h>
+#include <gasnet_coll_scratch.h>
+#include <gasnet_coll_autotune.h>
 #include <gasnet_vis.h>
-#endif
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcast_nb() */
@@ -544,7 +543,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
                                    args->nbytes);
       } else {
 	/* Send our addrs to root */
-	gasneti_assert(gasnete_coll_p2p_eager_scale >= sizeof(struct gasnete_coll_p2p_send_struct));
+	gasneti_assert(gasnete_coll_p2p_eager_scale >= sizeof(gasnete_coll_p2p_send_struct_t));
 	gasnete_coll_p2p_send_rtrM(op, data->p2p, gasnete_coll_my_offset,
 				   &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
 				   args->srcnode, args->nbytes, gasnete_coll_my_images);

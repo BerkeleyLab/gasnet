@@ -16,7 +16,6 @@
 #define GASNETE_COLL_SCRATCH_DISSEM_OP 1
 
 
-
 struct gasnete_coll_node_scratch_status_t_;
 typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_status_t;
 

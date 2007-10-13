@@ -1,18 +1,17 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2007/10/05 19:41:54 $
- * $Revision: 1.29.6.32 $
+ *     $Date: 2007/10/13 20:28:52 $
+ * $Revision: 1.29.6.33 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#if 0
-#define GASNET_COLL_TREE_DEBUG 0
 #include <gasnet_internal.h>
-#include <gasnet_coll.h>
-#include <gasnet_extended_refcoll.h>
+#include <gasnet_coll_internal.h>
+#include <gasnet_coll_trees.h>
+#include <gasnet_coll_scratch.h>
+#include <gasnet_coll_autotune.h>
 #include <gasnet_vis.h>
-#endif
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcast_nb() */

@@ -1,10 +1,11 @@
 #ifndef ALREADY_SEEN_GASNET_COLL_TREES_H 
 #define ALREADY_SEEN_GASNET_COLL_TREES_H 1
 
+#if 0
 #include <gasnet_coll.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_extended_refcoll.h>
-
+#endif
 
 
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
