@@ -62,7 +62,10 @@ libgasnet_sources =                                         \
         $(CONDUIT_SOURCELIST)                               \
         $(libgasnet_tools_sources)                          \
         $(top_srcdir)/extended-ref/gasnet_extended_refvis.c \
-        $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c \
+        $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c\
+        $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \
+        $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
+        $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \
         $(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
