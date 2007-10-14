@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/13 20:28:53 $
- * $Revision: 1.29.6.58 $
+ *     $Date: 2007/10/14 22:32:11 $
+ * $Revision: 1.29.6.59 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,6 +32,11 @@ size_t gasnete_coll_p2p_eager_scale = 0;
 /*---------------------------------------------------------------------------------*/
 /* Set from environment variables by gasnete_coll_init(): */
 int gasnete_coll_opt_enabled;
+int gasnete_coll_opt_broadcast_enabled;
+int gasnete_coll_opt_scatter_enabled;
+int gasnete_coll_opt_gather_enabled;
+int gasnete_coll_opt_gather_all_enabled;
+int gasnete_coll_opt_exchange_enabled;
 
 /*---------------------------------------------------------------------------------*/
 /* OLD dispatchers (implementations at end of file): */
@@ -1054,6 +1059,12 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 
   if (first) {
     gasnete_coll_opt_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_OPT", 1);
+    gasnete_coll_opt_broadcast_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_BROADCAST_OPT", gasnete_coll_opt_enabled);
+    gasnete_coll_opt_scatter_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_SCATTER_OPT", gasnete_coll_opt_enabled);
+    gasnete_coll_opt_gather_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_GATHER_OPT", gasnete_coll_opt_enabled);
+    gasnete_coll_opt_gather_all_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_GATHER_ALL_OPT", gasnete_coll_opt_enabled);
+    gasnete_coll_opt_exchange_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_EXCHANGE_OPT", gasnete_coll_opt_enabled);
+
     eager_min = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_MIN",
 								GASNETE_COLL_P2P_EAGER_MIN_DEFAULT, 0);
     eager_scale = gasneti_getenv_int_withdefault("GASNET_COLL_P2P_EAGER_SCALE",
@@ -3098,7 +3109,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_broadcast_enabled) {
     return gasnete_coll_broadcast_nb_default_OLD(team, dst, srcimage, src, nbytes,
                                                  flags, sequence GASNETE_THREAD_PASS);
   }
@@ -3282,11 +3293,11 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_broadcast_enabled) {
     return gasnete_coll_broadcastM_nb_default_OLD(team, dstlist, srcimage, src, nbytes,
 				                  flags, sequence GASNETE_THREAD_PASS);
   }
-  gasneti_assert(sequence == 0 || sequence >= 42);
+
   #if GASNET_SEQ
   /* Exactly one thread-local addr - forward to bcast_nb() */
   if (flags & GASNET_COLL_LOCAL) {
@@ -3412,7 +3423,7 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_scatter_enabled) {
     return gasnete_coll_scatter_nb_default_OLD(team, dst, srcimage, src, nbytes,
 				               flags, sequence GASNETE_THREAD_PASS);
   }
@@ -3588,7 +3599,7 @@ gasnete_coll_scatterM_nb_default(gasnet_team_handle_t team,
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
   size_t pipe_seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_SCATTER_OP, flags);
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_scatter_enabled) {
     return gasnete_coll_scatterM_nb_default_OLD(team, dstlist, srcimage, src, nbytes,
 				                flags, sequence GASNETE_THREAD_PASS);
   }
@@ -3732,7 +3743,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
   
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_gather_enabled) {
     return gasnete_coll_gather_nb_default_OLD(team, dstimage, dst, src, nbytes,
 				              flags, sequence GASNETE_THREAD_PASS);
   }
@@ -3925,7 +3936,7 @@ gasnete_coll_gatherM_nb_default(gasnet_team_handle_t team,
 {
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   gasnete_coll_tree_type_t tree_type;
-  if_pf(!gasnete_coll_opt_enabled) {
+  if_pf(!gasnete_coll_opt_gather_enabled) {
     return gasnete_coll_gatherM_nb_default_OLD(team, dstimage, dst, srclist, nbytes,
 				               flags, sequence GASNETE_THREAD_PASS);
   }
@@ -4121,7 +4132,7 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
 				   void *dst, void *src,
 				   size_t nbytes, int flags, uint32_t sequence
 				   GASNETE_THREAD_FARG) {
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_gather_all_enabled) {
     return gasnete_coll_gather_all_nb_default_OLD(team, dst, src, nbytes,
 				                  flags, sequence GASNETE_THREAD_PASS);
   }
@@ -4332,7 +4343,7 @@ gasnete_coll_gather_allM_nb_default(gasnet_team_handle_t team,
 				    size_t nbytes, int flags, uint32_t sequence
 				    GASNETE_THREAD_FARG)
 {
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_gather_all_enabled) {
     return gasnete_coll_gather_allM_nb_default_OLD(team, dstlist, srclist, nbytes,
 				                   flags, sequence GASNETE_THREAD_PASS);
   }
@@ -4491,7 +4502,7 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
 				 size_t nbytes, int flags, uint32_t sequence
 				 GASNETE_THREAD_FARG)
 {
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_exchange_enabled) {
     return gasnete_coll_exchange_nb_default_OLD(team, dst, src, nbytes,
 				                flags, sequence GASNETE_THREAD_PASS);
   }
@@ -4715,7 +4726,7 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
 				  size_t nbytes, int flags, uint32_t sequence
 				  GASNETE_THREAD_FARG)
 {
-  if_pf (!gasnete_coll_opt_enabled) {
+  if_pf (!gasnete_coll_opt_exchange_enabled) {
     return gasnete_coll_exchangeM_nb_default_OLD(team, dstlist, srclist, nbytes,
 				                 flags, sequence GASNETE_THREAD_PASS);
   }

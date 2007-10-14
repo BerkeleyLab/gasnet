@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/14 04:19:28 $
- * $Revision: 1.29.6.60 $
+ *     $Date: 2007/10/14 22:32:11 $
+ * $Revision: 1.29.6.61 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,6 +14,8 @@
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_autotune.h>
 #include <gasnet_vis.h>
+
+#define GASNETE_COLL_ENABLE_TREE_NBI 0
 
 typedef struct {int num_handles; gasnet_coll_handle_t *handles;} gasnete_coll_handle_vec_t;
 /*---------------------------------------------------------------------------------*/
@@ -195,13 +197,19 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
 
     case 2:
       if (gasneti_mynode == args->srcnode) {
+#if GASNETE_COLL_ENABLE_TREE_NBI
         gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+#endif
 	for (child = 0; child < child_count; child++) {
+#if GASNETE_COLL_ENABLE_TREE_NBI
           if(tree->geom->subtree_sizes[child] == 1) {
             /* Destination is a Leaf */ 
             /* Use NB Put + Sync */
             gasnete_put_nbi_bulk(children[child], args->dst, args->src, args->nbytes GASNETE_THREAD_PASS);
-          } else { 
+          } else 
+#endif
+	  { 
+
             /* Destiantion is an Internal Node*/
             /* Use Async Long */
             gasnete_coll_p2p_signalling_putAsync(op, children[child], args->dst, 
@@ -209,21 +217,29 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
 
           }
 	}
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+#if GASNETE_COLL_ENABLE_TREE_NBI
+	data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+#endif
 	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+#if GASNETE_COLL_ENABLE_TREE_NBI
       } else if (child_count == 0) {
         /* leaves fall right through*/
+#endif
       } else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
-        
+#if GASNETE_COLL_ENABLE_TREE_NBI
+	gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
+#endif
         for (child = 0; child < child_count; child++) {
-          if(tree->geom->subtree_sizes[child] == 1) {
+#if GASNETE_COLL_ENABLE_TREE_NBI
+	  if(tree->geom->subtree_sizes[child] == 1) {
             /* Destination is a Leaf */ 
             /* Use NB Put + Sync */
             gasnete_put_nbi_bulk(children[child], args->dst, args->dst, args->nbytes GASNETE_THREAD_PASS);
-          } else { 
+          } else 
+#endif
+	  { 
             /* Destiantion is an Internal Node*/
             /* Use Async Long */
             gasnete_coll_p2p_signalling_putAsync(op, children[child], args->dst, 
@@ -231,17 +247,21 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             
           }
 	}
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+#if GASNETE_COLL_ENABLE_TREE_NBI
+	data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);        
+#endif
       } else {
 	break;	/* Internal node waiting for parent to push data and signal */
       }
       data->state = 3;
       
     case 3:     /* sync data movement */
+#if GASNETE_COLL_ENABLE_TREE_NBI
       if (child_count > 0 && data->handle != GASNET_INVALID_HANDLE) {
 	break;
       }
+#endif
       data->state = 4;
       
     case 4:	/* Optional OUT barrier */
@@ -814,38 +834,54 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
     case 2:
       if (gasneti_mynode == args->srcnode) {
         gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+#if GASNETE_COLL_ENABLE_TREE_NBI        
+	gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+#endif
 	for (child = 0; child < child_count; child++) {
-          if(tree->geom->subtree_sizes[child] == 1 && gasnete_coll_all_images[children[child]] == 1) {
+#if GASNETE_COLL_ENABLE_TREE_NBI      
+	  if(tree->geom->subtree_sizes[child] == 1 && gasnete_coll_all_images[children[child]] == 1) {
             /* Destination is a Leaf */ 
             /* Use NB Put + Sync */
             gasnete_put_nbi_bulk(children[child], GASNETE_COLL_1ST_IMAGE(args->dstlist, children[child]), args->src, args->nbytes GASNETE_THREAD_PASS);
-          } else { 
-            /* Destiantion is an Internal Node*/
-            /* Use Async Long */
-            gasnete_coll_p2p_signalling_putAsync(op, children[child], GASNETE_COLL_1ST_IMAGE(args->dstlist, children[child]), 
-                                                 args->src, args->nbytes, 0, 1);
-            
-          }
+          } else  
+#endif
+          {
+	    /* Destiantion is an Internal Node*/
+	    /* Use Async Long */
+	    gasnete_coll_p2p_signalling_putAsync(op, children[child], GASNETE_COLL_1ST_IMAGE(args->dstlist, children[child]), 
+						 args->src, args->nbytes, 0, 1);
+	  
+	  }
 	}
+#if GASNETE_COLL_ENABLE_TREE_NBI
         data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+#endif
         gasnete_coll_local_broadcast(gasnete_coll_my_images,
 				     &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, 0),
 				     args->src, args->nbytes);
-      } else if (child_count == 0 && gasnete_coll_my_images == 1) {
+      }
+ 
+#if GASNETE_COLL_ENABLE_TREE_NBI
+      else if (child_count == 0 && gasnete_coll_my_images == 1) {
         /* leaves fall right through*/
-      } else if (data->p2p->state[0]) {
+      }
+#endif
+      else if (data->p2p->state[0]) {
 	gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
-        
+#if GASNETE_COLL_ENABLE_TREE_NBI      
+	gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
+#endif
         for (child = 0; child < child_count; child++) {
-          if(tree->geom->subtree_sizes[child] == 1 && gasnete_coll_all_images[children[child]] == 1) {
+#if GASNETE_COLL_ENABLE_TREE_NBI      
+	  if(tree->geom->subtree_sizes[child] == 1 && gasnete_coll_all_images[children[child]] == 1) {
             /* Destination is a Leaf */ 
             /* Use NB Put + Sync */
             gasnete_put_nbi_bulk(children[child], GASNETE_COLL_1ST_IMAGE(args->dstlist, children[child]), 
                                  GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags), args->nbytes GASNETE_THREAD_PASS);
-          } else { 
+          } else 
+#endif
+	  { 
             /* Destiantion is an Internal Node*/
             /* Use Async Long */
             gasnete_coll_p2p_signalling_putAsync(op, children[child], GASNETE_COLL_1ST_IMAGE(args->dstlist, children[child]), 
@@ -853,8 +889,10 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
             
           }
 	}
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+#if GASNETE_COLL_ENABLE_TREE_NBI
+	data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);  
+#endif
         /** XXX: Here we might do extra work by copying from teh same source and dest **/
         gasnete_coll_local_broadcast(gasnete_coll_my_images,
 				     &GASNETE_COLL_MY_1ST_IMAGE(args->dstlist, op->flags),
@@ -866,9 +904,11 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       data->state = 3;
       
     case 3:     /* sync data movement */
-      if (child_count > 0 && data->handle != GASNET_INVALID_HANDLE) {
+#if GASNETE_COLL_ENABLE_TREE_NBI
+      if (child_count > 0 && gasnete_try_syncnb(data->handle)) {
 	break;
       }
+#endif
       data->state = 4;
         
       case 4:	/* Optional OUT barrier */
@@ -886,7 +926,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
           
         case 5: /*done*/
           gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
-            result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+	  result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
   return result;
@@ -1354,7 +1394,9 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
 	} else {
+#if GASNETE_COLL_ENABLE_TREE_NBI
           gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+#endif
           /* no need to reorder the data ... send directy from the source buffer into the remote scratch/dest*/
           sent_bytes+=args->nbytes;
           for(i=0; i<child_count; i++) {
@@ -1366,12 +1408,15 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
                                               (int8_t*)args->src+sent_bytes, 
                                               args->nbytes*tree->geom->subtree_sizes[i], 0, 1);              
             } else {
+#if GASNETE_COLL_ENABLE_TREE_NBI
               if(tree->geom->subtree_sizes[i] == 1  && direct_put_ok) {
                 /* if i am sending to a leaf into dest*/
                 /* Perform NB Put */
                 gasnete_put_nbi_bulk(children[i], args->dst,(int8_t*)args->src+sent_bytes,
                                      args->nbytes*tree->geom->subtree_sizes[i] GASNETE_THREAD_PASS);                              
-              } else {
+              } else 
+#endif
+	      {
                 /* else if i am sending to internal node async long into scratch space*/
                 gasnete_coll_p2p_signalling_putAsync(op, children[i], 
                                                      (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[i], 
@@ -1383,13 +1428,17 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
             sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
           }
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,op->team->myrank), args->nbytes);
-          data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+#if GASNETE_COLL_ENABLE_TREE_NBI      
+	  data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+#endif
         }
+#if GASNETE_COLL_ENABLE_TREE_NBI
       } else if(child_count == 0  && direct_put_ok) {
         /* for leaves with out no/all sync ... fall through right through*/
         /* for out mysync the leave nodes will need to wait for the data to arrive*/
-      }else if(data->p2p->state[0]){
+#endif
+      } else if(data->p2p->state[0]){
         gasneti_sync_reads();
         /*skip the first slot of the input array since it is destined for me*/
         sent_bytes = args->nbytes;
@@ -1423,9 +1472,11 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->state = 4;
    
     case 4: /* wait for all puts to finish*/
+#if GASNETE_COLL_ENABLE_TREE_NBI
       if (data->handle != GASNET_INVALID_HANDLE) {
 	break;
       }
+#endif
       data->state = 5;
       
   
@@ -3212,28 +3263,30 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   if(data->state == 1) {
     int dst;
-    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
-    {
-      for(dst=op->team->myrank+1; dst<op->team->total_ranks; dst++) {
-        /* send to threads above me*/
-        gasnete_put_nbi_bulk(dst, (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes GASNETE_THREAD_PASS);
+    if_pt(op->team->total_ranks > 1) {
+      gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+      {
+	for(dst=op->team->myrank+1; dst<op->team->total_ranks; dst++) {
+	  /* send to threads above me*/
+	  gasnete_put_nbi_bulk(dst, (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes GASNETE_THREAD_PASS);
+	}
+	for(dst=0; dst<op->team->myrank; dst++) {
+	  /*send to threads below me*/
+	  gasnete_put_nbi_bulk(dst, (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes GASNETE_THREAD_PASS);
+	}
       }
-      for(dst=0; dst<op->team->myrank; dst++) {
-        /*send to threads below me*/
-        gasnete_put_nbi_bulk(dst, (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes GASNETE_THREAD_PASS);
-      }
+      data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+      gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     }
-    data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-    gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
-      
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         args->src, args->nbytes);
+    
     data->state++;
   }
   
   if(data->state == 2) {
     /* sync all the handles for the puts*/
-    if (data->handle != GASNET_INVALID_HANDLE) {
+    if (op->team->total_ranks > 1 && data->handle != GASNET_INVALID_HANDLE) {
       return 0;
     }
     data->state++;
