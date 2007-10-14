@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/13 20:28:52 $
- * $Revision: 1.29.6.59 $
+ *     $Date: 2007/10/14 04:19:28 $
+ * $Revision: 1.29.6.60 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -490,7 +490,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
   
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNETE_COLL_BROADCAST_OP, flags);
   uint32_t num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  fprintf(stderr, "%d> here %d\n", gasneti_mynode, num_segs);
+  
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					    &gasnete_coll_pf_bcast_TreePutSeg, options,
