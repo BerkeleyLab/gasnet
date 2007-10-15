@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2007/10/08 21:52:35 $
-# $Revision: 1.54.4.6 $
+#     $Date: 2007/10/15 07:12:25 $
+# $Revision: 1.54.4.7 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -176,7 +176,7 @@ run-tests run-tests-seq run-tests-parsync run-tests-par: do-begin-tests
 do-begin-tests:
 	@testinst=$(TESTINSTANCE) ; \
 	testlog=$(TESTLOG) ; \
-	if test "`head -1 $$testlog 2> /dev/null`" != "$$testinst" ; then \
+	if test "`sed 1q $$testlog 2> /dev/null`" != "$$testinst" ; then \
 	  echo "$$testinst" > $$testlog ; \
 	  echo Starting a new test instance, log=$$testlog ; \
 	fi 
@@ -184,11 +184,11 @@ do-begin-tests:
 do-end-tests:
 	@testinst=$(TESTINSTANCE) ; \
 	testlog=$(TESTLOG) ; \
-	if test "`head -1 $$testlog 2> /dev/null`" = "$$testinst" ; then \
+	if test "`sed 1q $$testlog 2> /dev/null`" = "$$testinst" ; then \
 	  line='+++++++++++++++++++++++++++++++++++++++' ; line="$$line$$line" ; \
 	  echo "$$line" ; \
-	  echo Test results: `tail +2 $$testlog | grep "\*\-\*" | wc -l` failures ; \
-	  tail +2 $$testlog ; \
+	  echo Test results: `sed -n '1d;/\*-\*/p' $$testlog | wc -l` failures ; \
+	  sed 1d $$testlog ; \
 	  echo "$$line" ; \
 	fi
 CLEANFILES = $(TESTLOG) 

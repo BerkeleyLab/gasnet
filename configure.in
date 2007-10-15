@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/10/08 21:52:35 $
-# $Revision: 1.290.2.7 $
+#     $Date: 2007/10/15 07:12:25 $
+# $Revision: 1.290.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.290.2.7 $)
+AC_REVISION($Revision: 1.290.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -610,7 +610,15 @@ AM_CONDITIONAL(GASNET_SEGMENT_EVERYTHING, test "$segconfig" = everything)
 GASNET_IF_DISABLED([aligned-segments],
                    [Disable requirement to achieve aligned VM segments, for heterogeneous clusters],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
-		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)])
+		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
+		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
+		    if test -f $RVMFILE && test "`cat $RVMFILE`" = "1" ; then
+WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
+security feature is enabled. If this feature is also enabled on the compute \
+nodes, you need to re-run configure with --disable-aligned-segments"
+		      GASNET_MSG_WARN([$WMSG])
+		    fi
+		   ])
 
 GASNET_WITH(segment-mmap-max,
    [Upper bound for mmap-based GASNet segments (ex: "2GB", "1045MB")],
@@ -3228,9 +3236,14 @@ case "$target_os" in
     # when linking with the mpich libs.
     LDFLAGS="$LDFLAGS -Wl,-multiply_defined,suppress"
   ;;
-esac
-case "$gasnet_cv_cc_family" in
-  MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
+
+  irix*)
+    case "$gasnet_cv_cc_family" in
+      MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
+      ;;
+      GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=84" # don't warn about unused libm
+      ;;
+    esac
   ;;
 esac
 AC_SUBST(LDFLAGS)
