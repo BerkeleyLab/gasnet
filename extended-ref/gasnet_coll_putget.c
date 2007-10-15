@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2007/10/15 05:57:33 $
- * $Revision: 1.29.6.62 $
+ *     $Date: 2007/10/15 17:18:17 $
+ * $Revision: 1.29.6.63 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -346,7 +346,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
 	
 	for (child = 0; child < child_count; child++) {
 
-	  gasnete_coll_p2p_signalling_putAsync(op, children[child], 
+	  gasnete_coll_p2p_signalling_put/*Async*/(op, children[child], 
 					  (int8_t*)op->team->scratch_segs[children[child]].addr+op->scratchpos[child], 
 					  (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos, 
 					  args->nbytes, 0, 1);
@@ -1340,13 +1340,13 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
             if(tree->geom->subtree_sizes[i] == 1  && direct_put_ok) {
               /* if i am sending to a leaf ... put it right where it needs to go */
               /* since i am using scratch space AMLongAsync is always safe*/
-              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+              gasnete_coll_p2p_signalling_put/*Async*/(op, children[i], 
                                                   args->dst, 
                                                   (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
                                                   args->nbytes*tree->geom->subtree_sizes[i], 0, 1);            
             } else {
               /* if i am sending to an internal node put it to scratch space */
-              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+              gasnete_coll_p2p_signalling_put/*Async*/(op, children[i], 
                                                   (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[i], 
                                                   (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
                                                   args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
@@ -1399,13 +1399,13 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       /*    fprintf(stderr, "%d> sending to %d from %d to %d\n", gasneti_mynode, children[i], (int)(op->myscratchpos+sent_bytes), (int)(op->scratchpos[i])); */
           if(tree->geom->subtree_sizes[i] == 1  && direct_put_ok) {
             /* if i am sending to a leaf ... put it right where it needs to go */
-              gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+              gasnete_coll_p2p_signalling_put/*Async*/(op, children[i], 
                                                   args->dst, 
                                                   (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
                                                   args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
           } else {
             /* if i am sending to a leaf ... put it right where it needs to go */
-            gasnete_coll_p2p_signalling_putAsync(op, children[i], 
+            gasnete_coll_p2p_signalling_put/*Async*/(op, children[i], 
                                             (int8_t*)op->team->scratch_segs[child].addr+op->scratchpos[i], 
                                             (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos+sent_bytes, 
                                             args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
@@ -2288,13 +2288,13 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           gasneti_sync_reads();
           if(parent == args->dstnode && direct_put_ok) {
             /*put it right where it needs to go */
-            gasnete_coll_p2p_counting_putAsync(op, parent,
+            gasnete_coll_p2p_counting_put/*Async*/(op, parent,
                                                (int8_t*)args->dst+(tree->geom->sibling_offset+1)*args->nbytes,
                                                (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos,
                                                args->nbytes*tree->geom->mysubtree_size);
             
           } else {
-            gasnete_coll_p2p_counting_putAsync(op, parent,
+            gasnete_coll_p2p_counting_put/*Async*/(op, parent,
                                                (int8_t*)op->team->scratch_segs[parent].addr+op->scratchpos[0]+(tree->geom->sibling_offset+1)*args->nbytes,
                                                (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos,
                                                args->nbytes*tree->geom->mysubtree_size);
