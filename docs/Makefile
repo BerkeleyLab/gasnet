@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/Makefile,v $
-#     $Date: 2007/02/24 00:00:39 $
-# $Revision: 1.7.12.1 $
+#     $Date: 2007/10/15 20:27:38 $
+# $Revision: 1.7.12.3 $
 # Description: Makefile for GASNet documentation
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 

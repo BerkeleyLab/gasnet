@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2007/10/11 23:59:14 $
- * $Revision: 1.97.6.3 $
+ * $Date: 2007/10/15 20:27:45 $
+ * $Revision: 1.97.6.4 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1472,14 +1472,17 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 			req = firehose_try_remote_pin(dest, 
 				(uintptr_t) dest_addr, nbytes, 0, NULL);
 
-			if (req != NULL)
+                        if (req != NULL) {
+	                        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONG_ONECOPY, nbytes);
 				gasnetc_AMRequestLongM_DMA_inner(dest, handler, 
 				    source_addr, nbytes, req, 
 				    (uintptr_t) dest_addr, numargs, argptr);
-			else
+                        } else {
+	                        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONG_TWOCOPY, nbytes);
 				gasnetc_AMRequestLongM_inner(dest, handler, 
 				    source_addr, nbytes, dest_addr, numargs, 
 				    argptr);
+                        }
 		}
 		else {
 			gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
@@ -1523,16 +1526,19 @@ gasnetc_AMRequestLongAsyncM(
 	 * AMMedium payloads */
 	if (nbytes == 0 || 
 	    !(reqr = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
-	    nbytes, 0, NULL)))
+            nbytes, 0, NULL))) {
+	        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONGASYNC_TWOCOPY, nbytes);
 		gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
 		    nbytes, dest_addr, numargs, argptr);
-
+        }
 	/* If we couldn't pin locally for free, use DMA method where we use AM
 	 * buffers and copy+RDMA payloads out of them */
 	else if (!(reql = 
-	     firehose_try_local_pin((uintptr_t) source_addr, nbytes, NULL)))
+	     firehose_try_local_pin((uintptr_t) source_addr, nbytes, NULL))) {
+	        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONGASYNC_ONECOPY, nbytes);
 		gasnetc_AMRequestLongM_DMA_inner(dest, handler, source_addr, 
 		    nbytes, reqr, (uintptr_t) dest_addr, numargs, argptr);
+        }
 
 	/* If both local and remote locations are pinned, use RDMA and send a
 	 * header-only AMLong */
@@ -1542,6 +1548,7 @@ gasnetc_AMRequestLongAsyncM(
 
 		gasneti_assert(reql != NULL && reqr != NULL);
 
+	        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONGASYNC_ZEROCOPY, nbytes);
 		port = gasnetc_portid(dest);
 		id   = gasnetc_nodeid(dest);
 		bufd = gasnetc_AMRequestPool_block();
@@ -1873,6 +1880,7 @@ extern int gasnetc_AMReplyLongM(
 			bufd->payload_len = nbytes;
 
     			BUFD_SET(bufd, BUFD_PAYLOAD | BUFD_DMA);
+	                GASNETI_TRACE_EVENT_VAL(C, AMREPLYLONG_ONECOPY, nbytes);
 		}
 		else {
 			size_t	header_len;
@@ -1896,6 +1904,7 @@ extern int gasnetc_AMReplyLongM(
 
 				bufd->payload_off = header_len;
 				bufd->payload_len = len;
+	                        GASNETI_TRACE_EVENT_VAL(C, AMREPLYLONG_TWOCOPY, nbytes);
 			}
 
 			bufd->len = header_len;
@@ -1977,6 +1986,7 @@ gasnetc_AMReplyLongAsyncM(
 		}
 		else {
 			BUFD_SET(bufd, BUFD_PAYLOAD | BUFD_DMA);
+	                GASNETI_TRACE_EVENT_VAL(C, AMREPLYLONGASYNC_ZEROCOPY, nbytes);
 		}
 	}
 

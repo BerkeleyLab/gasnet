@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2007/03/05 23:19:29 $
- * $Revision: 1.28.8.1 $
+ * $Date: 2007/10/15 20:27:45 $
+ * $Revision: 1.28.8.2 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -50,7 +50,19 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_help.h) */
-#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)                \
+        VAL(C, HIGHRECV_FAST, packet bytes)                \
+        VAL(C, HIGHRECV_NORMAL, packet bytes)              \
+        VAL(C, LOWRECV_FAST, packet bytes)                 \
+        VAL(C, LOWRECV_NORMAL, packet bytes)               \
+        VAL(C, AMREQUESTLONGASYNC_ZEROCOPY, payload bytes) \
+        VAL(C, AMREQUESTLONGASYNC_ONECOPY, payload bytes)  \
+        VAL(C, AMREQUESTLONGASYNC_TWOCOPY, payload bytes)  \
+        VAL(C, AMREQUESTLONG_ONECOPY, payload bytes)       \
+        VAL(C, AMREQUESTLONG_TWOCOPY, payload bytes)       \
+        VAL(C, AMREPLYLONG_ONECOPY, payload bytes)         \
+        VAL(C, AMREPLYLONG_TWOCOPY, payload bytes)         \
+        VAL(C, AMREPLYLONGASYNC_ZEROCOPY, payload bytes)      
 
 #define _GASNET_NODE_T
 typedef uint16_t	gasnet_node_t;

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2007/02/24 00:00:48 $
- * $Revision: 1.41.12.1 $
+ * $Date: 2007/10/15 20:27:45 $
+ * $Revision: 1.41.12.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -111,13 +111,18 @@ gasnetc_AMPoll()
 			BUFD_SETSTATE(bufd, BUFD_S_USED);
 			tag = gm_ntoh_u8 (e->recv.tag);
 			gasneti_assert(tag > 0 ? tag == 1 : 1);
-			if (fast)
+                        if (fast) {
+	                        GASNETI_TRACE_EVENT_VAL(C, HIGHRECV_FAST, gm_ntoh_u32(e->recv.length));
 				gm_memorize_message(
 				    gm_ntohp(e->recv.message),
 				    bufd->buf,
 				    gm_ntoh_u32(e->recv.length));
+                        } else GASNETI_TRACE_EVENT_VAL(C, HIGHRECV_NORMAL, gm_ntoh_u32(e->recv.length));
 
-			gasneti_mutex_unlock(&gasnetc_lock_gm);
+                        /* bug 2083: must serialize medcopy handlers to prevent a race with the AM header */
+			/* Otherwise, run handlers concurrently */
+			if (!GASNETC_BUF_IS_MEDCOPY_REQUEST(bufd->buf)) 
+                            gasneti_mutex_unlock(&gasnetc_lock_gm);
 
 			ptr = (uint8_t *) bufd->buf;
 			if_pf (GASNETC_AM_IS_SYSTEM(ptr[0]))
@@ -127,7 +132,8 @@ gasnetc_AMPoll()
 			    gasnetc_process_AMReply(bufd);
 			}
 
-			gasneti_mutex_lock(&gasnetc_lock_gm);
+			if (!GASNETC_BUF_IS_MEDCOPY_REQUEST(bufd->buf)) 
+			    gasneti_mutex_lock(&gasnetc_lock_gm);
 			gasnetc_provide_AMReply(bufd);
 			break;
 
@@ -140,16 +146,21 @@ gasnetc_AMPoll()
 			gasneti_assert(BUFD_ISSTATE(bufd) == BUFD_S_GMREQ);
 			BUFD_SETSTATE(bufd, BUFD_S_USED);
 			gasneti_assert(BUFD_ISSTATE(bufd) == BUFD_S_USED);
-			if (fast)
+                        if (fast) {
+	                        GASNETI_TRACE_EVENT_VAL(C, LOWRECV_FAST, gm_ntoh_u32(e->recv.length));
 				gm_memorize_message(
 				    gm_ntohp(e->recv.message),
 				    bufd->buf,
 				    gm_ntoh_u32(e->recv.length));
+                        } else GASNETI_TRACE_EVENT_VAL(C, LOWRECV_NORMAL, gm_ntoh_u32(e->recv.length));
+
 			tag = gm_ntoh_u8 (e->recv.tag);
 			gasneti_assert(tag > 0 ? tag == 2 : 1);
 
-			/* Run handlers concurrently */
-			gasneti_mutex_unlock(&gasnetc_lock_gm);
+                        /* bug 2083: must serialize medcopy handlers to prevent a race with the AM header */
+			/* Otherwise, run handlers concurrently */
+			if (!GASNETC_BUF_IS_MEDCOPY_REQUEST(bufd->buf)) 
+                            gasneti_mutex_unlock(&gasnetc_lock_gm);
 
 			ptr = (uint8_t *) bufd->buf;
 			bufd->ran_reply = &did_reply;
@@ -163,7 +174,8 @@ gasnetc_AMPoll()
 			}
 
 			/* Return bufd to pool */
-			gasneti_mutex_lock(&gasnetc_lock_gm);
+			if (!GASNETC_BUF_IS_MEDCOPY_REQUEST(bufd->buf)) 
+			    gasneti_mutex_lock(&gasnetc_lock_gm);
 			if (!did_reply)
 			    gasnetc_provide_AMRequest(bufd);
 			else if (locked_AMMedBuf)
@@ -238,7 +250,8 @@ gasnetc_process_AMRequest(gasnetc_bufdesc_t *bufd)
 			    GASNETC_AM_TYPE(*ptr));
 	}
 
-	gasneti_mutex_assertunlocked(&gasnetc_lock_gm);
+        if (!GASNETC_BUF_IS_MEDCOPY_REQUEST(bufd->buf))
+          gasneti_mutex_assertunlocked(&gasnetc_lock_gm); 
 
 	return;
 }
