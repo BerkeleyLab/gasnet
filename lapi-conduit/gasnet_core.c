@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/12 20:27:43 $
- * $Revision: 1.79.10.19 $
+ *     $Date: 2007/10/15 09:31:54 $
+ * $Revision: 1.79.10.20 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -355,6 +355,18 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
 
     gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+   
+    if(gasneti_mynode == 0) {
+      if(gasneti_getenv("MP_TASK_AFFINITY") != NULL) {
+        fprintf(stderr,"WARNING: The environment variable MP_TASK_AFFINITY is set (value = %s).  This has the potential for serious performance degradation.\n", gasneti_getenv("MP_TASK_AFFINITY"));
+        fflush(stderr);
+      }
+
+      if(gasneti_getenv("MP_MEMORY_AFFINITY") != NULL) {
+        fprintf(stderr,"WARNING: The environment variable MP_MEMORY_AFFINITY is set (value = %s).  This has the potential for serious performance degradation.\n", gasneti_getenv("MP_MEMORY_AFFINITY"));
+        fflush(stderr);
+      }
+    }
 
     return GASNET_OK;
 }
@@ -483,18 +495,32 @@ void gasnetc_lapi_test_pin(int rdma_declared_on)
 
   /* P0 does the talking */
   for(i=0;i < gasneti_nodes;i++) {
-    if(return_codes[i] != LAPI_SUCCESS) {
+    int rc = return_codes[i];
+    char *error_str = NULL;
+    if(rc != LAPI_SUCCESS) {
       gasnetc_lapi_use_rdma = 0;
+
+      switch(rc) {
+         case(LAPI_ERR_UTIL_CMD): /* RDMA not supported on this system */
+           error_str = "RDMA is not supported on this version of the LAPI library.";
+           break;
+         case(LAPI_ERR_NO_RDMA_RESOURCE): /* No rdma resources.  May need -rdma_count 2 or something*/ 
+           error_str = "conduit cannot initialize RDMA resources. Was -rdma_count n/MP_RDMA_COUNT passed to poe or rcxtblocks passed to LoadLeveler?";
+           break;
+         default:  /* Have no idea what just happened */
+           error_str = "unknown error occured during RDMA initialization.";
+      }   
+
       if(rdma_declared_on) {
         if(gasneti_mynode == 0) {
-          gasneti_fatalerror("GASNET_LAPI_USE_RDMA set to yes, but conduit cannot initialize RDMA resources");
+          gasneti_fatalerror("GASNET_LAPI_USE_RDMA set to yes, but %s",error_str);
         } else {
           /* Wait for the error */
           gasneti_fatalerror(""); 
         }
       } else {
         if(gasneti_mynode == 0) {
-          fprintf(stderr,"WARNING: Switching to non-RDMA conduit because of failed RDMA initialization\n");
+          fprintf(stderr,"WARNING: Switching to non-RDMA conduit because %s\n",error_str);
           fflush(stderr);
         }
       }
@@ -565,7 +591,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 #if GASNETC_LAPI_RDMA
     gasnetc_lapi_use_rdma = (int) gasneti_getenv_yesno_withdefault("GASNET_LAPI_USE_RDMA",1);
-    printf("gasnetc_lapi_use_rdma = %d\n",gasnetc_lapi_use_rdma);
     if(gasnetc_lapi_use_rdma) {
       gasnetc_lapi_test_pin(gasneti_getenv("GASNET_LAPI_USE_RDMA") != NULL);
     }
@@ -627,7 +652,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     if(gasnetc_use_firehose) {
       uint32_t flags = 0;
       size_t max_regions = FIREHOSE_CLIENT_MAXREGIONS;
-      uintptr_t max_pinnable_memory = FIREHOSE_CLIENT_MAXREGION_SIZE*FIREHOSE_CLIENT_MAXREGIONS;
+      /* uintptr_t max_pinnable_memory = FIREHOSE_CLIENT_MAXREGION_SIZE*FIREHOSE_CLIENT_MAXREGIONS; */
 #if GASNET_SEGMENT_EVERYTHING
 #else
       flags = FIREHOSE_INIT_FLAG_LOCAL_ONLY;
@@ -664,7 +689,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 	 /* Break up the segment */
 	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
-         GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %d segment size = %d segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(lapi_long_t) segbase));
+         GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %d segment size = %d segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(size_t) segbase));
 	 lapi_get_pvo_t *gasnetc_node_pvo_list = gasneti_malloc(num_pvos*sizeof(lapi_get_pvo_t));
          memset((void *) gasnetc_node_pvo_list,0,num_pvos*sizeof(lapi_get_pvo_t));
          uintptr_t tmp_offset=0;
@@ -677,7 +702,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 	gasnetc_node_pvo_list[i].address = (void *) (((lapi_long_t) segbase) + i*GASNETC_LAPI_PVO_EXTENT);
 	 	gasnetc_node_pvo_list[i].operation = LAPI_RDMA_ACQUIRE;									
 	 	GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_node_pvo_list[i]))));
-                GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d i=%d usr_pvo=%ld (size=%ld) length=%d address=%ld segbase=%ld\n",gasneti_mynode,i,gasnetc_node_pvo_list[i].usr_pvo,sizeof(lapi_user_pvo_t),gasnetc_node_pvo_list[i].length,(lapi_long_t) gasnetc_node_pvo_list[i].address,(lapi_long_t) segbase));
+                GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d i=%d usr_pvo=%ld (size=%ld) length=%d address=%ld segbase=%ld\n",gasneti_mynode,i,gasnetc_node_pvo_list[i].usr_pvo,sizeof(lapi_user_pvo_t),gasnetc_node_pvo_list[i].length,(size_t) gasnetc_node_pvo_list[i].address,(size_t) segbase));
 	 	tmp_offset += GASNETC_LAPI_PVO_EXTENT;
 	 	i++;
 	 }
@@ -805,11 +830,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 #if GASNETC_LAPI_RDMA
 void gasnetc_lapi_free()
 {
-  lapi_get_pvo_t new_pvo;
   int i;
 
 #if 0
   for(i=0;i < gasnetc_num_pvos;i++) {
+   lapi_get_pvo_t new_pvo;
    new_pvo.Util_type = LAPI_XLATE_ADDRESS;
    new_pvo.length = 0;
    new_pvo.usr_pvo = gasnetc_node_pvo_list[i].usr_pvo;
@@ -1027,7 +1052,6 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 }
 
 extern int gasnetc_AMPoll() {
-    int retval;
     GASNETI_CHECKATTACH();
 
     /* Check if any request handlers are queued for processing
