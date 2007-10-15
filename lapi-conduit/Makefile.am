@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/10/12 02:42:08 $
-# $Revision: 1.33.8.4 $
+#     $Date: 2007/10/11 22:55:00 $
+# $Revision: 1.33.8.3 $
 # Description: Makefile for GASNet lapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -35,6 +35,7 @@ fh_srclist = \
       $(fh_srcdir)/firehose_hash.c
 fh_extralibcflags = -I$(fh_srcdir)
 fh_extradeps = $(fh_srcdir)/*.[ch]
+fh_poe_args = -rdma_count 2
 endif
 
 # any conduit-specific subdirectories containing Makefile.am's
@@ -86,7 +87,7 @@ CONDUIT_SPECIAL_OBJS = $(fh_special_objs)
 #   %N = requested node count
 #   %A = program arguments
 #   %Q: Bug1039 - poe requires overquoting
-CONDUIT_RUNCMD = @ENVCMD@ MP_FENCE=-- poe %P -nodes %N -tasks_per_node 1 -rmpool 1 -msg_api LAPI -euilib us -retry 1 -retrycount 10000 @POE_RDMA_ARGS@ -- %Q
+CONDUIT_RUNCMD = @ENVCMD@ MP_FENCE=-- poe %P -nodes %N -tasks_per_node 1 -rmpool 1 -msg_api LAPI -euilib us -retry 1 -retrycount 10000 $(fh_poe_args) -- %Q
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =

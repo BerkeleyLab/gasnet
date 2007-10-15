@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/10/12 19:48:24 $
-# $Revision: 1.310.4.8 $
+#     $Date: 2007/10/11 23:59:02 $
+# $Revision: 1.310.4.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.310.4.8 $)
+AC_REVISION($Revision: 1.310.4.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2073,15 +2073,6 @@ if test "$enabled_lapi" = yes; then
   if test "$have_lapi" = "yes"; then
     GASNET_IF_ENABLED_WITH_AUTO(lapi-rdma, [support/use LAPI RDMA (default is to probe)],
 				[enable_lapi_rdma=yes],[enable_lapi_rdma=no],[enable_lapi_rdma=probe])
-    if test x"$ac_cv_sizeof_void_p" = x4; then
-      dnl Parry says no LAPI-RMDA support in 32-bit mode
-      if test "$enable_lapi_rdma" = yes; then
-	AC_MSG_ERROR([--enable-lapi-rdma passed but support is not available in 32-bit mode])
-      elif test "$enable_lapi_rdma" = probe; then
-	GASNET_MSG_WARN([LAPI-RDMA support is not available in 32-bit mode - skipping probe])
-	enable_lapi_rdma=no
-      fi
-    fi
     if test "$enable_lapi_rdma" != no; then
       AC_MSG_CHECKING([for LAPI RDMA support])
       GASNET_PUSHVAR(LIBS,"$LIBS -llapi_r -lpthread")
@@ -2107,15 +2098,6 @@ if test "$enabled_lapi" = yes; then
 	AC_MSG_ERROR([--enable-lapi-rdma passed but support was not found in lapi.h])
       elif test "$have_lapi_rdma" = yes; then
         AC_DEFINE(GASNETC_LAPI_RDMA)
-        lapi_rdma_count=2	# XXX: Is 2 the right default?
-        GASNET_WITH(lapi-rdma-count,
-          [Number of LAPI RDMA context blocks to request (default is ${lapi_rdma_count})],
-          [if expr "$withval" : "[[1-9][0-9]]*" >/dev/null; then
-             lapi_rdma_count="$withval"
-	   else
-	      AC_MSG_ERROR([--with-lapi-rdma-count requires a postive integer argument])
-	   fi])
-        POE_RDMA_ARGS="-rdma_count $lapi_rdma_count"
         # Since we are using firehose we need to disable certain optimizations.
         # See VAPI config logic for more detail
         GASNET_FH_CFLAGS
@@ -2132,7 +2114,6 @@ if test "$enabled_lapi" = yes; then
 
 fi
 
-AC_SUBST(POE_RDMA_ARGS)
 AM_CONDITIONAL(USE_LAPI_CONDUIT, test "$have_lapi" = yes)
 AM_CONDITIONAL(HAVE_LAPI_RDMA, test "$have_lapi_rdma" = yes)
 CONDUIT_END([test "$have_lapi" = yes])

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/10/15 09:31:54 $
- * $Revision: 1.42.12.27 $
+ *     $Date: 2007/10/11 23:59:16 $
+ * $Revision: 1.42.12.25 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -297,6 +297,7 @@ int gasnete_pin_threshold = (4*1024);
 int gasnete_op_isdone(gasnete_op_t *op) 
 {
     int cnt = 0;
+    int cnt2 = 0;
     gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
 
     if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
@@ -388,10 +389,8 @@ void gasnete_op_free(gasnete_op_t *op) {
 	thread->eop_free = addr;
     } else {
 	gasnete_iop_t *iop = (gasnete_iop_t *)op;
-#if GASNETC_LAPI_RDMA /* The RDMA conduit zeros these out.  The other one doesn't */
         gasneti_assert(iop->initiated_get_cnt == 0);
         gasneti_assert(iop->initiated_put_cnt == 0);
-#endif
         gasneti_assert(gasneti_weakatomic_read(&iop->get_aux_cntr, 0) == 0);
         gasneti_assert(gasneti_weakatomic_read(&iop->put_aux_cntr, 0) == 0);
         gasnete_iop_check(iop);
@@ -592,12 +591,14 @@ gasnete_lapi_nb *gasnete_active_nb_list = NULL;
 int gasnete_num_nb = GASNETE_LAPI_NUM_NB;
 void gasnete_lapi_setup_nb()
 {
+  gasnete_free_nb_list_original = gasnete_free_nb_list = (gasnete_lapi_nb *) gasneti_malloc(gasnete_num_nb*sizeof(gasnete_lapi_nb));
   size_t total_pinned_region = gasnete_num_nb * gasnete_pin_threshold;
   char *all_data;
+  size_t offset = 0;
   size_t size_pinned_region = 0;
-  lapi_get_pvo_t req;
+  int i;
   int count = 0;
-  gasnete_free_nb_list_original = gasnete_free_nb_list = (gasnete_lapi_nb *) gasneti_malloc(gasnete_num_nb*sizeof(gasnete_lapi_nb));
+  lapi_get_pvo_t req;
   all_data = gasnete_lapi_all_buffers = (char *) gasneti_malloc(total_pinned_region);
   gasneti_assert(GASNETC_LAPI_PVO_EXTENT % gasnete_pin_threshold == 0);
   GASNETI_TRACE_PRINTF(C,("gasnete_lapi_setup_nb: node = %d pinned size = %ld #buffers = %d\n",gasneti_mynode,total_pinned_region,gasnete_num_nb));
@@ -653,8 +654,8 @@ gasnete_lapi_nb *gasnete_get_free_network_buffer()
 {
   gasnete_lapi_nb *ret, *current;
   volatile gasnete_lapi_nb **fl_ptr = (volatile gasnete_lapi_nb **) &gasnete_free_nb_list;
-  int cnt = 0;
   pthread_mutex_lock(&nb_lock);
+  int cnt = 0;
   while(*fl_ptr == NULL) {
     /* Need to give up the lock for a while.  Need to tune this */
     pthread_mutex_unlock(&nb_lock);
@@ -877,7 +878,6 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
   int using_network_buffer = 0;
   int length_to_boundary, length_to_remote_boundary, chunk_remaining, source_offset, remote_offset;
   int rctxt_index;
-  gasnete_lapi_nb *nb_id = NULL;
 
   /* Get an rctxt for this peer, round robin */
      
@@ -900,6 +900,7 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
 
   GASNETI_TRACE_PRINTF(C,("gasnete_lapi_do_rdma: dest = %ld node = %ld size = %ld op = %s\n",remote_p_to_long, node, nbytes, op == LAPI_RDMA_GET ? "GET" : "PUT"));
   
+  gasnete_lapi_nb *nb_id = NULL;
 
   if(iop == NULL) {
     if(origin_counter != NULL) {
@@ -1570,11 +1571,8 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 
     if (gasnete_op_isdone(handle)) {
 	gasneti_sync_reads();
-#if GASNETC_LAPI_RDMA
         gasnete_wait_syncnb(handle); /* PH: reset it, wait_syncnb frees it */
-#else
-	gasnete_op_free(handle); 
-#endif
+	/* gasnete_op_free(handle); */
 	return GASNET_OK;
     }
     else return GASNET_ERR_NOT_READY;
@@ -1594,11 +1592,8 @@ extern int gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 	    empty = 0;
 	    if (gasnete_op_isdone(op)) {
 		gasneti_sync_reads();
-#if GASNETC_LAPI_RDMA
                 gasnete_wait_syncnb(op); /* PH: reset it */
-#else
-		gasnete_op_free(op);
-#endif
+		/* gasnete_op_free(op); */
 		phandle[i] = GASNET_INVALID_HANDLE;
 		success = 1;
 	    }  
@@ -1622,11 +1617,8 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 	if (op != GASNET_INVALID_HANDLE) {
 	    if (gasnete_op_isdone(op)) {
 		gasneti_sync_reads();
-#if GASNETC_LAPI_RDMA
                 gasnete_wait_syncnb(op); /* PH: reset it */
-#else
-		gasnete_op_free(op);
-#endif
+		/* gasnete_op_free(op); */
 		phandle[i] = GASNET_INVALID_HANDLE;
 	    } else success = 0;
 	}
@@ -1690,6 +1682,7 @@ END:
       gasnete_wait_syncnb_original(handle);
     }
 }
+#endif
 
 extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) 
 {
@@ -1712,7 +1705,6 @@ extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
     gasneti_sync_mem();
 }
 
-#endif
 #if 0
 extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) 
 {
@@ -1736,8 +1728,11 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
 #endif
 
 
-#if GASNETC_LAPI_RDMA
+#if !GASNETC_LAPI_RDMA
+extern void gasnete_wait_syncnb(gasnet_handle_t handle) {
+#else
 extern void gasnete_wait_syncnb_original(gasnet_handle_t handle) {
+#endif
     int cnt = 0;
     gasnete_op_t *op = handle;
     if (handle == GASNET_INVALID_HANDLE)
@@ -1774,22 +1769,6 @@ extern void gasnete_wait_syncnb_original(gasnet_handle_t handle) {
     gasnete_op_free(handle);
 }
 
-extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles)
-{
-    gasneti_assert(phandle);
-
-    { int i;
-    for (i = 0; i < numhandles; i++) {
-	gasnete_op_t *op = phandle[i];
-	if (op != GASNET_INVALID_HANDLE) {
-	    gasnete_wait_syncnb(op);
-	    phandle[i] = GASNET_INVALID_HANDLE;
-	}
-    }
-    }
-}
-#endif
-
 #if 0
 extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
     gasneti_assert(phandle);
@@ -1807,7 +1786,20 @@ extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles
 }
 #endif
 
+extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles)
+{
+    gasneti_assert(phandle);
 
+    { int i;
+    for (i = 0; i < numhandles; i++) {
+	gasnete_op_t *op = phandle[i];
+	if (op != GASNET_INVALID_HANDLE) {
+	    gasnete_wait_syncnb(op);
+	    phandle[i] = GASNET_INVALID_HANDLE;
+	}
+    }
+    }
+}
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -2083,7 +2075,6 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 
 
 /* don't poll for put operations, polling for gets is ok */
-#if GASNETC_LAPI_RDMA
 extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
@@ -2110,7 +2101,7 @@ extern void gasnete_wait_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
     gasnete_wait_syncnbi_puts(GASNETE_THREAD_GET_ALONE);
     gasnete_wait_syncnbi_gets(GASNETE_THREAD_GET_ALONE);
 }
-#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Implicit access region synchronization
@@ -2406,7 +2397,7 @@ void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 }
 
 #if GASNETI_STATS_OR_TRACE
-  static gasneti_tick_t barrier_notifytime;
+  gasneti_tick_t barrier_notifytime;
 #endif
 static void gasnete_lapibarrier_notify(int id, int flags) {
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
