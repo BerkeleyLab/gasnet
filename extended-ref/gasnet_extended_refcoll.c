@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/14 22:32:11 $
- * $Revision: 1.29.6.59 $
+ *     $Date: 2007/10/15 05:57:33 $
+ * $Revision: 1.29.6.60 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -334,7 +334,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   }
 #endif
 
-#ifndef gasnete_coll_try_sync_all
+#ifndef gasnete_coll_try__all
   /* NOTE: caller is responsible for a gasneti_flush_reads() on success */
   extern int
   gasnete_coll_try_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles GASNETE_THREAD_FARG) {
