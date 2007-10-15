@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2006/08/11 00:53:15 $
- * $Revision: 1.70.4.1 $
+ * $Date: 2007/10/15 19:05:32 $
+ * $Revision: 1.70.4.2 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -96,6 +96,9 @@ void	gasnetc_getconf_bootmpi(int *argc, char ***argv);
 
 void		gasnetc_am_medcopy(gasnet_token_t token, void *addr, 
 				   size_t nbytes, void *dest);
+
+#define GASNETC_BUF_IS_MEDCOPY_REQUEST(buf) \
+  (((uint8_t *)(buf))[1] == gasneti_handleridx(gasnetc_am_medcopy))
 
 int	gasnetc_AMReplyLongTrySend(gasnetc_bufdesc_t *bufd);
 int	gasnetc_AMReplyLongAsyncM(gasnet_token_t token, gasnet_handler_t handler, 

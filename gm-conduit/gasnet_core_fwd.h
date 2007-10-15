@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2007/10/15 07:12:27 $
- * $Revision: 1.28.2.3 $
+ * $Date: 2007/10/15 19:05:32 $
+ * $Revision: 1.28.2.4 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -51,6 +51,10 @@
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_help.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)                \
+        VAL(C, HIGHRECV_FAST, packet bytes)                \
+        VAL(C, HIGHRECV_NORMAL, packet bytes)              \
+        VAL(C, LOWRECV_FAST, packet bytes)                 \
+        VAL(C, LOWRECV_NORMAL, packet bytes)               \
         VAL(C, AMREQUESTLONGASYNC_ZEROCOPY, payload bytes) \
         VAL(C, AMREQUESTLONGASYNC_ONECOPY, payload bytes)  \
         VAL(C, AMREQUESTLONGASYNC_TWOCOPY, payload bytes)  \
