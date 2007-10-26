@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/26 20:59:54 $
- * $Revision: 1.10.6.2 $
+ *     $Date: 2007/10/26 21:54:43 $
+ * $Revision: 1.10.6.3 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -876,9 +876,8 @@ extern int gasnetc_AMRequestMediumM(
 	data_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);	\
       } else {								\
 	gasneti_assert(th->tmpmd_tickets > 0);				\
-	data_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes, gasnetc_SAFE_EQ->eq_h); \
+	data_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes);		\
 	th->tmpmd_tickets--;						\
-	data_offset = 0;						\
       }									\
       if (do_sync) {							\
 	data_mbits |= ( (ptl_match_bits_t)GASNETC_PTL_AM_SYNC  << 8);	\
@@ -1368,9 +1367,8 @@ extern int gasnetc_AMReplyLongM(
       dp_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);
     } else {
       gasneti_assert(th->tmpmd_tickets > 0);
-      dp_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes, gasnetc_SAFE_EQ->eq_h);
+      dp_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes);
       th->tmpmd_tickets--;
-      dp_offset = 0;
     }
 
     /* issue data put message */
