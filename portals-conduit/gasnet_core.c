@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/26 20:34:36 $
- * $Revision: 1.10.6.1 $
+ *     $Date: 2007/10/26 20:59:54 $
+ * $Revision: 1.10.6.2 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -1348,10 +1348,9 @@ extern int gasnetc_AMReplyLongM(
 
     /* AM Reply is always executed while polling, need to wait until data payload is
      * off-node before returning, but dont want to poll recursively.
-     * Alloc tmp eq and md to cover src region, issue Put, then poll only on this
-     * tmp eq for Put local completion.
-     * NOTE: May be able to relax this and poll over other EQs as well.
-     * NOTE: Data Reply sent to RARSRC MD !!!
+     * We are able to follow the same pattern as the RequestLong, but only because
+     * both the RARSRC MD and the possible TMP_MD both use the SAFE_EQ.
+     * NOTE: Data Reply sent to RARSRC (not RARAM) MD !!!
      */
     int dp_eq_len = 2;
     ptl_handle_md_t dp_md_h;
