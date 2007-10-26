@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/09/12 00:46:45 $
- * $Revision: 1.10 $
+ *     $Date: 2007/10/26 20:34:36 $
+ * $Revision: 1.10.6.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -864,14 +864,13 @@ extern int gasnetc_AMRequestMediumM(
       ptl_size_t data_offset = 0;					\
       ptl_size_t data_rmt_offset = GASNETC_PTL_OFFSET(dest,dest_addr);	\
       ptl_hdr_data_t data_hdr_data = (ptl_hdr_data_t)lid;		\
-      gasnete_threaddata_t *th_e = gasnete_mythread();			\
 									\
       gasneti_assert(th->snd_credits >= ncredit);			\
       gasneti_assert(th->snd_tickets > 1);				\
 									\
       /* first issue data put message and request sync */		\
       data_mbits |= ((ptl_match_bits_t)GASNETC_PTL_AM_REQUEST << 8);	\
-      data_mbits |= ((ptl_match_bits_t)(th_e->threadidx) << 24);	\
+      data_mbits |= ((ptl_match_bits_t)(th->threadidx) << 24);		\
       if (gasnetc_in_local_rar(source_addr,nbytes)) {			\
 	data_md_h = gasnetc_RARSRC.md_h;				\
 	data_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);	\
@@ -883,8 +882,8 @@ extern int gasnetc_AMRequestMediumM(
       }									\
       if (do_sync) {							\
 	data_mbits |= ( (ptl_match_bits_t)GASNETC_PTL_AM_SYNC  << 8);	\
-	gasneti_assert(gasneti_weakatomic_read(&th->amlong_data_inflight, 0) == 0); \
-	gasneti_weakatomic_increment(&th->amlong_data_inflight, 0);	\
+	gasneti_assert(gasneti_weakatomic_read(&th->amlongReq_data_inflight, 0) == 0); \
+	gasneti_weakatomic_increment(&th->amlongReq_data_inflight, 0);	\
       }									\
       GASNETC_PTLSAFE(PtlPutRegion(data_md_h, data_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, data_mbits, data_rmt_offset, data_hdr_data)); \
 									\
@@ -900,7 +899,7 @@ extern int gasnetc_AMRequestMediumM(
 									\
       /* now wait for data put to complete locally */			\
       if (do_sync) {							\
-	gasneti_pollwhile( gasneti_weakatomic_read(&th->amlong_data_inflight, 0) > 0 ); \
+	gasneti_pollwhile( gasneti_weakatomic_read(&th->amlongReq_data_inflight, 0) > 0 ); \
       }									\
     }									\
   } while(0)
@@ -1356,27 +1355,32 @@ extern int gasnetc_AMReplyLongM(
      */
     int dp_eq_len = 2;
     ptl_handle_md_t dp_md_h;
-    gasnetc_eq_t   *dp_eq;
-    ptl_handle_eq_t dp_eq_h;
-    ptl_event_t ev;
-    ptl_match_bits_t dp_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS;
+    ptl_match_bits_t dp_mbits;
     ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(dest,dest_addr);
     ptl_hdr_data_t dp_hdr_data = (ptl_hdr_data_t) lid;
+    ptl_size_t dp_offset = 0;
 
     /* already allocated a send ticket, spend them now */
     gasneti_assert(th->snd_tickets > 1);
     th->snd_tickets -= 2;
 
-    /* alloc a short eq and a tmpmd to cover source region */
-    dp_eq = gasnetc_eq_alloc(dp_eq_len,"AM_REPLY_LONG_EQ",NULL);
-
-    gasneti_assert(th->tmpmd_tickets > 0);
-    th->tmpmd_tickets--;
-    dp_md_h = gasnetc_alloc_tmpmd(source_addr,nbytes,dp_eq->eq_h);
+    if (gasnetc_in_local_rar(source_addr,nbytes)) {
+      dp_md_h = gasnetc_RARSRC.md_h;
+      dp_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);
+    } else {
+      gasneti_assert(th->tmpmd_tickets > 0);
+      dp_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes, gasnetc_SAFE_EQ->eq_h);
+      th->tmpmd_tickets--;
+      dp_offset = 0;
+    }
 
     /* issue data put message */
-    /* NOTE: dp_mbits is explicitly does not include the REQUEST flag, since this is a reply */
-    GASNETC_PTLSAFE(PtlPut(dp_md_h,PTL_NOACK_REQ,target_id,GASNETC_PTL_RAR_PTE, ac_index, dp_mbits, remote_dataoffset, dp_hdr_data));
+    /* NOTE: dp_mbits explicitly does not include the REQUEST flag, since this is a reply */
+    dp_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS | (GASNETC_PTL_AM_SYNC << 8);
+    dp_mbits |= ((ptl_match_bits_t)(th->threadidx) << 24);
+    gasneti_assert(gasneti_weakatomic_read(&th->amlongRep_data_inflight, 0) == 0);
+    gasneti_weakatomic_increment(&th->amlongRep_data_inflight, 0);
+    GASNETC_PTLSAFE(PtlPutRegion(dp_md_h, dp_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, dp_mbits, remote_dataoffset, dp_hdr_data));
 
     /* now complete header message */
     /* pack the return credit info (already processed when Request arrived) */
@@ -1389,16 +1393,12 @@ extern int gasnetc_AMReplyLongM(
     /* send message */
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
-    while( !gasnetc_get_event(dp_eq, &ev) ) {
+    /* poll ONLY the safe eq until local completion of data put */
+    while( gasneti_weakatomic_read(&th->amlongRep_data_inflight, 0) > 0 ) {
       gasnetc_portals_poll(GASNETC_SAFE_POLL);
-    }
-    if (ev.type != PTL_EVENT_SEND_END) {
-      gasneti_fatalerror("gasnetc_AMReplyLong: got %s event on tmp EQ at %s",ptl_event_str[ev.type],gasneti_current_loc);
     }
     /* return the send ticket from the data payload message */
     if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
-    gasnetc_free_tmpmd(dp_md_h);  /* will return tmpmd ticket */
-    gasnetc_eq_free(dp_eq);
   }
 
   /* Indicate to reply code that AM did in fact send a reply message */

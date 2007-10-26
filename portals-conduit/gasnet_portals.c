@@ -1050,7 +1050,10 @@ static void RARSRC_event(ptl_event_t *ev)
       if (amflag & GASNETC_PTL_AM_SYNC) {
 	gasnetc_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)]->gasnetc_threaddata;
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
-	gasneti_weakatomic_decrement(&th->amlong_data_inflight, 0);
+	gasneti_weakatomic_t *counter = (amflag & GASNETC_PTL_AM_REQUEST) ? &th->amlongReq_data_inflight
+									  : &th->amlongRep_data_inflight;
+	gasneti_assert(gasneti_weakatomic_read(counter, 0) != 0);
+	gasneti_weakatomic_decrement(counter, 0);
       }
     }
     break;
@@ -1131,7 +1134,10 @@ static void TMPMD_event(ptl_event_t *ev)
       if (amflag & GASNETC_PTL_AM_SYNC) {
 	gasnetc_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)]->gasnetc_threaddata;
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
-	gasneti_weakatomic_decrement(&th->amlong_data_inflight, 0);
+	gasneti_weakatomic_t *counter = (amflag & GASNETC_PTL_AM_REQUEST) ? &th->amlongReq_data_inflight
+									  : &th->amlongRep_data_inflight;
+	gasneti_assert(gasneti_weakatomic_read(counter, 0) != 0);
+	gasneti_weakatomic_decrement(counter, 0);
       }
       /* unlink the tmp MD used in the AM Long data put */
       gasnetc_free_tmpmd(ev->md_handle);
@@ -3037,16 +3043,16 @@ extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset)
     gasneti_mutex_unlock(&buf->lock);
 }
 
-/* bug 2102: PtlEQAlloc/PtlEQFree are not thread-safe */
-static gasneti_mutex_t gasnetc_eqalloc_lock = GASNETI_MUTEX_INITIALIZER;
+/* bug 2102: PtlEQAlloc/PtlEQFree are not thread-safe.
+ * However, we no longer perform these dynamically (only at startup and cleanup now).
+ * So, we don't need the mutex introduced for bug 2102.
+ */
 
 extern gasnetc_eq_t* gasnetc_eq_alloc(long num_events, const char* name, ptl_eq_handler_t hndlr)
 {
   gasnetc_eq_t *eq = (gasnetc_eq_t*)gasneti_malloc(sizeof(gasnetc_eq_t));
   eq->num_events = num_events;
-  gasneti_mutex_lock(&gasnetc_eqalloc_lock);
-    GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_events, hndlr, &eq->eq_h));
-  gasneti_mutex_unlock(&gasnetc_eqalloc_lock);
+  GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, num_events, hndlr, &eq->eq_h));
   gasneti_mutex_init(&eq->lock);
   eq->name = gasneti_strdup(name);
   GASNETI_TRACE_PRINTF(C,("gasnetc_eq_alloc %s with %ld events (%i)",eq->name,num_events,(int)eq->eq_h));
@@ -3054,9 +3060,7 @@ extern gasnetc_eq_t* gasnetc_eq_alloc(long num_events, const char* name, ptl_eq_
 }
 extern void gasnetc_eq_free(gasnetc_eq_t *eq)
 {
-  gasneti_mutex_lock(&gasnetc_eqalloc_lock);
-    GASNETC_PTLSAFE(PtlEQFree(eq->eq_h));
-  gasneti_mutex_unlock(&gasnetc_eqalloc_lock);
+  GASNETC_PTLSAFE(PtlEQFree(eq->eq_h));
   GASNETI_TRACE_PRINTF(C,("gasnetc_eq_free %s with %ld events (%i)",eq->name,eq->num_events,(int)eq->eq_h));
   gasneti_free(eq->name);
   gasneti_free(eq);

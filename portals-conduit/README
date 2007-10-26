@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.10 $
+$Revision: 1.10.4.1 $
 
 User Information:
 -----------------
@@ -345,9 +345,6 @@ AM_EQ   - This event queue is only associated with the ReqRB buffers.  Events on
 SYS_EQ  - The event queue used to send/recv out-of-band system messages between nodes.
           It is used during program termination and in the dynamic re-distribution of
           flow-control credits.
-TMP_EQ  - These temporary EQs are generated and used only in the case of an AMLong 
-          Reply data segment put.  The event generated on the queue indicates the
-          local completion of the data put.
 
 The System Event Queue
 ----------------------
