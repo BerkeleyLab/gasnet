@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.10.4.1 $
+$Revision: 1.10.4.2 $
 
 User Information:
 -----------------
@@ -305,10 +305,10 @@ RAR    - covers the local GASNet memory segment.  It has no EQ but will generate
 	 as the target of remote GASNet Put/Get operations.
 RARSRC - Also covers the local GASNet memory segment.  It is free floating and used as
          the Src MD of a Put or dest MD of a Get when the data happens to reside in
-	 the GASNet segment and events are needed.  It generates events on the SAFE_EQ
-         event queue.
+	 the GASNet segment and events are needed.  It is also used as the target of
+	 AMLong Reply operations.  It generates events on the SAFE_EQ event queue.
 RARAM  - Also covers the local GASNet memory segment and is associated with the AM_EQ
-         event queue.  It is used as the target of AMLong Request and Reply operations.
+         event queue.  It is used as the target of AMLong Request operations.
 	 This MD is also linked on the Portals Table.
 ReqSB  - This MD covers a local send buffer that is divided into "chunks", that get
          allocated and freed for use by various GASNet communication operations.  It
