@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2007/10/18 23:46:50 $
-# $Revision: 1.467 $
+#     $Date: 2007/10/29 04:02:21 $
+# $Revision: 1.467.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.467 $)
+AC_REVISION($Revision: 1.467.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3114,15 +3114,24 @@ AM_CONDITIONAL(USE_PLPA,test "$enabled_plpa" = "yes")
 
 #  AC_FUNC_MMAP
 # Check for mmap functionality we actually use
-case "$target_os" in
-  cygwin*)  
-  # mmap is known to be broken on Cygwin - dont even try
+if test "$cross_compiling" = "yes" ; then
+ GASNET_CROSS_VAR(HAVE_MMAP,HAVE_MMAP)
+else
+ case "$target_os" in
+  cygwin*)  # mmap is known to be broken on Cygwin - dont even try
   HAVE_MMAP=0
   ;;
-  *)
-if test "$cross_compiling" = "yes" ; then
-GASNET_CROSS_VAR(HAVE_MMAP,HAVE_MMAP)
-else
+  *) # default to trying it
+  HAVE_MMAP=1
+  ;;
+ esac
+fi
+GASNET_IF_ENABLED_WITH_AUTO(mmap,[force the use or non-use of mmap (default to probe)],
+  [ HAVE_MMAP=1
+    FORCE_MMAP=1 ],
+  [ HAVE_MMAP=0 ],
+  [])
+if test "$HAVE_MMAP" != "0" && test "$cross_compiling" = "no" ; then
 GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
   #include <unistd.h>
   #include <sys/mman.h>
@@ -3164,10 +3173,13 @@ GASNET_TRY_CACHE_RUN(for working mmap(), have_mmap, [
     if (ptr2 == MAP_FAILED || ptr2 == NULL || ptr2 != ptr) return 5;
     if (munmap(ptr,16384) != 0) return 6;
     return 0;
-  }],[ HAVE_MMAP=1 ],[ HAVE_MMAP=0 ])
+  }],[ HAVE_MMAP=1 ],[ 
+       HAVE_MMAP=0 
+       if test "$FORCE_MMAP" = "1" ; then
+         GASNET_MSG_ERROR([--enable-mmap was passed, but mmap functionality test failed])
+       fi
+   ])
 fi
-  ;;
-esac
 if test "$HAVE_MMAP" != "0" ; then
   AC_DEFINE(HAVE_MMAP)
   # bug 1763: find the right mmap flags (which may be enum values or const vars)
