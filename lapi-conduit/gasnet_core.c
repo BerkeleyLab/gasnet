@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/22 23:17:47 $
- * $Revision: 1.88 $
+ *     $Date: 2007/10/29 22:02:43 $
+ * $Revision: 1.88.2.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -690,6 +690,18 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
          int j=0;
          lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
          uintptr_t tmp_offset = 0;
+         if (segbase) { /* bug 2176: warn if segment is not large page */
+           size_t large_pagesz = sysconf(_SC_LARGE_PAGESIZE);
+           size_t segment_pagesz = gasnetc_get_pagesize(segbase);
+           if (segment_pagesz != large_pagesz && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+             fprintf(stderr,"WARNING: node %i is not using large pages for the GASNet segment "
+                            "(segment_pagesz=%ld large_pagesz=%ld). "
+                            "This may lead to stability problems for LAPI-RDMA. "
+                            "Try setting LDR_CNTRL=LARGE_PAGE_DATA=Y\n",
+                            gasneti_mynode, (long)segment_pagesz, (long)large_pagesz);
+             fflush(stderr);
+           }
+         }
 	 /* Break up the segment */
 	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
          GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %ld segment size = %ld segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(uint64_t) segbase));
@@ -2520,5 +2532,14 @@ int gasnetc_uhdr_more(int want)
     GASNETI_TRACE_PRINTF(C,("Allocated %d more UHDR BUFFERS: numalloc %d numfree %d",
 			    want,gasnetc_uhdr_freelist.numalloc,gasnetc_uhdr_freelist.numfree));
     return want;
+}
+
+#include <sys/vminfo.h>
+/* return the AIX page size for a given memory address */
+size_t gasnetc_get_pagesize(void *addr) {
+    struct vm_page_info vi;
+    vi.addr = (uintptr_t) addr;
+    vmgetinfo(&vi,VM_PAGE_INFO,sizeof(struct vm_page_info));
+    return (size_t)vi.pagesize;
 }
 

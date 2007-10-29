@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2007/10/15 21:06:16 $
- * $Revision: 1.41 $
+ *     $Date: 2007/10/29 22:02:43 $
+ * $Revision: 1.41.2.1 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -227,6 +227,8 @@ extern void gasnetc_token_queue_init(gasnetc_token_queue_t *q);
 extern gasnetc_token_t* gasnetc_token_dequeue(gasnetc_token_queue_t *q, int update_schedule);
 extern void gasnetc_token_enqueue(gasnetc_token_queue_t *q, gasnetc_token_t *p, int *schedule);
 
+/* return the AIX page size for a given memory address */
+extern size_t gasnetc_get_pagesize(void *addr);
 
 /* ------------------------------------------------------------------------------------ */
 #if GASNETI_THROTTLE_POLLERS 
