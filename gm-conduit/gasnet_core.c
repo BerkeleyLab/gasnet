@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2007/10/30 02:36:22 $
- * $Revision: 1.114.4.1 $
+ * $Date: 2007/10/30 03:46:31 $
+ * $Revision: 1.114.4.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1876,15 +1876,18 @@ extern int gasnetc_AMReplyLongM(
 		uintptr_t	pbuf;
 		unsigned int	len;
 
-		const firehose_request_t	*req;
+		const firehose_request_t	*req = NULL;
 	
     		bufd            = gasnetc_bufdesc_from_token(token);
 		bufd->dest_addr = (uintptr_t) dest_addr;
 		bufd->node      = dest;
 
-		if (nbytes > 0 &&
-		   (req = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
-	    	            nbytes, 0,  NULL)) != NULL) {
+		if (nbytes > 0
+#if !defined(GASNET_SEGMENT_FAST)
+		   && (req = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
+	    	            nbytes, 0,  NULL)) != NULL
+#endif
+		   ) {
 
 			pbuf = (uintptr_t) bufd->buf + 
 			    (uintptr_t) GASNETC_LONG_OFFSET;
