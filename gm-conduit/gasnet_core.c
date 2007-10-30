@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2007/10/14 14:23:06 $
- * $Revision: 1.114 $
+ * $Date: 2007/10/30 02:36:22 $
+ * $Revision: 1.114.4.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1326,7 +1326,7 @@ extern int gasnetc_AMRequestMediumM(
 
 /* 
  * DMA_inner allows to DMA an AMLong when the local buffer isn't pinned and the
- * remote buffer is
+ * remote buffer is (or when single-copy is needed for non-async semantic).
  */
 GASNETI_INLINE(gasnetc_AMRequestLongM_DMA_inner)
 void
@@ -1340,7 +1340,11 @@ gasnetc_AMRequestLongM_DMA_inner(gasnet_node_t node, gasnet_handler_t handler,
 	gasnetc_bufdesc_t	*bufd;
 
 	gasneti_assert(nbytes > 0);
+#if defined(GASNET_SEGMENT_FAST)
+	gasneti_assert(req == NULL);
+#else
 	gasneti_assert(req != NULL);
+#endif
 
 	psrc  = (uint8_t *) source_addr;
 	pdest = (uint8_t *) dest_addr;
@@ -1381,10 +1385,15 @@ gasnetc_AMRequestLongM_DMA_inner(gasnet_node_t node, gasnet_handler_t handler,
 	}
 
 	/* Set the firehose request type in the last bufd, so it may be
-	 * released once the last AMRequest receives its reply */
+	 * released (if non-NULL) once the last AMRequest receives its reply */
 	bufd->remote_req = req;
+#if defined(GASNET_SEGMENT_FAST)
+	gasnetc_GMSend_AMRequest(bufd->buf, len, id, 
+	    port, gasnetc_callback_lo, (void *)bufd, 0);
+#else
 	gasnetc_GMSend_AMRequest(bufd->buf, len, id, 
 	    port, gasnetc_callback_lo_rdma, (void *)bufd, 0);
+#endif
 }
 
 /* When the local and remote regions are not pinned, AM buffers are used and
@@ -1469,6 +1478,13 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 		if_pt (nbytes > 0) { /* Handle zero-length messages */
 			const firehose_request_t	*req;
 			
+		    #if defined(GASNET_SEGMENT_FAST)
+			/* Remote is always pinned */
+	                GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONG_ONECOPY, nbytes);
+			gasnetc_AMRequestLongM_DMA_inner(dest, handler, 
+			    source_addr, nbytes, NULL, 
+			    (uintptr_t) dest_addr, numargs, argptr);
+		    #else
 			req = firehose_try_remote_pin(dest, 
 				(uintptr_t) dest_addr, nbytes, 0, NULL);
 
@@ -1483,6 +1499,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 				    source_addr, nbytes, dest_addr, numargs, 
 				    argptr);
                         }
+		    #endif
 		}
 		else {
 			gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
@@ -1504,7 +1521,7 @@ gasnetc_AMRequestLongAsyncM(
 {
 	va_list	argptr;
 
-	const firehose_request_t	*reql, *reqr;
+	const firehose_request_t	*reql, *reqr = NULL;
 
 	gasnetc_bufdesc_t	*bufd;
         GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
@@ -1524,9 +1541,11 @@ gasnetc_AMRequestLongAsyncM(
 
 	/* If length is 0 or the remote local is not pinned, send using
 	 * AMMedium payloads */
-	if (nbytes == 0 || 
-	    !(reqr = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, 
-            nbytes, 0, NULL))) {
+	if (nbytes == 0 
+#if !defined(GASNET_SEGMENT_FAST)
+	    || !(reqr = firehose_try_remote_pin(dest, (uintptr_t) dest_addr, nbytes, 0, NULL))
+#endif
+	    ) {
 	        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONGASYNC_TWOCOPY, nbytes);
 		gasnetc_AMRequestLongM_inner(dest, handler, source_addr, 
 		    nbytes, dest_addr, numargs, argptr);
@@ -1546,7 +1565,12 @@ gasnetc_AMRequestLongAsyncM(
 		uint16_t port, id;
 		int	 len;
 
-		gasneti_assert(reql != NULL && reqr != NULL);
+		gasneti_assert(reql != NULL);
+#if defined(GASNET_SEGMENT_FAST)
+		gasneti_assert(reqr == NULL);
+#else
+		gasneti_assert(reqr != NULL);
+#endif
 
 	        GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONGASYNC_ZEROCOPY, nbytes);
 		port = gasnetc_portid(dest);

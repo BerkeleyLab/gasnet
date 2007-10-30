@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2007/10/15 08:09:19 $
- * $Revision: 1.44 $
+ * $Date: 2007/10/30 02:36:22 $
+ * $Revision: 1.44.4.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -446,9 +446,11 @@ gasnetc_callback_hi(struct gm_port *p, void *ctx, gm_status_t status)
 	gasnetc_token_hi_release();
 }
 
-/* Utility function for releasing rdma from bufd.  At least the remote_req must
- * have a firehose request type whereas the local request type is optional (AM
- * buffers can be used to send payload from).
+/* Utility function for releasing rdma from bufd.
+ * LARGE/EVERYTHING: At least the remote_req must have a firehose request
+ * type whereas the local request type is optional (AM buffers can be used
+ * to send payload from).
+ * FAST: Never have remote, but always have local.
  */
 GASNETI_INLINE(gasnetc_release_rdma)
 void gasnetc_release_rdma(gasnetc_bufdesc_t *bufd) {
@@ -458,14 +460,20 @@ void gasnetc_release_rdma(gasnetc_bufdesc_t *bufd) {
 
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(bufd->node < gasneti_nodes);
-	gasneti_assert(bufd->remote_req != NULL);
 
+#if defined(GASNET_SEGMENT_FAST)
+	/* Release firehose on local region */
+	gasneti_assert(bufd->local_req != NULL);
+	reqs[0] = bufd->local_req;
+#else
 	/* Release firehose on regions (remote and possibly local) */
+	gasneti_assert(bufd->remote_req != NULL);
 	reqs[0] = bufd->remote_req;
 	if (bufd->local_req != NULL) {
 		reqs[1] = bufd->local_req;
 		numreqs++;
 	}
+#endif
 	GASNETE_GM_SET_IN_UNKNOWN();
 	firehose_release(reqs, numreqs);
 	GASNETE_GM_UNSET_IN_UNKNOWN();
