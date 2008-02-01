@@ -1144,16 +1144,16 @@ static void TMPMD_event(ptl_event_t *ev)
 	gasneti_weakatomic_decrement(counter, 0);
       }
       /* unlink the tmp MD used in the AM Long data put */
-#if 0 /* PHH: testing fh hypothesis */
       gasnetc_free_tmpmd(ev->md_handle);
-#endif
     }
     break;
 
   case PTL_EVENT_ACK:
     /* Put from TmpMD */
     gasneti_assert(msg_type & GASNETC_PTL_MSG_PUT);
+#if 0 /* PHH: testing fh hypothesis */
     gasnetc_free_tmpmd(ev->md_handle);
+#endif
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the put (isget=0) operation complete */
     gasnete_op_markdone(op, 0 /* !isget */);
@@ -4092,7 +4092,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
    } else {
     gasneti_assert((uintptr_t)src >= (uintptr_t)prev_src);
     gasneti_assert((uintptr_t)src < (uintptr_t)prev_src+nbytes);
-    gasneti_assert((uintptr_t)src+nbytes < (uintptr_t)prev_src+nbytes);
+    gasneti_assert((uintptr_t)src+nbytes <= (uintptr_t)prev_src+nbytes);
     md_h = prev_md;
    }
     local_offset = 0;
