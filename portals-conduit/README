@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.11 $
+$Revision: 1.11.8.1 $
 
 User Information:
 -----------------
@@ -960,3 +960,10 @@ Additional Notes:
   be decayed, but not necessarily set to zero at the start of a new epoch.  Could try
   both approaches to see if it matters.
 
+
+MISC NOTES:
+* GASNETC_PUTGET_BOUNCE_SIZE is the largest size at which an out-of-segment get or put is
+performed via prepinned bounce buffers.  Above that size dynamic pinning is used.
+On Catamount, the size is currently 1k.
+On CNL, the size is the same as GASNETC_CHUNKSIZE, currently 2k.
+XXX: This should be tunable via env. vars.
