@@ -100,6 +100,10 @@
 #if (GASNETC_PUTGET_BOUNCE_SIZE > GASNETC_CHUNKSIZE)
 #error "GASNETC_PUTGET_BOUNCE_SIZE MUST BE <= GASNETC_CHUNKSIZE"
 #endif
+/* PHH: Moving to tunable... */
+#undef GASNETC_PUTGET_BOUNCE_SIZE 
+#define GASNETC_PUTGET_BOUNCE_SIZE gasnetc_putget_bounce_limit
+extern size_t gasnetc_putget_bounce_limit;
 
 /* Do we register an EQ handler with a queue or just poll ourselves */
 #if GASNETC_USE_EQ_HANDLER
