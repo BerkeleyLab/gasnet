@@ -934,6 +934,7 @@ GASNETI_INLINE(gasnetc_alloc_tmpmd_withpoll)
 ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes)
 {
   while (! gasnetc_alloc_ticket(&gasnetc_tmpmd_tickets)) {
+    GASNETI_TRACE_EVENT(C, TMPMD_THROTTLE);
     gasnetc_portals_poll(GASNETC_SAFE_POLL);
   }
   return gasnetc_alloc_tmpmd(start, nbytes);
