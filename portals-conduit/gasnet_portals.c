@@ -1155,8 +1155,6 @@ static void TMPMD_event(ptl_event_t *ev)
     gasneti_assert(msg_type & GASNETC_PTL_MSG_PUT);
 #if 0 /* PHH: testing fh hypothesis */
     gasnetc_free_tmpmd(ev->md_handle);
-#else
-    gasnetc_return_ticket(&gasnetc_tmpmd_tickets);
 #endif
     op = gasnete_opaddr_to_ptr(threadid, addr);
     /* mark the put (isget=0) operation complete */
