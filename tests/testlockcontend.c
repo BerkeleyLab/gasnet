@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlockcontend.c,v $
- *     $Date: 2006/10/03 23:00:46 $
- * $Revision: 1.3 $
+ *     $Date: 2008/02/25 20:46:28 $
+ * $Revision: 1.3.22.1 $
  * Description: GASNet lock performance test
  *   Measures the overhead associated with contended locks
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -111,6 +111,7 @@ int main(int argc, char **argv) {
 #define ERR  THREAD_ERR(id)
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+char _pad[GASNETT_CACHE_LINE_BYTES] = { 0 }; /* bug 2231 workaround */
 gasnet_hsl_t hsl = GASNET_HSL_INITIALIZER;
 
 /* ------------------------------------------------------------------------------------ */

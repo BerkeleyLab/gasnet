@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2007/12/04 23:35:37 $
- * $Revision: 1.112 $
+ *     $Date: 2008/02/25 20:46:06 $
+ * $Revision: 1.112.2.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -98,7 +98,7 @@ GASNETI_BEGIN_EXTERNC
 #endif
 
 /* platform identifiers for the compiler detected at *configure*-time */
-#define GASNETT_PLATFORM_COMPILER_IDSTR    _STRINGIFY(GASNETI_PLATFORM_COMPILER_IDSTR)
+#define GASNETT_PLATFORM_COMPILER_IDSTR    GASNETI_PLATFORM_COMPILER_IDSTR
 #define GASNETT_PLATFORM_COMPILER_FAMILYID GASNETI_PLATFORM_COMPILER_FAMILYID
 #define GASNETT_PLATFORM_COMPILER_ID       GASNETI_PLATFORM_COMPILER_ID 
 #define GASNETT_PLATFORM_COMPILER_VERSION  GASNETI_PLATFORM_COMPILER_VERSION 
@@ -310,6 +310,25 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_count0s_uint32_t  gasneti_count0s_uint32_t
 #define gasnett_count0s_uint64_t  gasneti_count0s_uint64_t
 
+#define gasnett_mutex_t               gasneti_mutex_t
+#define gasnett_mutex_init            gasneti_mutex_init
+#define gasnett_mutex_destroy         gasneti_mutex_destroy
+#define gasnett_mutex_destroy_ignoreerr gasneti_mutex_destroy_ignoreerr
+#define GASNETT_MUTEX_INITIALIZER     GASNETI_MUTEX_INITIALIZER
+#define gasnett_mutex_lock            gasneti_mutex_lock
+#define gasnett_mutex_trylock         gasneti_mutex_trylock
+#define gasnett_mutex_unlock          gasneti_mutex_unlock
+#define gasnett_mutex_assertlocked    gasneti_mutex_assertlocked
+#define gasnett_mutex_assertunlocked  gasneti_mutex_assertunlocked
+
+#define gasnett_cond_t               gasneti_cond_t
+#define gasnett_cond_init            gasneti_cond_init
+#define gasnett_cond_destroy         gasneti_cond_destroy
+#define GASNETT_COND_INITIALIZER     GASNETI_COND_INITIALIZER
+#define gasnett_cond_wait            gasneti_cond_wait
+#define gasnett_cond_signal          gasneti_cond_signal
+#define gasnett_cond_broadcast       gasneti_cond_broadcast
+
 #define GASNETT_THREADKEY_DECLARE                 GASNETI_THREADKEY_DECLARE
 #define GASNETT_THREADKEY_DEFINE                  GASNETI_THREADKEY_DEFINE
 #define gasnett_threadkey_get(key)                gasneti_threadkey_get(key)
@@ -342,6 +361,9 @@ gasnett_backtrace_type_t gasnett_backtrace_user;
   #define GASNETT_TRACE_UNFREEZESOURCELINE()        ((void)0)
 #endif
 
+#if PLATFORM_COMPILER_PGI
+  #include <stdarg.h>
+#endif
 GASNETI_FORMAT_PRINTF(_gasnett_trace_printf_noop,1,2,
 static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #if PLATFORM_COMPILER_PGI
@@ -426,6 +448,8 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define GASNETT_VALUE_ASSIGN          GASNETE_VALUE_ASSIGN
   #define GASNETT_VALUE_RETURN          GASNETE_VALUE_RETURN
 
+  #define GASNETT_MAX_THREADS GASNETI_MAX_THREADS 
+
   #if GASNET_DEBUG
     #define gasnett_debug_malloc(sz)      gasneti_extern_malloc(sz) 
     #define gasnett_debug_realloc(ptr,sz) gasneti_extern_realloc((ptr),(sz))
@@ -461,7 +485,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define gasnett_mmap(sz)        gasnett_fatalerror("gasnett_mmap not available")
 
   #if defined(GASNETI_ATOMIC_LOCK_TBL_DECLS)
-    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_pthread_atomic_, pthread_mutex_)
+    GASNETI_ATOMIC_LOCK_TBL_DECLS(gasneti_pthread_atomic_, gasnett_mutex_)
   #endif
 #endif
 

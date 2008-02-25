@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2008/01/15 21:12:53 $ */
-/*  $Revision: 1.130 $ */
+/*      $Date: 2008/02/25 20:46:06 $ */
+/*  $Revision: 1.130.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -73,6 +73,9 @@
 
 /* --with-segment-mmap-max value (if given) */
 #undef GASNETI_MMAP_MAX_SIZE
+
+/* --with-max-threads value (if given) */
+#undef GASNETI_MAX_THREADS_CONFIGURE
 
 /* has usleep() */
 #undef HAVE_USLEEP
@@ -190,6 +193,9 @@
 
 /* platform is an SGI Altix multiprocessor */
 #undef GASNETI_ARCH_ALTIX
+
+/* platform is an IBM BlueGene/P multiprocessor */
+#undef GASNETI_ARCH_BGP
 
 /* platform is a SiCortex multiprocessor */
 #undef GASNETI_ARCH_SICORTEX

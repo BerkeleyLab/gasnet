@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2006/10/18 02:43:13 $
- * $Revision: 1.41 $
+ *     $Date: 2008/02/25 20:46:28 $
+ * $Revision: 1.41.18.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -429,6 +429,7 @@ int main(int argc, char **argv)
     int firstlastmode = 0;
     int fullduplexmode = 0;
     int crossmachinemode = 0;
+    int skipwarmup = 0;
     int help = 0;   
    
     /* call startup */
@@ -460,6 +461,9 @@ int main(int argc, char **argv)
       } else if (!strcmp(argv[arg], "-g")) {
         dogets = 1; doputs = 0;
         ++arg;
+      } else if (!strcmp(argv[arg], "-s")) {
+        skipwarmup = 1;
+        ++arg;
       } else if (argv[arg][0] == '-') {
         help = 1;
         ++arg;
@@ -480,6 +484,7 @@ int main(int argc, char **argv)
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "   memory is in the GASNet segment or not (default it not).\n"
                "  The -p/-g option selects puts only or gets only (default is both).\n"
+               "  The -s option skips warm-up iterations\n"
                "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).\n"
                "  The -a option enables full-duplex mode, where all nodes send.\n"
                "  The -c option enables cross-machine pairing, default is nearest neighbor.\n"
@@ -550,7 +555,7 @@ int main(int argc, char **argv)
           min_payload, max_payload);
         BARRIER();
 
-        if (iamsender) { /* pay some warm-up costs */
+        if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
            gasnet_handle_t *h = test_malloc(2*sizeof(gasnet_handle_t)*warm_iters);

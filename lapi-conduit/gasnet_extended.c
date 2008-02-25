@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/11/01 05:48:37 $
- * $Revision: 1.62 $
+ *     $Date: 2008/02/25 20:46:16 $
+ * $Revision: 1.62.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -525,7 +525,7 @@ void* gasnete_lapi_memset_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
  * Try to resuse as much code as possible
  */
 
-static pthread_mutex_t nb_lock = PTHREAD_MUTEX_INITIALIZER;
+static gasneti_mutex_t nb_lock = GASNETI_MUTEX_INITIALIZER;
 int64_t gasnet_lapi_bytes_pinned = 0;
 /* Pin like there's no tomorrow! */
 lapi_user_pvo_t gasnetc_lapi_get_local_pvo(lapi_long_t addr, size_t len)
@@ -547,26 +547,26 @@ gasnetc_lapi_pvo *gasnetc_lapi_new_pvo()
    gasnetc_lapi_pvo *ret;
    int my_thread_id = gasnete_mythread()->threadidx;
    volatile gasnetc_lapi_pvo **current = (volatile gasnetc_lapi_pvo **) &(gasnetc_lapi_pvo_free_list[my_thread_id]);
-   pthread_mutex_lock(&nb_lock);
+   gasneti_mutex_lock(&nb_lock);
    while(*current == NULL) {
-     pthread_mutex_unlock(&nb_lock);
+     gasneti_mutex_unlock(&nb_lock);
      gasneti_AMPoll();
-     pthread_mutex_lock(&nb_lock);
+     gasneti_mutex_lock(&nb_lock);
    }
    ret = (gasnetc_lapi_pvo *) (*current);
    gasnetc_lapi_pvo_free_list[my_thread_id] = ret->next;
    ret->next = NULL;
-   pthread_mutex_unlock(&nb_lock);
+   gasneti_mutex_unlock(&nb_lock);
    return(ret);
 }
 
 void gasnetc_lapi_free_pvo(gasnetc_lapi_pvo *current)
 {
   /* Add current to the free list */
-  pthread_mutex_lock(&nb_lock);
+  gasneti_mutex_lock(&nb_lock);
   current->next = gasnetc_lapi_pvo_free_list[gasnete_mythread()->threadidx];
   gasnetc_lapi_pvo_free_list[gasnete_mythread()->threadidx] = current;
-  pthread_mutex_unlock(&nb_lock);
+  gasneti_mutex_unlock(&nb_lock);
 }
 
 void gasnetc_lapi_release_pvo(gasnetc_lapi_pvo *entry)
@@ -654,17 +654,17 @@ gasnete_lapi_nb *gasnete_get_free_network_buffer()
   gasnete_lapi_nb *ret, *current;
   volatile gasnete_lapi_nb **fl_ptr = (volatile gasnete_lapi_nb **) &gasnete_free_nb_list;
   int cnt = 0;
-  pthread_mutex_lock(&nb_lock);
+  gasneti_mutex_lock(&nb_lock);
   while(*fl_ptr == NULL) {
     /* Need to give up the lock for a while.  Need to tune this */
-    pthread_mutex_unlock(&nb_lock);
+    gasneti_mutex_unlock(&nb_lock);
     gasneti_AMPoll();
     cnt++;
     if(cnt > 100000) {
       cnt = 0;
       printf("%d Spinning too much waiting for a network buffer?\n",gasneti_mynode);
     }
-    pthread_mutex_lock(&nb_lock);
+    gasneti_mutex_lock(&nb_lock);
   }
   /* Remove from free list */
   ret = (gasnete_lapi_nb *) *fl_ptr;
@@ -679,7 +679,7 @@ gasnete_lapi_nb *gasnete_get_free_network_buffer()
   gasnete_active_nb_list = ret;
 
  UNLOCK_AND_RETURN:
-  pthread_mutex_unlock(&nb_lock);  /* This should take care of memory consistency nastiness, right? */
+  gasneti_mutex_unlock(&nb_lock);  /* This should take care of memory consistency nastiness, right? */
   return(ret);
 }
 
@@ -690,7 +690,7 @@ void gasnete_free_network_buffer(gasnete_lapi_nb *nb)
     memcpy(nb->user_buffer,nb->data,nb->user_length);
   }
 
-  pthread_mutex_lock(&nb_lock);
+  gasneti_mutex_lock(&nb_lock);
   /* Remove from active list */
   if(gasnete_active_nb_list == nb) {
     gasnete_active_nb_list = nb->next;
@@ -707,7 +707,7 @@ void gasnete_free_network_buffer(gasnete_lapi_nb *nb)
   /* Add back to free list */
   nb->next = gasnete_free_nb_list;
   gasnete_free_nb_list = nb; 
-  pthread_mutex_unlock(&nb_lock);
+  gasneti_mutex_unlock(&nb_lock);
 }
 
 void gasnete_lapi_reap_network_buffer(lapi_handle_t *hndl, void *user_data, lapi_sh_info_t *info)
@@ -1641,14 +1641,14 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 extern void gasnete_wait_syncnb_original(gasnet_handle_t handle);
 extern void gasnete_wait_syncnb(gasnet_handle_t handle)
 {
+    if (handle == GASNET_INVALID_HANDLE) {
+      return;
+    }
     if_pt(gasnetc_lapi_use_rdma) {
     gasnete_op_t *op = handle;
     int cnt = 0;
     int cnt2 = 0;
     gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
-    if (op == GASNET_INVALID_HANDLE) {
-      return;
-    }
 
     if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
 	gasnete_eop_t *eop = (gasnete_eop_t*)op;

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/01/16 04:41:18 $
-# $Revision: 1.479 $
+#     $Date: 2008/02/25 20:46:06 $
+# $Revision: 1.479.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.479 $)
+AC_REVISION($Revision: 1.479.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -33,7 +33,7 @@ AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 AC_DEFUN([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[2])
+AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[3])
 
 AC_DEFUN([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -697,7 +697,11 @@ GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
 AC_DEFUN([GASNET_GET_PLATFORM_COMPILER], [
   GASNET_TRY_CACHE_EXTRACT_$2(PLATFORM_COMPILER_$1, PLATFORM_COMPILER_$1,
     [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_$1 ], GASNETI_PLATFORM_COMPILER_$1)
-  AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_$1,$GASNETI_PLATFORM_COMPILER_$1)
+  if test "$2" = "STR" ; then
+    AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_$1,"$GASNETI_PLATFORM_COMPILER_$1")
+  else
+    AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_$1,$GASNETI_PLATFORM_COMPILER_$1)
+  fi
 ])
 GASNET_GET_PLATFORM_COMPILER([IDSTR],[STR])
 GASNET_GET_PLATFORM_COMPILER([FAMILYID],[EXPR])
@@ -803,6 +807,9 @@ case "$target_os" in
 	      GASNET_MSG_ERROR([Compiling for a catamount target, but __LIBCATAMOUNT__ is not predefined! Are you using the right compiler? (perhaps try mpicc)])
 	    ])
           ;;
+          powerpc-bgp-linux*) # apparently lacks any identifying preprocessor macro
+	    AC_DEFINE(GASNETI_ARCH_BGP)
+	    ;;
         esac
         # Defining _GNU_SOURCE gives us accesss to the "adaptive"
         # implementation of pthread_mutex_t, which is faster then
@@ -948,6 +955,10 @@ fi
 AM_CONDITIONAL(BUILD_SEQ_LIBS, test "$build_seq_libs" = "yes")
 AM_CONDITIONAL(BUILD_PAR_LIBS, test "$build_par_libs" = "yes")
 AM_CONDITIONAL(BUILD_PARSYNC_LIBS, test "$build_parsync_libs" = "yes")
+
+GASNET_WITH(max-pthreads-per-node, [Set max pthreads supported per GASNet node],
+  [AC_DEFINE_UNQUOTED(GASNETI_MAX_THREADS_CONFIGURE, $withval)]
+  ])
 
 GASNETI_CACHE_LINE_BYTES=""
 if test "$have_pthread" = no ; then
@@ -3579,6 +3590,8 @@ other/amudp/Makefile
 other/contrib/Makefile
 other/contrib/gasnet_trace
 other/testspawn/Makefile
+other/firehose/Makefile
+other/firehose/firehose.mak
 dnl GASNET_TOOLSONLY_FALSE_END
 
 other/Makefile

@@ -2,8 +2,8 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.16 $
-GASNet tools specification version: 1.2
+$Revision: 1.16.4.1 $
+GASNet tools specification version: 1.3
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -532,6 +532,89 @@ if_pt(cond) S;
   if_pf and if_pt behave just like 'if' except they give the C compiler a hint that 
   the condition is predicted to be false (if_pf) and the branch not taken, 
   or predicted to be true (pt) and the branch taken.
+
+-----------------------------------------------------
+Error-checking System Mutexes and Condition Variables
+-----------------------------------------------------
+
+GASNet tools provides convenience wrappers around the system's pthread mutexes
+and condition variables.  In debug mode, these wrappers add error checking
+capabilities to detect common usage violations (such as attempts to recursively
+acquire a mutex, or release a mutex that has not been acquired).  The wrappers
+also implement workarounds for known bugs in the pthread implementations of
+several systems.  
+
+In non-threaded builds, these wrappers still compile and expand to
+appropriate no-ops, unless compiled with -DGASNETT_USE_TRUE_MUTEXES=1
+which will force gasnett_mutex_t to always use true locking (even 
+without -DGASNETT_THREAD_SAFE=1).
+
+* The following function identically to the pthread_mutex symbols of the same name:
+
+gasnett_mutex_t             
+GASNETT_MUTEX_INITIALIZER
+void gasnett_mutex_init(gasnett_mutex_t *)
+void gasnett_mutex_destroy(gasnett_mutex_t *)
+int gasnett_mutex_destroy_ignoreerr(gasnett_mutex_t *)
+
+     mutex creation and destruction, as with pthread_mutex_t
+     gasnett_mutex_destroy_ignoreerr performs no error checking and silently returns any errors 
+     (eg as may occur when attempting to destroy a locked mutex)
+
+void gasnett_mutex_lock(gasnett_mutex_t *)
+void gasnett_mutex_unlock(gasnett_mutex_t *)
+
+     lock and unlock (checks for recursive locking errors)
+
+int gasnett_mutex_trylock(gasnett_mutex_t *)
+
+     non-blocking trylock - returns EBUSY on failure, 0 on success
+
+* Additional mutex utilities:
+
+void gasnett_mutex_assertlocked(gasnett_mutex_t *)
+void gasnett_mutex_assertunlocked(gasnett_mutex_t *) 
+
+  In debug builds, these functions respectively assert that the given mutex is 
+  currently locked or not locked by the calling thread, generating a fatal error
+  if the assertion is violated. Has no effect in non-debug builds.
+
+* The following function identically to the pthread_cond symbols of the same name:
+
+gasnett_cond_t             
+GASNETT_COND_INITIALIZER
+void gasnett_cond_init(gasnett_cond_t *pc)
+void gasnett_cond_destroy(gasnett_cond_t *pc)
+
+     condition variable creation and destruction, as with pthread_cond_t
+
+void gasnett_cond_signal(gasnett_cond_t *pc)
+void gasnett_cond_broadcast(gasnett_cond_t *pc)
+
+    signal at least one / all current waiters on a gasnet_cond_t, while holding the associated mutex
+
+void gasneti_cond_wait(gasneti_cond_t *pc, gasneti_mutex_t *pl)
+
+    release gasnett_mutex_t pl (which must be held) and block WITHOUT POLLING 
+    until gasnett_cond_t pc is signalled by another thread, or until the system
+    decides to wake this thread for no good reason (which it may or may not do).
+    Upon wakeup for any reason, the mutex will be reacquired before returning.
+
+    It's an error to wait if there is only one thread, and can easily lead to 
+    deadlock if the last thread goes to sleep. No thread may call wait unless it
+    can guarantee that (A) some other thread will eventually signal it to wake
+    up and (B) some other thread is still polling (except in tools-only mode,
+    where there is no polling).  The system may or may not also randomly signal
+    threads to wake up for no good reason, so upon awaking the thread MUST
+    verify using its own means that the condition it was waiting for has
+    actually been signalled (ie that the client-level "outer" condition has
+    been set).
+
+    In order to prevent races leading to missed signals and deadlock, signaling
+    threads must always hold the associated mutex while signaling, and ensure the
+    outer condition is set *before* releasing the mutex. Additionally, all waiters
+    must check the outer condition *after* acquiring the same mutex and *before*
+    calling wait (which atomically releases the lock and puts the thread to sleep).
 
 --------------------
 Thread-specific data

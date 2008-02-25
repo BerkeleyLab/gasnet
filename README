@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.103 $
+$Revision: 1.103.2.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -171,6 +171,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * MacOSX/PowerPC/{gcc,xlc}/32,64: smp, udp, mpi, vapi
     * MacOSX/x86/{gcc,icc}/32,64: smp, udp, mpi
+    * MacOSX/x86/{PGI}/32,64: smp, udp, #
 
     * Unicos/Cray-T3e/CrayC/64: smp, udp, mpi %&
  

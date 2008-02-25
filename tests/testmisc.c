@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2007/10/05 03:03:37 $
- * $Revision: 1.38 $
+ *     $Date: 2008/02/25 20:46:28 $
+ * $Revision: 1.38.6.1 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -195,9 +195,9 @@ void doit2() { GASNET_BEGIN_FUNCTION();
       { gasnet_hold_interrupts(); gasnet_resume_interrupts(); });
 
     #if defined(GASNET_PAR) || defined (GASNET_PARSYNC)
-      { static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+      { static gasnett_mutex_t mutex = GASNETT_MUTEX_INITIALIZER;
         TIME_OPERATION("lock/unlock uncontended pthread mutex",
-          { pthread_mutex_lock(&mutex); pthread_mutex_unlock(&mutex); });
+          { gasnett_mutex_lock(&mutex); gasnett_mutex_unlock(&mutex); });
       }
     #endif
 

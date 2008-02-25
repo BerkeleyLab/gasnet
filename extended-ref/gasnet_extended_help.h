@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2007/10/18 23:42:46 $
- * $Revision: 1.47 $
+ *     $Date: 2008/02/25 20:46:10 $
+ * $Revision: 1.47.6.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,9 +18,27 @@ GASNETI_BEGIN_EXTERNC
 #include <gasnet_help.h>
 
 /* ------------------------------------------------------------------------------------ */
+/* GASNETI_MAX_THREADS: cannot exceed the size representable in gasnete_threadidx_t, 
+   but some conduits or configures may set it to less */
 #ifndef GASNETI_MAX_THREADS
-/* cannot exceed the size representable in gasnete_threadidx_t, but some conduits may set it to less */
-#define GASNETI_MAX_THREADS 256
+  #if GASNET_SEQ
+    #define GASNETI_MAX_THREADS 1
+  #elif GASNETI_MAX_THREADS_CONFIGURE
+    #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
+  #else /* default */
+    #define GASNETI_MAX_THREADS 256
+  #endif
+#endif
+#ifdef _GASNETE_THREADIDX_T
+   /* conduit override */
+#elif GASNETI_MAX_THREADS <= 256
+  typedef uint8_t gasnete_threadidx_t;
+#elif GASNETI_MAX_THREADS <= 65536
+  typedef uint16_t gasnete_threadidx_t;
+#elif GASNETI_MAX_THREADS <= 4294967296
+  typedef uint32_t gasnete_threadidx_t;
+#else
+  typedef uint64_t gasnete_threadidx_t;
 #endif
 
 #ifndef _GASNETE_MYTHREAD

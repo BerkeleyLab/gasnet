@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2007/08/26 06:01:24 $
- * $Revision: 1.5 $
+ *     $Date: 2008/02/25 20:46:26 $
+ * $Revision: 1.5.12.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,8 +20,6 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-typedef uint8_t gasnete_threadidx_t;
-
 
 /* for compactness, eops and iops address each other in the free list using a gasnete_opaddr_t */ 
 typedef union _gasnete_opaddr_t {

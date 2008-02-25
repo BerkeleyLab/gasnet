@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2008/01/16 08:00:38 $
- * $Revision: 1.214 $
+ *     $Date: 2008/02/25 20:46:06 $
+ * $Revision: 1.214.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -67,10 +67,10 @@
 /* generic atomics support */
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
   #ifdef GASNETI_ATOMIC_LOCK_TBL_DEFNS
-    #define _gasneti_atomic_lock_initializer	PTHREAD_MUTEX_INITIALIZER
-    #define _gasneti_atomic_lock_init(x)	pthread_mutex_init((x), NULL)
+    #define _gasneti_atomic_lock_initializer	GASNETT_MUTEX_INITIALIZER
+    #define _gasneti_atomic_lock_init(x)	gasnett_mutex_init(x)
     #define _gasneti_atomic_lock_malloc		malloc
-    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_pthread_atomic_, pthread_mutex_)
+    GASNETI_ATOMIC_LOCK_TBL_DEFNS(gasneti_pthread_atomic_, gasnett_mutex_)
     #undef _gasneti_atomic_lock_initializer
     #undef _gasneti_atomic_lock_init
     #undef _gasneti_atomic_lock_malloc

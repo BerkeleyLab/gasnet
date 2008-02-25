@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2008/01/09 08:59:31 $
- * $Revision: 1.42 $
+ *     $Date: 2008/02/25 20:46:06 $
+ * $Revision: 1.42.2.1 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -402,91 +402,6 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 
   return retval;
 }
-
-/* ------------------------------------------------------------------------------------ */
-/* gasneti_cond_t Condition variables - 
-   Provides pthread_cond-like functionality, with error checking
-  GASNETI_COND_INITIALIZER - value to statically initialize a gasneti_cond_t
-  gasneti_cond_init(gasneti_cond_t *pc) - dynamically initialize a gasneti_cond_t   
-  gasneti_cond_destroy(gasneti_cond_t *pc) - reclaim a gasneti_cond_t
-  gasneti_cond_signal(gasneti_cond_t *pc) - 
-    signal at least one waiter on a gasneti_cond_t, while holding the associated mutex
-  gasneti_cond_broadcast(gasneti_cond_t *pc) - 
-    signal all current waiters on a gasneti_cond_t, while holding the associated mutex
-  gasneti_cond_wait(gasneti_cond_t *pc, gasneti_mutex_t *pl) - 
-    release gasneti_mutex_t pl (which must be held) and block WITHOUT POLLING 
-    until gasneti_cond_t pc is signalled by another thread, or until the system
-    decides to wake this thread for no good reason (which it may or may not do).
-    Upon wakeup for any reason, the mutex will be reacquired before returning.
-
-    It's an error to wait if there is only one thread, and can easily lead to 
-    deadlock if the last thread goes to sleep. No thread may call wait unless it
-    can guarantee that (A) some other thread is still polling and (B) some other
-    thread will eventually signal it to wake up. The system may or may not also 
-    randomly signal threads to wake up for no good reason, so upon awaking the thread
-    MUST verify using its own means that the condition it was waiting for 
-    has actually been signalled (ie that the client-level "outer" condition has been set).
-
-    In order to prevent races leading to missed signals and deadlock, signaling
-    threads must always hold the associated mutex while signaling, and ensure the
-    outer condition is set *before* releasing the mutex. Additionally, all waiters
-    must check the outer condition *after* acquiring the same mutex and *before*
-    calling wait (which atomically releases the lock and puts the thread to sleep).
-*/
-
-#if GASNETI_USE_TRUE_MUTEXES
-  typedef pthread_cond_t            gasneti_cond_t;
-
-  #define GASNETI_COND_INITIALIZER    PTHREAD_COND_INITIALIZER
-  #define gasneti_cond_init(pc) do {                       \
-      GASNETI_MUTEX_INITCLEAR(pc);                         \
-      gasneti_assert_zeroret(pthread_cond_init((pc), NULL)); \
-  } while (0)
-  #define gasneti_cond_destroy(pc)    gasneti_assert_zeroret(pthread_cond_destroy(pc))
-
-  #if PLATFORM_ARCH_CRAYX1 /* bug 993 - workaround for buggy pthread library */
-    static gasneti_cond_t const gasneti_cond_staticinitialized = GASNETI_COND_INITIALIZER;
-    #define GASNETI_COND_INIT_CHECK(pc) \
-      (!memcmp(&gasneti_cond_staticinitialized,(pc),sizeof(gasneti_cond_t)) ? \
-        (void)pthread_cond_init((pc), NULL) : (void)0 )
-  #else
-    #define GASNETI_COND_INIT_CHECK(pc) ((void)0)
-  #endif
-
-  #define gasneti_cond_signal(pc) do {                 \
-      GASNETI_COND_INIT_CHECK(pc);                     \
-      gasneti_assert_zeroret(pthread_cond_signal(pc)); \
-    } while (0)
-  #define gasneti_cond_broadcast(pc) do {                 \
-      GASNETI_COND_INIT_CHECK(pc);                        \
-      gasneti_assert_zeroret(pthread_cond_broadcast(pc)); \
-    } while (0)
-
-  #if GASNET_DEBUG
-    #define gasneti_cond_wait(pc,pl)  do {                          \
-      gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());       \
-      (pl)->owner = GASNETI_MUTEX_NOOWNER;                          \
-      GASNETI_COND_INIT_CHECK(pc);                                  \
-      gasneti_assert_zeroret(pthread_cond_wait(pc, &((pl)->lock))); \
-      gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);         \
-      (pl)->owner = GASNETI_THREADIDQUERY();                        \
-    } while (0)
-  #else
-    #define gasneti_cond_wait(pc,pl)  do {               \
-      GASNETI_COND_INIT_CHECK(pc);                       \
-      gasneti_assert_zeroret(pthread_cond_wait(pc, pl)); \
-    } while (0)
-  #endif
-#else
-  typedef char           gasneti_cond_t;
-  #define GASNETI_COND_INITIALIZER  '\0'
-  #define gasneti_cond_init(pc)       ((void)0)
-  #define gasneti_cond_destroy(pc)    ((void)0)
-  #define gasneti_cond_signal(pc)     ((void)0)
-  #define gasneti_cond_broadcast(pc)  ((void)0)
-  #define gasneti_cond_wait(pc,pl) \
-      gasneti_fatalerror("There's only one thread: waiting on condition variable => deadlock")
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Optional atomic operations for pointer-sized data.

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/Makefile.am,v $
-#     $Date: 2007/10/03 22:10:13 $
-# $Revision: 1.5 $
+#     $Date: 2008/02/25 20:46:14 $
+# $Revision: 1.5.8.1 $
 # Description: Makefile for GASNet ibv conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -16,21 +16,9 @@ CONDUIT_NAME=ibv
 vapi_srcdir = $(top_srcdir)/vapi-conduit
 vapi_install_hdrs = $(vapi_srcdir)/*.h
 
-##
 ## Firehose
-##
-fh_srcdir = $(top_srcdir)/other/firehose
-# Some Firehose source files need extra CFLAGS do disable strict/ANSI aliasing
-# optimizations.  By building them separately we can avoid disabling these
-# useful optimizations for the entire conduit.
-fh_special_objs =                                 \
-      $(builddir)/firehose-$(THREAD_MODEL).o      \
-      $(builddir)/firehose_region-$(THREAD_MODEL).o
-fh_install_hdrs = $(fh_srcdir)/firehose_trace.h
-$(builddir)/firehose-$(THREAD_MODEL).o: force
-	@CC@ $(LIBCFLAGS) $(FH_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose.c
-$(builddir)/firehose_region-$(THREAD_MODEL).o: force
-	@CC@ $(LIBCFLAGS) $(FH_NO_ALIAS) -o $@ -c $(fh_srcdir)/firehose_region.c
+fh_type=region
+include $(top_builddir)/other/firehose/firehose.mak
 
 ##
 ## SSH bootstrap support (built unless fork() is unavailable)
@@ -83,20 +71,19 @@ CONDUIT_SOURCELIST =                 \
       $(vapi_srcdir)/gasnet_core_sndrcv.c \
       $(vapi_srcdir)/gasnet_extended.c    \
       $(vapi_srcdir)/gasnet_firehose.c    \
-      $(fh_srcdir)/firehose_hash.c   \
-      $(ssh_sources)
+      $(fh_sourcelist) $(ssh_sources)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@IBV_INCLUDE@ -I$(vapi_srcdir) -I$(fh_srcdir) $(ssh_defines) $(mpi_defines)\
+CONDUIT_EXTRALIBCFLAGS = -I@IBV_INCLUDE@ -I$(vapi_srcdir) $(fh_extralibcflags) $(ssh_defines) $(mpi_defines)\
 			 @IBV_LIBCFLAGS@ $(rcv_thread_defines) -DGASNET_CONDUIT_IBV
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = $(vapi_install_hdrs) $(fh_install_hdrs)
+CONDUIT_EXTRAHEADERS = $(vapi_install_hdrs) $(fh_extraheaders)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(vapi_srcdir)/*.[ch] $(fh_srcdir)/*.[ch] $(ssh_deps) $(mpi_deps)
+CONDUIT_EXTRADEPS = $(vapi_srcdir)/*.[ch] $(fh_extradeps) $(ssh_deps) $(mpi_deps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/11/05 23:09:49 $
- * $Revision: 1.11 $
+ *     $Date: 2008/02/25 20:46:26 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -38,8 +38,6 @@ static void gasnetc_check_config() {
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
   gasneti_assert_always(sizeof(gasneti_weakatomic_val_t) == sizeof(uint32_t));
-  gasneti_assert_always(sizeof(gasnetc_chunk_t) == GASNETC_CHUNKSIZE);
-  gasneti_assert_always(GASNETC_PUTGET_BOUNCE_SIZE <= GASNETC_CHUNKSIZE);
   {
     int mincred = GASNETC_CHUNKSIZE/GASNETC_BYTES_PER_CREDIT +
       (GASNETC_CHUNKSIZE%GASNETC_BYTES_PER_CREDIT?1:0);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2007/10/31 05:13:59 $
- * $Revision: 1.9 $
+ *     $Date: 2008/02/25 20:46:26 $
+ * $Revision: 1.9.4.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -63,6 +63,6 @@
 	CNT(C, PUT_RAR, count)                  \
 	CNT(C, PUT_BB, count)                   \
 	CNT(C, PUT_TMPMD, count)                \
-        VAL(C, EVENT_CNT, numreaped)
+        VAL(C, EVENT_REAP, numreaped)
 
 #endif

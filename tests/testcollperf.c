@@ -106,11 +106,14 @@ if(td->my_local_thread==0 && performance_iters>0) MSG0("%d> %s/%s %s sync_mode: 
 void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int in_flags) {
   /* all threads pass the same pointers for src and dest*/
   int i,j,t,k;
+
+  double b;
   int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
   int *src, *dst;
   char output_str[8];
   gasnett_tick_t begin, end;
   char flag_str[8];
+  
   fill_flag_str(flags, flag_str);
   if(flags & GASNET_COLL_SINGLE) {
     src = (int*) (src_arr[0]); /* all threads have the same address so just use slot 0*/

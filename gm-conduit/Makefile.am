@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/01/05 10:40:14 $
-# $Revision: 1.57 $
+#     $Date: 2008/02/25 20:46:12 $
+# $Revision: 1.57.16.1 $
 # Description: Makefile for GASNet gm conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,6 +9,10 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=gm
+
+# Firehose
+fh_type=page
+include $(top_builddir)/other/firehose/firehose.mak
 
 # any conduit-specific subdirectories containing Makefile.am's
 SUBDIRS = contrib
@@ -33,10 +37,6 @@ CONDUIT_FILELIST =               \
       firehose_fwd.h		 \
       license.txt                
 
-# list of conduit core and extended .c source files 
-# to be compiled into libgasnet on the compiler command line
-fh_srcdir = $(top_srcdir)/other/firehose
-fh_install_hdrs = $(fh_srcdir)/firehose_trace.h
 CONDUIT_SOURCELIST =                       \
       $(srcdir)/gasnet_core.c              \
       $(srcdir)/gasnet_core_receive.c      \
@@ -45,9 +45,7 @@ CONDUIT_SOURCELIST =                       \
       $(srcdir)/gasnet_extended_op.c       \
       $(srcdir)/gasnet_extended_ref.c      \
       $(srcdir)/gasnet_extended_firehose.c \
-      $(fh_srcdir)/firehose.c              \
-      $(fh_srcdir)/firehose_hash.c         \
-      $(fh_srcdir)/firehose_page.c
+      $(fh_sourcelist)
 
 if GM_MPI_COMPAT
 # If using MPI for bootstrap then we must compile this object with MPI_CC
@@ -79,20 +77,20 @@ endif
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @FH_CFLAGS@ -I$(fh_srcdir) $(mpi_cflags) $(rodata_flags) -I@GM_INCLUDE@ 
+CONDUIT_EXTRALIBCFLAGS = $(fh_extralibcflags) $(mpi_cflags) $(rodata_flags) -I@GM_INCLUDE@ 
 			 
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = $(fh_install_hdrs)
+CONDUIT_EXTRAHEADERS = $(fh_extraheaders)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(fh_srcdir)/*.h $(mpi_deps)
+CONDUIT_EXTRADEPS = $(fh_extradeps) $(mpi_deps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS = $(mpi_objs) $(rodata_objs)
+CONDUIT_SPECIAL_OBJS = $(fh_special_objs) $(mpi_objs) $(rodata_objs) 
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

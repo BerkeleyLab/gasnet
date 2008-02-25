@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.11 $
+$Revision: 1.11.6.1 $
 
 User Information:
 -----------------
@@ -180,6 +180,16 @@ GASNET_PORTAL_AMRECV_SPACE=N
   The number of bytes to allocate for the ReqRB space.
   By default, this is determined via a table lookup based on the number of
   nodes in the job.
+
+GASNET_PORTAL_PUTGET_BOUNCE_LIMIT=N
+  The largest transfer size for which a Put or Get with out-of-segment local
+  address is copied through pre-pinned bounce buffers.  For out-of-segment
+  transfers of larger size, dynamic memory registration (TMPMD) is used.
+  The current default is 1k on Catamount and 2k on Linux.
+  The maximum is the size of a ReqSB chunk.
+  (The Gets require sizeof(void*) of additional temporary storage, which will
+  be silently deducted from this limit if the sum would otherwise exceed the
+  chunk size.)
 
 * All the standard GASNet environment variables (see top-level README)
 

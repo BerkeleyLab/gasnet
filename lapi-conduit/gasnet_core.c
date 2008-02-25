@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/10/31 22:40:38 $
- * $Revision: 1.91 $
+ *     $Date: 2008/02/25 20:46:16 $
+ * $Revision: 1.91.4.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -68,9 +68,9 @@ unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
  * Extra information needed for LAPI User Level RDMA
  */
 
+static int gasnetc_num_pvos = 0;
+static lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
 int gasnetc_lapi_use_rdma;
-int gasnetc_num_pvos;
-lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
 lapi_remote_cxt_t **gasnetc_remote_ctxts = NULL;
 lapi_user_pvo_t **gasnetc_pvo_table = NULL;
 lapi_long_t *gasnetc_segbase_table = NULL;
@@ -699,10 +699,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 * (Protocol Virtual Offsets) for
 	 * the region. */
 	 {
-	 int num_pvos;
+	 int my_num_pvos;
          int i=0;
          int j=0;
-         lapi_get_pvo_t *gasnetc_node_pvo_list = NULL;
          uintptr_t tmp_offset = 0;
          if (segbase) { /* bug 2176: warn if segment is not large page */
            size_t large_pagesz = sysconf(_SC_LARGE_PAGESIZE);
@@ -717,10 +716,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
            }
          }
 	 /* Break up the segment */
-	 gasnetc_num_pvos = num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
-         GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %ld segment size = %ld segment base = %ld\n",gasneti_mynode,num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(uint64_t) segbase));
-	 gasnetc_node_pvo_list = gasneti_malloc(num_pvos*sizeof(lapi_get_pvo_t));
-         memset((void *) gasnetc_node_pvo_list,0,num_pvos*sizeof(lapi_get_pvo_t));
+	 my_num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
+         GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %ld segment size = %ld segment base = %ld\n",gasneti_mynode,my_num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(uint64_t) segbase));
+	 gasnetc_node_pvo_list = gasneti_malloc(my_num_pvos*sizeof(lapi_get_pvo_t));
+         memset((void *) gasnetc_node_pvo_list,0,my_num_pvos*sizeof(lapi_get_pvo_t));
 
 	 while(tmp_offset < segsize) {
 	 	/* Attempt to get a PVO for this section */
@@ -735,8 +734,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 	tmp_offset += GASNETC_LAPI_PVO_EXTENT;
 	 	i++;
 	 }
-	 
-    for(i=0;i < num_pvos;i++) {
+
+    for(i=0;i < my_num_pvos;i++) {
       GASNETI_TRACE_PRINTF(C,("after getting node %d gasnetc_node_pvo_list[%d].usr_pvo = %ld\n",gasneti_mynode, i,(uint64_t)( gasnetc_node_pvo_list[i].usr_pvo)));
     }		
 
@@ -745,26 +744,34 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
      * (node, offset) pair, a remode node can find the
      * corresponding PVO
      */
-    
+    gasnetc_num_pvos = my_num_pvos;
+    for (i=0;i < gasneti_nodes;i++) {
+	int tmp = ( gasneti_seginfo[i].size + (GASNETC_LAPI_PVO_EXTENT-1))/GASNETC_LAPI_PVO_EXTENT;
+	if (tmp > gasnetc_num_pvos) gasnetc_num_pvos = tmp;
+    }
+	 
     /*
      * Please note that this table is indexed by (pvo,node)
      * and not the other way around.  This is so we can
      * use LAPI_Address_init64() to exchange all of them
      */
     
-    gasnetc_pvo_table = (lapi_user_pvo_t **) gasneti_malloc(num_pvos * sizeof(lapi_user_pvo_t *));
+    gasnetc_pvo_table = (lapi_user_pvo_t **) gasneti_malloc(gasnetc_num_pvos * sizeof(lapi_user_pvo_t *));
     
-    for(i=0;i < num_pvos;i++) {
+    for(i=0;i < gasnetc_num_pvos;i++) {
       gasnetc_pvo_table[i] = (lapi_user_pvo_t *) gasneti_malloc(gasneti_nodes*sizeof(lapi_user_pvo_t));
       memset((void *) (gasnetc_pvo_table[i]),0,gasneti_nodes*sizeof(lapi_user_pvo_t));
     }
 	  
-    /* Exchange
+    /* Exchange, padding with zeros if local segment is smaller than others
      */
 	  
-    for(i=0;i < num_pvos;i++) {
+    for(i=0;i < my_num_pvos;i++) {
       GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t) (gasnetc_node_pvo_list[i].usr_pvo),
 					 gasnetc_pvo_table[i]));
+    }		
+    for(i=my_num_pvos;i < gasnetc_num_pvos;i++) {
+      GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, (lapi_long_t)0, gasnetc_pvo_table[i]));
     }		
 
     GASNETC_LCHECK(LAPI_Gfence(gasnetc_lapi_context));

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2007/03/01 01:37:21 $
-# $Revision: 1.29 $
+#     $Date: 2008/02/25 20:46:20 $
+# $Revision: 1.29.14.1 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -17,10 +17,10 @@ CONDUITMODE_SUBDIRS = \
         ammpi      \
 	amudp	   \
 	contrib    \
+	firehose   \
 	testspawn
 CONDUITMODE_EXTRADIST = \
 	amxtests    \
-	firehose    \
 	ssh-spawner \
 	mpi-spawner \
   # 	exclude these from distribution for now

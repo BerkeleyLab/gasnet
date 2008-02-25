@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2006/07/10 05:56:25 $
- * $Revision: 1.33 $
+ *     $Date: 2008/02/25 20:46:12 $
+ * $Revision: 1.33.28.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -22,8 +22,6 @@
 	fh_none, fh_onesided, fh_one, fh_many
   } gasnetc_fh_stats_t;
 #endif
-
-typedef uint8_t gasnete_threadidx_t;
 
 /* gasnet_handle_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t

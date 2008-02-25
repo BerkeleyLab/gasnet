@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.49 $
+$Revision: 1.49.6.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -517,7 +517,7 @@ $Revision: 1.49 $
   of the pinnable memory will go in the main pool and 25% into the victim
   pool.  In a GASNET_SEGMENT_FAST configuration, firehose is not needed
   for management of the statically pinned GASNet segment, and by default
-  only a small fraction of the the available memory is placed in the main
+  only a small fraction of the available memory is placed in the main
   pool and the majority is placed in the victim pool.
 
   + GASNET_USE_FIREHOSE
@@ -758,7 +758,7 @@ Notes for myself for extended API:
     thread-specific data, possibly in an access-region.
   - For the explicit handle forms the request counter must be allocated
     from some pool, requiring some memory management work.  This is
-    done with a modification to the code from the the reference
+    done with a modification to the code from the reference
     implementation, and uses thread-local data to avoid locks.
 
 + The memsets can be more efficiently implemented as a _local_ memset

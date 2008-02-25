@@ -12,7 +12,7 @@ MICROBLAZE_HOME="/home/proj/blue/microblaze-gcc-sources-2/release/lin/microblaze
 COMPILEMODE_FLAGS="-Os -g" # -Os required for correct operation?
 #COMPILEMODE_FLAGS="-g"
 
-COMPILEDEFS="-DEMBED -Dlinux -D__linux__ -Dunix -D__uClinux__ -DMB_CC"
+COMPILEDEFS="-DEMBED -Dlinux -D__linux__ -Dunix -D__uClinux__ -DMB_FSL_CC -DMB_TICKS_PER_US=100"
 
 CODEGENFLAGS="-fomit-frame-pointer -fno-builtin -msoft-float -mxl-soft-mul -mxl-soft-div"
 

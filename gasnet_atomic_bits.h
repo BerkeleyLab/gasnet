@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2008/01/16 05:50:12 $
- * $Revision: 1.284 $
+ *     $Date: 2008/02/25 20:46:06 $
+ * $Revision: 1.284.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2476,11 +2476,10 @@
     /* Case II: Empty HSLs in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */
   #elif GASNETI_USE_TRUE_MUTEXES /* thread-safe tools-only client OR forced true mutexes */
     /* Case III: a version for pthreads which is independent of GASNet HSL's */
-    #include <pthread.h>
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
-		pthread_mutex_t * const lock = gasneti_pthread_atomic_hash_lookup((uintptr_t)ptr)
-    #define GASNETI_GENATOMIC_LOCK()   pthread_mutex_lock(lock)
-    #define GASNETI_GENATOMIC_UNLOCK() pthread_mutex_unlock(lock)
+		gasnett_mutex_t * const lock = gasneti_pthread_atomic_hash_lookup((uintptr_t)ptr)
+    #define GASNETI_GENATOMIC_LOCK()   gasnett_mutex_lock(lock)
+    #define GASNETI_GENATOMIC_UNLOCK() gasnett_mutex_unlock(lock)
 
     /* Name shift to avoid link conflicts between hsl and pthread versions */
     #define gasneti_genatomic32_set                gasneti_pthread_atomic32_set
