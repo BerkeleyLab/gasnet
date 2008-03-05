@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_fwd_sample.h,v $
- *     $Date: 2004/08/26 04:53:57 $
- * $Revision: 1.3 $
+ *     $Date: 2008/03/05 20:26:08 $
+ * $Revision: 1.5 $
  * Description: Firehose forward declarations
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,9 +24,21 @@ struct _firehose_client_t {
 	int	example_conduit_key;	/* conduit-specific */
 }
 firehose_client_t;
-#endif
+#endif /* FIREHOSE_CLIENT_T */
 
-#endif
+/* REQUIRED for Region
+ * Define the next two to be the default values of the
+ * maximum region size and count, respectively.  These
+ * are used when the env vars don't fully specify the
+ * values to use.
+ * These don't need to be compile-time constants (e.g. they
+ * can name global variables), but they must have valid
+ * values prior to calling firehose_init().
+ */
+#define FIREHOSE_CLIENT_MAXREGION_SIZE	0
+#define FIREHOSE_CLIENT_MAXREGIONS	0
+
+#endif /* FIREHOSE_REGION */
 
 /* Remote and completion callbacks
  *
