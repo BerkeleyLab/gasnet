@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2008/01/09 03:14:45 $
- * $Revision: 1.201 $
+ *     $Date: 2008/03/05 21:14:58 $
+ * $Revision: 1.201.6.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -112,6 +112,19 @@ static int gasnetc_qp_timeout, gasnetc_qp_retry_count;
   #define GASNET_VAPI_PORTS_STR "GASNET_IBV_PORTS"
   #define GASNET_CONDUIT_NAME_STR_LC "ibv"
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+
+/* conduit-specific firehose region parameters
+ * Note that these are kept to sane sizes rather than the HCA limit
+ * 128kB is the peak of the bandwidth curve and thus a good size.
+ * With 32k * 128k = 4G we can pin upto 4GB of physical memory with these.
+ * We don't yet deal well with many small regions.
+ * Note that GASNET_FIREHOSE_* env vars can override these.
+ * XXX: HCA-specific defaults should be used (see bug 2229).
+ */
+unsigned int gasnetc_fh_maxregions = 32768;
+unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1087,9 +1100,9 @@ static int gasnetc_init(int *argc, char ***argv) {
         mr_needed++;		/* XXX: need more than 1 due to gasnetc_pin_maxsz */
       #endif
       #if FIREHOSE_VAPI_USE_FMR
-        fmr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* FMRs needed for firehoses */
+        fmr_needed += gasnetc_fh_maxregions;	/* FMRs needed for firehoses */
       #else
-        mr_needed += FIREHOSE_CLIENT_MAXREGIONS;	/* regular MRs needed for firehoses */
+        mr_needed += gasnetc_fh_maxregions;	/* regular MRs needed for firehoses */
       #endif
   
       GASNETI_TRACE_PRINTF(C,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
@@ -1815,7 +1828,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         hca->fmr_props.acl = GASNETC_ACL_LOC_WR | GASNETC_ACL_REM_WR | GASNETC_ACL_REM_RD;
         hca->fmr_props.log2_page_sz = GASNETI_PAGESHIFT;
         hca->fmr_props.max_outstanding_maps = 1;
-        hca->fmr_props.max_pages = FIREHOSE_CLIENT_MAXREGION_SIZE / GASNET_PAGESIZE;
+        hca->fmr_props.max_pages = gasnetc_fh_maxsize / GASNET_PAGESIZE;
       }
     }
     #endif
@@ -1837,7 +1850,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	flags |= FIREHOSE_INIT_FLAG_UNPIN_ON_FINI;
       #endif
 
-      firehose_init(firehose_mem, firehose_reg,
+      firehose_init(firehose_mem, firehose_reg, gasnetc_fh_maxsize,
 		    prereg, reg_count, flags, &gasnetc_firehose_info);
     }
 
