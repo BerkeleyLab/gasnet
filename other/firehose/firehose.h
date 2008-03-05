@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2007/10/26 20:22:47 $
- * $Revision: 1.19 $
+ *     $Date: 2008/03/05 21:14:55 $
+ * $Revision: 1.19.10.1 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -310,29 +310,37 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  * miss will propagate such information across the network.
  *
  * Firehose separates pinning resources using two parameters:
- *   1. The 'maximum_pinnable_memory' is the upper bound for the
- *      firehose 'M' parameter and must be the largest global minimum
+ *   1. The 'max_pinnable_memory' is the upper bound for the
+ *      firehose 'M' parameter and must be the global minimum
  *      of the largest amount of memory that can be pinned by each
  *      node.  This value should be a fraction of the amount of
  *      physical memory a single process can pin and it is up to the
  *      client to implement a network specific exchange operation to
  *      find the global minimum.
- *   2. The 'maximum_regions' is the upper bound for the firehose
- *      'R' parameter and must be the largest global minimum of
+ *   2. The 'max_regions' is the upper bound for the firehose
+ *      'R' parameter and must be the global minimum of
  *      the largest amount of regions that can be allocated by each
+ *      node.
+ *   3. The 'max_region_size' is the upper bound for the firehose
+ *      'RS' parameter and must be the global minimum of
+ *      the largest size region that can be allocated by each
  *      node.
  *
  * Along with the global minimum requirement, each thread is required
- * to pass the same 'max_pinnable_memory' and 'max_regions' values to
- * the function.  Setting either value to zero removes the constraints
+ * to pass the same 'max_pinnable_memory', 'max_regions' and
+ * 'max_region_size' values to the function.
+ * For FIREHOSE_PAGE, these should all three be zero.
+ * UNIMPLEMENTED: Setting any value to zero removes the constraints
  * associated to the count.  In other words, the firehose algorithm
  * can consider there to be no constraints on the amount of pinned
  * memory or maximum regions if either value is set to 0.
  */
 extern void
-firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
+firehose_init(uintptr_t max_pinnable_memory,
+	      size_t max_regions, size_t max_region_size,
 	      const firehose_region_t *prepinned_regions,
-              size_t num_reg, uint32_t flags, firehose_info_t *info);
+              size_t num_prepinned, uint32_t flags,
+	      firehose_info_t *info);
 
 /* Environment variables used in firehose initialization
  *

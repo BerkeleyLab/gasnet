@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2007/10/15 21:06:18 $
- * $Revision: 1.33 $
+ *     $Date: 2008/03/05 21:14:55 $
+ * $Revision: 1.33.10.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,9 +81,10 @@ int fh_verbose = 0;
 uint32_t	fhi_InitFlags = 0;
 
 extern void
-firehose_init(uintptr_t max_pinnable_memory, size_t max_regions, 
+firehose_init(uintptr_t max_pinnable_memory,
+	      size_t max_regions, size_t max_region_size,
 	      const firehose_region_t *prepinned_regions,
-              size_t num_reg, uint32_t flags, firehose_info_t *info)
+              size_t num_prepinned, uint32_t flags, firehose_info_t *info)
 {
 	int	i;
 
@@ -97,7 +98,7 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 		       FH_MAXVICTIM_TO_PHYSMEM_RATIO <= 1);
 
 	/* validate the prepinned regions list */
-	for (i = 0; i < num_reg; i++) {
+	for (i = 0; i < num_prepinned; i++) {
 		const firehose_region_t *region = &prepinned_regions[i];
 		if (region->addr % FH_BUCKET_SIZE != 0)
 			gasneti_fatalerror("firehose_init: prepinned "
@@ -145,8 +146,8 @@ firehose_init(uintptr_t max_pinnable_memory, size_t max_regions,
 	/* Initialize -page OR -region specific data. _MUST_ be the last thing
 	 * called before return */
 	fhi_InitFlags = flags;
-	fh_init_plugin(max_pinnable_memory, max_regions, prepinned_regions, 
-		       num_reg, info);
+	fh_init_plugin(max_pinnable_memory, max_regions, max_region_size,
+		       prepinned_regions, num_prepinned, info);
 
 	FH_TABLE_UNLOCK;
 
