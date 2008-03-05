@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2008/03/05 21:14:55 $
- * $Revision: 1.19.10.1 $
+ *     $Date: 2008/03/05 21:26:04 $
+ * $Revision: 1.19.10.2 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -309,7 +309,7 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  * to remote peers.  Only the process of resolving a remote firehose
  * miss will propagate such information across the network.
  *
- * Firehose separates pinning resources using two parameters:
+ * Firehose allocates pinning resources using three parameters:
  *   1. The 'max_pinnable_memory' is the upper bound for the
  *      firehose 'M' parameter and must be the global minimum
  *      of the largest amount of memory that can be pinned by each
@@ -319,17 +319,18 @@ extern gasnet_handlerentry_t * firehose_get_handlertable();
  *      find the global minimum.
  *   2. The 'max_regions' is the upper bound for the firehose
  *      'R' parameter and must be the global minimum of
- *      the largest amount of regions that can be allocated by each
+ *      the largest number of regions that can be allocated by each
  *      node.
  *   3. The 'max_region_size' is the upper bound for the firehose
  *      'RS' parameter and must be the global minimum of
  *      the largest size region that can be allocated by each
  *      node.
  *
- * Along with the global minimum requirement, each thread is required
+ * Along with the global minimum requirement, each node is required
  * to pass the same 'max_pinnable_memory', 'max_regions' and
  * 'max_region_size' values to the function.
- * For FIREHOSE_PAGE, these should all three be zero.
+ * For firehose-page 'max_regions' and 'max_region_size' must be 0.
+ *
  * UNIMPLEMENTED: Setting any value to zero removes the constraints
  * associated to the count.  In other words, the firehose algorithm
  * can consider there to be no constraints on the amount of pinned
