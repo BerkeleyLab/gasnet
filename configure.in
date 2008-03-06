@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/02/25 20:46:06 $
-# $Revision: 1.479.2.1 $
+#     $Date: 2008/03/06 19:57:30 $
+# $Revision: 1.479.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.479.2.1 $)
+AC_REVISION($Revision: 1.479.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -958,7 +958,7 @@ AM_CONDITIONAL(BUILD_PARSYNC_LIBS, test "$build_parsync_libs" = "yes")
 
 GASNET_WITH(max-pthreads-per-node, [Set max pthreads supported per GASNet node],
   [AC_DEFINE_UNQUOTED(GASNETI_MAX_THREADS_CONFIGURE, $withval)]
-  ])
+  )
 
 GASNETI_CACHE_LINE_BYTES=""
 if test "$have_pthread" = no ; then

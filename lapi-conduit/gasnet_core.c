@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/02/25 20:46:16 $
- * $Revision: 1.91.4.1 $
+ *     $Date: 2008/03/06 19:57:34 $
+ * $Revision: 1.91.4.2 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,6 +53,15 @@ GASNETI_IDENT(gasnetc_IdentString_ConduitConfig,
 	"$GASNetConduitConfig: lapi_type=" GASNETC_LAPI_TYPE_STR ",lapi_rdma=" GASNETC_LAPI_RDMA_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
+
+/* Firehose configuration */
+/* XXX: TODO make these enviroment tunable and/or auto-probe */
+#define GASNETC_FH_MAXREGIONS 1024
+/*  before was 2 megs and 64 megs */
+/* #define GASNETC_FH_MAXREGION_SIZE (16L*1024L*1024L) */
+/* #define GASNETC_FH_MAXREGION_SIZE (64L*1024L) */
+#define GASNETC_FH_MAXREGION_SIZE (2L*1024L*1024L)
+#define GASNETC_FH_MAX_PINNABLE (128L*1024L*1024L)
 
 /* -------------------------------------------------------------------
  * Begin: LAPI specific variables
@@ -667,13 +676,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 #endif /* GASNET_SEGMENT_EVERYTHING */
     if(gasnetc_use_firehose) {
       uint32_t flags = 0;
-      size_t max_regions = FIREHOSE_CLIENT_MAXREGIONS;
-      /* uintptr_t max_pinnable_memory = FIREHOSE_CLIENT_MAXREGION_SIZE*FIREHOSE_CLIENT_MAXREGIONS; */
+      size_t max_regions = GASNETC_FH_MAXREGIONS;
+      /* uintptr_t max_pinnable_memory = GASNETC_FH_MAXREGION_SIZE*GASNETC_FH_MAXREGIONS; */
 #if GASNET_SEGMENT_EVERYTHING
 #else
       flags = FIREHOSE_INIT_FLAG_LOCAL_ONLY;
 #endif
-      firehose_init(FIREHOSE_MAX_PINNABLE, max_regions, NULL, 0, flags, &gasnetc_firehose_info);
+      firehose_init(GASNETC_FH_MAX_PINNABLE, max_regions, GASNETC_FH_MAXREGION_SIZE, NULL, 0, flags, &gasnetc_firehose_info);
     }
     }
 #endif /* GANSETC_LAPI_RDMA */
@@ -935,6 +944,8 @@ void *gasnetc_run_shutdown(void *arg)
     pthread_detach(pthread_self());
     /* we were created to die */
     gasnet_exit(amexit_exitcode);
+    /* NOT REACHED */
+    return NULL;
 }
 
 void* gasnetc_amexit_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2008/02/25 20:46:16 $
- * $Revision: 1.62.4.1 $
+ *     $Date: 2008/03/06 19:57:34 $
+ * $Revision: 1.62.4.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -525,6 +525,19 @@ void* gasnete_lapi_memset_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
  * Try to resuse as much code as possible
  */
 
+#if !GASNET_SEGMENT_EVERYTHING
+/* returns offset, sets pvo by reference
+ * 'offset' is the offset relative to the GASNet segment (e.g. addr - segbase[node])
+ * TODO: use shift and mask, not / and %
+ */
+GASNETI_INLINE(gasnetc_lapi_pvo_and_offset)
+unsigned int gasnetc_lapi_pvo_and_offset(gasnet_node_t node, lapi_long_t offset, lapi_user_pvo_t *pvo_p)
+{
+	*pvo_p = gasnetc_pvo_table[offset / GASNETC_LAPI_PVO_EXTENT][node];
+	return (unsigned int)(offset % GASNETC_LAPI_PVO_EXTENT);
+}
+#endif
+
 static gasneti_mutex_t nb_lock = GASNETI_MUTEX_INITIALIZER;
 int64_t gasnet_lapi_bytes_pinned = 0;
 /* Pin like there's no tomorrow! */
@@ -1036,28 +1049,19 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
         source_offset = nb_id->offset;
         source_pvo = nb_id->pvo;
       } else {
-        length_to_boundary = (int) MIN(GASNETC_LAPI_PVO_EXTENT - ((local_p_to_long + nbytes_transferred - gasnetc_segbase_table[gasneti_mynode]) % GASNETC_LAPI_PVO_EXTENT),
-		     nbytes - nbytes_transferred);
-      
         /* Try to transfer this chunk of bytes.  It will either take
             one or two RDMA calls depending on whether or not it is entirely
             within a single PVO region at the target */
        
+        source_offset = gasnetc_lapi_pvo_and_offset(gasneti_mynode, (local_p_to_long + nbytes_transferred - gasnetc_segbase_table[gasneti_mynode]), &source_pvo);
+        length_to_boundary = (int) MIN(GASNETC_LAPI_PVO_EXTENT - source_offset, nbytes - nbytes_transferred);
         chunk_remaining = length_to_boundary;
-        source_offset = ((local_p_to_long + nbytes_transferred - gasnetc_segbase_table[gasneti_mynode]) % GASNETC_LAPI_PVO_EXTENT);
-        source_pvo = gasnetc_pvo_table[(local_p_to_long + nbytes_transferred - gasnetc_segbase_table[gasneti_mynode])/
-				         GASNETC_LAPI_PVO_EXTENT][gasneti_mynode];  
       }
 
       first_call=1; 
       do {
-
-	remote_pvo = gasnetc_pvo_table[(remote_p_to_long + nbytes_transferred -
-				       gasnetc_segbase_table[node]) / GASNETC_LAPI_PVO_EXTENT][node];
-	length_to_remote_boundary = MIN(GASNETC_LAPI_PVO_EXTENT - ((remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]) 
-							      % GASNETC_LAPI_PVO_EXTENT),chunk_remaining);
-
-        remote_offset = ((remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]) % GASNETC_LAPI_PVO_EXTENT);
+        remote_offset = gasnetc_lapi_pvo_and_offset(node, (remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]), &remote_pvo);
+	length_to_remote_boundary = MIN(GASNETC_LAPI_PVO_EXTENT - remote_offset, chunk_remaining);
 
         if(using_network_buffer && first_call) {
           first_call=0;
@@ -1122,15 +1126,10 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
         /* This is how much I can do for now */
         transfer_len = MIN(ask_bytes, fh_req->len - (local_p_to_long + nbytes_transferred - (lapi_long_t) fh_req->addr));
 
-        /* These are the PVOs */ 
 	xfer_struct.HwXfer.src_pvo = fh_req->client.pvo;
-	xfer_struct.HwXfer.tgt_pvo =
-	  gasnetc_pvo_table[(remote_p_to_long + nbytes_transferred -
-	    gasnetc_segbase_table[node]) /
-	   GASNETC_LAPI_PVO_EXTENT][node];
 
-        /* Get source and target offsets */
-        remote_offset = ((remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]) % GASNETC_LAPI_PVO_EXTENT);
+        /* Remote offset and PVO */
+	remote_offset = gasnetc_lapi_pvo_and_offset(node, (remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]), &xfer_struct.HwXfer.tgt_pvo);
 	xfer_struct.HwXfer.tgt_offset = remote_offset;
 
         /* Update because of remote alignment issues */
@@ -1158,7 +1157,6 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
         remaining_bytes -= transfer_len; 
       }
     } else {
-      first_call = 1;
       while (nbytes_transferred < nbytes) {
         /* Compute the number of bytes to be transferred in this step.  Try
          * to align the local and remote sides so that the maximum amount of data
@@ -1166,32 +1164,19 @@ extern gasnete_eop_t *gasnete_lapi_do_rdma(void *dest, gasnet_node_t node, void 
       
         /* Do this first to put a brake on pinning */
         pvo_container = gasnetc_lapi_new_pvo();
-        if (first_call) {
-      	  /* Transfer only up to the next PVO boundary on the remote side */
-          remote_offset = ((remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]) % GASNETC_LAPI_PVO_EXTENT);
-  	  source_offset = 0;
+
+      	/* Transfer only up to the next PVO boundary on the remote side */
+        /* We could (and once did) try to optimize for the fact that after
+         * the first pass we are guaranteed to be remotely aligned.  However,
+         * that eliminates so little work as not to seem worth it.  -PHH */
+          remote_offset = gasnetc_lapi_pvo_and_offset(node, (remote_p_to_long + nbytes_transferred - gasnetc_segbase_table[node]), &xfer_struct.HwXfer.tgt_pvo);
 	  transfer_len = MIN (nbytes - nbytes_transferred, GASNETC_LAPI_PVO_EXTENT - remote_offset);
 	  xfer_struct.HwXfer.src_pvo = gasnetc_lapi_get_local_pvo(local_p_to_long + nbytes_transferred, transfer_len);
           pvo_container->len = transfer_len;
-	  xfer_struct.HwXfer.tgt_pvo =
-	    gasnetc_pvo_table[(remote_p_to_long + nbytes_transferred -
-			    gasnetc_segbase_table[node]) /
-			   GASNETC_LAPI_PVO_EXTENT][node];
 	  xfer_struct.HwXfer.tgt_offset = remote_offset;
-	  xfer_struct.HwXfer.src_offset = source_offset;
-        } else {
-	  /* Can now transfer in chunks of size GASNETC_LAPI_PVO_EXTENT */
-	  transfer_len = MIN (GASNETC_LAPI_PVO_EXTENT, nbytes - nbytes_transferred);
-	  xfer_struct.HwXfer.src_pvo = gasnetc_lapi_get_local_pvo (local_p_to_long + nbytes_transferred, transfer_len);
-          pvo_container->len = transfer_len;
-	  xfer_struct.HwXfer.tgt_pvo = gasnetc_pvo_table[(remote_p_to_long + nbytes_transferred -
-						       gasnetc_segbase_table[node]) / GASNETC_LAPI_PVO_EXTENT][node];
-	  xfer_struct.HwXfer.tgt_offset = 0;
 	  xfer_struct.HwXfer.src_offset = 0;
-        }
 
         pvo_container->pvo = xfer_struct.HwXfer.src_pvo;
-        first_call = 0;
         xfer_struct.HwXfer.Xfer_type = LAPI_RDMA_XFER;
         xfer_struct.HwXfer.tgt = node;
         xfer_struct.HwXfer.op = op;
