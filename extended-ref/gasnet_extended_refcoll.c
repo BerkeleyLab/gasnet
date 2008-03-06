@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/30 15:21:01 $
- * $Revision: 1.72 $
+ *     $Date: 2008/03/06 20:00:49 $
+ * $Revision: 1.72.4.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,13 +8,14 @@
 
 #define GASNET_COLL_TREE_DEBUG 0
 #include <gasnet_internal.h>
-#include <gasnet_coll.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_trees.h>
 #include <gasnet_coll_autotune.h>
 #include <gasnet_extended_refcoll.h>
 #include <gasnet_vis.h>
+
+
 
 /*TEMPORARY (Need to eventually change it such that 
 the files are compiled under their own .o files)*/
@@ -1008,6 +1009,11 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
 
   return retval;
 }
+#if GASNETE_SMP_COLL_OVERRIDE
+extern void gasnete_smp_coll_init(gasnete_coll_team_t team, const gasnet_image_t images[], gasnet_image_t my_image,
+			   const gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
+			   int init_flags GASNETE_THREAD_FARG);
+#endif
 
 extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
 			      gasnet_coll_fn_entry_t fn_tbl[], size_t fn_count,
@@ -1168,6 +1174,11 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     gasnet_barrier_notify((int)gasnete_coll_sequence,0);
     gasnet_barrier_wait((int)gasnete_coll_sequence,0);
   }
+  
+  #if GASNETE_SMP_COLL_OVERRIDE
+  gasnete_smp_coll_init(GASNET_TEAM_ALL, images, my_image, fn_tbl, fn_count, init_flags GASNETE_THREAD_PASS);
+  #endif
+  
   if (images) {
     /* Simple barrier */
     gasneti_mutex_lock(&init_lock);
@@ -1184,7 +1195,6 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   gasnete_coll_init_done = 1;
 
   /* Only thread-local initialization may follow this point */
-
   #if GASNET_DEBUG
     /* Ensure agreement across threads */
     gasneti_assert(fn_count == gasnete_coll_fn_count);
