@@ -830,9 +830,9 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
-extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+extern size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
-extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+extern size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc,
 			   gasneti_weakatomic_t *lcc, gasnetc_pollflag_t pollflag);
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,

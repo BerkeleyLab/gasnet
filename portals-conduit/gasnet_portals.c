@@ -3968,9 +3968,17 @@ extern void gasnetc_ptl_trace_finish(void)
 /* ------------------------------------------------------------------------------------
  * This function does the actual Portals Get operation for the extended API Get
  * operations.
+ * dest       => Address of destination
+ * node       => Which GASNet node to send message to
+ * src        => Address of source, must be in remote RAR
+ * nbytes     => Length of message
+ * match_bits => Destination MD, may be modified in case of bb
+ * pollflag   => What type of polling to allow before Get operation is posted.
  * If we have reached the put/get limit, we poll as directed.
+ *
+ * Returns the number of bytes actually initiated
  * --------------------------------------------------------------------------------- */
-void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 		    ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag)
 {
   ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
@@ -3995,6 +4003,9 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
       break;
     }
   }
+
+  /* Trim */
+  nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
 
   /* Determine destination MD for Ptl Get */
   if (gasnetc_in_local_rar(dest,nbytes)) {
@@ -4026,6 +4037,7 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 
   GASNETC_PTLSAFE(PtlGetRegion(md_h, local_offset, nbytes, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset));
 
+  return nbytes;
 }
 
 /* ------------------------------------------------------------------------------------
@@ -4042,8 +4054,10 @@ void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
  *               Important: initialized by sender, only modify if must wait for local compl.
  * lcc        => Pointer to weakatomic that we increment before posting Put
  * pollflag   => What type of polling to allow before Put operation is posted.
+ *
+ * Returns the number of bytes actually initiated
  * --------------------------------------------------------------------------------- */
-void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 		    ptl_match_bits_t match_bits, int isbulk, int *wait_lcc, gasneti_weakatomic_t *lcc,
 		    gasnetc_pollflag_t pollflag)
 {
@@ -4060,7 +4074,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
     switch (pollflag) {
     case GASNETC_NO_POLL:
-      gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
+      gasneti_fatalerror("gasnetc_putmsg: msg limit but NO_POLL allowed");
       break;
     case GASNETC_SAFE_POLL:
       gasnetc_portals_poll(pollflag);
@@ -4070,6 +4084,9 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
       break;
     }
   }
+
+  /* Trim */
+  nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
 
   /* Determine source MD for Ptl Put */
   if (gasnetc_in_local_rar(src,nbytes)) {
@@ -4106,6 +4123,7 @@ void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   /* Issue Ptl Put operation */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 
+  return len;
 }
 
 /* Need a special signal handler for Catamount, cant even do I/O in signal context.
