@@ -853,20 +853,16 @@ static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t 
 
 /* ------------------------------------------------------------------------------------
  * Trivial chunk allocator for bounce buffer and Msg Send buffers.
- * (1) WARNING WARNING WARNING!
- *     Not a thread-safe freelist implementation!!!
- *     Can easily have one thread pulling something off the list while a portals
- *     event handler, executing in another thread is putting a chunk back on the list.
- *     Must change for multi-threaded implementation.
+ * (1) Just a simple mutex-protected freelist implementation.
  * (2) What we really should have is an efficient buddy-buffer implementation so that
- *     small messages dont have to allocate a full KB.  Concern that this will be expensive
- *     and even more expensive in multi-threaded environment.
+ *     small messages don't have to allocate a full KB.  Concern that this will be expensive
+ *     and even more expensive in multi-threaded environment (larger critical section).
  * --------------------------------------------------------------------------------- */
 static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t nchunks)
 {
   int i;
   size_t nbytes = nchunks * GASNETC_CHUNKSIZE;
-  gasnetc_chunk_t *p;
+  void **p;
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_chunk_init for %s with %lu chunks",name,(ulong)nchunks));
   buf->name = gasneti_strdup(name);
@@ -880,14 +876,14 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
   buf->hwm = 0;
   buf->freelist = NULL;
   GASNETI_TRACE_PRINTF(C,("CHUNK_INIT: %s nchunks=%i, nbytes=%i, start=0x%p",name,(int)nchunks,(int)nbytes,buf->start));
-  p = (gasnetc_chunk_t*) buf->start;
+  p = (void **)buf->start;
   if (p == NULL) {
     gasneti_fatalerror("failed to alloc %i bytes for chunk allocator %s at %s",(int)nbytes,name,gasneti_current_loc);
   }
   for (i = 0; i < nchunks; i++) {
-    p->next = buf->freelist;
+    *p = buf->freelist;
     buf->freelist = p;
-    p++;
+    p = (void**)((uint8_t*)p + GASNETC_CHUNKSIZE);
   }
 }
 
@@ -2962,7 +2958,7 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
  * --------------------------------------------------------------------------------- */
 extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset)
 {
-    gasnetc_chunk_t *p;
+    void **p;
     
     gasneti_assert(buf->use_chunks);
 
@@ -2974,6 +2970,8 @@ extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size
      * gain lock to check if freelist is empty.  It would be last var set before unlock
      * and membar would insure reads would reflect it.  Of course, would still have to
      * check freelist condition when lock is gotten
+     * PHH: But why optimize for the empty case?  If we have no chunks left then we
+     * are going to spin-poll anyway, unless we are already in gasnetc_portals_poll().
      */
     gasneti_mutex_lock(&buf->lock);
     if (buf->freelist == NULL) {
@@ -2981,7 +2979,7 @@ extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size
       return 0;
     }
     p = buf->freelist;
-    buf->freelist = p->next;
+    buf->freelist = *p;
     *offset = ((uint8_t*)p - (uint8_t*)(buf->start));
 #if GASNETI_STATS_OR_TRACE
     buf->inuse++;
@@ -3001,7 +2999,6 @@ extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size
 extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
 					int pollmax, gasnetc_pollflag_t poll_type)
 {
-    gasnetc_chunk_t *p;
     int cnt = 0;
     int gotone = 0;
     
@@ -3037,11 +3034,11 @@ extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes,
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset)
 {
-    gasnetc_chunk_t *p = (gasnetc_chunk_t*)((uint8_t*)buf->start + offset);
+    void **p = (void**)((uint8_t*)buf->start + offset);
     gasneti_assert(buf->use_chunks);
     
     gasneti_mutex_lock(&buf->lock);
-    p->next = buf->freelist;
+    *p = buf->freelist;
     buf->freelist = p;
 #if GASNETI_STATS_OR_TRACE
     buf->inuse--;

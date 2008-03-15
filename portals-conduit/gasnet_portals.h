@@ -680,18 +680,6 @@ extern char* ptl_event_str[];
 #endif
 
 /* -----------------------------------------------------------------------------------
- * Used in simple chunk allocator for gasnetc_PtlBuffer_t objects below.
- * The buffer space is decomposed into disjoint chunks.  A chunk on the
- * free list has its first sizeof(void*) bytes, the location of the next
- * chunk on the list.
- * Access to the free list is controlled by a mutex.
- * NOTE: Only ReqSB and RplSB objects are controlled by
- * chunk allocation, others are not.
- */
-typedef union _gasnetc_chunk {
-    uint8_t chunk[GASNETC_CHUNKSIZE];
-    union _gasnetc_chunk *next;
-} gasnetc_chunk_t;
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
@@ -707,11 +695,12 @@ typedef struct {
 					* actively using buffer */
 
   /* The following fields are only used in the case of a chunk allocator */
+  /* NOTE: Only ReqSB and RplSB objects are controlled by chunk allocation, others are not. */
   gasneti_mutex_t      lock;           /* locks access to chunk allocator freelist */
   int numchunks;                       /* number of chunks in buffer */
   int inuse;                           /* number of chunks currently in use */
   int hwm;                             /* High water mark of chunk use */
-  gasnetc_chunk_t *freelist;           /* chunk freelist */
+  void **freelist;                     /* chunk freelist */
 } gasnetc_PtlBuffer_t;
 
 /* Thread local data

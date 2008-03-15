@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/firehose_fwd.h,v $
- *     $Date: 2008/02/08 02:37:49 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/03/15 01:43:19 $
+ * $Revision: 1.1.2.2 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -30,11 +30,5 @@ typedef ptl_handle_md_t firehose_client_t;
 typedef int firehose_remotecallback_args_t;
 
 #define FIREHOSE_REMOTE_CALLBACK_IN_HANDLER
-
-/* Setup conduit-specific region parameters
- * XXX: guessing 128MB to start with
- */
-#define FIREHOSE_CLIENT_MAXREGIONS	1024
-#define FIREHOSE_CLIENT_MAXREGION_SIZE	131072
 
 #endif
