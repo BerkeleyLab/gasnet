@@ -4123,7 +4123,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   /* Issue Ptl Put operation */
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, nbytes, PTL_ACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, match_bits, remote_offset, hdr_data));
 
-  return len;
+  return nbytes;
 }
 
 /* Need a special signal handler for Catamount, cant even do I/O in signal context.
