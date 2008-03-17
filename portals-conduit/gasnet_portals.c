@@ -4157,3 +4157,31 @@ void gasnetc_portalsSignalHandler(int sig) {
   }
 }
 
+/* ------------------------------------------------------------------------------------ */
+/* Firehose bits */
+
+#if GASNETC_FIREHOSE_LOCAL /* || GASNETC_FIREHOSE_REMOTE */
+
+extern int
+firehose_move_callback(gasnet_node_t node,
+                       const firehose_region_t *unpin_list,
+                       size_t unpin_num,
+                       firehose_region_t *pin_list,
+                       size_t pin_num)
+{
+    /* DO NOTHING.  IF WE GET CALLED WE COMPLAIN. */
+    gasneti_fatalerror("firehose_move_callback() is not yet implemented");
+    return -1;
+}
+
+extern int
+firehose_remote_callback(gasnet_node_t node,
+                         const firehose_region_t *pin_list, size_t num_pinned,
+                         firehose_remotecallback_args_t *args)
+{
+    /* DO NOTHING.  IF WE GET CALLED WE COMPLAIN. */
+    gasneti_fatalerror("invalid attempted to call firehose_remote_callback()");
+    return -1;
+}
+
+#endif /* GASNETC_FIREHOSE_LOCAL || GASNETC_FIREHOSE_REMOTE */
