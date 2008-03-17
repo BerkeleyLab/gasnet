@@ -3966,6 +3966,25 @@ extern void gasnetc_ptl_trace_finish(void)
 }
 
 /* ------------------------------------------------------------------------------------
+ * Firehose helper(s)
+ */
+
+#if GASNETC_FIREHOSE_LOCAL /* || GASNETC_FIREHOSE_REMOTE */
+
+/* XXX: need to use full self-aligning version from vapi-conduit */
+GASNETI_INLINE(gasnetc_fh_aligned_len)
+size_t gasnetc_fh_aligned_len(uintptr_t start, size_t len) {
+  size_t limit = gasnetc_firehose_info.max_LocalPinSize - (start & (GASNET_PAGESIZE - 1));
+  return MIN(len, limit);
+}
+
+#else /* GASNETC_FIREHOSE_LOCAL || GASNETC_FIREHOSE_REMOTE */
+
+#define gasnetc_fh_aligned_len(_start,_len) (_len)
+
+#endif /* GASNETC_FIREHOSE_LOCAL || GASNETC_FIREHOSE_REMOTE */
+
+/* ------------------------------------------------------------------------------------
  * This function does the actual Portals Get operation for the extended API Get
  * operations.
  * dest       => Address of destination
@@ -4027,6 +4046,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else {
     /* alloc a temp md for the destination region */
+    nbytes = gasnetc_fh_aligned_len((uintptr_t)dest, nbytes);
     md_h = gasnetc_alloc_tmpmd_withpoll(dest, nbytes);
     local_offset = 0;
     GASNETI_TRACE_EVENT(C, GET_TMPMD);
@@ -4107,6 +4127,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
     /* alloc a temp md for the source region */
+    nbytes = gasnetc_fh_aligned_len((uintptr_t)src, nbytes);
     md_h = gasnetc_alloc_tmpmd_withpoll(src, nbytes);
     local_offset = 0;
     if (! isbulk) *wait_lcc = 1;
