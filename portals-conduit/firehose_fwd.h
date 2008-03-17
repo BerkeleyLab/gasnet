@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/firehose_fwd.h,v $
- *     $Date: 2008/03/15 01:43:19 $
- * $Revision: 1.1.2.2 $
- * Description: Configuration of firehose code to fit vapi-conduit
+ *     $Date: 2008/03/17 00:58:01 $
+ * $Revision: 1.1.2.3 $
+ * Description: Configuration of firehose code to fit portals-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
  */
