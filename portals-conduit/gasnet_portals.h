@@ -1027,4 +1027,39 @@ uint32_t gasnetc_new_lid(gasnet_node_t dest)
   return gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
 }
 
+/* ----------------------------------------------------------------------------
+ * Firehose bits
+ */
+
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+  #define GASNETC_FIREHOSE_LOCAL 1
+#else
+  #define GASNETC_FIREHOSE_LOCAL 0
+#endif
+
+#if GASNETC_FIREHOSE_LOCAL /* || GASNETC_FIREHOSE_REMOTE */
+
+#include <firehose.h>
+extern int gasnetc_use_firehose;
+extern firehose_info_t gasnetc_firehose_info;
+
+/* A "handle" on a firehose request.
+ * Used for compact encoding in the upper match bits
+ */
+#if GASNETC_FIREHOSE_LOCAL
+  #define GASNETC_FH_PER_OP	1
+#elif GASNETC_FIREHOSE_REMOTE
+  #define GASNETC_FH_PER_OP	2
+#endif
+typedef struct _gasnetc_fh_op_t {
+  const firehose_request_t	*fh[GASNETC_FH_PER_OP]; /* shared w/ freelist's next ptr */
+  gasnete_opaddr_t		addr;
+} gasnetc_fh_op_t;
+
+extern gasnetc_fh_op_t *gasnetc_fh_new(void);
+extern void gasnetc_fh_free(uint16_t fulladdr);
+
+#endif /* GASNETC_FIREHOSE_LOCAL  || GASNETC_FIREHOSE_REMOTE */
+
+
 #endif

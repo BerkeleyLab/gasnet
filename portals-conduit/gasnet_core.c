@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/03/17 01:03:42 $
- * $Revision: 1.12.2.2 $
+ *     $Date: 2008/03/17 21:22:50 $
+ * $Revision: 1.12.2.3 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -25,23 +25,6 @@ static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
-
-#if GASNETC_FIREHOSE_LOCAL /* || GASNETC_FIREHOSE_REMOTE */
-  /* XXX: Need dynamic discovery of limits, but bug 2053 makes that problematic.
-   * For development/testing we'll use 1024 regions of length 128KB.
-   * That should be sufficiently small usage (128MB worst case) to not crash.
-   */
-  #ifndef GASNETC_FIREHOSE_MAXREGIONS
-    #define GASNETC_FIREHOSE_MAXREGIONS 1024
-  #endif
-  #ifndef GASNETC_FIREHOSE_MAXREGION_SIZE
-    #define GASNETC_FIREHOSE_MAXREGION_SIZE (128*1024)
-  #endif
-
-  int gasnetc_use_firehose;
-  firehose_info_t gasnetc_firehose_info;
-#endif
-
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -325,19 +308,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */
   /* This was done by segmentAttach above */
-
-  /* ------------------------------------------------------------------------------------ */
-
-  /* Initialize firehose */
-  #if GASNETC_FIREHOSE_LOCAL
-  gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
-  if (gasnetc_use_firehose) {
-    size_t firehose_mem = GASNETC_FIREHOSE_MAXREGIONS * GASNETC_FIREHOSE_MAXREGION_SIZE;
-
-    firehose_init(firehose_mem, GASNETC_FIREHOSE_MAXREGIONS, GASNETC_FIREHOSE_MAXREGION_SIZE,
-                  NULL, 0, FIREHOSE_INIT_FLAG_LOCAL_ONLY, &gasnetc_firehose_info);
-  }
-  #endif
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
