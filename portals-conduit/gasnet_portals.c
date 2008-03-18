@@ -164,18 +164,19 @@ uint32_t gasnetc_amseqno = 0;
 /* Firehose stuff */
 
 /* XXX: Need dynamic discovery of limits, but bug 2053 makes that problematic.
- * For development/testing we'll use regions of length 128KB and will let
- * max_tmpmd control the max region count.
+ * For now we'll use 1024 regions of maximum length 128K.
  * That should be sufficiently small usage (128MB worst case) to not crash.
  */
 #ifndef GASNETC_FIREHOSE_MAXREGIONS
-  #define GASNETC_FIREHOSE_MAXREGIONS gasnetc_max_tmpmd
+  #define GASNETC_FIREHOSE_MAXREGIONS 1024
 #endif
 #ifndef GASNETC_FIREHOSE_MAXREGION_SIZE
   #define GASNETC_FIREHOSE_MAXREGION_SIZE (128*1024)
 #endif
 
-int gasnetc_use_firehose;
+#if GASNET_DEBUG
+  int gasnetc_use_firehose;
+#endif
 firehose_info_t gasnetc_firehose_info;
 
 /* =================================================================================
@@ -3747,7 +3748,9 @@ extern void gasnetc_init_portals_resources(void)
 
   /* Initialize firehose */
   #if GASNETC_FIREHOSE_LOCAL
+  #if GASNET_DEBUG /* Always ON in an opt build (avoids branches) */
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
+  #endif
   if (gasnetc_use_firehose) {
     size_t firehose_mem = GASNETC_FIREHOSE_MAXREGIONS * GASNETC_FIREHOSE_MAXREGION_SIZE;
 
@@ -4328,14 +4331,13 @@ gasnetc_fh_op_t *gasnetc_fh_new(void) {
 
   GASNETI_TRACE_EVENT(C, FH_OP_ALLOC);
 
-  /* First allocate the ticket.
-   * XXX: Should the tickets go away eventually?
-   */
-  while (! gasnetc_alloc_ticket(&gasnetc_tmpmd_tickets)) {
+  result = gasneti_lifo_pop(&gasnetc_fh_freelist);
+
+  if_pf (result == NULL) { /*  free list empty - try polling ONCE */
     gasnetc_portals_poll(GASNETC_SAFE_POLL);
+    result = gasneti_lifo_pop(&gasnetc_fh_freelist);
   }
 
-  result = gasneti_lifo_pop(&gasnetc_fh_freelist);
   if_pf (result == NULL) { /*  free list empty - need more fh ops */
     gasneti_mutex_lock(&gasnetc_fh_buffer_lock);
 
@@ -4349,23 +4351,31 @@ gasnetc_fh_op_t *gasnetc_fh_new(void) {
 
       GASNETI_TRACE_EVENT(C, FH_OP_ALLOC_BUF);
 
-      if (bufidx == 256) gasneti_fatalerror("GASNet API: Ran out of fh op handles (limit=65536)");
-      ++gasnetc_fh_buffer_cnt;
+      if (bufidx != 256) {
+        ++gasnetc_fh_buffer_cnt;
 
-      buf = (gasnetc_fh_op_t *)gasneti_calloc(256,sizeof(gasnetc_fh_op_t));
-      for (i=0; i < 256; i++) {
-        gasnete_opaddr_t addr;
-        addr.bufferidx = bufidx;
-        addr.opidx = i;
-        buf[i].addr = addr;
-        gasneti_lifo_link(buf+i, buf+i+1); /* bogus final link ptr is harmless */
+        buf = (gasnetc_fh_op_t *)gasneti_calloc(256,sizeof(gasnetc_fh_op_t));
+        for (i=0; i < 256; i++) {
+          gasnete_opaddr_t addr;
+          addr.bufferidx = bufidx;
+          addr.opidx = i;
+          buf[i].addr = addr;
+          gasneti_lifo_link(buf+i, buf+i+1); /* bogus final link ptr is harmless */
+        }
+        gasneti_lifo_push_many(&gasnetc_fh_freelist, buf+1, buf+255); /* push all but 1st */
+        gasnetc_fh_buffer_tbl[bufidx] = buf;
+        result = buf+0; /* keep 1st for ourselves */
       }
-      gasneti_lifo_push_many(&gasnetc_fh_freelist, buf+1, buf+255); /* push all but 1st */
-      gasnetc_fh_buffer_tbl[bufidx] = buf;
-      result = buf+0; /* keep 1st for ourselves */
     }
 
     gasneti_mutex_unlock(&gasnetc_fh_buffer_lock);
+  }
+
+  if_pf (result == NULL) { /*  free STILL list empty - (full) poll forever */
+    do {
+      gasneti_AMPoll();
+      result = gasneti_lifo_pop(&gasnetc_fh_freelist);
+    } while (result == NULL);
   }
 
   return result;
@@ -4388,5 +4398,4 @@ void gasnetc_fh_free(uint16_t fulladdr) {
   #error "Unknown/invalid GASNETC_FH_PER_OP"
 #endif
   gasneti_lifo_push(&gasnetc_fh_freelist, op);
-  gasnetc_return_ticket(&gasnetc_tmpmd_tickets);
 }
