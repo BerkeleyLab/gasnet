@@ -4064,6 +4064,17 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
     GASNETI_TRACE_EVENT(C, GET_RAR);
+  } else if_pt (gasnetc_use_firehose) {
+    /* alloc a firehose for the destination region */
+    gasnetc_fh_op_t *op = gasnetc_fh_new();
+    size_t ask_bytes = gasnetc_fh_aligned_len((uintptr_t)dest, nbytes);
+    const firehose_request_t *fh_loc = firehose_local_pin((uintptr_t)dest, ask_bytes, NULL);
+    op->fh[0] = fh_loc;
+    md_h = fh_loc->client;
+    local_offset = (uintptr_t)dest - fh_loc->addr;
+    nbytes = MIN(nbytes, (fh_loc->len - local_offset));
+    match_bits |= ((uint64_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
+    GASNETI_TRACE_EVENT(C, GET_FH);
   } else if ( (nbytes <= gasnetc_get_bounce_limit)  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB, nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     /* Encode dest addr in BB chunk for later copy */
@@ -4077,17 +4088,6 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset += sizeof(void*);
     match_bits |= ((uint64_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, GET_BB);
-  } else if_pt (gasnetc_use_firehose) {
-    /* alloc a firehose for the destination region */
-    gasnetc_fh_op_t *op = gasnetc_fh_new();
-    size_t ask_bytes = gasnetc_fh_aligned_len((uintptr_t)dest, nbytes);
-    const firehose_request_t *fh_loc = firehose_local_pin((uintptr_t)dest, ask_bytes, NULL);
-    op->fh[0] = fh_loc;
-    md_h = fh_loc->client;
-    local_offset = (uintptr_t)dest - fh_loc->addr;
-    nbytes = MIN(nbytes, (fh_loc->len - local_offset));
-    match_bits |= ((uint64_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
-    GASNETI_TRACE_EVENT(C, GET_FH);
   } else {
     /* alloc a temp md for the destination region */
     md_h = gasnetc_alloc_tmpmd_withpoll(dest, nbytes);
@@ -4157,17 +4157,6 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
     if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_RAR);
-  } else if ( (nbytes <= gasnetc_put_bounce_limit)  &&
-	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
-    void* bb;
-    md_h = gasnetc_ReqSB.md_h;
-    /* get the addr of the start of the chunk */
-    bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
-    /* copy the src data to the bounce buffer */
-    memcpy(bb,src,nbytes);
-    /* store the local offset in the upper bits of the match bits */
-    match_bits |= ((uint64_t)local_offset << 32);
-    GASNETI_TRACE_EVENT(C, PUT_BB);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the source region */
     gasnetc_fh_op_t *op = gasnetc_fh_new();
@@ -4180,6 +4169,17 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     if (! isbulk) *wait_lcc = 1;
     match_bits |= ((uint64_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
     GASNETI_TRACE_EVENT(C, PUT_FH);
+  } else if ( (nbytes <= gasnetc_put_bounce_limit)  &&
+	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
+    void* bb;
+    md_h = gasnetc_ReqSB.md_h;
+    /* get the addr of the start of the chunk */
+    bb = ((uint8_t*)gasnetc_ReqSB.start + local_offset);
+    /* copy the src data to the bounce buffer */
+    memcpy(bb,src,nbytes);
+    /* store the local offset in the upper bits of the match bits */
+    match_bits |= ((uint64_t)local_offset << 32);
+    GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
     /* alloc a temp md for the source region */
     md_h = gasnetc_alloc_tmpmd_withpoll(src, nbytes);
