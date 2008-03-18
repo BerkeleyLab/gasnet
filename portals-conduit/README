@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.12.2.2 $
+$Revision: 1.12.2.3 $
 
 User Information:
 -----------------
@@ -92,10 +92,13 @@ GASNET_PORTAL_MSG_LIMIT=N
 GASNET_PORTAL_NUM_TMPMD=N
   Specifies the number of temporary memory descriptors that can be allocated
   at any time.  The default value is 1024.
-  Temporary MDs are allocated when a Put or Get operation is initiated, the
-  message is larger than what would fit into a Request chunk (bounce buffer)
-  and the memory for the source of the Put or dest of the Get is not already
-  pinned (eg. if it were in the local segment).
+  Temporary MDs are allocated when the payload of a Long lies outside the
+  GASNet segment and is too large to "pack" into a Request chunk together
+  with the AM arguments and metadata.  See also GASNET_PORTAL_PACKED_LONG.
+  If firehose is disabled (debug builds only) Temporary MDs are also allocated
+  for Put or Get operations with local addresses (src for Put, dest for get)
+  outside the GASNet segment and length too large for a Request chunk (bounce
+  buffer).  See also GASNET_PORTAL_PUTGET_BOUNCE_LIMIT.
 
 GASNET_PORTAL_PACKED_LONG=N
   If N=0, this turns off the ability to pack short-payload AM Long messages
@@ -190,6 +193,7 @@ GASNET_PORTAL_PUTGET_BOUNCE_LIMIT=N
   (The Gets require sizeof(void*) of additional temporary storage, which will
   be silently deducted from this limit if the sum would otherwise exceed the
   chunk size.)
+  This parameter has no effect unless firehose is disabled (debug builds only).
 
 * All the standard GASNet environment variables (see top-level README)
 
