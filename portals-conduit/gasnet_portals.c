@@ -4010,11 +4010,21 @@ extern void gasnetc_ptl_trace_finish(void)
  * Firehose helper(s)
  */
 
-/* XXX: need to use full self-aligning version from vapi-conduit */
+/* This limits the amount we ask for in a firehose_{local,remote}_pin() call,
+ * to ensure that after rounding up to page boundaries, we don't exceed the max.
+ */
 GASNETI_INLINE(gasnetc_fh_aligned_len)
 size_t gasnetc_fh_aligned_len(uintptr_t start, size_t len) {
   size_t limit = gasnetc_firehose_info.max_LocalPinSize - (start & (GASNET_PAGESIZE - 1));
   return MIN(len, limit);
+}
+
+GASNETI_INLINE(gasnetc_fh_aligned_local_pin)
+gasnetc_fh_op_t *gasnetc_fh_aligned_local_pin(uintptr_t start, size_t len) {
+  gasnetc_fh_op_t *op = gasnetc_fh_new();
+  size_t ask_bytes = gasnetc_fh_aligned_len(start, len);
+  op->fh[0] = firehose_local_pin(start, ask_bytes, NULL);
+  return op;
 }
 
 /* ------------------------------------------------------------------------------------
@@ -4066,10 +4076,8 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, GET_RAR);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the destination region */
-    gasnetc_fh_op_t *op = gasnetc_fh_new();
-    size_t ask_bytes = gasnetc_fh_aligned_len((uintptr_t)dest, nbytes);
-    const firehose_request_t *fh_loc = firehose_local_pin((uintptr_t)dest, ask_bytes, NULL);
-    op->fh[0] = fh_loc;
+    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin((uintptr_t)dest, nbytes);
+    const firehose_request_t *fh_loc = op->fh[0];
     md_h = fh_loc->client;
     local_offset = (uintptr_t)dest - fh_loc->addr;
     nbytes = MIN(nbytes, (fh_loc->len - local_offset));
@@ -4159,10 +4167,8 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, PUT_RAR);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the source region */
-    gasnetc_fh_op_t *op = gasnetc_fh_new();
-    size_t ask_bytes = gasnetc_fh_aligned_len((uintptr_t)src, nbytes);
-    const firehose_request_t *fh_loc = firehose_local_pin((uintptr_t)src, ask_bytes, NULL);
-    op->fh[0] = fh_loc;
+    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin((uintptr_t)src, nbytes);
+    const firehose_request_t *fh_loc = op->fh[0];
     md_h = fh_loc->client;
     local_offset = (uintptr_t)src - fh_loc->addr;
     nbytes = MIN(nbytes, (fh_loc->len - local_offset));
