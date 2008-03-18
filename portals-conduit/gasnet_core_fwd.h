@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2008/02/01 22:14:27 $
- * $Revision: 1.10 $
+ *     $Date: 2008/03/18 00:07:11 $
+ * $Revision: 1.10.2.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -51,6 +51,9 @@
         CNT(C, CHUNK_FREE, count)               \
         CNT(C, TMPMD_ALLOC, count)              \
         CNT(C, TMPMD_FREE, count)               \
+        CNT(C, FH_OP_ALLOC_BUF, count)          \
+        CNT(C, FH_OP_ALLOC, count)              \
+        CNT(C, FH_OP_FREE, count)               \
         CNT(C, MSG_THROTTLE, count)             \
         CNT(C, CREDIT_THROTTLE, count)		\
         CNT(C, TMPMD_THROTTLE, count)		\
@@ -59,10 +62,15 @@
         CNT(C, END_EPOCH, count)		\
 	CNT(C, GET_RAR, count)                  \
 	CNT(C, GET_BB, count)                   \
+	CNT(C, GET_FH, count)                   \
 	CNT(C, GET_TMPMD, count)                \
 	CNT(C, PUT_RAR, count)                  \
 	CNT(C, PUT_BB, count)                   \
+	CNT(C, PUT_FH, count)                   \
 	CNT(C, PUT_TMPMD, count)                \
+	TIME(C, FIREHOSE_MOVE, processing time) \
+	VAL(C, FIREHOSE_PIN, pages)             \
+	VAL(C, FIREHOSE_UNPIN, pages)           \
         VAL(C, EVENT_REAP, numreaped)
 
 #endif
