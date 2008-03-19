@@ -4066,13 +4066,11 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     }
   }
 
-  /* Trim */
-  nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
-
   /* Determine destination MD for Ptl Get */
   if (gasnetc_in_local_rar(dest,nbytes)) {
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
+    nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     GASNETI_TRACE_EVENT(C, GET_RAR);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the destination region */
@@ -4098,6 +4096,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else {
     /* alloc a temp md for the destination region */
+    nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     md_h = gasnetc_alloc_tmpmd_withpoll(dest, nbytes);
     local_offset = 0;
     GASNETI_TRACE_EVENT(C, GET_TMPMD);
@@ -4156,13 +4155,11 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     }
   }
 
-  /* Trim */
-  nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
-
   /* Determine source MD for Ptl Put */
   if (gasnetc_in_local_rar(src,nbytes)) {
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
+    nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_RAR);
   } else if_pt (gasnetc_use_firehose) {
@@ -4188,6 +4185,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
     /* alloc a temp md for the source region */
+    nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     md_h = gasnetc_alloc_tmpmd_withpoll(src, nbytes);
     local_offset = 0;
     if (! isbulk) *wait_lcc = 1;
