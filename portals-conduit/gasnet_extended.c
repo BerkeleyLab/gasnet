@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2008/03/18 00:07:11 $
- * $Revision: 1.10.16.3 $
+ *     $Date: 2008/03/19 20:48:58 $
+ * $Revision: 1.10.16.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -659,7 +659,8 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
 #else
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  if (nbytes <= gasnete_max_get_single) {
+  if ((nbytes <= gasnete_max_get_single) ||
+      (gasnetc_in_local_rar(dest,nbytes) && (nbytes <= GASNETC_PTL_MAX_TRANS_SZ))) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
     ptl_match_bits_t match_bits = 0UL;
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_GET;
@@ -686,7 +687,8 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
 GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  if (nbytes <= gasnete_max_put_single) {
+  if ((nbytes <= gasnete_max_put_single) ||
+      (gasnetc_in_local_rar(src,nbytes) && (nbytes <= GASNETC_PTL_MAX_TRANS_SZ))) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *op = gasnete_eop_new(mythread);
     ptl_match_bits_t match_bits = 0ULL;
