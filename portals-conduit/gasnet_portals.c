@@ -4119,16 +4119,13 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
  * src        => Address of message source
  * nbytes     => Length of message
  * match_bits => Destination MD, may be modified in case of wait_lcc or fh
- * isbulk     => Is this an extended API BULK Put?
- * wait_lcc   => Tells caller to wait for local completion flag
- *               Important: initialized by sender, only modify if must wait for local compl.
- * lcc        => Pointer to weakatomic that we increment before posting Put
+ * lcc        => Pointer to weakatomic counter of pending local completions (or NULL).
  * pollflag   => What type of polling to allow before Put operation is posted.
  *
  * Returns the number of bytes actually initiated
  * --------------------------------------------------------------------------------- */
 size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
-		    ptl_match_bits_t match_bits, int isbulk, int *wait_lcc, gasneti_weakatomic_t *lcc,
+		    ptl_match_bits_t match_bits, gasneti_weakatomic_t *lcc,
 		    gasnetc_pollflag_t pollflag)
 {
   ptl_size_t local_offset = 0;
@@ -4137,6 +4134,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   ptl_process_id_t target_id = gasnetc_procid_map[node].ptl_id;
   ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
   ptl_hdr_data_t hdr_data = 0;
+  int inc_lcc = (lcc != NULL);
   
   gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
 
@@ -4160,7 +4158,6 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = gasnetc_RARSRC.md_h;
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
     nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
-    if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_RAR);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the source region */
@@ -4169,7 +4166,6 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = fh_loc->client;
     local_offset = (uintptr_t)src - fh_loc->addr;
     nbytes = MIN(nbytes, (fh_loc->len - local_offset));
-    if (! isbulk) *wait_lcc = 1;
     match_bits |= ((uint64_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
     GASNETI_TRACE_EVENT(C, PUT_FH);
   } else if ( (nbytes <= gasnetc_put_bounce_limit)  &&
@@ -4182,17 +4178,18 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     memcpy(bb,src,nbytes);
     /* store the local offset in the upper bits of the match bits */
     match_bits |= ((uint64_t)local_offset << 32);
+    inc_lcc = 0; /* Already completed locally */ 
     GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
     /* alloc a temp md for the source region */
     nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     md_h = gasnetc_alloc_tmpmd_withpoll(src, nbytes);
     local_offset = 0;
-    if (! isbulk) *wait_lcc = 1;
     GASNETI_TRACE_EVENT(C, PUT_TMPMD);
   }
-  if (*wait_lcc) {
+  if (inc_lcc) {
     /* increment local completion flag and indicate to event handler to decrement */
+    gasneti_assert(lcc != NULL);
     gasneti_weakatomic_increment(lcc, 0);
     match_bits |= GASNETC_PTL_MSG_DOLC;
   }

@@ -833,8 +833,8 @@ extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
 extern size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
 extern size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
-			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc,
-			   gasneti_weakatomic_t *lcc, gasnetc_pollflag_t pollflag);
+			   ptl_match_bits_t match_bits, gasneti_weakatomic_t *lcc,
+			   gasnetc_pollflag_t pollflag);
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 				int32_t arg0, int32_t arg1, int32_t arg2);
 extern void gasnetc_sys_barrier(void);

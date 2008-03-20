@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2008/03/19 20:48:58 $
- * $Revision: 1.10.16.4 $
+ *     $Date: 2008/03/20 21:25:23 $
+ * $Revision: 1.10.16.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -693,7 +693,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     gasnete_eop_t *op = gasnete_eop_new(mythread);
     ptl_match_bits_t match_bits = 0ULL;
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
-    int wait_for_local_completion = 0;
+    gasneti_weakatomic_t *lcc = isbulk ? (gasneti_weakatomic_t *)NULL : &(mythread->local_completion_count);
 
     gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
 
@@ -701,16 +701,15 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
     /* send the message, polling first if necessary */
     gasnetc_assert_value(nbytes,
-    gasnetc_putmsg(dest,node,src,nbytes,match_bits,isbulk, &wait_for_local_completion,
-		   &(mythread->local_completion_count), GASNETC_FULL_POLL));
+    gasnetc_putmsg(dest,node,src,nbytes,match_bits,lcc,GASNETC_FULL_POLL));
     
     /* full poll after sending a message */
     gasneti_AMPoll();
 
-    /* poll here for local completion in non-bulk or non-bb case */
-    if (wait_for_local_completion) {
-      gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) ); 
-   }
+    /* poll here for local completion in non-bulk / non-bb case */
+    if (lcc != NULL) {
+      gasneti_pollwhile( gasneti_weakatomic_read(lcc, 0) ); 
+    }
 
     return (gasnet_handle_t)op;
 
@@ -971,9 +970,9 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   ptl_match_bits_t match_bits = 0ULL;
-  int wait_for_local_completion = 0;
   ptl_hdr_data_t hdr_data = 0;
   uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
+  gasneti_weakatomic_t *lcc = isbulk ? (gasneti_weakatomic_t *)NULL : &(mythread->local_completion_count);
 
   gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
  
@@ -983,8 +982,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   /* Max transfer size is large, this loop will almost always execute exactly once */
   while (nbytes) {
     /* Issue Ptl Put operation */
-    size_t toput = gasnetc_putmsg(dest,node,src,nbytes,match_bits,isbulk,&wait_for_local_completion,
-		   &(mythread->local_completion_count), GASNETC_FULL_POLL);
+    size_t toput = gasnetc_putmsg(dest,node,src,nbytes,match_bits,lcc,GASNETC_FULL_POLL);
     op->initiated_put_cnt++;
 
     gasneti_assert(toput > 0);
@@ -998,11 +996,10 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     gasneti_AMPoll();
   }
 
-  /* poll here for local completion in non-bulk or non-bb case */
-  if (wait_for_local_completion) {
-    gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
+  /* poll here for local completion in non-bulk / non-bb case */
+  if (lcc != NULL) {
+    gasneti_pollwhile( gasneti_weakatomic_read(lcc,0) );
   }
-
 }
 #endif
 
