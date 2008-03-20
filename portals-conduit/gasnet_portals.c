@@ -3810,6 +3810,9 @@ extern void gasnetc_portals_exit()
 #if DO_CLEANUP_PORTALS
   {
     ptl_event_t ev;
+
+    firehose_fini();
+
     sys_exit();
 
     RplSB_exit();
