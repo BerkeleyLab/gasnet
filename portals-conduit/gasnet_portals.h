@@ -824,7 +824,6 @@ extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 extern void gasnetc_init_portals_resources(void);
-extern void gasnetc_portals_preexit(int do_trace);
 extern void gasnetc_portals_exit();
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);

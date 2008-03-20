@@ -3770,6 +3770,7 @@ extern void gasnetc_init_portals_resources(void)
 #endif
 }
 
+#if 0
 /* ---------------------------------------------------------------------------------
  * Pre-exit function
  * Attempts to poll until all local resources have been reclaimed,
@@ -3794,6 +3795,7 @@ extern void gasnetc_portals_preexit(int do_trace)
     iter++;
   } 
 }
+#endif
 
 /* ---------------------------------------------------------------------------------
  * Release Portals resources
