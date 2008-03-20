@@ -4027,6 +4027,28 @@ gasnetc_fh_op_t *gasnetc_fh_aligned_local_pin(uintptr_t start, size_t len) {
   return op;
 }
 
+GASNETI_INLINE(gasnetc_send_ticket_stall)
+void gasnetc_send_ticket_stall(gasnetc_pollflag_t pollflag) {
+  while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
+#if 1 /* Currently all callers use GASNETC_FULL_POLL */
+    gasneti_assert(pollflag == GASNETC_FULL_POLL);
+    gasneti_AMPoll();
+#else    
+    switch (pollflag) {
+    case GASNETC_NO_POLL:
+      gasneti_fatalerror("gasnetc_(get|put)msg: msg limit but NO_POLL allowed");
+      break;
+    case GASNETC_SAFE_POLL:
+      gasnetc_portals_poll(pollflag);
+      break;
+    case GASNETC_FULL_POLL:
+      gasneti_AMPoll();
+      break;
+    }
+#endif
+  }
+}
+
 /* ------------------------------------------------------------------------------------
  * This function does the actual Portals Get operation for the extended API Get
  * operations.
@@ -4052,19 +4074,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
 
   /* stall here if too many puts/gets in progress */
-  while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
-    switch (pollflag) {
-    case GASNETC_NO_POLL:
-      gasneti_fatalerror("gasnetc_getmsg: msg limit but NO_POLL allowed");
-      break;
-    case GASNETC_SAFE_POLL:
-      gasnetc_portals_poll(pollflag);
-      break;
-    case GASNETC_FULL_POLL:
-      gasneti_AMPoll();
-      break;
-    }
-  }
+  gasnetc_send_ticket_stall(pollflag);
 
   /* Determine destination MD for Ptl Get */
   if (gasnetc_in_local_rar(dest,nbytes)) {
@@ -4139,19 +4149,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
   gasneti_assert(remote_offset >= 0 && remote_offset < gasneti_seginfo[node].size);
 
   /* stall here if too many puts/gets in progress */
-  while( !gasnetc_alloc_ticket(&gasnetc_send_tickets) ) {
-    switch (pollflag) {
-    case GASNETC_NO_POLL:
-      gasneti_fatalerror("gasnetc_putmsg: msg limit but NO_POLL allowed");
-      break;
-    case GASNETC_SAFE_POLL:
-      gasnetc_portals_poll(pollflag);
-      break;
-    case GASNETC_FULL_POLL:
-      gasneti_AMPoll();
-      break;
-    }
-  }
+  gasnetc_send_ticket_stall(pollflag);
 
   /* Determine source MD for Ptl Put */
   if (gasnetc_in_local_rar(src,nbytes)) {
