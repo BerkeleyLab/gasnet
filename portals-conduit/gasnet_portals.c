@@ -1114,10 +1114,11 @@ static void RARSRC_event(ptl_event_t *ev)
 }
 
 /* ---------------------------------------------------------------------------------
- * Handle events on Temporary Memory Descriptors.
- * Used only as local source of GASNet Put or dest of GASNet Get when not
- * in local RAR and too large to use bounce buffer (on no chunks available).
- *  SEND_END => Put (or Get) completed locally.
+ * Handle events on Temporary Memory Descriptors and/or Firehoses.
+ * Used as local md (source of Put or Long; or dest of Get) when not in
+ * local RAR and even then only if either firehose is enabled, or if we can't
+ * use bounce bufers (either size was too large or no chunks were available).
+ *  SEND_END => Put, Get or Long payload completed locally.
  *       ACK => Put completed, mark operation as done and free MD.
  * REPLY_END => Get completed, mark operation done and free MD.
  * --------------------------------------------------------------------------------- */
@@ -4375,9 +4376,9 @@ gasnetc_fh_op_t *gasnetc_fh_new(void) {
     gasneti_mutex_unlock(&gasnetc_fh_buffer_lock);
   }
 
-  if_pf (result == NULL) { /*  free STILL list empty - (full) poll forever */
+  if_pf (result == NULL) { /*  free list at max size but STILL empty - poll forever */
     do {
-      gasneti_AMPoll();
+      gasnetc_portals_poll(GASNETC_SAFE_POLL);
       result = gasneti_lifo_pop(&gasnetc_fh_freelist);
     } while (result == NULL);
   }
